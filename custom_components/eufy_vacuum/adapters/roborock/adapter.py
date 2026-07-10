@@ -124,6 +124,14 @@ def register_roborock_adapter_for_vacuum(
             {
                 "field": "water_level",
                 "rank": ["off", "low", "medium", "high"],
+                # The water/mop-intensity select is device-GLOBAL, so a mixed mop +
+                # vacuum-only batch (a single atomic dispatch) can't zero water per-room.
+                # Max-wins would wet-mop the dry rooms; "safest" flips a MIXED batch to the
+                # LOWEST requested water instead (a dry room is never wet-mopped — under-mop
+                # is accepted over wet-mop). A single-mode batch (all-mop / all-vacuum) keeps
+                # max-wins. Per-group stepped runs re-run this per phase from each group's own
+                # rooms, so a single-mode group is unaffected. See manager._run_global_pre_calls.
+                "mixed_mode_water_policy": "safest",
                 "service": {
                     "domain": DOMAIN_SELECT,
                     "service": "select_option",

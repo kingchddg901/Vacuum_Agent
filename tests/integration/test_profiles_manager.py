@@ -29,6 +29,13 @@ Coverage targets
 [PM-21] set_run_profile_steps: a room→charge→room sequence stores + flags has_charge_steps.
 [PM-22] set_run_profile_steps: steps with no room_group are rejected.
 [PM-23] set_run_profile_steps: unknown profile → profile_not_found.
+[PM-24] overwrite_run_profile clears the stale steps list so the new rooms win (Defect #3).
+[PM-25] has_stops flags a sequenced run (break step OR >1 room_group); charge-only stays
+        distinct from has_charge_steps; a plain single-group queue is has_stops=False (Defect #4b).
+[PM-26] normalize_run_profile_steps validates room_group entries: wraps a bare int, drops a
+        bad room_id, drops an all-malformed group (Defect #6a).
+[PM-27] a stepped edit re-derives room_count/ids/names from the effective steps, not the stale
+        profile["rooms"]; legacy rooms-only stays correct (Defect #7).
 """
 
 from __future__ import annotations
@@ -393,3 +400,106 @@ def test_overwrite_run_profile(pm):
     pm._data["maps"][_VAC][_MAP]["rooms"] = {}
     assert pm.overwrite_run_profile(
         vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)["reason"] == "no_rooms_selected"
+
+
+# ---------------------------------------------------------------------------
+# stepped-run enrichment + overwrite/steps reconciliation (Defects #3/#4b/#6a/#7)
+# ---------------------------------------------------------------------------
+
+def test_overwrite_run_profile_clears_stale_steps(pm):
+    """[PM-24] Defect #3: a profile that already carries a steps sequence, when
+    overwritten from a NEW enabled-room set, must not keep the stale steps — the
+    overwrite's rooms are what run/apply should clean. run_profile_steps prefers a
+    non-empty steps list, so a carried-forward one would silently clean the OLD rooms.
+    """
+    _seed_enabled_rooms(pm)  # rooms 1, 2 enabled
+    pid = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")["profile_id"]
+    # give the saved profile an explicit stepped sequence over the OLD rooms
+    pm.set_run_profile_steps(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid,
+        steps=[{"type": "room_group", "rooms": [{"room_id": 1}]},
+               {"type": "charge_wait", "target_battery_percent": 90},
+               {"type": "room_group", "rooms": [{"room_id": 2}]}])
+    # now the enabled set changes to a different room (7) and we overwrite
+    pm._data["maps"][_VAC][_MAP]["rooms"] = {
+        "7": {"room_id": 7, "name": "Office", "enabled": True, "order": 1}}
+    ok = pm.overwrite_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+    assert ok["overwritten"] is True
+    # stale steps are gone -> run_profile_steps back-fills a single group of the NEW room
+    stored = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)[pid]
+    assert stored["steps"] == []
+    effective = ProfileManager.run_profile_steps(stored)
+    assert effective == [{"type": "room_group", "rooms": [{"room_id": 7, "name": "Office",
+                          "profile_name": "vacuum_quick", "clean_mode": "vacuum",
+                          "fan_speed": "Max", "water_level": "Off",
+                          "clean_intensity": "Standard", "clean_passes": 1,
+                          "edge_mopping": False, "order": 1}]}]
+    # and the enriched view reports the NEW room, not the old 1/2
+    assert ok["profile"]["room_ids"] == [7]
+    assert ok["profile"]["has_charge_steps"] is False
+    assert ok["profile"]["has_stops"] is False
+
+
+def test_has_stops_flags_sequenced_runs(pm):
+    """[PM-25] Defect #4b: has_stops means "sequenced run, not a plain queue" — set by
+    any break step (charge_wait/wait) OR more than one room_group. It is DISTINCT from
+    the charge-only has_charge_steps, and a single-group queue is NOT a stop."""
+    # plain single-group queue -> not a stop, no charge
+    plain = pm._enrich_saved_run_profile("a", {"name": "Q", "rooms": [{"room_id": 1}, {"room_id": 2}]})
+    assert plain["has_stops"] is False and plain["has_charge_steps"] is False
+    # wait-only sequence -> a stop, but NOT a charge step
+    wait_only = pm._enrich_saved_run_profile("b", {"name": "W", "steps": [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "wait", "wait_minutes": 30},
+        {"type": "room_group", "rooms": [{"room_id": 2}]}]})
+    assert wait_only["has_stops"] is True and wait_only["has_charge_steps"] is False
+    # two room_groups, no break -> a stop (multi-phase run) even with no charge/wait
+    multi = pm._enrich_saved_run_profile("c", {"name": "M", "steps": [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "room_group", "rooms": [{"room_id": 2}]}]})
+    assert multi["has_stops"] is True and multi["has_charge_steps"] is False
+    # charge sequence -> both flags true
+    charge = pm._enrich_saved_run_profile("d", {"name": "C", "steps": [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 90},
+        {"type": "room_group", "rooms": [{"room_id": 2}]}]})
+    assert charge["has_stops"] is True and charge["has_charge_steps"] is True
+
+
+def test_normalize_steps_validates_room_group_room_ids(pm):
+    """[PM-26] Defect #6a: room_group entries are coerced — a bare int is wrapped, an
+    unparseable room_id is dropped, and an all-malformed group is dropped entirely so
+    dispatch never sees a room_id that would crash int()."""
+    out = ProfileManager.normalize_run_profile_steps([
+        {"type": "room_group", "rooms": [
+            5,                              # bare int -> wrapped
+            {"room_id": "7"},               # numeric string -> coerced to int
+            {"room_id": "kitchen"},         # non-numeric -> dropped
+            {"room_id": 0},                 # non-positive -> dropped
+            {"name": "no id"},              # missing room_id -> dropped
+        ]},
+        {"type": "room_group", "rooms": [{"room_id": "bad"}, "junk", {"room_id": -3}]},  # all bad -> whole group dropped
+    ])
+    assert out == [{"type": "room_group", "rooms": [{"room_id": 5}, {"room_id": 7}]}]
+
+
+def test_enrichment_derives_rooms_from_effective_steps(pm):
+    """[PM-27] Defect #7: after a stepped edit that rewrites steps (and leaves the stale
+    top-level rooms untouched), the enriched room_count/ids/names come from the EFFECTIVE
+    steps, not profile["rooms"]. Legacy rooms-only profiles stay correct (single group)."""
+    # profile still carries the OLD top-level rooms {1, 2}, but steps clean {3}
+    profile = {
+        "name": "Edited",
+        "rooms": [{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Bath"}],
+        "steps": [{"type": "room_group", "rooms": [{"room_id": 3, "name": "Office"}]}],
+    }
+    enriched = pm._enrich_saved_run_profile("p", profile)
+    assert enriched["room_ids"] == [3]
+    assert enriched["room_names"] == ["Office"]
+    assert enriched["room_count"] == 1
+    # legacy rooms-only profile: back-filled single group -> still reports its rooms
+    legacy = pm._enrich_saved_run_profile("q", {
+        "name": "Legacy", "rooms": [{"room_id": 4, "name": "Den"}, {"room_id": 5, "name": "Hall"}]})
+    assert legacy["room_ids"] == [4, 5]
+    assert legacy["room_names"] == ["Den", "Hall"]
+    assert legacy["room_count"] == 2

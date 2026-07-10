@@ -310,17 +310,18 @@ class ActiveJobTracker:
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
-        # A COMMANDED charge (a charge_wait phase) owns its own dock: the UNPLANNED
-        # mid-job recharge observer must not claim it, or the planned charge is
-        # double-counted as a battery-driven recharge and the sampler gets paused.
-        # The charge_wait phase tracks its own timing.
+        # A COMMANDED dock (a charge_wait OR a wait phase) owns its own dock: the UNPLANNED
+        # mid-job recharge observer must not claim it, or the planned dock is double-counted
+        # as a battery-driven recharge and the sampler gets paused. A wait phase ALSO docks
+        # (return_to_base) and the device auto-charges while parked, so a low-battery wait-dock
+        # would otherwise be logged as a phantom unplanned recharge. Both own their own timing.
         _rc_phases = active_job.get("phases")
         if isinstance(_rc_phases, list):
             _rc_idx = _safe_int(active_job.get("current_phase_index"), -1)
             if (
                 0 <= _rc_idx < len(_rc_phases)
                 and isinstance(_rc_phases[_rc_idx], dict)
-                and str(_rc_phases[_rc_idx].get("phase_type") or "") == "charge_wait"
+                and str(_rc_phases[_rc_idx].get("phase_type") or "") in ("charge_wait", "wait")
             ):
                 return active_job
 
@@ -2162,8 +2163,17 @@ class ActiveJobTracker:
             map_id=map_id,
         )
         # NB: the strict-order dispatch guard was already released on PAUSE
-        # (pause_active_job clears _phase_dispatch_pending), so resume runs guard-free
-        # and the completion gate advances normally — no watchdog re-arm needed here.
+        # (pause_active_job clears _phase_dispatch_pending), so a ROOM-group phase
+        # resumes guard-free and the completion gate advances normally.
+        #
+        # A charge_wait / wait phase is different: its ONLY driver is an in-memory poller
+        # task, and pause+resume re-arms nothing — so after status flips back to 'started'
+        # the dock phase would have no live driver and the run would wedge in 'started'
+        # forever. Re-arm the poller (no-op unless the current phase IS a dock phase); the
+        # helper re-asserts _phase_dispatch_pending and is double-spawn guarded.
+        self._manager.phase_runner.rearm_dock_phase_if_needed(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),

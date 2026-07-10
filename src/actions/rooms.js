@@ -268,6 +268,11 @@ export function applyRoomsActions(proto) {
     const mapId = this.state.activeMapId();
     if (!vacuumEntityId || !mapId || roomId == null) return null;
 
+    // Hand-editing a room's fields diverges from any applied stepped profile, so a
+    // subsequent Start runs the FLAT just-edited selection, not the profile's steps.
+    // (Shared path for saveRoomEditor / applyRoomProfile / saveRoomTransition / saveRoomAccess.)
+    this.state.clearAppliedRunProfile?.();
+
     const cleanedFields = { ...fields };
 
     if (
@@ -397,6 +402,10 @@ export function applyRoomsActions(proto) {
   proto.persistRoomOrdering = async function (rooms) {
     const mapId = this.state.activeMapId();
     if (!mapId || !Array.isArray(rooms)) return;
+
+    // Reordering rooms diverges from any applied stepped profile, so a subsequent Start
+    // runs the FLAT just-reordered selection, not the profile's saved step sequence.
+    this.state.clearAppliedRunProfile?.();
 
     await Promise.all(
       rooms.map(async (room, index) => {

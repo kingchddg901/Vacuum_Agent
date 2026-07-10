@@ -717,7 +717,12 @@ class ProfileManager:
         """Validate/coerce an ordered run-profile steps list. A step is a room_group
         ({type:'room_group', rooms:[...]}), a charge_wait ({type:'charge_wait',
         target_battery_percent:int clamped 1..100}), or a wait ({type:'wait',
-        wait_minutes:int clamped 1..1440}). Invalid/empty entries are dropped."""
+        wait_minutes:int clamped 1..1440}). Invalid/empty entries are dropped.
+
+        room_group entries are coerced to well-formed ``{room_id:int, ...}`` dicts: a
+        bare int is wrapped; an entry whose room_id doesn't parse to a positive int is
+        dropped. A group left with no valid room is dropped entirely, so dispatch never
+        sees an unparseable room_id."""
         out: list[dict[str, Any]] = []
         for step in steps if isinstance(steps, list) else []:
             if not isinstance(step, dict):
@@ -725,8 +730,20 @@ class ProfileManager:
             stype = str(step.get("type") or "").strip().lower()
             if stype == "room_group":
                 rooms = step.get("rooms")
-                if isinstance(rooms, list) and rooms:
-                    out.append({"type": "room_group", "rooms": list(rooms)})
+                if not isinstance(rooms, list):
+                    continue
+                clean_rooms: list[dict[str, Any]] = []
+                for r in rooms:
+                    if isinstance(r, dict):
+                        room_id = _safe_int(r.get("room_id"), -1)
+                        if room_id > 0:
+                            clean_rooms.append({**r, "room_id": room_id})
+                    else:
+                        room_id = _safe_int(r, -1)
+                        if room_id > 0:
+                            clean_rooms.append({"room_id": room_id})
+                if clean_rooms:
+                    out.append({"type": "room_group", "rooms": clean_rooms})
             elif stype == "charge_wait":
                 try:
                     tgt = int(step.get("target_battery_percent"))
@@ -756,9 +773,15 @@ class ProfileManager:
         self, profile_id: str, profile: dict[str, Any]
     ) -> dict[str, Any]:
         """Return one normalized saved run profile with derived metadata."""
-        rooms = profile.get("rooms", [])
-        summary = self._run_profile_summary(rooms)
         steps = self.run_profile_steps(profile)
+        # Derive the room metadata from the EFFECTIVE steps (the flattened room_group
+        # rooms, same flattening apply_run_profile uses) rather than profile["rooms"].
+        # A stepped edit only rewrites steps; profile["rooms"] then holds the stale
+        # pre-steps set. run_profile_steps back-fills a single room_group for legacy
+        # rooms-only profiles, so this stays byte-identical for those.
+        _room_group_steps = [s for s in steps if s.get("type") == "room_group"]
+        _effective_rooms = [r for s in _room_group_steps for r in s.get("rooms", [])]
+        summary = self._run_profile_summary(_effective_rooms)
         return {
             **profile,
             "id": profile_id,
@@ -769,6 +792,14 @@ class ProfileManager:
             "expose_as_button": bool(profile.get("expose_as_button", False)),
             "steps": steps,
             "has_charge_steps": any(s.get("type") == "charge_wait" for s in steps),
+            # has_stops == "this is a SEQUENCED run, not a plain queue": any break step
+            # (charge_wait / wait) OR more than one room_group. DISTINCT from the
+            # charge-only has_charge_steps. The frontend gates stepped preview/routing
+            # on has_stops. (SHARED CONTRACT with the frontend lane.)
+            "has_stops": (
+                any(s.get("type") in ("charge_wait", "wait") for s in steps)
+                or len(_room_group_steps) > 1
+            ),
         }
 
     def _current_enabled_rooms_for_run_profile(
@@ -982,6 +1013,13 @@ class ProfileManager:
                 existing.get("expose_as_button", False) if expose_as_button is None else expose_as_button
             ),
             "rooms": enabled_rooms,
+            # Overwrite replaces the whole run with the current enabled-room queue, so
+            # any prior sequencing is intentionally discarded. The {**existing} spread
+            # would otherwise carry the STALE steps list forward — and run_profile_steps
+            # prefers a non-empty steps list, so apply/start would clean the old rooms
+            # and ignore the new ones. Reset steps so run_profile_steps back-fills a
+            # single room_group of the NEW rooms, matching the overwrite's intent.
+            "steps": [],
             "updated_at": utc_now_iso(),
         }
         library[profile_id] = updated_profile

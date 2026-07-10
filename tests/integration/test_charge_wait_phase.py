@@ -19,6 +19,8 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-11] a completed charge records from/to battery + timestamps on the phase (Wave 4 observability).
 [CW-12] the SAME room in two groups is dispatched with each group's OWN settings (vac then mop).
 [CW-13] TWO non-consecutive charges -> two separate charge phases (multiple charges per run).
+[CW-14] _build_steps_phases tolerates a malformed room_id in a group (safe-int + filter) — a
+        bad value is skipped, never crashes the dispatch (Defect #6b, belt-and-suspenders).
 """
 
 from __future__ import annotations
@@ -177,6 +179,35 @@ async def test_recharge_observer_ignores_charge_phase_dock(hass, manager, monkey
     assert not out.get("pending_mid_job_recharge_return")
 
 
+def _wait_phase(mins: int = 5) -> dict:
+    return {"phase_type": "wait", "wait_minutes": mins,
+            "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0}
+
+
+async def test_recharge_observer_ignores_wait_phase_dock(hass, manager, monkeypatch):
+    """[CW-6b] a WAIT phase also docks (return_to_base) and the device auto-charges while
+    parked, so a low-battery wait-dock must NOT be logged as a phantom unplanned recharge —
+    the guard exempts phase_type 'wait' just like 'charge_wait'. We force the observer's
+    charging + low-battery-return preconditions so the ONLY thing preventing a recorded
+    recharge is the wait-phase exemption; without the fix the count would bump."""
+    monkeypatch.setattr(
+        manager.active_job, "_is_low_battery_return_state", lambda **kw: True
+    )
+    monkeypatch.setattr(manager.active_job, "_is_charging", lambda _vac: True)
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [_room_phase(5, "kitchen"), _wait_phase(), _room_phase(8, "dining")],
+        "current_phase_index": 1,
+    }
+    _seed(manager, job)
+    out = manager.active_job.update_active_job_recharge_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+    )
+    assert not out.get("observed_mid_job_recharge")
+    assert not out.get("pending_mid_job_recharge_return")
+    assert int(out.get("observed_mid_job_recharge_count") or 0) == 0
+
+
 async def test_charge_records_actuals_on_phase(hass, manager, monkeypatch):
     """[CW-11] a completed charge stamps from/to battery + start/end on the phase, so the
     live snapshot shows the full X%->target% picture and the finalized run reflects it."""
@@ -295,6 +326,20 @@ async def test_steps_phases_mixed_breaks_kept(hass, manager, monkeypatch):
     phases = _steps_phases(
         manager, monkeypatch, [_w(5), _rg(1), _cw(95), _w(30), _rg(2), _w(5)], included={1, 2})
     assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "wait", "room"]
+
+
+async def test_steps_phases_tolerates_bad_room_id(hass, manager, monkeypatch):
+    """[CW-14] Defect #6b: a raw int() on a malformed room_id used to crash the dispatch
+    (ValueError aborts the start). _build_steps_phases now safe-ints + filters, so a bad
+    value is skipped and the valid rooms in the group still dispatch."""
+    bad_group = {"type": "room_group", "rooms": [
+        {"room_id": 1},
+        {"room_id": "kitchen"},   # non-numeric -> skipped, must not raise
+        {"room_id": None},        # missing -> skipped
+        {"room_id": "2"},         # numeric string -> coerced to 2
+    ]}
+    phases = _steps_phases(manager, monkeypatch, [bad_group], included={1, 2})
+    assert phases[0]["ids"] == [1, 2]   # only the parseable, included ids survive
 
 
 async def _drive_wait(manager, monkeypatch, *, wait_minutes=5):

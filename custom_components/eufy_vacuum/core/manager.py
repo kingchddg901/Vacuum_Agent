@@ -333,8 +333,13 @@ class EufyVacuumManager:
 
         # A reload/restart leaves no live strict-order watchdog, so any persisted
         # _phase_dispatch_pending guard on a loaded job would suppress the completion
-        # gate forever. Release stale guards on load; the run then advances via the
-        # normal completion path (or Cancel Run). No-op for atomic jobs (flag never set).
+        # gate forever. Release stale guards on load; a ROOM-group run then advances via
+        # the normal completion path (or Cancel Run). No-op for atomic jobs (flag never set).
+        # A charge_wait / wait phase is different — its ONLY driver is an in-memory poller
+        # task the restart also lost, so clearing the guard alone would wedge it in 'started'.
+        # Those phases are RE-ARMED after the subsystems are constructed (phase_runner exists),
+        # which re-spawns the poller AND re-asserts the guard. See the re-arm loop at the end
+        # of this method.
         for _vac_jobs in self.data.get("active_jobs", {}).values():
             if isinstance(_vac_jobs, dict):
                 for _job in _vac_jobs.values():
@@ -446,6 +451,21 @@ class EufyVacuumManager:
         self._room_history_update_callbacks: list = []
         self._room_rule_status_update_callbacks: list = []
         self._room_history_cache_loading: set[str] = set()
+
+        # Re-arm any charge_wait / wait phase whose in-memory poller the restart lost.
+        # The guard-clear loop above already released the stale _phase_dispatch_pending;
+        # for a dock phase that is not enough (the poller IS the only driver), so re-spawn
+        # it here now that self.phase_runner exists. rearm_dock_phase_if_needed re-asserts
+        # the guard, recomputes the wait deadline from the persisted start, and is double-
+        # spawn guarded. No-op for atomic / room-group / finalized jobs.
+        for _vac_id, _vac_jobs in self.data.get("active_jobs", {}).items():
+            if not isinstance(_vac_jobs, dict):
+                continue
+            for _map_id, _job in _vac_jobs.items():
+                if isinstance(_job, dict) and _job.get("status") == "started":
+                    self.phase_runner.rearm_dock_phase_if_needed(
+                        vacuum_entity_id=_vac_id, map_id=str(_map_id)
+                    )
 
     def _migrate_setup_progress(self) -> None:
         """One-time back-fill of setup_progress for pre-state-machine installs.
@@ -4470,6 +4490,20 @@ class EufyVacuumManager:
         the setting is left as the device currently has it (the run still
         proceeds). Best-effort — a failed pre-call is logged, never aborts the run.
 
+        MIXED-BATCH SAFETY (``mixed_mode_water_policy: "safest"`` entries only): a
+        device-GLOBAL water/mop-intensity select can't be zeroed per-room, so a
+        mixed mop + vacuum-only batch that max-wins to the strongest water would
+        WET-MOP the dry (vacuum-only) rooms. For a mixed batch (>=1 mop room AND >=1
+        vacuum-only room) this entry picks the SAFEST (lowest-rank) water instead, so
+        a dry room is never wet-mopped (under-mop is accepted over wet-mop). A single-
+        mode batch (all-mop OR all-vacuum) keeps max-wins. "Mop room" = ``"mop"`` in
+        its ``clean_mode``; this only fires on entries that opt in (the fan_speed entry
+        never carries the marker, so suction stays max-wins).
+
+        OFF FALLBACK: if the chosen canonical is ``off`` but the target select exposes no
+        ``off`` option, the value is lowered to the select's MINIMUM available option
+        rather than silently leaving the prior (possibly HIGH) value on the device.
+
         Entry shape::
 
             {"field": "fan_speed",
@@ -4477,7 +4511,8 @@ class EufyVacuumManager:
              "service": {"domain": "vacuum", "service": "set_fan_speed",
                          "value_key": "fan_speed",
                          "target_entity_id": <full id>},   # default: the vacuum
-             "value_map": {canonical: wire, ...}}           # optional, identity if absent
+             "value_map": {canonical: wire, ...},           # optional, identity if absent
+             "mixed_mode_water_policy": "safest"}           # optional; mixed-batch safe-water
         """
         cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
         for entry in cfg.get("global_pre_calls") or []:
@@ -4490,17 +4525,61 @@ class EufyVacuumManager:
             if not (field and rank and domain and service_name and value_key):
                 continue
 
-            best_index = -1
-            for room in resolved_rooms:
-                value = str(room.get(field) or "").strip().lower()
-                if value in rank:
-                    best_index = max(best_index, rank.index(value))
-            if best_index < 0:
-                continue  # nothing rankable -> leave the global setting untouched
+            # A mixed mop + vacuum-only batch flips this entry to the SAFEST water so a dry
+            # room isn't wet-mopped by the device-global select. Only entries that opt in
+            # (mixed_mode_water_policy=="safest") + an actually mixed batch (>=1 mop room AND
+            # >=1 vacuum-only room). "Mop room" = "mop" in its clean_mode. The presence of a
+            # dry room IS the signal, so we target the rank's LOWEST value (off) directly —
+            # not merely the min of the DECLARED water levels, which a vacuum-only room that
+            # carries no water_level field wouldn't lower. Under-mop is accepted over wet-mop.
+            _mop_rooms = sum(
+                1 for r in resolved_rooms
+                if "mop" in str(r.get("clean_mode") or "").strip().lower()
+            )
+            _mixed_batch = 0 < _mop_rooms < len(resolved_rooms)
+            _use_safest = (
+                str(entry.get("mixed_mode_water_policy") or "").strip().lower() == "safest"
+                and _mixed_batch
+            )
 
-            wire_value = rank[best_index]
+            if _use_safest:
+                # Only push a safe water if SOMETHING in the batch was rankable at all
+                # (mirrors the max-wins "nothing rankable -> leave untouched" contract); a
+                # mixed batch always has rankable mop rooms, so this normally targets rank[0].
+                _any_rankable = any(
+                    str(room.get(field) or "").strip().lower() in rank
+                    for room in resolved_rooms
+                )
+                if not _any_rankable:
+                    continue
+                best_index = 0  # the safest (lowest) rung, e.g. "off"
+            else:
+                best_index = -1
+                for room in resolved_rooms:
+                    value = str(room.get(field) or "").strip().lower()
+                    if value in rank:
+                        best_index = max(best_index, rank.index(value))
+                if best_index < 0:
+                    continue  # nothing rankable -> leave the global setting untouched
+
+            canonical_value = rank[best_index]
+            # OFF fallback: chosen "off" but the target select has no "off" option ->
+            # lower to the select's minimum available option (never leave a prior HIGH).
+            if canonical_value == "off":
+                target_entity_for_opts = service.get("target_entity_id") or vacuum_entity_id
+                _sel_state = self.hass.states.get(target_entity_for_opts)
+                _opts = (
+                    [str(o).strip().lower() for o in _sel_state.attributes.get("options") or []]
+                    if _sel_state is not None else []
+                )
+                if _opts and "off" not in _opts:
+                    # Walk the entry's rank ascending for the first option the select has.
+                    for _cand in rank:
+                        if _cand in _opts:
+                            canonical_value = _cand
+                            break
             value_map = entry.get("value_map") or {}
-            wire_value = value_map.get(wire_value, wire_value)
+            wire_value = value_map.get(canonical_value, canonical_value)
 
             target_entity = service.get("target_entity_id") or vacuum_entity_id
             try:
@@ -4850,6 +4929,16 @@ class EufyVacuumManager:
             path_block_action=path_block_action,
             pause_timeout_minutes_override=pause_timeout_minutes_override,
         )
+        # start_selected_rooms POPS the stashed steps only deep in _build_effective_start_plan,
+        # which it never reaches when it returns early (blocked / confirmation-required without a
+        # token / vacuum missing). That would leak the stash so the NEXT plain Start on this map
+        # pops it and silently becomes a charge/wait run. If this call did NOT start, delete the
+        # leftover entry (guard for absence — the legit started path already consumed it deep in
+        # the plan builder, so there is nothing to delete there).
+        if not started.get("started"):
+            _pending_for_vac = self.data.get("_pending_run_steps", {}).get(vacuum_entity_id)
+            if isinstance(_pending_for_vac, dict):
+                _pending_for_vac.pop(str(map_id), None)
         started["profile_id"] = profile_id
         started["profile"] = applied.get("profile")
         return started

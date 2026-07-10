@@ -73,7 +73,22 @@ export function applyRunProfilesState(proto) {
     };
   };
 
+  // Local mirror of the backend has_stops rule (SHARED CONTRACT): a SEQUENCED run —
+  // any wait/charge_wait boundary OR more than one room_group. Used only as a fallback
+  // when the backend hasn't stamped has_stops on the payload; the backend flag wins.
+  proto._deriveHasStops = function (steps) {
+    if (!Array.isArray(steps)) return false;
+    let roomGroups = 0;
+    for (const step of steps) {
+      const type = step?.type;
+      if (type === "charge_wait" || type === "wait") return true;
+      if (type === "room_group") roomGroups += 1;
+    }
+    return roomGroups > 1;
+  };
+
   proto._normalizeRunProfile = function (profile) {
+    const steps = Array.isArray(profile?.steps) ? profile.steps : [];
     return {
       id: String(profile?.id ?? profile?.profile_id ?? ""),
       name: String(profile?.name ?? "Unnamed Profile"),
@@ -88,8 +103,14 @@ export function applyRunProfilesState(proto) {
       created_at: String(profile?.created_at ?? ""),
       updated_at: String(profile?.updated_at ?? ""),
       rooms: Array.isArray(profile?.rooms) ? profile.rooms : [],
-      steps: Array.isArray(profile?.steps) ? profile.steps : [],
+      steps,
       has_charge_steps: Boolean(profile?.has_charge_steps),
+      // Sequenced-run flag: prefer the backend-derived value, fall back to deriving it
+      // from steps so a WAIT-only or multi-group profile still gates correctly.
+      has_stops:
+        profile?.has_stops != null
+          ? Boolean(profile.has_stops)
+          : this._deriveHasStops(steps),
     };
   };
 
@@ -185,16 +206,18 @@ export function applyRunProfilesState(proto) {
     this._ensureRunProfilesState().appliedProfileId = null;
   };
 
-  // The applied profile's id IF it is a stepped (charge) profile still in the library — the
-  // signal that Start should dispatch its steps (start_run_profile) instead of a flat
-  // start_selected_rooms. Cleared when the user diverges (hand-edits rooms) so a flat run
-  // stays flat. Returns null otherwise.
+  // The applied profile's id IF it is a SEQUENCED run (has_stops — a wait/charge boundary
+  // OR more than one room_group) still in the library — the signal that Start should dispatch
+  // its steps (start_run_profile) instead of a flat start_selected_rooms, which would drop the
+  // wait/charge + group ordering. Gates on has_stops (NOT charge-only has_charge_steps) so a
+  // WAIT-only or multi-group profile still routes through the stepped path. Cleared when the
+  // user diverges (hand-edits rooms) so a flat run stays flat. Returns null otherwise.
   proto.pendingStepRunProfileId = function () {
     const state = this._ensureRunProfilesState();
     const id = state.appliedProfileId;
     if (!id) return null;
     const profile = state.profiles.find((p) => p.id === id);
-    return profile?.has_charge_steps ? id : null;
+    return profile?.has_stops ? id : null;
   };
 
   proto.isSteppedPreviewCollapsed = function () {

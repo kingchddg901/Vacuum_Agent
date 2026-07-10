@@ -63,6 +63,79 @@ class PhaseRunner:
 
     def __init__(self, *, manager: "EufyVacuumManager") -> None:
         self._manager = manager
+        # Per-(vac, map, phase_index) "a dock-phase poller is live" guard. A charge_wait /
+        # wait phase's driver is an in-memory asyncio task; a normal advance spawns it once,
+        # but a pause+resume or an HA-restart re-arm (rearm_dock_phase_if_needed) could
+        # otherwise spawn a SECOND concurrent poller for the SAME phase. This key is set
+        # before a poller task is created and cleared in its finally, so a re-arm can't
+        # double-drive a phase a live poller already owns. Keyed by phase_index (not just
+        # vac/map) so a poller advancing to the NEXT dock phase can still spawn that phase's
+        # poller before its own finally clears the old key. In-memory only (like the task).
+        self._dock_poller_active: set[tuple[str, str, int]] = set()
+
+    def _spawn_dock_poller(
+        self, *, vacuum_entity_id: str, map_id: str, phase_type: str, phase_index: int
+    ) -> bool:
+        """Spawn the charge_wait / wait poller for one phase, guarded against a
+        double-spawn. Returns True when a poller was started, False when one is already
+        live for this (vac, map, phase) — the shared guard the normal advance AND the re-arm
+        both route through, so they can never both drive the same dock phase. The poller
+        clears the guard in its own finally (via ``_run_charge_wait_phase`` / ``_run_wait_phase``)."""
+        key = (vacuum_entity_id, str(map_id), int(phase_index))
+        if key in self._dock_poller_active:
+            return False
+        self._dock_poller_active.add(key)
+        coro = (
+            self._run_charge_wait_phase(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), phase_index=phase_index
+            )
+            if phase_type == "charge_wait"
+            else self._run_wait_phase(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), phase_index=phase_index
+            )
+        )
+        self._manager.hass.async_create_task(coro)
+        return True
+
+    def rearm_dock_phase_if_needed(self, *, vacuum_entity_id: str, map_id: str) -> bool:
+        """Re-arm a dock phase whose in-memory poller was lost (pause+resume or HA restart).
+
+        A ``charge_wait`` / ``wait`` phase is driven ONLY by an in-memory asyncio task spawned
+        from ``maybe_advance_phase``. A pause+resume (status flips back to 'started' but re-arms
+        nothing) or an HA restart (the task is gone and ``async_initialize`` force-clears the
+        ``_phase_dispatch_pending`` guard) leaves the dock phase with NO live driver — the run
+        wedges in 'started' forever. When the active job is 'started' and its CURRENT phase is a
+        dock phase, re-spawn the matching poller. Guarded via ``_spawn_dock_poller`` so a normal
+        advance and a re-arm can't both spawn. The poller's own already-at-target / deadline /
+        _still_ours logic makes a fresh spawn idempotent; the wait poller recomputes its deadline
+        from the persisted ``wait_started_at`` so a restart mid-wait doesn't restart the full timer.
+        Also re-sets ``_phase_dispatch_pending`` (the restart cleared it) so the intentional dock
+        isn't read as a completion while the re-armed poller drives it. Returns True when re-armed."""
+        job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        if not isinstance(job, dict) or job.get("status") != "started":
+            return False
+        phases = job.get("phases")
+        if not isinstance(phases, list):
+            return False
+        idx = _safe_int(job.get("current_phase_index"), -1)
+        if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
+            return False
+        phase_type = str(phases[idx].get("phase_type") or "")
+        if phase_type not in ("charge_wait", "wait"):
+            return False
+        # Re-assert the dock guard the restart cleared, so the intentional dock the poller is
+        # about to (re)drive isn't finalized by the completion gate. No-op if already set.
+        if not job.get("_phase_dispatch_pending"):
+            job["_phase_dispatch_pending"] = True
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {}
+            )[str(map_id)] = job
+        return self._spawn_dock_poller(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            phase_type=phase_type,
+            phase_index=idx,
+        )
 
     async def maybe_advance_phase(
         self,
@@ -106,21 +179,14 @@ class PhaseRunner:
             else {}
         )
         _next_type = str(_next_phase.get("phase_type") or "")
-        if _next_type == "charge_wait":
-            self._manager.hass.async_create_task(
-                self._run_charge_wait_phase(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=str(map_id),
-                    phase_index=_next_idx,
-                )
-            )
-        elif _next_type == "wait":
-            self._manager.hass.async_create_task(
-                self._run_wait_phase(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=str(map_id),
-                    phase_index=_next_idx,
-                )
+        if _next_type in ("charge_wait", "wait"):
+            # Route through the guarded spawn so a normal advance and a re-arm
+            # (rearm_dock_phase_if_needed) can't both drive the same dock phase.
+            self._spawn_dock_poller(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                phase_type=_next_type,
+                phase_index=_next_idx,
             )
         else:
             self._manager.hass.async_create_task(
@@ -430,7 +496,27 @@ class PhaseRunner:
           cancel, so the un-cleaned remaining rooms are reported missed.
         - A genuine user Cancel (``_cancel_in_flight``), pause, or advance -> bail;
           the phase is no longer ours.
+
+        The ``_dock_poller_active`` guard (set by ``_spawn_dock_poller``) is released in the
+        finally so a later re-arm can spawn a fresh poller once this one has exited.
         """
+        try:
+            await self._run_charge_wait_phase_impl(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+            )
+        finally:
+            self._dock_poller_active.discard(
+                (vacuum_entity_id, str(map_id), int(phase_index))
+            )
+
+    async def _run_charge_wait_phase_impl(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        phase_index: int,
+    ) -> None:
+        """Body of ``_run_charge_wait_phase`` (poller-guard release lives in the wrapper)."""
         from ..core.charging import get_battery_level
 
         poll_s = 30.0  # battery updates are slow; adapter-tunable later via dispatch.charge
@@ -547,7 +633,27 @@ class PhaseRunner:
         so the intentional idle dock is not read as a cancel/completion, then advances via
         ``maybe_advance_phase`` once the time has elapsed. A genuine user Cancel / pause /
         advance (status flip or ``_cancel_in_flight``) bails — the phase is no longer ours.
+
+        The ``_dock_poller_active`` guard (set by ``_spawn_dock_poller``) is released in the
+        finally so a later re-arm can spawn a fresh poller once this one has exited.
         """
+        try:
+            await self._run_wait_phase_impl(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+            )
+        finally:
+            self._dock_poller_active.discard(
+                (vacuum_entity_id, str(map_id), int(phase_index))
+            )
+
+    async def _run_wait_phase_impl(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        phase_index: int,
+    ) -> None:
+        """Body of ``_run_wait_phase`` (poller-guard release lives in the wrapper)."""
         poll_s = 15.0  # time-bound; poll tight enough that the live countdown feels current
 
         def _still_ours(job: dict[str, Any] | None) -> bool:
@@ -570,12 +676,21 @@ class PhaseRunner:
         wait_minutes = max(1, _safe_int(phase.get("wait_minutes"), 5))
 
         # Record the wait start so the live snapshot can count down "~N min left".
+        # A re-arm after an HA restart mid-wait (rearm_dock_phase_if_needed) finds
+        # wait_started_at ALREADY persisted — keep it, so the deadline is recomputed
+        # from the ORIGINAL start below and the timer isn't restarted from full.
         _rec = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         _recp = (_rec or {}).get("phases") or []
+        _persisted_started_at = (
+            str(_recp[phase_index].get("wait_started_at") or "").strip()
+            if 0 <= phase_index < len(_recp) and isinstance(_recp[phase_index], dict)
+            else ""
+        )
         if 0 <= phase_index < len(_recp) and isinstance(_recp[phase_index], dict):
-            _recp[phase_index]["wait_started_at"] = _iso_now()
-            self._manager.data.setdefault("active_jobs", {}).setdefault(
-                vacuum_entity_id, {})[str(map_id)] = _rec
+            if not _persisted_started_at:
+                _recp[phase_index]["wait_started_at"] = _iso_now()
+                self._manager.data.setdefault("active_jobs", {}).setdefault(
+                    vacuum_entity_id, {})[str(map_id)] = _rec
 
         # Park on the dock while waiting (a no-op if it is already docked).
         await self._manager.hass.services.async_call(
@@ -586,7 +701,14 @@ class PhaseRunner:
             phase_index, vacuum_entity_id, wait_minutes, poll_s,
         )
 
-        deadline = self._manager.hass.loop.time() + wait_minutes * 60.0
+        # Fresh start -> full window. Re-arm mid-wait (wait_started_at already persisted)
+        # -> subtract the elapsed wall time so a restart doesn't restart the full timer;
+        # an already-elapsed wait clamps to 0 (advances on the first poll).
+        remaining_s = wait_minutes * 60.0
+        if _persisted_started_at:
+            _elapsed = self._wall_seconds(_persisted_started_at, _iso_now())
+            remaining_s = max(0.0, wait_minutes * 60.0 - _elapsed)
+        deadline = self._manager.hass.loop.time() + remaining_s
         while True:
             await asyncio.sleep(poll_s)
             job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)

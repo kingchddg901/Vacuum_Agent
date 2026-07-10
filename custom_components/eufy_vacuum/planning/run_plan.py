@@ -812,12 +812,19 @@ class RunPlanManager:
             if not isinstance(step, dict):
                 continue
             if step.get("type") == "room_group":
+                # Coerce each room_id defensively (safe-int, drop non-positive) so a
+                # malformed value never reaches int() and crashes the dispatch — the
+                # same discipline build_room_clean_payload uses. Carry the parsed id
+                # alongside the raw entry so the membership test, queue ids, and the
+                # group_managed key all reuse ONE validated int.
                 group_rooms = [
-                    r for r in step.get("rooms", [])
-                    if isinstance(r, dict) and r.get("room_id") is not None
-                    and int(r["room_id"]) in included_room_ids
+                    (rid, r)
+                    for r in step.get("rooms", [])
+                    if isinstance(r, dict)
+                    for rid in (_safe_int(r.get("room_id"), -1),)
+                    if rid > 0 and rid in included_room_ids
                 ]
-                group_ids = [int(r["room_id"]) for r in group_rooms]
+                group_ids = [rid for rid, _ in group_rooms]
                 if not group_ids:
                     continue  # whole group blocked / not enabled -> skip
                 # Per-group settings: overlay each group room's OWN settings over the
@@ -825,8 +832,8 @@ class RunPlanManager:
                 # mode/fan in different phases (e.g. vacuum this group, mop the next).
                 # The group's fields win; queue_room_ids stays authoritative for order.
                 group_managed = dict(effective_rooms)
-                for r in group_rooms:
-                    key = str(int(r["room_id"]))
+                for rid, r in group_rooms:
+                    key = str(rid)
                     merged = dict(effective_rooms.get(key, {}))
                     for field, value in r.items():
                         if field != "room_id":
