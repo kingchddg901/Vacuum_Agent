@@ -1049,7 +1049,6 @@ stall / lifecycle fields omitted for brevity):
   "status":                str           # active-job status
   "terminal":              bool          # status NOT in {started, paused}
   "current_room_id":       int | None    # next unfinished QUEUED room
-  "position_room_id":      int | None    # what the icon tracks; may be a transition room
   "awaiting_bounds_exit":  bool
   "completed_room_ids":    list[int]
   "remaining_room_ids":    list[int]     # excludes current + skipped

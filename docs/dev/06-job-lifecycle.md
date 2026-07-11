@@ -423,14 +423,11 @@ counter/timing paths, checked in this order:
 **Slow-room path (timing has expired):**
 1. Requires `active_job["status"] == "started"` and a valid `current_room_id`.
 2. Elapsed >= `_timing_completion_threshold_minutes(current_room)`.
-3. The bounds gate is **capability-gated** via `_position_lock_reliable`. Only
-   when the adapter declares a reliable localization lock does the tracker check
-   whether the robot has left the room bounds
-   (`mapping_manager.get_room_bounds_snapshot`); if bounds exist and the robot is
-   still inside, rollover is blocked (`awaiting_bounds_exit` will be `True`).
-4. **Eufy answers `position_lock_reliable=False`** (its firmware re-bases the
-   coordinate frame every session, so stored bounds drift), so for Eufy timing
-   alone advances. The same is true for any adapter when bounds are unavailable.
+3. Rollover is **timing-only** — when the threshold is reached, the room advances.
+   (The old learned-bounds veto, which held rollover until the robot left the room's
+   bounding box, was removed with the mapping split: it rode the device's per-session
+   coordinate frame and drifted, and both adapters shipped `position_lock_reliable=False`,
+   so it was gated off in production anyway.)
 5. On rollover: `source="timing_rollover"`.
 
 **Fast-room path (early bounds exit):**

@@ -54,8 +54,7 @@ The main entry point. Called when the config entry is loaded. In order:
 6. Instantiates `ErrorTracker` and calls `error_tracker.start(known_vacuum_ids)`;
    stores at `hass.data[DOMAIN][DATA_ERROR_TRACKER]`.
 7. Registers the inline `battery_rebaseline` service.
-8. Instantiates `RoomBoundsStore` and `MappingTracker` (last of the subsystems);
-   stores at `hass.data[DOMAIN]["mapping_manager"]` and
+8. Instantiates `MappingTracker` (last of the subsystems); stores it at
    `hass.data[DOMAIN]["mapping_tracker"]`. Registers position entities for
    vacuums whose capability map includes `robot_position_x`/`robot_position_y`.
 9. Calls the remaining service registration functions: `async_register_services`,
@@ -100,7 +99,6 @@ Creates a bare `Store` and calls `async_remove()` to wipe persisted data.
 | `DATA_LEARNING` (`"learning"`) | `LearningManager` | Learning subsystem orchestrator |
 | `DATA_ERROR_TRACKER` (`"error_tracker"`) | `ErrorTracker` | Active-run error latching and device error history |
 | `DATA_BATTERY` (`"battery"`) | `BatteryHealthManager` | Battery-health tracking and per-job battery metrics |
-| `"mapping_manager"` | `RoomBoundsStore` | Per-room bounding-box learning + snapshot (historical key name) |
 | `"mapping_tracker"` | `MappingTracker` | Real-time robot position tracker |
 | `f"_panels_{entry.entry_id}"` | `list[str]` | Panel URL paths registered for this entry (used for cleanup) |
 
@@ -405,7 +403,7 @@ See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 **Stored in `.storage`:** all keys above.
 
 **Runtime-only (in `hass.data[DOMAIN]` or in-memory on the manager):**
-- Manager object, LearningManager, ErrorTracker, RoomBoundsStore, MappingTracker
+- Manager object, LearningManager, ErrorTracker, MappingTracker
 - Background listener unsub handles
 - Registered panel URL lists
 - `manager.runtime` — `VacuumRuntimeState` dict rebuilt from HA state on restart

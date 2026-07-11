@@ -2,8 +2,8 @@
 
 The mapping subsystem turns robot-position samples and map images into room
 data: an image-segmentation stack (`segment_primitives`, `segmenter_engines`),
-a coordinate tracker (`tracker`) feeding the per-room bounding-box store
-(`room_bounds`), and the service orchestrator (`mapping_services`).
+a coordinate tracker (`tracker`) that fires `room_completed` off the device's
+native current-room, and the service orchestrator (`mapping_services`).
 A second authoring path lets a human draw rooms directly: `segment_primitives`
 rasterises composer shapes into polygons, and `mapping_services` holds many named
 **custom layouts** per map alongside the CV store, selected by a `segmentation_mode`
@@ -21,7 +21,8 @@ end to end against a synthetic image.
 > **Mapping split.** The run-derived inference lineage — the `trace_capture` →
 > `trace_store` → `trace_segmentation` → `trace_review` pipeline, room-boundary
 > derivation, and image-segment *suggestion* — was retired, and `MappingManager`
-> was slimmed to the bounding-box store `room_bounds.py` (`RoomBoundsStore`). The
+> and the learned bounding-box store `room_bounds.py` (`RoomBoundsStore`) were removed;
+> room tracking now reads the device's native current-room. The
 > module table and coverage counts below are re-stamped by
 > `scripts/update_test_docs.py` on the next digest and may lag this structural change.
 
@@ -38,7 +39,6 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `tracker.py` | 407 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `room_bounds.py` | — | — | `tests/unit/test_room_bounds.py` + `test_mapping_services_handlers.py` | unit + integration |
 | `mapping_services.py` | 1400 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
 | `map_source.py` | 422 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
 | `map_source_runtime.py` | 509 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |

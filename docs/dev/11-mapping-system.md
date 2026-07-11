@@ -2,7 +2,7 @@
 
 This document covers the mapping subsystem: image segment analysis, room-bounds learning, segment adjustments, custom layouts, the provider map source, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
 
-> **Status (mapping split).** The run-derived *inference* lineage — trace capture / segmentation / review, room-boundary derivation (vacuum-space polygons), the affine transform-fitting pipeline, and image-segment *suggestion* — was retired. What survives is the CV segmentation pipeline (§2), the per-room bounding-box store (§3, `mapping/room_bounds.py` — formerly `MappingManager`, now `RoomBoundsStore`), segment adjustments (§5), image variants (§6), custom layouts (§10), and the provider map source (§11). The retired design is preserved in git history and the boundary-derivation design note; the sections below have been trimmed to what is live.
+> **Status (mapping split).** The run-derived *inference* lineage — trace capture / segmentation / review, room-boundary derivation (vacuum-space polygons), the affine transform-fitting pipeline, image-segment *suggestion*, **and the learned per-room bounding-box store (`room_bounds.py` / `RoomBoundsStore`) itself** — was retired. Room tracking now runs off the device's **native current-room** signal: the tracker resolves it and fires `eufy_vacuum_room_completed` (with each room's dwell duration) via a confidence/dwell debounce, and the map card's companion homes off the live map source's `current_room` — nothing runs in drifting vacuum-coordinates anymore. What survives is the CV segmentation pipeline (§2), segment adjustments (§5), image variants (§6), custom layouts (§10), and the provider map source (§11). The retired designs are preserved in git history and the boundary-derivation design note; **§3 below is kept only as historical reference — its code is deleted.**
 
 ---
 
@@ -12,7 +12,7 @@ The mapping system has three subsystems that address different aspects of knowin
 
 **Image segment analysis** answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. The brand-agnostic geometry/image primitives live in `mapping/segment_primitives.py`; the Eufy HSV pipeline that uses them lives in `adapters/eufy/segmentor.py` and is invoked through the segmenter-engine abstraction in `mapping/segmenter_engines.py`. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
 
-**Room-bounds learning** (`room_bounds.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
+**Room tracking** (`tracker.py`) answers: *which room is the robot in right now?* The tracker reads the device's **native current-room** signal (the adapter's `active_cleaning_target`), resolves it to a managed room, and — through a confidence/dwell debounce — fires `eufy_vacuum_room_completed` with each room's dwell duration as the robot moves between rooms. The earlier learned bounding-box approach (run-derived, in vacuum coordinates) was **removed**: the device re-bases its coordinate origin every session, so cross-session bounds drifted (see §3, kept as historical reference).
 
 **Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) or learning them from drifting robot samples (trace bounds), this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](map-state-source.md).
 
@@ -218,6 +218,13 @@ The pipeline depends only on Pillow + NumPy + SciPy; `pipeline_ready` is the sin
 ---
 
 ## 3. Room Bounds from Traces
+
+> **Removed (mapping split).** The learned per-room bounding-box store described
+> below — `room_bounds.py` / `RoomBoundsStore`, the sample→bounds attribution, and
+> the `get_room_bounds_snapshot` service — was **deleted**. It rode the device's
+> vacuum-coordinate frame, which re-bases every session, so the cross-session bounds
+> were a smear. Room tracking now reads the device's native current-room (§1). This
+> section is retained as a historical / disaster-recovery reference; the code is gone.
 
 ### 3.1 What a "trace" is
 

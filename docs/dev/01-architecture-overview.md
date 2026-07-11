@@ -159,7 +159,6 @@ module (flat file) or a subsystem package. Here is the full map:
 | `BatteryHealthManager` | `"battery"` | Cycle counting and charge rate tracking |
 | `ErrorTracker` | `"error_tracker"` | Active-run and last-device error state |
 | `AdapterCoordinator` | `"adapter_coordinator"` | Per-entry adapter config registry |
-| `RoomBoundsStore` | `"mapping_manager"` | Per-room bounding-box learning + snapshot (historical key name) |
 | `MappingTracker` | `"mapping_tracker"` | Live position listener + room-bounds sampling |
 
 ### Stateless helper packages
@@ -223,7 +222,7 @@ entities share the base class in `room_entities.py`.
    `ErrorTracker` constructed and started. `BatteryHealthManager` is built at
    `__init__.py` (~line 248-250) and stored at `hass.data[DOMAIN][DATA_BATTERY]`
    (`DATA_BATTERY = "battery"`, `const.py`); it is torn down on unload.
-   `RoomBoundsStore` and `MappingTracker` constructed; position listeners
+   `MappingTracker` constructed; position listeners
    registered for known vacuums.
 
 6. **Service registration** — four service groups registered:
