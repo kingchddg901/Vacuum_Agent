@@ -867,14 +867,6 @@ class LearningJobFinalizer:
             if rebuild_csv:
                 csv_result = stats_result.get("csv")
 
-        boundary_result = self._auto_derive_room_boundary(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            completed_job=completed_job,
-            was_cancelled=was_cancelled,
-            trace_run_id=trace_run_id,
-        )
-
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -884,7 +876,6 @@ class LearningJobFinalizer:
             "incomplete_run_log": incomplete_run_log,
             "stats": stats_result,
             "csv": csv_result,
-            "boundary_derivation": boundary_result,
         }
 
     def finalize_from_manager_state(
@@ -1486,53 +1477,3 @@ class LearningJobFinalizer:
                 "Failed to update trouble rooms log for %s",
                 vacuum_entity_id,
             )
-
-    def _auto_derive_room_boundary(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        completed_job: dict[str, Any],
-        was_cancelled: bool,
-        trace_run_id: str | None,
-    ) -> dict[str, Any] | None:
-        """Attempt to derive a room boundary after a completed single-room job.
-
-        Eligibility gates (all must pass):
-          - outcome_status == "completed" (not cancelled/failed/interrupted)
-          - was_cancelled == False
-          - exactly 1 resolved room with a valid room_id
-          - trace_run_id present
-
-        Returns the derivation result dict, or None if skipped/not eligible.
-        """
-        outcome = completed_job.get("outcome", {})
-        outcome_status = str(outcome.get("status", "")).lower()
-
-        if was_cancelled or outcome_status != "completed":
-            return None
-
-        if not trace_run_id:
-            return None
-
-        resolved_rooms = completed_job.get("resolved_rooms", [])
-        if not isinstance(resolved_rooms, list) or len(resolved_rooms) != 1:
-            return None
-
-        room = resolved_rooms[0]
-        if not isinstance(room, dict):
-            return None
-
-        room_id = str(room.get("room_id", "")).strip()
-        if not room_id or room_id == "None":
-            return None
-
-        edge_mopping = bool(room.get("edge_mopping", False))
-
-        _LOGGER.debug(
-            "auto_derive_boundary skipped: boundary derivation is inactive for vacuum=%s room=%s run=%s",
-            vacuum_entity_id,
-            room_id,
-            trace_run_id,
-        )
-        return None
