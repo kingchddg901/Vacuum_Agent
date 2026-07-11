@@ -3668,6 +3668,43 @@ class EufyVacuumManager:
         """Runs collected-but-not-yet-processed for a vacuum (0 when caught up)."""
         return int(self.data.get("learning_pending_runs", {}).get(vacuum_entity_id, 0) or 0)
 
+    async def async_process_pending_learning(self) -> dict[str, Any]:
+        """Catch-up: rebuild learned stats for every managed vacuum from FULL history
+        (so everything collected while processing was off is reprocessed) and clear the
+        pending counters. Heavy — the rebuild runs on the executor. Shared by the
+        'process pending runs' service and by turning processing back on."""
+        learning = self._get_learning_manager()
+        if learning is None:
+            return {"processed": [], "count": 0, "reason": "learning_unavailable"}
+        processed: list[str] = []
+        for vacuum_entity_id in sorted(self.data.get("vacuums", {})):
+            try:
+                await self.hass.async_add_executor_job(
+                    learning.rebuild_learning, vacuum_entity_id, False
+                )
+                learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
+                learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
+                self._reset_learning_pending(vacuum_entity_id)
+                processed.append(vacuum_entity_id)
+            except Exception:  # pragma: no cover - one vacuum must not block the rest
+                _LOGGER.exception(
+                    "process_pending_learning: rebuild failed for %s", vacuum_entity_id
+                )
+        await self.async_save()
+        return {"processed": processed, "count": len(processed)}
+
+    async def async_set_learning_processing(self, *, enabled: bool) -> dict[str, Any]:
+        """Set the box-level learning-processing toggle (flips all vacuums). Turning it
+        ON from OFF runs the catch-up so the backlog processes and the estimator lights up
+        immediately; turning OFF just stops per-run rebuilds (collection continues)."""
+        was = self.learning_processing_enabled
+        self.data["learning_processing_enabled"] = bool(enabled)
+        await self.async_save()
+        caught_up: dict[str, Any] | None = None
+        if enabled and not was:
+            caught_up = await self.async_process_pending_learning()
+        return {"enabled": bool(enabled), "was": was, "caught_up": caught_up}
+
     async def finalize_learning_for_active_job(
         self,
         *,

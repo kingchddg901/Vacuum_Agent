@@ -30,7 +30,7 @@ import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
-from ..const import DOMAIN, EVENT_JOB_FINISHED, EVENT_RUN_INCOMPLETE
+from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED, EVENT_RUN_INCOMPLETE
 from .external_ingest import strip_samples
 from .manager import LearningManager
 
@@ -53,6 +53,8 @@ SERVICE_GET_METRICS_SNAPSHOT = "get_metrics_snapshot"
 SERVICE_GET_INCOMPLETE_RUN_LOG = "get_incomplete_run_log"
 SERVICE_GET_TROUBLE_ROOMS_LOG = "get_trouble_rooms_log"
 SERVICE_RETRY_MISSED_ROOMS = "retry_missed_rooms"
+SERVICE_SET_LEARNING_PROCESSING = "set_learning_processing"
+SERVICE_PROCESS_PENDING_RUNS = "process_pending_runs"
 
 SAVE_LEARNING_SNAPSHOT_SCHEMA = vol.Schema(
     {
@@ -85,6 +87,10 @@ REBUILD_LEARNING_STATS_SCHEMA = vol.Schema(
         vol.Optional("rebuild_csv", default=False): cv.boolean,
     }
 )
+
+# Box-level learning-processing toggle (flips all vacuums) + on-demand backlog catch-up.
+SET_LEARNING_PROCESSING_SCHEMA = vol.Schema({vol.Required("enabled"): cv.boolean})
+PROCESS_PENDING_RUNS_SCHEMA = vol.Schema({})
 
 RUN_LEARNING_ESTIMATE_SCHEMA = vol.Schema(
     {
@@ -436,6 +442,18 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         _LOGGER.debug("rebuild_learning_stats complete: %s", result)
 
+    async def handle_set_learning_processing(call: ServiceCall) -> dict:
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"error": "manager_unavailable"}
+        return await manager.async_set_learning_processing(enabled=call.data["enabled"])
+
+    async def handle_process_pending_runs(call: ServiceCall) -> dict:
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"error": "manager_unavailable"}
+        return await manager.async_process_pending_learning()
+
     async def handle_run_learning_estimate(call: ServiceCall) -> dict:
         core_manager = _get_core_manager(hass)
         learning = _get_learning_manager(hass)
@@ -741,6 +759,20 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         SERVICE_REBUILD_LEARNING_STATS,
         handle_rebuild_learning_stats,
         schema=REBUILD_LEARNING_STATS_SCHEMA,
+    )
+    hass.services.async_register(
+        LEARNING_DOMAIN,
+        SERVICE_SET_LEARNING_PROCESSING,
+        handle_set_learning_processing,
+        schema=SET_LEARNING_PROCESSING_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        LEARNING_DOMAIN,
+        SERVICE_PROCESS_PENDING_RUNS,
+        handle_process_pending_runs,
+        schema=PROCESS_PENDING_RUNS_SCHEMA,
+        supports_response=True,
     )
     hass.services.async_register(
         LEARNING_DOMAIN,

@@ -1602,6 +1602,27 @@ rebuild_learning_stats:
       selector:
         boolean: {}
 
+set_learning_processing:
+  name: Set learning processing
+  description: >
+    Box-level toggle for learning's heavy per-run stats processing (flips all vacuums).
+    When off, completed runs are still collected (saved to history) but the stats rebuild
+    is skipped — near-zero churn, useful on low-power hardware. Turning it back on
+    reprocesses the whole backlog and resumes normal per-run processing.
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean: {}
+
+process_pending_runs:
+  name: Process pending runs
+  description: >
+    Reprocess every run collected while learning processing was off (a full stats
+    rebuild from history) and clear the pending counters, WITHOUT turning per-run
+    processing back on. Flips all vacuums.
+
 run_learning_estimate:
   name: Run learning estimate
   description: >
