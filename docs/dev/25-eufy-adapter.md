@@ -283,7 +283,7 @@ per-tick pose time-series (`current_room` + anchor + `cleaning_area`). Where
 unknown name falls back to `eufy_anchor_winding_v1` (not `noop`), mirroring the
 job-segmenter default. The engine segments by `current_room`, drops transit by
 path-winding, and separates a cleaned room from a parked dock by the swept-area
-(`cleaning_area`) delta. `tuning` carries `wind_transit` / `dwell_min_s` /
+(`cleaning_area`) delta. `tuning` carries `wind_transit` / `dwell_min_ticks` /
 `swept_area_min_m2` / `interval_s`. This block is **declared-but-dormant** — wired
 and validated now, but inert until the run-active pose sampler (W5b) and finalize
 wiring (W5c) land. See [eufy-native-transition](eufy-native-transition.md).

@@ -13,8 +13,10 @@ Gating:
   - Map-capable vacuums only: ``current_room`` is map-data-derived, so a vacuum whose adapter
     declares no ``map_state_source.live_pose`` is skipped (its pose would be all-``None``).
   - The sampling cadence ``interval_s`` comes from the adapter's ``room_attribution`` block —
-    NEVER hardcoded here (the engine's ``dwell`` thresholds assume the same cadence; one
-    adapter value drives both, mirroring ``job_segmenter.tuning``).
+    NEVER hardcoded here. It is the single source: the sampler ticks at it, and the engine
+    converts ticks→seconds with it. The engine's ``dwell`` gate is measured in TICKS
+    (``DWELL_MIN_TICKS``), so the DECISION is cadence-independent — a brand tunes the tick
+    count to its own cadence, mirroring ``job_segmenter.tuning``.
 
 Public surface:
     register(hass: HomeAssistant) -> None

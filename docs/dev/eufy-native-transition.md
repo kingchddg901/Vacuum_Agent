@@ -320,8 +320,8 @@ plays today, but grounded in observed position + device area.
   - **W5b's sampler gates on `map_state_source` presence** — don't sample pose for a vacuum with no
     live map (the rows would be all-`None`).
   - **All brand settings stay in the adapter.** The engine choice, the thresholds
-    (`wind_transit`/`dwell_min_s`/`swept_area_min_m2`), and the **sampler `interval_s`** (which the
-    `dwell_min_s` tuning assumes) all come from the adapter's `room_attribution` block — the single
+    (`wind_transit`/`dwell_min_ticks`/`swept_area_min_m2`), and the **sampler `interval_s`** all come
+    from the adapter's `room_attribution` block — the single
     operative source, mirroring `job_segmenter.tuning`. Core `listeners/` + `external_ingest` read
     those (resolved via a helper like `_resolve_engine_tuning`); they must **never hardcode** the
     cadence or thresholds. Same rule for the W5c confidence/availability gate values.

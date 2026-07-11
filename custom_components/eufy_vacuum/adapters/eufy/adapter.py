@@ -725,7 +725,7 @@ def register_eufy_adapter_for_vacuum(
             "engine": "eufy_anchor_winding_v1",
             "tuning": {
                 "wind_transit": 1.5,
-                "dwell_min_s": 25.0,
+                "dwell_min_ticks": 12,
                 "swept_area_min_m2": 0.5,
                 "interval_s": 2.0,
             },

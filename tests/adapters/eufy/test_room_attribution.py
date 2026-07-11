@@ -16,7 +16,7 @@ natively (with cleaning_area).
 from __future__ import annotations
 
 from custom_components.eufy_vacuum.learning.room_attribution_engines import (
-    DWELL_MIN_S,
+    DWELL_MIN_TICKS,
     SWEPT_AREA_MIN_M2,
     WIND_TRANSIT,
     EufyAnchorWindingAttributor,
@@ -61,12 +61,14 @@ RUNS = {
 
 
 def _classify_set(rooms, *, use_area):
-    per_room = {rid: {"dwell_s": d, "spread": s, "winding": w, "bbox_area": 0.0}
+    # The fixture stores dwell in SECONDS (the prototype's evidence). The engine now gates
+    # dwell in TICKS, so derive the tick count at the fixture's 2 s cadence — n = dwell_s / 2.
+    per_room = {rid: {"n": round(d / 2), "dwell_s": d, "spread": s, "winding": w, "bbox_area": 0.0}
                 for rid, (s, d, w, _a) in rooms.items()}
     areas = {rid: a for rid, (_s, _d, _w, a) in rooms.items()} if use_area else None
     return _classify(
         per_room, areas,
-        wind_transit=WIND_TRANSIT, dwell_min_s=DWELL_MIN_S, swept_area_min_m2=SWEPT_AREA_MIN_M2,
+        wind_transit=WIND_TRANSIT, dwell_min_ticks=DWELL_MIN_TICKS, swept_area_min_m2=SWEPT_AREA_MIN_M2,
     )["cleaned"]
 
 
@@ -137,7 +139,7 @@ def test_attribute_full_pipeline_robust_excludes_parked_dock():
 
 def test_attribute_anchor_only_false_positives_the_dock():
     """Same parked-dock run with NO cleaning_area -> anchor-only -> wrongly 'cleaned'
-    (60s dwell > 25s, high winding). Documents the limitation the area signal closes."""
+    (30 ticks > 12, high winding). Documents the limitation the area signal closes."""
     engine = EufyAnchorWindingAttributor()
     park = [{"current_room": 8, "anchor": list(((0.5, 0.5), (0.51, 0.51))[i % 2])} for i in range(30)]
     result = engine.attribute(park)

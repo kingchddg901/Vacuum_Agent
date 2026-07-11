@@ -117,7 +117,9 @@ class RoomAttributionEngine(Protocol):
 # references them so they can never drift from the documented + tested rule.
 WIND_TRANSIT = 1.5        # winding < this => straight pass => TRANSIT (transit ~1.0-1.22;
                           #                                            cleaned >= ~4.9).
-DWELL_MIN_S = 25.0        # anchor-only fallback floor (transit single-run dwell ceiling ~18s).
+DWELL_MIN_TICKS = 12      # anchor-only fallback floor, measured in TICKS (sample count), so it
+                          # is cadence-INDEPENDENT — a brand tunes it to ITS own sampler via the
+                          # adapter (a straight transit runs < ~9 ticks; 12 ≈ 24 s at a 2 s cadence).
 SWEPT_AREA_MIN_M2 = 0.5   # robust: a clean sweeps >= this; a wash/park sweeps ~0 m².
 
 
@@ -192,7 +194,7 @@ def _classify(
     swept_area_by_room: dict[Any, float] | None,
     *,
     wind_transit: float,
-    dwell_min_s: float,
+    dwell_min_ticks: float,
     swept_area_min_m2: float,
 ) -> RoomAttributionResult:
     """Ports the prototype's ``classify``, thresholds parameterized for tuning."""
@@ -226,16 +228,16 @@ def _classify(
                 verdicts[rid] = ("parked/dock", f"swept ~{a:.1f} m^2 (< {swept_area_min_m2})")
         else:
             # ANCHOR-ONLY fallback (no swept area): winding drops a straight transit, then
-            # dwell gates. This path can false-positive a long jittering parked dock — it's
-            # best-effort; prefer robust mode (callers gate on `mode`).
+            # dwell (in TICKS) gates. This path can false-positive a long jittering parked dock
+            # — it's best-effort; prefer robust mode (callers gate on `mode`).
             if m["winding"] < wind_transit:
                 verdicts[rid] = ("transit", f"straight pass (winding {m['winding']:.2f} < {wind_transit})")
-            elif m["dwell_s"] >= dwell_min_s:
+            elif m["n"] >= dwell_min_ticks:
                 cleaned.add(rid)
-                verdicts[rid] = ("cleaned?", f"dwell {m['dwell_s']:.0f}s + winding {m['winding']:.1f} "
+                verdicts[rid] = ("cleaned?", f"dwell {m['n']} ticks + winding {m['winding']:.1f} "
                                              f"(anchor-only — cannot exclude a jittering parked dock)")
             else:
-                verdicts[rid] = ("transit", f"short dwell {m['dwell_s']:.0f}s")
+                verdicts[rid] = ("transit", f"short dwell {m['n']} ticks")
     return {
         "cleaned": cleaned, "verdicts": verdicts, "per_room": per_room,
         "mode": "robust" if swept_area_by_room is not None else "anchor_only",
@@ -254,9 +256,13 @@ class EufyAnchorWindingAttributor:
     # BY REFERENCE to the module constants above — do NOT retype the literals.
     DEFAULT_TUNING: dict[str, float] = {
         "wind_transit": WIND_TRANSIT,
-        "dwell_min_s": DWELL_MIN_S,
+        "dwell_min_ticks": DWELL_MIN_TICKS,
         "swept_area_min_m2": SWEPT_AREA_MIN_M2,
-        "interval_s": 2.0,   # the sampler cadence the dwell/threshold tuning assumes
+        # Sampler cadence — the SINGLE source the run-active pose sampler also reads
+        # (listeners/pose_sampler.py), and what converts ticks→seconds for the dwell_s
+        # display + the pose-only stand-alone timing. The dwell DECISION is now in ticks,
+        # so it no longer silently depends on this matching the sampler.
+        "interval_s": 2.0,
     }
 
     _KNOWN_TUNING_KEYS: frozenset[str] = frozenset(DEFAULT_TUNING)
@@ -298,7 +304,7 @@ class EufyAnchorWindingAttributor:
         return _classify(
             per_room_best, swept,
             wind_transit=t["wind_transit"],
-            dwell_min_s=t["dwell_min_s"],
+            dwell_min_ticks=t["dwell_min_ticks"],
             swept_area_min_m2=t["swept_area_min_m2"],
         )
 

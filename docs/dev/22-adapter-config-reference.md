@@ -1390,7 +1390,7 @@ the tuning via the engine.
 ### `tuning` *(optional when `room_attribution` is present, dict)*
 
 Engine-owned thresholds (`eufy_anchor_winding_v1`):
-`wind_transit`, `dwell_min_s`, `swept_area_min_m2`, `interval_s`.
+`wind_transit`, `dwell_min_ticks`, `swept_area_min_m2`, `interval_s`.
 
 ### Example (from the Eufy adapter)
 
@@ -1399,7 +1399,7 @@ Engine-owned thresholds (`eufy_anchor_winding_v1`):
     "engine": "eufy_anchor_winding_v1",
     "tuning": {
         "wind_transit": 1.5,
-        "dwell_min_s": 25.0,
+        "dwell_min_ticks": 12,
         "swept_area_min_m2": 0.5,
         "interval_s": 2.0,
     },

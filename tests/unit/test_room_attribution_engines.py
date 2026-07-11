@@ -18,7 +18,7 @@ tests/adapters/eufy/test_room_attribution.py — this file is the brand-agnostic
 from __future__ import annotations
 
 from custom_components.eufy_vacuum.learning.room_attribution_engines import (
-    DWELL_MIN_S,
+    DWELL_MIN_TICKS,
     SWEPT_AREA_MIN_M2,
     WIND_TRANSIT,
     EufyAnchorWindingAttributor,
@@ -81,7 +81,7 @@ def test_default_tuning_by_reference():
     """[RA-6] DEFAULT_TUNING references the module constants (single source)."""
     dt = EufyAnchorWindingAttributor.DEFAULT_TUNING
     assert dt["wind_transit"] == WIND_TRANSIT
-    assert dt["dwell_min_s"] == DWELL_MIN_S
+    assert dt["dwell_min_ticks"] == DWELL_MIN_TICKS
     assert dt["swept_area_min_m2"] == SWEPT_AREA_MIN_M2
 
 
@@ -92,7 +92,7 @@ def test_validate_tuning():
     assert any("unknown tuning key" in m and "bogus" in m for m in engine.validate_tuning({"bogus": 1}))
     assert engine.validate_tuning({"wind_transit": -1})
     assert engine.validate_tuning({"wind_transit": "x"})
-    assert engine.validate_tuning({"dwell_min_s": True})  # bool is not a valid number
+    assert engine.validate_tuning({"dwell_min_ticks": True})  # bool is not a valid number
     assert engine.validate_tuning({}) == []
     assert engine.validate_tuning({"wind_transit": 1.8, "swept_area_min_m2": 0.3}) == []
 
