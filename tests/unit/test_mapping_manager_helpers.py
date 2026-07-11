@@ -23,8 +23,6 @@ from __future__ import annotations
 import pytest
 
 from custom_components.eufy_vacuum.mapping.manager import (
-    _adjust_polygon_pixel,
-    _bbox_from_polygon_pixel,
     _clean_string_list,
     _clean_text,
     _deep_merge_dict,
@@ -189,46 +187,7 @@ def _adjust(**kw):
     return _adjust_polygon_pixel(_SQUARE, **base)
 
 
-def test_adjust_polygon_translation():
-    """[MM-12]"""
-    out = _adjust(offset_x=5)
-    assert out[0] == [5, 0]
-    assert out[1] == [15, 0]
-
-
-def test_adjust_polygon_edge_nudge():
-    """[MM-12] edge_right shifts only the points in the right band."""
-    out = _adjust(edge_right=3)
-    assert out[1] == [13, 0]   # x=10 is in the right band
-    assert out[0] == [0, 0]    # x=0 is not
-
-
-def test_adjust_polygon_vertex_move():
-    """[MM-12]"""
-    out = _adjust(vertex_moves=[{"index": 0, "delta_x": 1, "delta_y": 2}])
-    assert out[0] == [1, 2]
-
-
-def test_adjust_polygon_bad_input():
-    """[MM-12]"""
-    assert _adjust_polygon_pixel("nope", offset_x=0, offset_y=0, edge_left=0,
-                                 edge_right=0, edge_top=0, edge_bottom=0) == []
-    # bad points are filtered out
-    out = _adjust_polygon_pixel([[0, 0], "x", [10, 10]], offset_x=0, offset_y=0,
-                                edge_left=0, edge_right=0, edge_top=0, edge_bottom=0)
-    assert len(out) == 2
-
-
 # ---------------------------------------------------------------------------
 # _bbox_from_polygon_pixel
 # ---------------------------------------------------------------------------
 
-def test_bbox_from_polygon_empty():
-    """[MM-13]"""
-    assert _bbox_from_polygon_pixel([]) is None
-
-
-def test_bbox_from_polygon():
-    """[MM-13] inclusive width/height (+1)."""
-    bbox = _bbox_from_polygon_pixel([[0, 0], [10, 0], [10, 5]])
-    assert bbox == {"x": 0, "y": 0, "width": 11, "height": 6}

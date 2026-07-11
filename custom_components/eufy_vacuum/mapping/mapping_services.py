@@ -71,14 +71,6 @@ _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 # ---------------------------------------------------------------------------
 
 SERVICE_SAVE_MAP_IMAGE             = "save_map_image"
-SERVICE_GET_MAPPING_STATE          = "get_mapping_state"
-SERVICE_SAVE_MAPPING_PACKAGE       = "save_mapping_package"
-SERVICE_APPEND_MAPPING_TRACE_EVIDENCE = "append_mapping_trace_evidence"
-SERVICE_GET_MAPPING_PACKAGE        = "get_mapping_package"
-SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS = "get_image_segment_suggestions"
-SERVICE_TRANSLATE_IMAGE_SEGMENT    = "translate_image_segment"
-SERVICE_SET_DOCK_ANCHOR            = "set_dock_anchor"
-SERVICE_SET_DOCK_ROOM              = "set_dock_room"
 SERVICE_GET_ROOM_BOUNDS_SNAPSHOT      = "get_room_bounds_snapshot"
 SERVICE_CLEAR_ROOM_BOUNDS             = "clear_room_bounds"
 SERVICE_EXCLUDE_ROOM_JOB_BOUNDS       = "exclude_room_job_bounds"
@@ -87,14 +79,6 @@ SERVICE_REBUILD_ROOM_BOUNDS           = "rebuild_room_bounds_from_archive"
 
 ALL_MAPPING_SERVICES = (
     SERVICE_SAVE_MAP_IMAGE,
-    SERVICE_GET_MAPPING_STATE,
-    SERVICE_SAVE_MAPPING_PACKAGE,
-    SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
-    SERVICE_GET_MAPPING_PACKAGE,
-    SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
-    SERVICE_TRANSLATE_IMAGE_SEGMENT,
-    SERVICE_SET_DOCK_ANCHOR,
-    SERVICE_SET_DOCK_ROOM,
     SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
     SERVICE_CLEAR_ROOM_BOUNDS,
     SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
@@ -2269,7 +2253,6 @@ async def _handle_compare_map_sources(hass: HomeAssistant, call: ServiceCall) ->
 
 
 # ===========================================================================
-# THROWAWAY DIAGNOSTIC — Wave 0 of the native-transition design
 # (docs/dev/eufy-native-transition.md). REMOVE after the validation recording.
 #
 # Question it answers: is the inferred live `current_room` fresh + non-flickering
@@ -2283,126 +2266,6 @@ async def _handle_compare_map_sources(hass: HomeAssistant, call: ServiceCall) ->
 # Active probe tasks, keyed by vacuum entity id (so a second call can stop/restart).
 _LIVE_ROOM_PROBE_TASKS: dict[str, asyncio.Task] = {}
 
-DEBUG_LOG_LIVE_ROOM_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Optional("interval_seconds", default=2.0): vol.All(
-            vol.Coerce(float), vol.Range(min=0.5, max=60.0)
-        ),
-        vol.Optional("duration_minutes", default=30): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=180)
-        ),
-        vol.Optional("stop", default=False): cv.boolean,
-    }
-)
-
-
-def _append_jsonl(path: str, obj: dict) -> None:
-    """Append one JSON line (sync — runs in the executor, never on the loop)."""
-    with open(path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(obj) + "\n")
-
-
-async def _handle_debug_log_live_room(hass: HomeAssistant, call: ServiceCall) -> dict:
-    """Start (or stop) a server-side per-tick logger of the live current_room signal.
-
-    THROWAWAY — see the banner above. Call with stop: true to cancel early; otherwise it
-    auto-stops after duration_minutes. Restarting cancels any prior probe for the vacuum.
-    """
-    vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    stop: bool = call.data["stop"]
-
-    # Cancel any in-flight probe for this vacuum first (restart or stop both want this).
-    existing = _LIVE_ROOM_PROBE_TASKS.pop(vacuum_entity_id, None)
-    if existing is not None and not existing.done():
-        existing.cancel()
-    if stop:
-        return {"stopped": True, "vacuum_entity_id": vacuum_entity_id}
-
-    interval: float = float(call.data["interval_seconds"])
-    duration_minutes: int = int(call.data["duration_minutes"])
-    duration_s = duration_minutes * 60
-    manager = hass.data[DOMAIN][DATA_RUNTIME]
-    path = hass.config.path(
-        f"eufy_current_room_probe_{vacuum_entity_id.replace('.', '_')}.jsonl"
-    )
-    oid = vacuum_entity_id.split(".", 1)[-1]   # for the device sensors below
-
-    def _sensor_num(suffix):
-        s = hass.states.get(f"sensor.{oid}_{suffix}")
-        try:
-            return float(s.state) if s is not None else None
-        except (TypeError, ValueError):
-            return None
-
-    def _sensor_str(suffix):
-        s = hass.states.get(f"sensor.{oid}_{suffix}")
-        return s.state if s is not None else None
-
-    await hass.async_add_executor_job(
-        _append_jsonl, path,
-        {
-            "kind": "meta", "vacuum": vacuum_entity_id, "started": utc_now_iso(),
-            "interval_seconds": interval, "duration_minutes": duration_minutes,
-            "note": "tab-CLOSED validation; read freshness/flicker/None-rate",
-        },
-    )
-
-    async def _loop() -> None:
-        start = time.monotonic()
-        n = 0
-        try:
-            while time.monotonic() - start < duration_s:
-                tick = utc_now_iso()
-                try:
-                    pose = await manager.async_get_map_live_pose(
-                        vacuum_entity_id=vacuum_entity_id
-                    )
-                except Exception as err:  # a probe must never crash a real run
-                    pose = {"present": False, "reason": f"probe_error:{err!r}"}
-                # Log only the small fields (skip the verbose `path` trail).
-                await hass.async_add_executor_job(
-                    _append_jsonl, path,
-                    {
-                        "kind": "sample", "t": tick, "i": n,
-                        "present": bool(pose.get("present")),
-                        "reason": pose.get("reason"),
-                        "current_room": pose.get("current_room"),
-                        "robot_docked": pose.get("robot_docked", False),
-                        "robot_anchor": pose.get("robot_anchor"),
-                        "robot_heading": pose.get("robot_heading"),
-                        # Device signals for the room-attribution classifier: swept-area is the
-                        # REQUIRED clean-vs-parked separator (a wash/park sweeps ~0 m^2); the
-                        # status fields timestamp the washes. See room_attribution.py.
-                        "cleaning_area": _sensor_num("cleaning_area"),
-                        "cleaning_time": _sensor_num("cleaning_time"),
-                        "task_status": _sensor_str("task_status"),
-                        "dock_status": _sensor_str("dock_status"),
-                        "diagnostics": pose.get("diagnostics"),
-                    },
-                )
-                n += 1
-                await asyncio.sleep(interval)
-        except asyncio.CancelledError:
-            raise
-        finally:
-            _LIVE_ROOM_PROBE_TASKS.pop(vacuum_entity_id, None)
-            try:
-                await hass.async_add_executor_job(
-                    _append_jsonl, path,
-                    {"kind": "end", "ended": utc_now_iso(), "samples": n},
-                )
-            except Exception:  # executor may be gone on shutdown — best-effort
-                pass
-
-    task = hass.async_create_background_task(
-        _loop(), name=f"eufy_live_room_probe:{vacuum_entity_id}"
-    )
-    _LIVE_ROOM_PROBE_TASKS[vacuum_entity_id] = task
-    return {
-        "started": True, "vacuum_entity_id": vacuum_entity_id, "path": path,
-        "interval_seconds": interval, "duration_minutes": duration_minutes,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -2811,158 +2674,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         _LOGGER.info("save_map_image: %s", result)
         return result
 
-    async def handle_get_mapping_state(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = mgr.get_mapping_state(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-        )
-        return result
-
-    async def handle_save_mapping_package(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.save_mapping_package(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                package=call.data["package"],
-            )
-        )
-        _LOGGER.info("save_mapping_package: %s", result)
-        return result
-
-    async def handle_append_mapping_trace_evidence(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.append_mapping_trace_evidence(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                evidence=call.data["evidence"],
-            )
-        )
-        _LOGGER.info("append_mapping_trace_evidence: %s", result)
-        return result
-
-    async def handle_get_mapping_package(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        return mgr.get_mapping_package(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-        )
-
-    async def handle_get_image_segment_suggestions(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        return await hass.async_add_executor_job(
-            lambda: mgr.get_image_segment_suggestions(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                min_area_pixels=call.data.get("min_area_pixels", 1200),
-                simplify_epsilon=call.data.get("simplify_epsilon"),
-                max_segments=call.data.get("max_segments"),
-            )
-        )
-
-    async def handle_translate_image_segment(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.translate_image_segment(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                segment_id=call.data["segment_id"],
-                delta_x=call.data.get("delta_x", 0),
-                delta_y=call.data.get("delta_y", 0),
-                edge_left=call.data.get("edge_left", 0),
-                edge_right=call.data.get("edge_right", 0),
-                edge_top=call.data.get("edge_top", 0),
-                edge_bottom=call.data.get("edge_bottom", 0),
-                vertex_moves=call.data.get("vertex_moves", []),
-            )
-        )
-        _LOGGER.info("translate_image_segment: %s", result)
-        return result
-
-    async def handle_set_dock_anchor(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.set_dock_anchor(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                pixel_x=call.data["pixel_x"],
-                pixel_y=call.data["pixel_y"],
-                vacuum_x=call.data.get("vacuum_x"),
-                vacuum_y=call.data.get("vacuum_y"),
-                exclusion_radius=call.data.get("exclusion_radius"),
-                notes=call.data.get("notes"),
-            )
-        )
-        _LOGGER.info("set_dock_anchor: %s", result)
-        return result
-
-    async def handle_set_dock_room(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.set_dock_room(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                room_id=call.data["room_id"],
-                notes=call.data.get("notes"),
-            )
-        )
-        _LOGGER.info("set_dock_room: %s", result)
-        return result
-
     hass.services.async_register(
         DOMAIN, SERVICE_SAVE_MAP_IMAGE,
         handle_save_map_image,
         schema=SAVE_MAP_IMAGE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_GET_MAPPING_STATE,
-        handle_get_mapping_state,
-        schema=GET_MAPPING_STATE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_SAVE_MAPPING_PACKAGE,
-        handle_save_mapping_package,
-        schema=SAVE_MAPPING_PACKAGE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
-        handle_append_mapping_trace_evidence,
-        schema=APPEND_MAPPING_TRACE_EVIDENCE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_GET_MAPPING_PACKAGE,
-        handle_get_mapping_package,
-        schema=GET_MAPPING_STATE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
-        handle_get_image_segment_suggestions,
-        schema=GET_IMAGE_SEGMENT_SUGGESTIONS_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_TRANSLATE_IMAGE_SEGMENT,
-        handle_translate_image_segment,
-        schema=TRANSLATE_IMAGE_SEGMENT_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_SET_DOCK_ANCHOR,
-        handle_set_dock_anchor,
-        schema=SET_DOCK_ANCHOR_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_SET_DOCK_ROOM,
-        handle_set_dock_room,
-        schema=SET_DOCK_ROOM_SCHEMA,
         supports_response=True,
     )
 
@@ -3123,14 +2838,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
     )
 
-    # THROWAWAY DIAGNOSTIC (Wave 0, eufy-native-transition) — remove after validation.
-    async def debug_log_live_room(call: ServiceCall) -> dict:
-        return await _handle_debug_log_live_room(hass, call)
-
-    hass.services.async_register(
-        DOMAIN, "debug_log_live_room", debug_log_live_room,
-        schema=DEBUG_LOG_LIVE_ROOM_SCHEMA, supports_response=True,
-    )
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,
         schema=CREATE_CUSTOM_LAYOUT_SCHEMA, supports_response=True,

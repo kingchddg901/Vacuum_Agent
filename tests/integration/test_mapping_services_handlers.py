@@ -58,29 +58,11 @@ async def _call(hass, service, data):
         DOMAIN, service, data, blocking=True, return_response=True)
 
 
-async def test_get_state_and_package(hass, mapping_services):
-    """[MSV-1]"""
-    state = await _call(hass, ms.SERVICE_GET_MAPPING_STATE,
-                        {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert state["vacuum_entity_id"] == _VAC
-    pkg = await _call(hass, ms.SERVICE_GET_MAPPING_PACKAGE,
-                      {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert isinstance(pkg, dict)
-
-
 async def test_room_bounds_snapshot(hass, mapping_services):
     """[MSV-2]"""
     snap = await _call(hass, ms.SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
                        {"vacuum_entity_id": _VAC, "map_id": _MAP})
     assert snap["available"] is True
-
-
-async def test_set_dock_room(hass, mapping_services):
-    """[MSV-5]"""
-    result = await _call(hass, ms.SERVICE_SET_DOCK_ROOM,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "2"})
-    assert result["saved"] is True
-    assert result["dock"]["room_id"] == "2"
 
 
 async def test_set_live_map_rotation(hass, mapping_services):
@@ -140,34 +122,6 @@ async def test_get_map_render_data_absent(hass, mapping_services):
     result = await _call(hass, ms.SERVICE_GET_MAP_RENDER_DATA, {"vacuum_entity_id": _VAC})
     assert result["present"] is False
     assert result.get("reason") == "not_configured"
-
-
-async def test_set_dock_anchor_docked(hass, mapping_services):
-    """[MSV-6]"""
-    hass.states.async_set(_VAC, "docked")
-    result = await _call(hass, ms.SERVICE_SET_DOCK_ANCHOR,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                          "pixel_x": 12.0, "pixel_y": 34.0})
-    assert result["saved"] is True
-    assert result["dock"]["pixel"] == [12.0, 34.0]
-
-
-async def test_append_trace_evidence(hass, mapping_services):
-    """[MSV-9]"""
-    result = await _call(hass, ms.SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
-                         {"vacuum_entity_id": _VAC, "map_id": "ev",
-                          "evidence": {"label": "doorway"}})
-    assert result["saved"] is True
-    assert result["trace_count"] >= 1
-
-
-async def test_save_mapping_package(hass, mapping_services):
-    """[MSV-10]"""
-    result = await _call(hass, ms.SERVICE_SAVE_MAPPING_PACKAGE,
-                         {"vacuum_entity_id": _VAC, "map_id": "pkg",
-                          "package": {"schema_version": 1}})
-    assert isinstance(result, dict)
-    assert result.get("saved") is True or "package" in result
 
 
 async def test_clear_room_bounds_unknown(hass, mapping_services):

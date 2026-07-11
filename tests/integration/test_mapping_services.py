@@ -72,15 +72,9 @@ from custom_components.eufy_vacuum.const import (
 )
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
-    SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
     SERVICE_CLEAR_ROOM_BOUNDS,
     SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
-    SERVICE_GET_MAPPING_PACKAGE,
-    SERVICE_GET_MAPPING_STATE,
     SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-    SERVICE_SAVE_MAPPING_PACKAGE,
-    SERVICE_SET_DOCK_ANCHOR,
-    SERVICE_SET_DOCK_ROOM,
     async_register_mapping_services,
     async_unregister_mapping_services,
 )
@@ -920,37 +914,6 @@ async def test_per_layout_anchors_and_dock(hass, mapping_services):
 # ---------------------------------------------------------------------------
 # [MSH-9+] non-CV data handlers (dock / bounds / trace capture / package)
 # ---------------------------------------------------------------------------
-
-async def test_mapping_state_and_package(hass, mapping_services):
-    """[MSH-9] get_mapping_state / save+get package / append trace evidence."""
-    state = await _call(hass, SERVICE_GET_MAPPING_STATE,
-                        {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert state["vacuum_entity_id"] == _VAC
-    saved = await _call(hass, SERVICE_SAVE_MAPPING_PACKAGE,
-                        {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                         "package": {"rooms": {}}})
-    assert saved["saved"] is True
-    pkg = await _call(hass, SERVICE_GET_MAPPING_PACKAGE,
-                      {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert isinstance(pkg, dict)
-    ev = await _call(hass, SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
-                     {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                      "evidence": {"label": "doorway"}})
-    assert ev["saved"] is True
-
-
-async def test_dock_anchor_and_room(hass, mapping_services):
-    """[MSH-10] set_dock_anchor + set_dock_room."""
-    setup_map(mapping_services, _VAC, _MAP, count=2)
-    hass.states.async_set(_VAC, "docked")  # dock anchor requires docked state
-    anchor = await _call(hass, SERVICE_SET_DOCK_ANCHOR,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                          "pixel_x": 50, "pixel_y": 50})
-    assert anchor["saved"] is True
-    room = await _call(hass, SERVICE_SET_DOCK_ROOM,
-                       {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1})
-    assert room["saved"] is True
-
 
 async def test_bounds_snapshot_and_clear(hass, mapping_services):
     """[MSH-13] room bounds snapshot + clear + exclude/restore (no bounds → no-op)."""
