@@ -158,3 +158,56 @@ def compute_overhead_observed(job: dict[str, Any]) -> dict[str, Any]:
         ),
         "wash_minutes": None,
     }
+
+
+# Cold-start learning guard: a completed run whose wall time exceeds its active
+# cleaning by this many minutes — with NO other explanation (no commanded
+# charge-wait/wait phase, no logged error) — is HELD from defining a room
+# baseline. One extreme first sample must not poison a cold-start baseline; the
+# run stays visible and Restore-able in the review tab. 20 min is data-derived
+# from Alfred's archive: the legit learning-eligible runs cluster at a <= 11.7 min
+# idle gap with a lone 23 min anomaly, then a wide empty band up to a 96 min
+# hand-excluded exemplar — so 20 clears every legit run (incl. a 15.4 min
+# interrupted tiny-room the design flagged must-pass) while catching the 96 min
+# class and the single 23 min outlier (scratch idle_wall_analysis, 2026-07-11).
+IDLE_WALL_HOLD_FLOOR_MINUTES = 20.0
+
+# Learning-blocker code stamped on a held run — surfaced in the review tab and
+# read by the learning-inclusion gate (used_for_learning is cleared alongside it).
+IDLE_WALL_HOLD_BLOCKER = "extreme_idle_wall"
+
+
+def evaluate_idle_wall_hold(
+    *,
+    duration_minutes: float,
+    active_cleaning_minutes: float | None,
+    had_errors: bool,
+    had_break_phase: bool,
+    floor_minutes: float = IDLE_WALL_HOLD_FLOOR_MINUTES,
+) -> dict[str, Any]:
+    """Decide whether an otherwise-eligible completed run is held from learning
+    for an extreme, UNEXPLAINED idle stretch off the dock.
+
+    idle_gap = duration_minutes - active_cleaning_minutes, where duration_minutes
+    is already paused/recharge-adjusted (build_completed_job_payload) and
+    active_cleaning_minutes is the error-adjusted DEVICE cleaning counter — NOT the
+    state-transition wall slice (actual_cleaning_minutes), which for a stuck/idling
+    run tracks nearly the whole wall and would hide the idle as a ~0 gap.
+
+    A run is EXEMPT — it has "another answer" — when it ran a commanded
+    charge-wait/wait phase or logged an error; both legitimately inflate wall time
+    and carry their own flags, so the idle guard steps aside. Absent a trustworthy
+    active-cleaning figure the run is NOT held (missing data is not evidence of
+    idling). ALWAYS-ON by design: the danger case is a NEW room's first sample, so
+    the guard cannot wait for a baseline to exist before it protects one.
+
+    Returns {"hold": bool, "idle_gap_minutes": float|None, "reason": str|None}.
+    """
+    if active_cleaning_minutes is None or active_cleaning_minutes <= 0:
+        return {"hold": False, "idle_gap_minutes": None, "reason": None}
+    idle_gap = round(duration_minutes - active_cleaning_minutes, 2)
+    if had_break_phase or had_errors:
+        return {"hold": False, "idle_gap_minutes": idle_gap, "reason": None}
+    if idle_gap >= floor_minutes:
+        return {"hold": True, "idle_gap_minutes": idle_gap, "reason": IDLE_WALL_HOLD_BLOCKER}
+    return {"hold": False, "idle_gap_minutes": idle_gap, "reason": None}

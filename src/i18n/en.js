@@ -1783,6 +1783,7 @@ export const en = {
   "vocab.reason_code.false_completion": "This run appears to have ended before cleaning really completed.",
   "vocab.reason_code.bad_room_attribution": "Room attribution for this run looks unreliable.",
   "vocab.reason_code.interrupted_run": "This run appears to have been interrupted.",
+  "vocab.reason_code.extreme_idle_wall": "Held from learning — an unusually long idle stretch off the dock, so it does not define a room baseline. Restore it if the run was legitimate.",
   // mapping_review.filter_* — UNUSED / PARKED (mapping split); see the mapping_review block above. Kept pending the batch i18n prune.
   "mapping_review.filter_all_rooms": "All Rooms",
   "mapping_review.filter_has_bounds": "Has Bounds",

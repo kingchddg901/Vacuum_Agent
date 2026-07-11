@@ -25,7 +25,14 @@ from homeassistant.core import HomeAssistant
 from ..battery.job_metrics import compute_job_battery_metrics
 from ..timestamp_utils import parse_timestamp
 from .brand_facts import brand_facts_for
-from .utils import _iso_now, _safe_float, _safe_int, compute_overhead_observed
+from .utils import (
+    IDLE_WALL_HOLD_FLOOR_MINUTES,
+    _iso_now,
+    _safe_float,
+    _safe_int,
+    compute_overhead_observed,
+    evaluate_idle_wall_hold,
+)
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
 
@@ -134,6 +141,24 @@ def _compute_total_error_seconds(
 
     total = sum((end - start).total_seconds() for start, end in merged)
     return max(0, int(total))
+
+
+def _run_had_break_phase(active_job_state: Any) -> bool:
+    """True if the run executed a commanded charge-wait or timed-wait phase.
+
+    A charge-to-X% or timed hold docks the robot and legitimately inflates wall
+    time — its own "answer" for a high idle gap — so the cold-start idle guard
+    exempts it. Atomic (single-phase) jobs carry no ``phases`` list and never
+    have a break phase by construction.
+    """
+    phases = active_job_state.get("phases") if isinstance(active_job_state, dict) else None
+    if not isinstance(phases, list):
+        return False
+    return any(
+        isinstance(p, dict)
+        and str(p.get("phase_type") or "").strip().lower() in ("charge_wait", "wait")
+        for p in phases
+    )
 
 
 def _apply_water_actuals(
@@ -577,6 +602,63 @@ class LearningJobFinalizer:
             "cleaning_area_m2": cleaning_area_m2,
         }
 
+    def _apply_idle_wall_hold(
+        self,
+        *,
+        completed_job: dict[str, Any],
+        active_job_state: Any,
+        had_errors: bool,
+        job_id: str,
+    ) -> None:
+        """Hold an otherwise-eligible completed run from DEFINING a room baseline
+        when it spent an extreme, UNEXPLAINED stretch off the dock.
+
+        wall >> active cleaning, with no charge/wait phase and no error -> held via a
+        learning_blocker (``extreme_idle_wall``) + ``used_for_learning`` cleared, so
+        the run stays visible + Restore-able in the review tab rather than being hard
+        excluded. Uses the DEVICE cleaning counter (cleaning_time_seconds), never the
+        state-transition wall slice (actual_cleaning_minutes), so a stuck run's
+        near-full slice can't mask the idle. Mutates ``completed_job`` in place;
+        no-op for non-completed / already-held / already-excluded runs. Decision
+        logic lives in utils.evaluate_idle_wall_hold.
+        """
+        outcome = completed_job.get("outcome")
+        job = completed_job.get("job")
+        if not (
+            isinstance(outcome, dict)
+            and isinstance(job, dict)
+            and outcome.get("used_for_learning")
+            and str(outcome.get("status", "")).strip().lower() == "completed"
+        ):
+            return
+        ct_secs = _safe_int(job.get("cleaning_time_seconds"), 0)
+        active_min = (
+            ct_secs / 60.0
+            if ct_secs > 0
+            else _safe_float(job.get("actual_cleaning_minutes"), 0.0)
+        )
+        verdict = evaluate_idle_wall_hold(
+            duration_minutes=_safe_float(job.get("duration_minutes"), 0.0),
+            active_cleaning_minutes=active_min if active_min > 0 else None,
+            had_errors=had_errors,
+            had_break_phase=_run_had_break_phase(active_job_state),
+        )
+        if not verdict["hold"]:
+            return
+        blockers = list(outcome.get("learning_blockers") or [])
+        if verdict["reason"] not in blockers:
+            blockers.append(verdict["reason"])
+        outcome["learning_blockers"] = sorted(set(blockers))
+        outcome["used_for_learning"] = False
+        outcome["idle_wall_minutes"] = verdict["idle_gap_minutes"]
+        _LOGGER.info(
+            "job_finalizer: held %s from learning — %.1f min unexplained idle wall "
+            "(>= %.0f min floor)",
+            job_id,
+            verdict["idle_gap_minutes"],
+            IDLE_WALL_HOLD_FLOOR_MINUTES,
+        )
+
     def finalize_from_inputs(
         self,
         *,
@@ -771,6 +853,15 @@ class LearningJobFinalizer:
                             2,
                         )
             _job["overhead_observed"] = overhead
+
+            # Cold-start idle guard — placed BEFORE the battery sink so a held
+            # anomaly also stays out of battery-health drain means.
+            self._apply_idle_wall_hold(
+                completed_job=completed_job,
+                active_job_state=active_job_state,
+                had_errors=had_errors,
+                job_id=job_id,
+            )
 
             # Battery metrics — drain rates + per-mode/suction/water rollup.
             # Only single-bucket jobs (every room same setting) feed per-bucket

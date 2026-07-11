@@ -1,0 +1,62 @@
+[
+  {
+    "job_id": "job_2026-05-09T11-37-32",
+    "note": "exemplar: 96 min idle, hand-excluded \u2014 must HOLD",
+    "expect_hold": true,
+    "duration_minutes": 129.52,
+    "cleaning_time_seconds": 1980,
+    "actual_cleaning_minutes": 129.37,
+    "had_errors": false,
+    "has_charge_steps": false
+  },
+  {
+    "job_id": "job_2026-05-07T19-31-56",
+    "note": "eligible anomaly: 23 min gap, the lone kept outlier",
+    "expect_hold": true,
+    "duration_minutes": 48.0,
+    "cleaning_time_seconds": 1500,
+    "actual_cleaning_minutes": 47.05,
+    "had_errors": false,
+    "has_charge_steps": false
+  },
+  {
+    "job_id": "job_2026-07-09T08-22-37",
+    "note": "interrupted tiny-room: 15.4 min gap, design must-PASS",
+    "expect_hold": false,
+    "duration_minutes": 17.93,
+    "cleaning_time_seconds": 150,
+    "actual_cleaning_minutes": 16.47,
+    "had_errors": false,
+    "has_charge_steps": false
+  },
+  {
+    "job_id": "job_2026-07-05T08-06-19",
+    "note": "dining partial: bad area not idle, must-PASS",
+    "expect_hold": false,
+    "duration_minutes": 5.57,
+    "cleaning_time_seconds": 90,
+    "actual_cleaning_minutes": 4.85,
+    "had_errors": false,
+    "has_charge_steps": false
+  },
+  {
+    "job_id": "job_2026-04-26T13-10-12",
+    "note": "legit top-of-cluster: 11.7 min gap, must-PASS",
+    "expect_hold": false,
+    "duration_minutes": 24.72,
+    "cleaning_time_seconds": 780,
+    "actual_cleaning_minutes": 23.92,
+    "had_errors": false,
+    "has_charge_steps": false
+  },
+  {
+    "job_id": "job_2026-06-23T23-28-57",
+    "note": "had_errors run (exempt): its own flag",
+    "expect_hold": false,
+    "duration_minutes": 13.42,
+    "cleaning_time_seconds": 228,
+    "actual_cleaning_minutes": 12.75,
+    "had_errors": true,
+    "has_charge_steps": false
+  }
+]

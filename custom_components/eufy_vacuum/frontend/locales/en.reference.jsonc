@@ -239,7 +239,8 @@
       "manual_test_run": "Marked as a manual test run.",
       "false_completion": "This run appears to have ended before cleaning really completed.",
       "bad_room_attribution": "Room attribution for this run looks unreliable.",
-      "interrupted_run": "This run appears to have been interrupted."
+      "interrupted_run": "This run appears to have been interrupted.",
+      "extreme_idle_wall": "Held from learning — an unusually long idle stretch off the dock, so it does not define a room baseline. Restore it if the run was legitimate."
     },
     "theme_token": {
       "evcc_accent": "Accent",

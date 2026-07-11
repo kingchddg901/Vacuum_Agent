@@ -101,6 +101,7 @@ def _reason_text(value: Any) -> str | None:
         "false_completion": "This run appears to have ended before cleaning really completed.",
         "bad_room_attribution": "Room attribution for this run looks unreliable.",
         "interrupted_run": "This run appears to have been interrupted.",
+        "extreme_idle_wall": "Held from learning — an unusually long idle stretch off the dock, so it does not define a room baseline. Restore it if the run was legitimate.",
         "failed_sanity": "This run failed the backend sanity checks.",
         "short_duration_vs_profile": "Much shorter than this profile usually takes.",
         "short_duration_vs_room": "Much shorter than this room usually takes.",
