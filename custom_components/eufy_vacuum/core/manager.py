@@ -314,6 +314,10 @@ class EufyVacuumManager:
         self.data.setdefault("capabilities", {})
         self.data.setdefault("room_history", {})
         self.data.setdefault("room_rule_status", {})
+        # Box-level learning-processing toggle + per-vacuum pending-run counter (see
+        # learning_processing_enabled). Default enabled = today's behavior.
+        self.data.setdefault("learning_processing_enabled", True)
+        self.data.setdefault("learning_pending_runs", {})
 
         # A reload/restart leaves no live strict-order watchdog, so any persisted
         # _phase_dispatch_pending guard on a loaded job would suppress the completion
@@ -3645,6 +3649,25 @@ class EufyVacuumManager:
             job_id=job_id,
         )
 
+    @property
+    def learning_processing_enabled(self) -> bool:
+        """Box-level toggle. When False, completed runs are still COLLECTED (saved to
+        history) but the heavy stats REBUILD is skipped and the run is counted pending;
+        a catch-up (rebuild_all) reprocesses the whole backlog when re-enabled or via the
+        'process pending runs' service. Default True (rebuild on every completed run)."""
+        return bool(self.data.get("learning_processing_enabled", True))
+
+    def _bump_learning_pending(self, vacuum_entity_id: str) -> None:
+        pending = self.data.setdefault("learning_pending_runs", {})
+        pending[vacuum_entity_id] = int(pending.get(vacuum_entity_id, 0) or 0) + 1
+
+    def _reset_learning_pending(self, vacuum_entity_id: str) -> None:
+        self.data.setdefault("learning_pending_runs", {})[vacuum_entity_id] = 0
+
+    def get_learning_pending_runs(self, vacuum_entity_id: str) -> int:
+        """Runs collected-but-not-yet-processed for a vacuum (0 when caught up)."""
+        return int(self.data.get("learning_pending_runs", {}).get(vacuum_entity_id, 0) or 0)
+
     async def finalize_learning_for_active_job(
         self,
         *,
@@ -3682,6 +3705,8 @@ class EufyVacuumManager:
         if battery_end is None:
             battery_end = self._get_battery_level(vacuum_entity_id)
 
+        # Box-level toggle gates the stats REBUILD; collection (the save) always happens.
+        effective_rebuild = rebuild_stats and self.learning_processing_enabled
         result = await learning.async_finalize_completed_job(
             manager=self,
             vacuum_entity_id=vacuum_entity_id,
@@ -3691,13 +3716,16 @@ class EufyVacuumManager:
             started_at=started_at,
             ended_at=ended_at or _iso_now(),
             used_for_learning=True,
-            rebuild_stats=rebuild_stats,
+            rebuild_stats=effective_rebuild,
             rebuild_csv=rebuild_csv,
             forced_outcome_status=forced_outcome_status,
             forced_lifecycle_state=forced_lifecycle_state,
             forced_lifecycle_message=forced_lifecycle_message,
         )
         completed_job = result.get("completed_job", {}) if isinstance(result, dict) else {}
+        if rebuild_stats and not effective_rebuild:
+            # Collected but not processed (toggle off) — mark it pending for the card.
+            self._bump_learning_pending(vacuum_entity_id)
 
         if self._ingest_completed_job_into_room_history(
             vacuum_entity_id=vacuum_entity_id,
