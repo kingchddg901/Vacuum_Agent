@@ -334,9 +334,8 @@ def register(hass: HomeAssistant) -> None:
                     finally:
                         tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
                         if tracker is not None:
-                            # WHY: end_job is sync and performs disk I/O
-                            # (update_room_bounds, _append_raw_samples,
-                            # _load_map_data). Run on executor.
+                            # end_job clears the tracker's per-job state as the
+                            # job ends; kept on the executor to stay off the loop.
                             await hass.async_add_executor_job(
                                 functools.partial(
                                     tracker.end_job,

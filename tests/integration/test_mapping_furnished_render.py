@@ -53,7 +53,6 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_SET_ROOM_VIEWPORT,
     SERVICE_SET_SEGMENTATION_MODE,
 )
-from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
 from custom_components.eufy_vacuum.mapping.map_source import resolve_furnished_render
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_GET_MAP_SEGMENTS,
@@ -81,7 +80,6 @@ def _tiny_png_b64() -> str:
 
 @pytest.fixture
 async def mapping_services(hass, manager):
-    hass.data[DOMAIN]["mapping_manager"] = RoomBoundsStore(hass)
     await async_register_mapping_services(hass)
     yield manager
     await async_unregister_mapping_services(hass)

@@ -1,20 +1,16 @@
 """Integration tests for mapping/tracker.py — the job-lifecycle + position
-event pipeline. Uses a real hass + real RoomBoundsStore; the raw-position read
-(which needs the full capability stack) is patched so the accumulation and
-confidence logic can be driven deterministically.
+event pipeline. Uses a real hass; the raw-position read
+(which needs the full capability stack) is patched so the confidence and
+room logic can be driven deterministically.
 
 Coverage targets
 ----------------
 [MTE-1]  register_vacuum populates listeners + confidence; idempotent; unregister clears.
 [MTE-2]  unregister_all clears every vacuum.
-[MTE-3]  start_job seeds active-job state and resets confidence/samples.
+[MTE-3]  start_job seeds active-job state and resets confidence.
 [MTE-4]  pause_sampling / resume_sampling toggle the paused set.
-[MTE-5]  _handle_position_update accumulates, dedups, and respects pause.
-[MTE-6]  end_job writes accumulated samples into room bounds via the manager.
-[MTE-7]  end_job archives raw samples for a single-room job.
 [MTE-8]  a native-target room change past the confidence threshold fires eufy_vacuum_room_completed.
 [MTE-9]  _get_raw_position reads capability/state; all None branches + numeric success.
-[MTE-10] Wave 1 dock anchors: captured at start + end, stamped on history + archive.
 [MTE-10b] dock anchor left None on a mid-job restart (recovered samples).
 [MTE-11] dock-drift log: docked+no-job readings logged with deltas; dup/non-docked skipped.
 """
@@ -26,7 +22,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
 from custom_components.eufy_vacuum.mapping.tracker import (
     EVENT_ROOM_COMPLETED,
     MappingTracker,
@@ -41,7 +36,7 @@ _ROOMS = {"3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"}}
 
 @pytest.fixture
 def tracker(hass) -> MappingTracker:
-    return MappingTracker(hass, RoomBoundsStore(hass))
+    return MappingTracker(hass)
 
 
 def _register(tracker) -> None:
@@ -85,7 +80,6 @@ def test_start_job(tracker):
     tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
     assert tracker._active_job[_VAC]["map_id"] == _MAP
     assert tracker._confidence[_VAC].current_room_id is None
-    assert tracker._samples_since_flush[_VAC] == 0
 
 
 def test_pause_resume_sampling(tracker):
@@ -94,123 +88,6 @@ def test_pause_resume_sampling(tracker):
     assert _VAC in tracker._sampling_paused
     tracker.resume_sampling(_VAC)
     assert _VAC not in tracker._sampling_paused
-
-
-def test_handle_position_update_accumulates(tracker):
-    """[MTE-5]"""
-    _register(tracker)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
-
-    tracker._get_raw_position = lambda vacuum_entity_id: (10.0, 10.0)
-    tracker._handle_position_update(_VAC)
-    tracker._handle_position_update(_VAC)  # identical → deduped
-    assert tracker._job_samples[_VAC] == [(10.0, 10.0)]
-
-    tracker._get_raw_position = lambda vacuum_entity_id: (20.0, 20.0)
-    tracker._handle_position_update(_VAC)
-    assert tracker._job_samples[_VAC] == [(10.0, 10.0), (20.0, 20.0)]
-
-    # paused → no accumulation
-    tracker.pause_sampling(_VAC)
-    tracker._get_raw_position = lambda vacuum_entity_id: (30.0, 30.0)
-    tracker._handle_position_update(_VAC)
-    assert (30.0, 30.0) not in tracker._job_samples[_VAC]
-
-
-async def test_handle_position_update_flushes_periodically(tracker, hass, monkeypatch):
-    """[MTE-5b] every SAMPLES_FLUSH_INTERVAL samples the tracker flushes to disk so
-    an HA restart mid-job can recover them (the periodic-flush branch)."""
-    from custom_components.eufy_vacuum.mapping.tracker import SAMPLES_FLUSH_INTERVAL
-
-    _register(tracker)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
-    flushed: list = []
-    monkeypatch.setattr(tracker, "_flush_samples_to_disk",
-                        lambda *a, **k: flushed.append(a))
-    # distinct positions so none are deduped; the Nth append trips the flush
-    for i in range(SAMPLES_FLUSH_INTERVAL):
-        tracker._get_raw_position = lambda vacuum_entity_id, i=i: (float(i), float(i))
-        tracker._handle_position_update(_VAC)
-    await hass.async_block_till_done()
-    assert flushed, "expected a periodic flush after SAMPLES_FLUSH_INTERVAL samples"
-
-
-def test_end_job_writes_bounds(tracker):
-    """[MTE-6] dedicated map id to keep the exact-bounds union isolated."""
-    _register(tracker)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id="mte6bounds", rooms=_ROOMS)
-    tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)]
-    tracker.end_job(vacuum_entity_id=_VAC)
-
-    snap = tracker._manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id="mte6bounds")
-    bounds = snap["rooms"]["3"]["bounds"]
-    assert bounds["min_x"] == 0.0 and bounds["max_x"] == 20.0
-
-
-def test_end_job_recovers_samples_from_disk(tracker, monkeypatch):
-    """[MTE-6b] end_job with no in-memory samples (HA restarted mid-job) recovers
-    the last disk-flushed samples and still writes room bounds from them."""
-    _register(tracker)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
-    # simulate a restart: in-memory samples gone, but a flush file is on disk
-    tracker._job_samples[_VAC] = []
-    tracker._flush_samples_to_disk(_VAC, _MAP, _ROOMS, [(1.0, 1.0), (2.0, 2.0)])
-    captured: dict = {}
-    monkeypatch.setattr(tracker._manager, "update_room_bounds",
-                        lambda **kw: captured.update(kw))
-    tracker.end_job(vacuum_entity_id=_VAC)
-    assert captured.get("samples") == [(1.0, 1.0), (2.0, 2.0)]
-
-
-def test_end_job_archives_samples(tracker):
-    """[MTE-7]"""
-    _register(tracker)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
-    tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0)]
-    tracker.end_job(vacuum_entity_id=_VAC)
-    assert tracker._find_raw_samples_path(_VAC, "3") is not None
-
-
-def test_dock_anchor_capture_start_and_end(tracker):
-    """[MTE-10] Wave 1: a fresh start captures the dock anchor; end captures the
-    re-dock position; both are stamped on the room's history entry AND the raw
-    archive line (so cross-session re-anchoring has them later)."""
-    import json
-
-    _register(tracker)
-    tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4000.0)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id="mte10dock", rooms=_ROOMS)
-    assert tracker._active_job[_VAC]["dock_anchor_start"] == [15000.0, 4000.0]
-
-    tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)]
-    # re-dock at a drifted position
-    tracker._get_raw_position = lambda vacuum_entity_id: (15050.0, 4250.0)
-    tracker.end_job(vacuum_entity_id=_VAC)
-
-    entry = (
-        tracker._manager._load_map_data(_VAC, "mte10dock")
-        ["rooms"]["3"]["job_bounds_history"][0]
-    )
-    assert entry["dock_anchor_start"] == [15000.0, 4000.0]
-    assert entry["dock_anchor_end"] == [15050.0, 4250.0]
-
-    path = tracker._find_raw_samples_path(_VAC, "3")
-    last = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()][-1]
-    rec = json.loads(last)
-    assert rec["dock_anchor_start"] == [15000.0, 4000.0]
-    assert rec["dock_anchor_end"] == [15050.0, 4250.0]
-
-
-def test_dock_anchor_absent_on_restart_recovery(tracker):
-    """[MTE-10b] On a mid-job HA restart, start_job recovers samples from disk and
-    the live position is mid-run (not the dock) — so the start anchor is left None
-    rather than recording a bogus anchor."""
-    _register(tracker)
-    tracker._flush_samples_to_disk(_VAC, "mte10b", _ROOMS, [(1.0, 1.0), (2.0, 2.0)])
-    # would-be mid-run read; must be ignored because samples were recovered
-    tracker._get_raw_position = lambda vacuum_entity_id: (999.0, 999.0)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id="mte10b", rooms=_ROOMS)
-    assert tracker._active_job[_VAC]["dock_anchor_start"] is None
 
 
 async def test_dock_drift_log(tracker, hass):

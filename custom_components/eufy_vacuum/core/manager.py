@@ -873,15 +873,6 @@ class EufyVacuumManager:
         """Delegate to ActiveJobTracker."""
         return self.active_job._access_graph_path(managed_rooms, from_room_id, to_room_id)
 
-    def _detect_transition_room_from_position(self, *, vacuum_entity_id: str, map_id: str, from_room_id, to_room_id):
-        """Delegate to ActiveJobTracker."""
-        return self.active_job._detect_transition_room_from_position(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-            from_room_id=from_room_id,
-            to_room_id=to_room_id,
-        )
-
     def _job_status_summary(self, *, active_job, lifecycle_state=None, progress_snapshot=None):
         """Delegate to ActiveJobTracker."""
         return self.active_job._job_status_summary(
@@ -2960,32 +2951,6 @@ class EufyVacuumManager:
         running_long_room_id = _anomalies["running_long_room_id"]
         skipped_room_ids = _anomalies["skipped_room_ids"]
 
-        # ------------------------------------------------------------------
-        # Transition-room detection (snapshot-only — does not modify storage)
-        # ------------------------------------------------------------------
-        # When the robot has finished a queued room by timing but hasn't
-        # entered the next queued room yet, use the access graph + live
-        # robot position to find which intermediate room it's passing through.
-        # position_room_id is what the card uses for the animal icon; it can
-        # be a transition room that is NOT in the queue.
-        # current_room_id is preserved as the next unfinished queued room so
-        # the timeline is_current flags remain correct.
-        position_room_id: int | None = current_room_id
-        if (
-            active_job.get("status") == "started"
-            and current_room_id is not None
-            and completed_room_ids
-        ):
-            last_completed_id = completed_room_ids[-1]
-            transition_room_id = self._detect_transition_room_from_position(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                from_room_id=last_completed_id,
-                to_room_id=current_room_id,
-            )
-            if transition_room_id is not None:
-                position_room_id = transition_room_id
-
         timeline: list[dict[str, Any]] = []
         current_progress_percent = 0
         current_remaining_minutes = 0.0
@@ -3088,7 +3053,6 @@ class EufyVacuumManager:
             "lifecycle_message": lifecycle.get("message"),
             "started_at": active_job.get("started_at"),
             "current_room_id": current_room_id,
-            "position_room_id": position_room_id,
             "awaiting_bounds_exit": awaiting_bounds_exit,
             "current_room_started_at": active_job.get("current_room_started_at"),
             "completed_room_ids": completed_room_ids,

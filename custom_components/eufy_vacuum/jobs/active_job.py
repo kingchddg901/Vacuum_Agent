@@ -9,7 +9,7 @@ Owns:
 - _room_name_from_active_job
 - _timing_completion_threshold_minutes (_MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER)
 - _maybe_roll_current_room_by_timing
-- _access_graph_path, _get_robot_position, _detect_transition_room_from_position
+- _access_graph_path, _get_robot_position
 - _job_status_summary
 
 Receives manager (EufyVacuumManager) parent reference.
@@ -1423,78 +1423,6 @@ class ActiveJobTracker:
             return None
 
         return (vx, vy)
-
-    def _detect_transition_room_from_position(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        from_room_id: int | None,
-        to_room_id: int | None,
-    ) -> int | None:
-        """Return the transition room the robot is currently in, or None.
-
-        Called when the robot has finished a queued room (by timing) but has
-        not yet entered the next queued room.  Walks the access-graph path
-        between the two rooms and checks the robot's live position against
-        each intermediate room's learned bounds.
-
-        Returns None when:
-        - robot position is unavailable
-        - no transition path exists in the access graph
-        - robot is not detected inside any transition room's bounds
-        """
-        if from_room_id is None or to_room_id is None:
-            return None
-
-        pos = self._get_robot_position(vacuum_entity_id)
-        if pos is None:
-            return None
-        vx, vy = pos
-
-        managed_rooms = self._manager.get_managed_rooms(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
-        transition_ids = self._access_graph_path(managed_rooms, from_room_id, to_room_id)
-        if not transition_ids:
-            return None
-
-        # Fetch room bounds from the mapping manager.
-        mapping_manager = self._manager.hass.data.get(DOMAIN, {}).get("mapping_manager")
-        if mapping_manager is None:
-            return None
-
-        try:
-            bounds_snapshot = mapping_manager.get_room_bounds_snapshot(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-        except Exception:
-            _LOGGER.debug(  # pragma: no cover
-                "EufyManager: failed to read room bounds for transition detection "
-                "(vacuum=%s map=%s)",
-                vacuum_entity_id,
-                map_id,
-            )
-            return None
-
-        map_rooms = bounds_snapshot.get("rooms", {})
-
-        for t_id in transition_ids:
-            bounds = map_rooms.get(str(t_id), {}).get("bounds")
-            if not bounds:
-                continue
-            # Inline AABB check — mirrors RoomBoundsStore._point_in_bounds()
-            if (
-                bounds["min_x"] <= vx <= bounds["max_x"]
-                and bounds["min_y"] <= vy <= bounds["max_y"]
-            ):
-                return t_id
-
-        return None
-
-    # -- summaries & display helpers -------------------------------------------
 
     def _job_status_summary(
         self,

@@ -75,7 +75,6 @@ from .mapping.mapping_services import (
     async_register_mapping_services,
     async_unregister_mapping_services,
 )
-from .mapping.room_bounds import RoomBoundsStore
 from .mapping.tracker import MappingTracker
 from .services import async_register_services, async_unregister_services
 from .themes import (
@@ -371,9 +370,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
     )
 
-    mapping_manager = RoomBoundsStore(hass)
-    mapping_tracker = MappingTracker(hass, mapping_manager)
-    hass.data[DOMAIN]["mapping_manager"] = mapping_manager
+    mapping_tracker = MappingTracker(hass)
     hass.data[DOMAIN]["mapping_tracker"] = mapping_tracker
     for _vac in manager.get_known_vacuum_ids():
         try:
@@ -503,7 +500,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         mapping_tracker = domain_data.pop("mapping_tracker", None)
         if mapping_tracker is not None:
             mapping_tracker.unregister_all()
-        domain_data.pop("mapping_manager", None)
         battery_manager = domain_data.pop(DATA_BATTERY, None)
         if battery_manager is not None:
             try:

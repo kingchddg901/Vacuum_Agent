@@ -33,7 +33,6 @@ import pytest
 
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
-from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
 from custom_components.eufy_vacuum.mapping import mapping_services as ms
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     async_register_mapping_services,
@@ -47,7 +46,6 @@ _MAP = "6"
 
 @pytest.fixture
 async def mapping_services(hass, manager):
-    hass.data[DOMAIN]["mapping_manager"] = RoomBoundsStore(hass)
     await async_register_mapping_services(hass)
     yield manager
     await async_unregister_mapping_services(hass)
@@ -56,13 +54,6 @@ async def mapping_services(hass, manager):
 async def _call(hass, service, data):
     return await hass.services.async_call(
         DOMAIN, service, data, blocking=True, return_response=True)
-
-
-async def test_room_bounds_snapshot(hass, mapping_services):
-    """[MSV-2]"""
-    snap = await _call(hass, ms.SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-                       {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert snap["available"] is True
 
 
 async def test_set_live_map_rotation(hass, mapping_services):
@@ -160,60 +151,4 @@ async def test_delete_map_image_file_already_gone(hass, mapping_services):
     assert result["remaining_variants"] == []
     # Persisted side effect: the stale variant is gone from the bucket.
     assert map_bucket["image_variants"] == {}
-
-
-async def test_room_bounds_snapshot_stamps_name_and_archive_flag(hass, mapping_services):
-    """[MSV-2b] with a registered mapping_tracker, get_room_bounds_snapshot stamps
-    each snapshot room with its managed display name and a has_archive flag that is
-    True only for rooms that have a raw-samples archive on disk.
-
-    Covers the tracker-present enrichment loop (mapping_services 1554-1559): name
-    stamping plus ``room_data['has_archive'] = tracker._find_raw_samples_path(...)
-    is not None`` for both outcomes of the is-not-None test.
-    """
-    from custom_components.eufy_vacuum.mapping.tracker import MappingTracker
-    from .conftest import seed_discovery
-
-    manager = mapping_services  # the core EufyVacuumManager (DATA_RUNTIME)
-    mm = hass.data[DOMAIN]["mapping_manager"]
-    # Dedicated map id: this test persists managed rooms + map JSON to disk, so it
-    # uses its own map to stay isolated from the shared-_MAP dock/clear tests.
-    snap_map = "snap_bounds"
-
-    # Managed-room config so get_managed_rooms returns room 3 named "Bedroom".
-    # Room 5 is the no-archive control (its name is not asserted on).
-    seed_discovery(manager, _VAC, snap_map, [
-        {"room_id": 3, "map_id": snap_map, "name": "Bedroom"},
-        {"room_id": 5, "map_id": snap_map, "name": "Hallway"},
-    ])
-    manager.save_managed_rooms(vacuum_entity_id=_VAC, map_id=snap_map)
-
-    # Seed map data so both rooms appear in get_room_bounds_snapshot()['rooms'].
-    map_data = mm._ensure_map_data(_VAC, snap_map)
-    for rid in ("3", "5"):
-        map_data["rooms"][rid] = {
-            "bounds": {"min_x": 0.0, "max_x": 10.0, "min_y": 0.0, "max_y": 10.0, "run_count": 1},
-            "job_bounds_history": [],
-        }
-    mm._save_map_data(_VAC, snap_map, map_data)
-
-    # Register a real tracker and give ONLY room 3 a raw-samples archive on disk
-    # (_find_raw_samples_path is keyed by vacuum + room id, independent of map).
-    tracker = MappingTracker(hass, mm)
-    hass.data[DOMAIN]["mapping_tracker"] = tracker
-    tracker._append_raw_samples(
-        _VAC, snap_map, "3", "j1", "2026-01-01T10:00:00+00:00",
-        [(1.0, 1.0)], room_slug="bedroom", room_name="Bedroom",
-    )
-    assert tracker._find_raw_samples_path(_VAC, "3") is not None
-    assert tracker._find_raw_samples_path(_VAC, "5") is None
-
-    snap = await _call(hass, ms.SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-                       {"vacuum_entity_id": _VAC, "map_id": snap_map})
-
-    # Room 3: managed name stamped + archive present -> has_archive True.
-    assert snap["rooms"]["3"]["name"] == "Bedroom"
-    assert snap["rooms"]["3"]["has_archive"] is True
-    # Room 5: no archive file -> has_archive False (the is-not-None False branch).
-    assert snap["rooms"]["5"]["has_archive"] is False
 

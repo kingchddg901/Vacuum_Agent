@@ -12,7 +12,6 @@ Coverage targets
 [MS-6]  _build_segments_response: room links inject room_id onto segments.
 [MS-7]  _build_segments_response: companion_anchors always present; cache not mutated.
 [MS-8]  _safe_int / _bbox_from_polygon_pixel / _adjust_polygon_pixel smoke.
-[MS-9]  _get_mapping_manager: no mapping manager registered → HomeAssistantError.
 [MS-10] _get_room_name: no runtime core / core that raises → falls back to the room id.
 [MS-11] _bbox_from_polygon_pixel: empty polygon → None.
 [MS-12] _adjust_polygon_pixel: non-list / malformed-point / unparseable guards.
@@ -36,7 +35,6 @@ from custom_components.eufy_vacuum.mapping.mapping_services import (
     _apply_segment_adjustments,
     _bbox_from_polygon_pixel,
     _build_segments_response,
-    _get_mapping_manager,
     _safe_int,
 )
 
@@ -151,14 +149,6 @@ def test_helpers_smoke():
 # ---------------------------------------------------------------------------
 
 _Z = dict(offset_x=0, offset_y=0, edge_left=0, edge_right=0, edge_top=0, edge_bottom=0)
-
-
-def test_get_mapping_manager_missing_raises():
-    """[MS-9] no mapping manager registered → HomeAssistantError."""
-    hass = MagicMock()
-    hass.data = {}
-    with pytest.raises(HomeAssistantError):
-        _get_mapping_manager(hass)
 
 
 def test_bbox_empty_polygon_is_none():

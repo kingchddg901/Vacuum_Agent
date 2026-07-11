@@ -15,7 +15,6 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from ..timestamp_utils import datetime_to_utc_iso, utc_now
 from ..adapters.registry import get_adapter_config
-from .room_bounds import BOUNDS_MARGIN, MULTI_ROOM_MIN_RUNS, RoomBoundsStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,11 +33,6 @@ MOVEMENT_THRESHOLD_COUNT = 10
 
 # Minimum confidence score to fire room_completed.
 CONFIDENCE_THRESHOLD = 0.85
-
-
-# How often to flush accumulated samples to disk (number of new samples).
-# 25 unique positions post-dedup fix — equivalent protection to 50 pre-fix.
-SAMPLES_FLUSH_INTERVAL = 25
 
 # HA event names.
 EVENT_ROOM_COMPLETED = "eufy_vacuum_room_completed"
@@ -122,16 +116,13 @@ class MappingTracker:
     is enabled.
     """
 
-    def __init__(self, hass: HomeAssistant, mapping_manager: RoomBoundsStore) -> None:
-        """Initialize the tracker with the HA instance and a RoomBoundsStore reference."""
+    def __init__(self, hass: HomeAssistant) -> None:
+        """Initialize the tracker with the HA instance."""
         self.hass = hass
-        self._manager = mapping_manager
         self._confidence: dict[str, _RoomConfidenceState] = {}
         self._unsubs: dict[str, Callable[[], None]] = {}
         self._active_job: dict[str, dict[str, Any]] = {}
-        self._job_samples: dict[str, list[tuple[float, float]]] = {}
         self._sampling_paused: set[str] = set()
-        self._samples_since_flush: dict[str, int] = {}
         # WHY: X and Y sensors each fire on the same movement event; tracking
         # the last recorded position deduplicates the resulting double-fire.
         self._last_recorded_pos: dict[str, tuple[float, float]] = {}
@@ -142,198 +133,7 @@ class MappingTracker:
         # otherwise lose an update. Passive diagnostic; one lock is ample.
         self._dock_drift_lock = threading.Lock()
 
-    # ------------------------------------------------------------------
-    # Temp-file persistence helpers
-    # ------------------------------------------------------------------
-
-    def _samples_tmp_path(self, vacuum_entity_id: str) -> Path:
-        """Return the path for the active-samples temp file for this vacuum."""
-        slug = re.sub(r"[^a-z0-9_]", "_", vacuum_entity_id.lower())
-        config_dir = self.hass.config.config_dir
-        return (
-            Path(config_dir)
-            / "eufy_vacuum"
-            / "mapping"
-            / slug
-            / "_samples_active.json"
-        )
-
-    def _flush_samples_to_disk(
-        self,
-        vacuum_entity_id: str,
-        map_id: str,
-        rooms: dict[str, Any],
-        samples: list[tuple[float, float]],
-    ) -> None:
-        """Write accumulated job samples to a temp file for crash/restart recovery."""
-        path = self._samples_tmp_path(vacuum_entity_id)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "map_id": map_id,
-                "rooms": rooms,
-                "samples": samples,
-            }
-            tmp = path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(payload), encoding="utf-8")
-            tmp.replace(path)
-        except Exception:
-            _LOGGER.exception(  # pragma: no cover
-                "MappingTracker: failed to flush samples to %s", path
-            )
-
-    def _load_samples_from_disk(
-        self,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> list[tuple[float, float]] | None:
-        """Return flushed samples from disk if they match the current map_id, else None."""
-        path = self._samples_tmp_path(vacuum_entity_id)
-        if not path.exists():
-            return None
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-            if str(payload.get("map_id")) != str(map_id):
-                _LOGGER.debug(
-                    "MappingTracker: stale temp file for %s (map mismatch), ignoring",
-                    vacuum_entity_id,
-                )
-                return None
-            raw = payload.get("samples", [])
-            return [(float(s[0]), float(s[1])) for s in raw if len(s) == 2]
-        except Exception:
-            _LOGGER.exception(  # pragma: no cover
-                "MappingTracker: failed to load samples from %s", path
-            )
-            return None
-
-    def _delete_samples_tmp_file(self, vacuum_entity_id: str) -> None:
-        """Delete the temp samples file once a job ends cleanly."""
-        path = self._samples_tmp_path(vacuum_entity_id)
-        try:
-            path.unlink(missing_ok=True)
-        except Exception:
-            _LOGGER.debug(  # pragma: no cover
-                "MappingTracker: could not delete temp file %s", path
-            )
-
-    RAW_SAMPLES_MAX_LINES = 1000
     DOCK_DRIFT_MAX_LINES = 5000
-
-    def _raw_samples_path(self, vacuum_entity_id: str, room_id: str, room_slug: str | None = None) -> Path:
-        """Return the canonical path for a room's JSONL archive.
-
-        When room_slug is supplied the filename is raw_samples_room_{id}_{slug}.jsonl.
-        Without a slug it falls back to raw_samples_room_{id}.jsonl (used as a
-        write target only when the slug is genuinely unknown).
-        Prefer _find_raw_samples_path for reads so existing named files are found.
-        """
-        vac_slug = re.sub(r"[^a-z0-9_]", "_", vacuum_entity_id.lower())
-        name_part = f"_{room_slug}" if room_slug else ""
-        return (
-            Path(self.hass.config.config_dir)
-            / "eufy_vacuum"
-            / "mapping"
-            / vac_slug
-            / f"raw_samples_room_{room_id}{name_part}.jsonl"
-        )
-
-    def _find_raw_samples_path(self, vacuum_entity_id: str, room_id: str) -> Path | None:
-        """Return the existing archive path for a room, regardless of slug suffix.
-
-        Globs for raw_samples_room_{id}*.jsonl and returns the MOST-RECENTLY-WRITTEN
-        match, or None if no archive exists yet. A room can briefly have both a
-        no-slug file (written before its slug was known) and a slugged file; the live
-        archive is the newer one, so picking by mtime returns it — alphabetical-first
-        would return the stale no-slug file (".jsonl" sorts before "_slug.jsonl").
-        """
-        vac_slug = re.sub(r"[^a-z0-9_]", "_", vacuum_entity_id.lower())
-        directory = (
-            Path(self.hass.config.config_dir)
-            / "eufy_vacuum"
-            / "mapping"
-            / vac_slug
-        )
-
-        def _mtime(path: Path) -> float:
-            try:
-                return path.stat().st_mtime
-            except OSError:  # vanished between glob and stat — treat as oldest
-                return -1.0
-
-        return max(directory.glob(f"raw_samples_room_{room_id}*.jsonl"),
-                   key=_mtime, default=None)
-
-    def _append_raw_samples(
-        self,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-        job_id: str,
-        recorded_at: str,
-        samples: list[tuple[float, float]],
-        room_slug: str | None = None,
-        room_name: str | None = None,
-        dock_anchor_start: list[float] | None = None,
-        dock_anchor_end: list[float] | None = None,
-    ) -> None:
-        """Append one job's raw samples as a JSONL line, rolling off entries beyond RAW_SAMPLES_MAX_LINES."""
-        path = self._raw_samples_path(vacuum_entity_id, room_id, room_slug)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            record: dict = {
-                "job_id":      job_id,
-                "map_id":      str(map_id),
-                "room_id":     str(room_id),
-                "recorded_at": recorded_at,
-                "samples":     samples,
-            }
-            if room_name:
-                record["room_name"] = room_name
-            # Per-session dock anchors for cross-session re-anchoring (Wave 1).
-            # Omitted when unavailable so legacy/older lines stay schema-compatible.
-            if dock_anchor_start is not None:
-                record["dock_anchor_start"] = dock_anchor_start
-            if dock_anchor_end is not None:
-                record["dock_anchor_end"] = dock_anchor_end
-            entry = json.dumps(record)
-            existing: list[str] = []
-            if path.exists():
-                existing = path.read_text(encoding="utf-8").splitlines()
-            else:
-                # First write: prepend a self-describing metadata header line.
-                header = json.dumps({
-                    "_meta":       "eufy_vacuum raw samples archive",
-                    "room_id":     str(room_id),
-                    "room_name":   room_name or "",
-                    "vacuum":      vacuum_entity_id,
-                    "map_id":      str(map_id),
-                    "description": (
-                        "Per-job raw position samples used to derive and rebuild "
-                        "room mapping bounds. Each subsequent line is one job entry."
-                    ),
-                })
-                existing = [header]
-            existing.append(entry)
-            # WHY: keep the _meta header (index 0) and the baseline/first job
-            # entry (index 1) pinned; rolling falloff starts from index 2.
-            if existing and '"_meta"' in existing[0]:
-                job_lines = existing[1:]
-                if len(job_lines) > self.RAW_SAMPLES_MAX_LINES and len(job_lines) > 1:
-                    baseline = job_lines[0]
-                    recent   = job_lines[1:][-( self.RAW_SAMPLES_MAX_LINES - 1):]
-                    job_lines = [baseline] + recent
-                existing = [existing[0]] + job_lines
-            elif len(existing) > self.RAW_SAMPLES_MAX_LINES:
-                existing = existing[-self.RAW_SAMPLES_MAX_LINES:]
-            tmp = path.with_suffix(".tmp")
-            tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
-            tmp.replace(path)
-        except Exception:
-            _LOGGER.exception(  # pragma: no cover
-                "MappingTracker: failed to append raw samples for room %s (%s)",
-                room_id, vacuum_entity_id,
-            )
 
     # ------------------------------------------------------------------
     # Dock-coordinate drift log (diagnostic)
@@ -469,8 +269,6 @@ class MappingTracker:
                 pass
         self._confidence.pop(vacuum_entity_id, None)
         self._active_job.pop(vacuum_entity_id, None)
-        self._job_samples.pop(vacuum_entity_id, None)
-        self._samples_since_flush.pop(vacuum_entity_id, None)
         self._last_recorded_pos.pop(vacuum_entity_id, None)
         self._last_dock_pos.pop(vacuum_entity_id, None)
         self._sampling_paused.discard(vacuum_entity_id)
@@ -491,50 +289,19 @@ class MappingTracker:
         map_id: str,
         rooms: dict[str, Any],
     ) -> None:
-        """Initialise per-job state and recover any samples flushed during a previous HA restart.
+        """Initialise per-job confidence state for a new cleaning job.
 
-        rooms is a {room_id: room_data} dict where room_data includes 'name'
-        and boundary info available from the mapping manager.
-        """
+        rooms is a {room_id: room_data} dict where room_data includes 'name' and
+        'slug' — used to resolve the device's native current-room signal."""
         map_id_str = str(map_id)
         self._last_recorded_pos.pop(vacuum_entity_id, None)
         if vacuum_entity_id in self._confidence:
             self._confidence[vacuum_entity_id].reset_job()
 
-        # WHY: delete the stale file regardless of whether recovery matched —
-        # the new job will write its own file at SAMPLES_FLUSH_INTERVAL cadence.
-        recovered = self._load_samples_from_disk(vacuum_entity_id, map_id_str)
-        self._delete_samples_tmp_file(vacuum_entity_id)
-
-        # Per-session dock anchor (Wave 1, capture-only): the device re-localizes
-        # its coordinate origin every session, so absolute coords aren't comparable
-        # across sessions. At a FRESH job start the robot is at the dock, so this
-        # snapshot is the session's origin in vacuum space — later used to re-anchor
-        # cross-session bounds. On a mid-job HA restart `recovered` is truthy and the
-        # live position is mid-run (not the dock), so we leave it None and that run
-        # is treated as un-anchored.
-        dock_anchor_start: list[float] | None = None
-        if not recovered:
-            pos = self._get_raw_position(vacuum_entity_id)
-            if pos is not None:
-                dock_anchor_start = [round(pos[0], 4), round(pos[1], 4)]
-
         self._active_job[vacuum_entity_id] = {
             "map_id": map_id_str,
             "rooms": rooms,
-            "dock_anchor_start": dock_anchor_start,
         }
-
-        if recovered:
-            self._job_samples[vacuum_entity_id] = recovered
-            self._samples_since_flush[vacuum_entity_id] = 0
-            _LOGGER.info(
-                "MappingTracker: recovered %d samples from disk for %s map %s",
-                len(recovered), vacuum_entity_id, map_id_str,
-            )
-        else:
-            self._job_samples.pop(vacuum_entity_id, None)
-            self._samples_since_flush[vacuum_entity_id] = 0
 
         _LOGGER.debug(
             "MappingTracker: job started for %s map %s (%d rooms)",
@@ -551,122 +318,8 @@ class MappingTracker:
 
     def end_job(self, *, vacuum_entity_id: str) -> None:
         """Notify tracker that a cleaning job has ended."""
-        job = self._active_job.pop(vacuum_entity_id, None)
-        samples = self._job_samples.pop(vacuum_entity_id, [])
-        self._samples_since_flush.pop(vacuum_entity_id, None)
-
-        # If in-memory samples are empty (e.g. after an HA restart mid-job),
-        # fall back to whatever was last flushed to disk.
-        if not samples and job:
-            recovered = self._load_samples_from_disk(
-                vacuum_entity_id, job["map_id"]
-            )
-            if recovered:
-                samples = recovered
-                _LOGGER.info(
-                    "MappingTracker: end_job using %d recovered samples for %s",
-                    len(samples), vacuum_entity_id,
-                )
-
-        if samples and job:
-            map_id   = job["map_id"]
-            rooms    = job.get("rooms", {})
-            now_iso  = datetime_to_utc_iso(utc_now())
-            job_id   = "job_" + now_iso[:16].replace(":", "-")
-
-            # Per-session dock anchors (Wave 1, capture-only). start = the session
-            # origin captured at job start; end = the re-dock position now (robot is
-            # docked/charging at finalization). The start→end delta is a per-run
-            # within-run-drift signal. Stored on the history entry + archive only;
-            # no bounds math consumes them yet (that is Wave 2).
-            dock_anchor_start = job.get("dock_anchor_start")
-            _end_pos = self._get_raw_position(vacuum_entity_id)
-            dock_anchor_end = (
-                [round(_end_pos[0], 4), round(_end_pos[1], 4)]
-                if _end_pos is not None else None
-            )
-
-            try:
-                self._manager.update_room_bounds(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=map_id,
-                    samples=samples,
-                    rooms=rooms,
-                    dock_anchor_start=dock_anchor_start,
-                    dock_anchor_end=dock_anchor_end,
-                )
-            except Exception:
-                _LOGGER.exception(  # pragma: no cover
-                    "MappingTracker: failed to update room bounds for %s",
-                    vacuum_entity_id,
-                )
-
-            # Archive raw samples per room for historical rebuild.
-            try:
-                non_transition = [
-                    rid for rid, rdata in rooms.items()
-                    if not rdata.get("is_transition", False)
-                ]
-                if len(non_transition) == 1:
-                    rid = str(non_transition[0])
-                    rdata = rooms.get(rid, {})
-                    self._append_raw_samples(
-                        vacuum_entity_id, map_id,
-                        room_id=rid,
-                        room_slug=rdata.get("slug"),
-                        room_name=rdata.get("name"),
-                        job_id=job_id,
-                        recorded_at=now_iso,
-                        samples=samples,
-                        dock_anchor_start=dock_anchor_start,
-                        dock_anchor_end=dock_anchor_end,
-                    )
-                else:
-                    # Multi-room job: attribute samples using the same bounding-box
-                    # logic as manager.update_room_bounds, then archive per room.
-                    map_data  = self._manager._load_map_data(vacuum_entity_id, map_id)
-                    map_rooms = map_data.get("rooms", {})
-                    attributed: dict[str, list] = {}
-                    for vx, vy in samples:
-                        for rid in non_transition:
-                            bounds = map_rooms.get(str(rid), {}).get("bounds")
-                            if bounds and self._manager._point_in_bounds(
-                                vx, vy, bounds, BOUNDS_MARGIN
-                            ):
-                                attributed.setdefault(str(rid), []).append([vx, vy])
-                                break
-                    for rid, room_samples in attributed.items():
-                        # WHY: skip archive for rooms below the minimum-run confidence
-                        # gate — they acted as attribution traps, not real boundaries.
-                        room_history = map_rooms.get(str(rid), {}).get("job_bounds_history", [])
-                        active_runs  = sum(1 for e in room_history if not e.get("excluded", False))
-                        if active_runs < MULTI_ROOM_MIN_RUNS:
-                            _LOGGER.debug(
-                                "MappingTracker: skipping archive for low-confidence room %s "
-                                "(%d active runs, need %d) in multi-room job",
-                                rid, active_runs, MULTI_ROOM_MIN_RUNS,
-                            )
-                            continue
-                        rdata = rooms.get(rid, {})
-                        self._append_raw_samples(
-                            vacuum_entity_id, map_id,
-                            room_id=rid,
-                            room_slug=rdata.get("slug"),
-                            room_name=rdata.get("name"),
-                            job_id=job_id,
-                            recorded_at=now_iso,
-                            samples=room_samples,
-                            dock_anchor_start=dock_anchor_start,
-                            dock_anchor_end=dock_anchor_end,
-                        )
-            except Exception:
-                _LOGGER.exception(  # pragma: no cover
-                    "MappingTracker: failed to archive raw samples for %s",
-                    vacuum_entity_id,
-                )
-
+        self._active_job.pop(vacuum_entity_id, None)
         self._sampling_paused.discard(vacuum_entity_id)
-
         if vacuum_entity_id in self._confidence:
             self._confidence[vacuum_entity_id].reset_job()
 
@@ -713,7 +366,9 @@ class MappingTracker:
 
     @callback
     def _handle_position_update(self, vacuum_entity_id: str) -> None:
-        """Process a position state change event."""
+        """Process a position state change event — a tick for confidence
+        tracking (room detection reads the device's native current-room, not
+        position) plus the passive dock-coordinate drift log."""
         pos = self._get_raw_position(vacuum_entity_id)
         if pos is None:
             return
@@ -722,43 +377,20 @@ class MappingTracker:
 
         job = self._active_job.get(vacuum_entity_id)
         if job:
-            # Skip accumulation during mid-job recharge — the dock position would
-            # corrupt room bounds with hundreds of identical dock coordinates.
+            # Skip during mid-job recharge (the robot is parked on the dock).
             if vacuum_entity_id not in self._sampling_paused:
-                # Skip duplicate positions that arise from X and Y sensors
-                # firing separately on the same movement event.
+                # Skip duplicate positions from the X and Y sensors firing
+                # separately on the same movement event, so the confidence
+                # movement count isn't double-advanced.
                 last = self._last_recorded_pos.get(vacuum_entity_id)
                 if last == (vx, vy):
                     return
                 self._last_recorded_pos[vacuum_entity_id] = (vx, vy)
-
-                samples = self._job_samples.setdefault(vacuum_entity_id, [])
-                samples.append((vx, vy))
-
-                # Periodic flush so an HA restart mid-job can recover samples.
-                count = self._samples_since_flush.get(vacuum_entity_id, 0) + 1
-                self._samples_since_flush[vacuum_entity_id] = count
-                if count >= SAMPLES_FLUSH_INTERVAL:
-                    self._samples_since_flush[vacuum_entity_id] = 0
-                    # Snapshot samples before handing off — the list grows on
-                    # the event loop while the executor write is in flight.
-                    # async_add_executor_job already schedules the write and
-                    # returns a Future; fire-and-forget (don't wrap it in
-                    # async_create_task, which expects a coroutine, not a Future).
-                    self.hass.async_add_executor_job(
-                        self._flush_samples_to_disk,
-                        vacuum_entity_id,
-                        job["map_id"],
-                        job.get("rooms", {}),
-                        list(samples),
-                    )
-
-            # Run confidence tracking.
-            self._update_confidence(vacuum_entity_id, vx, vy, job)
+                self._update_confidence(vacuum_entity_id, vx, vy, job)
         else:
-            # No active cleaning job. If the robot is parked on the dock, record the
-            # reported position — the dock is fixed, so any change in it is pure
-            # coordinate-frame drift. Diagnostic timeline only; never feeds bounds.
+            # No active cleaning job. If the robot is parked on the dock, record
+            # the reported position — the dock is fixed, so any change is pure
+            # coordinate-frame drift. Diagnostic timeline only.
             self._maybe_log_dock_drift(vacuum_entity_id, vx, vy)
 
     def _read_active_cleaning_target(self, vacuum_entity_id: str) -> str | None:

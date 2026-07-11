@@ -53,7 +53,6 @@ from ..const import (
 )
 from ..maps.map_manager import ensure_map_bucket
 from ..timestamp_utils import utc_now_iso
-from .room_bounds import RoomBoundsStore
 from .map_source import (
     OVERLAY_VISIBILITY_DEFAULTS,
     resolve_furnished_render,
@@ -70,10 +69,7 @@ _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 # Service names
 # ---------------------------------------------------------------------------
 
-SERVICE_GET_ROOM_BOUNDS_SNAPSHOT      = "get_room_bounds_snapshot"
-
 ALL_MAPPING_SERVICES = (
-    SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
     # Image analysis
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
@@ -151,13 +147,6 @@ CANCEL_ROOM_BOUNDARY_TRACE_SCHEMA = vol.Schema(
 )
 
 GET_MAPPING_STATE_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
-    }
-)
-
-GET_ROOM_BOUNDS_SNAPSHOT_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
@@ -665,12 +654,6 @@ GET_MAP_RENDER_DATA_SCHEMA = vol.Schema(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-def _get_mapping_manager(hass: HomeAssistant) -> RoomBoundsStore:
-    manager = hass.data.get(DOMAIN, {}).get("mapping_manager")
-    if manager is None:
-        raise HomeAssistantError("Mapping manager not available")
-    return manager
 
 
 # ---------------------------------------------------------------------------
@@ -2860,44 +2843,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         schema=SET_ROOM_VIEWPORT_SCHEMA, supports_response=True,
     )
 
-
-    # ------------------------------------------------------------------
-    # Bounds review
-    # ------------------------------------------------------------------
-
-    async def handle_get_room_bounds_snapshot(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        vacuum_entity_id = call.data["vacuum_entity_id"]
-        map_id = call.data["map_id"]
-        result = mgr.get_room_bounds_snapshot(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
-        # Attach display name and archive flag from runtime room config.
-        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
-        try:
-            core = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
-            if core is not None:
-                managed = core.get_managed_rooms(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=str(map_id),
-                ).get("rooms", {})
-                for room_id, room_data in result.get("rooms", {}).items():
-                    room_data["name"] = managed.get(str(room_id), {}).get("name") or f"Room {room_id}"
-                    if tracker is not None:
-                        room_data["has_archive"] = tracker._find_raw_samples_path(vacuum_entity_id, str(room_id)) is not None
-                    else:
-                        room_data["has_archive"] = False
-        except Exception:
-            _LOGGER.debug("get_room_bounds_snapshot: could not enrich room names")
-        return result
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-        handle_get_room_bounds_snapshot,
-        schema=GET_ROOM_BOUNDS_SNAPSHOT_SCHEMA,
-        supports_response=True,
-    )
 
 
 
