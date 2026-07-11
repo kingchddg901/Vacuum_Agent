@@ -14,7 +14,7 @@ from ..const import DATA_RUNTIME, DOMAIN
 from ..entity_helpers import get_floor_type_label
 from ..timestamp_utils import utc_now_iso
 from ..adapters.registry import get_adapter_config
-from .boundary import point_in_polygon, process_boundary_trail, score_transition_candidate
+from .boundary import point_in_polygon
 from .segmenter_engines import get_segmenter_engine
 
 
@@ -321,30 +321,6 @@ class MappingManager:
         self._base_dir = Path(hass.config.config_dir) / MAPPING_ROOT
         # Keyed by (vacuum_entity_id, map_id, room_id); samples only on close.
         self._active_traces: dict[tuple[str, str, str], dict[str, Any]] = {}
-
-    def _build_trace_state(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-    ) -> dict[str, Any]:
-        """Return one active trace state entry.
-
-        Target-room entry gating was removed with legacy System A: there is no
-        vacuum→pixel transform to test live (vacuum-space) positions against a
-        pixel-space room polygon, so gating can never fire. Boundary traces are
-        therefore always armed and ungated — every position sample is recorded.
-        """
-        return {
-            "samples": [],
-            "armed": True,
-            "arm_reason": "ungated",
-        }
-
-    # ------------------------------------------------------------------
-    # Filesystem helpers
-    # ------------------------------------------------------------------
 
     def _vacuum_dir(self, vacuum_entity_id: str) -> Path:
         """Return (and create) the per-vacuum mapping directory."""
@@ -1469,165 +1445,6 @@ class MappingManager:
             bounds["min_x"] - margin <= vx <= bounds["max_x"] + margin
             and bounds["min_y"] - margin <= vy <= bounds["max_y"] + margin
         )
-
-    # ------------------------------------------------------------------
-    # Boundary trace lifecycle
-    # ------------------------------------------------------------------
-
-    def start_room_boundary_trace(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-    ) -> dict[str, Any]:
-        """Begin accumulating a position trail for one room.
-
-        Clears any existing trail buffer for this room — starting a new
-        trace on a room that already has a boundary will overwrite it
-        on close_room_boundary.
-        """
-        key = (vacuum_entity_id, str(map_id), str(room_id))
-        self._active_traces[key] = self._build_trace_state(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            room_id=str(room_id),
-        )
-        trace = self._active_traces[key]
-
-        return {
-            "started": True,
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "room_id": str(room_id),
-            "armed": bool(trace.get("armed")),
-        }
-
-    def append_trace_point(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-        vacuum_x: float,
-        vacuum_y: float,
-    ) -> bool:
-        """Append one position sample to the active trace buffer.
-
-        Called by the tracker on every _raw position state change.
-        Returns True if the trace is active, False otherwise.
-        """
-        key = (vacuum_entity_id, str(map_id), str(room_id))
-        trace = self._active_traces.get(key)
-        if not isinstance(trace, dict):
-            return False
-
-        sample = (float(vacuum_x), float(vacuum_y))
-        # Traces always start armed now that the vacuum→pixel transform
-        # (legacy System A) has been removed — target-room gating cannot fire,
-        # so every sample is recorded unconditionally.
-        trace.setdefault("samples", []).append(sample)
-        return True
-
-    def close_room_boundary(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-        epsilon: float = 5.0,
-    ) -> dict[str, Any]:
-        """Stop tracing, simplify the trail, store the boundary.
-
-        Returns a summary dict used by the service layer to fire
-        eufy_vacuum_boundary_saved.
-        """
-        key = (vacuum_entity_id, str(map_id), str(room_id))
-        trace = self._active_traces.pop(key, None)
-
-        if not isinstance(trace, dict):
-            return {
-                "closed": False,
-                "reason": "no_active_trace",
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "room_id": str(room_id),
-            }
-
-        trail = trace.get("samples", []) if isinstance(trace.get("samples"), list) else []
-        if not trail:
-            return {
-                "closed": False,
-                "reason": "no_trace_samples",
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "room_id": str(room_id),
-                "point_count_raw": 0,
-            }
-
-        result = process_boundary_trail(trail, epsilon=epsilon)
-
-        if not result["valid"]:
-            return {
-                "closed": False,
-                "reason": result.get("error", "invalid_trail"),
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "room_id": str(room_id),
-                "point_count_raw": result["point_count_raw"],
-            }
-
-        data = self._ensure_map_data(vacuum_entity_id, map_id)
-
-        boundary_vacuum = result["simplified_boundary"]
-
-        room_key = str(room_id)
-        transition_score, transition_candidate = score_transition_candidate(boundary_vacuum)
-        data["rooms"][room_key] = {
-            "boundary": boundary_vacuum,
-            "traced_at": _iso_now(),
-            "point_count_raw": result["point_count_raw"],
-            "point_count_simplified": result["point_count_simplified"],
-            "transition_candidate": transition_candidate,
-            "transition_score": transition_score,
-        }
-
-        self._save_map_data(vacuum_entity_id, map_id, data)
-
-        return {
-            "closed": True,
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "room_id": room_key,
-            "point_count_raw": result["point_count_raw"],
-            "point_count_simplified": result["point_count_simplified"],
-            "corner_count": result["corner_count"],
-        }
-
-    def cancel_room_boundary_trace(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-    ) -> dict[str, Any]:
-        """Stop tracing and discard the trail. No storage changes."""
-        key = (vacuum_entity_id, str(map_id), str(room_id))
-        trace = self._active_traces.pop(key, {})
-        discarded = trace.get("samples", []) if isinstance(trace, dict) else []
-        pending = trace.get("pending_inside", []) if isinstance(trace, dict) else []
-        discarded_count = (
-            (len(discarded) if isinstance(discarded, list) else 0)
-            + (len(pending) if isinstance(pending, list) else 0)
-        )
-
-        return {
-            "cancelled": True,
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "room_id": str(room_id),
-            "discarded_points": discarded_count,
-        }
 
     # ------------------------------------------------------------------
     # State queries

@@ -73,9 +73,7 @@ from custom_components.eufy_vacuum.const import (
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
-    SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
     SERVICE_CLEAR_ROOM_BOUNDS,
-    SERVICE_CLOSE_ROOM_BOUNDARY,
     SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
     SERVICE_GET_MAPPING_PACKAGE,
     SERVICE_GET_MAPPING_STATE,
@@ -83,7 +81,6 @@ from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_SAVE_MAPPING_PACKAGE,
     SERVICE_SET_DOCK_ANCHOR,
     SERVICE_SET_DOCK_ROOM,
-    SERVICE_START_ROOM_BOUNDARY_TRACE,
     async_register_mapping_services,
     async_unregister_mapping_services,
 )
@@ -953,20 +950,6 @@ async def test_dock_anchor_and_room(hass, mapping_services):
     room = await _call(hass, SERVICE_SET_DOCK_ROOM,
                        {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1})
     assert room["saved"] is True
-
-
-async def test_room_boundary_trace(hass, mapping_services):
-    """[MSH-12] start a room boundary trace, then cancel it; close with no trace."""
-    setup_map(mapping_services, _VAC, _MAP, count=2)
-    started = await _call(hass, SERVICE_START_ROOM_BOUNDARY_TRACE,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1})
-    assert isinstance(started, dict)
-    cancelled = await _call(hass, SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
-                            {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1})
-    assert isinstance(cancelled, dict)
-    closed = await _call(hass, SERVICE_CLOSE_ROOM_BOUNDARY,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 2})
-    assert closed.get("closed") is not True
 
 
 async def test_bounds_snapshot_and_clear(hass, mapping_services):

@@ -37,7 +37,6 @@ from custom_components.eufy_vacuum.mapping.mapping_services import (
     _bbox_from_polygon_pixel,
     _build_segments_response,
     _get_mapping_manager,
-    _get_room_name,
     _safe_int,
 )
 
@@ -160,22 +159,6 @@ def test_get_mapping_manager_missing_raises():
     hass.data = {}
     with pytest.raises(HomeAssistantError):
         _get_mapping_manager(hass)
-
-
-def test_get_room_name_no_core_returns_id():
-    """[MS-10] no runtime core → the room id itself."""
-    hass = MagicMock()
-    hass.data = {DOMAIN: {}}
-    assert _get_room_name(hass, "vacuum.alfred", "6", "3") == "3"
-
-
-def test_get_room_name_core_error_returns_id():
-    """[MS-10] a core that raises on lookup → falls back to the room id."""
-    core = MagicMock()
-    core.get_managed_rooms.side_effect = RuntimeError("boom")
-    hass = MagicMock()
-    hass.data = {DOMAIN: {DATA_RUNTIME: core}}
-    assert _get_room_name(hass, "vacuum.alfred", "6", "3") == "3"
 
 
 def test_bbox_empty_polygon_is_none():

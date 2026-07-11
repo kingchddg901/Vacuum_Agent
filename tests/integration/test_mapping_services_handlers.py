@@ -75,51 +75,6 @@ async def test_room_bounds_snapshot(hass, mapping_services):
     assert snap["available"] is True
 
 
-async def test_boundary_trace_start_cancel(hass, mapping_services):
-    """[MSV-3]"""
-    started = await _call(hass, ms.SERVICE_START_ROOM_BOUNDARY_TRACE,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "5"})
-    assert started["started"] is True
-    cancelled = await _call(hass, ms.SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
-                            {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "5"})
-    assert cancelled["cancelled"] is True
-
-
-async def test_close_boundary_no_samples(hass, mapping_services):
-    """[MSV-4]"""
-    await _call(hass, ms.SERVICE_START_ROOM_BOUNDARY_TRACE,
-                {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "7"})
-    closed = await _call(hass, ms.SERVICE_CLOSE_ROOM_BOUNDARY,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "7"})
-    assert closed["closed"] is False
-    assert closed["reason"] == "no_trace_samples"
-
-
-async def test_close_boundary_fires_event(hass, mapping_services):
-    """[MSV-4b] a successful close (valid trail) fires EVENT_BOUNDARY_SAVED with
-    the room id, name, and simplified point count."""
-    from custom_components.eufy_vacuum.mapping.tracker import EVENT_BOUNDARY_SAVED
-
-    await _call(hass, ms.SERVICE_START_ROOM_BOUNDARY_TRACE,
-                {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "8"})
-    # seed a valid square perimeter directly into the active trace
-    trail = ([(float(x), 0.0) for x in range(11)]
-             + [(10.0, float(y)) for y in range(1, 11)]
-             + [(float(x), 10.0) for x in range(9, -1, -1)]
-             + [(0.0, float(y)) for y in range(9, 0, -1)])
-    mm = hass.data[DOMAIN]["mapping_manager"]
-    mm._active_traces[(_VAC, _MAP, "8")] = {"map_id": _MAP, "rooms": {}, "samples": trail}
-
-    events: list = []
-    hass.bus.async_listen(EVENT_BOUNDARY_SAVED, lambda e: events.append(e.data))
-    result = await _call(hass, ms.SERVICE_CLOSE_ROOM_BOUNDARY,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "8"})
-    await hass.async_block_till_done()
-
-    assert result.get("closed") is True
-    assert any(d["room_id"] == "8" and "point_count" in d for d in events)
-
-
 async def test_set_dock_room(hass, mapping_services):
     """[MSV-5]"""
     result = await _call(hass, ms.SERVICE_SET_DOCK_ROOM,

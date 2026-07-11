@@ -61,7 +61,6 @@ from .map_source import (
     zone_membership,
 )
 from .segment_primitives import polygon_area, rasterize_primitives
-from .tracker import EVENT_BOUNDARY_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,9 +71,6 @@ _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 # ---------------------------------------------------------------------------
 
 SERVICE_SAVE_MAP_IMAGE             = "save_map_image"
-SERVICE_START_ROOM_BOUNDARY_TRACE  = "start_room_boundary_trace"
-SERVICE_CLOSE_ROOM_BOUNDARY        = "close_room_boundary"
-SERVICE_CANCEL_ROOM_BOUNDARY_TRACE = "cancel_room_boundary_trace"
 SERVICE_GET_MAPPING_STATE          = "get_mapping_state"
 SERVICE_SAVE_MAPPING_PACKAGE       = "save_mapping_package"
 SERVICE_APPEND_MAPPING_TRACE_EVIDENCE = "append_mapping_trace_evidence"
@@ -91,9 +87,6 @@ SERVICE_REBUILD_ROOM_BOUNDS           = "rebuild_room_bounds_from_archive"
 
 ALL_MAPPING_SERVICES = (
     SERVICE_SAVE_MAP_IMAGE,
-    SERVICE_START_ROOM_BOUNDARY_TRACE,
-    SERVICE_CLOSE_ROOM_BOUNDARY,
-    SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
     SERVICE_GET_MAPPING_STATE,
     SERVICE_SAVE_MAPPING_PACKAGE,
     SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
@@ -704,18 +697,6 @@ def _get_mapping_manager(hass: HomeAssistant) -> MappingManager:
     if manager is None:
         raise HomeAssistantError("Mapping manager not available")
     return manager
-
-
-def _get_room_name(hass: HomeAssistant, vacuum_entity_id: str, map_id: str, room_id: str) -> str:
-    """Return room name from integration storage if available."""
-    try:
-        core = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
-        if core is None:
-            return str(room_id)
-        result = core.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
-        return str(result.get("rooms", {}).get(str(room_id), {}).get("name", room_id))
-    except Exception:
-        return str(room_id)
 
 
 # ---------------------------------------------------------------------------
@@ -2830,57 +2811,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         _LOGGER.info("save_map_image: %s", result)
         return result
 
-    async def handle_start_room_boundary_trace(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = mgr.start_room_boundary_trace(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data["room_id"],
-        )
-        _LOGGER.info("start_room_boundary_trace: %s", result)
-        return result
-
-    async def handle_close_room_boundary(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        vacuum_entity_id = call.data["vacuum_entity_id"]
-        map_id = call.data["map_id"]
-        room_id = call.data["room_id"]
-
-        result = await hass.async_add_executor_job(
-            lambda: mgr.close_room_boundary(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=map_id,
-                room_id=room_id,
-                epsilon=call.data.get("epsilon", 5.0),
-            )
-        )
-        _LOGGER.info("close_room_boundary: %s", result)
-
-        if result.get("closed"):
-            room_name = _get_room_name(hass, vacuum_entity_id, map_id, room_id)
-            hass.bus.async_fire(
-                EVENT_BOUNDARY_SAVED,
-                {
-                    "vacuum_entity_id": vacuum_entity_id,
-                    "map_id": str(map_id),
-                    "room_id": str(room_id),
-                    "room_name": room_name,
-                    "point_count": result["point_count_simplified"],
-                },
-            )
-
-        return result
-
-    async def handle_cancel_room_boundary_trace(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = mgr.cancel_room_boundary_trace(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data["room_id"],
-        )
-        _LOGGER.info("cancel_room_boundary_trace: %s", result)
-        return result
-
     async def handle_get_mapping_state(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
         result = mgr.get_mapping_state(
@@ -2985,24 +2915,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_SAVE_MAP_IMAGE,
         handle_save_map_image,
         schema=SAVE_MAP_IMAGE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_START_ROOM_BOUNDARY_TRACE,
-        handle_start_room_boundary_trace,
-        schema=START_ROOM_BOUNDARY_TRACE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_CLOSE_ROOM_BOUNDARY,
-        handle_close_room_boundary,
-        schema=CLOSE_ROOM_BOUNDARY_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
-        handle_cancel_room_boundary_trace,
-        schema=CANCEL_ROOM_BOUNDARY_TRACE_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(
