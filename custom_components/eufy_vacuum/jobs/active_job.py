@@ -8,7 +8,7 @@ Owns:
 - update_active_job_mop_wash_observation, record_active_job_transition
 - _room_name_from_active_job
 - _timing_completion_threshold_minutes (_MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER)
-- _robot_outside_room_bounds, _maybe_roll_current_room_by_timing
+- _maybe_roll_current_room_by_timing
 - _access_graph_path, _get_robot_position, _detect_transition_room_from_position
 - _job_status_summary
 
@@ -558,68 +558,6 @@ class ActiveJobTracker:
     # factor model already filters most noise; this is a final floor.
     _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER = 1.5  # 90 s
 
-    def _robot_outside_room_bounds(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: int,
-    ) -> bool | None:
-        """Return True/False if the robot's current position is outside the
-        room's learned bounds, or None when either the position or the
-        bounds aren't available (caller should treat as "unknown" — neither
-        triggers nor blocks rollover).
-        """
-        pos = self._get_robot_position(vacuum_entity_id)
-        if pos is None:
-            return None
-
-        mapping_manager = self._manager.hass.data.get(DOMAIN, {}).get("mapping_manager")
-        if mapping_manager is None:
-            return None
-
-        try:
-            bounds_snapshot = mapping_manager.get_room_bounds_snapshot(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-        except Exception:
-            _LOGGER.debug(  # pragma: no cover
-                "EufyManager: bounds snapshot fetch failed (vacuum=%s room=%s)",
-                vacuum_entity_id, room_id,
-            )
-            return None
-
-        room_bounds = (
-            bounds_snapshot.get("rooms", {})
-            .get(str(room_id), {})
-            .get("bounds")
-        )
-        if room_bounds is None:
-            return None
-
-        vx, vy = pos
-        inside = (
-            room_bounds["min_x"] <= vx <= room_bounds["max_x"]
-            and room_bounds["min_y"] <= vy <= room_bounds["max_y"]
-        )
-        return not inside
-
-    def _position_lock_reliable(self, vacuum_entity_id: str) -> bool:
-        """Whether this adapter's localization lock is reliable enough to trust
-        position/bounds for room detection.
-
-        The adapter's call — core stays neutral and defaults to False (don't trust
-        unverified geometry). Eufy answers False (its firmware re-bases the raw
-        coordinate frame every session, so stored bounds drift); a brand with a
-        stable lock can answer True to re-enable the bounds gate.
-        """
-        cfg = _get_adapter_config(vacuum_entity_id) or {}
-        caps = cfg.get("capabilities", {})
-        if not isinstance(caps, dict):
-            return False
-        return bool(caps.get("position_lock_reliable", False))
-
     def _live_transition_config(self, vacuum_entity_id: str) -> dict[str, Any]:
         """Live rollover ORCHESTRATION, adapter-overridable. Merges the adapter's
         ``live_transition`` block over ``_LIVE_TRANSITION_DEFAULTS`` — enabled /
@@ -976,23 +914,10 @@ class ActiveJobTracker:
             active_job.pop("_pending_fast_rollover", None)
             rollover_source = "bounds_exit_early"
         else:
-            # Slow-room path: timing has reached threshold; require the
-            # robot to be outside bounds before allowing rollover. A
-            # single sample is sufficient here because the room already
-            # ran long — we're confirming completion, not detecting it.
-            # When bounds are unavailable, timing alone wins (matches
-            # pre-existing behaviour).
-            # Bounds confirmation is honoured only when the adapter declares its
-            # localization lock reliable (capability-gated). Eufy's frame drifts
-            # across sessions, so its stored bounds would wrongly block (or pass)
-            # a legitimate rollover — there, timing alone advances.
-            outside = self._robot_outside_room_bounds(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                room_id=current_room_id,
-            )
-            if self._position_lock_reliable(vacuum_entity_id) and outside is False:
-                return active_job
+            # Slow-room path: timing reached the learned threshold — advance.
+            # (The bounds / position-lock rollover confirmation was removed with
+            #  the mapping split — no adapter had a localization frame reliable
+            #  enough to trust it, so timing alone advanced in practice anyway.)
             rollover_source = "timing_rollover"
 
         return self._apply_room_rollover(

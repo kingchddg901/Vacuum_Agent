@@ -72,18 +72,10 @@ _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 SERVICE_SAVE_MAP_IMAGE             = "save_map_image"
 SERVICE_GET_ROOM_BOUNDS_SNAPSHOT      = "get_room_bounds_snapshot"
-SERVICE_CLEAR_ROOM_BOUNDS             = "clear_room_bounds"
-SERVICE_EXCLUDE_ROOM_JOB_BOUNDS       = "exclude_room_job_bounds"
-SERVICE_RESTORE_ROOM_JOB_BOUNDS       = "restore_room_job_bounds"
-SERVICE_REBUILD_ROOM_BOUNDS           = "rebuild_room_bounds_from_archive"
 
 ALL_MAPPING_SERVICES = (
     SERVICE_SAVE_MAP_IMAGE,
     SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-    SERVICE_CLEAR_ROOM_BOUNDS,
-    SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
-    SERVICE_RESTORE_ROOM_JOB_BOUNDS,
-    SERVICE_REBUILD_ROOM_BOUNDS,
     # Image analysis
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
@@ -2923,112 +2915,13 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
             _LOGGER.debug("get_room_bounds_snapshot: could not enrich room names")
         return result
 
-    async def handle_clear_room_bounds(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.clear_room_bounds(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                room_id=call.data["room_id"],
-            )
-        )
-        _LOGGER.info("clear_room_bounds: %s", result)
-        return result
-
-    async def handle_exclude_room_job_bounds(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.exclude_room_job_bounds(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                room_id=call.data["room_id"],
-                job_index=call.data["job_index"],
-            )
-        )
-        _LOGGER.info("exclude_room_job_bounds: %s", result)
-        if result.get("success") and result.get("job_id"):
-            tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
-            if tracker is not None:
-                await hass.async_add_executor_job(
-                    tracker.update_raw_samples_exclusion,
-                    call.data["vacuum_entity_id"],
-                    call.data["room_id"],
-                    result["job_id"],
-                    True,
-                )
-        return result
-
-    async def handle_restore_room_job_bounds(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.restore_room_job_bounds(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                room_id=call.data["room_id"],
-                job_index=call.data["job_index"],
-            )
-        )
-        _LOGGER.info("restore_room_job_bounds: %s", result)
-        if result.get("success") and result.get("job_id"):
-            tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
-            if tracker is not None:
-                await hass.async_add_executor_job(
-                    tracker.update_raw_samples_exclusion,
-                    call.data["vacuum_entity_id"],
-                    call.data["room_id"],
-                    result["job_id"],
-                    False,
-                )
-        return result
-
     hass.services.async_register(
         DOMAIN, SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
         handle_get_room_bounds_snapshot,
         schema=GET_ROOM_BOUNDS_SNAPSHOT_SCHEMA,
         supports_response=True,
     )
-    hass.services.async_register(
-        DOMAIN, SERVICE_CLEAR_ROOM_BOUNDS,
-        handle_clear_room_bounds,
-        schema=CLEAR_ROOM_BOUNDS_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
-        handle_exclude_room_job_bounds,
-        schema=EXCLUDE_ROOM_JOB_BOUNDS_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_RESTORE_ROOM_JOB_BOUNDS,
-        handle_restore_room_job_bounds,
-        schema=RESTORE_ROOM_JOB_BOUNDS_SCHEMA,
-        supports_response=True,
-    )
 
-    async def handle_rebuild_room_bounds(call: ServiceCall) -> dict[str, Any]:
-        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
-        if tracker is None:
-            return {"success": False, "reason": "tracker_unavailable"}
-        vacuum_entity_id = call.data["vacuum_entity_id"]
-        map_id = call.data["map_id"]
-        room_id = call.data["room_id"]
-        result = await hass.async_add_executor_job(
-            lambda: tracker.rebuild_room_bounds_from_archive(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=map_id,
-                room_id=room_id,
-            )
-        )
-        _LOGGER.info("rebuild_room_bounds_from_archive: %s", result)
-        return result
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_REBUILD_ROOM_BOUNDS,
-        handle_rebuild_room_bounds,
-        schema=REBUILD_ROOM_BOUNDS_SCHEMA,
-        supports_response=True,
-    )
 
 
 async def async_unregister_mapping_services(hass: HomeAssistant) -> None:

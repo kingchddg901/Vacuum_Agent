@@ -861,14 +861,6 @@ class EufyVacuumManager:
         """Delegate to ActiveJobTracker."""
         return self.active_job._timing_completion_threshold_minutes(room)
 
-    def _robot_outside_room_bounds(self, *, vacuum_entity_id: str, map_id: str, room_id: int):
-        """Delegate to ActiveJobTracker."""
-        return self.active_job._robot_outside_room_bounds(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-            room_id=room_id,
-        )
-
     def _maybe_roll_current_room_by_timing(self, **kwargs):
         """Delegate to ActiveJobTracker."""
         return self.active_job._maybe_roll_current_room_by_timing(**kwargs)

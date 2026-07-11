@@ -124,22 +124,6 @@ async def test_get_map_render_data_absent(hass, mapping_services):
     assert result.get("reason") == "not_configured"
 
 
-async def test_clear_room_bounds_unknown(hass, mapping_services):
-    """[MSV-12]"""
-    result = await _call(hass, ms.SERVICE_CLEAR_ROOM_BOUNDS,
-                         {"vacuum_entity_id": _VAC, "map_id": "cl", "room_id": "99"})
-    assert result["success"] is False
-    assert result["reason"] == "room_not_found"
-
-
-async def test_exclude_room_job_bounds_unknown(hass, mapping_services):
-    """[MSV-13]"""
-    result = await _call(hass, ms.SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
-                         {"vacuum_entity_id": _VAC, "map_id": "ex", "room_id": "99",
-                          "job_index": 0})
-    assert result["success"] is False
-
-
 async def test_delete_map_image_file_already_gone(hass, mapping_services):
     """[MSV-14] delete_map_image when the PNG is already missing on disk:
     _remove_file hits FileNotFoundError and returns False, but the service

@@ -85,30 +85,6 @@ def test_get_robot_position_missing_entity(tracker, manager, monkeypatch):
 # _robot_outside_room_bounds
 # ---------------------------------------------------------------------------
 
-def test_robot_outside_room_bounds(hass, tracker, manager, monkeypatch):
-    """[AJS-2]"""
-    mm = MappingManager(hass)
-    mm.update_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP,
-        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"3": {"is_transition": False}})
-    hass.data[DOMAIN]["mapping_manager"] = mm
-
-    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
-    assert tracker._robot_outside_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP, room_id=3) is False
-
-    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (5000.0, 5000.0))
-    assert tracker._robot_outside_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP, room_id=3) is True
-
-
-def test_robot_outside_no_manager(tracker, monkeypatch):
-    """[AJS-2] no mapping manager registered → None."""
-    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
-    assert tracker._robot_outside_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP, room_id=3) is None
-
-
 # ---------------------------------------------------------------------------
 # _detect_transition_room_from_position
 # ---------------------------------------------------------------------------
@@ -353,40 +329,6 @@ async def test_maybe_roll_fast_path_below_floor(hass, tracker, manager):
     assert result.get("completed_room_ids", []) == []
     assert "_pending_fast_rollover" in result             # not consumed (floor not met)
     assert events == []
-
-
-async def test_maybe_roll_slow_path_position_lock_veto(hass, tracker, manager, monkeypatch):
-    """[AJS-15] slow-room path: when the adapter declares its localization lock reliable
-    (capabilities.position_lock_reliable) AND the robot is still INSIDE the room's learned
-    bounds, the timing rollover is vetoed — the robot hasn't actually left. Both shipping
-    adapters declare the lock UNreliable (so AJS-4 covers the default pass-through); this
-    locks the bounds-veto for a future stable-frame adapter."""
-    from custom_components.eufy_vacuum.adapters.registry import (
-        register_adapter_config, unregister_adapter_config,
-    )
-    mm = MappingManager(hass)
-    mm.update_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP,
-        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"1": {"is_transition": False}})
-    hass.data[DOMAIN]["mapping_manager"] = mm
-    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))   # inside
-    register_adapter_config(_VAC, {
-        "adapter_id": "rb", "source": "code",
-        "capabilities": {"position_lock_reliable": True},
-    })
-    try:
-        events: list = []
-        hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
-        job = _seed_job(manager, _active_job())
-        result = tracker._maybe_roll_current_room_by_timing(
-            vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
-            raw_timeline=_TIMELINE, current_room_id=1,
-            current_room_elapsed_minutes=100.0, completed_room_ids=[])   # slow path
-        await hass.async_block_till_done()
-        assert result.get("completed_room_ids", []) == []   # vetoed: robot still inside
-        assert events == []
-    finally:
-        unregister_adapter_config(_VAC)
 
 
 def test_access_graph_path_skips_visited_neighbor(tracker):

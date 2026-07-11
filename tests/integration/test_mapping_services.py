@@ -72,8 +72,6 @@ from custom_components.eufy_vacuum.const import (
 )
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
-    SERVICE_CLEAR_ROOM_BOUNDS,
-    SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
     SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
     async_register_mapping_services,
     async_unregister_mapping_services,
@@ -914,21 +912,6 @@ async def test_per_layout_anchors_and_dock(hass, mapping_services):
 # ---------------------------------------------------------------------------
 # [MSH-9+] non-CV data handlers (dock / bounds / trace capture / package)
 # ---------------------------------------------------------------------------
-
-async def test_bounds_snapshot_and_clear(hass, mapping_services):
-    """[MSH-13] room bounds snapshot + clear + exclude/restore (no bounds → no-op)."""
-    setup_map(mapping_services, _VAC, _MAP, count=2)
-    snap = await _call(hass, SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-                       {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert "rooms" in snap
-    cleared = await _call(hass, SERVICE_CLEAR_ROOM_BOUNDS,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1})
-    assert isinstance(cleared, dict)
-    excl = await _call(hass, SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
-                       {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                        "room_id": 1, "job_index": 0})
-    assert isinstance(excl, dict)
-
 
 async def test_adjust_segment_blank_id(hass, mapping_services):
     """[MSH-2b] whitespace-only segment_id strips empty → missing_segment_id.

@@ -208,52 +208,6 @@ def test_find_button_entity_by_tokens(manager):
     ) is None
 
 
-def test_remaining_delegations_forward(mgr):
-    """[MD-8] the remaining manager seams forward to their subsystems without
-    AttributeError — the #11/#13 bug-class net (a delegation lost in a refactor).
-
-    Each call exercises only the forwarding line; the return value is incidental.
-    """
-    # active-job seams
-    assert isinstance(mgr._is_low_battery_return_state(
-        vacuum_entity_id=_VAC,
-        current_battery=15, vacuum_state="returning", task_status="returning"), bool)
-    mgr.update_active_job_recharge_observation(vacuum_entity_id=_VAC, map_id=_MAP)
-    mgr.update_active_job_mop_wash_observation(vacuum_entity_id=_VAC, map_id=_MAP)
-    mgr.record_active_job_transition(
-        vacuum_entity_id=_VAC, map_id=_MAP, entity_id="sensor.x",
-        from_state="cleaning", to_state="returning")
-    mgr._robot_outside_room_bounds(vacuum_entity_id=_VAC, map_id=_MAP, room_id=1)
-    mgr._get_robot_position(_VAC)
-    mgr._access_graph_path({}, 1, 2)
-    mgr.pause_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
-    mgr.resume_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
-    mgr.record_completed_room(vacuum_entity_id=_VAC, map_id=_MAP, room_id=1)
-    mgr.mark_active_job_finalized(vacuum_entity_id=_VAC, map_id=_MAP, finalize_result=None)
-    mgr.get_paused_job_timeout_report(vacuum_entity_id=_VAC, map_id=_MAP)
-
-    # maintenance seams
-    assert isinstance(mgr.get_maintenance_state(vacuum_entity_id=_VAC), dict)
-    mgr.get_maintenance_remaining(
-        vacuum_entity_id=_VAC, component="main_brush", interval_hours=150.0)
-    mgr._get_upkeep_item_guide(
-        vacuum_entity_id=_VAC, model_code="X8", component="main_brush", item_kind="maintenance")
-    mgr._get_replacement_reset_entity(vacuum_entity_id=_VAC, component="main_brush")
-
-    # onboarding seams
-    assert isinstance(mgr.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP), bool)
-    assert isinstance(mgr.reset_onboarding(vacuum_entity_id=_VAC, map_id=_MAP), dict)
-
-    # capabilities / profile / room / run-plan seams
-    assert isinstance(mgr.refresh_vacuum_capabilities(vacuum_entity_id=_VAC), dict)
-    mgr.overwrite_room_profile_from_room(
-        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, profile_name="ghost")
-    assert isinstance(mgr.discover_rooms(vacuum_entity_id=_VAC, map_id=_MAP), dict)
-    assert isinstance(mgr._confirmation_token_for_preflight(
-        vacuum_entity_id=_VAC, map_id=_MAP,
-        selected_room_ids=[1, 2], included_room_ids=[1], blocked_room_ids=[2]), str)
-
-
 @pytest.mark.parametrize("method", [
     "async_wash_mop",
     "async_dry_mop",
