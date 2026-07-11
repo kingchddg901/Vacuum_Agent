@@ -74,20 +74,16 @@ from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
     SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
-    SERVICE_CANCEL_TRACE_CAPTURE,
     SERVICE_CLEAR_ROOM_BOUNDS,
     SERVICE_CLOSE_ROOM_BOUNDARY,
     SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
     SERVICE_GET_MAPPING_PACKAGE,
     SERVICE_GET_MAPPING_STATE,
     SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
-    SERVICE_REVIEW_TRACE_RUN,
     SERVICE_SAVE_MAPPING_PACKAGE,
     SERVICE_SET_DOCK_ANCHOR,
     SERVICE_SET_DOCK_ROOM,
     SERVICE_START_ROOM_BOUNDARY_TRACE,
-    SERVICE_START_TRACE_CAPTURE,
-    SERVICE_STOP_TRACE_CAPTURE,
     async_register_mapping_services,
     async_unregister_mapping_services,
 )
@@ -959,20 +955,6 @@ async def test_dock_anchor_and_room(hass, mapping_services):
     assert room["saved"] is True
 
 
-async def test_trace_capture_cycle(hass, mapping_services):
-    """[MSH-11] start → stop → cancel trace capture."""
-    started = await _call(hass, SERVICE_START_TRACE_CAPTURE,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert started["started"] is True
-    stopped = await _call(hass, SERVICE_STOP_TRACE_CAPTURE,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert isinstance(stopped, dict)
-    # no active session now → cancel returns cancelled False
-    cancelled = await _call(hass, SERVICE_CANCEL_TRACE_CAPTURE,
-                            {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert cancelled["cancelled"] is False
-
-
 async def test_room_boundary_trace(hass, mapping_services):
     """[MSH-12] start a room boundary trace, then cancel it; close with no trace."""
     setup_map(mapping_services, _VAC, _MAP, count=2)
@@ -1000,16 +982,6 @@ async def test_bounds_snapshot_and_clear(hass, mapping_services):
                        {"vacuum_entity_id": _VAC, "map_id": _MAP,
                         "room_id": 1, "job_index": 0})
     assert isinstance(excl, dict)
-
-
-async def test_review_trace_run_missing(hass, mapping_services):
-    """[MSH-14] review a non-existent run → error verdict (handler runs)."""
-    setup_map(mapping_services, _VAC, _MAP, count=2)
-    result = await _call(hass, SERVICE_REVIEW_TRACE_RUN,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                          "run_id": "ghost", "room_id": 1})
-    assert isinstance(result, dict)
-    assert "verdict" in result
 
 
 async def test_adjust_segment_blank_id(hass, mapping_services):

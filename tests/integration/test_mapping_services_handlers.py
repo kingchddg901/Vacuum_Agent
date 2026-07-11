@@ -197,23 +197,6 @@ async def test_set_dock_anchor_docked(hass, mapping_services):
     assert result["dock"]["pixel"] == [12.0, 34.0]
 
 
-async def test_trace_capture_start_stop(hass, mapping_services):
-    """[MSV-7]"""
-    started = await _call(hass, ms.SERVICE_START_TRACE_CAPTURE,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert started["started"] is True
-    stopped = await _call(hass, ms.SERVICE_STOP_TRACE_CAPTURE,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP})
-    assert stopped["stopped"] is True
-
-
-async def test_cancel_trace_capture_none(hass, mapping_services):
-    """[MSV-8]"""
-    result = await _call(hass, ms.SERVICE_CANCEL_TRACE_CAPTURE,
-                         {"vacuum_entity_id": _VAC, "map_id": "no_session"})
-    assert result["cancelled"] is False
-
-
 async def test_append_trace_evidence(hass, mapping_services):
     """[MSV-9]"""
     result = await _call(hass, ms.SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
@@ -230,14 +213,6 @@ async def test_save_mapping_package(hass, mapping_services):
                           "package": {"schema_version": 1}})
     assert isinstance(result, dict)
     assert result.get("saved") is True or "package" in result
-
-
-async def test_review_trace_run_missing(hass, mapping_services):
-    """[MSV-11]"""
-    result = await _call(hass, ms.SERVICE_REVIEW_TRACE_RUN,
-                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
-                          "run_id": "ghost", "room_id": "3"})
-    assert result["verdict"] == "error"
 
 
 async def test_clear_room_bounds_unknown(hass, mapping_services):

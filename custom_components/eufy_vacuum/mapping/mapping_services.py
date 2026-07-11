@@ -89,14 +89,6 @@ SERVICE_EXCLUDE_ROOM_JOB_BOUNDS       = "exclude_room_job_bounds"
 SERVICE_RESTORE_ROOM_JOB_BOUNDS       = "restore_room_job_bounds"
 SERVICE_REBUILD_ROOM_BOUNDS           = "rebuild_room_bounds_from_archive"
 
-# Trace capture (Phase 1)
-SERVICE_START_TRACE_CAPTURE  = "start_trace_capture"
-SERVICE_STOP_TRACE_CAPTURE   = "stop_trace_capture"
-SERVICE_CANCEL_TRACE_CAPTURE = "cancel_trace_capture"
-
-# Trace run review (Phase 2)
-SERVICE_REVIEW_TRACE_RUN = "review_trace_run"
-
 ALL_MAPPING_SERVICES = (
     SERVICE_SAVE_MAP_IMAGE,
     SERVICE_START_ROOM_BOUNDARY_TRACE,
@@ -115,12 +107,6 @@ ALL_MAPPING_SERVICES = (
     SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
     SERVICE_RESTORE_ROOM_JOB_BOUNDS,
     SERVICE_REBUILD_ROOM_BOUNDS,
-    # Trace capture
-    SERVICE_START_TRACE_CAPTURE,
-    SERVICE_STOP_TRACE_CAPTURE,
-    SERVICE_CANCEL_TRACE_CAPTURE,
-    # Trace run review
-    SERVICE_REVIEW_TRACE_RUN,
     # Image analysis
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
@@ -3065,109 +3051,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_SET_DOCK_ROOM,
         handle_set_dock_room,
         schema=SET_DOCK_ROOM_SCHEMA,
-        supports_response=True,
-    )
-
-
-    # ------------------------------------------------------------------
-    # Phase 1 — raw trace capture
-    # ------------------------------------------------------------------
-
-    async def handle_start_trace_capture(call: ServiceCall) -> dict[str, Any]:
-        """Start a raw trace capture session for the given vacuum/map pair.
-
-        room_id is optional — room association is resolved in a later phase.
-        A pre-existing session for this pair is discarded; the caller is
-        informed via previous_cancelled in the return payload.
-        """
-        mgr = _get_mapping_manager(hass)
-        result = mgr.start_trace_capture(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data.get("room_id"),
-        )
-        _LOGGER.info("start_trace_capture: %s", result)
-        return result
-
-    async def handle_stop_trace_capture(call: ServiceCall) -> dict[str, Any]:
-        """Finalise and persist the active TraceRun. Returns stopped=False if no session is active."""
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.stop_trace_capture(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-            )
-        )
-        _LOGGER.info("stop_trace_capture: %s", result)
-        return result
-
-    async def handle_cancel_trace_capture(call: ServiceCall) -> dict[str, Any]:
-        """Discard the active session without writing. Returns cancelled=False if no session is active."""
-        mgr = _get_mapping_manager(hass)
-        result = mgr.cancel_trace_capture(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-        )
-        _LOGGER.info("cancel_trace_capture: %s", result)
-        return result
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_START_TRACE_CAPTURE,
-        handle_start_trace_capture,
-        schema=START_TRACE_CAPTURE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_STOP_TRACE_CAPTURE,
-        handle_stop_trace_capture,
-        schema=STOP_TRACE_CAPTURE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_CANCEL_TRACE_CAPTURE,
-        handle_cancel_trace_capture,
-        schema=CANCEL_TRACE_CAPTURE_SCHEMA,
-        supports_response=True,
-    )
-
-
-    # ------------------------------------------------------------------
-    # Phase 2 — coarse trace run review
-    # ------------------------------------------------------------------
-
-    async def handle_review_trace_run(call: ServiceCall) -> dict[str, Any]:
-        """Evaluate a stored TraceRun against a room's vacuum polygon.
-
-        Returns a verdict (accepted / needs_refine / rejected / error) with
-        full diagnostics. When segment_metadata is supplied it must be the
-        segment dict from get_image_segment_suggestions for the assigned room;
-        it adjusts polygon trustworthiness thresholds. Does not persist.
-        """
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.review_trace_run_for_room(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                run_id=call.data["run_id"],
-                room_id=call.data["room_id"],
-                segment_metadata=call.data.get("segment_metadata"),
-            )
-        )
-        diag = result.get("diagnostics") or {}
-        _LOGGER.info(
-            "review_trace_run: %s verdict=%s inside_ratio=%s effective_accept=%s adjustments=%s",
-            call.data["run_id"],
-            result.get("verdict"),
-            diag.get("inside_ratio"),
-            diag.get("effective_accept_threshold"),
-            diag.get("metadata_adjustments"),
-        )
-        return result
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_REVIEW_TRACE_RUN,
-        handle_review_trace_run,
-        schema=REVIEW_TRACE_RUN_SCHEMA,
         supports_response=True,
     )
 
