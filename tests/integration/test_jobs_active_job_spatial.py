@@ -36,7 +36,7 @@ from custom_components.eufy_vacuum.jobs.active_job import (
     ActiveJobTracker,
     _LIVE_TRANSITION_DEFAULTS,
 )
-from custom_components.eufy_vacuum.mapping.manager import MappingManager
+from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
 
 
 _VAC = "vacuum.alfred"
@@ -111,7 +111,7 @@ def test_detect_transition_positive(hass, tracker, manager, monkeypatch):
     monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
     monkeypatch.setattr(manager, "get_managed_rooms", lambda **kw: _GRAPH)
 
-    mm = MappingManager(hass)
+    mm = RoomBoundsStore(hass)
     mm.update_room_bounds(
         vacuum_entity_id=_VAC, map_id="trans",
         samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"2": {"is_transition": False}})
@@ -136,7 +136,7 @@ def test_detect_transition_no_bounds(hass, tracker, manager, monkeypatch):
     """[AJS-3] a path exists but the transition room has no learned bounds → None."""
     monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
     monkeypatch.setattr(manager, "get_managed_rooms", lambda **kw: _GRAPH)
-    hass.data[DOMAIN]["mapping_manager"] = MappingManager(hass)  # empty, no bounds
+    hass.data[DOMAIN]["mapping_manager"] = RoomBoundsStore(hass)  # empty, no bounds
     assert tracker._detect_transition_room_from_position(
         vacuum_entity_id=_VAC, map_id="nobounds", from_room_id=1, to_room_id=3) is None
 

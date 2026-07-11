@@ -14,7 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from ..timestamp_utils import datetime_to_utc_iso, utc_now
-from .manager import BOUNDS_MARGIN, MULTI_ROOM_MIN_RUNS, MappingManager
+from .room_bounds import BOUNDS_MARGIN, MULTI_ROOM_MIN_RUNS, RoomBoundsStore
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,8 +112,8 @@ class MappingTracker:
     is enabled.
     """
 
-    def __init__(self, hass: HomeAssistant, mapping_manager: MappingManager) -> None:
-        """Initialize the tracker with the HA instance and a MappingManager reference."""
+    def __init__(self, hass: HomeAssistant, mapping_manager: RoomBoundsStore) -> None:
+        """Initialize the tracker with the HA instance and a RoomBoundsStore reference."""
         self.hass = hass
         self._manager = mapping_manager
         self._confidence: dict[str, _RoomConfidenceState] = {}

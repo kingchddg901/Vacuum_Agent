@@ -86,10 +86,10 @@ _MAP = "6"
 
 @pytest.fixture
 async def mapping_services(hass, manager):
-    from custom_components.eufy_vacuum.mapping.manager import MappingManager
-    # the mapping-specific handlers resolve a dedicated MappingManager from
+    from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
+    # the mapping-specific handlers resolve a dedicated RoomBoundsStore from
     # hass.data; async_setup_entry wires this in production.
-    hass.data[DOMAIN]["mapping_manager"] = MappingManager(hass)
+    hass.data[DOMAIN]["mapping_manager"] = RoomBoundsStore(hass)
     await async_register_mapping_services(hass)
     yield manager
     await async_unregister_mapping_services(hass)

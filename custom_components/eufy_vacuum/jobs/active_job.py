@@ -1485,7 +1485,7 @@ class ActiveJobTracker:
             bounds = map_rooms.get(str(t_id), {}).get("bounds")
             if not bounds:
                 continue
-            # Inline AABB check — mirrors MappingManager._point_in_bounds()
+            # Inline AABB check — mirrors RoomBoundsStore._point_in_bounds()
             if (
                 bounds["min_x"] <= vx <= bounds["max_x"]
                 and bounds["min_y"] <= vy <= bounds["max_y"]

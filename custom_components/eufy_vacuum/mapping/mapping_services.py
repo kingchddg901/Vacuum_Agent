@@ -53,7 +53,7 @@ from ..const import (
 )
 from ..maps.map_manager import ensure_map_bucket
 from ..timestamp_utils import utc_now_iso
-from .manager import MappingManager
+from .room_bounds import RoomBoundsStore
 from .map_source import (
     OVERLAY_VISIBILITY_DEFAULTS,
     resolve_furnished_render,
@@ -666,7 +666,7 @@ GET_MAP_RENDER_DATA_SCHEMA = vol.Schema(
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _get_mapping_manager(hass: HomeAssistant) -> MappingManager:
+def _get_mapping_manager(hass: HomeAssistant) -> RoomBoundsStore:
     manager = hass.data.get(DOMAIN, {}).get("mapping_manager")
     if manager is None:
         raise HomeAssistantError("Mapping manager not available")

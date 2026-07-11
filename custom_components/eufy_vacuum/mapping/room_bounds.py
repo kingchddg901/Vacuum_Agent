@@ -1,8 +1,19 @@
-"""Orchestrates all mapping operations: boundary tracing, bounds learning, and the trace-based transform pipeline."""
+"""Per-vacuum room bounding-box store.
+
+Learns each room's axis-aligned bounding box from the position samples a
+completed job attributes to it, unions successive runs into an accumulated
+box, and answers point-in-room queries used for animal-icon placement and
+job-progress room attribution.
+
+This is all that survives of the old mapping-inference lineage — trace
+capture, room-boundary derivation, affine-transform fitting, and image-segment
+suggestion were retired with the mapping split (see the ``archived_mapping/``
+tree and [[project_boundary_derivation_dead]] for the design and the
+revival conditions).
+"""
 
 from __future__ import annotations
 
-import base64
 import json
 import logging
 from pathlib import Path
@@ -10,12 +21,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from ..const import DATA_RUNTIME, DOMAIN
-from ..entity_helpers import get_floor_type_label
 from ..timestamp_utils import utc_now_iso
-from ..adapters.registry import get_adapter_config
-from .boundary import point_in_polygon
-from .segmenter_engines import get_segmenter_engine
 
 
 # ---------------------------------------------------------------------------
@@ -23,10 +29,6 @@ from .segmenter_engines import get_segmenter_engine
 # ---------------------------------------------------------------------------
 
 MAPPING_ROOT = "eufy_vacuum/mapping"
-MAPPING_WWW_ROOT = "eufy_vacuum/maps"
-_ISO_FMT = "%Y-%m-%dT%H:%M:%S"
-TRACE_ARM_INSIDE_HITS = 3
-TRACE_PREARM_BUFFER_LIMIT = 12
 
 # Bounding box margin (vacuum units) added on all sides for presence detection.
 BOUNDS_MARGIN = 50.0
@@ -42,6 +44,7 @@ _TRIM_MIN_SAMPLES = 10
 
 _LOGGER = logging.getLogger(__name__)
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -54,49 +57,6 @@ def _vacuum_slug(vacuum_entity_id: str) -> str:
     if "." in vacuum_entity_id:
         return vacuum_entity_id.split(".", 1)[1].strip().lower()
     return str(vacuum_entity_id).strip().lower()
-
-
-def _safe_int(value: Any, default: int = 0) -> int:
-    try:
-        return int(float(value))
-    except Exception:
-        return default
-
-
-def _safe_float(value: Any, default: float | None = None) -> float | None:
-    try:
-        return float(value)
-    except Exception:
-        return default
-
-
-def _deep_merge_dict(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
-    """Recursively merge mapping package updates into a base dict."""
-    merged = dict(base)
-    for key, value in updates.items():
-        if isinstance(value, dict) and isinstance(merged.get(key), dict):
-            merged[key] = _deep_merge_dict(merged[key], value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def _display_label(value: Any) -> str | None:
-    """Return a basic human-readable label for slug-like values."""
-    text = str(value or "").strip()
-    if not text:
-        return None
-    normalized = text.replace("_", " ").replace("-", " ")
-    collapsed = " ".join(part for part in normalized.split() if part)
-    if not collapsed:
-        return None
-    return " ".join(part.capitalize() for part in collapsed.split())
-
-
-def _clean_text(value: Any) -> str | None:
-    """Return a stripped string or None."""
-    text = str(value or "").strip()
-    return text or None
 
 
 def _percentile_trim(
@@ -132,102 +92,21 @@ def _percentile_trim(
     ]
 
 
-def _clean_string_list(value: Any) -> list[str]:
-    """Return a compact list of non-empty strings."""
-    if not isinstance(value, list):
-        return []
-    items: list[str] = []
-    for item in value:
-        text = _clean_text(item)
-        if text:
-            items.append(text)
-    return items
-
-
-def _normalize_point(value: Any, digits: int = 2) -> list[float] | None:
-    """Return a rounded 2D point list or None."""
-    if not isinstance(value, (list, tuple)) or len(value) != 2:
-        return None
-    try:
-        return [round(float(value[0]), digits), round(float(value[1]), digits)]
-    except Exception:
-        return None
-
-
-def _normalize_image_variant(value: Any) -> str:
-    text = str(value or "primary").strip().lower().replace(" ", "_").replace("-", "_")
-    return text or "primary"
-
-
-def _image_variant_role(variant: str) -> str:
-    normalized = _normalize_image_variant(variant)
-    if normalized == "dark":
-        return "segmentation"
-    if normalized == "light":
-        return "boundary"
-    return "primary"
-
-
-def _normalize_segment_adjustments(value: Any) -> dict[str, dict[str, Any]]:
-    """Return persisted per-segment translation, edge, and vertex adjustments."""
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, dict[str, Any]] = {}
-    for raw_segment_id, raw_payload in value.items():
-        segment_id = str(raw_segment_id or "").strip()
-        if not segment_id:
-            continue
-        payload = dict(raw_payload) if isinstance(raw_payload, dict) else {}
-        offset_x = _safe_int(payload.get("offset_x"), 0)
-        offset_y = _safe_int(payload.get("offset_y"), 0)
-        edge_left = _safe_int(payload.get("edge_left"), 0)
-        edge_right = _safe_int(payload.get("edge_right"), 0)
-        edge_top = _safe_int(payload.get("edge_top"), 0)
-        edge_bottom = _safe_int(payload.get("edge_bottom"), 0)
-        vertex_moves_raw = payload.get("vertex_moves")
-        vertex_moves: list[dict[str, int]] = []
-        if isinstance(vertex_moves_raw, list):
-            for item in vertex_moves_raw:
-                if not isinstance(item, dict):
-                    continue
-                index = _safe_int(item.get("index"), -1)
-                delta_x = _safe_int(item.get("delta_x"), 0)
-                delta_y = _safe_int(item.get("delta_y"), 0)
-                if index < 0 or not any((delta_x, delta_y)):
-                    continue
-                vertex_moves.append({
-                    "index": index,
-                    "delta_x": delta_x,
-                    "delta_y": delta_y,
-                })
-        if not any((offset_x, offset_y, edge_left, edge_right, edge_top, edge_bottom)) and not vertex_moves:
-            continue
-        normalized[segment_id] = {
-            "offset_x": offset_x,
-            "offset_y": offset_y,
-            "edge_left": edge_left,
-            "edge_right": edge_right,
-            "edge_top": edge_top,
-            "edge_bottom": edge_bottom,
-            "vertex_moves": vertex_moves,
-            "updated_at": _clean_text(payload.get("updated_at")) or _iso_now(),
-        }
-    return normalized
-
-
 # ---------------------------------------------------------------------------
-# Manager
+# Store
 # ---------------------------------------------------------------------------
 
-class MappingManager:
-    """Manages boundary tracing, trace capture, and image storage per vacuum/map.
+class RoomBoundsStore:
+    """Learns and persists per-room bounding boxes from job position samples.
 
-    Active boundary traces are stored in memory only — they are not persisted
-    until close_room_boundary is called.
+    One JSON file per vacuum/map under ``eufy_vacuum/mapping/<slug>/`` holds
+    each room's accumulated bounds plus a bounded per-job history. Bounds are
+    recomputed as the union of the non-excluded history entries, so repeated
+    runs progressively tighten and expand each box.
     """
 
     def __init__(self, hass: HomeAssistant) -> None:
-        """Initialize the manager, setting up filesystem paths and in-memory session state."""
+        """Initialize the store, setting up the per-vacuum filesystem root."""
         self.hass = hass
         self._base_dir = Path(hass.config.config_dir) / MAPPING_ROOT
 
@@ -320,10 +199,6 @@ class MappingManager:
             "trace_evidence": [],
             "notes": [],
         }
-
-    # ------------------------------------------------------------------
-    # Map image
-    # ------------------------------------------------------------------
 
     # ------------------------------------------------------------------
     # Bounding box room presence
@@ -546,7 +421,7 @@ class MappingManager:
             payload.setdefault("mapping", {})["room_bounds"] = job_bounds
             job_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         except Exception:  # pragma: no cover - best-effort I/O, logs and swallows
-            _LOGGER.exception("MappingManager: failed to write job bounds to job file")
+            _LOGGER.exception("RoomBoundsStore: failed to write job bounds to job file")
 
     @staticmethod
     def _point_in_bounds(
@@ -560,8 +435,3 @@ class MappingManager:
             bounds["min_x"] - margin <= vx <= bounds["max_x"] + margin
             and bounds["min_y"] - margin <= vy <= bounds["max_y"] + margin
         )
-
-    # ------------------------------------------------------------------
-    # State queries
-    # ------------------------------------------------------------------
-

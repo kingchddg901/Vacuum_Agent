@@ -1,6 +1,6 @@
 """Integration tests for the non-segment mapping service handlers.
 
-These are thin wrappers over already-tested MappingManager methods; calling
+These are thin wrappers over already-tested RoomBoundsStore methods; calling
 them through the service registry covers the handler closures registered by
 async_register_mapping_services.
 
@@ -33,7 +33,7 @@ import pytest
 
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
-from custom_components.eufy_vacuum.mapping.manager import MappingManager
+from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
 from custom_components.eufy_vacuum.mapping import mapping_services as ms
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     async_register_mapping_services,
@@ -47,7 +47,7 @@ _MAP = "6"
 
 @pytest.fixture
 async def mapping_services(hass, manager):
-    hass.data[DOMAIN]["mapping_manager"] = MappingManager(hass)
+    hass.data[DOMAIN]["mapping_manager"] = RoomBoundsStore(hass)
     await async_register_mapping_services(hass)
     yield manager
     await async_unregister_mapping_services(hass)

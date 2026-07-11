@@ -1,5 +1,5 @@
 """Integration tests for mapping/tracker.py — the job-lifecycle + position
-event pipeline. Uses a real hass + real MappingManager; the raw-position read
+event pipeline. Uses a real hass + real RoomBoundsStore; the raw-position read
 (which needs the full capability stack) is patched so the accumulation and
 confidence logic can be driven deterministically.
 
@@ -26,7 +26,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.eufy_vacuum.mapping.manager import MappingManager
+from custom_components.eufy_vacuum.mapping.room_bounds import RoomBoundsStore
 from custom_components.eufy_vacuum.mapping.tracker import (
     EVENT_ROOM_COMPLETED,
     MappingTracker,
@@ -41,7 +41,7 @@ _ROOMS = {"3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"}}
 
 @pytest.fixture
 def tracker(hass) -> MappingTracker:
-    return MappingTracker(hass, MappingManager(hass))
+    return MappingTracker(hass, RoomBoundsStore(hass))
 
 
 def _register(tracker) -> None:

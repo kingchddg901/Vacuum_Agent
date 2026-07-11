@@ -75,7 +75,7 @@ from .mapping.mapping_services import (
     async_register_mapping_services,
     async_unregister_mapping_services,
 )
-from .mapping.manager import MappingManager
+from .mapping.room_bounds import RoomBoundsStore
 from .mapping.tracker import MappingTracker
 from .services import async_register_services, async_unregister_services
 from .themes import (
@@ -371,7 +371,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
     )
 
-    mapping_manager = MappingManager(hass)
+    mapping_manager = RoomBoundsStore(hass)
     mapping_tracker = MappingTracker(hass, mapping_manager)
     hass.data[DOMAIN]["mapping_manager"] = mapping_manager
     hass.data[DOMAIN]["mapping_tracker"] = mapping_tracker
