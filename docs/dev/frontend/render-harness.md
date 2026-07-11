@@ -103,7 +103,7 @@ green can only be judged with the two co-present and adjacent at real size. A
 gallery of all states in real layout is that instrument; isolated swatches are
 not. Current galleries: rooms (queue + confidence tiers), learning review (job
 badges), the **External Jobs** subtab (app-started runs awaiting review), the
-two-step **review wizard** (modal), mapping review (the six bounds badges), and a
+two-step **review wizard** (modal), and a
 status-dot strip — plus **populated single-tab fixtures** (metrics, maintenance,
 room rules) that stub a tab's data accessors with realistic content. Those last
 serve a purpose beyond colorblind validation: the theme-preview gallery (§7)

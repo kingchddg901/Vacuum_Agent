@@ -144,7 +144,7 @@ Signals to score it on: **import** (hard = spine candidate / lazy = ring candida
 
 ### Out of the ring set
 
-- **Singletons** (constructed in `__init__.async_setup_entry`, not the manager): `LearningManager`, `BatteryHealthManager`, `ErrorTracker`, `MappingManager`/`Tracker`. Battery/water are the **cheap siblings** — same estimation engine as learning; walk them *after* the learning extraction lands the shared host contract.
+- **Singletons** (constructed in `__init__.async_setup_entry`, not the manager): `LearningManager`, `BatteryHealthManager`, `ErrorTracker`, `RoomBoundsStore`/`Tracker`. Battery/water are the **cheap siblings** — same estimation engine as learning; walk them *after* the learning extraction lands the shared host contract.
 - **Atom / spine** (hard-imported, the thing that stands): `adapters`, `queue` (engine + dispatch_engines), `maps`, `models`, `rooms` (identity), `jobs`, and `core` (`storage`/`capabilities`/`charging`). Not pulled — this *is* the core.
 - **HA glue** (platform wiring, not detachment candidates): `listeners`, `services`, `sensor`, `setup`, `frontend`, `translations`, `textures`.
 

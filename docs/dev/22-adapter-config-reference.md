@@ -1106,8 +1106,7 @@ as misconfiguration (since noop ignores tuning by definition).
 
 ### Where the framework reads it
 
-- `mapping/manager.py:get_image_segment_suggestions` — selects engine, layers caller kwargs over the adapter's `segmenter_tuning`, dispatches.
-- `mapping/mapping_services.py:_handle_analyze_map_image` — same pattern for the user-facing service call.
+- `mapping/mapping_services.py:_handle_analyze_map_image` — the user-facing service call: layers caller kwargs over the adapter's `segmenter_tuning` and dispatches to the engine selected by `mapping/segmenter_engines.py:get_segmenter_engine`.
 
 The two call sites consume the canonical `SegmentationResult` and cache it under `map_bucket["image_segments"]` in `.storage`. The `runtime` and `segmentation.*` blocks that were top-level in earlier versions are now under `engine_diagnostics`; consumers that need them read via that path.
 
@@ -2003,7 +2002,7 @@ this table maps schema sections to the modules that consume them:
 | `post_job_wash_amendment` | `core/water_amendment.py`, `__init__.py` (registration call site) |
 | `discovery` | `setup/workflow.py` (`discover_rooms_for_vacuum`) |
 | `dispatch` | `queue/queue_engine.py` (`build_room_clean_payload`), `core/manager.py` (`async_start_room_clean_job`) |
-| `mapping` | `mapping/manager.py` (`get_image_segment_suggestions`), `mapping/mapping_services.py` (`_handle_analyze_map_image`) |
+| `mapping` | `mapping/segmenter_engines.py` (`get_segmenter_engine`), `mapping/mapping_services.py` (`_handle_analyze_map_image`) |
 | `map_state_source` | `mapping/map_source_coordinator.py` (`MapSourceCoordinator.async_refresh_map_state_source`); `core/manager.py` (delegators + `get_dashboard_snapshot` reads the cached result) |
 | `map_render` | `mapping/map_source_coordinator.py` (`MapSourceCoordinator.async_get_map_render_data`); `core/manager.py` (`get_dashboard_snapshot` gates `supports_va_render` on its presence) |
 | `job_segmenter` | `jobs/active_job.py` (`_live_boundary_count`), `learning/external_ingest.py` (`build_pending_record`, `resegment_pending_record`, `_resolve_engine_tuning`), `learning/history_store.py` (`_build_transit_blocks`) — engine + thresholds |

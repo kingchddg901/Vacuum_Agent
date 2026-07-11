@@ -58,7 +58,6 @@ export const VIEWS = {
   THEME:           "theme",
   MAPPING_ARCHIVE: "mapping",   // not a real view — setView() redirects to ROOMS
   MAP_CONFIG:      "map_config",
-  MAPPING_REVIEW:  "mapping_review",
   SETUP:           "setup",
 };
 ```

@@ -1,6 +1,8 @@
 # 11 — Mapping System
 
-This document covers the complete mapping subsystem: image segment analysis, trace capture, room bounds learning, segment adjustments, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
+This document covers the mapping subsystem: image segment analysis, room-bounds learning, segment adjustments, custom layouts, the provider map source, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
+
+> **Status (mapping split).** The run-derived *inference* lineage — trace capture / segmentation / review, room-boundary derivation (vacuum-space polygons), the affine transform-fitting pipeline, and image-segment *suggestion* — was retired. What survives is the CV segmentation pipeline (§2), the per-room bounding-box store (§3, `mapping/room_bounds.py` — formerly `MappingManager`, now `RoomBoundsStore`), segment adjustments (§5), image variants (§6), custom layouts (§10), and the provider map source (§11). The retired design is preserved in git history and the boundary-derivation design note; the sections below have been trimmed to what is live.
 
 ---
 
@@ -10,15 +12,15 @@ The mapping system has three subsystems that address different aspects of knowin
 
 **Image segment analysis** answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. The brand-agnostic geometry/image primitives live in `mapping/segment_primitives.py`; the Eufy HSV pipeline that uses them lives in `adapters/eufy/segmentor.py` and is invoked through the segmenter-engine abstraction in `mapping/segmenter_engines.py`. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
 
-**Trace-based room bounds** (`manager.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
+**Room-bounds learning** (`room_bounds.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
 
 **Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) or learning them from drifting robot samples (trace bounds), this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](map-state-source.md).
 
 The two subsystems are **independent** and operate in different coordinate spaces — image analysis in pixel space, trace bounds in vacuum space. There is no transform between them: the legacy "System A" affine vacuum↔pixel transform was removed.
 
-- The `BOUNDARY_CROSSING` signal in trace segmentation tests samples against a room's **vacuum-space boundary** (learned from a robot boundary-trace trail; see `close_room_boundary`), not against any image-derived polygon.
-- The trace-based bounds and the image-segment polygon serve complementary but unconnected purposes: the image segment gives shape (pixel space); the trace bounds give a reliable presence envelope (vacuum space).
-- Because no pixel↔vacuum transform exists, there is no room-entry gating on boundary traces — traces are always armed.
+- Room-boundary *derivation* (vacuum-space polygons learned from a robot boundary-trace trail) was retired with the mapping split. Room presence is now the accumulated bounding box (§3) alone.
+- The room bounds and the image-segment polygon serve complementary but unconnected purposes: the image segment gives shape (pixel space); the bounds give a reliable presence envelope (vacuum space).
+- Because no pixel↔vacuum transform exists, an image-space polygon can never be tested against a live (vacuum-space) position — the two spaces are never mixed.
 
 ---
 
@@ -229,7 +231,7 @@ Samples are flushed to a temporary file (`_samples_active.json`) every 25 unique
 
 ### 3.2 Attribution Strategy
 
-At the end of a job, `MappingManager.update_room_bounds` attributes samples to rooms:
+At the end of a job, `RoomBoundsStore.update_room_bounds` attributes samples to rooms:
 
 **Single-room job** (exactly one non-transition room in the job's room dict): all samples are attributed to that room unconditionally.
 
@@ -315,8 +317,8 @@ The two coordinate spaces are **not** related by any runtime transform. The lega
 Consequences for the rest of the system:
 
 - Image-segment polygons stay in pixel space and are used only as UI map-card overlays; they are never projected into vacuum space.
-- Trace-based room bounds and the `BOUNDARY_CROSSING` signal operate purely in vacuum space, using boundaries learned from robot boundary-trace trails (see §3 and `close_room_boundary`).
-- There is no room-entry gating on boundary traces — without a pixel↔vacuum transform a live (vacuum-space) position cannot be tested against a pixel-space polygon, so traces are always armed.
+- Room bounds (§3) operate purely in vacuum space — the accumulated bounding box learned from cleaning-run samples.
+- The two are never mixed: without a pixel↔vacuum transform a live (vacuum-space) position cannot be tested against a pixel-space polygon.
 
 ---
 
@@ -427,44 +429,11 @@ Additionally, image metadata (width, height, path, browser_url) is recorded in t
 
 ---
 
-## 7. Outlier Detection
+## 7. Excluded History Entries
 
-### 7.1 How the Mapping Review Panel Identifies Outliers
+Each job entry in a room's `job_bounds_history` carries an `excluded` boolean. `_recompute_bounds_from_history` (§3.6) unions only the **non-excluded** entries, so a flagged run is dropped from the accumulated box while its samples stay in history.
 
-The mapping review panel calls `get_room_bounds_snapshot` to retrieve each room's `job_bounds_history`. The per-job history entries each contain `min_x`, `max_x`, `min_y`, `max_y`, `cx` (centre x), `cy` (centre y), `sample_count`, `recorded_at`, `job_id`, and `excluded`.
-
-The UI derives its own outlier scoring from this data. The integration itself does not compute an outlier score server-side; however, the `score_transition_candidate` function in `boundary.py` demonstrates the scoring approach used for room polygon assessment:
-
-```python
-# Three signals, each normalised to [0.0, 1.0]:
-convexity_score = clamp((hull_area / poly_area - 1.0) / 1.0, 0.0, 1.0)
-aspect_score    = clamp((max(w,h)/min(w,h) - 1.5) / 3.5, 0.0, 1.0)
-vertex_score    = clamp((vertex_count - 4) / 8.0, 0.0, 1.0)
-
-score = convexity_score × 0.50 + aspect_score × 0.35 + vertex_score × 0.15
-```
-
-A polygon is flagged as a transition candidate (is_candidate = True) if *any single signal* clears its threshold:
-- `convexity_ratio >= 1.4` — non-convex shape (L-shaped, T-shaped rooms)
-- `aspect_ratio >= 3.5` — corridor-shaped bounding box
-- `vertex_count >= 8` — high polygon complexity
-
-This uses OR rather than AND so that a single strong signal (e.g. a clearly concave L-shape) surfaces without needing corroboration.
-
-### 7.2 Manual Exclusion
-
-The user can exclude any job history entry via `exclude_room_job_bounds(room_id, job_index)`. Exclusion sets `history[job_index]["excluded"] = True` and immediately calls `_recompute_bounds_from_history` to recompute the union from the remaining active entries. The corresponding archive JSONL line is also updated (via `tracker.update_raw_samples_exclusion`) so the exclusion flag persists through a rebuild.
-
-### 7.3 Baseline Protection
-
-The oldest entry in the history (index `len(history) - 1` in the newest-first list) is the *baseline entry*. It is protected from exclusion:
-
-```python
-if job_index == len(history) - 1:
-    return {"success": False, "reason": "baseline_protected"}
-```
-
-The rationale: the baseline is the first clean run that established the room's identity. Without it, the system has no reference to judge whether later runs are within a plausible range. Allowing it to be excluded could collapse the bounds to zero or to a degenerate range.
+The interactive **bounds-review** surface that set this flag was **retired with the mapping split**: the card's Mapping Bounds Review panel, its `clear_room_bounds` / `exclude_room_job_bounds` / `restore_room_job_bounds` / `rebuild_room_bounds_from_archive` services, and the `boundary.py` transition-candidate scoring that flagged L-shaped / corridor rooms are all gone. The recompute still honors the flag, so entries already excluded on disk stay excluded, but there is no longer a runtime path to toggle it. The retired review design lives in git history.
 
 ---
 
@@ -481,11 +450,8 @@ map_<map_id>.json
 One JSON file per (vacuum, map). Contains:
 
 - `rooms` — per-room dict keyed by `room_id` string. Each room entry holds:
-  - `boundary` — vacuum-space polygon from a boundary trace (list of `[vx, vy]`)
   - `bounds` — the active bounding box: `{min_x, max_x, min_y, max_y, cx, cy, run_count, sample_count, updated_at}`
-  - `job_bounds_history` — list of up to 20 job entries, newest first
-  - `traced_at` — ISO timestamp of last boundary trace close
-  - `transition_candidate` / `transition_score` — derived from `score_transition_candidate`
+  - `job_bounds_history` — list of up to 20 job entries, newest first (each carries an `excluded` flag; see §7)
 - `image_path`, `image_width`, `image_height` — legacy fields, now duplicated in `image_variants`
 - `image_variants` — dict of variant metadata records
 - `package` — the richer mapping package (see below)
@@ -538,16 +504,6 @@ _samples_active.json
 
 Written (via atomic rename of `.tmp`) every `SAMPLES_FLUSH_INTERVAL = 25` unique position samples during an active job. Contains `map_id`, `rooms`, and the full `samples` list. Deleted at the start of the next job or after a clean `end_job`. If HA restarts mid-job and a temp file with a matching `map_id` is found on `start_job`, the samples are recovered.
 
-### 8.5 Trace Run Files
-
-```
-traces/<vacuum_slug>/trace_<timestamp>_<map_id>_<room_id>.json
-```
-
-Written by `TraceCapture.stop()` via `write_trace_run`. Each file is a full `TraceRun` dict: `run_id`, `schema_version`, `vacuum_entity_id`, `map_id`, `room_id` (may be `null`), `started_at`, `ended_at`, `sample_count`, and `samples` (list of `{"x": float, "y": float, "ts": ISO}`).
-
-These files are the input to the trace segmentation pipeline and the trace review pipeline. They are not automatically cleaned up; `delete_trace_run_by_id` removes one file.
-
 ---
 
 ## 9. Porting Considerations
@@ -558,8 +514,8 @@ The following are specific to Eufy's implementation:
 
 - **Vacuum coordinate units** — Eufy reports `robot_position_x` / `robot_position_y` as integer sensor states in its proprietary unit. The scale (≈ 1 mm/unit) is inferred and not guaranteed.
 - **Map image format** — Eufy's map images use a consistent hue-per-room convention. The dark variant provides saturated, high-contrast room colours; the light variant provides near-white walls. Both properties are assumed by the HSV thresholding approach.
-- **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires HA bus events (`eufy_vacuum_room_completed`, `eufy_vacuum_boundary_saved`). These are HA-specific patterns.
-- **HA storage** — `MappingManager._save_map_data` / `_load_map_data` writes directly to JSON files on the config dir filesystem. The `image_segment_adjustments` and `image_segments` results live in the runtime HA storage manager (`.storage` files), not in the mapping JSON files.
+- **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires the `eufy_vacuum_room_completed` HA bus event. This is an HA-specific pattern.
+- **HA storage** — `RoomBoundsStore._save_map_data` / `_load_map_data` writes directly to JSON files on the config dir filesystem. The `image_segment_adjustments` and `image_segments` results live in the runtime HA storage manager (`.storage` files), not in the mapping JSON files.
 
 ### 9.2 Generic / Portable
 
@@ -568,10 +524,8 @@ The following components have no Eufy-specific dependencies and would port direc
 - **`mapping/segment_primitives.py`** — brand-agnostic geometry/image primitives (polygon math, mask ops, HSV helpers). Pure Python; only dependencies Pillow, NumPy, SciPy.
 - **`rasterize_primitives`** (in `mapping/segment_primitives.py`) — the no-CV counterpart to the segmentor. Takes an ordered list of pct-space primitives (`rect`/`circle`/`polygon`, each optionally `op: subtract`; default unions), draws them onto a PIL `"1"` mask, traces the boundary with the *same* `mask_to_polygon` the CV pipeline uses, and scales the result to the map's pixel dimensions. Inputs are plain dicts with 0–100 coordinates; output is a pixel-space polygon. Dependencies: Pillow (`Image`/`ImageDraw`) + NumPy only (no SciPy). This is the portable core of the custom-segment writer (§10).
 - **`adapters/eufy/segmentor.py`** — the Eufy HSV segmentation pipeline built on those primitives. Inputs: a PNG file path. Outputs: a pure-Python dict. A new brand provides its own segmentor module and registers it as a segmenter engine (`mapping/segmenter_engines.py`) — see the brand-agnostic adapter docs.
-- **`boundary.py`** — Douglas-Peucker simplification, corner detection, point-in-polygon (ray casting), transition candidate scoring, shoelace polygon area, convex hull (Andrew's monotone chain). All pure Python.
-- **`trace_capture.py`** — in-memory session manager. No HA dependency. Requires a `write_trace_run` backend (currently `trace_store.py`).
-- **`trace_segmentation.py`** — `segment_trace_run`. Input: a TraceRun dict with `samples` having `x`, `y`, `ts` keys. Output: a SegmentationResult dict. No HA dependency.
-- **`_percentile_trim`** in `manager.py` — pure Python outlier trimming.
+- **`boundary.py`** — `point_in_polygon` (ray casting), the one geometry helper the live map layer still needs (used by `map_source.zone_membership`). The rest of the module — Douglas-Peucker simplification, corner detection, transition-candidate scoring, shoelace area, convex hull — was removed with the mapping split.
+- **`_percentile_trim`** in `room_bounds.py` — pure Python outlier trimming.
 - **`_recompute_bounds_from_history`** — pure Python union of history entries.
 
 The `BOUNDS_MARGIN` value (50 vacuum units) and percentile parameters (P10/P90) are tuning constants that will need adjustment if the coordinate scale differs from Eufy's.

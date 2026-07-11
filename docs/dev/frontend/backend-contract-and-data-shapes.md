@@ -181,11 +181,7 @@ The map's saved-zone list is **not** a separate query — it rides on the **`get
 | `get_map_render_data` | `vacuum_entity_id` | Returns the raw room raster + decode params the card uses to draw its own backdrop (no server-side rendering); adapter-driven, cached by the returned version. Brands without a `map_render` config return `{present: false}`. **response** |
 | `get_map_live_pose` | `vacuum_entity_id` | Returns the live moving-overlay pose (robot + dock anchors, current room, heading) from the provider's in-memory coordinator — fresher than the `.storage`-derived pose. Polled on the live cadence. Brands without a `live_pose` config return `{present: false}`. **response** |
 | `compare_map_sources` | `vacuum_entity_id` | Diagnostic verify probe: compares the provider's in-memory map data against the `.storage` copy and reports whether raster + geometry are byte-identical (`normalization_safe`). **response** |
-| `get_room_bounds_snapshot` | `vacuum_entity_id`, `map_id` | |
-| `clear_room_bounds` | `vacuum_entity_id`, `map_id`, `room_id` | |
-| `exclude_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` | |
-| `restore_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` | |
-| `rebuild_room_bounds_from_archive` | `vacuum_entity_id`, `map_id`, `room_id` | |
+| `get_room_bounds_snapshot` | `vacuum_entity_id`, `map_id` | Per-room accumulated bounds + job history. The bounds-review write services (clear/exclude/restore/rebuild) were retired with the mapping split — the snapshot is now read-only. |
 
 #### Live-map backdrop read model
 
