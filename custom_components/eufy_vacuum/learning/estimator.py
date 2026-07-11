@@ -77,7 +77,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .history_store import LearningHistoryStore
-from ..adapters.registry import get_adapter_config as _get_adapter_config
+from .brand_facts import brand_facts_for
 from ..timestamp_utils import datetime_to_utc_iso, parse_timestamp, utc_now
 from .utils import _canonical_clean_mode, _iso_now, _room_key, _safe_float, _safe_int
 
@@ -213,16 +213,14 @@ def _load_mop_wash_config(*, hass: HomeAssistant, vacuum_entity_id: str) -> dict
     estimator falls back to a safe default interval so ETA math remains
     stable. The current implementation only models the "By Time" mode.
     """
-    _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
-    _entities = _adapter_cfg.get("entities", {})
-    mode_entity_id: str | None = _entities.get("wash_frequency_mode")
-    interval_entity_id: str | None = _entities.get("wash_frequency_value_time")
+    _facts = brand_facts_for(vacuum_entity_id)
+    mode_entity_id: str | None = _facts.entity_id("wash_frequency_mode")
+    interval_entity_id: str | None = _facts.entity_id("wash_frequency_value_time")
 
     mode_state = hass.states.get(mode_entity_id) if mode_entity_id else None
     interval_state = hass.states.get(interval_entity_id) if interval_entity_id else None
 
-    _vocab = _adapter_cfg.get("vocabulary", {})
-    _wash_freq_aliases: dict[str, str] = _vocab.get("wash_frequency_mode_aliases") or {}
+    _wash_freq_aliases: dict[str, str] = _facts.alias_map("wash_frequency_mode")
     mode_key = _normalize_wash_frequency_mode(
         mode_state.state if mode_state else None,
         aliases=_wash_freq_aliases,

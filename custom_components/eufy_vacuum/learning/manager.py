@@ -33,7 +33,7 @@ from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
-from ..adapters.registry import get_adapter_config
+from .brand_facts import brand_facts_for
 from ..const import DOMAIN
 from ..profiles.room_profiles import get_default_room_profiles
 from ..timestamp_utils import parse_timestamp, utc_now
@@ -1081,11 +1081,11 @@ class LearningManager:
         # Adapter-owned display-string -> canonical-code maps. The observed
         # profile settings are stored un-normalized; normalizing here means the
         # card always receives a code its vocab is keyed on (no English leak).
-        _setting_vocab = (get_adapter_config(vacuum_entity_id) or {}).get("vocabulary", {})
-        _clean_mode_aliases = _setting_vocab.get("clean_mode_aliases") or {}
-        _clean_intensity_aliases = _setting_vocab.get("clean_intensity_aliases") or {}
-        _fan_speed_aliases = _setting_vocab.get("fan_speed_aliases") or {}
-        _water_level_aliases = _setting_vocab.get("water_level_aliases") or {}
+        _facts = brand_facts_for(vacuum_entity_id)
+        _clean_mode_aliases = _facts.alias_map("clean_mode")
+        _clean_intensity_aliases = _facts.alias_map("clean_intensity")
+        _fan_speed_aliases = _facts.alias_map("fan_speed")
+        _water_level_aliases = _facts.alias_map("water_level")
         for item in filtered_room_profiles:
             enriched = dict(item)
             enriched["room_label"] = _room_label(item.get("room_slug"))

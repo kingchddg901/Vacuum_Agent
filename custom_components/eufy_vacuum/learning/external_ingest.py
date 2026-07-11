@@ -76,12 +76,9 @@ def _resolve_engine_tuning(vacuum_entity_id: str | None) -> tuple[Any, dict[str,
     engine_name = None
     adapter_tuning = None
     if vacuum_entity_id:
-        from ..adapters.registry import get_adapter_config
+        from .brand_facts import brand_facts_for
 
-        _js = (get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
-        if isinstance(_js, dict):
-            engine_name = _js.get("engine")
-            adapter_tuning = _js.get("tuning")
+        engine_name, adapter_tuning = brand_facts_for(vacuum_entity_id).job_segmenter
     engine = get_job_segmenter_engine(engine_name)
     eff: dict[str, Any] = dict(getattr(engine, "DEFAULT_TUNING", {}))
     if isinstance(adapter_tuning, dict):
@@ -376,12 +373,9 @@ def _resolve_attribution(vacuum_entity_id: str | None) -> tuple[Any, dict[str, A
     engine_name = None
     adapter_tuning = None
     if vacuum_entity_id:
-        from ..adapters.registry import get_adapter_config
+        from .brand_facts import brand_facts_for
 
-        _ra = (get_adapter_config(vacuum_entity_id) or {}).get("room_attribution") or {}
-        if isinstance(_ra, dict):
-            engine_name = _ra.get("engine")
-            adapter_tuning = _ra.get("tuning")
+        engine_name, adapter_tuning = brand_facts_for(vacuum_entity_id).room_attribution
     engine = get_room_attribution_engine(engine_name)
     eff: dict[str, Any] = dict(getattr(engine, "DEFAULT_TUNING", {}))
     if isinstance(adapter_tuning, dict):

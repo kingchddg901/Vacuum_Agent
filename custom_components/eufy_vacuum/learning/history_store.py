@@ -74,12 +74,9 @@ def _build_transit_blocks(
     engine_name = None
     tuning = None
     if vacuum_entity_id:
-        from ..adapters.registry import get_adapter_config
+        from .brand_facts import brand_facts_for
 
-        _js = (get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
-        if isinstance(_js, dict):
-            engine_name = _js.get("engine")
-            tuning = _js.get("tuning")
+        engine_name, tuning = brand_facts_for(vacuum_entity_id).job_segmenter
     segs = get_job_segmenter_engine(engine_name).segment_legacy(
         counter_samples or [], expected_rooms=len(queue_ids) or None, tuning=tuning
     )

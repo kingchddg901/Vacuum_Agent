@@ -83,13 +83,13 @@ class EufyBrandFacts:
 
     @property
     def job_segmenter(self) -> EngineSpec:
-        js = self._cfg.get("job_segmenter") or {}
-        return (js.get("engine"), js.get("tuning"))
+        js = self._cfg.get("job_segmenter")
+        return (js.get("engine"), js.get("tuning")) if isinstance(js, dict) else (None, None)
 
     @property
     def room_attribution(self) -> EngineSpec:
-        ra = self._cfg.get("room_attribution") or {}
-        return (ra.get("engine"), ra.get("tuning"))
+        ra = self._cfg.get("room_attribution")
+        return (ra.get("engine"), ra.get("tuning")) if isinstance(ra, dict) else (None, None)
 
 
 def brand_facts_for(vacuum_entity_id: str) -> BrandFacts:
