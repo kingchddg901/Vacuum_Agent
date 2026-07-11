@@ -940,12 +940,14 @@ export function applyMapRenderers(proto) {
 
     if (!targetSeg) {
       const progress = state.dashboardJobProgress?.();
+      const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
       // Prefer the dwell-debounced live room (the room the robot is physically in,
       // incl. transit rooms, committed only after sustained dwell — display only,
-      // separate from the job rollover). Fall back to the backend-computed
-      // position_room_id, then current_room_id (next queued room).
+      // separate from the job rollover). Fall back to the live map source's own
+      // current_room (device segmentation, render-frame) before the dwell commits,
+      // then current_room_id (next queued room). Both ride the real map — no bounds.
       const currentRoomId = state.mascotDwelledRoomId?.()
-        ?? progress?.position_room_id ?? progress?.current_room_id;
+        ?? mss?.current_room ?? progress?.current_room_id;
       targetSeg = _segForRoom(currentRoomId);
     }
 

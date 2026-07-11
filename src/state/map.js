@@ -164,15 +164,24 @@ export function applyMapState(proto) {
   // target-filtered + authoritative for the queue/timeline); this fires no events
   // and advances nothing. Holds the last committed room while a new candidate
   // accrues dwell; returns null before the first commit (the renderer then falls
-  // back to the backend-computed position_room_id / current_room_id).
+  // back to the live map source current_room, then current_room_id).
   proto._mascotDwellState = null;     // { observed: id|null, count, committed: id|null }
   proto._mascotDwellThreshold = 3;    // consecutive renders before a hop commits
   proto.mascotDwelledRoomId = function () {
     const st = this._mascotDwellState
       || (this._mascotDwellState = { observed: null, count: 0, committed: null });
-    const resolved = this._resolveRoomIdByName(
+    // Primary signal: the brand's native current-room NAME (Roborock's
+    // active_cleaning_target). When a brand has none (Eufy), fall back to the live
+    // map source's own current_room (device segmentation, render-frame) so the
+    // mascot still tracks the physical room. Both are authoritative live signals —
+    // no learned bounds.
+    let resolved = this._resolveRoomIdByName(
       this.dashboardLifecycle?.()?.active_cleaning_target,
     );
+    if (resolved == null) {
+      const mss = this.mapOverlayData?.() ?? this.mapStateSource?.();
+      resolved = this._resolveManagedRoomId(mss?.current_room);
+    }
     if (resolved == null) {
       // No usable signal this tick: break any in-progress streak but HOLD the last
       // committed room (don't snap the mascot away on a momentary blank/transit).
@@ -199,6 +208,16 @@ export function applyMapState(proto) {
     for (const r of (this.getRoomsForActiveMap?.() ?? [])) {
       if (r?.slug != null && norm(r.slug) === n) return r.id;
       if (r?.name != null && norm(r.name) === n) return r.id;
+    }
+    return null;
+  };
+
+  // Validate a live-map-source current_room id (a device room number) against the
+  // managed rooms for the active map. Returns the managed room id, or null.
+  proto._resolveManagedRoomId = function (raw) {
+    if (raw == null) return null;
+    for (const r of (this.getRoomsForActiveMap?.() ?? [])) {
+      if (r?.id != null && String(r.id) === String(raw)) return r.id;
     }
     return null;
   };

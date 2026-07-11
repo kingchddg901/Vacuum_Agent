@@ -66,3 +66,16 @@ test("[MD-5] an unmatched name never commits (null before first commit)", () => 
   assert.equal(s.mascotDwelledRoomId(), null);
   assert.equal(s.mascotDwelledRoomId(), null);
 });
+
+test("[MD-6] with no native current-room, dwells on the live map source current_room", () => {
+  const s = makeState();
+  s._currentRoomName = null;                         // brand has no native current-room (Eufy)
+  s.mapStateSource = () => ({ present: true, current_room: 2 });  // live-pose room = Hallway (id 2)
+  assert.equal(s.mascotDwelledRoomId(), null);       // 1 — below threshold
+  assert.equal(s.mascotDwelledRoomId(), null);       // 2
+  assert.equal(s.mascotDwelledRoomId(), 2);          // 3 — commits Hallway from the live map source
+  // native brand current-room, when present, still wins over the live-pose fallback
+  s._currentRoomName = "Kitchen";
+  s.mascotDwelledRoomId(); s.mascotDwelledRoomId();
+  assert.equal(s.mascotDwelledRoomId(), 1);          // commits Kitchen
+});
