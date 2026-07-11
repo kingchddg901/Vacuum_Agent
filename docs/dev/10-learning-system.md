@@ -1156,14 +1156,23 @@ class BrandFacts(Protocol):
 
 The engine *registry* (`job_segmenter_engines.py`, `room_attribution_engines.py`) lives **inside** learning and is brand-agnostic; `BrandFacts` supplies only the *selection*, not the implementation. A host that provides a `BrandFacts` with a noop segmenter and empty vocab still gets a fully functional timing/estimation learner, with no brand specifics at all.
 
-#### Cruft to close when formalizing
+#### Extraction status (2026-07-11) — Waves 1–3 landed; the rest is deliberate design, not cruft
 
-The seam already works; a formal extraction sweeps these age-artifacts:
+The seam-tightening this draft first called "cruft" split into two on contact with the code: real age-artifacts (closed) and **deliberate, documented design that was mis-labelled** (left as-is).
 
-- **Promote** the 3 private host methods above to public; **drop** the re-entrant `_get_learning_manager`.
-- **Own** two constants — `EXTERNAL_FINALIZE_GRACE_S`, `EXTERNAL_GRACE_MAX_RECHECKS` are imported from `core.manager` today (the `learning/__init__.py` import-deferral exists only to dodge the resulting cycle); the portable module must define them.
-- **Swap** the direct adapter reads for `BrandFacts`; move the mislocated generic `select_active` out of the Eufy-named `counter_segmentation` module; ship the Eufy counter engine as a *brand plugin* (learning keeps the registry + a noop default).
-- **Optional-ise** the two sibling pushes — the battery-metrics push and the error-harvest read (`hass.data[DOMAIN][…]`) — into injected sinks or events.
+**Closed** — learning now imports nothing from `core.manager` at module top and reads the host + brand through clean seams:
+
+- **Promoted** the 3 private host methods to public; **dropped** the re-entrant `_get_learning_manager` (the finalizer takes an injected `estimate_fn` instead). *(Waves 2a/2b — 4be0544, 15b4812)*
+- **Owned** `EXTERNAL_FINALIZE_GRACE_S` / `EXTERNAL_GRACE_MAX_RECHECKS` in `learning/constants.py`, which killed the import cycle **and** the `learning/__init__.py` deferral. *(Wave 1 — e278465)*
+- **Swapped** every direct adapter read for `BrandFacts` (`learning/brand_facts.py`) — the whole package now reads the brand through exactly one seam. *(Wave 3 — 4465067 → 31b86c6)*
+
+**NOT cruft — left as designed** (this draft was wrong to flag them; see `job_segmenter_engines.py`'s own docstring):
+
+- **`select_active` stays a framework function** in `counter_segmentation`. It's brand-agnostic *by intent* — pure ranking over the `JobBoundaryCandidate` shape — so the external-review wizard's count/toggle logic is uniform across brands. Moving it into a per-brand plugin would break that uniformity, not fix a mislocation.
+- **The Eufy fallback is intentional.** `get_job_segmenter_engine` falls back to the Eufy engine for an absent/unknown name so no-adapter / legacy devices keep segmenting **byte-for-byte**; flipping it to noop is a behavior change the code explicitly warns against. `NoopJobSegmenter` is registered for a genuinely signal-less brand but is deliberately *not* the default.
+- **The engine layer is already a plugin system** (the registry + adapter-declared `job_segmenter.engine`; both Eufy and Roborock declare theirs). The Eufy engine living in learning with a by-reference-tuning verbatim delegation is a deliberate anti-drift design (the `[JE-7]` fidelity battery). Relocating it to `adapters/eufy` is a marginal portability gain for a Eufy-first integration — a deliberate choice if ever wanted, not a cleanup.
+
+**Remaining optional polish:** the two sibling pushes (battery-metrics push + error-harvest read) can become injected sinks — they're already `None`-guarded, so they degrade gracefully today.
 
 #### Why this contract is bigger than learning
 
