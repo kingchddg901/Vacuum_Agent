@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "record_type": "completed_job",
+  "job_id": "job_2026-04-08T17-41-53",
+  "vacuum": {
+    "entity_id": "vacuum.alfred",
+    "name": "alfred"
+  },
+  "job": {
+    "started_at": "2026-04-08T17:41:53",
+    "ended_at": "2026-04-08T17:42:22",
+    "duration_minutes": 0.48,
+    "wall_clock_duration_minutes": 0.48,
+    "paused_duration_seconds": 0,
+    "room_count": 1
+  },
+  "battery": {
+    "start": 100,
+    "end": 100,
+    "used": 0
+  },
+  "queue": {
+    "vacuum_entity_id": "vacuum.alfred",
+    "map_id": "6",
+    "room_count": 1,
+    "queue_room_ids": [
+      5
+    ],
+    "queue_rooms": [
+      {
+        "room_id": 5,
+        "name": "Kitchen",
+        "slug": "kitchen",
+        "order": 1,
+        "profile_name": "custom"
+      }
+    ]
+  },
+  "payload": {
+    "map_id": 6,
+    "rooms": [
+      {
+        "id": 5,
+        "clean_times": 1,
+        "fan_speed": "Standard",
+        "clean_mode": "vacuum",
+        "clean_intensity": "Quick"
+      }
+    ]
+  },
+  "resolved_rooms": [
+    {
+      "room_id": 5,
+      "name": "Kitchen",
+      "slug": "kitchen",
+      "selected_profile_name": "vacuum_quick",
+      "resolved_profile_name": "vacuum_quick",
+      "clean_mode": "vacuum",
+      "fan_speed": "Standard",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "path_type": "wide",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "carpet": false,
+      "capability_gated": {
+        "supports_mop_features": true,
+        "supports_water_control": true,
+        "supports_path_control": false,
+        "supports_edge_mopping": false,
+        "supports_passes": true
+      }
+    }
+  ],
+  "job_profile": {
+    "map_id": 6,
+    "room_count": 1,
+    "room_slugs": [
+      "kitchen"
+    ],
+    "rooms": [
+      {
+        "room_id": 5,
+        "name": "Kitchen",
+        "slug": "kitchen",
+        "selected_profile_name": "vacuum_quick",
+        "resolved_profile_name": "vacuum_quick",
+        "clean_mode": "vacuum",
+        "fan_speed": "Standard",
+        "water_level": "Off",
+        "clean_intensity": "Quick",
+        "path_type": "wide",
+        "clean_passes": 1,
+        "edge_mopping": false,
+        "carpet": false,
+        "capability_gated": {
+          "supports_mop_features": true,
+          "supports_water_control": true,
+          "supports_path_control": false,
+          "supports_edge_mopping": false,
+          "supports_passes": true
+        }
+      }
+    ]
+  },
+  "outcome": {
+    "status": "completed",
+    "used_for_learning": false,
+    "sanity_passed": true,
+    "sanity_flags": [],
+    "learning_blockers": [
+      "manual_test_run",
+      "manually_excluded"
+    ],
+    "was_cancelled": false,
+    "was_failed": false,
+    "was_interrupted": false,
+    "is_test_job": false,
+    "lifecycle_state": "ready",
+    "lifecycle_message": "Ready to start cleaning.",
+    "excluded_from_learning": true,
+    "excluded_reason": "manual_test_run",
+    "excluded_at": "2026-04-10T02:17:38"
+  },
+  "finalized_at": "2026-04-08T17:42:22"
+}

@@ -1,0 +1,100 @@
+{
+  "record_type": "completed_job",
+  "schema_version": 1,
+  "job_id": "ext-job_2026-06-07T22-30-19Z",
+  "origin": "external",
+  "vacuum": {
+    "entity_id": "vacuum.alfred",
+    "name": "alfred"
+  },
+  "job": {
+    "started_at": "2026-06-07T22:30:19Z",
+    "ended_at": "2026-06-07T22:58:49Z",
+    "duration_minutes": 10.68,
+    "room_count": 2,
+    "room_timings": [
+      {
+        "room_id": 2,
+        "slug": "bathroom",
+        "cleaning_start": "2026-06-07T22:31:38",
+        "cleaning_end": "2026-06-07T22:32:38",
+        "cleaning_seconds": 90,
+        "cleaning_wall_seconds": 60,
+        "area_m2": 3.0
+      },
+      {
+        "room_id": 5,
+        "slug": "kitchen",
+        "cleaning_start": "2026-06-07T22:38:24",
+        "cleaning_end": "2026-06-07T22:48:05",
+        "cleaning_seconds": 600,
+        "cleaning_wall_seconds": 581,
+        "area_m2": 5.0
+      }
+    ],
+    "transitions": [],
+    "transit_capture_valid": true
+  },
+  "job_profile": {
+    "map_id": 6,
+    "room_count": 2,
+    "rooms": [
+      {
+        "room_id": 2,
+        "slug": "bathroom",
+        "name": "Bathroom",
+        "clean_mode": "vacuum",
+        "clean_intensity": "Quick",
+        "fan_speed": "Max",
+        "water_level": "High",
+        "clean_passes": 1,
+        "is_carpet": false,
+        "edge_mopping": false
+      },
+      {
+        "room_id": 5,
+        "slug": "kitchen",
+        "name": "Kitchen",
+        "clean_mode": "vacuum_mop",
+        "clean_intensity": "Narrow",
+        "fan_speed": "Max",
+        "water_level": "Medium",
+        "clean_passes": 2,
+        "is_carpet": false,
+        "edge_mopping": true
+      }
+    ]
+  },
+  "resolved_rooms": [
+    {
+      "room_id": 2,
+      "slug": "bathroom",
+      "name": "Bathroom",
+      "clean_mode": "vacuum",
+      "clean_intensity": "Quick",
+      "fan_speed": "Max",
+      "water_level": "High",
+      "clean_passes": 1,
+      "is_carpet": false,
+      "edge_mopping": false
+    },
+    {
+      "room_id": 5,
+      "slug": "kitchen",
+      "name": "Kitchen",
+      "clean_mode": "vacuum_mop",
+      "clean_intensity": "Narrow",
+      "fan_speed": "Max",
+      "water_level": "Medium",
+      "clean_passes": 2,
+      "is_carpet": false,
+      "edge_mopping": true
+    }
+  ],
+  "outcome": {
+    "status": "completed",
+    "used_for_learning": true,
+    "origin": "external"
+  },
+  "finalized_at": "2026-06-07T22:58:49Z"
+}

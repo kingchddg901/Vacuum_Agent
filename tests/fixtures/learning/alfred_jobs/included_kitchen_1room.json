@@ -1,0 +1,71 @@
+{
+  "record_type": "completed_job",
+  "schema_version": 1,
+  "job_id": "ext-job_2026-06-07T15-32-31Z",
+  "origin": "external",
+  "vacuum": {
+    "entity_id": "vacuum.alfred",
+    "name": "alfred"
+  },
+  "job": {
+    "started_at": "2026-06-07T15:32:31Z",
+    "ended_at": "2026-06-07T15:59:51Z",
+    "duration_minutes": 8.6,
+    "room_count": 1,
+    "room_timings": [
+      {
+        "room_id": 5,
+        "slug": "kitchen",
+        "cleaning_start": "2026-06-07T15:33:54",
+        "cleaning_end": "2026-06-07T15:42:30",
+        "cleaning_seconds": 570,
+        "cleaning_wall_seconds": 516,
+        "area_m2": 4.0
+      }
+    ],
+    "transitions": [],
+    "transit_capture_valid": true
+  },
+  "job_profile": {
+    "map_id": 6,
+    "room_count": 1,
+    "rooms": [
+      {
+        "room_id": 5,
+        "slug": "kitchen",
+        "name": "Kitchen",
+        "clean_mode": "mop",
+        "clean_intensity": "Quick",
+        "fan_speed": "Max",
+        "water_level": "69",
+        "clean_passes": 2,
+        "is_carpet": false,
+        "edge_mopping": true
+      }
+    ]
+  },
+  "resolved_rooms": [
+    {
+      "room_id": 5,
+      "slug": "kitchen",
+      "name": "Kitchen",
+      "clean_mode": "mop",
+      "clean_intensity": "Quick",
+      "fan_speed": "Max",
+      "water_level": "69",
+      "clean_passes": 2,
+      "is_carpet": false,
+      "edge_mopping": true
+    }
+  ],
+  "outcome": {
+    "status": "completed",
+    "used_for_learning": true,
+    "origin": "external",
+    "excluded_from_learning": false,
+    "excluded_reason": null,
+    "excluded_at": null,
+    "learning_blockers": []
+  },
+  "finalized_at": "2026-06-07T15:59:51Z"
+}
