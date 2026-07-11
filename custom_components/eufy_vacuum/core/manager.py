@@ -402,7 +402,7 @@ class EufyVacuumManager:
         # pending review record (external_jobs/), and the review-wizard server side (list /
         # re-segment / discard / confirm-graduate). The manager keeps thin delegators for the
         # service layer, the lifecycle listener, and the tests. Reads manager active-job / map
-        # / save helpers via self._manager; the SHARED _ingest_* + _resolve_active_map_id +
+        # / save helpers via self._manager; the SHARED _ingest_* + resolve_active_map_id +
         # start_external_capture helpers stay in core.
         from ..learning import ExternalRunManager
         self.external_run = ExternalRunManager(manager=self)
@@ -782,7 +782,7 @@ class EufyVacuumManager:
         """Delegate to RunPlanManager."""
         return self.run_plan._water_rate_ml_per_minute(water_level, aliases=aliases)
 
-    def _get_station_clean_water_percent(self, *, vacuum_entity_id, capabilities=None):
+    def get_station_clean_water_percent(self, *, vacuum_entity_id, capabilities=None):
         """Delegate to RunPlanManager."""
         return self.run_plan._get_station_clean_water_percent(
             vacuum_entity_id=vacuum_entity_id, capabilities=capabilities
@@ -1233,7 +1233,7 @@ class EufyVacuumManager:
         return self.profiles.apply_room_profile(**kwargs)
 
     # Private shims: used by update_room_fields and run-planning methods.
-    def _protected_room_config(self, room: dict) -> dict:
+    def protected_room_config(self, room: dict) -> dict:
         return self.profiles._protected_room_config(room)
 
     def _match_profile_from_fields(self, room: dict) -> str | None:
@@ -2167,7 +2167,7 @@ class EufyVacuumManager:
 
         # Enforce carpet/mop invariants on every room before passing to the payload builder.
         managed_rooms = {
-            room_id: self._protected_room_config(room_data)
+            room_id: self.protected_room_config(room_data)
             for room_id, room_data in map_bucket.get("rooms", {}).items()
         }
 
@@ -2695,7 +2695,7 @@ class EufyVacuumManager:
         """Open an external (app-started) capture slot — delegates to ActiveJobTracker."""
         return self.active_job.start_external_capture(**kwargs)
 
-    def _resolve_active_map_id(self, vacuum_entity_id: str) -> str | None:
+    def resolve_active_map_id(self, vacuum_entity_id: str) -> str | None:
         """Current active map id — the adapter's active_map entity, or (for an
         attribute-mode device with no such entity, e.g. scalar/Tuya Eufy) the
         adapter's implicit single map id.

@@ -498,7 +498,7 @@ class LearningJobFinalizer:
                         if ca_state and ca_state.state not in ("unavailable", "unknown"):
                             cleaning_area_m2 = _safe_float(ca_state.state, None)
                 if water_end_station_percent is None:
-                    water_end_station_percent = manager._get_station_clean_water_percent(
+                    water_end_station_percent = manager.get_station_clean_water_percent(
                         vacuum_entity_id=vacuum_entity_id,
                     )
             except Exception:  # pragma: no cover - best-effort station-water read

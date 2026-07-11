@@ -23,7 +23,7 @@ Extracted from core/manager.py. The manager keeps thin delegators for every move
 reference ``manager.<method>`` — including the grace helpers — unchanged). SHARED helpers stay in
 core: ``_ingest_completed_job_into_room_history`` / ``_ingest_jobs_index_entry_into_room_history``
 (also driven by the normal completed-job finalize + the room-history cache preload) and
-``_resolve_active_map_id`` / ``start_external_capture`` (manager-level, reached here via
+``resolve_active_map_id`` / ``start_external_capture`` (manager-level, reached here via
 ``self._manager.<...>``).
 """
 
@@ -104,7 +104,7 @@ class ExternalRunManager:
             return False
 
         if vacuum_state == "cleaning":
-            active_map_id = self._manager._resolve_active_map_id(vacuum_entity_id)
+            active_map_id = self._manager.resolve_active_map_id(vacuum_entity_id)
             if active_map_id:
                 self._manager.start_external_capture(
                     vacuum_entity_id=vacuum_entity_id, map_id=active_map_id

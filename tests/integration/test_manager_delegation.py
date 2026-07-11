@@ -73,7 +73,7 @@ def test_water_delegations(mgr):
     """[MD-1]"""
     assert mgr._normalize_water_level_key("High") == "high"
     assert mgr._water_rate_ml_per_minute("high") > 0
-    mgr._get_station_clean_water_percent(vacuum_entity_id=_VAC)
+    mgr.get_station_clean_water_percent(vacuum_entity_id=_VAC)
     assert isinstance(mgr._get_water_model_config(vacuum_entity_id=_VAC), dict)
     assert isinstance(mgr._derive_wash_frequency_config(vacuum_entity_id=_VAC), dict)
     out = mgr.estimate_job_water_usage(vacuum_entity_id=_VAC, resolved_rooms=[])

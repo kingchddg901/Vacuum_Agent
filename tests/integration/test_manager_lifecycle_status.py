@@ -899,7 +899,7 @@ def test_resolve_active_map_id_missing_state_returns_none(
     register_adapter_config(_VAC, _RESOLVE_ADAPTER_WITH_MAP)
     try:
         hass.states.async_set("sensor.alfred_active_map", missing_state)
-        assert manager._resolve_active_map_id(_VAC) is None
+        assert manager.resolve_active_map_id(_VAC) is None
     finally:
         unregister_adapter_config(_VAC)
 
@@ -915,7 +915,7 @@ def test_resolve_active_map_id_unset_entity_returns_none(manager, hass):
     try:
         # deliberately do NOT async_set sensor.alfred_active_map
         assert hass.states.get("sensor.alfred_active_map") is None
-        assert manager._resolve_active_map_id(_VAC) is None
+        assert manager.resolve_active_map_id(_VAC) is None
     finally:
         unregister_adapter_config(_VAC)
 
@@ -926,7 +926,7 @@ def test_resolve_active_map_id_returns_value(manager, hass):
     register_adapter_config(_VAC, _RESOLVE_ADAPTER_WITH_MAP)
     try:
         hass.states.async_set("sensor.alfred_active_map", _MAP)
-        resolved = manager._resolve_active_map_id(_VAC)
+        resolved = manager.resolve_active_map_id(_VAC)
         assert resolved == _MAP
         assert isinstance(resolved, str)
     finally:
@@ -945,7 +945,7 @@ def test_resolve_active_map_id_no_entity_configured_returns_none(manager, hass):
         # a populated state would resolve if active_map were wired — prove the
         # guard ignores it because no active_map entity is configured.
         hass.states.async_set("sensor.alfred_active_map", _MAP)
-        assert manager._resolve_active_map_id(_VAC) is None
+        assert manager.resolve_active_map_id(_VAC) is None
     finally:
         unregister_adapter_config(_VAC)
 
@@ -957,4 +957,4 @@ def test_resolve_active_map_id_no_adapter_config_returns_none(manager, hass):
     missing active_map entity hits the same 2496 guard. No register/unregister
     needed; the registry is left clean."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
-    assert manager._resolve_active_map_id(_VAC) is None
+    assert manager.resolve_active_map_id(_VAC) is None

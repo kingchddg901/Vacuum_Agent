@@ -66,7 +66,7 @@ def _entity_snapshot(hass: HomeAssistant, entity_id: Any) -> dict[str, Any]:
     return {"entity_id": entity_id, "exists": True, "state": state_obj.state}
 
 
-def _resolve_active_map_id(entity_resolution: dict[str, Any]) -> str | None:
+def resolve_active_map_id(entity_resolution: dict[str, Any]) -> str | None:
     """Derive the active map id from the resolved active_map entity's state."""
     state = (entity_resolution.get("active_map") or {}).get("state")
     if state is None or str(state) in _SENTINELS:
@@ -334,7 +334,7 @@ def _vacuum_diagnostics(
     # tell. Room dumping below iterates EVERY stored map instead of just this one,
     # so it's brand-agnostic: Roborock resolves its active map a different way and
     # exposes no such sensor, but its rooms still surface here.
-    out["active_map_id"] = _resolve_active_map_id(entity_resolution)
+    out["active_map_id"] = resolve_active_map_id(entity_resolution)
 
     map_ids: list[str] = []
     try:

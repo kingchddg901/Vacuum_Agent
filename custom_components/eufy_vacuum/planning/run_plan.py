@@ -1281,7 +1281,7 @@ class RunPlanManager:
             modifier = modifier_matches.get(room_id)
             if modifier:
                 updates.update(modifier.get("changes", {}))
-            updated_room = self._manager._protected_room_config({**room_data, **updates})
+            updated_room = self._manager.protected_room_config({**room_data, **updates})
             matched_profile = self._manager._match_profile_from_fields(updated_room)
             updated_room["profile_name"] = matched_profile if matched_profile else "custom"
             effective_rooms[room_key] = updated_room
