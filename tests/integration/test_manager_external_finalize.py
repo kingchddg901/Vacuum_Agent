@@ -73,7 +73,7 @@ from custom_components.eufy_vacuum.adapters.registry import (
     unregister_adapter_config,
 )
 from custom_components.eufy_vacuum.const import EVENT_EXTERNAL_RUN_PENDING
-from custom_components.eufy_vacuum.core.manager import EXTERNAL_FINALIZE_GRACE_S
+from custom_components.eufy_vacuum.learning.constants import EXTERNAL_FINALIZE_GRACE_S
 from custom_components.eufy_vacuum.learning.external_ingest import build_pending_record
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
 

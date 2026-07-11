@@ -35,7 +35,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import callback
 from homeassistant.helpers.event import async_call_later
 
-from ..core.manager import EXTERNAL_FINALIZE_GRACE_S, EXTERNAL_GRACE_MAX_RECHECKS
+from .constants import EXTERNAL_FINALIZE_GRACE_S, EXTERNAL_GRACE_MAX_RECHECKS
 
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager

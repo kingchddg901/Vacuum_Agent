@@ -74,7 +74,7 @@ from custom_components.eufy_vacuum.const import (
     DOMAIN,
     EVENT_EXTERNAL_RUN_PENDING,
 )
-from custom_components.eufy_vacuum.core.manager import EXTERNAL_FINALIZE_GRACE_S
+from custom_components.eufy_vacuum.learning.constants import EXTERNAL_FINALIZE_GRACE_S
 
 from .conftest import setup_map
 

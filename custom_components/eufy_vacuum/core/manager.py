@@ -52,20 +52,6 @@ _LOGGER = logging.getLogger(__name__)
 # color override) and so can't double as "argument not provided". `is _UNSET` distinguishes the two.
 _UNSET: Any = object()
 
-# Grace window before an app-started (external) run is finalized once the robot
-# reaches the dock: it may be docking MID-run (mop prewash, recharge) and about to
-# resume. If it resumes within this window the run stays one record (the dock
-# becomes a cleaning_time plateau the segmenter splits into a room boundary); if it
-# stays docked, the timer finalizes. Sized just above the observed vacuum->mop
-# prewash dock (~3.5 min end-to-end in HA) so a mixed-mode multi-room run merges; a
-# recharge longer than this still fragments. Tune as needed. See
-# maybe_handle_external_run.
-EXTERNAL_FINALIZE_GRACE_S = 300  # 5 minutes
-# Safety cap on how many times the grace re-checks a still-docked external run that
-# task_status reports as mid-run (washing / emptying / recharging). 8 x 5 min ≈ 40
-# min — well past any real station cycle — then we finalize regardless.
-EXTERNAL_GRACE_MAX_RECHECKS = 8
-
 # Sequenced (strict-order) phase re-dispatch tuning. A path-optimizing device
 # (Roborock S6) finishes one room, returns to the dock + starts charging, then
 # IGNORES an app_segment_clean sent at that instant — so the next room is
