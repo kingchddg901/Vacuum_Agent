@@ -16,7 +16,6 @@ export const VIEWS = {
   THEME:           "theme",
   MAPPING_ARCHIVE: "mapping",
   MAP_CONFIG:      "map_config",
-  MAPPING_REVIEW:  "mapping_review",
   SETUP:           "setup",
 };
 
@@ -29,7 +28,6 @@ export const VIEW_ORDER = [
   VIEWS.ROOM_RULES,
   VIEWS.THEME,
   VIEWS.MAP_CONFIG,
-  VIEWS.MAPPING_REVIEW,
   VIEWS.SETUP,
 ];
 
@@ -48,7 +46,6 @@ export const VIEW_ORDER = [
  */
 export function isViewAvailable(view, state) {
   if (view === VIEWS.BASE_STATION) return state?.supportsBaseStation?.() !== false;
-  if (view === VIEWS.MAPPING_REVIEW) return state?.supportsMapBounds?.() !== false;
   return true;
 }
 
@@ -241,13 +238,6 @@ export function renderHeader(ctx) {
         ${renderers.t("nav.tab_theme")}
       </button>
 
-      ${isViewAvailable(VIEWS.MAPPING_REVIEW, state) ? `
-      <button class="evcc-nav-tab ${view === VIEWS.MAPPING_REVIEW ? "active" : ""}"
-              data-view="${VIEWS.MAPPING_REVIEW}">
-        ${renderers.t("nav.tab_mapping_review")}
-      </button>
-      ` : ""}
-
       <button class="evcc-nav-tab ${view === VIEWS.SETUP ? "active" : ""}"
               data-view="${VIEWS.SETUP}">
         ${renderers.t("nav.tab_setup")}
@@ -301,10 +291,6 @@ export function renderView(ctx) {
     case VIEWS.MAP_CONFIG:
       return renderers.renderMapConfigView?.(ctx)
         ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_map_config")}</div>`;
-
-    case VIEWS.MAPPING_REVIEW:
-      return renderers.renderMappingReviewView?.(ctx)
-        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_mapping_review")}</div>`;
 
     case VIEWS.SETUP:
       return renderers.renderSetupView?.(ctx)

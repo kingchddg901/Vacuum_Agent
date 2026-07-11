@@ -52,7 +52,6 @@ import { applyRoomRulesBindings  } from "./room-rules.js";
 import { applyThemeBindings         } from "./theme.js";
 import { applyMapBindings           } from "./map.js";
 import { applySetupBindings         } from "./setup.js";
-import { applyMappingReviewBindings } from "./mapping-review.js";
 import { applyMobileShellBindings   } from "./mobile-shell.js";
 import { applyExternalJobsBindings   } from "./external-jobs.js";
 
@@ -136,7 +135,6 @@ export class VacuumCardBindings {
     this._bindThemeEditor();
     this._bindMap();
     this._bindSetup();
-    this._bindMappingReview();
     this._bindMobileShell();
     this._bindToasts();
   }
@@ -413,6 +411,5 @@ applyRoomRulesBindings(VacuumCardBindings.prototype);
 applyThemeBindings(VacuumCardBindings.prototype);
 applyMapBindings(VacuumCardBindings.prototype);
 applySetupBindings(VacuumCardBindings.prototype);
-applyMappingReviewBindings(VacuumCardBindings.prototype);
 applyMobileShellBindings(VacuumCardBindings.prototype);
 applyExternalJobsBindings(VacuumCardBindings.prototype);

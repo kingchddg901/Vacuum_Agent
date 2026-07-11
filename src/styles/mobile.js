@@ -696,8 +696,7 @@ export const MOBILE_STYLES = `
   .evcc-shell[data-viewport="mobile"] .evcc-base-station-panel,
   .evcc-shell[data-viewport="mobile"] .evcc-maintenance-panel,
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-panel,
-  .evcc-shell[data-viewport="mobile"] .evcc-review-panel,
-  .evcc-shell[data-viewport="mobile"] .evcc-mapping-review-panel {
+  .evcc-shell[data-viewport="mobile"] .evcc-review-panel {
     padding: 12px;
     gap:     10px;
   }
@@ -705,16 +704,14 @@ export const MOBILE_STYLES = `
   .evcc-shell[data-viewport="mobile"] .evcc-base-station-view,
   .evcc-shell[data-viewport="mobile"] .evcc-maintenance-view,
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-view,
-  .evcc-shell[data-viewport="mobile"] .evcc-review-view,
-  .evcc-shell[data-viewport="mobile"] .evcc-mapping-review-view {
+  .evcc-shell[data-viewport="mobile"] .evcc-review-view {
     gap: 10px;
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-base-station-grid,
   .evcc-shell[data-viewport="mobile"] .evcc-maintenance-grid,
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-grid,
-  .evcc-shell[data-viewport="mobile"] .evcc-review-grid,
-  .evcc-shell[data-viewport="mobile"] .evcc-mapping-review-grid {
+  .evcc-shell[data-viewport="mobile"] .evcc-review-grid {
     gap: 10px;
   }
 

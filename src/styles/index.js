@@ -40,7 +40,6 @@ import { themePreviewStyles                  } from "./theme-preview.js";
 import { mapStyles                           } from "./map.js";
 import { floorTextureStyles                  } from "./floor-texture-styles.js";
 import { setupStyles                         } from "./setup.js";
-import { mappingReviewStyles                 } from "./mapping-review.js";
 import { MOBILE_STYLES                       } from "./mobile.js";
 import { externalJobsStyles, externalWizardModalStyles } from "./external-jobs.js";
 import { dialogModalStyles                   } from "./dialog.js";
@@ -68,7 +67,6 @@ export const STYLES = [
   mapStyles,
   floorTextureStyles,
   setupStyles,
-  mappingReviewStyles,
   // Mobile shell styles last — they reach into shared elements via
   // .evcc-shell[data-viewport="mobile"] selectors and need to win
   // specificity over the desktop defaults declared in the modules

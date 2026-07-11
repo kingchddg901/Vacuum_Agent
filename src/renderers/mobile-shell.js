@@ -64,7 +64,6 @@ const OVERFLOW_MOBILE_TABS = [
   { id: VIEWS.ROOM_RULES,      labelKey: "mobile.tab_room_rules"      },
   { id: VIEWS.THEME,           labelKey: "mobile.tab_theme"           },
   { id: VIEWS.MAP_CONFIG,      labelKey: "mobile.tab_map_config"      },
-  { id: VIEWS.MAPPING_REVIEW,  labelKey: "mobile.tab_map_bounds"      },
   { id: VIEWS.SETUP,           labelKey: "mobile.tab_setup"           },
 ];
 

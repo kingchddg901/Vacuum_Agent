@@ -659,9 +659,6 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (view === VIEWS.SETUP) {
       this._scheduleSetupStatusRefresh();
     }
-    if (view === VIEWS.MAPPING_REVIEW) {
-      this._scheduleMappingBoundsRefresh();
-    }
     this._scheduleRender();
   }
 
@@ -947,27 +944,6 @@ class EufyVacuumCommandCenter extends HTMLElement {
     clearTimeout(this._learningHistoryTimer);
     this._learningHistoryTimer = setTimeout(() => {
       this.refreshLearningHistorySnapshot();
-    }, 500);
-  }
-
-  async refreshMappingBoundsSnapshot() {
-    if (!this._state || !this._actions) return null;
-
-    const payload = await this._actions.getMappingBoundsSnapshot?.();
-    if (!payload || !this._state) return null;
-
-    this._state.setMappingBoundsSnapshot?.(payload);
-    this._scheduleRender();
-    return payload;
-  }
-
-  _scheduleMappingBoundsRefresh() {
-    if (!this._state || !this._actions) return;
-    if (this._view !== VIEWS.MAPPING_REVIEW) return;
-
-    clearTimeout(this._mappingBoundsTimer);
-    this._mappingBoundsTimer = setTimeout(() => {
-      this.refreshMappingBoundsSnapshot();
     }, 500);
   }
 

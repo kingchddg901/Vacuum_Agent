@@ -13,7 +13,6 @@ import { applyRoomsActions } from "./rooms.js";
 import { applyThemeActions } from "./theme.js";
 import { applyMapActions          } from "./map.js";
 import { applySetupActions        } from "./setup.js";
-import { applyMappingReviewActions } from "./mapping-review.js";
 import { applyExternalJobsActions } from "./external-jobs.js";
 
 /* =========================================================
@@ -58,5 +57,4 @@ applyRoomsActions(VacuumCardActions.prototype);
 applyThemeActions(VacuumCardActions.prototype);
 applyMapActions(VacuumCardActions.prototype);
 applySetupActions(VacuumCardActions.prototype);
-applyMappingReviewActions(VacuumCardActions.prototype);
 applyExternalJobsActions(VacuumCardActions.prototype);
