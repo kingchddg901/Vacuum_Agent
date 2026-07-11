@@ -662,7 +662,10 @@ export const en = {
   "map.zoom_level_aria": "Current zoom level",
   "map.zoom_out": "Zoom out",
 
-  // --- mapping_review (mapping-bounds review wizard: run history, outliers, exclude/restore) ---
+  // --- mapping_review — UNUSED / PARKED (mapping split). The Mapping Bounds Review card + view
+  //     were removed (card commit 8c812f0; backend split P1–P6). None of these keys has a live
+  //     consumer anymore; they are kept intentionally so the 7 locale files stay in lockstep with
+  //     en.js, pending a single batch i18n prune. Safe to delete wholesale in that prune. ---
   "mapping_review.badge_n_excluded": { other: "{count} excluded" },  // plural
   "mapping_review.badge_no_bounds": "No bounds",  // badge: this room has no accumulated mapping bounds yet
   "mapping_review.badge_runs_likely": { one: "{runs} run · Likely", other: "{runs} runs · Likely" },  // plural
@@ -861,7 +864,7 @@ export const en = {
   "mobile.nav_primary_aria": "Primary",  // aria-label for the primary bottom tab bar; means 'primary navigation'
   "mobile.tab_dock": "Dock",  // mobile tab label for the Base Station view; NOT the dock map marker (cf. map.dock)
   "mobile.tab_learning_review": "Learning Review",
-  "mobile.tab_map_bounds": "Map Bounds",  // Overflow-tab label for Map BOUNDS review (run-derived map extents), not map config/zoom
+  "mobile.tab_map_bounds": "Map Bounds",  // UNUSED / PARKED (mapping split) — Overflow-tab label for the removed Map Bounds review view; kept pending the batch i18n prune
   "mobile.tab_map_config": "Map Config",
   "mobile.tab_room_rules": "Room Rules",
   "mobile.tab_rooms": "Rooms",
@@ -876,7 +879,7 @@ export const en = {
   "nav.tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
   "nav.tab_learning_review": "Learning Review",  // Nav tab label. 'Learning' = the system's learned per-room timing data (a feature noun, not the act of learning); view reviews those estimates. Keep short.
   "nav.tab_maintenance": "Maintenance",
-  "nav.tab_mapping_review": "Map Bounds",  // tab label for Map BOUNDS review (run-derived map extents), not map config/zoom
+  "nav.tab_mapping_review": "Map Bounds",  // UNUSED / PARKED (mapping split) — tab label for the removed Map Bounds review view; kept pending the batch i18n prune
   "nav.tab_metrics": "Metrics",
   "nav.tab_room_rules": "Room Rules",
   "nav.tab_rooms": "Rooms",  // main nav tab opening the Rooms view (queue/clean), not a room count or list header
@@ -886,7 +889,7 @@ export const en = {
   "nav.unavailable_learning_review": "Learning review view unavailable",
   "nav.unavailable_maintenance": "Maintenance view unavailable",
   "nav.unavailable_map_config": "Map config unavailable",
-  "nav.unavailable_mapping_review": "Mapping bounds review unavailable",  // Empty-state when Map Bounds view is missing. 'Mapping bounds' = run-derived map extents (same term as tab_mapping_review), not map config/zoom.
+  "nav.unavailable_mapping_review": "Mapping bounds review unavailable",  // UNUSED / PARKED (mapping split) — empty-state for the removed Map Bounds view; kept pending the batch i18n prune
   "nav.unavailable_metrics": "Metrics view unavailable",
   "nav.unavailable_room_rules": "Room rules view unavailable",
   "nav.unavailable_rooms": "Rooms view unavailable",
@@ -1777,6 +1780,7 @@ export const en = {
   "vocab.reason_code.false_completion": "This run appears to have ended before cleaning really completed.",
   "vocab.reason_code.bad_room_attribution": "Room attribution for this run looks unreliable.",
   "vocab.reason_code.interrupted_run": "This run appears to have been interrupted.",
+  // mapping_review.filter_* — UNUSED / PARKED (mapping split); see the mapping_review block above. Kept pending the batch i18n prune.
   "mapping_review.filter_all_rooms": "All Rooms",
   "mapping_review.filter_has_bounds": "Has Bounds",
   "mapping_review.filter_no_bounds": "No Bounds",

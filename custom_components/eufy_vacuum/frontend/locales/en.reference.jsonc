@@ -1546,7 +1546,7 @@
     "nav_primary_aria": "Primary",  // aria-label for the primary bottom tab bar; means 'primary navigation'
     "tab_dock": "Dock",  // mobile tab label for the Base Station view; NOT the dock map marker (cf. map.dock)
     "tab_learning_review": "Learning Review",
-    "tab_map_bounds": "Map Bounds",  // Overflow-tab label for Map BOUNDS review (run-derived map extents), not map config/zoom
+    "tab_map_bounds": "Map Bounds",  // UNUSED / PARKED (mapping split) — Overflow-tab label for the removed Map Bounds review view; kept pending the batch i18n prune
     "tab_map_config": "Map Config",
     "tab_room_rules": "Room Rules",
     "tab_rooms": "Rooms",
@@ -1561,7 +1561,7 @@
     "tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
     "tab_learning_review": "Learning Review",  // Nav tab label. 'Learning' = the system's learned per-room timing data (a feature noun, not the act of learning); view reviews those estimates. Keep short.
     "tab_maintenance": "Maintenance",
-    "tab_mapping_review": "Map Bounds",  // tab label for Map BOUNDS review (run-derived map extents), not map config/zoom
+    "tab_mapping_review": "Map Bounds",  // UNUSED / PARKED (mapping split) — tab label for the removed Map Bounds review view; kept pending the batch i18n prune
     "tab_metrics": "Metrics",
     "tab_room_rules": "Room Rules",
     "tab_rooms": "Rooms",  // main nav tab opening the Rooms view (queue/clean), not a room count or list header
@@ -1571,7 +1571,7 @@
     "unavailable_learning_review": "Learning review view unavailable",
     "unavailable_maintenance": "Maintenance view unavailable",
     "unavailable_map_config": "Map config unavailable",
-    "unavailable_mapping_review": "Mapping bounds review unavailable",  // Empty-state when Map Bounds view is missing. 'Mapping bounds' = run-derived map extents (same term as tab_mapping_review), not map config/zoom.
+    "unavailable_mapping_review": "Mapping bounds review unavailable",  // UNUSED / PARKED (mapping split) — empty-state for the removed Map Bounds view; kept pending the batch i18n prune
     "unavailable_metrics": "Metrics view unavailable",
     "unavailable_room_rules": "Room rules view unavailable",
     "unavailable_rooms": "Rooms view unavailable",
