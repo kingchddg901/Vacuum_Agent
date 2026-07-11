@@ -1,9 +1,13 @@
-"""Pause-timeout listener — auto-cancel paused jobs that exceed their timeout.
+"""Stale-job reaper — a lightweight 1-minute ticker over every managed vacuum's
+active job. Two independent reaps, each firing the standard EVENT_JOB_FINISHED:
 
-Lightweight 1-minute ticker that walks every managed vacuum's active job
-and asks the manager for a paused-job timeout report. If the report
-indicates the configured timeout has elapsed, cancels the job and fires
-the standard EVENT_JOB_FINISHED with cancellation metadata.
+1. Paused-timeout: a job paused past its configured timeout is cancelled.
+2. Stranded-`started` (FN-1): a dispatched run that ended without hitting its
+   brand's completion terminal (power loss, HA restart mid-run, a stuck-then-docked
+   run, an app-cancel that never emitted the terminal status) is finalized as
+   `interrupted` once it has sat ended-but-unfinalized past a grace window — so it
+   becomes a Restore-able record instead of stranding (which would mask a later
+   external run and let a later terminal signal mis-attribute the stale slot).
 
 Public surface:
     register(hass: HomeAssistant) -> None
@@ -61,38 +65,67 @@ def register(hass: HomeAssistant) -> None:
                 for map_id in manager_local.get_known_map_ids(vacuum_entity_id):
                     if str(map_id).strip().lower() == "unknown":
                         continue
+                    # 1) Paused-timeout reap — cancel a job paused past its limit.
                     timeout_report = manager_local.get_paused_job_timeout_report(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id,
                     )
-                    if not isinstance(timeout_report, dict):
-                        continue
-
-                    result = await manager_local.async_cancel_active_job(
-                        vacuum_entity_id=vacuum_entity_id,
-                        map_id=map_id,
-                        forced_lifecycle_state=timeout_report["forced_lifecycle_state"],
-                        forced_lifecycle_message=timeout_report["forced_lifecycle_message"],
-                        cancel_reason=timeout_report["cancel_reason"],
-                    )
-                    if not bool(result.get("cancelled")):
-                        continue
-
-                    hass.bus.async_fire(
-                        EVENT_JOB_FINISHED,
-                        job_finished_event_data(
+                    if isinstance(timeout_report, dict):
+                        result = await manager_local.async_cancel_active_job(
                             vacuum_entity_id=vacuum_entity_id,
                             map_id=map_id,
-                            finalize_result=result.get("finalize_result"),
-                        ),
+                            forced_lifecycle_state=timeout_report["forced_lifecycle_state"],
+                            forced_lifecycle_message=timeout_report["forced_lifecycle_message"],
+                            cancel_reason=timeout_report["cancel_reason"],
+                        )
+                        if bool(result.get("cancelled")):
+                            hass.bus.async_fire(
+                                EVENT_JOB_FINISHED,
+                                job_finished_event_data(
+                                    vacuum_entity_id=vacuum_entity_id,
+                                    map_id=map_id,
+                                    finalize_result=result.get("finalize_result"),
+                                ),
+                            )
+                            any_changes = True
+                            _LOGGER.debug(
+                                "Auto-cancelled paused job for %s map %s after %s minute timeout",
+                                vacuum_entity_id,
+                                map_id,
+                                timeout_report.get("pause_timeout_minutes"),
+                            )
+
+                    # 2) Stranded-`started` reap — a dispatched run that ended without
+                    # hitting its brand's completion terminal (FN-1). Independent of the
+                    # paused check (a stranded run is never paused). poll_* stamps/clears
+                    # stranded_since and only returns a report once it is past the grace.
+                    stranded_report = manager_local.poll_stranded_started_job(
+                        vacuum_entity_id=vacuum_entity_id,
+                        map_id=map_id,
                     )
-                    any_changes = True
-                    _LOGGER.debug(
-                        "Auto-cancelled paused job for %s map %s after %s minute timeout",
-                        vacuum_entity_id,
-                        map_id,
-                        timeout_report.get("pause_timeout_minutes"),
-                    )
+                    if isinstance(stranded_report, dict):
+                        result = await manager_local.async_finalize_stranded_job(
+                            vacuum_entity_id=vacuum_entity_id,
+                            map_id=map_id,
+                            ended_at=stranded_report.get("stranded_since"),
+                        )
+                        if bool(result.get("finalized")):
+                            hass.bus.async_fire(
+                                EVENT_JOB_FINISHED,
+                                job_finished_event_data(
+                                    vacuum_entity_id=vacuum_entity_id,
+                                    map_id=map_id,
+                                    finalize_result=result.get("finalize_result"),
+                                ),
+                            )
+                            any_changes = True
+                            _LOGGER.info(
+                                "Auto-finalized STRANDED job for %s map %s as interrupted "
+                                "(no completion signal since %s)",
+                                vacuum_entity_id,
+                                map_id,
+                                stranded_report.get("stranded_since"),
+                            )
 
             if any_changes:
                 await manager_local.async_save()

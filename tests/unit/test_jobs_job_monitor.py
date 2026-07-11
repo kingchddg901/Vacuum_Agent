@@ -33,6 +33,16 @@ Coverage targets
 [JM-29] build_start_blocker_from_lifecycle: dock_drying → blocked False + warning.
 [JM-30] build_start_blocker_from_lifecycle: ready state → blocked False.
 [JM-31] build_start_blocker_from_lifecycle: empty lifecycle_message falls back to default.
+[JM-32] is_stranded_started: Eufy-shaped ended-but-uncompleted run → stranded.
+[JM-33] is_stranded_started: Roborock-shaped ended-but-uncompleted run (secondary always True) → stranded.
+[JM-34] is_stranded_started: task_status == completion value → NOT stranded (normal gate owns it).
+[JM-35] is_stranded_started: not armed (has_observed False) → NOT stranded.
+[JM-36] is_stranded_started: status != started (paused) → NOT stranded.
+[JM-37] is_stranded_started: vacuum still returning (not docked/idle) → NOT stranded.
+[JM-38] is_stranded_started: secondary not satisfied (Eufy target still active) → NOT stranded.
+[JM-39] is_stranded_started: mid-run dock (mop-wash/recharge status) → NOT stranded.
+[JM-40] is_stranded_started: job_active binary ON (Roborock recharge) → NOT stranded.
+[JM-41] is_stranded_started: sequenced phase mid-dispatch (_phase_dispatch_pending) → NOT stranded.
 """
 
 from __future__ import annotations
@@ -44,6 +54,7 @@ from custom_components.eufy_vacuum.jobs.job_monitor import (
     build_job_metadata_from_payload,
     build_start_blocker_from_lifecycle,
     evaluate_job_lifecycle,
+    is_stranded_started,
 )
 
 
@@ -329,3 +340,78 @@ def test_blocker_message_fallback():
     """[JM-31] an empty lifecycle_message falls back to the canned default."""
     result = _blocker(lifecycle_state="vacuum_busy", lifecycle_message="")
     assert result["message"] == "Vacuum is busy and cannot start a new room job."
+
+
+# ---------------------------------------------------------------------------
+# is_stranded_started (the FN-1 reaper predicate)
+# ---------------------------------------------------------------------------
+def _stranded_kwargs(**overrides):
+    """A run that IS stranded (Eufy-shaped: docked, target cleared, no 'completed').
+    Each test flips one field to assert the exclusion."""
+    base = dict(
+        status="started",
+        has_observed_active_lifecycle=True,
+        vacuum_state="docked",
+        task_status="charging",           # NOT the Eufy completion value "completed"
+        completion_task_status_value="completed",
+        secondary_satisfied=True,          # Eufy: active_cleaning_target cleared
+        job_active_on=False,
+        is_mid_run_status=False,
+        phase_dispatch_pending=False,
+    )
+    base.update(overrides)
+    return base
+
+
+def test_stranded_eufy_ended_uncompleted():
+    """[JM-32] a docked Eufy run, target cleared, task_status never 'completed' → stranded."""
+    assert is_stranded_started(**_stranded_kwargs()) is True
+
+
+def test_stranded_roborock_shaped():
+    """[JM-33] Roborock: secondary_satisfied is always True (job_active-clear mode);
+    docked + status 'idle' (not the 'charging' completion value) → stranded."""
+    assert is_stranded_started(**_stranded_kwargs(
+        completion_task_status_value="charging", task_status="idle",
+    )) is True
+
+
+def test_not_stranded_when_task_status_is_completion_value():
+    """[JM-34] task_status == completion value → the normal gate owns it."""
+    assert is_stranded_started(**_stranded_kwargs(task_status="completed")) is False
+
+
+def test_not_stranded_when_not_armed():
+    """[JM-35] never observed active lifecycle → a pre-run stale record, not a strand."""
+    assert is_stranded_started(**_stranded_kwargs(has_observed_active_lifecycle=False)) is False
+
+
+def test_not_stranded_when_paused():
+    """[JM-36] paused is owned by the pause-timeout reaper, not this."""
+    assert is_stranded_started(**_stranded_kwargs(status="paused")) is False
+
+
+def test_not_stranded_while_returning():
+    """[JM-37] a still-returning run is not yet over."""
+    assert is_stranded_started(**_stranded_kwargs(vacuum_state="returning")) is False
+    assert is_stranded_started(**_stranded_kwargs(vacuum_state="error")) is False
+
+
+def test_not_stranded_when_secondary_unsatisfied():
+    """[JM-38] Eufy target still active (secondary not met) → run not confirmed over."""
+    assert is_stranded_started(**_stranded_kwargs(secondary_satisfied=False)) is False
+
+
+def test_not_stranded_on_mid_run_dock():
+    """[JM-39] a mop-wash/dust-empty/recharge dock will resume → not stranded."""
+    assert is_stranded_started(**_stranded_kwargs(is_mid_run_status=True)) is False
+
+
+def test_not_stranded_when_job_active_on():
+    """[JM-40] Roborock mid-job recharge keeps job_active ON → not stranded."""
+    assert is_stranded_started(**_stranded_kwargs(job_active_on=True)) is False
+
+
+def test_not_stranded_when_phase_pending():
+    """[JM-41] a sequenced phase mid-dispatch sits docked/charging between rooms."""
+    assert is_stranded_started(**_stranded_kwargs(phase_dispatch_pending=True)) is False

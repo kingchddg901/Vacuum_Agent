@@ -248,6 +248,14 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "loads directly from the vacuum and may take a moment after startup."
         )
 
+    # Loud, actionable warnings that belong at the top of a support read. Today:
+    # a completion gate whose required job-active binary is missing → every run
+    # strands (see completion_health above).
+    warnings: list[str] = []
+    _completion_health = out.get("completion_health") or {}
+    if _completion_health.get("warning"):
+        warnings.append(_completion_health["warning"])
+
     return {
         "transport": transport,
         "room_control": room_control,
@@ -255,6 +263,7 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
         "map_image": map_image,
         "model_detection": model_detection,
         "note": note,
+        "warnings": warnings,
     }
 
 
@@ -296,6 +305,36 @@ def _vacuum_diagnostics(
             out["adapter"] = {"brand": _cfg.get("brand")}
     except Exception:  # pragma: no cover - defensive
         pass
+
+    # Completion / lifecycle health — a brand that gates completion on the job_active
+    # binary (completion.require_job_active_clear, e.g. Roborock) CANNOT finalize ANY
+    # run when that binary is missing: every run strands (FN-1, the lifecycle walk).
+    # This is the tripwire for upstream capability-gating dropping the entity
+    # (HA 2026.7 #173282) — surface it loud rather than letting runs silently vanish.
+    try:
+        from .adapters.registry import get_adapter_config as _get_cfg2
+
+        _cfg2 = _get_cfg2(vacuum_entity_id) or {}
+        _requires_job_active = bool(
+            (_cfg2.get("completion") or {}).get("require_job_active_clear")
+        )
+        _job_active_entity = (_cfg2.get("entities") or {}).get("job_active")
+        _job_active_present = bool((entity_resolution.get("job_active") or {}).get("exists"))
+        _health: dict[str, Any] = {
+            "requires_job_active_clear": _requires_job_active,
+            "job_active_entity": _job_active_entity,
+            "job_active_present": _job_active_present,
+        }
+        if _requires_job_active and not _job_active_present:
+            _health["warning"] = (
+                f"Completion requires the job-active binary "
+                f"({_job_active_entity or 'not declared'}) but it is missing — EVERY run "
+                "will strand (never finalize). Check the upstream integration didn't drop "
+                "this entity."
+            )
+        out["completion_health"] = _health
+    except Exception as err:  # pragma: no cover - defensive
+        out["completion_health"] = {"error": repr(err)}
 
     # Dock-control entities — resolved INDEPENDENT of the capability gate so the
     # dump shows whether the device physically exposes wash/dry/empty controls

@@ -306,3 +306,64 @@ def build_start_blocker_from_lifecycle(
         "message": lifecycle_message or "Ready to start cleaning.",
         "blocked": False,
     }
+
+
+# How long a dispatched `started` run may sit ENDED-but-unfinalized before the
+# reaper finalizes it as `interrupted`. The run is already over by the time this
+# grace starts (docked + its brand's completion secondary satisfied), so this is
+# a safety margin against a late completion packet / a resume — comfortably longer
+# than any real signal lag, while the mid-run / recharge / phase exclusions in
+# is_stranded_started() already cover the legitimate long docks. Tunable.
+STRANDED_REAP_GRACE_MINUTES: float = 5.0
+
+
+def is_stranded_started(
+    *,
+    status: str,
+    has_observed_active_lifecycle: bool,
+    vacuum_state: str,
+    task_status: str,
+    completion_task_status_value: str,
+    secondary_satisfied: bool,
+    job_active_on: bool,
+    is_mid_run_status: bool,
+    phase_dispatch_pending: bool,
+) -> bool:
+    """True when a dispatched ``started`` run looks ENDED but never hit its brand's
+    completion terminal — the FN-1 strand (the run leaves no record and can mask a
+    later external run / be mis-attributed by a later terminal signal).
+
+    Brand-agnostic by construction: the caller resolves the brand-specific inputs —
+    ``completion_task_status_value`` (Eufy ``"completed"`` / Roborock ``"charging"``),
+    ``secondary_satisfied`` (Eufy target-cleared / Roborock job_active-clear, via
+    ``completion_secondary_satisfied``), and ``is_mid_run_status`` (the adapter's
+    mop-wash/empty/recharge dock set). A run is stranded when it GENUINELY RAN
+    (armed) and now reads docked/idle with its completion secondary satisfied, yet
+    ``task_status`` has NOT reached the completion value — AND none of the
+    "will-resume / mid-flight" exclusions hold:
+
+      - paused runs are excluded (the pause-timeout reaper owns those; only
+        ``status=="started"`` reaches here),
+      - a mid-run dock (mop-wash / dust-empty / recharge-resume — Eufy),
+      - the recharge job-active binary still ON (Roborock mid-job recharge),
+      - a sequenced phase mid-dispatch (``_phase_dispatch_pending``).
+
+    Requires vacuum docked/idle — a still-``returning`` run is not yet over, and an
+    error state is left alone (it may recover; reaping a maybe-recovering run is
+    worse than a rare lingering record).
+    """
+    if str(status or "").strip().lower() != "started":
+        return False
+    if not has_observed_active_lifecycle:
+        return False
+    if phase_dispatch_pending or job_active_on or is_mid_run_status:
+        return False
+    if str(vacuum_state or "").strip().lower() not in ("docked", "idle"):
+        return False
+    if not secondary_satisfied:
+        return False
+    # If task_status HAS reached the brand's completion value, the normal
+    # completion gate owns this — not a strand.
+    if str(task_status or "").strip().lower() == str(completion_task_status_value or "").strip().lower():
+        return False
+    return True

@@ -28,10 +28,17 @@ Coverage targets
 [AJ-23] _live_transition_config: all-empty rollover_kinds → default tuple; unset keys stay default.
 [AJ-24] detect_run_anomalies: running_long suppressed for an unlearned room (issue #40).
 [AJ-25] detect_run_anomalies: running_long still fires for a learned room (AJ-24 control).
+[AJ-26] poll_stranded_started_job: Eufy strand stamps first tick, reaps only past grace.
+[AJ-27] poll_stranded_started_job: task_status == completion value → no stamp, None.
+[AJ-28] poll_stranded_started_job: a stamped strand that resumes clears the stamp.
+[AJ-29] poll_stranded_started_job: Roborock strand (docked, not 'charging', job_active off) reaps.
+[AJ-30] poll_stranded_started_job: Roborock recharge (job_active ON) → no stamp, None.
+[AJ-31] poll_stranded_started_job: a paused job is left to the pause-timeout reaper.
 """
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -653,3 +660,151 @@ def test_live_transition_config_blank_rollover_kinds_falls_back(tracker, monkeyp
     assert cfg["rollover_kinds"] == _LIVE_TRANSITION_DEFAULTS["rollover_kinds"]
     assert cfg["enabled"] == _LIVE_TRANSITION_DEFAULTS["enabled"]
     assert cfg["native_transition_source"] == _LIVE_TRANSITION_DEFAULTS["native_transition_source"]
+
+
+# ---------------------------------------------------------------------------
+# poll_stranded_started_job (the FN-1 reaper detection + grace)
+# ---------------------------------------------------------------------------
+
+_EUFY_CFG = {
+    "adapter_id": "eufy", "source": "test", "brand": "eufy",
+    "entities": {
+        "task_status": "sensor.alfred_task_status",
+        "dock_status": "sensor.alfred_dock_status",
+        "active_cleaning_target": "sensor.alfred_active_cleaning_target",
+    },
+    "completion": {
+        "task_status_value": "completed",
+        "secondary_clear_sentinels": ["", "unknown", "unavailable", "none", "null"],
+    },
+    "external_mid_run_statuses": ["Returning to Charge", "Washing Mop"],
+}
+
+_ROBO_CFG = {
+    "adapter_id": "roborock", "source": "test", "brand": "roborock",
+    "entities": {
+        "task_status": "sensor.ivy_status",
+        "dock_status": "sensor.ivy_dock_status",
+        "active_cleaning_target": "sensor.ivy_current_room",
+        "job_active": "binary_sensor.ivy_job_active",
+    },
+    "completion": {"task_status_value": "charging", "require_job_active_clear": True},
+}
+
+
+def _poll_tracker(cfg, vac, states, active_job) -> ActiveJobTracker:
+    clear_registry()
+    register_adapter_config(vac, cfg)
+    manager = MagicMock()
+    manager.data = {"active_jobs": {vac: {"main": active_job}}}
+    manager.hass.states.get.side_effect = (
+        lambda eid: SimpleNamespace(state=states[eid]) if eid in states else None
+    )
+    return ActiveJobTracker(manager)
+
+
+def _stamp(tracker, vac):
+    return tracker._manager.data["active_jobs"][vac]["main"].get("stranded_since")
+
+
+def test_poll_stranded_eufy_stamps_then_reaps():
+    """[AJ-26] Eufy: docked, target cleared, task_status never 'completed', armed —
+    the first tick stamps stranded_since; a report comes only once past the grace."""
+    vac = "vacuum.alfred"
+    tracker = _poll_tracker(_EUFY_CFG, vac, {
+        vac: "docked",
+        "sensor.alfred_task_status": "charging",          # NOT 'completed'
+        "sensor.alfred_active_cleaning_target": "none",   # cleared sentinel
+    }, {"status": "started", "has_observed_active_lifecycle": True, "job_id": "j1"})
+
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:00:00Z") is None
+    assert _stamp(tracker, vac) == "2026-07-11T10:00:00Z"
+    # within the 5-min grace → still no report
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:04:00Z") is None
+    report = tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                               now="2026-07-11T10:06:00Z")
+    assert report is not None
+    assert report["cancel_reason"] == "stranded_no_completion"
+    assert report["stranded_since"] == "2026-07-11T10:00:00Z"
+    assert report["job_id"] == "j1"
+
+
+def test_poll_not_stranded_when_completed():
+    """[AJ-27] task_status == the brand's completion value → normal gate owns it."""
+    vac = "vacuum.alfred"
+    tracker = _poll_tracker(_EUFY_CFG, vac, {
+        vac: "docked",
+        "sensor.alfred_task_status": "completed",
+        "sensor.alfred_active_cleaning_target": "none",
+    }, {"status": "started", "has_observed_active_lifecycle": True})
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:00:00Z") is None
+    assert _stamp(tracker, vac) is None
+
+
+def test_poll_clears_stamp_on_resume():
+    """[AJ-28] a stamped strand that then resumes (vacuum cleaning) drops the stamp."""
+    vac = "vacuum.alfred"
+    states = {
+        vac: "docked",
+        "sensor.alfred_task_status": "charging",
+        "sensor.alfred_active_cleaning_target": "none",
+    }
+    tracker = _poll_tracker(_EUFY_CFG, vac, states,
+                            {"status": "started", "has_observed_active_lifecycle": True})
+    tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                      now="2026-07-11T10:00:00Z")
+    assert _stamp(tracker, vac) == "2026-07-11T10:00:00Z"
+    # robot resumes cleaning → no longer docked → strand clears
+    states[vac] = "cleaning"
+    states["sensor.alfred_task_status"] = "cleaning"
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:01:00Z") is None
+    assert _stamp(tracker, vac) is None
+
+
+def test_poll_stranded_roborock_reaps():
+    """[AJ-29] Roborock: docked, status 'idle' (not the 'charging' completion value),
+    job_active off, require_job_active_clear makes the secondary True → reaps."""
+    vac = "vacuum.ivy"
+    tracker = _poll_tracker(_ROBO_CFG, vac, {
+        vac: "docked",
+        "sensor.ivy_status": "idle",
+        "sensor.ivy_current_room": "Kitchen",   # reverts to a room name, never a sentinel
+        "binary_sensor.ivy_job_active": "off",
+    }, {"status": "started", "has_observed_active_lifecycle": True, "job_id": "r1"})
+
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:00:00Z") is None
+    report = tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                               now="2026-07-11T10:06:00Z")
+    assert report is not None and report["cancel_reason"] == "stranded_no_completion"
+
+
+def test_poll_not_stranded_roborock_recharge():
+    """[AJ-30] Roborock mid-job recharge keeps job_active ON → not stranded."""
+    vac = "vacuum.ivy"
+    tracker = _poll_tracker(_ROBO_CFG, vac, {
+        vac: "docked",
+        "sensor.ivy_status": "idle",
+        "sensor.ivy_current_room": "Kitchen",
+        "binary_sensor.ivy_job_active": "on",    # still cleaning (recharge)
+    }, {"status": "started", "has_observed_active_lifecycle": True})
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:00:00Z") is None
+    assert _stamp(tracker, vac) is None
+
+
+def test_poll_ignores_paused_job():
+    """[AJ-31] a paused job is the pause-timeout reaper's; this never stamps it."""
+    vac = "vacuum.alfred"
+    tracker = _poll_tracker(_EUFY_CFG, vac, {
+        vac: "docked",
+        "sensor.alfred_task_status": "charging",
+        "sensor.alfred_active_cleaning_target": "none",
+    }, {"status": "paused", "has_observed_active_lifecycle": True})
+    assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
+                                             now="2026-07-11T10:00:00Z") is None
+    assert _stamp(tracker, vac) is None

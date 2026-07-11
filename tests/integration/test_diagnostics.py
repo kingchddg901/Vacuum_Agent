@@ -27,6 +27,9 @@ Coverage targets
           WORKING (brand-named), not the Eufy-shaped 'unknown/unavailable/no'.
 [DIAG-10] Same native brand, map not yet decoded + brand string absent: rooms still
           read working, map reads 'pending', phrasing degrades to generic.
+[DIAG-11] self_check surfaces a completion_health warning (missing job_active binary
+          on a require_job_active_clear brand) at the top as a warnings entry.
+[DIAG-12] self_check with no completion_health problem → empty warnings list.
 """
 
 from __future__ import annotations
@@ -397,3 +400,42 @@ def test_self_check_native_brand_map_pending():
     assert sc["rooms_importable"] == "yes"
     assert "pending" in sc["map_image"] and "eufy-clean fork" not in sc["map_image"]
     assert "Native-integration device" in sc["note"]
+
+
+def test_self_check_surfaces_missing_job_active_warning():
+    """[DIAG-11] a require_job_active_clear brand whose job_active binary is missing
+    (completion_health.warning) surfaces as a loud warnings entry — the tripwire for
+    an upstream capability-gating that would silently strand every run."""
+    out = {
+        "capabilities": {"supports_room_clean": True},
+        "entity_resolution": {"active_map": {"exists": False}},
+        "vacuum_state": {"segment_count": None},
+        "adapter": {"brand": "roborock"},
+        "maps": {"map_count": 1, "maps": [{"map_id": "Main", "room_count": 5}]},
+        "managed_rooms_by_map": {"Main": {"room_count": 5}},
+        "completion_health": {
+            "requires_job_active_clear": True,
+            "job_active_entity": "binary_sensor.ivy_job_active",
+            "job_active_present": False,
+            "warning": "Completion requires the job-active binary "
+                       "(binary_sensor.ivy_job_active) but it is missing — EVERY run "
+                       "will strand (never finalize). Check the upstream integration "
+                       "didn't drop this entity.",
+        },
+    }
+
+    sc = _self_check(out)
+
+    assert len(sc["warnings"]) == 1
+    assert "EVERY run will strand" in sc["warnings"][0]
+
+
+def test_self_check_no_warning_when_healthy():
+    """[DIAG-12] no completion_health problem → an empty warnings list."""
+    out = {
+        "capabilities": {"supports_room_clean": True},
+        "entity_resolution": {"active_map": {"exists": True}},
+        "vacuum_state": {"segment_count": None},
+        "completion_health": {"requires_job_active_clear": False, "job_active_present": False},
+    }
+    assert _self_check(out)["warnings"] == []

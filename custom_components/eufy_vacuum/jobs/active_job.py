@@ -39,6 +39,18 @@ from ..const import (
 # import); find_candidates / segment_legacy route through the pluggable job-segmenter
 # engine (resolved per-vacuum in _live_boundary_count).
 from ..counter_segmentation import select_active
+# _common holds pure adapter-registry lookups + state reads (no HA wiring, imports
+# only adapters.registry) so importing it here is cycle-free (listeners/__init__ is
+# docstring-only). Reused so the stranded reaper reads completion signals exactly
+# like the completion gate does.
+from ..listeners._common import (
+    completed_finalize_signals,
+    completion_secondary_satisfied,
+    get_adapter_value,
+    get_adapter_vocab,
+    is_job_active,
+)
+from .job_monitor import STRANDED_REAP_GRACE_MINUTES, is_stranded_started
 from ..rooms.utils import slugify_room_name
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 
@@ -2186,4 +2198,145 @@ class ActiveJobTracker:
                 f"Paused for over {pause_timeout_minutes} minutes. Job canceled."
             ),
             "cancel_reason": "pause_timeout",
+        }
+
+    def _clear_stranded_stamp(
+        self, vacuum_entity_id: str, map_id: str, active_job: dict[str, Any]
+    ) -> None:
+        """Drop a stranded_since stamp — the run resumed, finalized, or cleared."""
+        if active_job.get("stranded_since") is not None:
+            active_job.pop("stranded_since", None)
+            self._persist_active_job(vacuum_entity_id, str(map_id), active_job)
+
+    def poll_stranded_started_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        now: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Track a stranded ``started`` run; return a reap report once it has sat
+        ENDED-but-unfinalized past the grace window (else None).
+
+        A dispatched run auto-finalizes only when it hits its brand's completion
+        terminal (the completion gate). One that ends any OTHER way — power loss, HA
+        restart mid-run, a stuck-then-docked run, an app-cancel that never emits the
+        terminal status — strands as status:started (FN-1: no record, masks a later
+        external run, can be mis-attributed by a later terminal signal).
+
+        Brand-agnostic: reads the completion signals + secondary + job-active exactly
+        like the gate (via _common), resolves the brand's completion value + mid-run
+        set from the adapter, and defers the verdict to ``is_stranded_started``. Stamps
+        ``stranded_since`` the first tick the strand holds and CLEARS it if the run
+        resumes, so a transient dock never accrues grace. Side-effecting (persists the
+        stamp) — a poll, not a pure getter.
+        """
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        # Only a dispatched, still-open run can strand; paused is the pause-timeout
+        # reaper's job. Clear any stale stamp on anything else.
+        if active_job.get("status") != "started":
+            self._clear_stranded_stamp(vacuum_entity_id, map_id, active_job)
+            return None
+
+        hass = self._manager.hass
+        signals = completed_finalize_signals(hass, vacuum_entity_id)
+        clear_sentinels = get_adapter_vocab(
+            vacuum_entity_id, "completion", "secondary_clear_sentinels",
+            frozenset({"", "unknown", "unavailable", "none", "null"}),
+        )
+        mid_run = get_adapter_value(
+            vacuum_entity_id, "external_mid_run_statuses", fallback=[]
+        )
+        mid_run_set = frozenset(str(s).strip().lower() for s in (mid_run or []))
+        task_status_n = str(signals.get("task_status", "")).strip().lower()
+
+        stranded = is_stranded_started(
+            status="started",
+            has_observed_active_lifecycle=bool(active_job.get("has_observed_active_lifecycle")),
+            vacuum_state=str(signals.get("vacuum_state", "")),
+            task_status=task_status_n,
+            completion_task_status_value=str(get_adapter_value(
+                vacuum_entity_id, "completion", "task_status_value", fallback="completed"
+            )),
+            secondary_satisfied=completion_secondary_satisfied(
+                vacuum_entity_id, signals, clear_sentinels
+            ),
+            job_active_on=is_job_active(hass, vacuum_entity_id, unavailable_is_active=True),
+            is_mid_run_status=task_status_n in mid_run_set,
+            phase_dispatch_pending=bool(active_job.get("_phase_dispatch_pending")),
+        )
+        if not stranded:
+            self._clear_stranded_stamp(vacuum_entity_id, map_id, active_job)
+            return None
+
+        now = now or _iso_now()
+        stranded_since = str(active_job.get("stranded_since", "")).strip()
+        if not stranded_since:
+            # First tick the strand held — stamp and wait out the grace.
+            active_job["stranded_since"] = now
+            self._persist_active_job(vacuum_entity_id, str(map_id), active_job)
+            return None
+
+        since_dt = self._parse_job_timestamp(stranded_since)
+        now_dt = self._parse_job_timestamp(now)
+        if since_dt is None or now_dt is None:
+            return None
+        if (now_dt - since_dt).total_seconds() < STRANDED_REAP_GRACE_MINUTES * 60:
+            return None
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "job_id": active_job.get("job_id"),
+            "stranded_since": stranded_since,
+            "grace_minutes": STRANDED_REAP_GRACE_MINUTES,
+            "forced_lifecycle_state": "stranded_no_completion",
+            "cancel_reason": "stranded_no_completion",
+        }
+
+    async def async_finalize_stranded_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        ended_at: str | None = None,
+    ) -> dict[str, Any]:
+        """Finalize a stranded ``started`` run as ``interrupted`` — WITHOUT
+        return_to_base. Unlike async_cancel_active_job (which commands the robot home
+        + polls a terminal state), a stranded run is ALREADY docked/over, so this just
+        writes the interrupted record (held from learning, Restore-able) and clears
+        the slot. ``ended_at`` defaults to the observed strand time so the duration
+        reflects the real end, not the reap time.
+        """
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if active_job.get("status") != "started":
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "finalized": False,
+                "reason": "not_started",
+            }
+        finalize_result = await self._manager.finalize_learning_for_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            ended_at=ended_at or active_job.get("stranded_since") or None,
+            rebuild_stats=True,
+            rebuild_csv=False,
+            forced_outcome_status="interrupted",
+            forced_lifecycle_state="stranded_no_completion",
+            forced_lifecycle_message=(
+                "Run ended without a completion signal and was auto-finalized as interrupted."
+            ),
+        )
+        self.mark_active_job_finalized(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            finalize_result=finalize_result,
+        )
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "finalized": True,
+            "reason": "stranded_no_completion",
+            "finalize_result": finalize_result,
         }

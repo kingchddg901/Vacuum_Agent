@@ -3589,6 +3589,14 @@ class EufyVacuumManager:
         """Return paused-job timeout report — delegates to ActiveJobTracker."""
         return self.active_job.get_paused_job_timeout_report(**kwargs)
 
+    def poll_stranded_started_job(self, **kwargs):
+        """Track/report a stranded started run — delegates to ActiveJobTracker."""
+        return self.active_job.poll_stranded_started_job(**kwargs)
+
+    async def async_finalize_stranded_job(self, **kwargs) -> dict:
+        """Finalize a stranded started run as interrupted — delegates to ActiveJobTracker."""
+        return await self.active_job.async_finalize_stranded_job(**kwargs)
+
 
     def save_learning_snapshot_for_active_job(
         self,
