@@ -16,6 +16,7 @@ Learning rule:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -187,11 +188,20 @@ def _apply_water_actuals(
 class LearningJobFinalizer:
     """Finalize learning jobs from integration state."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        *,
+        estimate_fn: Callable[..., dict[str, Any]] | None = None,
+    ) -> None:
         self.hass = hass
         self.store = LearningHistoryStore(hass)
         self.rebuilder = LearningStatsRebuilder(hass)
         self._live_snapshot_cache: dict[str, dict[str, Any]] = {}
+        # Injected estimator seam (LearningManager.estimate_from_manager). The
+        # cancel-likely heuristic needs an estimate but must NOT re-fetch the learning
+        # manager back through the host — that re-entrancy is dropped here. See §9.3.
+        self._estimate_fn = estimate_fn
 
     def build_live_snapshot(
         self,
@@ -1255,11 +1265,10 @@ class LearningJobFinalizer:
                 ),
             }
 
-        learning = manager._get_learning_manager()
         expected_room_minutes = 0.0
-        if learning is not None:
+        if self._estimate_fn is not None:
             try:
-                estimate = learning.estimate_from_manager(
+                estimate = self._estimate_fn(
                     manager,
                     vacuum_entity_id,
                     str(map_id),

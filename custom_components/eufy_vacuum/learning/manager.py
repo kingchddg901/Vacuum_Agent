@@ -243,7 +243,7 @@ class LearningManager:
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self.store = LearningHistoryStore(hass)
-        self.finalizer = LearningJobFinalizer(hass)
+        self.finalizer = LearningJobFinalizer(hass, estimate_fn=self.estimate_from_manager)
         self.rebuilder = LearningStatsRebuilder(hass)
         self.estimator = LearningEstimator(hass)
         self._room_stats_cache: dict[str, dict[str, Any]] = {}

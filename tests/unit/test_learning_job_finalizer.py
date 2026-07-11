@@ -311,7 +311,7 @@ def test_detect_cancel_short_run_is_likely(finalizer):
     learning = MagicMock()
     learning.estimate_from_manager.return_value = {"room_timeline": [{"minutes": 10.0}]}
     manager = MagicMock()
-    manager._get_learning_manager.return_value = learning
+    finalizer._estimate_fn = learning.estimate_from_manager
 
     out = finalizer._detect_cancel_likely_run(
         manager=manager, vacuum_entity_id=_VAC, map_id="6",
@@ -344,7 +344,7 @@ def _run_cancel(finalizer, vocab, from_state, to_state):
     learning = MagicMock()
     learning.estimate_from_manager.return_value = {"room_timeline": [{"minutes": 10.0}]}
     manager = MagicMock()
-    manager._get_learning_manager.return_value = learning
+    finalizer._estimate_fn = learning.estimate_from_manager
     return finalizer._detect_cancel_likely_run(
         manager=manager, vacuum_entity_id=_VAC, map_id="6",
         battery_start=90, started_at=start.isoformat(), ended_at=ret.isoformat(),
@@ -389,7 +389,7 @@ def test_detect_cancel_estimate_error_then_long_enough(finalizer):
     learning = MagicMock()
     learning.estimate_from_manager.side_effect = RuntimeError("boom")
     manager = MagicMock()
-    manager._get_learning_manager.return_value = learning
+    finalizer._estimate_fn = learning.estimate_from_manager
 
     out = finalizer._detect_cancel_likely_run(
         manager=manager, vacuum_entity_id=_VAC, map_id="6",
