@@ -13,7 +13,7 @@ DOWN, vacuum y grows UP) mimicking a Roborock map crop, so the inverse must un-f
 
 import pytest
 
-from custom_components.eufy_vacuum.mapping import zone_dispatch as zd
+from custom_components.eufy_vacuum.dispatch import zone_dispatch as zd
 
 
 # Known forward affine: device-mm -> normalized 0..1, Y-flipped.

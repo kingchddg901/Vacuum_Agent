@@ -138,10 +138,10 @@ class DispatchManager:
         # WORLD millimetres (Roborock app_zoned_clean) declare ``zone_coords: device_mm``;
         # we convert here via the live map's own projection and REFUSE rather than
         # dispatch if the conversion can't be validated (a wrong inverse cleans the
-        # wrong area — see mapping/zone_dispatch.py).
+        # wrong area — see dispatch/zone_dispatch.py).
         if cfg.get("zone_coords") == "device_mm":
             from ..mapping import map_source_runtime as _msr
-            from ..mapping import zone_dispatch as _zd
+            from . import zone_dispatch as _zd
 
             map_obj = self._manager.map_source.get_live_mapdata_obj(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id or ""),

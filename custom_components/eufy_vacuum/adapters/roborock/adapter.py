@@ -275,7 +275,7 @@ def register_roborock_adapter_for_vacuum(
             # Ad-hoc zone clean: Roborock's app_zoned_clean wants WORLD millimetres
             # ([[x0,y0,x1,y1,repeat], ...]) via stock vacuum.send_command — no fork/PR.
             # zone_coords="device_mm" makes dispatch_zone_clean invert the drawn 0-1 rects
-            # to device-mm through the live map's own projection (mapping/zone_dispatch.py)
+            # to device-mm through the live map's own projection (dispatch/zone_dispatch.py)
             # and REFUSE if it can't validate. The payload IS the params list, so dispatch
             # sets params_as_list_override=False (not the app_segment_clean single-wrap).
             "zone_command": "app_zoned_clean",
