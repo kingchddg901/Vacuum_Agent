@@ -106,6 +106,32 @@ def test_build_room_clean_payload():
     assert isinstance(result["resolved_rooms"], list)
 
 
+def test_build_room_clean_payload_omits_nonnumeric_map_id_for_int_type():
+    """[QE-6a] Regression: an int-typed map_id field DROPS a non-numeric implicit
+    map ("main", Eufy scalar/attribute mode) from the WIRE payload rather than
+    shipping a string a downstream transport will int() and choke on
+    (robovac_mqtt build_set_room_custom_command). The internal tracking id stays."""
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id="main",
+        managed_rooms={"1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                             "clean_mode": "vacuum", "fan_speed": "Max"}},
+        queue_room_ids=[1],
+        dispatch={"map_id_type": "int"})
+    assert "map_id" not in result["payload"]   # omitted from the wire
+    assert result["map_id"] == "main"          # canonical id kept for job/learning
+
+
+def test_build_room_clean_payload_keeps_numeric_int_map_id():
+    """[QE-6b] A numeric map_id under int type is still sent, as an int."""
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id="6",
+        managed_rooms={"1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                             "clean_mode": "vacuum", "fan_speed": "Max"}},
+        queue_room_ids=[1],
+        dispatch={"map_id_type": "int"})
+    assert result["payload"]["map_id"] == 6
+
+
 def test_active_job_no_phases_keys_absent():
     """[QE-7] atomic (no phases arg) -> phase keys are not present at all."""
     state = build_active_job_state(

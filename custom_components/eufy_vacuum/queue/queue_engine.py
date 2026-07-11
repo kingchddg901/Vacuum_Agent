@@ -330,13 +330,23 @@ def build_room_clean_payload(
             }
         )
 
+    # Build the wire payload. An int-typed map_id field has no numeric form for a
+    # scalar/attribute-mode implicit map (e.g. Eufy's "main" anchor): _cast_map_id
+    # can only fall back to the raw string, which a transport that does int(map_id)
+    # downstream — robovac_mqtt's build_set_room_custom_command / zone clean — will
+    # choke on ("invalid literal for int() with base 10: 'main'"). Omit the field
+    # entirely in that case; such transports fall back to their single-map default.
+    # (The internal "map_id" above stays the canonical string for job/learning use.)
+    cast_map_id = _cast_map_id(map_id, map_id_type)
+    wire_payload: dict[str, Any] = {}
+    if not (map_id_type == "int" and not isinstance(cast_map_id, int)):
+        wire_payload[map_id_field] = cast_map_id
+    wire_payload[rooms_field] = payload_rooms
+
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": str(map_id),
-        "payload": {
-            map_id_field: _cast_map_id(map_id, map_id_type),
-            rooms_field: payload_rooms,
-        },
+        "payload": wire_payload,
         "resolved_rooms": resolved_rooms,
         "room_count": len(payload_rooms),
     }
