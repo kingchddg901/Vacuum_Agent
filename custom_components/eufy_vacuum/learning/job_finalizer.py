@@ -22,10 +22,10 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..battery.job_metrics import compute_job_battery_metrics
 from ..const import DATA_BATTERY, DOMAIN
 from ..timestamp_utils import parse_timestamp
+from .brand_facts import brand_facts_for
 from .utils import _iso_now, _safe_float, _safe_int, compute_overhead_observed
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
@@ -488,11 +488,9 @@ class LearningJobFinalizer:
             # Sensor fallback — covers the first run on a fresh install
             # before the metrics listener has had a chance to push values.
             try:
-                _adapter_entities = (
-                    _get_adapter_config(vacuum_entity_id) or {}
-                ).get("entities", {})
+                _facts = brand_facts_for(vacuum_entity_id)
                 if cleaning_time_seconds is None:
-                    _ct_entity = _adapter_entities.get("cleaning_time")
+                    _ct_entity = _facts.entity_id("cleaning_time")
                     if _ct_entity:
                         ct_state = manager.hass.states.get(_ct_entity)
                         if ct_state and ct_state.state not in ("unavailable", "unknown"):
@@ -502,7 +500,7 @@ class LearningJobFinalizer:
                                 None,
                             )
                 if cleaning_area_m2 is None:
-                    _ca_entity = _adapter_entities.get("cleaning_area")
+                    _ca_entity = _facts.entity_id("cleaning_area")
                     if _ca_entity:
                         ca_state = manager.hass.states.get(_ca_entity)
                         if ca_state and ca_state.state not in ("unavailable", "unknown"):
@@ -1176,29 +1174,23 @@ class LearningJobFinalizer:
 
         # Resolve the task_status entity ID from the adapter registry so we
         # match by full entity ID, not by brand-specific suffix.
-        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
-        _task_status_entity = _adapter_cfg.get("entities", {}).get("task_status", "")
+        _facts = brand_facts_for(vacuum_entity_id)
+        _task_status_entity = _facts.entity_id("task_status") or ""
         if not _task_status_entity:
             return {"cancel_likely": False, "reason": "no_task_status_entity"}
 
-        # Read cancel service exclusion states from adapter vocabulary.
-        # These are normalized task_status strings that explain an early return
-        # as a service event (low-battery, mop wash, dust empty) rather than
-        # a manual cancel. Fall back to an empty set — no false negatives are
-        # worse than no exclusion; callers should register vocab if they want it.
-        _exclusion_vocab = _adapter_cfg.get("vocabulary", {}).get(
-            "cancel_service_exclusion_states", []
-        )
-        service_exclusion_states: frozenset[str] = frozenset(
-            str(s).strip().lower() for s in _exclusion_vocab if s
-        )
+        # Cancel service exclusion states — normalized task_status strings that
+        # explain an early return as a service event (low-battery, mop wash, dust
+        # empty) rather than a manual cancel. BrandFacts already strips/lowers; an
+        # empty set if unconfigured (no false negatives is worse than no exclusion).
+        service_exclusion_states = _facts.cancel_service_exclusion_states
 
         if any(to_state in service_exclusion_states for _, _, to_state in transition_pairs):
             return {"cancel_likely": False, "reason": "service_state_explains_return"}
 
         # Normalized task_status transition strings — adapter-configurable, with
         # HA-standard defaults so an unconfigured adapter still detects cancels.
-        _cancel_states = _adapter_cfg.get("vocabulary", {}).get("cancel_detection_states", {})
+        _cancel_states = _facts.cancel_detection_states
         # `active` may be a single string (Eufy normalizes to one cleaning state)
         # or a list — brands whose "actively cleaning" status is mode-specific
         # (Roborock: cleaning vs segment_cleaning vs zoned/spot) declare all of

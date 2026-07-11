@@ -136,13 +136,13 @@ class ExternalRunManager:
         wash / dust empty / recharge-resume) — the robot is docked but WILL resume,
         so an external run must not be finalized. Values are adapter-declared
         (external_mid_run_statuses) and compared case-insensitively."""
-        from ..adapters.registry import get_adapter_config
+        from .brand_facts import brand_facts_for
 
-        cfg = get_adapter_config(vacuum_entity_id) or {}
-        mid_run = cfg.get("external_mid_run_statuses") or []
+        facts = brand_facts_for(vacuum_entity_id)
+        mid_run = facts.mid_run_statuses
         if not mid_run:
             return False
-        entity_id = (cfg.get("entities", {}) or {}).get("task_status")
+        entity_id = facts.entity_id("task_status")
         if not entity_id:
             return False
         state_obj = self._manager.hass.states.get(entity_id)
@@ -430,21 +430,20 @@ class ExternalRunManager:
 
     def get_external_pending_runs(self, vacuum_entity_id: str) -> dict[str, Any]:
         """List pending external review records (external_jobs/) for the card."""
-        from ..adapters.registry import get_adapter_config
+        from .brand_facts import brand_facts_for
         from ..learning.external_ingest import load_pending_runs
         from ..learning.history_store import LearningHistoryStore
 
         store = LearningHistoryStore(self._manager.hass)
         paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
         pending = load_pending_runs(str(paths.root / "external_jobs"))
-        adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "pending": pending,
             "count": len(pending),
             # Adapter-provided brand label for the card's copy (None -> the
             # card uses generic phrasing). Keeps brand names out of the card.
-            "brand": adapter_cfg.get("brand"),
+            "brand": brand_facts_for(vacuum_entity_id).brand,
         }
 
     def discard_external_run(self, vacuum_entity_id: str, pending_job_id: str) -> dict[str, Any]:
