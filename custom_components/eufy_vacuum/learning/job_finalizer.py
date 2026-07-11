@@ -23,7 +23,6 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from ..battery.job_metrics import compute_job_battery_metrics
-from ..const import DATA_BATTERY, DOMAIN
 from ..timestamp_utils import parse_timestamp
 from .brand_facts import brand_facts_for
 from .utils import _iso_now, _safe_float, _safe_int, compute_overhead_observed
@@ -193,15 +192,23 @@ class LearningJobFinalizer:
         hass: HomeAssistant,
         *,
         estimate_fn: Callable[..., dict[str, Any]] | None = None,
+        error_source: Callable[..., dict[str, Any] | None] | None = None,
+        battery_sink: Callable[..., None] | None = None,
     ) -> None:
         self.hass = hass
         self.store = LearningHistoryStore(hass)
         self.rebuilder = LearningStatsRebuilder(hass)
         self._live_snapshot_cache: dict[str, dict[str, Any]] = {}
-        # Injected estimator seam (LearningManager.estimate_from_manager). The
-        # cancel-likely heuristic needs an estimate but must NOT re-fetch the learning
-        # manager back through the host — that re-entrancy is dropped here. See §9.3.
+        # Injected seams so the finalizer holds no host-internals (§9.3):
+        #  - estimate_fn: the estimator (LearningManager.estimate_from_manager) — the
+        #    cancel-likely heuristic must NOT re-fetch the learning manager (re-entrancy).
+        #  - error_source: harvest + null the active-run error latch (returns the dict).
+        #  - battery_sink: push completed-job battery metrics to the sibling manager.
+        # error_source / battery_sink are optional: absent means "no harvest / no push",
+        # so a host without those sibling subsystems degrades cleanly.
         self._estimate_fn = estimate_fn
+        self._error_source = error_source
+        self._battery_sink = battery_sink
 
     def build_live_snapshot(
         self,
@@ -620,31 +627,19 @@ class LearningJobFinalizer:
                 active_job_state = dict(active_job_state)
                 active_job_state["completed_room_ids"] = _queued_ids
 
-        # Harvest the active-run error latch from ErrorTracker. This pulls
-        # the latch dict and nulls it on the tracker side, so the latch
-        # state is owned by exactly one record after this call (the
-        # completed-job outcome). If no errors fired during the run, the
-        # harvest returns None and the outcome reflects had_errors=False.
-        # Defensive: if the tracker isn't loaded for any reason, fall back
-        # to no-error.
-        from ..const import DATA_ERROR_TRACKER as _DATA_ERROR_TRACKER
-
+        # Harvest the active-run error latch from the injected error source. It
+        # pulls the latch dict and nulls it on the source side, so the latch state is
+        # owned by exactly one record after this call (the completed-job outcome). No
+        # source (or no errors) -> None -> the outcome reflects had_errors=False.
         error_latch: dict[str, Any] | None = None
-        try:
-            error_tracker = (
-                self.hass.data.get(DOMAIN, {}).get(_DATA_ERROR_TRACKER)
-                if hasattr(self, "hass") and self.hass is not None
-                else None
-            )
-            if error_tracker is not None:
-                error_latch = error_tracker.harvest_active_run(
-                    vacuum_entity_id, job_id
+        if self._error_source is not None:
+            try:
+                error_latch = self._error_source(vacuum_entity_id, job_id)
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.exception(
+                    "job_finalizer: error harvest failed for %s",
+                    vacuum_entity_id,
                 )
-        except Exception:  # pragma: no cover - defensive
-            _LOGGER.exception(
-                "job_finalizer: error_tracker harvest failed for %s",
-                vacuum_entity_id,
-            )
 
         had_errors = bool(
             isinstance(error_latch, dict)
@@ -820,9 +815,8 @@ class LearningJobFinalizer:
                 outcome = completed_job.get("outcome", {}) or {}
                 outcome_status = str(outcome.get("status", "")).lower()
                 if outcome_status in {"completed", "interrupted"} and outcome.get("used_for_learning", True):
-                    battery_manager = self.hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
-                    if battery_manager is not None:
-                        battery_manager.record_job_metrics(
+                    if self._battery_sink is not None:
+                        self._battery_sink(
                             vacuum_entity_id=vacuum_entity_id,
                             metrics=battery_metrics,
                             job_id=job_id,

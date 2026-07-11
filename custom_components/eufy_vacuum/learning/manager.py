@@ -237,13 +237,44 @@ def _parse_local_timestamp(value: Any) -> datetime | None:
     return parse_timestamp(value)
 
 
+def _make_error_source(hass: HomeAssistant):
+    """Default finalizer error source — harvests the active-run error latch from the
+    ErrorTracker in hass.data (None if it isn't loaded). Injected into the finalizer so
+    the finalizer itself holds no hass.data / sibling-subsystem knowledge (§9.3)."""
+    from ..const import DATA_ERROR_TRACKER
+
+    def _source(vacuum_entity_id: str, job_id: str) -> dict[str, Any] | None:
+        tracker = (hass.data.get(DOMAIN, {}) or {}).get(DATA_ERROR_TRACKER) if hass is not None else None
+        return tracker.harvest_active_run(vacuum_entity_id, job_id) if tracker is not None else None
+
+    return _source
+
+
+def _make_battery_sink(hass: HomeAssistant):
+    """Default finalizer battery sink — pushes completed-job metrics to the
+    BatteryHealthManager in hass.data (no-op if it isn't loaded)."""
+    from ..const import DATA_BATTERY
+
+    def _sink(*, vacuum_entity_id: str, metrics: dict[str, Any], job_id: str) -> None:
+        mgr = (hass.data.get(DOMAIN, {}) or {}).get(DATA_BATTERY) if hass is not None else None
+        if mgr is not None:
+            mgr.record_job_metrics(vacuum_entity_id=vacuum_entity_id, metrics=metrics, job_id=job_id)
+
+    return _sink
+
+
 class LearningManager:
     """Coordinator for the optional learning system."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
         self.store = LearningHistoryStore(hass)
-        self.finalizer = LearningJobFinalizer(hass, estimate_fn=self.estimate_from_manager)
+        self.finalizer = LearningJobFinalizer(
+            hass,
+            estimate_fn=self.estimate_from_manager,
+            error_source=_make_error_source(hass),
+            battery_sink=_make_battery_sink(hass),
+        )
         self.rebuilder = LearningStatsRebuilder(hass)
         self.estimator = LearningEstimator(hass)
         self._room_stats_cache: dict[str, dict[str, Any]] = {}
