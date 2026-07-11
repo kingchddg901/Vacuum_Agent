@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from ..timestamp_utils import datetime_to_utc_iso, utc_now
+from ..adapters.registry import get_adapter_config
 from .room_bounds import BOUNDS_MARGIN, MULTI_ROOM_MIN_RUNS, RoomBoundsStore
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,6 +43,15 @@ SAMPLES_FLUSH_INTERVAL = 25
 # HA event names.
 EVENT_ROOM_COMPLETED = "eufy_vacuum_room_completed"
 EVENT_BOUNDARY_SAVED = "eufy_vacuum_boundary_saved"
+
+# Current-room name sentinels that mean "no usable signal" (hold, never a room exit).
+_BLANK_ROOM_SENTINELS = frozenset({"", "unknown", "unavailable", "none", "null"})
+_ROOM_NAME_SEP = re.compile(r"[\s_-]+")
+
+
+def _norm_room_name(value: Any) -> str:
+    """Normalize a room name/slug for comparison (lowercase, collapse separators)."""
+    return _ROOM_NAME_SEP.sub(" ", str(value or "").strip().lower()).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -751,6 +761,36 @@ class MappingTracker:
             # coordinate-frame drift. Diagnostic timeline only; never feeds bounds.
             self._maybe_log_dock_drift(vacuum_entity_id, vx, vy)
 
+    def _read_active_cleaning_target(self, vacuum_entity_id: str) -> str | None:
+        """Return the device's native current-room NAME (the adapter's
+        active_cleaning_target entity state), or None when unavailable."""
+        entities = (get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
+        entity_id = entities.get("active_cleaning_target")
+        state = self.hass.states.get(entity_id) if entity_id else None
+        return state.state if state is not None else None
+
+    def _detect_current_room(
+        self, vacuum_entity_id: str, rooms: dict[str, Any]
+    ) -> str | None:
+        """Resolve the device's native current-room signal to a (non-transition)
+        room id in ``rooms``, or None when there is no usable signal this tick
+        (blank / sentinel / a room not in this job). None means HOLD — never a
+        room exit. Replaces the old learned-bounds position test; the room now
+        comes straight from the device (the same signal the card's mascot dwell
+        reads)."""
+        norm = _norm_room_name(self._read_active_cleaning_target(vacuum_entity_id))
+        if norm in _BLANK_ROOM_SENTINELS:
+            return None
+        for room_id, room_data in rooms.items():
+            if room_data.get("is_transition", False):
+                continue
+            if (
+                _norm_room_name(room_data.get("slug")) == norm
+                or _norm_room_name(room_data.get("name")) == norm
+            ):
+                return room_id
+        return None
+
     def _update_confidence(
         self,
         vacuum_entity_id: str,
@@ -766,18 +806,16 @@ class MappingTracker:
         map_id = job["map_id"]
         rooms = job.get("rooms", {})
 
-        # Transition rooms are skipped — their presence is inferred subtractively
-        # when no normal room boundary matches the current position.
-        map_state = self._manager._load_map_data(vacuum_entity_id, map_id)
-        map_rooms = map_state.get("rooms", {})
-        current_room_id: str | None = None
-        for room_id, room_data in rooms.items():
-            if room_data.get("is_transition", False):
-                continue
-            bounds = map_rooms.get(str(room_id), {}).get("bounds")
-            if bounds and self._manager._point_in_bounds(vx, vy, bounds, BOUNDS_MARGIN):
-                current_room_id = room_id
-                break
+        # Which room the device says it is cleaning right now (its native
+        # current-room signal), resolved to a job room. None = no usable signal
+        # this tick (blank / sentinel / a room not in this job): HOLD the current
+        # room rather than read a momentary blank as leaving it.
+        current_room_id = self._detect_current_room(vacuum_entity_id, rooms)
+
+        if current_room_id is None:
+            if conf_state.current_room_id is not None:
+                conf_state.update(vx, vy)   # keep accruing dwell for the held room
+            return
 
         if current_room_id != conf_state.current_room_id:
             prev_room_id = conf_state.current_room_id
@@ -799,14 +837,9 @@ class MappingTracker:
                 )
                 conf_state.fired_rooms.add(prev_room_id)
 
-            if current_room_id is not None:
-                conf_state.reset_room(current_room_id)
-            else:
-                conf_state.current_room_id = None
+            conf_state.reset_room(current_room_id)
 
-        # Update confidence for current room.
-        if current_room_id is not None:
-            conf_state.update(vx, vy)
+        conf_state.update(vx, vy)
 
     def _fire_room_completed(
         self,

@@ -12,7 +12,7 @@ Coverage targets
 [MTE-5]  _handle_position_update accumulates, dedups, and respects pause.
 [MTE-6]  end_job writes accumulated samples into room bounds via the manager.
 [MTE-7]  end_job archives raw samples for a single-room job.
-[MTE-8]  confidence threshold + room exit fires eufy_vacuum_room_completed.
+[MTE-8]  a native-target room change past the confidence threshold fires eufy_vacuum_room_completed.
 [MTE-9]  _get_raw_position reads capability/state; all None branches + numeric success.
 [MTE-10] Wave 1 dock anchors: captured at start + end, stamped on history + archive.
 [MTE-10b] dock anchor left None on a mid-job restart (recovered samples).
@@ -284,29 +284,59 @@ async def test_dock_drift_log(tracker, hass):
 # Confidence + room_completed event
 # ---------------------------------------------------------------------------
 
-async def test_room_completed_event(hass, tracker):
-    """[MTE-8]"""
+async def test_room_completed_event(hass, tracker, monkeypatch):
+    """[MTE-8] room_completed fires when the device's native current-room target
+    moves from one job room to another (bounds-free — driven by the target signal
+    + the confidence/dwell debounce)."""
     _register(tracker)
-    # Give room 3 learned bounds so position (10,10) is detected inside it.
-    tracker._manager.update_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP,
-        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"3": {"is_transition": False}})
 
     events: list = []
     hass.bus.async_listen(EVENT_ROOM_COMPLETED, lambda e: events.append(e.data))
 
-    job = {"map_id": _MAP, "rooms": _ROOMS}
-    # Enter room 3.
+    # The device's native current-room signal, controllable per tick.
+    target = {"name": "Kitchen"}
+    monkeypatch.setattr(tracker, "_read_active_cleaning_target", lambda vac: target["name"])
+
+    rooms = {
+        "3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"},
+        "4": {"is_transition": False, "slug": "hallway", "name": "Hallway"},
+    }
+    job = {"map_id": _MAP, "rooms": rooms}
+    # Enter room 3 (Kitchen).
     tracker._update_confidence(_VAC, 10.0, 10.0, job)
-    # Force high confidence + a real entry time so the exit fires the event.
+    # Force high confidence + a real entry time so the room change fires the event.
     conf = tracker._confidence[_VAC]
     conf.confidence = 0.95
     conf.entered_at = utc_now() - timedelta(seconds=45)
-    # Leave the room (far outside bounds).
-    tracker._update_confidence(_VAC, 5000.0, 5000.0, job)
+    # Target moves to room 4 (Hallway) → fires room_completed for room 3.
+    target["name"] = "Hallway"
+    tracker._update_confidence(_VAC, 12.0, 12.0, job)
     await hass.async_block_till_done()
 
     assert any(d["room_id"] == "3" and d["room_name"] == "Kitchen" for d in events)
+
+
+def test_detect_current_room_resolution(tracker, monkeypatch):
+    """[MTE-8b] _detect_current_room resolves the native target NAME to a
+    non-transition job room by slug/name, and HOLDS (None) on blank / sentinel /
+    unmatched / transition-only."""
+    rooms = {
+        "3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"},
+        "4": {"is_transition": False, "slug": "living_room", "name": "Living Room"},
+        "9": {"is_transition": True, "slug": "hall", "name": "Hall"},
+    }
+
+    def _detect(name):
+        monkeypatch.setattr(tracker, "_read_active_cleaning_target", lambda vac: name)
+        return tracker._detect_current_room(_VAC, rooms)
+
+    assert _detect("Kitchen") == "3"           # name match
+    assert _detect("living_room") == "4"       # slug match
+    assert _detect("Living Room") == "4"       # name match, case/space-insensitive
+    assert _detect("Hall") is None             # transition-only room -> HOLD
+    assert _detect("Garage") is None           # unmatched -> HOLD
+    for blank in ("", "unknown", "unavailable", None):
+        assert _detect(blank) is None          # blank / sentinel -> HOLD
 
 
 # ---------------------------------------------------------------------------
