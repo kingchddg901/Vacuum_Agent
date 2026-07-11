@@ -70,11 +70,9 @@ _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 # Service names
 # ---------------------------------------------------------------------------
 
-SERVICE_SAVE_MAP_IMAGE             = "save_map_image"
 SERVICE_GET_ROOM_BOUNDS_SNAPSHOT      = "get_room_bounds_snapshot"
 
 ALL_MAPPING_SERVICES = (
-    SERVICE_SAVE_MAP_IMAGE,
     SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
     # Image analysis
     SERVICE_UPLOAD_MAP_IMAGE,
@@ -2651,27 +2649,6 @@ async def _handle_clean_saved_zones(hass: HomeAssistant, call: ServiceCall) -> d
 async def async_register_mapping_services(hass: HomeAssistant) -> None:
     """Register all mapping services."""
 
-    async def handle_save_map_image(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.save_map_image(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                image_base64=call.data["image_base64"],
-                image_width=call.data.get("image_width"),
-                image_height=call.data.get("image_height"),
-                variant=call.data.get("variant", "primary"),
-            )
-        )
-        _LOGGER.info("save_map_image: %s", result)
-        return result
-
-    hass.services.async_register(
-        DOMAIN, SERVICE_SAVE_MAP_IMAGE,
-        handle_save_map_image,
-        schema=SAVE_MAP_IMAGE_SCHEMA,
-        supports_response=True,
-    )
 
 
     # ------------------------------------------------------------------
