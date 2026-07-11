@@ -105,6 +105,8 @@ export function applyRoomsRenderers(proto) {
 
         ${typeof this.renderLearningPreJobPanel === "function" ? this.renderLearningPreJobPanel(state) : ""}
 
+        ${typeof this.renderLearningProcessingControl === "function" ? this.renderLearningProcessingControl(state) : ""}
+
         ${typeof this.renderLearningLiveBanner === "function" ? this.renderLearningLiveBanner(state) : ""}
 
         ${typeof this.renderLearningChargeStatus === "function" ? this.renderLearningChargeStatus(state) : ""}

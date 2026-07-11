@@ -11,6 +11,8 @@ const SERVICE_GET_ROOM_LEARNING_ESTIMATES = "get_room_learning_estimates";
 const SERVICE_GET_DASHBOARD_SNAPSHOT     = "get_dashboard_snapshot";
 const SERVICE_GET_INCOMPLETE_RUN_LOG     = "get_incomplete_run_log";
 const SERVICE_GET_TROUBLE_ROOMS_LOG      = "get_trouble_rooms_log";
+const SERVICE_SET_LEARNING_PROCESSING    = "set_learning_processing";
+const SERVICE_PROCESS_PENDING_RUNS       = "process_pending_runs";
 
 export function applyLearningActions(proto) {
 
@@ -217,4 +219,25 @@ export function applyLearningActions(proto) {
 
   return result?.response ?? result;
 };
+
+  /**
+   * Box-level learning-processing toggle (flips ALL vacuums). Turning it on runs the
+   * backlog catch-up server-side, then per-run processing resumes.
+   */
+  proto.setLearningProcessing = async function (enabled) {
+    return this.callService(
+      DOMAIN,
+      SERVICE_SET_LEARNING_PROCESSING,
+      { enabled: !!enabled },
+      true
+    );
+  };
+
+  /**
+   * Reprocess the backlog collected while processing was off (a full rebuild from
+   * history), WITHOUT turning per-run processing back on. Flips all vacuums.
+   */
+  proto.processPendingRuns = async function () {
+    return this.callService(DOMAIN, SERVICE_PROCESS_PENDING_RUNS, {}, true);
+  };
 }

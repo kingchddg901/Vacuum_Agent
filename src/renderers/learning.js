@@ -74,6 +74,62 @@ export function applyLearningRenderers(proto) {
   };
 
   /**
+   * Render the box-level learning-processing control.
+   *
+   * The toggle (on = process every run as it finishes, off = collect-only) flips ALL
+   * vacuums on this base. When off, a status line reports how many runs are waiting and,
+   * if any are, a "Process pending runs" button triggers a one-off backlog rebuild.
+   *
+   * Reads snapshot.learning_processing = { enabled, pending_runs, has_last_estimate }.
+   * Returns empty string when the snapshot has no learning_processing block.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string.
+   */
+  proto.renderLearningProcessingControl = function (state) {
+    const lp = state.dashboardLearningProcessing?.();
+    if (!lp) return "";
+
+    const enabled = lp.enabled !== false;
+    const pending = Number(lp.pending_runs) || 0;
+    const hasLast = !!lp.has_last_estimate;
+
+    let offBody = "";
+    if (!enabled) {
+      // "N new runs pending" when a prior estimate still stands, else "not computed yet".
+      const msg = hasLast
+        ? this.t("learning.processing_pending_stale", { count: pending })
+        : this.t("learning.processing_pending_fresh", { count: pending });
+      const button =
+        pending > 0
+          ? `<button
+               type="button"
+               class="evcc-learning-processing-btn"
+               data-action="process-pending-runs"
+             >${this.escapeHtml(this.t("learning.process_pending_runs"))}</button>`
+          : "";
+      offBody = `
+        <div class="evcc-learning-processing-status">${this.escapeHtml(msg)}</div>
+        ${button}
+      `;
+    }
+
+    return `
+      <div class="evcc-learning-processing${enabled ? "" : " evcc-learning-processing--paused"}">
+        <label class="evcc-learning-processing-toggle">
+          <input
+            type="checkbox"
+            data-action="toggle-learning-processing"
+            ${enabled ? "checked" : ""}
+          />
+          <span class="evcc-learning-processing-label">${this.escapeHtml(this.t("learning.processing_toggle"))}</span>
+        </label>
+        ${offBody}
+      </div>
+    `;
+  };
+
+  /**
    * Render the pre-job estimate panel showing planned duration and water use.
    * Returns empty string when no estimate is available or a job is already active.
    *

@@ -733,4 +733,75 @@ export const learningStyles = `
     .evcc-learning-summary-stats { gap: 16px; }
     .evcc-learning-summary-stat { min-width: 50px; }
   }
+
+  /* =========================================================
+     LEARNING-PROCESSING CONTROL
+     box-level toggle + paused-backlog status + reprocess button
+     ========================================================= */
+
+  .evcc-learning-processing {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: var(--evcc-radius-panel, 12px);
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-chip, rgba(255, 255, 255, 0.05));
+  }
+
+  .evcc-learning-processing--paused {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning) 42%, var(--evcc-border-default));
+    background: color-mix(in srgb, var(--evcc-sem-warning) 8%, transparent);
+  }
+
+  .evcc-learning-processing-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .evcc-learning-processing-toggle input {
+    cursor: pointer;
+    accent-color: var(--evcc-sem-success, var(--primary-color));
+    width: 16px;
+    height: 16px;
+    flex: none;
+  }
+
+  .evcc-learning-processing-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--evcc-text-primary);
+  }
+
+  .evcc-learning-processing-status {
+    font-size: 0.76rem;
+    color: var(--evcc-text-secondary);
+    flex: 1 1 auto;
+  }
+
+  .evcc-learning-processing-btn {
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-action, rgba(255, 255, 255, 0.1));
+    color: var(--evcc-text-primary);
+    font-size: 0.76rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s ease, opacity 0.15s ease;
+  }
+
+  .evcc-learning-processing-btn:hover {
+    background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+
+  .evcc-learning-processing-btn:active {
+    opacity: 0.75;
+  }
 `;

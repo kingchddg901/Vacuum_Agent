@@ -353,6 +353,10 @@ export const en = {
   "learning.overhead_return": "Return to dock",  // time-overhead segment: final return-to-dock minutes
   "learning.overhead_startup": "Startup",  // time-overhead segment: robot startup/spin-up minutes
   "learning.overhead_transitions": "Transitions",  // time-overhead segment: travel between rooms
+  "learning.process_pending_runs": "Process pending runs",  // Button: reprocess the backlog of runs collected while processing was paused. Verb 'Process'
+  "learning.processing_pending_fresh": { one: "Not computed yet · 1 run pending", other: "Not computed yet · {count} runs pending" },  // plural; status when processing is paused and NO estimate has ever been computed
+  "learning.processing_pending_stale": { one: "1 new run pending", other: "{count} new runs pending" },  // plural; status when processing is paused but a prior estimate still stands; N runs await folding in
+  "learning.processing_toggle": "Process runs automatically",  // Toggle label: on = fold each finished run into learning immediately; off = collect only (lower CPU on weak hardware)
   "learning.queue_missed_rooms": "Queue missed rooms",  // Imperative button: re-add the rooms a run skipped to the clean queue ('Queue' is the verb)
   "learning.returning_to_dock": "Returning to dock",
   "learning.robot_stuck": "Robot may be stuck in current room",  // stall warning: robot may be stuck in the room it's cleaning

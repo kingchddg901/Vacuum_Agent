@@ -331,6 +331,39 @@ export function applyRoomsBindings(proto) {
       this.card._scheduleRender();
     }
   );
+
+  /* ======================================================
+     LEARNING-PROCESSING: BOX-LEVEL TOGGLE + PROCESS PENDING
+     ====================================================== */
+
+  this.card._on(
+    this.card.$("[data-action='toggle-learning-processing']"),
+    "change",
+    async (e) => {
+      const enabled = !!e?.target?.checked;
+      try {
+        await this.card._actions.setLearningProcessing?.(enabled);
+        await this.card.refreshDashboardSnapshot?.();
+      } catch (err) {
+        console.error("[eufy-vacuum-command-center] setLearningProcessing failed", err);
+      }
+      this.card._scheduleRender();
+    }
+  );
+
+  this.card._on(
+    this.card.$("[data-action='process-pending-runs']"),
+    "click",
+    async () => {
+      try {
+        await this.card._actions.processPendingRuns?.();
+        await this.card.refreshDashboardSnapshot?.();
+      } catch (err) {
+        console.error("[eufy-vacuum-command-center] processPendingRuns failed", err);
+      }
+      this.card._scheduleRender();
+    }
+  );
 };
 
   /**

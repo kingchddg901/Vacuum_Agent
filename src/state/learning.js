@@ -173,6 +173,10 @@ export function applyLearningState(proto) {
     return this._ensureLearningState().dashboardSnapshot ?? null;
   };
 
+  proto.dashboardLearningProcessing = function () {
+    return this.dashboardSnapshot()?.learning_processing ?? null;
+  };
+
   proto.dashboardJobProgress = function () {
     return this.dashboardSnapshot()?.job_progress ?? null;
   };
