@@ -807,11 +807,16 @@ class LearningManager:
         accuracy_stats = self.store.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id) or {}
         archived_jobs = self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id)
         _index_jobs = jobs_index.get("jobs", [])
+        # Require "status" (rich vs the compact room-history shape) AND "origin"
+        # (added for the external-run badge + area cell) so an index built before
+        # those fields self-heals via ONE rebuild on the next snapshot — this is how
+        # OLD graduated external runs shed their stale "Sanity Failed" flag.
         _index_is_new_format = (
             isinstance(_index_jobs, list)
             and bool(_index_jobs)
             and isinstance(_index_jobs[0], dict)
             and "status" in _index_jobs[0]
+            and "origin" in _index_jobs[0]
         )
         if archived_jobs and not _index_is_new_format:
             try:

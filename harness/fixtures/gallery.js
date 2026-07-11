@@ -162,18 +162,25 @@ const LEARNING_REVIEW = {
       summary: { filtered_job_count: 3, filtered_room_count: 2, filtered_room_profile_count: 2 },
       jobs: [
         {
+          // External-origin graduated run: carries a (stale) sanity_passed:false to prove
+          // the origin-scoped suppression — it must show the neutral "External" badge and
+          // NOT "Sanity Failed" (external is its own flag, not a sanity verdict). Also
+          // exercises the Area Cleaned cell.
           job_id: "job_2026-06-05T08-45", started_at: "2026-06-05T08:45:00Z", duration_minutes: 45.5,
-          outlier_score: 0.12, status: "completed", status_label: "Completed",
+          outlier_score: 0.12, status: "completed", status_label: "Completed", origin: "external",
+          sanity_passed: false, cleaning_area_m2: 15.2,
           used_for_learning: true, excluded_from_learning: false, exclude_allowed: true,
           is_multi_room: true, room_slugs: ["living_room", "kitchen"],
           primary_room_label: "Living Room", profile_label: "Deep Mop", profile_key: "vacuum_mop_deep",
         },
         {
+          // Internal single-room run: sanity_passed:false here DOES show "Sanity Failed"
+          // (guard is origin-scoped), and Area Cleaned renders on a single-room run.
           job_id: "job_2026-06-04T18-30", started_at: "2026-06-04T18:30:00Z", duration_minutes: 38.2,
           outlier_score: 0.81, status: "cancelled", status_label: "Cancelled",
           used_for_learning: false, excluded_from_learning: false, exclude_allowed: true,
           exclude_suggested: true, exclude_suggested_reason_label: "Incomplete Run",
-          sanity_passed: false, is_single_room: true, room_slugs: ["kitchen"],
+          sanity_passed: false, cleaning_area_m2: 2.5, is_single_room: true, room_slugs: ["kitchen"],
           primary_room_label: "Kitchen", profile_label: "Vacuum Quick", profile_key: "vacuum_quick",
         },
         {

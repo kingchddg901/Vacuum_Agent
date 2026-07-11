@@ -838,6 +838,18 @@ class LearningStatsRebuilder:
             )
             total_water_used = round(robot_water_used + water_overhead_used, 2)
 
+            # Origin flows to the review card so an EXTERNAL run reads as "External"
+            # (its own flag), not a borrowed sanity/learning verdict. External runs
+            # graduate only past the tier-1 identity gate with a valid duration + room
+            # set, so they are sane BY CONSTRUCTION (see external_ingest) — force
+            # sanity_passed True so an OLD graduated record that predates that explicit
+            # flag (missing key -> coerced False here) is never mislabeled "Sanity
+            # Failed". cleaning_area_m2 (a single-room job total) surfaces on the review
+            # row so the human include/exclude call sees how much floor the run covered.
+            origin = str(job.get("origin") or outcome.get("origin") or "").strip().lower() or None
+            is_external = origin == "external"
+            cleaning_area_m2 = _safe_float(job_info.get("cleaning_area_m2"), None)
+
             job_entries.append(
                 {
                     "job_id": job_id,
@@ -847,8 +859,10 @@ class LearningStatsRebuilder:
                     "room_count": room_count,
                     "room_slugs": room_slugs,
                     "status": str(outcome.get("status", "unknown")).strip().lower(),
+                    "origin": origin,
+                    "cleaning_area_m2": round(cleaning_area_m2, 2) if cleaning_area_m2 is not None else None,
                     "used_for_learning": bool(outcome.get("used_for_learning", False)),
-                    "sanity_passed": bool(outcome.get("sanity_passed", False)),
+                    "sanity_passed": True if is_external else bool(outcome.get("sanity_passed", False)),
                     "battery_used": battery_used,
                     "robot_water_used_ml": robot_water_used,
                     "water_overhead_ml": water_overhead_used,

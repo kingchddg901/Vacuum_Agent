@@ -910,11 +910,13 @@ export const en = {
 
   // --- review (Learning History review: filters, profile matcher, run exclude/restore) ---
   "review.badge_excluded": "Excluded",
+  "review.badge_external": "External",  // Job badge: run was captured externally (started outside HA / on the robot); its own flag, NOT a sanity or learning verdict
   "review.badge_multi_room": "Multi Room",  // Job badge: run covered multiple rooms ('Multi-room'); pairs with Single Room
   "review.badge_recharge": "Recharge",  // Job badge: robot recharged mid-run, not a battery level
   "review.badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
   "review.badge_single_room": "Single Room",
   "review.badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning
+  "review.detail_area_m2": "{value} m²",  // Job value: floor area cleaned this run, '{value}' = square metres (e.g. '15 m²')
   "review.detail_battery": "Battery {value}",  // Job stat: battery percent consumed by the run, '{value}' is a %
   "review.detail_minutes": "{value} min",  // Job-card stat: run duration; '{value}' = whole minutes (e.g. '12 min')
   "review.detail_outlier": "Outlier {value}",  // Job stat: statistical outlier score {value}, how anomalous the run is
@@ -932,6 +934,7 @@ export const en = {
   "review.filter_status": "Status",
   "review.filters_subtitle": "Narrow to room, profile, status, or learning use.",
   "review.filters_title": "Filters",
+  "review.kv_area": "Area Cleaned",  // Job-card field: floor area cleaned this run (m²); aids the human include/exclude call
   "review.kv_primary_room": "Primary Room",  // Job-card field: the main/first room of a multi-room run
   "review.kv_profile": "Profile",
   "review.kv_rooms": "Rooms",

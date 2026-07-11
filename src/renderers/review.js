@@ -415,10 +415,15 @@ export function applyReviewRenderers(proto) {
     const excluded = job?.excluded_from_learning === true;
     const badges = [];
 
+    const isExternal = String(job?.origin ?? "").trim().toLowerCase() === "external";
     if (excluded) badges.push({ text: this.t("review.badge_excluded"), cls: "evcc-review-badge--excluded" });
+    // External runs get their OWN flag — being externally captured is not a sanity
+    // or learning verdict, so it never reads as "Sanity Failed" (backend also forces
+    // sanity_passed True for these; the origin guard below is belt-and-suspenders).
+    if (isExternal) badges.push({ text: this.t("review.badge_external"), cls: "evcc-review-badge--neutral" });
     if (job?.exclude_suggested === true) badges.push({ text: this.tVocabRaw("exclude_suggested_reason", job?.exclude_suggested_reason, job?.exclude_suggested_reason_label || this.t("review.badge_suggested_exclude")), cls: "evcc-review-badge--suggested" });
     if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: this.tVocabRaw("status", job?.status, job?.status_label || this._formatReviewLabel(job?.status || this.t("review.unknown"))), cls: "evcc-review-badge--warning" });
-    if (job?.sanity_passed === false) badges.push({ text: this.t("review.badge_sanity_failed"), cls: "evcc-review-badge--warning" });
+    if (job?.sanity_passed === false && !isExternal) badges.push({ text: this.t("review.badge_sanity_failed"), cls: "evcc-review-badge--warning" });
     if (job?.mid_job_recharge_observed === true) badges.push({ text: this.t("review.badge_recharge"), cls: "evcc-review-badge--neutral" });
     if (job?.is_single_room === true) badges.push({ text: this.t("review.badge_single_room"), cls: "evcc-review-badge--neutral" });
     if (job?.is_multi_room === true) badges.push({ text: this.t("review.badge_multi_room"), cls: "evcc-review-badge--neutral" });
@@ -494,6 +499,9 @@ export function applyReviewRenderers(proto) {
 
         <div class="evcc-review-job-grid">
           ${this._renderReviewKeyValue(this.t("review.kv_rooms"), roomDisplay)}
+          ${Number.isFinite(Number(job?.cleaning_area_m2)) && Number(job.cleaning_area_m2) > 0
+            ? this._renderReviewKeyValue(this.t("review.kv_area"), this.t("review.detail_area_m2", { value: Number(job.cleaning_area_m2).toFixed(1).replace(/\.0$/, "") }))
+            : ""}
           ${this._renderReviewKeyValue(this.t("review.kv_scope"), scopeDisplay)}
           ${this._renderReviewKeyValue(this.t("review.kv_profile"), profileDisplay, profileSubtitle)}
           ${this._renderReviewKeyValue(this.t("review.kv_used_for_learning"), job?.used_for_learning === true ? this.t("common.yes") : this.t("common.no"))}

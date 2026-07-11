@@ -1592,11 +1592,13 @@
   },
   "review": {
     "badge_excluded": "Excluded",
+    "badge_external": "External",  // Job badge: run was captured externally (started outside HA / on the robot); its own flag, NOT a sanity or learning verdict
     "badge_multi_room": "Multi Room",  // Job badge: run covered multiple rooms ('Multi-room'); pairs with Single Room
     "badge_recharge": "Recharge",  // Job badge: robot recharged mid-run, not a battery level
     "badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
     "badge_single_room": "Single Room",
     "badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning
+    "detail_area_m2": "{value} m²",  // Job value: floor area cleaned this run, '{value}' = square metres (e.g. '15 m²')
     "detail_battery": "Battery {value}",  // Job stat: battery percent consumed by the run, '{value}' is a %
     "detail_minutes": "{value} min",  // Job-card stat: run duration; '{value}' = whole minutes (e.g. '12 min')
     "detail_outlier": "Outlier {value}",  // Job stat: statistical outlier score {value}, how anomalous the run is
@@ -1614,6 +1616,7 @@
     "filter_status": "Status",
     "filters_subtitle": "Narrow to room, profile, status, or learning use.",
     "filters_title": "Filters",
+    "kv_area": "Area Cleaned",  // Job-card field: floor area cleaned this run (m²); aids the human include/exclude call
     "kv_primary_room": "Primary Room",  // Job-card field: the main/first room of a multi-room run
     "kv_profile": "Profile",
     "kv_rooms": "Rooms",
