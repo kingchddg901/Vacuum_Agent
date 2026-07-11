@@ -3475,6 +3475,14 @@ class EufyVacuumManager:
             "status_summary": job_control.get("status_summary") or job_progress.get("status_summary"),
             "attention_summary": upkeep.get("attention_summary"),
             "planned_job_estimate": planned_job_estimate,
+            # Learning-processing toggle state for the card: the box-level flag, this
+            # vacuum's collected-but-unprocessed run count, and whether a last estimate
+            # exists (so the card shows "N pending" vs "‹last estimate› · N new pending").
+            "learning_processing": {
+                "enabled": self.learning_processing_enabled,
+                "pending_runs": self.get_learning_pending_runs(vacuum_entity_id),
+                "has_last_estimate": self._learning_has_last_estimate(vacuum_entity_id),
+            },
             "job_progress": job_progress,
             "job_control": job_control,
             "start_status": start_status,
@@ -3667,6 +3675,18 @@ class EufyVacuumManager:
     def get_learning_pending_runs(self, vacuum_entity_id: str) -> int:
         """Runs collected-but-not-yet-processed for a vacuum (0 when caught up)."""
         return int(self.data.get("learning_pending_runs", {}).get(vacuum_entity_id, 0) or 0)
+
+    def _learning_has_last_estimate(self, vacuum_entity_id: str) -> bool:
+        """True if the vacuum has computed learning stats — a last estimate to show even
+        while processing is off (persisted stats survive; only the cache is invalidated).
+        False when nothing's been processed yet -> the card shows 'not computed yet'."""
+        learning = self._get_learning_manager()
+        if learning is None:
+            return False
+        try:
+            return bool(learning.store.load_job_stats(vacuum_entity_id=vacuum_entity_id))
+        except Exception:  # pragma: no cover - defensive
+            return False
 
     async def async_process_pending_learning(self) -> dict[str, Any]:
         """Catch-up: rebuild learned stats for every managed vacuum from FULL history

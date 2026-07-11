@@ -120,3 +120,16 @@ async def test_process_pending_runs_stays_off(manager, monkeypatch):
     assert stub.rebuilt == [vac]
     assert manager.get_learning_pending_runs(vac) == 0
     assert manager.learning_processing_enabled is False  # still off
+
+
+async def test_dashboard_snapshot_exposes_learning_processing(manager):
+    """[LP-7] The snapshot carries the toggle state + pending count for the card."""
+    vac, mp = "vacuum.alfred", "6"
+    manager.data["learning_processing_enabled"] = False
+    manager._bump_learning_pending(vac)
+    manager._bump_learning_pending(vac)
+    snap = manager.get_dashboard_snapshot(vacuum_entity_id=vac, map_id=mp)
+    lp = snap["learning_processing"]
+    assert lp["enabled"] is False
+    assert lp["pending_runs"] == 2
+    assert lp["has_last_estimate"] is False  # no learning manager in the fixture
