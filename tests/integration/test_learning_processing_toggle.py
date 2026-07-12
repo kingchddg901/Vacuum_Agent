@@ -4,6 +4,10 @@
 [LP-2] pending-run counter: bump / reset / get.
 [LP-3] finalize gating: toggle ON -> rebuild_stats True passed to learning + pending
        stays 0; toggle OFF -> rebuild_stats False (collect-only) + pending increments.
+[LP-4] toggle OFF just stops rebuilds — no catch-up, pending stays.
+[LP-5] toggle ON from OFF runs the catch-up (pending cleared) + resumes on.
+[LP-6] the button-triggered catch-up clears pending but leaves the toggle off.
+[LP-7] the dashboard snapshot carries the toggle state + pending count for the card.
 """
 
 from __future__ import annotations

@@ -21,6 +21,9 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-13] TWO non-consecutive charges -> two separate charge phases (multiple charges per run).
 [CW-14] _build_steps_phases tolerates a malformed room_id in a group (safe-int + filter) — a
         bad value is skipped, never crashes the dispatch (Defect #6b, belt-and-suspenders).
+[WA-1] a wait step becomes a wait phase between cleans (dock + hold X min).
+[WA-2] leading/trailing waits dropped; consecutive DIFFERENT breaks (charge + wait) both kept; only same-type collapse.
+[WA-3] the wait phase advances to the next phase once its minutes elapse.
 """
 
 from __future__ import annotations

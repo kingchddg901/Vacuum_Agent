@@ -14,6 +14,7 @@ Coverage targets
 [SRN-9]  delete_run_profile removes the profile from the library.
 [SRN-10] delete_run_profile raises ServiceValidationError for unknown profile_id.
 [SRN-11] a manager-layer failure surfaces to the caller as HomeAssistantError.
+[SRN-12] set_run_profile_steps stores a room->charge->room sequence via the service.
 """
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
-"""Unit tests for mapping/tracker.py — pure _RoomConfidenceState + the
-file-backed MappingTracker helpers (mock hass with tmp_path config_dir).
+"""Unit tests for mapping/tracker.py — the pure _RoomConfidenceState machine
+(mock hass with tmp_path config_dir).
 
 The position-listener wiring (register_vacuum / state-change events) needs a
 real hass and is left to integration; everything here is deterministic.
@@ -11,15 +11,6 @@ Coverage targets
 [MT-3]  update: movement below threshold does not increment.
 [MT-4]  update: confidence = time_factor * move_factor (saturates at 1.0).
 [MT-5]  reset_job: clears fired_rooms and all counters.
-[MT-6]  _samples_tmp_path: sanitizes the vacuum slug.
-[MT-7]  flush + load round-trips active samples.
-[MT-8]  _load_samples_from_disk: map_id mismatch → None.
-[MT-9]  _load_samples_from_disk: missing file → None.
-[MT-10] _delete_samples_tmp_file: removes the temp file.
-[MT-11] _raw_samples_path: slug suffix included when provided.
-[MT-15] update_raw_samples_exclusion: flips the flag; False on no-match/empty id.
-[MT-16] rebuild_room_bounds_from_archive: no archive → no_archive; else delegates.
-[MT-17] end_job multi-room: attributes each sample to its containing room, archives only rooms above the min-runs gate.
 """
 
 from __future__ import annotations

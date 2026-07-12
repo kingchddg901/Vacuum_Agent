@@ -1,24 +1,11 @@
 """Integration tests for the non-segment mapping service handlers.
 
-These are thin wrappers over already-tested RoomBoundsStore methods; calling
-them through the service registry covers the handler closures registered by
-async_register_mapping_services.
+These call the surviving map-image / rotation / overlay / render service
+handlers through the service registry, covering the handler closures
+registered by async_register_mapping_services.
 
 Coverage targets
 ----------------
-[MSV-1]  get_mapping_state / get_mapping_package return dicts.
-[MSV-2]  get_room_bounds_snapshot returns available=True.
-[MSV-3]  boundary trace: start → cancel.
-[MSV-4]  close_room_boundary with no samples → no_trace_samples.
-[MSV-5]  set_dock_room persists the room id.
-[MSV-6]  set_dock_anchor (vacuum docked) saves the pixel anchor.
-[MSV-7]  trace capture: start → stop.
-[MSV-8]  cancel_trace_capture with no session → cancelled=False.
-[MSV-9]  append_mapping_trace_evidence grows the package list.
-[MSV-10] save_mapping_package persists a package.
-[MSV-11] review_trace_run with a missing run → error.
-[MSV-12] clear_room_bounds on an unknown room → room_not_found.
-[MSV-13] exclude_room_job_bounds on an unknown room → room_not_found.
 [MSV-14] delete_map_image when the PNG is already gone → record still dropped.
 [MSV-15] set_live_map_rotation stores the display rotation on the map bucket.
 [MSV-16] set_map_overlay_visibility persists only the user's deltas (not the resolved map), merges them over the defaults at read time, merges successive partial calls, rejects unknown layers, and resets cleanly back to defaults.

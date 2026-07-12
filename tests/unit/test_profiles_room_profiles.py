@@ -18,6 +18,8 @@ Coverage targets
 [RP-14] apply_capability_gate adds capability_gated=True.
 [RP-15] resolve_profile_name_for_constraints maps carpet + mop profiles to vacuum equivalents.
 [RP-16] legacy profile names are resolved via LEGACY_PROFILE_ALIASES.
+[RP-17] _normalize_floor_type: granite + concrete are canonical settable floor types (not coerced).
+[RP-18] apply_room_profile_to_config fills omitted fields from the adapter catalog's normalize_defaults, not the in-code Eufy defaults.
 """
 
 from __future__ import annotations

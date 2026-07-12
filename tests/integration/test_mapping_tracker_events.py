@@ -11,7 +11,6 @@ Coverage targets
 [MTE-4]  pause_sampling / resume_sampling toggle the paused set.
 [MTE-8]  a native-target room change past the confidence threshold fires eufy_vacuum_room_completed.
 [MTE-9]  _get_raw_position reads capability/state; all None branches + numeric success.
-[MTE-10b] dock anchor left None on a mid-job restart (recovered samples).
 [MTE-11] dock-drift log: docked+no-job readings logged with deltas; dup/non-docked skipped.
 """
 

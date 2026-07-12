@@ -20,6 +20,8 @@ Mixed-batch safe water (mixed_mode_water_policy="safest"):
 [GPC-8] the safest marker does NOT touch a fan_speed entry (suction stays max-wins).
 [GPC-9] chosen "off" but the target select has no "off" option -> lower to the select's
         minimum available option (never leave a prior HIGH value).
+[GPC-10] a vacuum-only room with NO water_level field still forces the safe 'off' — the
+        presence of a dry room is the signal, not the min of DECLARED levels.
 """
 
 from __future__ import annotations

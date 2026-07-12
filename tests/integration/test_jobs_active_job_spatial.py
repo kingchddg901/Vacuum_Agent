@@ -8,8 +8,6 @@ the full detection stack; the rollover paths use a seeded active job.
 Coverage targets
 ----------------
 [AJS-1]  _get_robot_position: reads x/y sensors; None on missing/non-numeric.
-[AJS-2]  _robot_outside_room_bounds: inside → False, outside → True, no manager → None.
-[AJS-3]  _detect_transition_room_from_position: None guards.
 [AJS-4]  _maybe_roll_current_room_by_timing: slow-room rollover fires EVENT_ROOM_FINISHED.
 [AJS-5]  _maybe_roll_current_room_by_timing: fast-room (_pending_fast_rollover) fires.
 [AJS-6]  _maybe_roll_current_room_by_timing: not-started / last-room → no-op.
@@ -21,7 +19,6 @@ Coverage targets
 [AJS-12] _maybe_roll_current_room_by_timing: short flat-area pass-turn blip is not a boundary → no roll.
 [AJS-13] _maybe_roll_current_room_by_timing: fast-path pending signal for a DIFFERENT room (stale) → no roll, signal kept.
 [AJS-14] _maybe_roll_current_room_by_timing: fast-path matching signal below the elapsed floor (90s) → no roll, signal kept.
-[AJS-15] _maybe_roll_current_room_by_timing: slow-path position-lock-reliable + robot inside bounds → veto (future-adapter guard).
 [AJS-16] _access_graph_path: BFS visited-guard skips an already-seen neighbor (diamond/cycle protection).
 """
 
