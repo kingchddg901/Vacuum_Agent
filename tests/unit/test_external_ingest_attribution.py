@@ -398,3 +398,105 @@ def test_stale_area_first_room_rescued_real_capture():
     assert segs[0]["pose_room_id"] == 5 and segs[0]["pose_confidence"] == "presence"
     # ... segment 1 = Dining, swept-area confirmed.
     assert segs[1]["pose_room_id"] == 8 and segs[1]["pose_confidence"] == "cleaned"
+
+
+# =============================================================================
+# W1 follow-through: the NATIVE current_room sample shape (Roborock — anchor=None).
+#
+# W1 generalized the pose sampler so a brand that publishes its live room as a NAME entity
+# (Roborock) buffers samples with NO pixel anchor and a CUMULATIVE cleaning_area. These lock
+# that the shape flows END-TO-END through the SAME stand-alone path Roborock always takes: its
+# job-segmenter is `noop_job_fallback`, so counter segmentation finds nothing and every external
+# run lands in build_attributed_job. The clean decision is the engine's ROBUST (swept-area) mode
+# — pose-free — so anchors are never needed. vacuum_entity_id=None resolves the Eufy fallback
+# engine = eufy_anchor_winding_v1, the exact engine Roborock declares (only the robust-mode-
+# irrelevant dwell/interval tuning differs), so this is a faithful shape test. Models the
+# recorder-verified Ivy runs (reference_roborock_ivy_signals).
+# =============================================================================
+
+_ROOMS_IVY = {
+    "1": {"slug": "living_room", "name": "Living Room", "floor_type": "hardwood", "clean_mode": "vacuum"},
+    "2": {"slug": "cat_room", "name": "Cat Room", "floor_type": "carpet", "clean_mode": "vacuum"},
+    "3": {"slug": "hallway", "name": "Hallway", "floor_type": "hardwood", "clean_mode": "vacuum"},
+    "4": {"slug": "dining_room", "name": "Dining Room", "floor_type": "hardwood", "clean_mode": "vacuum"},
+}
+
+
+def _native(rid, start_sec: int, n: int, ca0: float, ca_step: float, interval: int = 5) -> list[dict]:
+    """A Roborock-shape sample run: NO anchor (native current_room source, not a pixel pose) +
+    cumulative cleaning_area (rises by ca_step/tick when cleaning, ca_step=0 when transit/parked).
+    A parked/docked tick carries current_room=None (the sampler nulls it off task_status)."""
+    return [
+        {"t": _pose_t(start_sec + interval * i), "current_room": rid, "anchor": None,
+         "cleaning_area": round(ca0 + i * ca_step, 3)}
+        for i in range(n)
+    ]
+
+
+def test_native_multiroom_stand_alone_ivy_shape():
+    """Ivy multi-room external run in native shape: dock(None) + Living-Room transit excluded;
+    Cat (swept 3.1) + Hallway (swept 5.8) cleaned; areas from swept-area, identity pre-filled as
+    shortlist[0]. Proves W1's native_current_room samples produce a correct pose-only record with
+    NO anchors anywhere in the stream."""
+    pose = (
+        _native(None, 0, 3, 0.0, 0.0)     # parked at dock: current_room nulled, ca flat
+        + _native(1, 15, 3, 0.0, 0.0)     # Living Room transit: ca flat -> swept 0 -> excluded
+        + _native(2, 30, 5, 0.0, 0.775)   # Cat cleaned: ca 0.0 -> 3.1
+        + _native(3, 55, 6, 3.1, 1.16)    # Hallway cleaned: ca 3.1 -> 8.9 (delta 5.8)
+        + _native(None, 85, 3, 8.9, 0.0)  # returned/docked: None, ca flat
+    )
+    assert all(s["anchor"] is None for s in pose)  # sanity: this IS the anchor-free shape
+    rec = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=[], settings_samples=[], rooms=_ROOMS_IVY, baselines=[],
+        vacuum_entity_id=None, pose_samples=pose,
+    )
+    assert rec is not None
+    assert rec["source"] == "pose_attribution" and rec["attribution_mode"] == "robust"
+    by_room = {s["pose_room_id"]: s for s in rec["segments"]}
+    assert set(by_room) == {2, 3}  # Cat + Hallway; Living-Room transit + dock(None) excluded
+    assert by_room[2]["area_m2"] == 3.1
+    assert by_room[3]["area_m2"] == 5.8
+    assert all(s["shortlist"][0]["room_id"] == s["pose_room_id"] for s in rec["segments"])
+
+
+def test_native_revisited_room_area_sums():
+    """A room transited (flat area) THEN cleaned (rising) in two separate current_room runs: the
+    swept area SUMS across both runs to the real cleaned area, and the room appears ONCE — not
+    double-counted, not dropped. Locks the per-room delta-SUM for Roborock's order-agnostic
+    revisits (the Hallway pattern in the Ivy capture)."""
+    pose = (
+        _native(3, 0, 2, 0.0, 0.0)      # Hallway pass-through (transit): ca flat 0 -> swept 0
+        + _native(2, 10, 4, 0.0, 1.0)   # Cat cleaned elsewhere: ca 0 -> 3.0
+        + _native(3, 30, 5, 3.0, 1.2)   # Hallway cleaned (revisit): ca 3.0 -> 7.8 (delta 4.8)
+    )
+    rec = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=[], settings_samples=[], rooms=_ROOMS_IVY, baselines=[],
+        vacuum_entity_id=None, pose_samples=pose,
+    )
+    assert rec is not None
+    hall = [s for s in rec["segments"] if s["pose_room_id"] == 3]
+    assert len(hall) == 1            # one Hallway segment, not two
+    assert hall[0]["area_m2"] == 4.8  # 0 (transit run) + 4.8 (clean run), summed
+
+
+def test_native_coarse_area_short_room_undercounted():
+    """KNOWN LIMITATION (characterized, not aspirational): Roborock samples current_room every
+    ~5s but cleaning_area only refreshes ~15s, so a room cleaned in a SHORT visit can carry <2
+    distinct cleaning_area values -> its per-run delta reads 0 -> the swept-area-gated stand-alone
+    builder DROPS it. Recoverable (the raw pose is embedded -> human Exclude/Restore + re-attribute
+    after a finer-area mitigation), but pinned here so that mitigation has a target. Cat is
+    genuinely cleaned yet dropped because its cleaning_area hadn't ticked during the short visit."""
+    pose = (
+        _native(2, 0, 3, 5.0, 0.0)      # Cat: real clean but cleaning_area flat (hadn't refreshed)
+        + _native(3, 15, 6, 5.0, 1.0)   # Hallway: long enough to accrue area 5.0 -> 10.0
+    )
+    rec = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=[], settings_samples=[], rooms=_ROOMS_IVY, baselines=[],
+        vacuum_entity_id=None, pose_samples=pose,
+    )
+    assert rec is not None
+    captured = {s["pose_room_id"] for s in rec["segments"]}
+    assert captured == {3}  # Hallway kept; Cat under-resolved by coarse area -> dropped (the break)
