@@ -520,6 +520,37 @@ def register_roborock_adapter_for_vacuum(
             "engine": "noop_job_fallback",
         },
 
+        "room_attribution": {
+            # Recover WHICH managed rooms an EXTERNAL (app-started) run cleaned. Unlike Eufy
+            # — which raster-looks-up the robot pixel in an on-disk decoded map (source:
+            # live_pose) — Roborock PUBLISHES the live room directly as a NAME sensor
+            # (sensor.<id>_current_room = entities.active_cleaning_target), so
+            # `source: native_current_room` makes the pose sampler read that entity, slugify
+            # the name, and match it to a managed room id (listeners/pose_sampler.py). No
+            # decoded-map pose is decoded here (anchor/heading stay None).
+            #
+            # The engine is brand-AGNOSTIC despite the Eufy-flavoured name: eufy_anchor_winding_v1's
+            # ROBUST clean-vs-transit decision keys on the cleaning_area (swept m²) delta over each
+            # current-room segment, which needs NO pose — the pose-only spread/winding just degrade
+            # to display labelling, which the swept-area path already covers. Recorder-verified on
+            # Ivy (2026-07-11): current_room tracks the live room even on app-started runs and
+            # reverts to the dock room when parked; task_status → charging on dock nulls it (the
+            # dwell/swept-area separate cleaned from transit) — see reference_roborock_ivy_signals.
+            #
+            # DORMANT until the consumption wire (W3): the sampler buffers pose_samples but nothing
+            # attributes them yet. Declared now so the source + engine selection are explicit + validated.
+            "engine": "eufy_anchor_winding_v1",
+            "source": "native_current_room",
+            "tuning": {
+                # current_room re-emits ON CHANGE only, so SAMPLE PERIODICALLY at a cadence fine
+                # enough to resolve dwell (Eufy's fork pose is 2s; Ivy cleaning_area updates ~15s).
+                # dwell_min_ticks × interval_s = 15s minimum hold to count a room.
+                "interval_s": 5.0,
+                "dwell_min_ticks": 3,
+                "swept_area_min_m2": 0.5,
+            },
+        },
+
         "capabilities": {
             # Mops (tank-based). Whether the mop is PROGRAMMATICALLY controllable is
             # per-model: the S6 rejects SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE

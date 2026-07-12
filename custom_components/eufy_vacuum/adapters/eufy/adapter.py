@@ -723,6 +723,12 @@ def register_eufy_adapter_for_vacuum(
             # path-winding, and separates cleaned vs parked-dock by the cleaning_area
             # (swept m²) delta. See docs/dev/eufy-native-transition.md.
             "engine": "eufy_anchor_winding_v1",
+            # Capture path: the fork's decoded-map pixel pose (async_get_map_live_pose)
+            # — the raster-lookup that yields current_room + robot_anchor + heading.
+            # Declared explicitly so the sampler's source dispatch is stated, not inferred;
+            # absent = "live_pose" for back-compat. A brand with only a native current-room
+            # NAME entity declares "native_current_room" instead (see Roborock).
+            "source": "live_pose",
             "tuning": {
                 "wind_transit": 1.5,
                 "dwell_min_ticks": 12,

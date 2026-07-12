@@ -37,13 +37,40 @@ def test_interval_none_without_room_attribution(monkeypatch):
     assert pose_sampler._room_attribution_interval_s("vacuum.alfred") is None
 
 
-def test_has_live_map(monkeypatch):
+def test_source_defaults_to_live_pose(monkeypatch):
+    """Absent source key (block predates it) -> live_pose; explicit values pass through."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config",
+                        lambda vid: {"room_attribution": {"engine": "eufy_anchor_winding_v1"}})
+    assert pose_sampler._room_attribution_source("vacuum.alfred") == "live_pose"
+    monkeypatch.setattr(pose_sampler, "get_adapter_config",
+                        lambda vid: {"room_attribution": {"source": "NATIVE_CURRENT_ROOM"}})
+    assert pose_sampler._room_attribution_source("vacuum.ivy") == "native_current_room"
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", lambda vid: {})
+    assert pose_sampler._room_attribution_source("vacuum.x") == "live_pose"
+
+
+def test_can_sample_live_pose(monkeypatch):
+    """live_pose source gates on a map_state_source.live_pose block."""
     monkeypatch.setattr(pose_sampler, "get_adapter_config",
                         lambda vid: {"map_state_source": {"live_pose": {}}})
-    assert pose_sampler._has_live_map("vacuum.alfred") is True
+    assert pose_sampler._can_sample("vacuum.alfred") is True
     monkeypatch.setattr(pose_sampler, "get_adapter_config",
                         lambda vid: {"map_state_source": {}})
-    assert pose_sampler._has_live_map("vacuum.alfred") is False
+    assert pose_sampler._can_sample("vacuum.alfred") is False
+
+
+def test_can_sample_native_current_room(monkeypatch):
+    """native_current_room source gates on a declared active_cleaning_target entity — NOT on a
+    live_pose map block (Roborock has none)."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config",
+                        lambda vid: {"room_attribution": {"source": "native_current_room"},
+                                     "entities": {"active_cleaning_target": "sensor.ivy_current_room"}})
+    assert pose_sampler._can_sample("vacuum.ivy") is True
+    # source declared but no entity -> cannot sample.
+    monkeypatch.setattr(pose_sampler, "get_adapter_config",
+                        lambda vid: {"room_attribution": {"source": "native_current_room"},
+                                     "entities": {}})
+    assert pose_sampler._can_sample("vacuum.ivy") is False
 
 
 # --- the per-vacuum sample tick ---
@@ -203,3 +230,102 @@ async def test_sample_keeps_active_cleaning_task_status(monkeypatch):
     assert n == 1
     kw = mgr.record_pose_sample.call_args.kwargs
     assert kw["current_room"] == 8 and kw["anchor"] == [0.7, 0.3]
+
+
+# --- W1: native_current_room source (Roborock — the brand publishes the room NAME) ----------
+#
+# No decoded-map pose: the sampler reads entities.active_cleaning_target (a room NAME),
+# slugifies it, and matches it to a MANAGED room id via manager.get_managed_rooms. anchor/heading
+# stay None; docked-gate is the MQTT task_status (Roborock reverts the target to the dock room +
+# task_status -> charging when parked). Fixtures mirror reference_roborock_ivy_signals.
+
+# Roborock's active-run task states (subset — `charging` is deliberately NOT active -> parked).
+_ROBO_ACTIVE = ["segment_cleaning", "segment_mopping", "returning_home", "cleaning", "docking"]
+
+
+def _cfg_native(_vid):
+    return {
+        "room_attribution": {"engine": "eufy_anchor_winding_v1",
+                             "source": "native_current_room", "tuning": {"interval_s": 5.0}},
+        "entities": {"active_cleaning_target": "sensor.ivy_current_room",
+                     "cleaning_area": "sensor.ivy_cleaning_area",
+                     "task_status": "sensor.ivy_status"},
+        "vocabulary": {"active_run_task_states": _ROBO_ACTIVE},
+    }
+
+
+def _mock_manager_native(managed_rooms: dict, *, status="external"):
+    mgr = MagicMock()
+    mgr.get_known_map_ids.return_value = ["6"]
+    mgr.get_active_job.return_value = {"status": status}
+    mgr.get_managed_rooms.return_value = {"rooms": managed_rooms}
+    mgr.record_pose_sample = MagicMock(return_value=True)
+    return mgr
+
+
+async def test_sample_native_records_room_by_name(monkeypatch):
+    """Kitchen (native NAME) -> managed room id 3; anchor/heading None; cleaning_area recorded."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native)
+    mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"},
+                                "5": {"room_id": 5, "name": "Living Room", "slug": "living_room"}})
+    hass = _hass_states({"sensor.ivy_current_room": "Kitchen",
+                         "sensor.ivy_cleaning_area": "3.1",
+                         "sensor.ivy_status": "segment_cleaning"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy")
+    assert n == 1
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["current_room"] == 3
+    assert kw["anchor"] is None and kw["heading"] is None
+    assert kw["cleaning_area"] == 3.1
+
+
+async def test_sample_native_matches_by_name_when_no_slug(monkeypatch):
+    """A managed room with no `slug` key falls back to slugifying its `name` (Cat Room)."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native)
+    mgr = _mock_manager_native({"7": {"room_id": 7, "name": "Cat Room"}})
+    hass = _hass_states({"sensor.ivy_current_room": "Cat Room",
+                         "sensor.ivy_cleaning_area": "3.1",
+                         "sensor.ivy_status": "segment_cleaning"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy")
+    assert n == 1
+    assert mgr.record_pose_sample.call_args.kwargs["current_room"] == 7
+
+
+async def test_sample_native_nulls_when_docked(monkeypatch):
+    """Parked: task_status -> charging (not active) nulls current_room even though the target
+    still reads the dock room (Dining Room). cleaning_area is still recorded."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native)
+    mgr = _mock_manager_native({"2": {"room_id": 2, "name": "Dining Room", "slug": "dining_room"}})
+    hass = _hass_states({"sensor.ivy_current_room": "Dining Room",
+                         "sensor.ivy_cleaning_area": "4.4",
+                         "sensor.ivy_status": "charging"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy")
+    assert n == 1
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["current_room"] is None
+    assert kw["cleaning_area"] == 4.4
+
+
+async def test_sample_native_unmatched_name_records_none(monkeypatch):
+    """A name not among managed rooms (unimported / transit) records current_room=None — NOT a
+    skip. The None marks transit for the engine (splits contiguous room runs)."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native)
+    mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"}})
+    hass = _hass_states({"sensor.ivy_current_room": "Garage",
+                         "sensor.ivy_cleaning_area": "1.0",
+                         "sensor.ivy_status": "segment_cleaning"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy")
+    assert n == 1
+    assert mgr.record_pose_sample.call_args.kwargs["current_room"] is None
+
+
+async def test_sample_native_unavailable_target_records_none(monkeypatch):
+    """An unknown/unavailable current_room entity is a genuine None (transit), still recorded."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native)
+    mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"}})
+    hass = _hass_states({"sensor.ivy_current_room": "unknown",
+                         "sensor.ivy_cleaning_area": "1.0",
+                         "sensor.ivy_status": "segment_cleaning"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy")
+    assert n == 1
+    assert mgr.record_pose_sample.call_args.kwargs["current_room"] is None
