@@ -607,7 +607,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (!Object.values(VIEWS).includes(stored)) return;
     if (stored === VIEWS.MAPPING_ARCHIVE) return; // legacy, always rerouted to Rooms
     // Don't restore a capability-gated tab the active adapter doesn't show
-    // (e.g. a stored Base Station / Map Bounds on a no-dock/no-CV vacuum). If the
+    // (e.g. a stored Base Station on a no-dock vacuum). If the
     // snapshot hasn't loaded yet, isViewAvailable defaults true and the render
     // path's fallback re-corrects once capabilities arrive.
     if (!isViewAvailable(stored, this._state)) return;

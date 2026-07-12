@@ -1350,49 +1350,6 @@
     "zoom_level_aria": "Current zoom level",
     "zoom_out": "Zoom out"
   },
-  "mapping_review": {
-    "badge_n_excluded": {"other":"{count} excluded"},  // plural
-    "badge_no_bounds": "No bounds",  // badge: this room has no accumulated mapping bounds yet
-    "badge_runs_likely": {"one":"{runs} run · Likely","other":"{runs} runs · Likely"},  // plural
-    "badge_runs_samples": "{runs} runs · {samples} samples",  // plural; NUMBER-DODGED: two independent counts ({runs},{samples}) — a single-count selector can't inflect both nouns, so this stays one form
-    "baseline": "Baseline",  // badge for the protected oldest run that anchors bounds, not a metric baseline
-    "clear_all": "Clear All",  // Button: clear ALL accumulated mapping bounds for this one room
-    "clearing": "Clearing…",
-    "dim_height": "h {value}",  // abbreviation: h = height of the bounds box, in map px
-    "dim_width": "w {value}",  // abbreviation: w = width of the bounds box, in map px
-    "exclude": "Exclude",  // Verb button: exclude this RUN from accumulated bounds (not a room from cleaning)
-    "excluded": "Excluded",  // badge: this RUN is excluded from accumulated bounds (not a room excluded from cleaning)
-    "filter": "Filter",  // noun heading above the run-list filter chips (has-bounds / no-bounds / all)
-    "job_pre_migration": "Pre-migration",  // job-id fallback label for runs recorded before a data migration
-    "job_unknown": "Unknown",
-    "loading": "Loading mapping bounds...",
-    "no_active_bounds_archive": "No active bounds — archive available for rebuild.",
-    "ok": "OK",  // outlier-status badge: run is OK / not an outlier, NOT a confirm button
-    "outlier_label": "Outlier: {flags}",
-    "outlier_max_x": "max X",  // outlier flag: run's max-X bound exceeds the others (X = horizontal axis)
-    "outlier_max_y": "max Y",  // outlier flag: run's max-Y bound exceeds the others (Y = vertical axis)
-    "outlier_min_x": "min X",  // outlier flag: run's min-X bound is below the others (X = horizontal axis)
-    "outlier_min_y": "min Y",  // outlier flag: run's min-Y bound is below the others (Y = vertical axis)
-    "rebuild_from_archive": "Rebuild from Archive",
-    "rebuilding": "Rebuilding…",
-    "restore": "Restore",  // Verb button: un-exclude a previously-excluded RUN back into accumulated bounds
-    "room_fallback": "Room {id}",
-    "room_id": "ID {id}",  // label for the room's numeric identifier, e.g. 'ID 5'
-    "run_history": "Run History ({count})",
-    "run_solo": "Run solo to establish bounds.",  // Instruction: run the vacuum on only this room (alone) so bounds can form
-    "samples": "Samples",  // Label: count of position samples that fed this bounds box; domain term, keep short
-    "stat_no_bounds": "No Bounds",
-    "stat_rooms": "Rooms",
-    "stat_total_runs": "Total Runs",
-    "stat_with_bounds": "With Bounds",
-    "subtitle": "Per-run bounds derived from job history. Exclude runs to remove outliers from accumulated bounds.",
-    "title": "Mapping Bounds Review",
-    "unavailable": "Mapping bounds unavailable.",
-    "updated": "Updated",
-    "filter_all_rooms": "All Rooms",
-    "filter_has_bounds": "Has Bounds",
-    "filter_no_bounds": "No Bounds"
-  },
   "metrics": {
     "battery_all_jobs": "All jobs (mixed + single)",  // Drain-table aggregate row label 'All jobs (mixed + single)'; the all-buckets total row
     "battery_area_used": "{area} m² | {pct} % used",  // Detail: '{area} m² | {pct} % used' = area cleaned and battery percent used; '|' divider
@@ -1552,7 +1509,6 @@
     "nav_primary_aria": "Primary",  // aria-label for the primary bottom tab bar; means 'primary navigation'
     "tab_dock": "Dock",  // mobile tab label for the Base Station view; NOT the dock map marker (cf. map.dock)
     "tab_learning_review": "Learning Review",
-    "tab_map_bounds": "Map Bounds",  // UNUSED / PARKED (mapping split) — Overflow-tab label for the removed Map Bounds review view; kept pending the batch i18n prune
     "tab_map_config": "Map Config",
     "tab_room_rules": "Room Rules",
     "tab_rooms": "Rooms",
@@ -1567,7 +1523,6 @@
     "tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
     "tab_learning_review": "Learning Review",  // Nav tab label. 'Learning' = the system's learned per-room timing data (a feature noun, not the act of learning); view reviews those estimates. Keep short.
     "tab_maintenance": "Maintenance",
-    "tab_mapping_review": "Map Bounds",  // UNUSED / PARKED (mapping split) — tab label for the removed Map Bounds review view; kept pending the batch i18n prune
     "tab_metrics": "Metrics",
     "tab_room_rules": "Room Rules",
     "tab_rooms": "Rooms",  // main nav tab opening the Rooms view (queue/clean), not a room count or list header
@@ -1577,7 +1532,6 @@
     "unavailable_learning_review": "Learning review view unavailable",
     "unavailable_maintenance": "Maintenance view unavailable",
     "unavailable_map_config": "Map config unavailable",
-    "unavailable_mapping_review": "Mapping bounds review unavailable",  // UNUSED / PARKED (mapping split) — empty-state for the removed Map Bounds view; kept pending the batch i18n prune
     "unavailable_metrics": "Metrics view unavailable",
     "unavailable_room_rules": "Room rules view unavailable",
     "unavailable_rooms": "Rooms view unavailable",

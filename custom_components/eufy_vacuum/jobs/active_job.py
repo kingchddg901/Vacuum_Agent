@@ -815,14 +815,16 @@ class ActiveJobTracker:
             learned threshold AND the robot has left the room's bounds
             (single-sample bounds check — we already waited for timing).
             Fires ``EVENT_ROOM_FINISHED`` with ``source="timing_rollover"``.
-          - **Fast room**: the mapping tracker's confidence model has
-            decided the robot finished and exited the room (set via the
-            ``_pending_fast_rollover`` flag on active_job — see
-            ``MappingTracker._signal_fast_rollover``). The tracker's
-            time-in-room - movement-count threshold filters doorway
-            transits; we additionally require ``elapsed >=
-            _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER`` as a final floor.
-            Fires ``EVENT_ROOM_FINISHED`` with ``source="bounds_exit_early"``.
+          - **Fast room** (dormant): a producer could set the
+            ``_pending_fast_rollover`` flag on active_job to advance a room
+            before its timing threshold, subject to an ``elapsed >=
+            _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER`` floor, firing
+            ``EVENT_ROOM_FINISHED`` with ``source="bounds_exit_early"``. The
+            original producer (the mapping tracker's coordinate-confidence
+            signal) was removed with the mapping split, so nothing sets the
+            flag in production today; the reader below is retained — and
+            exercised by tests (AJS-5) — as an extension point for a future
+            fast-exit signal.
         """
         if active_job.get("status") != "started":
             return active_job

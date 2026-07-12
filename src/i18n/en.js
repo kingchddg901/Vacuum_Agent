@@ -662,49 +662,6 @@ export const en = {
   "map.zoom_level_aria": "Current zoom level",
   "map.zoom_out": "Zoom out",
 
-  // --- mapping_review — UNUSED / PARKED (mapping split). The Mapping Bounds Review card + view
-  //     were removed (card commit 8c812f0; backend split P1–P6). None of these keys has a live
-  //     consumer anymore; they are kept intentionally so the 7 locale files stay in lockstep with
-  //     en.js, pending a single batch i18n prune. Safe to delete wholesale in that prune. ---
-  "mapping_review.badge_n_excluded": { other: "{count} excluded" },  // plural
-  "mapping_review.badge_no_bounds": "No bounds",  // badge: this room has no accumulated mapping bounds yet
-  "mapping_review.badge_runs_likely": { one: "{runs} run · Likely", other: "{runs} runs · Likely" },  // plural
-  "mapping_review.badge_runs_samples": "{runs} runs · {samples} samples",  // plural; NUMBER-DODGED: two independent counts ({runs},{samples}) — a single-count selector can't inflect both nouns, so this stays one form
-  "mapping_review.baseline": "Baseline",  // badge for the protected oldest run that anchors bounds, not a metric baseline
-  "mapping_review.clear_all": "Clear All",  // Button: clear ALL accumulated mapping bounds for this one room
-  "mapping_review.clearing": "Clearing…",
-  "mapping_review.dim_height": "h {value}",  // abbreviation: h = height of the bounds box, in map px
-  "mapping_review.dim_width": "w {value}",  // abbreviation: w = width of the bounds box, in map px
-  "mapping_review.exclude": "Exclude",  // Verb button: exclude this RUN from accumulated bounds (not a room from cleaning)
-  "mapping_review.excluded": "Excluded",  // badge: this RUN is excluded from accumulated bounds (not a room excluded from cleaning)
-  "mapping_review.filter": "Filter",  // noun heading above the run-list filter chips (has-bounds / no-bounds / all)
-  "mapping_review.job_pre_migration": "Pre-migration",  // job-id fallback label for runs recorded before a data migration
-  "mapping_review.job_unknown": "Unknown",
-  "mapping_review.loading": "Loading mapping bounds...",
-  "mapping_review.no_active_bounds_archive": "No active bounds — archive available for rebuild.",
-  "mapping_review.ok": "OK",  // outlier-status badge: run is OK / not an outlier, NOT a confirm button
-  "mapping_review.outlier_label": "Outlier: {flags}",
-  "mapping_review.outlier_max_x": "max X",  // outlier flag: run's max-X bound exceeds the others (X = horizontal axis)
-  "mapping_review.outlier_max_y": "max Y",  // outlier flag: run's max-Y bound exceeds the others (Y = vertical axis)
-  "mapping_review.outlier_min_x": "min X",  // outlier flag: run's min-X bound is below the others (X = horizontal axis)
-  "mapping_review.outlier_min_y": "min Y",  // outlier flag: run's min-Y bound is below the others (Y = vertical axis)
-  "mapping_review.rebuild_from_archive": "Rebuild from Archive",
-  "mapping_review.rebuilding": "Rebuilding…",
-  "mapping_review.restore": "Restore",  // Verb button: un-exclude a previously-excluded RUN back into accumulated bounds
-  "mapping_review.room_fallback": "Room {id}",
-  "mapping_review.room_id": "ID {id}",  // label for the room's numeric identifier, e.g. 'ID 5'
-  "mapping_review.run_history": "Run History ({count})",
-  "mapping_review.run_solo": "Run solo to establish bounds.",  // Instruction: run the vacuum on only this room (alone) so bounds can form
-  "mapping_review.samples": "Samples",  // Label: count of position samples that fed this bounds box; domain term, keep short
-  "mapping_review.stat_no_bounds": "No Bounds",
-  "mapping_review.stat_rooms": "Rooms",
-  "mapping_review.stat_total_runs": "Total Runs",
-  "mapping_review.stat_with_bounds": "With Bounds",
-  "mapping_review.subtitle": "Per-run bounds derived from job history. Exclude runs to remove outliers from accumulated bounds.",
-  "mapping_review.title": "Mapping Bounds Review",
-  "mapping_review.unavailable": "Mapping bounds unavailable.",
-  "mapping_review.updated": "Updated",
-
   // --- metrics (Stats tab: usage/learning/water/dock/battery analytics) ---
   "metrics.battery_all_jobs": "All jobs (mixed + single)",  // Drain-table aggregate row label 'All jobs (mixed + single)'; the all-buckets total row
   "metrics.battery_area_used": "{area} m² | {pct} % used",  // Detail: '{area} m² | {pct} % used' = area cleaned and battery percent used; '|' divider
@@ -864,7 +821,6 @@ export const en = {
   "mobile.nav_primary_aria": "Primary",  // aria-label for the primary bottom tab bar; means 'primary navigation'
   "mobile.tab_dock": "Dock",  // mobile tab label for the Base Station view; NOT the dock map marker (cf. map.dock)
   "mobile.tab_learning_review": "Learning Review",
-  "mobile.tab_map_bounds": "Map Bounds",  // UNUSED / PARKED (mapping split) — Overflow-tab label for the removed Map Bounds review view; kept pending the batch i18n prune
   "mobile.tab_map_config": "Map Config",
   "mobile.tab_room_rules": "Room Rules",
   "mobile.tab_rooms": "Rooms",
@@ -879,7 +835,6 @@ export const en = {
   "nav.tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
   "nav.tab_learning_review": "Learning Review",  // Nav tab label. 'Learning' = the system's learned per-room timing data (a feature noun, not the act of learning); view reviews those estimates. Keep short.
   "nav.tab_maintenance": "Maintenance",
-  "nav.tab_mapping_review": "Map Bounds",  // UNUSED / PARKED (mapping split) — tab label for the removed Map Bounds review view; kept pending the batch i18n prune
   "nav.tab_metrics": "Metrics",
   "nav.tab_room_rules": "Room Rules",
   "nav.tab_rooms": "Rooms",  // main nav tab opening the Rooms view (queue/clean), not a room count or list header
@@ -889,7 +844,6 @@ export const en = {
   "nav.unavailable_learning_review": "Learning review view unavailable",
   "nav.unavailable_maintenance": "Maintenance view unavailable",
   "nav.unavailable_map_config": "Map config unavailable",
-  "nav.unavailable_mapping_review": "Mapping bounds review unavailable",  // UNUSED / PARKED (mapping split) — empty-state for the removed Map Bounds view; kept pending the batch i18n prune
   "nav.unavailable_metrics": "Metrics view unavailable",
   "nav.unavailable_room_rules": "Room rules view unavailable",
   "nav.unavailable_rooms": "Rooms view unavailable",
@@ -1793,10 +1747,6 @@ export const en = {
   "vocab.reason_code.bad_room_attribution": "Room attribution for this run looks unreliable.",
   "vocab.reason_code.interrupted_run": "This run appears to have been interrupted.",
   "vocab.reason_code.extreme_idle_wall": "Held from learning — an unusually long idle stretch off the dock, so it does not define a room baseline. Restore it if the run was legitimate.",
-  // mapping_review.filter_* — UNUSED / PARKED (mapping split); see the mapping_review block above. Kept pending the batch i18n prune.
-  "mapping_review.filter_all_rooms": "All Rooms",
-  "mapping_review.filter_has_bounds": "Has Bounds",
-  "mapping_review.filter_no_bounds": "No Bounds",
   "setup.panel_name_placeholder": "Vacuum Agent",
   "order_modal.move_item": "Move {label}",
   "order_modal.currently": "Currently",

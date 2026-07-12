@@ -36,7 +36,7 @@ builder — are tested separately with `node --test`; see [CI](#ci).)
 | `shape-marks.spec.mjs` | the six badge marks are distinguishable in flat grayscale at dot size | everywhere |
 | `intake.spec.mjs` | the ingest gate skips malformed / unknown-namespace exports and clamps every value | everywhere |
 | `device-theme.spec.mjs` | per-device theme resolution: the real `VacuumCardState.effectiveActiveThemeId()` fallback chain keeps a device pin through a pre-load, resolves it once the library loads, and clears it only when genuinely stale | everywhere (also re-run in `card-visual` CI) |
-| `tab-gating.spec.mjs` | capability tab gating: `renderHeader` hides the Base Station + Map Bounds nav tabs when `supportsBaseStation()` / `supportsMapBounds()` are false (the S6 case), default-shown otherwise (Eufy-safe) | everywhere |
+| `tab-gating.spec.mjs` | capability tab gating: `renderHeader` hides the Base Station nav tab when `supportsBaseStation()` is false (the S6 no-dock case), default-shown otherwise (Eufy-safe) | everywhere |
 | `i18n-locale.spec.mjs` | the renderers resolve the *user's* language: a tab rendered under a registered foreign catalog switches its strings (the rest of the harness only ever renders English); no-language still renders English | everywhere |
 | `i18n-layout.spec.mjs` | a translated locale must not break the layout — **property**-based, not pixel-pinned: under a pseudo-lengthened catalog assert nothing escapes its box, at desktop @500px and mobile @390px | everywhere |
 

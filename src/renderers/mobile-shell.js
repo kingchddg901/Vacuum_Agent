@@ -31,7 +31,7 @@
  *   Primary (always visible at the bottom):
  *     Rooms, Upkeep (Maintenance), Dock (Base Station), Stats (Metrics)
  *   Overflow (in the "More" sheet):
- *     Learning Review, Room Rules, Theme, Map Config, Map Bounds, Setup
+ *     Learning Review, Room Rules, Theme, Map Config, Setup
  *
  * The split reflects everyday use: Rooms is the daily flow; Upkeep,
  * Dock, and Stats are the next-most-frequent. The rest are config
@@ -218,8 +218,8 @@ export function applyMobileShellRenderer(proto) {
   proto.renderMobileOverlay = function (ctx) {
     if (!ctx.card?._mobileMoreOpen) return "";
     const activeView = ctx.view;
-    // Capability-gate the overflow tabs (e.g. drop "Map Bounds" on a no-CV
-    // adapter) — same source of truth as the desktop header.
+    // Capability-gate the overflow tabs — same source of truth as the desktop
+    // header (defensive: no overflow tab is capability-gated today).
     const overflowTabs = OVERFLOW_MOBILE_TABS.filter((t) => isViewAvailable(t.id, ctx.state));
 
     return `

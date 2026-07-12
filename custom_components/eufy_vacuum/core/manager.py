@@ -3304,19 +3304,20 @@ class EufyVacuumManager:
         _caps_cfg = _adapter_cfg.get("capabilities", {}) or {}
         supports_room_profiles = bool(_caps_cfg.get("supports_room_profiles", True))
 
-        # Tab-gating capability hints (the card hides a whole nav tab when False):
+        # Capability hints surfaced in the dashboard snapshot:
         # - supports_base_station: the vacuum has a dock/Base Station — True when
         #   the adapter declares an enabled dock_events block OR any station/wash/
         #   dry/empty capability. Eufy (X10 dock) True; Roborock S6 (no dock) False.
-        # - supports_map_bounds: the brand uses the CV map-bounds review (per-room
-        #   coordinate bounds). Gated on the STATIC segmenter engine declaration —
-        #   a real (non-noop) engine means this adapter does CV map segmentation
-        #   (Eufy "eufy_cv_v1"); "noop_fallback" means native segments / no CV
-        #   (Roborock). Deliberately NOT gated on the runtime-detected
-        #   supports_robot_position so a detection blip can never hide the tab for
-        #   Eufy — the engine name is hardcoded per adapter, so it's deterministic.
-        # Both default to SHOWN: a snapshot missing the key keeps the tab (Eufy +
-        # older-backend safe); only an adapter that resolves False hides the tab.
+        #   The card hides the Base Station nav tab when this is False.
+        # - supports_map_bounds: whether the brand does CV map segmentation — gated
+        #   on the STATIC segmenter engine declaration (a real non-noop engine,
+        #   Eufy "eufy_cv_v1", vs "noop_fallback" = native segments / no CV,
+        #   Roborock). Deliberately NOT gated on the runtime-detected
+        #   supports_robot_position so a detection blip can't flip it for Eufy.
+        #   NOTE: the Map Bounds review tab this once gated was removed with the
+        #   mapping split — the value is still derived (and tested) as a brand
+        #   capability, but no card surface consumes it today.
+        # Both default to True when the key is absent (Eufy + older-backend safe).
         _dock_events_cfg = _adapter_cfg.get("dock_events", {}) or {}
         supports_base_station = bool(_dock_events_cfg.get("enabled")) or any(
             bool(_caps_cfg.get(_k))

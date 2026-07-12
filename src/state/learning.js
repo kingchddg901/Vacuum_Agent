@@ -239,16 +239,6 @@ export function applyLearningState(proto) {
   };
 
   /**
-   * Whether this brand uses the CV map-bounds review (gates the Map Bounds tab).
-   * Default true (Eufy / older backend); false for native-segment brands with no
-   * CV segmenter (Roborock S6).
-   */
-  proto.supportsMapBounds = function () {
-    const v = this.dashboardSnapshot()?.supports_map_bounds;
-    return v === undefined || v === null ? true : Boolean(v);
-  };
-
-  /**
    * Whether the provider accepts an ad-hoc free-form zone clean (draw a box on
    * the live map → clean it). Unlike the other supports_* getters this defaults
    * to FALSE when absent: zone clean is a new, opt-in capability that only the

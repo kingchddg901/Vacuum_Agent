@@ -802,9 +802,12 @@ def register_eufy_adapter_for_vacuum(
             "zone_min_side_m": 0.5,
             "zone_max_side_m": 10.0,
             # Eufy firmware re-bases the raw coordinate frame every session, so
-            # cross-session bounds geometry is unusable for room detection. The
-            # room detector only trusts position/bounds when this is True (core
-            # stays neutral); a brand with a stable localization lock can set True.
+            # cross-session bounds geometry is unusable for room detection. Declares
+            # whether the brand's localization is stable enough to trust position/
+            # bounds cross-session. Retained as a capability against a possible
+            # trace-bounds revival — the position/bounds room detector it once gated
+            # was removed with the mapping split, so no code reads this today. A
+            # brand with a stable localization lock can set True.
             "position_lock_reliable": False,
             # Eufy has no "vacuum-then-mop" whole-home mode, so a room is cleaned
             # at most once per job → external-run room picks are unique per job
