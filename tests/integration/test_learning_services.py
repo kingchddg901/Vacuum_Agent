@@ -117,6 +117,7 @@ def _seed_completed_job(
     started_at: str = "2026-01-01T09:00:00+00:00",
     ended_at: str = "2026-01-01T09:30:00+00:00",
     origin: str | None = None,
+    room_timings: list[dict] | None = None,
 ) -> dict:
     """Seed a minimal completed job directly via LearningHistoryStore."""
     if room_slugs is None:
@@ -141,6 +142,7 @@ def _seed_completed_job(
             "ended_at": ended_at,
             "duration_minutes": duration_minutes,
             "room_count": len(rooms),
+            **({"room_timings": room_timings} if room_timings is not None else {}),
         },
         "battery": {"start": 85, "end": 60, "used": 25},
         "water": {},
@@ -2196,6 +2198,32 @@ async def test_history_snapshot_rebuilds_old_format_index(hass, learning_service
     rebuilt = store.load_jobs_index(vacuum_entity_id=_VAC) or {}
     jobs = rebuilt.get("jobs", [])
     assert jobs and isinstance(jobs[0], dict) and "status" in jobs[0]
+
+
+async def test_history_snapshot_backfills_area_on_stale_index(hass, learning_services):
+    """RETROACTIVE fix: an index with status+origin but predating has_attribution_disagreement is
+    STALE (the origin-only self-heal wouldn't fire), so the snapshot rebuilds it and back-fills the
+    external multi-room Area SUM + the flag on EXISTING runs. Regression for 'was the area fix only
+    going forward' — it's retroactive on the next snapshot after a restart, no manual rebuild."""
+    _seed_completed_job(
+        hass, _VAC, "j-ext-area", room_slugs=["kitchen", "dining_room"], origin="external",
+        room_timings=[{"room_id": 1, "slug": "kitchen", "area_m2": 4.0},
+                      {"room_id": 2, "slug": "dining_room", "area_m2": 6.0}],
+    )
+    store = LearningHistoryStore(hass)
+    # Stale index: status+origin present (old self-heal would treat it as new format), but no
+    # has_attribution_disagreement and a null area — the exact pre-fix external state on disk.
+    store.save_jobs_index(vacuum_entity_id=_VAC, payload={"jobs": [
+        {"job_id": "j-ext-area", "status": "completed", "origin": "external", "cleaning_area_m2": None},
+    ]})
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    entry = next(j for j in result.get("jobs", []) if j.get("job_id") == "j-ext-area")
+    assert entry["cleaning_area_m2"] == 10.0            # 4 + 6, summed from room_timings on rebuild
+    assert entry["has_attribution_disagreement"] is False
 
 
 # ---------------------------------------------------------------------------

@@ -813,16 +813,23 @@ class LearningManager:
         accuracy_stats = self.store.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id) or {}
         archived_jobs = self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id)
         _index_jobs = jobs_index.get("jobs", [])
-        # Require "status" (rich vs the compact room-history shape) AND "origin"
-        # (added for the external-run badge + area cell) so an index built before
-        # those fields self-heals via ONE rebuild on the next snapshot — this is how
-        # OLD graduated external runs shed their stale "Sanity Failed" flag.
+        # New-format markers: an index missing ANY of these is stale and gets rebuilt ONCE on
+        # the next snapshot — so existing runs retroactively pick up card fields added since the
+        # index was last built (no manual "Process pending runs" needed). Each key was added by
+        # a different change; keying on ALL of them means EVERY such upgrade self-heals:
+        #   - "status": rich shape vs the compact room-history shape.
+        #   - "origin": external-run badge + the Area-Cleaned cell (also sheds a stale "Sanity
+        #     Failed" flag on old graduated external runs).
+        #   - "has_attribution_disagreement": the dispatched Room-Mismatch badge AND the external
+        #     multi-room area SUM fallback (build_jobs_index_payload) — an index that predates
+        #     this key also predates that area fallback, so requiring it back-fills BOTH.
         _index_is_new_format = (
             isinstance(_index_jobs, list)
             and bool(_index_jobs)
             and isinstance(_index_jobs[0], dict)
             and "status" in _index_jobs[0]
             and "origin" in _index_jobs[0]
+            and "has_attribution_disagreement" in _index_jobs[0]
         )
         if archived_jobs and not _index_is_new_format:
             try:
