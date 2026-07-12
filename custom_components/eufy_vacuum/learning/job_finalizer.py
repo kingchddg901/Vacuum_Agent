@@ -833,6 +833,10 @@ class LearningJobFinalizer:
                     _job["total_error_seconds"] = total_error_seconds
             if inputs.get("cleaning_area_m2") is not None:
                 _job["cleaning_area_m2"] = inputs["cleaning_area_m2"]
+                # For a dispatched run the job-level cleaning_area_m2 IS the device's own sensor
+                # total; expose it as the sanity bound too (external runs stamp their own from the
+                # pose peak). Lets build_jobs_index_payload derive area_over_attributed uniformly.
+                _job["cleaning_area_sensor_m2"] = inputs["cleaning_area_m2"]
 
             # Observed run overhead (entry / inter-room / return / recharge),
             # derived from the now-final cleaning_time_seconds. Retroactive-safe

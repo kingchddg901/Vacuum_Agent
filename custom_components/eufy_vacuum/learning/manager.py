@@ -823,6 +823,7 @@ class LearningManager:
         #   - "has_attribution_disagreement": the dispatched Room-Mismatch badge AND the external
         #     multi-room area SUM fallback (build_jobs_index_payload) — an index that predates
         #     this key also predates that area fallback, so requiring it back-fills BOTH.
+        #   - "area_over_attributed": the cleaning_area sensor-total sanity fields.
         _index_is_new_format = (
             isinstance(_index_jobs, list)
             and bool(_index_jobs)
@@ -830,6 +831,7 @@ class LearningManager:
             and "status" in _index_jobs[0]
             and "origin" in _index_jobs[0]
             and "has_attribution_disagreement" in _index_jobs[0]
+            and "area_over_attributed" in _index_jobs[0]
         )
         if archived_jobs and not _index_is_new_format:
             try:

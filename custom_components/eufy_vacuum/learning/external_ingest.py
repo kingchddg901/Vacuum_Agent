@@ -555,6 +555,21 @@ def reconcile_dispatched_identity(
     return "robust"
 
 
+def _max_cleaning_area_m2(*sample_lists: Any) -> float | None:
+    """The device's own run total: the PEAK cleaning_area across the captured sample stream(s)
+    (already normalized to m² at capture). Independent of the per-room attribution, so it is the
+    sanity BOUND the attributed sum is checked against (learning/utils.area_sanity). ``None`` when
+    no sample carried cleaning_area."""
+    vals = [
+        _safe_float(s.get("cleaning_area"), None)
+        for samples in sample_lists
+        for s in (samples or [])
+        if isinstance(s, dict)
+    ]
+    vals = [v for v in vals if v is not None]
+    return round(max(vals), 2) if vals else None
+
+
 def build_attributed_job(
     *,
     detection_ts: str | None,
@@ -657,6 +672,9 @@ def build_attributed_job(
         # (the pose-path sibling of counter re-segmentation). Stripped before serving to the
         # card. Bounded by _MAX_POSE_SAMPLES (active_job.py).
         "pose_samples": list(pose_samples or []),
+        # Device's own run total (peak cleaning_area, m²) — the independent sanity bound the
+        # attributed per-room sum is checked against downstream (build_jobs_index_payload).
+        "cleaning_area_sensor_m2": _max_cleaning_area_m2(pose_samples),
         "segments": segments,
     }
 
@@ -757,6 +775,9 @@ def build_pending_record(
         # server-side after an engine fix — the pose-path sibling of counter re-segmentation.
         # Stripped before serving to the card. Bounded by _MAX_POSE_SAMPLES (active_job.py).
         "pose_samples": list(pose_samples or []),
+        # Device's own run total (peak cleaning_area, m²) — the sanity bound for the attributed
+        # sum (build_jobs_index_payload). From either stream since both carry the same sensor.
+        "cleaning_area_sensor_m2": _max_cleaning_area_m2(pose_samples, counter),
         "segments": out_segments,
     }
 
@@ -993,6 +1014,9 @@ def build_graduated_job(
             # The per-room area/timing capture IS valid (this gates the rebuilder's
             # use of room_timings); external runs just emit no transit edges.
             "transit_capture_valid": True,
+            # Carry the device's own run total (m²) so the review row can sanity-check the
+            # attributed room_timings sum against it (build_jobs_index_payload).
+            "cleaning_area_sensor_m2": _safe_float(pending_record.get("cleaning_area_sensor_m2"), None),
         },
         "job_profile": {
             "map_id": map_id,

@@ -489,6 +489,22 @@ def test_jobs_index_area_none_when_no_area_anywhere(tmp_path):
     assert _index_entry(rebuilder, job)["cleaning_area_m2"] is None
 
 
+def test_jobs_index_area_sanity_fields(tmp_path):
+    """The index carries cleaning_area_sensor_m2 + derives area_over_attributed (attributed
+    room_timings sum vs the device's sensor total). ok when sum ≤ sensor; alarm when sum >> it."""
+    rebuilder = _make_rebuilder(tmp_path)
+    ok = _job(job_id="ok", room_slugs=["kitchen", "hall"],
+              room_timings=[{"room_id": 1, "area_m2": 1.0}, {"room_id": 2, "area_m2": 5.0}])
+    ok["job"]["cleaning_area_sensor_m2"] = 6.0  # attributed 6.0 == sensor 6.0
+    e = _index_entry(rebuilder, ok)
+    assert e["cleaning_area_sensor_m2"] == 6.0 and e["area_over_attributed"] is False
+
+    over = _job(job_id="over", room_slugs=["kitchen"],
+                room_timings=[{"room_id": 1, "area_m2": 10.0}])
+    over["job"]["cleaning_area_sensor_m2"] = 7.0  # attributed 10 > 7*1.1 → alarm
+    assert _index_entry(rebuilder, over)["area_over_attributed"] is True
+
+
 def test_jobs_index_passes_attribution_disagreement(tmp_path):
     """has_attribution_disagreement rides from the completed_job's job block to the review row
     (so the card can badge a dispatched run whose pose disagreed with the positional assignment)."""

@@ -188,6 +188,23 @@ def test_build_attributed_job_stands_up_pose_only_record():
     assert len(rec["pose_samples"]) == len(pose)  # raw pose embedded for re-attribution
 
 
+def test_build_attributed_job_stamps_sensor_total():
+    """cleaning_area_sensor_m2 = the PEAK cleaning_area across the pose stream (the device's own
+    run total), independent of the per-room swept attribution — the sanity bound the sum is
+    checked against. Peak, not last."""
+    attribution = {
+        "cleaned": {5}, "mode": "robust", "interval_s": 2.0,
+        "per_room": {5: {"swept_area_m2": 3.0}}, "verdicts": {},
+    }
+    pose = [{"t": _pose_t(s), "current_room": 5, "cleaning_area": c}
+            for s, c in [(0, 0.0), (2, 1.5), (4, 3.0), (6, 2.5)]]
+    rec = build_attributed_job(
+        detection_ts=_BASE.isoformat(), map_id="6", pose_samples=pose,
+        attribution=attribution, settings_samples=[], rooms=_ROOMS, baselines=[],
+    )
+    assert rec["cleaning_area_sensor_m2"] == 3.0  # peak, not last (2.5)
+
+
 def test_build_attributed_job_none_when_nothing_cleaned():
     assert build_attributed_job(
         detection_ts="x", map_id="6", pose_samples=[{"t": _pose_t(0), "current_room": 8}],

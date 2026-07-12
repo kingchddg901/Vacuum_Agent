@@ -55,6 +55,31 @@ def cleaning_area_to_m2(value: Any, unit: Any = None) -> float | None:
     return v * factor if factor is not None else v
 
 
+# Attributed per-room area can legitimately fall SHORT of the device's cleaning_area sensor total
+# (the gap = transit/approach that accrued but belongs to no cleaned room — validated live: Ivy
+# 7.0 attributed vs 8.5 sensor). But it must never MEANINGFULLY EXCEED it — attributed > sensor is
+# double-counting (e.g. a non-monotonic counter). 10% covers rounding/cadence jitter.
+AREA_OVER_ATTRIBUTION_TOLERANCE = 0.10
+
+
+def area_sanity(attributed_m2: Any, sensor_m2: Any, tolerance: float = AREA_OVER_ATTRIBUTION_TOLERANCE) -> dict | None:
+    """Sanity-check the attributed per-room area SUM against the device's own cleaning_area sensor
+    total (both m²). Returns ``{attributed_m2, sensor_m2, coverage_ratio, over_attributed}`` or
+    ``None`` when there is no usable sensor total to check against. ``over_attributed`` is the
+    alarm: attributed exceeds the sensor total by more than ``tolerance`` (the sensor total is an
+    upper bound, so this can only mean double-counting)."""
+    a = _safe_float(attributed_m2, None) if attributed_m2 is not None else None
+    s = _safe_float(sensor_m2, None) if sensor_m2 is not None else None
+    if a is None or s is None or s <= 0:
+        return None
+    return {
+        "attributed_m2": round(a, 2),
+        "sensor_m2": round(s, 2),
+        "coverage_ratio": round(a / s, 3),
+        "over_attributed": a > s * (1.0 + tolerance),
+    }
+
+
 def _safe_bool(value: Any, default: bool = False) -> bool:
     """Return bool value safely, handling string representations."""
     if isinstance(value, bool):

@@ -54,6 +54,7 @@ from .utils import (
     _safe_bool,
     _safe_float,
     _safe_int,
+    area_sanity,
     compute_overhead_observed,
 )
 
@@ -853,15 +854,20 @@ class LearningStatsRebuilder:
             # sensor — so they carry only per-room room_timings[].area_m2. Fall back to
             # summing those so external runs (single AND multi-room) also show an area.
             cleaning_area_m2 = _safe_float(job_info.get("cleaning_area_m2"), None)
+            _timings = job_info.get("room_timings")
+            _attributed_sum = (
+                sum(_safe_float(t.get("area_m2"), 0.0) for t in _timings if isinstance(t, dict))
+                if isinstance(_timings, list) else 0.0
+            )
             if cleaning_area_m2 is None:
-                _timings = job_info.get("room_timings")
-                if isinstance(_timings, list) and _timings:
-                    _area_sum = sum(
-                        _safe_float(t.get("area_m2"), 0.0)
-                        for t in _timings
-                        if isinstance(t, dict)
-                    )
-                    cleaning_area_m2 = _area_sum if _area_sum > 0 else None
+                cleaning_area_m2 = _attributed_sum if _attributed_sum > 0 else None
+
+            # Sanity: the attributed per-room area SUM vs the device's own cleaning_area sensor
+            # total (dispatched: the sensor read; external: the pose/counter peak). over_attributed
+            # = the sum exceeds that total by > tolerance = double-counting (the sensor is an upper
+            # bound; the normal gap is transit). Validated live: Ivy 7.0/8.5 ok, Alfred 6.0/6.0 ok.
+            _sensor_total = _safe_float(job_info.get("cleaning_area_sensor_m2"), None)
+            _sanity = area_sanity(_attributed_sum, _sensor_total)
 
             job_entries.append(
                 {
@@ -879,6 +885,9 @@ class LearningStatsRebuilder:
                     # row can surface it without loading the full completed_job record.
                     "has_attribution_disagreement": bool(job_info.get("has_attribution_disagreement", False)),
                     "cleaning_area_m2": round(cleaning_area_m2, 2) if cleaning_area_m2 is not None else None,
+                    # Device's own run total + the over-attribution alarm (attributed sum exceeds it).
+                    "cleaning_area_sensor_m2": round(_sensor_total, 2) if _sensor_total is not None else None,
+                    "area_over_attributed": bool(_sanity["over_attributed"]) if _sanity else False,
                     "used_for_learning": bool(outcome.get("used_for_learning", False)),
                     "sanity_passed": True if is_external else bool(outcome.get("sanity_passed", False)),
                     "battery_used": battery_used,

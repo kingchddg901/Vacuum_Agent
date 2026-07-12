@@ -9,9 +9,40 @@ from custom_components.eufy_vacuum.learning.utils import (
     _safe_bool,
     _safe_float,
     _safe_int,
+    area_sanity,
     cleaning_area_to_m2,
     compute_overhead_observed,
 )
+
+
+# ---------------------------------------------------------------------------
+# area_sanity — attributed per-room sum vs the device's cleaning_area sensor total
+# ---------------------------------------------------------------------------
+
+def test_area_sanity_under_bound_ok():
+    """Attributed under the sensor total (the transit gap) is fine — validated live: Ivy 7.0/8.5."""
+    r = area_sanity(7.0, 8.5)
+    assert r["over_attributed"] is False and r["coverage_ratio"] == 0.824
+
+
+def test_area_sanity_exact_match_ok():
+    r = area_sanity(6.0, 6.0)  # Alfred multi-room live
+    assert r["over_attributed"] is False and r["coverage_ratio"] == 1.0
+
+
+def test_area_sanity_over_attributed_flags():
+    """Attributed exceeds the sensor total by > tolerance = double-count alarm."""
+    assert area_sanity(10.0, 7.0)["over_attributed"] is True   # 10 > 7*1.1
+
+
+def test_area_sanity_within_tolerance_not_flagged():
+    assert area_sanity(7.6, 7.0)["over_attributed"] is False   # 7.6 <= 7.7
+
+
+def test_area_sanity_none_without_usable_total():
+    assert area_sanity(5.0, None) is None
+    assert area_sanity(5.0, 0) is None
+    assert area_sanity(None, 8.0) is None
 
 
 # ---------------------------------------------------------------------------
