@@ -441,6 +441,54 @@ def test_build_room_stats_area_absent_when_unrecorded(tmp_path):
     assert entry["avg_area_m2"] == 0.0
 
 
+# ---------------------------------------------------------------------------
+# build_jobs_index_payload — the review-row cleaning_area_m2 (external fallback)
+# ---------------------------------------------------------------------------
+
+def _index_entry(rebuilder, job):
+    payload = rebuilder.build_jobs_index_payload(vacuum_entity_id="vacuum.alfred", jobs=[job])
+    return next(e for e in payload["jobs"] if e["job_id"] == job["job_id"])
+
+
+def test_jobs_index_area_falls_back_to_room_timings(tmp_path):
+    """EXTERNAL-shaped record: no job-level cleaning_area_m2, only per-room
+    room_timings[].area_m2 → the review-row area is their SUM (so external
+    multi-room runs show an area, not a blank cell)."""
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(
+        job_id="ext1",
+        room_slugs=["hallway", "bathroom"],
+        room_timings=[
+            {"room_id": 1, "slug": "hallway", "area_m2": 6.0},
+            {"room_id": 2, "slug": "bathroom", "area_m2": 4.0},
+        ],
+    )  # cleaning_area_m2 omitted (external ingest sets no job total)
+    job["origin"] = "external"
+    entry = _index_entry(rebuilder, job)
+    assert entry["cleaning_area_m2"] == 10.0
+    assert entry["origin"] == "external"
+
+
+def test_jobs_index_area_prefers_job_total_over_timings(tmp_path):
+    """When the finalizer stamped a job-level cleaning_area_m2 (internal run), it
+    WINS — the room_timings fallback only fills a gap, never overrides."""
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(
+        job_id="int1",
+        room_slugs=["kitchen", "dining_room"],
+        cleaning_area_m2=10.0,
+        room_timings=[{"room_id": 1, "area_m2": 3.0}],  # different sum, must be ignored
+    )
+    assert _index_entry(rebuilder, job)["cleaning_area_m2"] == 10.0
+
+
+def test_jobs_index_area_none_when_no_area_anywhere(tmp_path):
+    """No job total and no room_timings area → stays None (a blank review cell)."""
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(job_id="noarea", room_slugs=["kitchen"])
+    assert _index_entry(rebuilder, job)["cleaning_area_m2"] is None
+
+
 def test_build_room_stats_buckets_by_passes(tmp_path):
     """room_baselines breaks the average out by pass count, keeping the full mean."""
     rebuilder = _make_rebuilder(tmp_path)

@@ -844,11 +844,24 @@ class LearningStatsRebuilder:
             # set, so they are sane BY CONSTRUCTION (see external_ingest) — force
             # sanity_passed True so an OLD graduated record that predates that explicit
             # flag (missing key -> coerced False here) is never mislabeled "Sanity
-            # Failed". cleaning_area_m2 (a single-room job total) surfaces on the review
-            # row so the human include/exclude call sees how much floor the run covered.
+            # Failed". cleaning_area_m2 surfaces on the review row so the human
+            # include/exclude call sees how much floor the run covered.
             origin = str(job.get("origin") or outcome.get("origin") or "").strip().lower() or None
             is_external = origin == "external"
+            # The finalizer stamps a job-level cleaning_area_m2 (sensor read, any room
+            # count). EXTERNAL records are built by external_ingest — no finalizer, no
+            # sensor — so they carry only per-room room_timings[].area_m2. Fall back to
+            # summing those so external runs (single AND multi-room) also show an area.
             cleaning_area_m2 = _safe_float(job_info.get("cleaning_area_m2"), None)
+            if cleaning_area_m2 is None:
+                _timings = job_info.get("room_timings")
+                if isinstance(_timings, list) and _timings:
+                    _area_sum = sum(
+                        _safe_float(t.get("area_m2"), 0.0)
+                        for t in _timings
+                        if isinstance(t, dict)
+                    )
+                    cleaning_area_m2 = _area_sum if _area_sum > 0 else None
 
             job_entries.append(
                 {
