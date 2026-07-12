@@ -528,7 +528,10 @@ class LearningJobFinalizer:
                         if ct_state and ct_state.state not in ("unavailable", "unknown"):
                             cleaning_time_seconds = _duration_state_to_seconds(
                                 ct_state.state,
-                                ct_state.attributes.get("unit_of_measurement"),
+                                # entity's own unit wins; adapter fallback covers a
+                                # bare-number sensor (Roborock cleaning_time = minutes)
+                                ct_state.attributes.get("unit_of_measurement")
+                                or _facts.cleaning_time_unit,
                                 None,
                             )
                 if cleaning_area_m2 is None:

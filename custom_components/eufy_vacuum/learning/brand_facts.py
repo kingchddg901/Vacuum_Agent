@@ -34,6 +34,7 @@ class BrandFacts(Protocol):
                                                         # "fan_speed", "water_level", "wash_frequency_mode"
 
     mid_run_statuses: frozenset[str]                    # docked-but-will-resume task_status values
+    cleaning_time_unit: str | None                      # fallback unit for a bare-number sensor (Roborock=min)
     cancel_service_exclusion_states: frozenset[str]     # early-return explained by a service call
     cancel_detection_states: dict[str, Any]             # {"active": str|list, "returning": …, "paused": …}
 
@@ -68,6 +69,12 @@ class EufyBrandFacts:
     @property
     def mid_run_statuses(self) -> frozenset[str]:
         return frozenset(self._cfg.get("external_mid_run_statuses") or [])
+
+    @property
+    def cleaning_time_unit(self) -> str | None:
+        """Adapter-declared fallback unit for a bare-number cleaning_time sensor
+        (Roborock reports MINUTES with no unit_of_measurement). None → seconds."""
+        return str(self._cfg.get("cleaning_time_unit") or "").strip() or None
 
     @property
     def cancel_service_exclusion_states(self) -> frozenset[str]:

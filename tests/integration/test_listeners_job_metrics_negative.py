@@ -57,6 +57,13 @@ _ADAPTER_WITH_METRICS = {
     },
 }
 
+# Roborock-shaped: cleaning_time reports bare MINUTES with no unit_of_measurement,
+# so the adapter declares the fallback unit.
+_ADAPTER_WITH_MIN_UNIT = {
+    **_ADAPTER_WITH_METRICS,
+    "cleaning_time_unit": "min",
+}
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -79,7 +86,7 @@ def _seed_active_job(manager) -> dict:
     return job
 
 
-def _capture_handler(hass, manager, monkeypatch):
+def _capture_handler(hass, manager, monkeypatch, adapter_config=_ADAPTER_WITH_METRICS):
     """Register job_metrics with the subscribe call stubbed, returning the
     handler closure so each guard can be driven directly with a crafted Event.
 
@@ -90,7 +97,7 @@ def _capture_handler(hass, manager, monkeypatch):
     (e.g. a None new_state, or a watched entity disappearing).
     """
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
-    register_adapter_config(_VAC, _ADAPTER_WITH_METRICS)
+    register_adapter_config(_VAC, adapter_config)
 
     captured: dict = {}
 
@@ -316,3 +323,45 @@ async def test_duration_unit_minutes_records_seconds(hass, manager, monkeypatch)
 
     assert calls["sensor"][0]["key"] == "last_cleaning_time_seconds"
     assert calls["sensor"][0]["value"] == 369
+
+
+async def test_adapter_unit_fallback_converts_bare_minutes(hass, manager, monkeypatch):
+    """The REAL Roborock case: cleaning_time is a BARE number in minutes with NO
+    unit_of_measurement. The adapter's cleaning_time_unit='min' is the fallback, so
+    6.15 (minutes) is stored as 369 seconds — not mis-stored as ~6 seconds (60x low),
+    which would skew learning + false-trip the idle-wall guard."""
+    handler = _capture_handler(hass, manager, monkeypatch, _ADAPTER_WITH_MIN_UNIT)
+    _seed_active_job(manager)
+    calls = _spy_recorders(manager, monkeypatch)
+
+    handler(_event(_CLEANING_TIME_ENTITY, _state(_CLEANING_TIME_ENTITY, "6.15")))  # no unit
+
+    assert calls["sensor"][0]["key"] == "last_cleaning_time_seconds"
+    assert calls["sensor"][0]["value"] == 369
+
+
+async def test_no_adapter_unit_keeps_seconds(hass, manager, monkeypatch):
+    """Control: with no adapter cleaning_time_unit (e.g. Eufy) a bare number stays
+    seconds — the fallback is opt-in, never a behavior change for other brands."""
+    handler = _capture_handler(hass, manager, monkeypatch)  # default adapter, no unit hint
+    _seed_active_job(manager)
+    calls = _spy_recorders(manager, monkeypatch)
+
+    handler(_event(_CLEANING_TIME_ENTITY, _state(_CLEANING_TIME_ENTITY, "300")))
+
+    assert calls["sensor"][0]["value"] == 300
+
+
+async def test_entity_unit_wins_over_adapter_fallback(hass, manager, monkeypatch):
+    """The entity's own unit_of_measurement still wins over the adapter fallback, so
+    a brand that DOES publish a unit is unaffected."""
+    handler = _capture_handler(hass, manager, monkeypatch, _ADAPTER_WITH_MIN_UNIT)
+    _seed_active_job(manager)
+    calls = _spy_recorders(manager, monkeypatch)
+
+    handler(_event(
+        _CLEANING_TIME_ENTITY,
+        _state(_CLEANING_TIME_ENTITY, "300", {"unit_of_measurement": "s"}),
+    ))
+
+    assert calls["sensor"][0]["value"] == 300  # seconds, not 300*60

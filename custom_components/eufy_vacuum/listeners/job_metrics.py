@@ -85,15 +85,23 @@ def register(hass: HomeAssistant) -> None:
         # entity on any adapter that doesn't expose it.
         ct_entity = entities.get("cleaning_time")
         if ct_entity:
+            # Some brands' cleaning_time sensor reports a BARE number with no
+            # unit_of_measurement — Roborock's is in MINUTES — so the seconds
+            # conversion below can't tell and would store minutes as seconds (60x
+            # low). An adapter declares the true unit via `cleaning_time_unit`; it's
+            # a FALLBACK only (the entity's own unit_of_measurement still wins when
+            # present). Absent → unchanged (treated as seconds, e.g. Eufy).
+            ct_unit_hint = str((config or {}).get("cleaning_time_unit") or "").strip() or None
             watch_map[ct_entity] = (
                 vacuum_entity_id,
                 "last_cleaning_time_seconds",
                 "duration_seconds",
+                ct_unit_hint,
             )
 
         ca_entity = entities.get("cleaning_area")
         if ca_entity:
-            watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "float")
+            watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "float", None)
 
         # Station water level — lives in capabilities entities, not the main
         # entities dict. Only added when the capability is exposed.
@@ -107,7 +115,7 @@ def register(hass: HomeAssistant) -> None:
             )
             if water_entity:
                 watch_map[water_entity] = (
-                    vacuum_entity_id, "last_station_water_percent", "float"
+                    vacuum_entity_id, "last_station_water_percent", "float", None
                 )
         except Exception:
             pass
@@ -130,16 +138,19 @@ def register(hass: HomeAssistant) -> None:
         if raw in ("unavailable", "unknown", None):
             return
 
-        vacuum_entity_id, key, value_type = entry
+        vacuum_entity_id, key, value_type, unit_hint = entry
         manager_local: EufyVacuumManager | None = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
         if manager_local is None:
             return
 
         try:
             if value_type == "duration_seconds":
+                # Entity's own unit wins; the adapter's declared unit is the fallback
+                # for a bare-number sensor (Roborock cleaning_time = minutes, no unit).
                 value = _duration_state_to_seconds(
                     raw,
-                    getattr(new_state_obj, "attributes", {}).get("unit_of_measurement"),
+                    getattr(new_state_obj, "attributes", {}).get("unit_of_measurement")
+                    or unit_hint,
                 )
             elif value_type == "int":
                 value = int(float(raw))

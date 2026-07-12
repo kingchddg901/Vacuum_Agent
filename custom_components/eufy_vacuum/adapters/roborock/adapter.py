@@ -199,6 +199,13 @@ def register_roborock_adapter_for_vacuum(
         # Short brand/app name the card uses in copy ("Clean from the Roborock app").
         "brand": "Roborock",
 
+        # sensor.<id>_cleaning_time reports a BARE number in MINUTES (no
+        # unit_of_measurement — verified 2026-07-11 recorder export: 0.5, 0.83,
+        # ... 4.52 over a ~4.5 min clean). Without this the metrics listener would
+        # store minutes as seconds (60x low), which skews learning + false-trips the
+        # idle-wall guard. Fallback only — a real unit on the entity still wins.
+        "cleaning_time_unit": "min",
+
         "entities": entities,
 
         "vocabulary": {
