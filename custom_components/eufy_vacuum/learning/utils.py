@@ -27,6 +27,34 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+# Canonical cleaning-area unit is m². HA presents area sensors in the box's unit system, so an
+# imperial HA (e.g. country=US) exposes Eufy's cleaning_area in ft² while Roborock's stays m²
+# (confirmed live: sensor.alfred_cleaning_area unit ft², sensor.ivy_cleaning_area unit m²). The
+# raw STATE value follows the unit, so a bare read silently MIXES units — inflating stored area
+# ~10.76x, breaking cross-brand comparison, and mis-firing swept_area_min_m2 on ft² values.
+_AREA_TO_M2 = {
+    "m²": 1.0, "m2": 1.0,
+    "ft²": 0.09290304, "ft2": 0.09290304, "sq ft": 0.09290304,
+    "in²": 0.00064516, "in2": 0.00064516,
+    "yd²": 0.83612736, "yd2": 0.83612736,
+    "cm²": 0.0001, "cm2": 0.0001,
+}
+
+
+def cleaning_area_to_m2(value: Any, unit: Any = None) -> float | None:
+    """Normalize a cleaning_area reading to canonical m², honoring the sensor's
+    ``unit_of_measurement``. A blank/unavailable value → None. An unknown or absent unit is
+    assumed to ALREADY be m² (no scaling — we never guess a factor); ft² (imperial HA) → m²."""
+    if value in (None, "", "unknown", "unavailable"):
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    factor = _AREA_TO_M2.get(str(unit or "").strip().lower())
+    return v * factor if factor is not None else v
+
+
 def _safe_bool(value: Any, default: bool = False) -> bool:
     """Return bool value safely, handling string representations."""
     if isinstance(value, bool):

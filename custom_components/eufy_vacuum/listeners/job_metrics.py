@@ -24,6 +24,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN
 from ..core.manager import EufyVacuumManager
+from ..learning.utils import cleaning_area_to_m2
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +102,9 @@ def register(hass: HomeAssistant) -> None:
 
         ca_entity = entities.get("cleaning_area")
         if ca_entity:
-            watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "float", None)
+            # area_m2: normalize to canonical m² by the entity's unit (an imperial HA presents
+            # Eufy's cleaning_area in ft²; Roborock's stays m²) — see cleaning_area_to_m2.
+            watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "area_m2", None)
 
         # Station water level — lives in capabilities entities, not the main
         # entities dict. Only added when the capability is exposed.
@@ -152,6 +155,13 @@ def register(hass: HomeAssistant) -> None:
                     getattr(new_state_obj, "attributes", {}).get("unit_of_measurement")
                     or unit_hint,
                 )
+            elif value_type == "area_m2":
+                # Normalize to canonical m² by the entity's unit (imperial HA → Eufy in ft²).
+                value = cleaning_area_to_m2(
+                    raw, getattr(new_state_obj, "attributes", {}).get("unit_of_measurement")
+                )
+                if value is None:
+                    return
             elif value_type == "int":
                 value = int(float(raw))
             else:

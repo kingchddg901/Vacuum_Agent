@@ -9,8 +9,43 @@ from custom_components.eufy_vacuum.learning.utils import (
     _safe_bool,
     _safe_float,
     _safe_int,
+    cleaning_area_to_m2,
     compute_overhead_observed,
 )
+
+
+# ---------------------------------------------------------------------------
+# cleaning_area_to_m2 — canonical m² honoring the sensor unit (imperial HA → ft²)
+# ---------------------------------------------------------------------------
+
+def test_cleaning_area_ft2_converts_to_m2():
+    """Alfred's live case: 53.82 ft² -> 5.00 m² (a sane hallway), not 53.82 'm²'."""
+    assert cleaning_area_to_m2(53.82, "ft²") == pytest.approx(5.0, abs=0.01)
+
+
+def test_cleaning_area_m2_unchanged():
+    """Ivy's unit — already canonical, no scaling."""
+    assert cleaning_area_to_m2(4.4, "m²") == 4.4
+
+
+def test_cleaning_area_absent_unit_assumed_m2():
+    """No unit -> assumed already m² (never guess a factor)."""
+    assert cleaning_area_to_m2(3.3, None) == 3.3
+    assert cleaning_area_to_m2("2.5") == 2.5
+
+
+def test_cleaning_area_unknown_unit_left_as_is():
+    """An unrecognized unit -> treated as m² (safest default; no wrong scaling)."""
+    assert cleaning_area_to_m2(10.0, "widgets") == 10.0
+
+
+def test_cleaning_area_blank_and_bad_return_none():
+    for bad in (None, "", "unknown", "unavailable", "notanumber"):
+        assert cleaning_area_to_m2(bad, "ft²") is None
+
+
+def test_cleaning_area_unit_case_and_spacing():
+    assert cleaning_area_to_m2(10.0, " FT² ") == pytest.approx(0.929, abs=0.001)
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,7 @@ from .utils import (
     _iso_now,
     _safe_float,
     _safe_int,
+    cleaning_area_to_m2,
     compute_overhead_observed,
     evaluate_idle_wall_hold,
 )
@@ -539,7 +540,11 @@ class LearningJobFinalizer:
                     if _ca_entity:
                         ca_state = manager.hass.states.get(_ca_entity)
                         if ca_state and ca_state.state not in ("unavailable", "unknown"):
-                            cleaning_area_m2 = _safe_float(ca_state.state, None)
+                            # Normalize to m² by the entity's unit (imperial HA → Eufy in ft²) —
+                            # mirrors the cleaning_time unit handling right above.
+                            cleaning_area_m2 = cleaning_area_to_m2(
+                                ca_state.state, ca_state.attributes.get("unit_of_measurement")
+                            )
                 if water_end_station_percent is None:
                     water_end_station_percent = manager.get_station_clean_water_percent(
                         vacuum_entity_id=vacuum_entity_id,

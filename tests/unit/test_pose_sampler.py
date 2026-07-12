@@ -340,3 +340,24 @@ async def test_sample_native_unavailable_target_records_none(monkeypatch):
     n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy")
     assert n == 1
     assert mgr.record_pose_sample.call_args.kwargs["current_room"] is None
+
+
+# --- cleaning_area is normalized to m² by the entity's unit (imperial HA → Eufy ft²) ---------
+
+
+def _hass_area_state(state, unit):
+    hass = MagicMock()
+    hass.states.get.return_value = SimpleNamespace(state=state, attributes={"unit_of_measurement": unit})
+    return hass
+
+
+def test_read_cleaning_area_converts_ft2_to_m2():
+    """Alfred (imperial HA): sensor reads 53.82 ft² -> buffered as 5.0 m², not 53.82."""
+    cfg = {"entities": {"cleaning_area": "sensor.alfred_cleaning_area"}}
+    assert round(pose_sampler._read_cleaning_area(_hass_area_state("53.82", "ft²"), cfg), 2) == 5.0
+
+
+def test_read_cleaning_area_m2_unchanged():
+    """Ivy: sensor unit m² -> value passes through unscaled."""
+    cfg = {"entities": {"cleaning_area": "sensor.ivy_cleaning_area"}}
+    assert pose_sampler._read_cleaning_area(_hass_area_state("4.4", "m²"), cfg) == 4.4

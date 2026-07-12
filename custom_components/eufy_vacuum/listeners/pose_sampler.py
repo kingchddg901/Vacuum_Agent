@@ -45,6 +45,7 @@ from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN
 from ..core.manager import EufyVacuumManager
 from ..learning.room_attribution_engines import get_room_attribution_engine
+from ..learning.utils import cleaning_area_to_m2
 from ..rooms.utils import slugify_room_name
 
 _LOGGER = logging.getLogger(__name__)
@@ -129,17 +130,20 @@ def _is_parked(hass, cfg: dict, pose: dict) -> bool:
 
 
 def _read_cleaning_area(hass, cfg: dict) -> float | None:
-    """The declared cleaning_area entity's value as a float, or None. Read from the adapter's
-    DECLARED entity — never a guessed sensor name (adapter discipline; a brand whose entity is
-    named differently would otherwise silently buffer None and demote the engine to its
-    false-positive anchor-only mode). cleaning_area is the engine's robust clean-vs-park
-    separator (FLAT while parked/washing, climbs while cleaning)."""
+    """The declared cleaning_area entity's value NORMALIZED to canonical m², or None. Read from
+    the adapter's DECLARED entity — never a guessed sensor name (adapter discipline; a brand
+    whose entity is named differently would otherwise silently buffer None and demote the engine
+    to its false-positive anchor-only mode). cleaning_area is the engine's robust clean-vs-park
+    separator (FLAT while parked/washing, climbs while cleaning). Honor the entity's
+    unit_of_measurement (an imperial HA presents Eufy's in ft²; Roborock's stays m²) so the
+    engine's m² threshold + cross-brand areas stay consistent — see cleaning_area_to_m2."""
     ca_id = (cfg.get("entities", {}) or {}).get("cleaning_area")
     ca_state = hass.states.get(ca_id) if ca_id else None
-    try:
-        return float(ca_state.state) if ca_state is not None else None
-    except (TypeError, ValueError):
+    if ca_state is None:
         return None
+    return cleaning_area_to_m2(
+        ca_state.state, getattr(ca_state, "attributes", {}).get("unit_of_measurement")
+    )
 
 
 def _resolve_managed_room_id(
