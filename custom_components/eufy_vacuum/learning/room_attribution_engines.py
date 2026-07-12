@@ -175,17 +175,24 @@ def _best_run_by_room(run_metric_list: list[dict[str, Any]]) -> dict[Any, dict[s
 
 
 def _swept_area_by_room(runs: list[dict[str, Any]]) -> dict[Any, float] | None:
-    """Per-room swept m² from the cumulative ``cleaning_area`` timeline — the robust
-    clean-vs-park separator. Sum each room's per-run deltas (a wash/park run is flat
-    → ~0; a clean run rises). Returns ``None`` when no sample carries ``cleaning_area``
-    → caller runs anchor-only mode."""
+    """Per-room swept m² from the ``cleaning_area`` timeline — the robust clean-vs-park
+    separator. A clean run's cleaning_area RISES; a wash/park/transit run is flat (~0).
+
+    Sum the POSITIVE per-tick increments within each room run (NOT last-minus-first), so a
+    NON-MONOTONIC counter is handled. Some brands' cleaning_area resets/drops mid-run — observed
+    live on Eufy (Alfred), where it fell 21.5→10.8 as the sensor re-baselined at the real clean
+    start, then climbed. A drop is a RESET, not negative cleaning: clamping each tick's delta at 0
+    treats the drop as a new baseline and still credits the true rises both before AND after it
+    (last-minus-first would silently undercount by the drop). For a clean monotonic counter (e.g.
+    Roborock's, 0→4.4) this is identical to last-minus-first. Returns ``None`` when no sample
+    carries ``cleaning_area`` → caller runs anchor-only mode."""
     if not any(s.get("cleaning_area") is not None for run in runs for s in run["samples"]):
         return None
     by_room: dict[Any, float] = {}
     for run in runs:
         vals = [s["cleaning_area"] for s in run["samples"] if s.get("cleaning_area") is not None]
-        delta = (vals[-1] - vals[0]) if len(vals) >= 2 else 0.0
-        by_room[run["room"]] = by_room.get(run["room"], 0.0) + max(0.0, delta)
+        swept = sum(max(0.0, vals[i] - vals[i - 1]) for i in range(1, len(vals)))
+        by_room[run["room"]] = by_room.get(run["room"], 0.0) + swept
     return by_room
 
 

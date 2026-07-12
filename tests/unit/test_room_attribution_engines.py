@@ -37,6 +37,15 @@ def _clean_run(rid, n=12, area0=0.0, step=0.2):
     ]
 
 
+def _run_with_areas(rid, areas):
+    """A room run with an explicit cleaning_area timeline (for non-monotonic / reset cases)."""
+    pts = [(0.0, 0.0), (0.1, 0.1)]
+    return [
+        {"current_room": rid, "anchor": list(pts[i % 2]), "cleaning_area": a}
+        for i, a in enumerate(areas)
+    ]
+
+
 # --- registry ---------------------------------------------------------------
 
 
@@ -121,6 +130,37 @@ def test_empty_and_mode_selection():
 
     no_area = [{"current_room": 5, "anchor": [0.0, 0.0]}, {"current_room": 5, "anchor": [0.1, 0.1]}]
     assert engine.attribute(no_area)["mode"] == "anchor_only"
+
+
+def test_swept_area_rebaselines_on_nonmonotonic_drop():
+    """[RA-11] cleaning_area that RESETS mid-run (drops, then climbs) — as Eufy's does live
+    (Alfred 2026-07-11 fell 21.5→10.8 then rose) — is re-baselined: swept-area sums the POSITIVE
+    rises before AND after the drop, not last-minus-first (which would undercount by the drop)."""
+    engine = EufyAnchorWindingAttributor()
+    # rise 0→2, DROP to 0.5, rise 0.5→3.5: true sweep = (0→2) + (0.5→3.5) = 5.0; last-first = 3.5.
+    run = _run_with_areas(5, [0.0, 1.0, 2.0, 0.5, 1.5, 2.5, 3.5])
+    result = engine.attribute(run)
+    assert 5 in result["cleaned"]
+    assert result["per_room"][5]["swept_area_m2"] == 5.0
+
+
+def test_swept_area_monotonic_equals_last_minus_first():
+    """[RA-12] regression: a clean monotonic counter (Roborock-style, 0→4.4) is unchanged —
+    the positive-increment sum equals last-minus-first."""
+    engine = EufyAnchorWindingAttributor()
+    assert engine.attribute(_run_with_areas(5, [0.0, 1.1, 2.2, 3.3, 4.4]))["per_room"][5]["swept_area_m2"] == 4.4
+
+
+def test_swept_area_multiroom_reset_between_rooms():
+    """[RA-13] a multi-room run where cleaning_area resets at the room change: each room is
+    credited its OWN positive rise, never the raw counter value — the exact shape a multi-room
+    external vacuum clean exercises (kitchen then dining, sensor re-baselines between them)."""
+    engine = EufyAnchorWindingAttributor()
+    run = _run_with_areas(5, [0.0, 1.5, 3.0]) + _run_with_areas(8, [0.7, 2.2, 3.7])
+    result = engine.attribute(run)
+    assert result["cleaned"] == {5, 8}
+    assert result["per_room"][5]["swept_area_m2"] == 3.0
+    assert result["per_room"][8]["swept_area_m2"] == 3.0
 
 
 def test_noop_validate_tuning_rejects_keys():
