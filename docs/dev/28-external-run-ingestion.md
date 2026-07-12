@@ -143,13 +143,18 @@ samples are bounded at capture time by `_MAX_COUNTER_SAMPLES` (= 2000, in
 `jobs/active_job.py` — each `record_counter_sample` append trims to the cap), so
 the on-disk record stays ~100–200 KB worst case. They
 are **stripped** (`strip_samples`) before the record is served to the card — the
-card never needs them; re-segmentation reads them on the server.
+card never needs them; re-segmentation (counter) and re-attribution (pose) read
+them on the server. The pose stream (`pose_samples`) is bounded separately by
+`_MAX_POSE_SAMPLES` (= 3000, `jobs/active_job.py`) and stripped by the same
+`strip_samples`.
 
 ```jsonc
 {
   "schema_version": 2,
   "status": "pending",
-  "origin": "external",
+  "origin": "external",                // vs "internal" (dispatched) — the review-card Origin filter + jobs-index marker
+  "attribution_mode": "robust",        // pose engine mode: "robust" (swept-area, pose-free) | "anchor_only" | null (no pose stream)
+  "attribution_confidence": "available", // did the pose name >=1 segment: "available" | "unavailable" (-> card prompts a manual pick) | null (no pose)
   "detection_ts": "...",
   "map_id": "6",
   "segment_count": 2,
@@ -165,6 +170,8 @@ card never needs them; re-segmentation reads them on the server.
   "active_boundaries": [ 7 ],          // candidate ids currently producing `segments`
   "counter_samples": [ ... ],          // STRIPPED on serve; kept on disk for re-segment
   "settings_samples": [ ... ],         // STRIPPED on serve
+  "pose_samples": [ ... ],             // native current_room/anchor stream; STRIPPED on serve, kept for re-attribution
+  "cleaning_area_sensor_m2": 8.5,      // device's OWN run total (peak cleaning_area, canonical m²) — the sanity BOUND the attributed sum is checked against (§6)
   "segments": [
     {
       "order": 0,
@@ -197,6 +204,23 @@ the room's swept area confirmed it; `presence` = the counter vouched the segment
 but the swept area was masked (e.g. a stale `cleaning_area` through the run's first room), so it's
 named by the dominant room the robot dwelt in. Pose-only runs (no counter segments) stand a record
 up straight from pose. See [external-run-robustness-followups](external-run-robustness-followups.md).
+
+**Attribution source + robust mode (1.8.0 — both brands).** The capture source is
+**adapter-declared** via `room_attribution.source`: Eufy = `live_pose` (the fork's decoded-map
+pixel pose), Roborock = `native_current_room` (the live current-room NAME entity, slugified and
+matched to a managed room id by the pose sampler). The engine (`eufy_anchor_winding_v1`) has a
+**robust** mode = swept-area (the `cleaning_area` delta per `current_room` segment, gated on
+`swept_area_min_m2` = 0.5 m²) which is **pose-free**, so it works for a name-only brand; the
+`anchor_only` fallback needs pose (dwell/winding) and, being weaker, is **never** promoted onto a
+counter segment (`_apply_pose_identity` is robust-only). Because Roborock declares the **noop**
+job segmenter (`noop_job_fallback` → no counter candidates/segments), its runs **always** take the
+pose-only stand-alone path (`build_attributed_job`); Eufy runs enrich when the counter segmented and
+stand alone only when it found nothing. `cleaning_area` itself is normalized to canonical square
+**meters** by each sensor's own `unit_of_measurement` (`learning/utils.cleaning_area_to_m2` /
+`_AREA_TO_M2`, `ft²→0.09290304`), read **live** at every capture — on an imperial HA Eufy reports
+ft² and Roborock m², so every `*_m2` field in this record (segment `area_m2`, `cleaning_area_sensor_m2`)
+is already m². Swept-area sums **positive per-tick increments**, so a non-monotonic (reset/drop)
+`cleaning_area` counter is re-baselined, not double-counted.
 
 ---
 
@@ -367,6 +391,34 @@ served segments could not re-derive area attribution across a wash plateau).
 
 ---
 
+## 5b. Dispatched-run reconcile (the pose sibling)
+
+`reconcile_dispatched_identity` is the one place this module touches an **internal**
+(dispatched) run. An atomic dispatched finalize assigns rooms **positionally** — segment K →
+queue room K — which is the weak spot when the robot ran out of order, skipped a room, or the
+counter mis-split. Since the pose sampler now buffers **both** external *and* dispatched runs, the
+completed-job payload builder (`learning/history_store.py`) calls this to reconcile each
+`room_timings` entry against the native `current_room` the vacuum actually dwelt in
+(`_dominant_room`, presence). **Robust mode only** — an anchor-only stream never rewrites a
+dispatched assignment. Per segment:
+
+- **CONFIRM** — the pose room equals the positional room → stamp `pose_confidence="confirmed"`, no
+  change.
+- **RESCUE** — `positional_valid` (= the job's `transit_capture_valid`) is **False**, so the K→K
+  map is already known-unreliable → overwrite `room_id`/`slug` with the pose room + stamp
+  `pose_correction="rescued"` / `pose_prior_room_id`. Pure gain: the guess had nothing to lose and
+  the run is already excluded from the learned aggregate.
+- **FLAG** — positional is valid but the pose names a **different** room → **keep** the positional
+  assignment, annotate `attribution_disagreement={positional, pose}`. Never a silent override;
+  learning inclusion is unchanged. Rolled up to `job.has_attribution_disagreement` and surfaced as
+  the card **"Room Mismatch"** badge.
+
+No pose / anchor-only / a window the pose can't name → that timing is byte-identical to the
+positional path (no regression). Strict-order (phased) jobs never call this — they already capture
+accurate per-phase timings.
+
+---
+
 ## 6. Confirm: gate + graduate
 
 The card calls `eufy_vacuum.confirm_external_run` (§8) with per-room
@@ -395,6 +447,14 @@ The record sets `record_type="completed_job"`, `outcome.status="completed"`,
 `job.transit_capture_valid=True` with `job.transitions=[]` — that flag is what
 gates the rebuilder's use of `room_timings[].area_m2`, so it must be true for the
 per-room area/timing to ingest; external runs simply emit no transit edges.
+
+It also carries `job.cleaning_area_sensor_m2` (the device's own run total, canonical m², from the
+pending record) so the rebuilder can sanity-check the attributed per-room sum against it
+(`learning/utils.area_sanity`): the sensor total is an **upper bound**, so an attributed sum above
+`sensor_total × 1.10` sets the `area_over_attributed` marker in the jobs index (double-counting).
+That marker plus `origin` / `has_attribution_disagreement` are the keys the self-heal detector
+(`learning/manager.py`) watches — an index missing any of them is rebuilt once so old runs
+retroactively pick up these fields.
 
 It also sets `outcome.sanity_passed=True` + `outcome.sanity_flags=[]`
 **explicitly** — a run only graduates *after* passing the tier-1 identity gate
@@ -536,7 +596,9 @@ settings instead of forming a parallel bucket. See
 | Job-segmenter engine seam | `learning/job_segmenter_engines.py` (`EufyCounterSegmenter`/`eufy_counter_v1` delegates to the primitives verbatim; `get_job_segmenter_engine` falls back to Eufy; `JobBoundaryCandidate`/`JobSegment` TypedDicts) |
 | Capture + external slot | `jobs/active_job.py` (`record_counter_sample`, `_snapshot_settings_selects`, `start_external_capture`, `_MAX_COUNTER_SAMPLES`) |
 | Detection + orchestration | `listeners/lifecycle.py`, `core/manager.py` (`maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `resegment_external_run`, `discard_external_run`) |
-| Pending record + re-segment + gate + graduate | `learning/external_ingest.py` (`build_pending_record`, `resegment_pending_record`, `_resolve_engine_tuning`, `_enrich_segments`, `strip_samples`, `gate_segment_identity`, `build_graduated_job`, `load_pending_runs`) |
+| Pending record + re-segment + gate + graduate | `learning/external_ingest.py` (`build_pending_record`, `build_attributed_job`, `_apply_pose_identity`, `resegment_pending_record`, `reconcile_dispatched_identity`, `_resolve_engine_tuning`, `_resolve_attribution`, `_enrich_segments`, `strip_samples`, `_max_cleaning_area_m2`, `gate_segment_identity`, `build_graduated_job`, `load_pending_runs`) |
+| cleaning_area units + area sanity | `learning/utils.py` (`cleaning_area_to_m2`, `_AREA_TO_M2`, `area_sanity`, `AREA_OVER_ATTRIBUTION_TOLERANCE`) |
+| Dispatched reconcile + jobs-index surfacing | `learning/history_store.py` (completed-job payload → `reconcile_dispatched_identity`, `has_attribution_disagreement`), `learning/stats_rebuilder.py` (`area_sanity` → `area_over_attributed`), `learning/manager.py` (self-heal index detector) |
 | Services + event | `learning/services.py` (`resegment_external_run` incl.), `const.py` (`EVENT_EXTERNAL_RUN_PENDING`) |
 | Adapter contract | `adapters/eufy/adapter.py`, `adapters/config_schema.py` |
 | Card | `src/{state,actions,renderers,bindings,styles}/external-jobs.js` |

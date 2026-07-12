@@ -23,10 +23,10 @@ portal, and the trigger surface that drives re-renders outside the `hass` setter
 shadow-root HTML has been (conditionally) swapped and after `_updateModalHost()`. Why re-binding
 from scratch is safe is [render-cycle.md](render-cycle.md)'s invariant — not repeated here.
 
-`bindEvents()` is a flat fan-out: 21 `_bind*` calls in a fixed order (`bindings/index.js:105-127`).
+`bindEvents()` is a flat fan-out: 20 `_bind*` calls in a fixed order (`bindings/index.js:119-140`).
 Each `_bind*` lives in its own module, mixed onto `VacuumCardBindings.prototype` by the
-`apply*Bindings(...)` calls at `bindings/index.js:384-403` — with **one exception**: `_bindToasts` is
-defined **inline** in `index.js:149` (there is no `toasts.js` module and no `applyToastsBindings`
+`apply*Bindings(...)` calls at `bindings/index.js:397-415` — with **one exception**: `_bindToasts` is
+defined **inline** in `index.js:147` (there is no `toasts.js` module and no `applyToastsBindings`
 import). Modules that own a large region sub-bind
 further (e.g. `_bindMap` → 16 sub-binders at `bindings/map.js:52-77`; `_bindRoomEditor` → 5 at
 `bindings/room-editor.js:21-27`).
@@ -51,13 +51,12 @@ further (e.g. `_bindMap` → 16 sub-binders at `bindings/map.js:52-77`; `_bindRo
 | `theme.js` | `_bindThemeEditor` | Theme editor + **theme-JSON modal (host)** |
 | `map.js` | `_bindMap` | Live map, zones, furnished art (16 sub-binders) |
 | `setup.js` | `_bindSetup` | Setup / onboarding view |
-| `mapping-review.js` | `_bindMappingReview` | Mapping-review view |
 | `mobile-shell.js` | `_bindMobileShell` | Mobile overlay + bottom sheet |
-| _(inline in `index.js:149`)_ | `_bindToasts` | Toast host (body-level — see §3) |
+| _(inline in `index.js:147`)_ | `_bindToasts` | Toast host (body-level — see §3) |
 
-**Where does the module list live?** `bindEvents()` at `bindings/index.js:105-127` is the single
-source of truth for *order*; `bindings/index.js:384-403` is the source of truth for *which modules
-exist*. Add a bindings module → register it in both. (The lone inline `_bindToasts` at `index.js:149`
+**Where does the module list live?** `bindEvents()` at `bindings/index.js:119-140` is the single
+source of truth for *order*; `bindings/index.js:397-415` is the source of truth for *which modules
+exist*. Add a bindings module → register it in both. (The lone inline `_bindToasts` at `index.js:147`
 is the exception — it appears in the order list but has no module file or import.)
 
 ---

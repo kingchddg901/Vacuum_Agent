@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **417 tests across 13 files** (406 test functions, expanded by
+is exercised by **440 tests across 13 files** (429 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -19,14 +19,14 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
-| `utils.py` | 52 | 97% | `tests/unit/test_learning_utils.py` | unit (pure) |
-| `estimator.py` | 411 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
-| `history_store.py` | 475 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
-| `stats_rebuilder.py` | 460 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 537 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 715 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
-| `services.py` | 241 | 96% | `tests/integration/test_learning_services.py` | integration |
-| `external_ingest.py` | 391 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
+| `utils.py` | 80 | 98% | `tests/unit/test_learning_utils.py` | unit (pure) |
+| `estimator.py` | 409 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
+| `history_store.py` | 476 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
+| `stats_rebuilder.py` | 469 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
+| `job_finalizer.py` | 539 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
+| `manager.py` | 733 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
+| `services.py` | 257 | 92% | `tests/integration/test_learning_services.py` | integration |
+| `external_ingest.py` | 410 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
 | `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) |
 | `counter_segmentation.py` | 165 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
@@ -48,8 +48,9 @@ these files together (see [running-tests §per-file vs combined](../02-running-t
 
 ## What's tested
 
-### `utils.py` — pure coercion helpers
-`_safe_int`, `_safe_float`, `_safe_bool`, `_room_profile_key`. Sentinel strings
+### `utils.py` — pure coercion + normalization helpers
+`_safe_int`, `_safe_float`, `_safe_bool`, `_room_profile_key`, plus the 1.8.0
+area/time normalization, sanity, and idle-wall helpers. Sentinel strings
 (`""`, `"unknown"`, `"unavailable"`), `None` defaults, float-string parsing,
 non-numeric fallback. Grouped by function (no ID prefix).
 
@@ -57,6 +58,22 @@ non-numeric fallback. Grouped by function (no ID prefix).
 - **`_safe_int`**: rejects sentinels and None, converts via `int(float(value))` (raises ValueError on NaN/inf), returns default on any exception
 - **`_safe_float`**: rejects sentinels and None, returns `float(value)` as-is (does NOT reject NaN/inf; `float('nan')` succeeds), returns default on ValueError only
 - **`_safe_bool`**: rejects sentinels and None, truthy strings `{"true", "on", "yes", "1"}` (case-insensitive, stripped), falsy otherwise; returns `bool(value)` for non-strings with exception fallback
+
+**Area/time normalization + sanity (1.8.0):**
+- **`cleaning_area_to_m2`** (`test_cleaning_area_*`): normalizes a raw `cleaning_area`
+  reading to canonical m² by the sensor's live `unit_of_measurement` via `_AREA_TO_M2`
+  (ft²→`0.09290304`). ft² converts, m² passes through, an absent/unknown unit is left
+  as-is (assumed already m² — we never guess a factor), blank/bad → `None`; unit lookup
+  is case- and space-insensitive.
+- **`area_sanity`** (`test_area_sanity_*`): the device run total is the upper bound —
+  `attributed_sum > sensor_total * 1.10` (default `AREA_OVER_ATTRIBUTION_TOLERANCE`) sets
+  the `area_over_attributed` flag; under-bound, exact, and within-tolerance sums pass, and
+  it returns `None` when there is no usable sensor total.
+- **`evaluate_idle_wall_hold`** + the `IDLE_WALL_HOLD_*` constants: the pure cold-start
+  idle-wall decision — holds an otherwise-eligible completed run whose wall time exceeds
+  active cleaning by ≥ the 20-min floor with no charge/wait break-phase or logged error
+  (`reason == "extreme_idle_wall"`). Exercised by `tests/unit/test_idle_wall_guard.py`
+  alongside its finalizer wiring (below).
 
 ### `estimator.py` — compute helpers + `LearningEstimator` (prefix `LE`)
 - **Confidence model** (LE-1..LE-7): score→breakpoint mapping, clamping, the
@@ -75,7 +92,12 @@ non-numeric fallback. Grouped by function (no ID prefix).
 `_vacuum_slug`, path construction, JSON read/write round-trips, completed-job
 build/save/load, jobs-index payloads, accuracy/room/job stats load, the
 `build_completed_job_payload` outcome logic (learning blockers,
-`used_for_learning` flip). Grouped by function/method.
+`used_for_learning` flip). Grouped by function/method. The `"interrupted"` outcome
+of a stranded/force-finalized run is blocked from learning
+(`test_build_completed_job_payload_interrupted_blocks_learning`: `job_interrupted`
+blocker, `used_for_learning` False), and the jobs-index build carries the 1.8.0
+marker keys (`origin`, `has_attribution_disagreement`, `area_over_attributed`) the
+self-heal detector keys on.
 
 ### `stats_rebuilder.py` — pure builders + `LearningStatsRebuilder`
 `_room_key`, `_room_baseline_key`, `_stddev`, and the rebuild paths that turn
@@ -89,6 +111,17 @@ archived completed jobs into room/profile/job stats + the jobs index.
 - **Integration** (the pipeline): cancel-likely detection branches
   (LS-40..LS-47), error-tracker latch harvest, error-seconds adjustment,
   incomplete-run/trouble-room logs, battery-metrics handoff (LS-53).
+- **1.8.0 additions**: `_duration_state_to_seconds` converts a bare-number
+  `cleaning_time` to seconds by the adapter-declared `cleaning_time_unit`
+  (Roborock reports minutes — previously stored 60× low); `_apply_idle_wall_hold`
+  wires the pure idle-wall verdict into the outcome (held via a restorable
+  `extreme_idle_wall` learning-blocker, never a hard exclude), with
+  `_run_had_break_phase` supplying its charge/wait exemption — both covered by
+  `tests/unit/test_idle_wall_guard.py`, which also golden-checks real archive records.
+  The forced `"interrupted"` lifecycle (a stranded run that was force-finalized) is
+  covered by `test_collect_inputs_interrupted_outcome` (it takes the `was_interrupted`
+  arm and skips the cancel-likely probe rather than misclassifying a truncated run as
+  completed).
 
 ### `manager.py` + `services.py` — orchestration + HA services (prefix `LS`)
 LS-1..LS-53 in `test_learning_services.py`: service registration, the
@@ -100,16 +133,43 @@ old-format jobs-index rebuild, and `async_preload_learning_stats` guards.
 `test_learning_profile_label.py` additionally covers `manager._settings_profile_label`
 (SPL-1/SPL-2) as a focused unit.
 
-### `external_ingest.py` — app-started-run capture + review wizard
+The 1.8.0 **learning-processing toggle** (`set_learning_processing` /
+`process_pending_runs` — collect-always, process-on-demand, with a pending-count
+display) is covered by `tests/integration/test_learning_processing_toggle.py`:
+default-on + toggle, the pending counter, finalize gating the stats rebuild on the
+toggle, off-does-not-catch-up vs on-catches-up, `process_pending_runs` staying off,
+and the dashboard-snapshot exposure. The **self-heal jobs-index detector** (rebuilds
+the index once when the new marker keys `origin` / `has_attribution_disagreement` /
+`area_over_attributed` are missing) rides the same snapshot seam. Separately,
+`tests/integration/test_manager_external_finalize.py` drives the external grace-timer
+finalize end-to-end (`EXT-FIN-1`), the W5c pose-only stand-up record when the counter
+segmenter finds nothing (`EXT-FIN-2`), and the slot-clears-on-build-error guard
+(`EXT-FIN-3`, the zombie-`external`-slot protection), plus the confirm/re-segment
+paths that graduate a reviewed run.
+
+### `external_ingest.py` — app-started capture + dispatched reconcile
 Detection of runs started outside HA, the pending-record build + persistence, the
 re-segmentation service, and the confirm path that turns a reviewed run into a
-learned job (the v2 samples-saved re-segment plus the v1 fallback). The newer
+learned job (the v2 samples-saved re-segment plus the v1 fallback). The
 pose-based room-attribution path (`_resolve_attribution` / `_attribute` /
 `build_attributed_job`) runs the resolved room-attribution engine over a run's
 pose stream to pre-fill which managed rooms it cleaned; the engine itself is
 tested separately (see the room-attribution seam below), and its
-caller-side wiring in `external_ingest` is covered by
-`tests/unit/test_external_ingest_attribution.py`.
+caller-side wiring is covered by `tests/unit/test_external_ingest_attribution.py`
+(the `_apply_pose_identity` / `_dominant_room` enrich of counter segments, the
+`build_attributed_job` pose-only stand-up record — the Roborock/noop-segmenter
+shape — the sensor-total sanity stamp, engine-error degradation to counter-only,
+and a real-capture stale-`cleaning_area` regression).
+
+Since 1.8.0 the same file also reconciles **dispatched** runs:
+`reconcile_dispatched_identity` compares the atomic finalize's positional (segment
+K → queue room K) identity against the native current-room the pose sampler
+buffered and **confirms** on agreement, **rescues** when `positional_valid` is
+False, or **flags** an `attribution_disagreement` (never silently overriding a
+working assignment) — the `test_reconcile_*` cases cover confirm / rescue / flag
+plus the anchor-only, no-pose, and unnamed-window no-ops. Attribution and
+reconcile run for external **and** dispatched runs on **both** Eufy
+(`live_pose`) and Roborock (`native_current_room`).
 
 ### `job_segmenter_engines.py` — pluggable job-segmenter seam
 The `JobSegmenter` registry + the `eufy_counter_v1` engine: byte-identical
@@ -222,13 +282,14 @@ guards, inactive code, or paths reachable only by injecting malformed data.
 - **`manager` direct reload path (271-284)** — the immediate
   reload-from-disk helper; integration tests drive the executor-backed preload
   instead, so this synchronous variant is uncovered. Low value.
-- **`_auto_derive_room_boundary` (`job_finalizer` ~1474-1522)** — currently
-  inactive: the method runs its eligibility gates then unconditionally returns
-  None (skip-log + `return None` at ~1516-1522). Uncovered lines ~1508/1512 are
-  room-guard branches (the non-dict-room and empty/`"None"` room-id returns)
-  inside that inert gate. No behavior to test until the feature is re-activated.
 
 These are skipped on purpose ([conventions §what not to test](../04-patterns-and-conventions.md#what-not-to-test)).
+
+> **Retired:** the former `_auto_derive_room_boundary` gap (an inert
+> trace→room-boundary derivation in `job_finalizer`) is gone. The learned
+> per-room bounds store was removed in the mapping shelve, and room identity now
+> comes entirely from the device native current-room signal (the room-attribution
+> seam above) — nothing in learning runs in drifting vacuum coordinates anymore.
 
 ---
 

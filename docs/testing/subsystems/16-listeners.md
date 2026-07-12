@@ -19,13 +19,13 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 |---------------|------:|----:|------------|-------|
 | `lifecycle.py` | 121 | 95% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration |
 | `path_blockers.py` | 103 | 99% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration |
-| `job_metrics.py` | 82 | 92% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
+| `job_metrics.py` | 88 | 89% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
 | `dock_events.py` | 64 | 90% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration |
 | `discovery.py` | 72 | 99% | `test_listeners_timers.py` | integration |
-| `pause_timeout.py` | 48 | 94% | `test_listeners_timers.py` | integration |
+| `pause_timeout.py` | 53 | 84% | `test_listeners_timers.py` | integration |
 | `_common.py` | 72 | 94% | `test_listeners_common.py` | integration |
 | `job_progress.py` | 43 | 95% | `test_listeners_active.py` | integration |
-| `pose_sampler.py` | 91 | 90% | `test_pose_sampler.py` (unit) | unit |
+| `pose_sampler.py` | 137 | 89% | `test_pose_sampler.py` (unit) | unit |
 
 ---
 

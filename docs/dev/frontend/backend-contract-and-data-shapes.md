@@ -85,7 +85,7 @@ The map's saved-zone list is **not** a separate query — it rides on the **`get
 | `reanchor_learning_timeline` | `original_estimate`, `completed_rooms`, `reanchor_at` | Optional: `current_battery`. Recomputes remaining ETAs mid-job |
 | `get_next_room` | `reanchored_estimate` | Resolves which room is next from the reanchored estimate |
 | `get_room_learning_estimates` | `vacuum_entity_id`, `map_id` | Per-room estimates independent of queue state |
-| `get_learning_history_snapshot` | `vacuum_entity_id` | Optional: `room_slug`, `profile_key`, `status`, `used_for_learning`, `limit` |
+| `get_learning_history_snapshot` | `vacuum_entity_id` | Optional: `room_slug`, `profile_key`, `status`, `used_for_learning`, `origin` (`external` \| `internal`), `limit`. Each recent-jobs entry carries the [run-record attribution fields](#run-record-attribution-fields) the Review card reads |
 | `get_metrics_snapshot` | `vacuum_entity_id` | Optional: `room_slug`, `profile_key`, `status`, `used_for_learning` |
 | `get_incomplete_run_log` | `vacuum_entity_id` | Last cancelled/failed/interrupted job. Returns null-equivalent `{}` when no log exists |
 | `get_trouble_rooms_log` | `vacuum_entity_id` | Chronic trouble rooms. Returns null-equivalent `{}` when no log exists |
@@ -94,6 +94,16 @@ The map's saved-zone list is **not** a separate query — it rides on the **`get
 | `rebuild_learning_stats` | `vacuum_entity_id` | |
 | `exclude_learning_job` | `vacuum_entity_id`, `job_id` | Optional: `reason`, `rebuild_csv` |
 | `restore_learning_job` | `vacuum_entity_id`, `job_id` | Optional: `rebuild_csv` |
+
+##### Run-record attribution fields
+
+The `get_learning_history_snapshot` recent-jobs list carries per-run **attribution** fields the Review card reads. They ride the 1.8.0 native-current-room attribution path (see [eufy-native-transition](../eufy-native-transition.md)); an index built before these keys existed self-heals on the next snapshot.
+
+- `origin` — `"external"` (app-started, captured) or `null`/absent (dispatched by this integration). The `origin` filter is binary `external` \| `internal`; a dispatched run with no `origin` key still matches `internal`. Drives the card's **Origin** filter chip and an "External" origin badge.
+- `has_attribution_disagreement` — bool. A dispatched run whose native current-room named a *different* room than the positional (segment K → queue room K) assignment; surfaced as the card **"Room Mismatch"** badge (the assignment is kept, **never** silently overridden).
+- `cleaning_area_m2` — the run's cleaned floor area in canonical m² (the card's **"Area Cleaned"**), shown on external runs (single and multi-room). External records fall back to summing per-room `room_timings[].area_m2` when no job-level sensor read exists.
+- `cleaning_area_sensor_m2` — the device's own run-total area (m²), the sanity **upper bound**.
+- `area_over_attributed` — bool; the per-room attributed sum exceeded `cleaning_area_sensor_m2` beyond tolerance (a double-counting alarm).
 
 #### Dock (base station)
 
@@ -321,9 +331,6 @@ On Metrics tab activation:
 
 On Learning Review tab activation:
   - Call get_learning_history_snapshot(vacuum_entity_id, filters...)
-
-On Map Bounds Review tab activation:
-  - Call get_room_bounds_snapshot(vacuum_entity_id, map_id)
 
 Once per session (load-once):
   - Call get_theme_library()

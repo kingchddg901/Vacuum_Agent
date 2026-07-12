@@ -40,7 +40,10 @@ It owns:
 - Active job lifecycle tracking (start → monitor → auto-finalize)
 - A learning / ETA estimation system backed by per-job JSON files on disk
 - A theme system for the companion card
-- A mapping subsystem (trace capture, image-based segmentation, room bounds)
+- A mapping subsystem (image-based room segmentation, custom named layouts, the
+  live map source, and point-in-polygon zone membership)
+- Native current-room tracking (per-room completion + dwell fired off the device's
+  current-room signal, not learned coordinates)
 - Battery health tracking (cycle counts, charge rates, degradation metrics)
 - All HA entities that surface integration state into the entity registry
 - HA service endpoints consumed by the Lovelace card
@@ -159,7 +162,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `BatteryHealthManager` | `"battery"` | Cycle counting and charge rate tracking |
 | `ErrorTracker` | `"error_tracker"` | Active-run and last-device error state |
 | `AdapterCoordinator` | `"adapter_coordinator"` | Per-entry adapter config registry |
-| `MappingTracker` | `"mapping_tracker"` | Live position listener + room-bounds sampling |
+| `MappingTracker` | `"mapping_tracker"` | Position listener; fires `eufy_vacuum_room_completed` off the device's native current-room signal, plus a passive dock-coordinate drift diagnostic log |
 
 ### Stateless helper packages
 
@@ -170,7 +173,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `maps/` | `get_map_bucket`, `ensure_map_bucket`, `get_vacuum_maps_summary`, `rebuild_map_bucket`, `save_map_discovery_snapshot` — pure dict helpers |
 | `rooms/` | `room_manager.py` (incl. `build_managed_rooms`), `room_discovery.py`, `rooms/utils.py` — stateless |
 | `models/` | `TypedDict` definitions (`VacuumRuntimeState`, `LiveRuleState`, etc.) |
-| `mapping/` | Trace capture, segmentation, boundary estimation, image analysis |
+| `mapping/` | Image-based room segmentation, custom named layouts, the live map source, `point_in_polygon` zone membership, and the native current-room tracker |
 | `learning/` | Job finalization pipeline, history store, ETA estimator; also `external_run.py` — the `ExternalRunManager` subsystem (a stateful bundled subsystem, not stateless; see the subsystem-managers table above) |
 | `setup/` | Setup workflow, drift detection, protection rules |
 | `jobs/job_monitor.py` | Lifecycle state machine (pure function) |
@@ -456,7 +459,7 @@ any private constants. None of them hold persistent state — they read from
 | `path_blockers.py` | Rule trigger entities | Mid-job blocker rule evaluation |
 | `pause_timeout.py` | HA time + vacuum state | Auto-cancel on overlong pause |
 | `job_progress.py` | `EVENT_JOB_PROGRESS_TICK` | Job progress snapshot trigger |
-| `pose_sampler.py` | HA time + vacuum state | Buffers the per-tick pose time-series (`pose_samples`) during an external/app-started run for room auto-attribution; map-capable vacuums only |
+| `pose_sampler.py` | HA time + vacuum state | Buffers the per-tick pose time-series (`pose_samples`) during an external (app-started) or dispatched run for room auto-attribution, via the adapter-declared `room_attribution.source`; attribution-capable vacuums only |
 | `discovery.py` | Vacuum entity state | Auto-discovery on first non-idle state |
 
 Registration pattern (all eight are identical):

@@ -1,25 +1,25 @@
 # 11 — Mapping System
 
-This document covers the mapping subsystem: image segment analysis, room-bounds learning, segment adjustments, custom layouts, the provider map source, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
+This document covers the mapping subsystem: image segment analysis, native current-room tracking, segment adjustments, custom layouts, the provider map source, and its storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
 
-> **Status (mapping split).** The run-derived *inference* lineage — trace capture / segmentation / review, room-boundary derivation (vacuum-space polygons), the affine transform-fitting pipeline, image-segment *suggestion*, **and the learned per-room bounding-box store (`room_bounds.py` / `RoomBoundsStore`) itself** — was retired. Room tracking now runs off the device's **native current-room** signal: the tracker resolves it and fires `eufy_vacuum_room_completed` (with each room's dwell duration) via a confidence/dwell debounce, and the map card's companion homes off the live map source's `current_room` — nothing runs in drifting vacuum-coordinates anymore. What survives is the CV segmentation pipeline (§2), segment adjustments (§5), image variants (§6), custom layouts (§10), and the provider map source (§11). The retired designs are preserved in git history and the boundary-derivation design note; **§3 below is kept only as historical reference — its code is deleted.**
+> **Status (mapping split).** The run-derived *inference* lineage — trace capture / segmentation / review, room-boundary derivation (vacuum-space polygons), the affine transform-fitting pipeline, image-segment *suggestion*, **and the learned per-room bounding-box store (`room_bounds.py` / `RoomBoundsStore`) itself** — was retired. Room tracking now runs off the device's **native current-room** signal: the tracker resolves it and fires `eufy_vacuum_room_completed` (with each room's dwell duration) via a confidence/dwell debounce, and the map card's companion homes off the live map source's `current_room` — nothing runs in drifting vacuum-coordinates anymore. What survives is the CV segmentation pipeline (§2), segment adjustments (§5), image variants (§6), custom layouts (§10), and the provider map source (§11). The retired designs are preserved in git history and the boundary-derivation design note; **§3, §7, and the retired-storage notes in §8 below are kept only as historical reference — their code is deleted.**
 
 ---
 
 ## 1. Overview
 
-The mapping system has three subsystems that address different aspects of knowing where rooms are. The first two — covered in depth here — are local: they derive room geometry from a map PNG (pixel space) or learn it from cleaning runs (vacuum space). The third reads the room layout the provider's *own* firmware already knows.
+The mapping system has three subsystems that address different aspects of knowing where rooms are. Two are local: the first derives room *shape* from a map PNG (pixel space); the second tracks *which room the robot is in* from the device's native current-room signal (this replaced the retired learned-bounds approach — §3). The third reads the room layout the provider's *own* firmware already knows.
 
 **Image segment analysis** answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. The brand-agnostic geometry/image primitives live in `mapping/segment_primitives.py`; the Eufy HSV pipeline that uses them lives in `adapters/eufy/segmentor.py` and is invoked through the segmenter-engine abstraction in `mapping/segmenter_engines.py`. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
 
 **Room tracking** (`tracker.py`) answers: *which room is the robot in right now?* The tracker reads the device's **native current-room** signal (the adapter's `active_cleaning_target`), resolves it to a managed room, and — through a confidence/dwell debounce — fires `eufy_vacuum_room_completed` with each room's dwell duration as the robot moves between rooms. The earlier learned bounding-box approach (run-derived, in vacuum coordinates) was **removed**: the device re-bases its coordinate origin every session, so cross-session bounds drifted (see §3, kept as historical reference).
 
-**Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) or learning them from drifting robot samples (trace bounds), this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](map-state-source.md).
+**Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) — or, as the retired trace-bounds learning once did (§3), inferring them from drifting robot samples — this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](map-state-source.md).
 
-The two subsystems are **independent** and operate in different coordinate spaces — image analysis in pixel space, trace bounds in vacuum space. There is no transform between them: the legacy "System A" affine vacuum↔pixel transform was removed.
+The image-segment pipeline and the native-current-room tracker are **independent**. There is no runtime transform between pixel space and vacuum space: the legacy "System A" affine vacuum↔pixel transform was removed along with the bounds derivation.
 
-- Room-boundary *derivation* (vacuum-space polygons learned from a robot boundary-trace trail) was retired with the mapping split. Room presence is now the accumulated bounding box (§3) alone.
-- The room bounds and the image-segment polygon serve complementary but unconnected purposes: the image segment gives shape (pixel space); the bounds give a reliable presence envelope (vacuum space).
+- Room-boundary *derivation* (vacuum-space polygons learned from a robot boundary-trace trail) and the learned per-room bounding-box store were both retired with the mapping split (§3). Room presence now comes straight from the device's native current-room signal — nothing is learned in drifting vacuum-coordinates.
+- The image-segment polygon gives room *shape* in pixel space; it is used only as a UI map-card overlay and is never projected into vacuum space.
 - Because no pixel↔vacuum transform exists, an image-space polygon can never be tested against a live (vacuum-space) position — the two spaces are never mixed.
 
 ---
@@ -225,6 +225,12 @@ The pipeline depends only on Pillow + NumPy + SciPy; `pipeline_ready` is the sin
 > vacuum-coordinate frame, which re-bases every session, so the cross-session bounds
 > were a smear. Room tracking now reads the device's native current-room (§1). This
 > section is retained as a historical / disaster-recovery reference; the code is gone.
+>
+> **Preserve §3.1–§3.6 verbatim — do not trim.** This is the sole in-repo record of
+> the trace→bounds design, kept deliberately for a possible future revival. The
+> present tense below describes the *retired* algorithm, not current behavior; a
+> doc-sweep must not "reconcile" it away. Revival is gated on first proving a stable
+> cross-session coordinate origin (see memory `project_boundary_derivation_dead`).
 
 ### 3.1 What a "trace" is
 
@@ -324,7 +330,7 @@ The two coordinate spaces are **not** related by any runtime transform. The lega
 Consequences for the rest of the system:
 
 - Image-segment polygons stay in pixel space and are used only as UI map-card overlays; they are never projected into vacuum space.
-- Room bounds (§3) operate purely in vacuum space — the accumulated bounding box learned from cleaning-run samples.
+- Vacuum-space position is now consumed only by the tracker's confidence tick and the passive dock-coordinate drift log (§4.1); the retired room-bounds store (§3) that once accumulated it is gone.
 - The two are never mixed: without a pixel↔vacuum transform a live (vacuum-space) position cannot be tested against a pixel-space polygon.
 
 ---
@@ -423,47 +429,54 @@ Variant names are normalised to lowercase, spaces and hyphens replaced by unders
 
 ### 6.1 Storage Paths
 
-Images are stored in two locations (written identically):
+Images are written to a single location under the vacuum's map directory, which is served directly to the browser:
 
-- **Filesystem (config dir):** `<config_dir>/eufy_vacuum/mapping/<vacuum_slug>/map_<map_id>[_<variant>].png`
-- **Browser-served (www root):** `<config_dir>/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
+- **On disk:** `<config_dir>/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
+- **Browser URL:** `/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
 
 The `_<variant>` suffix is omitted when `variant == "primary"` or `variant == "default"`. For dark: `map_6_dark.png`. For light: `map_6_light.png`. For default/primary: `map_6.png`.
 
-The browser URL is: `/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
-
-Additionally, image metadata (width, height, path, browser_url) is recorded in the map's `image_variants` dict inside `map_<map_id>.json`. The `image_segment_adjustments` and `image_segments` results are stored separately in the runtime HA `.storage` Store (the map bucket), not in `map_<map_id>.json` — see §9.1.
+Image metadata (width, height, path, browser_url) is recorded in the map bucket's `image_variants` dict, and the `image_segment_adjustments` / `image_segments` results in the same bucket. That bucket is a runtime HA `.storage` structure (`data["maps"][<vacuum>][<map_id>]`), not a filesystem JSON file — see §8.1.
 
 ---
 
 ## 7. Excluded History Entries
 
-Each job entry in a room's `job_bounds_history` carries an `excluded` boolean. `_recompute_bounds_from_history` (§3.6) unions only the **non-excluded** entries, so a flagged run is dropped from the accumulated box while its samples stay in history.
-
-The interactive **bounds-review** surface that set this flag was **retired with the mapping split**: the card's Mapping Bounds Review panel, its `clear_room_bounds` / `exclude_room_job_bounds` / `restore_room_job_bounds` / `rebuild_room_bounds_from_archive` services, and the `boundary.py` transition-candidate scoring that flagged L-shaped / corridor rooms are all gone. The recompute still honors the flag, so entries already excluded on disk stay excluded, but there is no longer a runtime path to toggle it. The retired review design lives in git history.
+> **Retired (mapping split).** The interactive **bounds-review** surface — which let
+> a user exclude an outlier run's `job_bounds_history` entry from the accumulated box —
+> is fully gone, along with the `job_bounds_history` store it operated on (§3).
+>
+> - **Frontend view deleted outright.** `src/renderers/mapping-review.js`,
+>   `src/actions/mapping-review.js`, `src/state/mapping-review.js`, and
+>   `src/styles/mapping-review.js` no longer exist, and the "Map Bounds Review" nav
+>   tab/view is removed. (Some leftover `mapping_review.*` i18n keys still sit in the
+>   locale bundle — a separate code-cleanup, not a feature.)
+> - **Services gone.** `clear_room_bounds`, `exclude_room_job_bounds`,
+>   `restore_room_job_bounds`, `rebuild_room_bounds_from_archive`, and
+>   `get_room_bounds_snapshot` are all absent from `services.yaml`.
+> - **Scoring gone.** The `boundary.py` transition-candidate scoring that flagged
+>   L-shaped / corridor rooms was removed; `boundary.py` now holds only
+>   `point_in_polygon` (§9.2).
+>
+> There is no longer any bounds store to exclude from. The retired review design lives
+> in git history.
 
 ---
 
 ## 8. File Layout
 
-All per-vacuum files live under `<config_dir>/eufy_vacuum/mapping/<vacuum_slug>/`.
+The map bucket is a runtime HA `.storage` structure (`data["maps"][<vacuum>][<map_id>]`), not a filesystem JSON file. Rendered map PNGs live on disk under `<config_dir>/eufy_vacuum/maps/<vacuum_slug>/` (§6.1); the passive per-vacuum diagnostics (the dock-drift log, the access graph) live under `<config_dir>/eufy_vacuum/mapping/<vacuum_slug>/`.
 
-### 8.1 Map State File
+### 8.1 Map Bucket
 
-```
-map_<map_id>.json
-```
+The per-map bucket keyed at `data["maps"][<vacuum>][<map_id>]`, ensured by `maps/map_manager.py`. Contains:
 
-One JSON file per (vacuum, map). Contains:
+- `map_id`, `metadata`, `summary` — identity plus discovery/rebuild bookkeeping.
+- `rooms` — per-room dict keyed by `room_id` string, holding each room's **cleaning settings** (`name`, `slug`, `enabled`, `order`, `profile_name`, `floor_type`, `clean_mode`, `fan_speed`, access grants, etc. — see `maps/map_manager.py`). The former per-room `bounds` / `job_bounds_history` learned from traces are **gone** (§3).
+- `image_variants` — dict of variant metadata records.
+- `package` — the mapping package (see below).
 
-- `rooms` — per-room dict keyed by `room_id` string. Each room entry holds:
-  - `bounds` — the active bounding box: `{min_x, max_x, min_y, max_y, cx, cy, run_count, sample_count, updated_at}`
-  - `job_bounds_history` — list of up to 20 job entries, newest first (each carries an `excluded` flag; see §7)
-- `image_path`, `image_width`, `image_height` — legacy fields, now duplicated in `image_variants`
-- `image_variants` — dict of variant metadata records
-- `package` — the richer mapping package (see below)
-
-The same per-map bucket also carries the CV/Custom toggle state, the named custom-layout collection, and its UI overlays (see §10 for the full treatment):
+The same bucket also carries the CV/Custom toggle state, the named custom-layout collection, and its UI overlays (see §10 for the full treatment):
 
 - `segmentation_mode` — `"cv"` or `"custom"`. Defaults to `"cv"` when absent. Selects which segment store `get_map_segments` serves; flipping it never re-runs the segmenter. In `custom` mode it serves the **active** layout.
 - `image_segments` — the CV base `SegmentationResult` cache (engine-derived). Special at the map-bucket level — there is exactly one.
@@ -475,41 +488,32 @@ The same per-map bucket also carries the CV/Custom toggle state, the named custo
 
 ### 8.2 Mapping Package
 
-Embedded in `map_<map_id>.json` under the `"package"` key:
+The `package` key holds the legacy mapping-package envelope — an opaque `dict` accepted wholesale by the map-package import handler. Historically it carried:
 
 - `room_definitions` — dict keyed by `room_id`. Each definition has labels, slugs, segment link (`suggestion_segment_id`), anchor pixel/vacuum, zone tags, adjacency, etc.
 - `segment_adjustments` — per-segment `offset_x`, `offset_y`, edge deltas, vertex moves
 - `dock` — pixel/vacuum anchor for the dock, exclusion radius
-- `trace_evidence` — up to 100 user-annotated evidence records
 - `images` — variant metadata records (merged with `image_variants`)
+
+Its trace-era fields (e.g. the old `trace_evidence` evidence records) are no longer produced by the integration; treat this envelope as import/back-compat surface rather than a live authoring path.
 
 Note that `segment_room_links` and `companion_anchors` are **not** part of this package JSON. They are runtime-bucket overlays held on the `.storage` map bucket (§8.1, §9.1) and enriched onto each segment at read time by `_build_segments_response` / `_handle_get_map_segments` — the canonical `image_segments` / per-layout `custom_segments` caches are never mutated by them. In `cv` mode the links/anchors come from the **map-bucket** dicts; in `custom` mode they come from the **active layout's** dicts (§10.2). `companion_anchors` may additionally hold the reserved `"dock"` key (the docked-home sprite spot), which is not a room.
 
-### 8.3 Raw Samples Archive (per room)
+### 8.3 Raw Samples Archive (per room) — retired
 
-```
-raw_samples_room_<room_id>[_<slug>].jsonl
-```
+> **Retired (mapping split).** The per-room raw-sample archive
+> (`raw_samples_room_<room_id>*.jsonl`, `RAW_SAMPLES_MAX_LINES`, the slug-aware
+> `_find_raw_samples_path` discovery) was written by the deleted `RoomBoundsStore`
+> (§3) and no longer exists. The one live per-vacuum diagnostic file under
+> `mapping/<vacuum_slug>/` is `_dock_drift.jsonl` — a passive dock-coordinate drift
+> log (`MappingTracker._append_dock_drift`), never fed into cleaning or bounds.
 
-One JSONL file per room. The first line is a metadata header (`"_meta"` key). Each subsequent line is one job entry:
+### 8.4 Active Samples Temp File (in-flight) — retired
 
-```json
-{"job_id": "job_2026-01-15T09-30", "map_id": "6", "room_id": "3",
- "recorded_at": "2026-01-15T09:30:00Z", "room_name": "Kitchen",
- "samples": [[vx, vy], ...], "excluded": false}
-```
-
-The file is capped at `RAW_SAMPLES_MAX_LINES = 1000` job lines (excluding the header). Rolling falloff starts from index 2, preserving the header (index 0) and the baseline job entry (index 1, oldest).
-
-File discovery is slug-aware: `_find_raw_samples_path` globs `raw_samples_room_<room_id>*.jsonl` so that renaming a room (changing its slug) does not orphan the archive.
-
-### 8.4 Active Samples Temp File (in-flight)
-
-```
-_samples_active.json
-```
-
-Written (via atomic rename of `.tmp`) every `SAMPLES_FLUSH_INTERVAL = 25` unique position samples during an active job. Contains `map_id`, `rooms`, and the full `samples` list. Deleted at the start of the next job or after a clean `end_job`. If HA restarts mid-job and a temp file with a matching `map_id` is found on `start_job`, the samples are recovered.
+> **Retired (mapping split).** The in-flight sample temp file (`_samples_active.json`,
+> `SAMPLES_FLUSH_INTERVAL`, mid-job recovery) belonged to `RoomBoundsStore` (§3) and
+> is gone. Run-active pose sampling for native attribution instead buffers into the
+> run's `.storage` slot — see [`eufy-native-transition.md`](eufy-native-transition.md).
 
 ---
 
@@ -522,7 +526,7 @@ The following are specific to Eufy's implementation:
 - **Vacuum coordinate units** — Eufy reports `robot_position_x` / `robot_position_y` as integer sensor states in its proprietary unit. The scale (≈ 1 mm/unit) is inferred and not guaranteed.
 - **Map image format** — Eufy's map images use a consistent hue-per-room convention. The dark variant provides saturated, high-contrast room colours; the light variant provides near-white walls. Both properties are assumed by the HSV thresholding approach.
 - **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires the `eufy_vacuum_room_completed` HA bus event. This is an HA-specific pattern.
-- **HA storage** — `RoomBoundsStore._save_map_data` / `_load_map_data` writes directly to JSON files on the config dir filesystem. The `image_segment_adjustments` and `image_segments` results live in the runtime HA storage manager (`.storage` files), not in the mapping JSON files.
+- **HA storage** — the map bucket (`rooms`, `image_variants`, `image_segments`, `image_segment_adjustments`, custom layouts, overlays) lives in the integration's runtime HA `.storage` structure, keyed at `data["maps"][<vacuum>][<map_id>]` — not on the config-dir filesystem. Only rendered PNGs and the passive per-vacuum diagnostics (`_dock_drift.jsonl`, `access_graph_<map_id>.json`) are files on disk. (The former `RoomBoundsStore` filesystem map file was removed with the mapping split.)
 
 ### 9.2 Generic / Portable
 
@@ -532,10 +536,6 @@ The following components have no Eufy-specific dependencies and would port direc
 - **`rasterize_primitives`** (in `mapping/segment_primitives.py`) — the no-CV counterpart to the segmentor. Takes an ordered list of pct-space primitives (`rect`/`circle`/`polygon`, each optionally `op: subtract`; default unions), draws them onto a PIL `"1"` mask, traces the boundary with the *same* `mask_to_polygon` the CV pipeline uses, and scales the result to the map's pixel dimensions. Inputs are plain dicts with 0–100 coordinates; output is a pixel-space polygon. Dependencies: Pillow (`Image`/`ImageDraw`) + NumPy only (no SciPy). This is the portable core of the custom-segment writer (§10).
 - **`adapters/eufy/segmentor.py`** — the Eufy HSV segmentation pipeline built on those primitives. Inputs: a PNG file path. Outputs: a pure-Python dict. A new brand provides its own segmentor module and registers it as a segmenter engine (`mapping/segmenter_engines.py`) — see the brand-agnostic adapter docs.
 - **`boundary.py`** — `point_in_polygon` (ray casting), the one geometry helper the live map layer still needs (used by `map_source.zone_membership`). The rest of the module — Douglas-Peucker simplification, corner detection, transition-candidate scoring, shoelace area, convex hull — was removed with the mapping split.
-- **`_percentile_trim`** in `room_bounds.py` — pure Python outlier trimming.
-- **`_recompute_bounds_from_history`** — pure Python union of history entries.
-
-The `BOUNDS_MARGIN` value (50 vacuum units) and percentile parameters (P10/P90) are tuning constants that will need adjustment if the coordinate scale differs from Eufy's.
 
 ---
 
@@ -708,7 +708,7 @@ Two adjacent toolbar concerns share the same map view:
 
 ## 11. Provider Map Source (`map_state_source`)
 
-The two subsystems above derive room geometry locally — image analysis from pixels (§2), trace bounds from cleaning runs (§3). The **provider map source** is a third reader that instead normalises the room layout the device's *own* firmware already knows. Where image/trace are best-effort inferences, this reads the provider's authoritative segmentation directly, so room tap-regions, current-room, and anchors are *auto-derived* rather than hand-composed or learned from drifting samples.
+The local subsystems above derive room data differently — image analysis reads room *shape* from map pixels (§2), and the tracker reads *which room the robot is in* from the device's native current-room signal (§1; the trace-bounds learning it replaced is retired, §3). The **provider map source** is a third reader that instead normalises the room layout the device's *own* firmware already knows. Where image analysis is a best-effort pixel inference, this reads the provider's authoritative segmentation directly, so room tap-regions, current-room, and anchors are *auto-derived* rather than hand-composed.
 
 This section is an orientation only; the full design — wave scope, both brand backends, the normalisation transform, and overlay-layer details — lives in the authoritative design reference [`dev/map-state-source.md`](map-state-source.md).
 
@@ -731,6 +731,6 @@ This section is an orientation only; the full design — wave scope, both brand 
 
 Two seams deliberately stay on the manager: `_map_state_source_cache` (the pre-warm writes it; the on-loop snapshot composer and the map-overlays sensor read it directly) and `_resolve_live_map_image_entity` (shared with the dashboard snapshot composer as the live-map presence gate).
 
-### 11.3 Relationship to §2/§3
+### 11.3 Relationship to §1/§2
 
-This reader does **not** replace image analysis or trace bounds — they remain the path for maps where no provider segmentation is available, and the local subsystems own the CV/custom authoring and presence-detection machinery. The provider map source is consumed by the live-map overlay path: because it normalises into the rendered-image (0–1) space the card already draws in, its bboxes/anchors overlay the device-rendered backdrop directly rather than needing the (removed) pixel↔vacuum transform (§4).
+This reader does **not** replace image analysis or the native-current-room tracker — image analysis remains the path for maps where no provider segmentation is available, the tracker owns run-time room presence (§1), and the local subsystems own the CV/custom authoring machinery. The provider map source is consumed by the live-map overlay path: because it normalises into the rendered-image (0–1) space the card already draws in, its bboxes/anchors overlay the device-rendered backdrop directly rather than needing the (removed) pixel↔vacuum transform (§4).

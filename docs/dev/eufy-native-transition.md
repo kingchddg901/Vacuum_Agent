@@ -326,6 +326,33 @@ plays today, but grounded in observed position + device area.
     those (resolved via a helper like `_resolve_engine_tuning`); they must **never hardcode** the
     cadence or thresholds. Same rule for the W5c confidence/availability gate values.
 
+## Shipped (1.8.0) — both brands, external + dispatched
+
+The native-attribution path is live for **Eufy and Roborock**, on **app-started (external)** and
+**dispatched** runs, validated across simultaneous multi-room cleans on both robots (2026-07-11).
+
+- **Capture source is adapter-declared** (`room_attribution.source`): Eufy reads the fork's decoded-map
+  pixel pose (`live_pose`); Roborock reads its native current-room NAME entity (`native_current_room`),
+  which the sampler slugifies and matches to a managed room id. The pose sampler buffers **both external
+  and dispatched** runs.
+- **External runs** flow through the existing counter/pose consumption (`build_pending_record` →
+  `build_attributed_job` / `_apply_pose_identity`) → a pre-answered review record. Roborock (noop
+  segmenter) always takes the pose-only path; the clean decision is the engine's **pose-free swept-area
+  robust mode**, so it needs no pixel anchors.
+- **Dispatched runs** — the atomic finalize's positional (segment K → queue room K) identity is
+  reconciled against the native current-room (`external_ingest.reconcile_dispatched_identity`):
+  **confirm** on agreement, **rescue** when the positional map is already unreliable, **flag**
+  (`attribution_disagreement`, surfaced as the card "Room Mismatch" badge) on a confident disagreement —
+  never silently overriding. Strict-order (phased) jobs already capture per-phase timings and are left
+  untouched.
+- **`cleaning_area` is normalized to canonical m²** by each sensor's `unit_of_measurement`
+  (`learning/utils.cleaning_area_to_m2`), live-read at every capture — an imperial HA presents Eufy's
+  sensor in ft² and Roborock's in m². Swept-area sums **positive per-tick increments** so a
+  non-monotonic (reset) counter is re-baselined, not double-counted. The device's own run total
+  (`cleaning_area_sensor_m2`) is the sanity bound: `attributed_sum > sensor_total` ⇒ `area_over_attributed`.
+- **Card surfacing:** an **Origin** filter (external / dispatched), the **Room Mismatch** badge, and
+  **Area Cleaned** on external runs.
+
 ## Open unknowns (honest)
 
 - No in-code assertion that the live `_robot_pixel` frame is stable mid-run — inferred from eufy-clean's

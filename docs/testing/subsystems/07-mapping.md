@@ -1,9 +1,9 @@
 # 07 — Mapping — Subsystem Test Map
 
-The mapping subsystem turns robot-position samples and map images into room
-data: an image-segmentation stack (`segment_primitives`, `segmenter_engines`),
-a coordinate tracker (`tracker`) that fires `room_completed` off the device's
-native current-room, and the service orchestrator (`mapping_services`).
+The mapping subsystem turns map images into room data: an image-segmentation
+stack (`segment_primitives`, `segmenter_engines`), a room tracker (`tracker`)
+that fires `room_completed` off the device's native current-room, and the
+service orchestrator (`mapping_services`).
 A second authoring path lets a human draw rooms directly: `segment_primitives`
 rasterises composer shapes into polygons, and `mapping_services` holds many named
 **custom layouts** per map alongside the CV store, selected by a `segmentation_mode`
@@ -13,9 +13,9 @@ A third path skips authoring entirely: the **`map_state_source` reader**
 provider's OWN segmentation + live pose into VA-owned room data (bbox/name, dock/robot
 anchors, area, current room, overlay layers), so rooms are auto-derived from the device's
 authoritative map rather than learned from drifting samples or hand-drawn.
-The image primitives are near-fully covered; the tracker, the bounds store, and
-the service orchestrator have both their pure helpers (unit) and hass-bound
-bodies (integration) covered; and the real detect_room_segments CV pipeline runs
+The image primitives are near-fully covered; the tracker and the service
+orchestrator have both their pure helpers (unit) and hass-bound bodies
+(integration) covered; and the real detect_room_segments CV pipeline runs
 end to end against a synthetic image.
 
 > **Mapping split.** The run-derived inference lineage — the `trace_capture` →
@@ -35,11 +35,11 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 
 | Source module | Stmts | Cov | Test file | Layer |
 |---------------|------:|----:|-----------|-------|
-| `boundary.py` | — | — | via `tests/unit/test_map_source.py` (only `point_in_polygon` survives) | unit (pure geometry) |
+| `boundary.py` | 15 | 90% | via `zone_membership` in `tests/integration/test_mapping_services.py` (only `point_in_polygon` survives) | integration (pure geometry) |
 | `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
-| `tracker.py` | 407 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `mapping_services.py` | 1400 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
+| `tracker.py` | 231 | 85% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `mapping_services.py` | 1154 | 85% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
 | `map_source.py` | 422 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
 | `map_source_runtime.py` | 509 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
 | `map_source_coordinator.py` | 279 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
@@ -61,19 +61,16 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
   is exercised only through its failure paths.
 
 ### The tracker
-- **`tracker`** (`MT`, unit) — pure `_RoomConfidenceState` and the file-backed
-  helpers (active-samples flush/load/delete, the raw-samples JSONL archive).
+- **`tracker`** (`MT`, unit) — the pure `_RoomConfidenceState` machine
+  (`reset_room`, movement increment / saturate, `reset_job`).
 - **`tracker`** (`MTE`, integration) — the job lifecycle: register/unregister,
-  `start_job`/`end_job` (room-bounds write + raw-sample archive),
-  pause/resume sampling, `_handle_position_update` (accumulate/dedup/pause), and
-  the confidence-threshold room-exit firing `eufy_vacuum_room_completed`.
+  `start_job`/`end_job` (seed / reset the confidence state), pause/resume
+  sampling, `_handle_position_update` (per-tick confidence advance when a job is
+  active, else the passive dock-drift JSONL log), the native current-room
+  resolution (`_detect_current_room` / `_get_raw_position`), and the
+  confidence-threshold room-exit firing `eufy_vacuum_room_completed`.
 
-### The bounds store & service orchestrator
-- **`room_bounds`** (`RB`, unit, `test_room_bounds.py`) — the `RoomBoundsStore`
-  against a tmp config dir: single-room + multi-room attribution (the
-  `MULTI_ROOM_MIN_RUNS` gating and far-sample discard), the run-union recompute
-  with excluded-entry handling, legacy-bounds migration, `_point_in_bounds`
-  margin, `_percentile_trim`, and the snapshot + on-disk round-trip.
+### The service orchestrator
 - **`mapping_services`** (`MS`, unit) — `_apply_segment_adjustments`,
   `_build_segments_response`, and the module-local geometry helpers.
   **`MSH`, integration** — the service handlers via
@@ -84,7 +81,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 ### Custom & multi-layout segmentation
 The human-authored alternative to CV, exercised end to end through the services.
 
-- **Authoring** (`test_mapping_image_pipeline.py`) — `set_custom_segments`
+- **Authoring** (`test_mapping_services.py`) — `set_custom_segments`
   rasterises composer primitives into room polygons (replace-all; refuses with
   `no_custom_backdrop` until a backdrop image exists), and a custom room link
   survives a re-save. `set_segmentation_mode` is a pure pointer flip that **never
@@ -173,15 +170,14 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
 
 Four patterns, same as elsewhere in the suite:
 
-1. **Pure import** (Recipe C) — the geometry, engine registry, the bounds store,
-   and the service helpers. No fixtures.
-2. **`tmp_path` filesystem** — the `room_bounds` store and the
-   `tracker` file helpers get an isolated config dir. For `tracker`, the hass is
-   a `MagicMock` with `config.config_dir = str(tmp_path)` and the manager is a
-   `MagicMock`:
+1. **Pure import** (Recipe C) — the geometry, engine registry, and the service
+   helpers. No fixtures.
+2. **`tmp_path` filesystem** — the `tracker` file helpers (the dock-drift JSONL)
+   get an isolated config dir. The hass is a `MagicMock` with
+   `config.config_dir = str(tmp_path)`:
    ```python
    hass = MagicMock(); hass.config.config_dir = str(tmp_path)
-   tracker = MappingTracker(hass, MagicMock())
+   tracker = MappingTracker(hass)
    ```
 3. **numpy/scipy arrays** — the `segment_primitives` mask tests build real
    arrays. numpy ships transitively via HA core; **scipy and Pillow are explicit
@@ -201,35 +197,33 @@ CV pipeline without coupling to Eufy's. The real Eufy CV segmentor
 belongs. Framework-level tests stay engine-agnostic; brand CV tests live with the brand code.
 
 ### Non-segment service handlers (`MSV`, integration)
-The surviving read/display handlers — `get_room_bounds_snapshot`, `delete_map_image`,
-`set_live_map_rotation`, `set_map_overlay_visibility`, and `get_map_render_data` —
-exercised through `async_register_mapping_services`. (The boundary-trace, dock,
-trace-capture, mapping-package, and trace-review handlers were retired with the
-mapping split.)
+The surviving read/display handlers — `delete_map_image`, `set_live_map_rotation`,
+`set_map_overlay_visibility`, and `get_map_render_data` — exercised through
+`async_register_mapping_services`. (The room-bounds-snapshot, boundary-trace,
+dock, trace-capture, mapping-package, and trace-review handlers were retired with
+the mapping split.)
 
 ## Known gaps
 
 Every module sits at 92–100%. The genuinely-untested *behaviours* were closed in
 the 2026-06 gap pass (legacy-calibration migration, dock optional-field writes,
-`_write_job_bounds` newest-file injection, assist-image selection, delete-variant
-retain + already-gone paths, the adjust-segment vertex-merge / reset-to-zero
-branches, the room-bounds-snapshot archive enrichment, the raw-sample rolloff +
-multi-room orphan drop, the short/similar-segment merge branches, the RDP
-fallback / non-unit zoom / alignment-recovery primitives, the degraded `_reshape`
-diagnostics, and the sliver area guard). What remains is uncovered **on purpose**,
+assist-image selection, delete-variant retain + already-gone paths, the
+adjust-segment vertex-merge / reset-to-zero branches, the short/similar-segment
+merge branches, the RDP fallback / non-unit zoom / alignment-recovery primitives,
+the degraded `_reshape` diagnostics, and the sliver area guard). What remains is
+uncovered **on purpose**,
 per the ~90% held-ceiling policy — defensive guards, not coverage debt:
 
-- **`room_bounds.py`** — the load/save `except` blocks (corrupt JSON, best-effort
-  `_write_job_bounds` I/O) and not-taken partial branches in the attribution path.
 - **`mapping_services.py`** (91%) — the `_handle_analyze_map_image` tuning-override /
   light-assist wiring (the `tuning` dict + `assist_image_path` block inside that handler)
   is **deferred**: a robust test fights the filesystem-probing image store plus phac's
   shared config dir — not worth a fragile test. The rest is defensive (the `OSError`
   delete branch in `_handle_delete_map_image`, non-dict guards, the tracker-absent else,
   and the schema-unreachable coerce guards in `_build_segments_response`).
-- **`tracker.py`** (93%) — `# pragma: no cover` I/O / manager except-blocks,
-  malformed-line resilience, and trivial early-return guards. The transition-room
-  skip at 707 is a redundant defensive short-circuit (its normal path is covered by
+- **`tracker.py`** (93%) — `# pragma: no cover` capabilities-read / dock-drift
+  JSONL I/O except-blocks, malformed-line resilience, and trivial early-return
+  guards. The transition-room skip in `_detect_current_room` is a redundant
+  defensive short-circuit (its normal path is covered by
   `test_room_completed_event`), deliberately left.
 - **`segment_primitives.py`** (94%) — empty-mask divide-by-zero returns,
   optional-dependency guards, and unreachable malformed-edge artifacts.
@@ -243,12 +237,11 @@ per the ~90% held-ceiling policy — defensive guards, not coverage debt:
 
 ## Extending
 
-1. **A new geometry/engine/bounds behavior?** Pure unit test — add a target to
+1. **A new geometry/engine behavior?** Pure unit test — add a target to
    the matching file. Use `tmp_path` if it touches disk.
 2. **A scipy/numpy image path?** Build real arrays; gate scipy-only code with
    `pytest.importorskip`.
-3. **A bounds-store method or service handler?** That's the integration pass —
-   stand up the `RoomBoundsStore` with a real hass + `tmp_path` config dir (and
-   register via `async_register_mapping_services` for the service layer).
+3. **A service handler?** That's the integration pass — register via
+   `async_register_mapping_services` with a real hass + `tmp_path` config dir.
 4. Re-measure across **all** mapping test files together for the true per-module
    number.

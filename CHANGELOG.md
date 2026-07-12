@@ -10,6 +10,75 @@ only.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-07-11
+
+### Added
+- **Room attribution for app-started AND dispatched runs, on both Eufy and Roborock.** The
+  integration now recovers *which* rooms a run actually cleaned from the live room signal
+  (Roborock's native current-room, Eufy's decoded-map pose) plus the swept-area counter. An
+  external (app-started) clean opens the review wizard pre-answered instead of blank; a dispatched
+  clean whose vacuum deviated from the planned order gets its per-room identity corrected.
+  Validated live across simultaneous multi-room runs on both robots.
+- **Review card — Origin filter.** Filter the run history by **External** (app-started) vs
+  **Dispatched** (started by this integration).
+- **Review card — "Room Mismatch" badge.** On a dispatched run where the live room signal
+  disagreed with the assigned room for part of the run, the run is flagged for review — the
+  assignment is kept, never silently overridden.
+- **Review card — custom exclude reason.** A "Custom…" chip reveals a free-text field so you can
+  exclude a run with your own reason, alongside the presets.
+- **Review card — Area Cleaned + External badge.** External runs now show the floor area cleaned
+  (single and multi-room) and read as "External" rather than borrowing a sanity/learning verdict.
+- **Learning-processing toggle.** Collect run data always, process on demand — run collect-only on
+  a low-power box and catch up when convenient, with a "Process pending runs" action and a
+  pending-count display.
+- **Diagnostics — cleaning_area unit report.** Each vacuum's diagnostics show the currently
+  detected `cleaning_area` unit and its normalized m² value, so a mismatched/toggled unit is
+  visible at a glance.
+
+### Fixed
+- **`cleaning_area` is now normalized to square meters by the sensor's own unit.** On an imperial
+  Home Assistant, Eufy's area sensor reports square *feet* while Roborock's reports square meters;
+  the value was read as m² regardless, inflating Eufy areas ~10.76×. Areas are now converted to a
+  canonical m² by each sensor's `unit_of_measurement`, read live so a unit toggle is handled.
+- **Roborock `cleaning_time`** (a bare number of minutes) was stored as seconds — 60× too low; now
+  converted by the declared unit.
+- **Stranded dispatched runs now recover.** A run interrupted by power loss / a mid-run restart /
+  a firmware hang no longer vanishes (or corrupts a later run's record) — it's finalized as
+  `interrupted` into the same review flow, brand-aware.
+- **Extreme unexplained-idle runs are held from learning** (restorable) so they can't skew baselines.
+- **Swept-area attribution handles a non-monotonic `cleaning_area`** — some sensors reset/drop
+  mid-run; per-room area now sums positive increments so a reset is re-baselined, not double-counted.
+- External runs are no longer mislabeled "Sanity Failed" in the review list.
+
+### Changed
+- **Removed the learned room-boundary (vacuum-coordinate) subsystem.** Room tracking now runs
+  entirely off the device's native current-room signal and the live map — the drift-prone
+  coordinate-based boundary machinery is gone.
+
+## [1.7.3] - 2026-07-11
+
+### Fixed
+- Scalar/Tuya-transport Eufy (e.g. X10 Pro) room clean no longer crashes on the implicit "main"
+  map id — the dispatch omits a non-numeric map id so robovac_mqtt falls back to map 1.
+
+## [1.7.2] - 2026-07-10
+
+### Added
+- Theme-completeness guard (`check-styles` theme-lint) + a full `styles/` token sweep (98.9% CSS
+  coverage), so an un-tokenized color fails the build.
+
+## [1.7.1] - 2026-07-10
+
+### Added
+- **Profile Run Card** (`vacuum-agent-profile-card`) — inspect and run a single saved profile,
+  with a shared step-manifest seam and per-user globe localization.
+
+## [1.7.0] - 2026-07-10
+
+### Added
+- **Native charge-to-X% and wait steps in a run profile** — vacuum → charge → mop captured as one
+  learned job with charge/wait break-phases (Roborock + settable-mop models included).
+
 ## [1.6.7] - 2026-07-07
 
 ### Fixed

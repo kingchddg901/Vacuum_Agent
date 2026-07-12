@@ -117,7 +117,7 @@ action:
 
 ### When it fires
 
-Fires when the integration marks a room complete and advances to the next one. This is the same `_maybe_roll_current_room_by_timing` path that also fires `eufy_vacuum_room_started` for the following room. The rollover happens because the live cleaned-area counter plateaued (`source: "counter_plateau"`, the primary live path for Eufy), because the room's timing threshold was exceeded (`source: "timing_rollover"`), because a confident coordinate signal advanced past the room early (`source: "bounds_exit_early"`), or because the device reported the live room directly via the Roborock native current-room rollover (`source: "native_signal"`, which suppresses the counter/timing rollover for that job).
+Fires when the integration marks a room complete and advances to the next one. This is the same `_maybe_roll_current_room_by_timing` path that also fires `eufy_vacuum_room_started` for the following room. The rollover happens because the live cleaned-area counter plateaued (`source: "counter_plateau"`, the primary live path for Eufy), because the room's timing threshold was exceeded (`source: "timing_rollover"`), or because the device reported the live room directly via the Roborock native current-room rollover (`source: "native_signal"`, which suppresses the counter/timing rollover for that job). A legacy `source: "bounds_exit_early"` value still exists in the finalize code but is **dormant** — the coordinate-based fast-rollover producer that once set it (`MappingTracker._signal_fast_rollover`) was removed with the mapping split, so it no longer fires in current builds.
 
 ### Payload fields
 
@@ -241,9 +241,9 @@ a notification prompting the user to confirm which rooms it cleaned (the card's
 
 ### When it fires
 
-Fires from the **mapping tracker** when the robot's live coordinates leave a room's stored boundary box. This is a position-based signal, distinct from the timing-rollover path that fires `eufy_vacuum_room_finished`. It requires the interactive map to be configured and the vacuum to expose a position entity (`robot_position_x` / `robot_position_y`).
+Fires from the **mapping tracker** when the device's **native current-room** signal indicates the robot has left a room — confirmed through a confidence/dwell debounce (`CONFIDENCE_THRESHOLD = 0.85` in `mapping/tracker.py`) — and carries that room's dwell duration. This is distinct from the timing-rollover path that fires `eufy_vacuum_room_finished`. It requires the adapter to expose the native current-room signal (the `active_cleaning_target` entity); the earlier coordinate/boundary-box mechanism — and its `robot_position_x` / `robot_position_y` requirement — was removed with the mapping split.
 
-Because it is derived from coordinate tracking rather than learned timing, it can fire for rooms the learning system has no history for, and it fires independently of whether the room was part of the current queue.
+Because it is driven by the device's own current-room signal rather than learned timing, it can fire for rooms the learning system has no history for, and it fires independently of whether the room was part of the current queue.
 
 ### Payload fields
 
@@ -320,7 +320,7 @@ action:
 
 Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`), which `get_job_progress_snapshot()` invokes on every dashboard poll / progress tick. The event fires when both of the following are true:
 
-1. The integration is already in `awaiting_bounds_exit` state for the current room — meaning the timing threshold was met but the robot has not yet crossed the room boundary
+1. The integration is already in `awaiting_bounds_exit` state for the current room — meaning the room's timing threshold was met but it has not yet rolled over (no counter plateau or native-signal completion has advanced past it)
 2. The robot has been in the room for **at least 2× the learned timing threshold** for that room (`_STALL_RATIO`)
 
 The tracker records which rooms have already triggered this event per job via `_stall_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many dashboard polls occur.

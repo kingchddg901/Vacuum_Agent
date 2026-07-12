@@ -6,13 +6,13 @@ The learning system watches your vacuum's cleaning runs over time and builds per
 
 ## How It Works
 
-Every time a cleaning job finishes, the integration finalizes the run into a completed-job record and archives it to disk. A separate process called the stats rebuilder then reads all archived jobs and computes per-room averages. Those averages are what the estimator uses the next time you start a clean.
+Every time a cleaning job finishes, the integration finalizes the run into a completed-job record and archives it to disk. This happens both for runs this integration dispatched and for runs you started from the vacuum's own app (see [Attributing app-started and dispatched runs](#attributing-app-started-and-dispatched-runs)). A separate process called the stats rebuilder then reads all archived jobs and computes per-room averages. Those averages are what the estimator uses the next time you start a clean.
 
 The flow looks like this:
 
 1. Job starts — a live snapshot is saved capturing the room list, battery level, and pre-job estimate.
-2. Job ends — the finalizer archives the completed-job record, including outcome, duration, and any estimate-versus-actual data.
-3. Stats are rebuilt from all archived jobs.
+2. Job ends — the finalizer archives the completed-job record, including outcome, duration, which rooms were actually cleaned, and any estimate-versus-actual data.
+3. Stats are rebuilt from all archived jobs — unless learning processing is turned off, in which case the run is collected now and processed later (see [Collecting vs processing runs](#collecting-vs-processing-runs)).
 4. The estimator reads the rebuilt stats and uses them for the next run.
 
 ---
@@ -27,6 +27,38 @@ Not every completed run contributes to learned stats. A run that contributes is 
 - No learning blockers were set (for example, a cancel-like detection or missing room attribution).
 
 Runs that do not qualify are still archived to history. They count toward your run log and metrics displays but do not move per-room averages. You can see which runs were excluded and why in the learning history snapshot.
+
+Two cases are captured rather than dropped:
+
+- **Interrupted runs.** A run cut short by power loss, a mid-run restart, or a firmware hang no longer vanishes (or corrupts a later run's record). It is finalized as `interrupted` into the same review flow — visible, but not contributing to averages.
+- **Extreme unexplained idle.** A completed run with a large idle stretch that is *not* a charge/wait phase or a logged error is held from learning, so one anomaly can't skew a room's baseline. Held runs stay visible and are restorable.
+
+---
+
+## Attributing app-started and dispatched runs
+
+For the learning system to credit a run to the right rooms, it has to know which rooms the vacuum actually cleaned. Two run types are handled, on both Eufy and Roborock:
+
+- **Dispatched runs** — started by this integration, so the queue already names the target rooms in order.
+- **App-started (external) runs** — started from the vacuum's own app, with no queue to anchor to.
+
+Both recover the cleaned-room set from a live room signal captured during the run. The signal source is brand-specific: Roborock reads its native current-room name and matches it to a managed room; Eufy reads the decoded-map pose from the live map. (Without a live map, Eufy falls back to today's manual review step — attribution is purely additive.)
+
+**External runs** are attributed after the fact and open the review panel pre-answered with the rooms the vacuum cleaned, instead of a blank guess. The clean-versus-not decision is made by swept floor area: a room whose `cleaning_area` grew by at least ~0.5 m² while the vacuum was in it counts as cleaned, while a parked dock or a mop-wash (which sweep ~0 m²) do not. Because this is area-based, it needs no exact position fix.
+
+**Dispatched runs** already have a planned room order, but the vacuum can deviate from it. The finalizer compares the planned order against the live room signal and either:
+
+- **confirms** the assignment when they agree,
+- **rescues** it when the planned order was already known-unreliable, or
+- **flags** it when the two confidently disagree — the planned assignment is kept (never silently overwritten) and the run gets a **Room Mismatch** badge in the review panel for you to check.
+
+Strict-order (phased) jobs are left untouched — they capture accurate per-phase timings directly.
+
+### Cleaning-area units and the sanity bound
+
+`cleaning_area` is normalized to canonical square meters using each sensor's own `unit_of_measurement`, read live so an in-app unit change is handled. On an imperial Home Assistant, Eufy's sensor reports square feet while Roborock's reports square meters; read as-is, Eufy areas were inflated ~10.76×. When a counter resets or drops mid-run, per-room area sums only the positive increments, so a non-monotonic counter is re-baselined rather than double-counted.
+
+The device's own run-total area is the sanity ceiling: attributed per-room area can fall short of it (transit and approach accrue but belong to no room), but if the attributed sum exceeds the device total by more than 10% the run is flagged `area_over_attributed` as likely double-counted.
 
 ---
 
@@ -113,6 +145,28 @@ A room is flagged `is_trouble` when both of these conditions are true:
 The card surfaces the trouble flag on the room tile so you can investigate whether the room has an access problem, a persistent navigation failure, or is regularly cancelled before the vacuum reaches it.
 
 You can inspect the raw trouble room data using the `eufy_vacuum.get_trouble_rooms_log` service, which returns per-room counts and rates.
+
+---
+
+## Collecting vs processing runs
+
+By default, every finalized run is both collected (archived to history) and processed (stats rebuilt) right away. On low-power hardware you can split those steps: turn processing off so runs are only collected, then catch up in one batch when convenient. Both services below are box-level — they apply to all managed vacuums.
+
+Turn per-run processing off:
+
+```yaml
+service: eufy_vacuum.set_learning_processing
+data:
+  enabled: false
+```
+
+While processing is off, completed runs are still saved but the per-run stats rebuild is skipped, so nothing churns. A pending-run count shows how many runs are waiting. Process the backlog on demand, without turning per-run processing back on:
+
+```yaml
+service: eufy_vacuum.process_pending_runs
+```
+
+Turning processing back on (`set_learning_processing` with `enabled: true`) reprocesses the backlog and resumes normal per-run processing.
 
 ---
 

@@ -11,7 +11,10 @@ be able to follow the entire flow from source code using this document.
 - `custom_components/eufy_vacuum/jobs/phase_runner.py`
 - `custom_components/eufy_vacuum/__init__.py`
 - `custom_components/eufy_vacuum/learning/job_finalizer.py`
+- `custom_components/eufy_vacuum/learning/history_store.py`
+- `custom_components/eufy_vacuum/learning/external_ingest.py`
 - `custom_components/eufy_vacuum/learning/services.py`
+- `custom_components/eufy_vacuum/listeners/pause_timeout.py`
 - `custom_components/eufy_vacuum/const.py`
 
 ---
@@ -292,7 +295,8 @@ state (e.g. `dock_drying`) could complete the job before it actually started.
 `EVENT_ROOM_STARTED` fires in two situations:
 - At job start (`source: "job_start"`), when `current_room_id` is non-null.
 - After each rollover, for the *next* room. The `source` carries the rollover
-  path: `"counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"`, or
+  path: `"counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"` (dormant —
+  producer removed with the mapping split), or
   `"native_signal"` (brands on the native current-room path, e.g. Roborock).
 
 `EVENT_ROOM_FINISHED` fires from `_maybe_roll_current_room_by_timing` (via
@@ -430,11 +434,16 @@ counter/timing paths, checked in this order:
    so it was gated off in production anyway.)
 5. On rollover: `source="timing_rollover"`.
 
-**Fast-room path (early bounds exit):**
+**Fast-room path (early bounds exit) — dormant.** The finalize reader below is
+retained, but its **producer was removed with the mapping split**: the mapping
+tracker no longer sets `_pending_fast_rollover` (`MappingTracker._signal_fast_rollover`
+is gone), so `source="bounds_exit_early"` no longer fires in current builds. Kept
+here as the dormant design — the reader is a no-op until a producer is restored.
 1. Elapsed < `_timing_completion_threshold_minutes` but >=
    `_MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER` (1.5 min / 90 s).
-2. The mapping tracker's confidence model has signalled via
-   `_pending_fast_rollover` on the active job that the robot finished and left.
+2. The mapping tracker's confidence model *would* signal via
+   `_pending_fast_rollover` on the active job that the robot finished and left
+   (producer removed — see above).
 3. Signal is consumed (popped from `active_job`) on use so it cannot trigger twice.
 4. Fires `EVENT_ROOM_FINISHED` with `source="bounds_exit_early"`.
 
@@ -573,9 +582,16 @@ finalization cancel-detection heuristic.
 ### Sensor value recording (`record_active_job_sensor_value`)
 
 Called from the job-metrics listener whenever tracked sensors
-(`cleaning_time_seconds`, `cleaning_area_m2`, etc.) change. Writes directly to
-all in-flight active jobs for the vacuum. Finalization reads from `active_job`
-instead of issuing a live HA state read at job-end, avoiding the DPS timing race.
+(`cleaning_time_seconds`, `cleaning_area_m2`, etc.) change. Each reading is
+**normalized to canonical units at capture** by the listener before it is
+recorded: `cleaning_area` → m² by the sensor's own `unit_of_measurement`
+(`learning/utils.cleaning_area_to_m2`; an imperial HA presents Eufy's sensor in
+ft² and Roborock's in m², so a bare read would silently mix units and inflate
+Eufy area ~10.76×), and `cleaning_time` → seconds by unit (Roborock reports bare
+minutes — previously stored 60× too low). The unit is re-read live, so a unit
+toggle in the app or HA is handled per-tick. Writes directly to all in-flight
+active jobs for the vacuum. Finalization reads from `active_job` instead of
+issuing a live HA state read at job-end, avoiding the DPS timing race.
 
 ---
 
@@ -672,6 +688,31 @@ During finalization, `_detect_cancel_likely_run` is called when
 When detected, `outcome_status` is overridden to `"cancelled"` with
 `lifecycle_name = "cancel_likely"`.
 
+### 6f. Stranded dispatched-run reaper (automatic)
+
+**Trigger:** A dispatched run left at `status == "started"` that ended *without*
+ever hitting its brand's completion terminal — power loss, an HA restart mid-run,
+a stuck-then-docked run, or an app-cancel that never emitted the terminal status.
+Left alone it strands as `started`: no record, it masks a later external run, and
+a later terminal signal can be mis-attributed to it.
+
+**Code path:** the same 1-minute `listeners/pause_timeout.py` tick that drives the
+pause-timeout reaper also calls `manager.poll_stranded_started_job`
+(`ActiveJobTracker`, independent of the paused check — a stranded run is never
+paused). The verdict is brand-agnostic: it reads the same completion signals +
+secondary + job-active as the completion gate (§6a) and defers to
+`is_stranded_started` (suppressed while `_phase_dispatch_pending` is set or the
+status is a mid-run service state). On the first tick the strand holds it stamps
+`active_job["stranded_since"]` and waits; a resume clears the stamp so a transient
+dock never accrues grace. Once the strand has held past
+`STRANDED_REAP_GRACE_MINUTES` (5 min), `poll_*` returns a reap report and the tick
+calls `manager.async_finalize_stranded_job`, which finalizes the run as
+`interrupted` (`forced_lifecycle_state="stranded_no_completion"`) **without**
+`return_to_base` (the robot is already docked/over), using `stranded_since` as
+`ended_at` so the duration reflects the real end, then fires `EVENT_JOB_FINISHED`.
+As an interrupted run it is held from learning but lands in the same review flow,
+**Restore-able** rather than lost.
+
 ---
 
 ## 7. Finalization
@@ -689,32 +730,86 @@ the room-history-updated notification if anything was ingested.
 The finalizer separates event-loop work from file I/O:
 
 **`_collect_finalization_inputs`** (event loop): loads the in-memory live
-snapshot (falls back to disk), reads `queue_state`, `payload_state`,
-`active_job_state`, and `lifecycle_state` from the manager. Determines
-`outcome_status` from lifecycle name or cancel detection. Reads
-`cleaning_time_seconds` and `cleaning_area_m2` from `active_job` (written there
-by `record_active_job_sensor_value` during the run). Returns a frozen inputs
-dict.
+snapshot (falls back to disk), reads `queue_state`, `payload_state`, and
+`active_job_state` from the manager. Determines `outcome_status` from the
+caller-supplied forced lifecycle name or the cancel-detection heuristic (the
+old live `get_lifecycle_state()` read was removed — its readiness values never
+mapped to cancelled/failed/interrupted anyway). Reads `cleaning_time_seconds`
+and `cleaning_area_m2` from `active_job` (written there by
+`record_active_job_sensor_value` during the run). Returns a frozen inputs dict.
 
 **`finalize_from_inputs`** (executor thread — pure computation and file I/O):
-- Builds a `completed_job` payload via `store.build_completed_job_payload`.
+- Builds a `completed_job` payload via `store.build_completed_job_payload`. For
+  an **atomic dispatched** run this also runs the dispatched-identity reconcile
+  (see below) before returning the payload.
 - Calls `_apply_snapshot_estimates_to_completed_job` — attaches pre-run
   estimated minutes, battery, and confidence onto each resolved room.
 - Calls `_apply_water_actuals` — computes actual water-used breakdown.
+- Stamps the normalized `cleaning_area_m2` onto the job dict and mirrors it as
+  `cleaning_area_sensor_m2` (the device's own run total, used downstream as the
+  area-attribution sanity bound — `utils.area_sanity`), then derives
+  `overhead_observed`.
+- Calls `_apply_idle_wall_hold` — the cold-start idle-wall guard (see below), run
+  *before* the battery sink so a held run also stays out of the battery-drain means.
 - Writes `learning_context` (queue shape key, estimate delta, access graph
   metadata).
 - Saves `completed_job.json` via `store.save_completed_job`.
 - Calls `_write_incomplete_run_log` (for cancelled/failed/interrupted only).
 - Calls `_update_trouble_rooms_log`.
 - Optionally rebuilds learned stats (`rebuilder.rebuild_all`).
-- Optionally derives room boundary data.
+
+### Dispatched-identity reconcile (atomic runs)
+
+Inside `store.build_completed_job_payload`, an **atomic** dispatched run (not a
+strict-order/phased one) reconciles its *positional* room identity — segment K →
+queue room K — against the device's native current-room that the pose sampler
+buffered during the run (`learning/external_ingest.reconcile_dispatched_identity`).
+The counter still owns each segment's time/area; the reconcile only decides *which
+room* it was. ROBUST (swept-area) mode only — an anchor-only pose stream is left
+untouched, so a weak signal never rewrites a dispatched assignment. Per segment,
+on the room the vacuum physically dwelt in most (dock ticks are already nulled):
+
+- **CONFIRM** — the pose agrees with the positional room → stamp
+  `pose_confidence="confirmed"`, no change.
+- **RESCUE** — the positional K→K map is already known-unreliable (`positional_valid`
+  is `False`: segment count ≠ queue count) → overwrite `room_id`/`slug` with the
+  pose room and stamp `pose_correction="rescued"` / `pose_prior_room_id`. The run
+  is already excluded from the learned aggregate, so this only sharpens the record.
+- **FLAG** — a valid positional run where the pose names a *different* room → keep
+  the positional `room_id`, annotate `attribution_disagreement={positional, pose}`.
+  **Never silently overridden**; learning inclusion is unchanged. Rolled up to the
+  job-level `has_attribution_disagreement`, surfaced as the card's "Room Mismatch"
+  badge.
+
+No pose / anchor-only / a window the pose can't name → that timing is byte-identical
+to the positional path. Strict-order (phased) jobs never reach this — they already
+capture accurate per-phase timings. The app-started (external) sibling of this path
+is `_apply_pose_identity` / `build_attributed_job` (§9 note); see
+[eufy-native-transition.md](eufy-native-transition.md) for the shared attribution
+model and [28-external-run-ingestion](28-external-run-ingestion.md) for the external flow.
+
+### Cold-start idle-wall guard (`_apply_idle_wall_hold`)
+
+An otherwise-eligible completed run that spent an extreme, *unexplained* stretch off
+the dock — wall time far exceeding the device's own `cleaning_time_seconds`, with no
+commanded charge/wait break phase and no error window — is **held from learning**
+rather than allowed to skew baselines. The decision lives in
+`utils.evaluate_idle_wall_hold` (floor `IDLE_WALL_HOLD_FLOOR_MINUTES` = 20 min); when
+it holds, the `extreme_idle_wall` blocker is appended to `outcome["learning_blockers"]`,
+`used_for_learning` is cleared, and `idle_wall_minutes` is stamped. The run stays
+visible and **Restore-able** in the review tab — a soft hold, not a hard exclusion. It
+uses the device cleaning counter (never the state-transition wall slice) so a stuck
+run's near-full slice can't mask the idle.
 
 ### Learning eligibility
 
 A job is **not** used for learning if `outcome_status` is any of:
 `"cancelled"`, `"failed"`, `"interrupted"`, `is_test_job = True`.
 
-Normal completions (`outcome_status = "completed"`) are eligible.
+Normal completions (`outcome_status = "completed"`) are eligible — **unless** the
+cold-start idle-wall guard held the run (`extreme_idle_wall` learning blocker,
+`used_for_learning` cleared; see above), which stays a `completed` record but is
+kept out of the corpus and Restore-able.
 
 ### What gets written where
 
@@ -815,8 +910,8 @@ successful run, no cancellations or stalls).
 | # | Event constant | String value | When | Key payload fields |
 |---|---|---|---|---|
 | 1 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after `vacuum.send_command`, if `current_room_id` is non-null | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source: "job_start"`, `completed_room_ids: []` |
-| 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source` (`"counter_plateau"` / `"timing_rollover"` / `"bounds_exit_early"` / `"native_signal"`), `actual_duration_minutes`, `confidence`, `completed_room_ids`. The `"native_signal"` variant (native current-room rollover, e.g. Roborock, `_set_native_current_room`) omits `confidence`. |
-| 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"`, or `"native_signal"` |
+| 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source` (`"counter_plateau"` / `"timing_rollover"` / `"bounds_exit_early"` / `"native_signal"`), `actual_duration_minutes`, `confidence`, `completed_room_ids`. The `"native_signal"` variant (native current-room rollover, e.g. Roborock, `_set_native_current_room`) omits `confidence`. The `"bounds_exit_early"` source is **dormant** — its producer was removed with the mapping split. |
+| 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"` (dormant), or `"native_signal"` |
 | 4 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | Once per room per job, when elapsed >= `stall_ratio`× timing threshold (2× default) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | `vacuum_entity_id`, `map_id`, `path_block_action`, `action_taken`, `affected_remaining_room_ids` |
 | 6 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | Once per room, when the live queue advances *past* an uncompleted queued room (non-sequential advance — ~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |

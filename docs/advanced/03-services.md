@@ -1195,6 +1195,22 @@ Forces a full rebuild of learned job and room statistics from all completed job 
 | `vacuum_entity_id` | Yes | |
 | `rebuild_csv` | No | Also rebuild flat CSV exports. Default `false`. |
 
+### `set_learning_processing`
+
+Box-level toggle for learning's heavy per-run stats processing. It flips **all** vacuums at once, so it takes no `vacuum_entity_id`. When off, completed runs are still collected into history but the per-run stats rebuild is skipped (near-zero churn, useful on low-power hardware). Turning it back on reprocesses the whole collected backlog and resumes normal per-run processing.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `enabled` | Yes | `true` resumes per-run processing (and catches up the backlog); `false` switches to collect-only. |
+
+Supports response. Returns `{"enabled": bool, "was": bool, "caught_up": {...}}` — `caught_up` carries the backlog rebuild result when the call switched processing from off to on, otherwise `null`.
+
+### `process_pending_runs`
+
+Reprocesses every run collected while learning processing was off — a full stats rebuild from history — and clears the pending counters, **without** turning per-run processing back on. Like `set_learning_processing`, it is box-level and flips all vacuums, so it takes no parameters. Use it to catch up on demand while staying in collect-only mode.
+
+Supports response. Returns `{"processed": [...], "count": N}` listing the vacuums rebuilt.
+
 ### `save_learning_snapshot`
 
 Manually saves a learning snapshot for the current job state. Called automatically by `start_selected_rooms` — manual use is only needed for edge cases such as recording a job that was started outside the integration.
@@ -1704,7 +1720,7 @@ These events are fired by the integration. Use them as automation triggers.
 | `eufy_vacuum_run_incomplete` | A cancelled or interrupted job left at least one queued room uncleaned. Payload includes `missed_room_ids` and `missed_rooms`. Use with `retry_missed_rooms`. |
 | `eufy_vacuum_room_started` | The vacuum begins cleaning a room (job lifecycle timing rollover). |
 | `eufy_vacuum_room_finished` | The vacuum finishes cleaning a room (job lifecycle timing rollover). |
-| `eufy_vacuum_room_completed` | Position-based room exit detected by the mapping tracker. Fired when the robot's coordinates leave a room's boundary. |
+| `eufy_vacuum_room_completed` | The tracker confirmed a room exit, resolved from the device's native current-room signal and debounced by a confidence/dwell threshold. Informational per-room dwell only — distinct from the timing-rollover `eufy_vacuum_room_finished`. |
 | `eufy_vacuum_room_skipped` | The live job queue advanced past a queued room that was never cleaned (a non-sequential advance). Conservative and live/mid-run — fires at most once per room per job; almost never seen on Eufy. See [Events Reference](02-events.md) §eufy_vacuum_room_skipped. |
 | `eufy_vacuum_path_blocked` | Blocker rules changed mid-run and remaining rooms became inaccessible. |
 | `eufy_vacuum_stall_detected` | The robot has been in a room for 2× its learned timing threshold. Payload includes `elapsed_minutes`, `expected_minutes`, and `stall_ratio`. Fires at most once per room per job. |

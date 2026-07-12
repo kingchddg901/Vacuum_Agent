@@ -57,7 +57,7 @@ have to read it instead of inferring it.
 
 One VA-owned **reader**, driven by a per-adapter **`map_state_source`** pointer, publishes
 normalized map data into the dashboard snapshot. Consumers (select-box auto-gen, current-room,
-mascot, bounds review, zone m²) read the **VA's** output — never the provider directly. All
+mascot, zone m²) read the **VA's** output — never the provider directly. All
 provider coupling is isolated to one adapter-configured reader.
 
 ## Brand reality (why a pointer, not a hardcode)
@@ -202,8 +202,7 @@ live-map-camera crop). Adapter-driven, brand-agnostic core + card.
 2. **Exact polygons.** Eufy: contour-trace `room_pixels` (L-exact). Roborock: reconstruct (color-seg
    render or re-parse segment layer).
 3. **Wire consumers.** Auto-gen select-regions (replace manual compose) → tap → room number/id →
-   native clean; current-room (replace bbox/sample membership); mascot follow/dock; bounds-review
-   replacement; zone m².
+   native clean; current-room (replace bbox/sample membership); mascot follow/dock; zone m².
 
 ## Defensive contract
 

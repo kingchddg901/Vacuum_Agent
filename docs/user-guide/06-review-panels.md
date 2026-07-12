@@ -38,6 +38,7 @@ Below the stats, a row of chip-button filters lets you narrow the job list to ex
 | **Profile** | One chip per cleaning profile present in the history, plus "All Profiles". Profile chips show a tooltip with the profile subtitle when one is available. |
 | **Status** | All Statuses / Completed / Canceled / Failed / Interrupted. |
 | **Learning Use** | All Learning Use / Used For Learning / Not Used For Learning. |
+| **Origin** | All Origins / External / Dispatched. **External** runs were started from your robot's own app; **Dispatched** runs were started by this integration. |
 | **Sort** | Newest / Highest Outlier / Suggested Exclude / Excluded Only. |
 
 Sorting is applied locally on the card — it does not trigger a new fetch.
@@ -99,20 +100,23 @@ One or more coloured badges can appear on a job card:
 | Badge | Meaning |
 |-------|---------|
 | **Excluded** | This job has been manually excluded from learning. |
+| **External** | The run was started from your robot's own app rather than from this card. This is its own neutral flag — it is not a sanity or learning verdict. |
 | **Suggested Exclude** | The integration has flagged this job as a candidate for exclusion. |
 | Non-"completed" status | The job did not finish normally (e.g. Canceled, Failed, Interrupted). |
-| **Sanity Failed** | The job failed an internal data-quality check. |
+| **Sanity Failed** | The job failed an internal data-quality check. External runs never show this badge — being externally captured is not a data-quality failure. |
 | **Recharge** | A mid-job battery recharge was observed during this run. |
 | **Single Room** | The job covered only one room. |
 | **Multi Room** | The job covered more than one room. |
+| **Room Mismatch** | On a dispatched run, the robot's live room signal disagreed with the room the run was assigned for part of the clean. The run is flagged for review — the assignment is kept, never silently overridden. Open the run to check which room was actually cleaned. |
 
 ### Key-value grid
 
-Each card shows five fields:
+Each card shows the following fields:
 
 | Field | Meaning |
 |-------|---------|
 | **Rooms** | The room slugs covered in this job. |
+| **Area Cleaned** | The floor area cleaned this run, in m². Shown when the run recorded a cleaned area — external (app-started) runs now carry this for both single- and multi-room cleans. |
 | **Scope** | Whether the job was single-room or multi-room (formatted label). |
 | **Profile** | The cleaning profile used. A subtitle line appears when the profile has extra detail. |
 | **Used For Learning** | Yes or No — whether this job was included in the learning model. |
@@ -137,8 +141,9 @@ If a job card has an **Exclude** button, you can remove that run from learning. 
 | **False Completion** | The vacuum reported completion but did not actually finish. |
 | **Bad Room Attribution** | The run was attributed to the wrong room. |
 | **Interrupted Run** | The run was cut short by an interruption outside your control. |
+| **Custom…** | Reveals a free-text field so you can record your own reason instead of a preset. |
 
-The default reason is "Manual Test Run". Click **Exclude** to confirm. The button shows "Working..." while the action is in progress and is disabled to prevent double-clicks.
+The default reason is "Manual Test Run". Selecting **Custom…** opens a text box — type your reason there before excluding. Click **Exclude** to confirm. The button shows "Working..." while the action is in progress and is disabled to prevent double-clicks.
 
 ### Restoring a job
 

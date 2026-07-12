@@ -25,9 +25,9 @@ The system is entirely optional. The core integration runs without it; the learn
 | `manager.py` | Orchestrator. Coordinates all modules. Maintains an in-memory cache of `room_stats` and `accuracy_stats`. All classes (`LearningHistoryStore`, `LearningStatsRebuilder`, `LearningJobFinalizer`) take `hass: HomeAssistant` in `__init__` and are HA-bound; they instantiate their collaborators internally (not stateless utilities). |
 | `services.py` | HA service registration only. No math. Each handler validates inputs and delegates to `LearningManager`. |
 | `utils.py` | Shared helpers (`_safe_int`, `_safe_float`, `_safe_bool`, etc.) used across the learning package. |
-| `external_ingest.py` | Captures runs started from the Eufy app (not HA-dispatched), builds the pending record, and re-segments / confirms them into learned jobs via the review wizard. Also runs **pose-based room attribution** (via `room_attribution_engines.py`) to pre-fill the cleaned-room set, and builds a stand-alone attributed record when counter segmentation yields nothing. |
+| `external_ingest.py` | Captures runs started from the Eufy app (not HA-dispatched), builds the pending record, and re-segments / confirms them into learned jobs via the review wizard. Also runs **pose-based room attribution** (via `room_attribution_engines.py`) to pre-fill the cleaned-room set, and builds a stand-alone attributed record when counter segmentation yields nothing. For **dispatched** runs it reconciles the finalizer's positional room identity against the native current-room (`reconcile_dispatched_identity`, §2.4). |
 | `job_segmenter_engines.py` | The pluggable `JobSegmenter` engine seam (`eufy_counter_v1`) over the counter-plateau primitives; selected by adapter config, with an Eufy fallback. |
-| `room_attribution_engines.py` | Pluggable room-attribution seam — recovers the cleaned-room *set* of an undispatched (app-started) run from a pose stream (counter owns time/area, this owns *which managed room*); Eufy engine `eufy_anchor_winding_v1`; selected via the adapter's `room_attribution.engine`, with an Eufy fallback. |
+| `room_attribution_engines.py` | Pluggable room-attribution seam — recovers *which managed room* a run's segments cleaned from a per-tick room stream (counter owns time/area, this owns identity). Brand-agnostic engine `eufy_anchor_winding_v1` (its **robust** clean-vs-park decision keys on swept `cleaning_area`, so it needs no pose); selected via the adapter's `room_attribution.engine`, Eufy fallback. Both Eufy and Roborock declare it (§2.4). |
 
 ---
 
@@ -239,9 +239,9 @@ the module constant — same value, moved provenance. See
 **Pose-based room attribution (W5c).** An app-started run carries no dispatched queue,
 so the counter segmenter can only split *time/area* — it can't name *which managed room*
 each segment is. A second pluggable seam — the room-attribution engine
-(`learning/room_attribution_engines.py`, Eufy `eufy_anchor_winding_v1`; resolved by
+(`learning/room_attribution_engines.py`, brand-agnostic `eufy_anchor_winding_v1`; resolved by
 `external_ingest._resolve_attribution` from the adapter's `room_attribution.engine`, Eufy
-fallback) — recovers the cleaned-room **set** from the run's per-tick pose stream
+fallback) — recovers the cleaned-room **set** from the run's per-tick room stream
 (`pose_samples`). It runs in two modes: **robust** (uses the `cleaning_area` swept-area
 delta as the clean-vs-parked-dock separator) and **anchor_only** (a best-effort fallback
 when `cleaning_area` is absent, which may false-positive a parked dock — callers gate on
@@ -254,7 +254,9 @@ segment per cleaned room, swept-m² area, identity pre-filled), tagged with
 `attribution_mode` so the card can flag anchor-only results. The raw `pose_samples` are
 embedded so the run can be **re-attributed** server-side after an engine fix — the pose-path
 sibling of re-segmentation. When there is no pose stream (non-map brand / no live map) every
-branch behaves exactly as pre-W5c.
+branch behaves exactly as pre-W5c. **Shipped in 1.8.0 this path extends to Roborock and to
+dispatched runs: the per-tick capture source is adapter-declared and the dispatched reconcile
+is a third consumer — see §2.4.**
 
 **Boundary classification formula.** The `_classify` function applies a strict 4-branch precedence:
 
@@ -413,6 +415,63 @@ pct_error = abs(actual_minutes - estimated_minutes) / estimated_minutes
 ```
 
 `0.0` means perfect; `0.20` means 20% off on average.
+
+### 2.4 Native room attribution & area normalization (1.8.0)
+
+The pose-based attribution introduced in §2.2 shipped in 1.8.0 for **both brands** and for
+**dispatched** as well as external runs. Three pieces matter for re-implementation.
+
+**Adapter-declared capture source (`room_attribution.source`).** The attribution *engine*
+(`eufy_anchor_winding_v1`) is brand-agnostic; *how* each per-tick `current_room` is captured is
+declared by the adapter's `room_attribution.source` and read by the run-active sampler
+(`listeners/pose_sampler.py`):
+
+- `live_pose` (Eufy) — a raster lookup of the robot pixel in the fork's decoded map
+  (`async_get_map_live_pose`); `anchor` / heading are populated.
+- `native_current_room` (Roborock) — the live room-**NAME** entity
+  (`entities.active_cleaning_target`, e.g. `sensor.<id>_current_room`), slugified and matched to a
+  managed room id; no pose is decoded (`anchor` / heading stay `None`).
+
+An absent `source` defaults to `live_pose` (back-compat). The sampler subscribes only when the
+adapter declares the signal its source needs (`_can_sample`) and buffers `pose_samples` on **both
+external and dispatched** runs (`_SAMPLED_STATUSES = ("external", "started")`). Because the
+engine's **robust** clean-vs-park decision keys on the `cleaning_area` swept-m² delta — not on pose
+spread / winding — Roborock (no pixel anchor) still resolves cleaned rooms in robust mode; the
+`anchor_only` fallback, which needs pose, is the Eufy-only degraded path (it can false-positive a
+parked dock, so callers gate on `mode`).
+
+**Dispatched reconcile (`external_ingest.reconcile_dispatched_identity`).** For an **atomic**
+dispatched run, the finalizer's positional identity (segment K → queue room K) is reconciled
+against the room the pose stream says the robot dwelt in per segment (`_dominant_room` presence;
+robust mode only — an anchor-only stream is left untouched). Per `room_timing`:
+
+- **confirm** — pose room == positional room → stamp `pose_confidence="confirmed"`, no change.
+- **rescue** — `positional_valid` is `False` (segment count ≠ queue count, so K→K is already
+  known-unreliable) → overwrite `room_id` / `slug` with the pose room, stamp
+  `pose_correction="rescued"` + `pose_prior_room_id`. The positional guess had nothing to lose and
+  the run is already excluded from the aggregate (`transit_capture_valid` False).
+- **flag** — `positional_valid` **and** the pose names a *different* room → keep the positional
+  assignment, annotate `attribution_disagreement={positional, pose}` for review (the card's
+  "Room Mismatch" badge). Never silently overridden; learning inclusion is unchanged.
+
+Strict-order (phased) jobs never call this — each phase already captured its own timing.
+
+**`cleaning_area` unit normalization + sanity (`learning/utils.py`).** HA presents an area sensor
+in the box's unit system, so on an imperial HA Eufy's `cleaning_area` reports **ft²** while
+Roborock's stays **m²** — a bare read silently mixes units (Eufy areas inflated ~10.76×). Every
+capture normalizes to canonical m² via `cleaning_area_to_m2(value, unit)`, honoring the sensor's
+live `unit_of_measurement` against `_AREA_TO_M2` (`ft²` → `0.09290304`; an unknown / absent unit is
+assumed already-m², never guessed). Swept-area sums **positive per-tick increments**, so a
+non-monotonic (reset / drop) counter is re-baselined rather than double-counted. `area_sanity(
+attributed_m2, sensor_m2, tolerance=0.10)` checks the attributed per-room **sum** against the
+device's own run total (the peak `cleaning_area`, `_max_cleaning_area_m2`): the sensor total is an
+upper bound, so `attributed_sum > sensor_total × 1.10` sets `over_attributed` (surfaced as the
+`area_over_attributed` job marker; §8.5). `diagnostics.py` adds an `area_units` block
+(`detected_unit`, `normalized_m2`, `converted`, `recognized`, plus a warning for an unrecognized
+unit).
+
+> Roborock's `cleaning_time` (a bare count of **minutes**) is likewise unit-converted at capture —
+> it was previously stored as seconds (60× too low).
 
 ---
 
@@ -986,6 +1045,34 @@ Under normal operation, a rebuild fires automatically at the end of every `final
 ### 8.4 `schema_version`
 
 `room_stats.json` is written with `schema_version: 6` (6 added per-room area for multi-room jobs + the area-quality gate; 5 added `transit_stats` / `access_graph_edges` and the `room_baselines` ingress/egress bands; 4 added `avg_area_m2` and the `room_baselines` setting buckets — bumped from 3). `job_stats.json` is written with `schema_version: 4` (4 added the `overhead_observed` aggregates), and `jobs_index.json` with `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files. Additive fields are backward-compatible regardless: the estimator reads stats by key and ignores unknown ones.
+
+### 8.5 Learning-processing toggle and self-heal index
+
+**Collect-always, process-on-demand.** A box-level toggle
+(`data["learning_processing_enabled"]`, default `True`) gates the *heavy* per-run stats rebuild
+without ever dropping data. When it is **off**, a completed run is still collected (its JSON is
+written to `jobs/`) but the rebuild is skipped — `finalize_learning_job`'s effective rebuild is
+`rebuild_stats and learning_processing_enabled` — and a per-vacuum pending counter
+(`data["learning_pending_runs"][vacuum]`) is bumped. Two services drive it (both flip *all*
+vacuums):
+
+- `set_learning_processing(enabled)` — sets the toggle. Turning it **on** after it was off
+  immediately reprocesses the backlog (a full rebuild from history via
+  `async_process_pending_learning`); turning it **off** just stops per-run rebuilds.
+- `process_pending_runs` — reprocesses the collected-but-unprocessed backlog (full rebuild from
+  history) and clears the pending counters **without** turning per-run processing back on.
+
+A card snapshot surfaces `learning_processing: {enabled, pending_runs, has_last_estimate}` so the
+UI can show an "N pending" hint.
+
+**Self-heal jobs-index detector.** `jobs_index.json` gained card-facing marker keys over time
+(`status`, `origin`, `has_attribution_disagreement`, `area_over_attributed`). On the next
+history-snapshot read (`manager.get_learning_history_snapshot`), an index whose first job entry is
+missing **any** of those keys is treated as stale and rebuilt **once** from full history
+(`build_jobs_index_payload`), so existing runs retroactively pick up fields added since the index
+was last built — no manual "Process pending runs" needed. Requiring all four keys means every such
+upgrade self-heals (e.g. the `origin` key back-fills the External badge / Area-Cleaned cell and
+sheds a stale "Sanity Failed" flag on old graduated external runs).
 
 ---
 

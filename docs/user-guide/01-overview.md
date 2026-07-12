@@ -26,7 +26,7 @@ A stock vacuum integration in Home Assistant lets you start and stop your vacuum
 - **Cleaning profiles.** You can save a named set of room settings as a reusable profile and apply it to any room in one tap. Built-in profiles are read-only; you can create as many custom profiles as you like.
 - **Run profiles.** You can save an entire room selection — which rooms are included, in what order, with what settings, and optionally an ordered sequence with mid-run **charge** or **wait** stops (vacuum, dock and top up, then mop — all one job) — as a named run profile and start it again with a single button.
 - **Queue management.** The card shows you which rooms are queued, their estimated cleaning times, and your planned run order. You can reorder rooms by dragging or by using a move button.
-- **Learning system.** After each run the integration records how long the vacuum spent in each room. Over time it builds per-room timing estimates that get more accurate the more you use it. The card displays a confidence indicator (Reliable / Learning / Uncertain) for each room's estimate.
+- **Learning system.** After each run the integration records which rooms were cleaned and how long the vacuum spent in each — recovered from the vacuum's own live room signal, so it works for runs you start from the dashboard *and* runs you start from the vacuum's app. Over time it builds per-room timing estimates that get more accurate the more you use it. The card displays a confidence indicator (Reliable / Learning / Uncertain) for each room's estimate.
 - **Incomplete run recovery.** If a run ends before all rooms are finished, the card shows a banner letting you queue only the missed rooms for a follow-up run.
 - **Trouble room indicators.** The card tracks rooms the vacuum has repeatedly failed to clean and flags them so you can investigate.
 - **Metrics and learning review.** Dedicated panels let you browse historical run data and review what the system has learned.
@@ -65,15 +65,14 @@ Below the header is a navigation bar with tabs that switch between panels:
 | **Learning Review** | Review what the learning system has recorded about each room's cleaning history. |
 | **Room Rules** | Set up automation rules that apply to rooms (for example, automatically adjusting settings based on time of day or other conditions). |
 | **Theme** | Customize the card's visual appearance — colors, token values, and saved theme presets. |
-| **Map Bounds** | Review and adjust the boundary boxes the integration uses to track which room the vacuum is in. |
 | **Setup** | Add vacuums and import maps into the integration. |
 
 !!! info "Tabs adapt to your vacuum"
-    The navigation only shows tabs your vacuum supports. **Base Station** and **Map Bounds** appear on models with the matching hardware/feature (both present on Eufy) and are hidden on models without them — for example the dockless, natively-tracked **Roborock S6** shows neither tab.
+    The navigation only shows tabs your vacuum supports. **Base Station** appears on models with a dock and is hidden on models without one — for example the dockless **Roborock S6** doesn't show it.
 
 Uploading a map image and linking the vacuum's map segments to your rooms happen on a separate **Map Config** screen rather than a top-nav tab. You reach it from the **Configure** button in the Rooms map view. See [Making your own maps](16-making-your-own-maps.md) for the step-by-step walkthrough, or [Map configuration](../advanced/08-map-configuration.md) for the technical reference.
 
-On a narrow screen (under 600px) the navigation collapses into a bottom tab bar with shortened labels — **Rooms**, **Upkeep** (Maintenance), **Dock** (Base Station), and **Stats** (Metrics) — plus a **More** overflow sheet holding Learning Review, Room Rules, Theme, Map Config, Map Bounds, and Setup.
+On a narrow screen (under 600px) the navigation collapses into a bottom tab bar with shortened labels — **Rooms**, **Upkeep** (Maintenance), **Dock** (Base Station), and **Stats** (Metrics) — plus a **More** overflow sheet holding Learning Review, Room Rules, Theme, Map Config, and Setup.
 
 The card opens on the **Rooms** tab the first time you load it. After that it remembers whichever tab you were on last per vacuum, so refreshing the browser doesn't lose your place.
 

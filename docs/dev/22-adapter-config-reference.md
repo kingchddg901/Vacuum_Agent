@@ -162,7 +162,7 @@ depends on them — they never raise.
 | `wash_frequency_value_time` | Optional | Water estimator uses the default interval. |
 | `dry_duration` | Optional | Dry-start dock events store no duration. |
 | `water_level` | Optional | Water estimator can't track actual tank-level deltas, falls back to flow-rate-only. |
-| `robot_position_x` | Optional | Mapping subsystem inactive — no trace recording, no derived room bounds. |
+| `robot_position_x` | Optional | The `MappingTracker` position listener doesn't register — no informational `eufy_vacuum_room_completed` dwell event and no dock-coordinate drift diagnostic log. Room identity itself comes from the device's native current-room signal, not position, so room tracking is unaffected. |
 | `robot_position_y` | Optional | Same as above; both X and Y must be present. |
 | `work_mode` | Optional | Work-mode block check in the start-blocker skipped. |
 | `cleaning_intensity` | Optional | Path-control capability inferred from model family only. |
@@ -1045,9 +1045,10 @@ for the full protocol, the three engine variants, and the
 
 If the whole `mapping` block is absent, the framework treats this
 adapter as if it had declared `noop_fallback` — no image segmentation
-runs, trace-based room bounds keep working off vacuum-space samples,
-the card stops rendering polygonal overlays. This is the right
-declaration for adapters whose vendor provides no usable map image.
+runs and the card stops rendering polygonal overlays. Room tracking is
+unaffected: it runs off the device's native current-room signal, not
+image segmentation. This is the right declaration for adapters whose
+vendor provides no usable map image.
 
 ### `segmenter_engine` *(required when `mapping` is present, str)*
 
@@ -1057,7 +1058,7 @@ One of the names registered in `mapping/segmenter_engines.py`:
 | Name | What it does |
 |---|---|
 | `eufy_cv_v1` | Pillow + NumPy + SciPy CV pipeline. Reads the stored map PNG. Default for adapters that ship flat map images (Eufy, Dreame). |
-| `noop_fallback` | Returns empty result. Use when the vendor provides no map image. Trace tracking still works. |
+| `noop_fallback` | Returns empty result. Use when the vendor provides no map image. Native current-room tracking is unaffected. |
 | `roborock_deterministic` *(reserved)* | Will read structured vector map data from the wire payload instead of an image. Not yet implemented. |
 
 Unknown values fall back to `noop_fallback` with a logged warning,
@@ -1125,8 +1126,8 @@ non-comparable across sessions. The Eufy adapter declares it against
 eufy-clean's decoded map; brands whose in-memory map is already
 frame-fresh (Roborock) omit it.
 
-The whole block is optional. Absent → no provider-map read; trace-based
-room bounds and the CV image segmenter keep working unchanged.
+The whole block is optional. Absent → no provider-map read; the CV
+image segmenter and native current-room tracking keep working unchanged.
 
 ### Schema
 
@@ -1692,6 +1693,13 @@ supports_room_profiles
 },
 ```
 
+> **`position_lock_reliable` is now orphaned.** The inline comment above describes
+> the retired position/bounds room detector, removed with the mapping split. Both
+> adapters still declare the flag (`False`), but no code reads it any more — room
+> tracking runs off the device's native current-room signal regardless of this
+> value. It is retained as a declared capability against a possible bounds revival
+> (the retired trace-bounds design is preserved in [11-mapping-system.md](11-mapping-system.md) §3).
+
 > **Roborock-introduced behavioral flags (Eufy omits → the defaults, so Eufy is
 > unchanged).** Both describe firmware behavior an entity probe can't see:
 >
@@ -1712,11 +1720,14 @@ supports_room_profiles
 >   (no dock caps) resolves `False`.
 > - `supports_map_bounds` = the adapter's `mapping.segmenter_engine` is present
 >   and not `"noop_fallback"`. Eufy (`"eufy_cv_v1"`) resolves `True`; the S6
->   (`"noop_fallback"`) resolves `False`.
+>   (`"noop_fallback"`) resolves `False`. **Now vestigial:** the Map Bounds review
+>   tab it used to gate was removed with the mapping split (the frontend
+>   `mapping-review` view is deleted), so the backend still derives this value but
+>   no card surface consumes it.
 >
-> Both default to **shown** when the derivation is absent, and gate the card's
-> Base Station / Map Bounds tabs — but via the derivation, not an
-> adapter-declared boolean.
+> `supports_base_station` still gates the card's Base Station tab via the
+> derivation (not an adapter-declared boolean), and defaults to **shown** when the
+> derivation is absent.
 >
 > The remaining Roborock-introduced keys live in their own blocks. Two are
 > documented in §13 above: `dispatch.per_room_live_settings` (under
