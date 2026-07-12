@@ -873,6 +873,11 @@ class LearningStatsRebuilder:
                     "room_slugs": room_slugs,
                     "status": str(outcome.get("status", "unknown")).strip().lower(),
                     "origin": origin,
+                    # Atomic-dispatched reconcile flag (history_store): the native current_room
+                    # named a DIFFERENT room than the positional assignment on a valid run — the
+                    # card badges it for review (never auto-overridden). Passthrough so the review
+                    # row can surface it without loading the full completed_job record.
+                    "has_attribution_disagreement": bool(job_info.get("has_attribution_disagreement", False)),
                     "cleaning_area_m2": round(cleaning_area_m2, 2) if cleaning_area_m2 is not None else None,
                     "used_for_learning": bool(outcome.get("used_for_learning", False)),
                     "sanity_passed": True if is_external else bool(outcome.get("sanity_passed", False)),

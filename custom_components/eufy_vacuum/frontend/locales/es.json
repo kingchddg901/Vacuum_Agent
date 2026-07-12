@@ -1000,7 +1000,11 @@
     "stat_updated": "Actualizado",
     "unavailable": "Historial de aprendizaje no disponible.",
     "unknown": "Desconocido",
-    "working": "Procesando..."
+    "working": "Procesando...",
+    "badge_attribution_disagreement": "Discrepancia de habitación",
+    "badge_attribution_disagreement_title": "La señal de habitación en tiempo real no coincidió con el orden de habitaciones asignado en parte de esta limpieza. Se mantuvo la asignación: abre la limpieza para comprobar qué habitación se limpió.",
+    "filter_all_origins": "Todos los orígenes",
+    "filter_origin": "Origen"
   },
   "room_access": {
     "accessed_from_help": "La habitación que da acceso a esta habitación. Solo lectura; se configura desde el editor de la otra habitación.",
@@ -2389,6 +2393,10 @@
       "false_completion": "Esta ejecución parece haber terminado antes de completar realmente la limpieza.",
       "bad_room_attribution": "La atribución de habitaciones de esta ejecución parece poco fiable.",
       "interrupted_run": "Esta ejecución parece haberse interrumpido."
+    },
+    "origin": {
+      "external": "Externo",
+      "internal": "Enviado"
     }
   },
   "order_modal": {

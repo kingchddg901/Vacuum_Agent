@@ -927,6 +927,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
           : filters.used_for_learning === "false"
             ? false
             : undefined,
+      origin: filters.origin || undefined,
       limit: filters.limit,
     });
 

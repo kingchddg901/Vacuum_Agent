@@ -101,6 +101,8 @@ export function applyReviewRenderers(proto) {
 
               ${this._renderReviewChipFilter(this.t("review.filter_learning_use"), "used_for_learning", state.learningHistoryUsedOptions?.(), state.learningHistoryFilters?.().used_for_learning, this.t("review.filter_all_learning_use"))}
 
+              ${this._renderReviewChipFilter(this.t("review.filter_origin"), "origin", state.learningHistoryOriginOptions?.(), state.learningHistoryFilters?.().origin, this.t("review.filter_all_origins"))}
+
               ${this._renderReviewChipFilter(this.t("review.filter_sort"), "sort", state.learningHistorySortOptions?.(), state.learningHistorySort?.(), this.t("review.sort_newest"), "", true)}
             </div>
           </section>
@@ -427,6 +429,9 @@ export function applyReviewRenderers(proto) {
     if (job?.mid_job_recharge_observed === true) badges.push({ text: this.t("review.badge_recharge"), cls: "evcc-review-badge--neutral" });
     if (job?.is_single_room === true) badges.push({ text: this.t("review.badge_single_room"), cls: "evcc-review-badge--neutral" });
     if (job?.is_multi_room === true) badges.push({ text: this.t("review.badge_multi_room"), cls: "evcc-review-badge--neutral" });
+    // Atomic-dispatched reconcile: the live room signal disagreed with the assigned (positional)
+    // room for a segment — flagged for review, never auto-overridden (see reconcile_dispatched_identity).
+    if (job?.has_attribution_disagreement === true) badges.push({ text: this.t("review.badge_attribution_disagreement"), cls: "evcc-review-badge--warning", title: this.t("review.badge_attribution_disagreement_title") });
 
     const detailParts = [
       this._formatReviewTimestamp(job?.started_at),
@@ -492,7 +497,7 @@ export function applyReviewRenderers(proto) {
           </div>
           <div class="evcc-review-job-badges">
             ${badges.map((badge) => `
-              <span class="evcc-chip ${badge.cls}">${this.escapeHtml(badge.text)}</span>
+              <span class="evcc-chip ${badge.cls}"${badge.title ? ` title="${this.escapeHtml(badge.title)}"` : ""}>${this.escapeHtml(badge.text)}</span>
             `).join("")}
           </div>
         </div>

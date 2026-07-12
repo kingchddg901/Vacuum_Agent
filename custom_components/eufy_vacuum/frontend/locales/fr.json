@@ -1000,7 +1000,11 @@
     "stat_updated": "Mis à jour",
     "unavailable": "Historique d'apprentissage indisponible.",
     "unknown": "Inconnu",
-    "working": "Traitement..."
+    "working": "Traitement...",
+    "badge_attribution_disagreement": "Incohérence de pièce",
+    "badge_attribution_disagreement_title": "Le signal de pièce en direct ne correspondait pas à l'ordre des pièces attribué pour une partie de ce nettoyage. L'attribution a été conservée — ouvrez le nettoyage pour vérifier quelle pièce a été nettoyée.",
+    "filter_all_origins": "Toutes les origines",
+    "filter_origin": "Origine"
   },
   "room_access": {
     "accessed_from_help": "La pièce qui donne accès à cette pièce. En lecture seule — défini depuis l'éditeur de l'autre pièce.",
@@ -2389,6 +2393,10 @@
       "false_completion": "Cette session semble s'être terminée avant la fin réelle du nettoyage.",
       "bad_room_attribution": "L'attribution des pièces de cette session semble peu fiable.",
       "interrupted_run": "Cette session semble avoir été interrompue."
+    },
+    "origin": {
+      "external": "Externe",
+      "internal": "Envoyé"
     }
   },
   "order_modal": {

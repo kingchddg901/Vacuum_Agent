@@ -2049,6 +2049,17 @@ get_learning_history_snapshot:
       required: false
       selector:
         boolean: {}
+    origin:
+      name: Run origin
+      description: >
+        Optional filter by how the run started - external (app-started, captured)
+        or internal (dispatched by this integration).
+      required: false
+      selector:
+        select:
+          options:
+            - external
+            - internal
     limit:
       name: Job limit
       description: Maximum number of recent matching jobs to return.

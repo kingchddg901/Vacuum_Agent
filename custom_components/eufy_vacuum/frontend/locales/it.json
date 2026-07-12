@@ -989,7 +989,11 @@
     "stat_updated": "Aggiornato",
     "unavailable": "Cronologia di apprendimento non disponibile.",
     "unknown": "Sconosciuto",
-    "working": "In corso..."
+    "working": "In corso...",
+    "badge_attribution_disagreement": "Discrepanza stanza",
+    "badge_attribution_disagreement_title": "Il segnale della stanza in tempo reale non corrispondeva all'ordine delle stanze assegnato per una parte di questa pulizia. L'assegnazione è stata mantenuta: apri la pulizia per verificare quale stanza è stata pulita.",
+    "filter_all_origins": "Tutte le origini",
+    "filter_origin": "Origine"
   },
   "room_access": {
     "accessed_from_help": "La stanza che concede l'accesso a questa stanza. Sola lettura — si imposta dall'editor dell'altra stanza.",
@@ -2375,6 +2379,10 @@
       "false_completion": "Questa esecuzione sembra essersi conclusa prima che la pulizia fosse davvero completata.",
       "bad_room_attribution": "L'attribuzione delle stanze per questa esecuzione sembra inaffidabile.",
       "interrupted_run": "Questa esecuzione sembra essere stata interrotta."
+    },
+    "origin": {
+      "external": "Esterno",
+      "internal": "Inviato"
     }
   },
   "order_modal": {

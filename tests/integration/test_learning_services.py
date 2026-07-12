@@ -116,6 +116,7 @@ def _seed_completed_job(
     clean_times: int = 1,
     started_at: str = "2026-01-01T09:00:00+00:00",
     ended_at: str = "2026-01-01T09:30:00+00:00",
+    origin: str | None = None,
 ) -> dict:
     """Seed a minimal completed job directly via LearningHistoryStore."""
     if room_slugs is None:
@@ -160,6 +161,8 @@ def _seed_completed_job(
             "learning_blockers": [],
         },
     }
+    if origin is not None:
+        payload["origin"] = origin
     store = LearningHistoryStore(hass)
     store.save_completed_job(
         vacuum_entity_id=vacuum_entity_id, job_id=job_id, payload=payload
@@ -1658,6 +1661,36 @@ async def test_get_learning_history_snapshot_with_filters(hass, learning_service
     )
     # seed jobs have used_for_learning=True by default, so False filter may return different set
     assert isinstance(result_learning, dict)
+
+
+async def test_get_learning_history_snapshot_origin_filter(hass, learning_services):
+    """The origin filter prunes to external (app-started) vs internal (dispatched, origin absent).
+    Binary + normalized: a dispatched job with no origin key still matches origin=internal."""
+    _seed_completed_job(hass, _VAC, "j-ext", room_slugs=["kitchen"], origin="external")
+    _seed_completed_job(hass, _VAC, "j-int", room_slugs=["bedroom"])  # no origin -> internal
+
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False}, blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    ext = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC, "origin": "external"},
+        blocking=True, return_response=True,
+    )
+    ext_ids = {j.get("job_id") for j in ext.get("jobs", [])}
+    assert "j-ext" in ext_ids and "j-int" not in ext_ids
+    assert ext.get("filters", {}).get("origin") == "external"
+
+    internal = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC, "origin": "internal"},
+        blocking=True, return_response=True,
+    )
+    int_ids = {j.get("job_id") for j in internal.get("jobs", [])}
+    assert "j-int" in int_ids and "j-ext" not in int_ids
 
 
 # ---------------------------------------------------------------------------

@@ -30,6 +30,7 @@ export function applyReviewState(proto) {
           profile_key: "",
           status: "",
           used_for_learning: "",
+          origin: "",
           limit: 50,
         },
         sort: REVIEW_SORTS.NEWEST,
@@ -60,6 +61,7 @@ export function applyReviewState(proto) {
           typeof incomingFilters.used_for_learning === "boolean"
             ? String(incomingFilters.used_for_learning)
             : "",
+        origin: incomingFilters.origin == null ? "" : String(incomingFilters.origin),
         limit: Number.isFinite(Number(incomingFilters.limit)) && Number(incomingFilters.limit) > 0
           ? Number(incomingFilters.limit)
           : reviewState.filters?.limit ?? 50,
@@ -272,6 +274,15 @@ export function applyReviewState(proto) {
       { value: "", label: "All Learning Use" },
       { value: "true", label: "Used For Learning" },
       { value: "false", label: "Not Used For Learning" },
+    ];
+  };
+
+  proto.learningHistoryOriginOptions = function () {
+    // Binary origin: external (app-started, captured) vs internal (dispatched by us). Fixed set
+    // (not data-derived) — labels localize through vocab.origin.* on the chip via tVocab.
+    return [
+      { value: "external", label: "External" },
+      { value: "internal", label: "Dispatched" },
     ];
   };
 

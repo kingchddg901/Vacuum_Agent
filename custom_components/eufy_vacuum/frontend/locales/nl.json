@@ -989,7 +989,11 @@
     "stat_updated": "Bijgewerkt",
     "unavailable": "Leergeschiedenis niet beschikbaar.",
     "unknown": "Onbekend",
-    "working": "Bezig..."
+    "working": "Bezig...",
+    "badge_attribution_disagreement": "Kamerafwijking",
+    "badge_attribution_disagreement_title": "Het live-kamersignaal kwam voor een deel van deze run niet overeen met de toegewezen kamervolgorde. De toewijzing is behouden — open de run om te controleren welke kamer is schoongemaakt.",
+    "filter_all_origins": "Alle herkomsten",
+    "filter_origin": "Herkomst"
   },
   "room_access": {
     "accessed_from_help": "De kamer die toegang verleent tot deze kamer. Alleen-lezen — stel in vanuit de editor van de andere kamer.",
@@ -2375,6 +2379,10 @@
       "false_completion": "Deze run lijkt te zijn geëindigd voordat de schoonmaak echt voltooid was.",
       "bad_room_attribution": "De kamertoewijzing voor deze run lijkt onbetrouwbaar.",
       "interrupted_run": "Deze run lijkt te zijn onderbroken."
+    },
+    "origin": {
+      "external": "Extern",
+      "internal": "Verzonden"
     }
   },
   "order_modal": {

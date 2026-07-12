@@ -1000,7 +1000,11 @@
     "stat_updated": "Atualizado",
     "unavailable": "Histórico de aprendizagem indisponível.",
     "unknown": "Desconhecido",
-    "working": "A processar..."
+    "working": "A processar...",
+    "badge_attribution_disagreement": "Divergência de divisão",
+    "badge_attribution_disagreement_title": "O sinal de divisão em tempo real não correspondeu à ordem de divisões atribuída em parte desta limpeza. A atribuição foi mantida — abra a limpeza para verificar qual divisão foi limpa.",
+    "filter_all_origins": "Todas as origens",
+    "filter_origin": "Origem"
   },
   "room_access": {
     "accessed_from_help": "A divisão que concede acesso a esta divisão. Só de leitura — definida no editor da outra divisão.",
@@ -2388,6 +2392,10 @@
       "false_completion": "Esta execução parece ter terminado antes de a limpeza estar realmente concluída.",
       "bad_room_attribution": "A atribuição de divisões desta execução parece pouco fiável.",
       "interrupted_run": "Esta execução parece ter sido interrompida."
+    },
+    "origin": {
+      "external": "Externo",
+      "internal": "Enviado"
     }
   },
   "order_modal": {

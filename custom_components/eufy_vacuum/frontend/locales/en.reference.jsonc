@@ -110,6 +110,10 @@
       "single_room": "Single Room",  // learning-review job coverage: one room cleaned
       "multi_room": "Multi Room"  // learning-review job coverage: several rooms in one run
     },
+    "origin": {
+      "external": "External",
+      "internal": "Dispatched"
+    },
     "device_status": {
       "cleaning": "Cleaning",
       "docked": "Docked",
@@ -1592,6 +1596,8 @@
     "yesterday": "yesterday"
   },
   "review": {
+    "badge_attribution_disagreement": "Room Mismatch",  // Job badge: on a dispatched run the live room signal disagreed with the assigned (queue-order) room for a segment — flagged for review, not auto-changed
+    "badge_attribution_disagreement_title": "The live room signal disagreed with the assigned room order for part of this run. The assignment was kept — open the run to check which room was cleaned.",  // Tooltip for the Room Mismatch badge
     "badge_excluded": "Excluded",
     "badge_external": "External",  // Job badge: run was captured externally (started outside HA / on the robot); its own flag, NOT a sanity or learning verdict
     "badge_multi_room": "Multi Room",  // Job badge: run covered multiple rooms ('Multi-room'); pairs with Single Room
@@ -1607,10 +1613,12 @@
     "exclude": "Exclude",  // Action button: exclude this run from learning history (verb)
     "exclude_reason": "Exclude Reason",  // Label above chips picking WHY a run is excluded from learning
     "filter_all_learning_use": "All Learning Use",
+    "filter_all_origins": "All Origins",  // Fallback chip for the Origin filter: no origin filter applied
     "filter_all_profiles": "All Profiles",
     "filter_all_rooms": "All Rooms",
     "filter_all_statuses": "All Statuses",
     "filter_learning_use": "Learning Use",  // Filter dimension: whether jobs are used for learning; verb 'use', not 'used'
+    "filter_origin": "Origin",  // Filter dimension: how the run started — external (app-started) vs dispatched (by this integration)
     "filter_profile": "Profile",
     "filter_room": "Room",
     "filter_sort": "Sort",

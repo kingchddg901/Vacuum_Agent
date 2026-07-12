@@ -489,6 +489,18 @@ def test_jobs_index_area_none_when_no_area_anywhere(tmp_path):
     assert _index_entry(rebuilder, job)["cleaning_area_m2"] is None
 
 
+def test_jobs_index_passes_attribution_disagreement(tmp_path):
+    """has_attribution_disagreement rides from the completed_job's job block to the review row
+    (so the card can badge a dispatched run whose pose disagreed with the positional assignment)."""
+    rebuilder = _make_rebuilder(tmp_path)
+    flagged = _job(job_id="dis1", room_slugs=["kitchen"])
+    flagged["job"]["has_attribution_disagreement"] = True
+    assert _index_entry(rebuilder, flagged)["has_attribution_disagreement"] is True
+    # Absent flag -> False (a stable boolean, never a missing key).
+    plain = _job(job_id="dis0", room_slugs=["kitchen"])
+    assert _index_entry(rebuilder, plain)["has_attribution_disagreement"] is False
+
+
 def test_build_room_stats_buckets_by_passes(tmp_path):
     """room_baselines breaks the average out by pass count, keeping the full mean."""
     rebuilder = _make_rebuilder(tmp_path)

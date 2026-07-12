@@ -909,6 +909,8 @@ export const en = {
   "relative.yesterday": "yesterday",
 
   // --- review (Learning History review: filters, profile matcher, run exclude/restore) ---
+  "review.badge_attribution_disagreement": "Room Mismatch",  // Job badge: on a dispatched run the live room signal disagreed with the assigned (queue-order) room for a segment — flagged for review, not auto-changed
+  "review.badge_attribution_disagreement_title": "The live room signal disagreed with the assigned room order for part of this run. The assignment was kept — open the run to check which room was cleaned.",  // Tooltip for the Room Mismatch badge
   "review.badge_excluded": "Excluded",
   "review.badge_external": "External",  // Job badge: run was captured externally (started outside HA / on the robot); its own flag, NOT a sanity or learning verdict
   "review.badge_multi_room": "Multi Room",  // Job badge: run covered multiple rooms ('Multi-room'); pairs with Single Room
@@ -924,10 +926,12 @@ export const en = {
   "review.exclude": "Exclude",  // Action button: exclude this run from learning history (verb)
   "review.exclude_reason": "Exclude Reason",  // Label above chips picking WHY a run is excluded from learning
   "review.filter_all_learning_use": "All Learning Use",
+  "review.filter_all_origins": "All Origins",  // Fallback chip for the Origin filter: no origin filter applied
   "review.filter_all_profiles": "All Profiles",
   "review.filter_all_rooms": "All Rooms",
   "review.filter_all_statuses": "All Statuses",
   "review.filter_learning_use": "Learning Use",  // Filter dimension: whether jobs are used for learning; verb 'use', not 'used'
+  "review.filter_origin": "Origin",  // Filter dimension: how the run started — external (app-started) vs dispatched (by this integration)
   "review.filter_profile": "Profile",
   "review.filter_room": "Room",
   "review.filter_sort": "Sort",
@@ -1661,6 +1665,9 @@ export const en = {
   "vocab.status.interrupted": "Interrupted",
   "vocab.job_scope.single_room": "Single Room",  // learning-review job coverage: one room cleaned
   "vocab.job_scope.multi_room": "Multi Room",     // learning-review job coverage: several rooms in one run
+  // Origin filter chip VALUES (review history): external = app-started/captured; internal = dispatched by this integration.
+  "vocab.origin.external": "External",
+  "vocab.origin.internal": "Dispatched",
   // Device-status VALUES shown in the header next to "Vacuum status:" / "Dock status:".
   // Union of the HA vacuum-entity states + the Eufy dock_status sensor strings; tVocab
   // falls back to the backend label for any state not keyed here.

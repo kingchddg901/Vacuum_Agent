@@ -163,6 +163,7 @@ GET_LEARNING_HISTORY_SNAPSHOT_SCHEMA = vol.Schema(
         vol.Optional("profile_key"): cv.string,
         vol.Optional("status"): cv.string,
         vol.Optional("used_for_learning"): cv.boolean,
+        vol.Optional("origin"): vol.In(["external", "internal"]),
         vol.Optional("limit", default=50): vol.Coerce(int),
     }
 )
@@ -586,6 +587,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
                 profile_key=call.data.get("profile_key"),
                 status=call.data.get("status"),
                 used_for_learning=call.data.get("used_for_learning"),
+                origin=call.data.get("origin"),
                 limit=call.data.get("limit", 50),
             )
         )

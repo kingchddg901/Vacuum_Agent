@@ -793,12 +793,17 @@ class LearningManager:
         profile_key: str | None = None,
         status: str | None = None,
         used_for_learning: bool | None = None,
+        origin: str | None = None,
         limit: int = 50,
     ) -> dict[str, Any]:
         """Return a card-friendly learning history snapshot from rebuilt files."""
         room_slug_filter = str(room_slug or "").strip().lower() or None
         profile_key_filter = str(profile_key or "").strip().lower() or None
         status_filter = str(status or "").strip().lower() or None
+        # Origin filter is BINARY: "external" (app-started, captured) vs "internal"
+        # (dispatched by us — origin is None/absent on those records). Normalized so a
+        # dispatched job with no origin key still matches the "internal" filter.
+        origin_filter = str(origin or "").strip().lower() or None
         limit_value = max(_safe_int(limit, 50), 1)
         built_in_profile_names = set(get_default_room_profiles().keys())
 
@@ -1022,6 +1027,14 @@ class LearningManager:
                 return False
             if used_for_learning is not None and bool(entry.get("used_for_learning", False)) != bool(used_for_learning):
                 return False
+            if origin_filter:
+                entry_origin = (
+                    "external"
+                    if str(entry.get("origin", "")).strip().lower() == "external"
+                    else "internal"
+                )
+                if entry_origin != origin_filter:
+                    return False
             return True
 
         def _room_matches(entry: dict[str, Any]) -> bool:
@@ -1582,6 +1595,7 @@ class LearningManager:
                 "profile_key": profile_key_filter,
                 "status": status_filter,
                 "used_for_learning": used_for_learning,
+                "origin": origin_filter,
                 "limit": limit_value,
             },
             "filter_options": {
