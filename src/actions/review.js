@@ -14,6 +14,7 @@ export function applyReviewActions(proto) {
    * @param {string} [opts.profile_key]
    * @param {string} [opts.status]
    * @param {boolean} [opts.used_for_learning]
+   * @param {string} [opts.origin] external | internal
    * @param {number}  [opts.limit]
    * @returns {Promise<object|null>}
    */
@@ -23,6 +24,7 @@ export function applyReviewActions(proto) {
     profile_key,
     status,
     used_for_learning,
+    origin,
     limit,
   } = {}) {
     const vacuumEntityId = vacuum_entity_id ?? this.state?.vacuumEntityId?.();
@@ -33,6 +35,7 @@ export function applyReviewActions(proto) {
     if (profile_key) data.profile_key = String(profile_key);
     if (status) data.status = String(status);
     if (typeof used_for_learning === "boolean") data.used_for_learning = used_for_learning;
+    if (origin) data.origin = String(origin);
     if (Number.isFinite(Number(limit))) data.limit = Number(limit);
 
     const result = await this.callService(
