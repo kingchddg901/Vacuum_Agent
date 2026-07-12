@@ -439,3 +439,48 @@ def test_self_check_no_warning_when_healthy():
         "completion_health": {"requires_job_active_clear": False, "job_active_present": False},
     }
     assert _self_check(out)["warnings"] == []
+
+
+def test_self_check_surfaces_area_unit_warning():
+    """[DIAG-13] an unrecognized cleaning_area unit (area_units.warning) surfaces as a loud
+    warning — the guardrail for a user-toggled or mis-declared unit."""
+    out = {
+        "capabilities": {"supports_room_clean": True},
+        "entity_resolution": {"active_map": {"exists": True}},
+        "vacuum_state": {"segment_count": None},
+        "area_units": {
+            "detected_unit": "widgets", "recognized": False,
+            "warning": "cleaning_area unit 'widgets' is unrecognized — the value is used AS-IS "
+                       "(assumed m²); if it is an imperial unit the stored area will be wrong.",
+        },
+    }
+    assert any("unrecognized" in w for w in _self_check(out)["warnings"])
+
+
+async def test_diagnostics_area_units_detects_ft2(hass):
+    """[DIAG-14] area_units reports the CURRENTLY detected cleaning_area unit + normalized m²
+    (imperial HA presents Eufy's in ft²; user-toggleable → read live, converted here)."""
+    from custom_components.eufy_vacuum.diagnostics import _vacuum_diagnostics
+
+    manager = _FakeManager(
+        caps={"entities": {"vacuum": VACUUM, "cleaning_area": "sensor.alfred_cleaning_area"}},
+        maps={}, rooms={}, upkeep={}, dashboard={},
+    )
+    hass.states.async_set("sensor.alfred_cleaning_area", "53.82", {"unit_of_measurement": "ft²"})
+    au = _vacuum_diagnostics(hass, manager, VACUUM)["area_units"]
+    assert au["detected_unit"] == "ft²" and au["converted"] is True
+    assert round(au["normalized_m2"], 2) == 5.0
+    assert "warning" not in au  # ft² is recognized
+
+
+async def test_diagnostics_area_units_unknown_warns(hass):
+    """[DIAG-15] an unrecognized cleaning_area unit warns (the silent-miss guard)."""
+    from custom_components.eufy_vacuum.diagnostics import _vacuum_diagnostics
+
+    manager = _FakeManager(
+        caps={"entities": {"vacuum": VACUUM, "cleaning_area": "sensor.alfred_cleaning_area"}},
+        maps={}, rooms={}, upkeep={}, dashboard={},
+    )
+    hass.states.async_set("sensor.alfred_cleaning_area", "12.0", {"unit_of_measurement": "widgets"})
+    au = _vacuum_diagnostics(hass, manager, VACUUM)["area_units"]
+    assert au["recognized"] is False and "unrecognized" in au["warning"]

@@ -255,6 +255,9 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     _completion_health = out.get("completion_health") or {}
     if _completion_health.get("warning"):
         warnings.append(_completion_health["warning"])
+    _area_units = out.get("area_units") or {}
+    if _area_units.get("warning"):
+        warnings.append(_area_units["warning"])
 
     return {
         "transport": transport,
@@ -335,6 +338,43 @@ def _vacuum_diagnostics(
         out["completion_health"] = _health
     except Exception as err:  # pragma: no cover - defensive
         out["completion_health"] = {"error": repr(err)}
+
+    # cleaning_area unit — a USER-TOGGLEABLE flag (the HA unit system AND the Eufy app), so we
+    # normalize to m² LIVE on every read (learning/utils.cleaning_area_to_m2) rather than caching
+    # it. Surface the CURRENTLY detected unit + the normalized value here so a flipped or
+    # mis-declared unit is a visible, checkable fact — not something inferred from a weird area
+    # later. Recorded live 2026-07-11: Alfred cleaning_area = ft², Ivy = m².
+    try:
+        from .learning.utils import _AREA_TO_M2, cleaning_area_to_m2
+
+        _ca_entity = entities_map.get("cleaning_area")
+        if _ca_entity:
+            _ca_state = hass.states.get(_ca_entity)
+            _raw = getattr(_ca_state, "state", None) if _ca_state else None
+            _unit = (
+                getattr(_ca_state, "attributes", {}).get("unit_of_measurement")
+                if _ca_state
+                else None
+            )
+            _u = str(_unit or "").strip().lower()
+            _recognized = (not _u) or (_u in _AREA_TO_M2)
+            _area_units: dict[str, Any] = {
+                "entity": _ca_entity,
+                "detected_unit": _unit,
+                "raw_value": _raw,
+                "normalized_m2": cleaning_area_to_m2(_raw, _unit),
+                # True when we actually rescaled (a non-m² recognized unit, e.g. ft²).
+                "converted": bool(_u in _AREA_TO_M2 and _AREA_TO_M2[_u] != 1.0),
+                "recognized": _recognized,
+            }
+            if not _recognized:
+                _area_units["warning"] = (
+                    f"cleaning_area unit '{_unit}' is unrecognized — the value is used AS-IS "
+                    "(assumed m²); if it is an imperial unit the stored area will be wrong."
+                )
+            out["area_units"] = _area_units
+    except Exception as err:  # pragma: no cover - defensive
+        out["area_units"] = {"error": repr(err)}
 
     # Dock-control entities — resolved INDEPENDENT of the capability gate so the
     # dump shows whether the device physically exposes wash/dry/empty controls
