@@ -21,6 +21,7 @@ from custom_components.eufy_vacuum.learning.external_ingest import (
     _dominant_room,
     build_attributed_job,
     build_pending_record,
+    reconcile_dispatched_identity,
 )
 
 _BASE = datetime(2026, 6, 20, 8, 13, 0)
@@ -500,3 +501,110 @@ def test_native_coarse_area_short_room_undercounted():
     assert rec is not None
     captured = {s["pose_room_id"] for s in rec["segments"]}
     assert captured == {3}  # Hallway kept; Cat under-resolved by coarse area -> dropped (the break)
+
+
+# =============================================================================
+# reconcile_dispatched_identity — the ATOMIC dispatched-run identity reconcile.
+#
+# Counter owns time/area; the engine owns which room. CONSERVATIVE policy (Chris):
+# confirm on agreement, RESCUE only when the positional K->K is already unreliable
+# (transit_capture_valid=False), FLAG (never override) a confident disagreement on a
+# valid run. No pose / anchor-only / unnamed window -> byte-identical to positional.
+# =============================================================================
+
+_SLUGS = {5: "kitchen", 8: "dining_room", 9: "office"}
+
+
+def _disp_pose(rid: int, start_sec: int, n: int, ca0: float = 0.0, ca_step: float = 1.0) -> list[dict]:
+    """A robust-mode dispatched pose run: current_room + rising cleaning_area (so _attribute
+    returns robust). anchor omitted — identity uses current_room presence, not the pixel pose."""
+    return [
+        {"t": _pose_t(start_sec + 2 * i), "current_room": rid, "cleaning_area": ca0 + i * ca_step}
+        for i in range(n)
+    ]
+
+
+def _rt(room_id: int, slug: str, start_sec: int, end_sec: int) -> dict:
+    return {"room_id": room_id, "slug": slug,
+            "cleaning_start": _seg_t(start_sec), "cleaning_end": _seg_t(end_sec)}
+
+
+def test_reconcile_confirms_matching_positional():
+    """Engine agrees with the positional room_id on a valid run -> confirmed, nothing rewritten."""
+    room_timings = [_rt(5, "kitchen", 0, 30), _rt(9, "office", 40, 70)]
+    pose = _disp_pose(5, 0, 12) + _disp_pose(9, 40, 12, ca0=12.0)
+    mode = reconcile_dispatched_identity(
+        room_timings=room_timings, pose_samples=pose, vacuum_entity_id=None,
+        positional_valid=True, slug_by_id=_SLUGS,
+    )
+    assert mode == "robust"
+    assert room_timings[0]["room_id"] == 5 and room_timings[0]["pose_confidence"] == "confirmed"
+    assert room_timings[1]["room_id"] == 9 and room_timings[1]["pose_confidence"] == "confirmed"
+    assert "attribution_disagreement" not in room_timings[0]
+
+
+def test_reconcile_rescues_when_positional_invalid():
+    """valid=False (counter K->K already unreliable): the pose room REPLACES the positional guess
+    and records what it overrode."""
+    room_timings = [_rt(8, "dining_room", 0, 30)]  # positional says Dining ...
+    pose = _disp_pose(5, 0, 12)                      # ... but the vacuum was in Kitchen
+    mode = reconcile_dispatched_identity(
+        room_timings=room_timings, pose_samples=pose, vacuum_entity_id=None,
+        positional_valid=False, slug_by_id=_SLUGS,
+    )
+    assert mode == "robust"
+    assert room_timings[0]["room_id"] == 5 and room_timings[0]["slug"] == "kitchen"
+    assert room_timings[0]["pose_correction"] == "rescued"
+    assert room_timings[0]["pose_prior_room_id"] == 8
+
+
+def test_reconcile_flags_disagreement_on_valid_run():
+    """valid=True: a confident disagreement is FLAGGED for review, NOT overridden — a working
+    positional assignment is never silently rewritten."""
+    room_timings = [_rt(8, "dining_room", 0, 30)]
+    pose = _disp_pose(5, 0, 12)  # pose says Kitchen, positional says Dining
+    mode = reconcile_dispatched_identity(
+        room_timings=room_timings, pose_samples=pose, vacuum_entity_id=None,
+        positional_valid=True, slug_by_id=_SLUGS,
+    )
+    assert mode == "robust"
+    assert room_timings[0]["room_id"] == 8 and room_timings[0]["slug"] == "dining_room"  # KEPT
+    assert room_timings[0]["attribution_disagreement"] == {"positional": 8, "pose": 5}
+    assert "pose_correction" not in room_timings[0]
+
+
+def test_reconcile_no_pose_is_noop():
+    """No pose stream -> returns None and leaves room_timings byte-identical (pre-reconcile)."""
+    original = _rt(8, "dining_room", 0, 30)
+    room_timings = [dict(original)]
+    assert reconcile_dispatched_identity(
+        room_timings=room_timings, pose_samples=None, vacuum_entity_id=None,
+        positional_valid=True, slug_by_id=_SLUGS,
+    ) is None
+    assert room_timings[0] == original
+
+
+def test_reconcile_anchor_only_left_untouched():
+    """A stream with no cleaning_area -> anchor-only mode -> the positional assignment is NOT
+    rewritten even on an invalid run (a weak signal never overrides a dispatched assignment)."""
+    room_timings = [_rt(8, "dining_room", 0, 30)]
+    pose = [{"t": _pose_t(2 * i), "current_room": 5, "anchor": [0.1 * i, 0.1 * i]} for i in range(12)]
+    mode = reconcile_dispatched_identity(
+        room_timings=room_timings, pose_samples=pose, vacuum_entity_id=None,
+        positional_valid=False, slug_by_id=_SLUGS,
+    )
+    assert mode == "anchor_only"
+    assert room_timings[0]["room_id"] == 8 and "pose_correction" not in room_timings[0]
+
+
+def test_reconcile_unnamed_window_left_untouched():
+    """A segment window with no pose room (transit / pose gap) keeps its positional assignment."""
+    room_timings = [_rt(5, "kitchen", 0, 30), _rt(9, "office", 300, 330)]  # no pose over window 1
+    pose = _disp_pose(5, 0, 12)
+    reconcile_dispatched_identity(
+        room_timings=room_timings, pose_samples=pose, vacuum_entity_id=None,
+        positional_valid=True, slug_by_id=_SLUGS,
+    )
+    assert room_timings[0]["pose_confidence"] == "confirmed"      # window 0 named + confirmed
+    assert "pose_confidence" not in room_timings[1]               # window 1 unnamed -> untouched
+    assert room_timings[1]["room_id"] == 9

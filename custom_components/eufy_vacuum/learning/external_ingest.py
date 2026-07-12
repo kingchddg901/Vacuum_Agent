@@ -499,6 +499,62 @@ def _apply_pose_identity(
             seg["pose_confidence"] = confidence
 
 
+def reconcile_dispatched_identity(
+    *,
+    room_timings: list[dict[str, Any]],
+    pose_samples: list[dict[str, Any]] | None,
+    vacuum_entity_id: str | None,
+    positional_valid: bool,
+    slug_by_id: dict[int, str] | None = None,
+) -> str | None:
+    """CONSERVATIVELY reconcile an ATOMIC dispatched run's POSITIONAL room_timings (segment K ->
+    queue room K) against the native current_room the pose sampler buffered. MUTATES room_timings
+    in place; returns the attribution mode (or None when there is no usable pose). The counter
+    owns each segment's time/area; the room-attribution engine owns *which room* it was.
+
+    ROBUST mode only — a stream with no ``cleaning_area`` (anchor-only) is left untouched, so a
+    weak signal never rewrites a dispatched assignment. Per segment, the room the vacuum physically
+    DWELT in most during the segment window (``_dominant_room`` presence — dock ticks are already
+    nulled to current_room=None, so a dock trip never wins) is the identity signal:
+
+      - CONFIRM  it equals the positional room_id -> stamp ``pose_confidence="confirmed"``, no change.
+      - RESCUE   ``positional_valid`` is False (the counter K->K is ALREADY known-unreliable: segment
+                 count != queue count) -> set ``room_id``/``slug`` to the pose room + stamp
+                 ``pose_correction="rescued"`` / ``pose_prior_room_id``. Pure gain: the positional
+                 guess had nothing to lose, and the run is already excluded from the learned
+                 aggregate (transit_capture_valid False), so this only sharpens the record/review.
+      - FLAG     ``positional_valid`` AND the pose names a DIFFERENT room -> keep the positional
+                 room_id, annotate ``attribution_disagreement={positional, pose}`` for human review.
+                 Never silently override a working assignment; learning inclusion is UNCHANGED.
+
+    No pose / anchor-only / a window the pose can't name -> that timing is byte-identical to the
+    positional path (no regression). Strict-order (phase) jobs never call this — they already
+    capture per-phase timings. See ``_apply_pose_identity`` for the external sibling."""
+    if not pose_samples:
+        return None
+    attribution = _attribute(pose_samples, vacuum_entity_id)
+    if not attribution or attribution.get("mode") != "robust":
+        return attribution.get("mode") if attribution else None
+    slug_by_id = slug_by_id or {}
+    for rt in room_timings:
+        window_room = _dominant_room(
+            pose_samples, rt.get("cleaning_start"), rt.get("cleaning_end")
+        )
+        if window_room is None:
+            continue  # pose can't name this window -> leave the positional assignment as-is
+        positional = _safe_int(rt.get("room_id"), -1)
+        if window_room == positional:
+            rt["pose_confidence"] = "confirmed"
+        elif not positional_valid:
+            rt["pose_prior_room_id"] = positional
+            rt["room_id"] = window_room
+            rt["slug"] = slug_by_id.get(window_room) or rt.get("slug")
+            rt["pose_correction"] = "rescued"
+        else:
+            rt["attribution_disagreement"] = {"positional": positional, "pose": window_room}
+    return "robust"
+
+
 def build_attributed_job(
     *,
     detection_ts: str | None,

@@ -1121,6 +1121,26 @@ class LearningHistoryStore:
                 slug_by_id=slug_by_id,
                 vacuum_entity_id=vacuum_entity_id,
             )
+            # ATOMIC dispatched runs only: the K->K positional mapping above is the weak spot
+            # (out-of-order / skipped / mis-split). CONSERVATIVELY reconcile each segment's
+            # identity against the native current_room the pose sampler buffered — counter keeps
+            # time/area, pose owns which room: confirm on agreement, rescue when positional is
+            # already unreliable, FLAG (never override) a confident disagreement. No pose /
+            # anchor-only -> byte-identical to the positional path. Strict-order (phase) jobs
+            # take the branch above and never reach here (already per-phase accurate).
+            _pose_samples = (
+                active_job_state.get("pose_samples") if isinstance(active_job_state, dict) else None
+            )
+            if _pose_samples:
+                from .external_ingest import reconcile_dispatched_identity
+
+                reconcile_dispatched_identity(
+                    room_timings=room_timings,
+                    pose_samples=_pose_samples,
+                    vacuum_entity_id=vacuum_entity_id,
+                    positional_valid=transit_capture_valid,
+                    slug_by_id=slug_by_id,
+                )
 
         return {
             "schema_version": 1,
@@ -1152,6 +1172,13 @@ class LearningHistoryStore:
                 "room_timings": room_timings,
                 "transitions": transitions,
                 "transit_capture_valid": transit_capture_valid,
+                # Job-level rollup of the atomic-finalize reconcile: True when the pose named a
+                # DIFFERENT room than the positional K->K assignment on a VALID run (kept, not
+                # overridden — see reconcile_dispatched_identity). A queryable hook for a future
+                # review surface / diagnostic; False for strict-order + no-pose + confirmed runs.
+                "has_attribution_disagreement": any(
+                    bool(rt.get("attribution_disagreement")) for rt in room_timings
+                ),
             },
             "battery": {
                 "start": _safe_int(battery_start, 0),

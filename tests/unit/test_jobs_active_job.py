@@ -415,9 +415,22 @@ def test_record_pose_sample_records_none_current_room():
     assert job["pose_samples"][0]["current_room"] is None
 
 
-def test_record_pose_sample_skips_dispatched_run():
-    """A dispatched run already knows its rooms -> external-only, no pose sample."""
+def test_record_pose_sample_buffers_dispatched_run():
+    """A DISPATCHED (started) run now buffers pose too — the atomic finalize reconciles its
+    positional room identity against the native current_room (reconcile_dispatched_identity)."""
     job = {"status": "started", "started_at": "2026-01-01T09:00:00+00:00"}
+    tracker = _tracker_with_job(job)
+    assert tracker.record_pose_sample(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        current_room=5, anchor=[0.1, 0.2], cleaning_area=2.0,
+    ) is True
+    assert job["pose_samples"][0]["current_room"] == 5
+
+
+def test_record_pose_sample_skips_idle_run():
+    """A run that is neither external nor started (e.g. idle / paused between phases) buffers
+    nothing — only active EXTERNAL or dispatched runs are sampled."""
+    job = {"status": "idle", "started_at": "2026-01-01T09:00:00+00:00"}
     tracker = _tracker_with_job(job)
     assert tracker.record_pose_sample(
         vacuum_entity_id="vacuum.alfred", map_id="6",

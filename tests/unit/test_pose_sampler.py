@@ -132,9 +132,20 @@ async def test_sample_skips_when_pose_absent(monkeypatch):
     mgr.record_pose_sample.assert_not_called()
 
 
-async def test_sample_skips_dispatched_run(monkeypatch):
+async def test_sample_records_dispatched_run(monkeypatch):
+    """A DISPATCHED (started) run is now sampled too — the atomic finalize reconciles its
+    positional room identity against the buffered native current_room."""
     monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_full)
-    mgr = _mock_manager({"present": True, "current_room": 5}, status="started")
+    mgr = _mock_manager({"present": True, "current_room": 5, "robot_anchor": [0.1, 0.2]}, status="started")
+    n = await pose_sampler._sample_vacuum_once(_hass_with_area("3.0"), mgr, "vacuum.alfred")
+    assert n == 1
+    assert mgr.record_pose_sample.call_args.kwargs["current_room"] == 5
+
+
+async def test_sample_skips_idle_map(monkeypatch):
+    """A map with no active external/dispatched run (idle) records nothing."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_full)
+    mgr = _mock_manager({"present": True, "current_room": 5}, status="idle")
     assert await pose_sampler._sample_vacuum_once(_hass_with_area(), mgr, "vacuum.alfred") == 0
 
 

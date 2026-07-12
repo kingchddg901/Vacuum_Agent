@@ -1653,23 +1653,29 @@ class ActiveJobTracker:
         heading: float | None = None,
         observed_at: str | None = None,
     ) -> bool:
-        """Append one pose sample to an EXTERNAL run's ``pose_samples`` buffer (W5b).
+        """Append one pose sample to an active run's ``pose_samples`` buffer (W5b).
 
         Fed by the run-active pose sampler (``listeners/pose_sampler.py``) so the
-        room-attribution engine (W5c) can recover which rooms an app-started run cleaned.
-        EXTERNAL-only — a dispatched run already knows its rooms.
+        room-attribution engine can recover which rooms a run cleaned. Buffered for BOTH:
+          - EXTERNAL (app-started) runs — the engine recovers the unknown cleaned-room set
+            (learning/external_ingest.build_pending_record); and
+          - DISPATCHED (``started``) runs — the engine reconciles the ATOMIC finalize's
+            POSITIONAL (segment K -> queue room K) room identity against the native
+            current_room (learning/external_ingest.reconcile_dispatched_identity). Strict-order
+            (phase) jobs already capture per-phase timings and ignore the buffer at finalize.
 
         ``current_room`` is the MANAGED room id, ``None`` while docked / off-raster — those
-        ticks ARE recorded (the parked-dock exclusion depends on ``None`` runs existing).
-        Capture-only: nothing reads ``pose_samples`` yet. No ``async_save`` here — the
-        samples ride the counter-sample save cadence + finalize (a save every 2 s would be
-        churn). Returns True if appended.
+        ticks ARE recorded (the parked-dock exclusion depends on ``None`` runs existing). No
+        ``async_save`` here — the samples ride the counter-sample save cadence + finalize (a
+        save every 2 s would be churn). Returns True if appended.
         """
         jobs = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
         job = jobs.get(str(map_id)) if isinstance(jobs, dict) else None
         if not isinstance(job, dict):
             return False
-        if job.get("status") != "external" or not (job.get("started_at") and not job.get("ended_at")):
+        if job.get("status") not in ("external", "started") or not (
+            job.get("started_at") and not job.get("ended_at")
+        ):
             return False
         samples = job.setdefault("pose_samples", [])
         samples.append(

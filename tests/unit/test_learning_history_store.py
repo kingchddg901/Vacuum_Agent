@@ -92,6 +92,58 @@ def test_build_payload_strict_order_partial_capture_invalid(tmp_path):
     assert job["transit_capture_valid"] is False
 
 
+def test_build_payload_atomic_reconciles_dispatched_identity(tmp_path):
+    """WIRING: an ATOMIC (non-phased) dispatched job whose active_job_state carries pose_samples
+    runs the identity reconcile at finalize. The counter maps its segment to queue room 8, but the
+    buffered pose says the vacuum was in room 5 -> the reconcile consults it (rescue or flag). Proves
+    active_job_state.pose_samples reaches the reconcile and the atomic branch fires."""
+    store = _make_store(tmp_path)
+    counter = [
+        {"t": "2026-01-01T09:00:00Z", "cleaning_time": 0, "cleaning_area": 0},
+        {"t": "2026-01-01T09:00:30Z", "cleaning_time": 30, "cleaning_area": 2},
+        {"t": "2026-01-01T09:01:00Z", "cleaning_time": 60, "cleaning_area": 4},
+        {"t": "2026-01-01T09:01:30Z", "cleaning_time": 90, "cleaning_area": 6},
+    ]
+    pose = [
+        {"t": "2026-01-01T09:00:10Z", "current_room": 5, "cleaning_area": 1},
+        {"t": "2026-01-01T09:00:40Z", "current_room": 5, "cleaning_area": 3},
+        {"t": "2026-01-01T09:01:10Z", "current_room": 5, "cleaning_area": 5},
+    ]
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jat",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=60, queue_state={}, payload_state={},
+        active_job_state={"queue_room_ids": [8], "counter_samples": counter, "pose_samples": pose},
+    )
+    rt = payload["job"]["room_timings"]
+    assert rt, "atomic run should still produce room_timings"
+    # The reconcile ran and consulted the buffered pose (room 5): rescued the id, or flagged it.
+    assert rt[0]["room_id"] == 5 or rt[0].get("attribution_disagreement", {}).get("pose") == 5
+    # The job-level rollup mirrors the room-level flag (path-independent consistency).
+    assert payload["job"]["has_attribution_disagreement"] == bool(rt[0].get("attribution_disagreement"))
+
+
+def test_build_payload_atomic_no_pose_unchanged(tmp_path):
+    """No buffered pose (today's common case) -> the positional path is byte-identical: no reconcile
+    stamps, the counter's queue-room assignment stands. Guards against a regression on dispatched
+    runs that carry no pose stream."""
+    store = _make_store(tmp_path)
+    counter = [
+        {"t": "2026-01-01T09:00:00Z", "cleaning_time": 0, "cleaning_area": 0},
+        {"t": "2026-01-01T09:00:30Z", "cleaning_time": 30, "cleaning_area": 2},
+        {"t": "2026-01-01T09:01:00Z", "cleaning_time": 60, "cleaning_area": 4},
+    ]
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jnp",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=60, queue_state={}, payload_state={},
+        active_job_state={"queue_room_ids": [8], "counter_samples": counter},  # no pose_samples
+    )
+    for rt in payload["job"]["room_timings"]:
+        assert "pose_confidence" not in rt and "pose_correction" not in rt
+        assert "attribution_disagreement" not in rt
+
+
 def test_room_stats_cached_per_hass(tmp_path):
     """[HS-cache] load_room_stats serves from an hass-scoped cache so the hot
     dashboard-snapshot estimate doesn't re-read room_stats.json off the event loop

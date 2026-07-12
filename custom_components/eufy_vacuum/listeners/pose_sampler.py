@@ -10,7 +10,10 @@ tick into the external slot's ``pose_samples`` (via ``record_pose_sample``).
 **Capture-only / inert** — nothing consumes ``pose_samples`` yet (the engine wiring is W5c).
 
 Gating:
-  - EXTERNAL runs only (dispatched runs already know their rooms).
+  - Active runs only — an EXTERNAL (app-started) run OR a DISPATCHED (``started``) run. External
+    runs recover their unknown cleaned-room set (external_ingest.build_pending_record); dispatched
+    runs feed the ATOMIC-finalize identity reconcile (external_ingest.reconcile_dispatched_identity;
+    strict-order phase jobs ignore it). Idle / paused maps are skipped.
   - Attribution-capable vacuums only: the adapter's ``room_attribution.source`` selects HOW
     ``current_room`` is captured — ``live_pose`` (Eufy fork: a raster-lookup of the robot pixel
     in the decoded map, ``async_get_map_live_pose``) or ``native_current_room`` (Roborock: the
@@ -47,6 +50,11 @@ from ..rooms.utils import slugify_room_name
 _LOGGER = logging.getLogger(__name__)
 
 _POSE_SAMPLER_UNSUBS = "_pose_sampler_unsubs"
+# Active-run statuses whose pose we buffer: EXTERNAL (recover the unknown cleaned-room set) and
+# dispatched (``started`` — reconcile the atomic finalize's positional room identity against the
+# native current_room). A strict-order dispatched job still buffers here but ignores it at
+# finalize (it already captures per-phase timings).
+_SAMPLED_STATUSES = ("external", "started")
 # Absolute last-resort cadence — only if the resolved engine declares no interval_s default
 # at all (e.g. the noop engine). The OPERATIVE default comes from the engine's DEFAULT_TUNING
 # (single source, no duplicated literal); the OPERATIVE value from the adapter's tuning.
@@ -221,11 +229,12 @@ def _read_native_current_room_sample(
 
 
 async def _sample_vacuum_once(hass, manager, vacuum_entity_id: str) -> int:
-    """Sample one vacuum's active EXTERNAL run(s) this tick; returns samples recorded.
+    """Sample one vacuum's active run(s) this tick; returns samples recorded.
 
-    Skips non-attribution vacuums, vacuums missing their declared capture source's signal,
-    non-external maps, and (live_pose only) ticks where the live pose isn't present. The capture
-    path is chosen by the adapter's ``room_attribution.source``. Extracted so it's unit-testable."""
+    Skips non-attribution vacuums, vacuums missing their declared capture source's signal, maps
+    with no active EXTERNAL or dispatched (``started``) run, and (live_pose only) ticks where the
+    live pose isn't present. The capture path is chosen by the adapter's ``room_attribution.source``.
+    Extracted so it's unit-testable."""
     if _room_attribution_interval_s(vacuum_entity_id) is None or not _can_sample(vacuum_entity_id):
         return 0
     cfg = get_adapter_config(vacuum_entity_id) or {}
@@ -236,7 +245,7 @@ async def _sample_vacuum_once(hass, manager, vacuum_entity_id: str) -> int:
         if map_id_str.strip().lower() == "unknown":
             continue
         active = manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id_str)
-        if active.get("status") != "external":
+        if active.get("status") not in _SAMPLED_STATUSES:
             continue
 
         if source == "native_current_room":
