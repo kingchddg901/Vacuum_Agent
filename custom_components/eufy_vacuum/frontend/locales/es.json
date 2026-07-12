@@ -1004,7 +1004,8 @@
     "badge_attribution_disagreement": "Discrepancia de habitación",
     "badge_attribution_disagreement_title": "La señal de habitación en tiempo real no coincidió con el orden de habitaciones asignado en parte de esta limpieza. Se mantuvo la asignación: abre la limpieza para comprobar qué habitación se limpió.",
     "filter_all_origins": "Todos los orígenes",
-    "filter_origin": "Origen"
+    "filter_origin": "Origen",
+    "custom_reason_placeholder": "Escribe un motivo…"
   },
   "room_access": {
     "accessed_from_help": "La habitación que da acceso a esta habitación. Solo lectura; se configura desde el editor de la otra habitación.",
@@ -1778,7 +1779,8 @@
       "manual_test_run": "Prueba manual",
       "false_completion": "Finalización falsa",
       "bad_room_attribution": "Atribución de habitación errónea",
-      "interrupted_run": "Ejecución interrumpida"
+      "interrupted_run": "Ejecución interrumpida",
+      "custom": "Personalizado…"
     },
     "theme_token": {
       "evcc_accent": "Acento",

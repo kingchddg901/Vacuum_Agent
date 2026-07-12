@@ -918,6 +918,7 @@ export const en = {
   "review.badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
   "review.badge_single_room": "Single Room",
   "review.badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning
+  "review.custom_reason_placeholder": "Enter a reason…",  // Placeholder for the free-text input shown when the 'Custom…' exclude reason is picked
   "review.detail_area_m2": "{value} m²",  // Job value: floor area cleaned this run, '{value}' = square metres (e.g. '15 m²')
   "review.detail_battery": "Battery {value}",  // Job stat: battery percent consumed by the run, '{value}' is a %
   "review.detail_minutes": "{value} min",  // Job-card stat: run duration; '{value}' = whole minutes (e.g. '12 min')
@@ -1745,6 +1746,7 @@ export const en = {
   "vocab.exclude_reason.false_completion": "False Completion",
   "vocab.exclude_reason.bad_room_attribution": "Bad Room Attribution",
   "vocab.exclude_reason.interrupted_run": "Interrupted Run",
+  "vocab.exclude_reason.custom": "Custom…",  // Exclude-reason chip that reveals a free-text input for a user-typed reason
   // Auto-exclude suggestion BADGE on Learning Review job cards — terse chip labels
   // keyed on the stable exclude_suggested_reason code (manager.py emits cancelled/
   // failed/interrupted/failed_sanity/cancel-detection reason/short_duration_vs_*).

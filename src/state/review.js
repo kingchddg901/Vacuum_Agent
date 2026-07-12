@@ -35,6 +35,7 @@ export function applyReviewState(proto) {
         },
         sort: REVIEW_SORTS.NEWEST,
         excludeReasons: {},
+        customReasons: {},
         pendingJobActionId: "",
         matcherFields: { ...DEFAULT_MATCHER_FIELDS },
       };
@@ -222,6 +223,23 @@ export function applyReviewState(proto) {
     this._ensureReviewState().excludeReasons[String(jobId ?? "")] = String(reason ?? DEFAULT_EXCLUDE_REASON);
   };
 
+  proto.learningHistoryCustomReason = function (jobId) {
+    return this._ensureReviewState().customReasons[String(jobId ?? "")] || "";
+  };
+
+  proto.setLearningHistoryCustomReason = function (jobId, text) {
+    this._ensureReviewState().customReasons[String(jobId ?? "")] = String(text ?? "");
+  };
+
+  // The reason string actually SENT to exclude_learning_job: for the "custom" chip it's the
+  // user's typed text (trimmed; backend reason is free-text cv.string), falling back to the
+  // literal "custom" if left blank. Any preset chip sends its own value unchanged.
+  proto.resolveLearningHistoryExcludeReason = function (jobId) {
+    const reason = this.learningHistoryExcludeReason(jobId);
+    if (reason !== "custom") return reason;
+    return String(this.learningHistoryCustomReason(jobId) || "").trim() || "custom";
+  };
+
   proto.beginLearningHistoryJobAction = function (jobId) {
     this._ensureReviewState().pendingJobActionId = String(jobId ?? "");
   };
@@ -293,6 +311,7 @@ export function applyReviewState(proto) {
       { value: "false_completion", label: "False Completion" },
       { value: "bad_room_attribution", label: "Bad Room Attribution" },
       { value: "interrupted_run", label: "Interrupted Run" },
+      { value: "custom", label: "Custom…" },  // reveals a free-text input (see _renderReviewReasonChips)
     ];
   };
 

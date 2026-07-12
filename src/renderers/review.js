@@ -398,6 +398,17 @@ export function applyReviewRenderers(proto) {
             >${this.tVocab("exclude_reason", String(opt?.value ?? ""), String(opt?.label ?? opt?.value ?? ""))}</button>
           `).join("")}
         </div>
+        ${String(selectedReason ?? "") === "custom" ? `
+          <input
+            type="text"
+            class="evcc-chip-search evcc-review-custom-reason"
+            data-review-custom-reason="${this.escapeHtml(jobId)}"
+            value="${this.escapeHtml(String(state.learningHistoryCustomReason?.(jobId) ?? ""))}"
+            placeholder="${this.t("review.custom_reason_placeholder")}"
+            aria-label="${this.t("review.custom_reason_placeholder")}"
+            ${pending ? "disabled" : ""}
+          >
+        ` : ""}
       </div>
     `;
   };

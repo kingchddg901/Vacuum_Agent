@@ -993,7 +993,8 @@
     "badge_attribution_disagreement": "Kamerafwijking",
     "badge_attribution_disagreement_title": "Het live-kamersignaal kwam voor een deel van deze run niet overeen met de toegewezen kamervolgorde. De toewijzing is behouden — open de run om te controleren welke kamer is schoongemaakt.",
     "filter_all_origins": "Alle herkomsten",
-    "filter_origin": "Herkomst"
+    "filter_origin": "Herkomst",
+    "custom_reason_placeholder": "Voer een reden in…"
   },
   "room_access": {
     "accessed_from_help": "De kamer die toegang verleent tot deze kamer. Alleen-lezen — stel in vanuit de editor van de andere kamer.",
@@ -1764,7 +1765,8 @@
       "manual_test_run": "Handmatige testrun",
       "false_completion": "Valse voltooiing",
       "bad_room_attribution": "Onjuiste kamertoewijzing",
-      "interrupted_run": "Onderbroken run"
+      "interrupted_run": "Onderbroken run",
+      "custom": "Aangepast…"
     },
     "theme_token": {
       "evcc_accent": "Accent",

@@ -1062,7 +1062,8 @@
     "badge_attribution_disagreement": "Несовпадение комнаты",
     "badge_attribution_disagreement_title": "Сигнал о текущей комнате не совпал с назначенным порядком комнат на части этого запуска. Назначение сохранено — откройте запуск, чтобы проверить, какая комната была убрана.",
     "filter_all_origins": "Все источники",
-    "filter_origin": "Источник"
+    "filter_origin": "Источник",
+    "custom_reason_placeholder": "Укажите причину…"
   },
   "room_access": {
     "accessed_from_help": "Комната, которая даёт доступ к этой комнате. Только для чтения — задаётся в редакторе другой комнаты.",
@@ -1853,7 +1854,8 @@
       "manual_test_run": "Ручной тестовый запуск",
       "false_completion": "Ложное завершение",
       "bad_room_attribution": "Неверная привязка комнат",
-      "interrupted_run": "Прерванный запуск"
+      "interrupted_run": "Прерванный запуск",
+      "custom": "Другое…"
     },
     "theme_token": {
       "evcc_accent": "Акцент",

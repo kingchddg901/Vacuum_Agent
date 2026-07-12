@@ -993,7 +993,8 @@
     "badge_attribution_disagreement": "Raum-Abweichung",
     "badge_attribution_disagreement_title": "Das Live-Raumsignal widersprach für einen Teil dieses Laufs der zugewiesenen Raumreihenfolge. Die Zuweisung wurde beibehalten – öffnen Sie den Lauf, um zu prüfen, welcher Raum gereinigt wurde.",
     "filter_all_origins": "Alle Herkünfte",
-    "filter_origin": "Herkunft"
+    "filter_origin": "Herkunft",
+    "custom_reason_placeholder": "Grund eingeben…"
   },
   "room_access": {
     "accessed_from_help": "Der Raum, der den Zugang zu diesem Raum gewährt. Schreibgeschützt — im Editor des anderen Raums festgelegt.",
@@ -1764,7 +1765,8 @@
       "manual_test_run": "Manueller Testlauf",
       "false_completion": "Falscher Abschluss",
       "bad_room_attribution": "Falsche Raumzuordnung",
-      "interrupted_run": "Unterbrochener Lauf"
+      "interrupted_run": "Unterbrochener Lauf",
+      "custom": "Benutzerdefiniert…"
     },
     "theme_token": {
       "evcc_accent": "Akzent",

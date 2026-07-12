@@ -102,6 +102,14 @@ export function applyReviewBindings(proto) {
       this.card._scheduleRender();
     });
 
+    // Custom exclude reason — update state on each keystroke WITHOUT a re-render so the input
+    // keeps focus while typing (the value is read back at exclude time via the resolver).
+    this.card._onAll("[data-review-custom-reason]", "input", (e) => {
+      const jobId = e.currentTarget?.dataset?.reviewCustomReason;
+      if (!jobId) return;
+      this.card._state.setLearningHistoryCustomReason?.(jobId, e.currentTarget.value);
+    });
+
     this.card._onAll("[data-review-action]", "click", async (e) => {
       const action = e.currentTarget?.dataset?.reviewAction;
       const jobId = e.currentTarget?.dataset?.jobId;
@@ -114,7 +122,7 @@ export function applyReviewBindings(proto) {
         if (action === "exclude") {
           await this.card._actions.excludeLearningJob?.({
             job_id: jobId,
-            reason: this.card._state.learningHistoryExcludeReason?.(jobId),
+            reason: this.card._state.resolveLearningHistoryExcludeReason?.(jobId),
           });
         }
 

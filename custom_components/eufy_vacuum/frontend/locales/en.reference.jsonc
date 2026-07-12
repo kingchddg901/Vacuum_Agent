@@ -204,7 +204,8 @@
       "manual_test_run": "Manual Test Run",
       "false_completion": "False Completion",
       "bad_room_attribution": "Bad Room Attribution",
-      "interrupted_run": "Interrupted Run"
+      "interrupted_run": "Interrupted Run",
+      "custom": "Custom…"  // Exclude-reason chip that reveals a free-text input for a user-typed reason
     },
     "exclude_suggested_reason": {
       "cancelled": "Cancelled run",
@@ -1605,6 +1606,7 @@
     "badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
     "badge_single_room": "Single Room",
     "badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning
+    "custom_reason_placeholder": "Enter a reason…",  // Placeholder for the free-text input shown when the 'Custom…' exclude reason is picked
     "detail_area_m2": "{value} m²",  // Job value: floor area cleaned this run, '{value}' = square metres (e.g. '15 m²')
     "detail_battery": "Battery {value}",  // Job stat: battery percent consumed by the run, '{value}' is a %
     "detail_minutes": "{value} min",  // Job-card stat: run duration; '{value}' = whole minutes (e.g. '12 min')
