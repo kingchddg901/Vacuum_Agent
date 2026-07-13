@@ -862,6 +862,26 @@ class PhaseRunner:
         start_selected_rooms, phases 1+ fire here. No-op when the adapter declares no
         dispatch.global_pre_calls (Eufy, S6).
         """
+        # A zone phase cleans saved-zone rects, not room segments: dispatch via the zone
+        # path (its own per-brand coordinate conversion + caps live in dispatch_zone_clean)
+        # and skip the room pre-calls / per-room settings / segment payload entirely.
+        _phases = job.get("phases") or []
+        _idx = _safe_int(job.get("current_phase_index"), 0)
+        _phase = _phases[_idx] if 0 <= _idx < len(_phases) else {}
+        if str(_phase.get("phase_type") or "") == "zone":
+            zones = _phase.get("zones") or []
+            if zones:
+                await self._manager.dispatch_zone_clean(
+                    vacuum_entity_id=vacuum_entity_id, zones=zones, map_id=str(map_id),
+                )
+            _LOGGER.info(
+                "Strict-order advance: %s map %s -> zone phase %s/%s, %d zone(s) (attempt %s)",
+                vacuum_entity_id, map_id,
+                job.get("current_phase_index"), job.get("phase_count"),
+                len(zones), attempt,
+            )
+            return
+
         await self._manager._run_global_pre_calls(
             vacuum_entity_id=vacuum_entity_id,
             resolved_rooms=list(job.get("resolved_rooms", [])),

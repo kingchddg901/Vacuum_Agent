@@ -716,13 +716,17 @@ class ProfileManager:
     def normalize_run_profile_steps(steps: Any) -> list[dict[str, Any]]:
         """Validate/coerce an ordered run-profile steps list. A step is a room_group
         ({type:'room_group', rooms:[...]}), a charge_wait ({type:'charge_wait',
-        target_battery_percent:int clamped 1..100}), or a wait ({type:'wait',
-        wait_minutes:int clamped 1..1440}). Invalid/empty entries are dropped.
+        target_battery_percent:int clamped 1..100}), a wait ({type:'wait',
+        wait_minutes:int clamped 1..1440}), or a zone ({type:'zone', zone_ids:[str,...]}
+        naming saved zones cleaned together in one phase). Invalid/empty entries are dropped.
 
         room_group entries are coerced to well-formed ``{room_id:int, ...}`` dicts: a
         bare int is wrapped; an entry whose room_id doesn't parse to a positive int is
         dropped. A group left with no valid room is dropped entirely, so dispatch never
-        sees an unparseable room_id."""
+        sees an unparseable room_id. zone entries keep a de-duplicated, order-preserving
+        list of non-empty string ids; existence + brand caps are enforced at dispatch
+        (where the saved-zone store and the adapter's zone limit are known), so normalize
+        stays brand-agnostic and shape-only — the same discipline room_id gets."""
         out: list[dict[str, Any]] = []
         for step in steps if isinstance(steps, list) else []:
             if not isinstance(step, dict):
@@ -756,6 +760,17 @@ class ProfileManager:
                 except (TypeError, ValueError):
                     continue
                 out.append({"type": "wait", "wait_minutes": max(1, min(mins, 1440))})
+            elif stype == "zone":
+                raw_ids = step.get("zone_ids")
+                if not isinstance(raw_ids, list):
+                    continue
+                clean_ids: list[str] = []
+                for z in raw_ids:
+                    zid = str(z).strip()
+                    if zid and zid not in clean_ids:
+                        clean_ids.append(zid)
+                if clean_ids:
+                    out.append({"type": "zone", "zone_ids": clean_ids})
         return out
 
     @staticmethod
@@ -920,6 +935,17 @@ class ProfileManager:
             "created_at": now,
             "updated_at": now,
         }
+        # Capture the current queue's WHOLE stepped plan (room groups + charge/wait breaks +
+        # zones) so a composed one-off run can be saved intact, not flattened to a bare room
+        # clean. Flat queues stay rooms-only (the steps back-fill reconstructs a single
+        # room_group at apply); the room_groups are id-only because apply restores the saved
+        # rooms' settings to the entities, and the run reads settings from there + sequence
+        # from steps.
+        queue = self._manager.get_queue_steps(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        if queue.get("has_breaks"):
+            library[profile_id]["steps"] = queue.get("steps") or []
         self._manager._notify_run_profiles_updated(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),

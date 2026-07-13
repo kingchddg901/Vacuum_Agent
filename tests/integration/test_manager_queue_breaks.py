@@ -14,6 +14,11 @@
 [QB-12] set_queue_breaks needs >= 2 rooms (else clears + reports).
 [QB-13] set_queue_breaks clamps after_index and drops invalid entries.
 [QB-14] get_queue_steps exposes the raw ordered breaks list.
+[ZP-1] add_queue_zone inserts a zone step between rooms.
+[ZP-2] a zone-only queue is still "stepped" (has_breaks True).
+[ZP-3] add_queue_zone needs >= 2 rooms.
+[ZP-4] set_queue_breaks round-trips a zone entry (reorder preserves zone_ids).
+[ZP-5] normalize dedupes/validates zone_ids; empty -> dropped.
 """
 
 from __future__ import annotations
@@ -244,3 +249,88 @@ async def test_get_queue_steps_exposes_raw_breaks(manager):
     assert entry["after_index"] == 1
     assert entry["step"]["type"] == "charge_wait"
     assert entry["step"]["target_battery_percent"] == 90
+
+
+async def test_add_queue_zone_inserts_between_rooms(manager):
+    """[ZP-1] A zone step slots between rooms like a break, but is a clean action."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    res = manager.add_queue_zone(
+        vacuum_entity_id=_VAC, map_id=_MAP, after_index=2, zone_ids=["z_kennel", "z_entry"]
+    )
+    assert res["added"] is True
+    assert [s["type"] for s in res["steps"]] == ["room_group", "zone", "room_group"]
+    zone = next(s for s in res["steps"] if s["type"] == "zone")
+    assert zone["zone_ids"] == ["z_kennel", "z_entry"]
+    assert len(res["steps"][0]["rooms"]) == 2
+
+
+async def test_zone_only_queue_is_stepped(manager):
+    """[ZP-2] A zone (no charge/wait) still marks the queue non-flat."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    res = manager.add_queue_zone(
+        vacuum_entity_id=_VAC, map_id=_MAP, after_index=1, zone_ids=["z_kennel"]
+    )
+    assert res["has_breaks"] is True
+
+
+async def test_add_queue_zone_needs_two_rooms(manager):
+    """[ZP-3] The inserted-step slot model needs a room on each side."""
+    setup_map(manager, _VAC, _MAP, count=1)
+    res = manager.add_queue_zone(
+        vacuum_entity_id=_VAC, map_id=_MAP, after_index=1, zone_ids=["z_kennel"]
+    )
+    assert res["added"] is False
+    assert res["reason"] == "needs_two_rooms"
+
+
+async def test_set_queue_breaks_round_trips_zone(manager):
+    """[ZP-4] Reorder (set_queue_breaks) preserves a zone entry's zone_ids + position."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    res = manager.set_queue_breaks(
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        breaks=[
+            {"after_index": 1, "break_type": "zone", "zone_ids": ["z_kennel", "z_entry"]},
+            {"after_index": 2, "break_type": "charge_wait", "target_battery_percent": 80},
+        ],
+    )
+    assert res["set"] is True
+    assert [s["type"] for s in res["steps"]] == [
+        "room_group", "zone", "room_group", "charge_wait", "room_group",
+    ]
+    zone = next(s for s in res["steps"] if s["type"] == "zone")
+    assert zone["zone_ids"] == ["z_kennel", "z_entry"]
+
+
+async def test_normalize_zone_dedupes_and_drops_empty(manager):
+    """[ZP-5] zone_ids are de-duplicated + coerced to non-empty strings; empty -> dropped."""
+    norm = manager.profiles.normalize_run_profile_steps
+    assert norm([{"type": "zone", "zone_ids": ["a", "a", " b ", "", "  "]}]) == [
+        {"type": "zone", "zone_ids": ["a", "b"]}
+    ]
+    assert norm([{"type": "zone", "zone_ids": []}]) == []
+    assert norm([{"type": "zone", "zone_ids": "not-a-list"}]) == []
+
+
+async def test_save_run_profile_captures_stepped_plan(manager):
+    """[SP-1] Saving a profile from a stepped queue captures the WHOLE plan (rooms + break),
+    not a flattened room clean — so the composed one-off run becomes a re-runnable profile."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="charge_wait",
+        after_index=2, target_battery_percent=90,
+    )
+    res = manager.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Nightly")
+    assert res["saved"] is True
+    steps = res["profile"].get("steps")
+    assert [s["type"] for s in steps] == ["room_group", "charge_wait", "room_group"]
+    assert next(s for s in steps if s["type"] == "charge_wait")["target_battery_percent"] == 90
+
+
+async def test_save_run_profile_flat_queue_single_group(manager):
+    """[SP-2] A flat queue (no breaks) saves as a single room_group — no phantom break/zone;
+    the enriched profile's steps back-fill to exactly one clean group."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    res = manager.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Everywhere")
+    assert res["saved"] is True
+    assert [s["type"] for s in res["profile"]["steps"]] == ["room_group"]

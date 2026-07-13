@@ -505,6 +505,42 @@ set_queue_breaks:
       selector:
         object: {}
 
+add_queue_zone:
+  name: Add queue zone
+  description: >-
+    Insert a zone step into the live queue — clean the named saved zones together
+    in one phase, positioned between rooms. after_index is the number of rooms
+    before the zone (clamped to sit between rooms).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    after_index:
+      name: After index
+      description: Number of enabled rooms before the zone.
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: box
+    zone_ids:
+      name: Saved zone IDs
+      description: One or more saved-zone ids to clean together in this step.
+      required: true
+      example: '["zone_abc123", "zone_def456"]'
+      selector:
+        object: {}
+
 get_active_job:
   name: Get active job
   description: Return the current active job state including start time and battery.

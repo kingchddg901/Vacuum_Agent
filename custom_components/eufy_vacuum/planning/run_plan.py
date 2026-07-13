@@ -858,6 +858,25 @@ class RunPlanManager:
                     "resolved_rooms": [], "queue_room_ids": [], "queue_rooms": [],
                     "payload": {}, "room_count": 0,
                 })
+            elif step.get("type") == "zone":
+                # A zone is a CLEAN action (not a pause): resolve its saved-zone ids to
+                # dispatch rects now and carry them on the phase. Skipped if nothing
+                # resolves (like an empty room_group). Brand count/size caps ride
+                # dispatch_zone_clean at dispatch time.
+                zone_ids = step.get("zone_ids") or []
+                rects = self._manager._resolve_saved_zone_rects(
+                    vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+                    zone_ids=list(zone_ids),
+                )
+                if not rects:
+                    continue
+                phases.append({
+                    "phase_type": "zone",
+                    "zone_ids": [str(z) for z in zone_ids],
+                    "zones": rects,
+                    "resolved_rooms": [], "queue_room_ids": [], "queue_rooms": [],
+                    "payload": {}, "room_count": 0,
+                })
         # charge_wait + wait are "break" phases (dock + hold). A break with no clean to
         # bracket is pointless -> drop leading/trailing breaks; collapse consecutive SAME-type
         # breaks (two charges -> last target; two waits -> last duration); mixed breaks kept.
@@ -873,7 +892,13 @@ class RunPlanManager:
                 collapsed[-1] = p  # consecutive same-type breaks -> keep the last
             else:
                 collapsed.append(p)
-        if not any(p.get("phase_type") in _BREAKS for p in collapsed):
+        # A zone is a real clean phase, so a rooms+zone run (no charge/wait) must STAY
+        # multi-phase — only collapse to one atomic clean when there is nothing but
+        # room_group dispatch phases (no breaks AND no zones).
+        if not any(
+            p.get("phase_type") in _BREAKS or p.get("phase_type") == "zone"
+            for p in collapsed
+        ):
             all_ids = [rid for p in collapsed for rid in p.get("queue_room_ids", [])]
             return self._build_dispatch_phases(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),

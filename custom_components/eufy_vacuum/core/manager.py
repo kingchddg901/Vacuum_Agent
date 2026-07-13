@@ -1619,8 +1619,10 @@ class EufyVacuumManager:
             # Raw ordered breaks ({after_index, step}) so the card can reconstruct the
             # combined rooms+breaks reorder list without re-deriving from the grouped steps.
             "breaks": breaks,
+            # "has_breaks" == "the queue is stepped / non-flat" (kept the name for the card's
+            # queueHasBreaks gate). A zone is an inserted step too, so it counts.
             "has_breaks": any(
-                s.get("type") in ("charge_wait", "wait") for s in steps
+                s.get("type") in ("charge_wait", "wait", "zone") for s in steps
             ),
         }
 
@@ -1645,6 +1647,45 @@ class EufyVacuumManager:
         normalized = self.profiles.normalize_run_profile_steps([spec])
         if not normalized:
             return {"added": False, "reason": "invalid_break"}
+
+        room_count = len(
+            self._enabled_room_ids_in_order(map_bucket, vacuum_entity_id, map_id)
+        )
+        if room_count < 2:
+            return {"added": False, "reason": "needs_two_rooms"}
+        after = max(1, min(_safe_int(after_index, 1), room_count - 1))
+
+        breaks = list(map_bucket.get("queue_breaks") or [])
+        breaks.append({"after_index": after, "step": normalized[0]})
+        map_bucket["queue_breaks"] = breaks
+
+        self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        return {
+            "added": True,
+            **self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)),
+        }
+
+    def add_queue_zone(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        after_index: int,
+        zone_ids: list[str],
+    ) -> dict[str, Any]:
+        """Insert a zone step — clean the named saved zones together in one phase —
+        after the ``after_index``-th enabled room. Stored in the same inserted-steps
+        (``queue_breaks``) store as a break, so it reorders/removes through the same
+        path; a zone is a clean ACTION rather than a pause, which only matters at
+        dispatch. Existence + brand caps on zone_ids are enforced at dispatch."""
+        map_bucket = ensure_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        normalized = self.profiles.normalize_run_profile_steps(
+            [{"type": "zone", "zone_ids": zone_ids}]
+        )
+        if not normalized:
+            return {"added": False, "reason": "invalid_zone"}
 
         room_count = len(
             self._enabled_room_ids_in_order(map_bucket, vacuum_entity_id, map_id)
@@ -1736,6 +1777,8 @@ class EufyVacuumManager:
                 }
             elif btype == "wait":
                 spec = {"type": "wait", "wait_minutes": entry.get("wait_minutes")}
+            elif btype == "zone":
+                spec = {"type": "zone", "zone_ids": entry.get("zone_ids")}
             else:
                 continue
             normalized = self.profiles.normalize_run_profile_steps([spec])
@@ -1751,6 +1794,36 @@ class EufyVacuumManager:
             "set": True,
             **self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)),
         }
+
+    def _resolve_saved_zone_rects(
+        self, *, vacuum_entity_id: str, map_id: str, zone_ids: list[str]
+    ) -> list[list[float]]:
+        """Resolve saved-zone ids to normalized bbox rects ``[x0,y0,x1,y1]`` from the
+        map's ``saved_zones`` store, for a zone STEP's dispatch.
+
+        Mirrors mapping_services._handle_clean_saved_zones' resolution (a zone's
+        geometry point list -> its bounding rect). Missing / degenerate zones are
+        silently skipped (the step keeps whatever resolves); brand zone COUNT + SIZE
+        caps (Eufy 10 / S6 5) are enforced downstream in dispatch_zone_clean."""
+        map_bucket = get_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        zones_store = (map_bucket or {}).get("saved_zones") or {}
+        rects: list[list[float]] = []
+        for zid in zone_ids or []:
+            zone = zones_store.get(str(zid))
+            if not isinstance(zone, dict):
+                continue
+            pts = [
+                p for p in (zone.get("geometry") or [])
+                if isinstance(p, (list, tuple)) and len(p) == 2
+            ]
+            if len(pts) < 3:
+                continue
+            xs = [float(p[0]) for p in pts]
+            ys = [float(p[1]) for p in pts]
+            rects.append([min(xs), min(ys), max(xs), max(ys)])
+        return rects
 
     # ------------------------------------------------------------------
     # Run profiles — delegates to ProfileManager
