@@ -3213,6 +3213,20 @@ debug_capture_start:
             - learning
             - setup
             - themes
+    services:
+      name: Trace services
+      description: >
+        Per-service tracing — capture ONLY while these flagged services run (call
+        debug_capture_status to list the traceable ones). Omit for a full capture.
+      required: false
+      example: "[start_zone_clean]"
+      selector:
+        select:
+          multiple: true
+          custom_value: true
+          options:
+            - start_zone_clean
+            - start_selected_rooms
     size:
       name: Ring size
       description: Max records to keep (oldest evicted). Default 3000.
@@ -3222,6 +3236,24 @@ debug_capture_start:
           min: 1
           max: 50000
           mode: box
+    max_minutes:
+      name: Auto-stop after (minutes)
+      description: Automatically stop capturing after this many minutes.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1440
+          mode: box
+    stop_when_full:
+      name: Stop when full
+      description: >
+        Freeze at the ring size (keep the first N) instead of the default
+        keep-the-last-N (evict oldest).
+      required: false
+      default: false
+      selector:
+        boolean:
 
 debug_capture_stop:
   name: Debug capture — stop

@@ -14,8 +14,22 @@ import pytest
 from custom_components.eufy_vacuum.debug_capture import (
     PACKAGE_LOGGER,
     DebugCapture,
+    debug_traceable,
+    get_capture,
     render_text,
+    traceable_services,
 )
+
+
+class _FakeCall:
+    def __init__(self, data):
+        self.data = data
+
+
+@debug_traceable("svc_demo")
+async def _svc_demo(call):
+    logging.getLogger(f"{PACKAGE_LOGGER}.mapping.inner").debug("inner=%s", call.data.get("x"))
+    return {"ok": True, "n": call.data.get("x")}
 
 
 @pytest.fixture
@@ -136,6 +150,66 @@ def test_stop_is_idempotent(capture):
     before = (logger.level, logger.propagate)
     capture.stop()
     assert (logger.level, logger.propagate) == before
+
+
+@pytest.fixture
+def global_capture():
+    """Reset + yield the process singleton (the decorator wraps against get_capture())."""
+    import custom_components.eufy_vacuum.debug_capture as dc
+
+    dc._CAPTURE = None
+    cap = get_capture()
+    try:
+        yield cap
+    finally:
+        cap.stop()
+        dc._CAPTURE = None
+
+
+def test_debug_traceable_registers():
+    assert "svc_demo" in traceable_services()
+
+
+def test_message_truncation(capture):
+    capture.start()
+    _emit("mapping.x", logging.DEBUG, "%s", "x" * 5000)
+    msg = capture.records()[0]["message"]
+    assert len(msg) < 5000
+    assert "elided" in msg
+
+
+def test_freeze_mode_keeps_first_n(capture):
+    capture.start(capacity=3, freeze=True)
+    for i in range(10):
+        _emit("mapping.x", logging.DEBUG, "line %d", i)
+    records = capture.records()
+    assert [r["message"] for r in records] == ["line 0", "line 1", "line 2"]  # first N kept
+    assert capture.status()["full"] is True
+    assert capture.status()["seen"] == 10
+
+
+@pytest.mark.asyncio
+async def test_span_brackets_and_scopes_to_service(global_capture):
+    global_capture.start(services=["svc_demo"])
+    # A log OUTSIDE any span must NOT be captured (targeted mode).
+    logging.getLogger(f"{PACKAGE_LOGGER}.mapping.other").debug("outside the span")
+    result = await _svc_demo(_FakeCall({"x": 7}))
+
+    assert result == {"ok": True, "n": 7}
+    messages = [r["message"] for r in global_capture.records()]
+    assert any(m.startswith("▶▶ svc_demo") for m in messages)
+    assert any(m.startswith("◀◀ svc_demo") for m in messages)
+    assert any("inner=7" in m for m in messages)  # downstream log inside the span
+    assert not any("outside the span" in m for m in messages)  # scoped out
+
+
+@pytest.mark.asyncio
+async def test_unarmed_service_not_bracketed(global_capture):
+    global_capture.start(services=["other_service"])  # svc_demo is NOT armed
+    result = await _svc_demo(_FakeCall({"x": 1}))
+    assert result == {"ok": True, "n": 1}
+    # Not a target -> not bracketed; targeted gate -> nothing captured at all.
+    assert global_capture.records() == []
 
 
 def test_render_text_is_readable():

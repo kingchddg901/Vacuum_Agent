@@ -42,6 +42,7 @@ from ..const import (
     SERVICE_START_SELECTED_ROOMS,
     SERVICE_START_ZONE_CLEAN,
 )
+from ..debug_capture import debug_traceable
 from ._common import (
     JOB_CONTROL_SCHEMA,
     VACUUM_MAP_SCHEMA,
@@ -265,12 +266,14 @@ def register(hass: HomeAssistant) -> None:
     async def get_start_status(call: ServiceCall) -> dict:
         return await _handle_get_start_status(hass, call)
 
+    @debug_traceable(SERVICE_START_SELECTED_ROOMS)
     async def start_selected_rooms(call: ServiceCall) -> None:
         await _handle_start_selected_rooms(hass, call)
 
     async def start_run_profile(call: ServiceCall) -> dict:
         return await _handle_start_run_profile(hass, call)
 
+    @debug_traceable(SERVICE_START_ZONE_CLEAN)
     async def start_zone_clean(call: ServiceCall) -> dict:
         return await _handle_start_zone_clean(hass, call)
 
