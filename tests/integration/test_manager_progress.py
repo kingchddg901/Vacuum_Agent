@@ -19,6 +19,8 @@ Coverage targets
 [PR-10] running_long suppressed for an unlearned room at ~1.7x threshold (issue #40).
 [PR-13] a current charge_wait phase surfaces charge_phase_active + target + ETA.
 [PR-14] a current zone phase surfaces zone_phase_active + names + ETA (live view not blank).
+[PR-15] the zone banner clears once the zone is DONE (docked/dry window) — gated on the device
+        actually still cleaning, not just the phase type (the "Cleaning zone" while-docked bug).
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
@@ -238,6 +240,31 @@ def test_progress_zone_phase_surfaces(manager, hass):
     assert snap["zone_phase_ids"] == ["z1"]
     assert snap["zone_phase_names"] == ["stove"]
     assert snap["zone_phase_eta_minutes"] == 5.0  # 300s learned (mop bucket)
+
+
+def test_progress_zone_phase_hidden_when_docked(manager, hass):
+    """[PR-15] the trailing zone phase lingers on the active job through the return/dock/dry
+    window before finalize clears it — so zone_phase_active must gate on the device STILL cleaning
+    (active_cleaning_target='N zone' / not docked), not just the phase type. Otherwise the live
+    banner reads 'Cleaning zone · ~N min left' while the robot is docked + drying (the live bug)."""
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+    _wire(manager, hass)
+    mb = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    mb.setdefault("saved_zones", {})["z1"] = {"id": "z1", "name": "stove", "area_m2": 0.5}
+    hass.states.async_set(_VAC, "docked")  # zone finished, back on the dock (no target)
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[], resolved_rooms=[], current_phase_index=1,
+        job_metadata={"has_mop_mode": True},
+        phases=[
+            {"resolved_rooms": [{"room_id": 1, "name": "K"}], "queue_room_ids": [1],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "zone", "zone_ids": ["z1"], "zones": [[0.1, 0.1, 0.2, 0.2]],
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+    )
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["zone_phase_active"] is False  # docked -> banner cleared, not "still cleaning"
 
 
 def test_progress_skipped_conservative(manager, hass):

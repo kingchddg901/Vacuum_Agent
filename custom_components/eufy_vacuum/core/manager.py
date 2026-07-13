@@ -3364,6 +3364,7 @@ class EufyVacuumManager:
                 0 <= _z_idx < len(_cw_phases)
                 and isinstance(_cw_phases[_z_idx], dict)
                 and str(_cw_phases[_z_idx].get("phase_type") or "") == "zone"
+                and self._zone_is_actively_cleaning(vacuum_entity_id)
             ):
                 zone_phase_active = True
                 zone_phase_ids = [str(z) for z in (_cw_phases[_z_idx].get("zone_ids") or [])]
@@ -3454,6 +3455,25 @@ class EufyVacuumManager:
             "stall_ratio": stall_ratio,
             "updated_at": _iso_now(),
         }
+
+    def _zone_is_actively_cleaning(self, vacuum_entity_id: str) -> bool:
+        """True while a zone phase is REALLY being cleaned — gates the live "Cleaning zone" banner.
+
+        A zone is the trailing phase, so the active job lingers on it through the return → dock →
+        dry window before finalize clears it; without this the banner reads "Cleaning zone · ~N min"
+        while the robot is docked + drying (the observed bug). The device's ``active_cleaning_target``
+        stays ``"N zone"`` for the WHOLE zone — mop-prep dock bounces included — and clears at
+        dock-done, so it's the flicker-free signal. When a brand exposes no such entity, fall back
+        to "the vacuum isn't docked/returning/idle"."""
+        _entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
+        _at = _entities.get("active_cleaning_target")
+        _at_state = self.hass.states.get(_at) if _at else None
+        _target = str(_at_state.state).strip().lower() if _at_state is not None else ""
+        if _target:
+            return "zone" in _target
+        _vac = self.hass.states.get(vacuum_entity_id)
+        _vac_state = str(_vac.state).strip().lower() if _vac is not None else ""
+        return _vac_state not in ("docked", "returning", "idle", "paused", "")
 
     def _zone_ids_estimate_seconds(
         self, *, vacuum_entity_id: str, map_id: str, zone_ids: list, clean_mode: str
