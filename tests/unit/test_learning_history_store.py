@@ -92,6 +92,35 @@ def test_build_payload_strict_order_partial_capture_invalid(tmp_path):
     assert job["transit_capture_valid"] is False
 
 
+def test_build_payload_rooms_zone_reconstructs_rooms_from_phases(tmp_path):
+    """A rooms->zone stepped job ENDS on the roomless zone phase, so advance_active_job_phase
+    left the active job's top-level resolved_rooms/room_count at the zone's (empty). The finalizer
+    must reconstruct the job's rooms from ALL phases — else the run reads as zero rooms: wrongly
+    flagged invalid_room_count, shown "Unknown", and dropped from learning even though Kitchen
+    cleaned (its phase timing is captured). Regression for the live job_2026-07-13T03-17-07."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jrz",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:08:00+00:00",
+        battery_start=99, battery_end=98, queue_state={}, payload_state={},
+        active_job_state={
+            "resolved_rooms": [],   # advance swapped it to the final (zone) phase's empty set
+            "room_count": 0,
+            "phases": [
+                {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+                 "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 0.0,
+                                  "cleaning_seconds": 90}]},
+                {"phase_type": "zone", "zone_ids": ["z1"], "resolved_rooms": [], "room_timing": []},
+            ],
+        },
+    )
+    assert payload["job_profile"]["room_count"] == 1
+    assert "kitchen" in payload["job_profile"]["room_slugs"]
+    # NOT wrongly rejected — Kitchen's phase cleaned, so the run stays learnable.
+    assert "invalid_room_count" not in payload["outcome"]["sanity_flags"]
+    assert "missing_resolved_rooms" not in payload["outcome"]["learning_blockers"]
+
+
 def test_build_payload_atomic_reconciles_dispatched_identity(tmp_path):
     """WIRING: an ATOMIC (non-phased) dispatched job whose active_job_state carries pose_samples
     runs the identity reconcile at finalize. The counter maps its segment to queue room 8, but the

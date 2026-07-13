@@ -918,6 +918,30 @@ class LearningHistoryStore:
             if not isinstance(resolved_rooms, list):
                 resolved_rooms = []
 
+        # A stepped job that ENDED on a roomless phase (a trailing ZONE) has had its top-level
+        # resolved_rooms/room_count swapped to that final phase by advance_active_job_phase —
+        # which copies them from the phase it moves INTO, and a zone phase has neither. Without
+        # this, a rooms->zone run reads as zero rooms: wrongly flagged invalid_room_count, shown
+        # as "Unknown", and DROPPED from learning even though its room phases cleaned (their
+        # timings are captured). Reconstruct the job's rooms from ALL phases (the phase list
+        # survives advance), deduped by room_id, order preserved.
+        if not resolved_rooms and isinstance(active_job_state, dict):
+            _phases = active_job_state.get("phases")
+            if isinstance(_phases, list):
+                _seen_rids: set = set()
+                _phase_rooms: list = []
+                for _phase in _phases:
+                    if not isinstance(_phase, dict):
+                        continue
+                    for _room in _phase.get("resolved_rooms") or []:
+                        if not isinstance(_room, dict):
+                            continue
+                        _rid = _room.get("room_id")
+                        if _rid is not None and _rid not in _seen_rids:
+                            _seen_rids.add(_rid)
+                            _phase_rooms.append(_room)
+                resolved_rooms = _phase_rooms
+
         queue_rooms = queue_state.get("queue_rooms", []) if isinstance(queue_state, dict) else []
         if not isinstance(queue_rooms, list):
             queue_rooms = []
