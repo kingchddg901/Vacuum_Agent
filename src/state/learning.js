@@ -181,6 +181,14 @@ export function applyLearningState(proto) {
     return this.dashboardSnapshot()?.job_progress ?? null;
   };
 
+  // Total live queue: the running job's whole phase sequence as ordered chips (rooms + breaks +
+  // zone), each done/current/upcoming, from the active_job clone. Null/empty when idle.
+  proto.dashboardLiveQueue = function () {
+    const lq = this.dashboardJobProgress()?.live_queue;
+    if (!lq || lq.active !== true || !Array.isArray(lq.steps) || !lq.steps.length) return null;
+    return lq;
+  };
+
   // Live charge-phase status for the progress banner, or null when not charging.
   // Reads the JOB-level charge_* fields (the charge phase has no current room).
   proto.liveChargeStatus = function () {

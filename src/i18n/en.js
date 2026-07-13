@@ -1164,6 +1164,7 @@ export const en = {
   "rooms.confirm_start": "Confirm Start",
   "rooms.count_rooms": { one: "1 room", other: "{count} rooms" },  // plural; room count label
   "rooms.count_zones": { one: "1 zone", other: "{count} zones" },  // plural; queued-zone count, appended to the room count
+  "rooms.live_queue_label": "Live queue",  // header of the running-job chip sequence (rooms + breaks + zone, live)
   "rooms.derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
   "rooms.drag_to_reorder": "Drag to reorder",
   "rooms.duration_skipped": "~{duration} skipped",

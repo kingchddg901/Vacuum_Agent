@@ -1860,6 +1860,7 @@
     "confirm_start": "Confirm Start",
     "count_rooms": {"one":"1 room","other":"{count} rooms"},  // plural; room count label
     "count_zones": {"one":"1 zone","other":"{count} zones"},  // plural; queued-zone count, appended to the room count
+    "live_queue_label": "Live queue",  // header of the running-job chip sequence (rooms + breaks + zone, live)
     "derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
     "drag_to_reorder": "Drag to reorder",
     "duration_skipped": "~{duration} skipped",

@@ -3385,12 +3385,40 @@ class EufyVacuumManager:
                 )
                 zone_phase_eta_minutes = round(_zsecs / 60.0, 2) if _zsecs > 0 else None
 
+        # Total live queue: the running job's whole phase sequence as ONE ordered chip list (the
+        # monitor twin of the composer), built from the active_job clone — re-queuing mid-run can't
+        # touch it. Rooms carry live %, the current break carries its ETA; done/current/upcoming per
+        # chip. Empty when idle (no active job).
+        _name_by_rid: dict[int, Any] = {}
+        for _r in raw_timeline:
+            _rid = _safe_int(_r.get("room_id"), -1)
+            if _rid > 0 and _rid not in _name_by_rid:
+                _name_by_rid[_rid] = _r.get("name")
+        _lq_bucket = get_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        _lq_saved_zones = (_lq_bucket or {}).get("saved_zones") or {}
+        live_queue = {
+            "active": bool(active_job.get("status") in {"started", "paused"}),
+            "steps": self._build_live_queue_steps(
+                active_job=active_job,
+                current_room_id=current_room_id,
+                completed_room_ids=completed_room_ids,
+                progress_percent=current_progress_percent,
+                name_by_rid=_name_by_rid,
+                charge_eta_minutes=charge_eta_minutes,
+                zone_eta_minutes=zone_phase_eta_minutes,
+                saved_zones=_lq_saved_zones if isinstance(_lq_saved_zones, dict) else {},
+            ),
+        }
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
             "job_id": active_job.get("job_id"),
             "status": active_job.get("status", "idle"),
             "terminal": terminal_status,
+            "live_queue": live_queue,
             "lifecycle_state": lifecycle.get("lifecycle_state"),
             "lifecycle_message": lifecycle.get("message"),
             "started_at": active_job.get("started_at"),
@@ -3474,6 +3502,92 @@ class EufyVacuumManager:
         _vac = self.hass.states.get(vacuum_entity_id)
         _vac_state = str(_vac.state).strip().lower() if _vac is not None else ""
         return _vac_state not in ("docked", "returning", "idle", "paused", "")
+
+    def _build_live_queue_steps(
+        self,
+        *,
+        active_job: dict[str, Any],
+        current_room_id: int | None,
+        completed_room_ids: list[int],
+        progress_percent: int,
+        name_by_rid: dict[int, Any],
+        charge_eta_minutes: float | None,
+        zone_eta_minutes: float | None,
+        saved_zones: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Flatten a RUNNING job's phase sequence into an ordered live-queue chip list — the
+        MONITOR twin of the composer. Reads the active_job CLONE (its ``phases``, frozen at launch,
+        survive advance), NEVER the live queue, so re-queuing mid-run can't disturb it. Each entry:
+        ``{seq, kind: room|charge|wait|zone, state: done|current|upcoming, + live detail on the
+        current one}``. An atomic job (no ``phases``) flattens its resolved_rooms as one group."""
+        phases = active_job.get("phases")
+        has_phases = isinstance(phases, list) and bool(phases)
+        phase_list = phases if has_phases else [
+            {"phase_type": "room_group", "resolved_rooms": active_job.get("resolved_rooms") or []}
+        ]
+        cur_idx = _safe_int(active_job.get("current_phase_index"), 0)
+        completed = set(completed_room_ids or [])
+
+        def _phase_state(pidx: int) -> str:
+            if not has_phases:
+                return "current"
+            if pidx < cur_idx:
+                return "done"
+            return "current" if pidx == cur_idx else "upcoming"
+
+        steps: list[dict[str, Any]] = []
+        seq = 0
+        for pidx, phase in enumerate(phase_list):
+            if not isinstance(phase, dict):
+                continue
+            ptype = str(phase.get("phase_type") or "room_group")
+            pstate = _phase_state(pidx)
+            if ptype == "charge_wait":
+                seq += 1
+                steps.append({
+                    "seq": seq, "kind": "charge", "state": pstate,
+                    "target_battery_percent": _safe_int(phase.get("target_battery_percent"), 100),
+                    "eta_minutes": charge_eta_minutes if pstate == "current" else None,
+                })
+            elif ptype == "wait":
+                seq += 1
+                steps.append({
+                    "seq": seq, "kind": "wait", "state": pstate,
+                    "wait_minutes": _safe_int(phase.get("wait_minutes"), 5),
+                })
+            elif ptype == "zone":
+                seq += 1
+                steps.append({
+                    "seq": seq, "kind": "zone", "state": pstate,
+                    "zone_names": [
+                        str((saved_zones.get(str(z)) or {}).get("name") or z)
+                        for z in (phase.get("zone_ids") or [])
+                    ],
+                    "eta_minutes": zone_eta_minutes if pstate == "current" else None,
+                })
+            else:  # room_group — one chip per room, sub-stated within the current phase
+                for room in phase.get("resolved_rooms") or []:
+                    if not isinstance(room, dict):
+                        continue
+                    rid = _safe_int(room.get("room_id"), -1)
+                    if pstate == "done":
+                        rstate = "done"
+                    elif pstate == "upcoming":
+                        rstate = "upcoming"
+                    elif rid in completed:
+                        rstate = "done"
+                    elif rid == current_room_id:
+                        rstate = "current"
+                    else:
+                        rstate = "upcoming"
+                    seq += 1
+                    steps.append({
+                        "seq": seq, "kind": "room", "state": rstate,
+                        "room_id": rid,
+                        "name": room.get("name") or name_by_rid.get(rid),
+                        "progress_percent": progress_percent if rstate == "current" else None,
+                    })
+        return steps
 
     def _zone_ids_estimate_seconds(
         self, *, vacuum_entity_id: str, map_id: str, zone_ids: list, clean_mode: str

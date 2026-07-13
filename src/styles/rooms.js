@@ -882,6 +882,50 @@ export const roomStyles = `
     background: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 12%, transparent);
   }
 
+  /* =========================================================
+     TOTAL LIVE QUEUE — the running job's phase sequence, read-only, done/current/upcoming
+     ========================================================= */
+
+  .evcc-live-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 8px 0 4px;
+  }
+
+  .evcc-live-queue-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--evcc-text-secondary);
+  }
+
+  .evcc-live-queue-chips {
+    flex-wrap: wrap;
+  }
+
+  /* A live-queue chip carries its run state: done = spent, current = the accent focus, upcoming
+     = queued-but-not-yet. */
+  .evcc-live-chip--done {
+    opacity: 0.55;
+  }
+
+  .evcc-live-chip--upcoming {
+    opacity: 0.7;
+  }
+
+  .evcc-live-chip--current {
+    border-color: color-mix(in srgb, var(--evcc-accent, #4c9aff) 70%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--evcc-accent, #4c9aff) 40%, transparent);
+  }
+
+  .evcc-live-chip-done {
+    color: var(--evcc-sem-success, #3ba55d);
+    font-weight: 700;
+    margin-left: 2px;
+  }
+
   /* Saved-zone multi-select picker (insert a zone step). */
   .evcc-zone-picker-list {
     display: flex;

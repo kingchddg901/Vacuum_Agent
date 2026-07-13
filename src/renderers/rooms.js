@@ -137,6 +137,8 @@ export function applyRoomsRenderers(proto) {
 
         ${typeof this.renderSteppedRunPreview === "function" ? this.renderSteppedRunPreview(state) : ""}
 
+        ${typeof this.renderLiveQueue === "function" ? this.renderLiveQueue(state) : ""}
+
         ${typeof this.renderLearningSummary === "function" ? this.renderLearningSummary(state) : ""}
 
         ${typeof this.renderIncompleteRunBanner === "function" ? this.renderIncompleteRunBanner(state) : ""}
@@ -1011,6 +1013,65 @@ proto.renderRoomsActionBar = function (
       }
     });
     return chips.join("");
+  };
+
+  /* =========================================================
+     TOTAL LIVE QUEUE — the running job's whole phase sequence as an ordered chip row
+     (the monitor twin of the composer). Read-only; driven by the active_job clone via
+     state.dashboardLiveQueue(). Each chip is done / current (live %/ETA) / upcoming.
+     ========================================================= */
+
+  proto.renderLiveQueue = function (state) {
+    const lq = state.dashboardLiveQueue?.();
+    // Guard on a real, non-empty steps array (not just truthiness) so the harness null-object
+    // can't paint an empty labelled box over a baseline.
+    const steps = Array.isArray(lq?.steps) ? lq.steps : [];
+    if (!steps.length) return "";
+    const chips = steps.map((step) => this._renderLiveQueueChip(step)).join("");
+    return `
+      <div class="evcc-live-queue">
+        <div class="evcc-live-queue-label">${this.t("rooms.live_queue_label")}</div>
+        <div class="evcc-queue-chips evcc-live-queue-chips">${chips}</div>
+      </div>`;
+  };
+
+  proto._renderLiveQueueChip = function (step) {
+    const st = String(step?.state || "upcoming");
+    const stateCls = `evcc-live-chip--${st}`;
+    const order = `<span class="evcc-queue-chip-order">${Number(step?.seq) || ""}</span>`;
+    const doneMark = st === "done"
+      ? `<span class="evcc-live-chip-done" aria-hidden="true">✓</span>` : "";
+    const etaPart = (mins) => (st === "current" && mins != null)
+      ? `<span class="evcc-queue-chip-time">~${this.escapeHtml(this._formatLearningMinutes(mins))}</span>`
+      : "";
+
+    if (step?.kind === "charge") {
+      const target = Number(step.target_battery_percent ?? 100);
+      return `<div class="evcc-queue-chip evcc-queue-chip--charge ${stateCls}">
+        ${order}<span class="evcc-queue-chip-charge-icon" aria-hidden="true">⚡</span>
+        <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_label")} ${this.escapeHtml(String(target))}%</span>${etaPart(step.eta_minutes)}${doneMark}</div>`;
+    }
+    if (step?.kind === "wait") {
+      const mins = Number(step.wait_minutes ?? 30);
+      return `<div class="evcc-queue-chip evcc-queue-chip--wait ${stateCls}">
+        ${order}<span class="evcc-queue-chip-charge-icon" aria-hidden="true">⏱</span>
+        <span class="evcc-queue-chip-label">${this.t("rooms.chip_wait_label")} ${this.escapeHtml(String(mins))} ${this.t("run_profiles.minutes_unit")}</span>${doneMark}</div>`;
+    }
+    if (step?.kind === "zone") {
+      const names = (Array.isArray(step.zone_names) ? step.zone_names : [])
+        .filter(Boolean).join(", ") || this.t("rooms.zone_fallback");
+      return `<div class="evcc-queue-chip evcc-queue-chip--zone ${stateCls}">
+        ${order}<span class="evcc-queue-chip-charge-icon" aria-hidden="true">🎯</span>
+        <span class="evcc-queue-chip-label">${this.escapeHtml(names)}</span>${etaPart(step.eta_minutes)}${doneMark}</div>`;
+    }
+    // room
+    const name = step?.name
+      || this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(step?.room_id ?? "")) });
+    const pct = (st === "current" && step?.progress_percent != null)
+      ? `<span class="evcc-queue-chip-time">${Math.max(0, Math.min(99, Math.floor(Number(step.progress_percent))))}%</span>`
+      : "";
+    return `<div class="evcc-queue-chip evcc-queue-chip--queued ${stateCls}">
+      ${order}<span class="evcc-queue-chip-label">${this.escapeHtml(name)}</span>${pct}${doneMark}</div>`;
   };
 
   /* =========================================================

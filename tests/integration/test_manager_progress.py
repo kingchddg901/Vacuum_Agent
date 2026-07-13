@@ -21,6 +21,8 @@ Coverage targets
 [PR-14] a current zone phase surfaces zone_phase_active + names + ETA (live view not blank).
 [PR-15] the zone banner clears once the zone is DONE (docked/dry window) — gated on the device
         actually still cleaning, not just the phase type (the "Cleaning zone" while-docked bug).
+[PR-16] the live_queue flattens the whole running phase sequence into ordered done/current/
+        upcoming chips (room + charge + wait + zone), from the active_job clone.
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
@@ -265,6 +267,48 @@ def test_progress_zone_phase_hidden_when_docked(manager, hass):
     )
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert snap["zone_phase_active"] is False  # docked -> banner cleared, not "still cleaning"
+
+
+def test_progress_live_queue_sequence(manager, hass):
+    """[PR-16] the live_queue flattens the running job's WHOLE phase sequence into ordered chips
+    with done/current/upcoming state, read from the active_job clone (not the composer). A mid-run
+    stepped job on its 2nd room: room(done) charge(done) room(current,%) wait(upcoming) zone(up)."""
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+    _wire(manager, hass)
+    mb = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    mb.setdefault("saved_zones", {})["z1"] = {"id": "z1", "name": "stove", "area_m2": 0.5}
+    hass.states.async_set(_VAC, "cleaning")
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[4],
+        resolved_rooms=[{"room_id": 4, "name": "Hallway", "minutes": 5, "clean_mode": "vacuum"}],
+        current_room_id=4, current_phase_index=2,
+        phases=[
+            {"resolved_rooms": [{"room_id": 5, "name": "Kitchen"}], "queue_room_ids": [5],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "charge_wait", "target_battery_percent": 100,
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+            {"resolved_rooms": [{"room_id": 4, "name": "Hallway"}], "queue_room_ids": [4],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "wait", "wait_minutes": 9,
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+            {"phase_type": "zone", "zone_ids": ["z1"],
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+    )
+    lq = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)["live_queue"]
+    assert lq["active"] is True
+    assert [(s["kind"], s["state"]) for s in lq["steps"]] == [
+        ("room", "done"),       # Kitchen (phase 0)
+        ("charge", "done"),     # charge (phase 1)
+        ("room", "current"),    # Hallway (phase 2 = current)
+        ("wait", "upcoming"),   # wait (phase 3)
+        ("zone", "upcoming"),   # stove zone (phase 4)
+    ]
+    _cur = next(s for s in lq["steps"] if s["state"] == "current")
+    assert _cur["name"] == "Hallway"
+    _zone = next(s for s in lq["steps"] if s["kind"] == "zone")
+    assert _zone["zone_names"] == ["stove"]
 
 
 def test_progress_skipped_conservative(manager, hass):
