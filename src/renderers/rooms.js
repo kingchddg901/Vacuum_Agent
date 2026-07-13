@@ -791,7 +791,7 @@ proto.renderRoomsActionBar = function (
     const moveHandle = (itemId) => queueMode
       ? `<button type="button" class="evcc-queue-chip-move"
           data-action="open-order-selector" data-scope="steps" data-item-id="${this.escapeHtml(itemId)}"
-          title="${this.t("rooms.move_step")}" aria-label="${this.t("rooms.move_step")}">⇅</button>`
+          title="${this.t("rooms.move_step")}" aria-label="${this.t("rooms.move_step")}">⋮⋮</button>`
       : "";
     const removeBtn = (bi) => `<button type="button" class="evcc-queue-chip-remove"
         data-action="remove-queue-break" data-break-index="${bi}"
@@ -848,11 +848,17 @@ proto.renderRoomsActionBar = function (
         const name = room?.name ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(rid) });
         const mins = minutesById[rid];
         // Queue mode renders room chips as a div (not a button) so the move handle nests
-        // legally; per-room editing stays in the room cards above. Other modes keep the
-        // interactive queue-chip button.
+        // legally — but keeps data-queue-chip + the room data attrs so the SAME chip binding
+        // still gives click=settings and long-press=remove. Only the grip/remove/input
+        // sub-controls are excluded from those (see _bindQueueChipActions guard).
         if (queueMode) {
           chips.push(`
-            <div class="evcc-queue-chip evcc-queue-chip--queued">
+            <div class="evcc-queue-chip evcc-queue-chip--queued"
+              data-queue-chip="true"
+              data-room-id="${this.escapeHtml(rid)}"
+              data-map-id="${this.escapeHtml(String(room?.mapId ?? ""))}"
+              data-enabled="true"
+            >
               ${moveHandle(`room:${rid}`)}
               <span class="evcc-queue-chip-order">${pos}</span>
               <span class="evcc-queue-chip-label">${this.escapeHtml(name)}</span>

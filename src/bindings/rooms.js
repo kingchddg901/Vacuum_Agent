@@ -445,6 +445,14 @@ export function applyRoomsBindings(proto) {
     const LONG_PRESS_MS = this.card._state.queueChipLongPressMs();
     const DOUBLE_CLICK_DELAY_MS = 280;
 
+    // In queue mode a chip carries its own controls (reorder grip, break value input, remove).
+    // Presses/clicks that originate on those must NOT trigger the chip's settings/long-press —
+    // each sub-control has its own binding.
+    const isChipSubControl = (event) =>
+      !!event?.target?.closest?.(
+        ".evcc-queue-chip-move, .evcc-queue-chip-remove, .evcc-queue-chip-input"
+      );
+
     chips.forEach((chip) => {
       let longPressTimer = null;
       let longPressTriggered = false;
@@ -470,6 +478,7 @@ export function applyRoomsBindings(proto) {
 
       const startPress = (event) => {
         if (event.button != null && event.button !== 0) return;
+        if (isChipSubControl(event)) return;
 
         longPressTriggered = false;
         pointerActive = true;
@@ -511,6 +520,8 @@ export function applyRoomsBindings(proto) {
       this.card._on(chip, "pointercancel", cancelPress);
 
       this.card._on(chip, "click", (event) => {
+        if (isChipSubControl(event)) return;
+
         if (longPressTriggered) {
           event.preventDefault();
           event.stopPropagation();
@@ -532,6 +543,8 @@ export function applyRoomsBindings(proto) {
       });
 
       this.card._on(chip, "dblclick", (event) => {
+        if (isChipSubControl(event)) return;
+
         event.preventDefault();
         event.stopPropagation();
 
