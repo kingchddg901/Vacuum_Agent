@@ -13,6 +13,8 @@ start_run_profile now deletes the leftover stash whenever the start did not repo
 [LEAK-3] a SUCCESSFUL start does not touch the stash cleanup path (the plan builder already
          popped it — nothing to delete, and a foreign stash for another map is untouched).
 [LEAK-4] a profile with NO charge/wait steps never stashes, so there is nothing to leak.
+[LEAK-5] a rooms+ZONE profile (no charge/wait) DOES stash — the automation entry point; before
+         the gate fix the zone tail was dropped to a flat room clean.
 """
 
 from __future__ import annotations
@@ -111,3 +113,29 @@ async def test_no_charge_step_never_stashes(hass, manager, monkeypatch):
     out = await manager.start_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="p1")
     assert out["started"] is False
     assert _MAP not in _pending(manager)
+
+
+async def test_zone_profile_stashes(hass, manager, monkeypatch):
+    """[LEAK-5] a rooms+ZONE profile (no charge/wait) MUST stash its steps so the plan builder
+    materializes the zone phase — this is the automation path (start_run_profile from an
+    automation). Before the gate fix the stash gate excluded 'zone' and apply_run_profile never
+    writes queue_breaks, so the zone silently degraded to a flat room clean. Captured at the
+    start_selected_rooms boundary, which is where the real builder later pops it."""
+    zone_steps = [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "zone", "zone_ids": ["z1"]},
+    ]
+    _stub_profile(manager, monkeypatch, steps=zone_steps)
+    seen = {}
+
+    async def _capture(**kw):
+        seen["stash"] = manager.data.get("_pending_run_steps", {}).get(_VAC, {}).get(_MAP)
+        # Emulate the plan builder consuming this map's stash on a started dispatch.
+        manager.data.get("_pending_run_steps", {}).get(_VAC, {}).pop(_MAP, None)
+        return {"started": True, "reason": "started"}
+
+    monkeypatch.setattr(manager, "start_selected_rooms", _capture)
+
+    out = await manager.start_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="p1")
+    assert out["started"] is True
+    assert seen["stash"] == zone_steps   # the zone tail WAS stashed for the plan builder

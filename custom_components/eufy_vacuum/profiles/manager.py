@@ -1260,14 +1260,20 @@ class ProfileManager:
                 "missing_room_ids": applied.get("missing_room_ids", []),
             }
 
-        # Stash the profile's charge-step sequence so the plan builder materializes a
-        # multi-phase [clean, charge_wait, clean] job. Consumed (popped) in
-        # run_plan._build_effective_start_plan; absent -> normal atomic dispatch.
+        # Stash the profile's step sequence so the plan builder materializes a multi-phase job
+        # (e.g. [clean, charge_wait, clean] or [clean, zone]). Consumed (popped) in
+        # run_plan._build_effective_start_plan; absent -> normal atomic dispatch. The gate MUST
+        # mirror run_plan's stepped-path gate (charge_wait/wait/zone) — a zone is a real clean
+        # step, so a rooms->zone profile fired here (the automation entry point) has to stash or
+        # apply_run_profile, which never writes queue_breaks, would drop the zone to a flat clean.
         _prof = self._get_saved_run_profile_store(
             vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
         ).get(profile_id, {})
         _prof_steps = self.run_profile_steps(_prof)
-        if any(isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _prof_steps):
+        if any(
+            isinstance(s, dict) and s.get("type") in ("charge_wait", "wait", "zone")
+            for s in _prof_steps
+        ):
             self._manager.data.setdefault("_pending_run_steps", {}).setdefault(
                 vacuum_entity_id, {}
             )[str(map_id)] = _prof_steps
