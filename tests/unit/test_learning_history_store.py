@@ -121,6 +121,41 @@ def test_build_payload_rooms_zone_reconstructs_rooms_from_phases(tmp_path):
     assert "missing_resolved_rooms" not in payload["outcome"]["learning_blockers"]
 
 
+def test_build_payload_prefers_active_job_over_rehydrated_payload(tmp_path):
+    """The record's room identity must come from the JOB (active_job phases), NEVER a live payload
+    that was re-hydrated mid-run. Regression for the live corruption: a Kitchen+Hallway+zone run
+    recorded as Dining+Kitchen+Hallway (zone dropped) after rooms were re-queued on top of it
+    (job_2026-07-13T07-50-49). The polluted payload must be IGNORED in favour of the job's phases."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jpol",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:20:00+00:00",
+        battery_start=100, battery_end=100, queue_state={},
+        # LIVE payload re-hydrated with a DIFFERENT room set (the re-queue pollution).
+        payload_state={"resolved_rooms": [
+            {"room_id": 8, "slug": "dining_room"},
+            {"room_id": 5, "slug": "kitchen"},
+            {"room_id": 4, "slug": "hallway"},
+        ]},
+        active_job_state={
+            "resolved_rooms": [],   # advance zeroed it on the trailing zone phase
+            "phases": [
+                {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+                 "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 1.0,
+                                  "cleaning_seconds": 90}]},
+                {"resolved_rooms": [{"room_id": 4, "slug": "hallway"}],
+                 "room_timing": [{"room_id": 4, "slug": "hallway", "area_m2": 1.0,
+                                  "cleaning_seconds": 150}]},
+                {"phase_type": "zone", "zone_ids": ["z1"], "resolved_rooms": [], "room_timing": []},
+            ],
+        },
+    )
+    jp = payload["job_profile"]
+    assert jp["room_count"] == 2                          # the 2 rooms that ran, not the 3 queued
+    assert jp["room_slugs"] == ["kitchen", "hallway"]     # phases win
+    assert "dining_room" not in jp["room_slugs"]          # the re-queued phantom is gone
+
+
 def test_build_payload_atomic_reconciles_dispatched_identity(tmp_path):
     """WIRING: an ATOMIC (non-phased) dispatched job whose active_job_state carries pose_samples
     runs the identity reconcile at finalize. The counter maps its segment to queue room 8, but the
