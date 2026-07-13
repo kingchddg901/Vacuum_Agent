@@ -10,7 +10,7 @@
 // bundle styles them for the panel; the standalone card carries the same rules in
 // its own shadow root (aliased to HA tokens so it styles on a cold dashboard).
 
-export function renderStepsManifest({ steps, nameById = {}, t, escapeHtml }) {
+export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t, escapeHtml }) {
   const list = Array.isArray(steps) ? steps : [];
   if (!list.length) return "";
 
@@ -28,6 +28,18 @@ export function renderStepsManifest({ steps, nameById = {}, t, escapeHtml }) {
         return `
           <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--wait">
             <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⏱</span>${t("run_profiles.step_wait")} ${escapeHtml(String(mins))} ${t("run_profiles.minutes_unit")}
+          </li>`;
+      }
+      if (step.type === "zone") {
+        // A zone is a CLEAN step, not a room group — without this it fell through below to
+        // "Clean (no rooms)" (a zone carries zone_ids, never rooms). Names via zoneNameById.
+        const ids = Array.isArray(step.zone_ids) ? step.zone_ids : [];
+        const znames = ids
+          .map((id) => escapeHtml(zoneNameById[String(id)] ?? t("rooms.zone_fallback")))
+          .join(", ");
+        return `
+          <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--zone">
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">🎯</span><span class="evcc-run-profiles-seq-kind">${t("run_profiles.step_clean")}</span> ${znames || t("rooms.zone_fallback")}
           </li>`;
       }
       const groupRooms = Array.isArray(step.rooms) ? step.rooms : [];

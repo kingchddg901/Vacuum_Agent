@@ -63,14 +63,25 @@ export function applyRoomsRenderers(proto) {
       (state.getRoomsForActiveMap?.() ?? []).forEach((room) => {
         nameById[String(room.id)] = room.name;
       });
+      const zoneNameById = {};
+      (state.savedZones?.() ?? []).forEach((z) => {
+        if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
+      });
       body = renderStepsManifest({
         steps: queueSteps.steps,
         nameById,
+        zoneNameById,
         t: (key, vars) => this.t(key, vars),
         escapeHtml: (s) => this.escapeHtml(s),
       });
     }
     if (!body) return "";
+
+    // The "charge time varies" note is about a CHARGE step's dock time — only relevant when
+    // the plan actually has one. A rooms+zone or rooms+wait plan must not show it.
+    const noteSteps = profile ? (profile.steps ?? []) : (queueSteps?.steps ?? []);
+    const hasChargeStep = Array.isArray(noteSteps)
+      && noteSteps.some((s) => s && s.type === "charge_wait");
 
     return `
       <div class="evcc-stepped-run-preview ${collapsed ? "evcc-stepped-run-preview--collapsed" : ""}">
@@ -85,7 +96,7 @@ export function applyRoomsRenderers(proto) {
         </button>
         ${collapsed ? "" : `
           ${body}
-          <div class="evcc-stepped-run-preview-note">${this.t("rooms.charge_time_varies")}</div>
+          ${hasChargeStep ? `<div class="evcc-stepped-run-preview-note">${this.t("rooms.charge_time_varies")}</div>` : ""}
         `}
       </div>
     `;

@@ -11,6 +11,7 @@
 //   [SM-wait]   wait -> ⏱ + minutes (default 30) + unit
 //   [SM-room]   room_group -> named rooms via nameById, room_fallback otherwise
 //   [SM-mode]   single clean_mode -> mode chip; mixed -> no chip
+//   [SM-zone]   zone -> 🎯 + Clean + zone name (never the "no rooms" fallthrough)
 //   [SM-wrap]   wrapper carries the runs_as label + the ordered list
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -98,6 +99,25 @@ test("[SM-mode] mixed clean_modes render NO mode chip", () => {
     { 1: "Kitchen", 2: "Bath" }
   );
   assert.doesNotMatch(out, /evcc-run-profiles-seq-mode/);
+});
+
+/* ---- [SM-zone] ---- */
+test("[SM-zone] zone step renders the target + Clean + the zone NAME (not 'no rooms')", () => {
+  const out = renderStepsManifest({
+    steps: [{ type: "zone", zone_ids: ["z1"] }],
+    zoneNameById: { z1: "Stove Area" },
+    t, escapeHtml,
+  });
+  assert.match(out, /step_clean/);
+  assert.match(out, /Stove Area/);
+  assert.match(out, /evcc-run-profiles-seq-step--zone/);
+  assert.doesNotMatch(out, /step_group_empty/);   // NOT the room-group "no rooms" fallthrough
+});
+
+test("[SM-zone] unknown / unlisted zone id -> zone_fallback, never 'no rooms'", () => {
+  const out = renderStepsManifest({ steps: [{ type: "zone", zone_ids: ["z9"] }], t, escapeHtml });
+  assert.match(out, /zone_fallback/);
+  assert.doesNotMatch(out, /step_group_empty/);
 });
 
 /* ---- [SM-wrap] ---- */

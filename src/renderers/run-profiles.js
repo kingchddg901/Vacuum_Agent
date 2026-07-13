@@ -311,9 +311,14 @@ export function applyRunProfilesRenderers(proto) {
     const rooms = state.getRoomsForActiveMap?.() ?? [];
     const nameById = {};
     rooms.forEach((room) => { nameById[String(room.id)] = room.name; });
+    const zoneNameById = {};
+    (state.savedZones?.() ?? []).forEach((z) => {
+      if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
+    });
     return renderStepsManifest({
       steps: profile.steps,
       nameById,
+      zoneNameById,
       t: (key, vars) => this.t(key, vars),
       escapeHtml: (s) => this.escapeHtml(s),
     });

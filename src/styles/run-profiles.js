@@ -293,7 +293,8 @@ export const runProfileStyles = `
   }
 
   .evcc-run-profiles-seq-step--charge,
-  .evcc-run-profiles-seq-step--wait {
+  .evcc-run-profiles-seq-step--wait,
+  .evcc-run-profiles-seq-step--zone {
     color: var(--evcc-text-primary);
     font-weight: 600;
   }
