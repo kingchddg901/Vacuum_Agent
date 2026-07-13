@@ -210,6 +210,21 @@ export function applyLearningState(proto) {
     };
   };
 
+  // Live zone-phase status for the progress banner, or null when not cleaning a zone. A zone
+  // has no current room, so the room timeline can't surface it — this drives the banner so the
+  // live view shows "Cleaning zone: <names>" instead of going blank mid-zone.
+  proto.liveZoneStatus = function () {
+    const jp = this.dashboardJobProgress();
+    if (!jp?.zone_phase_active) return null;
+    const names = Array.isArray(jp.zone_phase_names) ? jp.zone_phase_names.filter(Boolean) : [];
+    const eta = Number(jp.zone_phase_eta_minutes);
+    return {
+      names,
+      etaMinutes: Number.isFinite(eta) ? eta : null,
+      startedAt: jp.zone_phase_started_at || null,
+    };
+  };
+
   proto.dashboardJobControl = function () {
     return this.dashboardSnapshot()?.job_control ?? null;
   };

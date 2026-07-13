@@ -3350,6 +3350,40 @@ class EufyVacuumManager:
                 wait_minutes = _safe_int(_cw_phases[_w_idx].get("wait_minutes"), 5)
                 wait_started_at = _cw_phases[_w_idx].get("wait_started_at")
 
+        # Zone phase: the room timeline has no entry for a zone, so without this the live view
+        # goes blank mid-zone ("tracking dropped"). Surface the active zone + its learned/area
+        # ETA so the card shows "Cleaning zone: <names> — ~N min", mirroring the charge/wait states.
+        zone_phase_active = False
+        zone_phase_ids: list[str] = []
+        zone_phase_names: list[str] = []
+        zone_phase_started_at = None
+        zone_phase_eta_minutes = None
+        if isinstance(_cw_phases, list):
+            _z_idx = _safe_int(active_job.get("current_phase_index"), -1)
+            if (
+                0 <= _z_idx < len(_cw_phases)
+                and isinstance(_cw_phases[_z_idx], dict)
+                and str(_cw_phases[_z_idx].get("phase_type") or "") == "zone"
+            ):
+                zone_phase_active = True
+                zone_phase_ids = [str(z) for z in (_cw_phases[_z_idx].get("zone_ids") or [])]
+                zone_phase_started_at = active_job.get("current_room_started_at")
+                _zmb = get_map_bucket(
+                    data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+                )
+                _zsaved = (_zmb or {}).get("saved_zones") or {}
+                zone_phase_names = [
+                    str((_zsaved.get(z) or {}).get("name") or z) for z in zone_phase_ids
+                ]
+                _zmode = "mop" if bool(
+                    (active_job.get("job_metadata") or {}).get("has_mop_mode")
+                ) else "vacuum"
+                _zsecs = self._zone_ids_estimate_seconds(
+                    vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+                    zone_ids=zone_phase_ids, clean_mode=_zmode,
+                )
+                zone_phase_eta_minutes = round(_zsecs / 60.0, 2) if _zsecs > 0 else None
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -3384,6 +3418,11 @@ class EufyVacuumManager:
             "wait_phase_active": wait_phase_active,
             "wait_minutes": wait_minutes,
             "wait_started_at": wait_started_at,
+            "zone_phase_active": zone_phase_active,
+            "zone_phase_ids": zone_phase_ids,
+            "zone_phase_names": zone_phase_names,
+            "zone_phase_started_at": zone_phase_started_at,
+            "zone_phase_eta_minutes": zone_phase_eta_minutes,
             "timeline_source": timeline_source,
             "timeline": timeline,
             "room_timeline": timeline,
@@ -3415,6 +3454,32 @@ class EufyVacuumManager:
             "stall_ratio": stall_ratio,
             "updated_at": _iso_now(),
         }
+
+    def _zone_ids_estimate_seconds(
+        self, *, vacuum_entity_id: str, map_id: str, zone_ids: list, clean_mode: str
+    ) -> int:
+        """Summed wall-clock estimate over saved-zone ids for a mode (learned avg else area
+        fallback). Shared by the live zone-phase ETA and any caller that just needs a total."""
+        from ..learning.zone_learning import estimate_zone_seconds
+
+        map_bucket = get_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        saved = (map_bucket or {}).get("saved_zones") or {}
+        learned = (map_bucket or {}).get("learned_zones") or {}
+        total = 0
+        for zid in zone_ids or []:
+            zid = str(zid)
+            zone = saved.get(zid) if isinstance(saved, dict) else None
+            area = None
+            if isinstance(zone, dict):
+                try:
+                    area = float(zone["area_m2"]) if zone.get("area_m2") is not None else None
+                except (TypeError, ValueError):
+                    area = None
+            est = estimate_zone_seconds(learned, zone_id=zid, clean_mode=clean_mode, area_m2=area)
+            total += int(est.get("seconds") or 0)
+        return total
 
     def _estimate_queued_zones(
         self, *, vacuum_entity_id: str, map_id: str, resolved_rooms: list

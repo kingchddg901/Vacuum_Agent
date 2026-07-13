@@ -140,6 +140,8 @@ export function applyRoomsRenderers(proto) {
 
         ${typeof this.renderLearningWaitStatus === "function" ? this.renderLearningWaitStatus(state) : ""}
 
+        ${typeof this.renderLearningZoneStatus === "function" ? this.renderLearningZoneStatus(state) : ""}
+
         ${activeJob ? this.renderActiveJobSection(activeJob) : ""}
 
         ${typeof this.renderLearningProgressList === "function" ? this.renderLearningProgressList(state) : ""}

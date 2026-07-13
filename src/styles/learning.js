@@ -294,6 +294,12 @@ export const learningStyles = `
     background: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 13%, transparent);
   }
 
+  /* Zone-phase banner: the same success hue the zone chip uses, so a zone reads consistently. */
+  .evcc-learning-zone-banner {
+    border-color: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 45%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 13%, transparent);
+  }
+
   .evcc-learning-charge-from {
     color: var(--evcc-learning-text-secondary);
     font-weight: 500;

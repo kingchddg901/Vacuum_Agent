@@ -18,6 +18,7 @@ Coverage targets
 [PR-9]  single-room stall fires EVENT_STALL_DETECTED exactly once (no re-fire).
 [PR-10] running_long suppressed for an unlearned room at ~1.7x threshold (issue #40).
 [PR-13] a current charge_wait phase surfaces charge_phase_active + target + ETA.
+[PR-14] a current zone phase surfaces zone_phase_active + names + ETA (live view not blank).
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
@@ -209,6 +210,34 @@ def test_progress_charge_phase_surfaces_eta(manager, hass):
     assert snap["charge_eta_source"] == "baseline"
     assert snap["charge_from_battery"] == 80
     assert snap["charge_started_at"] == "2026-01-01T00:00:00Z"
+
+
+def test_progress_zone_phase_surfaces(manager, hass):
+    """[PR-14] a current zone phase surfaces zone_phase_active + names + an ETA (learned avg
+    here: 300s -> 5 min), so the live view shows the zone instead of going blank (a zone has no
+    room to anchor the timeline)."""
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+    _wire(manager, hass)
+    mb = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    mb.setdefault("saved_zones", {})["z1"] = {"id": "z1", "name": "stove", "area_m2": 0.5}
+    mb["learned_zones"] = {"z1": {"mop": {"avg_wall_seconds": 300, "sample_count": 2}}}
+    hass.states.async_set(_VAC, "cleaning")
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[], resolved_rooms=[], current_phase_index=1,
+        job_metadata={"has_mop_mode": True},
+        phases=[
+            {"resolved_rooms": [{"room_id": 1, "name": "K"}], "queue_room_ids": [1],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "zone", "zone_ids": ["z1"], "zones": [[0.1, 0.1, 0.2, 0.2]],
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+    )
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["zone_phase_active"] is True
+    assert snap["zone_phase_ids"] == ["z1"]
+    assert snap["zone_phase_names"] == ["stove"]
+    assert snap["zone_phase_eta_minutes"] == 5.0  # 300s learned (mop bucket)
 
 
 def test_progress_skipped_conservative(manager, hass):

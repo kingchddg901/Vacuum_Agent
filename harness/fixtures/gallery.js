@@ -99,6 +99,9 @@ const ROOMS_ACTIVE = {
     // Suppress the null-object's truthy default so the zone-picker modal doesn't render
     // over the active-job baseline (the picker is only openable pre-run in real use).
     queueZonePickerOpen: () => false,
+    // Likewise suppress the live zone-phase banner — this baseline exhibits a ROOM run, not a
+    // zone phase, so the null-object's truthy default must not paint a "Cleaning zone" banner.
+    liveZoneStatus: () => null,
     canPauseRun: () => true,
     canResumeRun: () => false,
     hasLearningSummary: () => false,

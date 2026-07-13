@@ -304,6 +304,8 @@ export const en = {
   "learning.charging_to": "Charging to {target}%",  // live charge-phase banner when no ETA is available yet
   "learning.charging_to_eta": "Charging to {target}% · ~{eta} left",  // live charge-phase banner with a learned ETA
   "learning.waiting": "Waiting · ~{remaining} left",  // live wait-phase countdown banner (time-based hold)
+  "learning.cleaning_zone": "Cleaning zone: {names}",  // live zone-phase banner when no ETA is available yet
+  "learning.cleaning_zone_eta": "Cleaning zone: {names} · ~{eta} left",  // live zone-phase banner with a learned/area ETA
   "learning.chip_mop_only": { one: "{count} mop-only room", other: "{count} mop-only rooms" },  // plural
   "learning.chip_vacuum_mop": { one: "{count} vacuum + mop room", other: "{count} vacuum + mop rooms" },  // plural
   "learning.chip_vacuum_only": { one: "{count} vacuum-only room", other: "{count} vacuum-only rooms" },  // plural

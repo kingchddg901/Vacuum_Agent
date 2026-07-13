@@ -448,6 +448,38 @@ export function applyLearningRenderers(proto) {
   };
 
   /**
+   * Live zone-phase banner — panel-level, gated on liveZoneStatus() (a zone has no room, so the
+   * room timeline can't show it, exactly like charge/wait). Keeps the live view from going blank
+   * mid-zone.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string ("" when not in a zone phase).
+   */
+  proto.renderLearningZoneStatus = function (state) {
+    const zone = state.liveZoneStatus?.() ?? null;
+    if (!zone) return "";
+    return this._renderLearningZoneBanner(zone);
+  };
+
+  proto._renderLearningZoneBanner = function (zone) {
+    const names = Array.isArray(zone.names) && zone.names.length
+      ? zone.names.join(", ")
+      : this.t("rooms.zone_fallback");
+    const text = zone.etaMinutes != null
+      ? this.t("learning.cleaning_zone_eta", {
+          names: this.escapeHtml(names),
+          eta: this.escapeHtml(this._formatLearningMinutes(zone.etaMinutes)),
+        })
+      : this.t("learning.cleaning_zone", { names: this.escapeHtml(names) });
+    return `
+      <div class="evcc-learning-charge-banner evcc-learning-zone-banner">
+        <span class="evcc-learning-charge-icon" aria-hidden="true">🎯</span>
+        <span class="evcc-learning-charge-text">${text}</span>
+      </div>
+    `;
+  };
+
+  /**
    * Render the "Charging to X% — ~N min left (from Y%)" banner body used by
    * renderLearningChargeStatus.
    *
