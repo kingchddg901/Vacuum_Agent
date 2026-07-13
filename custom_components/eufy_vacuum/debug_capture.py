@@ -1,28 +1,29 @@
-"""Silent debug "flight recorder" for the integration.
+"""Silent debug "flight recorder" — a drop-in, integration-agnostic helper.
 
-The problem this solves: turning on DEBUG for ``custom_components.eufy_vacuum`` (via
-HA's ``logger:`` config or the per-integration debug toggle) floods the *shared*
-``home-assistant.log`` — noisy, not silent, sometimes huge (map / snapshot spam).
+WHY: turning on DEBUG for an integration (via HA's ``logger:`` config or the
+per-integration debug toggle) floods the *shared* ``home-assistant.log`` — noisy, not
+silent, sometimes huge. This captures ONE integration's DEBUG into a bounded in-memory
+ring WITHOUT crushing the main log, and dumps it on demand.
 
-This captures the integration's own DEBUG into a bounded in-memory ring WITHOUT
-crushing the main log. While active it:
+DROP-IN, in three steps — nothing here is specific to any integration:
 
-- sets the ``custom_components.eufy_vacuum`` logger to ``DEBUG`` with
-  ``propagate = False`` — so DEBUG records never reach HA's root handlers (the main
-  log stays clean at whatever level it's on), and
-- attaches two handlers: a :class:`_RingHandler` (DEBUG) that snapshots every record
-  into a ``deque``, and a :class:`_PassthroughHandler` (INFO) that re-emits INFO+ to
-  the root handlers so normal logs *still* land in ``home-assistant.log``.
+1. Copy this file into your integration.
+2. Register the four services (change one setting — your domain)::
 
-Per-service tracing: mark a service handler with :func:`debug_traceable`. When a
-capture is *armed* for that service (``services=[...]`` on start), the ring records
-ONLY while inside that service's span — so firing one service captures just that
-operation, bracketed with ``▶▶``/``◀◀`` markers. Individual records are truncated
-so one giant payload (a base64 map image) can't bloat the dump.
+       from .debug_capture import register_debug_services
+       register_debug_services(hass, domain=DOMAIN)   # package_logger defaults to
+                                                       # custom_components.<domain>
 
-Stop restores the logger exactly. Off by default → zero cost when unused. This module
-is hass-free (pure ``logging``) so it unit-tests as plain objects; the service layer
-owns the file write, the auto-stop timer, and the hass plumbing.
+   optionally pass ``areas={...}`` (logger-substring scopes) to enable the ``areas``
+   filter. Copy the four ``debug_capture_*`` blocks from ``services.yaml`` too.
+3. (optional) Mark noisy handlers ``@debug_traceable("your_service")`` for per-service
+   tracing.
+
+HOW it stays silent: while active it sets the configured package logger to ``DEBUG``
+with ``propagate = False`` (so DEBUG never reaches HA's root handlers / the main log)
+and attaches a :class:`_RingHandler` (DEBUG → ring) plus a :class:`_PassthroughHandler`
+(INFO → root, so normal logs still land in ``home-assistant.log``). Stop restores the
+logger exactly. Off by default → zero cost when unused.
 """
 
 from __future__ import annotations
@@ -30,31 +31,51 @@ from __future__ import annotations
 import collections
 import functools
 import logging
+import os
 import time
 import traceback
 from typing import Any, Callable
 
-PACKAGE_LOGGER = "custom_components.eufy_vacuum"
+import voluptuous as vol
+
+from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.event import async_call_later
+
 DEFAULT_CAPACITY = 3000
 MAX_CAPACITY = 50000
 # Cap a single record's message so one giant payload (a base64 map image, a full
-# dashboard snapshot) can't bloat the dump — a real 10 MB capture was mostly these.
+# dashboard snapshot) can't bloat the dump.
 MAX_MESSAGE_CHARS = 2000
 
-# area name -> substrings matched against a record's logger name (which is
-# ``custom_components.eufy_vacuum.<module path>``). Passing no areas captures
-# everything; an unknown area falls back to a literal ``.<area>`` substring.
-AREA_MATCHERS: dict[str, tuple[str, ...]] = {
-    "map": (".mapping", ".map_source", ".rooms.source_refresh"),
-    "rooms": (".rooms", ".room_entities"),
-    "dispatch": (".services.job_control", ".jobs", ".queue", ".planning", ".dispatch", ".core.manager"),
-    "learning": (".learning", ".battery"),
-    "setup": (".setup", ".onboarding", ".panels"),
-    "themes": (".themes",),
-}
+# The four service names this helper registers. Fixed — the caller supplies the domain.
+DEBUG_CAPTURE_START = "debug_capture_start"
+DEBUG_CAPTURE_STOP = "debug_capture_stop"
+DEBUG_CAPTURE_DUMP = "debug_capture_dump"
+DEBUG_CAPTURE_STATUS = "debug_capture_status"
+SERVICE_NAMES = (
+    DEBUG_CAPTURE_START,
+    DEBUG_CAPTURE_STOP,
+    DEBUG_CAPTURE_DUMP,
+    DEBUG_CAPTURE_STATUS,
+)
 
-# Services flagged (via @debug_traceable) as worth per-service tracing — the source
-# of truth for the debug-target select's options.
+# --- the one setting: which logger tree to capture (+ optional named areas) ----------
+# Configured by register_debug_services(); defaults to the whole custom_components tree
+# so the module is usable even before configure() runs.
+_PACKAGE_LOGGER = "custom_components"
+_AREAS: dict[str, tuple[str, ...]] = {}
+_DUMP_SUBDIR = "debug"
+
+
+def configure(package_logger: str, areas: dict[str, tuple[str, ...]] | None = None) -> None:
+    """Point the recorder at one integration's logger tree (+ optional area scopes)."""
+    global _PACKAGE_LOGGER, _AREAS
+    _PACKAGE_LOGGER = package_logger
+    _AREAS = dict(areas or {})
+
+
+# --- per-service trace registry ------------------------------------------------------
 _TRACEABLE: set[str] = set()
 
 
@@ -135,6 +156,7 @@ class DebugCapture:
         self._passthrough: _PassthroughHandler | None = None
         self._prior_level: int | None = None
         self._prior_propagate: bool | None = None
+        self._logger_name: str | None = None  # the tree we isolated (frozen at start)
         self._started_at: float | None = None
         self._areas: list[str] = []
         self._targets: set[str] = set()
@@ -156,8 +178,8 @@ class DebugCapture:
         """Begin capturing. Restarts cleanly if already active. Returns status.
 
         ``services`` arms per-service tracing: the ring then records ONLY while inside
-        a flagged (:func:`debug_traceable`) service's span — so firing one service
-        captures just that operation. ``freeze`` stops at capacity instead of evicting.
+        a flagged (:func:`debug_traceable`) service's span. ``freeze`` stops at capacity
+        instead of evicting oldest.
         """
         if self.active:
             self.stop()
@@ -170,7 +192,8 @@ class DebugCapture:
         gate = self._gate if self._targets else None
         self._ring = _RingHandler(cap, self._resolve_areas(self._areas), gate=gate, freeze=bool(freeze))
         self._passthrough = _PassthroughHandler()
-        logger = logging.getLogger(PACKAGE_LOGGER)
+        self._logger_name = _PACKAGE_LOGGER
+        logger = logging.getLogger(self._logger_name)
         self._prior_level = logger.level
         self._prior_propagate = logger.propagate
         logger.setLevel(logging.DEBUG)
@@ -181,23 +204,25 @@ class DebugCapture:
         return self.status()
 
     def stop(self) -> dict[str, Any]:
-        """Restore the logger and detach handlers. Records survive for a final dump.
-        Idempotent — a no-op when not active."""
-        logger = logging.getLogger(PACKAGE_LOGGER)
-        if self._ring is not None:
-            self._last = self._ring.records
-            logger.removeHandler(self._ring)
-        if self._passthrough is not None:
-            logger.removeHandler(self._passthrough)
-        if self._prior_propagate is not None:
-            logger.propagate = self._prior_propagate
-        if self._prior_level is not None:
-            logger.setLevel(self._prior_level)
+        """Restore the isolated logger and detach handlers. Records survive for a final
+        dump. Idempotent — a no-op when not active."""
+        if self._logger_name is not None:
+            logger = logging.getLogger(self._logger_name)
+            if self._ring is not None:
+                self._last = self._ring.records
+                logger.removeHandler(self._ring)
+            if self._passthrough is not None:
+                logger.removeHandler(self._passthrough)
+            if self._prior_propagate is not None:
+                logger.propagate = self._prior_propagate
+            if self._prior_level is not None:
+                logger.setLevel(self._prior_level)
         status = self.status()  # reads _last (now inactive)
         self._ring = None
         self._passthrough = None
         self._prior_level = None
         self._prior_propagate = None
+        self._logger_name = None
         self._span_depth = 0
         return status
 
@@ -222,6 +247,7 @@ class DebugCapture:
             "seen": ring.seen if ring is not None else 0,
             "capacity": ring.records.maxlen if ring is not None else None,
             "full": ring.full if ring is not None else False,
+            "logger": self._logger_name,
             "areas": list(self._areas),
             "services": sorted(self._targets),
             "started_at": self._started_at,
@@ -239,12 +265,8 @@ class DebugCapture:
         return self.active and (not self._targets or name in self._targets)
 
     async def run_span(self, name: str, call: Any, fn: Callable) -> Any:
-        """Bracket a flagged service call in the ring with start/end markers.
-
-        The span logger sits under the package, so the markers land in the ring; the
-        depth counter opens the gate (targeted mode) so downstream logs during the
-        call are captured, then closes it again."""
-        span_logger = logging.getLogger(f"{PACKAGE_LOGGER}.debug.span")
+        """Bracket a flagged service call in the ring with start/end markers."""
+        span_logger = logging.getLogger(f"{self._logger_name or _PACKAGE_LOGGER}.debug.span")
         self._span_depth += 1
         started = time.time()
         span_logger.debug("▶▶ %s  in=%s", name, _summarize(getattr(call, "data", None)))
@@ -263,7 +285,7 @@ class DebugCapture:
             return None
         subs: list[str] = []
         for a in areas:
-            subs.extend(AREA_MATCHERS.get(str(a).lower(), (f".{a}",)))
+            subs.extend(_AREAS.get(str(a).lower(), (f".{a}",)))
         return tuple(subs) or None
 
 
@@ -304,10 +326,8 @@ def get_capture() -> DebugCapture:
 def debug_traceable(name: str) -> Callable:
     """Flag a service handler as per-service traceable AND wrap it.
 
-    Registers ``name`` as a trace target at import time (→ the debug-target select's
-    options). At call time, when a capture is *armed* for ``name`` the call is bracketed
-    in the ring (see :meth:`DebugCapture.run_span`); otherwise the wrap is a no-op, so
-    it costs nothing when capture is off."""
+    Registers ``name`` as a trace target at import time; at call time, when a capture is
+    *armed* for ``name`` the call is bracketed in the ring. No-op (zero cost) otherwise."""
     register_traceable(name)
 
     def decorator(fn: Callable) -> Callable:
@@ -321,3 +341,115 @@ def debug_traceable(name: str) -> Callable:
         return wrapper
 
     return decorator
+
+
+# --- HA service layer (drop-in registration) -----------------------------------------
+
+_START_SCHEMA = vol.Schema(
+    {
+        vol.Optional("areas"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("services"): vol.All(cv.ensure_list, [cv.string]),
+        vol.Optional("size"): vol.All(vol.Coerce(int), vol.Range(min=1, max=MAX_CAPACITY)),
+        vol.Optional("max_minutes"): vol.All(vol.Coerce(int), vol.Range(min=1, max=1440)),
+        vol.Optional("stop_when_full", default=False): cv.boolean,
+    }
+)
+_DUMP_SCHEMA = vol.Schema(
+    {
+        vol.Optional("write_file", default=True): cv.boolean,
+        vol.Optional("clear", default=False): cv.boolean,
+    }
+)
+_EMPTY_SCHEMA = vol.Schema({})
+
+
+def _write_dump(hass: HomeAssistant, domain: str, records: list[dict[str, Any]]) -> str:
+    """Write the rendered ring to ``config/<domain>/debug/debug-<ts>.log``. Blocking —
+    call via the executor. Returns the path."""
+    dir_path = hass.config.path(domain, _DUMP_SUBDIR)
+    os.makedirs(dir_path, exist_ok=True)
+    ts = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+    path = os.path.join(dir_path, f"debug-{ts}.log")
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write(render_text(records))
+    return path
+
+
+def register_debug_services(
+    hass: HomeAssistant,
+    *,
+    domain: str,
+    package_logger: str | None = None,
+    areas: dict[str, tuple[str, ...]] | None = None,
+) -> tuple[str, ...]:
+    """Register the four ``debug_capture_*`` services under ``domain``.
+
+    The only required setting is ``domain``; ``package_logger`` defaults to
+    ``custom_components.<domain>``. Returns the registered service names (hand them to
+    your unregister path). Drop this whole file into any integration and call this.
+    """
+    configure(package_logger or f"custom_components.{domain}", areas)
+    _LOGGER = logging.getLogger(f"{_PACKAGE_LOGGER}.debug")
+    autostop: dict[str, Any] = {"cancel": None}
+
+    def _cancel_autostop() -> None:
+        if autostop["cancel"] is not None:
+            autostop["cancel"]()
+            autostop["cancel"] = None
+
+    async def start(call: ServiceCall) -> dict[str, Any]:
+        _cancel_autostop()
+        status = get_capture().start(
+            areas=call.data.get("areas"),
+            capacity=call.data.get("size"),
+            services=call.data.get("services"),
+            freeze=call.data.get("stop_when_full", False),
+        )
+        minutes = call.data.get("max_minutes")
+        if minutes:
+            @callback
+            def _auto_stop(_now: Any) -> None:
+                autostop["cancel"] = None
+                stopped = get_capture().stop()
+                _LOGGER.info(
+                    "debug capture auto-stopped after %s min (captured=%s)",
+                    minutes,
+                    stopped.get("captured"),
+                )
+
+            autostop["cancel"] = async_call_later(hass, minutes * 60, _auto_stop)
+            status["auto_stop_minutes"] = minutes
+        # INFO so the breadcrumb reaches home-assistant.log (via the passthrough).
+        _LOGGER.info("debug capture STARTED: %s", status)
+        return status
+
+    async def stop(call: ServiceCall) -> dict[str, Any]:
+        _cancel_autostop()
+        status = get_capture().stop()
+        _LOGGER.info("debug capture STOPPED (captured=%s)", status.get("captured"))
+        return status
+
+    async def dump(call: ServiceCall) -> dict[str, Any]:
+        capture = get_capture()
+        records = capture.records()
+        result: dict[str, Any] = {
+            "active": capture.active,
+            "count": len(records),
+            "records": records,
+        }
+        if call.data.get("write_file", True):
+            result["file"] = await hass.async_add_executor_job(_write_dump, hass, domain, records)
+        if call.data.get("clear", False):
+            capture.clear()
+        return result
+
+    async def status(call: ServiceCall) -> dict[str, Any]:
+        payload = get_capture().status()
+        payload["traceable"] = traceable_services()
+        return payload
+
+    hass.services.async_register(domain, DEBUG_CAPTURE_START, start, schema=_START_SCHEMA, supports_response=True)
+    hass.services.async_register(domain, DEBUG_CAPTURE_STOP, stop, schema=_EMPTY_SCHEMA, supports_response=True)
+    hass.services.async_register(domain, DEBUG_CAPTURE_DUMP, dump, schema=_DUMP_SCHEMA, supports_response=True)
+    hass.services.async_register(domain, DEBUG_CAPTURE_STATUS, status, schema=_EMPTY_SCHEMA, supports_response=True)
+    return SERVICE_NAMES

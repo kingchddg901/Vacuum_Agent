@@ -12,13 +12,24 @@ import logging
 import pytest
 
 from custom_components.eufy_vacuum.debug_capture import (
-    PACKAGE_LOGGER,
     DebugCapture,
+    configure,
     debug_traceable,
     get_capture,
     render_text,
     traceable_services,
 )
+
+# The tests configure the recorder like a drop-in would — a package logger + areas.
+PKG = "custom_components.eufy_vacuum"
+TEST_AREAS = {"map": (".mapping", ".map_source"), "learning": (".learning",)}
+
+
+@pytest.fixture(autouse=True)
+def _configured():
+    """Point the (module-global) recorder at a known logger tree for each test."""
+    configure(PKG, TEST_AREAS)
+    yield
 
 
 class _FakeCall:
@@ -28,7 +39,7 @@ class _FakeCall:
 
 @debug_traceable("svc_demo")
 async def _svc_demo(call):
-    logging.getLogger(f"{PACKAGE_LOGGER}.mapping.inner").debug("inner=%s", call.data.get("x"))
+    logging.getLogger(f"{PKG}.mapping.inner").debug("inner=%s", call.data.get("x"))
     return {"ok": True, "n": call.data.get("x")}
 
 
@@ -60,7 +71,7 @@ def capture():
 
 
 def _emit(suffix: str, level: int, msg: str, *args) -> None:
-    logging.getLogger(f"{PACKAGE_LOGGER}.{suffix}").log(level, msg, *args)
+    logging.getLogger(f"{PKG}.{suffix}").log(level, msg, *args)
 
 
 def test_captures_debug_with_formatted_message(capture):
@@ -80,7 +91,7 @@ def test_debug_does_not_reach_root_but_info_passes_through(capture, root_probe):
     _emit("mapping.x", logging.WARNING, "a warning line")
 
     # DEBUG is silent to the main log; INFO+ still reaches the root handlers.
-    root_levels = [r.levelname for r in root_probe if r.name.startswith(PACKAGE_LOGGER)]
+    root_levels = [r.levelname for r in root_probe if r.name.startswith(PKG)]
     assert "DEBUG" not in root_levels
     assert "INFO" in root_levels
     assert "WARNING" in root_levels
@@ -91,7 +102,7 @@ def test_debug_does_not_reach_root_but_info_passes_through(capture, root_probe):
 
 
 def test_isolation_flags_while_active(capture):
-    logger = logging.getLogger(PACKAGE_LOGGER)
+    logger = logging.getLogger(PKG)
     capture.start()
     assert logger.propagate is False
     assert logger.level == logging.DEBUG
@@ -99,7 +110,7 @@ def test_isolation_flags_while_active(capture):
 
 
 def test_stop_restores_logger_and_keeps_records(capture):
-    logger = logging.getLogger(PACKAGE_LOGGER)
+    logger = logging.getLogger(PKG)
     logger.setLevel(logging.WARNING)
     logger.propagate = True
 
@@ -146,7 +157,7 @@ def test_restart_resets(capture):
 
 def test_stop_is_idempotent(capture):
     # Never started — stop must be a safe no-op that doesn't corrupt the logger.
-    logger = logging.getLogger(PACKAGE_LOGGER)
+    logger = logging.getLogger(PKG)
     before = (logger.level, logger.propagate)
     capture.stop()
     assert (logger.level, logger.propagate) == before
@@ -168,6 +179,18 @@ def global_capture():
 
 def test_debug_traceable_registers():
     assert "svc_demo" in traceable_services()
+
+
+def test_configure_targets_the_given_logger(capture):
+    """Agnostic: point it at another integration's tree — only that tree is captured,
+    and everything else (incl. eufy_vacuum's own logs) is left alone."""
+    configure("custom_components.some_other_integration", {})
+    capture.start()
+    logging.getLogger("custom_components.some_other_integration.foo").debug("theirs")
+    logging.getLogger(f"{PKG}.mapping.x").debug("ours")  # outside the configured tree
+    messages = [r["message"] for r in capture.records()]
+    assert any("theirs" in m for m in messages)
+    assert not any("ours" in m for m in messages)
 
 
 def test_message_truncation(capture):
@@ -192,7 +215,7 @@ def test_freeze_mode_keeps_first_n(capture):
 async def test_span_brackets_and_scopes_to_service(global_capture):
     global_capture.start(services=["svc_demo"])
     # A log OUTSIDE any span must NOT be captured (targeted mode).
-    logging.getLogger(f"{PACKAGE_LOGGER}.mapping.other").debug("outside the span")
+    logging.getLogger(f"{PKG}.mapping.other").debug("outside the span")
     result = await _svc_demo(_FakeCall({"x": 7}))
 
     assert result == {"ok": True, "n": 7}
