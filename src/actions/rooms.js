@@ -22,6 +22,11 @@ export function applyRoomsActions(proto) {
    * @param {boolean} currentEnabled - current state; toggled to its opposite
    */
   proto.toggleRoomEnabled = async function (mapId, roomId, currentEnabled) {
+    // Composer lock: while a job runs, its queue is FROZEN (the record + live view read the
+    // active_job clone). Ignore room toggles from ANY vector (room card, map tap, bulk select)
+    // so re-queuing can't mutate the live selection mid-run — compose only when idle. This is the
+    // single chokepoint every toggle path funnels through.
+    if (this.state?.hasActiveRun?.()) return;
     // Hand-editing the room selection diverges from any applied stepped profile, so a
     // subsequent Start runs the FLAT selection, not the profile's steps.
     this.state.clearAppliedRunProfile?.();

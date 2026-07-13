@@ -550,15 +550,17 @@ proto.renderRoomsActionBar = function (
             ${this.t("rooms.locate")}
           </button>
 
-          <button type="button" class="evcc-chip" data-action="select-all">
-            ${this.t("rooms.select_all")}
-          </button>
+          ${!hasActiveRun ? `
+            <button type="button" class="evcc-chip" data-action="select-all">
+              ${this.t("rooms.select_all")}
+            </button>
 
-          <button
-            type="button"
-            class="evcc-chip ${clearQueueRequiresConfirmation ? "evcc-chip--start-warn evcc-chip--confirm-flash" : ""}"
-            data-action="clear-queue"
-          >${clearQueueRequiresConfirmation ? this.t("rooms.confirm_clear") : this.t("rooms.clear_queue")}</button>
+            <button
+              type="button"
+              class="evcc-chip ${clearQueueRequiresConfirmation ? "evcc-chip--start-warn evcc-chip--confirm-flash" : ""}"
+              data-action="clear-queue"
+            >${clearQueueRequiresConfirmation ? this.t("rooms.confirm_clear") : this.t("rooms.clear_queue")}</button>
+          ` : ""}
 
           ${!cardState?.hasActiveRun?.() && enabledCount >= 2 ? `
             <button type="button" class="evcc-chip" data-action="add-charge-break">
@@ -1352,9 +1354,12 @@ proto.renderRoomCard = function (room, state) {
       `
       : "";
 
+  // Composer lock: while a job runs, room toggling is frozen (toggleRoomEnabled no-ops); mark the
+  // card so the click reads as inert rather than silently doing nothing.
+  const runLocked = Boolean(state?.hasActiveRun?.());
   return `
     <div
-      class="evcc-room-card ${normalizedRoom.enabled ? "is-enabled" : "is-disabled"} ${dragSourceClass} ${dragTargetClass} ${roomFillClass} ${roomConfidenceClass}"
+      class="evcc-room-card ${normalizedRoom.enabled ? "is-enabled" : "is-disabled"} ${runLocked ? "evcc-room-card--run-locked" : ""} ${dragSourceClass} ${dragTargetClass} ${roomFillClass} ${roomConfidenceClass}"
       data-room-card-toggle="true"
       data-room-id="${normalizedRoom.id}"
       data-map-id="${this.escapeHtml(normalizedRoom.mapId)}"
@@ -1364,6 +1369,7 @@ proto.renderRoomCard = function (room, state) {
       data-item-id="${normalizedRoom.id}"
       role="button"
       tabindex="0"
+      aria-disabled="${runLocked ? "true" : "false"}"
       aria-pressed="${normalizedRoom.enabled ? "true" : "false"}"
       aria-label="${this.escapeHtml(normalizedRoom.enabled ? this.t("rooms.exclude_room_aria", { name: normalizedRoom.name }) : this.t("rooms.include_room_aria", { name: normalizedRoom.name }))}"
       style="--room-progress:${roomProgress}%;"

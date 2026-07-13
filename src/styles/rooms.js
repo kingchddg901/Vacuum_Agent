@@ -328,6 +328,12 @@ export const roomStyles = `
     cursor:          pointer;
   }
 
+  /* Composer lock while a job runs: the card stays fully visible (info + current-room highlight),
+     but its toggle reads as inert — the click is a no-op (toggleRoomEnabled guards on hasActiveRun). */
+  .evcc-room-card--run-locked {
+    cursor: not-allowed;
+  }
+
   .evcc-room-card.is-enabled {
     border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
     background:

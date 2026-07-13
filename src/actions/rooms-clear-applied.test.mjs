@@ -13,6 +13,7 @@
 //   [RCA-3] toggleRoomEnabled still clears (behavior preserved)
 //   [RCA-4] updateRoomFields no-ops (no clear) when required context is missing
 //   [RCA-5] a read-only pull (refreshRoomLearningEstimates) does NOT clear
+//   [RCA-6] toggleRoomEnabled is a NO-OP while a job runs (composer lock — no clear, no toggle)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyRoomsActions } from "./rooms.js";
@@ -78,4 +79,11 @@ test("[RCA-5] a read-only estimate pull does NOT clear the applied profile", asy
   const { card, calls } = makeCard();
   await card.refreshRoomLearningEstimates();
   assert.equal(calls.cleared, 0);
+});
+
+test("[RCA-6] toggleRoomEnabled is a NO-OP while a job runs (composer locked)", async () => {
+  const { card, calls } = makeCard({ state: { hasActiveRun: () => true } });
+  await card.toggleRoomEnabled("map_6", 5, false);
+  assert.equal(calls.cleared, 0);        // never reached the applied-profile clear
+  assert.equal(calls.callHA.length, 0);  // never toggled the room switch — re-queue blocked
 });
