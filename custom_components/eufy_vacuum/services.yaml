@@ -3187,3 +3187,69 @@ set_room_viewport:
           step: any
           mode: box
 
+# ============================================================
+# DEBUG (flight recorder)
+# ============================================================
+
+debug_capture_start:
+  name: Debug capture — start
+  description: >
+    Begin silently capturing this integration's DEBUG logs into an in-memory ring,
+    WITHOUT flooding home-assistant.log. Optionally scope to areas and set the size.
+  fields:
+    areas:
+      name: Areas
+      description: >
+        Limit capture to these areas (omit to capture everything).
+      required: false
+      example: "[map, dispatch]"
+      selector:
+        select:
+          multiple: true
+          options:
+            - map
+            - rooms
+            - dispatch
+            - learning
+            - setup
+            - themes
+    size:
+      name: Ring size
+      description: Max records to keep (oldest evicted). Default 3000.
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 50000
+          mode: box
+
+debug_capture_stop:
+  name: Debug capture — stop
+  description: >
+    Stop capturing and restore normal logging. Captured records survive for a final dump.
+
+debug_capture_dump:
+  name: Debug capture — dump
+  description: >
+    Return the captured records and (by default) write them to
+    config/eufy_vacuum/debug/debug-<timestamp>.log for sharing.
+  fields:
+    write_file:
+      name: Write file
+      description: Also write the capture to a timestamped file under config/eufy_vacuum/debug/.
+      required: false
+      default: true
+      selector:
+        boolean:
+    clear:
+      name: Clear after dump
+      description: Empty the ring after dumping.
+      required: false
+      default: false
+      selector:
+        boolean:
+
+debug_capture_status:
+  name: Debug capture — status
+  description: Report whether capture is active and how much has been captured.
+

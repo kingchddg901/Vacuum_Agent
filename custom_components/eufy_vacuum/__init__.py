@@ -496,6 +496,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await async_unregister_services(hass)
         hass.services.async_remove(DOMAIN, "battery_rebaseline")
 
+        # Restore the package logger if a debug capture was left active, so a
+        # reload doesn't inherit a propagate=False / DEBUG logger (idempotent).
+        from .debug_capture import get_capture
+
+        get_capture().stop()
+
         domain_data = hass.data.get(DOMAIN, {})
         mapping_tracker = domain_data.pop("mapping_tracker", None)
         if mapping_tracker is not None:

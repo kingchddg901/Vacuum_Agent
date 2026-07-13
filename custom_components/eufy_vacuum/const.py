@@ -61,6 +61,12 @@ SERVICE_GET_JOB_PROGRESS_SNAPSHOT = "get_job_progress_snapshot"
 SERVICE_GET_JOB_CONTROL_STATE = "get_job_control_state"
 SERVICE_GET_UPKEEP_SNAPSHOT = "get_upkeep_snapshot"
 SERVICE_GET_DASHBOARD_SNAPSHOT = "get_dashboard_snapshot"
+
+# Debug "flight recorder" — silent DEBUG capture into an in-memory ring + dump.
+SERVICE_DEBUG_CAPTURE_START = "debug_capture_start"
+SERVICE_DEBUG_CAPTURE_STOP = "debug_capture_stop"
+SERVICE_DEBUG_CAPTURE_DUMP = "debug_capture_dump"
+SERVICE_DEBUG_CAPTURE_STATUS = "debug_capture_status"
 SERVICE_GET_DOCK_ACTION_STATUS = "get_dock_action_status"
 SERVICE_GET_PAUSE_TIMEOUT_SETTINGS = "get_pause_timeout_settings"
 SERVICE_SET_PAUSE_TIMEOUT_SETTINGS = "set_pause_timeout_settings"
