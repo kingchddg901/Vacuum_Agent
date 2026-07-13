@@ -33,6 +33,10 @@ export function isWaitStep(step) {
   return !!step && step.type === "wait";
 }
 
+export function isZoneStep(step) {
+  return !!step && step.type === "zone";
+}
+
 export const WAIT_MIN_MINUTES = 1;
 export const WAIT_MAX_MINUTES = 1440;
 export const DEFAULT_WAIT_MINUTES = 30;
@@ -159,6 +163,17 @@ export function sanitizeStepsForSave(steps) {
       });
     } else if (isWaitStep(step)) {
       out.push({ type: "wait", wait_minutes: clampWaitMinutes(step.wait_minutes) });
+    } else if (isZoneStep(step)) {
+      // Preserve a zone step's saved-zone ids (dedup, non-empty strings) — mirrors the
+      // backend normalize; without this, editing + saving a profile drops the zone.
+      const ids = [
+        ...new Set(
+          (Array.isArray(step.zone_ids) ? step.zone_ids : [])
+            .map((z) => String(z).trim())
+            .filter(Boolean)
+        ),
+      ];
+      if (ids.length) out.push({ type: "zone", zone_ids: ids });
     }
   }
   return out;

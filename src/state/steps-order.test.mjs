@@ -178,3 +178,13 @@ test("[STP-wait-3] sanitizeStepsForSave keeps wait steps (clamped, stripped)", (
   const clean = sanitizeStepsForSave([rg(1), { type: "wait", wait_minutes: 5000, _uid: "x" }]);
   assert.deepEqual(clean[1], { type: "wait", wait_minutes: 1440 });
 });
+
+test("[STP-zone-1] sanitizeStepsForSave keeps zone steps (dedup ids, strip extras) — else editing a profile drops the zone", () => {
+  const clean = sanitizeStepsForSave([
+    rg(1),
+    { type: "zone", zone_ids: ["z1", "z1", " z2 ", ""], _uid: "x" },
+  ]);
+  assert.deepEqual(clean[1], { type: "zone", zone_ids: ["z1", "z2"] });
+  // a zone with no valid ids is dropped
+  assert.deepEqual(sanitizeStepsForSave([rg(1), { type: "zone", zone_ids: [] }]).length, 1);
+});

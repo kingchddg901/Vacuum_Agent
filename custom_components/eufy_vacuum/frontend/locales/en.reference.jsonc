@@ -1966,6 +1966,7 @@
     "step_move_up": "Move up",  // step reorder control (title/aria)
     "step_remove": "Remove step",  // step delete control (title/aria)
     "step_wait": "Wait",  // wait-step row label, precedes a minutes input
+    "step_zone": "Zone",  // zone-step row label in the profile editor, precedes the saved-zone names
     "minutes_unit": "min",  // short unit after a minutes number (wait step)
     "steps_capture_hint": "Set up the rooms you want next in the Rooms view, then add them as a group.",
     "steps_hint": "Vacuum, dock to recharge, then keep cleaning — all in one run.",

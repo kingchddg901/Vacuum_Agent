@@ -203,6 +203,13 @@ export function applyRunProfilesRenderers(proto) {
           title="${this.t("run_profiles.step_remove")}">✕</button>
       </span>`;
 
+    // Zone steps carry saved-zone ids; resolve to names for display.
+    const savedZonesLib = this.card?._state?.savedZones?.() ?? [];
+    const zoneNameById = {};
+    (Array.isArray(savedZonesLib) ? savedZonesLib : []).forEach((z) => {
+      if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
+    });
+
     const rowsHtml = steps.map((step, i) => {
       if (step.type === "charge_wait") {
         const target = Number(step.target_battery_percent ?? 95);
@@ -233,6 +240,21 @@ export function applyRunProfilesRenderers(proto) {
                 class="evcc-run-profiles-charge-input"
                 data-run-profile-wait-index="${i}" />
               <span class="evcc-run-profiles-step-pct">${this.t("run_profiles.minutes_unit")}</span>
+            </span>
+            ${controls(i)}
+          </li>`;
+      }
+
+      if (step.type === "zone") {
+        const zNames = (Array.isArray(step.zone_ids) ? step.zone_ids : [])
+          .map((id) => this.escapeHtml(zoneNameById[String(id)] ?? this.t("rooms.zone_fallback")))
+          .join(", ");
+        return `
+          <li class="evcc-run-profiles-step evcc-run-profiles-step--zone">
+            <span class="evcc-run-profiles-step-num">${i + 1}</span>
+            <span class="evcc-run-profiles-step-body">
+              <span class="evcc-run-profiles-step-kind">🎯 ${this.t("run_profiles.step_zone")}</span>
+              <span class="evcc-run-profiles-step-rooms">${zNames}</span>
             </span>
             ${controls(i)}
           </li>`;

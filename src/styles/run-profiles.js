@@ -153,6 +153,11 @@ export const runProfileStyles = `
     background: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 10%, transparent);
   }
 
+  .evcc-run-profiles-step--zone {
+    border-color: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 45%, var(--evcc-border-default));
+    background: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 10%, transparent);
+  }
+
   .evcc-run-profiles-step-num {
     flex: 0 0 auto;
     width: 20px;

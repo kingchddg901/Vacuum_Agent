@@ -1268,6 +1268,7 @@ export const en = {
   "run_profiles.step_move_up": "Move up",  // step reorder control (title/aria)
   "run_profiles.step_remove": "Remove step",  // step delete control (title/aria)
   "run_profiles.step_wait": "Wait",  // wait-step row label, precedes a minutes input
+  "run_profiles.step_zone": "Zone",  // zone-step row label in the profile editor, precedes the saved-zone names
   "run_profiles.minutes_unit": "min",  // short unit after a minutes number (wait step)
   "run_profiles.steps_capture_hint": "Set up the rooms you want next in the Rooms view, then add them as a group.",
   "run_profiles.steps_hint": "Vacuum, dock to recharge, then keep cleaning — all in one run.",
