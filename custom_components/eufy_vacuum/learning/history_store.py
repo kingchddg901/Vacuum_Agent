@@ -910,36 +910,38 @@ class LearningHistoryStore:
         """Build the canonical completed-job payload."""
         # The record's room identity is the JOB's OWN — taken from the active_job snapshot (frozen
         # at launch), NEVER the live payload/queue. The composer re-hydrates the live payload when
-        # rooms are re-queued, and that must not be able to rewrite a RUNNING job's record: observed
-        # a Kitchen+Hallway+zone run recorded as Dining+Kitchen+Hallway (zone dropped) after rooms
+        # rooms are re-queued, and that must not rewrite a RUNNING job's record: observed a
+        # Kitchen+Hallway+zone run recorded as Dining+Kitchen+Hallway (zone dropped) after rooms
         # were re-queued on top of it (job_2026-07-13T07-50-49). Precedence:
-        #   1. active_job.resolved_rooms — the launch snapshot (atomic + interior-ending stepped);
-        #   2. the union of ALL phases' rooms when (1) is empty — a stepped job that ended on a
-        #      roomless phase (a trailing ZONE) has its top-level list zeroed by advance_active_job_
-        #      phase, so the room phases' rooms only survive on the phase list;
+        #   1. a PHASED job -> the UNION of ALL phases' rooms (deduped, order preserved). Trusting
+        #      the top-level list is wrong: advance_active_job_phase overwrites it with only the
+        #      phase it moved INTO, so a stepped run ending on a ROOM phase (Kitchen->charge->
+        #      Hallway) would record just Hallway and drop Kitchen from room_count + learning, and
+        #      one ending on a roomless ZONE phase would record zero rooms (invalid_room_count,
+        #      "Unknown", dropped) even though the room phases cleaned. The phase list survives
+        #      advance, so it is the reliable full set;
+        #   2. an ATOMIC job (no phases) -> the top-level resolved_rooms launch snapshot;
         #   3. the LIVE payload only as a last resort (a job snapshot carrying nothing);
         #   4. the queue (below).
-        # This also fixes the earlier symptom: without (2) a rooms->zone run read as zero rooms →
-        # invalid_room_count → shown "Unknown" + dropped from learning even though its rooms cleaned.
         resolved_rooms: list = []
         if isinstance(active_job_state, dict):
-            _aj_rooms = active_job_state.get("resolved_rooms")
-            if isinstance(_aj_rooms, list):
-                resolved_rooms = list(_aj_rooms)
-            if not resolved_rooms:
-                _phases = active_job_state.get("phases")
-                if isinstance(_phases, list):
-                    _seen_rids: set = set()
-                    for _phase in _phases:
-                        if not isinstance(_phase, dict):
+            _phases = active_job_state.get("phases")
+            if isinstance(_phases, list) and _phases:
+                _seen_rids: set = set()
+                for _phase in _phases:
+                    if not isinstance(_phase, dict):
+                        continue
+                    for _room in _phase.get("resolved_rooms") or []:
+                        if not isinstance(_room, dict):
                             continue
-                        for _room in _phase.get("resolved_rooms") or []:
-                            if not isinstance(_room, dict):
-                                continue
-                            _rid = _room.get("room_id")
-                            if _rid is not None and _rid not in _seen_rids:
-                                _seen_rids.add(_rid)
-                                resolved_rooms.append(_room)
+                        _rid = _room.get("room_id", _room.get("id"))
+                        if _rid is not None and _rid not in _seen_rids:
+                            _seen_rids.add(_rid)
+                            resolved_rooms.append(_room)
+            if not resolved_rooms:
+                _aj_rooms = active_job_state.get("resolved_rooms")
+                if isinstance(_aj_rooms, list):
+                    resolved_rooms = list(_aj_rooms)
         if not resolved_rooms:
             _payload_rooms = (
                 payload_state.get("resolved_rooms") if isinstance(payload_state, dict) else None

@@ -14,6 +14,8 @@
 //   [RCA-4] updateRoomFields no-ops (no clear) when required context is missing
 //   [RCA-5] a read-only pull (refreshRoomLearningEstimates) does NOT clear
 //   [RCA-6] toggleRoomEnabled is a NO-OP while a job runs (composer lock — no clear, no toggle)
+//   [RCA-7] retryMissedRooms bypasses the lock (force) + returns a result (not a false-failure)
+//   [RCA-8] persistRoomOrdering is a NO-OP while a job runs (reorder is queue structure — locked)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyRoomsActions } from "./rooms.js";
@@ -86,4 +88,21 @@ test("[RCA-6] toggleRoomEnabled is a NO-OP while a job runs (composer locked)", 
   await card.toggleRoomEnabled("map_6", 5, false);
   assert.equal(calls.cleared, 0);        // never reached the applied-profile clear
   assert.equal(calls.callHA.length, 0);  // never toggled the room switch — re-queue blocked
+});
+
+test("[RCA-7] retryMissedRooms bypasses the lock (post-run recovery) + returns a result", async () => {
+  const { card, calls } = makeCard({
+    rooms: [{ id: 5, mapId: "map_6", enabled: false }, { id: 8, mapId: "map_6", enabled: true }],
+    state: { hasActiveRun: () => true },  // poll-skew: entity still reads cleaning after the run
+  });
+  const result = await card.retryMissedRooms([5]);
+  assert.notEqual(result, undefined);    // caller sees success, not a false-failure toast
+  assert.equal(calls.callHA.length, 2);  // room 5 enabled + room 8 disabled DESPITE the lock (force)
+});
+
+test("[RCA-8] persistRoomOrdering is a NO-OP while a job runs (reorder locked)", async () => {
+  const { card, calls } = makeCard({ state: { hasActiveRun: () => true } });
+  await card.persistRoomOrdering([{ id: 1 }, { id: 2 }]);
+  assert.equal(calls.cleared, 0);            // never reached the applied-profile clear
+  assert.equal(calls.callService.length, 0); // never wrote the order entities
 });

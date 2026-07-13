@@ -23,6 +23,7 @@ Coverage targets
         actually still cleaning, not just the phase type (the "Cleaning zone" while-docked bug).
 [PR-16] the live_queue flattens the whole running phase sequence into ordered done/current/
         upcoming chips (room + charge + wait + zone), from the active_job clone.
+[PR-17] a corrupt (non-dict) saved-zone entry doesn't crash the snapshot — name falls back to id.
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
@@ -309,6 +310,26 @@ def test_progress_live_queue_sequence(manager, hass):
     assert _cur["name"] == "Hallway"
     _zone = next(s for s in lq["steps"] if s["kind"] == "zone")
     assert _zone["zone_names"] == ["stove"]
+
+
+def test_progress_zone_snapshot_survives_corrupt_saved_zone(manager, hass):
+    """[PR-17] a truthy NON-dict saved-zone entry (corrupt .storage) must not crash the whole
+    progress snapshot — the zone-name lookups fall back to the id. Review crash-guard finding."""
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+    _wire(manager, hass)
+    mb = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    mb["saved_zones"] = {"z1": "corrupt-not-a-dict"}   # bad shape from odd storage
+    hass.states.async_set(_VAC, "cleaning")
+    _seed_job(
+        manager, minutes_ago=0, queue_room_ids=[], resolved_rooms=[], current_phase_index=0,
+        phases=[
+            {"phase_type": "zone", "zone_ids": ["z1"],
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+    )
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)  # must NOT raise
+    assert snap["zone_phase_names"] == ["z1"]                              # fell back to the id
+    assert [s["kind"] for s in snap["live_queue"]["steps"]] == ["zone"]    # live queue also survived
 
 
 def test_progress_skipped_conservative(manager, hass):

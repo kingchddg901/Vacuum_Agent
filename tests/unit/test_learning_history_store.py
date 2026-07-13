@@ -156,6 +156,35 @@ def test_build_payload_prefers_active_job_over_rehydrated_payload(tmp_path):
     assert "dining_room" not in jp["room_slugs"]          # the re-queued phantom is gone
 
 
+def test_build_payload_phased_job_unions_all_phases_not_just_last(tmp_path):
+    """A stepped job ending on a ROOM phase leaves active_job.resolved_rooms = ONLY the last phase
+    (advance_active_job_phase overwrote it). The record must union ALL phases, not trust that stale
+    last-phase list — else earlier rooms drop from room_count + learning while room_timings still
+    has them. Regression for the fresh-eyes review finding (rooms->charge->rooms dropped Kitchen)."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jph",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:20:00+00:00",
+        battery_start=100, battery_end=95, queue_state={}, payload_state={},
+        active_job_state={
+            "resolved_rooms": [{"room_id": 4, "slug": "hallway"}],  # advance left only the last phase
+            "phases": [
+                {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+                 "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 1.0,
+                                  "cleaning_seconds": 90}]},
+                {"phase_type": "charge_wait", "target_battery_percent": 100,
+                 "resolved_rooms": [], "room_timing": []},
+                {"resolved_rooms": [{"room_id": 4, "slug": "hallway"}],
+                 "room_timing": [{"room_id": 4, "slug": "hallway", "area_m2": 1.0,
+                                  "cleaning_seconds": 150}]},
+            ],
+        },
+    )
+    jp = payload["job_profile"]
+    assert jp["room_count"] == 2                        # BOTH rooms, not just the last phase
+    assert jp["room_slugs"] == ["kitchen", "hallway"]   # union, in phase order
+
+
 def test_build_payload_captures_zone_timings(tmp_path):
     """A run with a zone phase surfaces the zone into the record's zone_timings (+ zone_count),
     so the review can show which zones ran + their learned wall-clock — the room path drops

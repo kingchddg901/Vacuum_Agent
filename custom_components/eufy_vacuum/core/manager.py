@@ -3374,7 +3374,7 @@ class EufyVacuumManager:
                 )
                 _zsaved = (_zmb or {}).get("saved_zones") or {}
                 zone_phase_names = [
-                    str((_zsaved.get(z) or {}).get("name") or z) for z in zone_phase_ids
+                    str(self._saved_zone_name(_zsaved.get(z), z)) for z in zone_phase_ids
                 ]
                 _zmode = "mop" if bool(
                     (active_job.get("job_metadata") or {}).get("has_mop_mode")
@@ -3497,11 +3497,27 @@ class EufyVacuumManager:
         _at = _entities.get("active_cleaning_target")
         _at_state = self.hass.states.get(_at) if _at else None
         _target = str(_at_state.state).strip().lower() if _at_state is not None else ""
-        if _target:
+        # "unknown"/"unavailable" are transient/unreliable sentinels, NOT a real target — fall
+        # through to the vacuum state rather than wrongly hiding the banner mid-zone on a blip. A
+        # genuinely cleared target ("none") DOES mean the zone is done, so it correctly returns
+        # False here ("zone" not in "none").
+        if _target and _target not in ("unknown", "unavailable"):
             return "zone" in _target
         _vac = self.hass.states.get(vacuum_entity_id)
         _vac_state = str(_vac.state).strip().lower() if _vac is not None else ""
-        return _vac_state not in ("docked", "returning", "idle", "paused", "")
+        return _vac_state not in (
+            "docked", "returning", "idle", "paused", "unknown", "unavailable", "",
+        )
+
+    @staticmethod
+    def _saved_zone_name(zone: Any, fallback: Any) -> str:
+        """A saved zone's display name, id as fallback. Guards a truthy NON-dict store entry
+        (corrupt .storage) that would otherwise crash the whole progress snapshot on `.get()`."""
+        if isinstance(zone, dict):
+            name = zone.get("name")
+            if name:
+                return str(name)
+        return str(fallback)
 
     def _build_live_queue_steps(
         self,
@@ -3560,7 +3576,7 @@ class EufyVacuumManager:
                 steps.append({
                     "seq": seq, "kind": "zone", "state": pstate,
                     "zone_names": [
-                        str((saved_zones.get(str(z)) or {}).get("name") or z)
+                        str(self._saved_zone_name(saved_zones.get(str(z)), z))
                         for z in (phase.get("zone_ids") or [])
                     ],
                     "eta_minutes": zone_eta_minutes if pstate == "current" else None,

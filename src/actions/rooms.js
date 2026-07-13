@@ -21,12 +21,14 @@ export function applyRoomsActions(proto) {
    * @param {number} roomId
    * @param {boolean} currentEnabled - current state; toggled to its opposite
    */
-  proto.toggleRoomEnabled = async function (mapId, roomId, currentEnabled) {
+  proto.toggleRoomEnabled = async function (mapId, roomId, currentEnabled, opts = {}) {
     // Composer lock: while a job runs, its queue is FROZEN (the record + live view read the
     // active_job clone). Ignore room toggles from ANY vector (room card, map tap, bulk select)
     // so re-queuing can't mutate the live selection mid-run — compose only when idle. This is the
-    // single chokepoint every toggle path funnels through.
-    if (this.state?.hasActiveRun?.()) return;
+    // single chokepoint every toggle path funnels through. `opts.force` lets a legitimate POST-run
+    // action (retryMissedRooms, offered by the incomplete-run banner) re-select rooms even in the
+    // poll-skew window where the vacuum entity still reads cleaning after the job is terminal.
+    if (!opts.force && this.state?.hasActiveRun?.()) return;
     // Hand-editing the room selection diverges from any applied stepped profile, so a
     // subsequent Start runs the FLAT selection, not the profile's steps.
     this.state.clearAppliedRunProfile?.();
@@ -188,14 +190,17 @@ export function applyRoomsActions(proto) {
     const rooms = this.state.getRoomsForActiveMap();
     const missedSet = new Set(missedRoomIds.map(String));
 
-    await Promise.all(
+    // force: this is a POST-run recovery (the run finished incomplete), not mid-run composing — it
+    // must bypass the composer lock. Also RETURN the promise so the caller sees success, not
+    // undefined (the binding treated undefined as failure and always showed an error toast).
+    return await Promise.all(
       rooms.map((r) => {
         const isMissed = missedSet.has(String(r.id));
         if (isMissed && !r.enabled) {
-          return this.toggleRoomEnabled(r.mapId, r.id, false); // enable
+          return this.toggleRoomEnabled(r.mapId, r.id, false, { force: true }); // enable
         }
         if (!isMissed && r.enabled) {
-          return this.toggleRoomEnabled(r.mapId, r.id, true);  // disable
+          return this.toggleRoomEnabled(r.mapId, r.id, true, { force: true });  // disable
         }
         return Promise.resolve();
       })
@@ -526,6 +531,9 @@ export function applyRoomsActions(proto) {
    * @param {object[]} rooms - ordered room list
    */
   proto.persistRoomOrdering = async function (rooms) {
+    // Composer lock: reordering is queue structure — frozen while a job runs (same guard as
+    // toggleRoomEnabled), so a run-locked card can't be drag-reordered into the running job.
+    if (this.state?.hasActiveRun?.()) return;
     const mapId = this.state.activeMapId();
     if (!mapId || !Array.isArray(rooms)) return;
 
