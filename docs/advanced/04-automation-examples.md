@@ -6,6 +6,47 @@ names, and payload fields used in the integration — nothing here is invented.
 
 ---
 
+## The automation surface (what you can call)
+
+The integration exposes ~60 services, but most are dashboard-card getters and one-time
+setup CRUD. For **automations** you touch a small, high-level surface — you say *what* and
+*when*, and the integration owns *how* (payload assembly, room ordering, availability
+gating, mixed-mode water safety). There are deliberately **no per-setting entities to poke**;
+the intelligence is not meant to live in your automation.
+
+**What an automation writes (per room):**
+
+| Entity | Purpose |
+|---|---|
+| `switch.<vacuum>_<room>_selected_for_cleaning` | Include/exclude the room. On = `enabled` = in the payload. |
+| `number.<vacuum>_<room>_order` | Clean order for that room. |
+
+Per-room *settings* (mode, fan, water, intensity, passes, edge-mop) are **not** pokeable
+entities — set them with the `update_room_fields` service (one call per room) or by applying
+a profile.
+
+**The verbs, by job:**
+
+| Job | Services |
+|---|---|
+| **Start a clean** | `start_selected_rooms`, `start_run_profile`, `start_zone_clean`, `apply_run_profile` |
+| **Configure rooms** | `update_room_fields`, `apply_room_profile` |
+| **Control in-flight** | `pause_active_job`, `resume_active_job`, `cancel_active_job` |
+| **Dock / upkeep** | `wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`, `reset_maintenance`, `battery_rebaseline` |
+| **Learning** | `set_learning_processing`, `process_pending_runs` |
+| **Read state** (each returns a `response_variable`) | `get_start_status`, `get_active_job`, `get_job_progress_snapshot`, `get_lifecycle_state`, `get_vacuum_capabilities`, `get_saved_run_profiles` |
+
+**The normal sequence** is always the same shape:
+
+1. **Select** — flip the room switches, or `update_room_fields` (enable + settings in one call), or apply a profile.
+2. **Start** — `start_selected_rooms` (ad-hoc) or `start_run_profile` (a saved routine).
+3. **React** (optional) — trigger on an `eufy_vacuum_*` event, or poll a `get_*` getter.
+
+Every example below is a worked case of that shape. Full per-field docs for every service
+live in **Developer Tools → Actions** in Home Assistant (and in `services.yaml`).
+
+---
+
 ## 1. Retry Missed Rooms
 
 **What it does:** When a run ends early (cancelled, failed, or interrupted) and at
@@ -345,3 +386,179 @@ automation:
 - You can also filter notifications by `trigger.event.data.directly_blocked_room_ids`
   to distinguish a hard block (a rule matched) from an indirect block (a downstream
   room became unreachable because its access-gating room was blocked).
+
+---
+
+## 6. Ad-hoc Room Clean (custom selection)
+
+**What it does:** Builds a one-off clean from a specific set of rooms — the modern
+replacement for hand-assembling a `vacuum.send_command` payload from a wall of helper
+entities. The integration builds the queue, resolves the map, applies mixed-mode water
+safety, and gates on availability; the automation only says *which* rooms and *how*.
+
+**Entity-driven** — when the rooms are already configured the way you want and you only
+need to pick which run (`on` = `enabled` = in the payload):
+
+```yaml
+automation:
+  alias: "Vacuum — quick downstairs"
+  trigger:
+    - platform: state
+      entity_id: input_button.clean_downstairs
+  action:
+    # 1. Select rooms
+    - service: homeassistant.turn_on
+      target:
+        entity_id:
+          - switch.alfred_kitchen_selected_for_cleaning
+          - switch.alfred_hallway_selected_for_cleaning
+    # 2. Start them
+    - service: eufy_vacuum.start_selected_rooms
+      data:
+        vacuum_entity_id: vacuum.alfred
+        confirm_reduced_run: true
+```
+
+**Service-driven** — when the automation should also set per-room behavior in the same
+run. `update_room_fields` sets `enabled` **and** any settings in one call, so no
+per-setting entities are needed and no switch toggle is required (`enabled: true` selects
+the room):
+
+```yaml
+  action:
+    - service: eufy_vacuum.update_room_fields
+      data:
+        vacuum_entity_id: vacuum.alfred
+        room_id: 5               # Kitchen
+        enabled: true
+        clean_mode: vacuum_mop   # vacuum | mop | vacuum_mop
+        fan_speed: Max
+        water_level: High
+    - service: eufy_vacuum.update_room_fields
+      data:
+        vacuum_entity_id: vacuum.alfred
+        room_id: 4               # Hallway
+        enabled: true
+        clean_mode: vacuum       # carpet-safe: vacuum only
+    - service: eufy_vacuum.start_selected_rooms
+      data:
+        vacuum_entity_id: vacuum.alfred
+        confirm_reduced_run: true
+```
+
+**Customization points:**
+
+- `confirm_reduced_run: true` keeps it unattended — the run proceeds even if blocker rules
+  would reduce the room set. Omit it (default `false`) and the service returns
+  `{"started": false, "reason": "confirmation_required", "confirm_token": ...}` instead of
+  starting, so a supervised automation can inspect the response and decide.
+- `update_room_fields` changes **only** the fields you pass; unset fields keep their stored
+  values. It sets `profile_name` to `custom` to mark the room as diverged from a preset.
+- **Water-on-carpet is enforced at payload time** regardless of what you pass — a carpet
+  room is never wet-mopped even if you set a `water_level`.
+- Add `strict_order: true` to `start_selected_rooms` to force the vacuum to honor the
+  `number.<room>_order` sequence instead of path-optimizing.
+- `start_selected_rooms` needs the vacuum docked/idle and returns an error if a job is
+  already running. Guard with a `condition` on
+  `states('vacuum.alfred') in ['docked','idle']` if the trigger might fire mid-run.
+
+**Finding a `room_id`:** call `eufy_vacuum.get_vacuum_maps` (or `get_queue_state`) with a
+`response_variable` — the response lists each room's `room_id` and name. These are the
+device's own room numbers (the same ones the Eufy app uses).
+
+---
+
+## 7. Staged Clean with Native Waits (charge break in automation land)
+
+**What it does:** Runs a multi-phase clean — vacuum, charge, then mop — where the
+**automation** owns the pauses instead of a stepped run profile. Each phase is a normal
+`start_selected_rooms` call; between phases you use Home Assistant's own wait primitives.
+
+This is the inverse of a stepped run profile: there, the integration owns the `charge_wait`
+break internally and the whole thing is *one* job. Here you orchestrate it in the open, and
+every primitive you need is already exposed:
+
+| Between-phase wait | How |
+|---|---|
+| **Phase finished** | `wait_for_trigger` on `eufy_vacuum_job_finished` |
+| **Charge break** | the vacuum docks automatically after a clean — just `wait_template` on the battery level |
+| **Timed hold** | plain `delay` |
+
+```yaml
+automation:
+  alias: "Vacuum — vacuum, charge, then mop the main floor"
+  trigger:
+    - platform: time
+      at: "09:00:00"
+  action:
+    # --- Phase 1: vacuum ---
+    - service: eufy_vacuum.update_room_fields
+      data: { vacuum_entity_id: vacuum.alfred, room_id: 5, enabled: true, clean_mode: vacuum }
+    - service: eufy_vacuum.update_room_fields
+      data: { vacuum_entity_id: vacuum.alfred, room_id: 7, enabled: true, clean_mode: vacuum }
+    - service: eufy_vacuum.start_selected_rooms
+      data: { vacuum_entity_id: vacuum.alfred, confirm_reduced_run: true }
+
+    # Wait for phase 1 to finish (the vacuum docks itself at the end)
+    - wait_for_trigger:
+        - platform: event
+          event_type: eufy_vacuum_job_finished
+          event_data: { vacuum_entity_id: vacuum.alfred }
+      timeout: "01:30:00"
+      continue_on_timeout: false
+
+    # --- Charge break: wait for the level (swap for `delay:` to make it a timed hold) ---
+    - wait_template: "{{ state_attr('vacuum.alfred', 'battery_level') | int(0) >= 90 }}"
+      timeout: "02:00:00"
+      continue_on_timeout: false
+
+    # --- Phase 2: mop the same rooms ---
+    - service: eufy_vacuum.update_room_fields
+      data: { vacuum_entity_id: vacuum.alfred, room_id: 5, enabled: true, clean_mode: mop, water_level: High }
+    - service: eufy_vacuum.update_room_fields
+      data: { vacuum_entity_id: vacuum.alfred, room_id: 7, enabled: true, clean_mode: mop, water_level: High }
+    - service: eufy_vacuum.start_selected_rooms
+      data: { vacuum_entity_id: vacuum.alfred, confirm_reduced_run: true }
+```
+
+**Learning still works — and it's actually cleaner.** Each phase goes out through
+`start_selected_rooms`, so it is a **dispatched** job (started by the integration, not the
+app). Every phase is captured and feeds per-room learning normally, with no attribution
+guesswork — the integration sent the rooms, so it knows exactly what ran. And because the
+charge happens *between* two separate jobs, it is invisible to either job's timing: the
+vacuum phase learns vacuum timing, the mop phase learns mop timing, and the dead charge
+time is learned by nobody. A stepped run profile has to *deliberately exclude* the
+`charge_wait` phase from its timing; this pattern never has that problem, because there is
+no charge inside a job to exclude.
+
+**Choosing between this and a stepped run profile:**
+
+| | Stepped run profile | Native waits (this) |
+|---|---|---|
+| **Records** | One composite `vac → charge → mop` job | One record per phase |
+| **Charge timing** | Excluded via break-phase logic | Free — charge is dead time between jobs |
+| **Orchestration** | Owned by the integration | Owned by your automation (transparent, debuggable) |
+| **Room learning** | Yes | Yes, per phase |
+
+Both feed learning. Pick the profile when you want one tidy record; pick native waits when
+you want to see and control each phase.
+
+**Customization points:**
+
+- Swap the `wait_template` for `delay: "00:20:00"` to make it a timed hold instead of a
+  charge break.
+- `continue_on_timeout: false` aborts the sequence if a phase never finishes, so a stuck
+  vacuum doesn't fall through into the mop phase. Raise the `timeout` values to fit your home.
+- Confirm the battery attribute on your vacuum entity — most report `battery_level`, but
+  check Developer Tools if the `wait_template` never releases.
+
+**Caveats:**
+
+- **The `enabled`/selected flag persists — a run does not clear it.** The example re-cleans
+  the *same* rooms, so re-enabling them for phase 2 is harmless. If a later phase cleans a
+  **different** set of rooms, first turn the previous phase's rooms **off**
+  (`homeassistant.turn_off` on their `switch.<vac>_<room>_selected_for_cleaning`, or
+  `update_room_fields` with `enabled: false`) so they don't run again.
+- `start_selected_rooms` needs the vacuum docked/idle. After a charge break it will be
+  docked, so phase 2 starts cleanly — but a phase that doesn't return to the dock first
+  should be gated on `states('vacuum.alfred') in ['docked','idle']`.
