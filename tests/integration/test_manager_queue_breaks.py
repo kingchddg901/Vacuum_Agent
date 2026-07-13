@@ -102,3 +102,25 @@ async def test_wait_minutes_clamped(manager):
     assert res["added"] is True
     wait_step = next(s for s in res["steps"] if s["type"] == "wait")
     assert wait_step["wait_minutes"] == 1440
+
+
+async def test_queue_break_makes_start_plan_stepped(manager):
+    """[QB-8] P2: a queue break drives the STEPPED dispatch path — the effective
+    start plan gains a charge_wait phase (flat before, stepped after)."""
+    setup_map(manager, _VAC, _MAP, count=3)
+
+    plan_flat = manager._build_effective_start_plan(vacuum_entity_id=_VAC, map_id=_MAP)
+    types_flat = [p.get("phase_type") for p in plan_flat["phases"]]
+    assert not any(t in ("charge_wait", "wait") for t in types_flat)
+
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        break_type="charge_wait",
+        after_index=2,
+        target_battery_percent=90,
+    )
+    plan_stepped = manager._build_effective_start_plan(vacuum_entity_id=_VAC, map_id=_MAP)
+    types = [p.get("phase_type") for p in plan_stepped["phases"]]
+    assert "charge_wait" in types
+    assert len(plan_stepped["phases"]) >= 3  # clean -> charge -> clean

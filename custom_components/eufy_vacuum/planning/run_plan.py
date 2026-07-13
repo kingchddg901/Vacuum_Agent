@@ -1311,6 +1311,19 @@ class RunPlanManager:
             if consume_pending_steps
             else _pending_map.get(str(map_id))
         )
+        # No applied-profile stash -> fall back to the LIVE QUEUE's own breaks (the
+        # ad-hoc stepped queue). get_queue_steps is derived, not consumed, so a
+        # preflight PEEK and the real dispatch agree. An explicit start_run_profile
+        # stash takes precedence; the queue breaks only drive a plain Start.
+        if not _run_steps:
+            _queue_steps = self._manager.get_queue_steps(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+            ).get("steps")
+            if _queue_steps and any(
+                isinstance(s, dict) and s.get("type") in ("charge_wait", "wait")
+                for s in _queue_steps
+            ):
+                _run_steps = _queue_steps
         if _run_steps and any(
             isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _run_steps
         ):
