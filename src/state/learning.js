@@ -356,6 +356,13 @@ export function applyLearningState(proto) {
     return Boolean(this.dashboardPlannedJobEstimate()?.available);
   };
 
+  // Per-zone estimate breakdown (Wave 2): [{zone_id, name, minutes, seconds, source,
+  // sample_count, area_m2}] — drives the per-zone time + learned/estimate marker on its chip.
+  proto.dashboardPlannedJobEstimateZones = function () {
+    const zones = this.dashboardPlannedJobEstimate()?.zone_estimate?.zones;
+    return Array.isArray(zones) ? zones : [];
+  };
+
   proto.dashboardPlannedJobEstimateTotalMinutes = function () {
     const value = Number(this.dashboardPlannedJobEstimate()?.total_minutes);
     return Number.isFinite(value) ? value : null;

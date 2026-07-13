@@ -482,9 +482,15 @@ proto.renderRoomsActionBar = function (
   const queueHasBreaks = Boolean(queueStepsSnap?.has_breaks) && Array.isArray(queueStepsSnap?.steps);
   const chipRoomById = {};
   const chipMinutesById = {};
+  const chipZoneEstById = {};
   if (steppedProfile || queueHasBreaks) {
     (Array.isArray(rooms) ? rooms : []).forEach((r) => { chipRoomById[String(r.id)] = r; });
     timeline.forEach((t) => { if (t && t.room_id != null) chipMinutesById[String(t.room_id)] = t.minutes; });
+    // Per-zone estimate (learned avg or area fallback) -> the zone chip's time + source marker.
+    const zoneEst = cardState?.dashboardPlannedJobEstimateZones?.();
+    (Array.isArray(zoneEst) ? zoneEst : []).forEach((z) => {
+      if (z && z.zone_id != null) chipZoneEstById[String(z.zone_id)] = z;
+    });
   }
 
   return `
@@ -664,11 +670,11 @@ proto.renderRoomsActionBar = function (
 
       ${steppedProfile ? `
         <div class="evcc-queue-chips evcc-queue-chips--preview">
-          ${this._renderSteppedRunChips(steppedProfile, chipRoomById, chipMinutesById)}
+          ${this._renderSteppedRunChips(steppedProfile, chipRoomById, chipMinutesById, "profile", chipZoneEstById)}
         </div>
       ` : queueHasBreaks ? `
         <div class="evcc-queue-chips evcc-queue-chips--preview">
-          ${this._renderSteppedRunChips({ steps: queueStepsSnap.steps }, chipRoomById, chipMinutesById, "queue")}
+          ${this._renderSteppedRunChips({ steps: queueStepsSnap.steps }, chipRoomById, chipMinutesById, "queue", chipZoneEstById)}
         </div>
       ` : queueRooms.length > 0 ? `
         <div class="evcc-queue-chips">
@@ -824,7 +830,7 @@ proto.renderRoomsActionBar = function (
    * @param {object} minutesById - room_id -> estimated minutes.
    * @returns {string} HTML string.
    */
-  proto._renderSteppedRunChips = function (profile, roomById, minutesById, mode = "profile") {
+  proto._renderSteppedRunChips = function (profile, roomById, minutesById, mode = "profile", zoneEstById = {}) {
     const steps = Array.isArray(profile?.steps) ? profile.steps : [];
     // "profile"  — editable inputs wired to the applied profile (data-chip-*-index).
     // "queue"    — editable inputs wired to the live queue (data-queue-break-*-index),
@@ -904,12 +910,38 @@ proto.renderRoomsActionBar = function (
         const names = ids
           .map((id) => zoneNameById[String(id)] || this.t("rooms.zone_fallback"))
           .join(", ");
+        // Sum this chip's zones (a chip can carry several) and mark the time LEARNED only when
+        // every one is learned — one un-sampled zone makes the whole chip an estimate (~).
+        let zoneSeconds = 0;
+        let anyKnown = false;
+        let allLearned = ids.length > 0;
+        let samples = 0;
+        ids.forEach((id) => {
+          const e = zoneEstById[String(id)];
+          const secs = Number(e?.seconds);
+          if (e && Number.isFinite(secs) && secs > 0) {
+            zoneSeconds += secs;
+            anyKnown = true;
+            if (e.source === "learned") samples += Number(e.sample_count) || 0;
+            else allLearned = false;
+          } else {
+            allLearned = false;
+          }
+        });
+        const learned = anyKnown && allLearned;
+        const timePart = anyKnown
+          ? `<span class="evcc-queue-chip-time${learned ? " evcc-queue-chip-time--learned" : ""}"
+              title="${learned
+                ? this.t("rooms.zone_time_learned", { count: samples })
+                : this.t("rooms.zone_time_estimated")}">${learned ? "" : "~"}${this.escapeHtml(this._formatLearningMinutes(zoneSeconds / 60))}</span>`
+          : "";
         chips.push(`
           <div class="evcc-queue-chip evcc-queue-chip--zone">
             ${moveHandle(`break:${bi}`)}
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">🎯</span>
             <span class="evcc-queue-chip-label">${this.escapeHtml(names)}</span>
+            ${timePart}
             ${queueMode ? removeBtn(bi) : ""}
           </div>`);
         return;

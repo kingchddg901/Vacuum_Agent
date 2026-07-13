@@ -853,6 +853,12 @@ export const roomStyles = `
     white-space: nowrap;
   }
 
+  /* A zone chip's time reads LEARNED (a real average) vs an ~estimate (area fallback):
+     learned takes the confident success hue; an estimate stays secondary + shows the ~ prefix. */
+  .evcc-queue-chip-time--learned {
+    color: var(--evcc-sem-success, #3ba55d);
+  }
+
   /* =========================================================
      QUEUE EXECUTION STATES
      ========================================================= */

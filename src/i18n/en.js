@@ -1148,6 +1148,8 @@ export const en = {
   "rooms.remove_break": "Remove break",  // aria/title on the queue-chip remove (X) control
   "rooms.add_zone": "+ Zone",  // chip: open the saved-zone picker to add a zone step to the queue
   "rooms.zone_fallback": "Zone",  // fallback name for a saved zone with no name / unresolved id
+  "rooms.zone_time_learned": "Learned from {count} run(s)",  // title on a zone chip's time when it's a learned average
+  "rooms.zone_time_estimated": "Estimated from zone size (no runs yet)",  // title on a zone chip's time when it's the area fallback (~)
   "rooms.zone_picker_title": "Add a zone step",  // header of the multi-select saved-zone picker
   "rooms.zone_picker_empty": "No saved zones on this map yet.",  // picker body when there are no saved zones
   "rooms.zone_picker_add": "Add to queue",  // picker confirm: inserts the selected zones as one step
