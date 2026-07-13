@@ -1818,6 +1818,8 @@
   },
   "rooms": {
     "access_not_set": "Access not set",
+    "add_charge_break": "+ Charge break",  // chip: insert a charge-to-% break into the queue (makes the run stepped)
+    "add_wait_break": "+ Wait break",  // chip: insert a timed wait break into the queue
     "another_room": "another room",
     "battery_label": "Battery: {value}",  // Estimate tooltip 'Battery: {value}'; {value} is the battery % the estimate assumed (a number)
     "block_reason": {
@@ -1836,6 +1838,7 @@
     "chip_charge_to": "Charge to {target}%",  // aria label for the editable charge chip
     "chip_wait": "Wait {minutes} min",  // aria label for the editable wait chip
     "chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
+    "clear_breaks": "Clear breaks",  // chip: remove all charge/wait breaks, back to a flat clean
     "clear_queue": "Clear Queue",
     "companion_animal": "Companion animal",
     "configure": "Configure",

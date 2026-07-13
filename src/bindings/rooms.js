@@ -268,6 +268,40 @@ export function applyRoomsBindings(proto) {
   );
 
   /* ======================================================
+     QUEUE BREAKS: add charge / add wait / clear
+     ====================================================== */
+
+  this.card._on(
+    this.card.$("[data-action='add-charge-break']"),
+    "click",
+    async () => {
+      await this.card._actions.addQueueBreak("charge_wait");
+      await this.card.refreshDashboardSnapshot?.();
+      this.card._scheduleRender();
+    }
+  );
+
+  this.card._on(
+    this.card.$("[data-action='add-wait-break']"),
+    "click",
+    async () => {
+      await this.card._actions.addQueueBreak("wait");
+      await this.card.refreshDashboardSnapshot?.();
+      this.card._scheduleRender();
+    }
+  );
+
+  this.card._on(
+    this.card.$("[data-action='clear-queue-breaks']"),
+    "click",
+    async () => {
+      await this.card._actions.clearQueueBreaks();
+      await this.card.refreshDashboardSnapshot?.();
+      this.card._scheduleRender();
+    }
+  );
+
+  /* ======================================================
      LEARNING: DISMISS SUMMARY
      ====================================================== */
 

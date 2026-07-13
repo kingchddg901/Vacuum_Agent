@@ -1124,6 +1124,8 @@ export const en = {
   "room_rules.value_placeholder_list": "value1, value2, ...",
   "room_rules.value_placeholder_text": "e.g. home, 25, true",
   "rooms.access_not_set": "Access not set",
+  "rooms.add_charge_break": "+ Charge break",  // chip: insert a charge-to-% break into the queue (makes the run stepped)
+  "rooms.add_wait_break": "+ Wait break",  // chip: insert a timed wait break into the queue
   "rooms.another_room": "another room",
   "rooms.battery_label": "Battery: {value}",  // Estimate tooltip 'Battery: {value}'; {value} is the battery % the estimate assumed (a number)
   "rooms.block_reason.no_rooms_included": "No rooms included.",  // start blocked: no rooms enabled for this map. Reason CODE from state/rooms.js, localized in the renderer
@@ -1140,6 +1142,7 @@ export const en = {
   "rooms.chip_charge_to": "Charge to {target}%",  // aria label for the editable charge chip
   "rooms.chip_wait": "Wait {minutes} min",  // aria label for the editable wait chip
   "rooms.chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
+  "rooms.clear_breaks": "Clear breaks",  // chip: remove all charge/wait breaks, back to a flat clean
   "rooms.clear_queue": "Clear Queue",
   "rooms.companion_animal": "Companion animal",
   "rooms.configure": "Configure",

@@ -6,6 +6,8 @@ import {
   SERVICE_START_SELECTED_ROOMS,
   SERVICE_CLEAR_QUEUE,
   SERVICE_UPDATE_ROOM_FIELDS,
+  SERVICE_ADD_QUEUE_BREAK,
+  SERVICE_CLEAR_QUEUE_BREAKS,
 } from "../constants.js";
 import { normalizeHex } from "../cards/map-room-color.js";
 
@@ -216,6 +218,42 @@ export function applyRoomsActions(proto) {
     // Queue invalidation should clear queue-derived learning
     // state while preserving queue-independent helper chips.
     this.state.clearLearningJobContext();
+  };
+
+  /**
+   * Add a charge/wait break to the live queue, turning it into a stepped run.
+   * Defaults to a mid-queue slot (the backend clamps to an interior position);
+   * charge defaults to 90%, wait to 20 min. Same pattern any future step type
+   * (empty_dust, zone) will reuse — just another break_type.
+   */
+  proto.addQueueBreak = async function (breakType, opts = {}) {
+    const vacuumEntityId = this.state.vacuumEntityId();
+    const mapId = this.state.activeMapId();
+    if (!vacuumEntityId || !mapId) return;
+    const enabledCount = this.state.enabledRoomCount?.() ?? 0;
+    const data = {
+      vacuum_entity_id: vacuumEntityId,
+      map_id: mapId,
+      break_type: breakType,
+      after_index: opts.afterIndex ?? Math.max(1, Math.floor(enabledCount / 2)),
+    };
+    if (breakType === "charge_wait") {
+      data.target_battery_percent = opts.targetBatteryPercent ?? 90;
+    } else {
+      data.wait_minutes = opts.waitMinutes ?? 20;
+    }
+    await this.callService(DOMAIN, SERVICE_ADD_QUEUE_BREAK, data);
+  };
+
+  /** Remove all queue breaks — the queue drops back to a flat clean. */
+  proto.clearQueueBreaks = async function () {
+    const vacuumEntityId = this.state.vacuumEntityId();
+    const mapId = this.state.activeMapId();
+    if (!vacuumEntityId || !mapId) return;
+    await this.callService(DOMAIN, SERVICE_CLEAR_QUEUE_BREAKS, {
+      vacuum_entity_id: vacuumEntityId,
+      map_id: mapId,
+    });
   };
 
   /** Enable all rooms that are currently disabled. */

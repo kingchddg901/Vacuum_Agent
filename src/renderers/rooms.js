@@ -520,6 +520,20 @@ proto.renderRoomsActionBar = function (
             class="evcc-chip ${clearQueueRequiresConfirmation ? "evcc-chip--start-warn evcc-chip--confirm-flash" : ""}"
             data-action="clear-queue"
           >${clearQueueRequiresConfirmation ? this.t("rooms.confirm_clear") : this.t("rooms.clear_queue")}</button>
+
+          ${!cardState?.hasActiveRun?.() && enabledCount >= 2 ? `
+            <button type="button" class="evcc-chip" data-action="add-charge-break">
+              ${this.t("rooms.add_charge_break")}
+            </button>
+            <button type="button" class="evcc-chip" data-action="add-wait-break">
+              ${this.t("rooms.add_wait_break")}
+            </button>
+          ` : ""}
+          ${!cardState?.hasActiveRun?.() && Boolean(cardState?.dashboardSnapshot?.()?.queue_steps?.has_breaks) ? `
+            <button type="button" class="evcc-chip" data-action="clear-queue-breaks">
+              ${this.t("rooms.clear_breaks")}
+            </button>
+          ` : ""}
         </div>
       </div>
 
