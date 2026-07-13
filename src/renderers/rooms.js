@@ -9,6 +9,8 @@
  * ============================================================
  */
 
+import { renderStepsManifest } from "../state/steps-manifest.js";
+
 /**
  * Local-block reason CODES that state/rooms.js returns (as opposed to raw backend
  * messages). The renderer localizes these via tRaw("rooms.block_reason.<code>");
@@ -40,11 +42,36 @@ export function applyRoomsRenderers(proto) {
    */
   proto.renderSteppedRunPreview = function (state) {
     if (state.hasActiveRun?.()) return "";
-    const profileId = state.pendingStepRunProfileId?.();
-    if (!profileId) return "";
-    const profile = (state.savedRunProfiles?.() ?? []).find((p) => p.id === profileId);
-    if (!profile || typeof this._renderRunProfileStepsSummary !== "function") return "";
     const collapsed = Boolean(state.isSteppedPreviewCollapsed?.());
+
+    // Source A — an explicitly applied stepped run profile (takes precedence).
+    const profileId = state.pendingStepRunProfileId?.();
+    const profile = profileId
+      ? (state.savedRunProfiles?.() ?? []).find((p) => p.id === profileId)
+      : null;
+
+    // Source B — the live queue's OWN ad-hoc breaks (charge/wait added straight to
+    // the queue, no saved profile). Surfaced via the dashboard snapshot's queue_steps.
+    const queueSteps = state.dashboardSnapshot?.()?.queue_steps ?? null;
+    const queueHasBreaks = Boolean(queueSteps?.has_breaks);
+
+    let body = "";
+    if (profile && typeof this._renderRunProfileStepsSummary === "function") {
+      body = this._renderRunProfileStepsSummary(state, profile);
+    } else if (queueHasBreaks) {
+      const nameById = {};
+      (state.getRoomsForActiveMap?.() ?? []).forEach((room) => {
+        nameById[String(room.id)] = room.name;
+      });
+      body = renderStepsManifest({
+        steps: queueSteps.steps,
+        nameById,
+        t: (key, vars) => this.t(key, vars),
+        escapeHtml: (s) => this.escapeHtml(s),
+      });
+    }
+    if (!body) return "";
+
     return `
       <div class="evcc-stepped-run-preview ${collapsed ? "evcc-stepped-run-preview--collapsed" : ""}">
         <button
@@ -57,7 +84,7 @@ export function applyRoomsRenderers(proto) {
           <span class="evcc-stepped-run-preview-caret" aria-hidden="true">${collapsed ? "▸" : "▾"}</span>
         </button>
         ${collapsed ? "" : `
-          ${this._renderRunProfileStepsSummary(state, profile)}
+          ${body}
           <div class="evcc-stepped-run-preview-note">${this.t("rooms.charge_time_varies")}</div>
         `}
       </div>
