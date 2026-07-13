@@ -10,6 +10,42 @@ only.
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-13
+
+### Added
+- **Zone steps — clean a saved zone as part of a room run.** A saved zone can now be
+  dropped into a cleaning run as a sequenced **step** (the **+ Zone** chip), alongside
+  charge and wait stops: *vacuum the kitchen, then clean the stove zone, then mop* runs as
+  one job. Works in an ad-hoc queue or saved into a run profile, on Eufy and Roborock.
+- **Zone learning.** The integration learns how long each saved zone takes — as a
+  wall-clock total, so a small mop zone's dock-prep and pad-wash count toward its estimate.
+  The zone's ETA gets more accurate every run (and starts from the zone's size before the
+  first run).
+- **The live queue.** While a job runs, the whole sequence shows as one collapsible chip
+  row — every room plus each charge, wait, and zone stop, marked done / current / upcoming
+  as the vacuum works through it.
+- **Zone automation recipes** (docs) — fire a saved zone from an automation
+  (`clean_saved_zone` / `clean_saved_zones`), and express "charge first / off-peak /
+  delayed" as start conditions rather than internal steps.
+
+### Fixed
+- **Re-queuing rooms mid-run no longer corrupts the finished run's record.** A completed
+  job records exactly what it cleaned, even if you start building the next queue while it's
+  still running.
+- **A rooms-then-zone run no longer loses room learning.** The finished record
+  reconstructs its rooms from every phase, so a run that ends on a zone still learns its
+  rooms.
+- **A saved rooms-plus-zone profile started from an automation no longer drops the zone.**
+- **The "Cleaning zone" banner clears when the zone finishes** instead of lingering through
+  mop drying.
+- The queue is locked while a job runs, so an accidental toggle can't disturb the run in
+  progress.
+
+### Changed
+- Documentation reconciled end-to-end for the zone feature — a new **Zones** user-guide
+  page, plus updated queue / live-monitoring / learning / automation references and the
+  developer docs.
+
 ## [1.8.0] - 2026-07-11
 
 ### Added
