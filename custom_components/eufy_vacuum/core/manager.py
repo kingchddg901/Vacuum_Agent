@@ -719,33 +719,43 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
         map_id: str,
     ) -> None:
-        """Turn all rooms off after a successful start so the next run begins empty."""
+        """Turn all rooms off AND drop interleaved breaks after a successful start so
+        the next run begins empty. The whole live queue — enabled rooms PLUS its
+        zone/wait/charge breaks — is consumed into this run's phases at launch, so both
+        backings must reset together; clearing only rooms leaves a trailing zone/wait as
+        an orphan chip in the composer once the run ends (map_bucket["queue_breaks"] is
+        derived-not-consumed by the dispatch, so nothing else drains it)."""
         map_bucket = ensure_map_bucket(
             data=self.data,
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
         )
-        rooms = map_bucket.get("rooms", {})
-        if not isinstance(rooms, dict) or not rooms:
-            return
 
-        changed = False
-        for room_key, room_data in list(rooms.items()):
-            if not isinstance(room_data, dict):
-                continue
-            if not bool(room_data.get("enabled", False)):
-                continue
-            rooms[room_key] = {
-                **room_data,
-                "enabled": False,
-            }
-            changed = True
+        # Breaks drain unconditionally — a trailing zone can ride a 1-room queue, so a
+        # break may outlive the room drain's "did any enabled room change?" test.
+        changed = bool(map_bucket.get("queue_breaks"))
+        map_bucket["queue_breaks"] = []
+
+        rooms = map_bucket.get("rooms", {})
+        if isinstance(rooms, dict) and rooms:
+            for room_key, room_data in list(rooms.items()):
+                if not isinstance(room_data, dict):
+                    continue
+                if not bool(room_data.get("enabled", False)):
+                    continue
+                rooms[room_key] = {
+                    **room_data,
+                    "enabled": False,
+                }
+                changed = True
+            map_bucket["rooms"] = rooms
 
         if not changed:
             return
 
-        map_bucket["rooms"] = rooms
-        map_bucket["summary"] = build_room_selection_summary(managed_rooms=rooms)
+        map_bucket["summary"] = build_room_selection_summary(
+            managed_rooms=map_bucket.get("rooms", {})
+        )
         self._refresh_room_derived_state(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),

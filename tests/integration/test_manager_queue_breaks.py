@@ -23,6 +23,7 @@
 [ZT-1] a zone can TRAIL (after_index == room_count -> cleaned after the last room).
 [ZT-2] set_queue_breaks: zone trails, charge/wait clamp to interior.
 [ZT-3] a rooms+zone queue (no charge) takes the stepped plan (gate fix; zone not dropped).
+[ZT-4] the launch reset drains breaks too (a trailing zone must not survive as an orphan chip).
 """
 
 from __future__ import annotations
@@ -385,3 +386,24 @@ async def test_rooms_plus_zone_takes_stepped_plan(manager):
     plan = manager._build_effective_start_plan(vacuum_entity_id=_VAC, map_id=_MAP)
     types = [p.get("phase_type") for p in plan["phases"]]
     assert "zone" in types
+
+
+async def test_launch_reset_drains_breaks_with_rooms(manager):
+    """[ZT-4] The launch reset (_clear_room_selections_after_start) drops the queue breaks
+    alongside disabling rooms — otherwise a trailing zone/wait outlives the run's room drain
+    and re-renders as an orphan chip in the composer once the run ends."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    _seed_saved_zone(manager)
+    manager.add_queue_zone(vacuum_entity_id=_VAC, map_id=_MAP, after_index=2, zone_ids=["z1"])
+    # Pre-condition: rooms enabled + a zone break present.
+    mb = manager.data["maps"][_VAC][_MAP]
+    assert any(r.get("enabled") for r in mb["rooms"].values())
+    assert mb.get("queue_breaks")
+
+    manager._clear_room_selections_after_start(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    mb = manager.data["maps"][_VAC][_MAP]
+    assert not any(r.get("enabled") for r in mb["rooms"].values())  # rooms drained
+    assert mb.get("queue_breaks") == []                            # AND breaks drained
+    res = manager.get_queue_steps(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert res["has_breaks"] is False
