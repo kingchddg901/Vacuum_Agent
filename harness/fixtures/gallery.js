@@ -96,6 +96,9 @@ const ROOMS_ACTIVE = {
     startPreflight: () => null,
     cancelRunRequiresConfirmation: () => false,
     clearQueueRequiresConfirmation: () => false,
+    // Suppress the null-object's truthy default so the zone-picker modal doesn't render
+    // over the active-job baseline (the picker is only openable pre-run in real use).
+    queueZonePickerOpen: () => false,
     canPauseRun: () => true,
     canResumeRun: () => false,
     hasLearningSummary: () => false,
