@@ -122,8 +122,11 @@ export function applyStepsQueueOrderState(proto) {
             };
             if (step.type === "charge_wait") {
               entry.target_battery_percent = step.target_battery_percent;
-            } else {
+            } else if (step.type === "wait") {
               entry.wait_minutes = step.wait_minutes;
+            } else if (step.type === "zone") {
+              // Carry zone_ids through or the backend normalize drops the zone on reorder.
+              entry.zone_ids = step.zone_ids;
             }
             breaks.push(entry);
           }

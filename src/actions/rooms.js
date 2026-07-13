@@ -326,9 +326,13 @@ export function applyRoomsActions(proto) {
           i === breakIndex && targetBatteryPercent != null
             ? targetBatteryPercent
             : step.target_battery_percent;
-      } else {
+      } else if (step.type === "wait") {
         out.wait_minutes =
           i === breakIndex && waitMinutes != null ? waitMinutes : step.wait_minutes;
+      } else if (step.type === "zone") {
+        // A zone has no editable value here, but its ids must survive a wholesale resend
+        // (editing a DIFFERENT break rebuilds the full list) or the backend drops the zone.
+        out.zone_ids = step.zone_ids;
       }
       return out;
     });

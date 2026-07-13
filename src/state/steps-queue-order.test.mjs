@@ -136,6 +136,23 @@ test("[SQO-rmove] a room move reindexes rooms AND recomputes break after_index",
   ]);
 });
 
+test("[SQO-zpersist] moving a zone preserves its zone_ids through persist (else it drops)", async () => {
+  const state = makeState({ rooms: [room("1", 1), room("2", 2), room("3", 3)] });
+  const adapter = state.getOrderAdapter("steps");
+  // Zone dragged to sit after room 2.
+  const nextItems = [
+    { kind: "room", room: { id: "1", order: 1 } },
+    { kind: "room", room: { id: "2", order: 2 } },
+    { kind: "break", breakIndex: 0, step: { type: "zone", zone_ids: ["z1", "z2"] } },
+    { kind: "room", room: { id: "3", order: 3 } },
+  ];
+  const { ctx, calls } = persistCtx();
+  await adapter.persist.call(ctx, nextItems, { itemId: "break:0" });
+  assert.deepEqual(calls.breaks, [
+    { after_index: 2, break_type: "zone", zone_ids: ["z1", "z2"] },
+  ]);
+});
+
 test("[SQO-after] after_index is derived from the NEW order (break dragged before all rooms clamps to 1)", async () => {
   const state = makeState({ rooms: [room("1", 1), room("2", 2)] });
   const adapter = state.getOrderAdapter("steps");
