@@ -50,6 +50,7 @@ SERVICE_GET_QUEUE_STEPS = "get_queue_steps"
 SERVICE_ADD_QUEUE_BREAK = "add_queue_break"
 SERVICE_REMOVE_QUEUE_BREAK = "remove_queue_break"
 SERVICE_CLEAR_QUEUE_BREAKS = "clear_queue_breaks"
+SERVICE_SET_QUEUE_BREAKS = "set_queue_breaks"
 SERVICE_CLEAR_ACTIVE_JOB = "clear_active_job"
 
 SERVICE_GET_LIFECYCLE_STATE = "get_lifecycle_state"

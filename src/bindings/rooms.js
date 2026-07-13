@@ -301,6 +301,36 @@ export function applyRoomsBindings(proto) {
     }
   );
 
+  /* Live-queue step chips: edit a break's charge %/wait minutes, or remove it.
+     (Reorder is the shared open-order-selector binding on the move handles.) */
+  this.card._onAll("[data-queue-break-charge-index]", "change", async (e) => {
+    const bi = Number(e.currentTarget.dataset.queueBreakChargeIndex);
+    const val = Number(e.currentTarget.value);
+    // Empty/junk input coerces to 0 (< the schema minimum); re-render to revert the display
+    // to the stored value rather than firing a doomed service call.
+    if (!Number.isFinite(bi) || !Number.isFinite(val) || val < 1) { this.card._scheduleRender(); return; }
+    await this.card._actions.updateQueueBreakParam(bi, { targetBatteryPercent: val });
+    await this.card.refreshDashboardSnapshot?.();
+    this.card._scheduleRender();
+  });
+
+  this.card._onAll("[data-queue-break-wait-index]", "change", async (e) => {
+    const bi = Number(e.currentTarget.dataset.queueBreakWaitIndex);
+    const val = Number(e.currentTarget.value);
+    if (!Number.isFinite(bi) || !Number.isFinite(val) || val < 1) { this.card._scheduleRender(); return; }
+    await this.card._actions.updateQueueBreakParam(bi, { waitMinutes: val });
+    await this.card.refreshDashboardSnapshot?.();
+    this.card._scheduleRender();
+  });
+
+  this.card._onAll("[data-action='remove-queue-break']", "click", async (e) => {
+    const bi = Number(e.currentTarget.dataset.breakIndex);
+    if (!Number.isFinite(bi)) return;
+    await this.card._actions.removeQueueBreak(bi);
+    await this.card.refreshDashboardSnapshot?.();
+    this.card._scheduleRender();
+  });
+
   /* ======================================================
      LEARNING: DISMISS SUMMARY
      ====================================================== */

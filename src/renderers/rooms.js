@@ -663,7 +663,7 @@ proto.renderRoomsActionBar = function (
         </div>
       ` : queueHasBreaks ? `
         <div class="evcc-queue-chips evcc-queue-chips--preview">
-          ${this._renderSteppedRunChips({ steps: queueStepsSnap.steps }, chipRoomById, chipMinutesById, true)}
+          ${this._renderSteppedRunChips({ steps: queueStepsSnap.steps }, chipRoomById, chipMinutesById, "queue")}
         </div>
       ` : queueRooms.length > 0 ? `
         <div class="evcc-queue-chips">
@@ -774,42 +774,69 @@ proto.renderRoomsActionBar = function (
    * @param {object} minutesById - room_id -> estimated minutes.
    * @returns {string} HTML string.
    */
-  proto._renderSteppedRunChips = function (profile, roomById, minutesById, readonly = false) {
+  proto._renderSteppedRunChips = function (profile, roomById, minutesById, mode = "profile") {
     const steps = Array.isArray(profile?.steps) ? profile.steps : [];
+    // "profile"  — editable inputs wired to the applied profile (data-chip-*-index).
+    // "queue"    — editable inputs wired to the live queue (data-queue-break-*-index),
+    //              plus a per-chip move handle (opens the steps reorder modal) and a remove.
+    // "readonly" — static value pills, no controls.
+    const queueMode = mode === "queue";
+    const displayOnly = mode === "readonly";
     const chips = [];
     let pos = 0;
+    let breakIdx = 0;
+
+    // Move handle: opens the shared move-to-position modal on the "steps" scope, seeded on
+    // this item. The generic open-order-selector binding reads data-scope + data-item-id.
+    const moveHandle = (itemId) => queueMode
+      ? `<button type="button" class="evcc-queue-chip-move"
+          data-action="open-order-selector" data-scope="steps" data-item-id="${this.escapeHtml(itemId)}"
+          title="${this.t("rooms.move_step")}" aria-label="${this.t("rooms.move_step")}">⇅</button>`
+      : "";
+    const removeBtn = (bi) => `<button type="button" class="evcc-queue-chip-remove"
+        data-action="remove-queue-break" data-break-index="${bi}"
+        title="${this.t("rooms.remove_break")}" aria-label="${this.t("rooms.remove_break")}">✕</button>`;
+
     steps.forEach((step, si) => {
       if (step && step.type === "charge_wait") {
         pos += 1;
+        const bi = breakIdx; breakIdx += 1;
         const target = Number(step.target_battery_percent ?? 100);
+        const valuePart = displayOnly
+          ? `<span class="evcc-queue-chip-time">${this.escapeHtml(String(target))}%</span>`
+          : `<input type="number" min="1" max="100" step="1"
+              value="${this.escapeHtml(String(target))}"
+              class="evcc-queue-chip-input" ${queueMode ? `data-queue-break-charge-index="${bi}"` : `data-chip-charge-index="${si}"`}
+              aria-label="${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}" /><span class="evcc-queue-chip-unit">%</span>`;
         chips.push(`
           <div class="evcc-queue-chip evcc-queue-chip--charge">
+            ${moveHandle(`break:${bi}`)}
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⚡</span>
             <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_label")}</span>
-            ${readonly
-              ? `<span class="evcc-queue-chip-time">${this.escapeHtml(String(target))}%</span>`
-              : `<input type="number" min="1" max="100" step="1"
-                  value="${this.escapeHtml(String(target))}"
-                  class="evcc-queue-chip-input" data-chip-charge-index="${si}"
-                  aria-label="${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}" /><span class="evcc-queue-chip-unit">%</span>`}
+            ${valuePart}
+            ${queueMode ? removeBtn(bi) : ""}
           </div>`);
         return;
       }
       if (step && step.type === "wait") {
         pos += 1;
+        const bi = breakIdx; breakIdx += 1;
         const mins = Number(step.wait_minutes ?? 30);
+        const valuePart = displayOnly
+          ? `<span class="evcc-queue-chip-time">${this.escapeHtml(String(mins))} ${this.t("run_profiles.minutes_unit")}</span>`
+          : `<input type="number" min="1" max="1440" step="1"
+              value="${this.escapeHtml(String(mins))}"
+              class="evcc-queue-chip-input" ${queueMode ? `data-queue-break-wait-index="${bi}"` : `data-chip-wait-index="${si}"`}
+              aria-label="${this.t("rooms.chip_wait", { minutes: this.escapeHtml(String(mins)) })}" /><span class="evcc-queue-chip-unit">${this.t("run_profiles.minutes_unit")}</span>`;
         chips.push(`
           <div class="evcc-queue-chip evcc-queue-chip--wait">
+            ${moveHandle(`break:${bi}`)}
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⏱</span>
             <span class="evcc-queue-chip-label">${this.t("rooms.chip_wait_label")}</span>
-            ${readonly
-              ? `<span class="evcc-queue-chip-time">${this.escapeHtml(String(mins))} ${this.t("run_profiles.minutes_unit")}</span>`
-              : `<input type="number" min="1" max="1440" step="1"
-                  value="${this.escapeHtml(String(mins))}"
-                  class="evcc-queue-chip-input" data-chip-wait-index="${si}"
-                  aria-label="${this.t("rooms.chip_wait", { minutes: this.escapeHtml(String(mins)) })}" /><span class="evcc-queue-chip-unit">${this.t("run_profiles.minutes_unit")}</span>`}
+            ${valuePart}
+            ${queueMode ? removeBtn(bi) : ""}
           </div>`);
         return;
       }
@@ -820,6 +847,19 @@ proto.renderRoomsActionBar = function (
         const room = roomById[rid];
         const name = room?.name ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(rid) });
         const mins = minutesById[rid];
+        // Queue mode renders room chips as a div (not a button) so the move handle nests
+        // legally; per-room editing stays in the room cards above. Other modes keep the
+        // interactive queue-chip button.
+        if (queueMode) {
+          chips.push(`
+            <div class="evcc-queue-chip evcc-queue-chip--queued">
+              ${moveHandle(`room:${rid}`)}
+              <span class="evcc-queue-chip-order">${pos}</span>
+              <span class="evcc-queue-chip-label">${this.escapeHtml(name)}</span>
+              ${mins != null ? `<span class="evcc-queue-chip-time">${this.escapeHtml(this._formatLearningMinutes(mins))}</span>` : ""}
+            </div>`);
+          continue;
+        }
         // A real room chip stays interactive (click to edit, long-press to toggle) via the
         // shared queue-chip binding — only the charge/wait "fake room" chips are display-only.
         chips.push(`

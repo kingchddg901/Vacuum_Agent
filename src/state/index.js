@@ -10,6 +10,7 @@ import { applySavedZonesState } from "./saved-zones.js";
 import { applyReviewState     } from "./review.js";
 import { applyRoomsState      } from "./rooms.js";
 import { applyRoomsOrderState } from "./rooms-order.js";
+import { applyStepsQueueOrderState } from "./steps-queue-order.js";
 import { applyRoomAccessState } from "./room-access.js";
 import { applyRoomEstimateState } from "./room-estimate.js";
 import { applyRoomEditorState } from "./room-editor.js";
@@ -70,6 +71,7 @@ applySavedZonesState(VacuumCardState.prototype);
 applyReviewState(VacuumCardState.prototype);
 applyRoomsState(VacuumCardState.prototype);
 applyRoomsOrderState(VacuumCardState.prototype);
+applyStepsQueueOrderState(VacuumCardState.prototype);  // chains onto rooms-order for scope "steps"
 applyRoomAccessState(VacuumCardState.prototype);
 applyRoomEstimateState(VacuumCardState.prototype);
 applyRoomEditorState(VacuumCardState.prototype);

@@ -28,6 +28,7 @@ from ..const import (
     SERVICE_GET_QUEUE_STATE,
     SERVICE_GET_QUEUE_STEPS,
     SERVICE_REMOVE_QUEUE_BREAK,
+    SERVICE_SET_QUEUE_BREAKS,
 )
 from ._common import VACUUM_MAP_SCHEMA, get_manager, resolved_call_data
 
@@ -43,6 +44,28 @@ _ADD_QUEUE_BREAK_SCHEMA = vol.Schema(
         vol.Optional("wait_minutes"): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=1440)
         ),
+    }
+)
+
+_QUEUE_BREAK_ENTRY_SCHEMA = vol.Schema(
+    {
+        vol.Required("after_index"): vol.Coerce(int),
+        vol.Required("break_type"): vol.In(["charge_wait", "wait"]),
+        vol.Optional("target_battery_percent"): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional("wait_minutes"): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=1440)
+        ),
+    }
+)
+
+_SET_QUEUE_BREAKS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Optional("map_id"): cv.string,
+        # The full desired break list; replaces the store wholesale (reorder + retarget).
+        vol.Required("breaks"): [_QUEUE_BREAK_ENTRY_SCHEMA],
     }
 )
 
@@ -67,6 +90,7 @@ SERVICES = (
     SERVICE_ADD_QUEUE_BREAK,
     SERVICE_REMOVE_QUEUE_BREAK,
     SERVICE_CLEAR_QUEUE_BREAKS,
+    SERVICE_SET_QUEUE_BREAKS,
 )
 
 
@@ -136,6 +160,14 @@ async def _handle_clear_queue_breaks(hass: HomeAssistant, call: ServiceCall) -> 
     return payload
 
 
+async def _handle_set_queue_breaks(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Replace all queue breaks wholesale (reorder + retarget in one call)."""
+    payload = get_manager(hass).set_queue_breaks(**resolved_call_data(hass, call))
+    _LOGGER.debug("set_queue_breaks complete: %s", payload)
+    await get_manager(hass).async_save()
+    return payload
+
+
 def register(hass: HomeAssistant) -> None:
     """Register queue services."""
 
@@ -165,6 +197,9 @@ def register(hass: HomeAssistant) -> None:
 
     async def clear_queue_breaks(call: ServiceCall) -> dict:
         return await _handle_clear_queue_breaks(hass, call)
+
+    async def set_queue_breaks(call: ServiceCall) -> dict:
+        return await _handle_set_queue_breaks(hass, call)
 
     hass.services.async_register(
         DOMAIN, SERVICE_BUILD_QUEUE, build_queue, schema=VACUUM_MAP_SCHEMA,
@@ -198,4 +233,8 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_CLEAR_QUEUE_BREAKS, clear_queue_breaks,
         schema=VACUUM_MAP_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_QUEUE_BREAKS, set_queue_breaks,
+        schema=_SET_QUEUE_BREAKS_SCHEMA, supports_response=True,
     )

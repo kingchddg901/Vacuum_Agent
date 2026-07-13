@@ -69,6 +69,7 @@ export const SERVICE_CLEAR_QUEUE            = "clear_queue";
 export const SERVICE_ADD_QUEUE_BREAK        = "add_queue_break";
 export const SERVICE_REMOVE_QUEUE_BREAK     = "remove_queue_break";
 export const SERVICE_CLEAR_QUEUE_BREAKS     = "clear_queue_breaks";
+export const SERVICE_SET_QUEUE_BREAKS       = "set_queue_breaks";
 export const SERVICE_GET_ACTIVE_JOB         = "get_active_job";
 export const SERVICE_CLEAR_ACTIVE_JOB       = "clear_active_job";
 export const SERVICE_GET_LIFECYCLE_STATE    = "get_lifecycle_state";

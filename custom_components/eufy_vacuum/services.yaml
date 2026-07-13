@@ -475,6 +475,36 @@ clear_queue_breaks:
       selector:
         text: {}
 
+set_queue_breaks:
+  name: Set queue breaks
+  description: >-
+    Replace ALL breaks on the live queue in one call — the single primitive
+    behind reordering breaks and editing their charge %/wait minutes. Send the
+    full desired list; after_index is clamped to sit between rooms.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    breaks:
+      name: Breaks
+      description: >-
+        Ordered list of breaks. Each item: after_index (rooms before the break),
+        break_type (charge_wait or wait), and target_battery_percent or
+        wait_minutes.
+      required: true
+      example: '[{"after_index": 1, "break_type": "charge_wait", "target_battery_percent": 90}]'
+      selector:
+        object: {}
+
 get_active_job:
   name: Get active job
   description: Return the current active job state including start time and battery.

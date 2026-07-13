@@ -8,6 +8,8 @@ import {
   SERVICE_UPDATE_ROOM_FIELDS,
   SERVICE_ADD_QUEUE_BREAK,
   SERVICE_CLEAR_QUEUE_BREAKS,
+  SERVICE_REMOVE_QUEUE_BREAK,
+  SERVICE_SET_QUEUE_BREAKS,
 } from "../constants.js";
 import { normalizeHex } from "../cards/map-room-color.js";
 
@@ -254,6 +256,62 @@ export function applyRoomsActions(proto) {
       vacuum_entity_id: vacuumEntityId,
       map_id: mapId,
     });
+  };
+
+  /** Remove a single break by its index in the ordered break list. */
+  proto.removeQueueBreak = async function (index) {
+    const vacuumEntityId = this.state.vacuumEntityId();
+    const mapId = this.state.activeMapId();
+    if (!vacuumEntityId || !mapId) return;
+    await this.callService(DOMAIN, SERVICE_REMOVE_QUEUE_BREAK, {
+      vacuum_entity_id: vacuumEntityId,
+      map_id: mapId,
+      index,
+    });
+  };
+
+  /**
+   * Replace ALL queue breaks in one call — the primitive behind reordering (from the
+   * steps order adapter's persist) and param-edit. `breaks` is the full desired list of
+   * {after_index, break_type, target_battery_percent?|wait_minutes?}; the backend clamps
+   * and re-sorts.
+   */
+  proto.persistQueueBreaks = async function (breaks) {
+    const vacuumEntityId = this.state.vacuumEntityId();
+    const mapId = this.state.activeMapId();
+    if (!vacuumEntityId || !mapId) return;
+    await this.callService(DOMAIN, SERVICE_SET_QUEUE_BREAKS, {
+      vacuum_entity_id: vacuumEntityId,
+      map_id: mapId,
+      breaks: Array.isArray(breaks) ? breaks : [],
+    });
+  };
+
+  /**
+   * Edit one break's value (charge % or wait minutes). The queue is wholesale, so read the
+   * current breaks off the snapshot, swap the one field, and resend the full list.
+   */
+  proto.updateQueueBreakParam = async function (breakIndex, { targetBatteryPercent, waitMinutes } = {}) {
+    const current = this.state.dashboardSnapshot?.()?.queue_steps?.breaks;
+    if (!Array.isArray(current)) return;
+    const breaks = current.map((entry, i) => {
+      const step = entry?.step || {};
+      const out = {
+        after_index: entry?.after_index,
+        break_type: step.type,
+      };
+      if (step.type === "charge_wait") {
+        out.target_battery_percent =
+          i === breakIndex && targetBatteryPercent != null
+            ? targetBatteryPercent
+            : step.target_battery_percent;
+      } else {
+        out.wait_minutes =
+          i === breakIndex && waitMinutes != null ? waitMinutes : step.wait_minutes;
+      }
+      return out;
+    });
+    await this.persistQueueBreaks(breaks);
   };
 
   /** Enable all rooms that are currently disabled. */

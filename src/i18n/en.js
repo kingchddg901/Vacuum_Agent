@@ -1144,6 +1144,8 @@ export const en = {
   "rooms.chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
   "rooms.clear_breaks": "Clear breaks",  // chip: remove all charge/wait breaks, back to a flat clean
   "rooms.clear_queue": "Clear Queue",
+  "rooms.move_step": "Move step",  // aria/title on the queue-chip reorder grip (opens the move-to-position modal)
+  "rooms.remove_break": "Remove break",  // aria/title on the queue-chip remove (X) control
   "rooms.companion_animal": "Companion animal",
   "rooms.configure": "Configure",
   "rooms.configure_map": "Configure map",

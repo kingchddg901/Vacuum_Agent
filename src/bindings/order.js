@@ -156,6 +156,14 @@ export function applyOrderBindings(proto) {
     await this._runOrderMutationWithFlip(scope, movedItemId, async () => {
       return await this.card._actions.confirmOrderedPositionChange();
     });
+
+    // Queue breaks live in the manager store (surfaced via the dashboard snapshot), not in
+    // entity state, so a steps reorder needs an explicit refresh for the re-derived sequence
+    // to appear. Room-only scopes refresh implicitly via their number-entity updates.
+    if (scope === "steps") {
+      await this.card.refreshDashboardSnapshot?.();
+      this.card._scheduleRender?.();
+    }
   };
 
   /**

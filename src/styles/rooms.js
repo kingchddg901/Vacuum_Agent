@@ -894,6 +894,36 @@ export const roomStyles = `
     line-height: 1;
   }
 
+  /* Inline chip controls: reorder grip + remove, shown on the live-queue step chips. */
+  .evcc-queue-chip-move,
+  .evcc-queue-chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--evcc-text-secondary);
+    font-size: 0.72rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.7;
+  }
+  .evcc-queue-chip-move {
+    cursor: grab;
+  }
+  .evcc-queue-chip-move:hover,
+  .evcc-queue-chip-remove:hover {
+    opacity: 1;
+    background: var(--evcc-surface-hover, rgba(255, 255, 255, 0.08));
+  }
+  .evcc-queue-chip-remove:hover {
+    color: var(--evcc-sem-error, #d9534f);
+  }
+
   .evcc-queue-chip--remaining {
     opacity: 0.92;
   }

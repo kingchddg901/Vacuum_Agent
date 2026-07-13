@@ -1616,6 +1616,9 @@ class EufyVacuumManager:
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
             "steps": steps,
+            # Raw ordered breaks ({after_index, step}) so the card can reconstruct the
+            # combined rooms+breaks reorder list without re-deriving from the grouped steps.
+            "breaks": breaks,
             "has_breaks": any(
                 s.get("type") in ("charge_wait", "wait") for s in steps
             ),
@@ -1689,6 +1692,65 @@ class EufyVacuumManager:
         map_bucket["queue_breaks"] = []
         self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
         return self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+
+    def set_queue_breaks(
+        self, *, vacuum_entity_id: str, map_id: str, breaks: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Replace ALL queue breaks wholesale — the single primitive behind reorder and
+        param-edit (mirrors ``set_run_profile_steps``: the card sends the full desired list,
+        so there is no per-break index-shift to reason about).
+
+        Each entry: ``{after_index, break_type|type, target_battery_percent?, wait_minutes?}``.
+        after_index is clamped to ``[1, room_count-1]``; entries that fail normalize are dropped;
+        ties on after_index keep input order (stable sort) so two breaks between the same rooms
+        preserve the caller's sequence. With fewer than two rooms, breaks are meaningless -> clear.
+        """
+        map_bucket = ensure_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        room_count = len(
+            self._enabled_room_ids_in_order(map_bucket, vacuum_entity_id, map_id)
+        )
+        if room_count < 2:
+            map_bucket["queue_breaks"] = []
+            self._notify_rooms_updated(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+            )
+            return {
+                "set": False,
+                "reason": "needs_two_rooms",
+                **self.get_queue_steps(
+                    vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+                ),
+            }
+
+        out: list[dict[str, Any]] = []
+        for entry in breaks if isinstance(breaks, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            btype = str(entry.get("break_type") or entry.get("type") or "").strip().lower()
+            if btype == "charge_wait":
+                spec = {
+                    "type": "charge_wait",
+                    "target_battery_percent": entry.get("target_battery_percent"),
+                }
+            elif btype == "wait":
+                spec = {"type": "wait", "wait_minutes": entry.get("wait_minutes")}
+            else:
+                continue
+            normalized = self.profiles.normalize_run_profile_steps([spec])
+            if not normalized:
+                continue
+            after = max(1, min(_safe_int(entry.get("after_index"), 1), room_count - 1))
+            out.append({"after_index": after, "step": normalized[0]})
+
+        out.sort(key=lambda e: e["after_index"])
+        map_bucket["queue_breaks"] = out
+        self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        return {
+            "set": True,
+            **self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)),
+        }
 
     # ------------------------------------------------------------------
     # Run profiles — delegates to ProfileManager

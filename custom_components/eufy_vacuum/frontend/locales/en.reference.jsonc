@@ -1840,6 +1840,8 @@
     "chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
     "clear_breaks": "Clear breaks",  // chip: remove all charge/wait breaks, back to a flat clean
     "clear_queue": "Clear Queue",
+    "move_step": "Move step",  // aria/title on the queue-chip reorder grip (opens the move-to-position modal)
+    "remove_break": "Remove break",  // aria/title on the queue-chip remove (X) control
     "companion_animal": "Companion animal",
     "configure": "Configure",
     "configure_map": "Configure map",
