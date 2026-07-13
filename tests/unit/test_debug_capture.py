@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from custom_components.eufy_vacuum.debug_capture import (
+    TARGET_ALL_FLAGGED,
+    TARGET_EVERYTHING,
     DebugCapture,
     build_debug_switch,
     build_debug_target_select,
@@ -243,8 +245,11 @@ def test_target_kwargs_parsing(capture):
     assert capture.target_kwargs() == {"services": ["start_zone_clean"]}
     capture.set_target("Area: map")
     assert capture.target_kwargs() == {"areas": ["map"]}
-    capture.set_target("Everything")
+    capture.set_target(TARGET_EVERYTHING)
     assert capture.target_kwargs() == {}
+    # Default arms ALL flagged services (svc_demo is registered at import).
+    capture.set_target(TARGET_ALL_FLAGGED)
+    assert "svc_demo" in capture.target_kwargs()["services"]
 
 
 @pytest.mark.asyncio
@@ -252,9 +257,11 @@ async def test_target_select_options_and_selection(global_capture):
     sel = build_debug_target_select(MagicMock(), domain="eufy_vacuum")
     sel.async_write_ha_state = MagicMock()
     opts = sel.options
-    assert "Everything" in opts
+    assert TARGET_ALL_FLAGGED in opts
+    assert TARGET_EVERYTHING in opts
     assert "Service: svc_demo" in opts  # from the module-level @debug_traceable
     assert "Area: map" in opts  # from TEST_AREAS (autouse fixture)
+    assert sel.current_option == TARGET_ALL_FLAGGED  # default
     await sel.async_select_option("Service: svc_demo")
     assert global_capture.get_target() == "Service: svc_demo"
     assert sel.current_option == "Service: svc_demo"
@@ -268,7 +275,7 @@ async def test_switch_start_stop_and_autodump(global_capture):
     sw.async_write_ha_state = MagicMock()
 
     assert sw.is_on is False
-    global_capture.set_target("Everything")
+    global_capture.set_target(TARGET_EVERYTHING)  # unfiltered, so the plain log is caught
     await sw.async_turn_on()
     assert sw.is_on is True
 

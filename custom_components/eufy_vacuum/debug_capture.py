@@ -52,6 +52,10 @@ MAX_CAPACITY = 50000
 # dashboard snapshot) can't bloat the dump.
 MAX_MESSAGE_CHARS = 2000
 
+# Target-select sentinels (the non-``Service:`` / non-``Area:`` options).
+TARGET_ALL_FLAGGED = "All flagged services"  # the default: arm every @debug_traceable
+TARGET_EVERYTHING = "Everything (unfiltered)"  # explicit opt-in to a full global capture
+
 # The four service names this helper registers. Fixed — the caller supplies the domain.
 DEBUG_CAPTURE_START = "debug_capture_start"
 DEBUG_CAPTURE_STOP = "debug_capture_stop"
@@ -165,7 +169,7 @@ class DebugCapture:
         self._areas: list[str] = []
         self._targets: set[str] = set()
         self._span_depth = 0
-        self._target: str = "Everything"  # the UI target-select's current option
+        self._target: str = TARGET_ALL_FLAGGED  # the UI target-select's current option
         self._last_dump_file: str | None = None
         self._last: collections.deque[dict[str, Any]] = collections.deque()
 
@@ -288,19 +292,23 @@ class DebugCapture:
     # -- UI target (switch/select helper) ----------------------------------
 
     def set_target(self, option: str) -> None:
-        self._target = option or "Everything"
+        self._target = option or TARGET_ALL_FLAGGED
 
     def get_target(self) -> str:
         return self._target
 
     def target_kwargs(self) -> dict[str, Any]:
-        """Parse the current UI target option into ``start()`` kwargs."""
-        opt = self._target or "Everything"
+        """Parse the current UI target option into ``start()`` kwargs. Defaults to arming
+        ALL flagged services (targeted spans) — narrow to one service/area, or pick
+        "Everything" for a full unfiltered capture, explicitly."""
+        opt = self._target or TARGET_ALL_FLAGGED
         if opt.startswith("Service: "):
             return {"services": [opt[len("Service: "):]]}
         if opt.startswith("Area: "):
             return {"areas": [opt[len("Area: "):]]}
-        return {}
+        if opt == TARGET_EVERYTHING:
+            return {}  # global, unfiltered
+        return {"services": traceable_services()}  # all flagged (default)
 
     def note_dump(self, path: str) -> None:
         self._last_dump_file = path
@@ -573,7 +581,7 @@ class DebugTargetSelect(SelectEntity):
     @property
     def options(self) -> list[str]:
         return (
-            ["Everything"]
+            [TARGET_ALL_FLAGGED, TARGET_EVERYTHING]
             + [f"Service: {s}" for s in traceable_services()]
             + [f"Area: {a}" for a in area_names()]
         )
@@ -581,7 +589,7 @@ class DebugTargetSelect(SelectEntity):
     @property
     def current_option(self) -> str | None:
         target = get_capture().get_target()
-        return target if target in self.options else "Everything"
+        return target if target in self.options else TARGET_ALL_FLAGGED
 
     async def async_select_option(self, option: str) -> None:
         get_capture().set_target(option)
