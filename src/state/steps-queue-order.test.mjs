@@ -15,13 +15,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyStepsQueueOrderState } from "./steps-queue-order.js";
 
-function makeState({ rooms = [], breaks = [], prev } = {}) {
+function makeState({ rooms = [], breaks = [], prev, savedZones = [] } = {}) {
   const proto = {};
   proto.getOrderAdapter = prev ?? (() => null);
   applyStepsQueueOrderState(proto);
   const state = Object.create(proto);
   state.getRoomsForActiveMap = () => rooms;
   state.dashboardSnapshot = () => ({ queue_steps: { breaks } });
+  state.savedZones = () => savedZones;
   return state;
 }
 
@@ -75,6 +76,18 @@ test("[SQO-label] break labels use the compact translator-free format", () => {
   const items = state.getOrderAdapter("steps").getItems.call(state);
   const labels = items.filter((i) => i.kind === "break").map((i) => i._label);
   assert.deepEqual(labels, ["⚡ 85%", "⏱ 15 min"]);
+});
+
+test("[SQO-zone] a zone break resolves its ids to saved-zone names in the label", () => {
+  const state = makeState({
+    rooms: [room("1", 1), room("2", 2)],
+    breaks: [{ after_index: 1, step: { type: "zone", zone_ids: ["z1", "z2"] } }],
+    savedZones: [{ id: "z1", name: "Kennel" }, { id: "z2", name: "Entry" }],
+  });
+  const items = state.getOrderAdapter("steps").getItems.call(state);
+  const zone = items.find((i) => i.kind === "break");
+  assert.equal(zone._label, "🎯 Kennel, Entry");
+  assert.equal(zone._id, "break:0");
 });
 
 test("[SQO-chain] non-steps scopes fall through to the prior adapter", () => {

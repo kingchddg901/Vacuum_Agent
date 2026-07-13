@@ -11,6 +11,33 @@ export function applySavedZonesState(proto) {
     return this._savedZonesLibrary ?? this._mapSegmentsData?.saved_zones ?? [];
   };
 
+  // Queue zone picker: a transient multi-select for inserting a zone STEP into the live
+  // queue. Deliberately separate from the panel's _savedZoneSelection ("clean N now") set
+  // so the two flows never cross-contaminate.
+  proto.queueZonePickerOpen = function () {
+    return !!this._queueZonePickerOpen;
+  };
+  proto.openQueueZonePicker = function () {
+    this._queueZonePickerOpen = true;
+    this._queueZonePickerSel = new Set();
+  };
+  proto.closeQueueZonePicker = function () {
+    this._queueZonePickerOpen = false;
+    this._queueZonePickerSel = new Set();
+  };
+  proto.toggleQueueZonePick = function (id) {
+    const s = this._queueZonePickerSel ?? (this._queueZonePickerSel = new Set());
+    const key = String(id);
+    if (s.has(key)) s.delete(key);
+    else s.add(key);
+  };
+  proto.isQueueZonePicked = function (id) {
+    return !!(this._queueZonePickerSel && this._queueZonePickerSel.has(String(id)));
+  };
+  proto.queueZonePickerSelected = function () {
+    return Array.from(this._queueZonePickerSel ?? []);
+  };
+
   proto.setSavedZonesLibrary = function (zones) {
     this._savedZonesLibrary = Array.isArray(zones) ? zones : [];
     // Prune the multi-select of any ids that no longer exist (deleted / re-mapped away),

@@ -7,6 +7,7 @@ import {
   SERVICE_CLEAR_QUEUE,
   SERVICE_UPDATE_ROOM_FIELDS,
   SERVICE_ADD_QUEUE_BREAK,
+  SERVICE_ADD_QUEUE_ZONE,
   SERVICE_CLEAR_QUEUE_BREAKS,
   SERVICE_REMOVE_QUEUE_BREAK,
   SERVICE_SET_QUEUE_BREAKS,
@@ -245,6 +246,26 @@ export function applyRoomsActions(proto) {
       data.wait_minutes = opts.waitMinutes ?? 20;
     }
     await this.callService(DOMAIN, SERVICE_ADD_QUEUE_BREAK, data);
+  };
+
+  /**
+   * Insert a zone step — clean the named saved zones together in one phase, at a
+   * default mid-queue slot (backend clamps to an interior position). The same
+   * inserted-step path as a break, so it reorders/removes through the P3b machinery.
+   */
+  proto.addQueueZone = async function (zoneIds, opts = {}) {
+    const vacuumEntityId = this.state.vacuumEntityId();
+    const mapId = this.state.activeMapId();
+    if (!vacuumEntityId || !mapId) return;
+    const ids = (Array.isArray(zoneIds) ? zoneIds : []).map(String).filter(Boolean);
+    if (!ids.length) return;
+    const enabledCount = this.state.enabledRoomCount?.() ?? 0;
+    await this.callService(DOMAIN, SERVICE_ADD_QUEUE_ZONE, {
+      vacuum_entity_id: vacuumEntityId,
+      map_id: mapId,
+      after_index: opts.afterIndex ?? Math.max(1, Math.floor(enabledCount / 2)),
+      zone_ids: ids,
+    });
   };
 
   /** Remove all queue breaks — the queue drops back to a flat clean. */

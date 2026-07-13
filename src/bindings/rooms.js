@@ -331,6 +331,35 @@ export function applyRoomsBindings(proto) {
     this.card._scheduleRender();
   });
 
+  /* Zone picker: open, toggle a zone in the multi-select, confirm (add the whole
+     selection as one zone step), cancel. */
+  this.card._on(this.card.$("[data-action='open-zone-picker']"), "click", () => {
+    this.card._state.openQueueZonePicker?.();
+    this.card._scheduleRender();
+  });
+
+  this.card._onAll("[data-action='toggle-zone-pick']", "click", (e) => {
+    const id = e.currentTarget.dataset.zoneId;
+    if (id == null) return;
+    this.card._state.toggleQueueZonePick?.(id);
+    this.card._scheduleRender();
+  });
+
+  this.card._onAll("[data-action='close-zone-picker']", "click", () => {
+    this.card._state.closeQueueZonePicker?.();
+    this.card._scheduleRender();
+  });
+
+  this.card._on(this.card.$("[data-action='confirm-zone-picker']"), "click", async () => {
+    const ids = this.card._state.queueZonePickerSelected?.() ?? [];
+    this.card._state.closeQueueZonePicker?.();
+    if (ids.length) {
+      await this.card._actions.addQueueZone(ids);
+      await this.card.refreshDashboardSnapshot?.();
+    }
+    this.card._scheduleRender();
+  });
+
   /* ======================================================
      LEARNING: DISMISS SUMMARY
      ====================================================== */

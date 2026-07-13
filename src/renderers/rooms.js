@@ -537,6 +537,11 @@ proto.renderRoomsActionBar = function (
             <button type="button" class="evcc-chip" data-action="add-wait-break">
               ${this.t("rooms.add_wait_break")}
             </button>
+            ${(cardState?.savedZones?.() ?? []).length ? `
+              <button type="button" class="evcc-chip" data-action="open-zone-picker">
+                ${this.t("rooms.add_zone")}
+              </button>
+            ` : ""}
           ` : ""}
           ${!cardState?.hasActiveRun?.() && Boolean(cardState?.dashboardSnapshot?.()?.queue_steps?.has_breaks) ? `
             <button type="button" class="evcc-chip" data-action="clear-queue-breaks">
@@ -760,9 +765,54 @@ proto.renderRoomsActionBar = function (
         </div>
       `}
 
+      ${this.renderZonePickerModal(cardState)}
     </div>
   `;
 };
+
+  /**
+   * Multi-select saved-zone picker for inserting a zone STEP. A fixed-position modal
+   * (renders correctly wherever it sits in the DOM); tapping a zone toggles it, Add inserts
+   * one zone step cleaning the whole selection.
+   *
+   * @param {object} cardState - The card state accessor.
+   * @returns {string} HTML string (empty when the picker is closed).
+   */
+  proto.renderZonePickerModal = function (cardState) {
+    if (!cardState?.queueZonePickerOpen?.()) return "";
+    const zones = cardState.savedZones?.() ?? [];
+    const selectedCount = (cardState.queueZonePickerSelected?.() ?? []).length;
+    return `
+      <div class="evcc-modal-backdrop" data-action="close-zone-picker">
+        <div class="evcc-modal" data-stop-propagation>
+          <div class="evcc-modal-header">
+            <div class="evcc-modal-title">${this.t("rooms.zone_picker_title")}</div>
+            <button type="button" class="evcc-chip evcc-chip--icon" data-action="close-zone-picker"
+              title="${this.t("common.close")}">✕</button>
+          </div>
+          <div class="evcc-modal-body">
+            ${zones.length ? `
+              <div class="evcc-zone-picker-list">
+                ${zones.map((z) => `
+                  <button type="button"
+                    class="evcc-zone-picker-item ${cardState.isQueueZonePicked?.(z.id) ? "is-picked" : ""}"
+                    data-action="toggle-zone-pick" data-zone-id="${this.escapeHtml(String(z.id))}">
+                    <span class="evcc-zone-picker-check" aria-hidden="true">${cardState.isQueueZonePicked?.(z.id) ? "☑" : "☐"}</span>
+                    <span class="evcc-zone-picker-name">🎯 ${this.escapeHtml(z.name ?? this.t("rooms.zone_fallback"))}</span>
+                  </button>
+                `).join("")}
+              </div>
+            ` : `<div class="evcc-queue-empty">${this.t("rooms.zone_picker_empty")}</div>`}
+          </div>
+          <div class="evcc-modal-footer">
+            <button type="button" class="evcc-chip" data-action="close-zone-picker">${this.t("common.cancel")}</button>
+            <button type="button" class="evcc-chip evcc-chip--save" data-action="confirm-zone-picker"
+              ${selectedCount ? "" : "disabled"}>${this.t("rooms.zone_picker_add")}</button>
+          </div>
+        </div>
+      </div>
+    `;
+  };
 
   /**
    * Render the pre-run queue chips from a stepped profile's ordered steps: each room_group's
@@ -785,6 +835,13 @@ proto.renderRoomsActionBar = function (
     const chips = [];
     let pos = 0;
     let breakIdx = 0;
+
+    // Zone chips show saved-zone NAMES (the step carries ids).
+    const savedZones = this.card?._state?.savedZones?.() ?? [];
+    const zoneNameById = {};
+    (Array.isArray(savedZones) ? savedZones : []).forEach((z) => {
+      if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
+    });
 
     // Move handle: opens the shared move-to-position modal on the "steps" scope, seeded on
     // this item. The generic open-order-selector binding reads data-scope + data-item-id.
@@ -836,6 +893,23 @@ proto.renderRoomsActionBar = function (
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⏱</span>
             <span class="evcc-queue-chip-label">${this.t("rooms.chip_wait_label")}</span>
             ${valuePart}
+            ${queueMode ? removeBtn(bi) : ""}
+          </div>`);
+        return;
+      }
+      if (step && step.type === "zone") {
+        pos += 1;
+        const bi = breakIdx; breakIdx += 1;
+        const ids = Array.isArray(step.zone_ids) ? step.zone_ids : [];
+        const names = ids
+          .map((id) => zoneNameById[String(id)] || this.t("rooms.zone_fallback"))
+          .join(", ");
+        chips.push(`
+          <div class="evcc-queue-chip evcc-queue-chip--zone">
+            ${moveHandle(`break:${bi}`)}
+            <span class="evcc-queue-chip-order">${pos}</span>
+            <span class="evcc-queue-chip-charge-icon" aria-hidden="true">🎯</span>
+            <span class="evcc-queue-chip-label">${this.escapeHtml(names)}</span>
             ${queueMode ? removeBtn(bi) : ""}
           </div>`);
         return;

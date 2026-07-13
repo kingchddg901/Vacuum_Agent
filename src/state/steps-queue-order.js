@@ -41,6 +41,24 @@ export function applyStepsQueueOrderState(proto) {
           (a, b) => (Number(a?.order) || 999999) - (Number(b?.order) || 999999)
         );
 
+        // Zone labels need saved-zone names (ids -> names); breaks carry their own value.
+        const savedZones = this.savedZones?.() ?? [];
+        const zoneNameById = {};
+        (Array.isArray(savedZones) ? savedZones : []).forEach((z) => {
+          if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
+        });
+        const _breakLabel = (step) => {
+          if (step.type === "charge_wait") return `⚡ ${Number(step.target_battery_percent ?? 100)}%`;
+          if (step.type === "wait") return `⏱ ${Number(step.wait_minutes ?? 30)} min`;
+          if (step.type === "zone") {
+            const names = (Array.isArray(step.zone_ids) ? step.zone_ids : [])
+              .map((id) => zoneNameById[String(id)] || "?")
+              .join(", ");
+            return `🎯 ${names}`;
+          }
+          return "•";
+        };
+
         // Interleave: a break with after_index === K sits after the K-th room
         // (mirrors the backend get_queue_steps derivation).
         const items = [];
@@ -55,10 +73,7 @@ export function applyStepsQueueOrderState(proto) {
               breakIndex: bi,
               step,
               _id: `${BREAK}:${bi}`,
-              _label:
-                step.type === "charge_wait"
-                  ? `⚡ ${Number(step.target_battery_percent ?? 100)}%`
-                  : `⏱ ${Number(step.wait_minutes ?? 30)} min`,
+              _label: _breakLabel(step),
               _seq: seq,
             });
           });

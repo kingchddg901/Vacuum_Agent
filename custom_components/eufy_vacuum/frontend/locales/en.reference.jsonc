@@ -1842,6 +1842,11 @@
     "clear_queue": "Clear Queue",
     "move_step": "Move step",  // aria/title on the queue-chip reorder grip (opens the move-to-position modal)
     "remove_break": "Remove break",  // aria/title on the queue-chip remove (X) control
+    "add_zone": "+ Zone",  // chip: open the saved-zone picker to add a zone step to the queue
+    "zone_fallback": "Zone",  // fallback name for a saved zone with no name / unresolved id
+    "zone_picker_title": "Add a zone step",  // header of the multi-select saved-zone picker
+    "zone_picker_empty": "No saved zones on this map yet.",  // picker body when there are no saved zones
+    "zone_picker_add": "Add to queue",  // picker confirm: inserts the selected zones as one step
     "companion_animal": "Companion animal",
     "configure": "Configure",
     "configure_map": "Configure map",

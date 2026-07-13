@@ -871,6 +871,44 @@ export const roomStyles = `
     background: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 12%, transparent);
   }
 
+  .evcc-queue-chip--zone {
+    border-color: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 50%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 12%, transparent);
+  }
+
+  /* Saved-zone multi-select picker (insert a zone step). */
+  .evcc-zone-picker-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .evcc-zone-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--evcc-border-default);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--evcc-text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .evcc-zone-picker-item.is-picked {
+    border-color: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 55%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 12%, transparent);
+  }
+  .evcc-zone-picker-check {
+    font-size: 1rem;
+    line-height: 1;
+  }
+  .evcc-zone-picker-name {
+    flex: 1;
+  }
+
   .evcc-queue-chip-input {
     width: 44px;
     min-height: 22px;
