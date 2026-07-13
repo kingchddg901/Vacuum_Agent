@@ -8,11 +8,14 @@ INFO+ still passes through to the root; stop restores the logger exactly.
 from __future__ import annotations
 
 import logging
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from custom_components.eufy_vacuum.debug_capture import (
     DebugCapture,
+    build_debug_switch,
+    build_debug_target_select,
     configure,
     debug_traceable,
     get_capture,
@@ -233,6 +236,48 @@ async def test_unarmed_service_not_bracketed(global_capture):
     assert result == {"ok": True, "n": 1}
     # Not a target -> not bracketed; targeted gate -> nothing captured at all.
     assert global_capture.records() == []
+
+
+def test_target_kwargs_parsing(capture):
+    capture.set_target("Service: start_zone_clean")
+    assert capture.target_kwargs() == {"services": ["start_zone_clean"]}
+    capture.set_target("Area: map")
+    assert capture.target_kwargs() == {"areas": ["map"]}
+    capture.set_target("Everything")
+    assert capture.target_kwargs() == {}
+
+
+@pytest.mark.asyncio
+async def test_target_select_options_and_selection(global_capture):
+    sel = build_debug_target_select(MagicMock(), domain="eufy_vacuum")
+    sel.async_write_ha_state = MagicMock()
+    opts = sel.options
+    assert "Everything" in opts
+    assert "Service: svc_demo" in opts  # from the module-level @debug_traceable
+    assert "Area: map" in opts  # from TEST_AREAS (autouse fixture)
+    await sel.async_select_option("Service: svc_demo")
+    assert global_capture.get_target() == "Service: svc_demo"
+    assert sel.current_option == "Service: svc_demo"
+
+
+@pytest.mark.asyncio
+async def test_switch_start_stop_and_autodump(global_capture):
+    hass = MagicMock()
+    hass.async_add_executor_job = AsyncMock(return_value="/config/eufy_vacuum/debug/debug-x.log")
+    sw = build_debug_switch(hass, domain="eufy_vacuum")
+    sw.async_write_ha_state = MagicMock()
+
+    assert sw.is_on is False
+    global_capture.set_target("Everything")
+    await sw.async_turn_on()
+    assert sw.is_on is True
+
+    logging.getLogger(f"{PKG}.mapping.x").debug("captured line")
+    await sw.async_turn_off()
+
+    assert sw.is_on is False
+    hass.async_add_executor_job.assert_awaited_once()  # auto-dump on off
+    assert global_capture.last_dump_file == "/config/eufy_vacuum/debug/debug-x.log"
 
 
 def test_render_text_is_readable():

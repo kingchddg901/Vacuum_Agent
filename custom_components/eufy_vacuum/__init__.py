@@ -94,6 +94,7 @@ PLATFORMS: list[str] = [
     "binary_sensor",
     "button",
     "switch",
+    "select",
     "number",
     "sensor",
 ]

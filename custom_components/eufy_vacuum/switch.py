@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
+from .debug_capture import build_debug_switch
 from .entity_helpers import sort_room_items
 from .room_entities import EufyVacuumRoomEntity
 
@@ -43,6 +44,8 @@ async def async_setup_entry(
                 entities.append(entity)
                 entity_map[entity.unique_id] = entity
 
+    # Integration-level diagnostic: the debug flight-recorder toggle (added once).
+    entities.append(build_debug_switch(hass, domain=DOMAIN))
     async_add_entities(entities)
 
     def _on_rooms_updated(*, vacuum_entity_id: str, map_id: str) -> None:

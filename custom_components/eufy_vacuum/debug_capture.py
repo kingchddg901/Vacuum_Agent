@@ -38,8 +38,12 @@ from typing import Any, Callable
 
 import voluptuous as vol
 
+from homeassistant.components.select import SelectEntity
+from homeassistant.components.switch import SwitchEntity
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.event import async_call_later
 
 DEFAULT_CAPACITY = 3000
@@ -161,6 +165,8 @@ class DebugCapture:
         self._areas: list[str] = []
         self._targets: set[str] = set()
         self._span_depth = 0
+        self._target: str = "Everything"  # the UI target-select's current option
+        self._last_dump_file: str | None = None
         self._last: collections.deque[dict[str, Any]] = collections.deque()
 
     @property
@@ -278,6 +284,30 @@ class DebugCapture:
             elapsed_ms = int((time.time() - started) * 1000)
             span_logger.debug("◀◀ %s  done in %dms  out=%s", name, elapsed_ms, _summarize(result))
             self._span_depth = max(0, self._span_depth - 1)
+
+    # -- UI target (switch/select helper) ----------------------------------
+
+    def set_target(self, option: str) -> None:
+        self._target = option or "Everything"
+
+    def get_target(self) -> str:
+        return self._target
+
+    def target_kwargs(self) -> dict[str, Any]:
+        """Parse the current UI target option into ``start()`` kwargs."""
+        opt = self._target or "Everything"
+        if opt.startswith("Service: "):
+            return {"services": [opt[len("Service: "):]]}
+        if opt.startswith("Area: "):
+            return {"areas": [opt[len("Area: "):]]}
+        return {}
+
+    def note_dump(self, path: str) -> None:
+        self._last_dump_file = path
+
+    @property
+    def last_dump_file(self) -> str | None:
+        return self._last_dump_file
 
     @staticmethod
     def _resolve_areas(areas: list[str]) -> tuple[str, ...] | None:
@@ -453,3 +483,114 @@ def register_debug_services(
     hass.services.async_register(domain, DEBUG_CAPTURE_DUMP, dump, schema=_DUMP_SCHEMA, supports_response=True)
     hass.services.async_register(domain, DEBUG_CAPTURE_STATUS, status, schema=_EMPTY_SCHEMA, supports_response=True)
     return SERVICE_NAMES
+
+
+# --- portable UI entities (switch + select) ------------------------------------------
+# Drop-in UX: add build_debug_switch(hass, domain=DOMAIN) to your switch platform and
+# build_debug_target_select(hass, domain=DOMAIN) to a select platform. Integration-level,
+# diagnostic, on a shared "Debug flight recorder" service device.
+
+
+def area_names() -> list[str]:
+    """The configured area scopes (for the target select's options)."""
+    return sorted(_AREAS.keys())
+
+
+def _default_device_info(domain: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(domain, f"{domain}_debug")},
+        name="Debug flight recorder",
+        entry_type=DeviceEntryType.SERVICE,
+    )
+
+
+class DebugCaptureSwitch(SwitchEntity):
+    """Toggle the recorder. On = start (using the target select's scope); off = stop and
+    auto-write the dump file (path shown in the ``last_dump`` attribute)."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:record-rec"
+    _attr_should_poll = True
+
+    def __init__(self, hass: HomeAssistant, *, domain: str, device_info: DeviceInfo, name: str = "Debug capture") -> None:
+        self.hass = hass
+        self._domain = domain
+        self._attr_device_info = device_info
+        self._attr_name = name
+        self._attr_unique_id = f"{domain}_debug_capture"
+
+    @property
+    def is_on(self) -> bool:
+        return get_capture().active
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        capture = get_capture()
+        st = capture.status()
+        return {
+            "target": capture.get_target(),
+            "captured": st["captured"],
+            "seen": st["seen"],
+            "capacity": st["capacity"],
+            "full": st["full"],
+            "logger": st["logger"],
+            "traceable": traceable_services(),
+            "last_dump": capture.last_dump_file,
+            "started_at": st["started_at"],
+        }
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        capture = get_capture()
+        capture.start(**capture.target_kwargs())
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        capture = get_capture()
+        records = capture.records()
+        capture.stop()
+        if records:
+            path = await self.hass.async_add_executor_job(_write_dump, self.hass, self._domain, records)
+            capture.note_dump(path)
+        self.async_write_ha_state()
+
+
+class DebugTargetSelect(SelectEntity):
+    """Pick the capture scope: Everything, a flagged ``Service:``, or an ``Area:``."""
+
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:target"
+    _attr_should_poll = True
+
+    def __init__(self, hass: HomeAssistant, *, domain: str, device_info: DeviceInfo, name: str = "Debug target") -> None:
+        self.hass = hass
+        self._domain = domain
+        self._attr_device_info = device_info
+        self._attr_name = name
+        self._attr_unique_id = f"{domain}_debug_target"
+
+    @property
+    def options(self) -> list[str]:
+        return (
+            ["Everything"]
+            + [f"Service: {s}" for s in traceable_services()]
+            + [f"Area: {a}" for a in area_names()]
+        )
+
+    @property
+    def current_option(self) -> str | None:
+        target = get_capture().get_target()
+        return target if target in self.options else "Everything"
+
+    async def async_select_option(self, option: str) -> None:
+        get_capture().set_target(option)
+        self.async_write_ha_state()
+
+
+def build_debug_switch(hass: HomeAssistant, *, domain: str, device_info: DeviceInfo | None = None) -> DebugCaptureSwitch:
+    return DebugCaptureSwitch(hass, domain=domain, device_info=device_info or _default_device_info(domain))
+
+
+def build_debug_target_select(hass: HomeAssistant, *, domain: str, device_info: DeviceInfo | None = None) -> DebugTargetSelect:
+    return DebugTargetSelect(hass, domain=domain, device_info=device_info or _default_device_info(domain))
