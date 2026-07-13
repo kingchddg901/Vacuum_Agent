@@ -189,6 +189,15 @@ export function applyLearningState(proto) {
     return lq;
   };
 
+  // Collapse state for the live-queue panel (its own separate view — defaults expanded).
+  proto.isLiveQueueCollapsed = function () {
+    return Boolean(this._liveQueueCollapsed);
+  };
+
+  proto.toggleLiveQueueCollapsed = function () {
+    this._liveQueueCollapsed = !this._liveQueueCollapsed;
+  };
+
   // Live charge-phase status for the progress banner, or null when not charging.
   // Reads the JOB-level charge_* fields (the charge phase has no current room).
   proto.liveChargeStatus = function () {

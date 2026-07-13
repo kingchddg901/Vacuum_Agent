@@ -198,6 +198,16 @@ export function applyRoomsBindings(proto) {
     }
   );
 
+  // Collapse/expand the live-queue monitor panel.
+  this.card._on(
+    this.card.$("[data-action='toggle-live-queue']"),
+    "click",
+    () => {
+      this.card._state.toggleLiveQueueCollapsed?.();
+      this.card._scheduleRender();
+    }
+  );
+
   this.card._on(
     this.card.$("[data-action='pause-run']"),
     "click",

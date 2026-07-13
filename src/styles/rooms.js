@@ -893,6 +893,30 @@ export const roomStyles = `
     margin: 8px 0 4px;
   }
 
+  .evcc-live-queue--collapsed {
+    gap: 0;
+  }
+
+  /* Collapsible header (a button) — the separate-view caret, mirrors the stepped-preview header. */
+  .evcc-live-queue-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
+  .evcc-live-queue-caret {
+    font-size: 0.7rem;
+    color: var(--evcc-text-muted);
+  }
+
   .evcc-live-queue-label {
     font-size: 0.7rem;
     font-weight: 700;

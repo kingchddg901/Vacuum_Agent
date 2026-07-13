@@ -1027,11 +1027,20 @@ proto.renderRoomsActionBar = function (
     // can't paint an empty labelled box over a baseline.
     const steps = Array.isArray(lq?.steps) ? lq.steps : [];
     if (!steps.length) return "";
+    const collapsed = Boolean(state.isLiveQueueCollapsed?.());
     const chips = steps.map((step) => this._renderLiveQueueChip(step)).join("");
     return `
-      <div class="evcc-live-queue">
-        <div class="evcc-live-queue-label">${this.t("rooms.live_queue_label")}</div>
-        <div class="evcc-queue-chips evcc-live-queue-chips">${chips}</div>
+      <div class="evcc-live-queue ${collapsed ? "evcc-live-queue--collapsed" : ""}">
+        <button
+          type="button"
+          class="evcc-live-queue-header"
+          data-action="toggle-live-queue"
+          aria-expanded="${collapsed ? "false" : "true"}"
+        >
+          <span class="evcc-live-queue-label">${this.t("rooms.live_queue_label")}</span>
+          <span class="evcc-live-queue-caret" aria-hidden="true">${collapsed ? "▸" : "▾"}</span>
+        </button>
+        ${collapsed ? "" : `<div class="evcc-queue-chips evcc-live-queue-chips">${chips}</div>`}
       </div>`;
   };
 
