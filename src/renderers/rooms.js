@@ -392,7 +392,16 @@ proto.renderRoomsActionBar = function (
   rooms,
   hasWarning
 ) {
-  const countLabel = this.t("rooms.count_rooms", { count: enabledCount });
+  // A zone is a queued clean unit too — count the zone steps alongside the rooms so the header
+  // reads "2 rooms · 1 zone", not just the room count (the zone is otherwise invisible up here).
+  const _queueSteps = this.card?._state?.dashboardSnapshot?.()?.queue_steps?.steps;
+  const _zoneCount = (Array.isArray(_queueSteps) ? _queueSteps : []).filter(
+    (s) => s && s.type === "zone"
+  ).length;
+  const _roomsLabel = this.t("rooms.count_rooms", { count: enabledCount });
+  const countLabel = _zoneCount > 0
+    ? `${_roomsLabel} · ${this.t("rooms.count_zones", { count: _zoneCount })}`
+    : _roomsLabel;
   const queueRooms = (Array.isArray(rooms) ? rooms : []).filter((room) => room.enabled);
   const startClass = canStart
     ? (hasWarning ? "evcc-chip--start-warn" : "evcc-chip--start")

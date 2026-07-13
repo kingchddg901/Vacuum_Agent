@@ -494,6 +494,9 @@ export function applyReviewRenderers(proto) {
     const roomDisplay = Array.isArray(job?.room_slugs) && job.room_slugs.length
         ? job.room_slugs.join(", ")
       : this.t("review.unknown");
+    // Zones cleaned in this run (snapshotted names) — shown only when the run had a zone.
+    const zoneNames = Array.isArray(job?.zone_names) ? job.zone_names.filter(Boolean) : [];
+    const zonesDisplay = zoneNames.length ? zoneNames.join(", ") : "";
     const primaryRoomDisplay = job?.primary_room_label || job?.primary_room_slug || this.t("review.unknown");
     const scopeDisplay = job?.job_scope
       ? this.tVocabRaw("job_scope", job.job_scope, job?.job_scope_label || this._formatReviewLabel(job.job_scope))
@@ -515,6 +518,7 @@ export function applyReviewRenderers(proto) {
 
         <div class="evcc-review-job-grid">
           ${this._renderReviewKeyValue(this.t("review.kv_rooms"), roomDisplay)}
+          ${zonesDisplay ? this._renderReviewKeyValue(this.t("review.kv_zones"), zonesDisplay) : ""}
           ${Number.isFinite(Number(job?.cleaning_area_m2)) && Number(job.cleaning_area_m2) > 0
             ? this._renderReviewKeyValue(this.t("review.kv_area"), this.t("review.detail_area_m2", { value: Number(job.cleaning_area_m2).toFixed(1).replace(/\.0$/, "") }))
             : ""}

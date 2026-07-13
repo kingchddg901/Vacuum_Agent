@@ -517,6 +517,24 @@ def test_jobs_index_passes_attribution_disagreement(tmp_path):
     assert _index_entry(rebuilder, plain)["has_attribution_disagreement"] is False
 
 
+def test_jobs_index_surfaces_zones(tmp_path):
+    """A rooms+zone run's zone_timings ride from the completed_job block into the review row as
+    zone_count + zone_names, so the card can show the zone alongside the rooms; a rooms-only run
+    stays 0 / empty (stable, never a missing key)."""
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(job_id="zone1", room_slugs=["kitchen"])
+    job["job"]["zone_timings"] = [
+        {"zone_ids": ["z1"], "zone_names": ["stove area"], "clean_mode": "mop", "wall_seconds": 300}
+    ]
+    job["job"]["zone_count"] = 1
+    entry = _index_entry(rebuilder, job)
+    assert entry["zone_count"] == 1 and entry["zone_names"] == ["stove area"]
+
+    plain = _job(job_id="zone0", room_slugs=["kitchen"])
+    e0 = _index_entry(rebuilder, plain)
+    assert e0["zone_count"] == 0 and e0["zone_names"] == []
+
+
 def test_build_room_stats_buckets_by_passes(tmp_path):
     """room_baselines breaks the average out by pass count, keeping the full mean."""
     rebuilder = _make_rebuilder(tmp_path)

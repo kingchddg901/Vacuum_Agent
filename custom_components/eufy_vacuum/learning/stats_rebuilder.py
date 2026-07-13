@@ -869,6 +869,19 @@ class LearningStatsRebuilder:
             _sensor_total = _safe_float(job_info.get("cleaning_area_sensor_m2"), None)
             _sanity = area_sanity(_attributed_sum, _sensor_total)
 
+            # Zones cleaned in this run (history_store snapshots name/mode/wall/area per zone),
+            # surfaced so the review row shows them alongside rooms and reflects a rooms+zone run.
+            # Empty for a rooms-only run.
+            _zone_timings = job_info.get("zone_timings")
+            _zone_timings = _zone_timings if isinstance(_zone_timings, list) else []
+            zone_names: list[str] = []
+            for _zt in _zone_timings:
+                if isinstance(_zt, dict):
+                    for _name in _zt.get("zone_names") or []:
+                        if str(_name).strip():
+                            zone_names.append(str(_name).strip())
+            zone_count = _safe_int(job_info.get("zone_count"), len(_zone_timings))
+
             job_entries.append(
                 {
                     "job_id": job_id,
@@ -877,6 +890,8 @@ class LearningStatsRebuilder:
                     "duration_minutes": duration_minutes,
                     "room_count": room_count,
                     "room_slugs": room_slugs,
+                    "zone_count": zone_count,
+                    "zone_names": zone_names,
                     "status": str(outcome.get("status", "unknown")).strip().lower(),
                     "origin": origin,
                     # Atomic-dispatched reconcile flag (history_store): the native current_room

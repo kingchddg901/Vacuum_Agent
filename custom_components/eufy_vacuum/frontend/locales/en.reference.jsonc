@@ -1587,6 +1587,7 @@
     "kv_primary_room": "Primary Room",  // Job-card field: the main/first room of a multi-room run
     "kv_profile": "Profile",
     "kv_rooms": "Rooms",
+    "kv_zones": "Zones",  // review row: named zones cleaned in the run (shown only when it had a zone)
     "kv_scope": "Scope",  // Job-card field: job scope = single-room vs multi-room run extent
     "kv_used_for_learning": "Used For Learning",  // Job-card field: whether this run feeds time/water learning (Yes/No)
     "loading": "Loading learning history...",
@@ -1858,6 +1859,7 @@
     "confirm_clear": "Confirm Clear",
     "confirm_start": "Confirm Start",
     "count_rooms": {"one":"1 room","other":"{count} rooms"},  // plural; room count label
+    "count_zones": {"one":"1 zone","other":"{count} zones"},  // plural; queued-zone count, appended to the room count
     "derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
     "drag_to_reorder": "Drag to reorder",
     "duration_skipped": "~{duration} skipped",

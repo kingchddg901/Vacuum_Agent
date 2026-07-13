@@ -1171,6 +1171,16 @@ class LearningHistoryStore:
                     slug_by_id=slug_by_id,
                 )
 
+        # Zone phases carry their OWN zone_timing (phase_runner._capture_zone_phase_timing); the
+        # room path drops them, so gather them in parallel — the record + review card show which
+        # zones ran and their learned wall-clock (the zone learning keys on the same data).
+        zone_timings: list[dict[str, Any]] = []
+        if isinstance(_phases, list):
+            for _p in _phases:
+                _zt = _p.get("zone_timing") if isinstance(_p, dict) else None
+                if isinstance(_zt, dict):
+                    zone_timings.append(dict(_zt))
+
         return {
             "schema_version": 1,
             "record_type": "completed_job",
@@ -1208,6 +1218,10 @@ class LearningHistoryStore:
                 "has_attribution_disagreement": any(
                     bool(rt.get("attribution_disagreement")) for rt in room_timings
                 ),
+                # Zones cleaned in this run (name/mode/wall-clock/area snapshotted at run time),
+                # so the review can show them alongside rooms. Empty for a rooms-only run.
+                "zone_timings": zone_timings,
+                "zone_count": len(zone_timings),
             },
             "battery": {
                 "start": _safe_int(battery_start, 0),

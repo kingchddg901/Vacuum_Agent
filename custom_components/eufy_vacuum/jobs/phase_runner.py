@@ -358,6 +358,9 @@ class PhaseRunner:
 
         phases[idx]["zone_timing"] = {
             "zone_ids": zone_ids,
+            # Snapshot the names at run time so the record/review stay readable even if a zone is
+            # later renamed or deleted (the learning still keys on zone_id).
+            "zone_names": self._saved_zone_names(vacuum_entity_id, map_id, zone_ids),
             "clean_mode": clean_mode,
             "wall_seconds": wall,
             "area_m2": area,
@@ -365,19 +368,22 @@ class PhaseRunner:
             "cleaning_end": now_t,
         }
 
-    def _saved_zone_area_sum(
-        self, vacuum_entity_id: str, map_id: str, zone_ids: list[str]
-    ) -> float | None:
-        """Summed stored ``area_m2`` of the given saved zones (Wave 0 keeps it populated). None
-        when no zone carries a usable size — a zone the backfill couldn't reach yet."""
+    def _saved_zones_for_map(self, vacuum_entity_id: str, map_id: str) -> dict[str, Any]:
+        """The map's ``saved_zones`` store ({} when absent)."""
         zones = (
             self._manager.data.get("maps", {})
             .get(vacuum_entity_id, {})
             .get(str(map_id), {})
             .get("saved_zones", {})
         )
-        if not isinstance(zones, dict):
-            return None
+        return zones if isinstance(zones, dict) else {}
+
+    def _saved_zone_area_sum(
+        self, vacuum_entity_id: str, map_id: str, zone_ids: list[str]
+    ) -> float | None:
+        """Summed stored ``area_m2`` of the given saved zones (Wave 0 keeps it populated). None
+        when no zone carries a usable size — a zone the backfill couldn't reach yet."""
+        zones = self._saved_zones_for_map(vacuum_entity_id, map_id)
         total = 0.0
         seen = False
         for zid in zone_ids:
@@ -392,6 +398,18 @@ class PhaseRunner:
                 total += area
                 seen = True
         return round(total, 2) if seen else None
+
+    def _saved_zone_names(
+        self, vacuum_entity_id: str, map_id: str, zone_ids: list[str]
+    ) -> list[str]:
+        """Display names for the given saved-zone ids (id itself as the fallback)."""
+        zones = self._saved_zones_for_map(vacuum_entity_id, map_id)
+        out: list[str] = []
+        for zid in zone_ids:
+            zone = zones.get(str(zid))
+            name = zone.get("name") if isinstance(zone, dict) else None
+            out.append(str(name) if name else str(zid))
+        return out
 
     @staticmethod
     def _wall_seconds(t0: str, t1: str) -> int:

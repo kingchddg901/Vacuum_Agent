@@ -156,6 +156,34 @@ def test_build_payload_prefers_active_job_over_rehydrated_payload(tmp_path):
     assert "dining_room" not in jp["room_slugs"]          # the re-queued phantom is gone
 
 
+def test_build_payload_captures_zone_timings(tmp_path):
+    """A run with a zone phase surfaces the zone into the record's zone_timings (+ zone_count),
+    so the review can show which zones ran + their learned wall-clock — the room path drops
+    zone_timing otherwise. Rooms are unaffected."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jz",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:10:00+00:00",
+        battery_start=100, battery_end=99, queue_state={}, payload_state={},
+        active_job_state={
+            "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+            "phases": [
+                {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+                 "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 1.0,
+                                  "cleaning_seconds": 90}]},
+                {"phase_type": "zone", "zone_ids": ["z1"], "resolved_rooms": [], "room_timing": [],
+                 "zone_timing": {"zone_ids": ["z1"], "zone_names": ["stove area"],
+                                 "clean_mode": "mop", "wall_seconds": 300, "area_m2": 0.5}},
+            ],
+        },
+    )
+    job = payload["job"]
+    assert job["zone_count"] == 1
+    assert job["zone_timings"][0]["zone_names"] == ["stove area"]
+    assert job["zone_timings"][0]["wall_seconds"] == 300
+    assert payload["job_profile"]["room_count"] == 1   # the room half is untouched
+
+
 def test_build_payload_atomic_reconciles_dispatched_identity(tmp_path):
     """WIRING: an ATOMIC (non-phased) dispatched job whose active_job_state carries pose_samples
     runs the identity reconcile at finalize. The counter maps its segment to queue room 8, but the

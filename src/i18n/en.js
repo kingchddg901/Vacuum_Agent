@@ -899,6 +899,7 @@ export const en = {
   "review.kv_primary_room": "Primary Room",  // Job-card field: the main/first room of a multi-room run
   "review.kv_profile": "Profile",
   "review.kv_rooms": "Rooms",
+  "review.kv_zones": "Zones",  // review row: named zones cleaned in the run (shown only when it had a zone)
   "review.kv_scope": "Scope",  // Job-card field: job scope = single-room vs multi-room run extent
   "review.kv_used_for_learning": "Used For Learning",  // Job-card field: whether this run feeds time/water learning (Yes/No)
   "review.loading": "Loading learning history...",
@@ -1162,6 +1163,7 @@ export const en = {
   "rooms.confirm_clear": "Confirm Clear",
   "rooms.confirm_start": "Confirm Start",
   "rooms.count_rooms": { one: "1 room", other: "{count} rooms" },  // plural; room count label
+  "rooms.count_zones": { one: "1 zone", other: "{count} zones" },  // plural; queued-zone count, appended to the room count
   "rooms.derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
   "rooms.drag_to_reorder": "Drag to reorder",
   "rooms.duration_skipped": "~{duration} skipped",
