@@ -4088,6 +4088,13 @@ class EufyVacuumManager:
             "cv_available": cv_available,
             "cv_missing": cv_missing,
             "live_map_image_entity": live_map_image_entity,
+            # The fork's per-vacuum "Switch Map" select, resolved as a device-sibling of
+            # the live-map camera (None → the card hides the switcher). Backend-fed so the
+            # entity-registry lookup stays server-side; gated on the entity existing, since
+            # it ships with the eufy-clean map_load feature and older builds won't have it.
+            "map_switcher": self._resolve_map_switcher(
+                live_map_image_entity=live_map_image_entity
+            ),
             "live_map_rotation": live_map_rotation,
             "map_overlay_visibility": map_overlay_visibility,
             # Map-level display data the DASHBOARD map needs (the live map renders the m²
@@ -4120,6 +4127,46 @@ class EufyVacuumManager:
             ),
             "updated_at": _iso_now(),
         }
+
+    def _resolve_map_switcher(
+        self, *, live_map_image_entity: str | None
+    ) -> dict[str, Any] | None:
+        """Resolve the fork's per-vacuum "Switch Map" ``select`` as a device-sibling of the
+        configured live-map camera, for the card's map switcher.
+
+        Returns ``{entity_id, current, options, available}`` or ``None`` (control hidden).
+        The select ships with the eufy-clean fork's map_load feature; a user on an older
+        fork build simply won't have the entity, so we gate on its existence and degrade
+        to no switcher. Wrapped defensively — any registry/state hiccup → ``None``, never a
+        broken snapshot."""
+        if not live_map_image_entity:
+            return None
+        try:
+            from homeassistant.helpers import entity_registry as er
+
+            registry = er.async_get(self.hass)
+            cam_entry = registry.async_get(live_map_image_entity)
+            if cam_entry is None or cam_entry.device_id is None:
+                return None
+            select_entity_id: str | None = None
+            for entry in er.async_entries_for_device(registry, cam_entry.device_id):
+                if entry.domain == "select" and str(entry.unique_id or "").endswith("_map_select"):
+                    select_entity_id = entry.entity_id
+                    break
+            if not select_entity_id:
+                return None
+            state = self.hass.states.get(select_entity_id)
+            if state is None:
+                return None
+            available = state.state not in ("unknown", "unavailable", None, "")
+            return {
+                "entity_id": select_entity_id,
+                "current": state.state if available else None,
+                "options": list(state.attributes.get("options") or []),
+                "available": available,
+            }
+        except Exception:  # never let map-switcher resolution break the snapshot
+            return None
 
     def _resolve_live_map_image_entity(
         self,
