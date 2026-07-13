@@ -1610,6 +1610,12 @@ class EufyVacuumManager:
             group.append({"room_id": rid})
         if group:
             steps.append({"type": "room_group", "rooms": group})
+        # Trailing inserted steps (after_index == room count) — a zone cleaned AFTER the last
+        # room. The room loop never reaches their index, so drain them here in order. (Only
+        # zones can trail; charge/wait are capped to an interior slot.)
+        while bi < len(breaks):
+            steps.append(dict(breaks[bi]["step"]))
+            bi += 1
 
         steps = self.profiles.normalize_run_profile_steps(steps)
         return {
@@ -1692,7 +1698,10 @@ class EufyVacuumManager:
         )
         if room_count < 2:
             return {"added": False, "reason": "needs_two_rooms"}
-        after = max(1, min(_safe_int(after_index, 1), room_count - 1))
+        # A zone is a real clean, so it may sit between rooms OR TRAIL (after_index ==
+        # room_count, cleaned after the last room). It does not lead — the run opens with a
+        # room (pre-clean charge/delays are an automation on start, not a leading step).
+        after = max(1, min(_safe_int(after_index, 1), room_count))
 
         breaks = list(map_bucket.get("queue_breaks") or [])
         breaks.append({"after_index": after, "step": normalized[0]})
@@ -1784,7 +1793,10 @@ class EufyVacuumManager:
             normalized = self.profiles.normalize_run_profile_steps([spec])
             if not normalized:
                 continue
-            after = max(1, min(_safe_int(entry.get("after_index"), 1), room_count - 1))
+            # A zone may trail (after_index == room_count); a charge/wait is capped to an
+            # interior slot (void at the tail). Neither leads.
+            max_after = room_count if btype == "zone" else room_count - 1
+            after = max(1, min(_safe_int(entry.get("after_index"), 1), max_after))
             out.append({"after_index": after, "step": normalized[0]})
 
         out.sort(key=lambda e: e["after_index"])

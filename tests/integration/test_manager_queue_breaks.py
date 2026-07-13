@@ -19,6 +19,10 @@
 [ZP-3] add_queue_zone needs >= 2 rooms.
 [ZP-4] set_queue_breaks round-trips a zone entry (reorder preserves zone_ids).
 [ZP-5] normalize dedupes/validates zone_ids; empty -> dropped.
+[SP-1/2] save_run_profile captures the stepped plan; flat queue -> single group.
+[ZT-1] a zone can TRAIL (after_index == room_count -> cleaned after the last room).
+[ZT-2] set_queue_breaks: zone trails, charge/wait clamp to interior.
+[ZT-3] a rooms+zone queue (no charge) takes the stepped plan (gate fix; zone not dropped).
 """
 
 from __future__ import annotations
@@ -334,3 +338,50 @@ async def test_save_run_profile_flat_queue_single_group(manager):
     res = manager.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Everywhere")
     assert res["saved"] is True
     assert [s["type"] for s in res["profile"]["steps"]] == ["room_group"]
+
+
+def _seed_saved_zone(manager, zid="z1"):
+    mb = manager.data["maps"][_VAC][_MAP]
+    mb.setdefault("saved_zones", {})[zid] = {
+        "id": zid, "name": "Kennel",
+        "geometry": [[0.1, 0.1], [0.2, 0.1], [0.2, 0.2], [0.1, 0.2]],
+    }
+
+
+async def test_zone_can_trail(manager):
+    """[ZT-1] a zone at after_index == room_count cleans AFTER the last room (rooms then zone)."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    res = manager.add_queue_zone(
+        vacuum_entity_id=_VAC, map_id=_MAP, after_index=3, zone_ids=["z1"]
+    )
+    assert res["added"] is True
+    assert [s["type"] for s in res["steps"]] == ["room_group", "zone"]
+    assert len(res["steps"][0]["rooms"]) == 3
+
+
+async def test_set_queue_breaks_zone_trails_charge_interior(manager):
+    """[ZT-2] set_queue_breaks: a zone may trail (room_count); a charge clamps to interior."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    res = manager.set_queue_breaks(
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        breaks=[
+            {"after_index": 2, "break_type": "zone", "zone_ids": ["z1"]},
+            {"after_index": 2, "break_type": "charge_wait", "target_battery_percent": 80},
+        ],
+    )
+    assert res["set"] is True
+    assert [s["type"] for s in res["steps"]] == [
+        "room_group", "charge_wait", "room_group", "zone",
+    ]
+
+
+async def test_rooms_plus_zone_takes_stepped_plan(manager):
+    """[ZT-3] A rooms+zone queue with NO charge/wait still takes the STEPPED plan and produces
+    a zone phase — before the gate fix it fell to a flat clean and silently dropped the zone."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    _seed_saved_zone(manager)
+    manager.add_queue_zone(vacuum_entity_id=_VAC, map_id=_MAP, after_index=2, zone_ids=["z1"])
+    plan = manager._build_effective_start_plan(vacuum_entity_id=_VAC, map_id=_MAP)
+    types = [p.get("phase_type") for p in plan["phases"]]
+    assert "zone" in types

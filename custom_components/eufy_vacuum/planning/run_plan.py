@@ -1345,12 +1345,13 @@ class RunPlanManager:
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
             ).get("steps")
             if _queue_steps and any(
-                isinstance(s, dict) and s.get("type") in ("charge_wait", "wait")
+                isinstance(s, dict) and s.get("type") in ("charge_wait", "wait", "zone")
                 for s in _queue_steps
             ):
                 _run_steps = _queue_steps
         if _run_steps and any(
-            isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _run_steps
+            isinstance(s, dict) and s.get("type") in ("charge_wait", "wait", "zone")
+            for s in _run_steps
         ):
             # A stepped run WITH STOPS is a deliberate sequence, so force strict order:
             # a path-optimizing brand (Roborock, honors_clean_order False) must then run
