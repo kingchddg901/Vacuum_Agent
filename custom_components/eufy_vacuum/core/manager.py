@@ -1541,6 +1541,156 @@ class EufyVacuumManager:
         )
 
     # ------------------------------------------------------------------
+    # Live-queue break steps — ad-hoc stepped composition
+    #
+    # The live queue can carry charge/wait BREAKS interleaved with rooms,
+    # stored per-map in ``map_bucket["queue_breaks"]`` as an ordered list of
+    # ``{after_index, step}`` entries. A break sits AFTER the ``after_index``-th
+    # enabled room IN ORDER, so it survives room reordering. ``get_queue_steps``
+    # derives the queue as a run-profile-shaped ``steps`` list (room_groups
+    # between breaks) via the SAME ``normalize_run_profile_steps`` — so dispatch
+    # (planning/run_plan), the stepped preview, and save-as-profile all consume
+    # identical input. A break must sit between two rooms, so ``after_index`` is
+    # clamped to an interior slot [1, room_count-1] at add time.
+    # ------------------------------------------------------------------
+
+    def _map_queue_breaks(self, map_bucket: dict[str, Any]) -> list[dict[str, Any]]:
+        """Ordered, validated ``{after_index, step}`` breaks stored on one map."""
+        raw = map_bucket.get("queue_breaks")
+        out: list[dict[str, Any]] = []
+        for entry in raw if isinstance(raw, list) else []:
+            if not isinstance(entry, dict):
+                continue
+            after = _safe_int(entry.get("after_index"), 0)
+            normalized = self.profiles.normalize_run_profile_steps([entry.get("step")])
+            if after >= 1 and normalized:
+                out.append({"after_index": after, "step": normalized[0]})
+        out.sort(key=lambda e: e["after_index"])
+        return out
+
+    def _enabled_room_ids_in_order(
+        self, map_bucket: dict[str, Any], vacuum_entity_id: str, map_id: str
+    ) -> list[int]:
+        """Enabled room ids for one map, in queue order."""
+        payload = build_queue_from_managed_rooms(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            managed_rooms=map_bucket.get("rooms", {}),
+        )
+        ids: list[int] = []
+        for room in payload.get("queue_rooms", []) or []:
+            rid = _safe_int(room.get("room_id"), -1)
+            if rid > 0:
+                ids.append(rid)
+        return ids
+
+    def get_queue_steps(
+        self, *, vacuum_entity_id: str, map_id: str
+    ) -> dict[str, Any]:
+        """Derive the live queue as an ordered STEPS list (room_groups + breaks),
+        byte-identical in shape to a run-profile steps list."""
+        map_bucket = get_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        ordered_ids = self._enabled_room_ids_in_order(
+            map_bucket, vacuum_entity_id, map_id
+        )
+        breaks = self._map_queue_breaks(map_bucket)
+
+        steps: list[dict[str, Any]] = []
+        group: list[dict[str, Any]] = []
+        bi = 0
+        for i, rid in enumerate(ordered_ids):
+            while bi < len(breaks) and breaks[bi]["after_index"] == i:
+                if group:
+                    steps.append({"type": "room_group", "rooms": group})
+                    group = []
+                steps.append(dict(breaks[bi]["step"]))
+                bi += 1
+            group.append({"room_id": rid})
+        if group:
+            steps.append({"type": "room_group", "rooms": group})
+
+        steps = self.profiles.normalize_run_profile_steps(steps)
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "steps": steps,
+            "has_breaks": any(
+                s.get("type") in ("charge_wait", "wait") for s in steps
+            ),
+        }
+
+    def add_queue_break(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        break_type: str,
+        after_index: int,
+        target_battery_percent: int | None = None,
+        wait_minutes: int | None = None,
+    ) -> dict[str, Any]:
+        """Insert a charge/wait break after the ``after_index``-th enabled room."""
+        map_bucket = ensure_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        if str(break_type).strip().lower() == "charge_wait":
+            spec = {"type": "charge_wait", "target_battery_percent": target_battery_percent}
+        else:
+            spec = {"type": "wait", "wait_minutes": wait_minutes}
+        normalized = self.profiles.normalize_run_profile_steps([spec])
+        if not normalized:
+            return {"added": False, "reason": "invalid_break"}
+
+        room_count = len(
+            self._enabled_room_ids_in_order(map_bucket, vacuum_entity_id, map_id)
+        )
+        if room_count < 2:
+            return {"added": False, "reason": "needs_two_rooms"}
+        after = max(1, min(_safe_int(after_index, 1), room_count - 1))
+
+        breaks = list(map_bucket.get("queue_breaks") or [])
+        breaks.append({"after_index": after, "step": normalized[0]})
+        map_bucket["queue_breaks"] = breaks
+
+        self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        return {
+            "added": True,
+            **self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)),
+        }
+
+    def remove_queue_break(
+        self, *, vacuum_entity_id: str, map_id: str, index: int
+    ) -> dict[str, Any]:
+        """Remove the break at ``index`` in the ordered break list."""
+        map_bucket = ensure_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        breaks = self._map_queue_breaks(map_bucket)
+        idx = _safe_int(index, -1)
+        if not (0 <= idx < len(breaks)):
+            return {"removed": False, "reason": "index_out_of_range"}
+        del breaks[idx]
+        map_bucket["queue_breaks"] = breaks
+        self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        return {
+            "removed": True,
+            **self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)),
+        }
+
+    def clear_queue_breaks(
+        self, *, vacuum_entity_id: str, map_id: str
+    ) -> dict[str, Any]:
+        """Remove all breaks — the queue drops back to a flat clean."""
+        map_bucket = ensure_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        map_bucket["queue_breaks"] = []
+        self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        return self.get_queue_steps(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+
+    # ------------------------------------------------------------------
     # Run profiles — delegates to ProfileManager
     # ------------------------------------------------------------------
 

@@ -353,6 +353,128 @@ clear_queue:
       selector:
         text: {}
 
+get_queue_steps:
+  name: Get queue steps
+  description: >
+    Return the live queue as an ordered steps list (room groups interleaved
+    with charge/wait breaks) — the same shape a run profile uses.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+
+add_queue_break:
+  name: Add queue break
+  description: >
+    Insert a charge or wait break into the live queue, after the Nth enabled
+    room in order — turning a flat clean into a stepped one. A break must sit
+    between two rooms, so after_index is clamped to an interior slot.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    break_type:
+      name: Break type
+      description: charge_wait (charge to a battery %) or wait (hold N minutes).
+      required: true
+      selector:
+        select:
+          options:
+            - charge_wait
+            - wait
+    after_index:
+      name: After room number
+      description: The break sits after this many enabled rooms (1 = after the first room).
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 64
+          step: 1
+          mode: box
+    target_battery_percent:
+      name: Charge target percent
+      description: For charge_wait — charge to this battery percent (1-100).
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: slider
+    wait_minutes:
+      name: Wait minutes
+      description: For wait — hold this many minutes (1-1440).
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 1440
+          step: 1
+          mode: box
+
+remove_queue_break:
+  name: Remove queue break
+  description: Remove one break from the live queue by its position in the break list.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    index:
+      name: Break index
+      description: Zero-based position of the break to remove.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 64
+          step: 1
+          mode: box
+
+clear_queue_breaks:
+  name: Clear queue breaks
+  description: Remove all breaks — the queue drops back to a flat clean.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+
 get_active_job:
   name: Get active job
   description: Return the current active job state including start time and battery.
