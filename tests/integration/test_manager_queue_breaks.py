@@ -24,6 +24,11 @@
 [ZT-2] set_queue_breaks: zone trails, charge/wait clamp to interior.
 [ZT-3] a rooms+zone queue (no charge) takes the stepped plan (gate fix; zone not dropped).
 [ZT-4] the launch reset drains breaks too (a trailing zone must not survive as an orphan chip).
+[ZE-1] a queued zone with no samples estimates off area x per-mode rate (rooms' mop mode -> mop rate).
+[ZE-2] a learned zone average wins over the area fallback for the run's mode.
+[ZE-3] a rooms-only queue reports no zone contribution (has_zone False).
+[ZE-4] _zone_estimate_mode: zone-only prefers the zone's learned mode; rooms present -> rooms' mode.
+[ZE-5] a multi-zone step estimates as the SUM of its zones.
 """
 
 from __future__ import annotations
@@ -407,3 +412,70 @@ async def test_launch_reset_drains_breaks_with_rooms(manager):
     assert mb.get("queue_breaks") == []                            # AND breaks drained
     res = manager.get_queue_steps(vacuum_entity_id=_VAC, map_id=_MAP)
     assert res["has_breaks"] is False
+
+
+async def test_estimate_queued_zone_area_fallback(manager):
+    """[ZE-1] a queued zone with no learned samples estimates off area x per-mode rate; the
+    run's mop mode (from rooms) picks the mop rate."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    _seed_saved_zone(manager)
+    manager.data["maps"][_VAC][_MAP]["saved_zones"]["z1"]["area_m2"] = 0.5
+    manager.add_queue_zone(vacuum_entity_id=_VAC, map_id=_MAP, after_index=2, zone_ids=["z1"])
+    est = manager._estimate_queued_zones(
+        vacuum_entity_id=_VAC, map_id=_MAP, resolved_rooms=[{"clean_mode": "vacuum_mop"}]
+    )
+    assert est["has_zone"] is True and len(est["zones"]) == 1
+    z = est["zones"][0]
+    assert z["clean_mode"] == "mop" and z["source"] == "area_fallback"
+    assert z["seconds"] == 120 and est["seconds"] == 120  # 0.5 m² * 240 s/m²
+
+
+async def test_estimate_queued_zone_prefers_learned(manager):
+    """[ZE-2] once a zone has a learned sample for the run's mode, the average wins over area."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    _seed_saved_zone(manager)
+    mb = manager.data["maps"][_VAC][_MAP]
+    mb["saved_zones"]["z1"]["area_m2"] = 0.5
+    mb["learned_zones"] = {"z1": {"mop": {"avg_wall_seconds": 285, "sample_count": 2}}}
+    manager.add_queue_zone(vacuum_entity_id=_VAC, map_id=_MAP, after_index=2, zone_ids=["z1"])
+    est = manager._estimate_queued_zones(
+        vacuum_entity_id=_VAC, map_id=_MAP, resolved_rooms=[{"clean_mode": "vacuum_mop"}]
+    )
+    z = est["zones"][0]
+    assert z["source"] == "learned" and z["seconds"] == 285 and z["sample_count"] == 2
+
+
+async def test_estimate_no_zone_has_none(manager):
+    """[ZE-3] a rooms-only queue reports no zone contribution."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    est = manager._estimate_queued_zones(
+        vacuum_entity_id=_VAC, map_id=_MAP, resolved_rooms=[{"clean_mode": "vacuum"}]
+    )
+    assert est == {"has_zone": False, "seconds": 0, "minutes": 0.0, "zones": []}
+
+
+def test_zone_estimate_mode_selection(manager):
+    """[ZE-4] zone-only estimates against the zone's own learned mode; rooms present -> rooms'."""
+    learned = {"z1": {"mop": {"avg_wall_seconds": 200, "sample_count": 1}}}
+    assert manager._zone_estimate_mode([], learned, "z1", False) == "mop"
+    assert manager._zone_estimate_mode([], {}, "z9", False) == "vacuum"            # no data
+    assert manager._zone_estimate_mode([{"clean_mode": "x"}], learned, "z1", True) == "mop"
+    assert manager._zone_estimate_mode([{"clean_mode": "x"}], learned, "z1", False) == "vacuum"
+
+
+async def test_estimate_multi_zone_step_sums(manager):
+    """[ZE-5] a multi-zone step estimates as the SUM of its zones (learning skips it, but the
+    estimate still adds them up)."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    mb = manager.data["maps"][_VAC][_MAP]
+    _seed_saved_zone(manager, "z1")
+    _seed_saved_zone(manager, "z2")
+    mb["saved_zones"]["z1"]["area_m2"] = 0.5
+    mb["saved_zones"]["z2"]["area_m2"] = 1.0
+    manager.add_queue_zone(
+        vacuum_entity_id=_VAC, map_id=_MAP, after_index=2, zone_ids=["z1", "z2"]
+    )
+    est = manager._estimate_queued_zones(
+        vacuum_entity_id=_VAC, map_id=_MAP, resolved_rooms=[{"clean_mode": "vacuum"}]
+    )
+    assert len(est["zones"]) == 2 and est["seconds"] == 90  # 0.5*60=30 + 1.0*60=60

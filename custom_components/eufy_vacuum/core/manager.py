@@ -3416,6 +3416,88 @@ class EufyVacuumManager:
             "updated_at": _iso_now(),
         }
 
+    def _estimate_queued_zones(
+        self, *, vacuum_entity_id: str, map_id: str, resolved_rooms: list
+    ) -> dict[str, Any]:
+        """Estimate the wall-clock the queued ZONE steps add to a run (rooms are estimated
+        separately by the room model). Each zone's time is its learned average for the run's
+        mode (Wave 1), else area x a per-mode rate (Wave 0 area); a multi-zone step sums its
+        zones — consistent with learning single zones and estimating their sum. Returns a
+        per-zone breakdown + totals; ``has_zone`` False when the queue carries no zone step.
+
+        Mode: a rooms+zone run inherits the rooms' mop/vacuum mode (the device is global); a
+        zone-only queue has no room to read, so prefer whichever mode the zone actually has a
+        sample for, else vacuum (the cheaper fallback)."""
+        from ..learning.zone_learning import estimate_zone_seconds
+
+        steps = self.get_queue_steps(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        ).get("steps", [])
+        zone_steps = [s for s in steps if isinstance(s, dict) and s.get("type") == "zone"]
+        if not zone_steps:
+            return {"has_zone": False, "seconds": 0, "minutes": 0.0, "zones": []}
+
+        map_bucket = get_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        saved = (map_bucket or {}).get("saved_zones") or {}
+        learned = (map_bucket or {}).get("learned_zones") or {}
+        rooms_mop = any(
+            self._room_mode_uses_mop(r.get("clean_mode")) for r in (resolved_rooms or [])
+        )
+
+        zones_out: list[dict[str, Any]] = []
+        total_seconds = 0
+        for step in zone_steps:
+            for zid in step.get("zone_ids") or []:
+                zid = str(zid)
+                zone = saved.get(zid) if isinstance(saved, dict) else None
+                name, area = zid, None
+                if isinstance(zone, dict):
+                    name = zone.get("name") or zid
+                    try:
+                        area = float(zone["area_m2"]) if zone.get("area_m2") is not None else None
+                    except (TypeError, ValueError):
+                        area = None
+                mode = self._zone_estimate_mode(resolved_rooms, learned, zid, rooms_mop)
+                est = estimate_zone_seconds(
+                    learned, zone_id=zid, clean_mode=mode, area_m2=area
+                )
+                secs = int(est.get("seconds") or 0)
+                total_seconds += secs
+                zones_out.append({
+                    "zone_id": zid,
+                    "name": name,
+                    "clean_mode": mode,
+                    "seconds": secs,
+                    "minutes": round(secs / 60.0, 2),
+                    "source": est.get("source"),
+                    "sample_count": int(est.get("sample_count") or 0),
+                    "area_m2": area,
+                })
+        return {
+            "has_zone": True,
+            "seconds": total_seconds,
+            "minutes": round(total_seconds / 60.0, 2),
+            "zones": zones_out,
+        }
+
+    @staticmethod
+    def _zone_estimate_mode(
+        resolved_rooms: list, learned: dict, zone_id: str, rooms_mop: bool
+    ) -> str:
+        """The mop/vacuum bucket to estimate a zone against: the rooms' mode when a run has
+        rooms; else the mode the zone already has a learned sample for; else vacuum."""
+        if resolved_rooms:
+            return "mop" if rooms_mop else "vacuum"
+        buckets = learned.get(str(zone_id)) if isinstance(learned, dict) else None
+        if isinstance(buckets, dict):
+            for mode in ("mop", "vacuum"):
+                bucket = buckets.get(mode)
+                if isinstance(bucket, dict) and int(bucket.get("sample_count") or 0) > 0:
+                    return mode
+        return "vacuum"
+
     def get_planned_job_estimate(
         self,
         *,
@@ -3428,6 +3510,9 @@ class EufyVacuumManager:
         Pass resolved_rooms to bypass the payload state lookup — needed when
         the payload has already been cleared after job start but active_job
         still holds the room list.
+
+        Folds in any queued ZONE steps: the room model above only covers rooms, so a
+        rooms+zone total would under-count and a zone-only queue would read "unavailable".
         """
         payload_state = self.get_payload_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         queue_state = self.get_queue_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
@@ -3467,13 +3552,28 @@ class EufyVacuumManager:
             resolved_rooms=effective_rooms,
             room_timeline=list(estimate.get("room_timeline", [])),
         )
+
+        # Fold queued zone steps into the totals — the room model above covers only rooms.
+        # A rooms+zone run adds the zone's learned time; a zone-only queue (rooms estimate
+        # errors with no_payload) becomes available purely on its zone time.
+        zone_estimate = self._estimate_queued_zones(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), resolved_rooms=effective_rooms
+        )
+        zone_minutes = float(zone_estimate.get("minutes") or 0.0)
+        has_zone_time = bool(zone_estimate.get("has_zone") and (zone_estimate.get("seconds") or 0) > 0)
+        merged_total = round(float(estimate.get("total_minutes") or 0.0) + zone_minutes, 2)
+        available = can_run_now or has_zone_time
+
         return {
             **estimate,
-            "available": can_run_now,
-            "reason": "ready" if can_run_now else str(estimate.get("reason", "estimate_unavailable")),
+            "available": available,
+            "reason": "ready" if available else str(estimate.get("reason", "estimate_unavailable")),
             "message": str(estimate.get("message", "")).strip() or (
-                "Planned estimate ready." if can_run_now else "Planned estimate unavailable."
+                "Planned estimate ready." if available else "Planned estimate unavailable."
             ),
+            "total_minutes": merged_total,
+            "job_eta_minutes": merged_total,
+            "zone_estimate": zone_estimate,
             "queue_room_ids": list(queue_state.get("queue_room_ids", [])),
             "payload_room_count": int(payload_state.get("room_count", 0)),
             "current_battery": current_battery,
