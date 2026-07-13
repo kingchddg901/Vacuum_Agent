@@ -1263,6 +1263,12 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
     # Saved zones (named reusable clean regions). Light payload (geometry is a small
     # point list), so the whole zone rides in — the card lists + picks straight off it.
     _migrate_saved_zones(map_bucket)
+    # Self-heal area_m2 (+ room filing) for zones that missed the author-time compute, so a
+    # zone's size is present for display + learning. No-op once every zone is sized.
+    if await _backfill_saved_zone_area(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id, map_bucket=map_bucket
+    ):
+        await manager.async_save()
     saved_zones = [
         dict(z) for z in (map_bucket.get("saved_zones") or {}).values()
         if isinstance(z, dict)
@@ -1401,6 +1407,60 @@ def _create_saved_zone(
     }
     zones[zone_id] = zone
     return zone
+
+
+async def _backfill_saved_zone_area(
+    hass: HomeAssistant, manager, *, vacuum_entity_id: str, map_id: str, map_bucket: dict
+) -> bool:
+    """Self-heal a saved zone's ``area_m2`` (+ ``room_number``) when it was authored before
+    the compute landed, or created while its map wasn't active (create's guard skipped it).
+
+    Runs on the dashboard read so a zone gains its size the next time the card loads, and the
+    learning/estimate paths can rely on ``area_m2`` being present for any zone shown. Cheap in
+    the steady state: with every zone already sized this is a pure list scan and returns before
+    touching the map raster. Same active-map guard + best-effort contract as create — never
+    raises, never edits geometry. Returns True when something changed (caller persists)."""
+    zones = map_bucket.get("saved_zones")
+    if not isinstance(zones, dict) or not zones:
+        return False
+    pending = [
+        z for z in zones.values()
+        if isinstance(z, dict) and z.get("area_m2") is None
+    ]
+    if not pending:
+        return False
+
+    try:
+        from ..rooms.room_discovery import get_active_map_id
+        try:
+            active_map_id = get_active_map_id(hass, vacuum_entity_id)
+        except Exception:  # noqa: BLE001
+            active_map_id = None
+        # Only the active map's raster is exposed; sizing/filing off another map would be wrong
+        # (mirrors create's guard). Indeterminate active map -> attempt.
+        if not (active_map_id is None or str(active_map_id) == str(map_id)):
+            return False
+        map_data = await manager.async_get_map_data_dict(vacuum_entity_id=vacuum_entity_id)
+    except Exception:  # noqa: BLE001 — sizing is advisory; a fetch failure must not break the read
+        return False
+    if not isinstance(map_data, dict):
+        return False
+
+    changed = False
+    for zone in pending:
+        try:
+            membership = zone_membership(map_data, zone.get("geometry"))
+        except Exception:  # noqa: BLE001 — one bad zone must not break the read
+            continue
+        area = membership.get("area_m2")
+        if area is None:
+            continue
+        zone["area_m2"] = area
+        if zone.get("room_number") is None and membership.get("room_number") is not None:
+            zone["room_number"] = membership.get("room_number")
+        zone["updated_at"] = utc_now_iso()
+        changed = True
+    return changed
 
 
 def _active_custom_layout(map_bucket: dict) -> dict | None:

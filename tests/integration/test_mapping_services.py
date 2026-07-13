@@ -42,6 +42,8 @@ Coverage targets
         unknown id → zone_not_found and map-mismatch → map_not_active both refuse WITHOUT dispatching.
 [ZONE-9]  clean_saved_zones resolves each id → its bbox → ONE dispatch carrying all rects (active-map
         guarded); a single missing id refuses the WHOLE batch atomically without dispatch.
+[ZONE-10] get_map_segments self-heals a zone's area_m2 (+ filing) when it was authored off the active
+        map; the backfill persists and is a no-op once every zone is sized.
 """
 
 from __future__ import annotations
@@ -636,6 +638,42 @@ async def test_create_saved_zone_skips_compute_on_map_mismatch(hass, mapping_ser
         "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
     assert a["zone"]["room_number"] is None   # mismatch -> not computed (no wrong-map data)
     assert a["zone"]["area_m2"] is None
+
+
+async def test_get_map_segments_backfills_missing_zone_area(hass, mapping_services, monkeypatch):
+    """[ZONE-10] a zone authored while its map wasn't active (area_m2 None) self-heals its size
+    on the next dashboard read (get_map_segments) once the map is active + present, so learning
+    + display can rely on area_m2. Filing (room_number) rides along; the fill persists."""
+    from custom_components.eufy_vacuum.const import SERVICE_CREATE_SAVED_ZONE
+
+    _seed_segments(mapping_services)
+
+    async def _fake_map_data(**_kwargs):
+        return _synthetic_map_data([7 << 2] * 16)                  # all room 7
+    monkeypatch.setattr(mapping_services, "async_get_map_data_dict", _fake_map_data)
+
+    # Author while the zone's map is NOT active -> create skips the compute (area stays None).
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: "999")
+    a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z",
+        "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
+    zid = a["zone_id"]
+    assert a["zone"]["area_m2"] is None                            # pre-condition: unsized
+
+    # Now the map IS active -> the read self-heals the size.
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: _MAP)
+    seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    filed = next(z for z in seg["saved_zones"] if z["id"] == zid)
+    assert filed["area_m2"] is not None and filed["area_m2"] > 0   # backfilled
+    assert filed["room_number"] == 7                              # filing rode along
+    # Persisted on the stored zone, not just decorated on the response.
+    stored = mapping_services.data["maps"][_VAC][_MAP]["saved_zones"][zid]
+    assert stored["area_m2"] == filed["area_m2"]
 
 
 async def test_set_saved_zone_room(hass, mapping_services):
