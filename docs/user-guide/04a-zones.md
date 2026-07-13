@@ -79,6 +79,12 @@ While a zone step is cleaning, the live view shows a dedicated zone status and t
 
 ---
 
+## Automate a zone clean
+
+You can fire a saved zone from a Home Assistant automation — clean "under the table" every evening, or "the entryway" whenever a rain sensor trips. The `clean_saved_zone` / `clean_saved_zones` services are the automation form of the **Clean** button, and pre-run timing ("only once charged", "off-peak only") lives in the automation's conditions rather than inside the job. See the worked examples in [Automation examples → Clean a saved zone](../advanced/04-automation-examples.md#8-clean-a-saved-zone-on-a-trigger) and [Pre-run conditions](../advanced/04-automation-examples.md#9-pre-run-conditions).
+
+---
+
 ## Learned zone times
 
 Once you run a saved zone as a step, the card **learns how long it takes** — as a wall-clock total, so a mop zone's dock-to-wet-the-pad and post-wash time counts as the wait you actually experience. That learned time drives the zone chip's estimate on the next run. Before there's a sample, the card estimates from the zone's size instead, and shows a "learning" hint. Zone learning is separate from room learning and keyed per zone and mode (mop vs. vacuum) — see [The Learning System → Zone learning](../advanced/01-learning-system.md#zone-learning) for the details.

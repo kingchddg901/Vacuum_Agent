@@ -29,7 +29,8 @@ a profile.
 
 | Job | Services |
 |---|---|
-| **Start a clean** | `start_selected_rooms`, `start_run_profile`, `start_zone_clean`, `apply_run_profile` |
+| **Start a clean** | `start_selected_rooms`, `start_run_profile`, `apply_run_profile` |
+| **Clean a zone** | `clean_saved_zone`, `clean_saved_zones` (named saved zones); `start_zone_clean` (free-form rectangles) |
 | **Configure rooms** | `update_room_fields`, `apply_room_profile` |
 | **Control in-flight** | `pause_active_job`, `resume_active_job`, `cancel_active_job` |
 | **Dock / upkeep** | `wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`, `reset_maintenance`, `battery_rebaseline` |
@@ -562,3 +563,149 @@ you want to see and control each phase.
 - `start_selected_rooms` needs the vacuum docked/idle. After a charge break it will be
   docked, so phase 2 starts cleanly — but a phase that doesn't return to the dock first
   should be gated on `states('vacuum.alfred') in ['docked','idle']`.
+
+---
+
+## 8. Clean a Saved Zone on a Trigger
+
+**What it does:** Fires a [saved zone](../user-guide/04a-zones.md) — a named region you drew
+once ("under the table", "the litter corner", "the entryway") — as a one-off clean when
+something happens. This is the automation form of tapping **Clean** on a saved zone: a
+precise sub-room clean, no whole-room run.
+
+Use `clean_saved_zone` for one zone, or `clean_saved_zones` for several at once (the device
+cleans the whole set in a single run).
+
+```yaml
+automation:
+  alias: "Vacuum — clean under the table after dinner"
+  description: >
+    Clean the 'under the table' saved zone every evening at 8 PM.
+  trigger:
+    - platform: time
+      at: "20:00:00"
+  condition:
+    # Fire-and-forget zone cleans only run when their map is the ACTIVE map, and
+    # need the vacuum free — gate on a docked/idle vacuum to avoid a refusal.
+    - condition: state
+      entity_id: vacuum.alfred
+      state:
+        - docked
+        - idle
+  action:
+    - service: eufy_vacuum.clean_saved_zone
+      data:
+        vacuum_entity_id: vacuum.alfred
+        map_id: "6"                 # the zone's map — must be the currently active map
+        zone_id: zone_abc123        # the saved zone to clean
+        clean_times: 1              # optional passes (defaults to the device default)
+```
+
+**Cleaning several zones at once** — swap the service and pass a list:
+
+```yaml
+    - service: eufy_vacuum.clean_saved_zones
+      data:
+        vacuum_entity_id: vacuum.alfred
+        map_id: "6"
+        zone_ids:
+          - zone_abc123             # under the table
+          - zone_def456             # the entryway
+        clean_times: 1
+```
+
+**Finding your `map_id` and `zone_id`:** call `eufy_vacuum.get_vacuum_maps` with a
+`response_variable` for the map ids; each saved zone's `zone_id` is shown in the card's
+**Saved Zones** panel (and in the `get_map_segments` response). Per-brand caps apply to a
+batch — Eufy up to 10 zones, Roborock up to 5.
+
+**Customization points:**
+
+- Any trigger works — a time, an `input_button`, a person leaving, a `binary_sensor` (a
+  litter box, a rain sensor). The zone clean is just the action.
+- `clean_times` is optional; omit it to use the device default, or raise it for a dirtier
+  spot.
+- To fold a zone into a *whole-room* run instead of firing it alone — "vacuum the kitchen,
+  then hit the stove zone, then mop" — don't use these services; build a stepped run
+  profile with a **zone step** and start it with `start_run_profile` (Recipe 3). See
+  [Zones → Add a zone to a run](../user-guide/04a-zones.md#add-a-zone-to-a-run-a-zone-step).
+
+**Caveats:**
+
+- **Fire-and-forget.** These are not tracked as a room-queue job — there is no job record,
+  no per-room learning, and no `eufy_vacuum_job_finished` event for the zone clean. (A
+  zone run *inside* a stepped profile, by contrast, is tracked and learned.)
+- **Active-map only.** A saved zone cleans only when its map is the vacuum's current active
+  map; on a different map the service refuses. On a single-map home this is never an issue.
+- The vacuum must be free to take the command — hence the docked/idle condition above.
+
+---
+
+## 9. Pre-Run Conditions
+
+**Start *when*, not *charge first*.** The integration owns what happens *inside* a job — the sequencer runs a job's
+room groups, charge/wait stops, and zone steps as one choreographed unit (Recipe 3). Home
+Assistant owns *whether and when a job starts*. So the things you might picture as "steps
+before the run" — *charge to full first, then run* · *only run off-peak* · *hold until
+9 AM* — aren't internal steps at all. They're **conditions on your start automation**. That
+keeps each job a clean, self-contained unit the learning system can trust, and puts the
+"when" where it belongs: in HA's triggers and conditions, out in the open.
+
+Three patterns cover almost every "before the run" wish:
+
+| Wish | Express it as |
+|---|---|
+| **Run at / after a time** | a `time` trigger (or a `delay`) before the start call — Recipe 3 |
+| **Only run once charged** | the vacuum is already docked and charging; **wait for the battery level**, then start — no internal "leading charge" needed, the dock does the charging and HA just waits |
+| **Only run off-peak** | a `time` window (and/or battery) **condition** guarding the start |
+
+```yaml
+automation:
+  alias: "Vacuum — overnight run, but only once charged and off-peak"
+  description: >
+    At 1 AM, wait until the battery is topped up, then start the full-house
+    profile — but only during the off-peak window.
+  trigger:
+    - platform: time
+      at: "01:00:00"
+  condition:
+    # Off-peak window guard (skip entirely outside it).
+    - condition: time
+      after: "00:00:00"
+      before: "06:00:00"
+  action:
+    # "Charge first" is just waiting for the level — the vacuum charges on its
+    # own dock; the automation holds until it's ready, then starts.
+    - wait_template: "{{ state_attr('vacuum.alfred', 'battery_level') | int(0) >= 95 }}"
+      timeout: "03:00:00"
+      continue_on_timeout: false
+    - service: eufy_vacuum.start_run_profile
+      data:
+        vacuum_entity_id: vacuum.alfred
+        profile_id: full_house
+        confirm_reduced_run: true
+```
+
+**Why not a "leading charge step" inside the job?** Because a charge *before* any cleaning
+isn't choreography — it's a start pre-condition, and the vacuum already charges itself on
+the dock. Modelling it as an internal step would bury a "when to start" decision inside the
+job, where it can't see your automation's triggers and would muddy the job's timing. A
+charge *between* two cleaning phases (vacuum → charge → mop) genuinely *is* intra-job
+choreography — that one belongs to the sequencer, as a stepped run profile (Recipe 3) or as
+native between-phase waits (Recipe 7).
+
+**Customization points:**
+
+- Swap the `wait_template` battery threshold to taste, or drop it if you don't care about
+  the level.
+- Replace the time window with any condition — an energy-price sensor, a "nobody home"
+  presence check, a `sun` condition.
+- `continue_on_timeout: false` means a vacuum that never reaches the level simply doesn't
+  run, rather than starting under-charged.
+
+**Caveats:**
+
+- `wait_template` needs the battery attribute to actually change — confirm your vacuum
+  reports `battery_level` (most do) in Developer Tools, or the wait will sit until timeout.
+- Keep the `timeout` sane so a stuck automation eventually releases instead of hanging for
+  a day.
