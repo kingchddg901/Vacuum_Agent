@@ -28,12 +28,15 @@ logger exactly. Off by default → zero cost when unused.
 
 from __future__ import annotations
 
+import asyncio
 import collections
 import functools
 import logging
 import os
+import re
 import time
 import traceback
+from contextvars import ContextVar
 from typing import Any, Callable
 
 import voluptuous as vol
@@ -55,6 +58,36 @@ MAX_MESSAGE_CHARS = 2000
 # Target-select sentinels (the non-``Service:`` / non-``Area:`` options).
 TARGET_ALL_FLAGGED = "All flagged services"  # the default: arm every @debug_traceable
 TARGET_EVERYTHING = "Everything (unfiltered)"  # explicit opt-in to a full global capture
+
+# Logical-operation scope. Set by a traced service's span; asyncio copies the context into
+# child tasks, so fire-and-forget follow-through created inside the span keeps recording,
+# while unrelated concurrent work (its own context) is NOT captured.
+_trace_op: ContextVar[str | None] = ContextVar("debug_trace_op", default=None)
+
+# Best-effort redaction applied to every captured message BEFORE storage, so a token in a
+# debug line doesn't reach a shared dump. Extend/replace via configure_redaction().
+_DEFAULT_REDACTORS: list[tuple[re.Pattern[str], str]] = [
+    (
+        re.compile(
+            r"(?i)(token|password|passwd|api[_-]?key|secret|access[_-]?token|bearer)"
+            r"(['\"]?\s*[:=]\s*['\"]?)([^\s,'\")}]+)"
+        ),
+        r"\1\2«redacted»",
+    ),
+]
+_REDACTORS: list[tuple[re.Pattern[str], str]] = list(_DEFAULT_REDACTORS)
+
+
+def configure_redaction(redactors: list[tuple[re.Pattern[str], str]] | None) -> None:
+    """Replace the redaction (regex, replacement) pairs. None restores the defaults."""
+    global _REDACTORS
+    _REDACTORS = list(redactors) if redactors is not None else list(_DEFAULT_REDACTORS)
+
+
+def _redact(message: str) -> str:
+    for pattern, repl in _REDACTORS:
+        message = pattern.sub(repl, message)
+    return message
 
 # The four service names this helper registers. Fixed — the caller supplies the domain.
 DEBUG_CAPTURE_START = "debug_capture_start"
@@ -125,7 +158,7 @@ class _RingHandler(logging.Handler):
                 self.full = True
                 return  # keep the first N, drop the rest
             self._seq += 1
-            message = record.getMessage()
+            message = _redact(record.getMessage())
             if len(message) > MAX_MESSAGE_CHARS:
                 message = message[:MAX_MESSAGE_CHARS] + f"…(+{len(message) - MAX_MESSAGE_CHARS} chars elided)"
             entry: dict[str, Any] = {
@@ -168,7 +201,6 @@ class DebugCapture:
         self._started_at: float | None = None
         self._areas: list[str] = []
         self._targets: set[str] = set()
-        self._span_depth = 0
         self._target: str = TARGET_ALL_FLAGGED  # the UI target-select's current option
         self._last_dump_file: str | None = None
         self._last: collections.deque[dict[str, Any]] = collections.deque()
@@ -197,7 +229,6 @@ class DebugCapture:
         cap = max(1, min(cap, MAX_CAPACITY))
         self._areas = [str(a) for a in (areas or [])]
         self._targets = {str(s) for s in (services or [])}
-        self._span_depth = 0
         self._last = collections.deque()
         gate = self._gate if self._targets else None
         self._ring = _RingHandler(cap, self._resolve_areas(self._areas), gate=gate, freeze=bool(freeze))
@@ -223,9 +254,11 @@ class DebugCapture:
                 logger.removeHandler(self._ring)
             if self._passthrough is not None:
                 logger.removeHandler(self._passthrough)
-            if self._prior_propagate is not None:
+            # Restore ONLY if the values are still the ones we installed — don't clobber a
+            # level/propagate change made externally (e.g. via `logger:`) during capture.
+            if self._prior_propagate is not None and logger.propagate is False:
                 logger.propagate = self._prior_propagate
-            if self._prior_level is not None:
+            if self._prior_level is not None and logger.level == logging.DEBUG:
                 logger.setLevel(self._prior_level)
         status = self.status()  # reads _last (now inactive)
         self._ring = None
@@ -233,7 +266,6 @@ class DebugCapture:
         self._prior_level = None
         self._prior_propagate = None
         self._logger_name = None
-        self._span_depth = 0
         return status
 
     def records(self) -> list[dict[str, Any]]:
@@ -266,8 +298,10 @@ class DebugCapture:
     # -- per-service tracing ------------------------------------------------
 
     def _gate(self) -> bool:
-        """Ring gate for service-targeted mode: record only inside a flagged span."""
-        return self._span_depth > 0
+        """Ring gate for service-targeted mode: record only within a traced operation's
+        async context (set by run_span, inherited by child tasks). Unrelated concurrent
+        work runs in its own context and is not captured."""
+        return _trace_op.get() is not None
 
     def is_armed(self, name: str) -> bool:
         """Whether ``name`` should be bracketed: capture active and either global
@@ -275,19 +309,31 @@ class DebugCapture:
         return self.active and (not self._targets or name in self._targets)
 
     async def run_span(self, name: str, call: Any, fn: Callable) -> Any:
-        """Bracket a flagged service call in the ring with start/end markers."""
+        """Bracket a flagged service call in the ring, scoped by a ContextVar.
+
+        The op token is set BEFORE the ▶▶ marker (so it's captured) and reset AFTER the ◀◀
+        marker (so it is too). asyncio copies the context into any task created inside the
+        call, so fire-and-forget follow-through keeps recording under the same op; the
+        outcome (done / failed / cancelled) is noted on the closing marker."""
         span_logger = logging.getLogger(f"{self._logger_name or _PACKAGE_LOGGER}.debug.span")
-        self._span_depth += 1
+        token = _trace_op.set(name)
         started = time.time()
         span_logger.debug("▶▶ %s  in=%s", name, _summarize(getattr(call, "data", None)))
+        outcome = "done"
         result: Any = None
         try:
             result = await fn(call)
             return result
+        except asyncio.CancelledError:
+            outcome = "cancelled"
+            raise
+        except Exception as err:  # noqa: BLE001 - annotate the marker, then re-raise
+            outcome = f"failed: {type(err).__name__}: {err}"
+            raise
         finally:
             elapsed_ms = int((time.time() - started) * 1000)
-            span_logger.debug("◀◀ %s  done in %dms  out=%s", name, elapsed_ms, _summarize(result))
-            self._span_depth = max(0, self._span_depth - 1)
+            span_logger.debug("◀◀ %s  %s in %dms  out=%s", name, outcome, elapsed_ms, _summarize(result))
+            _trace_op.reset(token)
 
     # -- UI target (switch/select helper) ----------------------------------
 
@@ -408,8 +454,12 @@ def _write_dump(hass: HomeAssistant, domain: str, records: list[dict[str, Any]])
     os.makedirs(dir_path, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S", time.localtime())
     path = os.path.join(dir_path, f"debug-{ts}.log")
-    with open(path, "w", encoding="utf-8") as handle:
+    tmp = f"{path}.tmp"
+    # Write-then-rename so a reader that grabs the file the instant the service returns
+    # can't catch a half-written dump.
+    with open(tmp, "w", encoding="utf-8") as handle:
         handle.write(render_text(records))
+    os.replace(tmp, path)
     return path
 
 

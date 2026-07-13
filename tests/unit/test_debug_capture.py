@@ -7,6 +7,7 @@ INFO+ still passes through to the root; stop restores the logger exactly.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -285,6 +286,68 @@ async def test_switch_start_stop_and_autodump(global_capture):
     assert sw.is_on is False
     hass.async_add_executor_job.assert_awaited_once()  # auto-dump on off
     assert global_capture.last_dump_file == "/config/eufy_vacuum/debug/debug-x.log"
+
+
+@pytest.mark.asyncio
+async def test_concurrent_unrelated_log_not_captured(global_capture):
+    """Headline fix: a concurrent unrelated log (its own context) during a traced op is
+    NOT captured — only the operation's own async-context tree is."""
+    global_capture.start(services=["svc_demo"])
+
+    async def _unrelated():
+        logging.getLogger(f"{PKG}.mapping.poll").debug("unrelated poll")
+
+    await asyncio.gather(_svc_demo(_FakeCall({"x": 1})), _unrelated())
+
+    messages = [r["message"] for r in global_capture.records()]
+    assert any("inner=1" in m for m in messages)  # the traced op
+    assert not any("unrelated poll" in m for m in messages)  # concurrent, other context
+
+
+@pytest.mark.asyncio
+async def test_span_marks_failure_outcome(global_capture):
+    global_capture.start(services=["boom"])
+
+    @debug_traceable("boom")
+    async def boom(call):
+        raise ValueError("kaboom")
+
+    with pytest.raises(ValueError):
+        await boom(_FakeCall({}))
+
+    closing = [m for m in (r["message"] for r in global_capture.records()) if m.startswith("◀◀ boom")]
+    assert closing and "failed: ValueError" in closing[0]
+
+
+@pytest.mark.asyncio
+async def test_fire_and_forget_child_inherits_trace(global_capture):
+    """A task created inside the span inherits the op context, so its follow-through
+    (which runs after the handler returns) is still captured."""
+    global_capture.start(services=["ff_demo"])
+    done = asyncio.Event()
+
+    @debug_traceable("ff_demo")
+    async def ff_demo(call):
+        async def _child():
+            logging.getLogger(f"{PKG}.dispatch.child").debug("child follow-through")
+            done.set()
+
+        asyncio.create_task(_child())
+        return {"ok": True}
+
+    await ff_demo(_FakeCall({}))
+    await asyncio.wait_for(done.wait(), timeout=1)
+
+    messages = [r["message"] for r in global_capture.records()]
+    assert any("child follow-through" in m for m in messages)
+
+
+def test_redaction_masks_secrets(capture):
+    capture.start()
+    _emit("mapping.x", logging.DEBUG, "connecting token=abc123secret ok")
+    msg = capture.records()[0]["message"]
+    assert "abc123secret" not in msg
+    assert "«redacted»" in msg
 
 
 def test_render_text_is_readable():
