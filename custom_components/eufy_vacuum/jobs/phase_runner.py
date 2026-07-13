@@ -256,6 +256,20 @@ class PhaseRunner:
             phases[idx]["_timing_end_t"] = _iso_now()
             return
 
+        if str(phases[idx].get("phase_type") or "") == "zone":
+            # A zone phase = one saved-zone clean. Learn it as a WALL-CLOCK total (the phase's
+            # start -> now, so a mop zone's dock-prep + post-wash count as the wait), keyed later
+            # by (zone_id, mop|vacuum). Area is the zone's stored footprint (Wave 0), never the
+            # counter stream — cleaning_area floors ~1 m² and is useless for a small zone. The
+            # empty room_timing keeps the finalizer's ROOM path from misfiling a zone as a
+            # phantom room (a zone has no room id to attribute to).
+            self._capture_zone_phase_timing(
+                vacuum_entity_id, str(map_id), active_job, phases, idx
+            )
+            phases[idx]["room_timing"] = []
+            phases[idx]["_timing_end_t"] = _iso_now()
+            return
+
         now_t = _iso_now()
         # Slice from the previous phase's recorded end (None for phase 0 → from the run start).
         start_t: str | None = None
@@ -310,6 +324,74 @@ class PhaseRunner:
                     rt["area_source"] = "learned_fallback"
         phases[idx]["room_timing"] = room_timings
         phases[idx]["_timing_end_t"] = now_t
+
+    def _capture_zone_phase_timing(
+        self,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        phases: list[dict[str, Any]],
+        idx: int,
+    ) -> None:
+        """Snapshot a finishing ZONE phase's wall-clock total + area onto the phase as
+        ``zone_timing``, for the completed-job zone recorder to fold into learned_zones.
+
+        Wall = the phase's start -> now. Start is the PREVIOUS phase's recorded end (the moment
+        the last room finished, ~when this zone dispatched), or the run start for a leading zone.
+        Using the phase boundary — not the counter slice — is deliberate: it captures the mop
+        prep/wash bounces that carry no cleaning-counter rise but are real wait time. Mode is the
+        job's coarse mop/vacuum bucket; area is the summed stored footprint of the step's zones."""
+        now_t = _iso_now()
+        start_t: str | None = None
+        for j in range(idx - 1, -1, -1):
+            if isinstance(phases[j], dict) and phases[j].get("_timing_end_t"):
+                start_t = str(phases[j]["_timing_end_t"])
+                break
+        if not start_t:
+            start_t = str(active_job.get("started_at") or "") or None
+        wall = self._wall_seconds(start_t, now_t) if start_t else 0
+
+        zone_ids = [str(z) for z in (phases[idx].get("zone_ids") or [])]
+        meta = active_job.get("job_metadata") or {}
+        clean_mode = "mop" if (isinstance(meta, dict) and meta.get("has_mop_mode")) else "vacuum"
+        area = self._saved_zone_area_sum(vacuum_entity_id, map_id, zone_ids)
+
+        phases[idx]["zone_timing"] = {
+            "zone_ids": zone_ids,
+            "clean_mode": clean_mode,
+            "wall_seconds": wall,
+            "area_m2": area,
+            "cleaning_start": start_t,
+            "cleaning_end": now_t,
+        }
+
+    def _saved_zone_area_sum(
+        self, vacuum_entity_id: str, map_id: str, zone_ids: list[str]
+    ) -> float | None:
+        """Summed stored ``area_m2`` of the given saved zones (Wave 0 keeps it populated). None
+        when no zone carries a usable size — a zone the backfill couldn't reach yet."""
+        zones = (
+            self._manager.data.get("maps", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id), {})
+            .get("saved_zones", {})
+        )
+        if not isinstance(zones, dict):
+            return None
+        total = 0.0
+        seen = False
+        for zid in zone_ids:
+            zone = zones.get(str(zid))
+            if not isinstance(zone, dict):
+                continue
+            try:
+                area = float(zone.get("area_m2"))
+            except (TypeError, ValueError):
+                continue
+            if area > 0:
+                total += area
+                seen = True
+        return round(total, 2) if seen else None
 
     @staticmethod
     def _wall_seconds(t0: str, t1: str) -> int:

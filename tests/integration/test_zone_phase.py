@@ -13,12 +13,18 @@ unlike a charge_wait/wait which a dock poller drives.
 [ZN-6] a completed zone phase advances to the next phase (participates in the normal cycle).
 [ZN-7] a zone phase confirms via state==cleaning (no target room) -> guard clears -> can finalize.
 [ZN-8] a zone that never starts (no-show) returns False so the watchdog re-dispatches.
+[ZN-11] _capture_finishing_phase_timing on a zone phase records zone_timing (wall from the phase
+        boundary, mode from has_mop_mode, area from the saved zone) + EMPTY room_timing.
+[ZN-12] the completed-job recorder folds a single-zone observation into map_bucket['learned_zones'];
+        a cancelled outcome records nothing (a partial zone must not under-count the average).
 """
 
 from __future__ import annotations
 
 import custom_components.eufy_vacuum.jobs.phase_runner as phase_runner_mod
 import custom_components.eufy_vacuum.jobs.active_job as active_job_mod
+from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
+from custom_components.eufy_vacuum.learning.manager import LearningManager
 
 _VAC = "vacuum.ivy"
 _MAP = "Main floor"
@@ -257,3 +263,66 @@ async def test_cancel_clears_even_if_finalize_raises(hass, manager, monkeypatch)
     assert not remaining or str(remaining.get("status")) != "started", (
         f"cancel left the job stranded: {remaining}"
     )
+
+
+def _seed_saved_zone_area(manager, zid="z_a", area=0.5):
+    mb = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    mb.setdefault("saved_zones", {})[zid] = {"id": zid, "name": "stove", "area_m2": area}
+    return mb
+
+
+async def test_capture_zone_phase_timing(hass, manager, monkeypatch):
+    """[ZN-11] a finishing zone phase gets a zone_timing snapshot: wall = the previous phase's
+    end -> now (mop-prep included), mode from the job's has_mop_mode, area from the saved zone;
+    room_timing is empty so the finalizer's room path never misfiles it as a phantom room."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:06:30Z")
+    _seed_saved_zone_area(manager, "z_a", area=0.5)
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z",
+        "job_metadata": {"has_mop_mode": True},
+        "phases": [
+            {**_room_phase(5, "kitchen"), "_timing_end_t": "2026-01-01T00:02:00Z"},
+            _zone_phase(zone_ids=("z_a",)),
+        ],
+        "current_phase_index": 1,
+    }
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    zt = job["phases"][1]["zone_timing"]
+    assert zt["zone_ids"] == ["z_a"]
+    assert zt["clean_mode"] == "mop"
+    assert zt["wall_seconds"] == 270          # 00:02:00 -> 00:06:30
+    assert zt["area_m2"] == 0.5
+    assert job["phases"][1]["room_timing"] == []
+
+
+async def test_zone_recorder_learns_only_on_completed(hass, manager):
+    """[ZN-12] the completed-job recorder folds a single-zone observation into learned_zones;
+    a cancelled outcome records nothing (a mid-zone Cancel is a likely partial)."""
+    lm = LearningManager(hass)
+    _seed_saved_zone_area(manager, "z_a", area=0.5)
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "phases": [
+            _room_phase(5, "kitchen"),
+            {**_zone_phase(zone_ids=("z_a",)),
+             "zone_timing": {"zone_ids": ["z_a"], "clean_mode": "mop",
+                             "wall_seconds": 270, "area_m2": 0.5}},
+        ],
+    }
+
+    # Cancelled -> no learning.
+    await lm._record_zone_learning(
+        manager, vacuum_entity_id=_VAC, map_id=_MAP,
+        active_job_state=job, outcome_status="cancelled",
+    )
+    mb = manager.data["maps"][_VAC][_MAP]
+    assert not mb.get("learned_zones")
+
+    # Completed -> the observation lands.
+    await lm._record_zone_learning(
+        manager, vacuum_entity_id=_VAC, map_id=_MAP,
+        active_job_state=job, outcome_status="completed",
+    )
+    bucket = manager.data["maps"][_VAC][_MAP]["learned_zones"]["z_a"]["mop"]
+    assert bucket["sample_count"] == 1 and bucket["avg_wall_seconds"] == 270

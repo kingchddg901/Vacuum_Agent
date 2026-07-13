@@ -42,6 +42,7 @@ from .estimator import LearningEstimator
 from .history_store import LearningHistoryStore
 from .job_finalizer import LearningJobFinalizer
 from .stats_rebuilder import LearningStatsRebuilder
+from .zone_learning import collect_zone_observations, record_observations
 
 
 def _normalize_graph_targets(value: Any) -> list[int]:
@@ -668,6 +669,21 @@ class LearningManager:
                 rebuild_csv=rebuild_csv,
             )
         )
+        # Zone learning (Wave 1): fold a COMPLETED job's single-zone step(s) into a per-
+        # (zone_id, mop|vacuum) wall-clock average. Best-effort: finalize already succeeded.
+        try:
+            await self._record_zone_learning(
+                manager,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                active_job_state=inputs.get("active_job_state"),
+                outcome_status=inputs.get("outcome_status"),
+            )
+        except Exception:  # noqa: BLE001 - learning is advisory; never break finalize
+            _LOGGER.debug(
+                "async_finalize_completed_job: zone learning failed", exc_info=True
+            )
+
         accuracy_result = await self.hass.async_add_executor_job(
             lambda: self._auto_record_accuracy(
                 result=result,
@@ -680,6 +696,42 @@ class LearningManager:
             self.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         result["accuracy"] = accuracy_result
         return result
+
+    async def _record_zone_learning(
+        self,
+        manager,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job_state: Any,
+        outcome_status: str | None,
+    ) -> None:
+        """Fold a completed job's single-zone observations into ``map_bucket['learned_zones']``.
+
+        Only a COMPLETED run feeds the average — a cancelled or interrupted zone would
+        under-count (and a mid-zone Cancel is treated as a likely partial). The averaging is
+        pure (``zone_learning``); this reads the finalized job's zone phases, updates the store
+        on the map bucket, and persists only when a sample actually applied (a rooms-only job or
+        a multi-zone step yields nothing, so no needless save)."""
+        if outcome_status != "completed":
+            return
+        observations = collect_zone_observations(
+            active_job_state if isinstance(active_job_state, dict) else None
+        )
+        if not observations:
+            return
+        from ..maps.map_manager import ensure_map_bucket
+
+        map_bucket = ensure_map_bucket(
+            data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        store = map_bucket.get("learned_zones")
+        store, applied = record_observations(
+            store if isinstance(store, dict) else {}, observations, now_iso=_iso_now()
+        )
+        if applied:
+            map_bucket["learned_zones"] = store
+            await manager.async_save()
 
     def _auto_record_accuracy(
         self,
