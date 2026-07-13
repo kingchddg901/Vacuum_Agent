@@ -3582,6 +3582,12 @@ class EufyVacuumManager:
             "status_summary": job_control.get("status_summary") or job_progress.get("status_summary"),
             "attention_summary": upkeep.get("attention_summary"),
             "planned_job_estimate": planned_job_estimate,
+            # The live queue as an ordered steps list (room groups + charge/wait
+            # breaks). Lets the card render + edit the stepped queue off its normal
+            # dashboard refresh. has_breaks False -> a plain flat clean.
+            "queue_steps": self.get_queue_steps(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+            ),
             # Learning-processing toggle state for the card: the box-level flag, this
             # vacuum's collected-but-unprocessed run count, and whether a last estimate
             # exists (so the card shows "N pending" vs "‹last estimate› · N new pending").
