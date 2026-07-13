@@ -67,6 +67,22 @@ export function applyMapActions(proto) {
   };
 
   /**
+   * Switch the active map via the fork's "Switch Map" select (entity_id + option come
+   * from the backend-fed snapshot.map_switcher). Fires the HA select.select_option; the
+   * fork turns that into a map_load. The map re-localizes on the robot's next move.
+   *
+   * @param {string} entityId  the fork's select.<device>_switch_map entity id
+   * @param {string} option    one of that select's option labels ("<name> (ID: <id>)")
+   */
+  proto.switchMap = async function (entityId, option) {
+    if (!entityId || option == null) return null;
+    return await this.callService("select", "select_option", {
+      entity_id: entityId,
+      option,
+    });
+  };
+
+  /**
    * Set the vacuum's fan speed via the HA-standard vacuum interface. Used by the zone
    * panel's fallback suction row for brands with no provider fan-speed `select` (e.g.
    * Roborock — its fan power is the vacuum entity's fan_speed, settable via set_fan_speed).

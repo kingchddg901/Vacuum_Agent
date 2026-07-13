@@ -281,6 +281,7 @@ export function applyMapRenderers(proto) {
             <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-zone-draw"
                     title="${this.t("map.draw_zone")}" aria-label="${this.t("map.draw_zone")}">▢</button>` : ""}
+            ${this._renderMapSwitch(state)}
             <span class="evcc-map-zoom-readout"
                   aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
           </div>
@@ -289,6 +290,28 @@ export function applyMapRenderers(proto) {
 
       </div>
     `;
+  };
+
+  /**
+   * Map switcher — the fork's per-vacuum "Switch Map" select, backend-fed via
+   * snapshot.map_switcher. A native <select> in the map toolbar; shown ONLY when that
+   * select entity exists, is available, and offers >1 map (older eufy-clean builds omit
+   * it → nothing renders). Picking fires select.select_option (see bindings/map.js).
+   */
+  proto._renderMapSwitch = function (state) {
+    const ms = state.mapSwitcher?.();
+    const options = Array.isArray(ms?.options) ? ms.options : [];
+    if (!ms || !ms.available || options.length < 2) return "";
+    return `
+      <select class="evcc-map-switch-select" data-action="map-switch-select"
+              title="${this.t("map.switch_map")}" aria-label="${this.t("map.switch_map")}">
+        ${options
+          .map(
+            (o) =>
+              `<option value="${this.escapeHtml(o)}"${o === ms.current ? " selected" : ""}>${this.escapeHtml(o)}</option>`,
+          )
+          .join("")}
+      </select>`;
   };
 
   /* =========================================================

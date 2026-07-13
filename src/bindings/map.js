@@ -2559,6 +2559,19 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Map switcher (fork "Switch Map" select, backend-fed via snapshot.map_switcher).
+    // Fire select.select_option on the fork's entity, then refresh so current/options
+    // reflect the new active map.
+    root.querySelectorAll("[data-action='map-switch-select']").forEach((sel) => {
+      this.card._on(sel, "change", async (e) => {
+        e.stopPropagation();
+        const entityId = this.card._state.mapSwitcher?.()?.entity_id;
+        if (!entityId) return;
+        await this.card._actions.switchMap?.(entityId, e.target.value);
+        await this.card.refreshDashboardSnapshot?.();
+      });
+    });
+
     // Ad-hoc zone clean: toggle draw mode / dispatch the drawn box / cancel.
     root.querySelectorAll("[data-action='toggle-zone-draw']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {

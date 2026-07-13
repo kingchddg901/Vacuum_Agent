@@ -248,6 +248,23 @@ export const mapStyles = `
     font-variant-numeric: tabular-nums;
   }
 
+  /* Map switcher — a native select in the toolbar (fork "Switch Map"); matches the
+     toolbar buttons' tokens. Native <option> chrome stays browser-drawn. */
+  .evcc-map-switch-select {
+    max-width:       130px;
+    height:          28px;
+    font-size:       12px;
+    color:           var(--evcc-map-tooltip-text, #fff);
+    background:      var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:          1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+    border-radius:   4px;
+    padding:         0 4px;
+    cursor:          pointer;
+  }
+  .evcc-map-switch-select:hover {
+    background:      var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+
   /* =========================================================
      ZONE CLEAN (ad-hoc draw-a-box → clean)
      ========================================================= */

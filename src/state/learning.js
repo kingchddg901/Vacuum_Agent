@@ -177,6 +177,12 @@ export function applyLearningState(proto) {
     return this.dashboardSnapshot()?.learning_processing ?? null;
   };
 
+  // Map switcher: the fork's per-vacuum "Switch Map" select, backend-resolved as the
+  // live-map camera's device-sibling. null (control hidden) when the fork build lacks it.
+  proto.mapSwitcher = function () {
+    return this.dashboardSnapshot()?.map_switcher ?? null;
+  };
+
   proto.dashboardJobProgress = function () {
     return this.dashboardSnapshot()?.job_progress ?? null;
   };

@@ -601,6 +601,7 @@ export const en = {
   "map.resize_w_minus": "－ W",  // Compose resize button: '－ W' shrinks shape Width; W = width, keep terse
   "map.resize_w_plus": "＋ W",  // Compose resize button: '＋ W' grows shape Width; W = width, keep terse
   "map.rotate": "Rotate map 90°",
+  "map.switch_map": "Switch the active map",  // Map-toolbar dropdown to switch the active map (backed by the eufy-clean fork's "Switch Map" select)
   "map.rotate_aria": "Rotate map 90 degrees",
   "map.rotate_ccw": "↺ Rotate",
   "map.rotate_cw": "↻ Rotate",
