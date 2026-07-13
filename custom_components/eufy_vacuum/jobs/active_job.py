@@ -2138,17 +2138,29 @@ class ActiveJobTracker:
                 last_vac_state,
             )
 
-        finalize_result = await self._manager.finalize_learning_for_active_job(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-            rebuild_stats=True,
-            rebuild_csv=False,
-            forced_outcome_status="cancelled",
-            forced_lifecycle_state=forced_lifecycle_state or "job_cancelled",
-            forced_lifecycle_message=(
-                forced_lifecycle_message or "Job was cancelled by return_to_base."
-            ),
-        )
+        # Finalize is BEST-EFFORT and must NEVER block the clear: the listener guards it the
+        # same way. A finalizer that raises (e.g. a run ending on a zone, which it can't
+        # attribute) previously killed the cancel before mark_active_job_finalized ran, leaving
+        # the job stranded 'started' and only clearable via Dev Tools. Clear unconditionally.
+        finalize_result = None
+        try:
+            finalize_result = await self._manager.finalize_learning_for_active_job(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                rebuild_stats=True,
+                rebuild_csv=False,
+                forced_outcome_status="cancelled",
+                forced_lifecycle_state=forced_lifecycle_state or "job_cancelled",
+                forced_lifecycle_message=(
+                    forced_lifecycle_message or "Job was cancelled by return_to_base."
+                ),
+            )
+        except Exception:  # noqa: BLE001 - the clear below is the point of a cancel
+            _LOGGER.exception(
+                "async_cancel_active_job: finalize failed for %s map %s — clearing the "
+                "job anyway so a cancel always recovers.",
+                vacuum_entity_id, map_id,
+            )
         self.mark_active_job_finalized(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
