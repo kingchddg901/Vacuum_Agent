@@ -801,6 +801,30 @@ class PhaseRunner:
                 or job.get("_cancel_in_flight")
             ):
                 return True
+            # A ZONE phase has NO target room, so the native current-room match below can
+            # never confirm it (target current_room_id is None) — the guard would never clear
+            # and the completed job would lock ACTIVE. Confirm a zone on SUSTAINED
+            # vacuum.state==cleaning instead: the zone clean makes the device report cleaning,
+            # and between phases it is docked/washing, so this only fires once the zone truly
+            # starts. (Not the job-active binary — that stays on across the job and false-passes.)
+            _phases = job.get("phases") or []
+            _pidx = _safe_int(job.get("current_phase_index"), -1)
+            _cur_phase = _phases[_pidx] if 0 <= _pidx < len(_phases) else {}
+            if str(_cur_phase.get("phase_type") or "") == "zone":
+                st = self._manager.hass.states.get(vacuum_entity_id)
+                if st is not None and str(st.state).strip().lower() == "cleaning":
+                    cleaning_in_target += _poll
+                    if cleaning_in_target >= pt["confirm_seconds"]:
+                        return True
+                    idle = 0.0
+                else:
+                    idle += _poll
+                if idle >= pt["verify_seconds"]:
+                    # Small zone that finished within confirm_seconds -> treat as confirmed;
+                    # a true no-show (never cleaned) -> False to retry.
+                    return cleaning_in_target > 0
+                await asyncio.sleep(_poll)
+                continue
             progressed = False
             if has_native:
                 target = job.get("current_room_id")

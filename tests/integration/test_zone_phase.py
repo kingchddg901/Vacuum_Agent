@@ -11,6 +11,8 @@ unlike a charge_wait/wait which a dock poller drives.
 [ZN-4] advancing INTO a zone phase routes to the room watchdog, NOT the dock poller.
 [ZN-5] _dispatch_active_phase on a zone phase fires dispatch_zone_clean with the rects (no segment payload).
 [ZN-6] a completed zone phase advances to the next phase (participates in the normal cycle).
+[ZN-7] a zone phase confirms via state==cleaning (no target room) -> guard clears -> can finalize.
+[ZN-8] a zone that never starts (no-show) returns False so the watchdog re-dispatches.
 """
 
 from __future__ import annotations
@@ -161,3 +163,39 @@ async def test_zone_phase_completes_and_advances(hass, manager, monkeypatch):
     assert await manager.phase_runner.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
     assert manager.data["active_jobs"][_VAC][_MAP]["current_phase_index"] == 2
     assert calls == {"charge": 0, "room": 1}  # advanced into the next ROOM phase via the watchdog
+
+
+_FAST_TIMING = {
+    "settle_seconds": 0, "dock_settle_seconds": 0, "verify_seconds": 3,
+    "confirm_seconds": 0.1, "poll_seconds": 1, "max_attempts": 3,
+}
+
+
+async def _drive_zone_await(manager, monkeypatch, *, cleaning: bool) -> bool:
+    """Run _await_phase_started for a zone phase (phase 1) with the vacuum cleaning or not."""
+    async def _no_sleep(_s):
+        return None
+
+    monkeypatch.setattr(phase_runner_mod.asyncio, "sleep", _no_sleep)
+    monkeypatch.setattr(manager, "_phase_timing", lambda _v: dict(_FAST_TIMING))
+    manager.hass.states.async_set(_VAC, "cleaning" if cleaning else "docked", {})
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [_room_phase(5, "kitchen"), _zone_phase()],
+        "current_phase_index": 1,
+    }
+    _seed(manager, job)
+    return await manager.phase_runner._await_phase_started(
+        vacuum_entity_id=_VAC, map_id=_MAP, phase_index=1
+    )
+
+
+async def test_zone_await_confirms_on_cleaning(hass, manager, monkeypatch):
+    """[ZN-7] a zone (no target room) confirms via sustained state==cleaning, so the
+    dispatch-pending guard clears and the completed job can finalize (not lock active)."""
+    assert await _drive_zone_await(manager, monkeypatch, cleaning=True) is True
+
+
+async def test_zone_await_no_show_retries(hass, manager, monkeypatch):
+    """[ZN-8] a zone that never starts cleaning returns False -> the watchdog re-dispatches."""
+    assert await _drive_zone_await(manager, monkeypatch, cleaning=False) is False
