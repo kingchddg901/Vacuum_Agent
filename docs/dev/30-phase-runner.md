@@ -149,10 +149,16 @@ stop → clean group*. When such a profile starts, its steps are stashed under
 - a `charge_wait` step → a phase `{phase_type: "charge_wait",
   target_battery_percent}`; a `wait` step → `{phase_type: "wait", wait_minutes}`;
   both carry no rooms.
+- a `zone` step → a phase `{phase_type: "zone", zone_ids: [...]}` — a **real
+  clean phase** (unlike a stop), carrying no rooms but a saved-zone id list. It
+  dispatches via `dispatch_zone_clean` (the ids resolve to bbox rects at dispatch
+  time) and advances on clean-complete through the **same room-group watchdog
+  hook** as a clean phase — no new completion mechanism. A `zone` may sit at the
+  tail (after the last room group); leading stops don't apply to it.
 - **Leading/trailing stops are dropped** and **consecutive same-type stops
   collapse** (two charges → the last target) so phase 0 is always a real clean
   the initial dispatch can send; if no stop survives, it falls back to one atomic
-  clean.
+  clean. (A `zone` is a clean phase, so it is never trimmed as a "stop.")
 
 `_build_effective_start_plan` forces `strict_order=True` whenever the run's steps
 contain any `charge_wait`/`wait` stop, so a path-optimizing brand runs each
@@ -191,9 +197,9 @@ finalize a completed phase. Behavior of `PhaseRunner.maybe_advance_phase`:
      listener returns promptly), **routing on `phases[next_idx]["phase_type"]`:** a
      **stop phase** (`"charge_wait"` / `"wait"`) is spawned through
      `_spawn_dock_poller(...)` (§6.6.1, the double-spawn-guarded entry that picks
-     `_run_charge_wait_phase` vs `_run_wait_phase`); anything else (a `room_group`
-     clean phase) is spawned as `_run_advanced_phase(...)` directly. Return
-     **`True`** (the caller skips finalization).
+     `_run_charge_wait_phase` vs `_run_wait_phase`); a **clean phase** (a
+     `room_group` **or** a `zone`) is spawned as `_run_advanced_phase(...)`
+     directly. Return **`True`** (the caller skips finalization).
 
 `maybe_advance_phase` is also re-entrant *from* the stop-phase drivers: once a
 `charge_wait`/`wait` phase's condition is met, its driver calls
@@ -227,6 +233,11 @@ runner._capture_finishing_phase_timing(vacuum_entity_id, map_id, active_job) -> 
   reads them as a dock/hold interval, not a phantom zero-metric room. The
   `_timing_end_t` marker is still set so the next clean phase's slice starts after
   the stop.
+- **A `zone` phase captures a `zone_timing`, not a room timing.** It is a real
+  clean, but it belongs to a saved zone (`zone_id`), not a room — so
+  `_capture_finishing_phase_timing` routes it to `_capture_zone_phase_timing`
+  (§5.5), which writes `phases[idx]["zone_timing"]` and leaves `room_timing`
+  empty (no room to credit).
 - **Slice selection:** the phase's slice is the `counter_samples` whose timestamp
   is strictly after the **previous phase's recorded `_timing_end_t`** (or from the
   run start for phase 0). All timestamps come from `_iso_now()` so a lexical
@@ -295,6 +306,36 @@ than running the whole counter stream through `_build_transit_blocks`:
 
 See [10-learning-system](10-learning-system.md) for how finalized
 `room_timings` feed per-room learned stats.
+
+### 5.5 Zone-phase timing (`_capture_zone_phase_timing`)
+
+A `zone` phase is a real clean but is owned by a saved zone, so it captures a
+`zone_timing` snapshot instead of a `room_timing`. `_capture_finishing_phase_timing`
+detects `phase_type == "zone"` and delegates to `_capture_zone_phase_timing`, which
+writes on the phase:
+
+```python
+phases[idx]["zone_timing"] = {
+    "zone_ids":       [<saved-zone id>, ...],
+    "zone_names":     [<name at run time>, ...],  # snapshotted, survives a later rename/delete
+    "clean_mode":     "mop" | "vacuum",           # from job_metadata.has_mop_mode
+    "wall_seconds":   <phase dispatch → completion, whole seconds>,
+    "area_m2":        <summed saved-zone area, or None>,
+    "cleaning_start": <ISO>,
+    "cleaning_end":   <ISO>,
+}
+```
+
+The learned quantity is **wall-clock** (`_wall_seconds(started_at, now)`), not a
+counter slice: for a small mop zone the clock is dominated by dock-prep and pad
+wash, so wall time is the honest cost while area is not (see
+[10-learning-system §2.5](10-learning-system.md#25-zone-learning-learned_zones)).
+`zone_names` and `area_m2` come from `_saved_zone_names` / `_saved_zone_area_sum`
+over the map's `saved_zones` store; the names are snapshotted so the record stays
+readable even if the zone is later renamed or deleted (learning still keys on
+`zone_id`). At finalize, `learning/history_store.py` harvests every zone phase's
+`zone_timing` into the record's `zone_timings` + `zone_count`, and
+`learning.manager` folds each **single-zone** phase into the `learned_zones` store.
 
 ---
 

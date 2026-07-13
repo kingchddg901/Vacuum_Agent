@@ -479,7 +479,7 @@ phases.
 
 ### Steps model
 
-The profile's `steps` is a list of three step types:
+The profile's `steps` is a list of four step types:
 
 ```json
 [
@@ -488,6 +488,7 @@ The profile's `steps` is a list of three step types:
      {"room_id": 4, "clean_mode": "vacuum"}
   ]},
   {"type": "charge_wait", "target_battery_percent": 80},
+  {"type": "zone", "zone_ids": ["zone_abc123"]},
   {"type": "room_group", "rooms": [{"room_id": 3, "clean_mode": "mop"}]},
   {"type": "wait", "wait_minutes": 15}
 ]
@@ -496,6 +497,9 @@ The profile's `steps` is a list of three step types:
 - **`room_group`** — a group of rooms with per-room settings.
 - **`charge_wait`** — dock and poll battery until `target_battery_percent`, then continue.
 - **`wait`** — dock and hold for `wait_minutes`, then continue.
+- **`zone`** — clean one or more saved zones (`zone_ids`) as one phase. Unlike the
+  two stops it is a **real clean**, not a dock — dispatched via `dispatch_zone_clean`
+  and completed by the room-group watchdog (see [30-phase-runner](30-phase-runner.md)).
 
 ### Materialization → phases
 
@@ -506,6 +510,12 @@ the active-job `phases` list 1:1:
   scoped to that group's **included** (enabled + not-blocked) room IDs.
 - Each `charge_wait` / `wait` step → a break phase carrying only its
   `phase_type` + `target_battery_percent` / `wait_minutes` and empty room fields.
+- Each `zone` step → a `{phase_type: "zone", zone_ids}` **clean** phase (not a
+  break). The ids resolve to bbox rects at dispatch time
+  (`manager._resolve_saved_zone_rects` over the map's `saved_zones` geometry) and go
+  out through `dispatch_zone_clean`; completion reuses the room-group watchdog hook,
+  so no new lifecycle mechanism is added. Because it is a clean, a `zone` is **never**
+  trimmed by the leading/trailing/collapse rules that apply to stops.
 - **Break-phase cleanup**: leading and trailing breaks are dropped (a stop with
   no clean to bracket is pointless), and consecutive same-type breaks collapse to
   the last (two charges → last target). If no break survives, it falls back to one
@@ -581,6 +591,10 @@ can't both drive the same dock phase.
 | `charge_from_battery` | Battery % recorded when the charge began (observability; `None` until the charge starts) |
 | `charge_started_at` | ISO timestamp the charge phase began (`None` until started) |
 | `wait_started_at` | ISO timestamp the wait phase began (`None` until started) |
+| `zone_phase_active` | Current phase is a `zone` — gated on the device **still cleaning** (`_zone_is_actively_cleaning`, which reads `"zone" in active_cleaning_target`) so it clears at dock-done rather than lingering while the roomless phase sits on the active job through drying |
+| `zone_phase_ids` / `zone_phase_names` | The saved-zone ids / names the current zone phase cleans (names snapshotted at capture) |
+| `zone_phase_eta_minutes` | Estimated wall-clock for the zone (learned avg else area fallback; `None` before an estimate) |
+| `zone_phase_started_at` | ISO timestamp the zone phase began |
 
 `compute_time_to_target_pct` splits the CC/CV charge curve at 80 %; a cold start
 (no learned rate) returns `minutes: None` (the card falls back to a wall-clock
@@ -617,3 +631,45 @@ display) rather than a fabricated estimate.
 Charge/wait steps are brand-agnostic — they ride free on Roborock as well as
 Eufy. See [29-roborock-adapter](29-roborock-adapter.md) for the Roborock
 per-phase dispatch (a stepped run can vacuum one group then mop the next).
+
+### The ad-hoc live queue (`queue_breaks`)
+
+A saved profile is one source of steps; the other is the **live queue composer** —
+the card lets you build a stepped run *ad hoc*, without saving a profile, by
+inserting breaks and zones directly into the current queue. These live on the map
+bucket as `queue_breaks`, a list of `{after_index, step}` where `after_index` is the
+number of enabled rooms before the step (so it survives a room reorder) and `step`
+is a `charge_wait` / `wait` / `zone`:
+
+```python
+map_bucket["queue_breaks"] = [
+    {"after_index": 2, "step": {"type": "charge_wait", "target_battery_percent": 80}},
+    {"after_index": 3, "step": {"type": "zone", "zone_ids": ["zone_abc123"]}},
+]
+```
+
+- **Services** (`services/queue.py` → `core/manager.py`): `add_queue_break` (charge
+  or wait), `add_queue_zone` (a saved-zone step), `remove_queue_break`,
+  `clear_queue_breaks`, and the wholesale `set_queue_breaks(breaks)` behind
+  reorder + param-edit. `get_queue_steps` returns both the interleaved `steps`
+  (rooms by order + breaks by `after_index`, the shape `_build_steps_phases` and the
+  card's preview consume) and the raw `breaks`.
+- **`after_index` clamp.** `set_queue_breaks` clamps and stably re-sorts: a **stop**
+  must sit *interior* (`[1, room_count - 1]`, never bracketing nothing), but a
+  **`zone` may sit at the tail** — `max_after = room_count` for a zone vs
+  `room_count - 1` for a stop — so "clean the rooms, then a zone" is expressible. A
+  charge/wait pushed to the tail is voided; a zone there is kept.
+- **Start.** `_build_effective_start_plan` (`planning/run_plan.py`) falls back to
+  `get_queue_steps` when there is no `_pending_run_steps` profile stash, so a live
+  queue with breaks/zones dispatches as a stepped run. Its step-source gate counts a
+  `zone` as a real step (`type in ("charge_wait", "wait", "zone")`) — without that, a
+  rooms-plus-zone queue with **no** charge would have run flat and silently dropped
+  the zone.
+- **Save-as-profile.** `save_run_profile` snapshots `get_queue_steps().steps` when
+  the queue is stepped, so the ad-hoc composition (rooms + breaks + zones) is
+  captured into a saved profile intact — the profile *is* a saved queue.
+
+The **monitor twin** of this composer is the `live_queue` in
+`get_job_progress_snapshot` (`_build_live_queue_steps`) — it flattens the *running*
+job's frozen phase clone into the same room/charge/wait/zone chip shape. See
+[05-core-manager](05-core-manager.md).

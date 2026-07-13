@@ -475,6 +475,70 @@ unit).
 
 ---
 
+### 2.5 Zone learning (`learned_zones`)
+
+Saved zones run as a [zone step](07-queue-engine.md#steps-model) get a **separate,
+deliberately tiny** learning track, parallel to per-room learning. A saved zone is
+far simpler to learn than a room: it has a stable `zone_id` (no slug matching), a
+deterministic area from its drawn box (never learned), and it cleans in one
+uninterrupted pass (no counter-stream segmentation, no transit, no drift). So the
+only thing learned is **time** — and it's learned as a **wall-clock total**, not a
+counter delta.
+
+The pure engine is `learning/zone_learning.py` (no `hass`, no I/O — plain functions,
+unit-tested in isolation). It maintains a store on the **map bucket**
+(`map_bucket["learned_zones"]`, persisted with the map):
+
+```python
+learned_zones["<zone_id>"] = {
+    "mop":    {"avg_wall_seconds": float, "sample_count": int,
+               "last_wall_seconds": int, "last_area_m2": float | None, "updated_at": iso},
+    "vacuum": { ... },
+}
+```
+
+- **Key = `(zone_id, clean_mode)`**, where `clean_mode` is the coarse `"mop"` /
+  `"vacuum"` bucket (`normalize_clean_mode(has_mop_mode)`) — the one dimension that
+  materially changes a zone's time (a mop pass docks to wet the pad and washes
+  after). Mop and vacuum samples never mix.
+- **Wall-clock, not area.** The time captured by the phase runner is
+  dispatch → completion (see [30-phase-runner §5.5](30-phase-runner.md#55-zone-phase-timing-_capture_zone_phase_timing)),
+  so a mop zone's prep + wash count as the wait the user actually experiences. For a
+  ~0.5 m² mop zone the clock is dominated by prep, not floor area — hence wall-clock
+  beats area.
+- **What qualifies:** `collect_zone_observations` pulls learnable observations from a
+  finalized job's `zone` phases, keeping only **single-zone** steps with a positive
+  `wall_seconds` — a multi-zone step's wall time can't be attributed to one
+  `zone_id`, so it is *estimated* (as the sum of its zones) but not *learned*. The
+  caller (`learning.manager`) gates on a **completed** outcome; a cancelled/partial
+  zone would under-count.
+
+**Update + estimate** are incremental (no history re-scan):
+
+- `update_learned_zone(store, …)` folds one observation into a running mean
+  (`new_avg = (avg·n + wall) / (n+1)`); `record_observations(store, obs, now_iso)`
+  applies a batch and returns `(store, applied_count)` so the caller can skip
+  persistence on a no-op.
+- `estimate_zone_seconds(store, zone_id, clean_mode, area_m2)` returns
+  `{"seconds", "source", "sample_count"}`: the **learned average** wins the moment
+  `sample_count >= 1`; before that it falls back to **area × a per-mode rate**
+  (`_FALLBACK_SECONDS_PER_M2 = {"mop": 240, "vacuum": 60}`, `source:
+  "area_fallback"`); with neither, `source: "none"` / `seconds: 0` (the card shows a
+  "learning…" hint). Every estimate is clamped to `[30, 3600]` s
+  (`_clamp_estimate`) so a degenerate area or one wild sample can't run away.
+
+The estimate feeds both the pre-run job estimate (`manager._estimate_queued_zones` /
+`_zone_ids_estimate_seconds`, see [05-core-manager](05-core-manager.md)) and the live
+zone-phase ETA. Because a zone is estimated per `zone_id`, the same store answers "how
+long will this zone take" whether it's a standalone `clean_saved_zone` or a step in a
+larger run.
+
+> **Design limit (banked, not fixed):** `clean_mode` is derived from the *job-level*
+> mop flag, not a per-zone signal — a zone in a mixed job inherits the job's mode.
+> There is no per-zone mode override today.
+
+---
+
 ## 3. Learning Eligibility
 
 ### 3.1 `is_learning_job` — the gate

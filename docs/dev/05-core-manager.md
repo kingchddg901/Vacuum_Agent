@@ -370,6 +370,29 @@ intentional "Charging to X% — ~N min" / "Waiting" state rather than a hung job
 to a live wall-clock — on a cold-start install rather than fabricating a number),
 and `wait_phase_active` + `wait_minutes`.
 
+A **`zone` phase** is surfaced the same way (`zone_phase_active` +
+`zone_phase_ids` / `zone_phase_names` + `zone_phase_eta_minutes`), but with one
+difference: a zone is a *clean*, not a dock, and its roomless phase lingers on the
+active job through the post-clean drying. So `zone_phase_active` is gated on
+`_zone_is_actively_cleaning` — which reads `"zone" in active_cleaning_target` (the
+device signal that stays truthy through mop-prep bounces and clears at dock-done),
+with a "not docked/returning/idle" fallback for a brand that lacks it — so the
+"Cleaning zone" banner clears cleanly instead of hanging through drying. The
+zone's ETA is `_zone_ids_estimate_seconds` (learned avg else area fallback, see
+[10-learning-system §2.5](10-learning-system.md#25-zone-learning-learned_zones)),
+and the pre-run whole-job estimate folds queued zones in via
+`_estimate_queued_zones` (exposed as `zone_estimate`).
+
+**`live_queue` — the running-job composer twin.** The snapshot also carries
+`live_queue = {active, steps[]}`, built by `_build_live_queue_steps`, which flattens
+the running job's phase sequence into an ordered chip list —
+`{seq, kind: room|charge|wait|zone, state: done|current|upcoming, + live detail on
+the current one}`. Crucially it reads the **`active_job` clone** (its `phases`,
+frozen at launch) and **never the live queue composer**, so re-queuing rooms mid-run
+(building the *next* clean) can't disturb the chips of the *current* one — the "clone
+principle." An atomic job (no `phases`) flattens its `resolved_rooms` as one group.
+This is the monitor mirror of the [ad-hoc queue composer](07-queue-engine.md#the-ad-hoc-live-queue-queue_breaks).
+
 ### `get_dashboard_snapshot`
 
 Aggregates: managed vacuums list, per-vacuum active job state, queue state,

@@ -98,15 +98,21 @@ button, independent of the armed source.
 
 **Stepped profiles dispatch opaquely.** A saved profile may now carry an ordered
 `steps` list — room *groups* broken up by native **charge/wait stops** (dock + poll
-battery to a target %, or dock + hold N minutes, then continue). The card arms and
-fires it exactly as before: `start_run_profile` runs the whole stepped sequence
-(charge/wait phases included), so the dashboard card stays agnostic to steps and needs
-no change. Editing a profile's steps (the steps editor, the "This run" preview, the
-live charging/waiting banners) lives in the **panel**, not this card — its
-`run-profiles.js` / `rooms.js` / `learning.js` renderers, see
+battery to a target %, or dock + hold N minutes) **or 🎯 saved-zone steps** (clean a
+saved zone as one phase). The card arms and fires it exactly as before:
+`start_run_profile` runs the whole stepped sequence, so the dashboard card stays
+agnostic to steps and needs no change. All of the *authoring and monitoring* of steps
+lives in the **panel**, not this card: the steps editor, the "This run" preview, the
+`+ Charge`/`+ Wait`/`+ Zone` composer, the live charging/waiting/zone banners, the
+**live queue** (the running job flattened to done/current/upcoming chips —
+`dashboardLiveQueue` → `renderLiveQueue`, collapsible), and the **run-time queue lock**
+(room toggles / reorder / Select-All / Clear-Queue disabled while a job runs) are all
+`run-profiles.js` / `rooms.js` / `learning.js` renderers — see
 [Module reference](module-reference.md); the phase machinery is in
-[Phase runner](../30-phase-runner.md). The snapshot's `has_charge_steps` flag is
-likewise a panel-render concern; the card never reads it.
+[Phase runner](../30-phase-runner.md) and the snapshot shapes (`queue_steps`,
+`live_queue`, `zone_phase_*`) in [Backend contract](backend-contract-and-data-shapes.md).
+The snapshot's `has_charge_steps` flag is likewise a panel-render concern; the card
+never reads it.
 
 ## 4. What it reuses (this is why it's cheap)
 

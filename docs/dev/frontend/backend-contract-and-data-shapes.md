@@ -77,6 +77,27 @@ The map's saved-zone list is **not** a separate query — it rides on the **`get
 | `build_queue` | `vacuum_entity_id`, `map_id` |
 | `build_room_payload` | `vacuum_entity_id`, `map_id` |
 
+##### Live-queue composer (stepped ad-hoc runs)
+
+The card builds a stepped run *ad hoc* — charge/wait stops and saved-zone cleans
+inserted into the current queue without saving a profile. These persist on the map
+bucket as `queue_breaks` (`[{after_index, step}]`); `get_dashboard_snapshot` exposes
+the interleaved result as `queue_steps` (steps + raw breaks). All are **response**
+services in the `eufy_vacuum` domain; JS wrappers in `src/actions/rooms.js`.
+
+| Service | Required fields | Notes |
+|---|---|---|
+| `add_queue_break` | `vacuum_entity_id`, `map_id`, `after_index` | Insert a `charge_wait` (`target_battery_percent`) or `wait` (`wait_minutes`) stop between room groups |
+| `add_queue_zone` | `vacuum_entity_id`, `map_id`, `after_index`, `zone_ids` | Insert a saved-zone **clean** step (one phase over the selected zones). May sit at the tail (`after_index == room_count`); stops may not |
+| `remove_queue_break` | `vacuum_entity_id`, `map_id`, `index` | Remove one step by its position in the break list |
+| `set_queue_breaks` | `vacuum_entity_id`, `map_id`, `breaks` | Wholesale replace — the primitive behind reorder + inline param-edit; the backend clamps `after_index` and re-sorts |
+| `clear_queue_breaks` | `vacuum_entity_id`, `map_id` | Drop all steps — the queue reverts to a flat clean |
+| `get_queue_steps` | `vacuum_entity_id`, `map_id` | Returns the interleaved `steps` (rooms + breaks/zones in order) and the raw `breaks` |
+
+A queue with breaks/zones dispatches as a stepped run on the normal Start; saving the
+setup snapshots `get_queue_steps().steps` into a run profile. The **running** job's
+monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-read-only-response) and [05-core-manager](../05-core-manager.md)). Backend contract: [07-queue-engine §9](../07-queue-engine.md#the-ad-hoc-live-queue-queue_breaks).
+
 #### Learning system
 
 | Service | Required fields | Notes |
