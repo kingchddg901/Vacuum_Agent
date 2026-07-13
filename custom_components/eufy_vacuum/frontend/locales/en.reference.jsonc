@@ -1909,7 +1909,7 @@
     "resume": "Resume",
     "room_fallback": "Room",
     "room_settings": "Room settings",
-    "run_plan_title": "This run",  // header of the pre-run stepped (room -> charge -> room) preview
+    "run_plan_title": "This Job",  // header of the pre-run stepped (room -> charge -> room) preview
     "running": "Running",  // active-job header label: a clean is in progress
     "select_all": "Select All",
     "settings_adjusted": "Settings adjusted",
@@ -1949,7 +1949,7 @@
     "room_count": {"one":"{count} room","other":"{count} rooms"},  // plural
     "room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
     "run": "Run",  // selected-profile button = apply + start the profile now (dispatches its steps)
-    "runs_as": "Runs as",  // label above the read-only step sequence in the selected-profile card
+    "runs_as": "Runs in this order",  // label above the read-only step sequence in the selected-profile card
     "save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
     "save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
     "step_charge_to": "Charge to",  // charge-step row label, precedes a percent input

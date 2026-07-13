@@ -1215,7 +1215,7 @@ export const en = {
   "rooms.resume": "Resume",
   "rooms.room_fallback": "Room",
   "rooms.room_settings": "Room settings",
-  "rooms.run_plan_title": "This run",  // header of the pre-run stepped (room -> charge -> room) preview
+  "rooms.run_plan_title": "This Job",  // header of the pre-run stepped (room -> charge -> room) preview
   "rooms.running": "Running",  // active-job header label: a clean is in progress
   "rooms.select_all": "Select All",
   "rooms.settings_adjusted": "Settings adjusted",
@@ -1251,7 +1251,7 @@ export const en = {
   "run_profiles.room_count": { one: "{count} room", other: "{count} rooms" },  // plural
   "run_profiles.room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
   "run_profiles.run": "Run",  // selected-profile button = apply + start the profile now (dispatches its steps)
-  "run_profiles.runs_as": "Runs as",  // label above the read-only step sequence in the selected-profile card
+  "run_profiles.runs_as": "Runs in this order",  // label above the read-only step sequence in the selected-profile card
   "run_profiles.save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
   "run_profiles.save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
   "run_profiles.step_charge_to": "Charge to",  // charge-step row label, precedes a percent input
