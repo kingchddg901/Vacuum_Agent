@@ -151,6 +151,7 @@ A plain run profile cleans its rooms in one pass. A **stepped** profile breaks t
 
 - A **charge step** ("Charge to X%") docks the vacuum and waits until the battery reaches your target before starting the next group. This is what turns *"vacuum the whole floor, top up to 80%, then mop it"* into a single button press instead of two profiles wired together with an automation.
 - A **wait step** ("Wait X min") docks and holds for a set number of minutes — for example a **mop-dry pause** between a vacuum pass and a mop pass.
+- A **zone step** ("🎯 clean a saved zone") cleans a [saved zone](04a-zones.md)'s footprint as one phase of the run — for example vacuum the rooms, then hit the stove zone before mopping. Zone steps are added on the queue with the **+ Zone** chip (not in the editor below), and are captured into the profile when you save your setup. See [Zones → Add a zone to a run](04a-zones.md#add-a-zone-to-a-run-a-zone-step).
 
 Two things worth knowing:
 
@@ -174,6 +175,9 @@ Steps live in the run-profile **editor**, so open a profile for editing first (s
 The typical flow is: set up the first batch of rooms in the Rooms view → **Add current rooms as a group** → **Add a charge step** (or a wait) → change the Rooms view to the next batch → **Add current rooms as a group** again, and so on. Each step row has up/down arrows to reorder it and a control to remove it.
 
 A charge or wait stop at the very start or end of the sequence is dropped automatically (there is nothing to bracket), and two of the same kind in a row collapse to the later one.
+
+!!! note "Zone steps are added from the queue, not the editor"
+    The editor's three controls add charge, wait, and room-group steps. A **zone step** is added a different way — on the queue, with the **+ Zone** chip (see [Zones](04a-zones.md#add-a-zone-to-a-run-a-zone-step)) — and is captured into the profile when you save your setup. In the editor a zone step then appears in the step list (🎯) and can be reordered or removed like the others; it just isn't created here.
 
 ### The "This run" preview
 

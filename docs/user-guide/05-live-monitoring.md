@@ -24,14 +24,15 @@ The banner always displays one of three states:
 
 Each room entry in the banner also carries a **confidence chip** — a small label (High, Medium, or Low) that reflects how reliable the time estimate for that room is, based on how many past runs the integration has learned from.
 
-### Charge and wait stops
+### Charge, wait, and zone stops
 
-If the run profile includes a **charge stop** or a **wait stop** between room groups (see [Profiles](10-profiles.md)), the vacuum docks partway through the run and the banner shows a dedicated status while it holds there:
+If the run includes a **charge stop**, a **wait stop**, or a **zone step** between room groups (see [Profiles](10-profiles.md) and [Zones](04a-zones.md)), the banner shows a dedicated status for that phase:
 
 - **Charging to `<target>`%** — during a charge stop, shown with a lightning symbol (⚡). When the integration can estimate how long the charge will take, the subtitle reads "Charging to `<target>`% · ~N min left". A live "N% to go" counter shrinks toward the target as the battery fills.
 - **Waiting · ~N left** — during a wait stop (a timed dock-and-hold, for example a mop-dry pause), shown with a timer symbol (⏱). The countdown updates on its own.
+- **Cleaning zone `<name>`** — during a 🎯 zone step, shown while the vacuum works the saved-zone footprint. If the zone has been learned, an estimated finish time appears; before the first run it shows an "estimated from size" figure instead. The zone chip goes *current* in the live queue below.
 
-These docks are part of the plan, so the card does **not** treat them as the run finishing or being cancelled. When the target is reached (or the wait time elapses), the vacuum leaves the dock and the banner returns to showing the next room group automatically.
+Charge and wait stops are docks — the vacuum parks there and the card does **not** treat that as the run finishing or being cancelled. A zone step is active cleaning of its own footprint. In every case the run continues automatically to the next phase, and the whole job is only reported finished once the last phase completes.
 
 ---
 
@@ -48,6 +49,34 @@ Below the banner, a **Live Progress** list shows every room in the current job:
 The list animates as rooms transition between states — you do not need to refresh the page.
 
 A room that appears to have been **skipped** is not shown as a row in this list — it is marked on the queue chips instead (dashed outline + struck-through name). See [Skipped-room marker](#skipped-room-marker) below.
+
+---
+
+## The live queue
+
+While the Live Progress list above details the **rooms**, the **live queue** shows the *whole job* — the running twin of the queue you built. It flattens the entire sequence into one ordered chip row and appears above the room grid as soon as the job starts.
+
+Every phase becomes a chip, in order:
+
+- **Room** chips — one per room, showing a live percentage on the current room.
+- **⚡ Charge** chips — a charge stop and its target.
+- **⏱ Wait** chips — a timed dock-and-hold.
+- **🎯 Zone** chips — a [zone step](04a-zones.md#add-a-zone-to-a-run-a-zone-step) and the saved zones it cleans.
+
+Each chip carries one of three states as the run moves through the sequence:
+
+| State | Meaning |
+|---|---|
+| **Done** | This phase has completed. |
+| **Current** | The vacuum is on this phase now (a room shows its percentage; a charge/zone shows its ETA). |
+| **Upcoming** | This phase is still ahead. |
+
+So a stepped run reads at a glance — for example *Kitchen ✓ · ⚡ Charge to 80% (current) · 🎯 Stove zone · Kitchen* — with charge, wait, and zone stops shown in place between the room groups, not hidden.
+
+**Collapse it.** The live queue can be folded to a single summary line when you'd rather watch the map or the banner — tap to collapse or expand it. It's a separate, always-available view: collapsing it doesn't remove it, and it never disturbs the running job.
+
+!!! note "The live queue reads a frozen snapshot"
+    The live queue is drawn from the job's plan as it was **when the run started** — a snapshot frozen at launch. That's why re-queuing rooms mid-run (building your *next* clean while this one finishes) can't disturb the chips you're watching: the live queue reflects the running job, and the editable queue below reflects what you're setting up next. The two are deliberately independent.
 
 ---
 

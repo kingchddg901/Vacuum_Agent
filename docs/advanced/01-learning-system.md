@@ -125,6 +125,35 @@ The card shows confidence as a colored chip alongside each ETA. Green means the 
 
 ---
 
+## Zone learning
+
+[Saved zones](../user-guide/04a-zones.md) run as steps get their own learning track, separate from and much simpler than room learning. A zone has a stable `zone_id` (no slug-matching to do), a size that comes deterministically from its drawn box (never learned), and it cleans in one uninterrupted pass (no counter-stream segmentation, no transit, no drift). So the only thing learned for a zone is **time**.
+
+### Wall-clock, not area
+
+A zone's time is learned as a **wall-clock total** — from the moment the phase dispatches to the moment it completes. That is deliberate: for a small zone the clock is dominated by *preparation*, not floor area. A ~0.5 m² mop zone might take five minutes almost entirely spent docking to wet the pad and washing afterward — its size says nothing useful about that. Wall-clock captures the wait you actually experience; area does not.
+
+The learned time is keyed by **`(zone_id, mode)`**, where mode is the coarse **mop** vs. **vacuum** bucket — the one dimension that materially changes a zone's time (a mop pass docks to wet and wash; a vacuum pass does not). Mop and vacuum runs of the same zone never share samples.
+
+### What qualifies
+
+- **Completed runs only.** A cancelled or partial zone would under-count, so only a completed phase folds into the average.
+- **Single-zone steps only.** A [zone step](../user-guide/04a-zones.md#add-a-zone-to-a-run-a-zone-step) that cleans several saved zones at once can't attribute its one wall-clock time to a single `zone_id`, so it is *estimated* (as the sum of its zones) but not *learned*. A step with exactly one zone is what teaches that zone.
+
+Each qualifying observation folds into a running mean, so history is never re-scanned. The per-zone data lives on the map bucket (`learned_zones[zone_id][mop|vacuum]`) and is persisted with the map — a re-map that invalidates a saved zone drops its learned times too.
+
+### How a zone is estimated
+
+| Situation | Estimate source |
+|---|---|
+| At least one learned sample for this zone and mode | The **learned average** — it takes over immediately at the first sample. |
+| No sample yet, but the zone's size is known | **Area × a per-mode rate** (a mop pass is much slower per m² than a vacuum pass), shown as the "estimated from size" fallback with a `~`. |
+| Neither | No estimate — the chip shows a "learning…" hint. |
+
+Every estimate is clamped to a sane band so a degenerate area or one wild sample can't produce an absurd ETA. These per-zone estimates feed the zone chip's time and roll into the whole-run estimate alongside the room model.
+
+---
+
 ## The Stale Flag
 
 The learning system considers its stats stale if the last rebuild is more than **30 days** old. When stats are stale, every estimate payload includes `stats_stale: true`, and the card surfaces a warning so you know the estimates may not reflect recent changes in your cleaning patterns.

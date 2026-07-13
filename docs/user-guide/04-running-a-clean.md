@@ -46,7 +46,8 @@ Once a job starts, the action bar updates to reflect the live state:
 - The queue chips change colour to show which rooms are completed, which room is current, and which rooms are still remaining.
 - The current room's chip shows a live completion percentage (for example, `42%`) instead of a time estimate.
 - The room card for the current room shows a progress bar fill and a progress chip with percentage complete and estimated time remaining (for example, "42% complete" and "~3 min left").
-- An **Active Job** strip appears above the room grid. It shows a "Running" label with a pulse indicator, followed by chips for each room in the job. Each chip in the active job strip shows the job-order position number and the room name.
+- A **live queue** strip appears above the room grid — the running twin of the queue you built. It flattens the whole job into an ordered chip row: every room, plus any charge, wait, and 🎯 zone stops, each marked done, current, or upcoming as the run progresses. It can be collapsed to a single summary line. See [Live monitoring → The live queue](05-live-monitoring.md#the-live-queue) for the full breakdown.
+- The queue is **locked** while the job runs: room toggles, drag-reorder, **Select All**, and **Clear Queue** are disabled so you can't disturb the run in progress — the job follows the snapshot it started with. See [The Queue and Room Order → The queue is locked during a run](03-queue-and-order.md#the-queue-is-locked-during-a-run).
 
 !!! note "Stepped runs dock mid-job on purpose"
     If you started a [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) — a run profile with **charge** or **wait** stops — the vacuum returns to its dock between room groups to charge or hold. That is expected: the run has not ended, and the card knows the dock is intentional, so it will not report the job as finished or cancelled until the whole sequence is done. During a stop the live panel shows the charge or wait progress instead of a room percentage. See [Steps: charging and waiting mid-run](10-profiles.md#steps-charging-and-waiting-mid-run) for the full walkthrough.
@@ -55,16 +56,9 @@ Once a job starts, the action bar updates to reflect the live state:
 
 ## Zone cleaning (draw a box)
 
-Instead of cleaning whole rooms, you can clean **just an area you draw on the map** — handy for a spill, a high-traffic patch, or the spot under the table.
+Instead of cleaning whole rooms, you can clean **just an area you draw on the map** — handy for a spill, a high-traffic patch, or the spot under the table. Open the **Map** view, tap the **▢ "Draw a zone to clean"** button in the map toolbar, drag a box over the area (repeat for more boxes, up to the brand cap), pick the suction/mop settings in the **Zone clean** panel, and press **Clean zone**.
 
-Zone cleaning works on any device-accurate map backdrop — either the **live map** image or the **rendered room map** (the **▦** map-render view) — on brands that support it: **Eufy** (on eufy-clean v1.11.1+) and **Roborock** (the S6, and likely other models, through the stock integration). On Roborock the **Draw a zone** button appears once the rendered room map is on. You can draw at **any map rotation**. The per-clean limits are brand-specific: **Eufy** allows up to **10** zones; **Roborock** up to **5**, each between **1 ft² and 32.8 ft²** — the card stops the draw at the cap, and an out-of-size zone is refused with a message.
-
-1. Open the **Map** view and tap the **▢ "Draw a zone to clean"** button in the map toolbar to enter zone mode.
-2. **Drag a box** on the map over the area you want cleaned. Repeat to add more boxes — up to the brand cap noted above (each is numbered).
-3. The **Zone clean** panel (right column) lists your zones. Remove one with its **✕**, or **Clear** to drop them all. Under **Settings**, choose the suction/mop options for the run — they apply to the whole clean.
-4. Press **Clean zone** (or **Clean *N* zones**) to send it. **Cancel** leaves zone mode without cleaning.
-
-Zones are one-off — they aren't saved between cleans. To clean by room instead, leave zone mode and use the normal [room queue](#starting-a-clean).
+That is the quick one-off. You can also **save** a zone and re-clean it by name, or fold a saved zone into a room-clean run as a **step** so one job does rooms *and* a zone in sequence. The full story — saving, sequencing, learned zone times, and the per-brand limits — is on its own page: **[Zones](04a-zones.md)**.
 
 ---
 

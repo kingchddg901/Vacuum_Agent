@@ -116,6 +116,7 @@ Each card shows the following fields:
 | Field | Meaning |
 |-------|---------|
 | **Rooms** | The room slugs covered in this job. |
+| **Zones** | The saved [zone(s)](04a-zones.md) cleaned during this run, shown when the job included a [zone step](04a-zones.md#add-a-zone-to-a-run-a-zone-step). Lists the zone name(s); a multi-zone step also shows the count. |
 | **Area Cleaned** | The floor area cleaned this run, in m². Shown when the run recorded a cleaned area — external (app-started) runs now carry this for both single- and multi-room cleans. |
 | **Scope** | Whether the job was single-room or multi-room (formatted label). |
 | **Profile** | The cleaning profile used. A subtitle line appears when the profile has extra detail. |
