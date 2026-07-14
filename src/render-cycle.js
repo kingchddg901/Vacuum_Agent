@@ -192,6 +192,7 @@ export function renderHeader(ctx) {
       </div>
 
       <div class="evcc-header-right">
+        ${renderers._renderMapSwitch?.(state) ?? ""}
         ${renderLanguageControl(renderers, {
           langOverride, currentLang, open: languageMenuOpen, autoInfo,
         })}

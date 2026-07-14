@@ -75,6 +75,11 @@ export const MOBILE_STYLES = `
     z-index:     9;
   }
 
+  /* Switch Map picker row in the mobile header (below the vacuum name). */
+  .evcc-mobile-header-mapswitch {
+    margin-top: 6px;
+  }
+
   /* Language globe — pinned to the top-right of the sticky mobile header. The
      header is the positioned ancestor; the dropdown/backdrop stack within the
      header's z-index:9 context, above the view-stage. */

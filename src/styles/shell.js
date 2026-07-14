@@ -149,6 +149,7 @@ export const shellStyles = `
   .evcc-header-right {
     display:     flex;
     align-items: center;
+    gap:         8px;
     flex-shrink: 0;
   }
 

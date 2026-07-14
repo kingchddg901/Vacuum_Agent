@@ -757,6 +757,29 @@ export function applyMapState(proto) {
         && this.frameUngrounded();
   };
 
+  /**
+   * Debounce for the map-switch picker. setMapSwitchPending records the label of an in-flight
+   * switch; mapSwitchPending returns it until the backend snapshot's map_switcher reflects it
+   * (current === pending) or an 8s timeout elapses, then clears itself. While non-null the
+   * renderers disable the picker + show the pending label, so a second switch can't fire
+   * mid-transition — which trips the fork's merged-map ghost (stale segmentation lag).
+   */
+  proto.setMapSwitchPending = function (target) {
+    this._mapSwitchPending = target || null;
+    this._mapSwitchPendingAt = target ? Date.now() : 0;
+  };
+  proto.mapSwitchPending = function () {
+    if (this._mapSwitchPending == null) return null;
+    const cur = this.mapSwitcher?.()?.current;
+    const settled = cur === this._mapSwitchPending || Date.now() - (this._mapSwitchPendingAt || 0) > 8000;
+    if (settled) {
+      this._mapSwitchPending = null;
+      this._mapSwitchPendingAt = 0;
+      return null;
+    }
+    return this._mapSwitchPending;
+  };
+
   /* =========================================================
      HIDDEN REGIONS (user-drawn rects that MASK map noise, e.g. a
      porch off a room). Persisted per-map like companion_anchors

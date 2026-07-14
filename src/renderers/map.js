@@ -281,7 +281,7 @@ export function applyMapRenderers(proto) {
             <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-zone-draw"
                     title="${this.t("map.draw_zone")}" aria-label="${this.t("map.draw_zone")}">▢</button>` : ""}
-            ${this._renderMapSwitch(state)}
+            ${(state.embeddedInCard?.() ?? false) ? this._renderMapSwitch(state) : ""}
             <span class="evcc-map-zoom-readout"
                   aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
           </div>
@@ -296,21 +296,28 @@ export function applyMapRenderers(proto) {
 
   /**
    * Map switcher — the fork's per-vacuum "Switch Map" select, backend-fed via
-   * snapshot.map_switcher. A native <select> in the map toolbar; shown ONLY when that
-   * select entity exists, is available, and offers >1 map (older eufy-clean builds omit
-   * it → nothing renders). Picking fires select.select_option (see bindings/map.js).
+   * snapshot.map_switcher. A native <select> rendered in the PANEL HEADER (render-cycle
+   * renderHeader + the mobile header); embedded dashboard/room cards keep it in the map
+   * toolbar (this method is shared, the toolbar call is gated on embeddedInCard). Shown
+   * ONLY when the select entity exists, is available, and offers >1 map (older eufy-clean
+   * builds omit it → nothing renders). Picking fires select.select_option (see
+   * bindings/map.js _bindMapSwitch); debounced via state.mapSwitchPending.
    */
   proto._renderMapSwitch = function (state) {
     const ms = state.mapSwitcher?.();
     const options = Array.isArray(ms?.options) ? ms.options : [];
     if (!ms || !ms.available || options.length < 2) return "";
+    // Debounce: while a pick is in flight, disable the picker + show the pending label so a
+    // rapid second switch can't fire mid-transition (which trips the fork's merged-map ghost).
+    const pending = state.mapSwitchPending?.();
+    const selected = pending || ms.current;
     return `
       <select class="evcc-map-switch-select" data-action="map-switch-select"
-              title="${this.t("map.switch_map")}" aria-label="${this.t("map.switch_map")}">
+              title="${this.t("map.switch_map")}" aria-label="${this.t("map.switch_map")}"${pending ? " disabled" : ""}>
         ${options
           .map(
             (o) =>
-              `<option value="${this.escapeHtml(o)}"${o === ms.current ? " selected" : ""}>${this.escapeHtml(o)}</option>`,
+              `<option value="${this.escapeHtml(o)}"${o === selected ? " selected" : ""}>${this.escapeHtml(o)}</option>`,
           )
           .join("")}
       </select>`;

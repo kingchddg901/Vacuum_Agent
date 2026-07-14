@@ -108,6 +108,18 @@ test("[ZD-14] zoneDrawSuppressedBySwitch: true only when zones WOULD draw but th
   assert.equal(mk(true, false, true).zoneDrawSuppressedBySwitch(), false);  // no backdrop -> nothing
 });
 
+test("[ZD-15] mapSwitchPending debounce: holds the pending label until the snapshot catches up", () => {
+  const s = makeState();
+  s.mapSwitcher = () => ({ current: "A (ID: 6)" });
+  assert.equal(s.mapSwitchPending(), null);          // nothing in flight
+  s.setMapSwitchPending("B (ID: 7)");
+  assert.equal(s.mapSwitchPending(), "B (ID: 7)");   // in flight -> picker disabled
+  s.mapSwitcher = () => ({ current: "B (ID: 7)" });  // backend now reflects the switch
+  assert.equal(s.mapSwitchPending(), null);          // settled -> cleared
+  // clearing is sticky (no re-arm without another setMapSwitchPending)
+  assert.equal(s.mapSwitchPending(), null);
+});
+
 test("[ZD-9] multi-zone: addZoneDraft accumulates and caps at 10", () => {
   const s = makeState();
   for (let i = 0; i < 12; i++) s.addZoneDraft({ x: i, y: i, w: 5, h: 5 });

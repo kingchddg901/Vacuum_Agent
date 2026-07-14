@@ -134,6 +134,9 @@ export function applyMobileShellRenderer(proto) {
     const dockText = dockStatus
       ? this.tVocabRaw("device_status", dockStatus, dockStatusLabel ?? _fallbackTitleCase(dockStatus))
       : "";
+    // Map switcher lives in the panel header (desktop + mobile), not the map toolbar; empty
+    // string when there's no fork map-switcher so nothing renders.
+    const mapSwitchHtml = this._renderMapSwitch?.(ctx.state) ?? "";
 
     return `
       <div class="evcc-mobile-header">
@@ -145,6 +148,7 @@ export function applyMobileShellRenderer(proto) {
         <div class="evcc-mobile-vacuum-name">
           ${this.escapeHtml(vacuumName)}
         </div>
+        ${mapSwitchHtml ? `<div class="evcc-mobile-header-mapswitch">${mapSwitchHtml}</div>` : ""}
         <div class="evcc-mobile-vacuum-status">
           <span class="evcc-status-dot ${_statusDotClass(vacuumStatus)}"></span>
           <span class="evcc-mobile-vacuum-status-label">

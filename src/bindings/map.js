@@ -85,6 +85,7 @@ export function applyMapBindings(proto) {
     this._bindMapConfigEntry(root);
     this._bindMapConfig(root);
     this._bindMapZoomPan(root);
+    this._bindMapSwitch();
     this._bindMapAnimal(root);
     this._bindAreaLabelDrag(root);
     this._bindRoomNameDrag(root);
@@ -2490,6 +2491,25 @@ export function applyMapBindings(proto) {
    up the correct transform from state.
    ========================================================= */
 
+  // Map switcher (fork "Switch Map" select, backend-fed via snapshot.map_switcher). The picker
+  // lives in the PANEL HEADER (desktop + mobile), outside any view root, so bind shadow-root-wide
+  // via _onAll (idempotent across renders). On pick: set the debounce pending (disables the
+  // picker until the switch settles), fire select.select_option, then refresh the snapshot so
+  // current/options reflect the new active map. Embedded cards keep their own toolbar picker +
+  // wiring (unchanged).
+  proto._bindMapSwitch = function () {
+    this.card._onAll("[data-action='map-switch-select']", "change", async (e) => {
+      e.stopPropagation();
+      const entityId = this.card._state.mapSwitcher?.()?.entity_id;
+      if (!entityId) return;
+      const value = e.currentTarget.value;
+      this.card._state.setMapSwitchPending?.(value);
+      this.card._scheduleRender?.();
+      await this.card._actions.switchMap?.(entityId, value);
+      await this.card.refreshDashboardSnapshot?.();
+    });
+  };
+
   proto._bindMapZoomPan = function (root) {
     const container = root.querySelector(".evcc-map-container");
     if (!container) return;
@@ -2559,18 +2579,8 @@ export function applyMapBindings(proto) {
       });
     });
 
-    // Map switcher (fork "Switch Map" select, backend-fed via snapshot.map_switcher).
-    // Fire select.select_option on the fork's entity, then refresh so current/options
-    // reflect the new active map.
-    root.querySelectorAll("[data-action='map-switch-select']").forEach((sel) => {
-      this.card._on(sel, "change", async (e) => {
-        e.stopPropagation();
-        const entityId = this.card._state.mapSwitcher?.()?.entity_id;
-        if (!entityId) return;
-        await this.card._actions.switchMap?.(entityId, e.target.value);
-        await this.card.refreshDashboardSnapshot?.();
-      });
-    });
+    // Map switcher binding moved to _bindMapSwitch (shadow-root-wide _onAll) — the picker now
+    // lives in the panel header, outside this view root. See _bindMapSwitch.
 
     // Post-switch frame-gate override ("Enable drawing anyway"). Clears the backend
     // gate for this vacuum, then refreshes so the banner clears + zone draw re-enables.
