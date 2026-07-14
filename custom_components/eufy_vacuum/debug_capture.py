@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Christopher King
 """Silent debug "flight recorder" — a drop-in, integration-agnostic helper.
 
 WHY: turning on DEBUG for an integration (via HA's ``logger:`` config or the
