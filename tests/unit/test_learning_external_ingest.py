@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from unittest.mock import MagicMock
 
 from custom_components.eufy_vacuum.learning.external_ingest import (
+    _rank_shortlist,
     build_graduated_job,
     build_pending_record,
     gate_segment_identity,
@@ -100,6 +101,63 @@ def test_shortlist_settings_match_beats_area_match():
     slugs = [s["slug"] for s in rec["segments"][0]["shortlist"]]
     assert slugs[0] == "kitchen"  # mode-match wins, not the area-match hall
     assert "hall" in slugs and slugs.index("kitchen") < slugs.index("hall")
+
+
+# --- Phase 1: cold-start footprint fingerprint in the shortlist ranker ---------------
+
+_COLD_ROOMS = {
+    "1": {"slug": "kitchen", "name": "Kitchen", "floor_type": "hardwood", "clean_mode": "vacuum"},
+    "2": {"slug": "bryan", "name": "Bryan's Room", "floor_type": "hardwood", "clean_mode": "vacuum"},
+    "3": {"slug": "bathroom", "name": "Bathroom", "floor_type": "hardwood", "clean_mode": "vacuum"},
+}
+
+
+def test_cold_start_footprint_ranks_by_size():
+    # No learned areas (a fresh/re-mapped map) + identical settings across rooms: the OLD
+    # behaviour left the area tiebreak dead (-999 for all) so settings-equal rooms sorted
+    # arbitrarily (the post-reset whiff). With raster footprints, the room whose SIZE
+    # matches the ~4 m² run wins — Kitchen (3.9), not Bryan (9.7) or Bathroom (2.8).
+    sl = _rank_shortlist(
+        seg_area=4.0,
+        seg_settings={"clean_mode": "vacuum"},
+        seg_passes=1,
+        rooms=_COLD_ROOMS,
+        area_by_slug={},                       # cold start — no learned areas
+        footprint_by_id={1: 3.9, 2: 9.7, 3: 2.8},
+    )
+    assert sl[0]["slug"] == "kitchen"
+    assert sl[0]["footprint_area_m2"] == 3.9   # surfaced so the card shows the matched size
+
+
+def test_cold_start_without_footprints_preserves_prior_behaviour():
+    # No learned areas AND no footprints (e.g. a non-Eufy brand) → area tiebreak dead for
+    # all; settings-equal rooms keep insertion order, no crash. Same as pre-Phase-1.
+    sl = _rank_shortlist(
+        seg_area=4.0,
+        seg_settings={"clean_mode": "vacuum"},
+        seg_passes=1,
+        rooms=_COLD_ROOMS,
+        area_by_slug={},
+        footprint_by_id={},
+    )
+    assert [s["slug"] for s in sl] == ["kitchen", "bryan", "bathroom"]
+
+
+def test_learned_area_wins_over_footprint():
+    # The footprint is only a COLD-START fallback: once a room has a learned area, that
+    # wins. Kitchen's learned 2.0 ~ the 2.1 run beats Bryan even though Bryan's footprint
+    # is closer to nothing here; footprint_area_m2 is None when a learned area was used.
+    sl = _rank_shortlist(
+        seg_area=2.1,
+        seg_settings={"clean_mode": "vacuum"},
+        seg_passes=1,
+        rooms=_COLD_ROOMS,
+        area_by_slug={"kitchen": 2.0},
+        footprint_by_id={1: 3.9, 2: 9.7, 3: 2.8},
+    )
+    assert sl[0]["slug"] == "kitchen"
+    assert sl[0]["learned_area_m2"] == 2.0
+    assert sl[0]["footprint_area_m2"] is None
 
 
 def test_zero_area_segment_dropped():

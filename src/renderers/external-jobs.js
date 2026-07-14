@@ -231,7 +231,7 @@ export function applyExternalJobsRenderers(proto) {
     const roomChips = shortlist.map((r) => `
       <button class="evcc-chip ${a.room_id === r.room_id ? "active" : ""}"
               data-action="ext-pick-room" data-order="${order}" data-room-id="${r.room_id}">
-        ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${r.learned_area_m2 ? ` · ${Number(r.learned_area_m2).toFixed(0)} m²` : ""}
+        ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${(r.learned_area_m2 ?? r.footprint_area_m2) ? ` · ${Number(r.learned_area_m2 ?? r.footprint_area_m2).toFixed(0)} m²` : ""}
       </button>`).join("");
 
     const modeCur = ov.clean_mode ?? settings.clean_mode;

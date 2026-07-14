@@ -175,6 +175,7 @@ def _rank_shortlist(
     seg_passes: int,
     rooms: dict[str, Any],
     area_by_slug: dict[str, float],
+    footprint_by_id: dict[int, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Top-N rooms for a segment, ranked SETTINGS-first.
 
@@ -184,7 +185,14 @@ def _rank_shortlist(
     fan/water is far more reliable, so the weighted settings-match is the primary
     sort key and area-distance is only a tiebreak among settings-equal rooms. The
     map is already scoped by the caller; carpet rooms drop for a mopped segment.
+
+    ``footprint_by_id`` (Phase 1) is ``{device room id -> raster footprint m²}``. When a
+    room has no learned area yet — a fresh / re-mapped map, or any cold-start — the area
+    tiebreak falls back to this footprint instead of ranking last, so size still
+    discriminates before a single run has been learned. Empty ({}) preserves the old
+    cold-start behaviour (e.g. a brand with no raster footprint).
     """
+    footprint_by_id = footprint_by_id or {}
     settings = seg_settings or {}
     mode = _canonical_clean_mode(settings.get("clean_mode"))
     mopped = mode in _MOP_MODES
@@ -213,8 +221,15 @@ def _rank_shortlist(
         )
 
         learned_area = area_by_slug.get(slug)
+        # Cold-start (no learned area) → fall back to the room's raster footprint so the
+        # area signal still discriminates; else it ranks last and settings-equal rooms
+        # sort arbitrarily (the fresh-map whiff). Learned area still wins when present.
+        footprint = footprint_by_id.get(_safe_int(rid, -1))
+        area_ref = learned_area if learned_area else footprint
         area_tiebreak = (
-            -abs(_safe_float(seg_area) - learned_area) if learned_area else _COLD_ROOM_SCORE
+            -abs(_safe_float(seg_area) - _safe_float(area_ref))
+            if area_ref
+            else _COLD_ROOM_SCORE
         )
         scored.append(
             (
@@ -226,6 +241,9 @@ def _rank_shortlist(
                     "name": room.get("name"),
                     "is_carpet": is_carpet,
                     "learned_area_m2": learned_area,
+                    # Footprint used only when there's no learned area (so the card can
+                    # show the size it matched on at cold-start); None once learned.
+                    "footprint_area_m2": footprint if not learned_area else None,
                     "settings_score": round(settings_score, 2),
                     "score": round(area_tiebreak, 2),
                 },
@@ -278,6 +296,7 @@ def _enrich_segments(
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
     map_id: Any,
+    footprint_by_id: dict[int, float] | None = None,
 ) -> tuple[list[dict[str, Any]], int, list[int]]:
     """Bake per-segment review fields (settings, passes, shortlist, confidence),
     drop only TRAILING sub-room segments, and re-index 0..N-1.
@@ -334,6 +353,7 @@ def _enrich_segments(
                     seg_passes=passes,
                     rooms=rooms,
                     area_by_slug=area_by_slug,
+                    footprint_by_id=footprint_by_id,
                 ),
             }
         )
@@ -579,6 +599,7 @@ def build_attributed_job(
     settings_samples: list[dict[str, Any]],
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
+    footprint_by_id: dict[int, float] | None = None,
 ) -> dict[str, Any] | None:
     """Stand up a pending review record straight from the pose attribution, for a run the
     counter segmenter couldn't split (the common app-run case — see the section note). One
@@ -650,6 +671,7 @@ def build_attributed_job(
                 seg_passes=1,
                 rooms=rooms,
                 area_by_slug=area_by_slug,
+                footprint_by_id=footprint_by_id,
             ),
         }
         _promote_pose_room(seg, rid, rooms)  # classified room becomes shortlist[0]
@@ -689,6 +711,7 @@ def build_pending_record(
     baselines: list[dict[str, Any]],
     vacuum_entity_id: str | None = None,
     pose_samples: list[dict[str, Any]] | None = None,
+    footprint_by_id: dict[int, float] | None = None,
 ) -> dict[str, Any] | None:
     """Turn a captured external run into a pending review record (schema v2), or None
     when there is no usable cleaning signal (so a false-start writes nothing).
@@ -726,16 +749,19 @@ def build_pending_record(
         return build_attributed_job(
             detection_ts=detection_ts, map_id=map_id, pose_samples=pose_samples,
             attribution=attribution, settings_samples=settings, rooms=rooms, baselines=baselines,
+            footprint_by_id=footprint_by_id,
         )
 
     out_segments, _confident_count, active_ids = _enrich_segments(
-        segments, candidates, counter, settings, rooms, baselines, map_id
+        segments, candidates, counter, settings, rooms, baselines, map_id,
+        footprint_by_id=footprint_by_id,
     )
     if not out_segments:
         # Every counter stretch was sub-room area — fall back to the pose attribution.
         return build_attributed_job(
             detection_ts=detection_ts, map_id=map_id, pose_samples=pose_samples,
             attribution=attribution, settings_samples=settings, rooms=rooms, baselines=baselines,
+            footprint_by_id=footprint_by_id,
         )
 
     if attribution and pose_samples:
@@ -790,6 +816,7 @@ def resegment_pending_record(
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
     vacuum_entity_id: str | None = None,
+    footprint_by_id: dict[int, float] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """Re-segment a v2 pending record from its embedded samples, returning
     ``(new_record, meta)`` (``(None, meta)`` when the selection yields no segment —
@@ -848,7 +875,8 @@ def resegment_pending_record(
 
     segments = engine.build_segments(counter, active, tuning=seg_tuning)
     out_segments, _confident_count, active_boundary_ids = _enrich_segments(
-        segments, candidates, counter, settings, rooms, baselines, map_id
+        segments, candidates, counter, settings, rooms, baselines, map_id,
+        footprint_by_id=footprint_by_id,
     )
     if not out_segments:
         return None, meta

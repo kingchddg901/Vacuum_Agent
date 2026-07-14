@@ -243,6 +243,33 @@ class ExternalRunManager:
             _LOGGER.exception("external finalize: return-overhead extraction failed")
             return empty
 
+    async def _room_footprints(self, vacuum_entity_id: str) -> dict[int, float]:
+        """``{device room id -> raster footprint m²}`` for the vacuum's active map, or ``{}``
+        when unavailable (non-Eufy brand / map not ready). Feeds the cold-start footprint
+        fingerprint in the external-run shortlist ranker (external_ingest._rank_shortlist):
+        before any room has a learned area, size still discriminates which room a segment is."""
+        try:
+            map_data = await self._manager.async_get_map_data_dict(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            if not map_data:
+                return {}
+            from ..mapping.map_source import rooms_from_room_pixels
+
+            out: dict[int, float] = {}
+            for r in rooms_from_room_pixels(map_data):
+                try:
+                    rid = int(r.get("number"))
+                    area = float(r.get("area_m2"))
+                except (TypeError, ValueError):
+                    continue
+                if rid > 0 and area > 0:
+                    out[rid] = area
+            return out
+        except Exception:  # never let a footprint hiccup break finalize
+            _LOGGER.debug("external footprints unavailable", exc_info=True)
+            return {}
+
     async def _finalize_external_run(
         self, *, vacuum_entity_id: str, map_id: str, slot: dict[str, Any]
     ) -> None:
@@ -258,6 +285,10 @@ class ExternalRunManager:
             self._manager.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
             or {}
         ).get("rooms", {})
+        # Per-room raster footprint (device room id -> m²) — the cold-start area fingerprint
+        # for the shortlist ranker when no room has a learned area yet (Phase 1). Empty for a
+        # non-Eufy brand / map not ready, which preserves prior behaviour.
+        footprints = await self._room_footprints(vacuum_entity_id)
 
         # Returning/dock overhead from the recorder, bounded to the last cleaning
         # tick so the final (true-end) dock isn't counted — books mid-run docks
@@ -297,6 +328,7 @@ class ExternalRunManager:
                 baselines=baselines,
                 vacuum_entity_id=vacuum_entity_id,
                 pose_samples=pose_samples,
+                footprint_by_id=footprints,
             )
             if record is None:
                 return None
