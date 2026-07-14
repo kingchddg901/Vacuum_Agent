@@ -180,6 +180,39 @@ def record_step_completed(
     record["last_advanced_at"] = _iso_now()
 
 
+def active_map_configured(manager: Any, vacuum_entity_id: str) -> bool | None:
+    """Whether the ACTIVE map currently has >= 1 configured room.
+
+    Returns ``None`` when the active map can't be determined — the adapter declares no
+    ``entities.active_map`` (brand without an active-map concept) or the entity is
+    unknown/unavailable — so callers leave sticky step completion untouched.
+
+    This backs the "re-open save_rooms" guard: the save_rooms completion flag is sticky,
+    but a factory reset / switch to a fresh map id can leave it set against a now-dead
+    map while the ACTIVE map has no configured rooms. Scoping the check to the active map
+    (not "any map ever configured") is what distinguishes a genuinely-configured setup
+    from a stale flag pointing at a map that no longer matters.
+    """
+    entities = (get_adapter_config(vacuum_entity_id) or {}).get("entities", {}) or {}
+    am_entity = entities.get("active_map")
+    if not am_entity:
+        return None
+    state = manager.hass.states.get(am_entity)
+    if state is None or state.state in ("unknown", "unavailable", "", None):
+        return None
+    bucket = (
+        manager.data.get("maps", {})
+        .get(vacuum_entity_id, {})
+        .get(str(state.state))
+    )
+    if not isinstance(bucket, dict):
+        return False
+    return any(
+        isinstance(room, dict) and room.get("is_configured")
+        for room in (bucket.get("rooms") or {}).values()
+    )
+
+
 def _list_configured_room_ids(
     manager: Any, vacuum_entity_id: str
 ) -> set[int]:

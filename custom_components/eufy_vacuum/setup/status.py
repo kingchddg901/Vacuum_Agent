@@ -57,6 +57,7 @@ from ..panels import effective_panel_title
 from .drift import (
     SETUP_STEP_LABELS,
     SETUP_STEP_SERVICES,
+    active_map_configured,
     compute_room_drift,
     get_adapter_setup_steps,
     is_step_completed,
@@ -78,6 +79,16 @@ def _build_setup_steps_for_vacuum(
     next_step: str | None = None
     for step_id in declared:
         completed = is_step_completed(progress, step_id)
+        # save_rooms completion is sticky, but it must reflect the ACTIVE map: a factory
+        # reset / switch to a fresh map id can leave the flag set against a now-dead map
+        # while the active map has no configured rooms. Re-open when we can confirm the
+        # active map is unconfigured (None = can't determine -> leave the sticky flag).
+        if (
+            completed
+            and step_id == "save_rooms"
+            and active_map_configured(manager, vacuum_entity_id) is False
+        ):
+            completed = False
         steps_out.append({
             "id": step_id,
             "label": SETUP_STEP_LABELS.get(step_id, step_id),

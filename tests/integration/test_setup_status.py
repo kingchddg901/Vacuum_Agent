@@ -127,3 +127,58 @@ def test_get_setup_status_next_actions_empty_when_ready(hass, manager):
     result = get_setup_status(hass)
     assert result["state"] == "ready"
     assert result["next_actions"] == []
+
+
+# ---------------------------------------------------------------------------
+# [SS-9 / SS-10] save_rooms re-opens against the ACTIVE map (factory-reset guard)
+# ---------------------------------------------------------------------------
+
+def _register_active_map_adapter(hass, vacuum_entity_id, am_entity):
+    """Register a minimal adapter config declaring the active-map entity."""
+    from custom_components.eufy_vacuum.const import DATA_ADAPTER_COORDINATOR
+
+    coordinator = hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR]
+    coordinator.register_adapter_config(
+        vacuum_entity_id,
+        {"adapter_id": "test", "entities": {"active_map": am_entity}},
+    )
+
+
+def test_get_setup_status_save_rooms_reopens_on_unconfigured_active_map(hass, manager):
+    """[SS-9] After the active map changes to one with no configured rooms (factory
+    reset / new map id), save_rooms re-opens despite its sticky flag, so setup is not
+    reported complete."""
+    from custom_components.eufy_vacuum.setup.drift import record_step_completed
+
+    setup_map(manager, _VAC, "1", count=3)  # configured map "1"
+    record_step_completed(manager, _VAC, "add_vacuum")
+    record_step_completed(manager, _VAC, "save_rooms")
+
+    _register_active_map_adapter(hass, _VAC, "sensor.alfred_active_map")
+    hass.states.async_set("sensor.alfred_active_map", "11")  # new, blank map
+    manager.data["maps"][_VAC]["11"] = {"rooms": {}}  # imported, no rooms
+
+    result = get_setup_status(hass)
+    vac = result["vacuums"][0]
+    save_rooms = next(s for s in vac["setup_steps"] if s["id"] == "save_rooms")
+    assert save_rooms["completed"] is False
+    assert vac["next_step"] == "save_rooms"
+    assert result["setup_complete"] is False
+
+
+def test_get_setup_status_save_rooms_stays_complete_on_configured_active_map(hass, manager):
+    """[SS-10] With the active map pointing at the configured map, save_rooms stays
+    complete — no spurious re-open."""
+    from custom_components.eufy_vacuum.setup.drift import record_step_completed
+
+    setup_map(manager, _VAC, "1", count=3)
+    record_step_completed(manager, _VAC, "add_vacuum")
+    record_step_completed(manager, _VAC, "save_rooms")
+
+    _register_active_map_adapter(hass, _VAC, "sensor.alfred_active_map")
+    hass.states.async_set("sensor.alfred_active_map", "1")  # active = the configured map
+
+    result = get_setup_status(hass)
+    vac = result["vacuums"][0]
+    save_rooms = next(s for s in vac["setup_steps"] if s["id"] == "save_rooms")
+    assert save_rooms["completed"] is True
