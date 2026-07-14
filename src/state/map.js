@@ -729,7 +729,32 @@ export function applyMapState(proto) {
   proto.canDrawZone = function () {
     return (this.supportsZoneClean?.() ?? false)
         && ((this.isLiveBackdropActive?.() ?? false)
-            || (this.isVaRenderActive?.() ?? false));
+            || (this.isVaRenderActive?.() ?? false))
+        && !this.frameUngrounded();
+  };
+
+  /**
+   * True while the device coordinate frame is un-grounded after a map switch. Backend-
+   * fed (snapshot.map_switcher.frame_ungrounded): after a map_load the raster + rooms
+   * update at once but the pose/coord frame stays on the OLD map until the robot MOVES
+   * and re-localizes, so any screen→device coordinate op (zone drawing) would land wrong.
+   * The backend clears it on robot movement or a user override (acknowledgeMapFrame).
+   */
+  proto.frameUngrounded = function () {
+    return Boolean(this.mapSwitcher?.()?.frame_ungrounded);
+  };
+
+  /**
+   * True when zone drawing WOULD be available (provider + backdrop) but is currently
+   * suppressed only because the frame is un-grounded after a switch. Drives the map's
+   * "drawing paused" banner + override control — distinct from "zones just aren't
+   * supported here", which shows nothing.
+   */
+  proto.zoneDrawSuppressedBySwitch = function () {
+    return (this.supportsZoneClean?.() ?? false)
+        && ((this.isLiveBackdropActive?.() ?? false)
+            || (this.isVaRenderActive?.() ?? false))
+        && this.frameUngrounded();
   };
 
   /* =========================================================

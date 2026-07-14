@@ -2625,6 +2625,24 @@ set_live_map_rotation:
             - "180"
             - "270"
 
+acknowledge_map_frame:
+  name: Enable drawing after a map switch
+  description: >
+    Override the post-map-switch safety pause. After switching the active map the
+    robot's coordinate frame is un-grounded until it next moves, so the card pauses
+    zone drawing and tap-to-select (they would land in the wrong place). Call this to
+    re-enable them anyway when you know the robot's position is correct — the pause
+    re-arms automatically on the next map switch. Saved zones and the room list are
+    never affected.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
 set_map_overlay_visibility:
   name: Set map overlay visibility
   description: >

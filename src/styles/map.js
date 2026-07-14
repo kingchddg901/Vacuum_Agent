@@ -265,6 +265,47 @@ export const mapStyles = `
     background:      var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
   }
 
+  /* Post-map-switch safety banner — the coordinate frame is un-grounded until the
+     robot re-localizes, so zone drawing is paused. Floats at the bottom-centre of the
+     map; warning-toned border, with the power-user override button inline. */
+  .evcc-map-frame-gate {
+    position:        absolute;
+    left:            50%;
+    bottom:          12px;
+    transform:       translateX(-50%);
+    z-index:         5;
+    display:         flex;
+    align-items:     center;
+    gap:             10px;
+    max-width:       calc(100% - 24px);
+    padding:         8px 12px;
+    font-size:       12px;
+    line-height:     1.35;
+    color:           var(--evcc-map-tooltip-text, #fff);
+    background:      var(--evcc-map-tooltip-bg, rgba(20, 20, 20, 0.92));
+    border:          1px solid var(--evcc-sem-warning, #d97706);
+    border-radius:   8px;
+    box-shadow:      0 2px 10px rgba(0, 0, 0, 0.35);
+  }
+  .evcc-map-frame-gate-msg {
+    flex:            1 1 auto;
+  }
+  .evcc-map-frame-gate-override {
+    flex:            0 0 auto;
+    white-space:     nowrap;
+    height:          26px;
+    padding:         0 10px;
+    font-size:       12px;
+    cursor:          pointer;
+    color:           var(--evcc-map-tooltip-text, #fff);
+    background:      var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:          1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+    border-radius:   4px;
+  }
+  .evcc-map-frame-gate-override:hover {
+    background:      var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+
   /* =========================================================
      ZONE CLEAN (ad-hoc draw-a-box → clean)
      ========================================================= */

@@ -161,6 +161,10 @@ SERVICE_SET_AREA_LABEL_ANCHOR = "set_area_label_anchor"
 # `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never
 # affects dispatch. Backend-stored so the orientation follows the user across devices.
 SERVICE_SET_LIVE_MAP_ROTATION = "set_live_map_rotation"
+# Power-user override for the post-map-switch coordinate-frame gate: force-clear the
+# "frame un-grounded, zone drawing paused" state until the next switch re-arms it.
+# Backs the card's "Enable drawing anyway" control. See manager.acknowledge_map_frame.
+SERVICE_ACKNOWLEDGE_MAP_FRAME = "acknowledge_map_frame"
 # Per-map overlay-layer visibility (Wave 3b). Stores a partial `overlay_visibility`
 # dict on the map bucket (user deltas over the defaults); surfaced in the snapshot as
 # `map_overlay_visibility` and mirrored on sensor.<vac>_map_overlays. Display only.

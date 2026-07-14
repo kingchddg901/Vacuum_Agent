@@ -602,6 +602,9 @@ export const en = {
   "map.resize_w_plus": "＋ W",  // Compose resize button: '＋ W' grows shape Width; W = width, keep terse
   "map.rotate": "Rotate map 90°",
   "map.switch_map": "Switch the active map",  // Map-toolbar dropdown to switch the active map (backed by the eufy-clean fork's "Switch Map" select)
+  "map.frame_gate_notice": "Map switched — zone drawing pauses until the robot re-localizes (move it or start a clean). Running saved zones and room cleans still work.",  // Banner shown after a map switch: the coordinate frame is un-grounded so a drawn zone would land wrong
+  "map.frame_gate_override": "Enable drawing anyway",  // Button on the post-switch banner: force-clear the pause (power-user override)
+  "map.frame_gate_override_hint": "Only if you know the robot's position is correct — a zone drawn before the robot re-localizes can clean the wrong area.",  // Tooltip warning on the override button
   "map.rotate_aria": "Rotate map 90 degrees",
   "map.rotate_ccw": "↺ Rotate",
   "map.rotate_cw": "↻ Rotate",

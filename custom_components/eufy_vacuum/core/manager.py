@@ -457,6 +457,12 @@ class EufyVacuumManager:
         self._room_rule_status_update_callbacks: list = []
         self._room_history_cache_loading: set[str] = set()
 
+        # Per-vacuum post-map-switch coordinate-frame gate. After a map_load the frame
+        # is un-grounded until the robot moves + re-localizes (docked = stays stale); the
+        # dashboard snapshot surfaces this so the card pauses zone drawing + map-tap room
+        # select in that window. See _compute_map_frame_gate / acknowledge_map_frame.
+        self._map_frame_gate: dict[str, dict[str, Any]] = {}
+
         # Re-arm any charge_wait / wait phase whose in-memory poller the restart lost.
         # The guard-clear loop above already released the stale _phase_dispatch_pending;
         # for a dock phase that is not enough (the poller IS the only driver), so re-spawn
@@ -4093,7 +4099,8 @@ class EufyVacuumManager:
             # entity-registry lookup stays server-side; gated on the entity existing, since
             # it ships with the eufy-clean map_load feature and older builds won't have it.
             "map_switcher": self._resolve_map_switcher(
-                live_map_image_entity=live_map_image_entity
+                vacuum_entity_id=vacuum_entity_id,
+                live_map_image_entity=live_map_image_entity,
             ),
             "live_map_rotation": live_map_rotation,
             "map_overlay_visibility": map_overlay_visibility,
@@ -4129,16 +4136,19 @@ class EufyVacuumManager:
         }
 
     def _resolve_map_switcher(
-        self, *, live_map_image_entity: str | None
+        self, *, vacuum_entity_id: str, live_map_image_entity: str | None
     ) -> dict[str, Any] | None:
         """Resolve the fork's per-vacuum "Switch Map" ``select`` as a device-sibling of the
         configured live-map camera, for the card's map switcher.
 
-        Returns ``{entity_id, current, options, available}`` or ``None`` (control hidden).
-        The select ships with the eufy-clean fork's map_load feature; a user on an older
-        fork build simply won't have the entity, so we gate on its existence and degrade
-        to no switcher. Wrapped defensively — any registry/state hiccup → ``None``, never a
-        broken snapshot."""
+        Returns ``{entity_id, current, options, available, frame_ungrounded,
+        frame_ungrounded_reason}`` or ``None`` (control hidden). The select ships with the
+        eufy-clean fork's map_load feature; a user on an older fork build simply won't have
+        the entity, so we gate on its existence and degrade to no switcher. Wrapped
+        defensively — any registry/state hiccup → ``None``, never a broken snapshot.
+
+        ``frame_ungrounded`` tells the card to pause zone drawing + map-tap room select
+        after a switch until the robot re-localizes (see _compute_map_frame_gate)."""
         if not live_map_image_entity:
             return None
         try:
@@ -4159,14 +4169,117 @@ class EufyVacuumManager:
             if state is None:
                 return None
             available = state.state not in ("unknown", "unavailable", None, "")
+            # Post-switch frame gate — isolated so a gate hiccup never hides the switcher.
+            try:
+                ungrounded, reason = self._compute_map_frame_gate(
+                    vacuum_entity_id=vacuum_entity_id
+                )
+            except Exception:  # pragma: no cover - defensive
+                ungrounded, reason = False, None
             return {
                 "entity_id": select_entity_id,
                 "current": state.state if available else None,
                 "options": list(state.attributes.get("options") or []),
                 "available": available,
+                "frame_ungrounded": ungrounded,
+                "frame_ungrounded_reason": reason,
             }
         except Exception:  # never let map-switcher resolution break the snapshot
             return None
+
+    # Raw-position delta (device units) beyond which we treat the robot as having
+    # moved -> re-localized onto the new map. The docked pose is ZUPT-clamped (no
+    # jitter), so any genuine move clears this comfortably while a docked robot stays
+    # gated. Small on purpose.
+    _POSE_MOVE_THRESHOLD_RAW = 5.0
+
+    def _raw_robot_position(self, obj: str) -> tuple[float, float] | None:
+        """Live robot position from the fork's raw coordinate sensors, or None.
+
+        Mirrors the card's ``rawRobotPosition`` (sensor.<obj>_robot_position_{x,y}_raw)
+        so backend + frontend agree on the pose signal."""
+        xs = self.hass.states.get(f"sensor.{obj}_robot_position_x_raw")
+        ys = self.hass.states.get(f"sensor.{obj}_robot_position_y_raw")
+        if xs is None or ys is None:
+            return None
+        try:
+            return (float(xs.state), float(ys.state))
+        except (TypeError, ValueError):
+            return None
+
+    def _compute_map_frame_gate(
+        self, *, vacuum_entity_id: str
+    ) -> tuple[bool, str | None]:
+        """Track whether the coordinate frame is un-grounded after a map switch.
+
+        After a ``map_load`` the raster + room list update immediately, but the robot's
+        coordinate frame stays on the OLD map until it MOVES and re-localizes (docked =
+        stays stale indefinitely; can't be forced on demand). Any screen→device
+        coordinate op — zone drawing, map-tap room select — lands wrong in that window.
+
+        Detection: watch the fork's Active Map sensor (numeric id → rename-proof) for a
+        change = a switch happened (from the card, the fork entity, OR the Eufy app).
+        Clear once the robot's raw position moves past ``_POSE_MOVE_THRESHOLD_RAW`` OR it
+        enters a cleaning/returning state (== it moved == re-localized). The
+        ``acknowledge_map_frame`` override force-clears until the NEXT switch. On cold
+        start / HA restart there is no prior map to compare, so we assume grounded — a
+        rare mid-window restart self-heals on the next move.
+
+        Returns ``(ungrounded, reason)``; ``reason`` is ``"map_switched"`` while gated,
+        else ``None``.
+        """
+        obj = vacuum_entity_id.split(".", 1)[-1]
+        gate = self._map_frame_gate.setdefault(vacuum_entity_id, {})
+
+        active_state = self.hass.states.get(f"sensor.{obj}_active_map")
+        active_token = active_state.state if active_state is not None else None
+        # No usable active-map signal → can't track a switch; treat as grounded.
+        if active_token in (None, "unknown", "unavailable", ""):
+            return False, None
+
+        last_token = gate.get("last_active_map")
+        if last_token is not None and active_token != last_token:
+            # A switch just happened — arm the gate and snapshot the pre-move pose.
+            gate["ungrounded"] = True
+            gate["user_ack"] = False
+            gate["pose_at_switch"] = self._raw_robot_position(obj)
+        gate["last_active_map"] = active_token
+
+        if not gate.get("ungrounded"):
+            return False, None
+
+        # Power-user override wins until the next switch re-arms the gate.
+        if gate.get("user_ack"):
+            gate["ungrounded"] = False
+            return False, None
+
+        # Clear once the robot has re-localized: actively moving, or its pose has
+        # shifted past the threshold since the switch.
+        vac_state = self.hass.states.get(vacuum_entity_id)
+        if vac_state is not None and vac_state.state in ("cleaning", "returning"):
+            gate["ungrounded"] = False
+            return False, None
+        pose_now = self._raw_robot_position(obj)
+        pose0 = gate.get("pose_at_switch")
+        if pose_now is not None and pose0 is not None:
+            dx = pose_now[0] - pose0[0]
+            dy = pose_now[1] - pose0[1]
+            if (dx * dx + dy * dy) ** 0.5 > self._POSE_MOVE_THRESHOLD_RAW:
+                gate["ungrounded"] = False
+                return False, None
+
+        return True, "map_switched"
+
+    def acknowledge_map_frame(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """Power-user override: force-clear the post-switch frame gate for one vacuum.
+
+        The gate re-arms automatically on the NEXT map switch. Backs the card's "Enable
+        drawing anyway" control for when the user knows the robot is grounded (or accepts
+        the risk on their own box)."""
+        gate = self._map_frame_gate.setdefault(vacuum_entity_id, {})
+        gate["user_ack"] = True
+        gate["ungrounded"] = False
+        return {"acknowledged": True, "vacuum_entity_id": vacuum_entity_id}
 
     def _resolve_live_map_image_entity(
         self,

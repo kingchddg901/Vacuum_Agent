@@ -13,6 +13,7 @@ import {
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_LIVE_MAP_ROTATION,
+  SERVICE_ACKNOWLEDGE_MAP_FRAME,
   SERVICE_SET_MAP_OVERLAY_VISIBILITY,
   SERVICE_GET_MAP_RENDER_DATA,
   SERVICE_GET_MAP_LIVE_POSE,
@@ -80,6 +81,23 @@ export function applyMapActions(proto) {
       entity_id: entityId,
       option,
     });
+  };
+
+  /**
+   * Power-user override for the post-map-switch safety pause: re-enable zone drawing
+   * even though the coordinate frame hasn't re-grounded yet (see manager
+   * acknowledge_map_frame). The pause re-arms on the next switch. Backs the map's
+   * "Enable drawing anyway" control.
+   */
+  proto.acknowledgeMapFrame = async function () {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    return await this.callService(
+      DOMAIN,
+      SERVICE_ACKNOWLEDGE_MAP_FRAME,
+      { vacuum_entity_id: vacuum },
+      true,
+    );
   };
 
   /**

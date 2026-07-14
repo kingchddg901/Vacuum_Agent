@@ -76,6 +76,38 @@ test("[ZD-8] canDrawZone requires support + live backdrop (rotation no longer bl
   assert.equal(s.canDrawZone(), true);
 });
 
+test("[ZD-13] canDrawZone is blocked while the frame is un-grounded after a map switch", () => {
+  const base = () => {
+    const s = makeState();
+    s.supportsZoneClean = () => true;
+    s.isLiveBackdropActive = () => true;
+    return s;
+  };
+  // No switcher block / not un-grounded -> draws normally.
+  assert.equal(base().canDrawZone(), true);
+  // frame_ungrounded from snapshot.map_switcher -> drawing paused.
+  let s = base(); s.mapSwitcher = () => ({ frame_ungrounded: true });
+  assert.equal(s.frameUngrounded(), true);
+  assert.equal(s.canDrawZone(), false);
+  // grounded again -> draws.
+  s = base(); s.mapSwitcher = () => ({ frame_ungrounded: false });
+  assert.equal(s.canDrawZone(), true);
+});
+
+test("[ZD-14] zoneDrawSuppressedBySwitch: true only when zones WOULD draw but the frame is un-grounded", () => {
+  const mk = (support, backdrop, ungrounded) => {
+    const s = makeState();
+    s.supportsZoneClean = () => support;
+    s.isLiveBackdropActive = () => backdrop;
+    s.mapSwitcher = () => ({ frame_ungrounded: ungrounded });
+    return s;
+  };
+  assert.equal(mk(true, true, true).zoneDrawSuppressedBySwitch(), true);    // banner shows
+  assert.equal(mk(true, true, false).zoneDrawSuppressedBySwitch(), false);  // grounded -> no banner
+  assert.equal(mk(false, true, true).zoneDrawSuppressedBySwitch(), false);  // zones unsupported -> nothing
+  assert.equal(mk(true, false, true).zoneDrawSuppressedBySwitch(), false);  // no backdrop -> nothing
+});
+
 test("[ZD-9] multi-zone: addZoneDraft accumulates and caps at 10", () => {
   const s = makeState();
   for (let i = 0; i < 12; i++) s.addZoneDraft({ x: i, y: i, w: 5, h: 5 });

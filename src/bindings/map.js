@@ -2572,6 +2572,16 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Post-switch frame-gate override ("Enable drawing anyway"). Clears the backend
+    // gate for this vacuum, then refreshes so the banner clears + zone draw re-enables.
+    root.querySelectorAll("[data-action='map-frame-ack']").forEach((btn) => {
+      this.card._on(btn, "click", async (e) => {
+        e.stopPropagation();
+        await this.card._actions.acknowledgeMapFrame?.();
+        await this.card.refreshDashboardSnapshot?.();
+      });
+    });
+
     // Ad-hoc zone clean: toggle draw mode / dispatch the drawn box / cancel.
     root.querySelectorAll("[data-action='toggle-zone-draw']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {

@@ -148,6 +148,7 @@ export const SERVICE_SET_FURNISHED_RENDER_MODE   = "set_furnished_render_mode";
 export const SERVICE_SET_SEGMENT_ROOM_LINK  = "set_segment_room_link";
 export const SERVICE_SET_COMPANION_ANCHOR   = "set_companion_anchor";
 export const SERVICE_SET_LIVE_MAP_ROTATION  = "set_live_map_rotation";
+export const SERVICE_ACKNOWLEDGE_MAP_FRAME  = "acknowledge_map_frame";
 export const SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility";
 export const SERVICE_GET_MAP_RENDER_DATA = "get_map_render_data";
 export const SERVICE_GET_MAP_LIVE_POSE = "get_map_live_pose";

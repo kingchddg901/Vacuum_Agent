@@ -286,6 +286,8 @@ export function applyMapRenderers(proto) {
                   aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
           </div>
 
+          ${this._renderMapFrameGateBanner(state)}
+
         </div>
 
       </div>
@@ -312,6 +314,23 @@ export function applyMapRenderers(proto) {
           )
           .join("")}
       </select>`;
+  };
+
+  /**
+   * Post-map-switch safety banner. After a switch the robot's coordinate frame is
+   * un-grounded until it next moves, so zone drawing is paused (canDrawZone gates on
+   * frameUngrounded) — a drawn zone would land in the wrong place. Shown only when zone
+   * drawing WOULD otherwise be available (zoneDrawSuppressedBySwitch); offers a
+   * power-user override to re-enable anyway. Saved zones + the room list are unaffected.
+   */
+  proto._renderMapFrameGateBanner = function (state) {
+    if (!(state.zoneDrawSuppressedBySwitch?.() ?? false)) return "";
+    return `
+      <div class="evcc-map-frame-gate" role="status">
+        <span class="evcc-map-frame-gate-msg">${this.t("map.frame_gate_notice")}</span>
+        <button class="evcc-map-frame-gate-override" data-action="map-frame-ack"
+                title="${this.t("map.frame_gate_override_hint")}">${this.t("map.frame_gate_override")}</button>
+      </div>`;
   };
 
   /* =========================================================

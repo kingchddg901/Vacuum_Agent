@@ -31,6 +31,7 @@ from ..const import (
     SERVICE_SET_HIDDEN_REGIONS,
     SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
+    SERVICE_ACKNOWLEDGE_MAP_FRAME,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_SEGMENTATION_MODE,
@@ -82,6 +83,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_SET_HIDDEN_REGIONS,
     SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
+    SERVICE_ACKNOWLEDGE_MAP_FRAME,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_GET_MAP_RENDER_DATA,
     SERVICE_GET_MAP_LIVE_POSE,
@@ -624,6 +626,12 @@ SET_LIVE_MAP_ROTATION_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("rotation"): vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270])),
+    }
+)
+
+ACKNOWLEDGE_MAP_FRAME_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
     }
 )
 
@@ -2202,6 +2210,21 @@ async def _handle_set_live_map_rotation(
     return {"saved": True, "live_map_rotation": rotation}
 
 
+async def _handle_acknowledge_map_frame(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Power-user override for the post-map-switch coordinate-frame gate.
+
+    Force-clears the "frame un-grounded → zone drawing paused" state for this vacuum;
+    the gate re-arms automatically on the next map switch. Transient in-memory gate
+    state only, so there is nothing to persist (no async_save)."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    result = manager.acknowledge_map_frame(vacuum_entity_id=vacuum_entity_id)
+    _LOGGER.debug("acknowledge_map_frame: cleared post-switch gate for %s", vacuum_entity_id)
+    return result
+
+
 async def _handle_set_map_overlay_visibility(
     hass: HomeAssistant, call: ServiceCall,
 ) -> dict:
@@ -2725,6 +2748,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_live_map_rotation(call: ServiceCall) -> dict:
         return await _handle_set_live_map_rotation(hass, call)
 
+    async def acknowledge_map_frame(call: ServiceCall) -> dict:
+        return await _handle_acknowledge_map_frame(hass, call)
+
     async def set_map_overlay_visibility(call: ServiceCall) -> dict:
         return await _handle_set_map_overlay_visibility(hass, call)
 
@@ -2832,6 +2858,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,
         schema=SET_LIVE_MAP_ROTATION_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ACKNOWLEDGE_MAP_FRAME, acknowledge_map_frame,
+        schema=ACKNOWLEDGE_MAP_FRAME_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, set_map_overlay_visibility,
