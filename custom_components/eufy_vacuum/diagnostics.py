@@ -27,6 +27,12 @@ from homeassistant.core import HomeAssistant
 
 from .const import DATA_RUNTIME, DOMAIN
 
+# Shared with the IMPORT path on purpose. rooms.room_discovery.get_active_map_id
+# rejects these states and returns None (no map id -> nothing to import), so the
+# self-check has to reject exactly the same set or it reports "everything works"
+# for a device the importer will refuse. See _self_check.
+from .rooms.room_discovery import _ACTIVE_MAP_SENTINELS
+
 # Keys whose values may carry secrets. entity_ids and map_ids are NOT secret and
 # are needed for support, so they are deliberately NOT redacted.
 TO_REDACT = {
@@ -117,6 +123,17 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
 
     active_map_role = entity_res.get("active_map") or {}
     has_active_map_entity = bool(active_map_role.get("exists"))
+    # EXISTS is a transport tell; only a real VALUE means a map can be resolved.
+    # The sensor is declared from a naming pattern and created by the vacuum
+    # integration for every MQTT device, so on models whose integration never
+    # delivers map/room data it exists but sits at `unavailable` forever. Keying
+    # the room/map claims on existence made the self-check report "maps, rooms and
+    # the live map all work" for exactly those devices, while the importer
+    # (get_active_map_id) refused them — the report and the behaviour disagreed.
+    active_map_state = str(active_map_role.get("state") or "")
+    active_map_usable = (
+        has_active_map_entity and active_map_state not in _ACTIVE_MAP_SENTINELS
+    )
 
     seg_count = vstate.get("segment_count")
     has_segments = isinstance(seg_count, int) and seg_count > 0
@@ -140,7 +157,7 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
         if isinstance(m, dict)
     )
     room_total = imported_rooms or map_rooms
-    has_rooms = bool(room_total or has_segments or has_active_map_entity)
+    has_rooms = bool(room_total or has_segments or active_map_usable)
 
     # Rooms sourced OUTSIDE the Eufy transport (no active_map sensor, no segments
     # attribute) => a native brand integration (e.g. Roborock) provides them.
@@ -176,7 +193,7 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
         )
 
     if has_rooms and supports_room_clean:
-        if has_active_map_entity:
+        if active_map_usable:
             room_control = "available (via active map)"
         elif has_segments:
             room_control = f"available (via segments attribute — {seg_count} rooms)"
@@ -190,10 +207,15 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     else:
         room_control = "unavailable (no room source detected)"
 
-    if has_active_map_entity:
+    if active_map_usable:
         map_image = (
             "active_map sensor present — live-map backdrop available when the "
             "eufy-clean fork provides a map camera"
+        )
+    elif has_active_map_entity:
+        map_image = (
+            f"unavailable — the active_map sensor exists but reports "
+            f"'{active_map_state or 'no value'}', so no map is loaded"
         )
     elif has_decoded_map:
         who = f"the {brand}" if brand else "the device's"
@@ -223,8 +245,16 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
 
     importable = has_rooms
 
-    if has_active_map_entity:
+    if active_map_usable:
         note = "Standard transport — maps, rooms and the live map all work."
+    elif has_active_map_entity:
+        note = (
+            f"The active_map sensor exists but reports "
+            f"'{active_map_state or 'no value'}', and no room list is visible, so "
+            "there is no map to import. This is expected on models whose vacuum "
+            "integration does not deliver map/room data yet — nothing to configure "
+            "here; Vacuum Agent picks the map up automatically once it arrives."
+        )
     elif native_rooms:
         base = f"{brand} device" if brand else "Native-integration device"
         note = (
@@ -258,6 +288,15 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     _area_units = out.get("area_units") or {}
     if _area_units.get("warning"):
         warnings.append(_area_units["warning"])
+    # Present-but-valueless active_map: the importer will refuse this device, so say
+    # so loudly instead of letting the reader infer it from a "no" three lines up.
+    if has_active_map_entity and not active_map_usable:
+        warnings.append(
+            f"active_map entity "
+            f"{active_map_role.get('entity_id') or '(unknown entity)'} reports "
+            f"'{active_map_state or 'no value'}' — the vacuum integration is not "
+            "providing a current map id, so rooms cannot be imported."
+        )
 
     return {
         "transport": transport,

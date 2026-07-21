@@ -30,6 +30,11 @@ Coverage targets
 [DIAG-11] self_check surfaces a completion_health warning (missing job_active binary
           on a require_job_active_clear brand) at the top as a warnings entry.
 [DIAG-12] self_check with no completion_health problem → empty warnings list.
+[DIAG-14] active_map entity EXISTS but its state is a sentinel (`unavailable`) and no
+          rooms are visible -> rooms_importable 'no', a loud warning, and a note that
+          explains it, instead of the old "maps, rooms and the live map all work".
+[DIAG-15] active_map entity exists WITH a real map id -> still reads fully working
+          (guards against over-correcting DIAG-14 into a false negative).
 """
 
 from __future__ import annotations
@@ -431,14 +436,77 @@ def test_self_check_surfaces_missing_job_active_warning():
 
 
 def test_self_check_no_warning_when_healthy():
-    """[DIAG-12] no completion_health problem → an empty warnings list."""
+    """[DIAG-12] no completion_health problem → an empty warnings list.
+
+    active_map carries a real map id: "exists" alone is NOT a healthy device (see
+    DIAG-14), so a genuinely-healthy fixture has to supply the state too.
+    """
     out = {
         "capabilities": {"supports_room_clean": True},
-        "entity_resolution": {"active_map": {"exists": True}},
+        "entity_resolution": {"active_map": {"exists": True, "state": "3"}},
         "vacuum_state": {"segment_count": None},
         "completion_health": {"requires_job_active_clear": False, "job_active_present": False},
     }
     assert _self_check(out)["warnings"] == []
+
+
+def test_self_check_active_map_present_but_unavailable():
+    """[DIAG-14] active_map exists but reports `unavailable` and nothing else shows rooms.
+
+    The real report this comes from (issue #44, Eufy Omni C20): the vacuum
+    integration never delivers map/room data, so the sensor is created but never
+    gets a value. Keying on existence made the self-check claim everything worked
+    while the importer refused the device — the user reasonably read that as a
+    Vacuum Agent bug.
+    """
+    out = {
+        "capabilities": {"supports_room_clean": True, "supports_rooms": True},
+        "entity_resolution": {
+            "active_map": {
+                "entity_id": "sensor.ferraye_active_map",
+                "exists": True,
+                "state": "unavailable",
+            }
+        },
+        "vacuum_state": {"segment_count": 0},
+        "maps": {"maps": []},
+        "managed_rooms_by_map": {},
+    }
+    sc = _self_check(out)
+
+    assert sc["rooms_importable"] == "no"
+    assert "all work" not in sc["note"]
+    assert "unavailable" in sc["note"]
+    assert "nothing to configure" in sc["note"]
+    assert any(
+        "sensor.ferraye_active_map" in w and "cannot be imported" in w
+        for w in sc["warnings"]
+    )
+    # Still classified as the full MQTT transport — the sensor's PRESENCE is a valid
+    # transport tell even when its value is missing.
+    assert "full (novel / MQTT)" in sc["transport"]
+    assert "unavailable" in sc["map_image"]
+
+
+def test_self_check_active_map_with_real_id_still_healthy():
+    """[DIAG-15] a real map id keeps the working verdict — no over-correction."""
+    out = {
+        "capabilities": {"supports_room_clean": True, "supports_rooms": True},
+        "entity_resolution": {
+            "active_map": {
+                "entity_id": "sensor.alfred_active_map",
+                "exists": True,
+                "state": "12",
+            }
+        },
+        "vacuum_state": {"segment_count": 0},
+    }
+    sc = _self_check(out)
+
+    assert sc["rooms_importable"] == "yes"
+    assert sc["note"] == "Standard transport — maps, rooms and the live map all work."
+    assert sc["room_control"] == "available (via active map)"
+    assert sc["warnings"] == []
 
 
 def test_self_check_surfaces_area_unit_warning():
