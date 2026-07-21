@@ -10,6 +10,39 @@ only.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-07-20
+
+### Added
+- **Switch maps from Vacuum Agent.** If your vacuum stores more than one map (upstairs /
+  downstairs), the map picker now lives in the panel header — and in the eufy-clean card —
+  so you can change the loaded map without leaving for the Eufy app.
+- **Post-switch safety gate on the map.** After you switch maps the robot keeps reporting
+  its position in the *old* map's coordinates until it moves and re-localizes, so a zone
+  drawn in that window would have been cleaned in the wrong place. Drawing and map taps are
+  now blocked, with an explanation, until the robot re-localizes — it clears itself as soon
+  as the vacuum moves. If you know better, `acknowledge_map_frame` overrides it.
+- **Debug flight recorder.** A switch and a target select that silently capture DEBUG-level
+  detail for a chosen integration into a ring buffer, then dump it on demand — so a bug that
+  only shows up once can be captured without leaving debug logging on permanently.
+- **Better room guesses on a brand-new map.** When a run is picked up that Vacuum Agent
+  didn't start, it has to work out which room was cleaned. On a fresh or re-mapped map
+  nothing has been learned yet, so it now falls back to each room's size as drawn on the map
+  — a 4 m² run matches the 3.9 m² kitchen, not the 9.7 m² bedroom. Learned times still win
+  once they exist.
+
+### Fixed
+- **"Configure Rooms" re-opens when the active map has no rooms set up.** Switching to (or
+  creating) a map with no configured rooms left setup showing complete while the map was
+  unusable.
+- **Diagnostics no longer claim a device works when it can't import rooms** ([#44]). The
+  self-check reported *"maps, rooms and the live map all work"* whenever the `active_map`
+  entity merely existed — even when it reported `unavailable` and no rooms were visible, so
+  models whose vacuum integration doesn't deliver map data yet (Eufy C20 / C10 / E20) were
+  told everything was fine and then hit a hard failure. It now reads the entity's actual
+  state, says plainly that there's no map to import, and warns with the entity and value.
+
+[#44]: https://github.com/kingchddg901/Vacuum_Agent/issues/44
+
 ## [1.9.0] - 2026-07-13
 
 ### Added
