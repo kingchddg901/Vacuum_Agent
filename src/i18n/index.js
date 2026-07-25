@@ -60,7 +60,7 @@ const CATALOGS = { en };
 const LOCALE_STATUS = {
   en: "stable",
   ru: "draft", de: "draft", fr: "draft", es: "draft", nl: "draft", it: "draft", pt: "draft",
-  ar: "draft",
+  ar: "draft", he: "draft",
 };
 
 // Endonyms (language's own name) + its own word for "draft" — so the override
@@ -68,12 +68,12 @@ const LOCALE_STATUS = {
 const LOCALE_ENDONYMS = {
   en: "English", ru: "Русский", de: "Deutsch", fr: "Français",
   es: "Español", nl: "Nederlands", it: "Italiano", pt: "Português",
-  ar: "العربية",
+  ar: "العربية", he: "עברית",
 };
 const DRAFT_WORD = {
   en: "draft", ru: "черновик", de: "Entwurf", fr: "brouillon",
   es: "borrador", nl: "concept", it: "bozza", pt: "rascunho",
-  ar: "مسودة",
+  ar: "مسودة", he: "טיוטה",
 };
 
 /**
