@@ -67,7 +67,7 @@ export const MOBILE_STYLES = `
     padding:     10px 14px;
     /* Reserve room on the right so the vacuum name/status never run under the
        language globe (absolutely positioned top-right below). */
-    padding-right: 52px;
+    padding-inline-end: 52px;
     border-bottom: 1px solid var(--evcc-border-subtle);
     background:  var(--evcc-surface-panel);
     position:    sticky;
@@ -86,7 +86,7 @@ export const MOBILE_STYLES = `
   .evcc-mobile-header-lang {
     position: absolute;
     top:      8px;
-    right:    10px;
+    inset-inline-end:    10px;
   }
 
   .evcc-mobile-vacuum-name {
@@ -112,7 +112,7 @@ export const MOBILE_STYLES = `
   }
 
   .evcc-mobile-battery {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-weight: 500;
     color:       var(--evcc-text-primary);
     font-variant-numeric: tabular-nums;
@@ -227,8 +227,8 @@ export const MOBILE_STYLES = `
 
   .evcc-mobile-more-sheet {
     position:     absolute;
-    left:         0;
-    right:        0;
+    inset-inline-start:         0;
+    inset-inline-end:        0;
     /* Sit above the bottom nav. The nav's height is dynamic
        (label + icon + padding + safe-area), so we use bottom:100%
        on a virtual reference. Concretely: the overlay container
@@ -262,7 +262,7 @@ export const MOBILE_STYLES = `
     border:       none;
     color:        var(--evcc-text-primary);
     font-size:    0.95rem;
-    text-align:   left;
+    text-align: start;
     cursor:       pointer;
     transition:   background-color 120ms ease;
   }
@@ -544,7 +544,7 @@ export const MOBILE_STYLES = `
     /* Was a 220px right column. Full width below the map now;
        scrolls internally if section content overflows. */
     width:          100%;
-    border-left:    none;
+    border-inline-start:    none;
     border-top:     1px solid var(--evcc-border-subtle);
     flex:           1 1 auto;
     min-height:     0;
@@ -664,7 +664,7 @@ export const MOBILE_STYLES = `
   .evcc-shell[data-viewport="mobile"] .evcc-map-zoom-toolbar {
     /* Same corner as desktop, but more clearance from the edge
        and bigger touch targets. */
-    right:   12px;
+    inset-inline-end:   12px;
     bottom:  12px;
     padding: 6px 8px;
     gap:     6px;

@@ -44,7 +44,7 @@ export const roomEstimateStyles = `
   .evcc-room-estimate-row span:last-child {
     color: var(--evcc-modal-text-primary, var(--evcc-text-primary));
     font-weight: 600;
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-room-estimate-notes {

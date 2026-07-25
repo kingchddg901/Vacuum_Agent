@@ -168,7 +168,7 @@ export const metricsStyles = `
   .evcc-chip-filter--searchable .evcc-review-filter-chips {
     max-height: 132px;
     overflow-y: auto;
-    padding-right: 2px;
+    padding-inline-end: 2px;
   }
 
   /* Long disambiguated labels wrap inside the chip (like the card badges) so the
@@ -222,7 +222,7 @@ export const metricsStyles = `
 
   .evcc-metrics-table th,
   .evcc-metrics-table td {
-    text-align: left;
+    text-align: start;
     padding: 6px 10px;
     border-bottom: 1px solid var(--evcc-border-default);
   }

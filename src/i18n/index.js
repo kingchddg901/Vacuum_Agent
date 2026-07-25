@@ -344,6 +344,46 @@ export function resolveLang(hass, config, override) {
   return auto;
 }
 
+/**
+ * BCP-47 base subtags whose script runs right-to-left. Checked against the BASE
+ * subtag only, so "ar-EG" / "he-IL" match. `iw` is the legacy code for Hebrew.
+ */
+const RTL_LANGS = new Set(["ar", "he", "iw", "fa", "ur", "ps", "sd", "yi", "dv", "ckb"]);
+
+/**
+ * True when a resolved language renders right-to-left.
+ *
+ * Card components set `dir="rtl"` on their root from THIS (fed by resolveLang) —
+ * NOT from `document.dir`. The in-card language control (the globe) is per-user,
+ * so the card can be in Arabic while HA itself runs LTR; direction has to follow
+ * the card's own resolved language, not the document's.
+ *
+ * @param {string} lang - a BCP-47 code (typically the output of resolveLang).
+ * @returns {boolean}
+ */
+export function isRTL(lang) {
+  if (!lang) return false;
+  const base = String(lang).toLowerCase().split(/[-_]/)[0];
+  return RTL_LANGS.has(base);
+}
+
+/**
+ * Stamp dir="rtl"/"ltr" on a card host from its resolved language. Call at the
+ * top of each card/editor `_render()`: `direction` inherits from the host's `dir`
+ * through the shadow boundary, so this one line flips the whole shadow tree
+ * (logical CSS properties then do the rest). Driven by the card's OWN language,
+ * so a per-user globe override flips only that card, independent of document dir.
+ * Safe on any element / missing lang.
+ *
+ * @param {HTMLElement} host
+ * @param {string} lang - a resolved BCP-47 code (see resolveLang / isRTL).
+ */
+export function applyDir(host, lang) {
+  if (host && typeof host.setAttribute === "function") {
+    host.setAttribute("dir", isRTL(lang) ? "rtl" : "ltr");
+  }
+}
+
 /** Extract the `{placeholder}` token set from a string or a plural-form object. */
 function placeholderSet(value) {
   const set = new Set();

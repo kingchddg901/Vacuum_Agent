@@ -5914,7 +5914,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-base-station-action-card {
     width: 100%;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     transition:
       border-color var(--evcc-transition-normal, 150ms ease),
@@ -6114,7 +6114,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-chip-filter--searchable .evcc-review-filter-chips {
     max-height: 132px;
     overflow-y: auto;
-    padding-right: 2px;
+    padding-inline-end: 2px;
   }
 
   /* Long disambiguated labels wrap inside the chip (like the card badges) so the
@@ -6168,7 +6168,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-metrics-table th,
   .evcc-metrics-table td {
-    text-align: left;
+    text-align: start;
     padding: 6px 10px;
     border-bottom: 1px solid var(--evcc-border-default);
   }
@@ -6511,7 +6511,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-status-prefix {
     color:        var(--evcc-text-muted);
-    margin-right: 4px;
+    margin-inline-end: 4px;
   }
 
   /* =========================================================
@@ -6629,7 +6629,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-lang-menu {
     position:      absolute;
     top:           calc(100% + 6px);
-    right:         0;
+    inset-inline-end:         0;
     z-index:       3;
     min-width:     190px;
     max-width:     calc(100vw - 20px);   /* never overflow a narrow card's right edge */
@@ -6663,7 +6663,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     background:    transparent;
     color:         var(--evcc-text-secondary);
     font-size:     0.82rem;
-    text-align:    left;
+    text-align: start;
     cursor:        pointer;
     transition:    background var(--evcc-transition-normal, 150ms ease),
                    color      var(--evcc-transition-normal, 150ms ease);
@@ -6697,7 +6697,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
      (the option is flex-wrap), indented past the check column. */
   .evcc-lang-note {
     flex:          1 0 100%;
-    padding-left:  calc(1em + 6px);
+    padding-inline-start:  calc(1em + 6px);
     margin-top:    1px;
     font-size:     0.92em;
     line-height:   1.3;
@@ -6796,8 +6796,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-toast-root {
     position:       absolute;
-    left:           0;
-    right:          0;
+    inset-inline-start:           0;
+    inset-inline-end:          0;
     bottom:         16px;
     display:        flex;
     justify-content: center;
@@ -6832,15 +6832,15 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   }
 
   .evcc-toast--success {
-    border-left: 3px solid var(--evcc-sem-success);
+    border-inline-start: 3px solid var(--evcc-sem-success);
   }
 
   .evcc-toast--error {
-    border-left: 3px solid var(--evcc-sem-error);
+    border-inline-start: 3px solid var(--evcc-sem-error);
   }
 
   .evcc-toast--info {
-    border-left: 3px solid var(--evcc-accent);
+    border-inline-start: 3px solid var(--evcc-accent);
   }
 
   .evcc-toast-message {
@@ -7292,7 +7292,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-start-preflight-reason {
     color: var(--evcc-text-secondary);
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-queue-empty {
@@ -7966,7 +7966,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     border: none;
     cursor: pointer;
     font: inherit;
-    text-align: left;
+    text-align: start;
   }
 
   .evcc-live-queue-caret {
@@ -8004,7 +8004,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-live-chip-done {
     color: var(--evcc-sem-success, #3ba55d);
     font-weight: 700;
-    margin-left: 2px;
+    margin-inline-start: 2px;
   }
 
   /* Saved-zone multi-select picker (insert a zone step). */
@@ -8025,7 +8025,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     background: transparent;
     color: var(--evcc-text-primary);
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
   .evcc-zone-picker-item.is-picked {
@@ -8050,7 +8050,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     color: var(--evcc-text-primary);
     font: inherit;
     font-size: 0.78rem;
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-queue-chip-unit {
@@ -8536,7 +8536,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-room-estimate-row span:last-child {
     color: var(--evcc-modal-text-primary, var(--evcc-text-primary));
     font-weight: 600;
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-room-estimate-notes {
@@ -8845,7 +8845,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   border-radius: 8px;
   border: 1px solid var(--evcc-border-subtle, rgba(255,255,255,0.08));
   background: transparent;
-  text-align: left;
+  text-align: start;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
@@ -9206,7 +9206,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
     color: var(--evcc-text-primary);
     font: inherit;
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-run-profiles-step-controls {
@@ -9331,7 +9331,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     border: none;
     cursor: pointer;
     font: inherit;
-    text-align: left;
+    text-align: start;
   }
 
   .evcc-stepped-run-preview-title {
@@ -9651,7 +9651,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-maintenance-guide-list {
     margin: 0;
-    padding-left: 18px;
+    padding-inline-start: 18px;
   }
 
   .evcc-maintenance-guide-item,
@@ -9834,7 +9834,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     border: 1px solid var(--evcc-border-default);
     background: color-mix(in srgb, var(--evcc-surface-raised) 92%, white 8%);
     width: 100%;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
 
@@ -9946,7 +9946,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     border: 1px solid var(--evcc-border-subtle);
     background: var(--evcc-surface-raised);
     width: 100%;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
 
@@ -9974,7 +9974,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--evcc-text-secondary);
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-maintenance-item-detail {
@@ -11197,7 +11197,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-search-box ha-icon {
     --mdc-icon-size: 18px;
     color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
-    margin-right: 8px;
+    margin-inline-end: 8px;
     flex-shrink: 0;
   }
 
@@ -11263,7 +11263,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
-    margin-right: 2px;
+    margin-inline-end: 2px;
   }
 
   .evcc-theme-mode-detail {
@@ -11289,7 +11289,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-right: 5px;
+    margin-inline-end: 5px;
   }
 
   .evcc-theme-mode-actions {
@@ -11326,7 +11326,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     scrollbar-gutter: stable;
-    padding-right: 4px;
+    padding-inline-end: 4px;
   }
 
   .evcc-preset-filters-top {
@@ -11370,7 +11370,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    margin-left: auto;
+    margin-inline-start: auto;
     flex-shrink: 0;
     font-size: 0.8rem;
     font-weight: 600;
@@ -11460,7 +11460,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-preset-delete {
     position: absolute;
     top: 6px;
-    right: 6px;
+    inset-inline-end: 6px;
     border: none;
     background: none;
     color: var(--evcc-text-muted, rgba(255,255,255,0.6));
@@ -11487,13 +11487,13 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .preview-swatch.accent {
     background: var(--evcc-accent, #3b82f6);
     top: 20%;
-    left: 20%;
+    inset-inline-start: 20%;
   }
 
   .preview-swatch.surface {
     background: var(--evcc-surface-panel, #1c2127);
     bottom: 20%;
-    right: 20%;
+    inset-inline-end: 20%;
   }
 
   .evcc-preset-label {
@@ -11544,7 +11544,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-preset-tag-edit {
     position: absolute;
     top: 6px;
-    left: 6px;
+    inset-inline-start: 6px;
     z-index: 2;
     border: none;
     background: none;
@@ -11682,7 +11682,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     -webkit-overflow-scrolling: touch;
     scrollbar-gutter: stable;
     padding: 12px;
-    padding-right: 16px;
+    padding-inline-end: 16px;
     background: color-mix(
       in srgb,
       var(--evcc-surface-panel, #1c2127) 88%,
@@ -11841,7 +11841,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   }
 
   .token-hint {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-size: 0.7rem;
     color: var(--evcc-text-muted, rgba(255,255,255,0.6));
     opacity: 0.8;
@@ -11990,7 +11990,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .token-slider-bubble {
     position: absolute;
     top: 0;
-    left: 50%;
+    inset-inline-start: 50%;
     transform: translateX(-50%);
     background: var(--evcc-surface-card, #242b33);
     color: var(--evcc-text-primary, #f0f2f5);
@@ -12279,7 +12279,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     flex: 0 0 320px;
     width: 320px;
     min-height: 0;
-    padding-right: 4px;
+    padding-inline-end: 4px;
     overflow: hidden;
   }
 
@@ -12842,8 +12842,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   }
 
   .evcc-theme-preview-animal-grid--single .evcc-theme-preview-animal-collabel {
-    text-align: left;
-    padding-left: 8px;
+    text-align: start;
+    padding-inline-start: 8px;
   }
 
   .evcc-theme-preview-animal-row--header {
@@ -12910,7 +12910,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
       width: 100%;
       overflow: visible;
       order: -1;
-      padding-right: 0;
+      padding-inline-end: 0;
     }
 
     .evcc-theme-preview-pane {
@@ -12980,6 +12980,14 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     flex-direction: column;
     flex:           1;
     min-height:     0;
+    /* RTL EXEMPTION (load-bearing): the map is spatial \u2014 coordinate math, the
+       canvas, absolutely-positioned robot/room/zone overlays, and drag-to-draw
+       all assume an LTR frame. Force direction:ltr on the whole map surface so a
+       card in an RTL language flips its CHROME but never mirrors the map. Map
+       chrome intentionally stays physical (left/right in this file); the
+       physical-direction lint allowlists map.js for exactly this reason.
+       (RTL room-label TEXT still renders RTL within this LTR box \u2014 correct.) */
+    direction:      ltr;
   }
 
   .evcc-map-container {
@@ -15141,7 +15149,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     display:   flex;
     flex-wrap: wrap;
     gap:       5px;
-    padding-left: 36px;
+    padding-inline-start: 36px;
   }
 
   .evcc-setup-floor-chip {
@@ -15353,7 +15361,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-setup-drift-room-map {
     font-size: 0.75rem;
-    margin-right: 8px;
+    margin-inline-end: 8px;
   }
 
   /* =========================================================
@@ -15503,7 +15511,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     padding:     10px 14px;
     /* Reserve room on the right so the vacuum name/status never run under the
        language globe (absolutely positioned top-right below). */
-    padding-right: 52px;
+    padding-inline-end: 52px;
     border-bottom: 1px solid var(--evcc-border-subtle);
     background:  var(--evcc-surface-panel);
     position:    sticky;
@@ -15522,7 +15530,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-mobile-header-lang {
     position: absolute;
     top:      8px;
-    right:    10px;
+    inset-inline-end:    10px;
   }
 
   .evcc-mobile-vacuum-name {
@@ -15548,7 +15556,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   }
 
   .evcc-mobile-battery {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-weight: 500;
     color:       var(--evcc-text-primary);
     font-variant-numeric: tabular-nums;
@@ -15663,8 +15671,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
 
   .evcc-mobile-more-sheet {
     position:     absolute;
-    left:         0;
-    right:        0;
+    inset-inline-start:         0;
+    inset-inline-end:        0;
     /* Sit above the bottom nav. The nav's height is dynamic
        (label + icon + padding + safe-area), so we use bottom:100%
        on a virtual reference. Concretely: the overlay container
@@ -15698,7 +15706,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     border:       none;
     color:        var(--evcc-text-primary);
     font-size:    0.95rem;
-    text-align:   left;
+    text-align: start;
     cursor:       pointer;
     transition:   background-color 120ms ease;
   }
@@ -15980,7 +15988,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     /* Was a 220px right column. Full width below the map now;
        scrolls internally if section content overflows. */
     width:          100%;
-    border-left:    none;
+    border-inline-start:    none;
     border-top:     1px solid var(--evcc-border-subtle);
     flex:           1 1 auto;
     min-height:     0;
@@ -16100,7 +16108,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-shell[data-viewport="mobile"] .evcc-map-zoom-toolbar {
     /* Same corner as desktop, but more clearance from the edge
        and bigger touch targets. */
-    right:   12px;
+    inset-inline-end:   12px;
     bottom:  12px;
     padding: 6px 8px;
     gap:     6px;
@@ -16344,7 +16352,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-ext-seg-start { font-size: 0.8rem; color: var(--evcc-text-secondary); min-width: 110px; }
   .evcc-ext-seg-facts { font-size: 0.82rem; color: var(--evcc-text-secondary); }
   .evcc-ext-split {
-    min-width: 110px; text-align: left;
+    min-width: 110px; text-align: start;
     border: 1px solid var(--evcc-border-default);
     background: transparent; color: var(--evcc-text-secondary);
     border-radius: var(--evcc-radius-inner, 8px); padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
@@ -16355,7 +16363,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   }
   /* v2 action-first controls \u2014 the label says what the button DOES. */
   .evcc-ext-merge {
-    align-self: flex-start; min-width: 110px; text-align: left;
+    align-self: flex-start; min-width: 110px; text-align: start;
     border: 1px solid var(--evcc-border-default);
     background: transparent; color: var(--evcc-text-secondary);
     border-radius: var(--evcc-radius-inner, 8px); padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
@@ -16364,7 +16372,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     color: var(--evcc-accent);
     border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
   }
-  .evcc-ext-splits { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 12px; }
+  .evcc-ext-splits { display: flex; flex-wrap: wrap; gap: 6px; padding-inline-start: 12px; }
   .evcc-ext-split-here {
     border: 1px dashed var(--evcc-border-default);
     background: transparent; color: var(--evcc-text-secondary);
@@ -17218,7 +17226,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-map-embed-controls:empty { display: none; }
   .map-mascot-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .map-collapse-head { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; background: transparent; border: none; padding: 6px 4px; color: var(--evcc-text-muted, rgba(240,242,245,0.48)); font: 600 0.72rem/1.4 sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
-  .map-collapse-chev { margin-left: auto; transition: transform 150ms ease; }
+  .map-collapse-chev { margin-inline-start: auto; transition: transform 150ms ease; }
   .map-collapse:not(.is-collapsed) .map-collapse-chev { transform: rotate(180deg); }
   .map-collapse .evcc-map-layers-title { display: none; }
 `,Ar=class extends HTMLElement{constructor(){super(),this.attachShadow({mode:"open"}),pl(this),this._hass=null,this._config=null,this._view=le.ROOMS,this._renderScheduled=!1,this._layersCollapsed=!0,this._mapDragOccurred=!1,this._mapVariantDeleteArmTimer=null,this._furnishedGestureActive=!1,this._renderDataMapId=null,this._vaRenderFetching=!1,this._vaImageCache=new Map,this._scrimCache=null}set config(e){this._config=e,this._state?this._state.sync(this._hass,e):this._initStack(),this._scheduleRender()}set hass(e){this._hass=e,hc(()=>this._render()),this._state?(this._state.sync(e,this._config),this._actions?.sync?.(e,this._state)):this._config&&this._initStack(),this._scheduleRender(),this._scheduleLiveMapRefresh(),this._scheduleLivePosePoll()}setSnapshot(e){e&&this._state?.setDashboardSnapshot&&(this._state.setDashboardSnapshot(e),this._scheduleRender(),this._scheduleLiveMapRefresh(),this._scheduleLivePosePoll())}_initStack(){this._state||!this._config||(this._state=new ce(this._hass,this._config),this._state._mapCtx="card",this._renderers=new se(this),this._actions=new Se(this._hass,this._state),this._bindings=new ve(this),this._state.isMapViewActive=()=>!0,this._state.useVaRender=()=>!0,this._state.setUseVaRender=()=>{})}_scheduleRender(){this._furnishedGestureActive||this._renderScheduled||(this._renderScheduled=!0,Promise.resolve().then(()=>{this._renderScheduled=!1,this._render()}))}setView(){}showToast(e,t={}){if(!this._state?.pushToast)return null;let a=this._state.pushToast(e,t);this._scheduleRender();let r=Number.isFinite(t?.ttl)?Math.max(1e3,t.ttl):3500;return setTimeout(()=>this._scheduleRender(),r+80),a}_scheduleLiveMapRefresh(){if(!(!!this._state?.isMapViewActive?.()&&!!this._state?.isLiveBackdropActive?.()&&!!this._state?.liveMapImageEntity?.()?.startsWith?.("camera."))){this._liveMapRefreshTimer&&(clearInterval(this._liveMapRefreshTimer),this._liveMapRefreshTimer=null);return}this._liveMapRefreshTimer||(this._liveMapRefreshTimer=setInterval(()=>{if(!this._state?.isMapViewActive?.()||!this._state?.isLiveBackdropActive?.()){clearInterval(this._liveMapRefreshTimer),this._liveMapRefreshTimer=null;return}document.hidden||(this._state.bumpLiveMapTick?.(),this._scheduleRender())},2e3))}_scheduleLivePosePoll(){if(!(!this._livePoseUnsupported&&!!this._state?.isMapViewActive?.()&&!!this._state?.overlaysAligned?.()&&!!this._state?.mapStateSource?.()?.present)){this._livePosePollTimer&&(clearInterval(this._livePosePollTimer),this._livePosePollTimer=null);return}if(this._livePosePollTimer)return;let a=async()=>{if(this._livePoseUnsupported||!this._state?.isMapViewActive?.()||!this._state?.overlaysAligned?.()){clearInterval(this._livePosePollTimer),this._livePosePollTimer=null;return}if(!document.hidden)try{let r=await this._actions?.getMapLivePose?.();if(r==null)return;if(r.present===!1&&r.reason==="not_configured"){this._livePoseUnsupported=!0,this._state?.setLivePose?.(null),clearInterval(this._livePosePollTimer),this._livePosePollTimer=null,this._scheduleRender();return}this._state?.setLivePose?.(r),this._scheduleRender()}catch{}};this._livePosePollTimer=setInterval(a,2e3),a()}connectedCallback(){this._loadAnimalSvg(),this._scheduleRender(),this._scheduleLiveMapRefresh(),this._scheduleLivePosePoll()}disconnectedCallback(){this._liveMapRefreshTimer&&(clearInterval(this._liveMapRefreshTimer),this._liveMapRefreshTimer=null),this._livePosePollTimer&&(clearInterval(this._livePosePollTimer),this._livePosePollTimer=null),this._state?.flushMapTransform?.(),this._bindings?._teardownMapResize?.()}_loadAnimalSvg(){hl||(hl=!0,import(Tm).then(()=>this._scheduleRender()).catch(()=>{}))}_render(){if(!this._hass||!this._config||!this._state||!this._renderers)return;let e=this._state,t=this._renderers,a={card:this,state:e,renderers:t,vacuumStatus:e.vacuumState?.()??"unknown"};try{let r=t.renderMapRoomView(a),i=e.isMapViewActive?.()&&typeof t._renderMapAnimalControls=="function"?`<div class="map-mascot-bar">${t._renderMapAnimalControls(e)}</div>`:"",o=e.isMapViewActive?.()&&(e.canDrawZone?.()??!1)&&(e.zoneDrawMode?.()??!1)&&e.zoneDrawPurpose?.()!=="save"?t._renderZonePanel(e,e.zoneDrafts?.()??[],e.zoneCount?.()??0,e.zoneMax?.()??10):"",c=e.isMapViewActive?.()&&(e.overlaysAligned?.()??!1)&&typeof t._renderMapLayersPanel=="function"?t._renderMapLayersPanel(e):"",s=c?`

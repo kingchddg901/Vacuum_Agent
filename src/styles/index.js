@@ -900,8 +900,8 @@ export const TOAST_HOST_STYLES = `
 
   .evcc-toast-stack {
     position:        fixed;
-    left:            0;
-    right:           0;
+    inset-inline-start:            0;
+    inset-inline-end:           0;
     bottom:          24px;
     display:         flex;
     flex-direction:  column-reverse;
@@ -930,9 +930,9 @@ export const TOAST_HOST_STYLES = `
     animation:      evcc-toast-host-in 160ms ease-out;
   }
 
-  .evcc-toast--success { border-left: 3px solid var(--evcc-sem-success, #22c55e); }
-  .evcc-toast--error   { border-left: 3px solid var(--evcc-sem-error,   #ef4444); }
-  .evcc-toast--info    { border-left: 3px solid var(--evcc-accent,      #60a5fa); }
+  .evcc-toast--success { border-inline-start: 3px solid var(--evcc-sem-success, #22c55e); }
+  .evcc-toast--error   { border-inline-start: 3px solid var(--evcc-sem-error,   #ef4444); }
+  .evcc-toast--info    { border-inline-start: 3px solid var(--evcc-accent,      #60a5fa); }
 
   .evcc-toast-message {
     flex: 1;

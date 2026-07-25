@@ -62,6 +62,14 @@ export const mapStyles = `
     flex-direction: column;
     flex:           1;
     min-height:     0;
+    /* RTL EXEMPTION (load-bearing): the map is spatial — coordinate math, the
+       canvas, absolutely-positioned robot/room/zone overlays, and drag-to-draw
+       all assume an LTR frame. Force direction:ltr on the whole map surface so a
+       card in an RTL language flips its CHROME but never mirrors the map. Map
+       chrome intentionally stays physical (left/right in this file); the
+       physical-direction lint allowlists map.js for exactly this reason.
+       (RTL room-label TEXT still renders RTL within this LTR box — correct.) */
+    direction:      ltr;
   }
 
   .evcc-map-container {

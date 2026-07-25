@@ -1,6 +1,6 @@
 // Standalone per-room Lovelace card with settings chips, save, and quick-start for managed vacuums.
 
-import { translate, resolveLang, ensureLocalesLoaded } from "./i18n/index.js";
+import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "./i18n/index.js";
 import {
   esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull, defineCard,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
@@ -364,6 +364,7 @@ class EufyRoomCard extends HTMLElement {
       </div>
     `;
 
+    applyDir(this, resolveLang(this._hass, this._config, this._langOverride));
     this.shadowRoot.innerHTML = `
       <style>
         :host {
@@ -376,13 +377,26 @@ class EufyRoomCard extends HTMLElement {
           --radius:       var(--evcc-radius-card, 12px);
           --surface-subtle: var(--evcc-surface-subtle, rgba(255,255,255,0.04));
           --text-on-accent: var(--evcc-text-on-accent, #fff);
+
+          /* The frame is drawn by ha-card, not by us. Rendering our own div
+             opted the card out of HA's theming contract entirely: card_mod and
+             every theme that styles cards (LCARS, Mushroom, ...) hook the
+             ha-card element or :host(), so a bare div gave them nothing to grab
+             and our own background/border painted over anything they did manage
+             to set. Driving ha-card's own variables from the evcc tokens keeps
+             the default look identical while letting a theme override it.
+             NB: no backticks in here — this block lives in a JS template. */
+          --ha-card-background:    var(--surface);
+          --ha-card-border-radius: var(--radius);
+          --ha-card-border-width:  1px;
+          --ha-card-border-color:  var(--border);
+          --ha-card-box-shadow:    none;
         }
 
-        .card {
-          background:   var(--surface);
-          border:       1px solid var(--border);
-          border-radius: var(--radius);
-          overflow:     hidden;
+        ha-card {
+          /* Clip the header/footer to the rounded corners. Everything else the
+             frame needs comes from the --ha-card-* variables above. */
+          overflow: hidden;
         }
 
         /* ---- header ---- */
@@ -525,10 +539,10 @@ class EufyRoomCard extends HTMLElement {
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinning { animation: spin 0.9s linear infinite; display: inline-block; }
         ${LANG_CSS}
-        .footer .room-lang { margin-right: auto; }
+        .footer .room-lang { margin-inline-end: auto; }
       </style>
 
-      <div class="card">
+      <ha-card>
 
         <div class="header ${isEnabled ? "is-enabled" : ""}" role="button" aria-pressed="${isEnabled}" tabindex="0">
           <div class="indicator"></div>
@@ -563,11 +577,11 @@ class EufyRoomCard extends HTMLElement {
           <button class="btn btn-start" id="start-btn" ${this._starting ? "disabled" : ""}>
             ${this._starting
               ? `<span class="spinning">↻</span> ${this.t("room_card.starting")}`
-              : `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="margin-right:2px"><polygon points="5,3 19,12 5,21"/></svg> ${this.t("room_card.start")}`}
+              : `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="margin-inline-end:2px"><polygon points="5,3 19,12 5,21"/></svg> ${this.t("room_card.start")}`}
           </button>
         </div>
 
-      </div>
+      </ha-card>
     `;
 
     /* ---- toggle header ---- */

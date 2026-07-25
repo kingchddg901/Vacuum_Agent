@@ -13,7 +13,7 @@
 // whole stepped sequence). The step manifest is the shared renderStepsManifest
 // helper (slice b) so this card and the full panel can't drift.
 
-import { translate, resolveLang, ensureLocalesLoaded } from "../i18n/index.js";
+import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/index.js";
 import {
   esc, callResponse, defineCard, getStoredLang, setStoredLang,
   renderLangControl, wireLangControl, LANG_CSS,
@@ -52,7 +52,7 @@ const CARD_CSS = `
   .evcc-pcard-meta-rooms { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
   .evcc-pcard-manifest { margin-top: 12px; }
   .evcc-pcard-footer { margin-top: 16px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-  .evcc-pcard-footer .pcard-lang { margin-right: auto; }
+  .evcc-pcard-footer .pcard-lang { margin-inline-end: auto; }
   .evcc-pcard-run {
     appearance: none; border: none; cursor: pointer;
     display: inline-flex; align-items: center; gap: 4px;
@@ -199,6 +199,7 @@ class VacuumAgentProfileCard extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
+    applyDir(this, resolveLang(this._hass, this._config, this._langOverride));
     const style = `<style>${CARD_CSS}</style>`;
 
     if (!this._vacuumId() || !this._mapId() || !this._profileId()) {

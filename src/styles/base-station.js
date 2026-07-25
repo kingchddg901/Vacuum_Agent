@@ -91,7 +91,7 @@ export const baseStationStyles = `
 
   .evcc-base-station-action-card {
     width: 100%;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
     transition:
       border-color var(--evcc-transition-normal, 150ms ease),

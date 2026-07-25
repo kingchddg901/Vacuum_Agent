@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus } from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus, applyDir } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
@@ -1275,6 +1275,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (!this._config || !this._hass || !this._state || !this._renderers) return;
 
     applyThemeToCard(this);
+    applyDir(this, resolveLang(this._hass, this._config, this._langOverride));
 
     this._maybeLoadRoomEstimates();
 

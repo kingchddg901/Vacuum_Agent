@@ -104,7 +104,7 @@ export const externalWizardModalStyles = `
   .evcc-ext-seg-start { font-size: 0.8rem; color: var(--evcc-text-secondary); min-width: 110px; }
   .evcc-ext-seg-facts { font-size: 0.82rem; color: var(--evcc-text-secondary); }
   .evcc-ext-split {
-    min-width: 110px; text-align: left;
+    min-width: 110px; text-align: start;
     border: 1px solid var(--evcc-border-default);
     background: transparent; color: var(--evcc-text-secondary);
     border-radius: var(--evcc-radius-inner, 8px); padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
@@ -115,7 +115,7 @@ export const externalWizardModalStyles = `
   }
   /* v2 action-first controls — the label says what the button DOES. */
   .evcc-ext-merge {
-    align-self: flex-start; min-width: 110px; text-align: left;
+    align-self: flex-start; min-width: 110px; text-align: start;
     border: 1px solid var(--evcc-border-default);
     background: transparent; color: var(--evcc-text-secondary);
     border-radius: var(--evcc-radius-inner, 8px); padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
@@ -124,7 +124,7 @@ export const externalWizardModalStyles = `
     color: var(--evcc-accent);
     border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
   }
-  .evcc-ext-splits { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 12px; }
+  .evcc-ext-splits { display: flex; flex-wrap: wrap; gap: 6px; padding-inline-start: 12px; }
   .evcc-ext-split-here {
     border: 1px dashed var(--evcc-border-default);
     background: transparent; color: var(--evcc-text-secondary);

@@ -19,7 +19,7 @@ export const themePreviewStyles = `
     flex: 0 0 320px;
     width: 320px;
     min-height: 0;
-    padding-right: 4px;
+    padding-inline-end: 4px;
     overflow: hidden;
   }
 
@@ -582,8 +582,8 @@ export const themePreviewStyles = `
   }
 
   .evcc-theme-preview-animal-grid--single .evcc-theme-preview-animal-collabel {
-    text-align: left;
-    padding-left: 8px;
+    text-align: start;
+    padding-inline-start: 8px;
   }
 
   .evcc-theme-preview-animal-row--header {
@@ -650,7 +650,7 @@ export const themePreviewStyles = `
       width: 100%;
       overflow: visible;
       order: -1;
-      padding-right: 0;
+      padding-inline-end: 0;
     }
 
     .evcc-theme-preview-pane {

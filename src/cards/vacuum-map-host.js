@@ -35,7 +35,7 @@ const EMBED_CSS = `
   .evcc-map-embed-controls:empty { display: none; }
   .map-mascot-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .map-collapse-head { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; background: transparent; border: none; padding: 6px 4px; color: var(--evcc-text-muted, rgba(240,242,245,0.48)); font: 600 0.72rem/1.4 sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
-  .map-collapse-chev { margin-left: auto; transition: transform 150ms ease; }
+  .map-collapse-chev { margin-inline-start: auto; transition: transform 150ms ease; }
   .map-collapse:not(.is-collapsed) .map-collapse-chev { transform: rotate(180deg); }
   .map-collapse .evcc-map-layers-title { display: none; }
 `;

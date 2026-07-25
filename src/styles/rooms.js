@@ -241,7 +241,7 @@ export const roomStyles = `
 
   .evcc-start-preflight-reason {
     color: var(--evcc-text-secondary);
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-queue-empty {
@@ -915,7 +915,7 @@ export const roomStyles = `
     border: none;
     cursor: pointer;
     font: inherit;
-    text-align: left;
+    text-align: start;
   }
 
   .evcc-live-queue-caret {
@@ -953,7 +953,7 @@ export const roomStyles = `
   .evcc-live-chip-done {
     color: var(--evcc-sem-success, #3ba55d);
     font-weight: 700;
-    margin-left: 2px;
+    margin-inline-start: 2px;
   }
 
   /* Saved-zone multi-select picker (insert a zone step). */
@@ -974,7 +974,7 @@ export const roomStyles = `
     background: transparent;
     color: var(--evcc-text-primary);
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
   .evcc-zone-picker-item.is-picked {
@@ -999,7 +999,7 @@ export const roomStyles = `
     color: var(--evcc-text-primary);
     font: inherit;
     font-size: 0.78rem;
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-queue-chip-unit {

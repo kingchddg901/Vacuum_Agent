@@ -79,7 +79,7 @@ export const maintenanceModalHostStyles = `
 
   .evcc-maintenance-guide-list {
     margin: 0;
-    padding-left: 18px;
+    padding-inline-start: 18px;
   }
 
   .evcc-maintenance-guide-item,
@@ -264,7 +264,7 @@ export const maintenanceStyles = `
     border: 1px solid var(--evcc-border-default);
     background: color-mix(in srgb, var(--evcc-surface-raised) 92%, white 8%);
     width: 100%;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
 
@@ -376,7 +376,7 @@ export const maintenanceStyles = `
     border: 1px solid var(--evcc-border-subtle);
     background: var(--evcc-surface-raised);
     width: 100%;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
   }
 
@@ -404,7 +404,7 @@ export const maintenanceStyles = `
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--evcc-text-secondary);
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-maintenance-item-detail {

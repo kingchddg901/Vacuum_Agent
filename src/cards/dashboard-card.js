@@ -12,7 +12,7 @@
 // armed — see dashboard-dispatch.nextArmed.
 
 import {
-  translate, resolveLang, ensureLocalesLoaded,
+  translate, resolveLang, ensureLocalesLoaded, applyDir,
   esc, vocab, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
   chipRow, callResponse, registerCard, defineCard, stripNull,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
@@ -378,6 +378,7 @@ class EufyDashboardCard extends HTMLElement {
      ========================================================= */
 
   _render() {
+    applyDir(this, resolveLang(this._hass, this._config, this._langOverride));
     if (!this._config?.vacuum_entity_id) { this.shadowRoot.innerHTML = ""; return; }
 
     const vid = this._vacuumId();
@@ -536,7 +537,7 @@ class EufyDashboardCard extends HTMLElement {
     const n = this._zoneDrafts.length;
     const atCap = n >= this._zoneMax();
     const rects = this._zoneDrafts.map((d, i) => `
-      <div class="zone-rect" data-zone="${i}" style="left:${d.x}%;top:${d.y}%;width:${d.w}%;height:${d.h}%" title="${this.t("vacuum_card.zone_remove")}">
+      <div class="zone-rect" data-zone="${i}" style="inset-inline-start:${d.x}%;top:${d.y}%;width:${d.w}%;height:${d.h}%" title="${this.t("vacuum_card.zone_remove")}">
         <span class="zone-num">${i + 1}</span>
       </div>`).join("");
     return `
@@ -820,7 +821,7 @@ class EufyDashboardCard extends HTMLElement {
     surface.addEventListener("pointermove", (e) => {
       if (!start || !live) return;
       const b = boxOf(start, pct(e));
-      live.style.cssText = `display:block;left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%`;
+      live.style.cssText = `display:block;inset-inline-start:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%`;
     });
     const finish = (e) => {
       if (!start) return;
@@ -988,7 +989,7 @@ const CARD_CSS = `
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
-  .header .va-lang { margin-left: auto; align-self: center; }
+  .header .va-lang { margin-inline-start: auto; align-self: center; }
   .title { font-size: 1.0rem; font-weight: 700; color: var(--text-primary); }
   .meta { font-size: 0.80rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; }
   .batt { white-space: nowrap; }
@@ -999,7 +1000,7 @@ const CARD_CSS = `
   .group-head { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
   .group-head .section-label { flex: 0 0 auto; }
   .group-head .count { font-size: 0.68rem; font-weight: 600; color: color-mix(in srgb, var(--accent) 90%, white); background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 10px; padding: 1px 8px; }
-  .group-chevron { margin-left: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform 150ms ease; }
+  .group-chevron { margin-inline-start: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform 150ms ease; }
   .rooms:not(.is-collapsed) .group-chevron,
   .map-section:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
   .empty { padding: 16px; font-size: 0.85rem; color: var(--text-muted); }
@@ -1036,7 +1037,7 @@ const CARD_CSS = `
   .zone-overlay { position: absolute; inset: 0; pointer-events: none; }
   .zone-rect { position: absolute; box-sizing: border-box; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; cursor: pointer; pointer-events: auto; }
   .zone-rect:hover { background: color-mix(in srgb, var(--accent) 36%, transparent); }
-  .zone-num { position: absolute; top: -1px; left: -1px; font-size: 0.6rem; font-weight: 700; color: var(--evcc-text-on-accent, #fff); background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
+  .zone-num { position: absolute; top: -1px; inset-inline-start: -1px; font-size: 0.6rem; font-weight: 700; color: var(--evcc-text-on-accent, #fff); background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
   .zone-draft-live { position: absolute; display: none; box-sizing: border-box; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .zone-bar .spacer { flex: 1; }

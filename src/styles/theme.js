@@ -58,7 +58,7 @@ export const themeStyles = `
   .evcc-search-box ha-icon {
     --mdc-icon-size: 18px;
     color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
-    margin-right: 8px;
+    margin-inline-end: 8px;
     flex-shrink: 0;
   }
 
@@ -124,7 +124,7 @@ export const themeStyles = `
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
-    margin-right: 2px;
+    margin-inline-end: 2px;
   }
 
   .evcc-theme-mode-detail {
@@ -150,7 +150,7 @@ export const themeStyles = `
     font-size: 0.72rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    margin-right: 5px;
+    margin-inline-end: 5px;
   }
 
   .evcc-theme-mode-actions {
@@ -187,7 +187,7 @@ export const themeStyles = `
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
     scrollbar-gutter: stable;
-    padding-right: 4px;
+    padding-inline-end: 4px;
   }
 
   .evcc-preset-filters-top {
@@ -231,7 +231,7 @@ export const themeStyles = `
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    margin-left: auto;
+    margin-inline-start: auto;
     flex-shrink: 0;
     font-size: 0.8rem;
     font-weight: 600;
@@ -321,7 +321,7 @@ export const themeStyles = `
   .evcc-preset-delete {
     position: absolute;
     top: 6px;
-    right: 6px;
+    inset-inline-end: 6px;
     border: none;
     background: none;
     color: var(--evcc-text-muted, rgba(255,255,255,0.6));
@@ -348,13 +348,13 @@ export const themeStyles = `
   .preview-swatch.accent {
     background: var(--evcc-accent, #3b82f6);
     top: 20%;
-    left: 20%;
+    inset-inline-start: 20%;
   }
 
   .preview-swatch.surface {
     background: var(--evcc-surface-panel, #1c2127);
     bottom: 20%;
-    right: 20%;
+    inset-inline-end: 20%;
   }
 
   .evcc-preset-label {
@@ -405,7 +405,7 @@ export const themeStyles = `
   .evcc-preset-tag-edit {
     position: absolute;
     top: 6px;
-    left: 6px;
+    inset-inline-start: 6px;
     z-index: 2;
     border: none;
     background: none;
@@ -543,7 +543,7 @@ export const themeStyles = `
     -webkit-overflow-scrolling: touch;
     scrollbar-gutter: stable;
     padding: 12px;
-    padding-right: 16px;
+    padding-inline-end: 16px;
     background: color-mix(
       in srgb,
       var(--evcc-surface-panel, #1c2127) 88%,
@@ -702,7 +702,7 @@ export const themeStyles = `
   }
 
   .token-hint {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-size: 0.7rem;
     color: var(--evcc-text-muted, rgba(255,255,255,0.6));
     opacity: 0.8;
@@ -851,7 +851,7 @@ export const themeStyles = `
   .token-slider-bubble {
     position: absolute;
     top: 0;
-    left: 50%;
+    inset-inline-start: 50%;
     transform: translateX(-50%);
     background: var(--evcc-surface-card, #242b33);
     color: var(--evcc-text-primary, #f0f2f5);

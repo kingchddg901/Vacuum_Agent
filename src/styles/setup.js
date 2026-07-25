@@ -391,7 +391,7 @@ export const setupStyles = `
     display:   flex;
     flex-wrap: wrap;
     gap:       5px;
-    padding-left: 36px;
+    padding-inline-start: 36px;
   }
 
   .evcc-setup-floor-chip {
@@ -603,7 +603,7 @@ export const setupStyles = `
 
   .evcc-setup-drift-room-map {
     font-size: 0.75rem;
-    margin-right: 8px;
+    margin-inline-end: 8px;
   }
 
   /* =========================================================

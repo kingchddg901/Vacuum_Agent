@@ -3,10 +3,10 @@
 // so both cards have ONE source of truth for escaping, vocab localization, the
 // room-switch readers, and the chip-row markup.
 
-import { translate, resolveLang, ensureLocalesLoaded, listLocales } from "../i18n/index.js";
+import { translate, resolveLang, ensureLocalesLoaded, listLocales, applyDir } from "../i18n/index.js";
 import { getStoredLang, setStoredLang } from "../i18n/lang-store.js";
 
-export { translate, resolveLang, ensureLocalesLoaded, listLocales };
+export { translate, resolveLang, ensureLocalesLoaded, listLocales, applyDir };
 // The per-user language store (HA frontend user-data, cross-device) — the SAME key
 // the sidebar panel uses, so a language picked in a card and the panel stay in sync.
 export { getStoredLang, setStoredLang };
@@ -194,9 +194,9 @@ export const LANG_CSS = `
   .va-lang-btn { display: inline-flex; align-items: center; gap: 3px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--evcc-border-default, rgba(255,255,255,0.12)); background: transparent; color: var(--evcc-text-muted, rgba(240,242,245,0.55)); font-size: 0.72rem; font-weight: 700; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .va-lang-btn:hover { color: var(--evcc-text-primary, #f0f2f5); }
   .va-lang-backdrop { position: fixed; inset: 0; z-index: 20; }
-  .va-lang-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 21; min-width: 168px; max-height: 264px; overflow: auto; background: var(--evcc-surface-card, #1c2127); border: 1px solid var(--evcc-border-default, rgba(255,255,255,0.14)); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 4px; }
+  .va-lang-menu { position: absolute; inset-inline-end: 0; top: calc(100% + 4px); z-index: 21; min-width: 168px; max-height: 264px; overflow: auto; background: var(--evcc-surface-card, #1c2127); border: 1px solid var(--evcc-border-default, rgba(255,255,255,0.14)); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 4px; }
   .va-lang-head { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--evcc-text-muted, rgba(240,242,245,0.5)); padding: 6px 8px 4px; }
-  .va-lang-opt { display: block; width: 100%; text-align: left; padding: 6px 8px; border: none; background: transparent; color: var(--evcc-text-primary, #f0f2f5); font-size: 0.82rem; cursor: pointer; border-radius: 5px; }
+  .va-lang-opt { display: block; width: 100%; text-align: start; padding: 6px 8px; border: none; background: transparent; color: var(--evcc-text-primary, #f0f2f5); font-size: 0.82rem; cursor: pointer; border-radius: 5px; }
   .va-lang-opt:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); }
   .va-lang-opt.active { color: var(--evcc-accent, #3b82f6); font-weight: 600; }
 `;

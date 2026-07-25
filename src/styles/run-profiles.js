@@ -212,7 +212,7 @@ export const runProfileStyles = `
     background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
     color: var(--evcc-text-primary);
     font: inherit;
-    text-align: right;
+    text-align: end;
   }
 
   .evcc-run-profiles-step-controls {
@@ -337,7 +337,7 @@ export const runProfileStyles = `
     border: none;
     cursor: pointer;
     font: inherit;
-    text-align: left;
+    text-align: start;
   }
 
   .evcc-stepped-run-preview-title {

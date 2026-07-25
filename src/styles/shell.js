@@ -97,7 +97,7 @@ export const shellStyles = `
 
   .evcc-status-prefix {
     color:        var(--evcc-text-muted);
-    margin-right: 4px;
+    margin-inline-end: 4px;
   }
 
   /* =========================================================
@@ -215,7 +215,7 @@ export const shellStyles = `
   .evcc-lang-menu {
     position:      absolute;
     top:           calc(100% + 6px);
-    right:         0;
+    inset-inline-end:         0;
     z-index:       3;
     min-width:     190px;
     max-width:     calc(100vw - 20px);   /* never overflow a narrow card's right edge */
@@ -249,7 +249,7 @@ export const shellStyles = `
     background:    transparent;
     color:         var(--evcc-text-secondary);
     font-size:     0.82rem;
-    text-align:    left;
+    text-align: start;
     cursor:        pointer;
     transition:    background var(--evcc-transition-normal, 150ms ease),
                    color      var(--evcc-transition-normal, 150ms ease);
@@ -283,7 +283,7 @@ export const shellStyles = `
      (the option is flex-wrap), indented past the check column. */
   .evcc-lang-note {
     flex:          1 0 100%;
-    padding-left:  calc(1em + 6px);
+    padding-inline-start:  calc(1em + 6px);
     margin-top:    1px;
     font-size:     0.92em;
     line-height:   1.3;
@@ -382,8 +382,8 @@ export const shellStyles = `
 
   .evcc-toast-root {
     position:       absolute;
-    left:           0;
-    right:          0;
+    inset-inline-start:           0;
+    inset-inline-end:          0;
     bottom:         16px;
     display:        flex;
     justify-content: center;
@@ -418,15 +418,15 @@ export const shellStyles = `
   }
 
   .evcc-toast--success {
-    border-left: 3px solid var(--evcc-sem-success);
+    border-inline-start: 3px solid var(--evcc-sem-success);
   }
 
   .evcc-toast--error {
-    border-left: 3px solid var(--evcc-sem-error);
+    border-inline-start: 3px solid var(--evcc-sem-error);
   }
 
   .evcc-toast--info {
-    border-left: 3px solid var(--evcc-accent);
+    border-inline-start: 3px solid var(--evcc-accent);
   }
 
   .evcc-toast-message {

@@ -292,7 +292,7 @@ export const roomRulesStyles = `
   border-radius: 8px;
   border: 1px solid var(--evcc-border-subtle, rgba(255,255,255,0.08));
   background: transparent;
-  text-align: left;
+  text-align: start;
   transition: background 120ms ease, border-color 120ms ease;
 }
 

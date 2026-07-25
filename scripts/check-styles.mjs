@@ -93,5 +93,49 @@ for (const rel of LINT_TARGETS) {
   });
 }
 
+/* ---------------------------------------------------------------------------
+ * RTL-LINT — no PHYSICAL-direction CSS property. The card renders in Arabic /
+ * Hebrew (see i18n isRTL/applyDir), so every left/right-anchored rule must be
+ * LOGICAL (inline-start/end) or it won't mirror. This guards the conversion:
+ * a new `margin-left` / `text-align: right` / `left:` fails the build.
+ *
+ *  - Scans the same targets as the theme-lint, MINUS map.js.
+ *  - map.js is ALLOWLISTED: the map is spatial (coordinate math, canvas,
+ *    positioned overlays, CSS-triangle borders) and is forced `direction: ltr`
+ *    on `.evcc-map-view`, so its physical props are correct by construction.
+ *  - vacuum-map-host.js IS scanned (its chrome flips; only the map surface is exempt).
+ *  - `translateX` is NOT linted — centering (`inset-inline-start:50%` + translateX(-50%))
+ *    is direction-neutral and shimmer keyframes are decorative.
+ *  - ESCAPE HATCH: `rtl-ignore` in a line comment whitelists a deliberate
+ *    physical use (a genuinely spatial offset outside the map).
+ * ------------------------------------------------------------------------- */
+const MAP_STYLES = join("src", "styles", "map.js");  // spatial — allowlisted from RTL-lint
+const RTL_TARGETS = [
+  ...LINT_TARGETS.filter((p) => p !== MAP_STYLES),
+  join("src", "cards", "vacuum-map-host.js"),
+];
+// margin/padding/border -left|-right, text-align:left|right, and bare positioning
+// left:/right:. Lookbehind (?<![-\w]) keeps the bare rule off compound props
+// (border-left) and token names (--evcc-border-left).
+const PHYSICAL_DIR = [
+  /(?<![-\w])(?:margin|padding|border)-(?:left|right)\s*:/,
+  /text-align\s*:\s*(?:left|right)\b/,
+  /(?<![-\w])(?:left|right)\s*:/,
+];
+for (const rel of RTL_TARGETS) {
+  let text;
+  try { text = readFileSync(join(REPO, rel), "utf8"); } catch { continue; }
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (line.includes("rtl-ignore")) return;
+    for (const re of PHYSICAL_DIR) {
+      const m = re.exec(line);
+      if (m) {
+        fail(`${rel}:${i + 1}: physical-direction CSS '${m[0]}' — use a logical property (inline-start/end, text-align:start/end), or add /* rtl-ignore */ if it must be physical`);
+        break;
+      }
+    }
+  });
+}
+
 if (failures) { console.error(`FAIL — ${failures} style problem(s).`); process.exit(1); }
-console.log("OK — style modules import cleanly, CSS exports brace-balanced, and no un-tokenized colors.");
+console.log("OK — style modules import cleanly, CSS exports brace-balanced, no un-tokenized colors, and no physical-direction (non-RTL) CSS.");
