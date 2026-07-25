@@ -11956,6 +11956,22 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     min-width: 0;
   }
 
+  /* RTL: theme sliders are spatial color/scalar EDITORS, not reading-order
+     controls. Native <input type=range> auto-reverses under dir=rtl, but the
+     JS-positioned markers/bubbles (physical inline percent offsets), gradient tracks, and the A/B
+     colormix swatches do NOT \u2014 so a flipped slider desyncs the handle, fill, and
+     value. Decision (2026-07-25): pin ALL theme sliders direction:ltr, same
+     rationale as the map ([[project_rtl_support]]) \u2014 they read like a color-picker
+     panel. Labels/hints AROUND them (token-head, token-hint) sit outside these
+     wrappers and still flip. direction:ltr is not a physical-direction property,
+     so the RTL lint does not flag it. (No backticks in here \u2014 JS template.) */
+  .token-alpha-shell,
+  .token-colormix-colors,
+  .token-colormix-slider-row,
+  .slider-wrap {
+    direction: ltr;
+  }
+
   .token-alpha-shell {
     position: relative;
     width: 100%;
