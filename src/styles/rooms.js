@@ -1169,6 +1169,15 @@ export const roomStyles = `
     will-change: opacity;
   }
 
+  /* Sheen/sweep travel direction. The progress sheen is a transform:translateX
+     animation, and transforms are NOT affected by dir — so a naive sheen sweeps
+     left-to-right even in RTL. --evcc-sheen-dir flips the sign (keyframes below
+     multiply by it); the RTL host sets it to -1 so the sweep enters from the
+     reading-start (right) edge. Default 1 = LTR unchanged. */
+  :host([dir="rtl"]) {
+    --evcc-sheen-dir: -1;
+  }
+
   .evcc-room-card--queue-current::after,
   .evcc-queue-chip--current::after {
     content: "";
@@ -1181,7 +1190,7 @@ export const roomStyles = `
         color-mix(in srgb, white 28%, transparent) 45%,
         transparent 70%
       );
-    transform: translateX(-130%);
+    transform: translateX(calc(-130% * var(--evcc-sheen-dir, 1)));
     animation: evcc-progress-sheen 2.4s linear infinite;
     pointer-events: none;
     z-index: 0;
@@ -1194,8 +1203,8 @@ export const roomStyles = `
   }
 
   @keyframes evcc-progress-sheen {
-    0%   { transform: translateX(-130%); }
-    100% { transform: translateX(130%); }
+    0%   { transform: translateX(calc(-130% * var(--evcc-sheen-dir, 1))); }
+    100% { transform: translateX(calc(130% * var(--evcc-sheen-dir, 1))); }
   }
 
   .evcc-queue-chip--current::before {
@@ -1234,16 +1243,16 @@ export const roomStyles = `
         color-mix(in srgb, white 35%, transparent) 48%,
         transparent 75%
       );
-    transform: translateX(-140%);
+    transform: translateX(calc(-140% * var(--evcc-sheen-dir, 1)));
     animation: evcc-progress-complete-sweep 800ms ease-out 1;
     pointer-events: none;
     z-index: 0;
   }
 
   @keyframes evcc-progress-complete-sweep {
-    0%   { transform: translateX(-140%); opacity: 0; }
+    0%   { transform: translateX(calc(-140% * var(--evcc-sheen-dir, 1))); opacity: 0; }
     15%  { opacity: 1; }
-    100% { transform: translateX(140%); opacity: 0; }
+    100% { transform: translateX(calc(140% * var(--evcc-sheen-dir, 1))); opacity: 0; }
   }
 
   /* =========================================================
