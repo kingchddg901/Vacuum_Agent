@@ -358,7 +358,21 @@
     "charging_from": "desde {from} %",
     "charging_to": "Cargando al {target} %",
     "charging_to_eta": "Cargando al {target} % · ~{eta} restantes",
-    "waiting": "Esperando · ~{remaining} restantes"
+    "waiting": "Esperando · ~{remaining} restantes",
+    "cleaning_zone": "Limpiando zona: {names}",
+    "cleaning_zone_eta": "Limpiando zona: {names} · ~{eta} restantes",
+    "process_pending_runs": "Procesar limpiezas pendientes",
+    "processing_pending_fresh": {
+      "one": "Aún sin calcular · 1 limpieza pendiente",
+      "many": "Aún sin calcular · {count} limpiezas pendientes",
+      "other": "Aún sin calcular · {count} limpiezas pendientes"
+    },
+    "processing_pending_stale": {
+      "one": "1 limpieza nueva pendiente",
+      "many": "{count} limpiezas nuevas pendientes",
+      "other": "{count} limpiezas nuevas pendientes"
+    },
+    "processing_toggle": "Procesar limpiezas automáticamente"
   },
   "maintenance": {
     "attention_empty": "Por ahora todo parece en buen estado.",
@@ -660,7 +674,11 @@
     "zoom_in": "Acercar",
     "zoom_level_aria": "Nivel de zoom actual",
     "zoom_out": "Alejar",
-    "toggle_floor_texture": "Alternar texturas del suelo"
+    "toggle_floor_texture": "Alternar texturas del suelo",
+    "switch_map": "Cambiar el mapa activo",
+    "frame_gate_notice": "Mapa cambiado — el dibujo de zonas se pausa hasta que el robot se vuelva a localizar (muévelo o inicia una limpieza). Ejecutar zonas guardadas y limpiezas de habitación sigue funcionando.",
+    "frame_gate_override": "Habilitar el dibujo igualmente",
+    "frame_gate_override_hint": "Solo si sabes que la posición del robot es correcta — una zona dibujada antes de que el robot se vuelva a localizar puede limpiar el área equivocada."
   },
   "metrics": {
     "battery_all_jobs": "Todos los trabajos (mixtos + únicos)",
@@ -953,7 +971,11 @@
     "badge_attribution_disagreement_title": "La señal de habitación en tiempo real no coincidió con el orden de habitaciones asignado en parte de esta limpieza. Se mantuvo la asignación: abre la limpieza para comprobar qué habitación se limpió.",
     "filter_all_origins": "Todos los orígenes",
     "filter_origin": "Origen",
-    "custom_reason_placeholder": "Escribe un motivo…"
+    "custom_reason_placeholder": "Escribe un motivo…",
+    "badge_external": "Externo",
+    "detail_area_m2": "{value} m²",
+    "kv_area": "Área limpiada",
+    "kv_zones": "Zonas"
   },
   "room_access": {
     "accessed_from_help": "La habitación que da acceso a esta habitación. Solo lectura; se configura desde el editor de la otra habitación.",
@@ -1241,7 +1263,25 @@
     "chip_charge_to": "Cargar al {target} %",
     "chip_wait": "Esperar {minutes} min",
     "chip_wait_label": "Esperar",
-    "run_plan_title": "Esta limpieza"
+    "run_plan_title": "Esta limpieza",
+    "add_charge_break": "+ Pausa de carga",
+    "add_wait_break": "+ Pausa de espera",
+    "clear_breaks": "Borrar pausas",
+    "move_step": "Mover paso",
+    "remove_break": "Quitar pausa",
+    "add_zone": "+ Zona",
+    "zone_fallback": "Zona",
+    "zone_time_learned": "Aprendido a partir de {count} limpieza(s)",
+    "zone_time_estimated": "Estimado a partir del tamaño de la zona (aún sin limpiezas)",
+    "zone_picker_title": "Añadir un paso de zona",
+    "zone_picker_empty": "Aún no hay zonas guardadas en este mapa.",
+    "zone_picker_add": "Añadir a la cola",
+    "count_zones": {
+      "one": "1 zona",
+      "many": "{count} zonas",
+      "other": "{count} zonas"
+    },
+    "live_queue_label": "Cola en vivo"
   },
   "profile_card": {
     "configure": "Selecciona un aspirador, un mapa y un perfil en el editor de la tarjeta.",
@@ -1288,7 +1328,8 @@
     "step_wait": "Esperar",
     "steps_capture_hint": "Configura las habitaciones que quieras a continuación en la vista Habitaciones y luego añádelas como grupo.",
     "steps_hint": "Aspira, vuelve a la base para recargar y sigue limpiando, todo en una sola limpieza.",
-    "steps_label": "Pasos de la limpieza"
+    "steps_label": "Pasos de la limpieza",
+    "step_zone": "Zona"
   },
   "setup": {
     "add": "Añadir",
@@ -2342,7 +2383,8 @@
       "manual_test_run": "Marcada como ejecución de prueba manual.",
       "false_completion": "Esta ejecución parece haber terminado antes de completar realmente la limpieza.",
       "bad_room_attribution": "La atribución de habitaciones de esta ejecución parece poco fiable.",
-      "interrupted_run": "Esta ejecución parece haberse interrumpido."
+      "interrupted_run": "Esta ejecución parece haberse interrumpido.",
+      "extreme_idle_wall": "Retenida del aprendizaje — un periodo de inactividad inusualmente largo fuera de la base, por lo que no define una referencia de habitación. Restáurala si la ejecución fue legítima."
     },
     "origin": {
       "external": "Externo",

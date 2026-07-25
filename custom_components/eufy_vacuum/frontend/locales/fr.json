@@ -358,7 +358,21 @@
     "charging_from": "depuis {from} %",
     "charging_to": "Charge jusqu'à {target} %",
     "charging_to_eta": "Charge jusqu'à {target} % · ~{eta} restantes",
-    "waiting": "En attente · ~{remaining} restantes"
+    "waiting": "En attente · ~{remaining} restantes",
+    "cleaning_zone": "Nettoyage de zone : {names}",
+    "cleaning_zone_eta": "Nettoyage de zone : {names} · ~{eta} restantes",
+    "process_pending_runs": "Traiter les exécutions en attente",
+    "processing_pending_fresh": {
+      "one": "Pas encore calculé · 1 exécution en attente",
+      "many": "Pas encore calculé · {count} exécutions en attente",
+      "other": "Pas encore calculé · {count} exécutions en attente"
+    },
+    "processing_pending_stale": {
+      "one": "1 nouvelle exécution en attente",
+      "many": "{count} nouvelles exécutions en attente",
+      "other": "{count} nouvelles exécutions en attente"
+    },
+    "processing_toggle": "Traiter les exécutions automatiquement"
   },
   "maintenance": {
     "attention_empty": "Tout semble en bon état pour le moment.",
@@ -660,7 +674,11 @@
     "zoom_in": "Zoom avant",
     "zoom_level_aria": "Niveau de zoom actuel",
     "zoom_out": "Zoom arrière",
-    "toggle_floor_texture": "Basculer les textures du sol"
+    "toggle_floor_texture": "Basculer les textures du sol",
+    "switch_map": "Changer la carte active",
+    "frame_gate_notice": "Carte changée — le dessin de zone est suspendu jusqu'à ce que le robot retrouve sa position (déplacez-le ou lancez un nettoyage). Le lancement des zones enregistrées et des nettoyages de pièce fonctionne toujours.",
+    "frame_gate_override": "Activer le dessin quand même",
+    "frame_gate_override_hint": "Uniquement si vous savez que la position du robot est correcte — une zone dessinée avant que le robot ne retrouve sa position peut nettoyer au mauvais endroit."
   },
   "metrics": {
     "battery_all_jobs": "Toutes les tâches (mixtes + simples)",
@@ -953,7 +971,11 @@
     "badge_attribution_disagreement_title": "Le signal de pièce en direct ne correspondait pas à l'ordre des pièces attribué pour une partie de ce nettoyage. L'attribution a été conservée — ouvrez le nettoyage pour vérifier quelle pièce a été nettoyée.",
     "filter_all_origins": "Toutes les origines",
     "filter_origin": "Origine",
-    "custom_reason_placeholder": "Saisir une raison…"
+    "custom_reason_placeholder": "Saisir une raison…",
+    "badge_external": "Externe",
+    "detail_area_m2": "{value} m²",
+    "kv_area": "Surface nettoyée",
+    "kv_zones": "Zones"
   },
   "room_access": {
     "accessed_from_help": "La pièce qui donne accès à cette pièce. En lecture seule — défini depuis l'éditeur de l'autre pièce.",
@@ -1241,7 +1263,25 @@
     "chip_charge_to": "Charger jusqu'à {target} %",
     "chip_wait": "Attendre {minutes} min",
     "chip_wait_label": "Attendre",
-    "run_plan_title": "Cette tâche"
+    "run_plan_title": "Cette tâche",
+    "add_charge_break": "+ Pause de charge",
+    "add_wait_break": "+ Pause d'attente",
+    "clear_breaks": "Effacer les pauses",
+    "move_step": "Déplacer l'étape",
+    "remove_break": "Retirer la pause",
+    "add_zone": "+ Zone",
+    "zone_fallback": "Zone",
+    "zone_time_learned": "Appris à partir de {count} exécution(s)",
+    "zone_time_estimated": "Estimé à partir de la taille de la zone (aucune exécution pour l'instant)",
+    "zone_picker_title": "Ajouter une étape de zone",
+    "zone_picker_empty": "Aucune zone enregistrée sur cette carte pour l'instant.",
+    "zone_picker_add": "Ajouter à la file",
+    "count_zones": {
+      "one": "1 zone",
+      "many": "{count} zones",
+      "other": "{count} zones"
+    },
+    "live_queue_label": "File en direct"
   },
   "profile_card": {
     "configure": "Sélectionnez un aspirateur, une carte et un profil dans l'éditeur de la carte.",
@@ -1288,7 +1328,8 @@
     "step_wait": "Attendre",
     "steps_capture_hint": "Préparez les pièces souhaitées dans la vue Pièces, puis ajoutez-les comme groupe.",
     "steps_hint": "Aspirez, retournez à la station pour recharger, puis continuez le nettoyage — le tout en une seule tâche.",
-    "steps_label": "Étapes de la tâche"
+    "steps_label": "Étapes de la tâche",
+    "step_zone": "Zone"
   },
   "setup": {
     "add": "Ajouter",
@@ -2342,7 +2383,8 @@
       "manual_test_run": "Marquée comme une session de test manuelle.",
       "false_completion": "Cette session semble s'être terminée avant la fin réelle du nettoyage.",
       "bad_room_attribution": "L'attribution des pièces de cette session semble peu fiable.",
-      "interrupted_run": "Cette session semble avoir été interrompue."
+      "interrupted_run": "Cette session semble avoir été interrompue.",
+      "extreme_idle_wall": "Écartée de l'apprentissage — période d'inactivité anormalement longue hors de la station, cette session ne définit donc pas de référence de pièce. Restaurez-la si elle était légitime."
     },
     "origin": {
       "external": "Externe",

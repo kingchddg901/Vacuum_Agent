@@ -356,7 +356,19 @@
     "charging_from": "vanaf {from}%",
     "charging_to": "Opladen tot {target}%",
     "charging_to_eta": "Opladen tot {target}% · ~{eta} resterend",
-    "waiting": "Wachten · ~{remaining} resterend"
+    "waiting": "Wachten · ~{remaining} resterend",
+    "cleaning_zone": "Zone schoonmaken: {names}",
+    "cleaning_zone_eta": "Zone schoonmaken: {names} · ~{eta} resterend",
+    "process_pending_runs": "Openstaande runs verwerken",
+    "processing_pending_fresh": {
+      "one": "Nog niet berekend · 1 openstaande run",
+      "other": "Nog niet berekend · {count} openstaande runs"
+    },
+    "processing_pending_stale": {
+      "one": "1 nieuwe openstaande run",
+      "other": "{count} nieuwe openstaande runs"
+    },
+    "processing_toggle": "Runs automatisch verwerken"
   },
   "maintenance": {
     "attention_empty": "Alles ziet er momenteel gezond uit.",
@@ -656,7 +668,11 @@
     "zoom_in": "Inzoomen",
     "zoom_level_aria": "Huidig zoomniveau",
     "zoom_out": "Uitzoomen",
-    "toggle_floor_texture": "Vloertexturen omschakelen"
+    "toggle_floor_texture": "Vloertexturen omschakelen",
+    "switch_map": "Actieve kaart wisselen",
+    "frame_gate_notice": "Kaart gewisseld — het tekenen van zones pauzeert totdat de robot zich opnieuw lokaliseert (verplaats hem of start een schoonmaak). Opgeslagen zones en kamerschoonmaak uitvoeren werkt nog steeds.",
+    "frame_gate_override": "Tekenen toch inschakelen",
+    "frame_gate_override_hint": "Alleen als je zeker weet dat de positie van de robot juist is — een zone die wordt getekend voordat de robot zich opnieuw lokaliseert, kan het verkeerde gebied schoonmaken."
   },
   "metrics": {
     "battery_all_jobs": "Alle taken (gemengd + enkel)",
@@ -943,7 +959,11 @@
     "badge_attribution_disagreement_title": "Het live-kamersignaal kwam voor een deel van deze run niet overeen met de toegewezen kamervolgorde. De toewijzing is behouden — open de run om te controleren welke kamer is schoongemaakt.",
     "filter_all_origins": "Alle herkomsten",
     "filter_origin": "Herkomst",
-    "custom_reason_placeholder": "Voer een reden in…"
+    "custom_reason_placeholder": "Voer een reden in…",
+    "badge_external": "Extern",
+    "detail_area_m2": "{value} m²",
+    "kv_area": "Schoongemaakt oppervlak",
+    "kv_zones": "Zones"
   },
   "room_access": {
     "accessed_from_help": "De kamer die toegang verleent tot deze kamer. Alleen-lezen — stel in vanuit de editor van de andere kamer.",
@@ -1228,7 +1248,24 @@
     "chip_charge_to": "Opladen tot {target}%",
     "chip_wait": "{minutes} min wachten",
     "chip_wait_label": "Wachten",
-    "run_plan_title": "Deze run"
+    "run_plan_title": "Deze run",
+    "add_charge_break": "+ Laadpauze",
+    "add_wait_break": "+ Wachtpauze",
+    "clear_breaks": "Pauzes wissen",
+    "move_step": "Stap verplaatsen",
+    "remove_break": "Pauze verwijderen",
+    "add_zone": "+ Zone",
+    "zone_fallback": "Zone",
+    "zone_time_learned": "Geleerd uit {count} run(s)",
+    "zone_time_estimated": "Geschat op basis van zonegrootte (nog geen runs)",
+    "zone_picker_title": "Een zonestap toevoegen",
+    "zone_picker_empty": "Nog geen opgeslagen zones op deze kaart.",
+    "zone_picker_add": "Aan wachtrij toevoegen",
+    "count_zones": {
+      "one": "1 zone",
+      "other": "{count} zones"
+    },
+    "live_queue_label": "Live wachtrij"
   },
   "profile_card": {
     "configure": "Selecteer een stofzuiger, kaart en profiel in de editor.",
@@ -1275,7 +1312,8 @@
     "step_wait": "Wachten",
     "steps_capture_hint": "Stel in de Kamers-weergave de kamers in die je hierna wilt, en voeg ze dan als groep toe.",
     "steps_hint": "Stofzuigen, dockken om op te laden en dan verder schoonmaken — alles in één run.",
-    "steps_label": "Runstappen"
+    "steps_label": "Runstappen",
+    "step_zone": "Zone"
   },
   "setup": {
     "add": "Toevoegen",
@@ -2329,7 +2367,8 @@
       "manual_test_run": "Gemarkeerd als een handmatige testrun.",
       "false_completion": "Deze run lijkt te zijn geëindigd voordat de schoonmaak echt voltooid was.",
       "bad_room_attribution": "De kamertoewijzing voor deze run lijkt onbetrouwbaar.",
-      "interrupted_run": "Deze run lijkt te zijn onderbroken."
+      "interrupted_run": "Deze run lijkt te zijn onderbroken.",
+      "extreme_idle_wall": "Buiten het leren gehouden — een ongewoon lange inactieve periode weg van het dock, dus deze bepaalt geen kamerbaseline. Herstel de run als deze legitiem was."
     },
     "origin": {
       "external": "Extern",

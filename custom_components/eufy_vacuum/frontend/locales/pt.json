@@ -358,7 +358,21 @@
     "charging_from": "de {from}%",
     "charging_to": "A carregar até {target}%",
     "charging_to_eta": "A carregar até {target}% · ~{eta} restantes",
-    "waiting": "A aguardar · ~{remaining} restantes"
+    "waiting": "A aguardar · ~{remaining} restantes",
+    "cleaning_zone": "A limpar zona: {names}",
+    "cleaning_zone_eta": "A limpar zona: {names} · ~{eta} restantes",
+    "process_pending_runs": "Processar execuções pendentes",
+    "processing_pending_fresh": {
+      "one": "Ainda não calculado · 1 execução pendente",
+      "many": "Ainda não calculado · {count} execuções pendentes",
+      "other": "Ainda não calculado · {count} execuções pendentes"
+    },
+    "processing_pending_stale": {
+      "one": "1 nova execução pendente",
+      "many": "{count} novas execuções pendentes",
+      "other": "{count} novas execuções pendentes"
+    },
+    "processing_toggle": "Processar execuções automaticamente"
   },
   "maintenance": {
     "attention_empty": "Tudo parece estar saudável de momento.",
@@ -660,7 +674,11 @@
     "zoom_in": "Aproximar",
     "zoom_level_aria": "Nível de zoom atual",
     "zoom_out": "Afastar",
-    "toggle_floor_texture": "Alternar texturas do chão"
+    "toggle_floor_texture": "Alternar texturas do chão",
+    "switch_map": "Mudar o mapa ativo",
+    "frame_gate_notice": "Mapa mudado — o desenho de zonas fica em pausa até o robô voltar a localizar-se (mova-o ou inicie uma limpeza). As limpezas de zonas guardadas e de divisões continuam a funcionar.",
+    "frame_gate_override": "Ativar o desenho mesmo assim",
+    "frame_gate_override_hint": "Apenas se souber que a posição do robô está correta — uma zona desenhada antes de o robô voltar a localizar-se pode limpar a área errada."
   },
   "metrics": {
     "battery_all_jobs": "Todos os trabalhos (mistos + únicos)",
@@ -953,7 +971,11 @@
     "badge_attribution_disagreement_title": "O sinal de divisão em tempo real não correspondeu à ordem de divisões atribuída em parte desta limpeza. A atribuição foi mantida — abra a limpeza para verificar qual divisão foi limpa.",
     "filter_all_origins": "Todas as origens",
     "filter_origin": "Origem",
-    "custom_reason_placeholder": "Introduza um motivo…"
+    "custom_reason_placeholder": "Introduza um motivo…",
+    "badge_external": "Externo",
+    "detail_area_m2": "{value} m²",
+    "kv_area": "Área limpa",
+    "kv_zones": "Zonas"
   },
   "room_access": {
     "accessed_from_help": "A divisão que concede acesso a esta divisão. Só de leitura — definida no editor da outra divisão.",
@@ -1240,7 +1262,25 @@
     "chip_charge_to": "Carregar até {target}%",
     "chip_wait": "Aguardar {minutes} min",
     "chip_wait_label": "Aguardar",
-    "run_plan_title": "Esta execução"
+    "run_plan_title": "Esta execução",
+    "add_charge_break": "+ Pausa de carga",
+    "add_wait_break": "+ Pausa de espera",
+    "clear_breaks": "Limpar pausas",
+    "move_step": "Mover passo",
+    "remove_break": "Remover pausa",
+    "add_zone": "+ Zona",
+    "zone_fallback": "Zona",
+    "zone_time_learned": "Aprendido a partir de {count} execução(ões)",
+    "zone_time_estimated": "Estimado a partir do tamanho da zona (ainda sem execuções)",
+    "zone_picker_title": "Adicionar um passo de zona",
+    "zone_picker_empty": "Ainda sem zonas guardadas neste mapa.",
+    "zone_picker_add": "Adicionar à fila",
+    "count_zones": {
+      "one": "1 zona",
+      "many": "{count} zonas",
+      "other": "{count} zonas"
+    },
+    "live_queue_label": "Fila em direto"
   },
   "profile_card": {
     "configure": "Selecione um aspirador, um mapa e um perfil no editor do cartão.",
@@ -1287,7 +1327,8 @@
     "step_wait": "Aguardar",
     "steps_capture_hint": "Prepare as divisões que quer a seguir na vista de Divisões e depois adicione-as como grupo.",
     "steps_hint": "Aspirar, voltar à base para recarregar e continuar a limpar — tudo numa só execução.",
-    "steps_label": "Passos da execução"
+    "steps_label": "Passos da execução",
+    "step_zone": "Zona"
   },
   "setup": {
     "add": "Adicionar",
@@ -2341,7 +2382,8 @@
       "manual_test_run": "Marcada como execução de teste manual.",
       "false_completion": "Esta execução parece ter terminado antes de a limpeza estar realmente concluída.",
       "bad_room_attribution": "A atribuição de divisões desta execução parece pouco fiável.",
-      "interrupted_run": "Esta execução parece ter sido interrompida."
+      "interrupted_run": "Esta execução parece ter sido interrompida.",
+      "extreme_idle_wall": "Retida da aprendizagem — um período de inatividade invulgarmente longo fora da base, por isso não define uma referência de divisão. Restaure-a se a execução foi legítima."
     },
     "origin": {
       "external": "Externo",

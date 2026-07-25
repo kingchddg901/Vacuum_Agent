@@ -356,7 +356,19 @@
     "charging_from": "von {from}%",
     "charging_to": "Lädt auf {target}%",
     "charging_to_eta": "Lädt auf {target}% · ~{eta} übrig",
-    "waiting": "Warte · ~{remaining} übrig"
+    "waiting": "Warte · ~{remaining} übrig",
+    "cleaning_zone": "Reinige Zone: {names}",
+    "cleaning_zone_eta": "Reinige Zone: {names} · ~{eta} übrig",
+    "process_pending_runs": "Ausstehende Läufe verarbeiten",
+    "processing_pending_fresh": {
+      "one": "Noch nicht berechnet · 1 Lauf ausstehend",
+      "other": "Noch nicht berechnet · {count} Läufe ausstehend"
+    },
+    "processing_pending_stale": {
+      "one": "1 neuer Lauf ausstehend",
+      "other": "{count} neue Läufe ausstehend"
+    },
+    "processing_toggle": "Läufe automatisch verarbeiten"
   },
   "maintenance": {
     "attention_empty": "Aktuell sieht alles gesund aus.",
@@ -656,7 +668,11 @@
     "zoom_in": "Vergrößern",
     "zoom_level_aria": "Aktuelle Zoomstufe",
     "zoom_out": "Verkleinern",
-    "toggle_floor_texture": "Bodentexturen umschalten"
+    "toggle_floor_texture": "Bodentexturen umschalten",
+    "switch_map": "Aktive Karte wechseln",
+    "frame_gate_notice": "Karte gewechselt — das Zeichnen von Zonen pausiert, bis sich der Roboter neu lokalisiert (bewege ihn oder starte eine Reinigung). Gespeicherte Zonen und Raumreinigungen funktionieren weiterhin.",
+    "frame_gate_override": "Zeichnen trotzdem aktivieren",
+    "frame_gate_override_hint": "Nur wenn du weißt, dass die Roboterposition korrekt ist — eine Zone, die gezeichnet wird, bevor sich der Roboter neu lokalisiert, kann den falschen Bereich reinigen."
   },
   "metrics": {
     "battery_all_jobs": "Alle Aufträge (gemischt + einzeln)",
@@ -943,7 +959,11 @@
     "badge_attribution_disagreement_title": "Das Live-Raumsignal widersprach für einen Teil dieses Laufs der zugewiesenen Raumreihenfolge. Die Zuweisung wurde beibehalten – öffnen Sie den Lauf, um zu prüfen, welcher Raum gereinigt wurde.",
     "filter_all_origins": "Alle Herkünfte",
     "filter_origin": "Herkunft",
-    "custom_reason_placeholder": "Grund eingeben…"
+    "custom_reason_placeholder": "Grund eingeben…",
+    "badge_external": "Extern",
+    "detail_area_m2": "{value} m²",
+    "kv_area": "Gereinigte Fläche",
+    "kv_zones": "Zonen"
   },
   "room_access": {
     "accessed_from_help": "Der Raum, der den Zugang zu diesem Raum gewährt. Schreibgeschützt — im Editor des anderen Raums festgelegt.",
@@ -1228,7 +1248,24 @@
     "chip_charge_to": "Laden auf {target}%",
     "chip_wait": "{minutes} Min warten",
     "chip_wait_label": "Warten",
-    "run_plan_title": "Dieser Lauf"
+    "run_plan_title": "Dieser Lauf",
+    "add_charge_break": "+ Ladepause",
+    "add_wait_break": "+ Wartepause",
+    "clear_breaks": "Pausen löschen",
+    "move_step": "Schritt verschieben",
+    "remove_break": "Pause entfernen",
+    "add_zone": "+ Zone",
+    "zone_fallback": "Zone",
+    "zone_time_learned": "Gelernt aus {count} Läufen",
+    "zone_time_estimated": "Aus Zonengröße geschätzt (noch keine Läufe)",
+    "zone_picker_title": "Zonenschritt hinzufügen",
+    "zone_picker_empty": "Noch keine gespeicherten Zonen auf dieser Karte.",
+    "zone_picker_add": "Zur Warteschlange hinzufügen",
+    "count_zones": {
+      "one": "1 Zone",
+      "other": "{count} Zonen"
+    },
+    "live_queue_label": "Live-Warteschlange"
   },
   "profile_card": {
     "configure": "Wähle Saugroboter, Karte und Profil im Karteneditor aus.",
@@ -1275,7 +1312,8 @@
     "step_wait": "Warten",
     "steps_capture_hint": "Richte die als Nächstes gewünschten Räume in der Räume-Ansicht ein und füge sie dann als Gruppe hinzu.",
     "steps_hint": "Saugen, zum Aufladen andocken und dann weiterreinigen — alles in einem Lauf.",
-    "steps_label": "Laufschritte"
+    "steps_label": "Laufschritte",
+    "step_zone": "Zone"
   },
   "setup": {
     "add": "Hinzufügen",
@@ -2329,7 +2367,8 @@
       "manual_test_run": "Als manueller Testlauf markiert.",
       "false_completion": "Dieser Lauf scheint geendet zu haben, bevor die Reinigung wirklich abgeschlossen war.",
       "bad_room_attribution": "Die Raumzuordnung für diesen Lauf wirkt unzuverlässig.",
-      "interrupted_run": "Dieser Lauf scheint unterbrochen worden zu sein."
+      "interrupted_run": "Dieser Lauf scheint unterbrochen worden zu sein.",
+      "extreme_idle_wall": "Vom Lernen zurückgehalten — eine ungewöhnlich lange Leerlaufphase abseits der Station, daher legt er keine Raum-Grundlinie fest. Stelle ihn wieder her, wenn der Lauf echt war."
     },
     "origin": {
       "external": "Extern",

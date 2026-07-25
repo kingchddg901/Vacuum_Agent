@@ -356,7 +356,21 @@
     "charging_from": "da {from}%",
     "charging_to": "In carica fino al {target}%",
     "charging_to_eta": "In carica fino al {target}% · ~{eta} rimanenti",
-    "waiting": "In attesa · ~{remaining} rimanenti"
+    "waiting": "In attesa · ~{remaining} rimanenti",
+    "cleaning_zone": "Pulizia zona: {names}",
+    "cleaning_zone_eta": "Pulizia zona: {names} · ~{eta} rimanenti",
+    "process_pending_runs": "Elabora le esecuzioni in sospeso",
+    "processing_pending_fresh": {
+      "one": "Non ancora calcolato · 1 esecuzione in sospeso",
+      "many": "Non ancora calcolato · {count} esecuzioni in sospeso",
+      "other": "Non ancora calcolato · {count} esecuzioni in sospeso"
+    },
+    "processing_pending_stale": {
+      "one": "1 nuova esecuzione in sospeso",
+      "many": "{count} nuove esecuzioni in sospeso",
+      "other": "{count} nuove esecuzioni in sospeso"
+    },
+    "processing_toggle": "Elabora le esecuzioni automaticamente"
   },
   "maintenance": {
     "attention_empty": "Al momento tutto sembra in salute.",
@@ -656,7 +670,11 @@
     "zoom_in": "Ingrandisci",
     "zoom_level_aria": "Livello di zoom attuale",
     "zoom_out": "Riduci",
-    "toggle_floor_texture": "Attiva/disattiva texture del pavimento"
+    "toggle_floor_texture": "Attiva/disattiva texture del pavimento",
+    "switch_map": "Cambia la mappa attiva",
+    "frame_gate_notice": "Mappa cambiata — il disegno delle zone è in pausa finché il robot non ritrova la sua posizione (spostalo o avvia una pulizia). L'esecuzione delle zone salvate e delle pulizie delle stanze funziona ancora.",
+    "frame_gate_override": "Abilita comunque il disegno",
+    "frame_gate_override_hint": "Solo se sai che la posizione del robot è corretta — una zona disegnata prima che il robot ritrovi la sua posizione può pulire l'area sbagliata."
   },
   "metrics": {
     "battery_all_jobs": "Tutti i lavori (misti + singoli)",
@@ -943,7 +961,11 @@
     "badge_attribution_disagreement_title": "Il segnale della stanza in tempo reale non corrispondeva all'ordine delle stanze assegnato per una parte di questa pulizia. L'assegnazione è stata mantenuta: apri la pulizia per verificare quale stanza è stata pulita.",
     "filter_all_origins": "Tutte le origini",
     "filter_origin": "Origine",
-    "custom_reason_placeholder": "Inserisci un motivo…"
+    "custom_reason_placeholder": "Inserisci un motivo…",
+    "badge_external": "Esterna",
+    "detail_area_m2": "{value} m²",
+    "kv_area": "Area pulita",
+    "kv_zones": "Zone"
   },
   "room_access": {
     "accessed_from_help": "La stanza che concede l'accesso a questa stanza. Sola lettura — si imposta dall'editor dell'altra stanza.",
@@ -1228,7 +1250,25 @@
     "chip_charge_to": "Carica fino al {target}%",
     "chip_wait": "Attendi {minutes} min",
     "chip_wait_label": "Attendi",
-    "run_plan_title": "Questa esecuzione"
+    "run_plan_title": "Questa esecuzione",
+    "add_charge_break": "+ Pausa carica",
+    "add_wait_break": "+ Pausa attesa",
+    "clear_breaks": "Cancella pause",
+    "move_step": "Sposta passaggio",
+    "remove_break": "Rimuovi pausa",
+    "add_zone": "+ Zona",
+    "zone_fallback": "Zona",
+    "zone_time_learned": "Appreso da {count} esecuzioni",
+    "zone_time_estimated": "Stimato dalla dimensione della zona (ancora nessuna esecuzione)",
+    "zone_picker_title": "Aggiungi un passaggio di zona",
+    "zone_picker_empty": "Ancora nessuna zona salvata su questa mappa.",
+    "zone_picker_add": "Metti in coda",
+    "count_zones": {
+      "one": "1 zona",
+      "many": "{count} zone",
+      "other": "{count} zone"
+    },
+    "live_queue_label": "Coda live"
   },
   "profile_card": {
     "configure": "Seleziona un aspirapolvere, una mappa e un profilo nell'editor della scheda.",
@@ -1275,7 +1315,8 @@
     "step_wait": "Attendi",
     "steps_capture_hint": "Imposta le stanze che vuoi pulire dopo nella vista Stanze, poi aggiungile come gruppo.",
     "steps_hint": "Aspira, torna alla base per ricaricare, poi continua a pulire — tutto in un'unica esecuzione.",
-    "steps_label": "Passaggi dell'esecuzione"
+    "steps_label": "Passaggi dell'esecuzione",
+    "step_zone": "Zona"
   },
   "setup": {
     "add": "Aggiungi",
@@ -2329,7 +2370,8 @@
       "manual_test_run": "Contrassegnata come esecuzione di prova manuale.",
       "false_completion": "Questa esecuzione sembra essersi conclusa prima che la pulizia fosse davvero completata.",
       "bad_room_attribution": "L'attribuzione delle stanze per questa esecuzione sembra inaffidabile.",
-      "interrupted_run": "Questa esecuzione sembra essere stata interrotta."
+      "interrupted_run": "Questa esecuzione sembra essere stata interrotta.",
+      "extreme_idle_wall": "Trattenuta dall'apprendimento — un periodo di inattività insolitamente lungo fuori dalla base, quindi non definisce un riferimento per la stanza. Ripristinala se l'esecuzione era legittima."
     },
     "origin": {
       "external": "Esterno",
