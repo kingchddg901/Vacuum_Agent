@@ -22,6 +22,7 @@ covered — those fall back to English in the card overlay (pre-existing behavio
 
 Run from the repo root:  python scripts/sync-guide-translations.py
 """
+import importlib.util
 import json
 import os
 import sys
@@ -36,7 +37,23 @@ sys.path.insert(0, os.path.join(ADAPTERS, "roborock"))
 
 import eufy_upkeep_guides as base          # noqa: E402
 import roborock_upkeep_guides as rr_base   # noqa: E402
-import upkeep_guides_i18n as i18n          # noqa: E402  (Eufy translations; Roborock's are Phase 2)
+
+
+def _load_pkg(pkg_dir, modname):
+    """Load an i18n PACKAGE by explicit path under a unique name. Both brands' dirs
+    are on sys.path and share the basename ``upkeep_guides_i18n``, so a bare import
+    would collide; this resolves each package's relative submodule imports via its
+    own search location."""
+    init = os.path.join(pkg_dir, "__init__.py")
+    spec = importlib.util.spec_from_file_location(modname, init, submodule_search_locations=[pkg_dir])
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[modname] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+i18n = _load_pkg(os.path.join(ADAPTERS, "eufy", "upkeep_guides_i18n"), "eufy_upkeep_guides_i18n")
+rr_i18n = _load_pkg(os.path.join(ADAPTERS, "roborock", "upkeep_guides_i18n"), "roborock_upkeep_guides_i18n")
 
 FIELDS = ("steps", "notes", "clean_frequency", "replace_frequency")
 LANGS = ("de", "fr", "es", "it", "nl", "pt", "ru", "ar", "he", "ja", "zh-Hans", "zh-Hant", "ko")
@@ -51,9 +68,11 @@ for library in (base.UPKEEP_GUIDE_LIBRARY, rr_base.ROBOROCK_UPKEEP_GUIDE_LIBRARY
             comp: {k: g[k] for k in FIELDS if k in g} for comp, g in comps.items()
         }
 
-# Official manual translations on top.
-for lang, fams in i18n.UPKEEP_GUIDE_TRANSLATIONS.items():
-    merged[lang] = json.loads(json.dumps(fams))  # deep copy
+# Official manual translations on top — BOTH brands (families namespaced by key,
+# so Eufy's x10_pro_omni… and Roborock's standard/auto_empty/wash_station coexist).
+for src in (i18n.UPKEEP_GUIDE_TRANSLATIONS, rr_i18n.ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS):
+    for lang, fams in src.items():
+        merged.setdefault(lang, {}).update(json.loads(json.dumps(fams)))  # deep copy
 
 # Back-fill frequency gaps from the machine-translated unique phrases.
 with open(os.path.join(ROOT, "scripts", "data", "guide-frequency-translations.json"), encoding="utf-8") as fh:

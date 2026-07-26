@@ -49,6 +49,7 @@ from .upkeep_catalog import (
     ROBOROCK_MODEL_NAMES,
 )
 from .roborock_upkeep_guides import ROBOROCK_UPKEEP_GUIDE_LIBRARY
+from .upkeep_guides_i18n import ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS
 from .vocabulary import (
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
@@ -638,7 +639,7 @@ def register_roborock_adapter_for_vacuum(
             "model_guide_families": ROBOROCK_MODEL_GUIDE_FAMILIES,
             "guide_family_names": ROBOROCK_GUIDE_FAMILY_NAMES,
             "guide_library": ROBOROCK_UPKEEP_GUIDE_LIBRARY,
-            "guide_translations": {},
+            "guide_translations": ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS,
         },
 
         # Wave 2a: "discovery" (get_maps service source + active_map) + identity
