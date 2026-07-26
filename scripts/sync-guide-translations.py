@@ -7,8 +7,9 @@ on the CARD in the user's per-user language (the globe), not the HA instance
 language. To do that the card needs the guide content client-side, so we port
 it here from the same Python source of truth:
 
-  - English base:           adapters/eufy/upkeep_guides.py      (UPKEEP_GUIDE_LIBRARY)
-  - official translations:  adapters/eufy/upkeep_guides_i18n.py (UPKEEP_GUIDE_TRANSLATIONS)
+  - English base:           adapters/eufy/upkeep_guides.py       (UPKEEP_GUIDE_LIBRARY)
+  - translations:           adapters/eufy/upkeep_guides_i18n/    (one <lang>.py per
+                            language; __init__.py assembles UPKEEP_GUIDE_TRANSLATIONS)
   - frequency gap-fills:    scripts/data/guide-frequency-translations.json
                             (the unique frequency phrases, machine-translated; the
                             official manuals only stated some frequencies)
@@ -70,7 +71,7 @@ header = (
     " * frequencies), so the maintenance guide follows the CARD per-user language\n"
     " * (the globe), not the HA instance language.\n"
     " * GENERATED — do not hand-edit. Run: python scripts/sync-guide-translations.py\n"
-    " * Source: adapters/eufy/upkeep_guides{,_i18n}.py + scripts/data/guide-frequency-translations.json\n"
+    " * Source: adapters/eufy/upkeep_guides.py + upkeep_guides_i18n/<lang>.py + scripts/data/guide-frequency-translations.json\n"
     " * Shape: GUIDE_TRANSLATIONS[lang][family][component] = { steps[], notes[], clean_frequency, replace_frequency }\n"
     " */\n"
 )

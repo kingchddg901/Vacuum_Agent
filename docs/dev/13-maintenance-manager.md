@@ -110,7 +110,7 @@ adapter_config["upkeep_catalog"] = {
 
 The upkeep guide library maps per-model-family maintenance schedules (cleaning procedures, photos, replacement tips). It is read by `get_upkeep_snapshot()` but not mutated by the manager.
 
-`guide_translations` is `UPKEEP_GUIDE_TRANSLATIONS` (from `adapters/eufy/upkeep_guides_i18n.py`), structured as `[lang][guide_family][component]`. `_get_upkeep_item_guide` (`manager.py:203`, `214-227`) selects the entry by HA instance language (`self._guide_language()`) and overlays the localized `steps` / `notes` / `clean_frequency` / `replace_frequency` onto the English `guide_library` base **per field** — any absent field (or an unharvested component/language) falls back to English.
+`guide_translations` is `UPKEEP_GUIDE_TRANSLATIONS` (assembled by `adapters/eufy/upkeep_guides_i18n/__init__.py` from one `<lang>.py` module per language), structured as `[lang][guide_family][component]`. `_get_upkeep_item_guide` (`manager.py:203`, `214-227`) selects the entry by HA instance language (`self._guide_language()`) and overlays the localized `steps` / `notes` / `clean_frequency` / `replace_frequency` onto the English `guide_library` base **per field** — any absent field (or an unharvested component/language) falls back to English.
 
 ---
 

@@ -851,7 +851,7 @@ def register_eufy_adapter_for_vacuum(
             "guide_library": UPKEEP_GUIDE_LIBRARY,
             # Official localized guide steps/notes/frequencies (+ ru cross-checked),
             # overlaid on the English base per field by the maintenance manager
-            # (selected by HA instance language). See upkeep_guides_i18n.py.
+            # (selected by HA instance language). See upkeep_guides_i18n/ (one <lang>.py each).
             "guide_translations": UPKEEP_GUIDE_TRANSLATIONS,
         },
 
