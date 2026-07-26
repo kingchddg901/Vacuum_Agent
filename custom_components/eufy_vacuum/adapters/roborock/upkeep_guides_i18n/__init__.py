@@ -11,13 +11,18 @@ in the module name) so it can be filled/reviewed in isolation. Frequencies are s
 to match the English base so the interval reads the same in every language. Pure
 data. Assembled into the adapter's ``upkeep_catalog.guide_translations``.
 
-PROOF-of-pipeline set today: de, zh-Hans (base family). The remaining official
-languages (es/fr/it/nl/pt from the CE manuals; ru/ja/ko/zh-Hant from regional
-editions) are the same read-and-copy, added as modules here.
+EU set (de/es/fr/it/nl/pt) + zh-Hans transcribed from the official CE + CN
+manuals. Remaining official languages (ru/ja/ko/zh-Hant from regional editions;
+ar/he under the agree-in-principle check) are the same read-and-copy, added here.
 """
-from . import de, zh_hans  # noqa: F401
+from . import de, es, fr, it, nl, pt, zh_hans  # noqa: F401
 
 ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "de": de.GUIDE_TRANSLATIONS,
+    "es": es.GUIDE_TRANSLATIONS,
+    "fr": fr.GUIDE_TRANSLATIONS,
+    "it": it.GUIDE_TRANSLATIONS,
+    "nl": nl.GUIDE_TRANSLATIONS,
+    "pt": pt.GUIDE_TRANSLATIONS,
     "zh-Hans": zh_hans.GUIDE_TRANSLATIONS,
 }
