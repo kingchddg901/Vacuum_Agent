@@ -90,6 +90,15 @@ export const maintenanceModalHostStyles = `
     color: var(--evcc-text-secondary);
   }
 
+  /* Arabic / Hebrew connected letterforms + marks want more leading than Latin —
+     give the guide steps/notes a bit more line-height in RTL so the list breathes.
+     RTL-only (keyed off the dir the modal host carries); LTR is unchanged. */
+  [dir="rtl"] .evcc-maintenance-guide-item,
+  [dir="rtl"] .evcc-maintenance-guide-note,
+  [dir="rtl"] .evcc-maintenance-reset-hint {
+    line-height: 1.75;
+  }
+
   .evcc-maintenance-guide-note,
   .evcc-maintenance-reset-hint {
     padding: 12px;
