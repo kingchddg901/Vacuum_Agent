@@ -16,7 +16,7 @@ zh-Hant (TW), ru (S6 MaxV), ja (S5 Max — base only, rest fall back to English)
 ar/he are AI-DRAFTS (no official manual; manuals.plus inaccessible) — flagged in
 their modules, consistent with the card's ar/he draft locales.
 """
-from . import ar, de, es, fr, he, it, ja, nl, pt, ru, zh_hans, zh_hant  # noqa: F401
+from . import ar, de, es, fr, he, it, ja, ko, nl, pt, ru, zh_hans, zh_hant  # noqa: F401
 
 ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "de": de.GUIDE_TRANSLATIONS,
@@ -27,10 +27,9 @@ ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "pt": pt.GUIDE_TRANSLATIONS,
     "ru": ru.GUIDE_TRANSLATIONS,
     "ja": ja.GUIDE_TRANSLATIONS,
+    "ko": ko.GUIDE_TRANSLATIONS,
     "zh-Hans": zh_hans.GUIDE_TRANSLATIONS,
     "zh-Hant": zh_hant.GUIDE_TRANSLATIONS,
     "ar": ar.GUIDE_TRANSLATIONS,
     "he": he.GUIDE_TRANSLATIONS,
 }
-# ko is the one remaining: kr.roborock.com surfaced only blog URLs, no direct PDF
-# to extract — falls back to English until its manual is harvested.
