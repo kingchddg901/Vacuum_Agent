@@ -149,7 +149,7 @@ def rebuild_map_bucket(
             "clean_mode": str(previous.get("clean_mode", "vacuum")),
             "fan_speed": str(previous.get("fan_speed", "Max")),
             "water_level": str(previous.get("water_level", "Off")),
-            "clean_intensity": str(previous.get("clean_intensity", "Standard")),
+            "clean_intensity": str(previous.get("clean_intensity", "Quick")),
             "clean_passes": int(previous.get("clean_passes", 1)),
             "edge_mopping": bool(previous.get("edge_mopping", False)),
             "path_type": previous.get("path_type"),

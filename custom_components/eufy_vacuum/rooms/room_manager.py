@@ -79,7 +79,7 @@ def build_managed_rooms(
             clean_mode=str(existing.get("clean_mode", "vacuum")),
             fan_speed=str(existing.get("fan_speed", "Max")),
             water_level=str(existing.get("water_level", "Off")),
-            clean_intensity=str(existing.get("clean_intensity", "Standard")),
+            clean_intensity=str(existing.get("clean_intensity", "Quick")),
             clean_passes=int(existing.get("clean_passes", 1)),
             edge_mopping=bool(existing.get("edge_mopping", False)),
             path_type=existing.get("path_type"),

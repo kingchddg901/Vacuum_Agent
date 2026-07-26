@@ -32,10 +32,22 @@ from custom_components.eufy_vacuum.profiles.room_profiles import (
     apply_room_profile_to_config,
     get_available_profile_names,
     get_available_profiles,
+    normalize_clean_intensity,
     normalize_room_profile,
     resolve_profile_name_for_constraints,
     resolve_room_profile_for_room,
 )
+
+
+def test_normalize_clean_intensity_folds_dead_values():
+    """[RP-19] 'Standard' / 'Normal' are dead Eufy cleaning-path values → fold to Quick
+    (case-insensitive); real paths + anything else pass through unchanged."""
+    for dead in ("Standard", "standard", "STANDARD", "Normal", "normal", " Standard "):
+        assert normalize_clean_intensity(dead) == "Quick", dead
+    for keep in ("Quick", "Narrow", "Deep"):
+        assert normalize_clean_intensity(keep) == keep, keep
+    assert normalize_clean_intensity(None) == ""
+    assert normalize_clean_intensity("") == ""
 
 
 _NO_MOP_CAPS = {"supports_mop_features": False, "supports_water_control": False}
@@ -118,7 +130,7 @@ def test_normalize_room_profile_preserves_values():
 def test_normalize_room_profile_empty_dict():
     """[RP-5] Empty dict produces all defaults."""
     p = normalize_room_profile({})
-    assert p["clean_intensity"] == "Standard"
+    assert p["clean_intensity"] == "Quick"
     assert p["path_type"] == "wide"
     assert p["mop_required"] is False
 

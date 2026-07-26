@@ -64,7 +64,7 @@ def pm() -> ProfileManager:
 def _save(pm, name="user_brushes"):
     return pm.save_user_room_profile(
         label="Brushes", clean_mode="vacuum", fan_speed="Max", water_level="Off",
-        clean_intensity="Standard", clean_passes=1, edge_mopping=False, profile_name=name)
+        clean_intensity="Quick", clean_passes=1, edge_mopping=False, profile_name=name)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +178,7 @@ def test_delete_profile(pm):
 def test_overwrite_room_profile_rejections(pm):
     """[PM-13] overwrite_room_profile error returns: protected name + unknown profile."""
     fields = dict(label="X", clean_mode="vacuum", fan_speed="Max", water_level="Off",
-                  clean_intensity="Standard", clean_passes=1, edge_mopping=False)
+                  clean_intensity="Quick", clean_passes=1, edge_mopping=False)
     assert pm.overwrite_room_profile(
         profile_name="vacuum_quick", **fields)["reason"] == "protected_profile"
     assert pm.overwrite_room_profile(
@@ -351,7 +351,7 @@ def _seed_room(pm):
     pm._data["maps"] = {_VAC: {_MAP: {"rooms": {"1": {
         "room_id": 1, "name": "Kitchen", "clean_mode": "vacuum",
         "fan_speed": "Max", "water_level": "Off",
-        "clean_intensity": "Standard", "floor_type": "hardwood"}}}}}
+        "clean_intensity": "Quick", "floor_type": "hardwood"}}}}}
 
 
 def test_overwrite_room_profile_from_room(pm):
@@ -432,7 +432,7 @@ def test_overwrite_run_profile_clears_stale_steps(pm):
     assert effective == [{"type": "room_group", "rooms": [{"room_id": 7, "name": "Office",
                           "profile_name": "vacuum_quick", "clean_mode": "vacuum",
                           "fan_speed": "Max", "water_level": "Off",
-                          "clean_intensity": "Standard", "clean_passes": 1,
+                          "clean_intensity": "Quick", "clean_passes": 1,
                           "edge_mopping": False, "order": 1}]}]
     # and the enriched view reports the NEW room, not the old 1/2
     assert ok["profile"]["room_ids"] == [7]

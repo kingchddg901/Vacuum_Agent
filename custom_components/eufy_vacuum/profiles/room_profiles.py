@@ -105,12 +105,25 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
     },
 }
 
+# clean_intensity "Standard" / "Normal" are DEAD Eufy cleaning-path values. The real
+# device paths are Quick / Narrow / Deep (clean_intensity_options); "Standard" only ever
+# existed as a legacy default and rendered as an EMPTY chip in the card (no matching
+# option). Fold them to Quick on read so a room stored — or defaulted — to them resolves
+# to a real, selectable path for both display and dispatch.
+_DEAD_CLEAN_INTENSITY = {"standard", "normal"}
+
+
+def normalize_clean_intensity(value: Any) -> str:
+    v = str(value if value is not None else "").strip()
+    return "Quick" if v.lower() in _DEAD_CLEAN_INTENSITY else v
+
+
 DEFAULT_CUSTOM_ROOM_PROFILE: dict[str, Any] = {
     "label": "User Profile 1",
     "clean_mode": "vacuum",
     "fan_speed": "Max",
     "water_level": "Off",
-    "clean_intensity": "Standard",
+    "clean_intensity": "Quick",
     "path_type": "wide",
     "clean_passes": 1,
     "edge_mopping": False,
@@ -191,7 +204,7 @@ def normalize_room_profile(
         "clean_mode": str(source.get("clean_mode", d.get("clean_mode", "vacuum"))),
         "fan_speed": str(source.get("fan_speed", d.get("fan_speed", "Max"))),
         "water_level": str(source.get("water_level", d.get("water_level", "Off"))),
-        "clean_intensity": str(source.get("clean_intensity", d.get("clean_intensity", "Standard"))),
+        "clean_intensity": normalize_clean_intensity(source.get("clean_intensity", d.get("clean_intensity", "Quick"))),
         "path_type": str(source.get("path_type", d.get("path_type", "wide"))),
         "clean_passes": int(source.get("clean_passes", d.get("clean_passes", 1))),
         "edge_mopping": bool(source.get("edge_mopping", d.get("edge_mopping", False))),
@@ -394,8 +407,8 @@ def resolve_room_profile_for_room(
     )
 
     resolved_clean_mode = str(room_config.get("clean_mode", resolved_profile.get("clean_mode", "vacuum")))
-    resolved_clean_intensity = str(
-        room_config.get("clean_intensity", resolved_profile.get("clean_intensity", "Standard"))
+    resolved_clean_intensity = normalize_clean_intensity(
+        room_config.get("clean_intensity", resolved_profile.get("clean_intensity", "Quick"))
     )
     resolved_path_type = str(room_config.get("path_type", resolved_profile.get("path_type", "wide")))
     resolved_edge_mopping = bool(room_config.get("edge_mopping", resolved_profile.get("edge_mopping", False)))
@@ -461,7 +474,7 @@ def apply_capability_gate(
     clean_mode = str(settings.get("clean_mode", "vacuum"))
     fan_speed = str(settings.get("fan_speed", "Max"))
     water_level = str(settings.get("water_level", "Off"))
-    clean_intensity = str(settings.get("clean_intensity", "Standard"))
+    clean_intensity = normalize_clean_intensity(settings.get("clean_intensity", "Quick"))
     path_type = str(settings.get("path_type", "wide"))
     clean_passes = int(settings.get("clean_passes", 1))
     edge_mopping = bool(settings.get("edge_mopping", False))

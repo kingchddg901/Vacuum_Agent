@@ -183,7 +183,7 @@ class RoomConfig:
     clean_mode: str = "vacuum"
     fan_speed: str = "Max"
     water_level: str = "Off"
-    clean_intensity: str = "Standard"
+    clean_intensity: str = "Quick"
     clean_passes: int = 1
     edge_mopping: bool = False
 

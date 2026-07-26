@@ -165,10 +165,15 @@ CLEAN_MODE_ALIASES: dict[str, str] = {
     "mop and vacuum": "vacuum_mop",
 }
 
-# Canonical codes: quick, narrow, deep, normal, standard.
-# Eufy's stored values (Quick/Narrow/Deep/Standard/Normal) already slug to the
-# canonical code; no display variants need remapping today.
-CLEAN_INTENSITY_ALIASES: dict[str, str] = {}
+# Canonical cleaning-path codes: quick, narrow, deep. "standard" / "normal" are DEAD —
+# they were never real Eufy device paths (the app offers Quick/Narrow/Deep), only a
+# legacy default that rendered as an empty chip. Fold them to quick so a stored/observed
+# "Standard" or "Normal" normalizes to a real path in learning keys too (the room-field
+# resolver does the same for display/dispatch — see profiles/room_profiles.py).
+CLEAN_INTENSITY_ALIASES: dict[str, str] = {
+    "standard": "quick",
+    "normal": "quick",
+}
 
 # Canonical codes: quiet, gentle, standard, boost, turbo, max.
 # "BoostIQ" is Eufy's auto-boost label -> canonical "boost".
