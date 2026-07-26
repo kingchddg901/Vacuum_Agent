@@ -245,19 +245,25 @@ def test_maintenance_components(s6_config):
 
 
 def test_upkeep_catalog(s6_config):
-    """The guide half: model->family->guide wiring + S6 library shape."""
+    """The guide half: model->family->guide wiring + the `standard` library shape."""
     cat = s6_config["upkeep_catalog"]
-    assert cat["model_guide_families"]["roborock.vacuum.s6"] == "s6"
-    assert cat["model_names"]["roborock.vacuum.s6"] == "Roborock S6"
-    assert cat["guide_family_names"]["s6"] == "Roborock S6"
+    # Guide families are maintenance PROFILES, not per-model. The S6 (and the whole
+    # no-dock base lineup) resolves to `standard`.
+    assert cat["model_guide_families"]["roborock.vacuum.s6"] == "standard"
+    assert cat["model_names"]["roborock.vacuum.s6"] == "S6"
+    assert cat["guide_family_names"]["standard"] == "Roborock"
+    # Broad coverage: many models map to a family (not just the 3 capability models).
+    assert len(cat["model_guide_families"]) >= 30
+    # Until the step-up tiers are authored, their models fall back to `standard`.
+    assert cat["model_guide_families"]["roborock.vacuum.a70"] == "standard"  # S8 Pro Ultra
 
-    s6 = cat["guide_library"]["s6"]
-    # Every maintenance component the S6 exposes has a guide (4 tracked + 5 cleanables).
+    std = cat["guide_library"]["standard"]
+    # Every maintenance component the base profile exposes has a guide (4 tracked + 5 cleanables).
     for comp in (
         "main_brush", "side_brush", "filter", "sensor",
         "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
     ):
-        guide = s6[comp]
+        guide = std[comp]
         assert isinstance(guide["steps"], list) and guide["steps"], comp
         assert isinstance(guide["notes"], list), comp
         assert "clean_frequency" in guide and "replace_frequency" in guide, comp

@@ -10,23 +10,32 @@ Mirrors the Eufy contract (adapters/eufy/eufy_upkeep_guides.py ``UPKEEP_GUIDE_LI
         "notes": list[str],
     }
 
-Guide families map 1:1 to the capability families in model_catalog.py (s6 / s7 /
-s8 / generic). The maintenance manager overlays a localized copy PER FIELD, so any
-field left None/absent falls back to English. Components match the keys in
-maintenance_components.py so each guide attaches to its card.
+Guide families are MAINTENANCE PROFILES (dock + mop hardware), NOT per-model and
+NOT the capability families in model_catalog.py. The ~37 HA-supported robot models
+collapse to a handful of profiles because brush/filter/sensor upkeep is near-
+identical across the lineup — only the dock (auto-empty / wash station) and mop
+(single pad vs twin spinning pads) differ. Planned tiers, each a superset of the
+one above (see upkeep_catalog.py for the model→tier map):
 
-Content is sourced from Roborock's official S6 manual + support pages
-(support.roborock.com, us.roborock.com) and written as concise factual steps —
-intervals are as stated by Roborock. PURE DATA (no imports): the frontend sync
-(scripts/sync-guide-translations.py) loads this file directly.
+    standard      no dock, single/no mop pad          (S4/S5/S6/S7, Q5/Q7, E, G…)
+    auto_empty    + dust-collection dock              (Q5 Pro, Q7/Q8 Max, Q10)
+    wash_station  + wash&dry dock, tanks, station filter (S7·S8 Pro Ultra, Q Revo…)
+    dual_pad      + twin spinning mop pads (roller mops) (S8 MaxV Ultra, Qrevo Curv, Saros)
 
-Only the s6 family is populated today; s7 / s8 follow once their manuals are
-harvested. An unpopulated family simply shows no guide (graceful — same as an
-Eufy family with steps not yet localized).
+The manager overlays a localized copy PER FIELD, so any field left None/absent
+falls back to English. Component keys match maintenance_components.py so each
+guide attaches to its card. Content is sourced from Roborock's official manuals +
+support pages, written as concise factual steps — intervals as stated by Roborock.
+PURE DATA (no imports): scripts/sync-guide-translations.py loads this directly.
+
+TODAY only `standard` is authored (from the S6 manual); it covers the whole
+no-dock base lineup. The step-up tiers (their dock / roller-mop deltas) are the
+next pass — until authored, upkeep_catalog maps their models to `standard` so
+every model still gets the base guides.
 """
 
 ROBOROCK_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
-    "s6": {
+    "standard": {
         "main_brush": {
             "clean_frequency": "weekly",
             "replace_frequency": "every 6-12 months",
