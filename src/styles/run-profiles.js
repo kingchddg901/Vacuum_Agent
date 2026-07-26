@@ -353,6 +353,15 @@ export const runProfileStyles = `
     color: var(--evcc-text-muted);
   }
 
+  /* RTL: the COLLAPSED caret glyph (▸) points along the reading direction, so
+     mirror it to point ◂ toward the now-right-aligned label. The EXPANDED ▾ is
+     vertical — the horizontal flip is a visual no-op there. dir lives on the
+     shadow host (applyDir), hence :host(); span needs inline-block for transform. */
+  :host([dir="rtl"]) .evcc-stepped-run-preview-caret {
+    display: inline-block;
+    transform: scaleX(-1);
+  }
+
   .evcc-stepped-run-preview--collapsed {
     gap: 0;
   }

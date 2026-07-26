@@ -8050,6 +8050,13 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
     color: var(--evcc-text-muted);
   }
 
+  /* RTL mirror of the collapsed caret (\u25B8\u2192\u25C2); the expanded \u25BE is symmetric under a
+     horizontal flip. Same disclosure idiom as .evcc-stepped-run-preview-caret. */
+  :host([dir="rtl"]) .evcc-live-queue-caret {
+    display: inline-block;
+    transform: scaleX(-1);
+  }
+
   .evcc-live-queue-label {
     font-size: 0.7rem;
     font-weight: 700;
@@ -9430,6 +9437,15 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
   .evcc-stepped-run-preview-caret {
     font-size: 0.7rem;
     color: var(--evcc-text-muted);
+  }
+
+  /* RTL: the COLLAPSED caret glyph (\u25B8) points along the reading direction, so
+     mirror it to point \u25C2 toward the now-right-aligned label. The EXPANDED \u25BE is
+     vertical \u2014 the horizontal flip is a visual no-op there. dir lives on the
+     shadow host (applyDir), hence :host(); span needs inline-block for transform. */
+  :host([dir="rtl"]) .evcc-stepped-run-preview-caret {
+    display: inline-block;
+    transform: scaleX(-1);
   }
 
   .evcc-stepped-run-preview--collapsed {

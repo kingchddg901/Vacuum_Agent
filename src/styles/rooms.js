@@ -923,6 +923,13 @@ export const roomStyles = `
     color: var(--evcc-text-muted);
   }
 
+  /* RTL mirror of the collapsed caret (▸→◂); the expanded ▾ is symmetric under a
+     horizontal flip. Same disclosure idiom as .evcc-stepped-run-preview-caret. */
+  :host([dir="rtl"]) .evcc-live-queue-caret {
+    display: inline-block;
+    transform: scaleX(-1);
+  }
+
   .evcc-live-queue-label {
     font-size: 0.7rem;
     font-weight: 700;
