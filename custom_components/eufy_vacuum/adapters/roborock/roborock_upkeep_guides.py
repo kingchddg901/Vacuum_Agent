@@ -17,21 +17,27 @@ identical across the lineup — only the dock (auto-empty / wash station) and mo
 (single pad vs twin spinning pads) differ. Planned tiers, each a superset of the
 one above (see upkeep_catalog.py for the model→tier map):
 
-    standard      no dock, single/no mop pad          (S4/S5/S6/S7, Q5/Q7, E, G…)
+    standard      no dock, single mop cloth           (S4/S5/S6/S7, Q5/Q7, E, G…)
     auto_empty    + dust-collection dock              (Q5 Pro, Q7/Q8 Max, Q10)
-    wash_station  + wash&dry dock, tanks, station filter (S7·S8 Pro Ultra, Q Revo…)
-    dual_pad      + twin spinning mop pads (roller mops) (S8 MaxV Ultra, Qrevo Curv, Saros)
+    wash_station  + wash&dry dock, water tanks        (S7·S8 Pro Ultra, Q Revo, Qrevo, Saros, S8 MaxV Ultra…)
+    dual_pad      RESERVED — a true ROTATING roller mop (Qrevo Curv 2 Flow); not yet authored
 
 The manager overlays a localized copy PER FIELD, so any field left None/absent
 falls back to English. Component keys match maintenance_components.py so each
-guide attaches to its card. Content is sourced from Roborock's official manuals +
-support pages, written as concise factual steps — intervals as stated by Roborock.
-PURE DATA (no imports): scripts/sync-guide-translations.py loads this directly.
+guide attaches to its card; the manager gates guide-only DOCK components to the
+station families (a dockless base robot never shows a dust-bag/water-tank card).
+Content is sourced from Roborock's official manuals, written as concise factual
+steps — intervals as stated by Roborock. PURE DATA (no imports):
+scripts/sync-guide-translations.py loads this directly.
 
-TODAY only `standard` is authored (from the S6 manual); it covers the whole
-no-dock base lineup. The step-up tiers (their dock / roller-mop deltas) are the
-next pass — until authored, upkeep_catalog maps their models to `standard` so
-every model still gets the base guides.
+standard / auto_empty / wash_station are authored; auto_empty & wash_station are
+COMPOSED from standard + dock deltas (below). The DOCK drives the tier. The MOP is
+a SEPARATE axis with four types — (1) drag cloth, (2) VibraRise vibrating drag,
+(3) twin spinning discs, (4) rotating roller — but the CARE for types 1-3 is the
+same move (take the cloth/pad(s) off, rinse, air-dry), so the mop_cloth guide owns
+all three. Only the brand-new rotating ROLLER (type 4, e.g. Qrevo Curv 2 Flow) is
+genuinely different and not yet documented — `dual_pad` is reserved for it. An
+unauthored tier's models fall back to `standard`.
 """
 
 ROBOROCK_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
@@ -148,4 +154,90 @@ ROBOROCK_UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict]] = {
             ],
         },
     },
+}
+
+
+# ===========================================================================
+# STEP-UP TIER DELTAS  —  DOCK / STATION components on top of the base 9.
+# ===========================================================================
+# Cross-checked across the Qrevo Curv (dock EWFD49LRR), S8 MaxV Ultra (EWFD13LRR),
+# and Z70 manuals — all three describe these the same way, which is what validates
+# the tier grouping. The tier's DIFFERENTIATOR is the DOCK, not the mop: every
+# current mopping model uses removable FLAT mop cloths on mounts (single, or two on
+# twin mounts) with the same remove-wash-airdry care — the true ROTATING roller mop
+# is brand-new and rare (Qrevo Curv 2 Flow) and not covered yet, so there is no
+# separate dual-pad tier. Composition is shallow (pure read-only data; callers deep-
+# copy on read), so the base-9 dicts are shared, not duplicated.
+_std = ROBOROCK_UPKEEP_GUIDE_LIBRARY["standard"]
+
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "when full (about every 7 weeks)",
+    "steps": [
+        "Open the dock's dust-compartment cover.",
+        "Lift the full dust bag straight out — the handle seals it as you pull, so dust stays inside.",
+        "Slide a new dust bag in until it seats, then close the cover.",
+    ],
+    "notes": [
+        "Always have a bag installed before closing the cover, or the dock will auto-empty without one.",
+        "If the dock has sat unused a while, empty the robot's dustbin by hand and check the air inlet is clear.",
+    ],
+}
+
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "as needed",
+    "replace_frequency": None,
+    "steps": [
+        "Lift the clean-water tank out of the dock and open its top cover.",
+        "Fill it with cool tap water (add Roborock cleaning solution only if your dock supports it).",
+        "Close the cover and seat the tank back in the dock.",
+    ],
+    "notes": [
+        "Use cool water only — hot water can deform the tank.",
+        "Wipe any water off the outside before refitting.",
+    ],
+}
+
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "as needed",
+    "replace_frequency": None,
+    "steps": [
+        "Open the dirty-water tank lid and pour the waste water out.",
+        "Add a little clean water, close and lock the lid, shake, then pour it out again to rinse.",
+        "Lock the lid and seat the tank back in the dock.",
+    ],
+    "notes": [
+        "The dirty-water lid does not detach — rinse it in place.",
+        "Use cool water only, and wipe the outside dry before refitting.",
+    ],
+}
+
+# Station override of the base mop_cloth: the dock auto-washes it, so the routine
+# changes from "after each use" to a weekly deep-rinse.
+_MOP_CLOTH_STATION = {
+    "clean_frequency": "the dock washes it each run; deep-rinse weekly",
+    "replace_frequency": "every 1-3 months",
+    "steps": [
+        "The dock auto-washes and dries the mop after each run — no daily cleaning needed.",
+        "Once a week, take the mop cloth(s) off the mount(s), rinse thoroughly, and air-dry.",
+        "Press the cloth(s) back flat on the mount(s).",
+    ],
+    "notes": [
+        "Whether a flat drag cloth, a vibrating VibraRise pad, or twin spinning discs, the care is the same — rinse and air-dry; clean both if your model carries two.",
+        "A dirty or worn cloth hurts mopping; replace every 1-3 months.",
+    ],
+}
+
+# auto_empty = base + a dust bag.  wash_station = auto_empty + water tanks + the
+# station mop routine.  (dual_pad reserved for a future true rotating-mop model.)
+ROBOROCK_UPKEEP_GUIDE_LIBRARY["auto_empty"] = {
+    **_std,
+    "dock_dust_bag": _DOCK_DUST_BAG,
+}
+ROBOROCK_UPKEEP_GUIDE_LIBRARY["wash_station"] = {
+    **_std,
+    "dock_dust_bag": _DOCK_DUST_BAG,
+    "clean_water_tank": _CLEAN_WATER_TANK,
+    "dirty_water_tank": _DIRTY_WATER_TANK,
+    "mop_cloth": _MOP_CLOTH_STATION,
 }

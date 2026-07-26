@@ -104,4 +104,25 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "label": "Main Wheel",
         "icon": "mdi:tire",
     },
+    # ---- Dock / station cleanables (station tiers only) -------------------
+    # Present in maintenance_components for ALL Roborocks, but the manager shows a
+    # guide-only component (maintenance_only + no sensor) ONLY when the model's guide
+    # family documents it — so these appear on dock/station models and stay hidden on
+    # a dockless base robot. Guides live in roborock_upkeep_guides.py under the
+    # auto_empty / wash_station families.
+    "dock_dust_bag": {
+        "maintenance_only": True,
+        "label": "Dock Dust Bag",
+        "icon": "mdi:sack",
+    },
+    "clean_water_tank": {
+        "maintenance_only": True,
+        "label": "Clean Water Tank",
+        "icon": "mdi:water-outline",
+    },
+    "dirty_water_tank": {
+        "maintenance_only": True,
+        "label": "Dirty Water Tank",
+        "icon": "mdi:water-alert-outline",
+    },
 }

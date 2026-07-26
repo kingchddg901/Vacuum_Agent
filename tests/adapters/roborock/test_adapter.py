@@ -224,10 +224,12 @@ def test_no_dock(s6_config):
 
 def test_maintenance_components(s6_config):
     mc = s6_config["maintenance_components"]
-    # 4 life-tracked consumables + 5 guide-only cleanables (no sensor/reset).
+    # 4 life-tracked consumables + 5 base guide-only cleanables + 3 dock/station
+    # cleanables (the station ones are family-gated at render time by the manager).
     assert set(mc) == {
         "main_brush", "side_brush", "filter", "sensor",
         "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
+        "dock_dust_bag", "clean_water_tank", "dirty_water_tank",
     }
     assert mc["main_brush"]["sensor_suffix"] == "main_brush_time_left"
     assert mc["main_brush"]["remaining_is_state"] is True
@@ -235,7 +237,8 @@ def test_maintenance_components(s6_config):
     # Filter reset button is "air_filter", not "filter".
     assert mc["filter"]["reset_button"]["entity_suffixes"] == ["reset_air_filter_consumable"]
     # Guide-only cleanables: maintenance_only, no upstream sensor, zero intervals.
-    for comp in ("dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel"):
+    for comp in ("dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
+                 "dock_dust_bag", "clean_water_tank", "dirty_water_tank"):
         assert mc[comp]["maintenance_only"] is True
         assert mc[comp]["sensor_suffix"] is None
         assert mc[comp]["default_interval_hours"] == 0.0
@@ -254,10 +257,13 @@ def test_upkeep_catalog(s6_config):
     assert cat["guide_family_names"]["standard"] == "Roborock"
     # Broad coverage: many models map to a family (not just the 3 capability models).
     assert len(cat["model_guide_families"]) >= 30
-    # Until the step-up tiers are authored, their models fall back to `standard`.
-    assert cat["model_guide_families"]["roborock.vacuum.a70"] == "standard"  # S8 Pro Ultra
+    # Station models resolve to their authored tier.
+    assert cat["model_guide_families"]["roborock.vacuum.a70"] == "wash_station"   # S8 Pro Ultra
+    assert cat["model_guide_families"]["roborock.vacuum.a38"] == "auto_empty"     # Q7 Max
+    assert cat["model_guide_families"]["roborock.vacuum.a97"] == "wash_station"   # S8 MaxV Ultra (dual flat cloths)
 
-    std = cat["guide_library"]["standard"]
+    lib = cat["guide_library"]
+    std = lib["standard"]
     # Every maintenance component the base profile exposes has a guide (4 tracked + 5 cleanables).
     for comp in (
         "main_brush", "side_brush", "filter", "sensor",
@@ -267,6 +273,15 @@ def test_upkeep_catalog(s6_config):
         assert isinstance(guide["steps"], list) and guide["steps"], comp
         assert isinstance(guide["notes"], list), comp
         assert "clean_frequency" in guide and "replace_frequency" in guide, comp
+
+    # Composed step-up tiers: base 9 inherited + dock deltas; base robot has none of them.
+    assert "dock_dust_bag" not in std
+    assert set(lib["auto_empty"]) == set(std) | {"dock_dust_bag"}
+    assert set(lib["wash_station"]) == set(std) | {"dock_dust_bag", "clean_water_tank", "dirty_water_tank"}
+    for comp in ("dock_dust_bag", "clean_water_tank", "dirty_water_tank"):
+        assert lib["wash_station"][comp]["steps"], comp
+    # Station mop_cloth is overridden (dock auto-washes) — differs from the base.
+    assert lib["wash_station"]["mop_cloth"] != std["mop_cloth"]
 
     # Translations are Phase 2; empty today, so guides render from the English base.
     assert cat["guide_translations"] == {}

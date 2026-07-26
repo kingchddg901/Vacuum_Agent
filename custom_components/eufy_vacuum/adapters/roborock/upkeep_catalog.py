@@ -70,12 +70,15 @@ ROBOROCK_MODELS: list[tuple[str, str, str]] = [
     ("roborock.vacuum.a101", "Qrevo Pro", "wash_station"),
     ("roborock.vacuum.a87", "Qrevo MaxV", "wash_station"),
     ("roborock.vacuum.a143", "G20S Ultra", "wash_station"),
-    # -- dual_pad: wash station + twin spinning mop pads (roller mops) ------
-    ("roborock.vacuum.a97", "S8 MaxV Ultra", "dual_pad"),
-    ("roborock.vacuum.a135", "Qrevo Curv", "dual_pad"),
-    ("roborock.vacuum.a117", "Qrevo Master", "dual_pad"),
-    ("roborock.vacuum.a144", "Saros 10R", "dual_pad"),
-    ("roborock.vacuum.a147", "Saros 10", "dual_pad"),
+    # These carry TWO flat mop cloths on twin mounts — same remove-wash-airdry care
+    # as a single cloth, so they're wash_station, NOT a separate tier. `dual_pad` is
+    # reserved for a true ROTATING roller-mop model (e.g. Qrevo Curv 2 Flow) once its
+    # manual is available.
+    ("roborock.vacuum.a97", "S8 MaxV Ultra", "wash_station"),
+    ("roborock.vacuum.a135", "Qrevo Curv", "wash_station"),
+    ("roborock.vacuum.a117", "Qrevo Master", "wash_station"),
+    ("roborock.vacuum.a144", "Saros 10R", "wash_station"),
+    ("roborock.vacuum.a147", "Saros 10", "wash_station"),
 ]
 
 ROBOROCK_MODEL_NAMES: dict[str, str] = {code: name for code, name, _ in ROBOROCK_MODELS}

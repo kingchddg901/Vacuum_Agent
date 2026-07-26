@@ -321,13 +321,33 @@ class MaintenanceManager:
         highest_priority_status = "good"
         priority_rank = {"unknown": 0, "good": 1, "warning": 2, "replace_soon": 3, "replace_now": 4}
 
-        _maintenance_components = (_get_adapter_config(vacuum_entity_id) or {}).get("maintenance_components", {})
+        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        _maintenance_components = _adapter_cfg.get("maintenance_components", {})
+        # Guide components the resolved model's family documents — the family-gate for
+        # guide-only cleanables below.
+        _upkeep = _adapter_cfg.get("upkeep_catalog", {})
+        _guide_family = _upkeep.get("model_guide_families", {}).get(model_code or "")
+        _family_guide_components = set(_upkeep.get("guide_library", {}).get(_guide_family or "", {}))
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
             # A "maintenance_only" component (e.g. the cleaning tray — a cleanable,
             # not a service-life wear part) is not surfaced as a Replacement row;
             # only its integration-tracked Maintenance row shows (issue #38).
             maintenance_only = bool(meta.get("maintenance_only"))
+            # FAMILY GATE for guide-only cleanables: a maintenance_only component with
+            # no upstream sensor is shown only when the model's guide family documents
+            # it — so dock/station components (dust bag, water tanks) appear on station
+            # models but stay hidden on a dockless base robot. Applied only when a
+            # family resolved (unknown model → show everything, unchanged); sensor-
+            # backed components are never gated (so Eufy, whose cleanables all carry a
+            # sensor, is unaffected).
+            if (
+                _guide_family
+                and maintenance_only
+                and not meta.get("sensor_suffix")
+                and component not in _family_guide_components
+            ):
+                continue
             source_entity = sources.get(component)
             replacement_state = self._manager.hass.states.get(source_entity) if source_entity else None
             replacement_reset_entity = self._get_replacement_reset_entity(

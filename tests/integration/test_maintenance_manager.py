@@ -218,6 +218,33 @@ def test_maintenance_only_component_excluded_from_replacements(mnt, manager, has
     assert snap["attention_count"] == 0
 
 
+def test_guide_only_component_family_gated(mnt, manager, monkeypatch):
+    """[MNT-12c] a guide-only cleanable (maintenance_only + no sensor) is surfaced ONLY
+    when the model's guide family documents it — so dock/station components show on a
+    station model but stay hidden on a base robot. Sensor-backed ones always show."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    # Resolve to a model whose family ("base") documents dustbin + main_brush, NOT the dock bag.
+    monkeypatch.setattr(mnt, "_get_upkeep_model_meta", lambda **kw: {"code": "test.model"})
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "main_brush": {"label": "Main Brush", "sensor_suffix": "x"},          # sensor-backed
+            "dustbin": {"label": "Dustbin", "maintenance_only": True},            # guide-only, in family
+            "dock_dust_bag": {"label": "Dock Dust Bag", "maintenance_only": True},  # guide-only, NOT in family
+        },
+        "upkeep_catalog": {
+            "model_guide_families": {"test.model": "base"},
+            "guide_library": {"base": {"dustbin": {"steps": ["s"]}, "main_brush": {"steps": ["s"]}}},
+        },
+    })
+    _caps(manager, monkeypatch, {})
+
+    comps = {i["component"] for i in mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)["maintenance_items"]}
+    assert "main_brush" in comps        # sensor-backed → always shown
+    assert "dustbin" in comps           # guide-only + in family → shown
+    assert "dock_dust_bag" not in comps  # guide-only + NOT in family → gated out
+
+
 def _caps_with_entities(manager, monkeypatch, entities):
     """Capabilities mock that also carries the adapter 'entities' map."""
     monkeypatch.setattr(
