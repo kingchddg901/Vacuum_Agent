@@ -224,14 +224,46 @@ def test_no_dock(s6_config):
 
 def test_maintenance_components(s6_config):
     mc = s6_config["maintenance_components"]
-    assert set(mc) == {"main_brush", "side_brush", "filter", "sensor"}
+    # 4 life-tracked consumables + 5 guide-only cleanables (no sensor/reset).
+    assert set(mc) == {
+        "main_brush", "side_brush", "filter", "sensor",
+        "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
+    }
     assert mc["main_brush"]["sensor_suffix"] == "main_brush_time_left"
     assert mc["main_brush"]["remaining_is_state"] is True
+    assert mc["main_brush"]["maintenance_only"] is False
     # Filter reset button is "air_filter", not "filter".
     assert mc["filter"]["reset_button"]["entity_suffixes"] == ["reset_air_filter_consumable"]
+    # Guide-only cleanables: maintenance_only, no upstream sensor, zero intervals.
+    for comp in ("dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel"):
+        assert mc[comp]["maintenance_only"] is True
+        assert mc[comp]["sensor_suffix"] is None
+        assert mc[comp]["default_interval_hours"] == 0.0
     for comp in mc.values():
         # label + icon are bare-deref'd by the platform consumers.
         assert comp["label"] and comp["icon"]
+
+
+def test_upkeep_catalog(s6_config):
+    """The guide half: model->family->guide wiring + S6 library shape."""
+    cat = s6_config["upkeep_catalog"]
+    assert cat["model_guide_families"]["roborock.vacuum.s6"] == "s6"
+    assert cat["model_names"]["roborock.vacuum.s6"] == "Roborock S6"
+    assert cat["guide_family_names"]["s6"] == "Roborock S6"
+
+    s6 = cat["guide_library"]["s6"]
+    # Every maintenance component the S6 exposes has a guide (4 tracked + 5 cleanables).
+    for comp in (
+        "main_brush", "side_brush", "filter", "sensor",
+        "dustbin", "mop_cloth", "water_filter", "caster_wheel", "main_wheel",
+    ):
+        guide = s6[comp]
+        assert isinstance(guide["steps"], list) and guide["steps"], comp
+        assert isinstance(guide["notes"], list), comp
+        assert "clean_frequency" in guide and "replace_frequency" in guide, comp
+
+    # Translations are Phase 2; empty today, so guides render from the English base.
+    assert cat["guide_translations"] == {}
 
 
 def test_vocabulary(s6_config):

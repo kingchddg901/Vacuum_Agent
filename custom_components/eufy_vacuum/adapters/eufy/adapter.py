@@ -79,7 +79,7 @@ from .upkeep_catalog import (
     UPKEEP_MODEL_GUIDE_FAMILIES,
     UPKEEP_MODEL_NAMES,
 )
-from .upkeep_guides import UPKEEP_GUIDE_LIBRARY
+from .eufy_upkeep_guides import UPKEEP_GUIDE_LIBRARY
 from .upkeep_guides_i18n import UPKEEP_GUIDE_TRANSLATIONS
 from .water_config import WATER_MODEL_CONFIGS
 from ...profiles.room_profiles import (
@@ -841,7 +841,7 @@ def register_eufy_adapter_for_vacuum(
         },
 
         "upkeep_catalog": {
-            # Sourced from adapters/eufy/upkeep_catalog.py and upkeep_guides.py.
+            # Sourced from adapters/eufy/upkeep_catalog.py and eufy_upkeep_guides.py.
             # model_names, model_guide_families, and guide_family_names map
             # device registry model codes to guide family keys and display names.
             # guide_library maps guide family keys to per-component upkeep data.

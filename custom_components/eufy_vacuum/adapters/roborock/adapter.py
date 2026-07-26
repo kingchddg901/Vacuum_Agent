@@ -43,6 +43,12 @@ from .entities import (
 )
 from .maintenance_components import MAINTENANCE_COMPONENTS
 from .model_catalog import profile_for_model
+from .upkeep_catalog import (
+    ROBOROCK_GUIDE_FAMILY_NAMES,
+    ROBOROCK_MODEL_GUIDE_FAMILIES,
+    ROBOROCK_MODEL_NAMES,
+)
+from .roborock_upkeep_guides import ROBOROCK_UPKEEP_GUIDE_LIBRARY
 from .vocabulary import (
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
@@ -597,20 +603,42 @@ def register_roborock_adapter_for_vacuum(
         },
 
         "maintenance_components": {
-            # Sourced from maintenance_components.py. Each consumable is a
+            # Sourced from maintenance_components.py. Life-tracked consumables carry a
             # remaining-hours countdown sensor (remaining_is_state) + an inline reset
-            # button. label/icon are mandatory (consumers bare-deref them).
+            # button; guide-only cleanables (maintenance_only) carry neither and
+            # default their intervals to 0. label/icon are mandatory (bare-deref'd).
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
                 "proxy_for": component.get("proxy_for"),
-                "reset_button": component.get("reset_button"),
                 "remaining_is_state": component.get("remaining_is_state", False),
-                "default_interval_hours": component["default_interval_hours"],
-                "max_interval_hours": component["max_interval_hours"],
+                "maintenance_only": component.get("maintenance_only", False),
+                "default_interval_hours": component.get("default_interval_hours", 0.0),
+                "max_interval_hours": component.get("max_interval_hours", 0.0),
                 "label": component["label"],
                 "icon": component["icon"],
+                # reset_button is omitted entirely for guide-only cleanables
+                # (schema: dict-or-absent, "Absent = no reset button" — never None).
+                **(
+                    {"reset_button": component["reset_button"]}
+                    if component.get("reset_button")
+                    else {}
+                ),
             }
             for component_id, component in MAINTENANCE_COMPONENTS.items()
+        },
+
+        "upkeep_catalog": {
+            # The guide half of maintenance: per-model how-to steps / notes /
+            # frequencies, mirroring the Eufy adapter's upkeep_catalog. The manager
+            # picks guide_library[model_guide_families[device.model]][component] and
+            # overlays a localized copy per field (guide_translations, Phase 2 —
+            # empty today, so guides render in English). See adapters/roborock/
+            # roborock_upkeep_guides.py + upkeep_catalog.py.
+            "model_names": ROBOROCK_MODEL_NAMES,
+            "model_guide_families": ROBOROCK_MODEL_GUIDE_FAMILIES,
+            "guide_family_names": ROBOROCK_GUIDE_FAMILY_NAMES,
+            "guide_library": ROBOROCK_UPKEEP_GUIDE_LIBRARY,
+            "guide_translations": {},
         },
 
         # Wave 2a: "discovery" (get_maps service source + active_map) + identity
@@ -622,7 +650,7 @@ def register_roborock_adapter_for_vacuum(
         # passes are global, mop unsettable). Wave 3: live_transition.native_transition_source (native current_room
         # live rollover, filtered to job targets).
         # OMITTED (no dock / framework defaults suffice):
-        #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,
+        #   dock_events, post_job_wash_amendment, water_model_configs,
         #   settings_selects, room_profiles, anomaly, live_transition.
     }
 

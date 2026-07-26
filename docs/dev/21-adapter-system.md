@@ -340,7 +340,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 2. Build `entity_candidates` dict (two naming-variant candidates per entity where robovac_mqtt uses different suffixes between versions).
 3. Build `capability_hints` dict — model-based boolean hints for `detect_capabilities()`.
 4. Call `detect_capabilities(hass, *, vacuum_entity_id, detected_model, entity_candidates, model_family, capability_hints, maintenance_components)` (all args after `hass` are keyword-only) — probes the HA entity registry and state machine; returns capability flags and resolved entity IDs.
-5. Build the full `config` dict from all sub-modules: `entities.py`, `buttons.py`, `vocabulary.py`, `maintenance_components.py`, `upkeep_catalog.py`, `upkeep_guides.py`, `water_config.py`, `constants.py`.
+5. Build the full `config` dict from all sub-modules: `entities.py`, `buttons.py`, `vocabulary.py`, `maintenance_components.py`, `upkeep_catalog.py`, `<brand>_upkeep_guides.py`, `water_config.py`, `constants.py`.
 6. Strip `None` values from the entities dict (absent entities degrade gracefully per the schema).
 7. Call `register_adapter_config(vacuum_entity_id, config)`.
 
@@ -355,7 +355,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 | `adapters/eufy/maintenance_components.py` | `MAINTENANCE_COMPONENTS` |
 | `adapters/eufy/model_catalog.py` | `detect_model_family()` |
 | `adapters/eufy/upkeep_catalog.py` | `UPKEEP_GUIDE_FAMILY_NAMES`, `UPKEEP_MODEL_GUIDE_FAMILIES`, `UPKEEP_MODEL_NAMES` |
-| `adapters/eufy/upkeep_guides.py` | `UPKEEP_GUIDE_LIBRARY` |
+| `adapters/eufy/eufy_upkeep_guides.py` | `UPKEEP_GUIDE_LIBRARY` |
 | `adapters/eufy/water_config.py` | `WATER_MODEL_CONFIGS` |
 | `adapters/eufy/buttons.py` | `DOCK_ACTION_CANDIDATES`, `DOCK_ACTION_TOKENS`, `RESET_CANDIDATES`, `RESET_TOKENS` — dock-action and maintenance-reset button entity-resolution candidates / token-sets |
 | `adapters/eufy/discovery.py` | `get_active_map_id()`, `discover_rooms_for_vacuum()` — Eufy room-discovery helpers |

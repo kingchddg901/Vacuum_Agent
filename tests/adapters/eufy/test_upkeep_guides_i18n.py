@@ -13,7 +13,7 @@ overlay consumes.
 [GI-4] frequency values, when present, are strings (not accidentally objects).
 """
 
-from custom_components.eufy_vacuum.adapters.eufy.upkeep_guides import UPKEEP_GUIDE_LIBRARY
+from custom_components.eufy_vacuum.adapters.eufy.eufy_upkeep_guides import UPKEEP_GUIDE_LIBRARY
 from custom_components.eufy_vacuum.adapters.eufy.upkeep_guides_i18n import (
     UPKEEP_GUIDE_TRANSLATIONS,
 )

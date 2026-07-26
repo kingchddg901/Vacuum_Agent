@@ -72,4 +72,36 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "label": "Sensor",
         "icon": "mdi:eye-outline",
     },
+    # ---- Guide-only cleanables --------------------------------------------
+    # Physical parts the user cleans on a schedule but that Roborock does NOT
+    # life-track (no ``*_time_left`` sensor, no reset button). Marked
+    # ``maintenance_only`` so they render as a guide card WITHOUT a replacement
+    # countdown (the manager suppresses the Replacement row for these — same as
+    # Eufy's cleaning_tray). Their how-to lives in roborock_upkeep_guides.py under the
+    # matching component key; the ``clean_frequency`` there is the real guidance.
+    "dustbin": {
+        "maintenance_only": True,
+        "label": "Dustbin",
+        "icon": "mdi:delete-outline",
+    },
+    "mop_cloth": {
+        "maintenance_only": True,
+        "label": "Mop Cloth",
+        "icon": "mdi:water",
+    },
+    "water_filter": {
+        "maintenance_only": True,
+        "label": "Water Filter",
+        "icon": "mdi:filter-outline",
+    },
+    "caster_wheel": {
+        "maintenance_only": True,
+        "label": "Caster Wheel",
+        "icon": "mdi:tire",
+    },
+    "main_wheel": {
+        "maintenance_only": True,
+        "label": "Main Wheel",
+        "icon": "mdi:tire",
+    },
 }

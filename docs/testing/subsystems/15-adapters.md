@@ -41,7 +41,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/water_config.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/maintenance_components.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
 
 The Eufy adapter also pins two pluggable **engine seams** that live under
 `learning/` (the adapter *declares* the engine; the engine itself is

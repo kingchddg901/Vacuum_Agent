@@ -57,7 +57,7 @@ factor the brand facts into named files.
 | `buttons.py` | The single source for button discovery: `*_CANDIDATES` (entity suffixes) and `*_TOKENS` (token-set fallbacks) for dock actions and maintenance resets. |
 | `model_catalog.py` | `detect_model_family()` — maps a `detected_model` string to a family key (`x10`/`x8`/`l60`/`l50`/…). |
 | `maintenance_components.py` | `MAINTENANCE_COMPONENTS` — the consumable catalog (sensor suffix, intervals, label, icon, proxy links). |
-| `upkeep_catalog.py` + `upkeep_guides.py` | Per-model upkeep guide library and the model→family mapping. |
+| `upkeep_catalog.py` + `eufy_upkeep_guides.py` | Per-model upkeep guide library and the model→family mapping. |
 | `water_config.py` | `WATER_MODEL_CONFIGS` — tank capacity + flow-rate constants per model. |
 | `segmentor.py` | The CV room segmenter — see [26](26-eufy-segmentor.md). |
 
