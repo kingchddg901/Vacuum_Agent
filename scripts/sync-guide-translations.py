@@ -30,7 +30,7 @@ import upkeep_guides as base          # noqa: E402
 import upkeep_guides_i18n as i18n     # noqa: E402
 
 FIELDS = ("steps", "notes", "clean_frequency", "replace_frequency")
-LANGS = ("de", "fr", "es", "it", "nl", "pt", "ru", "ar", "he")
+LANGS = ("de", "fr", "es", "it", "nl", "pt", "ru", "ar", "he", "ja", "zh-Hans", "zh-Hant", "ko")
 
 # English base, trimmed to the localizable fields.
 merged = {"en": {}}
