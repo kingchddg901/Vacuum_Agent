@@ -54,6 +54,49 @@ _STANDARD = {
             "水のみで洗浄し、洗剤は使用しないでください。",
         ],
     },
+    # Filled from the corpus in the style of this manual's official sections
+    # (the S5 Max manual does not detail these components separately).
+    "sensor": {
+        "clean_frequency": "毎月",
+        "replace_frequency": None,
+        "steps": [
+            "柔らかい乾いた布で全てのセンサーを拭き、本体と充電ドックの充電端子も拭きます。",
+        ],
+        "notes": [],
+    },
+    "mop_cloth": {
+        "clean_frequency": "使用後毎回",
+        "replace_frequency": "3〜6か月ごと",
+        "steps": [
+            "モップクロスをホルダーから取り外します。",
+            "モップクロスを洗い、自然乾燥させます。",
+            "モップクロスをホルダーに平らに取り付けます。",
+        ],
+        "notes": [
+            "汚れたモップクロスは拭き取り性能を低下させるため、使用前に洗浄してください。",
+        ],
+    },
+    "caster_wheel": {
+        "clean_frequency": "毎月",
+        "replace_frequency": None,
+        "steps": [
+            "小さなドライバーなどの工具で軸をこじ開け、ホイールを取り外します。",
+            "水でホイールと軸の髪の毛や汚れを洗い流します。",
+            "自然乾燥させてから押し込んで取り付けます。",
+        ],
+        "notes": [
+            "自在輪のブラケットは取り外せません。",
+        ],
+    },
+    "main_wheel": {
+        "clean_frequency": "毎週",
+        "replace_frequency": None,
+        "steps": [
+            "毎週、2つのメインホイールの軸に絡まった髪の毛や糸を取り除きます。",
+            "メインホイールを柔らかい乾いた布で拭きます。",
+        ],
+        "notes": [],
+    },
 }
 
 GUIDE_TRANSLATIONS = {

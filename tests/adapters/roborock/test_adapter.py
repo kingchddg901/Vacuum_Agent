@@ -287,9 +287,13 @@ def test_upkeep_catalog(s6_config):
     gt = cat["guide_translations"]
     assert set(gt) == {"de", "es", "fr", "it", "nl", "pt", "ru", "ja", "ko",
                        "zh-Hans", "zh-Hant", "ar", "he"}
+    # Every language covers the full 8-component core (gaps filled from the corpus).
+    _CORE = {"main_brush", "side_brush", "filter", "sensor",
+             "dustbin", "mop_cloth", "caster_wheel", "main_wheel"}
     for lang in gt:
-        assert gt[lang]["standard"]["main_brush"]["steps"], lang
-        assert gt[lang]["standard"]["filter"]["clean_frequency"], lang
+        assert _CORE <= set(gt[lang]["standard"]), f"{lang} missing {_CORE - set(gt[lang]['standard'])}"
+        for comp in _CORE:
+            assert gt[lang]["standard"][comp]["steps"], f"{lang}/{comp}"
 
 
 def test_vocabulary(s6_config):

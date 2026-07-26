@@ -75,6 +75,24 @@ _STANDARD = {
         ],
         "notes": [],
     },
+    # Filled from the corpus in the style of this manual's official sections.
+    "sensor": {
+        "clean_frequency": "Ежемесячно",
+        "replace_frequency": None,
+        "steps": [
+            "Протрите все датчики мягкой сухой тканью, а также контакты зарядки на роботе и док-станции.",
+        ],
+        "notes": [],
+    },
+    "main_wheel": {
+        "clean_frequency": "Еженедельно",
+        "replace_frequency": None,
+        "steps": [
+            "Еженедельно проверяйте два основных колеса и удаляйте волосы и нитки, намотанные на оси.",
+            "Протрите основные колёса мягкой сухой тканью.",
+        ],
+        "notes": [],
+    },
 }
 
 GUIDE_TRANSLATIONS = {

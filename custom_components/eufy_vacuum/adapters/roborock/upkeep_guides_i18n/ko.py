@@ -78,6 +78,27 @@ _STANDARD = {
             "더러운 걸레는 물걸레질 성능을 떨어뜨리므로 사용 전에 세척하십시오.",
         ],
     },
+    "caster_wheel": {
+        "clean_frequency": "매월",
+        "replace_frequency": None,
+        "steps": [
+            "작은 드라이버 같은 공구로 축을 빼내고 바퀴를 분리합니다.",
+            "물로 바퀴와 축의 머리카락과 이물질을 씻어냅니다.",
+            "건조시킨 후 눌러서 다시 장착합니다.",
+        ],
+        "notes": [
+            "전방향 바퀴 브래킷은 분리할 수 없습니다.",
+        ],
+    },
+    "main_wheel": {
+        "clean_frequency": "매주",
+        "replace_frequency": None,
+        "steps": [
+            "매주 두 개의 메인 휠 축에 감긴 머리카락이나 실을 제거합니다.",
+            "부드럽고 마른 천으로 메인 휠을 닦습니다.",
+        ],
+        "notes": [],
+    },
 }
 
 GUIDE_TRANSLATIONS = {
