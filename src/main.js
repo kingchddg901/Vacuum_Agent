@@ -1517,6 +1517,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._modalHost.className = "evcc-modal-host";
       document.body.appendChild(this._modalHost);
     }
+    // The host is appended to document.body, so it does NOT inherit the card's
+    // dir (that lives on the panel host in its own shadow tree). Stamp the
+    // resolved language's direction on it, or an RTL card's modals render LTR
+    // (numbered steps + headings on the wrong side) with only per-character bidi.
+    applyDir(this._modalHost, resolveLang(this._hass, this._config, this._langOverride));
 
     const modalMarkup = `<style>${MODAL_HOST_STYLES}</style>${html}`;
     if (this._modalHost.dataset.renderedHtml !== modalMarkup) {
@@ -1613,6 +1618,9 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._toastHost.className = "evcc-toast-host";
       document.body.appendChild(this._toastHost);
     }
+    // Body-mounted like the modal host — stamp the card's resolved direction so
+    // RTL toasts align/flow correctly instead of inheriting the document's LTR.
+    applyDir(this._toastHost, resolveLang(this._hass, this._config, this._langOverride));
 
     const markup = `<style>${TOAST_HOST_STYLES}</style>${html}`;
     if (this._toastHost.dataset.renderedHtml !== markup) {
