@@ -36,7 +36,9 @@ import {
   VIEW_ORDER,
 } from "../src/render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES } from "../src/styles/index.js";
-import { registerLocale } from "../src/i18n/index.js";
+import { registerLocale, applyDir } from "../src/i18n/index.js";
+import { en } from "../src/i18n/en.js";
+import { flattenLocale } from "../src/i18n/flatten.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
 import { makePseudoLong } from "./lib/pseudo-locale.mjs";
 import { GALLERY } from "./fixtures/gallery.js";
@@ -248,6 +250,14 @@ function render(view, opts = {}) {
     const host = document.createElement("div");
     host.id = "evcc-host";
     host.style.width = `${width}px`;
+    // Faithful to src/main.js _render(): stamp dir on the host from the resolved
+    // language so `direction` inherits into the shadow tree and the logical CSS
+    // (inset/margin/padding-inline-*) flips for RTL. Without this the harness
+    // rendered RTL *strings* but never the RTL *layout*, so an RTL flip could not
+    // be gated at all. LTR langs (and lang=null) stamp dir="ltr" — no [dir="ltr"]
+    // selector exists and ltr is the default, so every existing baseline is
+    // pixel-identical.
+    applyDir(host, lang);
     root.appendChild(host);
 
     const shadow = host.attachShadow({ mode: "open" });
@@ -459,6 +469,9 @@ window.__evcc = {
   renderThemePresets,
   registerLocale, // inject a foreign/pseudo locale catalog before rendering with opts.lang
   makePseudoLong, // build the layout-stress catalog IN-PAGE (avoids a Node-side en.js import)
+  en,             // English manifest — flatten a shipped locale JSON against it IN-PAGE
+  flattenLocale,  // (Node-side specs can't import en.js/flatten.js: Playwright's loader
+                  //  treats a typeless .js as CJS and won't reparse the ESM export)
   VacuumCardState, // exposed so tooling can drive real state (e.g. per-device theme)
   semanticTokens: SEMANTIC_COLOR_TOKENS,
   badgeMarks: BADGE_MARK_PATHS,

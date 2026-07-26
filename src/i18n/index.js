@@ -297,10 +297,20 @@ export function translate(lang, key, vars, options) {
   if (!(options && options.raw)) s = esc(s);
 
   // Vars are inserted RAW — the caller escapes user data at the sink (unchanged).
+  // In an RTL locale each substituted run is isolated in Unicode bidi controls
+  // (FSI U+2068 … PDI U+2069 — equivalent to `<bdi dir="auto">`) so an embedded
+  // LTR token — a number, "%", "m²", an entity_id, a duration like "14 min" —
+  // keeps its own direction and isn't visually reordered by the surrounding RTL
+  // text. FSI/PDI are invisible formatting characters, so this is safe in BOTH
+  // textContent and innerHTML sinks; a literal `<bdi>` tag would render as text
+  // in the many `.t()`→textContent callers. LTR locales are left byte-identical.
   if (vars) {
-    s = s.replace(/\{(\w+)\}/g, (match, name) =>
-      Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match,
-    );
+    const rtl = isRTL(code);
+    s = s.replace(/\{(\w+)\}/g, (match, name) => {
+      if (!Object.prototype.hasOwnProperty.call(vars, name)) return match;
+      const v = String(vars[name]);
+      return rtl ? `⁨${v}⁩` : v;
+    });
   }
   return s;
 }
