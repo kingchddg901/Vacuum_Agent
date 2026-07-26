@@ -113,8 +113,48 @@ _DIRTY_WATER_TANK = {
     ],
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "Tous les 1-3 mois",
+    "steps": [
+        "Retirez les filtres à eau du réservoir.",
+        "Installez des filtres neufs et remettez-les en place.",
+    ],
+    "notes": [
+        "À remplacer tous les 1-3 mois selon la qualité de l’eau et l’utilisation.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "Lorsqu’il est plein (env. toutes les 7 semaines)",
+    "steps": [
+        "Ouvrez le couvercle du compartiment à poussière de la station.",
+        "Retirez le sac à poussière plein en tirant tout droit ; la poignée le referme lors du retrait.",
+        "Insérez un sac neuf et refermez le couvercle.",
+    ],
+    "notes": [
+        "Placez toujours un sac avant de refermer le couvercle.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "Si nécessaire",
+    "replace_frequency": None,
+    "steps": [
+        "Retirez le réservoir d’eau propre et ouvrez le couvercle supérieur.",
+        "Remplissez-le d’eau froide du robinet.",
+        "Refermez le couvercle et remettez le réservoir dans la station.",
+    ],
+    "notes": [
+        "N’utilisez que de l’eau froide pour éviter toute déformation.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD, "dirty_water_tank": _DIRTY_WATER_TANK},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

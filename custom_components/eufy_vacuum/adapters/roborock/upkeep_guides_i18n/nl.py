@@ -99,8 +99,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "Elke 1-3 maanden",
+    "steps": [
+        "Trek de waterfilters uit het reservoir.",
+        "Plaats nieuwe filters en schuif ze terug op hun plaats.",
+    ],
+    "notes": [
+        "Vervang ze elke 1-3 maanden, afhankelijk van waterkwaliteit en gebruik.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "Bij volle zak (ongeveer elke 7 weken)",
+    "steps": [
+        "Open de klep van het stofcompartiment van het dock.",
+        "Trek de volle stofzak recht omhoog; de handgreep sluit hem af tijdens het verwijderen.",
+        "Schuif een nieuwe stofzak erin en sluit de klep.",
+    ],
+    "notes": [
+        "Plaats altijd een zak voordat u de klep sluit.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "Indien nodig",
+    "replace_frequency": None,
+    "steps": [
+        "Til het schoonwaterreservoir eruit en open de bovenklep.",
+        "Vul het met koud kraanwater.",
+        "Sluit de klep en plaats het reservoir terug in het dock.",
+    ],
+    "notes": [
+        "Gebruik alleen koud water om vervorming te voorkomen.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "Indien nodig",
+    "replace_frequency": None,
+    "steps": [
+        "Open de klep van het vuilwaterreservoir en giet het vuile water eruit.",
+        "Voeg schoon water toe, sluit de klep, schud en giet opnieuw uit om te spoelen.",
+        "Sluit de klep en plaats het reservoir terug.",
+    ],
+    "notes": [
+        "Gebruik alleen koud water; veeg de buitenkant droog voor het terugplaatsen.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

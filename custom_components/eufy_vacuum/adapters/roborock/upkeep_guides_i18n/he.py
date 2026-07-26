@@ -98,8 +98,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "כל 1-3 חודשים",
+    "steps": [
+        "הוציאו את מסנני המים מהמיכל.",
+        "התקינו מסננים חדשים והחזירו אותם למקומם.",
+    ],
+    "notes": [
+        "החליפו כל 1-3 חודשים בהתאם לאיכות המים ולשימוש.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "כאשר מלאה (כל 7 שבועות בערך)",
+    "steps": [
+        "פתחו את מכסה תא האבק בתחנה.",
+        "הוציאו את שקית האבק המלאה במשיכה ישרה; הידית אוטמת אותה בעת ההוצאה.",
+        "הכניסו שקית חדשה וסגרו את המכסה.",
+    ],
+    "notes": [
+        "התקינו תמיד שקית לפני סגירת המכסה.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "לפי הצורך",
+    "replace_frequency": None,
+    "steps": [
+        "הוציאו את מיכל המים הנקיים ופתחו את המכסה העליון.",
+        "מלאו אותו במים קרים מהברז.",
+        "סגרו את המכסה והחזירו את המיכל לתחנה.",
+    ],
+    "notes": [
+        "השתמשו במים קרים בלבד כדי למנוע עיוות.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "לפי הצורך",
+    "replace_frequency": None,
+    "steps": [
+        "פתחו את מכסה מיכל המים המלוכלכים ורוקנו את המים.",
+        "הוסיפו מים נקיים, סגרו את המכסה, נערו ורוקנו שוב לשטיפה.",
+        "סגרו את המכסה והחזירו את המיכל.",
+    ],
+    "notes": [
+        "השתמשו במים קרים בלבד; נגבו את החלק החיצוני לפני ההחזרה.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

@@ -287,12 +287,14 @@ def test_upkeep_catalog(s6_config):
     gt = cat["guide_translations"]
     assert set(gt) == {"de", "es", "fr", "it", "nl", "pt", "ru", "ja", "ko",
                        "zh-Hans", "zh-Hant", "ar", "he"}
-    # Every language covers the full 8-component core (gaps filled from the corpus).
-    _CORE = {"main_brush", "side_brush", "filter", "sensor",
-             "dustbin", "mop_cloth", "caster_wheel", "main_wheel"}
+    # Every language covers the full standard set (9 comps) + the station dock deltas.
+    _STD = {"main_brush", "side_brush", "filter", "sensor", "dustbin",
+            "mop_cloth", "water_filter", "caster_wheel", "main_wheel"}
+    _DOCK = {"dock_dust_bag", "clean_water_tank", "dirty_water_tank"}
     for lang in gt:
-        assert _CORE <= set(gt[lang]["standard"]), f"{lang} missing {_CORE - set(gt[lang]['standard'])}"
-        for comp in _CORE:
+        assert _STD <= set(gt[lang]["standard"]), f"{lang} std missing {_STD - set(gt[lang]['standard'])}"
+        assert _DOCK <= set(gt[lang]["wash_station"]), f"{lang} station missing {_DOCK - set(gt[lang]['wash_station'])}"
+        for comp in _STD:
             assert gt[lang]["standard"][comp]["steps"], f"{lang}/{comp}"
 
 

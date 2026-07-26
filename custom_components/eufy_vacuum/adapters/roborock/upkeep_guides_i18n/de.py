@@ -104,8 +104,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "Alle 1-3 Monate",
+    "steps": [
+        "Ziehen Sie die Wasserfilter aus dem Tank heraus.",
+        "Setzen Sie neue Filter ein und schieben Sie sie zurück in Position.",
+    ],
+    "notes": [
+        "Je nach Wasserqualität und Nutzung alle 1-3 Monate wechseln.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "Bei Füllung (etwa alle 7 Wochen)",
+    "steps": [
+        "Öffnen Sie die Abdeckung des Staubfachs der Dockingstation.",
+        "Ziehen Sie den vollen Staubbeutel gerade heraus — der Griff verschließt ihn beim Herausziehen.",
+        "Schieben Sie einen neuen Staubbeutel ein und schließen Sie die Abdeckung.",
+    ],
+    "notes": [
+        "Setzen Sie immer einen Beutel ein, bevor Sie die Abdeckung schließen.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "Nach Bedarf",
+    "replace_frequency": None,
+    "steps": [
+        "Heben Sie den Frischwassertank heraus und öffnen Sie den oberen Deckel.",
+        "Füllen Sie ihn mit kaltem Leitungswasser.",
+        "Schließen Sie den Deckel und setzen Sie den Tank zurück in die Dockingstation.",
+    ],
+    "notes": [
+        "Nur kaltes Wasser verwenden — heißes Wasser kann den Tank verformen.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "Nach Bedarf",
+    "replace_frequency": None,
+    "steps": [
+        "Öffnen Sie den Deckel des Schmutzwassertanks und gießen Sie das Schmutzwasser aus.",
+        "Füllen Sie etwas sauberes Wasser ein, verriegeln Sie den Deckel, schütteln Sie und gießen Sie zum Spülen erneut aus.",
+        "Verriegeln Sie den Deckel und setzen Sie den Tank zurück.",
+    ],
+    "notes": [
+        "Nur kaltes Wasser verwenden; die Außenseite vor dem Einsetzen abwischen.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

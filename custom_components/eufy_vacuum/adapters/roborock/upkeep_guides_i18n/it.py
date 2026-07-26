@@ -99,8 +99,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "Ogni 1-3 mesi",
+    "steps": [
+        "Estrai i filtri dell’acqua dal serbatoio.",
+        "Inserisci filtri nuovi e rimettili in posizione.",
+    ],
+    "notes": [
+        "Sostituiscili ogni 1-3 mesi in base alla qualità dell’acqua e all’uso.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "Quando è pieno (circa ogni 7 settimane)",
+    "steps": [
+        "Apri il coperchio del vano polvere della base.",
+        "Estrai il sacchetto della polvere pieno tirandolo dritto; la maniglia lo sigilla durante la rimozione.",
+        "Inserisci un sacchetto nuovo e chiudi il coperchio.",
+    ],
+    "notes": [
+        "Inserisci sempre un sacchetto prima di chiudere il coperchio.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "Se necessario",
+    "replace_frequency": None,
+    "steps": [
+        "Estrai il serbatoio dell’acqua pulita e apri il coperchio superiore.",
+        "Riempilo con acqua fredda del rubinetto.",
+        "Chiudi il coperchio e rimetti il serbatoio nella base.",
+    ],
+    "notes": [
+        "Usa solo acqua fredda per evitare deformazioni.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "Se necessario",
+    "replace_frequency": None,
+    "steps": [
+        "Apri il coperchio del serbatoio dell’acqua sporca e svuota l’acqua sporca.",
+        "Aggiungi acqua pulita, chiudi il coperchio, agita e svuota di nuovo per risciacquare.",
+        "Chiudi il coperchio e rimetti il serbatoio.",
+    ],
+    "notes": [
+        "Usa solo acqua fredda; asciuga l’esterno prima di rimetterlo.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

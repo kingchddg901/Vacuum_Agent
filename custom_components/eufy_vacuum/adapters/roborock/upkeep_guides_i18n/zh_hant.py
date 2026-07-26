@@ -95,8 +95,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "每 1-3 個月",
+    "steps": [
+        "按圖示取出水箱濾芯。",
+        "裝入新濾芯並推回原位。",
+    ],
+    "notes": [
+        "請根據水質和使用頻率每 1-3 個月更換一次。",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "集滿時（約每 7 週）",
+    "steps": [
+        "打開基座集塵倉的蓋板。",
+        "將裝滿的集塵袋筆直取出（取出時提手會將其封閉）。",
+        "裝入新的集塵袋並蓋回蓋板。",
+    ],
+    "notes": [
+        "蓋回蓋板前請務必裝入集塵袋。",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "視需要",
+    "replace_frequency": None,
+    "steps": [
+        "取出清水箱並打開上蓋。",
+        "加入冷的自來水。",
+        "蓋好上蓋並將水箱裝回基座。",
+    ],
+    "notes": [
+        "請僅使用冷水，以免水箱變形。",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "視需要",
+    "replace_frequency": None,
+    "steps": [
+        "打開污水箱蓋並倒出污水。",
+        "加入清水，蓋好並鎖緊蓋子，搖晃後再次倒出以沖洗。",
+        "鎖好蓋子並將水箱裝回。",
+    ],
+    "notes": [
+        "請僅使用冷水；裝回前擦乾外部。",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

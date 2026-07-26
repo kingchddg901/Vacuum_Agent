@@ -99,8 +99,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "كل 1-3 أشهر",
+    "steps": [
+        "أخرج مرشحات الماء من الخزان.",
+        "ركّب مرشحات جديدة وأعدها إلى مكانها.",
+    ],
+    "notes": [
+        "استبدلها كل 1-3 أشهر حسب جودة الماء والاستخدام.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "عند الامتلاء (كل 7 أسابيع تقريبًا)",
+    "steps": [
+        "افتح غطاء حجرة الغبار في القاعدة.",
+        "أخرج كيس الغبار الممتلئ بسحبه للأعلى مباشرة؛ يغلق المقبض الكيس عند إخراجه.",
+        "أدخل كيسًا جديدًا وأغلق الغطاء.",
+    ],
+    "notes": [
+        "ركّب كيسًا دائمًا قبل إغلاق الغطاء.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "عند الحاجة",
+    "replace_frequency": None,
+    "steps": [
+        "أخرج خزان الماء النظيف وافتح الغطاء العلوي.",
+        "املأه بماء بارد من الصنبور.",
+        "أغلق الغطاء وأعد الخزان إلى القاعدة.",
+    ],
+    "notes": [
+        "استخدم ماءً باردًا فقط لتجنّب التشوّه.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "عند الحاجة",
+    "replace_frequency": None,
+    "steps": [
+        "افتح غطاء خزان الماء المتسخ وأفرغ الماء المتسخ.",
+        "أضف ماءً نظيفًا وأغلق الغطاء ورجّه ثم أفرغه مرة أخرى للشطف.",
+        "أغلق الغطاء وأعد الخزان إلى مكانه.",
+    ],
+    "notes": [
+        "استخدم ماءً باردًا فقط؛ امسح الجزء الخارجي قبل إعادته.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

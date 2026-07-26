@@ -101,8 +101,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "1~3개월마다",
+    "steps": [
+        "탱크에서 워터 필터를 분리합니다.",
+        "새 필터를 끼우고 제자리에 밀어 넣습니다.",
+    ],
+    "notes": [
+        "수질과 사용 빈도에 따라 1~3개월마다 교체하십시오.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "가득 차면(약 7주마다)",
+    "steps": [
+        "충전대의 먼지 수집함 커버를 엽니다.",
+        "가득 찬 먼지 봉투를 곧게 빼냅니다(빼낼 때 손잡이가 봉투를 밀봉합니다).",
+        "새 먼지 봉투를 끼우고 커버를 닫습니다.",
+    ],
+    "notes": [
+        "커버를 닫기 전에 항상 봉투를 넣으십시오.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "필요 시",
+    "replace_frequency": None,
+    "steps": [
+        "깨끗한 물 탱크를 꺼내고 상단 커버를 엽니다.",
+        "차가운 수돗물을 채웁니다.",
+        "커버를 닫고 탱크를 충전대에 다시 넣습니다.",
+    ],
+    "notes": [
+        "변형을 방지하기 위해 차가운 물만 사용하십시오.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "필요 시",
+    "replace_frequency": None,
+    "steps": [
+        "오수 탱크 뚜껑을 열고 오수를 버립니다.",
+        "깨끗한 물을 넣고 뚜껑을 닫아 흔든 뒤 헹궈서 다시 버립니다.",
+        "뚜껑을 닫고 탱크를 다시 넣습니다.",
+    ],
+    "notes": [
+        "차가운 물만 사용하고, 다시 넣기 전에 외부를 닦으십시오.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

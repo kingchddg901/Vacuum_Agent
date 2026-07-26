@@ -99,8 +99,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "1〜3か月ごと",
+    "steps": [
+        "タンクからウォーターフィルターを取り外します。",
+        "新しいフィルターを取り付け、元の位置に押し込みます。",
+    ],
+    "notes": [
+        "水質や使用頻度に応じて、1〜3か月ごとに交換してください。",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "満杯になったら（約7週間ごと）",
+    "steps": [
+        "ドックのダスト収集部のカバーを開きます。",
+        "満杯のダストバッグをまっすぐ引き出します（取り出す際に取っ手が封をします）。",
+        "新しいダストバッグを差し込み、カバーを閉じます。",
+    ],
+    "notes": [
+        "カバーを閉じる前に、必ずダストバッグを取り付けてください。",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "必要に応じて",
+    "replace_frequency": None,
+    "steps": [
+        "給水タンクを取り出し、上部のカバーを開きます。",
+        "冷たい水道水を入れます。",
+        "カバーを閉じ、タンクをドックに戻します。",
+    ],
+    "notes": [
+        "変形を防ぐため、冷たい水のみを使用してください。",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "必要に応じて",
+    "replace_frequency": None,
+    "steps": [
+        "汚水タンクのふたを開き、汚水を捨てます。",
+        "きれいな水を入れ、ふたを閉じて振り、すすいでから再び捨てます。",
+        "ふたを閉じ、タンクを元に戻します。",
+    ],
+    "notes": [
+        "冷たい水のみを使用し、戻す前に外側を拭いてください。",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

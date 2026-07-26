@@ -120,8 +120,48 @@ _DOCK_DUST_BAG = {
     ],
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "每 1-3 个月",
+    "steps": [
+        "按图示取出水箱滤芯。",
+        "装入新滤芯并推回原位。",
+    ],
+    "notes": [
+        "请根据水质和使用频率每 1-3 个月更换一次。",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "按需",
+    "replace_frequency": None,
+    "steps": [
+        "取出清水箱并打开上盖。",
+        "加入冷的自来水。",
+        "盖好上盖并将水箱装回基座。",
+    ],
+    "notes": [
+        "请仅使用冷水，以免水箱变形。",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "按需",
+    "replace_frequency": None,
+    "steps": [
+        "打开污水箱盖并倒出污水。",
+        "加入清水，盖好并锁紧盖子，摇晃后再次倒出以冲洗。",
+        "锁好盖子并将水箱装回。",
+    ],
+    "notes": [
+        "请仅使用冷水；装回前擦干外部。",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD, "dock_dust_bag": _DOCK_DUST_BAG},
-    "wash_station": {**_STANDARD, "dock_dust_bag": _DOCK_DUST_BAG},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }

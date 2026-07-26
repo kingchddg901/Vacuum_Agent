@@ -99,8 +99,60 @@ _STANDARD = {
     },
 }
 
+_WATER_FILTER = {
+    "clean_frequency": None,
+    "replace_frequency": "Cada 1-3 meses",
+    "steps": [
+        "Extraiga los filtros de agua del depósito.",
+        "Coloque filtros nuevos y deslícelos en su sitio.",
+    ],
+    "notes": [
+        "Sustitúyalos cada 1-3 meses según la calidad del agua y el uso.",
+    ],
+}
+_DOCK_DUST_BAG = {
+    "clean_frequency": None,
+    "replace_frequency": "Cuando esté llena (cada 7 semanas aprox.)",
+    "steps": [
+        "Abra la tapa del compartimento de polvo de la estación.",
+        "Extraiga la bolsa de polvo llena tirando en línea recta; el asa la sella al retirarla.",
+        "Introduzca una bolsa nueva y cierre la tapa.",
+    ],
+    "notes": [
+        "Coloque siempre una bolsa antes de cerrar la tapa.",
+    ],
+}
+_CLEAN_WATER_TANK = {
+    "clean_frequency": "Cuando sea necesario",
+    "replace_frequency": None,
+    "steps": [
+        "Extraiga el depósito de agua limpia y abra la tapa superior.",
+        "Llénelo con agua fría del grifo.",
+        "Cierre la tapa y colóquelo de nuevo en la estación.",
+    ],
+    "notes": [
+        "Use solo agua fría para evitar deformaciones.",
+    ],
+}
+_DIRTY_WATER_TANK = {
+    "clean_frequency": "Cuando sea necesario",
+    "replace_frequency": None,
+    "steps": [
+        "Abra la tapa del depósito de agua sucia y vacíe el agua sucia.",
+        "Añada agua limpia, cierre la tapa, agítelo y vacíelo de nuevo para enjuagar.",
+        "Cierre la tapa y coloque el depósito de nuevo.",
+    ],
+    "notes": [
+        "Use solo agua fría; limpie el exterior antes de colocarlo.",
+    ],
+}
+
+_BASE = {**_STANDARD, "water_filter": _WATER_FILTER}
 GUIDE_TRANSLATIONS = {
-    "standard": _STANDARD,
-    "auto_empty": {**_STANDARD},
-    "wash_station": {**_STANDARD},
+    "standard": _BASE,
+    "auto_empty": {**_BASE, "dock_dust_bag": _DOCK_DUST_BAG},
+    "wash_station": {
+        **_BASE, "dock_dust_bag": _DOCK_DUST_BAG,
+        "clean_water_tank": _CLEAN_WATER_TANK, "dirty_water_tank": _DIRTY_WATER_TANK,
+    },
 }
