@@ -2288,3 +2288,1350 @@ UPKEEP_GUIDE_TRANSLATIONS['ko'] = {
         }
     }
 }
+
+
+# --- guide backfill: non-x10 families merged 2026-07-25 ---
+UPKEEP_GUIDE_TRANSLATIONS['de'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Nehmen Sie den Hochleistungsfilter aus dem Bereich des Staubbehälters heraus.",
+                "Klopfen Sie Staub und Schmutz vorsichtig ab.",
+                "Setzen Sie den Filter wieder ein oder ersetzen Sie ihn, sobald er sauber und trocken ist."
+            ],
+            "notes": [
+                "Die Zubehördienste-Anleitung in der App ist der primäre offizielle Reset-Ablauf für den S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Wischen Sie die Sensoren des Roboters mit einem weichen, trockenen Tuch ab.",
+                "Reinigen Sie bei der Wartung der Sensoren auch die Ladekontakte."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Überprüfen Sie die Seitenbürste auf verfangene Haare und Schmutz.",
+                "Entfernen Sie Ablagerungen rund um die Basis und die Borsten.",
+                "Ersetzen Sie die Bürste, wenn die Borsten verbogen oder beschädigt sind."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Entfernen Sie den Bürstenschutz der Rollbürste.",
+                "Prüfen Sie die Bürste und beide Endkappen auf verhedderte Haare oder Schmutz.",
+                "Reinigen Sie die Bürste gründlich, bevor Sie sie wieder einsetzen."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Entfernen Sie den Rollmopp bzw. die Mopp-Kontaktflächen und entfernen Sie Rückstände.",
+                "Lassen Sie die gereinigten Teile vor der Wiederverwendung trocknen.",
+                "Ersetzen Sie das Mopp-Verbrauchsteil, wenn Verschleiß sichtbar wird oder die Leistung nachlässt."
+            ],
+            "notes": [
+                "Die S1-Dokumentation ist auf den Rollmopp ausgerichtet und nicht auf abnehmbare Doppel-Pads."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Entnehmen Sie die Filterschale bzw. den Schaleneinsatz aus dem Stationsbereich.",
+                "Spülen Sie Rückstände und Ablagerungen ab.",
+                "Setzen Sie sie nach der Reinigung wieder ein."
+            ],
+            "notes": [
+                "Reinigen Sie bei Bedarf auch den Frisch- und Schmutzwassertank sowie den Schmutzwasserfilter."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Überprüfen Sie das Lenkrad auf Haare und Schmutz.",
+                "Entfernen Sie Ablagerungen und stellen Sie sicher, dass sich das Rad frei dreht."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Nehmen Sie den Staubbehälter bzw. das Filterfach heraus.",
+                "Nehmen Sie den Filter heraus und klopfen Sie Staub ab.",
+                "Waschen Sie ihn nur, wenn die Anleitung/App dies erlaubt, und lassen Sie ihn vor dem Wiedereinsetzen vollständig trocknen."
+            ],
+            "notes": [
+                "Die Zubehör-Anleitung des Omni C20 ist überwiegend videobasiert."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Wischen Sie die Sensoren und Ladekontakte an Roboter und Station mit einem sauberen, trockenen Tuch ab."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Überprüfen Sie die Seitenbürste auf Verschleiß, Verhedderungen oder Beschädigungen.",
+                "Entfernen Sie umwickelte Haare und Schmutz von der Bürste und der Basis.",
+                "Ersetzen Sie die Bürste, wenn Borsten verbogen sind oder fehlen."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Überprüfen Sie die Rollbürste auf verhedderte Haare oder Schmutz.",
+                "Schneiden Sie umwickeltes Material mit dem Reinigungswerkzeug oder einer Schere ab.",
+                "Setzen Sie sie nach der Reinigung wieder ein."
+            ],
+            "notes": [
+                "Der Pro-Detangle-Kamm reduziert die manuelle Reinigung, macht sie aber nicht überflüssig."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Entfernen Sie die Mopp-Pads vom Roboter oder von der Station.",
+                "Reinigen und trocknen Sie sie vor der Wiederverwendung vollständig.",
+                "Ersetzen Sie die Pads, wenn sie abgenutzt sind oder nicht mehr wirksam reinigen."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Nehmen Sie die Stationsbasis bzw. das Bauteil des Moppwaschbereichs ab.",
+                "Spülen und wischen Sie Rückstände aus dem Schalenbereich ab.",
+                "Setzen Sie die Schale nach der Reinigung wieder ein."
+            ],
+            "notes": [
+                "Überwachen und warten Sie auch den Frisch- und Schmutzwassertank."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Entnehmen Sie den Staubbehälter und nehmen Sie den Filter heraus.",
+                "Klopfen Sie den Filter vorsichtig ab, um Staub zu entfernen.",
+                "Falls Sie ihn abgespült haben, lassen Sie ihn vor dem Wiedereinsetzen vollständig trocknen."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Wischen Sie die Absturzsensoren, die Stoßsensoren und die Ladekontakte mit einem trockenen Tuch ab."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Entfernen Sie die Seitenbürste.",
+                "Entfernen Sie Haare und Schmutz von der Bürste und ihrer Basis.",
+                "Bringen Sie sie wieder an oder ersetzen Sie sie bei Abnutzung."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Drücken Sie die Laschen des Hauptbürstenschutzes zusammen und entfernen Sie den Schutz.",
+                "Heben Sie die Hauptbürste heraus.",
+                "Entfernen Sie Haare und Schmutz mit dem Reinigungswerkzeug oder einer Schere.",
+                "Setzen Sie die Bürste und den Schutz wieder ein."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Entfernen Sie das Wischpad aus der Halterung.",
+                "Waschen und trocknen Sie es vor der Wiederverwendung.",
+                "Ersetzen Sie es, wenn es abgenutzt oder unwirksam wird."
+            ],
+            "notes": [
+                "Gilt nur für Hybrid-/wischfähige X8-Modelle."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Drücken Sie die Entriegelungstaste des Staubbehälters und entnehmen Sie den Staubbehälter.",
+                "Nehmen Sie den Filter heraus und klopfen Sie losen Schmutz ab.",
+                "Sofern die Anleitung Ihres Modells dies erlaubt, spülen Sie ihn ab und lassen Sie ihn vor dem Wiedereinsetzen vollständig trocknen."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Wischen Sie die Sensoren und Ladekontakte am Roboter und an der Basis mit einem trockenen Tuch ab."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Ziehen Sie die Seitenbürste ab.",
+                "Entfernen Sie verhedderte Haare und Schmutz.",
+                "Bringen Sie sie wieder an oder ersetzen Sie sie bei Abnutzung."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Entfernen Sie die Abdeckung der Hauptbürste.",
+                "Heben Sie die Walzenbürste heraus.",
+                "Entfernen Sie umwickelte Haare und Schmutz von der Bürste und den Lagern.",
+                "Wischen Sie sie trocken und setzen Sie die Bürste und den Bürstenschutz wieder ein."
+            ],
+            "notes": [
+                "SES-Modelle nutzen zusätzlich ein automatisches Haarschneidesystem, um den Wartungsaufwand zu reduzieren."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Entfernen Sie das Wischpad bzw. das Wischtuch.",
+                "Reinigen und trocknen Sie es vor der Wiederverwendung vollständig.",
+                "Ersetzen Sie das Wischtuch bei Abnutzung."
+            ],
+            "notes": [
+                "Gilt nur für Hybrid-Varianten."
+            ]
+        }
+    }
+})
+UPKEEP_GUIDE_TRANSLATIONS['es'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Retire el filtro de alto rendimiento de la zona del depósito de polvo.",
+                "Sacúdalo suavemente para eliminar el polvo y los residuos.",
+                "Vuelva a instalar o reemplace el filtro una vez que esté limpio y seco."
+            ],
+            "notes": [
+                "La guía de servicio de accesorios en la app es el flujo oficial de restablecimiento principal para el S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Limpie los sensores del robot con un paño suave y seco.",
+                "Limpie también los contactos de carga al hacer el mantenimiento de los sensores."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Inspeccione el cepillo lateral en busca de cabello y residuos atrapados.",
+                "Retire la acumulación alrededor de la base y las cerdas.",
+                "Reemplace el cepillo si las cerdas están dobladas o dañadas."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Retire la protección del cepillo giratorio.",
+                "Revise el cepillo y las tapas de ambos extremos en busca de cabello enredado o residuos.",
+                "Limpie el cepillo a fondo antes de volver a instalarlo."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire la mopa de rodillo o las superficies de contacto de la mopa y limpie los residuos.",
+                "Deje secar las piezas limpias antes de reutilizarlas.",
+                "Reemplace el consumible de fregado cuando el desgaste sea visible o el rendimiento disminuya."
+            ],
+            "notes": [
+                "La documentación del S1 está orientada a la mopa de rodillo, no a la terminología de doble almohadilla desmontable."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Retire la bandeja del filtro o el inserto de la bandeja de la zona de la estación.",
+                "Enjuague los residuos y la acumulación.",
+                "Vuelva a instalarla después de limpiarla."
+            ],
+            "notes": [
+                "Limpie también los depósitos de agua limpia y sucia y el filtro de agua sucia según sea necesario."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Inspeccione la rueda giratoria en busca de cabello y residuos.",
+                "Retire la acumulación y confirme que la rueda gira libremente."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Retire el depósito de polvo o el compartimento del filtro.",
+                "Saque el filtro y sacúdalo para eliminar el polvo.",
+                "Lávelo solo si la guía del manual/app lo permite y luego séquelo por completo antes de volver a instalarlo."
+            ],
+            "notes": [
+                "La guía de accesorios del Omni C20 se basa principalmente en vídeos."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Use un paño limpio y seco para limpiar los sensores y los contactos de carga tanto del robot como de la estación."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Inspeccione el cepillo lateral en busca de desgaste, enredos o daños.",
+                "Retire el cabello enrollado y los residuos del cepillo y la base.",
+                "Reemplace el cepillo si las cerdas están dobladas o faltan."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Inspeccione el cepillo giratorio en busca de cabello enredado o residuos.",
+                "Use la herramienta de limpieza o unas tijeras para cortar el material enrollado.",
+                "Vuelva a instalarlo después de limpiarlo."
+            ],
+            "notes": [
+                "El peine antienredos Pro-Detangle reduce la limpieza manual, pero no la elimina."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire las almohadillas de fregado del robot o de la estación.",
+                "Límpielas y séquelas por completo antes de reutilizarlas.",
+                "Reemplace las almohadillas cuando estén desgastadas o ya no limpien eficazmente."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Desmonte la base de la estación o el componente de la zona de lavado de la mopa.",
+                "Enjuague y limpie los residuos de la zona de la bandeja.",
+                "Vuelva a instalar la bandeja después de limpiarla."
+            ],
+            "notes": [
+                "Vigile y realice el mantenimiento de los depósitos de agua limpia y sucia."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Retire el depósito de polvo y saque el filtro.",
+                "Sacúdalo suavemente para eliminar el polvo.",
+                "Si lo enjuaga, déjelo secar por completo antes de volver a instalarlo."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Limpie los sensores de caída, los sensores del parachoques y los contactos de carga con un paño seco."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Retire el cepillo lateral.",
+                "Retire el cabello y los residuos del cepillo y de su base.",
+                "Vuelva a colocarlo o reemplácelo si está desgastado."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Apriete las pestañas de la protección del cepillo giratorio y retire la protección.",
+                "Levante para sacar el cepillo giratorio.",
+                "Use la herramienta de limpieza o unas tijeras para retirar el cabello y los residuos.",
+                "Vuelva a instalar el cepillo y la protección."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire la almohadilla de fregado del soporte.",
+                "Lávela y séquela antes de reutilizarla.",
+                "Reemplácela si se desgasta o pierde eficacia."
+            ],
+            "notes": [
+                "Solo se aplica a los modelos X8 híbridos o con capacidad de fregado."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Presione el botón de liberación del depósito de polvo y retire el depósito.",
+                "Saque el filtro y sacúdalo para eliminar la suciedad suelta.",
+                "Si la guía de su modelo específico lo permite, enjuáguelo y séquelo por completo antes de volver a instalarlo."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Use un paño seco para limpiar los sensores y los contactos de carga del robot y de la base."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Tire del cepillo lateral para extraerlo.",
+                "Retire el cabello enredado y los residuos.",
+                "Vuelva a colocarlo o reemplácelo si está desgastado."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Retire la cubierta del cepillo giratorio.",
+                "Levante para sacar el cepillo giratorio.",
+                "Limpie el cabello enrollado y los residuos del cepillo y de los cojinetes.",
+                "Séquelo y vuelva a instalar el cepillo y la protección."
+            ],
+            "notes": [
+                "Los modelos SES también utilizan el corte automático de cabello para reducir el mantenimiento."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire la almohadilla o el paño de fregado.",
+                "Límpielo y séquelo por completo antes de reutilizarlo.",
+                "Reemplace el paño cuando esté desgastado."
+            ],
+            "notes": [
+                "Solo se aplica a las variantes híbridas."
+            ]
+        }
+    }
+})
+UPKEEP_GUIDE_TRANSLATIONS['fr'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Retirez le filtre haute performance de la zone du bac à poussière.",
+                "Tapotez délicatement pour faire tomber la poussière et les débris.",
+                "Réinstallez ou remplacez le filtre une fois qu'il est propre et sec."
+            ],
+            "notes": [
+                "Les instructions d'entretien des accessoires dans l'application constituent la procédure de réinitialisation officielle principale pour le S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Essuyez les capteurs du robot avec un chiffon doux et sec.",
+                "Nettoyez également les contacts de charge pendant l'entretien des capteurs."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Vérifiez que la brosse latérale ne retient ni cheveux ni débris.",
+                "Retirez l'accumulation autour de la base et des poils.",
+                "Remplacez la brosse si les poils sont tordus ou endommagés."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Retirez le protège-brosse rotative.",
+                "Vérifiez la présence de cheveux emmêlés ou de débris sur la brosse et sur les deux embouts.",
+                "Nettoyez soigneusement la brosse avant de la réinstaller."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retirez la serpillière rotative ou les surfaces de contact de la serpillière et éliminez les résidus.",
+                "Laissez sécher les pièces nettoyées avant de les réutiliser.",
+                "Remplacez le consommable de serpillière lorsque l'usure devient visible ou que les performances diminuent."
+            ],
+            "notes": [
+                "La documentation du S1 est axée sur la serpillière rotative plutôt que sur des tampons jumeaux amovibles."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Retirez le plateau du filtre ou le bac amovible de la zone de la station.",
+                "Rincez pour éliminer les résidus et l'accumulation.",
+                "Réinstallez-le après le nettoyage."
+            ],
+            "notes": [
+                "Nettoyez également les réservoirs d'eau propre et d'eau sale ainsi que le filtre d'eau sale selon les besoins."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Vérifiez que la roue pivotante ne contient ni cheveux ni débris.",
+                "Retirez l'accumulation et vérifiez que la roue tourne librement."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Retirez le bac à poussière ou le compartiment du filtre.",
+                "Sortez le filtre et tapotez pour en faire tomber la poussière.",
+                "Lavez-le uniquement si les instructions du manuel/de l'application l'autorisent, puis séchez-le complètement avant de le réinstaller."
+            ],
+            "notes": [
+                "Le guide des accessoires de l'Omni C20 est principalement sous forme de vidéos."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Utilisez un chiffon propre et sec pour essuyer les capteurs et les contacts de charge, sur le robot comme sur la station."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Vérifiez que la brosse latérale ne présente ni usure, ni emmêlement, ni dommage.",
+                "Retirez les cheveux enroulés et les débris de la brosse et de sa base.",
+                "Remplacez la brosse si les poils sont tordus ou manquants."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Vérifiez la présence de cheveux emmêlés ou de débris sur la brosse rotative.",
+                "Utilisez l'outil de nettoyage ou des ciseaux pour couper les matières enroulées.",
+                "Réinstallez-la après le nettoyage."
+            ],
+            "notes": [
+                "Le peigne anti-emmêlement Pro-Detangle réduit le nettoyage manuel sans l'éliminer."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retirez les tampons de serpillière du robot ou de la station.",
+                "Nettoyez-les et séchez-les complètement avant de les réutiliser.",
+                "Remplacez les tampons lorsqu'ils sont usés ou ne nettoient plus efficacement."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Détachez la base de la station ou le composant de la zone de lavage de la serpillière.",
+                "Rincez et essuyez les résidus de la zone du bac.",
+                "Réinstallez le bac après le nettoyage."
+            ],
+            "notes": [
+                "Surveillez et entretenez également les réservoirs d'eau propre et d'eau sale."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Retirez le bac à poussière et sortez le filtre.",
+                "Tapotez délicatement le filtre pour en retirer la poussière.",
+                "S'il a été rincé, laissez-le sécher complètement avant de le réinstaller."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Essuyez les capteurs anti-chute, les capteurs du pare-chocs et les contacts de charge avec un chiffon sec."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Retirez la brosse latérale.",
+                "Éliminez les cheveux et les débris de la brosse et de sa base.",
+                "Refixez-la ou remplacez-la si elle est usée."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Pincez les languettes du protège-brosse rotative et retirez le protège-brosse.",
+                "Soulevez la brosse rotative pour la retirer.",
+                "Utilisez l'outil de nettoyage ou des ciseaux pour retirer les cheveux et les débris.",
+                "Réinstallez la brosse et le protège-brosse."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retirez le tampon de serpillière de son support.",
+                "Lavez-le et séchez-le avant de le réutiliser.",
+                "Remplacez-le s'il devient usé ou inefficace."
+            ],
+            "notes": [
+                "S'applique uniquement aux modèles X8 hybrides / équipés d'une serpillière."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Appuyez sur le bouton de déverrouillage du bac à poussière et retirez le bac.",
+                "Retirez le filtre et tapotez pour en faire tomber la saleté.",
+                "Si le guide de votre modèle l'autorise, rincez-le et séchez-le complètement avant de le réinstaller."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Utilisez un chiffon sec pour essuyer les capteurs et les contacts de charge du robot et de la base."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Retirez la brosse latérale en tirant.",
+                "Retirez les cheveux emmêlés et les débris.",
+                "Refixez-la ou remplacez-la si elle est usée."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Retirez le cache de la brosse rotative.",
+                "Soulevez la brosse rotative pour la retirer.",
+                "Nettoyez les cheveux enroulés et les débris sur la brosse et les paliers.",
+                "Essuyez pour sécher, puis réinstallez la brosse et le protège-brosse."
+            ],
+            "notes": [
+                "Les modèles SES utilisent aussi une découpe automatique des poils pour réduire l'entretien."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retirez le tampon de serpillière ou le chiffon.",
+                "Nettoyez-le et séchez-le complètement avant de le réutiliser.",
+                "Remplacez le chiffon lorsqu'il est usé."
+            ],
+            "notes": [
+                "S'applique uniquement aux variantes hybrides."
+            ]
+        }
+    }
+})
+UPKEEP_GUIDE_TRANSLATIONS['it'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Rimuovere il filtro ad alte prestazioni dall'area del contenitore della polvere.",
+                "Picchiettare delicatamente per rimuovere polvere e detriti.",
+                "Reinstallare o sostituire il filtro una volta pulito e asciutto."
+            ],
+            "notes": [
+                "La guida al servizio degli accessori nell'app è la procedura di reset ufficiale principale per l'S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Pulire i sensori del robot con un panno morbido e asciutto.",
+                "Pulire anche i contatti di ricarica durante la manutenzione dei sensori."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Ispezionare la spazzola laterale per capelli e detriti intrappolati.",
+                "Rimuovere gli accumuli intorno alla base e alle setole.",
+                "Sostituire la spazzola se le setole sono piegate o danneggiate."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Rimuovere la protezione della spazzola rotante.",
+                "Controllare la spazzola ed entrambi i cappucci terminali per capelli aggrovigliati o detriti.",
+                "Pulire accuratamente la spazzola prima di reinstallarla."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Rimuovere il mop rotante o le superfici di contatto del mop ed eliminare i residui.",
+                "Lasciare asciugare le parti pulite prima del riutilizzo.",
+                "Sostituire il materiale di consumo del mop quando l'usura diventa visibile o le prestazioni calano."
+            ],
+            "notes": [
+                "La documentazione dell'S1 è orientata al mop rotante anziché a due panni staccabili."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Rimuovere il vassoio del filtro o l'inserto del vassoio dall'area della stazione.",
+                "Sciacquare via residui e accumuli.",
+                "Reinstallare dopo la pulizia."
+            ],
+            "notes": [
+                "Pulire anche i serbatoi dell'acqua pulita e sporca e il filtro dell'acqua sporca secondo necessità."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Ispezionare la ruota piroettante per capelli e detriti.",
+                "Rimuovere gli accumuli e verificare che la ruota giri liberamente."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Rimuovere il contenitore della polvere o il vano del filtro.",
+                "Estrarre il filtro e picchiettare per rimuovere la polvere.",
+                "Lavare solo se la guida del manuale o dell'app lo consente, poi asciugare completamente prima di reinstallare."
+            ],
+            "notes": [
+                "La guida agli accessori dell'Omni C20 è basata principalmente su video."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Usare un panno pulito e asciutto per pulire i sensori e i contatti di ricarica sia sul robot sia sulla stazione."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Ispezionare la spazzola laterale per usura, aggrovigliamenti o danni.",
+                "Rimuovere capelli e detriti avvolti dalla spazzola e dalla base.",
+                "Sostituire la spazzola se le setole sono piegate o mancanti."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Ispezionare la spazzola rotante per capelli aggrovigliati o detriti.",
+                "Usare lo strumento di pulizia o delle forbici per tagliare via il materiale avvolto.",
+                "Reinstallare dopo la pulizia."
+            ],
+            "notes": [
+                "Il pettine Pro-Detangle riduce ma non elimina la pulizia manuale."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Rimuovere i panni per lavaggio dal robot o dalla stazione.",
+                "Pulirli e asciugarli completamente prima del riutilizzo.",
+                "Sostituire i panni quando sono usurati o non puliscono più efficacemente."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Staccare la base della stazione o il componente dell'area di lavaggio del mop.",
+                "Sciacquare e rimuovere i residui dall'area del vassoio.",
+                "Reinstallare il vassoio dopo la pulizia."
+            ],
+            "notes": [
+                "Monitorare e sottoporre a manutenzione anche i serbatoi dell'acqua pulita e sporca."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Rimuovere il contenitore della polvere ed estrarre il filtro.",
+                "Picchiettare delicatamente il filtro per rimuovere la polvere.",
+                "Se sciacquato, lasciarlo asciugare completamente prima di reinstallarlo."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Pulire i sensori anticaduta, i sensori del paraurti e i contatti di ricarica con un panno asciutto."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Rimuovere la spazzola laterale.",
+                "Eliminare capelli e detriti dalla spazzola e dalla sua base.",
+                "Rimontare o sostituire se usurata."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Premere le linguette della protezione della spazzola rotante e rimuovere la protezione.",
+                "Sollevare ed estrarre la spazzola rotante.",
+                "Usare lo strumento di pulizia o delle forbici per rimuovere capelli e detriti.",
+                "Reinstallare la spazzola e la protezione."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Rimuovere il panno per lavaggio dal supporto.",
+                "Lavarlo e asciugarlo prima del riutilizzo.",
+                "Sostituirlo se diventa usurato o inefficace."
+            ],
+            "notes": [
+                "Si applica solo ai modelli X8 ibridi o con funzione mop."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Premere il pulsante di rilascio del contenitore della polvere e rimuovere il contenitore della polvere.",
+                "Rimuovere il filtro e picchiettare per eliminare lo sporco residuo.",
+                "Se consentito dalla guida specifica del modello, sciacquare e asciugare completamente prima di reinstallare."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Usare un panno asciutto per pulire i sensori e i contatti di ricarica sul robot e sulla base."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Staccare la spazzola laterale.",
+                "Rimuovere capelli aggrovigliati e detriti.",
+                "Rimontare o sostituire se usurata."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Rimuovere la copertura della spazzola rotante.",
+                "Sollevare ed estrarre la spazzola rotante.",
+                "Rimuovere capelli e detriti avvolti dalla spazzola e dai cuscinetti.",
+                "Asciugare con un panno e reinstallare la spazzola e la protezione."
+            ],
+            "notes": [
+                "I modelli SES utilizzano anche il taglio automatico dei capelli per ridurre la manutenzione."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Rimuovere il tampone o il panno per lavaggio.",
+                "Pulirlo e asciugarlo completamente prima del riutilizzo.",
+                "Sostituire il panno quando è usurato."
+            ],
+            "notes": [
+                "Si applica solo alle varianti ibride."
+            ]
+        }
+    }
+})
+UPKEEP_GUIDE_TRANSLATIONS['nl'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Haal het hoogwaardige filter uit het stofbakgedeelte.",
+                "Klop stof en vuil er voorzichtig af.",
+                "Plaats het filter terug of vervang het zodra het schoon en droog is."
+            ],
+            "notes": [
+                "De accessoire-servicebegeleiding in de app is de belangrijkste officiële resetprocedure voor de S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Veeg de sensoren van de robot schoon met een zachte, droge doek.",
+                "Reinig ook de laadcontacten terwijl u de sensoren onderhoudt."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Controleer de zijborstel op vastzittende haren en vuil.",
+                "Verwijder opgehoopt vuil rond de voet en de borstelharen.",
+                "Vervang de borstel als de borstelharen verbogen of beschadigd zijn."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Verwijder de borstelbeschermer van de rolborstel.",
+                "Controleer de borstel en beide eindkapjes op verwikkelde haren of vuil.",
+                "Reinig de borstel grondig voordat u hem terugplaatst."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Verwijder de rollende dweil of de dweilcontactvlakken en verwijder alle resten.",
+                "Laat de gereinigde onderdelen drogen voordat u ze opnieuw gebruikt.",
+                "Vervang het dweilonderdeel wanneer er zichtbare slijtage optreedt of de prestaties afnemen."
+            ],
+            "notes": [
+                "De S1-documentatie is gericht op de rollende dweil in plaats van op verwijderbare dubbele dweildoeken."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Verwijder de filterlade of het inzetstuk van de reinigingsbak uit het stationgedeelte.",
+                "Spoel resten en opgehoopt vuil weg.",
+                "Plaats de bak na het reinigen terug."
+            ],
+            "notes": [
+                "Reinig indien nodig ook de schoonwater- en vuilwatertank en het vuilwaterfilter."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Controleer het zwenkwiel op haren en vuil.",
+                "Verwijder opgehoopt vuil en controleer of het wiel vrij draait."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Haal de stofbak of het filtervak eruit.",
+                "Neem het filter eruit en klop het stof eraf.",
+                "Was het alleen als de handleiding/app dit toestaat en laat het daarna volledig drogen voordat u het terugplaatst."
+            ],
+            "notes": [
+                "De accessoiregids van de Omni C20 is voornamelijk videogebaseerd."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Veeg met een schone, droge doek de sensoren en laadcontacten op zowel de robot als het station schoon."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Controleer de zijborstel op slijtage, verwikkelde haren of beschadiging.",
+                "Verwijder vastgewikkelde haren en vuil van de borstel en de voet.",
+                "Vervang de borstel als de borstelharen verbogen zijn of ontbreken."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Controleer de rolborstel op verwikkelde haren of vuil.",
+                "Gebruik het schoonmaakgereedschap of een schaar om vastgewikkeld materiaal weg te knippen.",
+                "Plaats de borstel na het reinigen terug."
+            ],
+            "notes": [
+                "De Pro-Detangle-kam vermindert het handmatig reinigen, maar maakt het niet overbodig."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Verwijder de dweildoeken van de robot of het station.",
+                "Reinig ze en laat ze volledig drogen voordat u ze opnieuw gebruikt.",
+                "Vervang de dweildoeken wanneer ze versleten zijn of niet meer effectief reinigen."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Maak de stationbasis of het wasgedeelte voor de dweil los.",
+                "Spoel en veeg resten uit het bakgedeelte.",
+                "Plaats de bak na het reinigen terug."
+            ],
+            "notes": [
+                "Houd ook de schoonwater- en vuilwatertank in de gaten en onderhoud ze."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Haal de stofbak eruit en neem het filter eruit.",
+                "Tik voorzichtig op het filter om stof te verwijderen.",
+                "Als u het afspoelt, laat het dan volledig drogen voordat u het terugplaatst."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Veeg de valsensoren, bumpersensoren en laadcontacten schoon met een droge doek."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Verwijder de zijborstel.",
+                "Verwijder haren en vuil van de borstel en de voet.",
+                "Bevestig hem opnieuw of vervang hem bij slijtage."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Knijp de lipjes van de borstelbeschermer samen en verwijder de beschermer.",
+                "Til de rolborstel eruit.",
+                "Gebruik het schoonmaakgereedschap of een schaar om haren en vuil te verwijderen.",
+                "Plaats de borstel en de beschermer terug."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Haal de dweildoek uit de houder.",
+                "Was en droog hem voordat u hem opnieuw gebruikt.",
+                "Vervang hem als hij versleten of niet meer effectief is."
+            ],
+            "notes": [
+                "Geldt alleen voor hybride/dweilgeschikte X8-modellen."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Druk op de ontgrendelingsknop van de stofbak en verwijder de stofbak.",
+                "Verwijder het filter en klop het losse vuil eraf.",
+                "Als de handleiding van uw specifieke model dit toestaat, spoel het dan af en laat het volledig drogen voordat u het terugplaatst."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Veeg met een droge doek de sensoren en laadcontacten op de robot en het basisstation schoon."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Trek de zijborstel eraf.",
+                "Verwijder verwikkelde haren en vuil.",
+                "Bevestig hem opnieuw of vervang hem bij slijtage."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Verwijder de borstelbeschermer van de rolborstel.",
+                "Til de rolborstel eruit.",
+                "Verwijder vastgewikkelde haren en vuil van de borstel en de lagers.",
+                "Veeg hem droog en plaats de borstel en de beschermer terug."
+            ],
+            "notes": [
+                "SES-modellen knippen haar ook automatisch af om het onderhoud te verminderen."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Verwijder de dweildoek.",
+                "Reinig hem en laat hem volledig drogen voordat u hem opnieuw gebruikt.",
+                "Vervang de dweildoek bij slijtage."
+            ],
+            "notes": [
+                "Geldt alleen voor hybride varianten."
+            ]
+        }
+    }
+})
+UPKEEP_GUIDE_TRANSLATIONS['pt'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Retire o filtro de alto desempenho da zona do depósito de pó.",
+                "Sacuda o pó e os detritos com cuidado.",
+                "Volte a instalar ou substitua o filtro quando estiver limpo e seco."
+            ],
+            "notes": [
+                "As orientações de manutenção de acessórios na aplicação são o fluxo de reposição oficial principal para o S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Limpe os sensores do robô com um pano macio e seco.",
+                "Limpe também os contactos de carregamento ao fazer a manutenção dos sensores."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Inspecione a escova lateral em busca de cabelos e detritos presos.",
+                "Remova a acumulação à volta da base e das cerdas.",
+                "Substitua a escova se as cerdas estiverem dobradas ou danificadas."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Retire a proteção da escova rotativa.",
+                "Verifique a escova e ambas as tampas das extremidades em busca de cabelos enrolados ou detritos.",
+                "Limpe bem a escova antes de a voltar a instalar."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire a mopa rotativa ou as superfícies de contacto da mopa e limpe os resíduos.",
+                "Deixe as peças limpas secar antes de as reutilizar.",
+                "Substitua o consumível da mopa quando o desgaste for visível ou o desempenho diminuir."
+            ],
+            "notes": [
+                "A documentação do S1 é orientada para a mopa rotativa e não para a terminologia de almofada dupla destacável."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Retire a bandeja do filtro ou o respetivo encaixe da zona da base.",
+                "Enxague os resíduos e a acumulação.",
+                "Volte a instalar após a limpeza."
+            ],
+            "notes": [
+                "Limpe também os depósitos de água limpa e suja e o filtro de água suja conforme necessário."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Inspecione a roda giratória em busca de cabelos e detritos.",
+                "Remova a acumulação e confirme que a roda roda livremente."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Retire o depósito de pó ou o compartimento do filtro.",
+                "Retire o filtro e sacuda o pó.",
+                "Lave apenas se o manual/aplicação o permitir e, em seguida, seque completamente antes de voltar a instalar."
+            ],
+            "notes": [
+                "O guia de acessórios do Omni C20 é essencialmente em vídeo."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Use um pano limpo e seco para limpar os sensores e os contactos de carregamento tanto no robô como na base."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Inspecione a escova lateral em busca de desgaste, emaranhados ou danos.",
+                "Remova os cabelos enrolados e os detritos da escova e da base.",
+                "Substitua a escova se as cerdas estiverem dobradas ou em falta."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Inspecione a escova rotativa em busca de cabelos enrolados ou detritos.",
+                "Use a ferramenta de limpeza ou uma tesoura para cortar o material enrolado.",
+                "Volte a instalar após a limpeza."
+            ],
+            "notes": [
+                "O Pente Pro-Detangle reduz, mas não elimina, a limpeza manual."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire os panos de limpeza do robô ou da base.",
+                "Limpe-os e seque-os completamente antes de os reutilizar.",
+                "Substitua os panos quando estiverem gastos ou já não limparem eficazmente."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Solte a base da estação ou o componente da zona de lavagem da mopa.",
+                "Enxague e limpe os resíduos da zona da bandeja.",
+                "Volte a instalar a bandeja após a limpeza."
+            ],
+            "notes": [
+                "Monitorize e faça também a manutenção dos depósitos de água limpa e suja."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Retire o depósito de pó e remova o filtro.",
+                "Bata levemente no filtro para remover o pó.",
+                "Se o enxaguar, deixe-o secar completamente antes de voltar a instalar."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Limpe os sensores de queda, os sensores do para-choques e os contactos de carregamento com um pano seco."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Retire a escova lateral.",
+                "Remova os cabelos e os detritos da escova e da sua base.",
+                "Volte a colocar ou substitua se estiver gasta."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Aperte as patilhas da proteção da escova rotativa e retire a proteção.",
+                "Retire a escova rotativa.",
+                "Use a ferramenta de limpeza ou uma tesoura para remover os cabelos e os detritos.",
+                "Volte a instalar a escova e a proteção."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire o pano de limpeza do suporte.",
+                "Lave-o e seque-o antes de o reutilizar.",
+                "Substitua-o se ficar gasto ou ineficaz."
+            ],
+            "notes": [
+                "Aplica-se apenas aos modelos X8 híbridos/com função de mopa."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Prima o botão de libertação do depósito de pó e retire o depósito de pó.",
+                "Retire o filtro e sacuda a sujidade solta.",
+                "Se o guia do modelo específico o permitir, enxague e seque completamente antes de voltar a instalar."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Use um pano seco para limpar os sensores e os contactos de carregamento no robô e na base."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Retire a escova lateral.",
+                "Remova os cabelos enrolados e os detritos.",
+                "Volte a colocar ou substitua se estiver gasta."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Retire a tampa da escova rotativa.",
+                "Retire a escova rotativa.",
+                "Limpe os cabelos enrolados e os detritos da escova e dos rolamentos.",
+                "Seque e volte a instalar a escova e a proteção."
+            ],
+            "notes": [
+                "Os modelos SES usam também corte automático de cabelos para reduzir a manutenção."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Retire o pano de limpeza ou o tecido da mopa.",
+                "Limpe-o e seque-o completamente antes de o reutilizar.",
+                "Substitua o pano quando estiver gasto."
+            ],
+            "notes": [
+                "Aplica-se apenas às variantes híbridas."
+            ]
+        }
+    }
+})
+UPKEEP_GUIDE_TRANSLATIONS['ru'].update({
+    "s1_pro": {
+        "filter": {
+            "steps": [
+                "Извлеките высокоэффективный фильтр из отсека пылесборника.",
+                "Осторожно постучите, чтобы стряхнуть пыль и мусор.",
+                "Установите фильтр на место или замените его, когда он станет чистым и сухим."
+            ],
+            "notes": [
+                "Раздел обслуживания аксессуаров в приложении — основная официальная процедура сброса для S1 Pro."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Протрите датчики робота мягкой сухой тканью.",
+                "Заодно очистите зарядные контакты при обслуживании датчиков."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Осмотрите боковую щётку на наличие намотавшихся волос и мусора.",
+                "Удалите загрязнения вокруг основания и щетинок.",
+                "Замените щётку, если щетинки погнуты или повреждены."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Снимите крышку турбощётки.",
+                "Проверьте щётку и обе торцевые заглушки на наличие намотавшихся волос и мусора.",
+                "Тщательно очистите щётку перед установкой на место."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Снимите валиковую швабру или контактные поверхности швабры и удалите остатки грязи.",
+                "Дайте очищенным деталям высохнуть перед повторным использованием.",
+                "Замените расходный элемент швабры, когда станет заметен износ или упадёт качество мытья."
+            ],
+            "notes": [
+                "Документация S1 ориентирована на валиковую швабру, а не на съёмные парные накладки."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Извлеките лоток фильтра или вставку лотка из зоны станции.",
+                "Промойте, удаляя остатки грязи и налёт.",
+                "Установите на место после очистки."
+            ],
+            "notes": [
+                "При необходимости также очистите баки чистой и грязной воды и фильтр грязной воды."
+            ]
+        },
+        "swivel_wheel": {
+            "steps": [
+                "Осмотрите поворотное колесо на наличие волос и мусора.",
+                "Удалите загрязнения и убедитесь, что колесо свободно вращается."
+            ]
+        }
+    },
+    "omni_c20": {
+        "filter": {
+            "steps": [
+                "Извлеките пылесборник или отсек фильтра.",
+                "Достаньте фильтр и постучите, чтобы стряхнуть пыль.",
+                "Промывайте, только если это допускает руководство или приложение, затем полностью высушите перед установкой на место."
+            ],
+            "notes": [
+                "Руководство по аксессуарам Omni C20 представлено в основном в виде видео."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Протрите чистой сухой тканью датчики и зарядные контакты как на роботе, так и на станции."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Осмотрите боковую щётку на наличие износа, намотавшегося мусора или повреждений.",
+                "Удалите намотавшиеся волосы и мусор со щётки и её основания.",
+                "Замените щётку, если щетинки погнуты или отсутствуют."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Осмотрите турбощётку на наличие намотавшихся волос и мусора.",
+                "С помощью инструмента для очистки или ножниц срежьте намотавшийся материал.",
+                "Установите на место после очистки."
+            ],
+            "notes": [
+                "Гребень Pro-Detangle снижает потребность в ручной очистке, но не устраняет её полностью."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Снимите салфетки для мытья с робота или станции.",
+                "Очистите и полностью высушите их перед повторным использованием.",
+                "Замените салфетки, когда они износятся или перестанут эффективно мыть."
+            ]
+        },
+        "cleaning_tray": {
+            "steps": [
+                "Отсоедините основание станции или узел мойки швабры.",
+                "Промойте и протрите зону лотка, удаляя остатки грязи.",
+                "Установите лоток на место после очистки."
+            ],
+            "notes": [
+                "Также следите за состоянием баков чистой и грязной воды и обслуживайте их."
+            ]
+        }
+    },
+    "x8_series": {
+        "filter": {
+            "steps": [
+                "Извлеките пылесборник и достаньте фильтр.",
+                "Осторожно постучите по фильтру, чтобы удалить пыль.",
+                "Если вы промыли фильтр, дайте ему полностью высохнуть перед установкой на место."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Протрите сухой тканью датчики перепада высоты, датчики бампера и зарядные контакты."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Снимите боковую щётку.",
+                "Удалите волосы и мусор со щётки и её основания.",
+                "Установите на место или замените при износе."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Сожмите защёлки крышки турбощётки и снимите крышку.",
+                "Извлеките турбощётку.",
+                "С помощью инструмента для очистки или ножниц удалите волосы и мусор.",
+                "Установите щётку и крышку на место."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Снимите салфетку для мытья с держателя.",
+                "Вымойте и высушите её перед повторным использованием.",
+                "Замените, если она износилась или перестала эффективно мыть."
+            ],
+            "notes": [
+                "Относится только к гибридным моделям X8 с функцией мытья."
+            ]
+        }
+    },
+    "l60_series": {
+        "filter": {
+            "steps": [
+                "Нажмите кнопку разблокировки пылесборника и извлеките пылесборник.",
+                "Достаньте фильтр и постучите, чтобы стряхнуть загрязнения.",
+                "Если это допускает руководство для вашей модели, промойте фильтр и полностью высушите его перед установкой на место."
+            ]
+        },
+        "sensor": {
+            "steps": [
+                "Протрите сухой тканью датчики и зарядные контакты на роботе и базе."
+            ]
+        },
+        "side_brush": {
+            "steps": [
+                "Снимите боковую щётку.",
+                "Удалите намотавшиеся волосы и мусор.",
+                "Установите на место или замените при износе."
+            ]
+        },
+        "rolling_brush": {
+            "steps": [
+                "Снимите крышку турбощётки.",
+                "Извлеките турбощётку.",
+                "Очистите щётку и подшипники от намотавшихся волос и мусора.",
+                "Протрите насухо и установите щётку и крышку на место."
+            ],
+            "notes": [
+                "Модели SES также используют автоматическую обрезку волос для сокращения обслуживания."
+            ]
+        },
+        "mopping_cloth": {
+            "steps": [
+                "Снимите насадку или салфетку для мытья.",
+                "Полностью очистите и высушите её перед повторным использованием.",
+                "Замените салфетку при износе."
+            ],
+            "notes": [
+                "Относится только к гибридным моделям."
+            ]
+        }
+    }
+})
