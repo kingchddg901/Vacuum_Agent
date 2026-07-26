@@ -11,11 +11,12 @@ in the module name) so it can be filled/reviewed in isolation. Frequencies are s
 to match the English base so the interval reads the same in every language. Pure
 data. Assembled into the adapter's ``upkeep_catalog.guide_translations``.
 
-EU set (de/es/fr/it/nl/pt) + zh-Hans transcribed from the official CE + CN
-manuals. Remaining official languages (ru/ja/ko/zh-Hant from regional editions;
-ar/he under the agree-in-principle check) are the same read-and-copy, added here.
+Transcribed from official manuals: de/es/fr/it/nl/pt (CE), zh-Hans (CN CDN),
+zh-Hant (TW), ru (S6 MaxV), ja (S5 Max — base only, rest fall back to English).
+ar/he are AI-DRAFTS (no official manual; manuals.plus inaccessible) — flagged in
+their modules, consistent with the card's ar/he draft locales.
 """
-from . import de, es, fr, it, nl, pt, zh_hans  # noqa: F401
+from . import ar, de, es, fr, he, it, ja, nl, pt, ru, zh_hans, zh_hant  # noqa: F401
 
 ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "de": de.GUIDE_TRANSLATIONS,
@@ -24,5 +25,12 @@ ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "it": it.GUIDE_TRANSLATIONS,
     "nl": nl.GUIDE_TRANSLATIONS,
     "pt": pt.GUIDE_TRANSLATIONS,
+    "ru": ru.GUIDE_TRANSLATIONS,
+    "ja": ja.GUIDE_TRANSLATIONS,
     "zh-Hans": zh_hans.GUIDE_TRANSLATIONS,
+    "zh-Hant": zh_hant.GUIDE_TRANSLATIONS,
+    "ar": ar.GUIDE_TRANSLATIONS,
+    "he": he.GUIDE_TRANSLATIONS,
 }
+# ko is the one remaining: kr.roborock.com surfaced only blog URLs, no direct PDF
+# to extract — falls back to English until its manual is harvested.
