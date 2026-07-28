@@ -129,7 +129,7 @@ DR-grade is earned per subsystem, one at a time. Track it here.
 | Subsystem | Doc | DR-grade? |
 |-----------|-----|-----------|
 | Battery | [12](12-battery-system.md) | ✅ ~90% (exemplar) |
-| Learning | [10](10-learning-system.md) | ✅ hardened to recon fidelity (persistence §§8–10 filled) |
+| Learning | [10](10-learning-system.md) | ✅ re-audited 2026-07-28 against this rubric — 12 collapse-zone gaps closed (full `completed_job` schema §2.0, room-stats/baseline field sets, `jobs_index` fields, `hass.data` caches, idle-wall blocker §3.2b, finalizer/host-contract drift). The audit also surfaced a **real code bug** (cancel reason dropped from the persisted `learning_blockers`) — fixed + regression-tested, per §5.2. |
 | *(all others)* | — | ⬜ reference-grade — pending audit against this standard |
 
 Harden one subsystem per pass: walk §4/§5, fix the collapse zones, update this row.

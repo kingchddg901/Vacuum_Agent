@@ -33,6 +33,63 @@ The system is entirely optional. The core integration runs without it; the learn
 
 ## 2. Data Collected Per Room
 
+### 2.0 The `completed_job` record (`jobs/{job_id}.json`) — full schema
+
+Every finalized run is persisted as one JSON file under `jobs/`. This record is the
+**source of truth** the entire rebuilder (§8) reads back — every aggregate is derived
+from it, so its exact shape is load-bearing. `build_completed_job_payload`
+(`learning/history_store.py`) returns the structure below; the `LearningJobFinalizer`
+then **adds several more fields after the builder returns** (the *finalizer post-adds*
+table), so the on-disk record is the union of both.
+
+```json
+{
+  "schema_version": 1,
+  "record_type": "completed_job",
+  "job_id": "job_2026-06-06T16-11-34",
+  "vacuum": { "entity_id": "vacuum.alfred", "name": "alfred" },
+  "job": {
+    "started_at": "<ISO>", "ended_at": "<ISO>",
+    "duration_minutes": 12.34,             // wall − paused − recharge, ≥0, 2dp
+    "wall_clock_duration_minutes": 12.34,  // raw ended_at − started_at
+    "paused_duration_seconds": 0,
+    "room_count": 3,
+    "actual_cleaning_minutes": 8.1,        // SINGLE-room jobs only (returning-transition slice); else null
+    "return_to_dock_minutes": 0.98,        // = max(wall − (actual_cleaning_minutes ?? duration), 0), 2dp; null when actual is null
+    "room_cleaning_minutes": 0.32,         // = max(actual − max(wall − actual, 0), 0), 2dp; null when actual is null
+    "room_timings": [ /* {room_id, slug, cleaning_start, cleaning_end, cleaning_seconds,
+                          cleaning_wall_seconds, area_m2, battery_delta, boundary}; see §2.2 */ ],
+    "transitions": [ /* {from_room_id, from_slug, to_room_id, to_slug, transit_seconds}; §2.2 */ ],
+    "transit_capture_valid": true,
+    "has_attribution_disagreement": false, // any room_timing carries attribution_disagreement (§2.4)
+    "zone_timings": [ ... ], "zone_count": 0
+  },
+  "battery": { "start": 100, "end": 82, "used": 18,    // used = max(start − end, 0)
+               "mid_job_recharge_observed": false, "mid_job_recharge_started_at": null,
+               "mid_job_recharge_count": 0, "recharge_seconds_accumulated": 0 },
+  "water":   { ... },                      // the job's water_estimate dict (dock/water subsystem), or {} when absent
+  "queue":   { "vacuum_entity_id": ..., "map_id": ..., "room_count": ..., "queue_room_ids": [...], "queue_rooms": [...] },
+  "payload": { ... },                      // dispatch payload snapshot, or {}
+  "resolved_rooms": [ ... ],               // the job's own room identity — TOP LEVEL, not inside "job"
+  "job_profile": { "map_id": 6, "room_count": 3, "room_slugs": [...], "rooms": [ ... ] },
+  "outcome": { ... },                      // §3.2 / §3.3 — status, used_for_learning, learning_blockers, sanity_*, cancel_detection, …
+  "finalized_at": "<ISO>"
+}
+```
+
+**Finalizer post-adds** — written onto the record *after* `build_completed_job_payload`
+returns, in `finalize_from_inputs` (§4.6 provenance):
+
+| Field | Where | When set |
+|---|---|---|
+| `job.cleaning_time_seconds` (+ `cleaning_time_seconds_raw`, `job.total_error_seconds`) | `job` | device cleaning counter; the `_raw` / `total_error_seconds` pair appears **only** when an error window was subtracted |
+| `job.cleaning_area_m2` + `job.cleaning_area_sensor_m2` | `job` | when `inputs.cleaning_area_m2` is present (a dispatched run stamps the sensor total into **both**) |
+| `job.overhead_observed` | `job` | `compute_overhead_observed(job)` base + per-room transit enrichment (§2.2) |
+| `job.battery_metrics` | `job` | `compute_job_battery_metrics(...)` drain rollup |
+| `outcome.idle_wall_minutes` (+ `extreme_idle_wall` blocker) | `outcome` | **only** when the cold-start idle guard holds the run (§3.2b) |
+| `learning_context` | record top level | `_build_learning_context(...)` — queue shape, estimate snapshot, actuals, estimate delta, access-graph summary |
+| `trace_run_id` | record top level | when the active job carried one |
+
 ### 2.1 Room stats (`room_stats.json` → `room_stats` array)
 
 Each entry in the `room_stats` array represents one unique combination of room identity and cleaning settings. It is keyed internally by the exact string:
@@ -84,6 +141,8 @@ lowercased.
 | `avg_robot_water_used_ml` | float | `total_robot_water_used_ml / sample_count` (per-room allocation) | Mean robot tank water per room |
 | `avg_water_overhead_ml` | float | `total_water_overhead_ml / sample_count` (dock wash + refill per-room) | Mean dock water overhead per room |
 | `avg_total_water_used_ml` | float | Sum of robot + overhead, per room | Mean total water used per room |
+| `timing_sample_count` | int | Count of minutes samples kept after the area-quality gate | Denominator for `avg_minutes` / the minutes band (≤ `sample_count`) |
+| `partial_excluded_count` | int | Count of minutes samples dropped by the area gate | Partial / interrupted cleans excluded from timing only (§2.1 gate) |
 
 **How `avg_minutes` is computed (cumulative average):**
 
@@ -93,7 +152,14 @@ The rebuilder scans all learning jobs from scratch on every rebuild. For each jo
 per_room_duration = job.duration_minutes / room_count
 ```
 
-This allocation is equal across all rooms in the job — there is no per-room actual timing sensor. For single-room jobs, `actual_cleaning_minutes` (derived from the state transition to `returning`) is preferred over `duration_minutes`.
+This equal split is only the **fallback**. When a job has valid counter capture
+(`transit_capture_valid`), each room's minutes sample is instead its **captured**
+`room_timings[].cleaning_wall_seconds / 60` — exact for single **and** multi-room jobs
+(`stats_rebuilder.build_room_stats_payload`); `duration_minutes / room_count` is used
+only for a room with no captured segment. Note `actual_cleaning_minutes` is **not** used
+for the room-stats sample — it feeds the *job-level* duration in `job_stats` / `jobs_index`
+(single-room jobs via `room_cleaning_minutes` → `actual_cleaning_minutes` → `duration_minutes`),
+not the per-room minutes here.
 
 All per-room samples are collected into `room_samples[exact_key]`. The final `avg_minutes` is:
 
@@ -143,6 +209,20 @@ Each bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes
 **Water metrics in `room_baselines`:** Paralleling `room_stats`, each baseline also carries `avg_robot_water_used_ml`, `avg_water_overhead_ml`, and `avg_total_water_used_ml` (all rounded to 2 dp).
 
 **Carpet counts in `room_baselines`:** The baseline holds `carpet_true_count` (runs on carpet) and `carpet_false_count` (runs on hard floor) — a tally of runs per surface type. Effective modes are tracked as a dict `{mode: count}` (keyed by mode, incremented once per run).
+
+**Complete `room_baselines` entry field set** (one per `{map_id, room_slug}`, from `build_room_stats_payload`, so it can be serialized exactly):
+
+`map_id`, `room_slug`, `sample_count`, `avg_minutes`, `minutes_min`, `minutes_max`,
+`minutes_stddev`, `timing_sample_count`, `partial_excluded_count`, `avg_battery_used`,
+`avg_robot_water_used_ml`, `avg_water_overhead_ml`, `avg_total_water_used_ml`,
+`avg_drift_minutes`, `avg_abs_drift_minutes`, `area_sample_count`, `avg_area_m2`,
+`area_m2_min`, `area_m2_max`, `area_m2_stddev`, `effective_modes` (`{mode: count}`),
+`clean_times` (per-pass-count tally, mirroring `effective_modes`), `carpet_true_count`,
+`carpet_false_count`, `by_clean_times`, `by_edge_mopping`, and the transit bands
+`avg_ingress_transit_seconds` / `ingress_transit_seconds_min` / `ingress_transit_seconds_max` /
+`ingress_transit_seconds_stddev` / `ingress_sample_count` (plus the `egress_*` mirror).
+Means round to 2 dp; every `*_stddev` rounds to 4 dp. Each `by_clean_times` /
+`by_edge_mopping` bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes_stddev, avg_battery_used}`.
 
 ### 2.2 Transit / travel-time learning (`transit_stats` / `access_graph_edges`)
 
@@ -361,11 +441,12 @@ Returns `None` if the stream has no usable signal (empty, or no cleaning_time in
 The rebuilder aggregates only `transit_capture_valid` jobs into two **room_stats**
 arrays (one source of truth for both the estimator and any access-graph consumer):
 
-- `transit_stats` — per room-pair, in **seconds**: `{from_room_id, to_room_id,
+- `transit_stats` — per room-pair, in **seconds**: `{map_id, from_room_id, to_room_id,
   from_slug, to_slug, sample_count, avg_seconds, seconds_min, seconds_max,
-  seconds_stddev}`
-- `access_graph_edges` — the same pairs in **minutes** for the estimator:
-  `{…, sample_count, transit_minutes_mean, transit_minutes_stddev}`
+  seconds_stddev}` (the identity is `map_id`-first)
+- `access_graph_edges` — the same pairs (same `map_id`-first identity) in **minutes**
+  for the estimator: `{map_id, from_room_id, to_room_id, from_slug, to_slug,
+  sample_count, transit_minutes_mean, transit_minutes_stddev}`
 
 Each `room_baselines` entry also gains `avg_ingress_transit_seconds` (transit
 *into* the room) and `avg_egress_transit_seconds` (transit *out of* it), each with
@@ -374,8 +455,18 @@ a `_min/_max/_stddev` band plus `ingress_sample_count` / `egress_sample_count`.
 
 Room stats and accuracy stats are cached in memory (`LearningManager._room_stats_cache` and `_accuracy_stats_cache`, both dicts keyed by `vacuum_entity_id`) to avoid repeated disk reads on every estimate poll. The caches are warm-loaded at startup via `async_preload_learning_stats` (runs on the executor) and are explicitly cleared when stats are rebuilt (`_invalidate_learning_stats_cache`). The cached data lives in the manager's instance, not in `hass.data` — each manager instance (and each vacuum) has its own copy. The estimator reads from the manager's cache and never hits disk during estimates.
 
+**A second cache layer lives in `LearningHistoryStore`**, scoped to `hass.data` (distinct
+from the manager instance caches above). `_room_stats_cache()` / `_accuracy_stats_cache()` /
+`_job_stats_cache()` each return `hass.data.setdefault("_eufy_vacuum_{room,accuracy,job}_stats_cache", {})`
+— three dicts keyed by the **`str(path)`** of the target file, shared across every
+`LearningHistoryStore` instance (estimator, rebuilder, finalizer) yet fresh per `hass` so tests
+don't bleed. They are **write-through**: `save_room_stats` / `save_accuracy_stats` /
+`save_job_stats` (the sole writer of each file) refresh the entry, so a read never goes stale.
+`warm_estimate_caches(vacuum_entity_id=…)` (called from an executor at startup) preloads all
+three so the first loop-bound dashboard estimate after a restart never blocks on a disk read.
+
 **Job-level overhead** (`overhead_observed`, retroactive-safe) is attached to each
-job by the finalizer via `compute_overhead_observed(job: dict[str, Any])` (`learning/utils.py` lines 123–160):
+job by the finalizer via the module-level `compute_overhead_observed(job)` in `learning/utils.py`:
 returns `{total_overhead_minutes, entry_minutes, inter_room_minutes, return_minutes,
 recharge_minutes, wash_minutes}`. Signature reads:
 
@@ -389,6 +480,14 @@ Formula: `total_overhead_minutes = duration_minutes − cleaning_minutes` (≥ 0
 ### 2.3 Accuracy store (`accuracy_stats.json` → `rooms` dict)
 
 A separate file tracking how accurate estimates have been against actuals. Keyed by the **same** `_room_key` as `room_stats` (one shared builder in `utils.py`, so the two can never drift) — which now includes `edge_mopping`, so drift is tracked per edge variant. Updated incrementally after every job (not rebuilt from scratch) via `record_estimate_accuracy` in the estimator; because it is never rebuilt, any entries written under the older key format (before edge was added) are simply orphaned — harmless, and they fall out of use as new keys accumulate.
+
+**File wrapper** (`accuracy_stats.json`):
+```json
+{ "schema_version": 1, "vacuum_entity_id": "vacuum.alfred", "updated_at": "<ISO>", "rooms": { ... } }
+```
+The `rooms` dict is keyed by the full 7-part `_room_key`
+(`map_id::slug::mode::passes::carpet::intensity::edge`); each value is the per-entry record
+below. `updated_at` is stamped on every incremental write.
 
 **Fields per entry:**
 
@@ -568,8 +667,9 @@ Any job that fails this check is visible in the jobs index and CSV exports but i
 | `test_job` | `build_completed_job_payload`: `is_test_job == True` or `status == "test"` |
 | `floor_time_too_short` | `build_completed_job_payload` reads `cancel_detection.reason` from `extra_outcome` when `cancel_likely == True` (reason is set by `_detect_cancel_likely_run` in `job_finalizer.py`) |
 | `early_return_likely_cancelled` | `build_completed_job_payload` reads `cancel_detection.reason` from `extra_outcome` when `cancel_likely == True` (reason is set by `_detect_cancel_likely_run` in `job_finalizer.py`) |
+| `extreme_idle_wall` | `_apply_idle_wall_hold` (`job_finalizer.py`): a **completed**, learning-eligible run whose unexplained idle gap ≥ 20 min — see §3.2b. Also writes `outcome.idle_wall_minutes`. |
 
-**Blocker computation provenance:** All blockers are computed in `build_completed_job_payload` (lines 1018–1072 of `history_store.py`). The cancel-detection blockers are populated by appending `cancel_detection.get("reason")` from the `extra_outcome` dict parameter when it signals `cancel_likely == True` (line 1067).
+**Blocker computation provenance:** The first eight rows are computed inside `build_completed_job_payload` (`history_store.py`) as it assembles the `outcome`. The cancel-detection reason is appended when `extra_outcome.cancel_detection.cancel_likely` is set, and **re-published** into `outcome["learning_blockers"]` inside that same branch — the blockers list is snapshotted into `outcome` *before* the cancel branch runs, so the branch must re-publish it, otherwise a heuristic-only cancel (where `was_cancelled` was not already set) would persist with an empty blockers list. `extreme_idle_wall` is applied separately, by the finalizer's `_apply_idle_wall_hold`, **after** the payload is built (§3.2b).
 
 Manual exclusion via the `exclude_learning_job` service adds two additional blockers: `manually_excluded` and whatever reason string was passed (default `manual_exclusion`).
 
@@ -599,6 +699,38 @@ early_return_likely_cancelled when job_duration_minutes < short_threshold
 ```
 
 The cancel-like transition is either a **direct return** (task_status goes from an `active` state straight to `returning`) or a **paused-then-return** (a `paused` state followed by `returning`) — the active / paused / returning states are all adapter-configurable. A service-state exclusion layer (`cancel_service_exclusion_states` vocab) prevents false positives from normal service cycles (low-battery return, mop wash, dust empty). Non-single-room jobs, jobs missing timestamps, or jobs with no state transitions never trigger cancel detection.
+
+### 3.2b Idle-wall hold — cold-start baseline guard
+
+A run can be a clean `completed` with `used_for_learning = True` and still be **held** from
+defining a room baseline if it spent an extreme, unexplained stretch off the dock. The guard
+runs at finalize (`_apply_idle_wall_hold` in `job_finalizer.py`, decision logic in
+`utils.evaluate_idle_wall_hold`) and only touches runs that are `status == "completed"` and
+still `used_for_learning`.
+
+```
+idle_gap = duration_minutes - active_cleaning_minutes
+```
+
+- `duration_minutes` is already paused / recharge-adjusted (§2.0).
+- `active_cleaning_minutes` is the **device** cleaning counter (`cleaning_time_seconds / 60`),
+  falling back to `actual_cleaning_minutes` only when the counter is absent (≤ 0). It is
+  deliberately **not** the state-transition wall slice — a stuck / idling run's slice tracks
+  nearly the whole wall and would hide the idle as a ~0 gap.
+
+**Hold when** `idle_gap >= 20.0` (`IDLE_WALL_HOLD_FLOOR_MINUTES`), **unless** the run is exempt:
+it ran a commanded charge-wait / wait phase (`had_break_phase`) or logged an error (`had_errors`)
+— both legitimately inflate wall time and carry their own flags. Absent a trustworthy
+`active_cleaning_minutes` (`None` or ≤ 0) the run is **not** held (missing data is not evidence
+of idling).
+
+On hold the guard appends `extreme_idle_wall` to `outcome["learning_blockers"]`, clears
+`outcome["used_for_learning"]`, and writes `outcome["idle_wall_minutes"] = idle_gap`. The run
+stays visible and Restore-able in the review tab — a soft hold, not a hard exclude. The 20-minute
+floor is data-derived from Alfred's archive (legit runs cluster ≤ ~11.7 min idle with a lone
+23 min outlier, then a wide empty band up to a 96 min hand-excluded exemplar). The guard is
+**always-on** by design: the danger case is a *new* room's first sample, so it cannot wait for a
+baseline to exist before protecting one.
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §7 for the finalization pipeline that evaluates these blockers and writes `used_for_learning` onto the completed job record.
 
@@ -1076,11 +1208,16 @@ Top-level structure:
 }
 ```
 
-`jobs` array (one entry per completed job, all outcomes):
+`jobs` array (one entry per completed job, all outcomes) — full field set in write order:
 - `job_id`, `started_at`, `ended_at`, `duration_minutes`, `room_count`, `room_slugs` (list)
-- `status`, `used_for_learning`, `sanity_passed`
+- `zone_count` (int), `zone_names` (list)
+- `status`, `origin` (`"external"` for app-started graduated runs, else dispatched), `has_attribution_disagreement` (bool; §2.4)
+- `cleaning_area_m2` (float | null), `cleaning_area_sensor_m2` (float | null — the device's own run total), `area_over_attributed` (bool — attributed per-room sum exceeded the sensor total; §2.4)
+- `used_for_learning`, `sanity_passed` (**forced `True`** for `origin == "external"` records)
 - `battery_used`, `robot_water_used_ml`, `water_overhead_ml`, `total_water_used_ml`
 - `cancel_detection` (object), `mid_job_recharge_observed` (bool)
+
+The four keys `status` / `origin` / `has_attribution_disagreement` / `area_over_attributed` are exactly what the self-heal detector (§8.5) checks for on the first entry to decide whether an old index needs a one-time rebuild.
 
 `rooms` array (one entry per unique room slug, aggregated across all jobs):
 - `room_slug`, `run_count`, `learning_run_count`, `avg_duration_minutes`, `avg_battery_used`
@@ -1189,7 +1326,7 @@ All learning system classes are bound to Home Assistant at instantiation:
 |---|---|---|
 | `LearningHistoryStore` | `__init__(self, hass: HomeAssistant)` | File I/O for all JSON and CSV. Base dir from `hass.config.config_dir`. |
 | `LearningStatsRebuilder` | `__init__(self, hass: HomeAssistant)` | Rebuilds stats. Owns `LearningHistoryStore` instance. |
-| `LearningJobFinalizer` | `__init__(self, hass: HomeAssistant)` | Finalizes completed jobs. Owns `LearningHistoryStore` and `LearningStatsRebuilder` instances. |
+| `LearningJobFinalizer` | `__init__(self, hass, *, estimate_fn=None, error_source=None, battery_sink=None)` | Finalizes completed jobs. Owns `LearningHistoryStore` + `LearningStatsRebuilder`. The three keyword seams are **injected** (§9.3): `estimate_fn` = the estimator (so the cancel-likely heuristic never re-fetches the manager — re-entrancy), `error_source` = harvest the run's error latch, `battery_sink` = push job battery metrics. `error_source` / `battery_sink` are `None`-guarded (a host without those siblings degrades cleanly). `LearningManager` wires all three: `estimate_fn=self.estimate_from_manager`, `error_source=_make_error_source(hass)`, `battery_sink=_make_battery_sink(hass)`. |
 | `LearningManager` | `__init__(self, hass: HomeAssistant)` | Orchestrates all modules. Owns `LearningHistoryStore`, `LearningJobFinalizer`, `LearningStatsRebuilder`, and `LearningEstimator` instances. |
 | `LearningEstimator` | `__init__(self, hass: HomeAssistant)` | Estimation and confidence math. Pure computation but needs `hass` for entity lookups. |
 
@@ -1298,6 +1435,7 @@ class BrandFacts(Protocol):
                                                           # "water_level", "wash_frequency_mode"
 
     mid_run_statuses: frozenset[str]                      # docked-but-will-resume
+    cleaning_time_unit: str | None                        # bare-number cleaning_time fallback unit (Roborock = minutes; None → seconds)
     cancel_service_exclusion_states: frozenset[str]       # early-return explained by a service call
     cancel_detection_states: dict[str, str | list[str]]   # {"active": …, "returning": …, "paused": …}
 
@@ -1323,7 +1461,7 @@ The seam-tightening this draft first called "cruft" split into two on contact wi
 - **The Eufy fallback is intentional.** `get_job_segmenter_engine` falls back to the Eufy engine for an absent/unknown name so no-adapter / legacy devices keep segmenting **byte-for-byte**; flipping it to noop is a behavior change the code explicitly warns against. `NoopJobSegmenter` is registered for a genuinely signal-less brand but is deliberately *not* the default.
 - **The engine layer is already a plugin system** (the registry + adapter-declared `job_segmenter.engine`; both Eufy and Roborock declare theirs). The Eufy engine living in learning with a by-reference-tuning verbatim delegation is a deliberate anti-drift design (the `[JE-7]` fidelity battery). Relocating it to `adapters/eufy` is a marginal portability gain for a Eufy-first integration — a deliberate choice if ever wanted, not a cleanup.
 
-**Remaining optional polish:** the two sibling pushes (battery-metrics push + error-harvest read) can become injected sinks — they're already `None`-guarded, so they degrade gracefully today.
+**Injected sinks (done):** the two sibling pushes — battery-metrics push (`battery_sink`) and error-harvest read (`error_source`) — are now **injected** into `LearningJobFinalizer` (§9.1), replacing the earlier direct sibling reads. Both stay `None`-guarded, so a host without those subsystems degrades cleanly.
 
 #### Why this contract is bigger than learning
 
