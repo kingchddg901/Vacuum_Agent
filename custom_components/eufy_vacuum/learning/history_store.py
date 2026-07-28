@@ -1097,6 +1097,13 @@ class LearningHistoryStore:
                 outcome["used_for_learning"] = False
                 outcome["was_cancelled"] = True
                 outcome["status"] = "cancelled"
+                # The cancel reason is appended AFTER outcome["learning_blockers"]
+                # was snapshotted above, so re-publish the canonical list — else a
+                # heuristic-detected cancel (was_cancelled not already set) persists
+                # with an empty blockers list despite used_for_learning=False, and
+                # the reason survives only in cancel_detection. Mirrors the idle-wall
+                # guard, which writes outcome["learning_blockers"] the same way.
+                outcome["learning_blockers"] = sorted(set(learning_blockers))
 
         # --- Transit / travel-time capture (frame-invariant, time-based) ------
         # Map cleaning_time segments (captured during the run) onto the dispatched

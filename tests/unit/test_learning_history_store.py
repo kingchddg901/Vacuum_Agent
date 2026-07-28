@@ -121,6 +121,30 @@ def test_build_payload_rooms_zone_reconstructs_rooms_from_phases(tmp_path):
     assert "missing_resolved_rooms" not in payload["outcome"]["learning_blockers"]
 
 
+def test_build_payload_cancel_reason_recorded_in_learning_blockers(tmp_path):
+    """A heuristic-detected cancel (cancel_detection.cancel_likely) that the app did NOT
+    already report as cancelled (was_cancelled stays default False) must record its reason in
+    outcome["learning_blockers"], not only under cancel_detection. Regression: the reason was
+    appended to the local list AFTER outcome["learning_blockers"] was snapshotted, so the
+    persisted blockers came back empty on an excluded job — masking WHY it was dropped."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jcx",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:04:00+00:00",
+        battery_start=90, battery_end=88, queue_state={}, payload_state={},
+        active_job_state={"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}]},
+        extra_outcome={"cancel_detection": {"cancel_likely": True,
+                                            "reason": "early_return_likely_cancelled"}},
+    )
+    outcome = payload["outcome"]
+    # The run is excluded from learning and marked cancelled...
+    assert outcome["used_for_learning"] is False
+    assert outcome["status"] == "cancelled"
+    assert outcome["was_cancelled"] is True
+    # ...AND the reason is in the canonical blockers list, not only cancel_detection.
+    assert "early_return_likely_cancelled" in outcome["learning_blockers"]
+
+
 def test_build_payload_prefers_active_job_over_rehydrated_payload(tmp_path):
     """The record's room identity must come from the JOB (active_job phases), NEVER a live payload
     that was re-hydrated mid-run. Regression for the live corruption: a Kitchen+Hallway+zone run
