@@ -545,69 +545,6 @@ class LearningHistoryStore:
         payload = self.read_json(self.get_jobs_index_path(vacuum_entity_id=vacuum_entity_id))
         return payload if isinstance(payload, dict) else None
 
-
-    def _build_jobs_index_entry(
-        self,
-        *,
-        completed_job: dict[str, Any],
-    ) -> dict[str, Any] | None:
-        """Return a compact per-job index entry for room-history rebuilds."""
-        if not isinstance(completed_job, dict):
-            return None
-        if str(completed_job.get("record_type", "")).strip().lower() != "completed_job":
-            return None
-
-        outcome = completed_job.get("outcome", {})
-        if not isinstance(outcome, dict):
-            return None
-        if str(outcome.get("status", "")).strip().lower() != "completed":
-            return None
-
-        job_info = completed_job.get("job", {})
-        if not isinstance(job_info, dict):
-            job_info = {}
-
-        ended_at = str(job_info.get("ended_at") or completed_job.get("finalized_at") or "").strip()
-        if not ended_at:
-            return None
-
-        map_id = str(
-            completed_job.get("job_profile", {}).get("map_id")
-            or completed_job.get("queue", {}).get("map_id")
-            or "unknown"
-        )
-
-        resolved_rooms = completed_job.get("resolved_rooms", [])
-        if not isinstance(resolved_rooms, list):
-            resolved_rooms = []
-
-        rooms: list[dict[str, Any]] = []
-        for room in resolved_rooms:
-            if not isinstance(room, dict):
-                continue
-            room_id = _safe_int(room.get("room_id", room.get("id")), -1)
-            if room_id <= 0:
-                continue
-            clean_mode = str(room.get("clean_mode", "")).strip().lower() or None
-            room_name = str(room.get("name", f"Room {room_id}")).strip() or f"Room {room_id}"
-            rooms.append(
-                {
-                    "room_id": room_id,
-                    "room_name": room_name,
-                    "clean_mode": clean_mode,
-                    "last_cleaned_at": ended_at,
-                    "last_vacuumed_at": ended_at if clean_mode and ("vacuum" in clean_mode or clean_mode in {"vacuum", "vacuum_mop"}) else None,
-                    "last_mopped_at": ended_at if clean_mode and ("mop" in clean_mode or clean_mode in {"mop", "vacuum_mop"}) else None,
-                }
-            )
-
-        return {
-            "job_id": str(completed_job.get("job_id", "")).strip(),
-            "ended_at": ended_at,
-            "map_id": map_id,
-            "rooms": rooms,
-        }
-
     def get_accuracy_stats_path(self, *, vacuum_entity_id: str) -> Path:
         """Return per-room estimate accuracy stats path."""
         paths = self.ensure_dirs(vacuum_entity_id=vacuum_entity_id)

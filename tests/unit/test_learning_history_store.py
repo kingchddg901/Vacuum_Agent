@@ -683,67 +683,6 @@ def test_is_learning_job_missing_outcome():
 
 
 # ---------------------------------------------------------------------------
-# _build_jobs_index_entry
-# ---------------------------------------------------------------------------
-
-def test_build_jobs_index_entry_basic(tmp_path):
-    store = _make_store(tmp_path)
-    job = _minimal_completed_job(job_id="j-001")
-    entry = store._build_jobs_index_entry(completed_job=job)
-    assert entry is not None
-    assert entry["job_id"] == "j-001"
-    assert entry["map_id"] == "6"
-    assert len(entry["rooms"]) == 1
-    assert entry["rooms"][0]["room_id"] == 1
-    assert entry["rooms"][0]["room_name"] == "Kitchen"
-
-
-def test_build_jobs_index_entry_wrong_status_returns_none(tmp_path):
-    store = _make_store(tmp_path)
-    job = _minimal_completed_job(status="cancelled")
-    entry = store._build_jobs_index_entry(completed_job=job)
-    assert entry is None
-
-
-def test_build_jobs_index_entry_wrong_record_type_returns_none(tmp_path):
-    store = _make_store(tmp_path)
-    job = _minimal_completed_job()
-    job["record_type"] = "live_snapshot"
-    entry = store._build_jobs_index_entry(completed_job=job)
-    assert entry is None
-
-
-def test_build_jobs_index_entry_no_ended_at_returns_none(tmp_path):
-    store = _make_store(tmp_path)
-    job = _minimal_completed_job()
-    job["job"] = {}  # no ended_at
-    entry = store._build_jobs_index_entry(completed_job=job)
-    assert entry is None
-
-
-def test_build_jobs_index_entry_mop_mode_sets_mopped_at(tmp_path):
-    store = _make_store(tmp_path)
-    job = _minimal_completed_job()
-    job["resolved_rooms"] = [{"room_id": 2, "name": "Hallway", "clean_mode": "mop"}]
-    entry = store._build_jobs_index_entry(completed_job=job)
-    assert entry is not None
-    room = entry["rooms"][0]
-    assert room["last_mopped_at"] is not None
-    assert room["last_vacuumed_at"] is None
-
-
-def test_build_jobs_index_entry_vacuum_mop_mode_sets_both(tmp_path):
-    store = _make_store(tmp_path)
-    job = _minimal_completed_job()
-    job["resolved_rooms"] = [{"room_id": 3, "name": "Office", "clean_mode": "vacuum_mop"}]
-    entry = store._build_jobs_index_entry(completed_job=job)
-    assert entry is not None
-    room = entry["rooms"][0]
-    assert room["last_vacuumed_at"] is not None
-    assert room["last_mopped_at"] is not None
-
-
-# ---------------------------------------------------------------------------
 # build_completed_job_payload
 # ---------------------------------------------------------------------------
 
