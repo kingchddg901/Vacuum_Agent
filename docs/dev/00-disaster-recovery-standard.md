@@ -1,0 +1,135 @@
+# 00 — Disaster-Recovery Doc Standard
+
+> **Scope:** The bar every `docs/dev/` subsystem doc is measured against. A doc is
+> *disaster-recovery grade* when someone with **only the doc — no source** — can
+> rebuild the subsystem with correct behaviour, API, and data shapes. This file
+> defines what that requires, why, and how to check it. It is grounded in two
+> measured reconstruction runs, not vibes.
+
+This standard governs the numbered dev docs; [12 — Battery](12-battery-system.md) and
+[10 — Learning](10-learning-system.md) are the worked exemplars.
+
+---
+
+## 1. What "disaster-recovery grade" means
+
+The test is literal: **a blind reader (or agent) rebuilds the module from the doc
+alone; the rebuild is diffed against the real source; the diff measures the doc.**
+Every behavioural/API/shape difference that traces to a doc omission is a doc defect
+(`DOC_GAP`), separate from reader mistakes (`AGENT_MISS`). The goal is that if the
+code vanished, the docs are enough to bring it back.
+
+This is a stricter bar than "reference." A reference doc explains *what and why*. A
+disaster-recovery doc is an **executable specification** — precise enough to re-derive
+*the exact bytes on disk and the exact edge behaviour*, not just the idea.
+
+## 2. What we measured (why the rubric is shaped this way)
+
+Two runs, blind reconstruction → adversarial diff vs source:
+
+- **Battery docs → ~90% cold.** Strong; the ~10% miss was underspecified edges.
+- **Learning docs → ~55% (broke the 90% bar).** A sharp, informative split:
+  - **Algorithm / math reconstructs well** — estimator ~75%, utils ~68%; most misses
+    were reader errors (rounding, indexing), not doc faults.
+  - **Persistence / serialization / HA-integration COLLAPSES** — `stats_rebuilder`
+    ~35%, `history_store` ~35%. Whole surfaces were simply absent: exact CSV columns
+    (19 of 27 missing), `job_stats` JSON nesting, `jobs_index` schema, `hass.data`
+    cache keys, atomic writes, HA-bound constructors, the ~14-kwarg
+    `build_completed_job_payload` signature, water metrics everywhere.
+  - **7 statements were CONFIDENTLY WRONG** — worse than silence, because they
+    actively misled the rebuild (0-vs-1 indexing, drift source, a formula weight that
+    under-weighted area ~100×, a function's module-vs-method location, a default).
+
+**Conclusion the standard encodes:** docs are naturally good at *algorithm* and weak
+at *serialization + integration + edges*. So this rubric **front-loads the collapse
+zones** (§2 data shapes, §3 edges, §4 integration) and **bans confident wrongness**
+(§meta). Don't spend the effort where docs already succeed; spend it where they fail.
+
+## 3. The grade scale
+
+| Grade | Answers | Can you rebuild from it? |
+|-------|---------|--------------------------|
+| Reference | what & why | no |
+| Interface | + API / signatures | partially |
+| **Reconstruction (DR-grade)** | + exact shapes, edges, integration, provenance | **yes** |
+
+DR-grade = Reconstruction. Everything below is what pushes a doc up to it.
+
+## 4. The rubric — a DR-grade subsystem doc MUST specify
+
+Grouped by the failure modes above; use as a checklist.
+
+### 4.1 Algorithm & rules *(docs already do this — hold the line)*
+- The exact computation: **every formula with all terms, coefficients, and weights** —
+  not "weighted by area" but the actual weight (area was ~100× under-weighted once).
+- Precedence / tie-breaking / ordering rules, stated explicitly.
+- Behaviour at the boundaries of each input range.
+
+### 4.2 Data shapes & serialization *(the #1 collapse zone — spell it out)*
+- Every persisted structure's **exact schema**: field names, types, and **nesting**.
+- Exact file formats: **CSV columns in order and count**; JSON key layout; store keys.
+- In-memory layout that survives restarts (`hass.data` cache keys + shape).
+- **Per-field rounding precision** (e.g. 2 dp vs 4 dp).
+- What is **persisted vs computed-on-read**, and **when** each field is set
+  (e.g. a value added by a *finalizer after* the main compute).
+
+### 4.3 Edge behaviour — clamps, coercion, indexing *(silently glossed = silently wrong)*
+- Every **clamp** with its exact condition → result ("negative → `None`"; ">0 gate";
+  int/float coercion). "…and then it's clamped" is **not** enough — state the clamp.
+- **Indexing conventions**: 0- vs 1-based, per structure (a confidently-wrong source).
+- Null / empty / missing handling, per field.
+
+### 4.4 Integration & host contract *(HA-bound = collapses)*
+- **Entry-point / constructor signatures with all arguments** (the ~14-kwarg payload
+  builder is a rebuild-blocker if absent).
+- The **host contract**: what is *injected* vs *imported* — the seam a rebuild must
+  reproduce. Write it as an explicit contract (cf. learning's `LearningHost` /
+  `BrandFacts` Protocols).
+- **Persistence mechanics**: atomic write (temp-file → rename), cache lifecycle.
+
+### 4.5 Brand / variant dependence *(the leak that hides bugs)*
+- Flag **explicitly** any behaviour that differs by brand / model / variant. The
+  `clean_times` clamp (Eufy caps 2 passes, Roborock allows 1–3) was undocumented —
+  and was a *real bug*, not just a doc gap.
+- Mark which values are **observed-data passthrough** vs **capability-branched**.
+
+### 4.6 Provenance & location
+- Where each field originates and **when** it is set (post-compute additions).
+- A function/method's **location** when it matters (module-level vs method — a
+  confidently-wrong source once).
+
+## 5. Meta-rules (as important as the checklist)
+
+1. **Never be confidently wrong.** A precise-but-unverified statement is *worse than
+   silence* — it misleads the rebuild. If you have not verified it against source,
+   mark it *unverified* or omit it. Hedge, don't harden.
+2. **A reconstruction that disagrees with the doc/code is a BUG SIGNAL.** When a
+   *reasonable* rebuild contradicts what's written, the **code** may be wrong — the
+   `clean_times` Eufy-ism surfaced exactly this way (the "no clamp" guess was closer
+   to correct than the buggy clamp). Investigate the disagreement; don't just patch
+   the doc.
+3. **This depth is intentional — do not trim it as "over-documentation."** The clamps,
+   exact columns, and kwarg lists are the load-bearing parts; a normal doc glosses
+   precisely what reconstruction needs. Guard them against future cleanup passes.
+
+## 6. Acceptance test
+
+- **Full (measured):** a blind agent rebuilds the module from the doc alone; diff vs
+  source; classify each miss `DOC_GAP` vs `AGENT_MISS`; the `DOC_GAP`s are the doc's
+  failures. Re-verify each proposed doc fix *against source* before applying (an eval's
+  "codeTruth" is ~90% reliable, not 100% — and the mismatch may be a code bug, per §5.2).
+- **Pragmatic (per-doc walk):** run §4 against the doc. Audit §4.2–§4.4 hardest —
+  that's where docs collapse; §4.1 usually survives. A doc passes when nothing in the
+  collapse zones is missing, hand-wavy, or unverified.
+
+## 7. Subsystem status
+
+DR-grade is earned per subsystem, one at a time. Track it here.
+
+| Subsystem | Doc | DR-grade? |
+|-----------|-----|-----------|
+| Battery | [12](12-battery-system.md) | ✅ ~90% (exemplar) |
+| Learning | [10](10-learning-system.md) | ✅ hardened to recon fidelity (persistence §§8–10 filled) |
+| *(all others)* | — | ⬜ reference-grade — pending audit against this standard |
+
+Harden one subsystem per pass: walk §4/§5, fix the collapse zones, update this row.
