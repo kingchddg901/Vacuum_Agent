@@ -44,6 +44,7 @@ produce `.corrupt` backup files.
   "vacuums":          dict[vacuum_entity_id, VacuumBucket]
   "maps":             dict[vacuum_entity_id, dict[map_id_str, MapBucket]]
   "capabilities":     dict[vacuum_entity_id, CapabilityBucket]
+  "adapters":         dict[vacuum_entity_id, AdapterConfig]   # UI-wizard adapter configs; see 22-adapter-config-reference.md
   "active_jobs":      dict[vacuum_entity_id, dict[map_id_str, ActiveJobState]]
   "profiles":         dict["room_profiles", dict[profile_name, RoomProfileEntry]]
   "run_profiles":     dict[vacuum_entity_id, dict[map_id_str, dict[profile_id, RunProfileEntry]]]
@@ -51,11 +52,15 @@ produce `.corrupt` backup files.
   "room_rule_status": dict[vacuum_entity_id, dict[map_id_str, dict[room_id_str, RuleStatusEntry]]]
   "setup_progress":   dict[vacuum_entity_id, SetupProgressRecord]
   "error_tracker":    dict[vacuum_entity_id, ErrorTrackerBucket]
+  "battery":          {"vacuums": dict[vacuum_entity_id, BatteryRecord]}   # learned charge-rate / health; see 12-battery-system.md
   "theme":            ThemeRoot
   "maintenance":      dict                             # domain bucket; see maintenance/
   "dock_events":      dict                             # domain bucket; see dock/
   "onboarding":       dict                             # domain bucket; see onboarding/
   "discovery":        dict[vacuum_entity_id, dict[map_id, DiscoveryPayload]]
+  "learning_processing_enabled": bool                  # box-level learning toggle; default True
+  "learning_pending_runs":       dict[vacuum_entity_id, int]   # per-vacuum collected-but-unprocessed run count
+  "analytics":        dict                             # storage default; currently unused (always {})
   "queue":            dict[vacuum_entity_id, dict[map_id_str, QueueState]]    # derived snapshot; see §4
   "payloads":         dict[vacuum_entity_id, dict[map_id_str, PayloadState]]  # derived room-clean payload snapshot; see §4
 }
@@ -68,15 +73,24 @@ or a run is built, and they persist alongside the rest of `self.data`. Like the
 other lazily-created keys, a reader must tolerate their absence (see §16's
 derived-state note).
 
+A transient staging key `_pending_run_steps` (`dict[vacuum][map] = steps`) is
+written into `self.data` by `start_run_profile` when a stepped run carries
+charge/wait stops, and popped by `run_plan._build_effective_start_plan` at job
+start. It lives in the durable dict but is ephemeral by intent (a save that
+interleaves the stash/pop would persist it — non-owning readers ignore it).
+
 **Key seeding:** `core/storage.py async_load()` returns a default dict with
 `vacuums`, `maps`, `theme`, `analytics`, `maintenance`, `dock_events`,
 `onboarding`, and `error_tracker` already present on an empty store.
 `async_initialize()` (`core/manager.py`) then `setdefault`s the keys it depends
-on — `vacuums` (already present), `capabilities`, `room_history`, and
-`room_rule_status`. The remaining keys above (`active_jobs`, `profiles`,
-`run_profiles`, `setup_progress`, `discovery`) are created lazily by their
-owning subsystems on first write, so they may be absent until that subsystem
-first runs. Code that reads any other key must tolerate its absence.
+on — `vacuums` (already present), `capabilities`, `room_history`,
+`room_rule_status`, `learning_processing_enabled` (default `True`), and
+`learning_pending_runs`. The remaining keys above (`active_jobs`, `profiles`,
+`run_profiles`, `setup_progress`, `discovery`, plus `battery` and `adapters`)
+are created lazily by their owning subsystems on first write — `battery` by
+`BatteryHealthManager._root()`, `adapters` by `save_adapter_config` — so they
+may be absent until that subsystem first runs. Code that reads any other key
+must tolerate its absence.
 
 **Legacy cleanup:** The `icons` block, if present, is deleted unconditionally
 during `async_initialize()`. It was written by a removed platform and serves no
@@ -108,6 +122,9 @@ its owning handler via `ensure_map_bucket`, so any reader must tolerate absence.
   "metadata":                  MapMetadata
   "rooms":                     dict[room_id_str, RoomRecord]  # {} until rooms are configured
   "summary":                   RoomSelectionSummary           # rebuilt by build_room_selection_summary
+  "saved_zones":               dict[zone_id_str, SavedZone]   # named user zones; see frontend/saved-zones.md
+  "learned_zones":             dict                           # per-zone learned timing; see 10-learning-system.md §2.5
+  "queue_breaks":              list[QueueBreak]               # ordered charge/wait stops for a stepped run; see 07-queue-engine.md §9
   "segmentation_mode":         str                            # "cv" | "custom"; default "cv" (custom serves the ACTIVE layout)
   "image_segments":            SegmentationResult             # CV auto-detected store (map-bucket level)
   "custom_layouts":            dict[layout_id_str, CustomLayout]   # named custom segmentations; {} until first author/migration
@@ -330,7 +347,10 @@ layout owns its own mascot positions including its own `"dock"` spot.
     "active_map_id": str | int | None
     "room_count":    int
   }
-  "discovered_rooms": list[dict]   # raw room discovery payloads from the vacuum API
+  "discovered_rooms":            list[dict]   # raw room discovery payloads from the vacuum API
+  "reconciled_at":               str | None   # ISO stamp of the last accepted room reconciliation (rooms/room_crud.py)
+  "reconciliation_dismissed_at": str | None   # ISO stamp the user dismissed a reconciliation prompt
+  "last_rebuild":                str | None   # ISO stamp of the last rebuild_map_bucket (maps/map_manager.py)
 }
 ```
 
@@ -344,8 +364,27 @@ Rebuilt on every room change by `build_room_selection_summary`.
 {
   "enabled_count":  int
   "disabled_count": int
+  "enabled_rooms":  list[SummaryEntry]   # one per enabled room, sorted by order
+  "disabled_rooms": list[SummaryEntry]   # one per disabled room
 }
 ```
+
+Each `SummaryEntry` is the canonical **9-key** form written by
+`build_room_selection_summary` (`rooms/room_manager.py`):
+
+```
+{
+  "room_id": int, "name": str, "slug": str, "order": int,
+  "profile_name": str, "floor_type": str, "clean_passes": int,
+  "edge_mopping": bool, "carpet": bool   # carpet = floor_type.startswith("carpet")
+}
+```
+
+> **Divergent writer (doc 17 BUG-B):** `rebuild_map_bucket`
+> (`maps/map_manager.py`) writes a REDUCED **4-key** entry
+> `{room_id, name, slug, order}` — dropping the last five fields — so a map last
+> summarized by a rebuild silently loses them until a non-rebuild write
+> repopulates. See [17-map-manager](17-map-manager.md) §3.4.
 
 ### CapabilityBucket
 
@@ -392,7 +431,7 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
 | `fan_speed` | `str` | e.g. `"Max"`, `"Boost"`, `"Standard"`, `"Quiet"`. |
 | `water_level` | `str` | `"Off"`, `"Low"`, `"Medium"`, `"High"`. |
-| `clean_intensity` | `str` | `"Standard"`, `"Intense"`, etc. |
+| `clean_intensity` | `str` | One of `"Quick"`, `"Narrow"`, `"Deep"`. Legacy `"Standard"`/`"Normal"` are **dead** — normalized to `"Quick"` by `normalize_clean_intensity` (same as §07/§08). |
 | `clean_passes` | `int` | Number of cleaning passes; minimum 1. |
 | `edge_mopping` | `bool` | Whether edge mopping is active. |
 | `path_type` | `str \| None` | `"wide"`, `"narrow"`, or `None`. |
@@ -1204,18 +1243,21 @@ Built-in profiles (e.g. `"vacuum_quick"`, `"vacuum_mop_quick"`) are compiled at
 runtime from `profiles/room_profiles.py` and never written to storage — only
 user-created profiles appear in storage.
 
-`data["profiles"]["room_profiles"][profile_name]`
+`data["profiles"]["room_profiles"][profile_name]` — this **9-key** stored record
+(the always-defaulted `path_type` / `mop_required` included) is owned by
+[16-profile-manager](16-profile-manager.md) §3.1.
 
 ```
 {
-  "label":          str
-  "clean_mode":     str    # "vacuum" | "mop" | "vacuum_mop"
-  "fan_speed":      str
-  "water_level":    str
-  "clean_intensity": str
-  "clean_passes":   int
-  "edge_mopping":   bool
-  "path_type":      str | None
+  "label":           str
+  "clean_mode":      str    # "vacuum" | "mop" | "vacuum_mop"
+  "fan_speed":       str
+  "water_level":     str
+  "clean_intensity": str    # "Quick" | "Narrow" | "Deep"
+  "clean_passes":    int
+  "edge_mopping":    bool
+  "mop_required":    bool   # derived from clean_mode at save (mop / vacuum_mop -> True)
+  "path_type":       str    # "wide" | "narrow" — always present (derived: Deep -> "narrow", else "wide")
 }
 ```
 
