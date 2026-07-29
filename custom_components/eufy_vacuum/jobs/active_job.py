@@ -112,6 +112,46 @@ _MAX_COUNTER_SAMPLES = 2000
 # confidence/availability gate handles low-quality input), it doesn't break finalize.
 _MAX_POSE_SAMPLES = 3000
 
+# Pose-buffer stall coalescing (external-run robustness, Item 1). A frozen-but-"present"
+# robot reports the SAME static pose every tick; unchecked it floods pose_samples and the
+# del-oldest rotation above then evicts the run's REAL early cleaning data. Once a run has
+# been static for more than _POSE_STALL_COALESCE_TICKS consecutive ticks, collapse the tail
+# into the SINGLE last marker (bump its `t`) instead of appending — bounding a multi-hour
+# freeze to ~a dozen samples. Capture-side ONLY; never cancels the run. "Static" = same
+# current_room AND anchor within _POSE_STALL_ANCHOR_EPS px (or both None) AND cleaning_area
+# NOT advancing — cleaning_area is the robust separator (flat while frozen/parked, climbs
+# while cleaning), so a slow-but-cleaning robot is never coalesced. Short pauses (< the
+# threshold) keep every sample, so a legit wash plateau is untouched.
+_POSE_STALL_ANCHOR_EPS = 2.0       # decoded-map pixels; jitter below this = "not moving"
+_POSE_STALL_COALESCE_TICKS = 15    # ~30 s at a 2 s cadence before the tail collapses
+_POSE_STALL_AREA_EPS_M2 = 0.05     # cleaning_area must climb by more than this to count as progress
+
+
+def _pose_sample_is_static(prev: dict, new: dict) -> bool:
+    """True when ``new`` is a static repeat of ``prev`` — same managed ``current_room``, anchor
+    within ``_POSE_STALL_ANCHOR_EPS`` (or both ``None``), and ``cleaning_area`` NOT advancing.
+    Coalesces a frozen/parked pose tail so it can't flood the buffer and evict a run's real early
+    cleaning data (external-run robustness Item 1). ``cleaning_area`` is authoritative: any real
+    climb means the robot is cleaning, which is never a stall."""
+    if prev.get("current_room") != new.get("current_room"):
+        return False
+    prev_area, new_area = prev.get("cleaning_area"), new.get("cleaning_area")
+    if (
+        prev_area is not None
+        and new_area is not None
+        and (new_area - prev_area) > _POSE_STALL_AREA_EPS_M2
+    ):
+        return False
+    pa, na = prev.get("anchor"), new.get("anchor")
+    if pa is None and na is None:
+        return True
+    if pa is None or na is None:
+        return False
+    try:
+        return (float(na[0]) - float(pa[0])) ** 2 + (float(na[1]) - float(pa[1])) ** 2 <= _POSE_STALL_ANCHOR_EPS ** 2
+    except (TypeError, ValueError, IndexError):
+        return False
+
 # Live current-room rollover ORCHESTRATION knobs only — an adapter WITHOUT a
 # "live_transition" block behaves as before EXCEPT it now also rolls on a "transit"
 # boundary (a 60-90 s flat-area inter-room hop the legacy live path discarded). The
@@ -1680,15 +1720,26 @@ class ActiveJobTracker:
         ):
             return False
         samples = job.setdefault("pose_samples", [])
-        samples.append(
-            {
-                "t": observed_at or _iso_now(),
-                "current_room": current_room,
-                "anchor": anchor,
-                "cleaning_area": cleaning_area,
-                "heading": heading,
-            }
-        )
+        new_sample = {
+            "t": observed_at or _iso_now(),
+            "current_room": current_room,
+            "anchor": anchor,
+            "cleaning_area": cleaning_area,
+            "heading": heading,
+        }
+        # Stall coalescing (Item 1): once static for more than the threshold, extend the last
+        # marker's timestamp instead of appending, so a long freeze can't flood the buffer and
+        # rotate the run's real early cleaning data out of the 3000-sample cap. Movement / a new
+        # room / cleaning_area progress resets the run and resumes normal recording.
+        prev = samples[-1] if samples else None
+        if prev is not None and _pose_sample_is_static(prev, new_sample):
+            job["_pose_stall_run"] = int(job.get("_pose_stall_run", 0)) + 1
+            if job["_pose_stall_run"] > _POSE_STALL_COALESCE_TICKS:
+                prev["t"] = new_sample["t"]
+                return True
+        else:
+            job["_pose_stall_run"] = 0
+        samples.append(new_sample)
         if len(samples) > _MAX_POSE_SAMPLES:
             del samples[: len(samples) - _MAX_POSE_SAMPLES]
         return True

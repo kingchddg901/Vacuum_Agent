@@ -463,6 +463,77 @@ def test_record_pose_sample_caps_buffer():
     assert s[-1]["current_room"] == _MAX_POSE_SAMPLES + 24  # del-oldest: newest survive
 
 
+def test_pose_sample_is_static():
+    """The stall predicate (external-run robustness Item 1): static == same current_room AND
+    anchor within epsilon (or both None) AND cleaning_area not advancing."""
+    from custom_components.eufy_vacuum.jobs.active_job import _pose_sample_is_static
+    base = {"current_room": 5, "anchor": [10.0, 10.0], "cleaning_area": 4.0}
+    assert _pose_sample_is_static(base, dict(base)) is True                      # identical
+    assert _pose_sample_is_static(base, {**base, "anchor": [10.5, 9.5]}) is True  # jitter < eps
+    assert _pose_sample_is_static(base, {**base, "anchor": [20.0, 10.0]}) is False  # moved
+    assert _pose_sample_is_static(base, {**base, "current_room": 6}) is False     # room changed
+    assert _pose_sample_is_static(base, {**base, "cleaning_area": 5.0}) is False  # area climbing = cleaning
+    none_a = {"current_room": None, "anchor": None, "cleaning_area": None}
+    assert _pose_sample_is_static(none_a, dict(none_a)) is True                   # both None (docked/native)
+    assert _pose_sample_is_static(base, {**base, "anchor": None}) is False        # one None = transition
+
+
+def test_record_pose_sample_coalesces_static_freeze():
+    """A frozen-but-present robot reporting the SAME static pose every tick coalesces its tail
+    into one marker once static past the threshold — so it can't flood the buffer."""
+    from custom_components.eufy_vacuum.jobs.active_job import (
+        _MAX_POSE_SAMPLES, _POSE_STALL_COALESCE_TICKS,
+    )
+    job = _external_job()
+    tracker = _tracker_with_job(job)
+    for i in range(5000):  # a multi-hour freeze, well past both the threshold and the 3000 cap
+        tracker.record_pose_sample(
+            vacuum_entity_id="vacuum.alfred", map_id="6",
+            current_room=5, anchor=[10.0, 10.0], cleaning_area=4.0, observed_at=f"t{i}",
+        )
+    s = job["pose_samples"]
+    assert len(s) <= _POSE_STALL_COALESCE_TICKS + 1  # bounded, not 5000 / the cap
+    assert len(s) < _MAX_POSE_SAMPLES
+    assert s[-1]["t"] == "t4999"                     # marker bumped to the latest tick
+    assert s[-1]["current_room"] == 5
+
+
+def test_record_pose_sample_freeze_preserves_early_real_data():
+    """The load-bearing Item 1 fix: a long freeze must NOT rotate the run's real early cleaning
+    samples out of the 3000-cap (the evidence-run failure that starved attribution)."""
+    job = _external_job()
+    tracker = _tracker_with_job(job)
+    for i in range(30):  # a real early clean — moving anchor + climbing area
+        tracker.record_pose_sample(
+            vacuum_entity_id="vacuum.alfred", map_id="6",
+            current_room=1, anchor=[float(i), 0.0], cleaning_area=float(i), observed_at=f"clean{i}",
+        )
+    for i in range(5000):  # then a frozen tail far exceeding the cap
+        tracker.record_pose_sample(
+            vacuum_entity_id="vacuum.alfred", map_id="6",
+            current_room=2, anchor=[99.0, 99.0], cleaning_area=30.0, observed_at=f"freeze{i}",
+        )
+    s = job["pose_samples"]
+    clean_samples = [x for x in s if x["current_room"] == 1]
+    assert len(clean_samples) == 30                  # all real cleaning samples survive
+    assert clean_samples[0]["anchor"] == [0.0, 0.0]  # the earliest one, not evicted
+
+
+def test_record_pose_sample_cleaning_area_progress_not_coalesced():
+    """A slow-but-cleaning robot (anchor barely moving, cleaning_area climbing) is NEVER
+    coalesced — cleaning_area is the robust clean-vs-stall separator."""
+    from custom_components.eufy_vacuum.jobs.active_job import _POSE_STALL_COALESCE_TICKS
+    job = _external_job()
+    tracker = _tracker_with_job(job)
+    n = _POSE_STALL_COALESCE_TICKS + 30
+    for i in range(n):
+        tracker.record_pose_sample(
+            vacuum_entity_id="vacuum.alfred", map_id="6",
+            current_room=5, anchor=[10.0, 10.0], cleaning_area=float(i), observed_at=f"c{i}",
+        )
+    assert len(job["pose_samples"]) == n  # area climbs each tick => never static => all recorded
+
+
 # ---------------------------------------------------------------------------
 # External-run capture (W6.2): status="external" slot + setting-select snapshot
 # ---------------------------------------------------------------------------

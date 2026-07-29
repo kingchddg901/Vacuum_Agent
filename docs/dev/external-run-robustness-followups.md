@@ -3,9 +3,10 @@
 > **Status: open-items tracker (2026-07-29 triage).** The resolved items are documented
 > canonically in [28-external-run-ingestion](28-external-run-ingestion.md): Item 3
 > (`attribution_confidence`) and Item 4 (the stale-`cleaning_area` `pose_confidence:"presence"`
-> fallback). Still **open**: Item 1 (pose-buffer stall flood evicting real cleaning data) and
-> Item 2 (a super-long freeze corrupting counter segmentation — phantom 0 m² segments, inflated
-> wall times). This doc retains those two.
+> fallback). **Item 1 (pose-buffer stall flood) is now FIXED too (2026-07-29 — a stall detector
+> in `record_pose_sample` coalesces a frozen tail so it can't evict real cleaning data; see
+> below).** Still **open**: only Item 2 (a super-long freeze corrupting counter segmentation —
+> phantom 0 m² segments, inflated wall times). This doc retains that.
 
 Three tracked items surfaced 2026-06-20 from an overnight external (app-started) run where the
 **robot froze mid-clean for hours**. The freeze corrupted the finalized review record on both
@@ -44,6 +45,22 @@ does NOT catch this — `task_status` stays `Cleaning` through a firmware freeze
 consecutive samples, stop recording (or record a single "stalled" marker) until it moves
 again. Protects the buffer's real data and bounds the redundant writes. (Capture-side only; no
 cancel.)
+
+> **✅ FIXED 2026-07-29.** `record_pose_sample` (`jobs/active_job.py`) now coalesces a static
+> tail: a new helper `_pose_sample_is_static` treats a tick as static when it shares the last
+> recorded sample's `current_room`, its anchor is within `_POSE_STALL_ANCHOR_EPS` px (or both
+> `None`), AND `cleaning_area` has not advanced. Once a run stays static past
+> `_POSE_STALL_COALESCE_TICKS` (≈30 s at a 2 s cadence), the tail stops appending and instead
+> bumps the last marker's `t` — so a multi-hour freeze adds ~a dozen samples, never the
+> thousands that rotated the real early data out of the 3000-sample cap. **`cleaning_area` is
+> the guard**: a slow-but-cleaning robot (area climbing) is never coalesced, and a short legit
+> wash plateau (< the threshold) keeps every sample. Capture-side only — the run is never
+> cancelled. Regression-pinned in `tests/unit/test_jobs_active_job.py`
+> (`test_pose_sample_is_static`, `test_record_pose_sample_coalesces_static_freeze`,
+> `test_record_pose_sample_freeze_preserves_early_real_data`,
+> `test_record_pose_sample_cleaning_area_progress_not_coalesced`); full suite 2905 green.
+> **Interaction with Item 2:** this protects the POSE axis only — the COUNTER-segmentation
+> corruption (phantom 0 m² mid-segment, inflated wall times) is still Item 2's job.
 
 ---
 
