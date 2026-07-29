@@ -72,6 +72,7 @@ shared.
     "dock_events": { ... },      # optional — dock event triggers
     "post_job_wash_amendment": { ... },  # optional — post-job water amendment
     "discovery": { ... },        # optional — how room list is exposed
+    "setup": { ... },            # optional — adapter-declared setup-wizard steps
     "dispatch": { ... },         # required — how to send a clean job
     "mapping": { ... },          # optional — pluggable MAP segmenter engine selection
     "map_state_source": { ... }, # optional — read the provider's OWN map segmentation (VA-owned room data)
@@ -82,6 +83,9 @@ shared.
     "room_profiles": { ... },    # optional — adapter-sourced room-profile vocabulary
     "anomaly": { ... },          # optional — live anomaly ratios (running-long / stall)
     "wash_frequency_bounds": { ... },    # optional — mop-wash interval clamp
+    "settings_selects": { ... },         # optional — external-run per-room setting recovery
+    "external_mid_run_statuses": [...],  # optional — task_status values = docked mid-run, hold run open
+    "cleaning_time_unit": str,           # optional — "min" when the cleaning_time sensor is bare minutes
 
     # Static catalogs (display + hardware constants)
     "capabilities": { ... },             # optional — explicit capability flags
@@ -518,7 +522,8 @@ vacuum has segmented.
 | `auto_refresh_on` | `list[str]` | `["vacuum_docked", "active_map_changed", "config_entry_reload"]` | Event triggers that automatically run discovery. Closed enum; see runtime notes below. |
 | `auto_refresh_interval_seconds` | `int` | `21600` (6h) | Periodic safety-net discovery interval. `0` disables the floor. |
 | `removal_confirmation_passes` | `int` | `3` | Consecutive discovery passes a configured room must be absent from before the framework flags it as removed. Prevents transient API glitches from producing spurious "room removed" notifications. |
-| `new_room_confirmation_passes` | `int` | `1` | Consecutive passes a new room must appear in before being flagged for user review. Default `1` surfaces immediately. |
+| `new_room_confirmation_passes` | `int` | `1` | Consecutive passes a new room must appear in before being flagged for user review. Default `1` surfaces immediately. (Both pass-counts are floored at `1`: an explicit `0`/negative clamps to `1`, never the default — a `0` would tautologically flag every room removed.) |
+| `implicit_map_id` | `str` | – | (schema-absent) The single-map anchor for a brand with **no `entities.active_map`** (the scalar/Tuya Eufy path). Eufy declares `"main"`. |
 
 `room_list_entity` / `room_list_attribute` apply only when
 `source: "entity_attribute"` (the default); `maps_service` /
@@ -660,6 +665,12 @@ blocks for Eufy, Roborock, Dreame, and Narwal, see
 | `passes_max` | `int` | no | Clamp ceiling for batch passes. **`3`** on the flat-id/dispatch-engine/zone path, but **`2`** on the Eufy rows/manager path (`queue_engine.py`/`core/manager.py`) — the cap is context-dependent (not schema-declared). |
 | `params_as_list` | `bool` | no | When `True`, the payload params are wrapped in a **single-element list** (`params=[{…}]`) instead of a bare dict. **Roborock requires it** (`app_segment_clean` won't start otherwise); Eufy passes the bare dict. |
 | `passes_is_global` | `bool` | no | When `True`, passes are a **run-global** scalar, not per-room (the S6 can't vary passes per room). |
+| `resolve_live_ids_by_slug` | `bool` | no | (Roborock) segment ids renumber on a re-map, so before each dispatch the framework fetches a fresh `get_maps`, maps each target room's name slug → current id, and rewrites the wire ids. |
+| `per_room_live_settings` | `dict` | no | (Roborock) settings applied **per room, live** before each room's dispatch (e.g. `set_fan_speed`, guarded by an `options_key` vocabulary — out-of-vocab values skipped). |
+| `global_pre_calls` | `list` | no | (Roborock, schema-absent) device-**global** service calls pushed before a group's clean (e.g. `select.select_option` for mop intensity, ranked max-wins; a MIXED mop/vacuum batch uses `mixed_mode_water_policy: "safest"` → drops to the lowest requested water). |
+| `live_room_refresh` | `dict` | no | (Roborock "Lever B", schema-absent) `{enabled, interval_s, service, local_gate}` — pulses `roborock.get_vacuum_current_position` (~15 s) to refresh the live room + per-room fan off the 30 s map gate; LAN-gated, excluded for strict-order runs. |
+| `zone_command` | `str` | no | (schema-absent) the ad-hoc zone-clean verb via `send_command` (Eufy `zone_clean`, Roborock `app_zoned_clean`); **absent → zone cleaning is unsupported** (raises rather than dispatching). Pairs with `capabilities.supports_zone_clean`. |
+| `zone_coords` | `str` | no | (schema-absent; Roborock) coordinate space for the zone payload, `"device_mm"`. |
 
 ### Template selects a dispatch *engine* (and a payload *structure*)
 
@@ -1379,9 +1390,12 @@ tests already exist.
 ```python
 "room_attribution": {
     "engine":  str,                  # required when `room_attribution` present
+    "source":  str,                  # optional; "live_pose" (default, Eufy) | "native_current_room" (Roborock)
     "tuning":  dict[str, float],     # optional; validated by the engine (may be partial)
 }
 ```
+
+`source` is the sampler's source-dispatch selector (distinct from `engine`): Eufy declares `"live_pose"` (per-tick pose + anchor); a brand with only a native current-room NAME entity declares `"native_current_room"` (Roborock).
 
 ### `engine` *(required when `room_attribution` is present, str)*
 
@@ -1672,8 +1686,10 @@ supports_mop_features      supports_water_control     supports_path_control
 supports_edge_mopping      supports_mop_wash          supports_mop_dry
 supports_empty_dust        supports_robot_position    supports_station_water
 position_lock_reliable     rooms_unique_per_job       honors_clean_order
-supports_room_profiles
+supports_room_profiles     supports_zone_clean
 ```
+
+**Zone-clean caps** (alongside `supports_zone_clean`, when it is `True`) — the bound **axis differs by brand** (a §4.5 divergence): Eufy declares per-**side** metres `zone_max: 10`, `zone_min_side_m: 0.5`, `zone_max_side_m: 10.0`; Roborock declares per-**area** m² `zone_max: 5`, `zone_min_area_m2: 0.0929`, `zone_max_area_m2: 3.05`. Read by `dispatch/manager.py` + the snapshot; pairs with `dispatch.zone_command` (§13).
 
 > `supports_base_station` and `supports_map_bounds` are **not** capability
 > schema keys — no adapter declares them and they are absent from
@@ -1722,8 +1738,8 @@ supports_room_profiles
 >
 > **`supports_base_station` / `supports_map_bounds` are not capability flags —
 > they are snapshot-DERIVED** in `core/manager.py::get_dashboard_snapshot`
-> (lines 3648-3661), not read from the `capabilities` block (no adapter declares
-> them):
+> (`manager.py:3949-3963` — base_station at `:3950`, map_bounds at `:3961`), not
+> read from the `capabilities` block (no adapter declares them):
 >
 > - `supports_base_station` = `bool(dock_events.enabled)` OR any of
 >   `supports_mop_wash` / `supports_mop_dry` / `supports_empty_dust` /
@@ -1744,12 +1760,11 @@ supports_room_profiles
 > documented in §13 above: `dispatch.per_room_live_settings` (under
 > [Implementation status](#implementation-status)) and
 > [`dispatch.phase_timing`](#dispatchphase_timing--strict-order-phase-watchdog-timing).
-> The rest are documented in context in
-> [29-roborock-adapter](29-roborock-adapter.md):
-> `completion.require_job_active_clear`; `dispatch.{resolve_live_ids_by_slug,
-> params_as_list, passes_is_global}`; and
-> `mapping.live_map_image_entity_pattern`. Threading each into its block table
-> here is a deferred polish follow-up.
+> `completion.require_job_active_clear` (§7) and
+> `dispatch.{resolve_live_ids_by_slug, params_as_list, passes_is_global,
+> per_room_live_settings, global_pre_calls, live_room_refresh, zone_command}`
+> (§13) are now documented in their block tables above;
+> `mapping.live_map_image_entity_pattern` is in [29-roborock-adapter](29-roborock-adapter.md).
 
 **UI builder notes:** Render as a grid of toggle switches. Pre-fill
 from entity-presence detection (the form already knows which entities
@@ -1786,6 +1801,18 @@ Optional. Maps a canonical setting key to `{entity_id, value_map}`:
 
 ---
 
+## 14c. `external_mid_run_statuses` — hold an external run open across a mid-run dock
+
+**Top-level** `list[str]` (a sibling of `settings_selects`; schema-declared). Normalized `task_status` values that mean "docked mid-run, will resume" — so the external-run finalizer **holds the run open** instead of closing it at the dock, keeping a vacuum→mop run as one multi-segment record. Eufy fills six: mop prewash (`Returning to Wash` / `Washing Mop`), dust empty (`Returning to Empty` / `Emptying Dust`), and recharge-resume (`Returning to Charge` / `Charging (Resume)`). An unrecognized value falls back to the time-based grace (a string drift just loses the long-wash hold, never crashes). Consumed by [28-external-run-ingestion](28-external-run-ingestion.md).
+
+---
+
+## 14d. `cleaning_time_unit` — declare a unitless cleaning-time sensor
+
+**Top-level** `str` (schema-absent-but-read). Set to `"min"` when `entities.cleaning_time` reports a **bare number in minutes** with no `unit_of_measurement` (Roborock's `sensor.{id}_cleaning_time`). **Load-bearing:** without it the metrics listener stores minutes as seconds — **60× low** — corrupting every learned per-room duration and false-tripping the idle-wall guard. A real `unit_of_measurement` on the entity still wins; this is the fallback. Eufy omits it (its sensor carries seconds).
+
+---
+
 ## 15. `maintenance_components` — replacement counter catalog
 
 Catalog of components the firmware exposes as replacement counters,
@@ -1804,6 +1831,8 @@ Top-level is `dict[component_id, ComponentEntry]`. Each entry:
 | `max_interval_hours` | `float` | yes | Ceiling for user-configured interval override. |
 | `label` | `str` | yes | Human-readable component name for display. |
 | `icon` | `str` | yes | MDI icon string. |
+| `maintenance_only` | `bool` | no (default `False`) | Suppresses the component's **Replacement** row + attention roll-up (it yields only a maintenance/guide row, if any). Subject to the family gate (see [13 §4.3](13-maintenance-manager.md)). |
+| `remaining_is_state` | `bool` | no | (schema-absent; Roborock) marks a component whose sensor reports remaining life as its **state** (device countdown) rather than a `usage_hours` attribute. **Declared-but-unconsumed** today (no core reader — code-flag, see 13/29). |
 
 ### Example
 
@@ -1850,6 +1879,7 @@ this only to render guide text; component identity comes from
 | `model_guide_families` | `dict[str, str]` | Maps device model code to a guide family key. Multiple models can share one family. |
 | `guide_family_names` | `dict[str, str]` | Maps guide family key to display name shown in the upkeep guide header. |
 | `guide_library` | `dict[str, dict[str, dict]]` | Two-level dict: `family_key → component_key → guide_entry`. Component keys must match `maintenance_components` keys. |
+| `guide_translations` | `dict` | (schema-absent; both adapters declare it) Localized overlay `[lang][guide_family][component]` — the `steps`/`notes`/frequency fields overlaid per-field onto the English `guide_library`, selected by HA instance language. Absent/unharvested → English. |
 
 Each `guide_entry`:
 
