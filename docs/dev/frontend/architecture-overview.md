@@ -6,26 +6,47 @@ This is the **hub** for the frontend documentation set. It covers the two things
 
 ## The frontend doc set
 
-Each frontend doc lives in `docs/dev/frontend/` and covers one focused area. Links between them are bare sibling filenames; links out to backend subsystems keep their `../NN-` prefix.
+Each frontend doc lives in `docs/dev/frontend/` and covers one focused area. The set is split into **two concerns** — read them for different reasons:
+
+- **Contract** — the exact, client-agnostic interface between the backend and *any* frontend. Its bar: you could throw away this card and build a functionally complete replacement (React, Lit, native mobile, another Lovelace card, voice, or an automation-only client) from the contract alone.
+- **Implementation** — how *this* particular card is built: its layers, conventions, and deliberate choices. Its bar: you could reproduce this architecture and preserve its design conventions, not merely build *a* compatible client.
+
+**Authority rule.** The **contract is authoritative** for behavior and data. The implementation docs describe how this card *consumes* the contract, but must **not** redefine payloads, invent backend guarantees, or become the only place a wire shape is documented. Deep subsystem semantics stay in the hardened backend subsystem docs (`../NN-*`); the contract **aggregates** the client-facing surface and **links** to the owning subsystem for the exact shape.
+
+Links between frontend docs are bare sibling filenames; links out to backend subsystems keep their `../NN-` prefix.
+
+### Contract
+
+- **[backend-contract-and-data-shapes.md](backend-contract-and-data-shapes.md)** — the backend as a **contract**: every `eufy_vacuum` service (request + response shape), event payload, entity/attribute used as transport, the snapshot + `get_map_segments` read models, the capability flags and what they gate, the canonical-vs-localized boundary, polling/refresh/cache behavior, mutation/blocked/degraded responses, plus the minimum a non-card client needs. It **aggregates** the client-facing surface and **links** to the DR-grade backend docs ([05](../05-core-manager.md) / [06](../06-job-lifecycle.md) / [03](../03-data-model.md) / [02](../02-ha-integration.md)) for the deep shapes rather than re-owning them.
+
+### Implementation
+
+**Core render cycle & structure**
 
 - **[architecture-overview.md](architecture-overview.md)** — this hub: the mixin pattern (four layers + the controller), the strict data-flow, and the add-a-panel recipe.
 - **[render-cycle.md](render-cycle.md)** — `_scheduleRender` (microtask coalescing), full re-render/re-bind, the `dblclick` disambiguation timer, the `VIEWS`/`VIEW_ORDER` router, and floor-texture rendering.
 - **[state-management.md](state-management.md)** — the `state/` module inventory, the init/clear property shape, the `hass` setter + load-once pattern, and how state modules communicate (they don't — everything routes through the card).
 - **[event-binding-and-modal-host.md](event-binding-and-modal-host.md)** — the binding layer: `_on`/`_onAll` helpers and idempotency, the `document.body` modal portal, the live-vs-commit (`input`/`change`) convention, and the non-`hass` `_scheduleRender` trigger map.
-- **[styles-system.md](styles-system.md)** — where CSS lives, the `styles/` module structure, and the token/CSS-custom-property conventions the renderers emit.
-- **[backend-contract-and-data-shapes.md](backend-contract-and-data-shapes.md)** — the backend as a **contract**: every `eufy_vacuum` service, event, and entity a UI reads, the `get_map_segments` read model, plus the minimum polling loop / subscriptions / entity reads / call-safety notes for building any other UI.
 - **[card-topology-and-bundles.md](card-topology-and-bundles.md)** — the two standalone Lovelace cards (`vacuum-agent-dashboard`, `eufy-room-card`), the three ESM bundles, the lazy `<eufy-vacuum-map>` host shim, and the reuse boundary vs. the sidebar panel.
 - **[module-reference.md](module-reference.md)** — the per-file navigation map of `src/`: every actions / bindings / renderers / styles / theme-token / i18n / `cards/` module and the entry points.
+
+**Cross-cutting systems**
+
+- **[styles-system.md](styles-system.md)** — where CSS lives, the `styles/` module structure, and the token/CSS-custom-property conventions the renderers emit.
 - **[theme-system.md](theme-system.md)** — the theme token model, the editor, per-floor-texture token groups, export/import, presets, and the theme tag/search system.
-- **[i18n-system.md](i18n-system.md)** — `this.t` / `this.tVocab`, the locale loader, the de-bundled catalogs, and the trust-model-B "never `esc()` a `t()`" rule.
+- **[i18n-system.md](i18n-system.md)** — `this.t` / `this.tVocab`, the locale loader, the de-bundled catalogs, and the trust-model-B "never `esc()` a `t()`" rule. Owns localization — the frontend side of the contract's canonical-vs-localized boundary.
 - **[render-harness.md](render-harness.md)** — the headless Playwright render/visual-regression/CVD/intake harness and the theme gallery.
-- **[animal-svg.md](animal-svg.md)** — the companion mascot: the declarative animal descriptor, codegen, and the community submission pipeline.
-- **[furnished-render.md](furnished-render.md)** — the furnished digital-twin map: to-scale home art aligned once over the live map.
-- **[map-render-layers.md](map-render-layers.md)** — the authoritative layer stack for map rendering (backdrop, polygons, labels, overlays, mascot) and the render-data shape.
+
+**Feature subsystems**
+
+- **[map-render-layers.md](map-render-layers.md)** — the authoritative layer stack for map rendering (backdrop, polygons, labels, overlays, mascot) and the render-data shape (owned by the backend map source; see the contract).
 - **[themeable-map-palette.md](themeable-map-palette.md)** — the room-fill palette resolver (per-room override > theme palette > default), live-map only.
+- **[floor-texture-map-view.md](floor-texture-map-view.md)** — the per-floor-type material fill for the Map view (hardwood / tile / carpet textures), both brands.
 - **[saved-zones.md](saved-zones.md)** — named reusable clean regions: the multi-select panel, shared settings, draw-to-save, and per-brand caps.
-- **[dashboard-card.md](dashboard-card.md)** — the `vacuum-agent-dashboard` drop-in card in depth: arm-then-Start dispatch, embedded map, profiles, and scenes.
 - **[custom-segment-composer.md](custom-segment-composer.md)** — the in-map composer: named custom layouts, the shape draft model, the button-driven operations, save/re-edit reconcile, and geometry boundaries.
+- **[furnished-render.md](furnished-render.md)** — the furnished digital-twin map: to-scale home art aligned once over the live map.
+- **[animal-svg.md](animal-svg.md)** — the companion mascot: the declarative animal descriptor, codegen, and the community submission pipeline.
+- **[dashboard-card.md](dashboard-card.md)** — the `vacuum-agent-dashboard` drop-in card in depth: arm-then-Start dispatch, embedded map, profiles, and scenes.
 
 ---
 
