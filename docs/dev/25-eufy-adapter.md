@@ -428,7 +428,7 @@ built from `buttons.py` (§5). See [13-maintenance-manager](13-maintenance-manag
 
 ### `upkeep_catalog` / `water_model_configs`
 Per-model guide library + model→family maps, **plus `guide_translations`** — the
-localized overlay from `upkeep_guides_i18n/` (14 languages), whose `steps`/`notes`/
+localized overlay from `upkeep_guides_i18n/` (15 languages), whose `steps`/`notes`/
 frequency fields are overlaid per-field onto the English guide library, selected by
 HA instance language ([13 §4.2](13-maintenance-manager.md)). And tank/flow constants per model.
 `water_model_configs` is projected verbatim from
