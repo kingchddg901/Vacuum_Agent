@@ -349,6 +349,8 @@ The result is that the UI updates on every keypress / slider drag pixel without 
 | `library_summary` | `list` | Array of `{id, theme_id, name}` objects for all library entries |
 | `default_theme_id` | `str \| null` | The global default theme ID |
 
+*(This table is the theme sensor's in-depth view; the client-facing transport definition is aggregated in the [Backend contract → Sensor entities](backend-contract-and-data-shapes.md#sensor-entities). The full active-theme token/color/alpha maps are **not** on the sensor — fetch them via `get_theme_library()`.)*
+
 ### How the card discovers it (`_findThemeSensor`)
 
 The card calls `_findThemeSensor(hass)` in `main.js` on every `hass` setter invocation:

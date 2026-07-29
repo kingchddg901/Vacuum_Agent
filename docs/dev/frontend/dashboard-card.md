@@ -110,7 +110,7 @@ lives in the **panel**, not this card: the steps editor, the "This run" preview,
 `run-profiles.js` / `rooms.js` / `learning.js` renderers — see
 [Module reference](module-reference.md); the phase machinery is in
 [Phase runner](../30-phase-runner.md) and the snapshot shapes (`queue_steps`,
-`live_queue`, `zone_phase_*`) in [Backend contract](backend-contract-and-data-shapes.md).
+`live_queue`, `zone_phase_*`) are aggregated in the [Backend contract](backend-contract-and-data-shapes.md#ha-services) (authoritative field-by-field: [05 §6](../05-core-manager.md#6-direct-responsibilities)).
 The snapshot's `has_charge_steps` flag is likewise a panel-render concern; the card
 never reads it.
 
@@ -126,7 +126,7 @@ never reads it.
 | Run profiles | `eufy_vacuum.get_saved_run_profiles` (list) + `eufy_vacuum.start_run_profile` |
 | Room clean | `switch.turn_on/off` + `eufy_vacuum.update_room_fields` + `eufy_vacuum.start_selected_rooms` |
 | Dock + dock actions | `vacuum.return_to_base` + `eufy_vacuum.{wash_mop,dry_mop,empty_dust}`, gated by `eufy_vacuum.get_dock_action_status` |
-| Capability gating | `get_dashboard_snapshot().capabilities` (`max_clean_passes`, `supports_base_station`, `supports_room_profiles`, `honors_clean_order`, …) |
+| Capability gating | `get_dashboard_snapshot` top-level hint flags (`max_clean_passes`, `supports_base_station`, `supports_room_profiles`, `honors_clean_order`, …) — see [Backend contract → Capability flags](backend-contract-and-data-shapes.md#capability-flags--behavior) |
 | i18n | the same i18n module (`translate` / `resolveLang` / `tVocab`); new `vacuum_card.*` keys, reuse `vocab.*` |
 
 **Everything in that table already exists and is tested.** No new backend services.
