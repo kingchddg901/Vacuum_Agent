@@ -46,8 +46,9 @@ integration, it is not a fork.
 ## 2. File layout
 
 Same data/assembly split as Eufy (§2 there), but a **smaller surface** — the S6
-has no CV map, no per-model water tanks, and no upkeep-guide library, so those
-modules are simply absent (the blocks degrade gracefully).
+has no CV map and no per-model water tanks, so `segmentor.py` / `water_config.py`
+are absent (the blocks degrade gracefully). It **does** ship an upkeep-guide
+library (see below).
 
 | Module | Role |
 |---|---|
@@ -56,10 +57,12 @@ modules are simply absent (the blocks degrade gracefully).
 | `entities.py` | `build_entity_id()` + the Roborock-core entity suffixes (`_status`, `_current_room`, `_cleaning_time`, …). |
 | `vocabulary.py` | Task-status / error / completion state sets + the fan-speed `*_options` (card vocab) and the per-room-live fan `options_key` vocabulary guard. A brand may also declare display→canonical alias maps (`clean_mode_aliases` / `clean_intensity_aliases` / `fan_speed_aliases`) so the learning manager hands the card a canonical code for observed settings; the S6's values already slug to canonical (`gentle`/`balanced`/…), so it declares none. |
 | `model_catalog.py` | `profile_for_model()` — maps `roborock.vacuum.s6` → the s6 **capability profile** (a dict: `family`/`display_name`/`has_dock`/`has_mop`/`supports_segments`), not a family string like Eufy's `detect_model_family()`. |
-| `maintenance_components.py` | The 4 consumables (main/side brush, filter, sensor) as device-owned `*_time_left` countdowns. |
+| `maintenance_components.py` | **12** entries: 4 life-tracked (main/side brush, filter, sensor — device-owned `*_time_left` countdowns with reset buttons) + 8 `maintenance_only` guide-only cleanables (dustbin, mop_cloth, water_filter, caster_wheel, main_wheel; dock/station ones family-gated). |
+| `upkeep_catalog.py` + `roborock_upkeep_guides.py` + `upkeep_guides_i18n/` | Per-model upkeep guide library (standard/auto_empty/wash_station tiers, ~37 models) + 13-language `guide_translations` — a full `upkeep_catalog` config block, same shape as Eufy's. |
 
-There is **no `segmentor.py`** (no CV pipeline — see `mapping` below), **no
-`water_config.py`** (no dock water model), and **no `upkeep_*`** modules.
+There is **no `segmentor.py`** (no CV pipeline — see `mapping` below) and **no
+`water_config.py`** (no dock water model). The upkeep modules **do** exist (above) —
+the S6 ships a real guide library.
 
 ---
 
@@ -82,10 +85,20 @@ else follows the Eufy pattern.
 ### `entities`
 Roborock-core names are stable (`sensor.{object_id}_status`,
 `_current_room`, `_cleaning_time`, `_cleaning_area`, `binary_sensor.
-{object_id}_charging`, `binary_sensor.{object_id}_cleaning`). The two that drive
-new framework behavior: **`active_cleaning_target` = `_current_room`** (a room
-NAME the device reports live) and **`job_active` = `binary_sensor.{id}_cleaning`**
-(the device's `inCleaning` flag — load-bearing for completion, below).
+{object_id}_charging`, `binary_sensor.{object_id}_cleaning`), plus
+`active_map = select.{id}_selected_map` (multi-map anchor),
+`mop_active = binary_sensor.{id}_water_box_attached` (tank-present → mopping; drives
+the card's mop-state + water-level field visibility), `error_message = sensor.{id}_vacuum_error`,
+and `battery = sensor.{id}_battery`. The two that drive new framework behavior:
+**`active_cleaning_target` = `_current_room`** (a room NAME the device reports live)
+and **`job_active` = `binary_sensor.{id}_cleaning`** (the device's `inCleaning` flag —
+load-bearing for completion, below).
+
+> **`cleaning_time_unit: "min"` (load-bearing).** `sensor.{id}_cleaning_time` reports a
+> **bare number in minutes** with no `unit_of_measurement`. Without this scalar the
+> metrics listener stores minutes as seconds — **60× low** — corrupting every learned
+> per-room duration and false-tripping the idle-wall guard. A real unit on the entity
+> still wins; this is the fallback.
 
 ### `completion` — `require_job_active_clear`
 `task_status_value: "charging"` (the S6 reports `charging` at the end of a run,
@@ -107,19 +120,18 @@ dispatch behavior:
 - **`honors_clean_order: False`** — the S6 path-optimizes, so a dispatched
   room order is advisory. This flag (a) surfaces an "order is advisory" note at
   run start and (b) gates the opt-in **strict-order** sequencing (§5).
-- **Base Station and Map Bounds card tabs are hidden — but *not* via literal
-  capability flags.** The S6 declares neither `supports_base_station` nor
-  `supports_map_bounds` in its `capabilities` block; both card signals are
-  *derived at snapshot time* in `core/manager.py::get_dashboard_snapshot`
-  (lines 3376-3389). (a) `supports_base_station` resolves False because the
-  adapter omits the `dock_events` block entirely and all of
-  `supports_mop_wash` / `supports_mop_dry` / `supports_empty_dust` /
-  `supports_station_water` are False. (b) `supports_map_bounds` resolves False
-  because the adapter declares `mapping.segmenter_engine: "noop_fallback"` and
-  the derivation is `bool(segmenter_engine and segmenter_engine != "noop_fallback")`.
-  Both default to **shown** when the snapshot key is absent; only an adapter that
-  resolves False hides the tab. Eufy shows both because its dock/station caps are
-  True (X10 dock) and its `segmenter_engine` is a real CV engine (`eufy_cv_v1`).
+- **`supports_base_station` / `supports_map_bounds` are *not* literal capability
+  flags** — the S6 declares neither; both are *derived at snapshot time* in
+  `core/manager.py::get_dashboard_snapshot` (`manager.py:3949-3963` —
+  `supports_base_station` at `:3950`, `supports_map_bounds` at `:3961`). (a)
+  `supports_base_station` resolves False because the adapter omits the `dock_events`
+  block entirely and all of `supports_mop_wash` / `supports_mop_dry` /
+  `supports_empty_dust` / `supports_station_water` are False — this still gates a
+  **real** Base Station card tab (hidden for the S6, shown for Eufy's X10 dock). (b)
+  `supports_map_bounds` = `bool(segmenter_engine and segmenter_engine != "noop_fallback")`
+  resolves False for the S6 (noop) and True for Eufy (`eufy_cv_v1`), **but the Map
+  Bounds review tab was removed with the mapping split** — the flag is derived-and-tested
+  but **no card surface consumes it for either brand today** (`manager.py:3945-3947`).
 - **`supports_room_profiles: mop_settable`** — a room-profile bundle groups
   multiple per-room settings (mode/water/intensity/passes), so it's meaningful only
   when the mop is programmable. The S6 (`mop_settable: False`) resolves this False —
@@ -129,6 +141,11 @@ dispatch behavior:
   appears, same as Eufy (§6b).
 - **`position_lock_reliable: False`** — same as Eufy; reserved for a future
   stable-frame brand to flip True (re-enables the bounds-veto rollover gate).
+- **`rooms_unique_per_job: False`** (Eufy is `True`) — the path-optimizer may
+  **revisit** a room, so a native `current_room` signal for an already-completed room
+  is **not** re-completed (`jobs/active_job.py`: returns early, passes
+  `complete_room_id=None`). This is the revisit guard that keeps a re-entered room
+  from being phantom-double-counted on a path-optimized route.
 
 ### `dispatch` — `app_segment_clean`, renumbering ids, brand-tuned watchdog
 `template: "roborock_segment_clean"`, `vacuum.send_command` with
@@ -174,11 +191,31 @@ bare dict). Roborock-specific keys with no Eufy equivalent:
 
 ### `discovery` — `get_maps` + name-slug reconciliation
 Rooms come from the `roborock.get_maps` **service** (`source: service_response`),
-not an entity attribute. Because ids renumber, discovery feeds the
-**name-slug identity reconciliation** in `rooms/reconciliation.py`: a room is
+not an entity attribute. Field keys: `maps_service: {domain: roborock, service: get_maps}`,
+`maps_rooms_key: "rooms"`, `map_name_key: "name"`, **`room_id_key: "segment_id"`**,
+`room_name_key: "name"`, and **`new_room_confirmation_passes: 1`** (Roborock surfaces
+only named rooms → surface immediately, vs Eufy's CV noise needing 3). Because ids
+renumber, discovery feeds the **name-slug identity reconciliation** in
+`rooms/reconciliation.py`: a room is
 tracked by its name slug, settings/grants carry onto the new id, and the
 reconciliation review surfaces ambiguous shifts. See
 [08-rooms-system](08-rooms-system.md).
+
+### other Roborock-specific blocks (brief)
+- **`error_tracking`** — `task_status_error_value: "error"`, `grace_window_seconds: 5`,
+  `error_code_attribute_names: ["error_code","code","errorCode"]`, `unknown_error_message:
+  "Unknown error during run"`. Dual-channel (`_status` and `vacuum.state` both flip `error`);
+  the code rides an **enum string** on `_vacuum_error`, so the numeric-attr list usually
+  misses → code `None`, message = the code string.
+- **`room_attribution`** — `engine: "eufy_anchor_winding_v1"`, **`source: "native_current_room"`**
+  (reads the `_current_room` NAME sensor + slugifies, vs Eufy's `live_pose`), tuning
+  `interval_s: 5.0` / `dwell_min_ticks: 3` / `swept_area_min_m2: 0.5`. **Dormant** until the
+  W3 consumption wire.
+- **`charging`** — `low_battery_threshold_percent: 20`; **deliberately omits**
+  `low_battery_return_task_status` (Roborock emits `returning_home` for *both* low-battery and
+  finish returns, so keying off the string would misclassify).
+- **`map_state_source`** — `backend: "memory"`, `identifier_domain`/`hass_data_domain: "roborock"`,
+  `present_requires_live_map_image: True` (the Roborock presence gate).
 
 ### `mapping` — no CV, a live image instead
 There is **no CV segmenter** (`segmenter_engine` is the noop fallback — the S6
@@ -319,8 +356,8 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
   (world-mm quads via stock `send_command`), so the card's **Draw a zone** control
   appears once the VA-render raster (`▦`) is the backdrop — the raster is the frame the
   brand-agnostic normalized→device conversion inverts, backstopped by a round-trip
-  refuse-gate. Roborock caps: `zone_max: 5` zones, `zone_max_area_m2: 3.05` (~32.8 ft²)
-  each; Eufy allows 10. See [saved-zones](frontend/saved-zones.md) for the persisted-zone
+  refuse-gate. Roborock caps: `zone_max: 5` zones, per-**area** `zone_min_area_m2: 0.0929`
+  (~1 ft²) / `zone_max_area_m2: 3.05` (~32.8 ft²) each; Eufy allows 10 with per-side bounds. See [saved-zones](frontend/saved-zones.md) for the persisted-zone
   layer on top of this, and [04 — running a clean](../user-guide/04-running-a-clean.md#zone-cleaning-draw-a-box).
 
 ---

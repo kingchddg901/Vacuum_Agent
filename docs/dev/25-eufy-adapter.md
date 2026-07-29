@@ -55,9 +55,10 @@ factor the brand facts into named files.
 | `discovery.py` | Brand room discovery: `discover_rooms_for_vacuum()` reads the vacuum's `segments` attribute and normalizes it into the framework room shape; `get_active_map_id()` reads the active-map sensor. |
 | `lifecycle.py` | Lifecycle-signal helpers: `_get_lifecycle_watch_entities()`, `_completed_finalize_signals()`, `_active_cleaning_target_cleared()` — translate Eufy entity naming + state vocab into the signals the framework lifecycle listener consumes. |
 | `buttons.py` | The single source for button discovery: `*_CANDIDATES` (entity suffixes) and `*_TOKENS` (token-set fallbacks) for dock actions and maintenance resets. |
-| `model_catalog.py` | `detect_model_family()` — maps a `detected_model` string to a family key (`x10`/`x8`/`l60`/`l50`/…). |
+| `model_catalog.py` | `detect_model_family()` — maps a model string to a family key. Two tables: `MODEL_FAMILY_HINTS` (7 substrings: `x10`/`x8`/`l60`/`l50`/`g50`/`g40`/`lr30`) and `MODEL_CODE_FAMILIES` (22 exact T-codes → family, e.g. `T2351`/`T2320`/`T2352`→`x10` (T2352 = Omni E28), `T2280`→`c20`, `T2080`/`T2071`→`s1`, the `T219x`→`lr30` block). `c20`/`s1` exist in the code map but not the hint substrings. Unknown → `"generic"`. |
 | `maintenance_components.py` | `MAINTENANCE_COMPONENTS` — the consumable catalog (sensor suffix, intervals, label, icon, proxy links). |
 | `upkeep_catalog.py` + `eufy_upkeep_guides.py` | Per-model upkeep guide library and the model→family mapping. |
+| `upkeep_guides_i18n/` | `UPKEEP_GUIDE_TRANSLATIONS` — 14 per-language modules; the localized `guide_translations` overlay projected into `upkeep_catalog` (§upkeep_catalog). |
 | `water_config.py` | `WATER_MODEL_CONFIGS` — tank capacity + flow-rate constants per model. |
 | `segmentor.py` | The CV room segmenter — see [26](26-eufy-segmentor.md). |
 
@@ -70,9 +71,13 @@ vacuum at startup (after stored configs load, so code wins — see
 [21 §6](21-adapter-system.md)). It is idempotent. The shape of this function is
 the porting template:
 
-1. **Detect the model.** Read `vacuum.attributes["detected_model"]`, resolve a
-   `model_family` via `detect_model_family()`. Everything model-specific keys off
-   the family, not the raw string.
+1. **Detect the model.** Read the **device-registry** model (`device_entry.model`,
+   via `_registry_model_code()`) as the *primary* source; fall back to the
+   `vacuum.attributes["detected_model"]` attribute **only** when the registry has
+   no model. This matters: the scalar/Tuya transport sets no `detected_model`
+   attribute, so an attribute-only read pinned those devices to `model_family="generic"`
+   (the scalar self-heal fix). Then resolve a `model_family` via `detect_model_family()`.
+   Everything model-specific keys off the family, not the raw string.
 2. **Build `entity_candidates`.** A dict of `{entity_key: [candidate_id, …]}`.
    This is where the **two-naming-variant trick** lives: robovac_mqtt exposes
    different suffixes across firmware/integration versions, so each list holds
@@ -82,9 +87,18 @@ the porting template:
    "empty_dust_button": [f"button.{object_id}_empty_dust", f"button.{object_id}_empty_dust_bin"],
    ```
 3. **Build `capability_hints`.** Model-family booleans for hardware you *know*
-   exists even if the entity isn't live right now (e.g. `supports_mop_wash =
-   model_family in {"x10","x8"}`). Hints are the confident path; entity-presence
-   detection is the fallback for unrecognized models.
+   exists even if the entity isn't live right now. Hints are the confident path;
+   entity-presence detection is the fallback for unrecognized models. The exact
+   Eufy sets (`adapter.py:221-228`):
+
+   | Hint | Model families that set it True |
+   |---|---|
+   | `supports_mop_features` | `{x10, x8, l60, l50}` |
+   | `supports_mop_wash` | `{x10, x8}` |
+   | `supports_mop_dry` | `{x10, x8}` |
+   | `supports_empty_dust` | `{x10, x8, l60, l50}` |
+   | `supports_path_control` | `{x10, x8}` |
+   | `has_attribute_rooms` | **input-only** — `True` when the vacuum's `segments` attribute is a non-empty list; gates scalar/Tuya attribute-mode room support (not a hardware hint; losing it on a refresh reverts scalar room support) |
 4. **Call `detect_capabilities(...)`** (`core/capabilities.py`) — probes the HA
    entity registry + state machine against the candidates and hints, returning
    resolved entity IDs and capability flags. **Capabilities reflect the actual
@@ -114,8 +128,16 @@ State sets (`hard_service_states`, `drying_states`, `active_run_task_states`,
 `not_error_sentinels`, `cancel_service_exclusion_states`) come from
 `vocabulary.py` and are stored **normalized (lowercase)**. The `blocked_*` sets
 are stored **raw** (title-cased firmware strings) because the queue engine
-matches them verbatim. Alias maps (`water_level_aliases`,
-`wash_frequency_mode_aliases`) normalize brand display strings to canonical keys.
+matches them verbatim — the exact Eufy fills (`adapter.py:373-375`) are
+`blocked_work_mode_states: ["Smart Follow", "Auto", "Room"]`,
+`blocked_task_status_states: ["Cleaning", "Returning", "Washing Mop"]`,
+`blocked_dock_status_states: ["Washing", "Recycling waste water"]`.
+
+**Five** alias maps normalize brand display strings to canonical keys:
+`water_level_aliases`, `wash_frequency_mode_aliases`, `clean_mode_aliases`,
+`clean_intensity_aliases` (the dead-path fold `{"standard": "quick", "normal": "quick"}`
+— the "Standard is dead" fact from 07-queue), and `fan_speed_aliases`
+(`{"boostiq"/"boost iq": "boost"}`).
 `cancel_detection_states` maps the HA-standard activity terms.
 The four `*_options` lists (`clean_mode`/`fan_speed`/`water_level`/
 `clean_intensity`) are **card-only** — the framework never reads them.
@@ -139,8 +161,10 @@ sniffing; only the genuinely brand-specific scalars live in config.
 
 ### `error_tracking`
 Secondary error channel (`task_status_error_value: "error"`), a
-`grace_window_seconds` (firmware emits the state DP before the message DP), and
-an ordered `error_code_attribute_names` list (first non-zero int wins).
+`grace_window_seconds` (firmware emits the state DP before the message DP), an
+ordered `error_code_attribute_names` list (first non-zero int wins), and
+`unknown_error_message: "Unknown error during run"` (the placeholder when a code
+fires with no resolvable message).
 **Pattern:** model the firmware's *timing* (grace window) and *attribute
 variance* (name list) in config, not in core.
 
@@ -162,7 +186,9 @@ Eufy exposes rooms as the `segments` attribute on the vacuum entity, so
 `room_list_entity: "vacuum_entity"`, `room_list_attribute: "segments"`, with
 `id`/`name` keys. `auto_refresh_on` events + a 6 h interval safety net, plus
 drift confirmation windows (`removal_confirmation_passes: 3`,
-`new_room_confirmation_passes: 1`). **Pattern:** declare the discovery *source*
+`new_room_confirmation_passes: 1`). It also declares `implicit_map_id: "main"` —
+the single-map anchor for the scalar/Tuya path that has no active-map entity.
+**Pattern:** declare the discovery *source*
 and the drift hysteresis; the framework owns the cadence loop.
 
 ### `setup`
@@ -283,8 +309,11 @@ per-tick pose time-series (`current_room` + anchor + `cleaning_area`). Where
 unknown name falls back to `eufy_anchor_winding_v1` (not `noop`), mirroring the
 job-segmenter default. The engine segments by `current_room`, drops transit by
 path-winding, and separates a cleaned room from a parked dock by the swept-area
-(`cleaning_area`) delta. `tuning` carries `wind_transit` / `dwell_min_ticks` /
-`swept_area_min_m2` / `interval_s`. This block is **declared-but-dormant** — wired
+(`cleaning_area`) delta. Besides `engine`, the block carries a **`source`** key
+(default `"live_pose"`; a brand with only a native current-room NAME entity declares
+`"native_current_room"`) — the sampler's source-dispatch selector, distinct from the
+engine. `tuning` carries `wind_transit: 1.5` / `dwell_min_ticks: 12` /
+`swept_area_min_m2: 0.5` / `interval_s: 2.0`. This block is **declared-but-dormant** — wired
 and validated now, but inert until the run-active pose sampler (W5b) and finalize
 wiring (W5c) land. See [eufy-native-transition](eufy-native-transition.md).
 **Pattern:** room-identity recovery for external runs is its own pluggable engine,
@@ -365,7 +394,11 @@ because no probe distinguishes eufy-clean v1.11.1+ (which accepts `zone_clean` �
 `dispatch.zone_command`) from older eufy-clean. It is gated **downstream** rather
 than at the probe: the card only shows the zone-draw control when a live-map image
 resolves, and the version (v1.11.0+) that adds `zone_clean` is the same one exposing
-`camera.<device>_map`, so older (no-live-map) installs never see it. See
+`camera.<device>_map`, so older (no-live-map) installs never see it. The zone-clean
+device limits sit alongside it: `zone_max: 10` zones, and each zone **side**
+`zone_min_side_m: 0.5` / `zone_max_side_m: 10.0` — a **per-SIDE** bound (checked
+against the live-map dims in `dispatch_zone_clean`), **not** Roborock's per-area
+bound (the §4.5 brand-variant distinction). See
 [22-adapter-config-reference](22-adapter-config-reference.md).
 
 ### `settings_selects`
@@ -394,7 +427,10 @@ sensor), `proxy_for`, intervals, `label`, `icon`, and a `reset_button` block
 built from `buttons.py` (§5). See [13-maintenance-manager](13-maintenance-manager.md).
 
 ### `upkeep_catalog` / `water_model_configs`
-Per-model guide library + model→family maps, and tank/flow constants per model.
+Per-model guide library + model→family maps, **plus `guide_translations`** — the
+localized overlay from `upkeep_guides_i18n/` (14 languages), whose `steps`/`notes`/
+frequency fields are overlaid per-field onto the English guide library, selected by
+HA instance language ([13 §4.2](13-maintenance-manager.md)). And tank/flow constants per model.
 `water_model_configs` is projected verbatim from
 `water_config.py::WATER_MODEL_CONFIGS` — today that's the physical tank trio
 (`robot_internal_tank_ml` / `dock_clean_tank_capacity_ml` /

@@ -19,9 +19,10 @@ The framework never calls `segmentor.py` directly. The adapter declares
 `mapping.segmenter_engine: "eufy_cv_v1"`; the framework looks that name up in
 `mapping/segmenter_engines.py` and calls the engine through a small protocol. A
 brand with no map image declares `"noop_fallback"` instead — the card stops
-drawing polygon overlays, but trace-based tracking (vacuum-space coordinates)
-keeps working. So the segmenter is **optional and swappable**; this is the seam
-that keeps CV out of the brand-agnostic core.
+drawing polygon overlays, but **native current-room tracking
+(segmenter-independent)** keeps working — the old vacuum-space trace-bounds learning
+was retired with the mapping split ([11 §1](11-mapping-system.md)). So the segmenter is
+**optional and swappable**; this is the seam that keeps CV out of the brand-agnostic core.
 
 The Eufy pipeline is **pure NumPy + Pillow + SciPy** — there is **no `cv2`**
 (OpenCV is absent on the HA host). All morphology is `scipy.ndimage`; contour
@@ -69,7 +70,11 @@ function in `segmentor.py`), which delegates to the private
 **`_detect_room_segments_pipeline()`**. The pipeline is built on the
 brand-agnostic primitives in `mapping/segment_primitives.py` (polygon math, mask
 ops, HSV helpers, RDP). Input is a **filesystem path** to a clean, *unlabeled*
-Eufy map PNG; output is a pure-Python `SegmentationResult` dict.
+Eufy map PNG; output is a **raw** pipeline dict (top-level `segmentation` + `runtime`,
+full summary, **no `engine`/`engine_diagnostics`**). The `EufyCVSegmenter` wrapper then
+`_reshape`s it into the `SegmentationResult` shown in §8 — hoisting `segmentation`/`runtime`
+under `engine_diagnostics`, stamping `engine`, reducing `summary` to 3 keys (the exact
+stored envelope + `analyzed_at` is [11 §2.12](11-mapping-system.md)).
 
 Coordinate space is **canvas pixel space** — origin top-left, y-down. Segment IDs
 are **positional** (`segment_1`, `segment_2`, …, 1-based), *not* vendor room IDs; matching
@@ -142,6 +147,10 @@ first that yields ≥ 2 masks:
 recovery loop is why the module is a deliberate coverage thin spot (~91%) — most
 strategies only fire on specific multi-room imagery (§9).
 
+### 5.1 The emit-time keep/drop gates (stage 9)
+
+Before a candidate becomes a segment it passes a **reject cascade** (`segmentor.py:1334-1398`) that materially shapes the output set — a rebuild that skips it emits substantially different rooms. Drop reasons (first match wins): `area_percent_too_large` (>0.45), `dock_dark_artifact` (`mean_value<118` + small), `thin_artifact` (`w≤4|h≤4|aspect≥10` + small), non-localized `oversized_region`, `assist_hue_child_rejected`, `low_saturation_large_parent`, and a final touches-border-and-sparse veto. A multi-branch **localized-bins rescue** can re-admit a child (`localized_child_too_small`/`_sparse`/`_connector`/`_fragment` gated on fill/compactness). `_component_should_keep` (`:874-920`) applies the small-region floor: hard `area<220` drop, then keep if `compact_small_region` (compactness≥0.22 & fill≥0.5), `elongated_enclosed_region` (aspect≥2.2 & fill≥0.42 & not border), `confirmed_by_variants` (agreement≥0.55), or `recovery_candidate`. (These exact thresholds are undocumented in [11 §2](11-mapping-system.md) too — a candidate for a shared §2.9 extension there.)
+
 ---
 
 ## 6. Tuning parameters
@@ -151,7 +160,7 @@ The `segmenter_tuning` dict (validated against the engine's known-key set):
 | Key | Default | Controls |
 |---|---|---|
 | `min_area_pixels` | 1200 | minimum component area to keep; scales most split/keep thresholds |
-| `simplify_epsilon` | `None` | RDP polygon simplification tolerance. `None` = **auto-derive** the epsilon (`max(1.0, sqrt(raw_point_count) * 0.42)`); a positive float overrides it. Simplification **always** runs — `None` is not "off". |
+| `simplify_epsilon` | `None` | RDP polygon simplification tolerance. `None` = **auto-derive** the epsilon (`max(1.0, sqrt(raw_point_count) * 0.42)`); a positive float overrides it. Simplification **always** runs — `None` is not "off". An over-simplification retry (raw ≥ 700 pts but simplified ≤ 6 → epsilon × 0.72, re-run) is owned by [11 §2.7](11-mapping-system.md). |
 | `expected_room_count` | `None` | triggers the recovery backfill when fewer rooms are found |
 | `max_segments` | `None` | hard cap on emitted segments |
 | `assist_image_path` | `None` | second image variant enabling wall-cut / color refinement |
@@ -172,8 +181,9 @@ Distinguish two unrelated concepts that both contain the word "recovery":
   `segments: []`, empty summary, plus `engine_diagnostics["runtime"]`. The card
   falls back to no overlay; nothing crashes upstream.
 - **Pipeline-internal degraded returns** (also `available: False`):
-  `pipeline_unavailable` (no SciPy/Pillow), `image_unreadable`,
-  `no_room_pixels_detected`. These carry partial diagnostics.
+  `no_image_path` (falsy `image_path`, from the wrapper), `pipeline_unavailable`
+  (no SciPy/Pillow), `image_unreadable`, `no_room_pixels_detected`. These carry
+  partial diagnostics.
 - **Recovery *pass*** (stage 12) is **not** a failure path — it's the count-deficit
   backfill that re-admits deferred regions when `expected_room_count` wasn't met.
 
@@ -217,8 +227,13 @@ matched_room_label None
 ```
 
 Enriched diagnostics also include `cluster_index`, `fill_ratio`, `compactness`,
-`aspect_ratio`, `issues[]`, `suggested_color_bgr`, mean saturation/value, and
+`aspect_ratio`, `point_count_raw`/`_simplified`, `variant_support`,
+`local_split_suspicion`, `issues[]`, `suggested_color_bgr`, mean saturation/value, and
 variant-agreement scores.
+
+> This section is the **cross-engine contract summary** only. For the exact ~27-field
+> stored per-segment dict — names, types, per-field rounding, and the full
+> `segmentation_state`/`edit_readiness` value sets — see [11 §2.12](11-mapping-system.md).
 
 ---
 
@@ -256,4 +271,4 @@ variant-agreement scores.
 4. Declare `mapping.segmenter_engine: "{brand}_cv_v1"` in the adapter config, with
    a `segmenter_tuning` your `validate_tuning` accepts.
 5. If you have no map asset, declare `"noop_fallback"` and skip all of the above —
-   trace tracking still works off coordinates.
+   native current-room tracking (segmenter-independent) still works.
