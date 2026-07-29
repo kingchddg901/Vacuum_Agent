@@ -231,17 +231,22 @@ The resolution is brand-owned at the seam: the adapter declares `mapping.live_ma
 
 ### HA Events
 
-Subscribe via `hass.connection.subscribeEvents(callback, eventType)`.
+Subscribe via `hass.connection.subscribeEvents(callback, eventType)`. All ten `eufy_vacuum_*` events fire on the HA event bus. The exact payloads + fire conditions are owned by [02-ha-integration §7](../02-ha-integration.md) and [06-job-lifecycle §10](../06-job-lifecycle.md) — the field lists below are the client-facing summary.
 
 | Event type | Payload fields | When it fires |
 |---|---|---|
-| `eufy_vacuum_job_finished` | `vacuum_entity_id`, job summary fields | Job reaches a terminal state |
-| `eufy_vacuum_room_started` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name` | Robot enters a room |
-| `eufy_vacuum_room_finished` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, timing fields | Robot finishes a room |
-| `eufy_vacuum_path_blocked` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name` | Blockage detected during cleaning |
-| `eufy_vacuum_stall_detected` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` | Robot has been in a room >= 2x its learned threshold with `awaiting_bounds_exit = true`. Fires at most once per room per job |
-| `eufy_vacuum_room_skipped` | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` (list of int) | Live tracking advanced past a queued room that was never completed. Fired by `ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py`), deduped once per room per job via `_skipped_notified_room_ids`. Largely inert for Eufy's sequential counter; meaningful on brands whose live position can leapfrog the queue order |
-| `eufy_vacuum_run_incomplete` | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids` (list of int), `missed_rooms` (list of `{room_id, name}`) | Fired by `finalize_learning_job` when a cancelled/failed/interrupted job left uncleaned rooms |
+| `eufy_vacuum_job_progress_tick` | `vacuum_entity_id`, `map_id` | **Fixed 5-second backend heartbeat while any job is `started`/`paused`.** The intended live-job refresh trigger: on each tick re-read `get_job_progress_snapshot` (the backend already ran it server-side this tick — see [Building a Different UI](#minimum-viable-polling-loop)) |
+| `eufy_vacuum_job_finished` | **Two shapes** (see 06 §10): the lifecycle/reaper form adds `duration_minutes` + `actual_cleaning_minutes`; the `finalize_learning_job` form omits both (`reason_detail = lifecycle_message`). Common: `vacuum_entity_id`, `map_id`, `job_id`, `outcome_status`, room counts | Job reaches a terminal state |
+| `eufy_vacuum_room_started` | `vacuum_entity_id`, `map_id`, `room_id` (**str**), `room_name`, `job_id`, `started_at`, `source` (`job_start`\|`counter_plateau`\|`timing_rollover`\|`native_signal`), `completed_room_ids` | Robot enters a room |
+| `eufy_vacuum_room_finished` | `vacuum_entity_id`, `map_id`, `room_id` (**str**), `room_name`, `job_id`, `completed_at`, `source`, `actual_duration_minutes` (2 dp, or `None`), `confidence` (4 dp) — **the `native_signal` variant omits `confidence` entirely**, `completed_room_ids` | Robot finishes a room |
+| `eufy_vacuum_room_completed` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `confidence`, `duration_seconds`, `entered_at` | **Informational** dwell event on native-position brands (`mapping/tracker.py`); not a queue driver |
+| `eufy_vacuum_path_blocked` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name` (+ the block report fields) | Blockage detected during cleaning |
+| `eufy_vacuum_stall_detected` | `vacuum_entity_id`, `map_id`, `room_id` (**int**), `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` | Robot has been in a room >= 2x its learned threshold with `awaiting_bounds_exit = true`. Fires at most once per room per job |
+| `eufy_vacuum_room_skipped` | `vacuum_entity_id`, `map_id`, `job_id`, `room_id` (**int**), `room_name`, `completed_room_ids` (list of int) | Live tracking advanced past a queued room that was never completed. Deduped once per room per job. Largely inert for Eufy's sequential counter; meaningful on brands whose live position can leapfrog the queue order |
+| `eufy_vacuum_run_incomplete` | `vacuum_entity_id`, `job_id`, `outcome_status` (`completed`\|`cancelled`\|`failed`\|`interrupted`), `missed_room_ids` (list of int), `missed_rooms` (list of `{room_id, name}`) | Fired by `finalize_learning_job` when a cancelled/failed/interrupted job left uncleaned rooms |
+| `eufy_vacuum_external_run_pending` | `vacuum_entity_id`, `map_id`, `record_path`, `segment_count`, `detection_ts` | An app-started (external) run was detected + captured — the Learning Review / external-run-confirm UI keys off this to prompt attribution ([28](../28-external-run-ingestion.md)) |
+
+> **`room_id` type is inconsistent across events**: a **string** in `room_started`/`room_finished`, an **int** in `stall_detected`/`room_skipped` (per 06 §10). A client matching rooms by strict equality across events must coerce.
 
 ---
 
@@ -251,7 +256,7 @@ Entity IDs are derived from the vacuum's `object_id` (the part after the dot in 
 
 #### Vacuum entity
 
-The primary vacuum entity (`vacuum.{object_id}`) is the core state source:
+The primary vacuum entity (`vacuum.{object_id}`) is the core state source. It is **provided by the brand integration** (jeppesens eufy-clean / roborock), not this one — so `state` values are brand / HA-`VacuumActivity`-defined and `battery_level` may be deprecated on newer HA vacuum entities:
 
 - `state` — `cleaning`, `docked`, `returning`, `paused`, `error`, `idle`
 - `attributes.battery_level` — integer 0–100
@@ -259,16 +264,19 @@ The primary vacuum entity (`vacuum.{object_id}`) is the core state source:
 
 #### Switch entities (room enabled/disabled)
 
-The integration creates one switch per room per map: `switch.{object_id}_{map_slug}_{room_slug}`. The switch's `on`/`off` state is the room's enabled flag. Switch `extra_state_attributes` carry all room settings:
+The integration creates one switch per room per map: `switch.{object_id}_{map_slug}_{room_slug}`. The switch's `on`/`off` state is the room's enabled flag. The **29** `extra_state_attributes` are the room's full transport (the same base rides the room **number** entity too):
 
 ```
-vacuum_entity_id, map_id, room_id, room_name, slug,
-order, profile_name, clean_mode, fan_speed, water_level,
-clean_intensity, clean_passes, edge_mopping, floor_type,
-carpet, grants_access_to, is_dock_room, rules
+vacuum_entity_id, map_id, room_id, room_name, slug, order, enabled,
+profile_name, floor_type, carpet, color, is_dock_room, grants_access_to, rules, integration,
+clean_mode, fan_speed, water_level, clean_intensity, clean_passes, edge_mopping,   # profile-RESOLVED effective values
+last_cleaned_at, last_vacuumed_at, last_mopped_at, last_job_mode,
+clean_mode_options, fan_speed_options, water_level_options, clean_intensity_options  # each [{value, label}]
 ```
 
-The card discovers room switches by scanning `hass.states` for entities whose attributes contain `vacuum_entity_id` matching the configured vacuum. It does not rely on a fixed naming pattern.
+`clean_mode` / `fan_speed` / `water_level` / `clean_intensity` / `clean_passes` / `edge_mopping` are **profile-resolved effective** settings (from `get_effective_room_details`), not the raw stored room fields. The four `*_options` lists are the picker vocab (canonical `value` + English `label` — see [Canonical values vs localized display](#canonical-values-vs-localized-display)); they ride the entity precisely so a client with no service access (the standalone room card) can build the mode/speed/water/intensity dropdowns.
+
+The card discovers room switches by scanning `hass.states` for entities whose attributes contain `vacuum_entity_id` matching the configured vacuum. It does **not** rely on a fixed naming pattern — recommended for all this integration's entities, since entity_id derivation is not guaranteed stable.
 
 #### Number entities (room order)
 
@@ -278,13 +286,14 @@ The integration creates one number entity per room per map: `number.{object_id}_
 
 | Entity ID pattern | `state` | Key `attributes` |
 |---|---|---|
-| `sensor.{object_id}_theme_state` | Theme ID string | `vacuum_entity_id`, active theme tokens + colors + alpha, working draft overrides, `draft_dirty` flag |
-| `sensor.{object_id}_active_map` | Active map ID | Map metadata |
+| `sensor.{object_id}_theme_state` | active theme **name** (or `none`) | `active_theme_id`, `draft_dirty`, `editor_mode`, `working_draft`, `library_count`, `library_summary` (`[{id, theme_id, name}]`), `default_theme_id`, `vacuum_entity_id` — **no** active-theme token map (fetch full tokens via `get_theme_library`) |
 | `sensor.{object_id}_available_profiles` | Profile count | Available profile definitions |
 | `sensor.{object_id}_dock_events` | Event count | Dock event history |
-| `sensor.{object_id}_robot_position_x_raw` | X coordinate (int) | Raw robot X position |
-| `sensor.{object_id}_robot_position_y_raw` | Y coordinate (int) | Raw robot Y position |
+| `sensor.{object_id}_map_overlays` | current-room name | per-room bbox/area, `robot_anchor` / `dock_anchor` / `robot_heading` (**the first-party robot-position source**), `no_go`/`no_mop`/`walls`/`zones`/`obstacles`, `visibility` |
 | `sensor.{object_id}_{component}_remaining` | Hours remaining | Per-component maintenance sensor (one per maintenance component) |
+| `binary_sensor.{object_id}_active_run_has_error` | `on`/`off` | The dedicated error signal — prefer over parsing vacuum state strings |
+
+There is **no first-party `active_map` sensor and no `robot_position_*_raw` sensor** (contrary to older guidance). The active-map id is resolved server-side from the adapter's brand entity (role `active_map`) — read it via `get_dashboard_snapshot` / `get_vacuum_maps`, not a fixed `sensor.{object_id}_active_map`. Robot position is the `map_overlays` sensor's `robot_anchor`/`robot_heading` above. The integration also registers onboarding, active-job (lifecycle), error, and six battery-health sensors — see [12-battery-system](../12-battery-system.md) / [23-error-tracker](../23-error-tracker.md).
 
 Per-room sensors are also registered at setup:
 - `sensor.{object_id}_{map_slug}_{room_slug}_cleaning_history` — room-level cleaning history
@@ -292,13 +301,15 @@ Per-room sensors are also registered at setup:
 
 #### Theme sensor attributes (detailed)
 
-The `sensor.{object_id}_theme_state` entity is the backend's source of truth for all theme state. On every HA update its attributes should be mirrored into your UI's theme state. Key attribute fields:
+The `sensor.{object_id}_theme_state` entity carries the theme *draft + library index* — its `state` is the active theme **name** (or `none`). The **full** active-theme token/color/alpha maps are NOT on the sensor; fetch them via `get_theme_library()`. Attributes:
 
+- `active_theme_id` — the currently applied theme id
+- `draft_dirty` — boolean; true when the working draft differs from the saved theme
+- `editor_mode` — the editor state (`live` / …)
+- `working_draft` — the `{tokens, colors, alpha}` overrides being edited (this IS on the sensor)
+- `library_count` + `library_summary` — `[{id, theme_id, name}]` (names only, no tokens)
+- `default_theme_id`
 - `vacuum_entity_id` — confirms this sensor belongs to a specific vacuum
-- `active_theme_id` — the currently applied theme
-- `working_draft` — dict of token/color/alpha overrides being edited
-- `draft_dirty` — boolean; true when the draft differs from the saved theme
-- Token, color, and alpha maps for the active theme
 
 #### Map segments read model (`get_map_segments` response)
 
@@ -372,15 +383,18 @@ This section specifies the minimum required for any UI (React app, Vue SPA, nati
 
 ### Minimum viable polling loop
 
-The backend does not push card-specific state over WebSockets. You must poll:
+The backend **does push** a live-job heartbeat: `eufy_vacuum_job_progress_tick` fires every 5 s while a job runs, and the backend runs `get_job_progress_snapshot` server-side on the same tick (which is also what fires the room-rollover / stall / skip events — so they work even when nobody has the panel open). Subscribe to the tick and re-read the snapshot; everything else is read on HA state pushes / tab activation. The 500/800 ms figures below are the **shipped card's** debounce choices, not a contract requirement.
 
 ```
+On eufy_vacuum_job_progress_tick (5 s, while a job runs) — the live-job refresh signal:
+  - Call get_job_progress_snapshot(vacuum_entity_id)
+  - When it returns awaiting_bounds_exit == true, keep short-polling (~5 s) until the room rolls over
+
 Every time hass.states updates (subscribe via HA WebSocket connection event):
   - Read vacuum entity state + battery from hass.states
   - Read all switch entities whose attributes.vacuum_entity_id == your vacuum
   - Read all number entities whose attributes.vacuum_entity_id == your vacuum
   - Read sensor.{object_id}_theme_state attributes
-  - Read sensor.{object_id}_active_map state
 
 Every 500 ms (debounced after HA state push):
   - Call get_dashboard_snapshot(vacuum_entity_id, map_id)
@@ -409,16 +423,19 @@ On Rooms tab when map_id or vacuum changes:
 
 On map view open / when map_id or vacuum changes:
   - Call get_map_segments(vacuum_entity_id, map_id)
+  - (live-image brands) Call get_map_render_data(vacuum_entity_id) once — cached by its returned version; {present:false} => no VA render
+  - (live-pose brands) Poll get_map_live_pose(vacuum_entity_id) on the live cadence for the moving robot/dock overlay; {present:false} => no live pose
 ```
 
 `get_map_segments` returns `segmentation_mode`, `active_custom_layout_id`, and the `custom_layouts` list. The card reads these to select the active segment store and backdrop variant: in `cv` mode it shows `image_segments` over the `dark`/`default`/`light` backdrop (rendered `object-fit: contain`); in `custom` mode it shows the **active layout's** `custom_segments` over that layout's `custom_<layout_id>` backdrop (rendered `object-fit: fill`), and renders the `custom_layouts` list as the layout-picker chips. The same response also rebuilds the composer draft once per `${map_id}:${active_custom_layout_id}` (see [custom-segment-composer.md](custom-segment-composer.md)).
 
 ### Event subscriptions needed for real-time updates
 
-Subscribe to all seven events for any UI that tracks live jobs:
+Subscribe to these for any UI that tracks live jobs:
 
 | Event | Why |
 |---|---|
+| `eufy_vacuum_job_progress_tick` | **The refresh heartbeat** — re-read `get_job_progress_snapshot` on each tick |
 | `eufy_vacuum_room_started` | Update "currently cleaning" indicator |
 | `eufy_vacuum_room_finished` | Update completed rooms list; trigger reanchor call |
 | `eufy_vacuum_job_finished` | Clear active job UI; show summary |
@@ -426,6 +443,7 @@ Subscribe to all seven events for any UI that tracks live jobs:
 | `eufy_vacuum_stall_detected` | Show stall warning banner |
 | `eufy_vacuum_room_skipped` | Flag a queued room the run advanced past without cleaning |
 | `eufy_vacuum_run_incomplete` | Show missed rooms prompt; offer retry action |
+| `eufy_vacuum_external_run_pending` | Prompt attribution for a detected app-started run (Review card) |
 
 ### Entity reads needed for room state
 
@@ -434,7 +452,13 @@ For each room in the active map you need:
 1. **Switch entity** for enabled/disabled state and all room settings (name, mode, fan speed, etc.). Discover by scanning `hass.states` for entities where `state.attributes.vacuum_entity_id === yourVacuumEntityId` and the entity ID starts with `switch.`.
 2. **Number entity** for sort order. Discover by scanning `hass.states` for entities where `state.attributes.vacuum_entity_id === yourVacuumEntityId` and the entity ID starts with `number.` and ends with `_order`.
 
-The active map ID comes from `sensor.{object_id}_active_map` state value.
+The active map ID comes from `get_dashboard_snapshot` / `get_vacuum_maps` — there is **no** first-party `sensor.{object_id}_active_map` (the adapter resolves it from the brand's own entity).
+
+### Cache invalidation & degrading gracefully
+
+- **Refetch `get_map_segments` after any mutating map-config call** (`set_custom_segments`, `set_segment_room_link`, `create_custom_layout`, `set_segmentation_mode`, `adjust_map_segment`, …). The response is derived at read time, so edits aren't visible until you re-pull.
+- A **`camera.` live backdrop** has a stable `entity_picture` token — append the entity's `last_updated` as a query param to force each frame to refetch (an `image.` entity self-busts).
+- **Degrade on absent data**: `get_map_render_data` / `get_map_live_pose` return `{present: false}`; `live_map_image_entity` is `null` when no live backdrop resolves; a false/absent capability flag means hide that feature; `get_*_log` services return `{}` when empty. Hide or fall back — never dead-end.
 
 ### Service call safety notes
 
