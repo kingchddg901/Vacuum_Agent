@@ -132,6 +132,31 @@ def test_build_room_clean_payload_keeps_numeric_int_map_id():
     assert result["payload"]["map_id"] == 6
 
 
+def test_build_room_clean_payload_clamps_wire_clean_times():
+    """[QE-6c] The WIRE clean_times is clamped to [1, passes_max] (Eufy caps at 2),
+    while resolved_rooms.clean_passes keeps the RAW resolved value (learning records
+    intent, not the device clamp). Matches the flat-id / Dreame engines."""
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        managed_rooms={"1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                             "clean_mode": "vacuum", "fan_speed": "Max",
+                             "clean_passes": 5}},
+        queue_room_ids=[1])
+    assert result["payload"]["rooms"][0]["clean_times"] == 2   # clamped to passes_max
+    assert result["resolved_rooms"][0]["clean_passes"] == 5    # raw resolved kept
+
+
+def test_build_room_clean_payload_floors_wire_clean_times():
+    """[QE-6d] A zero / negative stored pass count floors to 1 on the wire."""
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        managed_rooms={"1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                             "clean_mode": "vacuum", "fan_speed": "Max",
+                             "clean_passes": 0}},
+        queue_room_ids=[1])
+    assert result["payload"]["rooms"][0]["clean_times"] == 1
+
+
 def test_active_job_no_phases_keys_absent():
     """[QE-7] atomic (no phases arg) -> phase keys are not present at all."""
     state = build_active_job_state(

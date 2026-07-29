@@ -84,7 +84,7 @@ condition); `water_level` and `edge_mopping` additionally require the room's
 |---|---|---|
 | `map_id` | `int \| str` | Cast by the adapter's `dispatch.map_id_type`: `"int"` forces int, `"str"` forces str, absent = auto-cast (numeric when all-digits, else raw string). When `map_id_type == "int"` but the id can't become an int (a scalar / `"main"` anchor), the field is **omitted entirely** from the wire payload. |
 | `id` | `int` | Room ID from the vacuum firmware |
-| `clean_times` | `int` | Cleaning passes. **The Eufy engine passes `int(clean_passes)` through unclamped** — no ≥1 floor, no Eufy ≤2 cap; only the flat-id / Dreame engines clamp to `[1, passes_max]`. Capability gating forces `1` only when `supports_passes` is false. |
+| `clean_times` | `int` | Cleaning passes, **clamped to `[1, passes_max]`** on the wire (`dispatch.passes_max`, default 2 — the Eufy cap); `resolved_rooms.clean_passes` keeps the raw resolved value, so learning records intent, not the device clamp. Capability gating also forces `1` when `supports_passes` is false. |
 | `fan_speed` | `str` | `"Quiet"`, `"Standard"`, `"Boost"`, `"Max"` |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
 | `clean_intensity` | `str` | `"Quick"`, `"Narrow"`, `"Deep"`. Legacy `"Standard"` / `"Normal"` are **dead** values folded to `"Quick"` on read (`normalize_clean_intensity`); nothing emits `"Standard"` on the wire. |

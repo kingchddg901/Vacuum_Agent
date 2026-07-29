@@ -16,6 +16,12 @@ from ..profiles.room_profiles import (
 )
 
 
+# NOTE (legacy / aspirational): QueueEntry / PayloadItem / ActiveJobSnapshot below
+# do NOT reflect what this module currently emits — build_room_clean_payload builds
+# {id, clean_times, fan_speed, ...} (no stable_key / per-room map_id / canonical
+# clean_passes), and the active job uses the flat active_job shape (not
+# queue_entries / payload_items). Kept as documentation of the intended canonical
+# shapes; they are total=False and unused for runtime validation.
 class QueueEntry(TypedDict, total=False):
     """Canonical shape for one entry in the room queue.
 
@@ -224,6 +230,7 @@ def build_room_clean_payload(
     # Per-room field names — fall back to Eufy defaults.
     room_id_field: str = dispatch.get("room_id_field", "id")
     clean_passes_field: str = dispatch.get("clean_passes_field", "clean_times")
+    passes_max: int = int(dispatch.get("passes_max", 2))  # Eufy caps at 2 passes
     room_fields: dict[str, dict[str, Any]] = dispatch.get("room_fields", {}) or {}
 
     candidate_rooms = [
@@ -278,9 +285,12 @@ def build_room_clean_payload(
         clean_passes = int(gated["clean_passes"])
         edge_mopping = bool(gated["edge_mopping"])
 
+        # Clamp the WIRE pass count to [1, passes_max] (Eufy caps at 2), matching the
+        # flat-id / Dreame engines. resolved_rooms below keeps the raw resolved value,
+        # so learning records the user's intent rather than the device clamp.
         payload_room: dict[str, Any] = {
             room_id_field: room_id,
-            clean_passes_field: clean_passes,
+            clean_passes_field: max(1, min(passes_max, clean_passes)),
         }
 
         # Per-room fields written through the adapter rename map.
