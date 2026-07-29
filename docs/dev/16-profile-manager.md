@@ -96,7 +96,7 @@ Each stored record is the `normalize_room_profile()` output — exactly **9 keys
 | `edge_mopping` | `bool` | `False` |
 | `mop_required` | `bool` | `False` |
 
-> **`path_type`/`mop_required` are always defaulted for custom profiles.** `save_user_room_profile` builds the `normalize_room_profile` input from **only 7 fields** (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`) — it never passes `path_type` or `mop_required`. So every custom profile persists `path_type="wide"` and `mop_required=False` regardless of `clean_mode` (a user "deep mop" custom profile is stored `path_type="wide"`, `mop_required=False`). See code-flag B2.
+> **`path_type`/`mop_required` are derived for custom profiles.** The editor/service exposes 7 fields (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`) — not `path_type` or `mop_required`. `save_user_room_profile` **derives** the missing two to mirror the built-ins rather than letting `normalize_room_profile` default both: `mop_required = "mop" in clean_mode or "wash" in clean_mode`, and `path_type = "narrow"` when `clean_intensity` normalizes to `Deep` else `"wide"`. (Was code-flag B2: previously both were left to default `"wide"`/`False`, mis-storing a deep-mop custom profile — fixed.)
 
 Only **user-created** profiles are stored here. The four built-ins are not persisted — `get_room_profiles()` merges them over the stored profiles at read time via `merge_profile_dicts()`. The store key is also the `profile_name`.
 
@@ -197,7 +197,7 @@ There are also `save_room_profile_from_room(*, vacuum_entity_id, map_id, room_id
 #   or {..., "saved"|"overwritten": False, "reason": ..., ["message": ...]}
 ```
 
-Reason codes: `missing_label`, `room_not_found`, `room_details_unavailable`, `protected_profile` (both); `profile_not_found` (overwrite-only). `room_id` is echoed as `int(room_id)` — an unguarded coercion that raises `ValueError` on a non-numeric id rather than returning a reason (code-flag B5).
+Reason codes: `missing_label`, `room_not_found`, `room_details_unavailable`, `protected_profile` (both); `profile_not_found` (overwrite-only). `room_id` is echoed as `int(room_id)`; the two `*_from_room` service schemas already `Coerce(int)` the `room_id`, so that coercion cannot fail via the service path (only a direct non-int caller would raise).
 
 ### 5.3 `rename_room_profile`
 
@@ -244,7 +244,7 @@ manager.apply_room_profile(
 #    "updated_room_ids": [], "error": "profile_not_found"}
 ```
 
-Applies one profile's settings to each listed room: for each id it runs `apply_room_profile_to_config(room, profile_name, profile, catalog)` then `_finalize_room_update` (§6), rewrites `bucket["rooms"]`, and re-derives the **9-key** `build_room_selection_summary`. It resolves the **adapter** catalog (§1.1) — a per-vacuum method, unlike the singleton editor. `room_ids` are coerced `[int(r) for r in room_ids if str(r).isdigit() or isinstance(r, int)]`, which **silently drops non-digit strings and admits negative ints** (code-flag B5); rooms not on the map are skipped. Exposed as the `apply_room_profile` service. Note the failure key is **`error`** (not `reason`).
+Applies one profile's settings to each listed room: for each id it runs `apply_room_profile_to_config(room, profile_name, profile, catalog)` then `_finalize_room_update` (§6), rewrites `bucket["rooms"]`, and re-derives the **9-key** `build_room_selection_summary`. It resolves the **adapter** catalog (§1.1) — a per-vacuum method, unlike the singleton editor. `room_ids` are coerced with `_safe_int(r, -1)` and any non-positive/unparseable id is dropped (`[rid for rid in (...) if rid >= 0]`); rooms not on the map are skipped. Exposed as the `apply_room_profile` service (whose schema already `Coerce(int)`s each id). Note the failure key is **`error`** (not `reason`).
 
 ---
 
@@ -294,6 +294,8 @@ If a match is found `profile_name` is set to it; otherwise `profile_name = "cust
 > **Why the candidate is protected too (was code-flag B1, now FIXED).** The candidate **must** be resolved with the room's `floor_type` and protected on the same pipeline. Historically it was resolved from a bare `{"profile_name": name}` (no `floor_type`), so it carried the hardwood water default `"Low"` while a vacuum room's protected water is forced `"Off"` → `"low" != "off"` → **every plain vacuum room fell to `profile_name="custom"`** (only mop presets, which keep their water, could ever match — the PM-10 test comment notes it deliberately used a mop preset for exactly this reason). Resolving + protecting the candidate under the room's floor closes the asymmetry; regression test `PM-10b` (a hardwood vacuum room now matches `vacuum_quick`).
 
 > The two-stage pipeline above produces **display/storage** values. A separate, capability-aware stage (`apply_capability_gate`) runs later at **payload-build time** — see §6.1.
+
+> **Two callers of the matcher (B6, benign).** The **editor** path (`update_room_fields` → `_finalize_room_update`) runs the full protect → resolve → **path_type sync** → match pipeline and persists the result. The **dispatch** path (`planning/run_plan.py`) runs only `protected_room_config` + `_match_profile_from_fields` (no `path_type` sync) — but it reads the room's **already-persisted** `path_type` for the payload (synced when the room was last saved), so it doesn't need to re-sync. Both now set `profile_name` consistently (the B1 fix applies to the dispatch matcher too).
 
 ### 6.1 — `apply_capability_gate(settings, capabilities, *, resolved_profile_name=None, catalog=None)`
 

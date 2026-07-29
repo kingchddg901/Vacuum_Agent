@@ -310,6 +310,19 @@ class ProfileManager:
                 "message": "Core built-in room profiles cannot be overwritten.",
             }
 
+        # Custom profiles are authored WITHOUT path_type / mop_required (the editor
+        # exposes neither), so derive them the way the built-ins pair them instead of
+        # letting normalize_room_profile default BOTH (path_type="wide",
+        # mop_required=False) — which mis-stored a deep-mop custom profile as
+        # wide / not-mop. mop_required tracks the mode; path_type mirrors the
+        # built-ins' Deep->narrow / else->wide coupling.
+        _clean_mode_l = str(clean_mode).lower()
+        _mop_required = "mop" in _clean_mode_l or "wash" in _clean_mode_l
+        _path_type = (
+            "narrow"
+            if normalize_clean_intensity(clean_intensity).lower() == "deep"
+            else "wide"
+        )
         profile = normalize_room_profile(
             {
                 "label": label,
@@ -319,6 +332,8 @@ class ProfileManager:
                 "clean_intensity": clean_intensity,
                 "clean_passes": clean_passes,
                 "edge_mopping": edge_mopping,
+                "path_type": _path_type,
+                "mop_required": _mop_required,
             }
         )
         self._data["profiles"]["room_profiles"][target_profile_name] = profile
@@ -630,7 +645,10 @@ class ProfileManager:
             map_id=str(map_id),
         )
         rooms = map_bucket.get("rooms", {})
-        normalized_ids = [int(r) for r in room_ids if str(r).isdigit() or (isinstance(r, int))]
+        # Coerce safely and drop anything that is not a real (non-negative) room id.
+        # (The service schema already Coerces room_ids to int; this also makes a direct
+        # caller robust — a bad id becomes -1 and is filtered, never admitted or raised.)
+        normalized_ids = [rid for rid in (_safe_int(r, -1) for r in room_ids) if rid >= 0]
 
         # Resolve the adapter's room-profile catalog so a non-Eufy brand fills any
         # omitted profile field from ITS normalize_defaults, not the in-code Eufy

@@ -7,6 +7,7 @@ Coverage targets
 ----------------
 [PM-1]  get_room_profiles merges built-ins + exposes protected names.
 [PM-2]  save_user_room_profile saves; a protected name is rejected.
+[PM-2b] save_user_room_profile derives path_type (Deep→narrow) + mop_required (B2).
 [PM-3]  rename_room_profile: rename; protected + not-found rejections.
 [PM-4]  delete_room_profile: delete; protected + not-found rejections.
 [PM-5]  get_effective_room_details resolves a stored room; None when absent.
@@ -156,6 +157,27 @@ def test_save_user_profile(pm):
     # protected name rejected
     blocked = _save(pm, name="vacuum_quick")
     assert blocked["saved"] is False and blocked["reason"] == "protected_profile"
+
+
+def test_save_user_profile_derives_path_type_and_mop_required(pm):
+    """[PM-2b] B2: a custom profile derives path_type (Deep→narrow / else→wide) and
+    mop_required (from clean_mode) instead of normalize defaulting BOTH (wide /
+    not-mop) — which mis-stored a deep-mop custom profile."""
+    deep_mop = pm.save_user_room_profile(
+        label="Deep Mop", clean_mode="vacuum_mop", fan_speed="Max",
+        water_level="Medium", clean_intensity="Deep", clean_passes=2,
+        edge_mopping=True, profile_name="user_deepmop",
+    )["profile"]
+    assert deep_mop["path_type"] == "narrow"   # Deep → narrow (was always "wide")
+    assert deep_mop["mop_required"] is True     # mop mode (was always False)
+
+    quick_vac = pm.save_user_room_profile(
+        label="Quick Vac", clean_mode="vacuum", fan_speed="Standard",
+        water_level="Off", clean_intensity="Quick", clean_passes=1,
+        edge_mopping=False, profile_name="user_quickvac",
+    )["profile"]
+    assert quick_vac["path_type"] == "wide"     # Quick → wide
+    assert quick_vac["mop_required"] is False    # vacuum-only
 
 
 def test_rename_profile(pm):

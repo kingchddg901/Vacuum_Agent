@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any
 
 try:
     from typing import TypedDict
@@ -11,21 +11,23 @@ except ImportError:
     from typing_extensions import TypedDict  # type: ignore[assignment]
 
 
-class ProfileRecord(TypedDict, total=False):
-    """Canonical shape for a stored or built-in room profile dict (documentation-only)."""
+class ProfileRecord(TypedDict):
+    """Canonical shape of a stored or built-in room profile dict (documentation-only).
 
-    profile_id: str
-    name: str
+    Exactly the 9 keys ``normalize_room_profile`` produces and ``BUILT_IN_ROOM_PROFILES``
+    declares — all always present. The store key IS the ``profile_name``; the record
+    itself carries no ``id`` / ``name`` / ``is_builtin``.
+    """
+
     label: str
-    is_builtin: bool
-    clean_mode: Optional[str]
-    fan_speed: Optional[str]
-    water_level: Optional[str]
-    clean_intensity: Optional[str]
-    clean_passes: Optional[int]
-    edge_mopping: Optional[bool]
-    path_type: Optional[str]    # "wide" | "narrow" | None
-    mop_required: Optional[bool]
+    clean_mode: str
+    fan_speed: str
+    water_level: str
+    clean_intensity: str
+    path_type: str              # "wide" | "narrow"
+    clean_passes: int
+    edge_mopping: bool
+    mop_required: bool
 
 
 class EffectiveRoomSettings(TypedDict, total=False):
@@ -540,7 +542,7 @@ def apply_room_profile_to_config(
     updated = dict(room_config)
     normalized = normalize_room_profile(profile, catalog=catalog)
 
-    updated["profile_name"] = _normalize_profile_name(profile_name)
+    updated["profile_name"] = _normalize_profile_name(profile_name, catalog=catalog)
     updated["clean_mode"] = normalized["clean_mode"]
     updated["fan_speed"] = normalized["fan_speed"]
     updated["water_level"] = normalized["water_level"]
