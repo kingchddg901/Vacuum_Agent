@@ -71,11 +71,23 @@ Reads the room list according to `discovery.source`, then normalizes it identica
 - **`entity_attribute`** (default, Eufy) — reads the live attribute named by `room_list_attribute` off the entity named by `room_list_entity`.
 - **`service_response`** (Roborock) — reads `get_cached_room_source(hass, vacuum_entity_id)` (the per-map flattened cache, refreshed at the async boundaries by `async_refresh_room_source` — see `rooms/source_refresh.py`) and selects the entry for the resolved active map name. There is no entity attribute to read; the service call is async and the sync discovery path cannot make one, so it consumes the cache instead.
 
+  The cache lives at `hass.data[DOMAIN]["room_source_cache"][vacuum_entity_id]` =
+  `{map_name: [{<room_id_key>: id_str, <room_name_key>: name}, ...]}` (`DATA_ROOM_SOURCE_CACHE`).
+  `flatten_maps_response` keys each map by **name** (`map_name_key`, default `"name"`), with
+  fallbacks when the name is blank: single-map → `active_map_id`, else `f"Map {flag}"`, else
+  `f"Map {index}"`; `room_id_key` defaults to `"segment_id"`, `maps_rooms_key` to `"rooms"`. When
+  the resolved map name misses the cache but exactly **one** map is cached, discovery falls back
+  to that one map.
+
 For each raw room entry:
 
 1. Extracts `room_id` (from `room_id_key`) and `name` (from `room_name_key`).
 2. Generates `slug = slugify_room_name(name)`.
 3. De-duplicates by `room_id` — if two entries share an ID, the first wins.
+
+An entry is **skipped** entirely when: the segment is not a dict, its id **or** name is `None`,
+its id is not int-coercible, or its name is empty after `str(name).strip()`. (`resolved_map_id`
+falls back to `"unknown"` when both `map_id` and the active map are `None`.)
 
 Returns a list of room dicts:
 
@@ -140,7 +152,11 @@ Builds the managed room dict from raw discovery data. Key is `str(room_id)`.
 - If the room is new: initializes with safe defaults — `clean_mode="vacuum"`, `fan_speed="Max"`, `water_level="Off"`, `profile_name="vacuum_quick"`, `clean_passes=1`, `edge_mopping=False`, etc.
 - Sets `is_configured = True` for every room that makes it into the result — including a room in `enabled_room_ids` counts as the user's explicit approval. This flag is what the setup drift tracker uses to distinguish managed rooms from newly discovered ones.
 - Sets `enabled = True` for new rooms (existing rooms keep their stored `enabled` value). Note: membership in `enabled_room_ids` gates *inclusion*, not the `enabled` flag.
-- Sets `floor_type` from `floor_types` dict if present, otherwise defaults to `"hardwood"`.
+- Sets `floor_type` with a **3-tier precedence**: the wizard `floor_types` value (looked up by
+  **both** int and str key) → the room's **existing stored** `floor_type` → `"hardwood"`. So an
+  existing room with no wizard override keeps its stored floor type.
+- **Does not emit `is_transition`** (`RoomConfig` has no such field), so the immediate save
+  return lacks it — the load-time backfill (§6) adds it on the next reload.
 
 When `enabled_room_ids` is `None`, returns the managed room dict for every room in `discovered_rooms`; when it is supplied, only those rooms are present. Rooms in `existing_rooms` that are **not** in `discovered_rooms` are **dropped** (they are stale).
 
@@ -162,6 +178,10 @@ Returns:
     "disabled_rooms":  list[dict],   # sorted by name
 }
 ```
+
+Each `enabled_rooms` / `disabled_rooms` entry is **9 keys**: `{room_id: int, name, slug, order,
+profile_name, floor_type, clean_passes, edge_mopping, carpet}` where `carpet =
+floor_type.startswith("carpet")`. (A `rebuild_map` writes a *reduced* 4-key entry instead — §5.4.)
 
 ---
 
@@ -202,7 +222,10 @@ manager.room_map.discover_rooms(
 1. Calls `get_active_map_id()` if `map_id` is not supplied.
 2. Calls `discover_rooms_for_vacuum()` (via `discover_rooms_payload()`).
 3. Attaches a `"reconciliation"` block onto the payload — `compute_reconciliation()` (from `rooms/reconciliation.py`) compares the fresh discovery against the **saved** rooms for this map by slug, surfacing `id_changed` / `renamed` reviews. New/removed rooms are owned by drift, not reported here.
-4. Caches the raw discovery result (with the reconciliation block) in `data["discovery"][vacuum][str(map_id)]`.
+4. Caches the raw discovery result (with the reconciliation block) under the **resolved active-map
+   id**: `data["discovery"][vacuum][str(payload["active_map_id"] or map_id or "")]` — so an omitted
+   `map_id` keys under the active map, never the literal `"None"`. (`save`/`rebuild`/`reconcile`
+   read back under `str(map_id)`, which lines up because callers pass the resolved active map.)
 5. Updates `runtime.active_map_id` for the vacuum.
 
 Returns the discovery payload dict.
@@ -251,7 +274,10 @@ Removes all integration data for the (vacuum, map) pair:
 4. Removes rule state from `data["room_rule_status"][vacuum][map_id_str]`.
 5. Resets the active job slot for `data["active_jobs"][vacuum][map_id_str]`.
 
-Returns a summary of what was removed.
+Returns `{vacuum_entity_id, map_id, rooms_removed: int, history_removed: bool,
+rule_status_removed: bool, discovery_removed: bool, active_job_cleared: bool}`. Unlike
+`save`/`rebuild`/`reconcile` (which notify internally), `remove_map` does **not** call
+`_notify_rooms_updated` — its caller must.
 
 No cross-map access-graph cleanup is performed, and none is needed. `grants_access_to` targets are bare room IDs scoped to a single map — room identity is vacuum+map+room, and every consumer (`_build_room_access_views`, `_validate_room_access_graph`, `_normalized_managed_rooms_with_automation`) resolves them only against that same map's room set. A grant on a remaining map therefore can never reference a room on the map being removed (even if both maps happen to reuse the same numeric room ID, those IDs denote *different* rooms). There is nothing to strip, so `remove_map` leaves sibling maps' grants untouched.
 
@@ -273,6 +299,13 @@ Rebuilds the managed room set from the discovery cache, preserving existing room
 3. Calls `map_manager.rebuild_map_bucket()`, forwarding the `preserve_existing_settings` argument (defaults to `True`).
 4. Calls `_refresh_room_derived_state()` to re-run profile matching on all rooms.
 5. Calls `_notify_rooms_updated()` to rebuild HA entities.
+6. Sets `runtime.selected_map_id = str(map_id)` (same as `save`).
+
+`rebuild_map` returns `rebuild_map_bucket`'s dict: `{vacuum_entity_id, map_id, room_count, rooms,
+summary, metadata}`. Note its `summary` entries are a **reduced 4-key** shape
+(`{room_id, name, slug, order}`) — **not** `build_room_selection_summary`'s 9-key entry — so a
+consumer reading `summary.enabled_rooms[].floor_type` / `profile_name` / `clean_passes` /
+`edge_mopping` / `carpet` gets nothing after a rebuild until the next save.
 
 Does **not** reset onboarding — use `onboarding.reset_onboarding()` explicitly before `rebuild_map()` if the intent is a full reset.
 
@@ -305,6 +338,21 @@ Guards an empty discovery: if the cached discovery has no rooms for this map, it
 
 Returns `{vacuum_entity_id, map_id, action, migrated_room_count, id_remap, dropped[, skipped]}`. Registered as the `reconcile_room` service (`supports_response=True`).
 
+**Reconciliation shapes.** `compute_reconciliation` (§5.1, cached on the discovery payload as
+`payload["reconciliation"]`) returns `{"reviews": [...], "has_changes": bool}` where each review
+is one of:
+- `{"kind": "id_changed", "slug", "name", "old_id": int, "new_id": int}` — same slug, new id;
+- `{"kind": "renamed", "room_id": int, "old_slug", "new_slug", "old_name", "new_name"}` — same
+  id, new name. A `renamed` review is **suppressed** when the old slug is still present in
+  discovery (that's a renumber — already surfaced as an `id_changed` for the other room; firing
+  both would contradict).
+
+`plan_migration` returns `{"rooms": {id_str: cfg}, "id_remap": {old_id: new_id}, "dropped":
+[slug, ...]}`; it guards freed-then-reused ids (a `consumed_old_ids` set) and rewrites each
+room's `grants_access_to` through the remap, dropping targets that don't resolve. (`reconcile_room`
+migrate **stringifies** the remap keys — `{str(old): new}` — and the `ignore` return has
+`id_remap={}`, `dropped=[]`.)
+
 ---
 
 ## 6. Room Data Model
@@ -322,9 +370,9 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `floor_type` | str | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"granite"`, `"concrete"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. (The old `"carpet"` + `carpet_type` shape was migrated away.) |
 | `profile_name` | str | Matched room profile name, or `"custom"` |
 | `clean_mode` | str | `"vacuum"`, `"mop"`, or `"vacuum_mop"` |
-| `fan_speed` | str | e.g. `"Standard"` |
+| `fan_speed` | str | `"Quiet"` / `"Standard"` / `"Boost"` / `"Max"`; default `"Max"` |
 | `water_level` | str | e.g. `"Off"`, `"Low"`, `"Medium"`, `"High"` |
-| `clean_intensity` | str | e.g. `"Standard"` |
+| `clean_intensity` | str | `"Quick"` / `"Narrow"` / `"Deep"`; default `"Quick"` (legacy `"Standard"`/`"Normal"` are dead — folded to `"Quick"`) |
 | `clean_passes` | int | Number of cleaning passes; minimum 1. (The "1 or 2" cap is a frontend modifier constraint, not a room-model rule.) |
 | `edge_mopping` | bool | Whether edge mopping is enabled |
 | `path_type` | str | From matched profile |
@@ -334,6 +382,30 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
 | `color` | str \| None | Per-room map fill override, a canonical `"#rrggbb"` (lowercased), or `None`/absent to use the themeable room-fill palette. Purely presentational; preserved across re-save (`room_manager.py`) and rebuild (`map_manager.py`). See [themeable-map-palette.md](frontend/themeable-map-palette.md). |
+
+**Defaults** (new room, from `RoomConfig` / `build_managed_rooms`): `enabled=True`,
+`order=<1-based discovery index>`, `profile_name="vacuum_quick"`, `floor_type="hardwood"`,
+`clean_mode="vacuum"`, `fan_speed="Max"`, `water_level="Off"`, `clean_intensity="Quick"`,
+`clean_passes=1`, `edge_mopping=False`, `path_type=None`, `is_dock_room=False`,
+`grants_access_to=[]`, `rules=[]`, `color=None`, `is_configured=True` (the save path stamps
+it), `configured_at=<existing or now>`.
+
+**Three writers, one shape — reconciled by a load-time normalization.** The persisted record
+is written by three paths that do **not** all emit the same keys:
+
+- `build_managed_rooms` (save path) emits `is_configured` + `configured_at` but **not**
+  `is_transition` (`RoomConfig` has no such field), so a freshly-saved room lacks it until the
+  next load.
+- `rebuild_map_bucket` (rebuild path) emits `is_transition` but **not** `is_configured` /
+  `configured_at` (see the code note below).
+- A **load-time backfill** in `EufyVacuumManager.__init__` (`core/manager.py`) runs on every
+  construction: `setdefault` for `path_type=None`, `is_dock_room=False`, `is_transition=False`,
+  `grants_access_to=[]`, `rules=[]`, `floor_type="hardwood"`, `profile_name="vacuum_quick"`;
+  and it **migrates** `floor_type=="carpet"` + `carpet_type` → `carpet_<pile>` and pops the
+  legacy `carpet` / `carpet_type` keys. This is what makes the on-disk shape uniform after a
+  reload — a reconstruction must reproduce it or the record won't match. (Note the backfill does
+  **not** `setdefault("is_configured", …)`, so a rebuilt room stays unconfigured — a bug, not a
+  guaranteed field.)
 
 ---
 
