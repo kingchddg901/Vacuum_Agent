@@ -57,7 +57,7 @@ The proof is the everyday surfaces themselves — a room's own controls and a sa
 
 ![The Profile card's "Runs as" step manifest and Run button, shown across the shipped languages](docs/screenshots/translations-hero-profile-card.png)
 
-*Placeholder hero shots — the current images show seven of the fourteen languages; a full-set render is in progress.*
+*Placeholder hero shots — these show seven of the fourteen languages; the final selection and layout are still being decided.*
 
 ## Also on Roborock
 
