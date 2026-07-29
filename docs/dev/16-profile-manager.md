@@ -287,11 +287,11 @@ The rule is: carpet rooms can never mop (water/edge always cleared on carpet), a
 `_match_profile_from_fields` scans all room profiles looking for one that matches the room on six fields — `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping` (**not** `path_type` or `label`). The match is **not literal**: both sides pass through `_normalize_profile_match_value` (case-fold; `"off"`; `"true"`/`"false"` → bool; numeric strings → float), so `"Off" == "off"` and `2 == 2.0`. Crucially the two sides are **not symmetric**:
 
 - **Room side:** the room is run through `_protected_room_config` first (so a vacuum room already has `water_level="Off"`, `edge_mopping=False`).
-- **Candidate side:** each preset is resolved from a **bare `{"profile_name": name}`** via `resolve_room_profile_for_room` — with **no `floor_type`**, so it defaults to `hardwood` and (per §6.3) injects the hardwood water default `"Low"` because `"water_level"` is not in the bare config.
+- **Candidate side:** each preset is resolved via `resolve_room_profile_for_room` **under the room's `floor_type`** and then run through the **same** `_protected_room_config` — so both sides reflect identical floor-driven invariants (vacuum → water `"Off"`; carpet → water `"Off"` + fan default). A room with no `floor_type` leaves the candidate at the resolver's `hardwood` default.
 
 If a match is found `profile_name` is set to it; otherwise `profile_name = "custom"`.
 
-> **Code-flag B1 (real bug, HIGH).** Because the candidate side picks up the hardwood water default `"Low"` while a vacuum room's protected side is forced to `"Off"`, **a plain vacuum room never matches its own vacuum preset and always falls to `profile_name="custom"`.** Only mop presets can match (a mop room keeps its water). This is corroborated by the regression test's own comment (`tests/integration/test_profiles_manager.py`: it deliberately tests with a *mop* preset "so the round-trip can actually match — vacuum presets get water forced to Off"). The fix is a code change (resolve the candidate with the room's `floor_type`, or protect the candidate symmetrically) — flagged for a decision, not patched here.
+> **Why the candidate is protected too (was code-flag B1, now FIXED).** The candidate **must** be resolved with the room's `floor_type` and protected on the same pipeline. Historically it was resolved from a bare `{"profile_name": name}` (no `floor_type`), so it carried the hardwood water default `"Low"` while a vacuum room's protected water is forced `"Off"` → `"low" != "off"` → **every plain vacuum room fell to `profile_name="custom"`** (only mop presets, which keep their water, could ever match — the PM-10 test comment notes it deliberately used a mop preset for exactly this reason). Resolving + protecting the candidate under the room's floor closes the asymmetry; regression test `PM-10b` (a hardwood vacuum room now matches `vacuum_quick`).
 
 > The two-stage pipeline above produces **display/storage** values. A separate, capability-aware stage (`apply_capability_gate`) runs later at **payload-build time** — see §6.1.
 
@@ -360,7 +360,7 @@ The field-by-field precedence lives in `profiles/room_profiles.py`; because doc 
 3. **Mop-mode + `Off` + non-carpet** → `water_level → FLOOR_TYPE_WATER_DEFAULTS[floor_type]` (mop with water Off is invalid).
 4. **`edge_mopping` forced `False`** for any non-mop mode **or** carpet.
 
-So the doc-07 shorthand "the room field always wins" holds only for the *unconstrained hard-floor* fields; carpet fan/water and the water-fill-when-absent rule are the exceptions. (This asymmetry — the bare-`{profile_name}` candidate picking up the hardwood water default — is the mechanism behind code-flag B1, §6 Stage 2.)
+So the doc-07 shorthand "the room field always wins" holds only for the *unconstrained hard-floor* fields; carpet fan/water and the water-fill-when-absent rule are the exceptions. (Because these floor overrides are asymmetric, §6 Stage 2's profile matcher resolves + protects its candidate under the room's `floor_type` — an earlier version dropped the candidate's floor and mislabeled every vacuum room `"custom"`.)
 
 ---
 

@@ -134,16 +134,31 @@ class ProfileManager:
             return lowered
 
     def _match_profile_from_fields(self, room: dict[str, Any]) -> str | None:
-        """Return matching profile name if protected room fields match a preset."""
+        """Return matching profile name if the room's protected fields match a preset.
+
+        Both sides run through the SAME resolve -> protect pipeline under the room's
+        ``floor_type``, so floor-driven invariants apply symmetrically. Previously the
+        candidate was resolved from a bare ``{profile_name}`` (no floor_type), which
+        picked up the hardwood water default ("Low") while a vacuum room's protected
+        water is forced "Off" -> a plain vacuum room never matched its vacuum preset
+        and always fell through to "custom". Resolving + protecting the candidate
+        under the room's floor closes that asymmetry.
+        """
         profiles = self.get_room_profiles()["profiles"]
         stored_profiles = self._data.get("profiles", {}).get("room_profiles", {})
+        protected_room = self._protected_room_config(room)
+        room_floor_type = room.get("floor_type")
 
         for name, profile in profiles.items():
-            effective_profile = resolve_room_profile_for_room(
-                room_config={"profile_name": name},
-                stored_profiles=stored_profiles,
+            candidate_config: dict[str, Any] = {"profile_name": name}
+            if room_floor_type:
+                candidate_config["floor_type"] = room_floor_type
+            effective_profile = self._protected_room_config(
+                resolve_room_profile_for_room(
+                    room_config=candidate_config,
+                    stored_profiles=stored_profiles,
+                )
             )
-            protected_room = self._protected_room_config(room)
             if (
                 self._normalize_profile_match_value(protected_room.get("clean_mode"))
                 == self._normalize_profile_match_value(effective_profile.get("clean_mode"))

@@ -16,6 +16,8 @@ Coverage targets
 [PM-9]  _normalize_profile_match_value coerces bool/number/off/true/false/text.
 [PM-10] _match_profile_from_fields matches a preset; mismatched room → None
         (regression guard for the dropped-normalization bug).
+[PM-10b] _match_profile_from_fields: a plain vacuum room matches its vacuum preset
+        (B1 — vacuum water forced Off vs candidate's floor water default).
 [PM-11] overwrite_room_profile_from_room: protected / not-found / success / missing-label.
 [PM-12] overwrite_run_profile: not-found / no-rooms / success.
 [PM-13] overwrite_room_profile error returns: protected name + unknown profile.
@@ -341,6 +343,31 @@ def test_match_profile_from_fields(pm):
     # an impossible pass count matches no preset → None (would be a false
     # match if normalization were still dropped)
     assert pm._match_profile_from_fields({**room, "clean_passes": 99}) is None
+
+
+def test_match_profile_from_fields_vacuum_room_matches_preset(pm):
+    """[PM-10b] B1 regression: a plain vacuum room at a vacuum preset's exact values
+    matches that preset — it must NOT fall through to "custom".
+
+    The bug: protection forces a vacuum room's water to "Off", while the match
+    candidate — resolved from a bare {profile_name} with no floor_type — carried
+    the hardwood water default "Low", so "off" != "low" and NO vacuum room ever
+    matched a vacuum preset. Resolving + protecting the candidate under the room's
+    floor_type closes the asymmetry. Before the fix both asserts returned None.
+    """
+    room = {
+        "floor_type": "hardwood",
+        "clean_mode": "vacuum",
+        "fan_speed": "Standard",
+        "water_level": "Off",
+        "clean_intensity": "Quick",
+        "clean_passes": 1,
+        "edge_mopping": False,
+    }
+    assert pm._match_profile_from_fields(room) == "vacuum_quick"
+    # vacuum_deep differs on fan/intensity/passes → matches deep, not quick.
+    deep = {**room, "fan_speed": "Max", "clean_intensity": "Deep", "clean_passes": 2}
+    assert pm._match_profile_from_fields(deep) == "vacuum_deep"
 
 
 # ---------------------------------------------------------------------------
