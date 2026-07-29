@@ -45,6 +45,14 @@ data["error_tracker"]["vacuum.alfred"] = {
 
 The tracker initializes the per-device record lazily — `_ensure_record()` (called from `start()`, the read accessors, and every edge handler) creates the per-device dict with the three default keys (`None`, `None`, `[]`) if it does not already exist, and back-fills any missing key on an existing record.
 
+**Persistence.** Every mutation (rising/falling edge, harvest, acknowledge) calls
+`_persist_and_notify`, which schedules a save via
+`hass.loop.call_soon_threadsafe(hass.async_create_task, manager.async_save())` — deliberately
+thread-safe because the sync finalize/harvest path runs on a worker thread. The persisted surface
+is `manager.data["error_tracker"]` (the 3-key record above); the grace timers (`_grace_cancels`),
+the listener list, and `_vacuum_entities` are **runtime-only** and lost on restart (so a mid-error
+restart drops the pending grace window).
+
 ---
 
 ## 4. Record Shapes
@@ -60,13 +68,13 @@ A single latch dict (or `None`). Formed on the first rising edge while a job is 
 | `active_job_id` | str | Job ID in flight when the latch first formed |
 | `first_seen_at` | str | ISO-8601 timestamp of the first rising edge |
 | `last_seen_at` | str | ISO-8601 timestamp of the most recent rising or falling edge |
-| `first_seen_job_elapsed_seconds` | int | Seconds into the job when the first error fired |
+| `first_seen_job_elapsed_seconds` | int | Seconds into the job when the first error fired (`_job_elapsed_seconds`: clamped ≥ 0; **0** when there is no active job or `started_at` is missing/unparseable) |
 | `error_count` | int | Number of rising edges accumulated into this latch |
 | `current_message` | str | Latest error message (`""` after recovery) |
 | `current_code` | int \| None | Latest numeric error code (`None` after recovery) |
 | `errored_room_id` | str \| None | `current_room_id` of the active job at first error |
 | `recovered` | bool | `True` once the message clears mid-run; flips back to `False` on a fresh rising edge |
-| `errors` | list[dict] | Per-edge sub-records, capped at `_LATCH_ERRORS_LIMIT` (see §4.4) |
+| `errors` | list[dict] | Per-edge sub-records (shape below), capped at `_LATCH_ERRORS_LIMIT` (50) |
 
 **Per-edge entry inside `errors[]`:**
 
@@ -118,30 +126,44 @@ The tracker watches three independent signals simultaneously:
 
 Entity ID read from `adapters.registry.get_adapter_value(vacuum_entity_id, "entities", "error_message")`.
 
-A rising error edge on the primary channel fires when the sensor state transitions **out of** the "not_error" sentinel set into any other non-empty value.
+A rising error edge on the primary channel fires on **any** state-change event whose **new**
+value is an error string (not in the not-error set) — **regardless of the old value**. There is
+no `not was_error` guard, so error→error message changes and attribute-only re-emissions (which
+`async_track_state_change_event` also delivers) each re-fire a rising edge. So `error_count` /
+`errors[]` count error **observations**, not strictly not_error→error transitions.
 
-**Not-error sentinel set:** `frozenset({"", "unknown", "unavailable"})` merged with any brand-specific sentinels declared under `vocabulary.not_error_sentinels` in the adapter config. The generic sentinel set is always included regardless of what the adapter declares.
+**Not-error sentinel set:** the adapter's `vocabulary.not_error_sentinels` (each entry
+`.strip().lower()`'d) **replaces** the generic set entirely — there is **no merge**.
+`_NOT_ERROR = {"", "unknown", "unavailable"}` is used **only** when no adapter/vocabulary is
+registered. So each adapter must re-include the generic HA sentinels itself (Eufy declares
+`{"", "unknown", "unavailable", "none", "normal"}`; Roborock `{"", "unknown", "unavailable",
+"none"}`) — an adapter that omits them would make an empty/`unknown` state read as a real error.
+Incoming values are also `.strip().lower()`'d before the comparison (`_is_error_value`).
 
 ### 5.2 Secondary Channel A — `vacuum.state`
 
-The main vacuum entity. An error is detected when `state.state == "error"` (exact string, lowercase).
+The main vacuum entity. An error is detected when `str(state.state or "").strip().lower() == "error"`.
 
 ### 5.3 Secondary Channel B — `task_status` sensor
 
 Entity ID read from adapter config `entities.task_status`.
 
-An error is detected when `task_status.state == "error"` (exact string, lowercase). This channel mirrors the vacuum state channel — the Eufy firmware flips both simultaneously on hardware fault conditions.
+An error is detected when `str(task_status.state or "").strip().lower() == "error"`. **The
+`.lower()` is load-bearing:** `task_status` emits the **capitalized** `"Error"` on fault (the
+adapter's normalized `task_status_error_value` is `"error"`), so a literal `== "error"` compare
+would silently miss this channel. This channel mirrors the vacuum-state channel — the Eufy
+firmware flips both simultaneously on hardware fault.
 
 ### 5.4 Secondary Error Predicate
 
 ```python
-def _is_in_secondary_error(hass, vacuum_entity_id) -> bool:
-    vacuum_state = hass.states.get(vacuum_entity_id)
-    task_state   = hass.states.get(task_status_entity_id)
-    return (
-        (vacuum_state and vacuum_state.state == "error")
-        or (task_state and task_state.state == "error")
-    )
+def _is_in_secondary_error(self, vacuum_entity_id) -> bool:   # instance method
+    vac = self._hass.states.get(vacuum_entity_id)
+    if vac is not None and str(vac.state or "").strip().lower() == "error":
+        return True
+    ts_entity = self._vacuum_entities[vacuum_entity_id].get("task_status")
+    ts = self._hass.states.get(ts_entity) if ts_entity else None
+    return ts is not None and str(ts.state or "").strip().lower() == "error"
 ```
 
 Both checks are OR'd — either alone triggers secondary-channel error detection.
@@ -176,12 +198,33 @@ tracker.stop() -> None
 ```
 Unsubscribes all listeners and cancels any pending grace timers. The `ErrorTracker` is constructed and `.start()`ed in `__init__.py`'s `async_setup_entry`; `.stop()` is called from `async_unload_entry` (see §10).
 
+```python
+tracker.unregister_vacuum(vacuum_entity_id: str) -> None
+```
+Per-vacuum teardown when a single managed vacuum is removed — unsubs that vacuum's listeners,
+cancels its grace timer, and drops it from the lookup maps. **In-memory only**: the *persisted*
+`error_tracker` record is dropped separately by `EufyVacuumManager.remove_vacuum_record` (both are
+called from `__init__.py` on device removal).
+
 ### 7.2 Harvest
 
 ```python
 tracker.harvest_active_run(vacuum_entity_id: str, job_id: str | None) -> dict | None
 ```
-Returns the single `active_run_error` latch dict for the given vacuum and nulls it out (sets it back to `None`). Called by `learning/job_finalizer.py` at job-end so the completed job carries its error history. Returns `None` if no latch was formed. A mismatched `job_id` (the latch belongs to a previous, un-harvested job) is logged at debug and the latch is returned anyway — losing history is worse than attaching it to the wrong job.
+Returns the single `active_run_error` latch dict for the given vacuum and nulls it out (sets it back to `None`). Returns `None` if no latch was formed. A mismatched `job_id` is logged at debug and the latch is returned anyway — losing history is worse than attaching it to the wrong job. (The debug log fires only when **both** the latch's `active_job_id` and the passed `job_id` are non-`None` and differ.)
+
+**Injection + payload contract.** The finalizer does **not** import the tracker.
+`learning/manager.py::_make_error_source(hass)` builds a closure
+`error_source(vacuum_entity_id, job_id) -> tracker.harvest_active_run(...)` and injects it into
+`LearningJobFinalizer(error_source=…)`; the finalizer calls `self._error_source(...)` (the §9.3
+host contract in [10](10-learning-system.md)). The harvested latch is folded into the completed
+job's `outcome` under four keys: `had_errors` (bool, `error_count > 0`), `error_count` (int),
+`errors` (the **full latch dict verbatim**), `total_error_seconds` (int). `total_error_seconds` is
+derived from the latch's `errors[]` — each treated as a half-open `[captured_at, recovered_at)`
+interval (an open interval is closed by the next edge's `captured_at`, else the job's `ended_at`;
+overlaps merged) — then **subtracted from `cleaning_time_seconds`** (clamped ≥ 0) so a recoverable
+run isn't penalised for transient faults. This is why `errors[].captured_at` / `recovered_at` (and
+the `recovered_at: None` semantics) are load-bearing.
 
 ### 7.3 Acknowledge
 
@@ -223,7 +266,7 @@ tracker.recent_errors(vacuum_entity_id: str, *, limit: int | None = None) -> lis
 | `get_record` | The full per-device record dict (`active_run_error` / `last_device_error` / `recent_errors`) |
 | `get_active_run_latch` | The `active_run_error` latch dict, or `None` |
 | `get_last_device_latch` | The `last_device_error` dict, or `None` |
-| `recent_errors` | A copy of the `recent_errors` list, tail-trimmed to the last `limit` entries when `limit` is a non-negative int (`limit` is keyword-only; `None` = all) |
+| `recent_errors` | A copy of the `recent_errors` list, tail-trimmed to the last `limit` entries when `limit` is a non-negative int (`limit` keyword-only; `None` = all). **Edge:** `limit=0` returns **all** entries (`items[-0:]` is `items[:]`) — reachable only via this direct accessor; the `get_recent_errors` service enforces `limit ≥ 1`. |
 
 `sensor/error.py` calls `get_active_run_latch` and `get_last_device_latch` directly to drive the error sensors.
 
@@ -253,10 +296,13 @@ The tracker reads the following from the adapter registry at runtime:
 |---|---|
 | `entities.error_message` | Primary channel entity ID |
 | `entities.task_status` | Secondary channel B entity ID |
-| `vocabulary.not_error_sentinels` | Brand-specific non-error strings merged into the generic sentinel set |
+| `vocabulary.not_error_sentinels` | Brand-specific non-error strings that **replace** the generic set (no merge) — each adapter must re-include `""` / `"unknown"` / `"unavailable"` itself |
 | `error_tracking.unknown_error_message` | Placeholder text used on grace expiry (default: `"Unknown error during run"`) |
 
-All lookups use `get_adapter_config()` with safe fallbacks — the tracker degrades gracefully if adapter config is incomplete. Note: the grace window duration is the hardcoded module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`, the secondary-channel error value is a hardcoded `== "error"` comparison, and the error-code attribute keys are a hardcoded tuple (`"error_code"`, `"code"`, `"errorCode"`) — these are **not** read from the adapter registry.
+All lookups use `get_adapter_config()` with safe fallbacks — the tracker degrades gracefully if adapter config is incomplete. Note: the grace window duration is the hardcoded module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`, the secondary-channel error value is a hardcoded `== "error"` comparison, and the error-code attribute keys are a hardcoded tuple (`"error_code"`, `"code"`, `"errorCode"`) — these are **not** read from the adapter registry. **Caveat:** the Eufy adapter *declares*
+`error_tracking.grace_window_seconds`, `error_tracking.task_status_error_value`, and
+`error_tracking.error_code_attribute_names`, but the tracker **ignores all three** (dead config) —
+tuning them requires editing the module constants, not the adapter.
 
 ---
 
@@ -266,7 +312,9 @@ All lookups use `get_adapter_config()` with safe fallbacks — the tracker degra
 |---|---|---|
 | `__init__.py` `async_setup_entry` | `ErrorTracker(...)` + `tracker.start(vacuum_entity_ids)` | Integration load |
 | `__init__.py` `async_unload_entry` | `tracker.stop()` | Integration unload |
-| `learning/job_finalizer.py` | `tracker.harvest_active_run(vacuum_entity_id, job_id)` | Job finalization |
+| `learning/job_finalizer.py` (via injected `error_source`, wired in `learning/manager.py`) | `tracker.harvest_active_run(vacuum_entity_id, job_id)` | Job finalization — folds the latch into `outcome.errors` / `had_errors` / `error_count` / `total_error_seconds` (§7.2) |
 | `sensor/error.py` entities | `tracker.get_active_run_latch(...)` / `tracker.get_last_device_latch(...)` | Entity state read |
+| `binary_sensor.py` (`ActiveRunHasErrorBinarySensor`) | `tracker.get_active_run_latch(...)` | Entity state read (`is_on` = `error_count > 0`, sticky through `recovered`) |
+| `__init__.py` (device removal) | `tracker.unregister_vacuum(...)` + `manager.remove_vacuum_record(...)` | A managed vacuum's device is deleted |
 | `eufy_vacuum.acknowledge_error` service (`services/errors.py`) | `tracker.acknowledge(vacuum_entity_id, scope=...)` | User action |
 | `eufy_vacuum.get_recent_errors` service (`services/errors.py`) | `tracker.recent_errors(vacuum_entity_id, limit=...)` | User / debugging query |
