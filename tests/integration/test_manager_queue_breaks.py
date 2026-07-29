@@ -19,8 +19,8 @@
 [ZP-3] add_queue_zone needs >= 2 rooms.
 [ZP-4] set_queue_breaks round-trips a zone entry (reorder preserves zone_ids).
 [ZP-5] normalize dedupes/validates zone_ids; empty -> dropped.
-[SP-1] save_run_profile from a stepped queue captures the WHOLE plan (rooms + break), not a flattened clean.
-[SP-2] a flat queue (no breaks) saves as a single room_group — no phantom break/zone.
+[SVP-1] save_run_profile from a stepped queue captures the WHOLE plan (rooms + break), not a flattened clean.
+[SVP-2] a flat queue (no breaks) saves as a single room_group — no phantom break/zone.
 [ZT-1] a zone can TRAIL (after_index == room_count -> cleaned after the last room).
 [ZT-2] set_queue_breaks: zone trails, charge/wait clamp to interior.
 [ZT-3] a rooms+zone queue (no charge) takes the stepped plan (gate fix; zone not dropped).
@@ -324,7 +324,7 @@ async def test_normalize_zone_dedupes_and_drops_empty(manager):
 
 
 async def test_save_run_profile_captures_stepped_plan(manager):
-    """[SP-1] Saving a profile from a stepped queue captures the WHOLE plan (rooms + break),
+    """[SVP-1] Saving a profile from a stepped queue captures the WHOLE plan (rooms + break),
     not a flattened room clean — so the composed one-off run becomes a re-runnable profile."""
     setup_map(manager, _VAC, _MAP, count=3)
     manager.add_queue_break(
@@ -339,7 +339,7 @@ async def test_save_run_profile_captures_stepped_plan(manager):
 
 
 async def test_save_run_profile_flat_queue_single_group(manager):
-    """[SP-2] A flat queue (no breaks) saves as a single room_group — no phantom break/zone;
+    """[SVP-2] A flat queue (no breaks) saves as a single room_group — no phantom break/zone;
     the enriched profile's steps back-fill to exactly one clean group."""
     setup_map(manager, _VAC, _MAP, count=3)
     res = manager.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Everywhere")

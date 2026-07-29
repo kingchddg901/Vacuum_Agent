@@ -7,30 +7,30 @@ hass.
 
 Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
 --------------------------------------------------------------------------------
-[SP-1]  blank graph + no rules → ready preflight, all rooms selected.
-[SP-2]  partial graph (invalid grants) → blocked incomplete_access_graph.
-[SP-3]  blank graph + rooms have rules → blocked access_graph_required_for_rules.
-[SP-4]  complete graph, blocker rule, no grants → blocked access_graph_required.
-[SP-5]  valid graph + matching direct blocker → room in blocked_rooms + confirm.
-[SP-6]  valid graph + matching modifier → modified_rooms carries the changes.
-[SP-7]  access-dependency propagation: blocked parent blocks its child.
-[SP-8]  modifier fan-out: a rule's fan_out_room_ids apply to a derived target.
-[SP-9]  get_runtime_path_block_report exists on the real manager and reports a
+[RPS-1]  blank graph + no rules → ready preflight, all rooms selected.
+[RPS-2]  partial graph (invalid grants) → blocked incomplete_access_graph.
+[RPS-3]  blank graph + rooms have rules → blocked access_graph_required_for_rules.
+[RPS-4]  complete graph, blocker rule, no grants → blocked access_graph_required.
+[RPS-5]  valid graph + matching direct blocker → room in blocked_rooms + confirm.
+[RPS-6]  valid graph + matching modifier → modified_rooms carries the changes.
+[RPS-7]  access-dependency propagation: blocked parent blocks its child.
+[RPS-8]  modifier fan-out: a rule's fan_out_room_ids apply to a derived target.
+[RPS-9]  get_runtime_path_block_report exists on the real manager and reports a
         mid-job blocker (regression guard for the method lost in the bundle-out).
-[SP-10] fan-out loop's per-target + matched-rule guards: only a valid, selected,
+[RPS-10] fan-out loop's per-target + matched-rule guards: only a valid, selected,
         unblocked target gets the change; no-entity/no-match/empty-changes skip.
-[SP-11] runtime path-block: a remaining room with its OWN blocker is directly
+[RPS-11] runtime path-block: a remaining room with its OWN blocker is directly
         blocked, while a reachable sibling propagates accessible and is not flagged.
-[SP-12] mop-carpet caution: an attached water tank + an included carpet room →
+[RPS-12] mop-carpet caution: an attached water tank + an included carpet room →
         non-blocking warning; None when tank off / no carpet / no tank sensor.
-[SP-13] order advisory: a path-optimizing brand (honors_clean_order False) with
+[RPS-13] order advisory: a path-optimizing brand (honors_clean_order False) with
         2+ rooms → advisory; None when order is honored or one room runs.
-[SP-14] strict_order: builds one phase per room for a path-optimizing flat-id
+[RPS-14] strict_order: builds one phase per room for a path-optimizing flat-id
         brand; gated off (one batch phase) when the brand honors order.
-[SP-15] stashed run steps survive a PREFLIGHT (peek) and are consumed only by the real
+[RPS-15] stashed run steps survive a PREFLIGHT (peek) and are consumed only by the real
         dispatch (consume_pending_steps=True) — the shipped bug where get_start_status'
         preflight popped the stash, so a stepped profile ran an atomic (flat) job.
-[SP-16] regression (B2): a stored room whose value dict lacks room_id survives normalization with room_id recovered from its dict KEY.
+[RPS-16] regression (B2): a stored room whose value dict lacks room_id survives normalization with room_id recovered from its dict KEY.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def _modifier(entity, changes):
 # ---------------------------------------------------------------------------
 
 def test_ready_blank_graph(rp):
-    """[SP-1]"""
+    """[RPS-1]"""
     rp_, mgr = rp
     _seed(mgr, "spm1", [{"enabled": True}, {"enabled": True}])
     out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm1")
@@ -82,7 +82,7 @@ def test_ready_blank_graph(rp):
 
 
 def test_room_missing_room_id_field_recovers_from_key(rp):
-    """[SP-16] Regression (B2): a stored room whose value dict lacks the `room_id`
+    """[RPS-16] Regression (B2): a stored room whose value dict lacks the `room_id`
     field survives normalization with room_id recovered from its dict KEY, so the
     start plan does not int(None)-crash. `_normalized_managed_rooms_with_automation`
     now writes the computed room_id back (matching the access views' key-fallback)."""
@@ -97,7 +97,7 @@ def test_room_missing_room_id_field_recovers_from_key(rp):
 
 
 def test_partial_graph_blocks(rp):
-    """[SP-2] a dock room granting to a missing room → invalid → partial → blocked."""
+    """[RPS-2] a dock room granting to a missing room → invalid → partial → blocked."""
     rp_, mgr = rp
     _seed(mgr, "spm2", [
         {"enabled": True, "is_dock_room": True, "grants_access_to": [99]},
@@ -110,7 +110,7 @@ def test_partial_graph_blocks(rp):
 
 
 def test_blank_graph_with_rules_blocks(rp):
-    """[SP-3]"""
+    """[RPS-3]"""
     rp_, mgr = rp
     _seed(mgr, "spm3", [
         {"enabled": True, "rules": [_blocker("binary_sensor.win")]},
@@ -123,7 +123,7 @@ def test_blank_graph_with_rules_blocks(rp):
 
 
 def test_complete_graph_blocker_without_grants_blocks(rp):
-    """[SP-4] single dock room + blocker rule, no grants → access_graph_required."""
+    """[RPS-4] single dock room + blocker rule, no grants → access_graph_required."""
     rp_, mgr = rp
     _seed(mgr, "spm4", [
         {"enabled": True, "is_dock_room": True,
@@ -136,7 +136,7 @@ def test_complete_graph_blocker_without_grants_blocks(rp):
 
 
 def test_direct_blocker_fires(rp, hass):
-    """[SP-5] valid graph, blocker on a selected room whose entity is on."""
+    """[RPS-5] valid graph, blocker on a selected room whose entity is on."""
     rp_, mgr = rp
     _seed(mgr, "spm5", [
         {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
@@ -156,7 +156,7 @@ def test_direct_blocker_fires(rp, hass):
 
 
 def test_modifier_applies_changes(rp, hass):
-    """[SP-6] valid graph, modifier on a selected room → changes in modified_rooms."""
+    """[RPS-6] valid graph, modifier on a selected room → changes in modified_rooms."""
     rp_, mgr = rp
     _seed(mgr, "spm6", [
         {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
@@ -173,7 +173,7 @@ def test_modifier_applies_changes(rp, hass):
 
 
 def test_access_dependency_propagates(rp, hass):
-    """[SP-7] blocking a parent room cascades to its dependent child."""
+    """[RPS-7] blocking a parent room cascades to its dependent child."""
     rp_, mgr = rp
     _seed(mgr, "spm7", [
         {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
@@ -192,7 +192,7 @@ def test_access_dependency_propagates(rp, hass):
 
 
 def test_modifier_fan_out(rp, hass):
-    """[SP-8] a modifier on the dock room fans its changes out to room 2."""
+    """[RPS-8] a modifier on the dock room fans its changes out to room 2."""
     rp_, mgr = rp
     fan_rule = {
         "kind": "modifier", "id": "f1", "entity_id": "binary_sensor.quiet",
@@ -216,7 +216,7 @@ def test_modifier_fan_out(rp, hass):
 
 
 def test_runtime_path_block_report(rp, hass, manager):
-    """[SP-9] real-manager mid-job path-block re-evaluation.
+    """[RPS-9] real-manager mid-job path-block re-evaluation.
 
     Regression guard: get_runtime_path_block_report was lost in the bundle-out
     refactor while path_blockers.py still called manager.get_runtime_path_block_
@@ -252,7 +252,7 @@ def test_runtime_path_block_report(rp, hass, manager):
 
 
 def test_modifier_fan_out_guard_branches(rp, hass):
-    """[SP-10] the fan-out loop's per-target + matched-rule guards.
+    """[RPS-10] the fan-out loop's per-target + matched-rule guards.
 
     One matching fan rule whose fan_out_room_ids mix a non-numeric id, an
     unknown id, the source room itself, a blocked room, and one valid target —
@@ -297,7 +297,7 @@ def test_modifier_fan_out_guard_branches(rp, hass):
 
 
 def test_path_block_directly_blocked_remaining(rp, hass, manager):
-    """[SP-11] a remaining room with its OWN blocker is classified directly
+    """[RPS-11] a remaining room with its OWN blocker is classified directly
     blocked, while a reachable sibling propagates accessible and is not flagged."""
     mgr = manager
     _seed(mgr, "spm11", [
@@ -320,7 +320,7 @@ def test_path_block_directly_blocked_remaining(rp, hass, manager):
 
 
 def test_path_block_no_affected_returns_none(rp, hass, manager):
-    """[SP-11b] a trigger that blocks no remaining room → report is None, and the
+    """[RPS-11b] a trigger that blocks no remaining room → report is None, and the
     active job's stale block signature is cleared."""
     _seed(manager, "spm11b", [
         {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
@@ -337,7 +337,7 @@ def test_path_block_no_affected_returns_none(rp, hass, manager):
 
 
 def test_path_block_all_rooms_completed_returns_none(rp, hass, manager):
-    """[SP-11c] when every queued room is already completed there is nothing
+    """[RPS-11c] when every queued room is already completed there is nothing
     remaining → no path-block report fires even though the blocker entity is on
     (completion-time early return, arc 1278->1279)."""
     _seed(manager, "spm11c", [
@@ -357,7 +357,7 @@ def test_path_block_all_rooms_completed_returns_none(rp, hass, manager):
 
 
 def test_mop_carpet_warning(rp, hass):
-    """[SP-12] tank attached + an included carpet room -> a non-blocking caution
+    """[RPS-12] tank attached + an included carpet room -> a non-blocking caution
     naming the room; None when the tank is off, no carpet room is included, or the
     brand declares no tank sensor (Eufy)."""
     from custom_components.eufy_vacuum.adapters.registry import (
@@ -402,7 +402,7 @@ def test_mop_carpet_warning(rp, hass):
 
 
 def test_order_advisory(rp):
-    """[SP-13] order_advisory surfaces for a path-optimizing brand (honors_clean_order
+    """[RPS-13] order_advisory surfaces for a path-optimizing brand (honors_clean_order
     False) with 2+ included rooms; None when order is honored (default) or one room
     runs."""
     from custom_components.eufy_vacuum.adapters.registry import (
@@ -437,7 +437,7 @@ def test_order_advisory(rp):
 
 
 def test_strict_order_phases(rp):
-    """[SP-14] strict_order builds one single-segment phase per room for a
+    """[RPS-14] strict_order builds one single-segment phase per room for a
     path-optimizing flat-id brand; gated off (one batch phase) when the brand
     honors order, even if strict_order is requested."""
     from custom_components.eufy_vacuum.adapters.registry import (
@@ -480,7 +480,7 @@ def test_strict_order_phases(rp):
 
 
 def test_pending_steps_survive_preflight(rp):
-    """[SP-15] a preflight (peek) must NOT eat the stashed run steps — only the real dispatch
+    """[RPS-15] a preflight (peek) must NOT eat the stashed run steps — only the real dispatch
     (consume_pending_steps=True) pops them. The shipped bug: start_selected_rooms calls
     get_start_status first, whose _build_effective_start_plan popped the stash, so the real
     dispatch fell back to an ATOMIC job — a stepped profile ran one flat pass, no charge."""

@@ -2,9 +2,9 @@
 
 Coverage targets
 ----------------
-[SS-1]  get_pause_timeout_settings returns default settings.
-[SS-2]  set_pause_timeout_settings persists and returns updated value.
-[SS-3]  get_upkeep_snapshot returns a response dict.
+[SNP-1]  get_pause_timeout_settings returns default settings.
+[SNP-2]  set_pause_timeout_settings persists and returns updated value.
+[SNP-3]  get_upkeep_snapshot returns a response dict.
 
 Note: get_dashboard_snapshot is excluded — it calls hass.bus.async_fire
 internally (via _maybe_roll_current_room_by_timing) and requires live
@@ -22,11 +22,11 @@ _VAC = "vacuum.alfred"
 
 
 # ---------------------------------------------------------------------------
-# [SS-1] get_pause_timeout_settings
+# [SNP-1] get_pause_timeout_settings
 # ---------------------------------------------------------------------------
 
 async def test_get_pause_timeout_settings_service_returns_default(hass, manager_with_services):
-    """[SS-1] Returns vacuum_entity_id and a default timeout value."""
+    """[SNP-1] Returns vacuum_entity_id and a default timeout value."""
     manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
     result = await hass.services.async_call(
         DOMAIN,
@@ -40,7 +40,7 @@ async def test_get_pause_timeout_settings_service_returns_default(hass, manager_
 
 
 async def test_get_pause_timeout_settings_service_creates_vacuum_record(hass, manager_with_services):
-    """[SS-1] Calling for an unseen vacuum does not raise."""
+    """[SNP-1] Calling for an unseen vacuum does not raise."""
     result = await hass.services.async_call(
         DOMAIN,
         "get_pause_timeout_settings",
@@ -52,11 +52,11 @@ async def test_get_pause_timeout_settings_service_creates_vacuum_record(hass, ma
 
 
 # ---------------------------------------------------------------------------
-# [SS-2] set_pause_timeout_settings
+# [SNP-2] set_pause_timeout_settings
 # ---------------------------------------------------------------------------
 
 async def test_set_pause_timeout_settings_service_persists_value(hass, manager_with_services):
-    """[SS-2] Saved timeout is reflected in data after set service call."""
+    """[SNP-2] Saved timeout is reflected in data after set service call."""
     manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
     await hass.services.async_call(
         DOMAIN,
@@ -70,7 +70,7 @@ async def test_set_pause_timeout_settings_service_persists_value(hass, manager_w
 
 
 async def test_set_pause_timeout_settings_service_returns_updated(hass, manager_with_services):
-    """[SS-2] Service returns updated=True with the persisted value."""
+    """[SNP-2] Service returns updated=True with the persisted value."""
     manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
     result = await hass.services.async_call(
         DOMAIN,
@@ -85,7 +85,7 @@ async def test_set_pause_timeout_settings_service_returns_updated(hass, manager_
 
 
 async def test_set_pause_timeout_settings_service_zero_allowed(hass, manager_with_services):
-    """[SS-2] Zero is a valid pause_timeout_minutes_default (disables timeout)."""
+    """[SNP-2] Zero is a valid pause_timeout_minutes_default (disables timeout)."""
     manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
     result = await hass.services.async_call(
         DOMAIN,
@@ -99,11 +99,11 @@ async def test_set_pause_timeout_settings_service_zero_allowed(hass, manager_wit
 
 
 # ---------------------------------------------------------------------------
-# [SS-3] get_upkeep_snapshot
+# [SNP-3] get_upkeep_snapshot
 # ---------------------------------------------------------------------------
 
 async def test_get_upkeep_snapshot_service_returns_dict(hass, manager_with_services):
-    """[SS-3] get_upkeep_snapshot returns a response dict."""
+    """[SNP-3] get_upkeep_snapshot returns a response dict."""
     manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
     result = await hass.services.async_call(
         DOMAIN,

@@ -33,8 +33,18 @@ contract. When you add a behavior, add a target ID and a test for it. When a
 test fails, the ID tells you which behavior broke without reading the body.
 
 Established prefixes include `LS` (learning services), `SR` (services-rooms),
-`BE` (button entity), and so on — one per file. Pick a short, unique prefix for
-a new file.
+`BE` (button entity), and so on — one per file. Pick a short prefix for a new
+file, ideally one not already used elsewhere.
+
+**IDs are file-scoped, not global.** `check_legend_drift.py` validates each
+file's legend against *its own* tests only — it does **not** enforce global
+uniqueness, and genuine cross-file references are handled inline (prose) plus the
+checker's `CROSSREF_ALLOWLIST`. So a `[SP-1]` in one file is a different behavior
+than a `[SP-1]` in another; resolve an ID by the file it lives in. Reusing a
+prefix across **unrelated** files is tolerated but discouraged — it muddies a
+global grep, so prefer a fresh prefix. A prefix deliberately **shared** by a set
+of files covering one cross-file suite (e.g. `LC` for lifecycle across the
+listener + sensor-status tests) is fine and intentional.
 
 ## Naming
 
