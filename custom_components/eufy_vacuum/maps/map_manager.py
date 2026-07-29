@@ -155,6 +155,13 @@ def rebuild_map_bucket(
             "path_type": previous.get("path_type"),
             "is_dock_room": bool(previous.get("is_dock_room", False)),
             "is_transition": bool(previous.get("is_transition", False)),
+            # Preserve the setup-approval flags across a rebuild. Without this a rebuilt
+            # room reads as UNCONFIGURED — filtered out of entity creation and flagged by
+            # the drift tracker — because rebuild is the only writer of these keys that
+            # dropped them and the load-time backfill does not setdefault is_configured.
+            # A map-bucket room is a saved (approved) room, so default is_configured True.
+            "is_configured": bool(previous.get("is_configured", True)),
+            "configured_at": previous.get("configured_at"),
             "color": previous.get("color"),  # preserve per-room map fill override across a rebuild
             "grants_access_to": list(previous.get("grants_access_to", []))
             if isinstance(previous.get("grants_access_to"), list)

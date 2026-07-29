@@ -95,3 +95,25 @@ def test_rebuild_map_bucket_preserves_color():
         data=data, vacuum_entity_id=_VAC, map_id="6",
         discovered_rooms=[{"room_id": 1, "name": "Kitchen"}])
     assert result["rooms"]["1"]["color"] == "#00ff00"
+
+
+def test_rebuild_map_bucket_preserves_configured_flags():
+    """[MAP-5c] BUG-A: a rebuild must carry the setup-approval flags forward — else
+    rebuilt rooms read as unconfigured and get filtered out of HA entity creation +
+    flagged by the drift tracker. A previously-configured room keeps
+    is_configured/configured_at; a room missing the key (e.g. from an older rebuild)
+    defaults is_configured True (a saved map-bucket room is an approved room)."""
+    data: dict = {}
+    b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="6")
+    b["rooms"] = {
+        "1": {"room_id": 1, "name": "Kitchen",
+              "is_configured": True, "configured_at": "2026-01-01T00:00:00Z"},
+        "2": {"room_id": 2, "name": "Bath"},  # no is_configured (e.g. a prior buggy rebuild)
+    }
+    result = rebuild_map_bucket(
+        data=data, vacuum_entity_id=_VAC, map_id="6",
+        discovered_rooms=[{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Bath"}])
+    rooms = result["rooms"]
+    assert rooms["1"]["is_configured"] is True
+    assert rooms["1"]["configured_at"] == "2026-01-01T00:00:00Z"   # preserved
+    assert rooms["2"]["is_configured"] is True                      # defaults True (saved = approved)
