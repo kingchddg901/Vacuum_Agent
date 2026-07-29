@@ -13,6 +13,7 @@ Coverage targets
 [MNT-5]  replacement_status buckets.
 [MNT-6]  get_maintenance_state creates/returns the per-vacuum dict.
 [MNT-7]  reset_maintenance: success snapshots usage_hours.
+[MNT-7b] reset_maintenance: preserves a user interval_hours override (CS-1).
 [MNT-8]  reset_maintenance: no source / unavailable / invalid usage.
 [MNT-9]  get_maintenance_remaining computes remaining from usage - reset.
 [MNT-10] get_maintenance_remaining: no source → source_available False.
@@ -129,6 +130,21 @@ def test_reset_success(mnt, manager, hass, monkeypatch):
     # snapshot persisted
     stored = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
     assert stored["reset_at_usage_hours"] == pytest.approx(120.0)
+
+
+def test_reset_preserves_interval_override(mnt, manager, hass, monkeypatch):
+    """[MNT-7b] CS-1: a reset re-snapshots the usage baseline but must NOT wipe a
+    user's interval_hours override — the entry used to be replaced wholesale."""
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+    mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"] = {
+        "reset_at_usage_hours": 10.0, "reset_at": "2026-01-01", "interval_hours": 250.0,
+    }
+    hass.states.async_set(_SRC, "100", {"usage_hours": 120})
+    result = mnt.reset_maintenance(vacuum_entity_id=_VAC, component="main_brush")
+    assert result["reset"] is True
+    stored = mnt.get_maintenance_state(vacuum_entity_id=_VAC)["main_brush"]
+    assert stored["reset_at_usage_hours"] == pytest.approx(120.0)   # baseline updated
+    assert stored["interval_hours"] == pytest.approx(250.0)          # override preserved
 
 
 def test_reset_failure_modes(mnt, manager, hass, monkeypatch):

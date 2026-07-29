@@ -76,7 +76,7 @@ data["maintenance"][vacuum_entity_id][component] = {
 
 `data["maintenance"]` is created lazily. Missing keys default to "never reset" (treated as zero hours since reset in computations).
 
-`reset_maintenance()` writes **only** `reset_at_usage_hours` and `reset_at` — it does not write `interval_hours`. The optional `interval_hours` override key is written elsewhere (by `set_maintenance_interval` and the `EufyVacuumMaintenanceIntervalNumber` entity). `get_upkeep_snapshot()` reads that override key here when present, falling back to the adapter-declared `default_interval_hours` when it is absent or uncoercible (see §6).
+`reset_maintenance()` writes `reset_at_usage_hours` and `reset_at`, and **preserves** an existing `interval_hours` override (it never *creates* one). The `interval_hours` override key is written by `set_maintenance_interval` and the `EufyVacuumMaintenanceIntervalNumber` entity. `get_upkeep_snapshot()` reads that override key here when present, falling back to the adapter-declared `default_interval_hours` when it is absent or uncoercible (see §6).
 
 ---
 
@@ -289,7 +289,7 @@ data["maintenance"][vacuum][component] = {
 }
 ```
 
-Because the entry is replaced wholesale, this write does **not** carry over any prior `interval_hours` override key — a reset silently discards a user's interval override (code-flag CS-1). Returns a result dict (`reset: True` on success, or `reset: False` with a `reason` of `"no_source_entity"`, `"source_unavailable"`, or `"invalid_usage_hours"` on failure).
+The entry is rebuilt with the fresh `reset_at_usage_hours` + `reset_at`, but a prior `interval_hours` override is **carried forward** (`if existing.get("interval_hours") is not None`) — a reset re-snapshots the usage baseline without discarding the user's custom interval (this was code-flag CS-1, fixed + regression-tested MNT-7b). Returns a result dict (`reset: True` on success, or `reset: False` with a `reason` of `"no_source_entity"`, `"source_unavailable"`, or `"invalid_usage_hours"` on failure).
 
 > **Persistence is triggered by the service/entity layer, not the manager.** `reset_maintenance` (and `get_maintenance_state`/`get_maintenance_remaining`, which `setdefault`-mutate) only touch the in-memory `data`. `async_save()` is called by the service handlers — `_handle_reset_maintenance` saves **only** when the result's `reset` is `True`, `_handle_set_maintenance_interval` always saves — and by the interval Number entity's `async_set_native_value`.
 

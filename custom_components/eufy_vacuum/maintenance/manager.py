@@ -667,10 +667,17 @@ class MaintenanceManager:
             }
 
         maintenance = self.get_maintenance_state(vacuum_entity_id=vacuum_entity_id)
-        maintenance[component] = {
+        # A reset only re-snapshots the usage baseline — preserve any user-set
+        # interval_hours override. Replacing the entry wholesale used to silently
+        # drop the override, forcing the user to re-enter their custom interval.
+        existing = maintenance.get(component)
+        new_entry: dict[str, Any] = {
             "reset_at_usage_hours": usage_hours,
             "reset_at": _iso_now(),
         }
+        if isinstance(existing, dict) and existing.get("interval_hours") is not None:
+            new_entry["interval_hours"] = existing["interval_hours"]
+        maintenance[component] = new_entry
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
