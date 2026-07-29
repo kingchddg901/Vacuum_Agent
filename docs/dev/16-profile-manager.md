@@ -52,6 +52,7 @@ A `None`/empty block returns the in-code defaults **verbatim**, so a vacuum with
 | Site | Catalog source | Rationale |
 |---|---|---|
 | Dispatch — `queue/queue_engine.py:build_room_clean_payload` | adapter (`get_adapter_config(vacuum_entity_id)` → `resolve_profile_catalog` → threaded into `resolve_room_profile_for_room` + `apply_capability_gate`) | has per-vacuum context; per-room dispatch settings must be adapter-catalog-sourced |
+| Bulk apply — `manager.py:apply_room_profile` (→ `apply_room_profile_to_config`) | **adapter** (`get_adapter_config(vacuum_entity_id)` → `resolve_profile_catalog`) | it has a `vacuum_entity_id`, so a non-Eufy brand fills omitted fields from ITS `normalize_defaults` (§5.5) |
 | Global profile editor — `manager.py` (`get_room_profiles`, `_finalize_room_update`, `_match_profile_from_fields`) | framework default (`catalog=None`) | the singleton editor lacks per-vacuum context |
 | Pure room-builder — `rooms/room_manager.py` (`build_managed_rooms`), `room_entities` display fallback | framework default (`catalog=None`) | no per-vacuum context at build time |
 
@@ -76,10 +77,26 @@ ID timestamps use naive local time (`datetime.now()`) at creation time. IDs are 
 
 ```
 data["profiles"]["room_profiles"] = {
-    "user_1":             { ...user fields... },
-    "user_20260530T...":  { ...user fields... },
+    "user_1":             { ...9-key record... },
+    "user_20260530T...":  { ...9-key record... },
 }
 ```
+
+Each stored record is the `normalize_room_profile()` output — exactly **9 keys**, no `id`/`name`/`is_builtin` (the store key **is** the `profile_name`):
+
+| Field | Type | Default |
+|---|---|---|
+| `label` | `str` | `"User Profile 1"` |
+| `clean_mode` | `str` | `"vacuum"` |
+| `fan_speed` | `str` | `"Max"` |
+| `water_level` | `str` | `"Off"` |
+| `clean_intensity` | `str` | `"Quick"` (dead `Standard`/`Normal` folded via `normalize_clean_intensity`) |
+| `path_type` | `str` | `"wide"` |
+| `clean_passes` | `int` | `1` |
+| `edge_mopping` | `bool` | `False` |
+| `mop_required` | `bool` | `False` |
+
+> **`path_type`/`mop_required` are always defaulted for custom profiles.** `save_user_room_profile` builds the `normalize_room_profile` input from **only 7 fields** (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`) — it never passes `path_type` or `mop_required`. So every custom profile persists `path_type="wide"` and `mop_required=False` regardless of `clean_mode` (a user "deep mop" custom profile is stored `path_type="wide"`, `mop_required=False`). See code-flag B2.
 
 Only **user-created** profiles are stored here. The four built-ins are not persisted — `get_room_profiles()` merges them over the stored profiles at read time via `merge_profile_dicts()`. The store key is also the `profile_name`.
 
@@ -97,13 +114,13 @@ data["run_profiles"][vacuum_entity_id][map_id_str][profile_id] = {
     "room_names_label":  str,        # ", "-joined room names
     "expose_as_button":  bool,
     "rooms":             [ { ...room snapshot... } ],
-    "steps":             [ { ...step... } ],  # OPTIONAL — ordered run steps (§7.7); absent on legacy rooms-only profiles
+    "steps":             [ { ...step... } ],  # OPTIONAL — ordered run steps (§7.7); absent on legacy/flat profiles
     "created_at":        str,        # ISO timestamp
     "updated_at":        str,        # ISO timestamp
 }
 ```
 
-`steps` is written only by `set_run_profile_steps()` (§7.7). A profile saved without it is a legacy rooms-only profile; `run_profile_steps()` back-fills such a profile as a single `room_group` step at read time, so everything downstream is byte-identical.
+`steps` is written by **`set_run_profile_steps()`** (§7.7) **and** by **`save_run_profile()` when the live queue has breaks** — `save_run_profile` calls `get_queue_steps()` and, when the result's `has_breaks` is `True` (an ad-hoc charge_wait/wait/zone-sequenced queue), persists `library[profile_id]["steps"] = queue["steps"]` at creation (§7.2). So a run profile can carry `steps` without `set_run_profile_steps` ever being called. `overwrite_run_profile()` **resets** `steps` to `[]` (§7.3). A profile saved from a flat queue is a legacy rooms-only profile (no `steps`); `run_profile_steps()` back-fills such a profile as a single `room_group` step at read time, so everything downstream is byte-identical.
 
 ---
 
@@ -172,7 +189,15 @@ manager.overwrite_room_profile(
 
 Requires an existing editable profile — returns `reason="profile_not_found"` if absent, `reason="protected_profile"` if protected. Delegates the write to `save_user_room_profile()`.
 
-There are also `save_room_profile_from_room(*, vacuum_entity_id, map_id, room_id, label, profile_name=None)` and `overwrite_room_profile_from_room(*, vacuum_entity_id, map_id, room_id, profile_name, label=None)`, which snapshot a room's current effective settings into a profile.
+There are also `save_room_profile_from_room(*, vacuum_entity_id, map_id, room_id, label, profile_name=None)` and `overwrite_room_profile_from_room(*, vacuum_entity_id, map_id, room_id, profile_name, label=None)`, which snapshot a room's current **effective** settings (via `get_effective_room_details`, §6.2) into a profile. Both return:
+
+```python
+# → {"vacuum_entity_id", "map_id", "room_id": int(room_id), "saved"|"overwritten": bool,
+#    "profile_name": str, "profile": dict}
+#   or {..., "saved"|"overwritten": False, "reason": ..., ["message": ...]}
+```
+
+Reason codes: `missing_label`, `room_not_found`, `room_details_unavailable`, `protected_profile` (both); `profile_not_found` (overwrite-only). `room_id` is echoed as `int(room_id)` — an unguarded coercion that raises `ValueError` on a non-numeric id rather than returning a reason (code-flag B5).
 
 ### 5.3 `rename_room_profile`
 
@@ -202,6 +227,24 @@ manager.delete_room_profile(*, profile_name: str) -> dict
 ```
 
 Deletes a user room profile. Returns `reason="protected_profile"` for built-ins, `reason="profile_not_found"` if absent.
+
+### 5.5 `apply_room_profile` — bulk apply to rooms
+
+```python
+manager.apply_room_profile(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    room_ids: list[int] | list[str],
+    profile_name: str,
+) -> dict
+# → {"vacuum_entity_id", "map_id", "profile_name",
+#    "updated_room_ids": sorted(list[int]), "room_count": int}
+#   or {"vacuum_entity_id", "map_id", "profile_name",
+#    "updated_room_ids": [], "error": "profile_not_found"}
+```
+
+Applies one profile's settings to each listed room: for each id it runs `apply_room_profile_to_config(room, profile_name, profile, catalog)` then `_finalize_room_update` (§6), rewrites `bucket["rooms"]`, and re-derives the **9-key** `build_room_selection_summary`. It resolves the **adapter** catalog (§1.1) — a per-vacuum method, unlike the singleton editor. `room_ids` are coerced `[int(r) for r in room_ids if str(r).isdigit() or isinstance(r, int)]`, which **silently drops non-digit strings and admits negative ints** (code-flag B5); rooms not on the map are skipped. Exposed as the `apply_room_profile` service. Note the failure key is **`error`** (not `reason`).
 
 ---
 
@@ -241,7 +284,14 @@ The rule is: carpet rooms can never mop (water/edge always cleared on carpet), a
 5. set profile_name = matched name or "custom"
 ```
 
-`_match_profile_from_fields` scans all room profiles looking for one whose fields exactly match the room's current `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, and `edge_mopping`. If found, `profile_name` is set to the matching profile name. If not found, `profile_name = "custom"`.
+`_match_profile_from_fields` scans all room profiles looking for one that matches the room on six fields — `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping` (**not** `path_type` or `label`). The match is **not literal**: both sides pass through `_normalize_profile_match_value` (case-fold; `"off"`; `"true"`/`"false"` → bool; numeric strings → float), so `"Off" == "off"` and `2 == 2.0`. Crucially the two sides are **not symmetric**:
+
+- **Room side:** the room is run through `_protected_room_config` first (so a vacuum room already has `water_level="Off"`, `edge_mopping=False`).
+- **Candidate side:** each preset is resolved from a **bare `{"profile_name": name}`** via `resolve_room_profile_for_room` — with **no `floor_type`**, so it defaults to `hardwood` and (per §6.3) injects the hardwood water default `"Low"` because `"water_level"` is not in the bare config.
+
+If a match is found `profile_name` is set to it; otherwise `profile_name = "custom"`.
+
+> **Code-flag B1 (real bug, HIGH).** Because the candidate side picks up the hardwood water default `"Low"` while a vacuum room's protected side is forced to `"Off"`, **a plain vacuum room never matches its own vacuum preset and always falls to `profile_name="custom"`.** Only mop presets can match (a mop room keeps its water). This is corroborated by the regression test's own comment (`tests/integration/test_profiles_manager.py`: it deliberately tests with a *mop* preset "so the round-trip can actually match — vacuum presets get water forced to Off"). The fix is a code change (resolve the candidate with the room's `floor_type`, or protect the candidate symmetrically) — flagged for a decision, not patched here.
 
 > The two-stage pipeline above produces **display/storage** values. A separate, capability-aware stage (`apply_capability_gate`) runs later at **payload-build time** — see §6.1.
 
@@ -270,6 +320,47 @@ if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
 ```
 
 The `resolved_profile_name` argument selects which vacuum profile to mirror: a deep mop profile (`vacuum_mop_deep`) maps to `vacuum_deep`, everything else maps to `vacuum_quick`. The optional `catalog` argument (§1.1) sources that fallback profile from the adapter's catalog when present (the dispatch path threads it in; `None` → in-code built-ins). With today's Eufy built-ins (§1) this yields the same `narrow`/`Deep` and `wide`/`Quick` values the code used to hardcode — so Eufy output is byte-identical — but a future brand whose catalog declares different `path_type`/`clean_intensity` vocabulary gets the right downgrade for free. After the downgrade (or for any room already in `clean_mode == "vacuum"`), `water_level` and `edge_mopping` are forced off. The returned dict carries `capability_gated: True`.
+
+### 6.2 `get_effective_room_details` — the public resolved-room read
+
+```python
+manager.get_effective_room_details(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    room_id: int | str,
+) -> dict | None   # None when the room is absent on that map
+```
+
+The B2 shaper's **public output contract**: resolve the stored room (`resolve_room_profile_for_room`), then re-run the resolved values through `_protected_room_config`, and return a **12-key** dict. **Two keys are renamed** — a blind rebuild that emitted `clean_passes`/`edge_mopping` here would silently break every consumer (`room_entities.py`, `save_room_profile_from_room`, and the card's `src/renderers/rooms.js`):
+
+| Key | Type | Source |
+|---|---|---|
+| `clean_mode` | `str` | protected(resolved) |
+| `fan_speed` | `str` | protected(resolved) |
+| `water_level` | `str` | protected(resolved) |
+| `clean_intensity` | `str` | protected(resolved) |
+| `path_type` | `str` | **resolved** (not protected) |
+| **`default_clean_passes`** | `int` | protected `clean_passes` — **renamed** (not `clean_passes`) |
+| **`default_edge_mopping`** | `bool` | protected `edge_mopping` — **renamed** (not `edge_mopping`) |
+| `mop_required` | `bool` | `"mop" in clean_mode or "wash" in clean_mode` |
+| `selected_profile_name` | `str` | resolved |
+| `resolved_profile_name` | `str` | resolved (may differ from `selected` — floor-type match) |
+| `floor_type` | `str` | raw `room.floor_type` (un-normalized) |
+| `floor_type_label` | `str` | `get_floor_type_label(floor_type, default "hardwood")` |
+
+Returns `None` (not a result dict) when the room id is not on the map.
+
+### 6.3 Room-profile resolution precedence (`resolve_room_profile_for_room`)
+
+The field-by-field precedence lives in `profiles/room_profiles.py`; because doc 16 is the profiles subsystem's home, the ladder is stated here authoritatively. Base rule: **the room's own field wins over the profile default** for `clean_mode`, `clean_intensity`, `path_type`, `fan_speed`, `clean_passes`, and `edge_mopping` — but with **floor-type overrides** that are *not* "room always wins":
+
+1. **Carpet overrides the room** — even an explicit value loses: `fan_speed → FLOOR_TYPE_FAN_DEFAULTS[floor_type]` (`carpet_low_pile="Max"`, `carpet_high_pile="Standard"`, else `"Max"`) and `water_level → "Off"`.
+2. **Hard floors fill water only when absent** — `water_level → FLOOR_TYPE_WATER_DEFAULTS[floor_type]` (default `"Low"`) **only when `"water_level" not in room_config`**; an explicit room `water_level` on a hard floor is kept.
+3. **Mop-mode + `Off` + non-carpet** → `water_level → FLOOR_TYPE_WATER_DEFAULTS[floor_type]` (mop with water Off is invalid).
+4. **`edge_mopping` forced `False`** for any non-mop mode **or** carpet.
+
+So the doc-07 shorthand "the room field always wins" holds only for the *unconstrained hard-floor* fields; carpet fan/water and the water-fill-when-absent rule are the exceptions. (This asymmetry — the bare-`{profile_name}` candidate picking up the hardwood water default — is the mechanism behind code-flag B1, §6 Stage 2.)
 
 ---
 
@@ -320,18 +411,20 @@ The caller does **not** pass rooms — `save_run_profile` snapshots the **curren
 
 **Room snapshot fields** (from `_snapshot_room_for_run_profile`):
 
-| Field | Source |
-|---|---|
-| `room_id` | room dict (`room_id` or `id`) |
-| `name` | room dict |
-| `profile_name` | room dict (default `"vacuum_quick"`) |
-| `clean_mode` | room dict |
-| `fan_speed` | room dict |
-| `water_level` | room dict |
-| `clean_intensity` | room dict |
-| `clean_passes` | room dict |
-| `edge_mopping` | room dict |
-| `order` | room dict (default 999) |
+| Field | Type / coercion | Default |
+|---|---|---|
+| `room_id` | `_safe_int(room["room_id"] or room["id"])` | `-1` (unparseable → `-1`) |
+| `name` | `str` | `""` |
+| `profile_name` | `str` | `"vacuum_quick"` |
+| `clean_mode` | `str` | `"vacuum"` |
+| `fan_speed` | `str` | `"Max"` |
+| `water_level` | `str` | `"Off"` |
+| `clean_intensity` | `normalize_clean_intensity(...)` | `"Quick"` |
+| `clean_passes` | `int` | `1` |
+| `edge_mopping` | `bool` | `False` |
+| `order` | `int` | `999` |
+
+> A `-1` `room_id` sentinel **survives in the stored `rooms` list** but is dropped from the summary: `_run_profile_summary` filters `room_ids >= 0`, so a snapshot with an unparseable id is counted in `rooms` yet absent from `room_ids`/`room_count`.
 
 ### 7.3 `overwrite_run_profile`
 
@@ -438,6 +531,22 @@ Replaces the profile's stored `steps`. Requires at least one `room_group` (a run
 **Read helper — `run_profile_steps(profile)`** (static): returns a profile's ordered steps, back-filling a legacy rooms-only profile as a single `room_group` of its `rooms`. This is the single read path — `apply_run_profile` (§7.6), `_enrich_saved_run_profile` (`steps` / `has_charge_steps` / `has_stops`, §7.1), and phase materialization all go through it, so legacy profiles stay byte-identical.
 
 > **Where the stops actually run.** This manager only *stores* and *normalizes* the steps and *restores* the room selection. Materializing `steps` 1:1 into `active_job["phases"]` (leading/trailing stops dropped, consecutive same-type stops collapsed), executing the dock-and-poll `charge_wait` / dock-and-hold `wait` phases, and running per-phase pre-calls so a stepped run can vacuum one group then mop the next all live in the job/phase machinery — see [30-phase-runner](30-phase-runner.md) and [07-queue-engine](07-queue-engine.md) §4. A dock (`charge_wait` / `wait`) phase is driven **only** by an in-memory poller task, which a pause+resume or an HA restart loses — `PhaseRunner.rearm_dock_phase_if_needed` re-spawns it when the current phase is a dock phase and `status == "started"` (called from resume in `active_job.async_resume_active_job` and on load from `manager.async_initialize`), guarded by a `_dock_poller_active` set so an advance and a re-arm can't both spawn. Without it a charge/wait run would wedge in `started` forever after a pause+resume or restart. The `wait` phase is also exempt from the mid-job recharge observer (`active_job.update_active_job_recharge_observation` treats both `charge_wait` and `wait` as commanded docks that own their own dock).
+
+```python
+async manager.start_run_profile(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    profile_id: str,
+    confirm_reduced_run: bool = False,
+    confirm_token: str | None = None,
+    path_block_action: str | None = None,
+    pause_timeout_minutes_override: int | None = None,
+) -> dict
+# started → the start_selected_rooms result dict with profile_id + profile injected
+# not applied → {vacuum_entity_id, map_id, profile_id, "started": False, reason,
+#                message, profile, applied_room_ids, missing_room_ids}
+```
 
 > **Apply + start in one shot.** Kicking off a saved profile's full stepped sequence is `start_run_profile`, exposed as the `start_run_profile` service and as each profile's HA button. The START orchestration — apply the profile (§7.6), stash its `charge_wait`/`wait`/`zone` steps under `data["_pending_run_steps"]`, then dispatch — now lives on **`ProfileManager.start_run_profile`** (next to `apply_run_profile`); the stash gate mirrors the run-plan step-source gate and includes **`zone`** as well as the two stops — without it, a saved rooms→zone profile started from an automation (where `apply_run_profile` never writes the live `queue_breaks`) would dispatch flat and silently **drop the zone** (fixed in `bbc1030`); `core/manager.py` keeps a thin `start_run_profile` delegator so service/button/test callers of `manager.start_run_profile` are unchanged. It reaches back to the core manager (via `self._manager`) for `build_queue` / `build_room_payload` / `start_selected_rooms`, which stay on the core manager. On a **non-started** return (blocked / confirmation-required without a token / vacuum missing), it deletes the leaked `_pending_run_steps` entry for that (vacuum, map) so the next plain Start on the map isn't silently turned into a charge/wait run. See [06-job-lifecycle](06-job-lifecycle.md).
 
