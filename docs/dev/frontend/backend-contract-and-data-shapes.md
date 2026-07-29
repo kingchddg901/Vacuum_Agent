@@ -155,8 +155,8 @@ Both **response** services in the `eufy_vacuum` domain. Full error model: [23-er
 | `dry_mop` | `vacuum_entity_id`, `map_id` |
 | `stop_dry_mop` | `vacuum_entity_id`, `map_id` |
 | `empty_dust` | `vacuum_entity_id`, `map_id` |
-| `reset_maintenance` | `vacuum_entity_id`, `component` (`brush` \| `side_brush` \| `filter` \| `mop` \| `sensor`) |
-| `set_maintenance_interval` | `vacuum_entity_id`, `component` (`brush` \| `side_brush` \| `filter` \| `mop` \| `sensor`), `interval_hours` (> 0) |
+| `reset_maintenance` | `vacuum_entity_id`, `component` (an adapter-declared maintenance-component id — Eufy: `filter` \| `side_brush` \| `rolling_brush` \| `mopping_cloth` \| `cleaning_tray` \| `swivel_wheel` \| `sensor`) |
+| `set_maintenance_interval` | `vacuum_entity_id`, `component` (an adapter-declared maintenance-component id — Eufy: `filter` \| `side_brush` \| `rolling_brush` \| `mopping_cloth` \| `cleaning_tray` \| `swivel_wheel` \| `sensor`), `interval_hours` (> 0) |
 | `set_dock_event_count` | `vacuum_entity_id`, `event_type` (`last_mop_wash` \| `last_dust_empty` \| `last_dry_start`), `count` (int ≥ 0) |
 | `set_pause_timeout_settings` | `vacuum_entity_id`, `pause_timeout_minutes_default` |
 | `battery_rebaseline` | `vacuum_entity_id` — rebaselines the battery-health proxy (see [12-battery-system](../12-battery-system.md)) |
