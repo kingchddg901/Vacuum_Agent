@@ -1,5 +1,12 @@
 # External-Run Robustness — Long-Pause / Freeze Tolerance
 
+> **Status: open-items tracker (2026-07-29 triage).** The resolved items are documented
+> canonically in [28-external-run-ingestion](28-external-run-ingestion.md): Item 3
+> (`attribution_confidence`) and Item 4 (the stale-`cleaning_area` `pose_confidence:"presence"`
+> fallback). Still **open**: Item 1 (pose-buffer stall flood evicting real cleaning data) and
+> Item 2 (a super-long freeze corrupting counter segmentation — phantom 0 m² segments, inflated
+> wall times). This doc retains those two.
+
 Three tracked items surfaced 2026-06-20 from an overnight external (app-started) run where the
 **robot froze mid-clean for hours**. The freeze corrupted the finalized review record on both
 axes — the counter time/area segmentation *and* the W5c pose-attribution identity. Evidence

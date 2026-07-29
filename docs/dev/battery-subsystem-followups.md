@@ -1,5 +1,11 @@
 # Battery Subsystem — Accounting Follow-ups
 
+> **Status: open-items tracker (2026-07-29 triage).** Item 1's original fix (the
+> `mid_job_recharge` drain-bucket gate) is documented canonically in
+> [12-battery-system](12-battery-system.md). Still **open**: Item 1's `charge_wait`-step
+> blind spot (a *deliberate* mid-job recharge doesn't trip the gate) and Item 2
+> (external runs compute no per-job battery metrics). This doc retains those.
+
 Two tracked items surfaced 2026-06-20 while reviewing `battery/` against a **mid-job
 recharge run** (an external Vac+Mop clean that returned to dock at 9% and recharged).
 Neither is a bug in the real-time session engine — cycle counting, charge-session

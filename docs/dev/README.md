@@ -94,6 +94,16 @@ Cross-cutting features that span several subsystems.
 
 ---
 
+## Design references & follow-up trackers
+
+Not in the numbered reading order — design rationale the subsystem docs point to, plus open-item trackers.
+
+- **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation), `voice-assist-wizard` (design-only, not yet implemented).
+- **[32-core-minimality-and-deconstruction](32-core-minimality-and-deconstruction.md)** — the irreducible-core map (analysis, not a changelog).
+- **[battery-subsystem-followups](battery-subsystem-followups.md)** / **[external-run-robustness-followups](external-run-robustness-followups.md)** — open-item trackers; each resolved item is documented canonically in [12](12-battery-system.md) / [28](28-external-run-ingestion.md).
+
+---
+
 ## Frontend
 
 The Lovelace panel card — the render cycle, event binding, styles, state, the frontend↔backend
