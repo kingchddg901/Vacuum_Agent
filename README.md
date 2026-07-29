@@ -51,11 +51,13 @@ A built-in **theme editor** for the panel card, with three layers: ready-made pr
 
 The card **speaks fourteen languages** out of the box — English plus thirteen translations: German, French, Spanish, Dutch, Italian, Portuguese, Russian, Arabic, Hebrew, Japanese, Korean, and Chinese (Simplified & Traditional), including right-to-left Arabic & Hebrew — via a per-user language globe in the header, plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English. (Native reviewers very welcome — see the [translations discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).)
 
-The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered in every shipped language:
+The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered across the shipped languages:
 
 ![The Room card's cleaning controls — mode, suction, path, passes, Start — shown across the shipped languages](docs/screenshots/translations-hero-room-card.png)
 
 ![The Profile card's "Runs as" step manifest and Run button, shown across the shipped languages](docs/screenshots/translations-hero-profile-card.png)
+
+*Placeholder hero shots — the current images show seven of the fourteen languages; a full-set render is in progress.*
 
 ## Also on Roborock
 
