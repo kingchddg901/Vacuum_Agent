@@ -122,14 +122,22 @@ def get_discovery_cadence(vacuum_entity_id: str) -> dict[str, Any]:
             if disc.get("auto_refresh_interval_seconds") is not None
             else _DEFAULT_AUTO_REFRESH_INTERVAL_SECONDS
         ),
-        "removal_confirmation_passes": int(
+        # An explicit value is honored down to the meaningful floor of 1 (flag on
+        # the first pass). Use `is not None` (not `or`) so a configured low value
+        # isn't silently reverted to the default — but clamp with max(1, ...): a
+        # literal 0 would make `missing_passes >= n_remove` a tautology (every
+        # configured room flagged removed, even present ones), so 0/negative means
+        # "as aggressive as valid" = 1, not the surprising default.
+        "removal_confirmation_passes": max(1, int(
             disc.get("removal_confirmation_passes")
-            or _DEFAULT_REMOVAL_CONFIRM_PASSES
-        ),
-        "new_room_confirmation_passes": int(
+            if disc.get("removal_confirmation_passes") is not None
+            else _DEFAULT_REMOVAL_CONFIRM_PASSES
+        )),
+        "new_room_confirmation_passes": max(1, int(
             disc.get("new_room_confirmation_passes")
-            or _DEFAULT_NEW_ROOM_CONFIRM_PASSES
-        ),
+            if disc.get("new_room_confirmation_passes") is not None
+            else _DEFAULT_NEW_ROOM_CONFIRM_PASSES
+        )),
     }
 
 

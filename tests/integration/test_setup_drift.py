@@ -16,6 +16,7 @@ Coverage targets
 [DR-12] compute_room_drift surfaces removed_rooms after threshold misses.
 [DR-13] compute_room_drift surfaces new_rooms immediately (n_new=1 default).
 [DR-14] _list_configured_room_ids excludes is_configured=False rooms from drift tracking.
+[DR-15] get_discovery_cadence honors an explicit low pass count + floors a literal 0 to 1 (CS-2).
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from custom_components.eufy_vacuum.setup.drift import (
     SETUP_STEP_IDS,
     compute_room_drift,
     get_adapter_setup_steps,
+    get_discovery_cadence,
     is_step_completed,
     record_step_completed,
     update_drift_history,
@@ -121,6 +123,38 @@ def test_get_adapter_setup_steps_filters_unknown_ids(manager):
     steps = get_adapter_setup_steps(_VAC)
     assert "foobar_step" not in steps
     assert "add_vacuum" in steps
+
+
+def test_get_discovery_cadence_honors_low_values_and_floors_zero(manager):
+    """[DR-15] CS-2: an explicit low confirmation-pass count is honored (not silently
+    reverted to the default via `or`), and a literal 0 is clamped to the meaningful
+    floor of 1 — never 0, which would make `missing_passes >= n_remove` a tautology
+    (every configured room flagged removed). Absent → the documented defaults."""
+    # explicit low value honored
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test", "entities": {},
+        "discovery": {"removal_confirmation_passes": 2, "new_room_confirmation_passes": 2},
+    })
+    cad = get_discovery_cadence(_VAC)
+    assert cad["removal_confirmation_passes"] == 2
+    assert cad["new_room_confirmation_passes"] == 2
+
+    # explicit 0 clamps to 1 (was silently 3 / 1 default before the fix)
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test", "entities": {},
+        "discovery": {"removal_confirmation_passes": 0, "new_room_confirmation_passes": 0},
+    })
+    cad = get_discovery_cadence(_VAC)
+    assert cad["removal_confirmation_passes"] == 1
+    assert cad["new_room_confirmation_passes"] == 1
+
+    # absent → documented defaults
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test", "entities": {}, "discovery": {},
+    })
+    cad = get_discovery_cadence(_VAC)
+    assert cad["removal_confirmation_passes"] == 3
+    assert cad["new_room_confirmation_passes"] == 1
 
 
 # ---------------------------------------------------------------------------

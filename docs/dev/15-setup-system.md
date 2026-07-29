@@ -166,12 +166,12 @@ Drift = difference between the rooms the adapter currently reports and the rooms
 
 | Adapter key | Default | Coercion |
 |---|---|---|
-| `discovery.removal_confirmation_passes` | 3 | `int(disc.get(...) or DEFAULT)` — **a configured `0` falls to the default** (CS-2) |
-| `discovery.new_room_confirmation_passes` | 1 | `int(disc.get(...) or DEFAULT)` — same; `0` → 1 |
-| `discovery.auto_refresh_interval_seconds` | 21600 (6h) | `int(...)` behind an `is not None` guard — **`0` is preserved** |
+| `discovery.removal_confirmation_passes` | 3 | `max(1, int(...))` behind an `is not None` guard — an explicit low value is honored; `0`/negative clamps to **1** |
+| `discovery.new_room_confirmation_passes` | 1 | same — `max(1, int(...))`, `is not None` guard |
+| `discovery.auto_refresh_interval_seconds` | 21600 (6h) | `int(...)` behind an `is not None` guard — `0` is preserved |
 | `discovery.auto_refresh_on` | `["vacuum_docked", "active_map_changed", "config_entry_reload"]` | `list(... or DEFAULT)` |
 
-Note the asymmetry: the two pass-count keys use `or` (so `0` is lost), the interval uses `is not None` (so `0` survives).
+The two pass-count keys are **floored at 1**: a literal `0` would make `missing_passes >= n_remove` a tautology (every configured room flagged removed, even present ones), so `0`/negative means "as aggressive as valid" = 1, not the surprising default. (This was code-flag CS-2 — the old `or` coercion silently reverted a configured `0` to the default; fixed + regression-tested DR-15.)
 
 **Drift-history entry schema** — each `room_drift_history[str(room_id)]` value is a fixed **5-field** dict (created by `update_drift_history` / `force_remove_room`):
 
