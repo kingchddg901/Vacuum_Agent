@@ -16,7 +16,7 @@ zh-Hant (TW), ru (S6 MaxV), ja (S5 Max — base only, rest fall back to English)
 ar/he are AI-DRAFTS (no official manual; manuals.plus inaccessible) — flagged in
 their modules, consistent with the card's ar/he draft locales.
 """
-from . import ar, de, es, fr, he, it, ja, ko, nl, pt, ru, zh_hans, zh_hant  # noqa: F401
+from . import ar, de, es, fr, he, it, ja, ko, nl, pl, pt, ru, zh_hans, zh_hant  # noqa: F401
 
 ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "de": de.GUIDE_TRANSLATIONS,
@@ -25,6 +25,7 @@ ROBOROCK_UPKEEP_GUIDE_TRANSLATIONS = {
     "it": it.GUIDE_TRANSLATIONS,
     "nl": nl.GUIDE_TRANSLATIONS,
     "pt": pt.GUIDE_TRANSLATIONS,
+    "pl": pl.GUIDE_TRANSLATIONS,
     "ru": ru.GUIDE_TRANSLATIONS,
     "ja": ja.GUIDE_TRANSLATIONS,
     "ko": ko.GUIDE_TRANSLATIONS,
