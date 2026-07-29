@@ -171,19 +171,20 @@ module (flat file) or a subsystem package. Here is the full map:
 | `adapters/` | Adapter config schema, `AdapterCoordinator`, Eufy-specific constants |
 | `queue/` | `build_queue_from_managed_rooms`, `build_room_clean_payload` |
 | `maps/` | `get_map_bucket`, `ensure_map_bucket`, `get_vacuum_maps_summary`, `rebuild_map_bucket`, `save_map_discovery_snapshot` — pure dict helpers |
-| `rooms/` | `room_manager.py` (incl. `build_managed_rooms`), `room_discovery.py`, `rooms/utils.py` — stateless |
+| `rooms/` | `room_manager.py` (incl. `build_managed_rooms`), `room_discovery.py`, `reconciliation.py` (name-slug identity reconcile), `source_refresh.py` (service-response room cache), `rooms/utils.py` — stateless |
 | `models/` | `TypedDict` definitions (`VacuumRuntimeState`, `LiveRuleState`, etc.) |
 | `mapping/` | Image-based room segmentation, custom named layouts, the live map source, `point_in_polygon` zone membership, and the native current-room tracker |
 | `learning/` | Job finalization pipeline, history store, ETA estimator; also `external_run.py` — the `ExternalRunManager` subsystem (a stateful bundled subsystem, not stateless; see the subsystem-managers table above) |
-| `setup/` | Setup workflow, drift detection, protection rules |
+| `setup/` | Setup workflow, drift detection, protection rules, protected map delete, status response |
 | `jobs/job_monitor.py` | Lifecycle state machine (pure function) |
 | `timestamp_utils.py` | `parse_timestamp`, `utc_now_iso` |
 
 ### HA platform modules
 
 `binary_sensor.py`, `button.py`, `number.py`, `sensor/`,
-`switch.py` — each owns its `async_setup_entry` and entity classes. Room
-entities share the base class in `room_entities.py`.
+`switch.py`, `select.py` (the debug flight-recorder target — §10) — each owns its
+`async_setup_entry` and entity classes. Room entities share the base class in
+`room_entities.py`.
 
 > **See also — subsystem deep dives:** [05-core-manager](05-core-manager.md) · [06-job-lifecycle](06-job-lifecycle.md) · [07-queue-engine](07-queue-engine.md) · [08-rooms-system](08-rooms-system.md) · [09-room-rules-system](09-room-rules-system.md) · [10-learning-system](10-learning-system.md) · [11-mapping-system](11-mapping-system.md) · [12-battery-system](12-battery-system.md) · [13-maintenance-manager](13-maintenance-manager.md) · [14-dock-manager](14-dock-manager.md) · [15-setup-system](15-setup-system.md) · [16-profile-manager](16-profile-manager.md) · [17-map-manager](17-map-manager.md) · [18-onboarding-manager](18-onboarding-manager.md) · [frontend/architecture-overview](frontend/architecture-overview.md) · [frontend/theme-system](frontend/theme-system.md) · [23-error-tracker](23-error-tracker.md)
 
@@ -222,8 +223,8 @@ entities share the base class in `room_entities.py`.
    code adapters for each known vacuum (code adapters always win over stored).
 
 5. **Singletons construction** — `LearningManager`, `BatteryHealthManager`,
-   `ErrorTracker` constructed and started. `BatteryHealthManager` is built at
-   `__init__.py` (~line 248-250) and stored at `hass.data[DOMAIN][DATA_BATTERY]`
+   `ErrorTracker` constructed and started. `BatteryHealthManager` is built in
+   `__init__.py` and stored at `hass.data[DOMAIN][DATA_BATTERY]`
    (`DATA_BATTERY = "battery"`, `const.py`); it is torn down on unload.
    `MappingTracker` constructed; position listeners
    registered for known vacuums.
@@ -239,8 +240,8 @@ entities share the base class in `room_entities.py`.
    `pause_timeout`, `job_progress`, `pose_sampler`, `discovery`.
 
 8. **Platform forward** — `async_forward_entry_setups` triggers
-   `async_setup_entry` in all five platform modules, creating and registering
-   all HA entities.
+   `async_setup_entry` in all **six** platform modules (`binary_sensor`, `button`,
+   `switch`, `select`, `number`, `sensor`), creating and registering all HA entities.
 
 9. **Panel registration** — one sidebar panel registered per managed vacuum
    (`eufy-vacuum-{object_id}`), serving the compiled card JS.
@@ -507,6 +508,7 @@ Service modules in `services/` are split by domain:
 | `adapter_config.py` | save/delete/get adapter config, entity discovery |
 | `errors.py` | acknowledge error, get recent errors |
 | `snapshots.py` | dashboard snapshot, progress snapshot, job control state |
+| `debug.py` | debug flight-recorder capture (start/stop/status) — backs the `select.py` capture target (§10) |
 
 All service handlers follow a three-step pattern:
 1. Extract and validate `call.data` fields
@@ -519,12 +521,13 @@ All service handlers follow a three-step pattern:
 
 ## 10. Entity Layer
 
-Five HA platforms create entities:
+**Six** HA platforms create entities:
 
 | Platform | Entity classes |
 |---|---|
 | `sensor/` | ActiveJob, Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×12), ActiveRunError, LastDeviceError, MapOverlays |
 | `switch.py` | RoomEnabledSwitch (one per configured room) |
+| `select.py` | DebugTargetSelect (a single integration-level debug flight-recorder capture target) |
 | `number.py` | RoomOrderNumber (one per room), MaintenanceIntervalNumber (one per component) |
 | `button.py` | MaintenanceResetButton (one per component), SavedRunProfileButton (one per exposed profile) |
 | `binary_sensor.py` | ActiveRunHasErrorBinarySensor |
