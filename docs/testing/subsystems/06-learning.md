@@ -21,15 +21,15 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 |---------------|------:|----:|--------------|-------|
 | `utils.py` | 80 | 98% | `tests/unit/test_learning_utils.py` | unit (pure) |
 | `estimator.py` | 409 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
-| `history_store.py` | 476 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
-| `stats_rebuilder.py` | 469 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 539 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 733 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
+| `history_store.py` | 428 | 95% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
+| `stats_rebuilder.py` | 478 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
+| `job_finalizer.py` | 544 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
+| `manager.py` | 751 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
 | `services.py` | 257 | 92% | `tests/integration/test_learning_services.py` | integration |
-| `external_ingest.py` | 410 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
+| `external_ingest.py` | 413 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
 | `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) |
-| `counter_segmentation.py` | 165 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
+| `counter_segmentation.py` | 171 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
 
 `counter_segmentation.py` lives at the package root (not under `learning/`) — it
 is the shared counter-plateau segmentation primitive used here and by the jobs
@@ -118,6 +118,10 @@ archived completed jobs into room/profile/job stats + the jobs index.
   `extreme_idle_wall` learning-blocker, never a hard exclude), with
   `_run_had_break_phase` supplying its charge/wait exemption — both covered by
   `tests/unit/test_idle_wall_guard.py`, which also golden-checks real archive records.
+  That file also covers `_run_had_charge_wait_phase`: the `mid_job_recharge` flag now
+  trips on a deliberate native `charge_wait` step (not only an unplanned deep-low
+  return), keeping that intentional recharge out of the per-config drain buckets — a
+  plain `wait` phase is never flagged.
   The forced `"interrupted"` lifecycle (a stranded run that was force-finalized) is
   covered by `test_collect_inputs_interrupted_outcome` (it takes the `was_interrupted`
   arm and skips the cancel-likely probe rather than misclassifying a truncated run as
@@ -193,7 +197,12 @@ not its *time/area* boundary). Split across two files:
 ### `counter_segmentation.py` — counter-plateau segmentation primitives
 `find_candidates` / `select_active` / `build_segments` — the frame-invariant
 plateau detection shared by live rollover, external-run ingest, and learned
-history; the engine above delegates to these.
+history; the engine above delegates to these. The `build_segments` freeze/stall
+**wall-carve** (a gap longer than `stall_wall_s` between `cleaning_time` ticks is
+dead time, subtracted from that segment's `time_wall_s`) is covered in
+`test_counter_segmentation.py`: a carved interior freeze, a sub-threshold gap left
+intact (normal runs stay byte-identical), and a freeze that becomes a boundary
+landing in overhead rather than inflating a room — external-run robustness Item 2.
 
 ---
 

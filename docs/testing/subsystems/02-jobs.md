@@ -5,7 +5,7 @@ The jobs subsystem owns active-job state and the start-time lifecycle gate:
 `active_job.py` tracks an in-flight job (room rollover, recharge/mop-wash
 observations, transition-room detection, live run-anomaly detection), and
 `phase_runner.py` runs strict-order (sequenced) per-room phase execution +
-per-phase timing capture. Covered by **181 tests across 5 files**.
+per-phase timing capture. Covered by **185 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/jobs/`
 Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycle.md)
@@ -17,8 +17,8 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 130 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 868 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration |
-| `phase_runner.py` | 326 | 92% | `tests/integration/test_strict_order_phase_timing.py` | integration |
+| `active_job.py` | 898 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration |
+| `phase_runner.py` | 397 | 92% | `tests/integration/test_strict_order_phase_timing.py` | integration |
 
 ---
 
@@ -59,6 +59,13 @@ progress snapshot, moved out of the manager snapshot composer because the tracke
 holds the active-job dict and the per-job dedup state the one-shot emission keys
 on. Its anomaly behavior is currently exercised from
 `tests/integration/test_manager_progress.py` rather than the `AJ`/`AJI` suites.
+
+`record_pose_sample` (the W5b pose buffer feeding external-run room attribution)
+carries its own unit cases: the **stall-coalescing** guard (`_pose_sample_is_static`
++ `_POSE_STALL_COALESCE_TICKS`) collapses a frozen tail so a multi-hour freeze can't
+flood the 3000-sample buffer and evict the run's real early cleaning data, while a
+slow-but-cleaning robot (rising `cleaning_area`) is never coalesced — external-run
+robustness Item 1 (see [28-external-run-ingestion](../../dev/28-external-run-ingestion.md)).
 
 > The recharge test surfaced a real bug: the method called
 > `hass.states.get(None)` when the adapter has no `task_status` entity. Fixed

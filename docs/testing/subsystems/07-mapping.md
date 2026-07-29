@@ -39,7 +39,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `tracker.py` | 231 | 85% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `mapping_services.py` | 1154 | 85% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
+| `mapping_services.py` | 1201 | 84% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
 | `map_source.py` | 422 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
 | `map_source_runtime.py` | 509 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
 | `map_source_coordinator.py` | 279 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
