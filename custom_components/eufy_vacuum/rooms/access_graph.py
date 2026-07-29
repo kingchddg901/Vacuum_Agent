@@ -213,6 +213,13 @@ class AccessGraphManager:
             room_id = _safe_int(room_data.get("room_id", room_key), -1)
             normalized[room_key] = {
                 **room_data,
+                # Canonicalize room_id back onto the room (as an int, falling back to
+                # the dict KEY when the value lacks the field) so every downstream
+                # consumer gets a guaranteed int — matching the key-fallback the access
+                # views already use. Without this, a room stored with a valid key but no
+                # room_id field survives here without one and int(None)-crashes the whole
+                # start plan (run_plan._build_effective_start_plan).
+                "room_id": room_id,
                 "is_dock_room": bool(room_data.get("is_dock_room", False)),
                 "grants_access_to": self._normalize_grants_access_to(
                     room_data.get("grants_access_to", []),

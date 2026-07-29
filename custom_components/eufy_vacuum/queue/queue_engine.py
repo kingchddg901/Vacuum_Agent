@@ -116,7 +116,7 @@ def build_queue_from_managed_rooms(
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": str(map_id),
-        "room_count": len(enabled_rooms),
+        "room_count": len(queue_room_ids),
         "queue_room_ids": queue_room_ids,
         "queue_rooms": [
             {
@@ -127,6 +127,7 @@ def build_queue_from_managed_rooms(
                 "profile_name": room.get("profile_name", "vacuum_quick"),
             }
             for room in enabled_rooms
+            if "room_id" in room
         ],
     }
 

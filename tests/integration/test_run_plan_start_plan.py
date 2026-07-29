@@ -80,6 +80,21 @@ def test_ready_blank_graph(rp):
     assert pf["blocked_room_ids"] == []
 
 
+def test_room_missing_room_id_field_recovers_from_key(rp):
+    """[SP-16] Regression (B2): a stored room whose value dict lacks the `room_id`
+    field survives normalization with room_id recovered from its dict KEY, so the
+    start plan does not int(None)-crash. `_normalized_managed_rooms_with_automation`
+    now writes the computed room_id back (matching the access views' key-fallback)."""
+    rp_, mgr = rp
+    _seed(mgr, "spm16", [{"enabled": True}, {"enabled": True}])
+    # Corrupt: drop the room_id FIELD from room 1's value (its dict key "1" remains).
+    mgr.data["maps"][_VAC]["spm16"]["rooms"]["1"].pop("room_id", None)
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm16")
+    pf = out["preflight"]
+    assert pf["blocked"] is False
+    assert set(pf["selected_room_ids"]) == {1, 2}   # room 1 recovered from its key
+
+
 def test_partial_graph_blocks(rp):
     """[SP-2] a dock room granting to a missing room → invalid → partial → blocked."""
     rp_, mgr = rp
