@@ -62,6 +62,7 @@ from ..counter_segmentation import (
     _GAP_DELAYED_S,
     _GAP_PLATEAU_S,
     _GAP_TRANSIT_S,
+    _STALL_WALL_S,
     build_segments as _build_segments,
     find_candidates as _find_candidates,
     segment_counters as _segment_counters,
@@ -192,7 +193,7 @@ class EufyCounterSegmenter:
 
     engine_name = "eufy_counter_v1"
 
-    # The single in-code source of these five numbers for the Eufy engine. BY
+    # The single in-code source of these six numbers for the Eufy engine. BY
     # REFERENCE to counter_segmentation's module constants — do NOT retype the
     # literals here, or the byte-identical guarantee becomes a vigilance task.
     DEFAULT_TUNING: dict[str, float] = {
@@ -201,6 +202,7 @@ class EufyCounterSegmenter:
         "gap_plateau_s": _GAP_PLATEAU_S,
         "area_jump_m2": _AREA_JUMP_M2,
         "cadence_s": _CADENCE_S,
+        "stall_wall_s": _STALL_WALL_S,
     }
 
     _KNOWN_TUNING_KEYS: frozenset[str] = frozenset(DEFAULT_TUNING)
@@ -256,7 +258,9 @@ class EufyCounterSegmenter:
         tuning: dict[str, Any] | None = None,
     ) -> list[JobSegment]:
         t = self._resolve(tuning)
-        return _build_segments(samples, active_candidates, cadence_s=t["cadence_s"])
+        return _build_segments(
+            samples, active_candidates, cadence_s=t["cadence_s"], stall_wall_s=t["stall_wall_s"]
+        )
 
     def segment_legacy(
         self,
@@ -276,6 +280,7 @@ class EufyCounterSegmenter:
             gap_delayed_s=t["gap_delayed_s"],
             gap_plateau_s=t["gap_plateau_s"],
             area_jump_m2=t["area_jump_m2"],
+            stall_wall_s=t["stall_wall_s"],
         )
 
 

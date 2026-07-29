@@ -69,6 +69,19 @@ _GAP_TRANSIT_S = 60.0   # gap above this (≤ plateau) with FLAT area = an inter
 _GAP_PLATEAU_S = 90.0   # gap above this = an unambiguous boundary (wash / long transit)
 _AREA_JUMP_M2 = 2.0     # cleaning_area delta across a delayed step marking new floor
 
+# A firmware freeze/stall (or an over-long dock) shows up as a long INTERIOR gap between
+# cleaning_time increments. cleaning_time is THE cleaning clock (~30 s ticks WHILE cleaning),
+# so a gap longer than _STALL_WALL_S between two of its ticks means the robot did not clean
+# for that whole span — dead time, not this room's work. Left in, it inflates the enclosing
+# segment's time_wall_s, so a real room's learned clean-time reads far too long (external-run
+# robustness Item 2). build_segments carves such a gap out of time_wall_s (booked as overhead).
+# Deliberately WELL above any legit mop wash (gap_plateau_s = 90 s; a wash is a few minutes)
+# AND above any active-cleaning tick gap, so a NORMAL run's segments stay byte-identical. area
+# and time_active_s are untouched — time_active_s is already freeze-immune (the counter simply
+# doesn't tick while frozen). Note: an area guard would be WRONG here — the post-freeze resume
+# tick posts new cleaning area, so area appears to "rise across" the gap even for a real freeze.
+_STALL_WALL_S = 600.0        # 10 min — an interior gap between cleaning_time ticks longer than this = dead time
+
 # Only a true wash/dock plateau forward-reads the lagged area to the next room. A
 # transit covered no new floor; an area_jump's rise is the NEXT room's — both stay
 # same-instant (see build_segments).
@@ -304,6 +317,7 @@ def build_segments(
     active_candidates: list[dict[str, Any]],
     *,
     cadence_s: float = _CADENCE_S,
+    stall_wall_s: float = _STALL_WALL_S,
 ) -> list[dict[str, Any]]:
     """The ordered per-room segment dicts for a chosen active boundary set.
 
@@ -348,6 +362,16 @@ def build_segments(
     for idx, g in enumerate(groups):
         start_t = g[0][0]
         end_t, end_ct = g[-1]
+        # Carve interior FREEZE/stall dead-time out of the wall: a gap between consecutive
+        # cleaning_time increments longer than stall_wall_s means the robot did not clean for
+        # that whole span (the cleaning clock stopped) — booking it as this room's wall would
+        # grossly inflate its learned clean time (it is overhead, not cleaning). A normal run
+        # has no such gap → wall unchanged. area / time_active_s are already freeze-immune.
+        stall_s = 0.0
+        for k in range(1, len(g)):
+            gap_s = (g[k][0] - g[k - 1][0]).total_seconds()
+            if gap_s > stall_wall_s:
+                stall_s += gap_s
         # Forward-attribute area across a wash_plateau/dock ONLY (the area that posts
         # there is THIS room's lag); the last segment reads to the final sample
         # (trailing dock lag). Every other boundary stays same-instant — the rise is
@@ -376,7 +400,7 @@ def build_segments(
                 "area_end_m2": round(end_area, 2),
                 "area_delta_m2": round(max(end_area - prev_area, 0.0), 2),
                 "time_active_s": round(max(end_ct - prev_ct, 0.0), 1),
-                "time_wall_s": round(max((end_t - start_t).total_seconds(), 0.0), 1),
+                "time_wall_s": round(max((end_t - start_t).total_seconds() - stall_s, 0.0), 1),
                 "gap_before_s": round(max((start_t - prev_end_t).total_seconds(), 0.0), 1),
                 "battery_delta": battery_delta,
                 "boundary": boundaries[idx],
@@ -397,6 +421,7 @@ def segment_counters(
     gap_delayed_s: float = _GAP_DELAYED_S,
     gap_plateau_s: float = _GAP_PLATEAU_S,
     area_jump_m2: float = _AREA_JUMP_M2,
+    stall_wall_s: float = _STALL_WALL_S,
 ) -> list[dict[str, Any]]:
     """Segment a counter-sample stream into ordered per-room cleaning bouts.
 
@@ -423,4 +448,4 @@ def segment_counters(
     active = select_active(
         cands, expected_rooms=expected_rooms, default="all", kinds={"wash_plateau", "area_jump"}
     )
-    return build_segments(samples, active, cadence_s=cadence_s)
+    return build_segments(samples, active, cadence_s=cadence_s, stall_wall_s=stall_wall_s)

@@ -1254,10 +1254,11 @@ counter-segmentation consumers — **live rollover, external-run ingest,
 and learned history** — resolve their engine *and* their thresholds from
 this one block.
 
-`job_segmenter.tuning` is the **single in-code source** of the five
-gap/area/cadence thresholds. They previously lived inside
-`live_transition`; they have moved here (see the note in
-[§13b](#13b-live_transition--live-current-room-rollover-orchestration)).
+`job_segmenter.tuning` is the **single in-code source** of the six
+gap/area/cadence/stall thresholds. The original five previously lived inside
+`live_transition` and have moved here (see the note in
+[§13b](#13b-live_transition--live-current-room-rollover-orchestration));
+`stall_wall_s` was added later (freeze tolerance) and was never in `live_transition`.
 
 ### Schema
 
@@ -1305,7 +1306,7 @@ per-room telemetry registers its own engine here (implementing
 
 ### `tuning` *(optional when `job_segmenter` is present, dict)*
 
-The five gap/area/cadence thresholds. **The engine owns the schema** and
+The six gap/area/cadence/stall thresholds. **The engine owns the schema** and
 validates the dict in `validate_tuning(tuning) -> list[str]` (unknown
 keys and non-positive values are flagged); the framework's
 `_validate_adapter` delegates to it at registration time. The dict may be
@@ -1320,6 +1321,7 @@ module constants, so it can't drift from the primitives).
 | `gap_plateau_s` | `float` | `90.0` | Gap at/above which a blip is a `wash_plateau` (the dock-wash dwell). |
 | `area_jump_m2` | `float` | `2.0` | Forward cleaned-area rise (m²) that marks an `area_jump` candidate. |
 | `cadence_s` | `float` | `30.0` | Expected counter-sample cadence; normalizes gap math against the polling interval. |
+| `stall_wall_s` | `float` | `600.0` | A gap longer than this between two `cleaning_time` ticks INSIDE a segment is a firmware freeze / over-long dock (the cleaning clock stopped), so its dead time is carved out of that segment's `time_wall_s` (booked as overhead). Set well above any mop wash + any active-cleaning tick gap, so normal runs are byte-identical. Freeze-tolerance (external-run robustness Item 2). |
 
 ### Example (from the Eufy adapter)
 
@@ -1332,6 +1334,7 @@ module constants, so it can't drift from the primitives).
         "gap_plateau_s": 90.0,
         "area_jump_m2": 2.0,
         "cadence_s": 30.0,
+        "stall_wall_s": 600.0,
     },
 },
 ```

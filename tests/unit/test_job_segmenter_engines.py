@@ -25,6 +25,7 @@ from custom_components.eufy_vacuum.counter_segmentation import (
     _GAP_DELAYED_S,
     _GAP_PLATEAU_S,
     _GAP_TRANSIT_S,
+    _STALL_WALL_S,
     build_segments,
     find_candidates,
     segment_counters,
@@ -146,6 +147,7 @@ def test_default_tuning_matches_module_constants():
         "gap_plateau_s": _GAP_PLATEAU_S,
         "area_jump_m2": _AREA_JUMP_M2,
         "cadence_s": _CADENCE_S,
+        "stall_wall_s": _STALL_WALL_S,
     }
 
 

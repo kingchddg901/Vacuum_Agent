@@ -3,10 +3,11 @@
 > **Status: open-items tracker (2026-07-29 triage).** The resolved items are documented
 > canonically in [28-external-run-ingestion](28-external-run-ingestion.md): Item 3
 > (`attribution_confidence`) and Item 4 (the stale-`cleaning_area` `pose_confidence:"presence"`
-> fallback). **Item 1 (pose-buffer stall flood) is now FIXED too (2026-07-29 — a stall detector
-> in `record_pose_sample` coalesces a frozen tail so it can't evict real cleaning data; see
-> below).** Still **open**: only Item 2 (a super-long freeze corrupting counter segmentation —
-> phantom 0 m² segments, inflated wall times). This doc retains that.
+> fallback). **Item 1 (pose-buffer stall flood) is FIXED** (2026-07-29 — a stall detector in
+> `record_pose_sample` coalesces a frozen tail so it can't evict real cleaning data). **Item 2's
+> WALL-INFLATION half is FIXED too** (2026-07-29 — `build_segments` carves interior freeze
+> dead-time out of `time_wall_s`; see below). Still **open**: only Item 2's PHANTOM 0 m²
+> mid-segment (a review-card call — a blind drop would break the legit cleaning_area-lag case).
 
 Three tracked items surfaced 2026-06-20 from an overnight external (app-started) run where the
 **robot froze mid-clean for hours**. The freeze corrupted the finalized review record on both
@@ -82,6 +83,28 @@ a long wall gap** (a stall, distinct from a normal wash plateau) and book it **f
 overhead** — excluded from segmentation rather than emitted as a 0 m² "room" / smeared into the
 neighbors. Optionally cap the captured run window at the stall so the post-freeze recovery
 movement doesn't extend it. Do NOT cancel the run (observer-only).
+
+> **✅ FIXED 2026-07-29 (inflation half; conservative carve-out).** `counter_segmentation.build_segments`
+> now carves interior freeze dead-time out of each segment's `time_wall_s`: a gap longer than
+> `stall_wall_s` (new tuning key, default 600 s / 10 min) between two consecutive `cleaning_time`
+> increments means the robot did not clean for that whole span (the cleaning clock stopped), so it is
+> booked as overhead, not the room's wall. `cleaning_time` is THE discriminator — an active clean ticks
+> it every ~30 s, a legit mop wash is minutes (< threshold), only a freeze / over-long dock holds it
+> >10 min. `area` and `time_active_s` are untouched (both already freeze-immune). **No `cleaning_area`
+> guard on purpose**: the post-freeze resume tick posts NEW area, so area appears to rise "across" the
+> gap even for a real freeze — the pure `cleaning_time`-gap signal is both correct and simpler. A NORMAL
+> run has no such gap, so its segments are byte-identical (verified against the full existing
+> `test_counter_segmentation` suite). Threaded through the engine `DEFAULT_TUNING` + declared on the Eufy
+> adapter; regression-pinned in `tests/unit/test_counter_segmentation.py`
+> (`test_build_segments_carves_interior_freeze_from_wall`, `…_subthreshold_gap_not_carved`,
+> `…_long_freeze_boundary_lands_in_overhead`). Full suite 2908 green.
+>
+> **RESIDUAL — the phantom-segment half is still OPEN.** This fixes the WALL INFLATION (the wrong
+> learned clean-times — the load-bearing corruption). It does NOT drop the **phantom 0 m² mid-segment** a
+> freeze can spawn: a blind "drop a middle ~0 m² segment" would also break the legit `cleaning_area`-lag
+> case `_enrich_segments` keeps it for (a short first room whose area lands on the next segment). So a
+> phantom shown in the review card stays the user's call (they re-segment a bad record before it
+> graduates). A safe auto-drop would need to distinguish freeze-phantom from lag-0 m² — deferred.
 
 ---
 

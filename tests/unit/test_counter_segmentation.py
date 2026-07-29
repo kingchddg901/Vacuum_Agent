@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from custom_components.eufy_vacuum.counter_segmentation import segment_counters
+from custom_components.eufy_vacuum.counter_segmentation import build_segments, segment_counters
 
 _BASE = datetime(2026, 6, 6, 21, 54, 0)
 
@@ -208,3 +208,53 @@ def test_expected_rooms_keeps_strongest_boundary():
     # the split lands at the strong jump (the C boundary), not the weak B turn
     assert segs[0]["area_delta_m2"] == 4.0
     assert segs[1]["area_delta_m2"] == 5.0
+
+
+# --- freeze / stall wall carve-out (external-run robustness Item 2) -----------
+
+def test_build_segments_carves_interior_freeze_from_wall():
+    """A >10-min freeze INTERIOR to a segment (cleaning_time frozen) is carved out of
+    time_wall_s so a real room's learned clean-time isn't inflated by the dead time. With
+    no active boundary the freeze stays inside the single segment. area / time_active_s are
+    untouched (both already freeze-immune)."""
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 1), _s(60, 60, 2), _s(90, 90, 3),   # cleaning: ticks 30/60/90, area 0->3
+        _s(1290, 90, 3),                                # ~20-min freeze: cleaning_time frozen at 90
+        _s(1320, 120, 4), _s(1350, 150, 5),            # resumes: ticks 1320/1350, area 3->5
+    ]
+    segs = build_segments(samples, [])                 # no active boundary -> one group over the freeze
+    assert len(segs) == 1
+    seg = segs[0]
+    assert seg["time_active_s"] == 150.0               # cleaning_time delta — freeze-immune
+    assert seg["area_delta_m2"] == 5.0                 # area — untouched
+    assert seg["time_wall_s"] == 90.0                  # raw 1320s minus the carved 1230s tick gap
+
+
+def test_build_segments_subthreshold_gap_not_carved():
+    """A long-ish interior pause UNDER the stall threshold is NOT carved — a normal run's
+    walls stay byte-identical; only a clearly-abnormal freeze is removed."""
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 1), _s(60, 60, 2),
+        _s(560, 90, 3), _s(590, 120, 4),               # 500 s interior gap (< 600 s threshold)
+    ]
+    segs = build_segments(samples, [])
+    assert len(segs) == 1
+    assert segs[0]["time_wall_s"] == 560.0             # 590 - 30, the 500 s gap kept in wall
+
+
+def test_segment_counters_long_freeze_boundary_lands_in_overhead():
+    """A >10-min freeze that segment_counters picks as a wash_plateau boundary lands in the
+    next segment's gap_before_s (overhead), never inflating its time_wall_s — the carve is
+    for the case the freeze stays INTERIOR, not this already-correct boundary case."""
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 1), _s(60, 60, 2), _s(90, 90, 3),   # room A
+        _s(1290, 120, 4), _s(1320, 150, 5),            # room B after a 20-min freeze
+    ]
+    segs = segment_counters(samples)
+    assert len(segs) == 2
+    assert segs[1]["boundary"] == "wash_plateau"
+    assert segs[1]["gap_before_s"] == 1200.0           # freeze -> overhead
+    assert segs[1]["time_wall_s"] == 30.0              # room B's own span, not inflated

@@ -707,6 +707,10 @@ def register_eufy_adapter_for_vacuum(
                 "gap_plateau_s": 90.0,
                 "area_jump_m2": 2.0,
                 "cadence_s": 30.0,
+                # A gap longer than this between cleaning_time ticks INSIDE a segment is a
+                # firmware freeze / over-long dock, not cleaning — carved out of the room's
+                # time_wall_s so a multi-hour stall can't inflate its learned clean time.
+                "stall_wall_s": 600.0,
             },
         },
 
