@@ -2,7 +2,7 @@
 
 This is the **seam doc**: what a UI **reads** from the backend (services, events, entities) and what it **writes** back (service calls). Everything in the Backend Contract below is what *any* UI — the shipped card, a React app, a native client, a CLI — must consume to drive a eufy_vacuum installation; "Building a different UI" then distills the minimum a non-card client needs. For the overall frontend map and how the layers fit together, start at the hub, [architecture-overview.md](architecture-overview.md).
 
-The **render-DATA shapes** — the map segment set, `room_names`, the live pose, and the dashboard snapshot the card draws its backdrop and overlays from — are **not owned here**. They are sourced and normalised by the [map source coordinator](../31-map-source-coordinator.md) and defined in [map-state-source](../map-state-source.md); this doc only records how a UI *fetches* them (the `get_map_segments` / `get_map_render_data` / `get_map_live_pose` / `get_dashboard_snapshot` services). See [Render-data shapes](#render-data-shapes) at the end for the pointer stub.
+The **render-DATA shapes** — the map segment set, `room_names`, the live pose, and the dashboard snapshot the card draws its backdrop and overlays from — are **not owned here**. They are sourced and normalised by the [map source coordinator](../31-map-source-coordinator.md) and defined in [map-state-source](../design/map-state-source.md); this doc only records how a UI *fetches* them (the `get_map_segments` / `get_map_render_data` / `get_map_live_pose` / `get_dashboard_snapshot` services). See [Render-data shapes](#render-data-shapes) at the end for the pointer stub.
 
 ---
 
@@ -118,7 +118,7 @@ monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-r
 
 ##### Run-record attribution fields
 
-The `get_learning_history_snapshot` recent-jobs list carries per-run **attribution** fields the Review card reads. They ride the 1.8.0 native-current-room attribution path (see [eufy-native-transition](../eufy-native-transition.md)); an index built before these keys existed self-heals on the next snapshot.
+The `get_learning_history_snapshot` recent-jobs list carries per-run **attribution** fields the Review card reads. They ride the 1.8.0 native-current-room attribution path (see [eufy-native-transition](../design/eufy-native-transition.md)); an index built before these keys existed self-heals on the next snapshot.
 
 - `origin` — `"external"` (app-started, captured) or `null`/absent (dispatched by this integration). The `origin` filter is binary `external` \| `internal`; a dispatched run with no `origin` key still matches `internal`. Drives the card's **Origin** filter chip and an "External" origin badge.
 - `has_attribution_disagreement` — bool. A dispatched run whose native current-room named a *different* room than the positional (segment K → queue room K) assignment; surfaced as the card **"Room Mismatch"** badge (the assignment is kept, **never** silently overridden).
@@ -419,6 +419,6 @@ The active map ID comes from `sensor.{object_id}_active_map` state value.
 The **render-DATA** a UI draws the map from — the segment geometry (`polygon_pct` per segment), the per-segment `room_id` links, `room_names`, the live robot/dock **pose**, and the **dashboard snapshot** read model — is **not defined in this doc**. This doc only records the *services* that fetch them (`get_map_segments`, `get_map_render_data`, `get_map_live_pose`, `get_dashboard_snapshot`, above). The authoritative shape definitions and how the sources are normalised live in:
 
 - [map source coordinator](../31-map-source-coordinator.md) — how the map data sources are selected, coordinated, and cached per brand.
-- [map-state-source](../map-state-source.md) — the canonical map-state shape (raster + geometry + `room_names` + pose) the coordinator produces.
+- [map-state-source](../design/map-state-source.md) — the canonical map-state shape (raster + geometry + `room_names` + pose) the coordinator produces.
 
 This stub is the anchor for that topic from the frontend side; expand it here only if a frontend-specific view of the render-data shapes is later needed. For the card-side render path that *consumes* these, see [map-render-layers.md](map-render-layers.md).

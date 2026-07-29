@@ -106,7 +106,7 @@ The human-authored alternative to CV, exercised end to end through the services.
 
 ### The map_state_source reader
 The brand-agnostic read of the **provider's own** segmentation + live pose into
-VA-owned room data (architecture: [docs/dev/map-state-source.md](../../dev/map-state-source.md)).
+VA-owned room data (architecture: [docs/dev/map-state-source.md](../../dev/design/map-state-source.md)).
 The pure extraction/normalization is unit-tested without Home Assistant; the
 manager-facing seams (delegators into `MapSourceCoordinator`) are integration-tested.
 

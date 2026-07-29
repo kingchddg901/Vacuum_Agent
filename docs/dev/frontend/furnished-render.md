@@ -58,4 +58,4 @@ The whole feature rests on one property: the live overlays are placed in the **d
 
 The cost is that the art is pinned to the live map's current crop/scale: if the brand re-renders its map differently between sessions (Eufy re-localizes per session), the art can drift and needs a re-nudge — accepted as a known limitation, with the re-align controls always available. Zone-draw, which lives one z-layer above the art, therefore works over the furnished art on any brand that supports zone cleaning (Eufy and Roborock), at any map rotation, with no extra plumbing.
 
-See also: [map-state-source](../map-state-source.md) (the overlay frame the art rides), [map configuration reference](../../advanced/08-map-configuration.md#furnished-render), and the [user guide](../../user-guide/18-furnished-render.md).
+See also: [map-state-source](../design/map-state-source.md) (the overlay frame the art rides), [map configuration reference](../../advanced/08-map-configuration.md#furnished-render), and the [user guide](../../user-guide/18-furnished-render.md).

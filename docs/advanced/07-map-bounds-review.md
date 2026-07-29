@@ -14,4 +14,4 @@ source's current room. There are no learned coordinate bounds to audit.
 To review what a run cleaned, see the run review panels in
 [User Guide — Review Panels](../user-guide/06-review-panels.md). For the design and
 current state of the native-attribution path, see
-[Eufy Native Current-Room Transition](../dev/eufy-native-transition.md).
+[Eufy Native Current-Room Transition](../dev/design/eufy-native-transition.md).

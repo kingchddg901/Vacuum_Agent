@@ -252,7 +252,7 @@ in-memory** state: `live_pose` (the `EufyCleanCoordinator`'s `_robot_pixel` /
 `_dock_pixel` / `_robot_trail` for the moving overlays, ~2 s fresh vs the
 save-throttled `.storage`) and `memory` (the in-memory `_map_data` MapData, fresher
 and loop-safe vs a file read), each listing the attr names to try in order with
-absence ⇒ stay on `.storage`. See [map-state-source](map-state-source.md).
+absence ⇒ stay on `.storage`. See [map-state-source](design/map-state-source.md).
 **Pattern:** declare *where* the authoritative map state lives (a store key, a
 presence gate) and *which* in-memory holders supersede it; core owns the read.
 
@@ -315,7 +315,7 @@ path-winding, and separates a cleaned room from a parked dock by the swept-area
 engine. `tuning` carries `wind_transit: 1.5` / `dwell_min_ticks: 12` /
 `swept_area_min_m2: 0.5` / `interval_s: 2.0`. This block is **declared-but-dormant** — wired
 and validated now, but inert until the run-active pose sampler (W5b) and finalize
-wiring (W5c) land. See [eufy-native-transition](eufy-native-transition.md).
+wiring (W5c) land. See [eufy-native-transition](design/eufy-native-transition.md).
 **Pattern:** room-identity recovery for external runs is its own pluggable engine,
 declared up front so the selection is explicit even while the upstream sampler is
 still pending.
