@@ -41,6 +41,9 @@ Only rooms whose `enabled` flag is `True` are included. Output shape:
 }
 ```
 
+where each `QueueRoomSummary` is `{room_id: int, name: str, slug: str, order: int
+(default 999), profile_name: str (default "vacuum_quick")}` (`queue/queue_engine.py`).
+
 ### `build_room_payload`
 
 `EufyVacuumManager.build_room_payload(vacuum_entity_id, map_id)` builds the
@@ -58,8 +61,12 @@ the raw `payload` dict plus a `resolved_rooms` list with full per-room settings.
 
 `get_start_status` calls `_build_effective_start_plan` (which evaluates all
 room rules against live HA states), `get_lifecycle_state`, and
-`get_onboarding_state` and assembles a status dict. It returns early with
-`blocked: True` and the following `reason` strings in priority order:
+`get_onboarding_state` and assembles a status dict. **Every return carries:**
+`vacuum_entity_id`, `map_id`, `selected_map_id`, `active_map_id`, `queue_room_ids`,
+`payload_room_count`, `lifecycle_state`, `lifecycle_state_label`, `lifecycle_message`,
+`reason`, `reason_label`, `message`, `blocked`, `warning`, `onboarding_status`,
+`preflight` (the reduced-run branch adds `requires_confirmation` + `confirm_token`).
+It returns with `blocked: True` and the following `reason` strings in priority order:
 
 | `reason` | Condition |
 |---|---|
@@ -110,7 +117,7 @@ confirm_reduced_run, confirm_token, path_block_action,
 pause_timeout_minutes_override, strict_order)`
 
 `strict_order` (opt-in, exposed on the start service as the
-`strict_order` boolean field — `services/job_control.py:84`) makes a
+`strict_order` boolean field — `services/job_control.py`) makes a
 path-optimizing brand clean rooms in queue order by producing one phase per
 room (sequenced job model, see §4); it is a no-op for order-honoring brands.
 
@@ -171,10 +178,23 @@ room (sequenced job model, see §4); it is a no-op for order-honoring brands.
     non-blockingly (via executor). Failures are caught and logged; they do not
     abort the job.
 
+**Return shapes** (all carry `vacuum_entity_id` + `map_id`):
+
+| Outcome | Shape |
+|---|---|
+| success | `{started: True, reason: "started", message, warning, warning_message, active_job, learning_snapshot}` |
+| blocked (from `get_start_status`) | `{started: False, reason, message, warning}` |
+| confirmation required | `{started: False, reason: "confirmation_required", message, warning: True, preflight, confirm_token}` |
+| vacuum missing | `{started: False, reason: "vacuum_missing", message}` |
+
 ### 2b. `start_run_profile`
 
 `async EufyVacuumManager.start_run_profile(vacuum_entity_id, map_id,
-profile_id, ...)` is the saved-run-profile alternative entry point.
+profile_id, ...)` is the saved-run-profile alternative entry point. It is a **thin
+delegator** — `manager.start_run_profile(**kwargs)` forwards to
+`self.profiles.start_run_profile` (ProfileManager), where the orchestration below
+lives. Both the service handler (`services/job_control.py`) and the exposed
+run-profile button (`button.py`) call the manager delegator.
 
 1. Calls `apply_run_profile(profile_id)` — loads the saved room list from
    `data["run_profiles"]`, re-enables exactly those rooms, and overwrites their
@@ -256,7 +276,7 @@ rollover occurs. Each call:
 7. **Timing rollover** — delegates to
    `active_job._maybe_roll_current_room_by_timing` (the manager's `active_job`
    attribute is the `ActiveJobTracker`; method defined at
-   `jobs/active_job.py:814`, reached via the `manager.py:843` delegator). See §4.
+   `jobs/active_job.py`, reached via the `manager.py` delegator). See §4.
 8. **Bounds-exit detection** (`awaiting_bounds_exit`).
 9. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
    `skipped` (conservative). See below.
@@ -274,12 +294,12 @@ bounds.
 
 The three disjoint anomaly tiers (and the one-shot `EVENT_STALL_DETECTED` /
 `EVENT_ROOM_SKIPPED` emission) are computed by
-`ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py:628`), which
-`get_job_progress_snapshot` calls (`manager.py:3202`) and whose returned fields
+`ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py`), which
+`get_job_progress_snapshot` calls (`manager.py`) and whose returned fields
 it merges into the snapshot. Both ratios are read from the adapter's `anomaly`
 block (`running_long_ratio`, `stall_ratio`), each falling back to the Eufy
 default if absent. The `_STALL_RATIO` / `_RUNNING_LONG_RATIO` locals live inside
-`detect_run_anomalies` (`active_job.py:661-662`), not in the snapshot composer.
+`detect_run_anomalies` (`active_job.py`), not in the snapshot composer.
 
 ```
 _STALL_RATIO        = anomaly.stall_ratio        or 2.0
@@ -292,7 +312,7 @@ _RUNNING_LONG_RATIO = anomaly.running_long_ratio  or 1.5
 
 `EVENT_STALL_DETECTED` fires at most once per room per job. Already-notified
 rooms are tracked in `active_job["_stall_notified_room_ids"]` — owned and
-written back to storage by the tracker (`active_job.py:687-691`). Subsequent
+written back to storage by the tracker (`active_job.py`). Subsequent
 calls suppress the event for those rooms.
 
 **Running-long (soft).** The tier *below* the stall band — set when the room is
@@ -363,23 +383,44 @@ sequenced runs are nonetheless produced **per-run** by the strict-order
 opt-in. `GenericRoomIdsEngine.build_phases(strict_order=True)` (and its
 `RoborockSegmentEngine` subclass) emits **one single-segment phase per
 resolved room** in queue order instead of one batch the device would
-re-route (`dispatch_engines.py:219-281`). This is gated on
+re-route (`dispatch_engines.py`). This is gated on
 `capabilities.honors_clean_order = False` — i.e. only path-optimizing
 brands that ignore the dispatched order (Roborock, Ecovacs) take this
 path; order-honoring brands (Eufy) never sequence. When the resulting plan
 holds more than one phase, the framework attaches the sequence to the
 active job and runs it as a sequenced job: `maybe_advance_phase` advances +
 re-dispatches at each completion (`PhaseRunner.maybe_advance_phase`,
-`jobs/phase_runner.py:67`, reached via the `manager.py:4206` delegator; the
+`jobs/phase_runner.py`, reached via the `manager.py` delegator; the
 advance step itself is `advance_active_job_phase` in
-`queue/queue_engine.py:409`; the per-run phase build is
-`planning/run_plan.py:778`; the completion-hook call is `lifecycle.py:307-312`),
+`queue/queue_engine.py`; the per-run phase build is
+`planning/run_plan.py`; the completion-hook call is `lifecycle.py`),
 and each phase finalizes
 as its own job record. The advance/finalize machinery is wired into both
 the start and completion paths (`maybe_advance_phase` runs in the
 completion hook, see §6a; the start-side spawn and per-phase watchdog are
 in §2a and §4a). See [07-queue-engine.md](07-queue-engine.md) and
 [22-adapter-config-reference.md](22-adapter-config-reference.md) §13.
+
+**Phase record + non-room phase types.** A `phases` entry is a dict tagged by
+`phase_type`; a clean phase also carries the same room fields an atomic job has.
+The four types:
+
+| `phase_type` | Driver | Key fields |
+|---|---|---|
+| `room_group` (clean) | dispatch watchdog `_run_advanced_phase` (§4a) | `resolved_rooms`, `payload`, `room_count`, `queue_room_ids`, `queue_rooms`; runtime: `room_timing`, `_timing_end_t` |
+| `charge_wait` | `_run_charge_wait_phase` — dock, poll battery to target | `target_battery_percent` (default 100); runtime: `charge_from_battery`, `charge_started_at`, `charge_to_battery`, `charge_ended_at` |
+| `wait` | `_run_wait_phase` — dock, hold | `wait_minutes` (default 5); runtime: `wait_started_at`, `wait_ended_at` |
+| `zone` | zone dispatch | `zone_timing` |
+
+The job carries `phases`, `current_phase_index`, and `phase_count`.
+`advance_active_job_phase` (`queue/queue_engine.py`) swaps
+`resolved_rooms` / `payload` / `room_count` / `queue_*` to the next phase and resets
+per-phase progress (`completed_room_ids`, `current_room_id`, timing); it returns
+`None` for an atomic job or the final phase (the caller then finalizes). The
+`charge_wait` / `wait` phases run an **in-memory asyncio poller** guarded against a
+double-spawn by `_dock_poller_active` (keyed `(vacuum, map, phase_index)`) and
+**re-armed** after a pause/resume or HA restart via `rearm_dock_phase_if_needed`.
+See [30-phase-runner.md](30-phase-runner.md) for the full driver internals.
 
 ### 4a. Strict-order phase watchdog (`_run_advanced_phase`)
 
@@ -388,11 +429,11 @@ completion hook: a path-optimizing device (Roborock S6) returns to the dock
 and starts charging at the end of each single-room phase, and **ignores an
 `app_segment_clean` sent at that instant**. The per-phase watchdog lives on
 the dedicated `PhaseRunner` subsystem
-(`PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py:287`) and wraps
+(`PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py`) and wraps
 each phase in a settle → dispatch → verify → retry loop. The manager keeps
 only the initial-phase spawn (`self.phase_runner._run_advanced_phase`,
-`manager.py:4403`) and a thin `maybe_advance_phase` delegator
-(`manager.py:4206`).
+`manager.py`) and a thin `maybe_advance_phase` delegator
+(`manager.py`).
 
 - **Initial phase (`initial=True`).** Phase 0 was already dispatched by
   `start_selected_rooms`, so the watchdog skips the settle and the first
@@ -403,7 +444,7 @@ only the initial-phase spawn (`self.phase_runner._run_advanced_phase`,
   (`_phase_target_is_dock_room` → `dock_settle_seconds`), because a robot
   parked + charging on its target has the longest post-dock ignore-transient.
   It then **dispatches**, **verifies** via `PhaseRunner._await_phase_started`
-  (`jobs/phase_runner.py:400`) that the device actually started *and sustained*
+  (`jobs/phase_runner.py`) that the device actually started *and sustained*
   this room — polling `confirm_seconds` of cumulative cleaning-the-target
   (a brief dip just doesn't add to the tally; a small room that finishes
   under `confirm_seconds` is weak-confirmed on idle-exit rather than
@@ -419,9 +460,9 @@ just-advanced phase on the lingering dock/charging signal of the room that
 just finished (see §6a).
 
 **Timing (adapter-declarable).** The watchdog timing is resolved by
-`_phase_timing` (`manager.py:4220-4244`, which stays on the manager): the
+`_phase_timing` (`manager.py`, which stays on the manager): the
 adapter's `dispatch.phase_timing` block merged over the `_PHASE_*` module
-defaults (`manager.py:85-110`) — settle 10 s, dock-settle 45 s, verify 90 s, confirm
+defaults (`manager.py`) — settle 10 s, dock-settle 45 s, verify 90 s, confirm
 45 s, poll 5 s, max-attempts 3. Any key a brand omits falls back to the
 default. The Roborock adapter overrides **`confirm_seconds` to 15 s**
 (`adapters/roborock/adapter.py`); all other keys match the defaults.
@@ -446,15 +487,15 @@ counter/timing paths, checked in this order:
 **Native-signal path (device's live current room, checked first):**
 1. For adapters that declare `live_transition.native_transition_source=True`
    (Roborock), `_maybe_roll_current_room_by_timing` short-circuits to
-   `_maybe_roll_current_room_by_native_signal` (`active_job.py:1107`) — checked
+   `_maybe_roll_current_room_by_native_signal` (`active_job.py`) — checked
    **before** the `current_room_id is None` guard and the three counter/timing
-   sources (`active_job.py:877-884`).
+   sources (`active_job.py`).
 2. Rollover **follows** the device's native live current-room signal (filtered to
    job targets, matched by name slug, **order-agnostic**) rather than the
    sequential counter/timing heuristic.
 3. It completes/advances rooms directly from the native signal and fires
    `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` with `source="native_signal"`
-   through `_set_native_current_room` (`active_job.py:1216`, `1227`, `1250`). The
+   through `_set_native_current_room` (`active_job.py`, `1227`, `1250`). The
    native `EVENT_ROOM_FINISHED` payload does **not** carry `confidence`.
 4. The three counter/timing sources below apply only when
    `native_transition_source` is `False` (Eufy default).
@@ -524,10 +565,10 @@ Two adapter blocks shape the result, and they are now **separate concerns**:
   `counter_segmentation` module constants, so it can't drift).
 - **`live_transition`** is now **orchestration-only**: `enabled`,
   `rollover_kinds`, and `native_transition_source` (an active orchestration flag:
-  when truthy — Roborock, `adapters/roborock/adapter.py:399` — current-room
+  when truthy — Roborock, `adapters/roborock/adapter.py` — current-room
   rollover routes to `_maybe_roll_current_room_by_native_signal` and follows the
   brand's native live-room signal instead of this counter/timing path; Eufy
-  leaves it `False`, `adapters/eufy/adapter.py:743`, keeping the path below
+  leaves it `False`, `adapters/eufy/adapter.py`, keeping the path below
   unchanged — see §4). `_live_transition_config(vacuum_entity_id)` merges this block
   over `_LIVE_TRANSITION_DEFAULTS`, which **no longer carries the five
   threshold keys** — they moved to `job_segmenter.tuning`. An adapter with no
@@ -666,7 +707,7 @@ appends **pose samples** — `{t, current_room, anchor, cleaning_area, heading}`
 `listeners/lifecycle.py` (registered via `lifecycle.register(hass)` from
 `__init__.py`).
 
-The base completion condition (`lifecycle.py:263-298`) is **adapter-driven,
+The base completion condition (`lifecycle.py`) is **adapter-driven,
 not a hardcoded sentinel set**: it requires `task_status` to equal the
 adapter's `completion.task_status_value`, the secondary signals to be
 satisfied via `completion_secondary_satisfied` (which consults
@@ -784,11 +825,26 @@ As an interrupted run it is held from learning but lands in the same review flow
 
 ### `finalize_learning_for_active_job` (manager entry point)
 
-`async EufyVacuumManager.finalize_learning_for_active_job(...)` reads
-`started_at` and `battery_start` from the active job, reads current battery as
-`battery_end`, then delegates to `learning.async_finalize_completed_job`. After
-the result returns, calls `_ingest_completed_job_into_room_history` and fires
-the room-history-updated notification if anything was ingested.
+```python
+async def finalize_learning_for_active_job(
+    self, *, vacuum_entity_id: str, map_id: str,
+    battery_end: int | None = None, ended_at: str | None = None,
+    rebuild_stats: bool = True, rebuild_csv: bool = False,
+    forced_outcome_status: str | None = None,
+    forced_lifecycle_state: str | None = None,
+    forced_lifecycle_message: str | None = None,
+) -> dict[str, Any] | None
+```
+
+Reads `started_at` and `battery_start` from the active job. **Returns
+`{"finalized": False, "reason": "missing_started_at"}` early** when `started_at` is
+empty (nothing to finalize); returns `None` when no learning manager is present.
+Fills `battery_end` from a live read when not supplied. The box-level processing
+toggle gates **only the rebuild** — `effective_rebuild = rebuild_stats and
+self.learning_processing_enabled`; collection (the per-job save) always happens.
+Delegates to `learning.async_finalize_completed_job`, then calls
+`_ingest_completed_job_into_room_history` and fires the room-history-updated
+notification if anything was ingested.
 
 ### `finalize_from_manager_state` / `finalize_from_inputs` (LearningJobFinalizer)
 
@@ -961,6 +1017,7 @@ active_job["status"]   = "completed"
 active_job["finalized"] = True
 active_job["paused_at"] = None
 active_job["has_observed_active_lifecycle"] = False   # reset
+active_job["_phase_dispatch_pending"] = False          # clear strict-order guard
 active_job["finalized_at"] = <from completed_job>
 active_job["finalize_summary"] = {
     "job_id", "job_path", "used_for_learning",
@@ -1008,7 +1065,7 @@ successful run, no cancellations or stalls).
 | 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source` (`"counter_plateau"` / `"timing_rollover"` / `"bounds_exit_early"` / `"native_signal"`), `actual_duration_minutes`, `confidence`, `completed_room_ids`. The `"native_signal"` variant (native current-room rollover, e.g. Roborock, `_set_native_current_room`) omits `confidence`. The `"bounds_exit_early"` source is **dormant** — its producer was removed with the mapping split. |
 | 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"` (dormant), or `"native_signal"` |
 | 4 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | Once per room per job, when elapsed >= `stall_ratio`× timing threshold (2× default) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
-| 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | `vacuum_entity_id`, `map_id`, `path_block_action`, `action_taken`, `affected_remaining_room_ids` |
+| 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | The full `get_runtime_path_block_report` dict **plus** `path_block_action`, `action_taken`, and `action_result` (present only when a cancel/pause action ran). Includes `affected_remaining_room_ids` among the report fields. |
 | 6 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | Once per room, when the live queue advances *past* an uncompleted queued room (non-sequential advance — ~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
 | 7 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | After finalization completes | **Two shapes.** *Lifecycle / reaper path* (`job_finished_event_data`, `listeners/_common.py` — normal completion + pause-timeout + stranded + path-block cancel) = 11 fields: the 9 below **plus `duration_minutes` and `actual_cleaning_minutes`**, with `reason_detail = lifecycle_message or status`. *Service path* (`finalize_learning_job` handler) = 9 fields: `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail` (= `lifecycle_message`, no status fallback), `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
 | 8 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | After `job_finished`, only when rooms were missed | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
@@ -1026,6 +1083,7 @@ successful run, no cancellations or stalls).
 - `EVENT_RUN_INCOMPLETE` (event 8) fires **only** on the `finalize_learning_job` service path; the internal cancel / pause-timeout / stranded / path-block reapers write `incomplete_run.json` but emit only `EVENT_JOB_FINISHED` (so event-driven `retry_missed_rooms` will not fire after those).
 - `EVENT_PATH_BLOCKED` and `EVENT_JOB_FINISHED` can both fire in the same job
   when `path_block_action == "cancel_and_event"`.
+- Event `room_id` is a **string** in `EVENT_ROOM_STARTED` / `EVENT_ROOM_FINISHED` (job start + rollover) but an **int** in `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED`. On `EVENT_ROOM_FINISHED`, `actual_duration_minutes` rounds to 2 dp and `confidence` to 4 dp (`None` when ≤ 0).
 - `EVENT_JOB_PROGRESS_TICK` (`eufy_vacuum_job_progress_tick`) is fired
   periodically from `listeners/job_progress.py` (a 5-second
   `async_track_time_interval` ticker) as a lightweight polling signal for

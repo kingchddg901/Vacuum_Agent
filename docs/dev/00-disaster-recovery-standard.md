@@ -130,6 +130,7 @@ DR-grade is earned per subsystem, one at a time. Track it here.
 |-----------|-----|-----------|
 | Battery | [12](12-battery-system.md) | ✅ ~90% (exemplar) |
 | Learning | [10](10-learning-system.md) | ✅ re-audited 2026-07-28 against this rubric — 12 collapse-zone gaps closed (full `completed_job` schema §2.0, room-stats/baseline field sets, `jobs_index` fields, `hass.data` caches, idle-wall blocker §3.2b, finalizer/host-contract drift). The audit also surfaced a **real code bug** (cancel reason dropped from the persisted `learning_blockers`) — fixed + regression-tested, per §5.2. |
+| Job Lifecycle | [06](06-job-lifecycle.md) | ✅ audited 2026-07-28 (2 waves, ~20 findings) — added the `active_job` + `incomplete_run.json` + phase-record schemas and the full lifecycle signatures / return shapes; fixed a confidently-wrong cancel threshold and the `last_*` live keys; stripped 25 stale line-refs. Also surfaced a behavior asymmetry (`EVENT_RUN_INCOMPLETE` fires only on the service finalize path) — documented + flagged for a product decision, per §5.2. |
 | *(all others)* | — | ⬜ reference-grade — pending audit against this standard |
 
 Harden one subsystem per pass: walk §4/§5, fix the collapse zones, update this row.
