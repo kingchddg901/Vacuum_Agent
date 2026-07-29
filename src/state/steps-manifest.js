@@ -2,15 +2,16 @@
 // panel (renderers/run-profiles.js) and the standalone profile card (cards/
 // profile-card.js) so the two surfaces cannot drift on how a routine reads.
 //
-// It takes the profile's steps, a room-id→name lookup, and the CALLER's i18n (t)
-// and HTML escaper (escapeHtml) — no DOM, no `this`, no imports — and returns the
-// manifest HTML string ("" when there are no steps).
+// It takes the profile's steps, a room-id→name lookup, the CALLER's i18n (t), a
+// vocab resolver (tVocab — localizes a setting VALUE like clean_mode and returns
+// escape-safe HTML), and HTML escaper (escapeHtml) — no DOM, no `this`, no imports
+// — and returns the manifest HTML string ("" when there are no steps).
 //
 // Class names match src/styles/run-profiles.js (.evcc-run-profiles-seq-*). The main
 // bundle styles them for the panel; the standalone card carries the same rules in
 // its own shadow root (aliased to HA tokens so it styles on a cold dashboard).
 
-export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t, escapeHtml }) {
+export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t, escapeHtml, tVocab }) {
   const list = Array.isArray(steps) ? steps : [];
   if (!list.length) return "";
 
@@ -53,9 +54,16 @@ export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t
         .join(", ");
       const modes = new Set(groupRooms.map((r) => r.clean_mode).filter(Boolean));
       const modeHint = modes.size === 1 ? [...modes][0] : null;
+      // Localize the clean-mode chip (vacuum/mop/…) through the caller's vocab
+      // resolver — without this it rendered the raw English enum (e.g. "VACUUM",
+      // CSS-uppercased) on an otherwise fully-translated card. tVocab returns
+      // escape-safe HTML; fall back to escapeHtml if a caller doesn't supply it.
+      const modeLabel = modeHint
+        ? (tVocab ? tVocab("clean_mode", modeHint, modeHint) : escapeHtml(modeHint))
+        : null;
       return `
         <li class="evcc-run-profiles-seq-step">
-          <span class="evcc-run-profiles-seq-kind">${t("run_profiles.step_clean")}</span> ${names || t("run_profiles.step_group_empty")}${modeHint ? ` <span class="evcc-run-profiles-seq-mode">${escapeHtml(modeHint)}</span>` : ""}
+          <span class="evcc-run-profiles-seq-kind">${t("run_profiles.step_clean")}</span> ${names || t("run_profiles.step_group_empty")}${modeLabel ? ` <span class="evcc-run-profiles-seq-mode">${modeLabel}</span>` : ""}
         </li>`;
     })
     .join("");

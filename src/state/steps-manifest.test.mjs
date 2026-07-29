@@ -93,6 +93,22 @@ test("[SM-mode] a single shared clean_mode renders a mode chip", () => {
   assert.match(out, /Vacuum/);
 });
 
+test("[SM-mode] the clean_mode chip routes through tVocab (localized, not the raw enum)", () => {
+  // Regression: the chip used to render escapeHtml(clean_mode) — the raw English
+  // enum (e.g. "VACUUM", CSS-uppercased) on an otherwise fully-translated card.
+  const tVocab = (field, value, fb) =>
+    field === "clean_mode" ? `LOCALIZED(${value})` : String(fb);
+  const out = renderStepsManifest({
+    steps: [{ type: "room_group", rooms: [{ room_id: 1, clean_mode: "vacuum" }] }],
+    nameById: { 1: "Kitchen" },
+    t,
+    escapeHtml,
+    tVocab,
+  });
+  assert.match(out, /evcc-run-profiles-seq-mode">LOCALIZED\(vacuum\)</);
+  assert.doesNotMatch(out, /seq-mode">vacuum</); // the bare enum is not the chip text
+});
+
 test("[SM-mode] mixed clean_modes render NO mode chip", () => {
   const out = render(
     [{ type: "room_group", rooms: [{ room_id: 1, clean_mode: "Vacuum" }, { room_id: 2, clean_mode: "Mop" }] }],

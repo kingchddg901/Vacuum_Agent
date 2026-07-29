@@ -16,7 +16,7 @@
 import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/index.js";
 import {
   esc, callResponse, defineCard, getStoredLang, setStoredLang,
-  renderLangControl, wireLangControl, LANG_CSS,
+  renderLangControl, wireLangControl, LANG_CSS, vocab,
 } from "./_shared.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 
@@ -194,6 +194,7 @@ class VacuumAgentProfileCard extends HTMLElement {
       nameById: this._nameById(profile),
       t: (key, vars) => this.t(key, vars),
       escapeHtml: esc,
+      tVocab: (field, value, fb) => vocab((k, v) => this.t(k, v), field, value, fb),
     });
   }
 

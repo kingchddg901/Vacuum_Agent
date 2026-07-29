@@ -274,7 +274,7 @@ export function applyRunProfilesRenderers(proto) {
           <span class="evcc-run-profiles-step-body">
             <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_clean")}</span>
             <span class="evcc-run-profiles-step-rooms">${names || this.t("run_profiles.step_group_empty")}</span>
-            ${modeHint ? `<span class="evcc-run-profiles-step-mode">${this.escapeHtml(modeHint)}</span>` : ""}
+            ${modeHint ? `<span class="evcc-run-profiles-step-mode">${this.escapeHtml(this.tVocabRaw("clean_mode", modeHint, modeHint))}</span>` : ""}
           </span>
           ${controls(i)}
         </li>`;
@@ -321,6 +321,9 @@ export function applyRunProfilesRenderers(proto) {
       zoneNameById,
       t: (key, vars) => this.t(key, vars),
       escapeHtml: (s) => this.escapeHtml(s),
+      // tVocabRaw returns UNESCAPED (caller escapes); the manifest expects
+      // escape-safe HTML, so wrap it.
+      tVocab: (field, value, fb) => this.escapeHtml(this.tVocabRaw(field, value, fb)),
     });
   };
 }
