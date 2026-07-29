@@ -1,12 +1,12 @@
 # Battery Subsystem — Accounting Follow-ups
 
-> **Status: open-items tracker (2026-07-29 triage).** Item 1's original fix (the
-> `mid_job_recharge` drain-bucket gate) is documented canonically in
-> [12-battery-system](12-battery-system.md). Item 1 is now **FULLY resolved** — its
-> `charge_wait`-step blind spot was fixed 2026-07-29 (a stepped run with a native charge
-> step is now flagged `mid_job_recharge` via its phase list; see Item 1 below). Still
-> **open**: only Item 2 (external runs compute no per-job battery metrics). This doc
-> retains that.
+> **Status: ALL ITEMS RESOLVED (2026-07-29).** Item 1's original fix (the `mid_job_recharge`
+> drain-bucket gate) AND its `charge_wait`-step blind spot are both fixed — a stepped run with a
+> native charge step is now flagged `mid_job_recharge` via its phase list (see Item 1). Item 2 was
+> **resolved by decision**: per-job battery drain is a DISPATCHED-run-only metric by design (external
+> runs still feed health / cycles / charge-rate + the raw per-sample JSONL), documented canonically in
+> [12-battery-system §9](12-battery-system.md#9-job-metrics-ingestion-record_job_metrics). Retained as
+> a historical record; **no open items remain**.
 
 Two tracked items surfaced 2026-06-20 while reviewing `battery/` against a **mid-job
 recharge run** (an external Vac+Mop clean that returned to dock at 9% and recharged).
@@ -112,6 +112,15 @@ curve, so the *true* discharge rate is always recoverable from the archive.)
   the same per-config aggregates.
 - Or explicitly **document** that per-job battery drain is a dispatched-run-only metric, and
   point users at the raw battery JSONL / session stats for external-run battery insight.
+
+> **✅ RESOLVED 2026-07-29 (decision: document, option b).** Chosen deliberately: per-job battery
+> drain is a **dispatched-run-only** metric. External (app-started) runs still feed battery health /
+> cycles / charge-rate and the raw per-sample JSONL (the true discharge is always recoverable) — only
+> the per-config drain AGGREGATE is dispatched-only, by design, not omission. Documented canonically in
+> [12-battery-system §9](12-battery-system.md#9-job-metrics-ingestion-record_job_metrics) (the "Scope:
+> dispatched runs only" callout). Option (a) — capturing `battery_start` / `battery_end` from the
+> recorder battery timeline — remains the future add IF app-started cleans come to dominate an install
+> and per-config drain coverage starts to matter.
 
 ---
 

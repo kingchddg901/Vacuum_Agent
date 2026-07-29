@@ -487,6 +487,20 @@ Called from `learning/job_finalizer.py` after the completed_job dict is built an
 
 (Cancelled, failed, and test runs are skipped — their drains are not representative.)
 
+> **Scope: dispatched runs only (deliberate).** `record_job_metrics` is fed exclusively by the
+> dispatched-run finalizer path. **External (app-started) runs contribute nothing to the per-job
+> drain metrics** — `learning/external_ingest.py` emits no `battery` / `battery_metrics` block (an
+> external run has no reliable dispatched `battery_start` / `battery_end` capture). So `drain_per_min`
+> / `drain_per_m2` and the `by_clean_mode` / `by_fan_speed` / `by_water_level` aggregates build from
+> integration-started cleans only. This is a scope decision, **not a gap**: battery **health** — cycle
+> counting, charge-rate / zone, the CC/CV regime split, the per-install health proxy, and
+> `mid_job_recharge_stats` — is captured by the session engine **regardless of job type**, and
+> `battery/store.py` writes the full per-sample JSONL + `sessions.csv`, so the TRUE discharge of any
+> run (dispatched or app-started) is always recoverable from the archive. If app-started cleans
+> dominate an install and per-config drain coverage matters, external-run drain capture (from the
+> recorder battery timeline at the run-window edges) is the future add — see
+> `battery-subsystem-followups.md` Item 2.
+
 > **Thread context:** The finalizer body runs in HA's executor thread pool (`hass.async_add_executor_job`), so `record_job_metrics` and everything it calls — `_schedule_save`, `_notify`, sensor `async_write_ha_state` — are reached from a worker thread, not the event loop. The dispatch helpers in this module bridge across that boundary; see [01-architecture-overview.md §7 Concurrency & Thread Safety](01-architecture-overview.md#11-concurrency--thread-safety) for the rule and pattern.
 
 ### 9.1 What it does
