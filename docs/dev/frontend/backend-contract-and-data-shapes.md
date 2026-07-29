@@ -2,7 +2,7 @@
 
 This is the **seam doc**: what a UI **reads** from the backend (services, events, entities) and what it **writes** back (service calls). Everything in the Backend Contract below is what *any* UI — the shipped card, a React app, a native client, a CLI — must consume to drive a eufy_vacuum installation; "Building a different UI" then distills the minimum a non-card client needs. For the overall frontend map and how the layers fit together, start at the hub, [architecture-overview.md](architecture-overview.md).
 
-The **render-DATA shapes** — the map segment set, `room_names`, the live pose, and the dashboard snapshot the card draws its backdrop and overlays from — are **not owned here**. They are sourced and normalised by the [map source coordinator](../31-map-source-coordinator.md) and defined in [map-state-source](../design/map-state-source.md); this doc only records how a UI *fetches* them (the `get_map_segments` / `get_map_render_data` / `get_map_live_pose` / `get_dashboard_snapshot` services). See [Render-data shapes](#render-data-shapes) at the end for the pointer stub.
+The **map render-DATA shapes** — the map segment geometry, `room_names`, and the live pose the card draws its backdrop and overlays from — are **not owned here**. They are sourced and normalised by the [map source coordinator](../31-map-source-coordinator.md) and defined in [map-state-source](../design/map-state-source.md); this doc only records how a UI *fetches* them (`get_map_segments` / `get_map_render_data` / `get_map_live_pose`). The **dashboard / job-progress snapshots** the card renders from, by contrast, ARE aggregated here — with the field-by-field shape linked to the DR-grade backend docs ([05 §6](../05-core-manager.md#6-direct-responsibilities) / [03](../03-data-model.md) / [06](../06-job-lifecycle.md)).
 
 ---
 
@@ -16,18 +16,18 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 
 | Service | Required fields | What it returns |
 |---|---|---|
-| `get_start_status` | `vacuum_entity_id`, `map_id` | Pre-flight eligibility, blocking flags, preflight payload |
-| `get_dashboard_snapshot` | `vacuum_entity_id`, `map_id` | Full card read model: job control, queue, room list, learning state |
+| `get_start_status` | `vacuum_entity_id`, `map_id` | Pre-flight eligibility: fixed field set + a priority-ordered `reason` enum + `requires_confirmation`/`confirm_token` (the reduced-run handshake source). Full shape: [06 §1](../06-job-lifecycle.md) |
+| `get_dashboard_snapshot` | `vacuum_entity_id`, `map_id` | The per-vacuum **~36-key card read model** — sub-snapshots (`job_progress`, `job_control`, `start_status`, `lifecycle`, `upkeep`, `planned_job_estimate`, `queue_steps`) + a **capability-hint block** + a **live-map block** + `status_summary`/`attention_summary`/`learning_processing`/`updated_at`. There is **no** "room list" key (rooms come from switch entities). Full field-by-field shape: [05 §6 `get_dashboard_snapshot`](../05-core-manager.md#6-direct-responsibilities); see [Capability flags → behavior](#capability-flags--behavior) for the hint block |
 | `get_dock_action_status` | `vacuum_entity_id`, `map_id` | Dock action availability (wash/dry/empty), active action flags |
 | `get_pause_timeout_settings` | `vacuum_entity_id` | Configured pause-timeout duration |
 | `get_lifecycle_state` | `vacuum_entity_id` | Raw lifecycle state dict |
-| `get_job_progress_snapshot` | `vacuum_entity_id` | In-progress job room/timing snapshot |
-| `get_job_control_state` | `vacuum_entity_id` | Active job + queue combined state |
-| `get_upkeep_snapshot` | `vacuum_entity_id` | Maintenance intervals and remaining hours |
-| `get_queue_state` | `vacuum_entity_id`, `map_id` | Raw queue content |
-| `get_payload_state` | `vacuum_entity_id`, `map_id` | Raw room payload |
-| `get_active_job` | `vacuum_entity_id` | Active job dict |
-| `get_vacuum_capabilities` | `vacuum_entity_id` | Hardware capability flags (water level, edge mopping, etc.) |
+| `get_job_progress_snapshot` | `vacuum_entity_id` | Live in-progress job snapshot: `current_room_id`, `completed_room_ids`, `remaining_room_ids`, `skipped_room_ids`, `progress_percent`, the per-room `timeline`, `awaiting_bounds_exit`, the `charge_*`/`wait_*`/`zone_*` phase surfacing, and the `live_queue` monitor twin. Full shape: [03 §5b](../03-data-model.md) + [05 §6](../05-core-manager.md#6-direct-responsibilities). The intended refresh trigger is the `eufy_vacuum_job_progress_tick` event (see [Events](#ha-events)) |
+| `get_job_control_state` | `vacuum_entity_id` | Card **action-affordance** state (NOT queue content — that's `get_queue_state`): `status`, `status_label`, `terminal`, `can_start`/`can_pause`/`can_resume`/`can_cancel`/`can_clear`, `reason`/`reason_label`/`reason_detail`, `message`, `pause_timeout_minutes_default`/`_effective`, `warning`, `status_summary`, `job_id`, `current_room_id` |
+| `get_upkeep_snapshot` | `vacuum_entity_id` | Maintenance: `replacement_items`, `maintenance_items`, `attention_count`, `attention_summary`, priority rollup. See [13-maintenance-manager](../13-maintenance-manager.md) |
+| `get_queue_state` | `vacuum_entity_id`, `map_id` | Raw queue content; shape [03 §4](../03-data-model.md) |
+| `get_payload_state` | `vacuum_entity_id`, `map_id` | Raw room-clean payload; shape [03 §4](../03-data-model.md) |
+| `get_active_job` | `vacuum_entity_id` | Active job dict; shape [03 §5](../03-data-model.md) / [06 §2c](../06-job-lifecycle.md) |
+| `get_vacuum_capabilities` | `vacuum_entity_id` | Optional: `detected_model`, `refresh` (default true). The **5 payload-gating hardware flags** (`supports_mop_features`, `supports_water_control`, `supports_path_control`, `supports_edge_mopping`, `supports_passes`) — see [03 §1 CapabilityBucket](../03-data-model.md) and [Capability flags → behavior](#capability-flags--behavior) |
 | `get_vacuum_maps` | `vacuum_entity_id` | Registered maps for the vacuum |
 
 #### Job control (side-effecting)
@@ -321,6 +321,51 @@ The response is derived from these at read time: `polygon_pct`, the per-segment 
 
 ---
 
+### Canonical values vs localized display
+
+The backend is the source of **canonical values**; the frontend owns **display text**. A replacement client must round-trip the canonical tokens unchanged and localize them itself.
+
+- **Canonical wire enums** (send back verbatim; localize on the client): `clean_mode` ∈ `vacuum` / `mop` / `vacuum_mop`; `clean_intensity` ∈ `Quick` / `Narrow` / `Deep` (legacy `Standard` / `Normal` are dead → normalized to `Quick`); `fan_speed` ∈ `Max` / `Boost` / `Standard` / `Quiet`; `water_level` ∈ `Off` / `Low` / `Medium` / `High`; `floor_type` ∈ `hardwood` / `laminate` / `tile` / `marble` / `granite` / `concrete` / `carpet_low_pile` / `carpet_high_pile`; `room_id` (int); active-job `status` ∈ `idle` / `started` / `paused` / `completed`; the `get_start_status` `reason` enum ([06 §1](../06-job-lifecycle.md)); `outcome_status` ∈ `completed` / `cancelled` / `failed` / `interrupted`. The exact per-brand option lists ride the **switch entity** as `clean_mode_options` / `fan_speed_options` / `water_level_options` / `clean_intensity_options`, each `[{value, label}]` (canonical `value` + English `label`).
+- **Server-baked ENGLISH convenience strings** (NOT localized — do not render as-is in a non-English UI): every `*_label` (`status_label`, `reason_label`) and `*_summary` (`status_summary`, `attention_summary`) — the backend title-cases English via `_display_label`. Localize from the canonical token, not from these.
+- **User free-text** (pass through as-is): `room_name`, theme `name`, saved-zone `name`.
+
+Ownership: the backend does **not** localize. The frontend owns all display text and fallback labels; the shipped card resolves via `tVocab(field, value)`, which falls back to the backend's English label for unkeyed values — see [i18n-system.md](i18n-system.md).
+
+### Capability flags → behavior
+
+There are **two distinct capability surfaces** — keep them separate.
+
+**1. Payload-gating hardware flags** — from `get_vacuum_capabilities` (persisted in `data["capabilities"]`, [03 §1](../03-data-model.md)). They gate which per-room fields are sent in a clean payload ([03 §4](../03-data-model.md)):
+
+| Flag | Gates |
+|---|---|
+| `supports_mop_features` | mop-mode availability per room |
+| `supports_water_control` | the `water_level` field |
+| `supports_path_control` | the `path_type` field |
+| `supports_edge_mopping` | the `edge_mopping` field |
+| `supports_passes` | the `clean_passes` field |
+
+**2. Editor / UI-shaping hints** — ride the **`get_dashboard_snapshot`** response; they show/hide/shape UI:
+
+| Flag | Enables / disables |
+|---|---|
+| `supports_base_station` | the Base Station tab (hidden when false) |
+| `supports_zone_clean` + `zone_max` | the ad-hoc zone-draw control + per-clean zone cap |
+| `honors_clean_order` | the strict-order toggle (no-op on path-optimizing brands) |
+| `passes_is_global` | per-run vs per-room passes note |
+| `max_clean_passes` | the passes-chip ceiling (Eufy 2, Roborock 3) |
+| `supports_room_profiles` | the per-room profiles section (hidden when false) |
+| `supports_map_bounds` | derived brand signal (no live consumer today) |
+| `supports_va_render` | the "VA-rendered map" backdrop-source option |
+| `cv_available` / `cv_missing` | the Auto (CV) segmentation chip (disabled + explained when libs absent) |
+| `mop_active` | live tank-driven mop state (`null` on brands without a tank sensor) |
+| `scene_select` | the vendor-app "Scenes" run-launcher (`null` → hidden) |
+| `adapter_vocabulary` | the room-editor dropdown option lists |
+
+A client hides a feature whose flag is false/absent rather than dead-ending on it.
+
+---
+
 ## Building a Different UI — What You Need
 
 This section specifies the minimum required for any UI (React app, Vue SPA, native app, CLI tool, etc.) that wants to drive a eufy_vacuum installation.
@@ -416,7 +461,7 @@ The active map ID comes from `sensor.{object_id}_active_map` state value.
 
 ## Render-data shapes
 
-The **render-DATA** a UI draws the map from — the segment geometry (`polygon_pct` per segment), the per-segment `room_id` links, `room_names`, the live robot/dock **pose**, and the **dashboard snapshot** read model — is **not defined in this doc**. This doc only records the *services* that fetch them (`get_map_segments`, `get_map_render_data`, `get_map_live_pose`, `get_dashboard_snapshot`, above). The authoritative shape definitions and how the sources are normalised live in:
+The **map render-DATA** a UI draws the map from — the segment geometry (`polygon_pct` per segment), the per-segment `room_id` links, `room_names`, and the live robot/dock **pose** — is **not defined in this doc**; it is normalised by the backend map source. (The **dashboard snapshot** read model, by contrast, IS a frontend read model — its shape is the `get_dashboard_snapshot` row above plus [05 §6](../05-core-manager.md#6-direct-responsibilities), not deferred to the map docs.) This doc records the *services* that fetch the map data (`get_map_segments`, `get_map_render_data`, `get_map_live_pose`); the authoritative map-shape definitions live in:
 
 - [map source coordinator](../31-map-source-coordinator.md) — how the map data sources are selected, coordinated, and cached per brand.
 - [map-state-source](../design/map-state-source.md) — the canonical map-state shape (raster + geometry + `room_names` + pose) the coordinator produces.

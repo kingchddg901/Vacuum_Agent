@@ -366,8 +366,9 @@ room per job) are delegated to `ActiveJobTracker.detect_run_anomalies`
 (`jobs/active_job.py`), which owns the active-job dict and the dedup state; the
 composer hands it the already-resolved locals and reads the anomaly fields back
 into the snapshot. It then returns a complete card-ready progress payload
-(field-by-field shape:
-[frontend/backend-contract-and-data-shapes](frontend/backend-contract-and-data-shapes.md#state-queries-read-only-response)).
+(persisted field-by-field shape: [03 §5b](03-data-model.md); the client-facing
+surface is aggregated in
+[frontend/backend-contract-and-data-shapes](frontend/backend-contract-and-data-shapes.md#ha-services)).
 Still too many concerns to belong to a single subsystem.
 
 When the active phase is a `charge_wait` or `wait` stop (a stepped run docked
@@ -421,8 +422,10 @@ itself (`adapter_vocabulary`, `max_clean_passes`, `mop_active`,
 Because it is **per-vacuum**, it does NOT carry a managed-vacuums list (that is
 the separate `get_managed_vacuums`) nor a `payload` block (the separate
 `get_payload_state` service); "dock" state rides inside `job_control` /
-`upkeep`, not a top-level key. The authoritative field-by-field read-model is
-[frontend/backend-contract-and-data-shapes](frontend/backend-contract-and-data-shapes.md#state-queries-read-only-response).
+`upkeep`, not a top-level key. **This section is the authoritative field-by-field
+shape**; its client-facing surface (which services / entities / events a UI consumes
+to render it) is aggregated in
+[frontend/backend-contract-and-data-shapes](frontend/backend-contract-and-data-shapes.md#ha-services).
 
 ### Room history ingestion
 
