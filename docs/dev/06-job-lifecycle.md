@@ -185,6 +185,48 @@ profile_id, ...)` is the saved-run-profile alternative entry point.
 3. Delegates to `start_selected_rooms` (all confirmation/blocking logic applies
    identically). Adds `profile_id` and `profile` to the return dict.
 
+### 2c. The `active_job` record (persisted shape)
+
+The `active_job` dict (one per `data["active_jobs"][vacuum][map_id]`) is the
+central lifecycle record — written at start, mutated throughout monitoring, and
+frozen into the learning snapshot at finalize. `_default_active_job_state`
+(`jobs/active_job.py`) seeds it:
+
+```json
+{
+  "vacuum_entity_id": "vacuum.alfred", "map_id": "6",
+  "queue_room_ids": [], "queue_stable_keys": [], "queue_rooms": [ /* QueueRoomSummary */ ],
+  "payload": { "map_id": "6", "rooms": [] }, "resolved_rooms": [], "room_count": 0,
+  "status": "idle",                          // idle | started | paused | external | completed
+  "paused_at": null, "paused_duration_seconds": 0,
+  "completed_room_ids": [], "completed_rooms": [],
+  "current_room_id": null, "current_room_started_at": null, "current_room_paused_seconds": 0,
+  "observed_mid_job_recharge": false, "observed_mid_job_recharge_started_at": null,
+  "observed_mid_job_recharge_count": 0, "recharge_seconds_accumulated": 0,
+  "pending_mid_job_recharge_return": false, "pending_mid_job_recharge_return_at": null,
+  "observed_mop_wash_count": 0, "observed_mop_wash_last_at": null,
+  "observed_mop_wash_cycles": [],            // [{observed_at}]
+  "state_transitions": [],                   // cap 12
+  "counter_samples": [],                     // cap 2000 (shape in §5)
+  "settings_samples": [],                    // external runs only
+  "water_estimate": null, "path_block_action": "event_only",
+  "pause_timeout_minutes": 0, "has_observed_active_lifecycle": false
+}
+```
+
+**Enrichment fields** — added *after* the default seed, by their source (§4.6 provenance):
+
+| Added by | Fields |
+|---|---|
+| Job start (§2a step 8) | `job_id`, `started_at`, `battery_start`, `job_metadata`; **sequenced runs only:** `phases`, `current_phase_index`, `_phase_dispatch_pending` |
+| Job-metrics listener (§5) | `last_cleaning_time_seconds`, `last_cleaning_area_m2`, `last_station_water_percent`, `last_battery_percent` |
+| Pose sampler (`started` / `external` runs) | `pose_samples` (cap 3000; shape in §5) |
+| Rollover / anomaly | `_native_current_room_id`, `_pending_fast_rollover` (dormant), `_stall_notified_room_ids`, `_skipped_notified_room_ids` |
+| Cancel / stranded reaper | `_cancel_in_flight`, `stranded_since` |
+| Finalize (§9) | `finalized`, `finalized_at`, `finalize_summary`, `ended_at`, `trace_run_id` |
+
+The whole record is persisted to `.storage` on `async_save()`; nothing here is runtime-only.
+
 ---
 
 ## 3. Active Job Monitoring
@@ -394,8 +436,11 @@ Defined in `ActiveJobTracker` (`jobs/active_job.py`). Called from
 `get_job_progress_snapshot`. Every counter/timing rollover funnels through the
 shared `_apply_room_rollover(...)` helper, which records the completed room and
 fires the `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` pair with a `source` tag
-distinguishing the path. There are **four rollover sources**. The first is the
-native-signal path (checked before everything else); the remaining three are the
+distinguishing the path. There are **four rollover sources** — but a **sequenced (phased) job never reaches
+any of them**: `_maybe_roll_current_room_by_timing` returns at the very top on
+`if active_job.get("phases")` (`jobs/active_job.py`), because phased runs advance one
+room per dispatched phase via the §4a watchdog, not by live rollover. For an
+**atomic** job, the native-signal path is checked first; the remaining three are the
 counter/timing paths, checked in this order:
 
 **Native-signal path (device's live current room, checked first):**
@@ -555,7 +600,10 @@ observations:
 
 ### Recharge observation (`update_active_job_recharge_observation`)
 
-Fired when the vacuum's task status indicates a low-battery return. Two-stage
+Fired when the vacuum's task status indicates a low-battery return. **Skipped
+entirely when the current phase is a commanded `charge_wait` / `wait` break** — a
+planned dock must not be logged as an unplanned battery recharge (that would also
+pause the mapping sampler and double-count the dock). Otherwise, two-stage
 detection:
 1. `pending_mid_job_recharge_return = True` when `_is_low_battery_return_state`
    fires.
@@ -592,6 +640,17 @@ minutes — previously stored 60× too low). The unit is re-read live, so a unit
 toggle in the app or HA is handled per-tick. Writes directly to all in-flight
 active jobs for the vacuum. Finalization reads from `active_job` instead of
 issuing a live HA state read at job-end, avoiding the DPS timing race.
+
+The listener writes the last-seen values onto each active job under **`last_*`-prefixed
+keys**: `last_cleaning_time_seconds` (int), `last_cleaning_area_m2` (float),
+`last_station_water_percent` (float), and `last_battery_percent` (int). On a
+`cleaning_time` / `cleaning_area` change it also appends one **counter sample** —
+`{t, cleaning_time, cleaning_area, battery}` — to `active_job["counter_samples"]`
+(cap `_MAX_COUNTER_SAMPLES = 2000`, oldest dropped on overflow), feeding
+counter-plateau segmentation. Separately, the pose sampler ([04-listeners](04-listeners.md) §10)
+appends **pose samples** — `{t, current_room, anchor, cleaning_area, heading}` — to
+`active_job["pose_samples"]` (cap `_MAX_POSE_SAMPLES = 3000`) on `started` and
+`external` runs, for room attribution (§7 reconcile).
 
 ---
 
@@ -682,8 +741,14 @@ During finalization, `_detect_cancel_likely_run` is called when
    via `task_status`.
 2. No stronger service state in transitions (e.g. `"returning to charge"`,
    `"washing mop"`, `"emptying dust"`).
-3. `actual_cleaning_minutes < 1.5` (absolute floor), **or**
-   `actual_cleaning_minutes < expected_room_minutes × 0.4` (relative threshold).
+3. **Either** the absolute floor — `actual_cleaning_minutes < 1.5`
+   (`_MIN_FLOOR_MINUTES`; `actual_cleaning_minutes` is the time to the `returning`
+   transition, pause-adjusted) — **or** the relative gate — the whole-job
+   `duration_minutes < short_threshold`, where
+   `short_threshold = max(min(expected_room_minutes × 0.4, expected_room_minutes), 0.75)`,
+   forced to `1.0` when there is no estimate (`expected_room_minutes <= 0`). The
+   relative gate compares **job `duration_minutes`**, not `actual_cleaning_minutes`,
+   and never drops below the `0.75` floor (`1.0` with no estimate).
 
 When detected, `outcome_status` is overridden to `"cancelled"` with
 `lifecycle_name = "cancel_likely"`.
@@ -734,9 +799,13 @@ snapshot (falls back to disk), reads `queue_state`, `payload_state`, and
 `active_job_state` from the manager. Determines `outcome_status` from the
 caller-supplied forced lifecycle name or the cancel-detection heuristic (the
 old live `get_lifecycle_state()` read was removed — its readiness values never
-mapped to cancelled/failed/interrupted anyway). Reads `cleaning_time_seconds`
-and `cleaning_area_m2` from `active_job` (written there by
-`record_active_job_sensor_value` during the run). Returns a frozen inputs dict.
+mapped to cancelled/failed/interrupted anyway). Reads `last_cleaning_time_seconds`,
+`last_cleaning_area_m2`, and `last_station_water_percent` from `active_job` — the
+`last_*`-prefixed live keys the job-metrics listener wrote during the run (§5),
+falling back to a live sensor read only on the first run after a cold start. (The
+un-prefixed `cleaning_time_seconds` / `cleaning_area_m2` names exist **only** on the
+*completed_job* `job` dict, stamped later at finalize — a rebuild reading
+`active_job["cleaning_time_seconds"]` would get `None`.) Returns a frozen inputs dict.
 
 **`finalize_from_inputs`** (executor thread — pure computation and file I/O):
 - Builds a `completed_job` payload via `store.build_completed_job_payload`. For
@@ -819,7 +888,7 @@ kept out of the corpus and Restore-able.
 | Completed job record | `<config>/eufy_vacuum/learning/<vacuum_slug>/jobs/<job_id>.json` |
 | Incomplete run log | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/incomplete_run.json` |
 | Trouble rooms log | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/trouble_rooms.json` |
-| Rebuilt stats | `<config>/eufy_vacuum/learning/<vacuum_slug>/learned_stats.json` |
+| Rebuilt stats | `<config>/eufy_vacuum/learning/<vacuum_slug>/learned/` — `job_stats.json`, `room_stats.json`, `jobs_index.json`, `accuracy_stats.json` (see [10](10-learning-system.md) §9) |
 
 > **See also:** [10-learning-system](10-learning-system.md) §3 for learning eligibility rules and the full list of blocker strings; §8 for the stats rebuilder triggered at the end of `finalize_from_inputs`. [12-battery-system](12-battery-system.md) §14.3 for the battery metrics hook that runs inside the same finalizer call.
 
@@ -829,13 +898,39 @@ kept out of the corpus and Restore-able.
 
 ### When `EVENT_RUN_INCOMPLETE` fires
 
-`EVENT_RUN_INCOMPLETE` is fired by the `handle_finalize_learning_job` service
-handler in `learning/services.py` after finalization completes, **if**
-`incomplete_run_log` is non-null and contains at least one `missed_room_id`.
+`EVENT_RUN_INCOMPLETE` is fired **only** by the `handle_finalize_learning_job`
+service handler (`learning/services.py`), after finalization completes, when the
+returned `incomplete_run_log` is non-null and carries at least one
+`missed_room_id`. **The internal reaper paths do not fire it** — a manual
+`cancel_active_job`, the pause-timeout cancel, the stranded-run reaper, and a
+path-block cancel all *write* `incomplete_run.json` (through
+`finalize_learning_for_active_job`) but emit only `EVENT_JOB_FINISHED`. So the
+event-driven `retry_missed_rooms` trigger fires only on the service-driven finalize
+path, not after those internal cancels.
 
-The incomplete run log is only written when
-`outcome_status in {"cancelled", "failed", "interrupted"}`. Normal completions
-clear any stale log.
+The incomplete run log is written only when
+`outcome_status in {"cancelled", "failed", "interrupted"}`; a normal completion
+clears any stale log (`store.clear_incomplete_run`). It is a single-overwrite file —
+only the most recent incomplete run is kept.
+
+**`incomplete_run.json` schema** (`_write_incomplete_run_log`, `learning/job_finalizer.py`):
+
+```json
+{
+  "schema_version": 1,
+  "record_type": "incomplete_run_log",
+  "vacuum_entity_id": "vacuum.alfred",
+  "job_id": "job_2026-06-06T16-11-34",
+  "map_id": "6",
+  "outcome_status": "cancelled",           // cancelled | failed | interrupted
+  "ended_at": "<ISO>",
+  "queued_room_ids": [1, 2, 3],
+  "completed_room_ids": [1],
+  "missed_room_ids": [2, 3],               // sorted(set(queued) - set(completed))
+  "missed_rooms": [ { "room_id": 2, "name": "Kitchen" } ],
+  "logged_at": "<ISO>"
+}
+```
 
 ### `retry_missed_rooms` flow
 
@@ -915,7 +1010,7 @@ successful run, no cancellations or stalls).
 | 4 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | Once per room per job, when elapsed >= `stall_ratio`× timing threshold (2× default) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | `vacuum_entity_id`, `map_id`, `path_block_action`, `action_taken`, `affected_remaining_room_ids` |
 | 6 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | Once per room, when the live queue advances *past* an uncompleted queued room (non-sequential advance — ~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
-| 7 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | After finalization completes | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
+| 7 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | After finalization completes | **Two shapes.** *Lifecycle / reaper path* (`job_finished_event_data`, `listeners/_common.py` — normal completion + pause-timeout + stranded + path-block cancel) = 11 fields: the 9 below **plus `duration_minutes` and `actual_cleaning_minutes`**, with `reason_detail = lifecycle_message or status`. *Service path* (`finalize_learning_job` handler) = 9 fields: `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail` (= `lifecycle_message`, no status fallback), `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
 | 8 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | After `job_finished`, only when rooms were missed | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
 
 **Notes:**
@@ -928,6 +1023,7 @@ successful run, no cancellations or stalls).
   effectively never seen on Eufy (sequential counter rollover); the reliable
   post-run "missed rooms" signal remains `EVENT_RUN_INCOMPLETE`.
 - Events 5, 6, and 8 are conditional and may not appear in every job.
+- `EVENT_RUN_INCOMPLETE` (event 8) fires **only** on the `finalize_learning_job` service path; the internal cancel / pause-timeout / stranded / path-block reapers write `incomplete_run.json` but emit only `EVENT_JOB_FINISHED` (so event-driven `retry_missed_rooms` will not fire after those).
 - `EVENT_PATH_BLOCKED` and `EVENT_JOB_FINISHED` can both fire in the same job
   when `path_block_action == "cancel_and_event"`.
 - `EVENT_JOB_PROGRESS_TICK` (`eufy_vacuum_job_progress_tick`) is fired
