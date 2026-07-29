@@ -269,10 +269,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     # One-time cleanup: remove orphaned icon-select entities from earlier
-    # versions. The "select" platform was dropped (the card stopped surfacing
-    # those pickers), and without removing the registry entries HA would show
-    # them as "unavailable" forever. Match by unique_id prefix the deleted
-    # EufyVacuumIconSelect class used.
+    # versions. The per-room icon-select ENTITIES were dropped (the card stopped
+    # surfacing those pickers) — the "select" platform itself is still live (now
+    # the debug flight-recorder target select). Without removing the registry
+    # entries HA would show them as "unavailable" forever. Match by the unique_id
+    # prefix the deleted EufyVacuumIconSelect class used.
     try:
         from homeassistant.helpers import entity_registry as _er
         registry = _er.async_get(hass)

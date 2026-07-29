@@ -68,8 +68,8 @@ The main entry point. Called when the config entry is loaded. In order:
    samples external-run robot pose while a run is active, feeding room
    auto-attribution.) See the `listeners/` package for the per-group
    implementations.
-11. Forwards setup to entity platforms: `binary_sensor`, `button`, `switch`,
-   `number`, `sensor`.
+11. Forwards setup to the **six** entity platforms: `binary_sensor`, `button`,
+   `switch`, `select`, `number`, `sensor` (`PLATFORMS` in `__init__.py`).
 12. Registers one sidebar panel per managed vacuum via
    `panels.async_register_vacuum_panel`. Panel URLs are stored at
    `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
@@ -89,6 +89,14 @@ The main entry point. Called when the config entry is loaded. In order:
 ### `async_remove_entry` (`__init__.py`)
 
 Creates a bare `Store` and calls `async_remove()` to wipe persisted data.
+
+### `async_remove_config_entry_device` (`__init__.py`)
+
+```python
+async def async_remove_config_entry_device(hass, config_entry, device_entry) -> bool
+```
+
+The HA hook that turns the device page's "Delete" into a **per-vacuum** teardown (the domain is a singleton config entry, so this removes one vacuum *in place* — it does **not** reload the entry). It tears the vacuum down via `_teardown_vacuum`, and `_schedule_clear_configured_vacuum` clears `CONF_VACUUM_ENTITY_ID` on the entry so `async_setup_entry` doesn't **resurrect** the removed vacuum on the next load.
 
 ### `hass.data[DOMAIN]` keys
 
@@ -130,9 +138,16 @@ layer, not the config entry.
 
 ## 3. Entity Platforms
 
-Five platforms are registered: `binary_sensor`, `button`, `switch`, `number`,
-and `sensor`. All platform `async_setup_entry` functions pull
+**Six** platforms are registered: `binary_sensor`, `button`, `switch`, `select`,
+`number`, and `sensor`. All platform `async_setup_entry` functions pull
 the manager from `hass.data[DOMAIN]["runtime"]`.
+
+### select platform
+
+A single integration-level **diagnostic** select — the debug flight-recorder
+target, built by `debug_capture.build_debug_target_select(hass, domain=DOMAIN)`
+(`select.py`). Not a per-room entity. (The old per-room *icon*-picker selects were
+removed; the platform was **repurposed**, not dropped — CS-3.)
 
 ### Base pattern: `EufyVacuumRoomEntity`
 
@@ -367,8 +382,8 @@ the save.
 self._store = Store[dict[str, Any]](hass, STORAGE_VERSION, STORAGE_KEY)
 ```
 
-- `STORAGE_VERSION = 1`
-- `STORAGE_KEY = "eufy_vacuum.storage"`
+- `STORAGE_VERSION = 1` (defined in `core/storage.py`)
+- `STORAGE_KEY = "eufy_vacuum.storage"` — originates in `adapters/eufy/const.py` (a porting seam), only **re-exported** by `core/storage.py`
 
 Written to `.storage/eufy_vacuum.storage`. **Never edit directly** — use HA UI
 or integration services. Direct edits produce `.corrupt` backup files.
@@ -412,20 +427,23 @@ See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 
 ## 7. Event System
 
-The integration fires nine events on `hass.bus`. All type strings are
-constants in `const.py`.
+The integration fires **ten** events on `hass.bus`. **Most** type-string
+constants live in `const.py`; the exception is `EVENT_ROOM_COMPLETED`, defined
+locally in `mapping/tracker.py`.
 
 | Event constant | String value | Fired from | Key payload fields |
 |---|---|---|---|
-| `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | `core/manager.py` (job start, `source="job_start"`) + `ActiveJobTracker` (`jobs/active_job.py`, timing rollover) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source` |
-| `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | `jobs/active_job.py` — timing rollover or bounds exit | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source`, `actual_duration_minutes`, `confidence`, `completed_room_ids` |
-| `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `listeners/lifecycle.py`, `listeners/pause_timeout.py`, `listeners/path_blockers.py` (forced cancel on a path block), `services/job_control.py`, `learning/services.py` | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `duration_minutes`, `actual_cleaning_minutes`, `job_path` |
+| `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | `core/manager.py` (job start, `source="job_start"`) + `ActiveJobTracker` (`jobs/active_job.py`, timing rollover **and** native-signal path) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source`, **`completed_room_ids`** (all three fire sites include it — see 06 §10) |
+| `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | `jobs/active_job.py` — timing rollover / bounds exit, **and** the native-signal path (`source="native_signal"`) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source`, `actual_duration_minutes`, `confidence` (rollover only, 4dp; **the native-signal variant omits `confidence`** — 06 §10), `completed_room_ids` |
+| `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `listeners/lifecycle.py`, `listeners/pause_timeout.py`, `listeners/path_blockers.py` (forced cancel on a path block), `services/job_control.py`, `learning/services.py` | **Two shapes (06 §10):** the 11-key form (`vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `duration_minutes`, `actual_cleaning_minutes`, `job_path`) from the `_common.py` builders; the `finalize_learning_job` **service** path fires an inline **9-key** payload that **omits `duration_minutes` / `actual_cleaning_minutes`** (CS-2). |
+| `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | The full `get_runtime_path_block_report(...)` dict (`trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, …) **augmented** with `path_block_action`, `action_taken`, and — only when a pause/cancel action ran — `action_result`. |
 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | `vacuum_entity_id`, `map_id`, `trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, `path_block_action`, `action_taken` |
 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | `jobs/active_job.py` — `ActiveJobTracker.detect_run_anomalies` (called by the manager's `get_job_progress_snapshot`; deduped once per room per job) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | `jobs/active_job.py` — `ActiveJobTracker.detect_run_anomalies` (non-sequential advance, ~never for Eufy; the manager only delegates to it from the snapshot composer) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
-| `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | `learning/services.py` after finalization | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
+| `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | **Five** finalize paths (06 §10 / finding B1): `learning/services.py`, `services/job_control.py` (manual cancel), `listeners/path_blockers.py` (rule cancel), `listeners/pause_timeout.py` (paused reap **and** stranded reap) | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` (no `map_id`) |
 | `EVENT_JOB_PROGRESS_TICK` | `eufy_vacuum_job_progress_tick` | `listeners/job_progress.py` periodic tick | `vacuum_entity_id`, `map_id` — lightweight polling signal for automations |
-| `EVENT_EXTERNAL_RUN_PENDING` | `eufy_vacuum_external_run_pending` | `core/manager.py` — external (app-started) run finalized to a pending review record | `vacuum_entity_id`, `map_id`, `record_path`, `segment_count`, `detection_ts` |
+| `EVENT_EXTERNAL_RUN_PENDING` | `eufy_vacuum_external_run_pending` | `learning/external_run.py` — `ExternalRunManager` finalizes an external (app-started) run to a pending review record | `vacuum_entity_id`, `map_id`, `record_path`, `segment_count`, `detection_ts` |
+| `EVENT_ROOM_COMPLETED` | `eufy_vacuum_room_completed` | `mapping/tracker.py` (`MappingTracker._fire_room_completed`) — informational dwell event on a confident native-current-room transition (vacuums with `robot_position_x/y`). **Constant defined in `tracker.py`, not `const.py`.** | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `confidence`, `duration_seconds` (1dp), `entered_at` (ISO or `None`) |
 
 ### Subscribing in automations
 
