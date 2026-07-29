@@ -841,22 +841,22 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
         <div class="evcc-review-kv-value">${this.escapeHtml(t)}</div>
         ${a?`<div class="evcc-review-kv-subtitle">${this.escapeHtml(a)}</div>`:""}
       </div>
-    `},n._getSortedLearningReviewJobs=function(e,t){let a=Array.isArray(t)?[...t]:[],r=e.learningHistorySort?.()??"newest";return r==="outlier"?a.sort((i,o)=>Number(o?.outlier_score??0)-Number(i?.outlier_score??0)):r==="suggested"?a.filter(i=>i?.exclude_suggested===!0).sort((i,o)=>Number(o?.outlier_score??0)-Number(i?.outlier_score??0)):r==="excluded"?a.filter(i=>i?.excluded_from_learning===!0).sort((i,o)=>new Date(o?.started_at??0).getTime()-new Date(i?.started_at??0).getTime()):a.sort((i,o)=>new Date(o?.started_at??0).getTime()-new Date(i?.started_at??0).getTime())},n._formatReviewTimestamp=function(e){return this.formatTimestamp(e,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"},"")},n._formatReviewLabel=function(e){return String(e??"").replace(/[_-]+/g," ").replace(/\b\w/g,t=>t.toUpperCase())}}function _a({steps:n,nameById:e={},zoneNameById:t={},t:a,escapeHtml:r}){let i=Array.isArray(n)?n:[];if(!i.length)return"";let o=i.map(s=>{if(s.type==="charge_wait"){let m=Number(s.target_battery_percent??95);return`
+    `},n._getSortedLearningReviewJobs=function(e,t){let a=Array.isArray(t)?[...t]:[],r=e.learningHistorySort?.()??"newest";return r==="outlier"?a.sort((i,o)=>Number(o?.outlier_score??0)-Number(i?.outlier_score??0)):r==="suggested"?a.filter(i=>i?.exclude_suggested===!0).sort((i,o)=>Number(o?.outlier_score??0)-Number(i?.outlier_score??0)):r==="excluded"?a.filter(i=>i?.excluded_from_learning===!0).sort((i,o)=>new Date(o?.started_at??0).getTime()-new Date(i?.started_at??0).getTime()):a.sort((i,o)=>new Date(o?.started_at??0).getTime()-new Date(i?.started_at??0).getTime())},n._formatReviewTimestamp=function(e){return this.formatTimestamp(e,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"},"")},n._formatReviewLabel=function(e){return String(e??"").replace(/[_-]+/g," ").replace(/\b\w/g,t=>t.toUpperCase())}}function _a({steps:n,nameById:e={},zoneNameById:t={},t:a,escapeHtml:r,tVocab:i}){let o=Array.isArray(n)?n:[];if(!o.length)return"";let s=o.map(c=>{if(c.type==="charge_wait"){let h=Number(c.target_battery_percent??95);return`
           <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--charge">
-            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">\u26A1</span>${a("run_profiles.step_charge_to")} ${r(String(m))}%
-          </li>`}if(s.type==="wait"){let m=Number(s.wait_minutes??30);return`
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">\u26A1</span>${a("run_profiles.step_charge_to")} ${r(String(h))}%
+          </li>`}if(c.type==="wait"){let h=Number(c.wait_minutes??30);return`
           <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--wait">
-            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">\u23F1</span>${a("run_profiles.step_wait")} ${r(String(m))} ${a("run_profiles.minutes_unit")}
-          </li>`}if(s.type==="zone"){let p=(Array.isArray(s.zone_ids)?s.zone_ids:[]).map(h=>r(t[String(h)]??a("rooms.zone_fallback"))).join(", ");return`
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">\u23F1</span>${a("run_profiles.step_wait")} ${r(String(h))} ${a("run_profiles.minutes_unit")}
+          </li>`}if(c.type==="zone"){let f=(Array.isArray(c.zone_ids)?c.zone_ids:[]).map(v=>r(t[String(v)]??a("rooms.zone_fallback"))).join(", ");return`
           <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--zone">
-            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">\u{1F3AF}</span><span class="evcc-run-profiles-seq-kind">${a("run_profiles.step_clean")}</span> ${p||a("rooms.zone_fallback")}
-          </li>`}let c=Array.isArray(s.rooms)?s.rooms:[],l=c.map(m=>r(e[String(m.room_id)]??a("run_profiles.room_fallback",{id:r(String(m.room_id))}))).join(", "),d=new Set(c.map(m=>m.clean_mode).filter(Boolean)),u=d.size===1?[...d][0]:null;return`
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">\u{1F3AF}</span><span class="evcc-run-profiles-seq-kind">${a("run_profiles.step_clean")}</span> ${f||a("rooms.zone_fallback")}
+          </li>`}let l=Array.isArray(c.rooms)?c.rooms:[],d=l.map(h=>r(e[String(h.room_id)]??a("run_profiles.room_fallback",{id:r(String(h.room_id))}))).join(", "),u=new Set(l.map(h=>h.clean_mode).filter(Boolean)),m=u.size===1?[...u][0]:null,p=m?i?i("clean_mode",m,m):r(m):null;return`
         <li class="evcc-run-profiles-seq-step">
-          <span class="evcc-run-profiles-seq-kind">${a("run_profiles.step_clean")}</span> ${l||a("run_profiles.step_group_empty")}${u?` <span class="evcc-run-profiles-seq-mode">${r(u)}</span>`:""}
+          <span class="evcc-run-profiles-seq-kind">${a("run_profiles.step_clean")}</span> ${d||a("run_profiles.step_group_empty")}${p?` <span class="evcc-run-profiles-seq-mode">${p}</span>`:""}
         </li>`}).join("");return`
     <div class="evcc-run-profiles-sequence">
       <span class="evcc-run-profiles-label">${a("run_profiles.runs_as")}</span>
-      <ol class="evcc-run-profiles-seq-list">${o}</ol>
+      <ol class="evcc-run-profiles-seq-list">${s}</ol>
     </div>
   `}var Eu=new Set(["no_rooms_included","already_cleaning","returning_to_dock","vacuum_error","start_blocked"]);function bs(n){n.renderSteppedRunPreview=function(e){if(e.hasActiveRun?.())return"";let t=!!e.isSteppedPreviewCollapsed?.(),a=e.pendingStepRunProfileId?.(),r=a?(e.savedRunProfiles?.()??[]).find(d=>d.id===a):null,i=e.dashboardSnapshot?.()?.queue_steps??null,o=!!i?.has_breaks,s="";if(r&&typeof this._renderRunProfileStepsSummary=="function")s=this._renderRunProfileStepsSummary(e,r);else if(o){let d={};(e.getRoomsForActiveMap?.()??[]).forEach(m=>{d[String(m.id)]=m.name});let u={};(e.savedZones?.()??[]).forEach(m=>{m&&m.id!=null&&(u[String(m.id)]=m.name)}),s=_a({steps:i.steps,nameById:d,zoneNameById:u,t:(m,p)=>this.t(m,p),escapeHtml:m=>this.escapeHtml(m)})}if(!s)return"";let c=r?r.steps??[]:i?.steps??[],l=Array.isArray(c)&&c.some(d=>d&&d.type==="charge_wait");return`
       <div class="evcc-stepped-run-preview ${t?"evcc-stepped-run-preview--collapsed":""}">
@@ -1679,7 +1679,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
           <span class="evcc-run-profiles-step-body">
             <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_clean")}</span>
             <span class="evcc-run-profiles-step-rooms">${h||this.t("run_profiles.step_group_empty")}</span>
-            ${v?`<span class="evcc-run-profiles-step-mode">${this.escapeHtml(v)}</span>`:""}
+            ${v?`<span class="evcc-run-profiles-step-mode">${this.escapeHtml(this.tVocabRaw("clean_mode",v,v))}</span>`:""}
           </span>
           ${s(m)}
         </li>`}).join("");return`
@@ -1696,7 +1696,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
         </div>
         <div class="evcc-run-profiles-steps-hint">${this.t("run_profiles.steps_capture_hint")}</div>
       </div>
-    `},n._renderRunProfileStepsSummary=function(e,t){let a=e.getRoomsForActiveMap?.()??[],r={};a.forEach(o=>{r[String(o.id)]=o.name});let i={};return(e.savedZones?.()??[]).forEach(o=>{o&&o.id!=null&&(i[String(o.id)]=o.name)}),_a({steps:t.steps,nameById:r,zoneNameById:i,t:(o,s)=>this.t(o,s),escapeHtml:o=>this.escapeHtml(o)})}}function ws(n){n.renderSavedZonesPanel=function(e){let t=e.savedZonesGrouped?.()??[],a=t.reduce((b,y)=>b+y.zones.length,0),r=e.savedZonesCollapsed?.()??!1,i=e.selectedSavedZoneCount?.()??0,o=e.zoneMax?.()??10,s=i>o,c=`
+    `},n._renderRunProfileStepsSummary=function(e,t){let a=e.getRoomsForActiveMap?.()??[],r={};a.forEach(o=>{r[String(o.id)]=o.name});let i={};return(e.savedZones?.()??[]).forEach(o=>{o&&o.id!=null&&(i[String(o.id)]=o.name)}),_a({steps:t.steps,nameById:r,zoneNameById:i,t:(o,s)=>this.t(o,s),escapeHtml:o=>this.escapeHtml(o),tVocab:(o,s,c)=>this.escapeHtml(this.tVocabRaw(o,s,c))})}}function ws(n){n.renderSavedZonesPanel=function(e){let t=e.savedZonesGrouped?.()??[],a=t.reduce((b,y)=>b+y.zones.length,0),r=e.savedZonesCollapsed?.()??!1,i=e.selectedSavedZoneCount?.()??0,o=e.zoneMax?.()??10,s=i>o,c=`
       <div class="evcc-saved-zones-header" data-action="toggle-saved-zones-collapse"
            role="button" tabindex="0" aria-expanded="${!r}">
         <div class="evcc-saved-zones-header-text">
