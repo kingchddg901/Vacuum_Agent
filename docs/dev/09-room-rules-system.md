@@ -19,8 +19,8 @@ Source files:
 A Blocker removes the room from the cleaning queue for the current job when its condition is true.
 
 - **Can**: exclude the room from the payload entirely.
-- **Cannot**: change any cleaning settings; it has no `changes` dict.
-- **Effect shape**: `{ "action": "exclude", "reason": "<optional human label>" }`
+- **Cannot**: change any cleaning settings.
+- **Effect shape** (wire payload): `{ "action": "exclude", "reason": "<optional human label>" }`. After backend normalization the stored blocker effect always carries an empty `changes: {}` — i.e. `{action: "exclude", reason, changes: {}}`.
 
 A Blocker can cause cascade blocks. If Room B requires Room A (Room A `grants_access_to` B), and Room A is blocked, Room B also becomes inaccessible and is excluded — even if Room B has no blocker rule of its own.
 
@@ -187,7 +187,13 @@ Any field omitted from `changes` is not overridden — the room's saved profile 
 1. **Frontend (`_buildRulePayload`)** — only writes `clean_passes` to the payload when `Number(value) === 1 || Number(value) === 2`. Any other value is silently dropped.
 2. **Frontend validation (`roomRulesDraftIsValid`)** — a modifier draft is invalid unless at least one meaningful change is present, and for `clean_passes` specifically, the value must be `1` or `2`.
 
-The backend does not enforce this constraint itself; it trusts the frontend to serialise only valid values.
+The backend does not enforce this constraint itself — it copies whatever `clean_passes`
+it receives, unclamped (a value injected server-side via the service reaches
+`protected_room_config` as-is). **The "1 or 2" cap is an Eufy-oriented *frontend* limit**:
+Eufy caps 2 passes but Roborock allows 1–3, so a valid Roborock 3-pass modifier is not
+expressible through the rule editor today. (Separately, the *dispatch wire* clamps
+`clean_times` to `[1, passes_max]` — see [07](07-queue-engine.md) §2 — so an out-of-range
+value still can't reach an Eufy device.)
 
 ---
 
@@ -297,21 +303,42 @@ For each room in `selected_room_ids`:
 
 **Step 6 — Apply modifier changes**
 
-For each included (non-blocked) selected room:
+For each **selected** room: a **blocked** room is written into `effective_rooms` as
+`{**room_data, "enabled": False}` and skipped. An **included** (non-blocked) room:
 
 ```python
 updates = {"enabled": True, "order": next_order}
 next_order += 1
 if room_id in modifier_matches:
     updates.update(modifier_matches[room_id]["changes"])
-updated_room = _protected_room_config({**room_data, **updates})
+updated_room = manager.protected_room_config({**room_data, **updates})
+updated_room["profile_name"] = _match_profile_from_fields(updated_room) or "custom"
 ```
 
-`_protected_room_config` enforces carpet/mop invariants (e.g. a carpet room cannot have `clean_mode = "mop"`).
+Two edges the merge introduces:
+
+- **`protected_room_config` can silently drop modifier fields.** It clears
+  `water_level` and `edge_mopping` whenever the effective `clean_mode` is **not** a mop
+  mode, and force-downgrades a carpet room's `mop`/`vacuum_mop` → `vacuum` (then clears
+  those two). So a modifier that sets `water_level`/`edge_mopping` but leaves the room in
+  `vacuum` mode has those two changes **nullified**. (It is the public
+  `manager.protected_room_config`, delegating to `profiles/_protected_room_config`.)
+- **`profile_name` is recomputed** via `_match_profile_from_fields`; a modifier that
+  pushes settings off any preset stamps the effective room `profile_name: "custom"`.
 
 **Step 7 — Build queue and payload**
 
-`build_queue_from_managed_rooms` and `build_room_clean_payload` are called on the effective room set (blocked rooms disabled, modifier changes applied). These produce the final `queue_state` and `payload_state`.
+`build_queue_from_managed_rooms` produces `queue_state`; the `payload_state` comes from
+the dispatch-engine **phase list** — `_build_steps_phases` (stepped runs with
+charge/wait/zone) or `_build_dispatch_phases` — as `payload_state = phases[0]`
+(byte-identical to `build_room_clean_payload` for atomic engines; see
+[07](07-queue-engine.md)). `build_room_clean_payload` is **not** called directly here.
+
+**Return shape.** `_build_effective_start_plan` returns a 6-key dict:
+`{managed_rooms, effective_rooms, queue_state, payload_state, phases, preflight}`. The
+two early-return **graph-blocked** paths (Step 2) return a different **4-key** shape —
+`{managed_rooms, queue_state, payload_state, preflight}` with **no `effective_rooms` and
+no `phases`** — building `payload_state` as `_build_dispatch_phases(...)[0]`.
 
 ### Multiple modifier merging: last-write-wins
 
@@ -395,6 +422,39 @@ Semantics, all enforced in this pass:
 Fan-out is one level, not transitive — a target room's own rules do not chain
 further on top of a fan-out it received.
 
+### The `preflight` object (full schema)
+
+`_build_effective_start_plan` returns `preflight` — the dict the card renders and
+`start_selected_rooms` gates on. Every field, with defaults:
+
+| Field | Type | Default / note |
+|---|---|---|
+| `available` | bool | `True` |
+| `blocked` | bool | `False` (True only on the graph-blocked early returns) |
+| `requires_confirmation` | bool | `False` |
+| `confirm_token` | str \| null | `None`; set only when `requires_confirmation` |
+| `reason` | str | `"ready"` → `"rooms_blocked"` → `"confirmation_required"` (or a graph-block reason) |
+| `message` | str | human string |
+| `selected_room_ids` / `included_room_ids` / `blocked_room_ids` | list[int] | |
+| `selected_room_count` / `included_room_count` / `blocked_room_count` | int | |
+| `selected_expected_minutes` / `included_expected_minutes` / `blocked_expected_minutes` | float | `0.0` |
+| `blocked_ratio_rooms` / `blocked_ratio_time` | float | `0.0`, 4-dp (§6) |
+| `blocked_rooms` | list | blocked-room entries (below) |
+| `modified_rooms` | list | modified-room entries (below) |
+| `warnings` | list[str] | e.g. `["rooms_blocked"]` |
+| `graph` | dict | `{valid, issues, grants_access_to, requires_access_from}` |
+| `mop_carpet_warning` | dict \| null | **added only on the non-blocked path** (the closing `.update`) |
+| `order_advisory` | dict \| null | likewise added only on the non-blocked path |
+
+**`blocked_rooms[]` entry** (`_build_blocked_room_entry`): `{room_id, name, source
+("direct_rule" | "access_dependency"), reason ("access_blocked" for a dependency block,
+else the effect reason / label / entity_id / "rule_blocked"), triggered_rule_id,
+trigger_entity_id (mid-job path only), blocked_by_room_id, blocked_by_room_name}`.
+
+**`modified_rooms[]` entry** (`_build_modified_room_entry`): `{room_id, name, changes,
+triggered_rule_ids, derived, source_room_id, source_room_name, source_rule_id,
+source_rule_name}` (the `derived` / `source_*` fields carry fan-out provenance; §5 Pass 2).
+
 ---
 
 ## 6. The 20%/40% confirmation threshold
@@ -406,7 +466,10 @@ blocked_ratio_time = blocked_expected_minutes / selected_expected_minutes
 blocked_ratio_rooms = len(blocked_room_ids) / len(selected_room_ids)
 ```
 
-`blocked_expected_minutes` and `selected_expected_minutes` come from the learning subsystem's per-room time estimates. If no estimates are available, both values are `0.0`.
+`blocked_expected_minutes` and `selected_expected_minutes` come from the learning
+subsystem's per-room time estimates. Both ratios are **rounded to 4 dp** and
+**zero-guarded**: `blocked_ratio_rooms` is `0.0` when no rooms are selected;
+`blocked_ratio_time` is `0.0` unless `selected_expected_minutes > 0`.
 
 **Threshold:**
 ```python
@@ -430,6 +493,11 @@ When `requires_confirmation` is `True`:
 
 The caller must pass either `confirm_reduced_run=True` or the correct `confirm_token` in the `start_selected_rooms` call to proceed.
 
+When blockers exist but stay **under** the threshold, `requires_confirmation` is `False`
+but `preflight.reason` is `"rooms_blocked"` (with `warnings=["rooms_blocked"]` and an "`N`
+room(s) are blocked and will be skipped." message); with no blockers the reason is
+`"ready"`. The confirmation message's `N` is `round(blocked_ratio_time * 100)`.
+
 ---
 
 ## 7. Mid-job re-evaluation
@@ -445,9 +513,25 @@ Mid-job re-evaluation is handled by `get_runtime_path_block_report`. It is calle
 3. The remaining room IDs (not yet completed) are extracted from `active_job["queue_room_ids"]` minus `active_job["completed_room_ids"]`.
 4. Blocker rules for all queued rooms are re-evaluated against current HA state using `_room_rule_matches`.
 5. The same accessibility propagation algorithm as `_build_effective_start_plan` is run over the remaining rooms.
-6. The result is a path-block report listing which remaining rooms are now blocked and why.
+6. A 16-char SHA-1 **dedup signature** over `trigger_entity_id | trigger_entity_state |
+   affected_room_ids | sorted(triggered_rule_ids)` is computed; if it equals the active
+   job's stored `last_path_block_signature`, the call returns `None` (no repeat report
+   for the same block). Otherwise the new signature is **written back** into
+   `data["active_jobs"][...]["last_path_block_signature"]`.
 
-The report is used to trigger pause, notify the user, or take an automated path-block action (configured per job via `path_block_action`). It does not mutate the job or payload.
+The report triggers pause / notify / an automated path-block action (per-job
+`path_block_action`). It **does** persist the `last_path_block_signature` field on the
+active job (popped again on the no-longer-blocked path), but it does **not** change the
+queue or payload. Note the propagation is **queue-scoped** — parents outside
+`queue_room_ids` are ignored and accessibility is seeded from `queue_room_ids` only,
+unlike the start-plan version which uses the full room set. Extra early-`None` guards:
+non-`started`/`paused` status, structural graph issues, blocker rules present but **no**
+`grants_access_to` anywhere, and no affected remaining rooms.
+
+**Return schema** (14 keys): `vacuum_entity_id, map_id, job_id, trigger_entity_id,
+trigger_entity_state, affected_remaining_room_ids, affected_remaining_room_names,
+directly_blocked_room_ids, indirectly_blocked_room_ids, remaining_room_ids, reason_codes,
+affected_rooms, requires_attention (True), event_scope ("active_job_path_blocked")`.
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §3 for the monitoring loop (`get_runtime_path_block_report`) that triggers mid-job rule checks and §1 Preflight for the job-start evaluation site; [08-rooms-system](08-rooms-system.md) §6 for the room data model that rules operate on.
 
@@ -499,7 +583,7 @@ For a modifier:
 
 - `id` is included only when editing an existing rule (skipped for new rules — the backend assigns the ID).
 - `label` is included only when non-empty after trim.
-- `value` is omitted entirely for no-value operators (`is_on`, `is_off`, `exists`, `missing`), and omitted when `draft.value` is `null`.
+- `value` is omitted entirely for no-value operators (`is_on`, `is_off`, `exists`, `missing`), and omitted when `draft.value` is `null` **or when the serialised result is an empty array / blank string**.
 - `value` is serialised through `_serializeRuleValue`: multi-select → normalised string array; number → JS `Number`; text → raw value.
 - `effect.reason` is `null` when empty (not an empty string).
 - `effect.changes` is built by iterating `draft.effect.changes`, skipping `null` values, and enforcing the 1-or-2 constraint on `clean_passes`.
@@ -547,7 +631,13 @@ Conditions are flat on the rule object itself — `entity_id`, `operator`, and `
 
 ### Backend: `_room_rule_matches` in `rooms/access_graph.py` (`AccessGraphManager`)
 
-Add a new `if operator == "<new_op>":` branch on the `_room_rule_matches`
+**Step 0 (mandatory — the load-bearing step):** add `"<new_op>"` to the
+`allowed_operators` set in `_normalize_room_rule` (`rooms/access_graph.py`). Any
+operator **not** in that allowlist is rewritten to `"equals"` **at persist / normalize
+time**, so without this step a rule authored with the new operator is silently stored as
+`equals` and your new `_room_rule_matches` branch is never reached.
+
+Then add a new `if operator == "<new_op>":` branch on the `_room_rule_matches`
 method. Place it before the final `return False`. The branch receives:
 
 - `state_value` — raw string from `hass.states.get(entity_id).state`
