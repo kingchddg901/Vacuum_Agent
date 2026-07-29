@@ -89,12 +89,12 @@ it calls `manager.maybe_handle_external_run(vacuum_entity_id)` *before* the
 per-map internal loop (which only handles `status in {started, paused}`).
 
 [`core/manager.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/core/manager.py)
-`maybe_handle_external_run`:
+`maybe_handle_external_run` (a thin delegator to `ExternalRunManager` in `learning/external_run.py`, where the logic below lives):
 
 - Scan all maps: if any slot is `started`/`paused`, **internal owns the run** →
   return. If a slot is already `external`, remember its map.
 - Resolve the **active map** from the adapter's `active_map` entity
-  (`_resolve_active_map_id` — brand-agnostic; reads the entity the adapter
+  (`resolve_active_map_id` — brand-agnostic; reads the entity the adapter
   declares, not a Eufy-specific call).
 - **Start:** vacuum state `cleaning` + no external slot → `start_external_capture`
   opens a slot with `status="external"` + `started_at`.
@@ -118,8 +118,9 @@ slots it **also** snapshots the per-room setting selects:
 
 - `_snapshot_settings_selects(vacuum)` reads the adapter's `settings_selects`
   block (§9) — a dict of `{canonical_key: {entity_id, value_map}}` — from the
-  live HA state, applying `value_map` (e.g. `"Vacuum and mop" → "vacuum_mop"`)
-  where present, raw otherwise.
+  live HA state, applying `value_map` where present — the lookup key is
+  `.strip().lower()`-normalized, so e.g. `"Vacuum and mop"` matches the lowercase map key
+  (`"vacuum and mop" → "vacuum_mop"`); an unmapped value passes through raw (original case).
 - The result is appended to `settings_samples` **only when it changes** (one
   entry per flip), giving a compact settings-flip timeline alongside the 30 s
   counter clock.
@@ -134,7 +135,12 @@ never read them back.
 On finalize, `_finalize_external_run` runs the captured stream through
 [`learning/external_ingest.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/learning/external_ingest.py)
 `build_pending_record` (pure) and writes the result atomically to
-`learning/<slug>/external_jobs/job_<detection_ts>.json` (peer to `jobs/`).
+`<config>/eufy_vacuum/learning/<slug>/external_jobs/job_<safe_ts>.json` (peer to
+`jobs/`), where `safe_ts` is `detection_ts` with the tz offset + fractional seconds
+stripped and colons → dashes
+(`str(detection_ts or "unknown").split("+")[0].split(".")[0].replace(":", "-")`). The
+filename **stem** becomes the record's `pending_job_id`, and confirm graduates it to
+`jobs/ext-<pending_job_id>.json` (i.e. `jobs/ext-job_<safe_ts>.json`).
 
 The v2 record is **self-contained**: it embeds the raw `counter_samples` /
 `settings_samples` and the **full candidate pool** so the run can be re-segmented
@@ -183,7 +189,7 @@ them on the server. The pose stream (`pose_samples`) is bounded separately by
       "settings": { "clean_mode": "vacuum_mop", "fan_speed": "Turbo", ... },
       "boundary": "job_start",          // the kind of cut that opened it (job_start / wash_plateau / transit / area_jump / weak)
       "confident_boundary": null,        // null for order 0; bool for K>0
-      "shortlist": [ { "room_id", "slug", "name", "is_carpet", "learned_area_m2", "settings_score", "score", "from_pose" }, ... ],
+      "shortlist": [ { "room_id", "slug", "name", "is_carpet", "learned_area_m2", "footprint_area_m2", "settings_score", "score", "from_pose" }, ... ],
       "pose_room_id": 5,                 // W5c: the room the pose stream identified (promoted to shortlist[0]); absent without a pose stream
       "pose_confidence": "cleaned"       // "cleaned" (swept-area confirmed) | "presence" (counter-vouched, named by dwell when stale cleaning_area masked the swept area)
     },
@@ -196,6 +202,20 @@ them on the server. The pose stream (`pose_samples`) is bounded separately by
 for what happens on accept. (v1 records — written before this change, no embedded
 samples — still load and confirm; they simply cannot be re-segmented and degrade
 to the legacy merge-only review, see §5a.)
+
+**Two record shapes.** The block above is the **counter** path (`build_pending_record`).
+When counter segmentation finds nothing — the common app-run case, and *always* on a
+noop-segmenter brand like Roborock — `build_attributed_job` writes a **pose-only** variant
+instead, differing as follows:
+- adds top-level **`"source": "pose_attribution"`** (the counter path has no `source` key);
+- **omits** `attribution_confidence`, `counter_samples`, and `settings_samples` entirely;
+- each segment's `boundary` is **`"pose_attribution"`** and carries **`pose_mode`** (the
+  attribution mode) but **no** `pose_confidence`;
+- `candidates` is `[]`, so the record is **not** counter-resegmentable (`resegmentable = false`).
+
+On **both** shapes, a segment the pose named also carries **`pose_mode`** (`robust` /
+`anchor_only`), and each shortlist entry carries **`footprint_area_m2`** (present at
+cold-start, `None` once a learned area exists).
 
 **W5c — pose attribution.** When a run-active pose stream is captured, the room-attribution
 engine recovers the cleaned-room set and **promotes** each counter segment's identified room to
@@ -367,7 +387,7 @@ framework `select_active`), then `engine.build_segments` + the shared
 
 | Mode | Input | `select_active` call | `meta` |
 |---|---|---|---|
-| **count** | `expected_rooms` (≥ 1) | strongest `N−1` by `(confident, strength)` | `{mode:"count", requested, available, capped, capped_at}` + a `message` when capped |
+| **count** | `expected_rooms` (≥ 1) | strongest `N−1` by `(confident, strength)` | `{mode:"count", requested, available, capped, capped_at}` + `reason: "capped_to_detectable"` + a `message` when capped |
 | **explicit** | `active_boundaries: [id…]` | exactly those candidate ids | `{mode:"explicit"}` |
 | **reset** | neither | `default="confident"` | `{mode:"reset"}` |
 
@@ -433,8 +453,10 @@ record** — no new learning path. Per assignment:
 1. **Tier-1 identity gate** (`gate_segment_identity`): the merged segment area vs
    the confirmed room's learned band. Deliberately **wide** — only a *clear*
    mismatch blocks (`> max(3·stddev, 0.5·avg, 3 m²)`), because the human already
-   asserted the room. A cold room (no band) is accepted as a **bootstrap**
-   sample; `override=true` forces a flagged mismatch through.
+   asserted the room. A room is treated as **cold-start** (accepted, `reason="cold_start"`) when it has
+   **fewer than 4 area samples** (`_IDENTITY_MIN_SAMPLES`) **or** `avg_area_m2 ≤ 0` — not
+   merely "no band"; a room with 1–3 samples is not gated even if far off. `override=true`
+   forces a flagged mismatch through.
 2. **Atomic:** if *any* assignment is blocked without override, the whole confirm
    returns `{ok: false, blocked: [...]}` and graduates nothing. The card shows
    the warnings → re-pick or "keep anyway".
@@ -539,9 +561,9 @@ Registered in
 
 | Service | Args | Returns |
 |---|---|---|
-| `eufy_vacuum.get_external_pending_runs` | `vacuum_entity_id` | `{pending: [record…], count, brand}` (newest first, each tagged `pending_job_id` + `resegmentable`, samples stripped, full `rooms` list attached) |
-| `eufy_vacuum.resegment_external_run` | `vacuum_entity_id, map_id, pending_job_id, ` **Exclusive** `(expected_rooms:int≥1 \| active_boundaries:[int])` | `{ok, …new record…, …meta}` or `{ok: false, error}` (rewrites the pending file in place; §5a) |
-| `eufy_vacuum.confirm_external_run` | `vacuum_entity_id, map_id, pending_job_id, room_assignments[], rebuild_stats?` | `{ok, job_id, job_path, rooms_learned, rebuilt}` or `{ok: false, blocked: [...]}` |
+| `eufy_vacuum.get_external_pending_runs` | `vacuum_entity_id` | `{vacuum_entity_id, pending: [record…], count, brand}` (newest first; each record tagged `pending_job_id` + `resegmentable` + full `rooms` list, samples stripped) |
+| `eufy_vacuum.resegment_external_run` | `vacuum_entity_id, map_id, pending_job_id, ` **Exclusive** `(expected_rooms:int≥1 \| active_boundaries:[int])` | `{ok: true, …stripped record…, pending_job_id, …meta}` or `{ok: false, error}` where `error ∈ {not_resegmentable, empty_segmentation, pending_not_found}` (rewrites the pending file in place; §5a) |
+| `eufy_vacuum.confirm_external_run` | `vacuum_entity_id, map_id, pending_job_id, room_assignments[], rebuild_stats?` | `{ok, job_id, job_path, rooms_learned, rebuilt}` or `{ok: false, blocked: [...], pending_job_id}` |
 | `eufy_vacuum.discard_external_run` | `vacuum_entity_id, pending_job_id` | `{ok}` (deletes the pending file) |
 
 `expected_rooms` and `active_boundaries` are mutually exclusive
@@ -579,6 +601,25 @@ Additions to the adapter config (see
   `get_external_pending_runs` and shown in the card's empty state ("Start a clean
   from the {brand} app"). Absent → the card uses generic phrasing. Keeps brand
   strings out of the otherwise brand-agnostic card.
+- **`external_mid_run_statuses`** (`list[str]`) — the `task_status` values that hold
+  the finalize grace window open (mop wash / dust empty / recharge-resume), so a
+  mid-run station cycle doesn't split the run. Read via `brand_facts.mid_run_statuses`;
+  absent → the time-based grace only.
+- **`job_segmenter`** — `{engine, tuning}` — the counter/run segmenter selection.
+  `tuning` is the single source of the gap/area/cadence thresholds (`gap_delayed_s`,
+  `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`, `cadence_s`) used by finalize,
+  re-segment, **and** live rollover. Absent/unknown engine → the Eufy `eufy_counter_v1`
+  fallback (`learning/job_segmenter_engines.py`).
+- **`room_attribution`** — `{engine, source, tuning}` — the pose room-attribution
+  selection. `source ∈ {"live_pose" (Eufy), "native_current_room" (Roborock)}`;
+  `tuning` = `{wind_transit, dwell_min_ticks, swept_area_min_m2, interval_s}`.
+  Absent/unknown → the `eufy_anchor_winding_v1` fallback.
+- **Capture-source prerequisites** (what the pose sampler gates on,
+  `listeners/pose_sampler.py`): `live_pose` needs a `map_state_source.live_pose` block;
+  `native_current_room` needs `entities.active_cleaning_target`. Both additionally need
+  `entities.cleaning_area` (the swept-area clean-vs-park separator) and, for the
+  parked-dock null, `entities.task_status` + `vocabulary.active_run_task_states`. A brand
+  missing its source's signal is simply not pose-sampled.
 
 Graduated external runs feed the **same** learning buckets as internal runs:
 `clean_mode` is canonicalized in the room key (`"vacuum and mop"` → `"vacuum_mop"`),
@@ -595,7 +636,9 @@ settings instead of forming a parallel bucket. See
 | Segmenter (shared, 3-stage) | `custom_components/eufy_vacuum/counter_segmentation.py` (`find_candidates`, `select_active`, `build_segments`; `segment_counters` is the back-compat wrapper) |
 | Job-segmenter engine seam | `learning/job_segmenter_engines.py` (`EufyCounterSegmenter`/`eufy_counter_v1` delegates to the primitives verbatim; `get_job_segmenter_engine` falls back to Eufy; `JobBoundaryCandidate`/`JobSegment` TypedDicts) |
 | Capture + external slot | `jobs/active_job.py` (`record_counter_sample`, `_snapshot_settings_selects`, `start_external_capture`, `_MAX_COUNTER_SAMPLES`) |
-| Detection + orchestration | `listeners/lifecycle.py`, `core/manager.py` (`maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `resegment_external_run`, `discard_external_run`) |
+| Detection trigger | `listeners/lifecycle.py` (`_process` calls `maybe_handle_external_run` per vacuum) |
+| External-run lifecycle | `learning/external_run.py` — **`ExternalRunManager`** (the class; grace-timer state machine `_external_grace_*`; `maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `resegment_external_run`, `discard_external_run`). `core/manager.py` holds only thin **delegators** to `self.external_run` (bundled-subsystem pattern), plus the shared helpers it reaches via `self._manager`: `resolve_active_map_id`, `start_external_capture`, `record_counter_sample`, `record_pose_sample`, `get_managed_rooms`, `async_save` |
+| Grace constants | `learning/constants.py` (`EXTERNAL_FINALIZE_GRACE_S` = 300, `EXTERNAL_GRACE_MAX_RECHECKS` = 8) |
 | Pending record + re-segment + gate + graduate | `learning/external_ingest.py` (`build_pending_record`, `build_attributed_job`, `_apply_pose_identity`, `resegment_pending_record`, `reconcile_dispatched_identity`, `_resolve_engine_tuning`, `_resolve_attribution`, `_enrich_segments`, `strip_samples`, `_max_cleaning_area_m2`, `gate_segment_identity`, `build_graduated_job`, `load_pending_runs`) |
 | cleaning_area units + area sanity | `learning/utils.py` (`cleaning_area_to_m2`, `_AREA_TO_M2`, `area_sanity`, `AREA_OVER_ATTRIBUTION_TOLERANCE`) |
 | Dispatched reconcile + jobs-index surfacing | `learning/history_store.py` (completed-job payload → `reconcile_dispatched_identity`, `has_attribution_disagreement`), `learning/stats_rebuilder.py` (`area_sanity` → `area_over_attributed`), `learning/manager.py` (self-heal index detector) |
