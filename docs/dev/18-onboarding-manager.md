@@ -126,9 +126,11 @@ manager.confirm_floor_type(
 ) -> None
 ```
 
-Keyword-only. Always sets `floor_types_confirmed[str(room_id)] = True` — there is **no** `confirmed` parameter (the method can only confirm, not un-confirm). Called once per room by `save_managed_rooms()` during initial import.
+Keyword-only. Always sets `floor_types_confirmed[str(room_id)] = True` — there is **no** `confirmed` parameter (the method can only confirm, not un-confirm).
 
-The user can also call this via the panel's room editor to re-confirm after a floor type change.
+**It has no standalone / service caller.** The only runtime invoker is `save_managed_rooms` (`rooms/room_crud.py:274-279`), which loops it over **every** entry in `managed_rooms`, gated on `if managed_rooms:` (non-empty). So it is a **bulk auto-confirm of all managed rooms**, fired on **every** `save_managed_rooms` call — initial import *and* every subsequent re-save/edit — **not** a per-room user decision and **not** limited to initial import. The panel "re-confirms" only by re-running the `save_rooms` step (`setup_save_rooms` → `save_managed_rooms`), which re-confirms everything; there is no per-room confirm service.
+
+> **Design consequence (code-flag CS-3).** Because every save auto-confirms all rooms, the floor-type gate is **self-satisfying** in the normal flow — it can only ever fire when rooms enter `map_bucket["rooms"]` via a **non-save path** (a reconcile renumber before `remap_confirmed_floor_types` runs, or `rebuild_map` adding new room IDs). The §1 framing ("has the user assigned a floor type to every room?") describes an intended human review that the code does not actually enforce — flagged for a product decision.
 
 ### 4.3 `check_for_new_rooms`
 
@@ -140,7 +142,7 @@ manager.check_for_new_rooms(
 ) -> bool
 ```
 
-Reads the current room count from the adapter-declared discovery source (`adapter_config["discovery"]["room_list_entity"]` / `["room_list_attribute"]`, defaulting to the vacuum entity's `segments` attribute) and compares it to the stored `room_count_at_last_check`. Returns a plain **bool**: `True` when `current_count > last_count`. Returns `False` if the source state is missing or the attribute is not a list. It does **not** update the stored count.
+Reads the current room count from the adapter-declared discovery source (`adapter_config["discovery"]["room_list_entity"]` — the sentinel string `"vacuum_entity"` (also the default) resolves to `vacuum_entity_id` itself — and `["room_list_attribute"]`, defaulting to `"segments"`) and compares it to the stored `room_count_at_last_check` (read via `int(...)`). Returns a plain **bool**: `True` when `current_count > last_count`. Returns `False` if the source state is missing or the attribute is not a list. It does **not** update the stored count.
 
 It is exposed on `EufyVacuumManager` via a thin delegation wrapper (`EufyVacuumManager.check_for_new_rooms`). It has no live in-framework caller today — the auto-discovery path that keeps drift fresh (`listeners/discovery.py` → `setup/drift.py::run_discovery_pass`) uses the counter-based room-drift history (see [22-adapter-config-reference §12](22-adapter-config-reference.md)), not this single-shot count comparison. A caller would decide whether to show a notification.
 
@@ -190,7 +192,9 @@ Aggregates `get_onboarding_state()` across every known map for one vacuum:
 }
 ```
 
-(There are no `set_discovery_notified` / `set_rebuild_notified` methods. The `discovery_notified` / `rebuild_notified` flags exist in storage but are only written by `reset_onboarding` / defaults.)
+A vacuum with **no maps** returns `all_complete=True`, `maps=[]` (vacuous truth — `any_incomplete` stays `False`), and the diagnostic sensor then reports `complete`.
+
+(There are no `set_discovery_notified` / `set_rebuild_notified` methods. The `discovery_notified` / `rebuild_notified` flags exist in storage but are only written by `reset_onboarding` / defaults — they are dead fields, never read and never set `True`, code-flag CS-1. `room_count_at_last_check` is likewise effectively write-only: only `check_for_new_rooms` reads it, and that has no live caller — CS-2.)
 
 ### 4.6 `remap_confirmed_floor_types`
 
@@ -221,15 +225,19 @@ Floor type confirmation is per-room, not per-map. The `floor_types_confirmed` di
 
 A room with `confirmed == False` or missing from the dict counts as unconfirmed. Unconfirmed **enabled** rooms block the `"complete"` status AND hard-block job start via the core start-status `onboarding_required` gate (`blocked`, not a warning); disabled rooms are excluded and never gate completion or starting.
 
+> **The start gate keys on `floor_types_complete` alone.** `get_start_status` (`core/manager.py:2776`) blocks only on `if not onboarding["floor_types_complete"]` — **not** the full `onboarding_complete` (it never consults `rooms_discovered`). Consequences: a map in `rooms_needed` status (stored flag `False` / zero rooms) is **not** blocked by the onboarding gate; and a **zero-room map** has `floor_types_complete` vacuously `True` (empty `enabled_rooms_needing_floor_type`), so onboarding never blocks it. Combined with the bulk auto-confirm (§4.2), the `onboarding_required` block effectively only fires for rooms that entered the bucket via a non-save path.
+
 ---
 
 ## 6. Integration Points
 
 | Caller | Method | When |
 |---|---|---|
-| `RoomMapManager.save_managed_rooms()` | `mark_rooms_discovered()`, `confirm_floor_type()` | After rooms written to storage |
+| `RoomMapManager.save_managed_rooms()` | `mark_rooms_discovered()`, `confirm_floor_type()` (bulk loop over every room) | After rooms written to storage — the **only** caller of `confirm_floor_type` (§4.2) |
 | `EufyVacuumManager` delegation only (no live caller) | `reset_onboarding()` | Intended for map rebuild from scratch — not yet wired |
 | `EufyVacuumManager` delegation only (no live caller) | `check_for_new_rooms()` | Predicate; the live drift path uses `setup/drift.py` instead |
-| Panel setup tab | `get_onboarding_state()` | On render |
-| Panel room editor | `confirm_floor_type()` | User saves floor type |
+| `core/manager.py::get_start_status` | `get_onboarding_state()` | Embedded as the `onboarding_status` block of the start-status response (the start gate, §5) |
+| `sensor/onboarding.py` (`EufyVacuumOnboardingSensor`) | `get_rooms_onboarding_summary()` | Diagnostic sensor state = worst-case status across maps (`rooms_needed` > `floor_type_needed` > `complete`) |
 | `RoomMapManager.reconcile_room()` (`rooms/room_crud.py`) | `remap_confirmed_floor_types()` | After a reconcile migrate applies the `id_remap` — re-keys confirmations so renumbered rooms don't re-block start |
+
+> There is **no** panel/service seam that calls `get_onboarding_state` or `confirm_floor_type` directly. The panel reads onboarding state via the `get_start_status` embedding and the diagnostic sensor above; it changes floor types only by re-running `setup_save_rooms` (which bulk-auto-confirms, §4.2).

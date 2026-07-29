@@ -53,7 +53,7 @@ Four actions are gated and dispatchable:
 | `stop_dry_mop` | `button.{object_id}_stop_dry_mop` or `button.{object_id}_stop_mop_dry` | n/a (no counter) |
 | `empty_dust` | `button.{object_id}_empty_dust` or `button.{object_id}_empty_dust_bin` | `dust_empty_count` |
 
-Both `dry_mop` and `stop_dry_mop` are gated against the adapter capability flag `supports_mop_dry`.
+Full capability→action gate map (§6 step 1): `wash_mop → supports_mop_wash`, `dry_mop` **and** `stop_dry_mop → supports_mop_dry`, `empty_dust → supports_empty_dust`.
 
 ---
 
@@ -78,11 +78,28 @@ First candidate present in the HA state machine or entity registry wins.
 
 ### 5.2 Token fallback — `_find_button_entity_by_tokens`
 
-If no named candidate is found, the `token_sets` for the action are tried:
-the manager scans all `button.*` entities in the registry and matches each
-token set (a candidate entity ID is split on `_` and must contain all tokens
-in the set). This handles brands with dynamic entity naming. Eufy declares
-both `entity_suffixes` and `token_sets` for every dock action.
+If no named candidate is found, the `token_sets` for the action are tried
+(`_find_button_entity_by_tokens`, `core/manager.py:902-917`): the manager scans
+**registry entities whose id starts with `button.{object_id}_`** (this vacuum only,
+lowercased) — **not** all `button.*` — and an entity matches a token set when
+**every token is a case-insensitive substring of the full entity_id string**
+(`all(tok in entity_id …)`), **not** a split-on-`_` word membership. This path reads
+the **registry only** — the state machine is not consulted (unlike §5.1). This handles
+brands with dynamic entity naming. Eufy declares both `entity_suffixes` and `token_sets`
+for every dock action.
+
+> **Substring match caveat (code-flag CS-1).** Because it is a raw substring test over the whole id (which includes the object_id), a token like `"dry"` could match inside an unrelated word or the object_id itself (object_id `dryer` → `button.dryer_…` contains `"dry"`). Split-on-`_` membership — which this doc *used to* describe — would be safer. Low blast radius (named candidates almost always resolve first), but it is a doc-vs-code disagreement worth a decision: switch the code to word membership, or keep the substring behavior documented here.
+
+---
+
+### 5.3 `get_dock_action_entities` — capability-gate-independent resolution
+
+```python
+manager.get_dock_action_entities(*, vacuum_entity_id: str) -> dict
+# → {"wash_mop": str|None, "dry_mop": str|None, "stop_dry_mop": str|None, "empty_dust": str|None}
+```
+
+Resolves each action's button entity (via the §5.1/§5.2 discovery) **independent of the capability gate** — so diagnostics can report the physically-present controls even on a `generic`-detected model whose `supports_*` flags are off. Consumed by `diagnostics.py`; exposed via the `core/manager.py` delegator.
 
 ---
 
@@ -115,12 +132,16 @@ the lifecycle and active-job state for that map). Per-action results are nested 
 
 ```python
 {
-    "vacuum_entity_id":  str,
-    "map_id":            str,
-    "docked":            bool,
-    "dock_status":       str | None,
-    "lifecycle_state":   str | None,
-    "active_job_status": str | None,
+    "vacuum_entity_id":       str,
+    "map_id":                 str,
+    "docked":                 bool,
+    "dock_status":            str | None,   # RAW lifecycle.get("dock_status") — NOT normalized
+    "dock_status_label":      str | None,   # _display_label(dock_status): "_"→" ", title-cased, None-safe
+    "lifecycle_state":        str | None,
+    "lifecycle_state_label":  str | None,   # _display_label(lifecycle_state)
+    "lifecycle_message":      str | None,   # lifecycle.get("message") passthrough
+    "active_job_status":      str | None,
+    "active_job_status_label": str | None,  # _display_label(active_job_status)
     "actions": {
         "wash_mop": {
             "supported":    bool,
@@ -192,6 +213,30 @@ await manager._async_run_dock_action(*, vacuum_entity_id: str, map_id: str, acti
 4. Returns a result with `performed: True`, `reason: "performed"`, and the `entity_id`
    that was pressed.
 
+Exact return shapes (`map_id` is `str(map_id)`; `dock_status`/`lifecycle_state` copied from the status call):
+
+```python
+# blocked (allowed False) — 9 keys:
+{"vacuum_entity_id", "map_id", "action", "performed": False, "allowed": False,
+ "reason", "message", "dock_status", "lifecycle_state"}
+
+# success — 10 keys:
+{"vacuum_entity_id", "map_id", "action", "performed": True, "allowed": True,
+ "reason": "performed", "message": "Dock action sent.", "entity_id",
+ "dock_status", "lifecycle_state"}
+```
+
+---
+
+### 7.1 Service layer (host contract)
+
+The manager methods require `map_id` (keyword-only, no default), but the **service** wrappers make it optional and auto-resolve it:
+
+- `get_dock_action_status` (schema `VACUUM_MAP_SCHEMA`) and the four dispatch services (schema `JOB_CONTROL_SCHEMA`, which **is** `VACUUM_MAP_SCHEMA`) take `map_id` as `vol.Optional`; the handlers call with `**resolved_call_data(hass, call)`, which fills a missing/blank `map_id` from the active-map entity (falling through to the method's own error if unresolvable).
+- `set_dock_event_count` is the exception — its schema has **no** `map_id`.
+- A blocked dispatch is wrapped into a raised **`ServiceValidationError`** (not just a `performed:False` dict) at the service layer.
+- All six dock services are `supports_response=True`.
+
 ---
 
 ## 8. Dock Event Recording
@@ -241,9 +286,7 @@ manager.set_dock_event_count(
 ) -> dict
 ```
 
-Keyword-only. Overwrites a counter to a specific value (clamped to `>= 0`) and returns a
-result dict (`updated: True` with `old_count`/`new_count`, or `updated: False` with an
-`error` for an unknown `event_type`). Used by the panel's maintenance tab to let users correct miscounted events (e.g. if the dock cycled before the integration was loaded).
+Keyword-only. Overwrites a counter to a specific value (clamped `max(int(count), 0)`; `old_count` read via `_safe_int(..., 0)`) and returns a result dict: success `{updated: True, event_type, old_count, new_count}`, or `{updated: False, error}` for an unknown `event_type`. Used by the panel's maintenance tab to let users correct miscounted events (e.g. if the dock cycled before the integration was loaded).
 
 ---
 
@@ -256,5 +299,8 @@ result dict (`updated: True` with `old_count`/`new_count`, or `updated: False` w
 | Panel dock status API | `get_dock_action_status()` | On panel render |
 | Panel maintenance tab | `set_dock_event_count()` | User corrects counter |
 | `maintenance/manager.py` | `get_dock_events()` (public accessor) | `get_upkeep_snapshot()` |
+| `sensor/dock_event.py` (`EufyVacuumDockEventSensor`) | `get_dock_events()` | State = `max()` of the three `last_*` timestamps + `last_*`/`last_dry_duration` attributes |
+| `learning/manager.py` | `get_dock_events()` | Metrics summary |
+| `diagnostics.py` | `get_dock_action_entities()` | Diagnostics report (capability-gate-independent, §5.3) |
 
 > **See also:** [13-maintenance-manager](13-maintenance-manager.md) §7 for how dock event counts are consumed to compute maintenance remaining hours; [22-adapter-config-reference](22-adapter-config-reference.md) §vocabulary for the `dock_status` state strings that trigger event detection.
