@@ -150,9 +150,10 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Charging binary sensor. Primary charging detection signal. "
-                    "Degradation: charging detection falls back to substring "
-                    "matching on task_status/dock_status."
+                    "Charging binary sensor — the sole charging detection signal. "
+                    "Absent/unknown -> is_charging() returns False; there is NO "
+                    "substring fallback on task_status/dock_status (removed as a "
+                    "false-negative source, see core/charging.py)."
                 ),
             },
             "wash_frequency_mode": {
@@ -358,8 +359,8 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": (
                     "Maps brand-specific wash-frequency-mode display strings "
                     "(lowercased) to canonical mode keys. "
-                    "Canonical keys: 'by_time', 'by_area', 'after_each_clean'. "
-                    "Example: {'by time': 'by_time', 'by area': 'by_area'}. "
+                    "Canonical keys: 'by_room', 'by_time', 'off'. "
+                    "Example: {'by room': 'by_room', 'by time': 'by_time'}. "
                     "Degradation: unknown values pass through and the estimator "
                     "falls back to the default interval."
                 ),

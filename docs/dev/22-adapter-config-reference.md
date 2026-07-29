@@ -171,6 +171,8 @@ depends on them — they never raise.
 | `total_cleaning_count` | Optional | Lifetime "Cleans" tile hidden in the Maintenance tab. |
 | `dock_firmware_version` | Optional | Dock firmware line hidden in the Maintenance overview. |
 | `scene_select` | Optional | Vendor-app scenes select entity (e.g. eufy-clean `select.<object_id>_scene`). Its options are the app's saved scenes and selecting one **runs it immediately**, so the card only reads the options to build the "App scenes" run-launcher and fires `select_option` on Start. Absent (Roborock, or an eufy-clean build without scenes) → the App-scenes group is hidden. |
+| `job_active` | Optional | The device's "is cleaning" binary. **Load-bearing when `completion.require_job_active_clear` is set** (Roborock: `binary_sensor.{id}_cleaning`) — completion keys on this clearing. Read at `listeners/_common.py`, `jobs/phase_runner.py`, `diagnostics.py`. |
+| `mop_active` | Optional | Tank-present / mopping binary (Roborock: `binary_sensor.{id}_water_box_attached`) — drives the card's mop-state + water-level field visibility. |
 
 ### Example (from Eufy adapter)
 
@@ -232,7 +234,7 @@ title-cased firmware strings exactly as they appear in HA.
 | `blocked_task_status_states` | `list[str]` (**raw**) | `task_status` values that block job start. Title-cased firmware strings. |
 | `blocked_dock_status_states` | `list[str]` (**raw**) | `dock_status` values that block job start. Title-cased firmware strings. |
 | `cancel_service_exclusion_states` | `list[str]` (normalized) | If any of these appear in the `task_status` transition history of a very short job, the cancel detector treats the early return as a service event (low-battery, mop wash, dust empty) rather than a manual cancel. |
-| `cancel_detection_states` | `dict[str, str]` (normalized) | Normalized `task_status` transition strings the cancel detector matches. Keys: `active`, `returning`, `paused`. A cancel-like transition is `active`→`returning` or `paused`→`returning`. Defaults to the HA-standard `cleaning`/`returning`/`paused`. |
+| `cancel_detection_states` | `dict[str, str \| list[str]]` (normalized) | Normalized `task_status` transition strings the cancel detector matches. Keys: `active` (string **or list** — Roborock's mode-specific `cleaning`/`segment_cleaning`/`zoned_cleaning`), `returning` (e.g. Roborock `returning_home`), `paused`. A cancel-like transition is `active`→`returning` or `paused`→`returning`. Defaults to the HA-standard `cleaning`/`returning`/`paused`. |
 | `water_level_aliases` | `dict[str, str]` | Maps lowercased water-level display strings to canonical keys (`low`/`medium`/`high`) for water-rate lookup. |
 | `wash_frequency_mode_aliases` | `dict[str, str]` | Maps lowercased wash-frequency mode strings to canonical keys (`by_room`/`by_time`/`off`). |
 | `clean_mode_aliases` | `dict[str, str]` | Maps clean-mode display strings (lowercased, non-alnum → one space) to the canonical codes the card vocab is keyed on (`vacuum`/`mop`/`vacuum_mop`). The learning manager normalizes observed room-profile settings through this so the card receives a code, not a raw display string (which would slug to a missing `vocab.clean_mode.*` key and leak English). |
@@ -334,6 +336,7 @@ job complete.
 | `task_status_value` | `str` | `"completed"` | Normalized `task_status` value that signals completion. |
 | `secondary_clear_entity` | `str` | `"active_cleaning_target"` | Entity *key* (from the `entities` dict, not a full ID) whose cleared state must coincide. |
 | `secondary_clear_sentinels` | `list[str]` | `["", "unknown", "unavailable", "none", "null"]` | Values that mean the secondary entity is cleared. |
+| `require_job_active_clear` | `bool` | `False` | When `True`, completion additionally requires `entities.job_active` (the cleaning binary) to have cleared — **instead of** the `secondary_clear` sentinel check. Needed for brands whose `active_cleaning_target` reverts to a non-sentinel at run end (Roborock's `current_room` → the dock room's name). Pair with `entities.job_active`. |
 
 ### Example
 
@@ -654,7 +657,9 @@ blocks for Eufy, Roborock, Dreame, and Narwal, see
 | `room_id_field` | `str` | no | Field name for room ID in each room entry. Eufy: `"id"`. Roborock: `"segment_id"`. |
 | `clean_passes_field` | `str` | no | Field name for clean passes. Eufy: `"clean_times"`. Roborock: `"repeat"`. |
 | `rooms_field` | `str` | no | Field name for the rooms list / id array. Eufy: `"rooms"`. Roborock/Ecovacs: `"segments"` / `"rooms"`. |
-| `passes_max` | `int` | no | Clamp ceiling for collapsed batch passes (flat-id engines). Default `3`. |
+| `passes_max` | `int` | no | Clamp ceiling for batch passes. **`3`** on the flat-id/dispatch-engine/zone path, but **`2`** on the Eufy rows/manager path (`queue_engine.py`/`core/manager.py`) — the cap is context-dependent (not schema-declared). |
+| `params_as_list` | `bool` | no | When `True`, the payload params are wrapped in a **single-element list** (`params=[{…}]`) instead of a bare dict. **Roborock requires it** (`app_segment_clean` won't start otherwise); Eufy passes the bare dict. |
+| `passes_is_global` | `bool` | no | When `True`, passes are a **run-global** scalar, not per-room (the S6 can't vary passes per room). |
 
 ### Template selects a dispatch *engine* (and a payload *structure*)
 
@@ -1122,9 +1127,13 @@ data — into normalized, VA-owned room bboxes plus dock / robot anchors.
 This makes room regions, current-room, and mascot anchors **auto-derived**
 rather than hand-composed, and (for Eufy) immune to the per-session raw
 coordinate-frame re-basing that makes absolute robot coordinates
-non-comparable across sessions. The Eufy adapter declares it against
-eufy-clean's decoded map; brands whose in-memory map is already
-frame-fresh (Roborock) omit it.
+non-comparable across sessions. The Eufy adapter declares a **`"storage"`**
+backend (against eufy-clean's decoded `.storage` map, with a `store_key`);
+**Roborock declares it too** with a **`"memory"`** backend — top-level
+`hass_data_domain: "roborock"` and `present_requires_live_map_image: True`, no
+`store_key` (it reads the in-memory parsed `MapData`). The schema table below
+covers the Eufy `"storage"` backend; the `"memory"` backend swaps `store_key`
+for `hass_data_domain`.
 
 The whole block is optional. Absent → no provider-map read; the CV
 image segmenter and native current-room tracking keep working unchanged.
@@ -1184,9 +1193,11 @@ align perfectly and the look stays themeable. `format` names the decode the
 card applies; the source pointer (`store_key` / `identifier_domain` /
 `store_version`) is **reused from
 [`map_state_source`](#13a2-map_state_source--read-the-providers-own-map-segmentation)**
-— no duplicate schema. Roborock omits this block (its HA-core image render is
-already frame-matched); absence → the card's "VA-rendered map" backdrop source
-is hidden for that brand, and `supports_va_render` is `False`.
+— no duplicate schema. **Roborock declares it too** with `format:
+"roborock_raw_map_v1"** (re-decoding the raw segment layer to a room raster — the
+only other format besides Eufy's `eufy_room_pixels_v1`), so `supports_va_render`
+is **True** for the S6. A brand that genuinely omits the block → the card's
+"VA-rendered map" backdrop source is hidden and `supports_va_render` is `False`.
 
 ### Schema
 
@@ -1333,7 +1344,7 @@ module constants, so it can't drift from the primitives).
   absent → the Eufy fallback) and calls `engine.segment_legacy(...)`.
 
 > **No `ADAPTER_CONFIG_SCHEMA` entry yet.** `job_segmenter` (like
-> `live_transition` and `room_profiles`) has no entry in
+> `room_profiles`) has no entry in
 > `adapters/config_schema.py`; the schema walker iterates *schema* keys,
 > so extra blocks are simply ignored by it. Validation of this block lives
 > in `registry._validate_adapter` (engine required when the block is
@@ -1415,8 +1426,8 @@ Engine-owned thresholds (`eufy_anchor_winding_v1`):
   **pending wiring**; until they land, this block is validated and
   selectable but not yet read during a run.
 
-> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** Like `job_segmenter`,
-> `live_transition`, and `room_profiles`, `room_attribution` has no entry
+> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** Like `job_segmenter` and
+> `room_profiles`, `room_attribution` has no entry
 > in `adapters/config_schema.py` (the schema walker iterates schema keys,
 > so extra blocks are ignored). Validation lives in
 > `registry._validate_adapter`. Schema entries are a deferred follow-up.
@@ -1626,8 +1637,8 @@ from ...profiles.room_profiles import (
 > catalog. This is byte-identical for Eufy; a second brand's editor UI
 > would show framework defaults until threaded — a documented follow-up.
 
-> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** Like `job_segmenter` and
-> `live_transition`, `room_profiles` has no entry in
+> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** Like `job_segmenter`,
+> `room_profiles` has no entry in
 > `adapters/config_schema.py` (the schema walker iterates schema keys, so
 > extra blocks are ignored). `registry._validate_adapter` carries a light
 > validation rule: the block must be a dict, `default_profile` a string,
@@ -1888,9 +1899,11 @@ Physical water-tank dimensions per model, plus the optional flow-rate /
 margin tuning the estimator reads. The tank dimensions are **pure
 measurements — no logic**; the estimator reads them to convert
 tank-percent deltas into ml. The tuning keys (added so a non-Eufy dock
-can carry its own flow rates and warning margin) all **default to the
-Eufy-measured values** when absent, so an adapter that omits them
-behaves exactly as before.
+can carry its own flow rates and warning margin) fall back to **generic**
+framework values when absent — **not** the Eufy table (`water_rates` absent →
+a flat `4.0` ml/min; only `low_clean_water_margin_ml` truly defaults to the
+Eufy `300.0`). The Eufy adapter gets its measured rates by **declaring**
+`water_rates`, not by inheriting them.
 
 ### Schema
 
@@ -1901,7 +1914,7 @@ Top-level is `dict[model_code, TankConfig]`. Each `TankConfig`:
 | `robot_internal_tank_ml` | `float` | yes | Capacity of the robot's onboard water reservoir in ml. |
 | `dock_clean_tank_capacity_ml` | `float` | no | Capacity of the dock's clean-water tank in ml. Omit for models with no dock clean tank. |
 | `dock_wash_overhead_ml_per_cycle` | `float` | no | Measured water consumption per mop-wash cycle, in ml. Subtracted from total dock-water delta to isolate floor-mopping water. Omit for models with no dock wash cycle. |
-| `water_rates` | `dict[str, float]` | no | First-pass floor-application flow rate in **ml/min, keyed by canonical water level** (`off`/`low`/`medium`/`high`). Replaces the default table wholesale when declared. Absent → the Eufy-measured default `{off: 0.0, low: 3.2, medium: 4.0, high: 5.3}` (unknown levels fall back to `4.0`). Read by `planning/run_plan.py::_water_rate_ml_per_minute` as `rate_override`. |
+| `water_rates` | `dict[str, float]` | no | First-pass floor-application flow rate in **ml/min, keyed by canonical water level** (`off`/`low`/`medium`/`high`). Replaces the default table wholesale when declared. **Absent → `off: 0.0` and every other level → a flat `4.0`** (NOT the Eufy `3.2/4.0/5.3` — that applies only because Eufy declares `water_rates`, `water_config.py`). Read by `planning/run_plan.py::_water_rate_ml_per_minute` as `rate_override`. |
 | `low_clean_water_margin_ml` | `float` | no | Dock clean-tank remaining (ml) at/below which the run plan raises the "low clean water" margin warning. Default `300.0` (Eufy dock tuning). Read in `planning/run_plan.py` (`_build_effective_start_plan` water block). |
 
 The first three (tank dimensions) **must be measured on real hardware** —
@@ -1922,17 +1935,17 @@ Eufy defaults are the bootstrap fallback.
         "robot_internal_tank_ml": 80.0,
         "dock_clean_tank_capacity_ml": 3080.0,
         "dock_wash_overhead_ml_per_cycle": 120.0,
-        # Optional tuning — omit to inherit the Eufy defaults below:
+        # Eufy DECLARES water_rates (omitting it yields a flat 4.0, not these):
         "water_rates": {"off": 0.0, "low": 3.2, "medium": 4.0, "high": 5.3},
         "low_clean_water_margin_ml": 300.0,
     },
 },
 ```
 
-The shipping Eufy adapter (`adapters/eufy/water_config.py`) declares only
-the three tank measurements and **inherits both tuning defaults**, so its
-behavior is byte-identical; the two optional keys are shown here as the
-reference a brand port copies from.
+The shipping Eufy adapter (`adapters/eufy/water_config.py`) declares the three
+tank measurements **and `water_rates`** (its measured `0/3.2/4.0/5.3`), inheriting
+only `low_clean_water_margin_ml` (`300.0`). A brand that omits `water_rates` gets
+the flat `4.0` fallback, not Eufy's rates.
 
 **UI builder notes:** Three numeric inputs per model for the tank
 measurements. Show the user a methodology note: "These are physical
@@ -1952,15 +1965,17 @@ mid-clean mop-wash interval the run plan derives from the
 
 ### Schema
 
-| Field | Type | Default | Purpose |
-|-------|------|---------|---------|
-| `min` | `float` | `15.0` | Lower clamp on the wash interval, in minutes. |
-| `max` | `float` | `25.0` | Upper clamp on the wash interval, in minutes. |
-| `default` | `float` | `20.0` | Fallback interval used when the helper entity is missing, non-numeric, or ≤ 0. |
+| Field | Type | Framework fallback (absent) | Eufy declares | Purpose |
+|-------|------|---------|---------|---------|
+| `min` | `float` | **`1.0`** | `15.0` | Lower clamp on the wash interval, in minutes. |
+| `max` | `float` | **`1440.0`** | `25.0` | Upper clamp on the wash interval, in minutes. |
+| `default` | `float` | `20.0` | `20.0` | Fallback interval used when the helper entity is missing, non-numeric, or ≤ 0. |
 
-Defaults are the Eufy X10 firmware range. Read by
-`planning/run_plan.py::_derive_wash_frequency_config`; an absent block
-uses the Eufy values, so Eufy is unchanged.
+Read by `planning/run_plan.py::_derive_wash_frequency_config`. **An absent block
+does NOT inherit the Eufy 15/25** — it falls back to a **generic, effectively
+non-clamping** range (`min 1.0`, `max 1440.0`, `default 20.0`) so an undeclared
+brand is not forced into another brand's firmware limits. The `15.0`/`25.0` above
+are the values the Eufy adapter **declares** (its X10 firmware range).
 
 ### Example
 
