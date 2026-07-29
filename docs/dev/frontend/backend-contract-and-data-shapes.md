@@ -12,6 +12,8 @@ The **map render-DATA shapes** — the map segment geometry, `room_names`, and t
 
 All services live in the `eufy_vacuum` domain. Call them via `hass.callService(domain, service, data, target?, notifyOnError?, returnResponse?)`. Services marked **response** must be called with `returnResponse = true`; the result lives at `result.response`.
 
+> **`map_id` is usually optional even where a table lists it as required** — most services auto-resolve it to the active map (`resolved_call_data`), so passing it explicitly always works but omitting it is fine. The over-strict direction is safe. Separately, `debug_capture_*` / `debug_log_live_room` are internal diagnostics, **not** part of the client contract.
+
 #### State queries (read-only, response)
 
 | Service | Required fields | What it returns |
@@ -52,6 +54,7 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 | `save_managed_rooms` | `vacuum_entity_id` | Persists discovered rooms into integration storage |
 | `get_room_access_editor` | `vacuum_entity_id`, `map_id` | Returns room access graph for editing |
 | `get_access_graph_health` | `vacuum_entity_id`, `map_id` | Validates access graph integrity |
+| `reconcile_room` | `vacuum_entity_id`, `map_id`, `room_id` | Re-segment room-identity migration (native-segment brands, e.g. Roborock) |
 
 Room enabled/disabled state is stored in HA **switch entities** (one per room per map per vacuum). Toggle by calling `homeassistant.turn_on` / `homeassistant.turn_off` with the switch entity ID. Room ordering is stored in HA **number entities** (one per room per map per vacuum). Update by calling `number.set_value`.
 
@@ -115,6 +118,15 @@ monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-r
 | `rebuild_learning_stats` | `vacuum_entity_id` | |
 | `exclude_learning_job` | `vacuum_entity_id`, `job_id` | Optional: `reason`, `rebuild_csv` |
 | `restore_learning_job` | `vacuum_entity_id`, `job_id` | Optional: `rebuild_csv` |
+| `set_learning_processing` | `vacuum_entity_id`, `enabled` | Box-level toggle for automatic learning processing |
+| `process_pending_runs` | `vacuum_entity_id` | Process collected-but-unprocessed runs now |
+| `record_estimate_accuracy` | `vacuum_entity_id` | Records an estimate-vs-actual accuracy sample |
+| `retry_missed_rooms` | `vacuum_entity_id` | **response** `{started, reason}`. Starts a clean of the last run's missed rooms — the "retry" the `eufy_vacuum_run_incomplete` event offers |
+| `get_external_pending_runs` | `vacuum_entity_id` | **response.** Pending app-started (external) runs awaiting attribution review |
+| `confirm_external_run` | `vacuum_entity_id`, `pending_job_id` | **response.** Confirms an external run's room attribution → graduates it into the learned baselines |
+| `discard_external_run` | `vacuum_entity_id`, `pending_job_id` | **response.** Discards a pending external run |
+
+The external-run review flow (`get_external_pending_runs` / `confirm_external_run` / `discard_external_run` / `resegment_external_run`) is documented end-to-end in [28-external-run-ingestion](../28-external-run-ingestion.md).
 
 ##### Run-record attribution fields
 
@@ -125,6 +137,15 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 - `cleaning_area_m2` — the run's cleaned floor area in canonical m² (the card's **"Area Cleaned"**), shown on external runs (single and multi-room). External records fall back to summing per-room `room_timings[].area_m2` when no job-level sensor read exists.
 - `cleaning_area_sensor_m2` — the device's own run-total area (m²), the sanity **upper bound**.
 - `area_over_attributed` — bool; the per-room attributed sum exceeded `cleaning_area_sensor_m2` beyond tolerance (a double-counting alarm).
+
+#### Errors
+
+Both **response** services in the `eufy_vacuum` domain. Full error model: [23-error-tracker](../23-error-tracker.md); prefer the `binary_sensor.{object_id}_active_run_has_error` signal over parsing state strings.
+
+| Service | Required fields | Notes |
+|---|---|---|
+| `get_recent_errors` | `vacuum_entity_id` | **response.** The recent-error ring for the vacuum |
+| `acknowledge_error` | `vacuum_entity_id` | **response.** Clears the active-run error latch |
 
 #### Dock (base station)
 
@@ -138,6 +159,7 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `set_maintenance_interval` | `vacuum_entity_id`, `component` (`brush` \| `side_brush` \| `filter` \| `mop` \| `sensor`), `interval_hours` (> 0) |
 | `set_dock_event_count` | `vacuum_entity_id`, `event_type` (`last_mop_wash` \| `last_dust_empty` \| `last_dry_start`), `count` (int ≥ 0) |
 | `set_pause_timeout_settings` | `vacuum_entity_id`, `pause_timeout_minutes_default` |
+| `battery_rebaseline` | `vacuum_entity_id` — rebaselines the battery-health proxy (see [12-battery-system](../12-battery-system.md)) |
 
 #### Profiles (room and run)
 
@@ -157,6 +179,7 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `apply_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | Restores saved room selection and settings |
 | `rename_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id`, `name` | |
 | `delete_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | |
+| `set_run_profile_steps` | `vacuum_entity_id`, `map_id`, `profile_id`, `steps` | The run-profile step-editor primitive (rooms + charge/wait/zone stops in order) |
 | `start_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | **response.** Optional: `confirm_reduced_run`, `confirm_token`, `path_block_action` (`event_only` \| `pause_and_event` \| `cancel_and_event`), `pause_timeout_minutes_override`. Applies the profile, rebuilds the queue, and starts it through the protected start flow. Returns `{started, reason, message, confirm_token?, requires_confirmation?, profile_id, profile, applied_room_ids, missing_room_ids}` — same reduced-run confirmation handshake as `start_selected_rooms` (retry with `confirm_reduced_run: true` or the returned `confirm_token`) |
 
 #### Theme
@@ -177,6 +200,8 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 
 #### Setup
 
+All `setup_*` services are **response** services (returning an `ActionResult` `{status, code, message, warnings, data, next_actions}` where relevant). See [15-setup-system](../15-setup-system.md).
+
 | Service | Notes |
 |---|---|
 | `setup_get_status` | Returns vacuum list and map import state |
@@ -184,9 +209,11 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `setup_import_active_map` | `vacuum_entity_id` |
 | `setup_get_map_rooms` | `vacuum_entity_id`, `map_id` |
 | `setup_save_rooms` | `vacuum_entity_id`, `map_id`, `enabled_room_ids`, `floor_types` |
-| `setup_delete_map` | `vacuum_entity_id`, `map_id`; optional `confirmation_token` — required for any protected map. A **named** high-protection map needs a typed token matching the map's stored name (`requires_typed_confirmation`); an **unnamed** high-protection map and any elevated map need only a one-click confirm, any non-empty token (`requires_confirmation`). The card reads those two protection fields to choose the prompt. |
+| `setup_delete_map` | `vacuum_entity_id`, `map_id`; optional `confirmation_token` — required for any protected map. A **named** high-protection map needs a typed token matching the map's stored name (`requires_typed_confirmation`); an **unnamed** high-protection map and any elevated map need only a one-click confirm, any non-empty token (`requires_confirmation`). The card reads those two protection fields to choose the prompt. Returns an ActionResult `{status, code, message, warnings, data, next_actions}` — `status` ∈ `error` \| `already_done` \| `requires_confirmation` \| `blocked` \| `success`; `code` ∈ `typed_confirmation_required` \| `confirmation_mismatch` \| `confirmation_required` \| `map_deleted` \| `map_not_found`; the `requires_typed_confirmation`/`requires_confirmation` protection fields ride inside `data.protection`. |
 | `setup_set_panel_title` | `vacuum_entity_id`; optional `title` (blank reverts to the default). Renames the vacuum's sidebar panel and re-registers it live (refresh the browser to repaint the sidebar) |
 | `setup_set_map_camera` | `vacuum_entity_id`; optional `entity_id` (blank clears the override → falls back to the adapter's `live_map_image_entity_pattern`). Sets the per-vacuum live-map image/camera override the dashboard snapshot prefers over the pattern (see [Live-map backdrop read model](#live-map-backdrop-read-model)) |
+| `setup_reject_rooms` | `vacuum_entity_id`, `map_id`, `room_ids` — suppress phantom/rejected rooms from the discovered set |
+| `setup_force_remove_room` | `vacuum_entity_id`, `map_id`, `room_id` — force-remove a stuck room from the managed set |
 
 #### Mapping / map image
 
@@ -197,7 +224,7 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `analyze_map_image` | `vacuum_entity_id`, `map_id` | Runs the segmenter on the `dark`/`default` (and assist `light`) variants; caches `image_segments`. **response** |
 | `get_map_segments` | `vacuum_entity_id`, `map_id` | Returns the active segment set plus overlays. Response carries `segmentation_mode`; in `custom` mode it serves the **active layout's** `custom_segments` over its `custom_<layout_id>` backdrop. Also returns `custom_layouts` (list) + `active_custom_layout_id` + `segment_room_links` (see [Map segments read model](#map-segments-read-model-get_map_segments-response) / [Minimum viable polling loop](#minimum-viable-polling-loop)), plus the map's `saved_zones` list (see [Saved zones](#saved-zones-response)). **response** |
 | `set_segmentation_mode` | `vacuum_entity_id`, `map_id`, `mode` | `mode` ∈ {`cv`, `custom`}. **Flips a per-map flag only — never re-runs the segmenter.** Both the CV base (`image_segments`) and every custom layout persist; the toggle is a pointer flip, so `cv → custom → cv` is lossless. Flipping to `custom` with no active layout soft-selects the first existing layout. **response** |
-| `set_custom_segments` | `vacuum_entity_id`, `map_id`, `segments` | **Replace-all** write of manually-authored segments **into the active custom layout** (auto-creating a default layout if none exists). `segments = [{id?, primitives: [...]}]` (extra keys allowed). A primitive is `{type: rect\|circle\|polygon, op?: subtract, ...pct geom 0-100}`. Each segment is rasterised server-side (`segment_primitives.rasterize_primitives` → `mask_to_polygon`, the same tracer CV uses) into one polygon, scaled to the active layout's backdrop pixel dims. Requires that backdrop (returns `{saved: false, reason: "no_custom_backdrop"}` without it). Degenerate segments are dropped. **response** |
+| `set_custom_segments` | `vacuum_entity_id`, `map_id`, `segments` | **Replace-all** write of manually-authored segments **into the active custom layout** (auto-creating a default layout if none exists). `segments = [{id?, primitives: [...]}]` (extra keys allowed). A primitive is `{type: rect\|circle\|polygon, op?: add\|subtract, ...pct geom 0-100}`. Optional `backdrop_width`/`backdrop_height` set the pixel space when authoring over a live-image-backed layout (no uploaded backdrop). Each segment is rasterised server-side (`segment_primitives.rasterize_primitives` → `mask_to_polygon`, the same tracer CV uses) into one polygon, scaled to the active layout's backdrop pixel dims. Requires that backdrop (returns `{saved: false, reason: "no_custom_backdrop"}` without it). Degenerate segments are dropped. **response** |
 | `create_custom_layout` | `vacuum_entity_id`, `map_id` | Optional: `name` (default `Custom`). Mints + **activates** a new named layout (its own `custom_<layout_id>` backdrop, segments, room links, mascot anchors) and flips the map into `custom` mode. Returns `{saved, layout_id, layout}`. **response** |
 | `rename_custom_layout` | `vacuum_entity_id`, `map_id`, `layout_id`, `name` | Renames an existing layout. Returns `{saved: false, reason: "layout_not_found"}` for an unknown id, or `missing_name` for a blank name. **response** |
 | `delete_custom_layout` | `vacuum_entity_id`, `map_id`, `layout_id` | Deletes the layout and best-effort removes its backdrop file/variant. If it was active, the next remaining layout (by name) is activated — or the map flips back to `cv` when none remain. Returns the resulting `active_custom_layout_id` + `segmentation_mode`. **response** |
@@ -212,6 +239,10 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `get_map_render_data` | `vacuum_entity_id` | Returns the raw room raster + decode params the card uses to draw its own backdrop (no server-side rendering); adapter-driven, cached by the returned version. Brands without a `map_render` config return `{present: false}`. **response** |
 | `get_map_live_pose` | `vacuum_entity_id` | Returns the live moving-overlay pose (robot + dock anchors, current room, heading) from the provider's in-memory coordinator — fresher than the `.storage`-derived pose. Polled on the live cadence. Brands without a `live_pose` config return `{present: false}`. **response** |
 | `compare_map_sources` | `vacuum_entity_id` | Diagnostic verify probe: compares the provider's in-memory map data against the `.storage` copy and reports whether raster + geometry are byte-identical (`normalization_safe`). **response** |
+| `acknowledge_map_frame` | `vacuum_entity_id` | Re-enables map drawing after a map switch (clears the post-switch coordinate-frame gate). **response** |
+| `set_furnished_art_placement` | `vacuum_entity_id`, `map_id` | Furnished digital-twin art placement — see [furnished-render](furnished-render.md). **response** |
+| `set_furnished_render_mode` | `vacuum_entity_id`, `map_id` | Toggle furnished-render mode for a custom layout. **response** |
+| `set_room_viewport` | `vacuum_entity_id`, `map_id`, `room_id` | Per-room viewport for the furnished render. **response** |
 
 #### Live-map backdrop read model
 
