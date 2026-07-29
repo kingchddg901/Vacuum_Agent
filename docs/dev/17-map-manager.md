@@ -81,11 +81,14 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
         },
     },
     "image_variants": {             # uploaded backdrop images, keyed by variant name.
-                                    #   Variant ∈ {default, dark, light, custom}. dark/
+                                    #   Fixed variants ∈ {default, dark, light, custom}; dark/
                                     #   light/default feed the segmenter; "custom" is the
                                     #   no-CV authoring backdrop and is never segmented —
                                     #   its width/height are the px space set_custom_segments
-                                    #   rasterises against.
+                                    #   rasterises against. Per-layout backdrops (custom_<id>)
+                                    #   and furnished-art keys (custom_<id>_home_art,
+                                    #   custom_<id>_room_<rid>) ALSO live here — see
+                                    #   11-mapping-system §6.
         "<variant>": {
             "variant":     str,     # echoes the key
             "path":        str,     # on-disk PNG path
@@ -138,10 +141,18 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
                                     #   time via resolve_overlay_visibility; reset:true
                                     #   clears it. Written by
                                     #   _handle_set_map_overlay_visibility.
+
+    # --- co-resident keys owned by OTHER subsystems (not mapping_services) ---
+    "queue_breaks": list,           # ordered queue-break markers for the run in progress;
+                                    #   written by the queue engine (core/manager.py), cleared
+                                    #   at run end. See 07-queue-engine. NOT map-manager owned.
+    "learned_zones": dict,          # per-map learned saved-zone store, persisted with the map;
+                                    #   written by learning (learning/manager.py, zone_learning).
+                                    #   See 10-learning-system. NOT map-manager owned.
 }
 ```
 
-Metadata keys are written by `save_map_discovery_snapshot()` (`last_discovery`, `discovered_rooms`) and `rebuild_map_bucket()` (`last_rebuild`). There is no `display_name` or `discovered_at` field.
+Metadata keys are written by `save_map_discovery_snapshot()` (`last_discovery`, `discovered_rooms`) and `rebuild_map_bucket()` (`last_rebuild`). `rooms/room_crud.py::reconcile_room` additionally writes two ISO-timestamp `metadata` keys — `reconciled_at` and `reconciliation_dismissed_at` — which `map_manager.py` never touches. There is no `display_name` or `discovered_at` field.
 
 > The image/UI-state keys are documented in full in [11-mapping-system](11-mapping-system.md); their derived read-time fields (`polygon_pct`, injected `room_id`, applied `adjustments`) are computed by `mapping/mapping_services.py::_handle_get_map_segments`, not stored.
 
@@ -246,9 +257,49 @@ Returns a **summary dict** (not the bucket):
 }
 ```
 
-When `preserve_existing_settings=True` (default), user settings (fan speed, clean mode, floor type, etc.) are preserved for rooms that still exist in the discovery list. New rooms get safe defaults. `floor_type` encodes carpet pile height in the value itself (e.g. `"carpet_low_pile"`); there is no separate `carpet_type` field.
+When `preserve_existing_settings=True` (default), user settings (fan speed, clean mode, floor type, etc.) are preserved for rooms that still exist in the discovery list. New rooms get safe defaults. When `preserve_existing_settings=False`, `previous` is forced to `{}` for **every** room, so all rooms take the defaults below — used for full reset flows.
 
-When `preserve_existing_settings=False`, all rooms are re-initialized with defaults — used for full reset flows.
+**Input contract (`discovered_rooms`).** Each element **must** carry `room_id` and `name`: `int(room["room_id"])` and `str(room["name"])` raise `KeyError` if absent (and `ValueError` if `room_id` is not int-coercible — `"3"` → `3` is fine). `slug` is optional (`room.get("slug")` → `None`). The element's own `map_id`, if any, is **ignored** — the function stamps the `map_id` **parameter** onto every room. (The caller `rooms/room_crud.py::rebuild_map` pre-filters `discovered_rooms` to the target map, so `rebuild_map_bucket` itself does not.)
+
+**Rebuilt room-record schema** (the exact per-room dict written to `bucket["rooms"][<room_id_str>]`, `map_manager.py:140-172`). This is `map_manager.py`'s own writer; the canonical save-path record (`build_managed_rooms`) and the load-time backfill diverge from it — see [08-rooms-system](08-rooms-system.md) §6 for the full three-writers reconciliation.
+
+| Field | Type | Default (when `previous` empty) | Notes |
+|---|---|---|---|
+| `room_id` | `int` | — (required) | `int(room["room_id"])` from discovery |
+| `map_id` | `str` | `str(map_id)` | the **parameter**, never the element's own |
+| `name` | `str` | — (required) | `str(room["name"])` |
+| `slug` | `str \| None` | `None` | `room.get("slug")` (discovery, optional) |
+| `enabled` | `bool` | `True` | |
+| `order` | `int` | `index` | 1-based `enumerate` position |
+| `profile_name` | `str` | `"vacuum_quick"` | |
+| `floor_type` | `str` | `"hardwood"` | carpet pile encoded in the value (e.g. `"carpet_low_pile"`); **no** separate `carpet_type` field |
+| `clean_mode` | `str` | `"vacuum"` | |
+| `fan_speed` | `str` | `"Max"` | |
+| `water_level` | `str` | `"Off"` | |
+| `clean_intensity` | `str` | `"Quick"` | |
+| `clean_passes` | `int` | `1` | |
+| `edge_mopping` | `bool` | `False` | |
+| `path_type` | `Any \| None` | `None` | `previous.get("path_type")` — **no coercion** |
+| `is_dock_room` | `bool` | `False` | |
+| `is_transition` | `bool` | `False` | **Not** a `RoomConfig` field — the save-path record omits it until a reload backfills it (08 §6, CS-3) |
+| `is_configured` | `bool` | `True` | setup-approval flag; **gates HA entity creation** (`entity_helpers.py` `sort_room_items(..., configured_only=True)`) and the drift-tracker "removed" signal. Defaults `True` because a saved map-bucket room is an approved room — this carry-forward is the BUG-A fix (08 §6). |
+| `configured_at` | `str \| None` | `None` | `previous.get("configured_at")`; new rooms stay `None` even when `is_configured` is `True` (the save-path stamps `_iso_now()` instead — CS-4) |
+| `color` | `str \| None` | `None` | per-room map-fill override, preserved across rebuild |
+| `grants_access_to` | `list` | `[]` | list-guarded (`list(previous.get(...))` iff already a list, else `[]`) |
+| `rules` | `list` | `[]` | list-guarded, same pattern |
+
+**Bucket summary shape** (written to `bucket["summary"]`, and echoed in the return's `summary`):
+
+```python
+{
+    "enabled_count":  int,
+    "disabled_count": int,
+    "enabled_rooms":  [ {room_id: int, name, slug, order}, ... ],   # sorted by (int(order), str(name))
+    "disabled_rooms": [ {room_id: int, name, slug, order}, ... ],   # sorted by str(name)
+}
+```
+
+> **BUG-B (open, doc-critical divergence).** `rebuild_map_bucket` is the **only** summary writer that emits the **reduced 4-key** per-room entry above. Every other writer — save (`room_crud.py`), reconcile, queue-drain (`core/manager.py`), profiles apply, room entities — uses the canonical **9-key** builder `build_room_selection_summary` (`rooms/room_manager.py:99-131`), whose entry is `{room_id, name, slug, order, profile_name, floor_type, clean_passes, edge_mopping, carpet}` where `carpet = str(floor_type).startswith("carpet")`. So a map whose summary was **last written by a rebuild** silently loses `profile_name`/`floor_type`/`clean_passes`/`edge_mopping`/`carpet` for any card or service reading the summary, until a non-rebuild write repopulates it. The top-level keys and sort orders are identical between the two writers; only the per-entry field set differs. Fix candidate: have `rebuild_map_bucket` call `build_room_selection_summary(managed_rooms=rebuilt_rooms)` instead of its inline reducer, unifying all writers.
 
 ### 3.5 `get_vacuum_maps_summary`
 
@@ -270,8 +321,8 @@ Returns a **dict** wrapping a list of per-map summaries (maps sorted by `str(map
         {
             "map_id":              str,
             "room_count":          int,
-            "enabled_room_count":  int,   # from summary.enabled_count
-            "disabled_room_count": int,   # from summary.disabled_count
+            "enabled_room_count":  int,   # int(summary.get("enabled_count", 0))
+            "disabled_room_count": int,   # int(summary.get("disabled_count", 0))
             "last_discovery":      dict,  # from metadata.last_discovery
         },
         ...
@@ -294,7 +345,7 @@ There is no `display_name` field. Maps with empty `rooms` dicts are **not** excl
 | `data["maps"][vacuum_entity_id][str(map_id)]["metadata"]` | dict | Discovery snapshot + display metadata |
 | `data["maps"][vacuum_entity_id][str(map_id)]["summary"]` | dict | Last written summary snapshot |
 
-The following keys live in the same bucket but are written by `mapping/mapping_services.py`, **not** by `map_manager.py` (none are created by `ensure_map_bucket()` — see §3.1):
+The following keys live in the same bucket but are written by **other subsystems** (primarily `mapping/mapping_services.py`), **not** by `map_manager.py` (none are created by `ensure_map_bucket()` — see §3.1):
 
 | Path | Type | Description |
 |---|---|---|
@@ -312,6 +363,8 @@ The following keys live in the same bucket but are written by `mapping/mapping_s
 | `…[str(map_id)]["area_label_anchors"]` | dict | `{room_id: {pct_x, pct_y}}` dragged m² label positions (0-100 % of the map content box); null both to reset to room centre. Written by `_handle_set_area_label_anchor` |
 | `…[str(map_id)]["live_map_rotation"]` | int | Display-only live-map rotation ∈ `{0, 90, 180, 270}`; never affects cleaning/dispatch. Written by `_handle_set_live_map_rotation` |
 | `…[str(map_id)]["overlay_visibility"]` | dict | `{layer: bool}` partial delta map storing only user overrides (merged over defaults at read time via `resolve_overlay_visibility`; `reset:true` clears it). Written by `_handle_set_map_overlay_visibility` |
+| `…[str(map_id)]["queue_breaks"]` | list | Ordered queue-break markers for the run in progress; written by the queue engine (`core/manager.py`), cleared at run end. Owned by [07-queue-engine](07-queue-engine.md) |
+| `…[str(map_id)]["learned_zones"]` | dict | Per-map learned saved-zone store, persisted with the map; written by `learning/manager.py` (`zone_learning`). Owned by [10-learning-system](10-learning-system.md) |
 
 ---
 
@@ -320,10 +373,13 @@ The following keys live in the same bucket but are written by `mapping/mapping_s
 | Caller | Function | When |
 |---|---|---|
 | `rooms/room_crud.py` | `ensure_map_bucket()`, `rebuild_map_bucket()` | `save_managed_rooms()`, `rebuild_map()` |
-| `rooms/room_crud.py` | `get_map_bucket()`, `get_vacuum_maps_summary()` | `get_managed_rooms()`, `get_managed_maps_summary()` |
-| `core/manager.py` | `get_map_bucket()` | queue and room-clean payload builds |
+| `rooms/room_crud.py` | `get_map_bucket()`, `get_vacuum_maps_summary()` | `get_managed_rooms()`, `get_vacuum_maps()` |
+| `core/manager.py` | `get_map_bucket()`, **`ensure_map_bucket()`** (≈8 sites) | queue and room-clean payload builds; the queue-drain path also **mutates `rooms` and rewrites the 9-key `summary`** via `build_room_selection_summary` |
+| `learning/manager.py` | `ensure_map_bucket()` | writes the per-map `learned_zones` store |
 | `rooms/access_graph.py`, `profiles/manager.py` | `get_map_bucket()`, `ensure_map_bucket()` | automation-metadata reads, room/run-profile reads |
 | `setup/delete.py` | reads `data["maps"]` directly | map-delete protection evaluation |
+
+> The public read method is **`get_vacuum_maps()`** (`rooms/room_crud.py`, delegated by `core/manager.py`), which wraps `get_vacuum_maps_summary()`. There is no `get_managed_maps_summary()`.
 
 > `save_map_discovery_snapshot()` has no current caller — it writes the `last_discovery` / `discovered_rooms` metadata keys (see §3.3) but the live discovery path (`rooms/room_crud.py::discover_rooms()`) caches into `data["discovery"]` directly instead.
 
