@@ -32,11 +32,18 @@ function esc(s) {
 /**
  * Compact (≤2-char) badge for the header globe button.
  *
- * A locale whose primary subtag alone is ambiguous — `zh-Hans` and `zh-Hant`
- * both reduce to "ZH" — gets its native one-glyph distinguisher (简 = Simplified,
- * 繁 = Traditional), exactly how the two scripts are marked in Chinese and
- * mirroring the dropdown's native endonyms (简体中文 / 繁體中文). Every other locale
- * keeps its uppercased primary subtag (EN, DE, RU, AR, JA, ES, …).
+ * Most locales just show their uppercased primary subtag (EN, DE, RU, AR, JA, ES, …) —
+ * it reads at a glance and is unambiguous. Add a `_BADGE_OVERRIDES` entry ONLY when two
+ * variants collapse to the same primary subtag AND the difference is otherwise hard to
+ * SEE. The badge is the only at-a-glance signal of which variant is active — the
+ * dropdown's full endonym only helps once it's open — so it has to carry a distinction
+ * the rendered content doesn't already make obvious:
+ *   - `zh-Hans` vs `zh-Hant` both reduce to "ZH", and Simplified vs Traditional look alike
+ *     to a non-reader → worth an override. Native one-glyph markers: 简 = Simplified,
+ *     繁 = Traditional (matching the dropdown's 简体中文 / 繁體中文).
+ *   - A split across visibly-different scripts (e.g. Cyrillic vs Latin) needs NO override —
+ *     the rendered text disambiguates itself, so the plain code is fine.
+ * i.e. distinguish when the variants look alike but the choice matters; otherwise fall through.
  */
 const _BADGE_OVERRIDES = { "zh-hans": "简", "zh-hant": "繁" };
 function languageBadge(code) {
