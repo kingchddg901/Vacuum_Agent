@@ -199,6 +199,8 @@ polygon_pct = [
 
 This converts each vertex to percentage of image dimensions [0–100]. The card uses `polygon_pct` so overlays scale correctly regardless of the image's display size.
 
+The divisor is deliberately the **segment store's own** `image.width`/`image.height` (the pixel canvas the polygons were rasterised against — `store_img`), **preferred over** the backdrop variant's recorded dims. Fallback order: `store_img` → the active `backdrop_variant`'s `image_variants` record → `dark` → `default` → `light` → `1`. This matters for a **live-image-backed** custom layout, which has *no* uploaded `image_variant`: using the variant dims would leave the divisor at `1` and inflate every vertex ~image-width-fold (polygons land far off-screen). For CV + uploaded-custom the two dims are equal, so the preference is a no-op.
+
 ### 2.11 `image_runtime_capabilities`
 
 `image_runtime_capabilities()` (in `mapping/segment_primitives.py`) probes whether each optional library is importable and returns a dict:
@@ -214,6 +216,84 @@ This converts each vertex to percentage of image dimensions [0–100]. The card 
 ```
 
 The pipeline depends only on Pillow + NumPy + SciPy; `pipeline_ready` is the single readiness gate. There is no OpenCV or scikit-image dependency.
+
+### 2.12 Per-Segment Output Schema & Stored Envelope
+
+The §2.5 metrics are *internal*. What the pipeline actually **serializes** for each kept component is the dict below (built in `adapters/eufy/segmentor.py`). A rebuild must reproduce these exact field names, types, and **rounding** — the card, room-linking, adjustments, and dispatch all read this shape.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `segment_id` | `str` | `"segment_{N}"`, N a **1-based** running index. **Not** `id`. |
+| `cluster_index` | `int` | Source hue-bin index (§2.4). |
+| `bbox` | `{x, y, width, height}` | Int pixels. |
+| `area_pixels` | `int` | |
+| `area_percent` | `float` | **`area_pixels / (width × height)` — a 0–1 fraction, rounded to 4 dp.** Not 0–100. |
+| `polygon_pixel` | `[[x, y], …]` | Int pixel vertices (§2.7). |
+| `point_count_raw` | `int` | Vertices before RDP. |
+| `point_count_simplified` | `int` | Vertices after RDP. |
+| `center_pixel` | `[cx, cy]` | Float, **2 dp** (bbox centre). |
+| `fill_ratio` | `float` | 4 dp. |
+| `quality` | `str` | `strong` \| `good` \| `usable` \| `poor` (§2.8). |
+| `confidence` | `float` | `[0.05, 0.99]`; **rounded to 4 dp before the clamp** (§2.8). |
+| `issues` | `list[str]` | e.g. `tiny_region`, `touches_border`, `possible_merge`, `oversized_region`, `fragmented_candidate`, `too_complex` (set when `point_count_simplified > 18`), `recovered_count_deficit`. |
+| `suggested_color_bgr` | `[b, g, r]` | Int, **BGR** order. |
+| `mean_saturation` | `float` | 2 dp. |
+| `mean_value` | `float` | 2 dp. |
+| `compactness` | `float` | 4 dp. |
+| `aspect_ratio` | `float` | 4 dp. |
+| `variant_agreement` | `float` | 4 dp. **Serialized name** for the §2.5 `agreement_score`. |
+| `variant_support` | `str` | `both` iff `variant_agreement >= 0.55`, else `primary_only`. |
+| `structural_role` | `str` | `hub` \| `connector` \| `spine` \| `room` \| `uncertain`. First match, in order: `hub` (`area_percent >= 0.09 and fill_ratio >= 0.62`), `connector` (`aspect_ratio >= 2.4 and fill_ratio >= 0.34`), `spine` (`aspect_ratio >= 1.7 and fill_ratio >= 0.3`), `room` (`fill_ratio >= 0.58`), else `uncertain`. |
+| `segmentation_state` | `str` | `clean` \| `merged_candidate` \| `fragmented_candidate` \| `review`. First match, in order: `merged_candidate` (`possible_merge` in issues), `fragmented_candidate` (`fragmented_candidate` in issues **or** `compactness < 0.08`), `clean` (`fill_ratio >= 0.58 and "tiny_region" not in issues`), else `review`. |
+| `local_split_suspicion` | `bool` | Whether the parent component was a suspicious merge (§2.6). |
+| `edit_readiness` | `str` | `ready` iff `confidence >= 0.78 and point_count_simplified <= 18`, else `review`. |
+| `matched_room_id` | `None` | Reserved (vendor room id); always `None` from CV. |
+| `matched_room_label` | `None` | Reserved; always `None` from CV. |
+
+Internal-only keys (`_split_method`, `_keep_reasons`, `_drop_reasons`, `_global_mask`) are **popped before serialization** and never persisted. `polygon_pct`, the enriched `room_id`, and the manual-adjustment fields are added **at read time** by `_handle_get_map_segments` (§2.10, §5), not stored on the cached segment.
+
+**Stored `image_segments` envelope.** `detect_room_segments` returns a raw pipeline dict, but that is **not** what lands in the map bucket. The engine seam `EufyCVSegmenter.segment_map_image` runs the detector and then `_reshape`s it (`mapping/segmenter_engines.py`) into the universal `SegmentationResult`, **hoisting** the CV-only `segmentation` + `runtime` blocks under `engine_diagnostics` and reducing `summary` to three keys; `_handle_analyze_map_image` then stamps `analyzed_at`. The persisted shape:
+
+```json
+{
+  "available": true,
+  "reason": "ready",
+  "message": "…",
+  "engine": "eufy_cv_v1",
+  "image": {"width": 0, "height": 0},
+  "segments": [ /* the per-segment dicts above */ ],
+  "summary": {
+    "segment_count": 0,
+    "quality_counts": {"strong": 0, "good": 0, "usable": 0, "poor": 0},
+    "good_or_better_count": 0
+  },
+  "engine_diagnostics": {
+    "segmentation": { /* expected/cluster counts, per-stage diag */ },
+    "runtime": { /* image_runtime_capabilities() */ }
+  },
+  "analyzed_at": "2026-01-01T00:00:00+00:00"
+}
+```
+
+The raw detector's top-level `segmentation` and `runtime` are **not** at the top level of the stored dict — they live under `engine_diagnostics`; `engine` and `analyzed_at` are additions absent from the raw output.
+
+**Detector signature (keyword-only).** Every argument is keyword-only (leading `*`):
+
+```python
+detect_room_segments(
+    *,
+    image_path: str,
+    expected_room_count: int | None = None,
+    max_segments: int | None = None,
+    min_area_pixels: int = 1200,
+    simplify_epsilon: float | None = None,
+    assist_image_path: str | None = None,
+    image_variant: str | None = None,
+    assist_variant: str | None = None,
+) -> dict[str, Any]
+```
+
+The engine wrapper `EufyCVSegmenter.segment_map_image(*, image_path, tuning, context) -> SegmentationResult` is the registered seam (`mapping/segmenter_engines.py`); it maps its `tuning` dict (known keys in `_KNOWN_TUNING_KEYS`) onto those detector kwargs, calls the detector, then `_reshape`s the result.
 
 ---
 
@@ -379,6 +459,13 @@ This allows the left, right, top, or bottom edges of the polygon to be pushed in
 
 All three layers are additive and always applied together. There is no matrix composition — the output is a list of `[int, int]` pixel points.
 
+**Beyond the polygon, two derived fields are rewritten** so downstream consumers stay consistent with the adjusted shape:
+
+- `bbox` is **recomputed** from the adjusted `polygon_pixel` (`_bbox_from_polygon_pixel`), not translated.
+- `center_pixel` is shifted by the **whole-shape `(offset_x, offset_y)` only** (Layer 1), rounded to 2 dp — it does *not* pick up the per-edge or per-vertex deltas.
+
+**Scope caveat (latent).** `image_segment_adjustments` lives at the **map-bucket** level and is only ever *written* against CV `image_segments` (the `adjust_map_segment` handler reads `image_segments`). But `get_map_segments` applies it to whatever the **active scope** serves (`raw_segments` from `_resolve_active_scope`), keyed by `segment_id`. In `custom` mode a custom segment that happens to share a `segment_id` with a CV adjustment record would therefore inherit that CV-authored transform — a cross-scope collision that is latent today only because custom ids (`custom_<N>`) don't overlap CV ids (`segment_{N}`).
+
 ### 5.3 Cumulative Adjustment Accumulation
 
 The `adjust_map_segment` service call *accumulates* adjustments, it does not replace them:
@@ -434,7 +521,7 @@ Images are written to a single location under the vacuum's map directory, which 
 - **On disk:** `<config_dir>/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
 - **Browser URL:** `/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
 
-The `_<variant>` suffix is omitted when `variant == "primary"` or `variant == "default"`. For dark: `map_6_dark.png`. For light: `map_6_light.png`. For default/primary: `map_6.png`.
+The `_<variant>` suffix is omitted **only** when `variant == "default"`. For dark: `map_6_dark.png`. For light: `map_6_light.png`. For default: `map_6.png`. (`"primary"` is a variant *role*, not a stored variant key — the path builder tests the key `"default"` alone; there is no `"primary"` key to match.)
 
 Image metadata (width, height, path, browser_url) is recorded in the map bucket's `image_variants` dict, and the `image_segment_adjustments` / `image_segments` results in the same bucket. That bucket is a runtime HA `.storage` structure (`data["maps"][<vacuum>][<map_id>]`), not a filesystem JSON file — see §8.1.
 
@@ -482,7 +569,7 @@ The same bucket also carries the CV/Custom toggle state, the named custom-layout
 - `image_segments` — the CV base `SegmentationResult` cache (engine-derived). Special at the map-bucket level — there is exactly one.
 - `custom_layouts` — `{layout_id: layout}` dict of named custom layouts. Each layout is `{id, name, backdrop_variant, backdrop_source, custom_segments, segment_room_links, companion_anchors, render_mode, home_art, rooms, created_at, updated_at}` — its own backdrop, authored segments, room links, companion anchors, and (on a live-map layout) the furnished-render state `render_mode`/`home_art`/`rooms` (see §10.1 and the [data model](03-data-model.md)).
 - `active_custom_layout_id` — id of the layout served in `custom` mode (or `null`).
-- `custom_segments` — **legacy** single user-authored store, in the same `SegmentationResult` shape as `image_segments`. Migrated lazily and non-destructively into a `"Custom"` layout under `custom_layouts` (§10.2); kept, never deleted.
+- `custom_segments` — **legacy** single user-authored store, a `SegmentationResult`-compatible but **reduced** envelope (§10.4). Migrated lazily and non-destructively into a `"Custom"` layout under `custom_layouts` (§10.2); kept, never deleted.
 - `segment_room_links` — `{segment_id: room_id}` user-assigned 1:1 segment→room mapping. At the map-bucket level this is **CV's** link store; each custom layout owns its own `segment_room_links`.
 - `companion_anchors` — `{room_id | "dock": {pct_x, pct_y}}` anchor positions (0–100% of image, from top-left) for the animated companion sprite, including the reserved `"dock"` mascot spot (not a room). At the map-bucket level this is **CV's** anchor store; each custom layout owns its own `companion_anchors`.
 
@@ -541,7 +628,7 @@ The following components have no Eufy-specific dependencies and would port direc
 
 ## 10. Custom Segments, Named Layouts & the CV/Custom Toggle
 
-The image segment pipeline (§2) is a CV pipeline: it derives room polygons from pixel data. For maps where that derivation is unreliable — or where the user would rather author rooms from primitive shapes than tune the segmenter — the system offers a parallel **custom** path. CV and custom segments coexist on the same map, both wearing the identical segment shape so room-linking, adjustments, and dispatch treat them uniformly.
+The image segment pipeline (§2) is a CV pipeline: it derives room polygons from pixel data. For maps where that derivation is unreliable — or where the user would rather author rooms from primitive shapes than tune the segmenter — the system offers a parallel **custom** path. CV and custom segments coexist on the same map, wearing a **compatible** segment shape — the keys room-linking, adjustments, and dispatch rely on (`segment_id`, `polygon_pixel`, `bbox`, `center_pixel`, `structural_role`, `segmentation_state`, `edit_readiness`, `matched_room_*`) — so those consumers treat them uniformly. It is **not** byte-identical to the CV dict: custom segments are a **reduced** variant (`_build_custom_segment`, §10.4) that omits ~10 CV-only metric fields and uses coarser units for two shared ones. Don't rebuild the custom writer by copying §2.12.
 
 The custom side is no longer a single store. A map now holds a **named collection of custom layouts** — e.g. a "solar system" image and a "tree" image, each its own backdrop, authored segments, room links, and mascot anchors. `segmentation_mode` still chooses CV vs custom; in custom mode the **active layout** is served. CV stays special at the map-bucket level (one `image_segments` cache plus the map-bucket `segment_room_links`/`companion_anchors`); custom layouts sit *alongside* CV, never as "layout 0".
 
@@ -553,7 +640,7 @@ Each map bucket holds:
 - `custom_layouts` — `{layout_id: layout}`, a dict of **named custom layouts**. Each layout owns *everything* per-layout:
   - `id`, `name`, `created_at`, `updated_at`
   - `backdrop_variant` — its own backdrop image key (`custom_<layout_id>`, or `custom` for a migrated layout)
-  - `custom_segments` — the user-authored set for *this* layout (same `SegmentationResult` shape as `image_segments`)
+  - `custom_segments` — the user-authored set for *this* layout (a `SegmentationResult`-**compatible** envelope; **reduced** vs `image_segments` — §10.4)
   - `segment_room_links` — `{segment_id: room_id}` for *this* layout. Because links are per-layout, two layouts can each have a segment id `living` linked to **different** rooms — impossible under the old single-store model.
   - `companion_anchors` — `{room_id | "dock": {pct_x, pct_y}}` for *this* layout, including the reserved `"dock"` mascot spot.
 - `active_custom_layout_id` — the layout served in custom mode (or `null`).
@@ -615,7 +702,43 @@ Server-side, each segment's primitive list is rasterised by `segment_primitives.
 
 A **live-image-backed layout has no uploaded backdrop**, so the card sends the optional `backdrop_width` / `backdrop_height` (coerced to `int` via `SET_CUSTOM_SEGMENTS_SCHEMA`) as the rasterise canvas — the rendered live image's natural pixel size; when they are used the handler sets that layout's image variant to `"live"`. The `no_custom_backdrop` refusal (`{"saved": false, "reason": "no_custom_backdrop"}`) is returned only when **neither** an uploaded backdrop variant with known dimensions **nor** the sent `backdrop_width`/`backdrop_height` are available.
 
-Degenerate results (nothing drawn, or no traceable boundary) are **dropped** and counted in the response's `skipped` field. Each surviving polygon is wrapped by `_build_custom_segment` into the CV segment shape (`source: "custom"`, `quality: "custom"`, `confidence: 1.0`, `structural_role: "room"`, etc.).
+Degenerate results (nothing drawn, or no traceable boundary) are **dropped** and counted in the response's `skipped` field. Each surviving polygon is wrapped by `_build_custom_segment` into a **reduced, custom-flavoured** segment dict — CV-compatible on the keys consumers need, but *not* the full §2.12 shape:
+
+```python
+{
+  "segment_id", "source": "custom", "polygon_pixel",
+  "bbox": {x, y, width, height},
+  "area_pixels": int,
+  "area_percent": round(area / (map_w*map_h) * 100, 2),   # 0–100, 2 dp
+  "center_pixel": [round(cx, 1), round(cy, 1)],            # 1 dp
+  "point_count_raw", "point_count_simplified",
+  "confidence": 1.0, "quality": "custom",
+  "structural_role": "room", "segmentation_state": "custom",
+  "edit_readiness": "ready",
+  "matched_room_id": None, "matched_room_label": None,
+  "issues": [],
+}
+```
+
+Two collapse-zone divergences from CV (§2.12) that a rebuild **must not** paper over:
+
+- **`area_percent` is `0–100` rounded to 2 dp** here, versus CV's `0–1` fraction at 4 dp; **`center_pixel` is 1 dp** versus CV's 2 dp. Same key names, different scale/precision.
+- It **omits** the CV-only metric fields entirely: `cluster_index`, `fill_ratio`, `mean_saturation`, `mean_value`, `compactness`, `aspect_ratio`, `variant_agreement`, `variant_support`, `local_split_suspicion`, `suggested_color_bgr`. It **adds** `source: "custom"` (CV has no `source`), and uses the sentinel values `quality:"custom"` / `segmentation_state:"custom"` (outside the CV value sets).
+
+The built segments are stored under the active layout's `custom_segments` in a **reduced** `SegmentationResult` envelope — not the §2.12 `image_segments` envelope:
+
+```json
+{
+  "available": true,
+  "engine": "custom",
+  "analyzed_at": "2026-01-01T00:00:00+00:00",
+  "image": {"width": 0, "height": 0, "variant": "custom"},
+  "segments": [ /* the reduced custom-segment dicts above */ ],
+  "summary": {"segment_count": 0}
+}
+```
+
+It **drops** `reason`, `message`, and `engine_diagnostics`; its `summary` is `segment_count`-only (no `quality_counts` / `good_or_better_count`); and it **adds** `image.variant` (the rasterise-canvas variant, `"live"` for a live-image-backed layout — §10.3), which the CV `image` block does not carry. `engine` is the literal `"custom"`, not an engine name.
 
 Modelling guidance:
 
@@ -653,7 +776,7 @@ The custom path adds these keys to the per-map `.storage` bucket (alongside `ima
 | `segmentation_mode` | `"cv"` \| `"custom"` (default `"cv"`) | Selects CV vs custom; in `custom` mode `get_map_segments` serves the active layout |
 | `custom_layouts` | `{layout_id: {id, name, backdrop_variant, custom_segments, segment_room_links, companion_anchors, created_at, updated_at}}` | The named custom-layout collection (each layout owns its own backdrop, segments, links, anchors) |
 | `active_custom_layout_id` | `str \| null` | Id of the layout served in `custom` mode |
-| `custom_segments` | `SegmentationResult` dict (same shape as `image_segments`) | **Legacy** single store; migrated lazily/non-destructively into a `"Custom"` layout, then kept untouched |
+| `custom_segments` | `SegmentationResult`-compatible dict, **reduced** vs `image_segments` (§10.4) | **Legacy** single store; migrated lazily/non-destructively into a `"Custom"` layout, then kept untouched |
 | `segment_room_links` | `{segment_id: room_id}` | **CV's** 1:1 segment→room assignment (each layout has its own copy) |
 | `companion_anchors` | `{room_id \| "dock": {pct_x, pct_y}}` | **CV's** companion-sprite anchors (0–100% from top-left; reserved `"dock"` mascot spot; each layout has its own copy) |
 
@@ -722,12 +845,14 @@ This section is an orientation only; the full design — wave scope, both brand 
 
 ### 11.2 Coordinator surface
 
-`MapSourceCoordinator` exposes four public async readers, dispatched by the adapter's declared `map_state_source` backend/format:
+`MapSourceCoordinator` exposes these public readers, dispatched by the adapter's declared `map_state_source` backend/format (all `async` except the raw-object accessor, which is sync):
 
 - `async_refresh_map_state_source(...)` — pre-warm dispatcher; reads the adapter's `map_state_source` block, applies the presence gate, and writes the normalised result into `manager._map_state_source_cache` so the sync on-loop dashboard snapshot can include it without doing the blocking `.storage` read itself.
 - `async_get_map_live_pose(...)` — lightweight live-pose poll.
 - `async_compare_map_sources(...)` — in-memory-vs-storage verify probe.
 - `async_get_map_render_data(...)` — the card's own-render raster fetch.
+- `async_get_map_data_dict(...)` — the normalised map-data dict the mapping services consume (`_handle_*` render/overlay handlers call it directly).
+- `get_live_mapdata_obj(...)` — **synchronous** raw-object accessor returning the backend's parsed map object (the un-normalised source the async readers build on).
 
 Two seams deliberately stay on the manager: `_map_state_source_cache` (the pre-warm writes it; the on-loop snapshot composer and the map-overlays sensor read it directly) and `_resolve_live_map_image_entity` (shared with the dashboard snapshot composer as the live-map presence gate).
 
