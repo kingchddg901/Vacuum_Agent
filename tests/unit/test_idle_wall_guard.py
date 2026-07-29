@@ -22,6 +22,7 @@ import pytest
 from custom_components.eufy_vacuum.learning.job_finalizer import (
     LearningJobFinalizer,
     _run_had_break_phase,
+    _run_had_charge_wait_phase,
 )
 from custom_components.eufy_vacuum.learning.utils import (
     IDLE_WALL_HOLD_BLOCKER,
@@ -118,6 +119,32 @@ def test_run_had_break_phase(phases, expected):
 def test_run_had_break_phase_non_dict_state():
     assert _run_had_break_phase(None) is False
     assert _run_had_break_phase("nope") is False
+
+
+# --- _run_had_charge_wait_phase (mid_job_recharge flag; charge_wait ONLY) -----
+# The recharge flag must NOT trip on a plain `wait` phase: a timed hold does not
+# recharge, so its start-end drain is accurate and should still feed the per-config
+# means. Only a `charge_wait` (a real mid-run recharge) nets out drain — Item 1 of
+# battery-subsystem-followups.md.
+
+@pytest.mark.parametrize("phases,expected", [
+    ([{"phase_type": "charge_wait"}], True),
+    ([{"phase_type": "clean"}, {"phase_type": "charge_wait"}, {"phase_type": "clean"}], True),
+    ([{"phase_type": " Charge_Wait "}], True),                 # case / whitespace tolerant
+    ([{"phase_type": "wait"}], False),                         # timed hold — no recharge
+    ([{"phase_type": "clean"}, {"phase_type": "wait"}], False),
+    ([{"phase_type": "clean"}], False),
+    ([], False),
+    (None, False),
+])
+def test_run_had_charge_wait_phase(phases, expected):
+    state = {"phases": phases} if phases is not None else {}
+    assert _run_had_charge_wait_phase(state) is expected
+
+
+def test_run_had_charge_wait_phase_non_dict_state():
+    assert _run_had_charge_wait_phase(None) is False
+    assert _run_had_charge_wait_phase("nope") is False
 
 
 # --- finalizer wiring (_apply_idle_wall_hold mutates the outcome) ------------

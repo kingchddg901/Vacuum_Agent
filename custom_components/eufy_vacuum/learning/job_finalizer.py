@@ -162,6 +162,27 @@ def _run_had_break_phase(active_job_state: Any) -> bool:
     )
 
 
+def _run_had_charge_wait_phase(active_job_state: Any) -> bool:
+    """True if the run executed a commanded charge-to-target (``charge_wait``) phase.
+
+    A ``charge_wait`` phase docks the robot and RECHARGES it mid-run, so the raw
+    ``start − end`` battery delta nets that recharge back out and understates the
+    true discharge — the run must be kept out of the per-config drain aggregates
+    (see ``mid_job_recharge`` below and ``battery-subsystem-followups.md`` Item 1).
+    Unlike :func:`_run_had_break_phase` this deliberately EXCLUDES a plain ``wait``
+    phase: a timed hold does not recharge, so its ``start − end`` drain is accurate
+    and should still feed the per-config means.
+    """
+    phases = active_job_state.get("phases") if isinstance(active_job_state, dict) else None
+    if not isinstance(phases, list):
+        return False
+    return any(
+        isinstance(p, dict)
+        and str(p.get("phase_type") or "").strip().lower() == "charge_wait"
+        for p in phases
+    )
+
+
 def _apply_water_actuals(
     *,
     completed_job: dict[str, Any],
@@ -905,10 +926,15 @@ class LearningJobFinalizer:
                 # UNDERSTATES the true discharge — duration IS recharge-adjusted, drain is not),
                 # so flag the run; record_job_metrics keeps a flagged run out of the per-config
                 # drain MEANS while still recording last_job. See battery-subsystem-followups.md.
+                # Two recharge pathways: an UNPLANNED deep-low return (the two counters below,
+                # set from _is_low_battery_return_state) and a DELIBERATE native charge step (a
+                # charge_wait phase — its commanded dock is intentionally NOT counted as a
+                # battery-driven recharge, so those counters stay 0; catch it via the phase list).
                 _ajs = active_job_state if isinstance(active_job_state, dict) else {}
                 battery_metrics["mid_job_recharge"] = bool(
                     _safe_int(_ajs.get("recharge_seconds_accumulated"), 0) > 0
                     or _safe_int(_ajs.get("observed_mid_job_recharge_count"), 0) > 0
+                    or _run_had_charge_wait_phase(_ajs)
                 )
                 _job["battery_metrics"] = battery_metrics
 

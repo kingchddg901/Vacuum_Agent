@@ -2,9 +2,11 @@
 
 > **Status: open-items tracker (2026-07-29 triage).** Item 1's original fix (the
 > `mid_job_recharge` drain-bucket gate) is documented canonically in
-> [12-battery-system](12-battery-system.md). Still **open**: Item 1's `charge_wait`-step
-> blind spot (a *deliberate* mid-job recharge doesn't trip the gate) and Item 2
-> (external runs compute no per-job battery metrics). This doc retains those.
+> [12-battery-system](12-battery-system.md). Item 1 is now **FULLY resolved** — its
+> `charge_wait`-step blind spot was fixed 2026-07-29 (a stepped run with a native charge
+> step is now flagged `mid_job_recharge` via its phase list; see Item 1 below). Still
+> **open**: only Item 2 (external runs compute no per-job battery metrics). This doc
+> retains that.
 
 Two tracked items surfaced 2026-06-20 while reviewing `battery/` against a **mid-job
 recharge run** (an external Vac+Mop clean that returned to dock at 9% and recharged).
@@ -30,7 +32,7 @@ gaps live.
 > `all_jobs`. Option (b) — true discharge from the session engine's `cumulative_drain_pct` —
 > remains the richer future fix if recharge runs become common.
 >
-> **⚠ Blind spot re-opened by native charge steps (unreleased, post-v1.6.7).** The
+> **✅ FIXED 2026-07-29 — blind spot closed (resolution note at the end of this box).** The
 > `mid_job_recharge` gate keys ONLY on the UNPLANNED-recharge counters
 > (`recharge_seconds_accumulated` / `observed_mid_job_recharge_count`), which are set from
 > `_is_low_battery_return_state` — a deep-low return the robot took on its own. A native
@@ -40,11 +42,20 @@ gaps live.
 > `charge_wait` phase so the commanded dock is NOT double-counted as a battery-driven recharge
 > — so neither counter increments and `mid_job_recharge` stays False. A single-setting stepped
 > run with a charge step therefore nets its intentional recharge out of `start − end` and
-> re-injects the understated drain Item 1 exists to block. Fix later by ALSO flagging a run
-> whose `active_job['phases']` contains a `charge_wait` phase (or by adopting option (b),
-> whose `cumulative_drain_pct` delta is recharge-agnostic and covers both pathways). The
-> `charge_wait` phase does track its own `charge_from_battery` / `charge_to_battery` edges, so
-> the true discharge across the step is still reconstructable.
+> re-injects the understated drain Item 1 exists to block.
+>
+> **Resolution (2026-07-29):** `job_finalizer` now ALSO flags `mid_job_recharge` when the
+> run's `active_job['phases']` contains a `charge_wait` phase (new helper
+> `_run_had_charge_wait_phase`), so a native charge step is kept out of the per-config drain
+> buckets exactly like an unplanned deep-low recharge. A plain `wait` phase is deliberately
+> NOT flagged — a timed hold doesn't recharge, so its `start − end` drain is accurate and
+> should still feed the per-config means. Pinned by
+> `tests/unit/test_idle_wall_guard.py::test_run_had_charge_wait_phase` (charge_wait → flag,
+> wait → no-flag); the bucket-exclusion half stays covered by
+> `test_record_job_metrics_mid_recharge_skips_config_buckets`. Option (b)
+> (`cumulative_drain_pct` delta) remains the richer future path if recharge runs get common.
+> The `charge_wait` phase also tracks its own `charge_from_battery` / `charge_to_battery`
+> edges, so the true discharge across the step is still reconstructable.
 
 **Where:** `learning/job_finalizer.py:791` calls
 `compute_job_battery_metrics(battery_start=…, battery_end=…)` with the raw job-edge battery
