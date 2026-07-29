@@ -34,7 +34,7 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 
 | Service | Required fields | Notes |
 |---|---|---|
-| `start_selected_rooms` | `vacuum_entity_id`, `map_id` | Optional: `confirm_reduced_run`, `confirm_token`. Do **not** call with `returnResponse = true` |
+| `start_selected_rooms` | `vacuum_entity_id`, `map_id` | Optional: `confirm_reduced_run`, `confirm_token`, `strict_order`, `path_block_action` (`event_only` \| `pause_and_event` \| `cancel_and_event`), `pause_timeout_minutes_override`. Do **not** call with `returnResponse = true`. The reduced-run `confirm_token` comes from `get_start_status` (which returns `requires_confirmation` + `confirm_token`); `strict_order` / `path_block_action` materially change run behavior |
 | `start_zone_clean` | `vacuum_entity_id`, `zones` | Optional: `clean_times` (1–10, default 1), `map_id`. Ad-hoc free-form zone clean — `zones` is a list of `[x0, y0, x1, y1]` rectangles as 0–1 fractions of the live-map image (top-left origin). Fire-and-forget: no room ids, no job/queue/learning tracking. Requires a provider with the `supports_zone_clean` capability |
 | `pause_active_job` | `vacuum_entity_id` | |
 | `resume_active_job` | `vacuum_entity_id` | |
@@ -47,7 +47,7 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 
 | Service | Required fields | Notes |
 |---|---|---|
-| `update_room_fields` | `vacuum_entity_id`, `map_id`, `room_id` | Optional: `enabled`, `clean_mode`, `fan_speed`, `clean_intensity`, `clean_passes`, `water_level`, `edge_mopping`, `is_transition`, `grants_access_to`, `is_dock_room`, `rules`. Omit null optional fields — HA schema rejects them |
+| `update_room_fields` | `vacuum_entity_id`, `map_id`, `room_id` | **response** (`{updated, ...}`). Optional: `enabled`, `clean_mode`, `fan_speed`, `clean_intensity`, `clean_passes`, `water_level`, `edge_mopping`, `color` (per-room fill `#rrggbb`/`#rgb`/null), `is_transition`, `grants_access_to`, `is_dock_room`, `rules`. Omit null optional fields — HA schema rejects them |
 | `discover_rooms` | `vacuum_entity_id` | Interrogates the vacuum for the current room list |
 | `save_managed_rooms` | `vacuum_entity_id` | Persists discovered rooms into integration storage |
 | `get_room_access_editor` | `vacuum_entity_id`, `map_id` | Returns room access graph for editing |
@@ -87,7 +87,7 @@ services in the `eufy_vacuum` domain; JS wrappers in `src/actions/rooms.js`.
 
 | Service | Required fields | Notes |
 |---|---|---|
-| `add_queue_break` | `vacuum_entity_id`, `map_id`, `after_index` | Insert a `charge_wait` (`target_battery_percent`) or `wait` (`wait_minutes`) stop between room groups |
+| `add_queue_break` | `vacuum_entity_id`, `map_id`, `after_index`, `break_type` | `break_type` ∈ {`charge_wait`, `wait`} (**required**). Insert a `charge_wait` (with `target_battery_percent` 1–100) or `wait` (with `wait_minutes` 1–1440) stop between room groups |
 | `add_queue_zone` | `vacuum_entity_id`, `map_id`, `after_index`, `zone_ids` | Insert a saved-zone **clean** step (one phase over the selected zones). May sit at the tail (`after_index == room_count`); stops may not |
 | `remove_queue_break` | `vacuum_entity_id`, `map_id`, `index` | Remove one step by its position in the break list |
 | `set_queue_breaks` | `vacuum_entity_id`, `map_id`, `breaks` | Wholesale replace — the primitive behind reorder + inline param-edit; the backend clamps `after_index` and re-sorts |
@@ -102,7 +102,7 @@ monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-r
 
 | Service | Required fields | Notes |
 |---|---|---|
-| `run_learning_estimate` | `vacuum_entity_id`, `map_id`, `current_battery` | Optional: `started_at` (omit for pre-start calls). Returns time estimates per room |
+| `run_learning_estimate` | `vacuum_entity_id`, `map_id` | Optional: `current_battery` (default 0), `started_at` (omit for pre-start calls), `charge_percent_per_minute` (default 1.0), `reserve_battery_percent` (default 5.0). Read-only compute. Returns time estimates per room |
 | `reanchor_learning_timeline` | `original_estimate`, `completed_rooms`, `reanchor_at` | Optional: `current_battery`. Recomputes remaining ETAs mid-job |
 | `get_next_room` | `reanchored_estimate` | Resolves which room is next from the reanchored estimate |
 | `get_room_learning_estimates` | `vacuum_entity_id`, `map_id` | Per-room estimates independent of queue state |
@@ -110,8 +110,8 @@ monitor twin is `live_queue` (see [`get_job_progress_snapshot`](#state-queries-r
 | `get_metrics_snapshot` | `vacuum_entity_id` | Optional: `room_slug`, `profile_key`, `status`, `used_for_learning` |
 | `get_incomplete_run_log` | `vacuum_entity_id` | Last cancelled/failed/interrupted job. Returns null-equivalent `{}` when no log exists |
 | `get_trouble_rooms_log` | `vacuum_entity_id` | Chronic trouble rooms. Returns null-equivalent `{}` when no log exists |
-| `save_learning_snapshot` | `vacuum_entity_id` | |
-| `finalize_learning_job` | `vacuum_entity_id` | Called when a job ends; triggers `eufy_vacuum_run_incomplete` event when rooms were missed |
+| `save_learning_snapshot` | `vacuum_entity_id`, `started_at`, `battery_start` | Auto-invoked at job end; not normally called directly by a client |
+| `finalize_learning_job` | `vacuum_entity_id`, `battery_start`, `battery_end`, `started_at` | Auto-invoked when a job ends; fires `eufy_vacuum_run_incomplete` when rooms were missed. Not normally called directly (see the safety notes) |
 | `rebuild_learning_stats` | `vacuum_entity_id` | |
 | `exclude_learning_job` | `vacuum_entity_id`, `job_id` | Optional: `reason`, `rebuild_csv` |
 | `restore_learning_job` | `vacuum_entity_id`, `job_id` | Optional: `rebuild_csv` |
@@ -134,9 +134,9 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `dry_mop` | `vacuum_entity_id`, `map_id` |
 | `stop_dry_mop` | `vacuum_entity_id`, `map_id` |
 | `empty_dust` | `vacuum_entity_id`, `map_id` |
-| `reset_maintenance` | `vacuum_entity_id` |
+| `reset_maintenance` | `vacuum_entity_id`, `component` (`brush` \| `side_brush` \| `filter` \| `mop` \| `sensor`) |
 | `set_maintenance_interval` | `vacuum_entity_id`, `component` (`brush` \| `side_brush` \| `filter` \| `mop` \| `sensor`), `interval_hours` (> 0) |
-| `set_dock_event_count` | `vacuum_entity_id` |
+| `set_dock_event_count` | `vacuum_entity_id`, `event_type` (`last_mop_wash` \| `last_dust_empty` \| `last_dry_start`), `count` (int ≥ 0) |
 | `set_pause_timeout_settings` | `vacuum_entity_id`, `pause_timeout_minutes_default` |
 
 #### Profiles (room and run)
@@ -157,7 +157,7 @@ The `get_learning_history_snapshot` recent-jobs list carries per-run **attributi
 | `apply_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | Restores saved room selection and settings |
 | `rename_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id`, `name` | |
 | `delete_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | |
-| `start_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | |
+| `start_run_profile` | `vacuum_entity_id`, `map_id`, `profile_id` | **response.** Optional: `confirm_reduced_run`, `confirm_token`, `path_block_action` (`event_only` \| `pause_and_event` \| `cancel_and_event`), `pause_timeout_minutes_override`. Applies the profile, rebuilds the queue, and starts it through the protected start flow. Returns `{started, reason, message, confirm_token?, requires_confirmation?, profile_id, profile, applied_room_ids, missing_room_ids}` — same reduced-run confirmation handshake as `start_selected_rooms` (retry with `confirm_reduced_run: true` or the returned `confirm_token`) |
 
 #### Theme
 
