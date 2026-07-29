@@ -82,6 +82,10 @@ Things that delegate to subsystems:
 async_initialize()
 ├── await self.storage.async_load()          → self.data populated from disk
 ├── self.data.setdefault(...)                → seed top-level keys
+├── release stale _phase_dispatch_pending    → clear the guard on loaded room-group
+│                                              jobs (a restart lost the watchdog);
+│                                              dock (charge_wait/wait) phases are
+│                                              RE-ARMED at the end, not here
 ├── drop "icons" block                       → one-time cleanup (removed platform)
 ├── ThemeManager(self.data)                  → self.themes
 ├── MaintenanceManager(manager=self)         → self.maintenance
@@ -185,7 +189,7 @@ and the shared caches/helpers each subsystem reads back through `self._manager`:
   `self._manager`.
 - `ExternalRunManager` — every external-run entry point delegates (`§7`); the
   SHARED room-history ingestion helpers (`_ingest_*_into_room_history`, also
-  driven by the normal completed-job finalize) and `_resolve_active_map_id` /
+  driven by the normal completed-job finalize) and `resolve_active_map_id` /
   `start_external_capture` stay in core and are reached via `self._manager`.
   `learning/__init__` exposes `ExternalRunManager` through a lazy `__getattr__`
   (its module imports two constants from `core.manager` at load time — deferring
@@ -277,8 +281,9 @@ orchestrate multiple subsystems or span too many data keys to belong to one.
 The most cross-cutting write in the system. Accepts a room update, applies it
 to `data["maps"]`, collapses the `floor_type` + `carpet_type` legacy shape,
 applies the appropriate profile, enforces carpet/mop protection rules, updates
-the summary, rebuilds derived queue/payload, fires room update callbacks, and
-persists. All in one atomic call.
+the summary, rebuilds derived queue/payload, and fires room update callbacks —
+all synchronously, in memory. It does **not** save: like every subsystem write
+(§3), the `await manager.async_save()` is the calling service handler's job.
 
 It also accepts a per-room `color` override. Unlike the `bool|None` /
 `str|None`-defaulted params (where `None` means "not provided"), `color`
@@ -286,8 +291,8 @@ defaults to the module-level `_UNSET = object()` sentinel because `None` is
 meaningful for this field: `_UNSET` leaves the existing override untouched,
 `None` or an empty string clears the override (empty string coalesces to `None`
 so a cleared field is never stored as `""`), and any other value stores the
-schema-canonicalized hex. Ref: `manager.py:1233` (param), `manager.py:55`
-(`_UNSET` sentinel), `manager.py:1291-1295` (three-way apply logic).
+schema-canonicalized hex. Ref: `manager.py:1261` (param), `manager.py:53`
+(`_UNSET` sentinel), `manager.py:1319-1323` (three-way apply logic).
 
 ### `start_selected_rooms` (and the `start_run_profile` delegator)
 
@@ -352,13 +357,17 @@ suction stays max-wins. Detail:
 Reads active job state, computes elapsed/expected times per room (active_job),
 and emits a timing-only bounds-exit signal (`awaiting_bounds_exit`) — computed
 by the composer itself — when `current_room_elapsed_minutes` exceeds the
-timing-completion threshold; `mapping_available` / `mapping_used` are always
-`False`. Run-anomaly detection (stall / running-long / skipped) and the
+timing-completion threshold, but **force-cleared to `False` for a
+path-optimizing brand** (`capabilities.honors_clean_order is False`, e.g.
+Roborock), where the dispatched room order carries no meaning to exit from;
+`mapping_available` / `mapping_used` are always `False`. Run-anomaly detection (stall / running-long / skipped) and the
 one-shot `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` emission (deduped per
 room per job) are delegated to `ActiveJobTracker.detect_run_anomalies`
 (`jobs/active_job.py`), which owns the active-job dict and the dedup state; the
 composer hands it the already-resolved locals and reads the anomaly fields back
-into the snapshot. It then returns a complete card-ready progress payload.
+into the snapshot. It then returns a complete card-ready progress payload
+(field-by-field shape:
+[frontend/backend-contract-and-data-shapes](frontend/backend-contract-and-data-shapes.md#state-queries-read-only-response)).
 Still too many concerns to belong to a single subsystem.
 
 When the active phase is a `charge_wait` or `wait` stop (a stepped run docked
@@ -395,9 +404,25 @@ This is the monitor mirror of the [ad-hoc queue composer](07-queue-engine.md#the
 
 ### `get_dashboard_snapshot`
 
-Aggregates: managed vacuums list, per-vacuum active job state, queue state,
-payload state, maintenance state, dock event state, learning estimate, start
-status. One call, complete card reload.
+The card's whole read-model for **one** vacuum/map (`*, vacuum_entity_id,
+map_id`) — one call, complete card reload. It composes the sub-snapshots
+`lifecycle`, `start_status`, `job_progress`, `job_control`, `upkeep` (the
+maintenance / attention state), `planned_job_estimate`, and `queue_steps`, then
+layers on a large **adapter-capability hint block** the editor reads to shape
+itself (`adapter_vocabulary`, `max_clean_passes`, `mop_active`,
+`supports_room_profiles`, `passes_is_global`, `supports_base_station`,
+`supports_map_bounds`, `supports_zone_clean`, `zone_max`, `honors_clean_order`,
+`supports_va_render`, `setting_entities`, `scene_select`, `cv_available` /
+`cv_missing`) and a **live-map block** (`live_map_image_entity`, `map_switcher`,
+`live_map_rotation`, `map_overlay_visibility`, `area_label_anchors`,
+`hidden_regions`, `furnished_render`, `map_state_source`), plus `status_summary`
+/ `attention_summary` / `learning_processing` / `updated_at`.
+
+Because it is **per-vacuum**, it does NOT carry a managed-vacuums list (that is
+the separate `get_managed_vacuums`) nor a `payload` block (the separate
+`get_payload_state` service); "dock" state rides inside `job_control` /
+`upkeep`, not a top-level key. The authoritative field-by-field read-model is
+[frontend/backend-contract-and-data-shapes](frontend/backend-contract-and-data-shapes.md#state-queries-read-only-response).
 
 ### Room history ingestion
 
@@ -441,8 +466,12 @@ HA's `Store` helper. Writes are atomic (HA writes to a temp file and renames).
 `_async_save_logged()` is a variant used in fire-and-forget contexts (e.g.
 background callbacks) that logs exceptions instead of raising them.
 
-The manager never reads from disk after `async_initialize()`. All reads are
-against `self.data`. The storage file is the mirror of what was last saved.
+The manager never reads the **storage file** after `async_initialize()` — every
+`self.data` read is in-memory, and the storage file is just the mirror of what
+was last saved. (One narrow exception, on a *different* file: the room-history
+cache lazy-loads per-vacuum **learning-history** files off disk via
+`async_preload_room_history_cache` → `_load_room_history_cache_sync`, run in an
+executor for sensors that read history before the first job finishes — see §6.)
 
 ---
 
