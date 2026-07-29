@@ -142,10 +142,15 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `upkeep_catalog` | Per-model upkeep guide library |
 | `water_model_configs` | Tank capacity and water usage constants |
 
+**Required blocks:** only `adapter_id`, `source`, `entities`, and `dispatch` are `required: True` in the schema; every other block is optional. (Note the validator does not currently *enforce* these — code-flag CS-1, §2.2.)
+
 > **Note:** the 21 keys above are the complete set in `ADAPTER_CONFIG_SCHEMA`.
 > Several blocks the Eufy adapter actually declares are **not** in the schema
 > dict — `mapping`, `job_segmenter`, `room_profiles`, `map_state_source`,
-> `map_render`, `room_attribution`, `anomaly`, and `wash_frequency_bounds`. The
+> `map_render`, `room_attribution`, `anomaly`, `wash_frequency_bounds`, plus
+> **`model_family`** and **`capability_hints`** (stored so `refresh_vacuum_capabilities`
+> can reproduce the startup `detect_capabilities` inputs), and the schema-absent
+> sub-keys `discovery.implicit_map_id`, `dispatch.zone_command`, and `cleaning_time_unit`. The
 > schema walker iterates the *schema's* keys, so extra blocks are simply ignored
 > by the schema (declaring them there is a deferred follow-up). `_validate_adapter()`
 > nonetheless validates `mapping`, `job_segmenter`, `room_attribution`, and
@@ -177,6 +182,8 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `work_mode` | sensor | Current work/drive mode |
 | `cleaning_intensity` | select | Suction/cleaning intensity |
 | `scene_select` | select | Vendor-app scenes select (eufy-clean `select.<object_id>_scene`); options are saved app scenes and selecting one runs it immediately; surfaced on the dashboard snapshot for the card's App-scenes run-launcher; absent (Roborock) hides the group. |
+
+> **The 18 keys are the schema's declared set, not the framework's full read set.** Adapters populate additional entity keys the framework reads but the schema doesn't declare: `job_active` + `mop_active` (Roborock), `total_cleaning_area`/`_time`/`_count` + `dock_firmware_version` (Eufy). Most important, **`entities.job_active` is referenced by the completion schema** (`require_job_active_clear`, §completion) yet absent from this table — a rebuilt brand relying on the job-active completion path must declare it. (Schema entity-keyset drift, code-flag CS-2.)
 
 ### 3.2 `vocabulary` block
 
@@ -220,6 +227,8 @@ Controls how room-clean commands are assembled:
 | `rooms_field` | `"rooms"` | Top-level payload field for rooms array |
 | `room_fields` | dict | Per-room field renames and value_map transforms |
 
+> **Not exhaustive** — the schema declares **15** `dispatch` fields; the 5 omitted here are essentially the Roborock/sequenced dispatch model: `params_as_list`, `passes_is_global`, `resolve_live_ids_by_slug`, `per_room_live_settings`, `global_pre_calls` (plus `phase_timing` + the strict-order keys, §2.4). Also note `map_id_type`'s **schema default is `"str"`** — Eufy's `"int"` above is its own value, not the default. Full field-by-field spec: [22-adapter-config-reference §13](22-adapter-config-reference.md).
+
 **`room_fields` entry:**
 ```python
 {
@@ -252,6 +261,9 @@ Dict keyed by component_id. Each entry:
 | `label` | str | Display name |
 | `icon` | str | MDI icon |
 | `reset_button` | dict \| None | Upstream replacement-counter reset button resolution (`entity_suffixes` + `token_sets`); absent = no reset button |
+| `maintenance_only` | bool | (absent → False) Suppresses the Replacement row + attention roll-up; subject to the family gate (see [13-maintenance §4.3](13-maintenance-manager.md)) |
+
+(Roborock additionally declares a non-schema `remaining_is_state`, and coerces `default_interval_hours`/`max_interval_hours` to `0.0` when absent.)
 
 ### 3.5 `capabilities` block
 
@@ -269,22 +281,31 @@ Boolean flags set by `detect_capabilities()` at adapter registration time:
 | `supports_robot_position` | Position X/Y sensors are present |
 | `supports_station_water` | Station water level sensor is present |
 
-> **Note — entity-detected flags are not the whole block.** The nine flags above
-> are what `detect_capabilities()` can probe from the HA entity registry and state
-> machine. The same `capabilities` block also carries **adapter-literal behavioral
+**Derivation** (`detect_capabilities`, `core/capabilities.py:261-283`). Only **two** of the nine are pure entity-presence; the rest are hint-OR-presence, derived, or hardcoded:
+
+- **hint OR entity present** (True from *either* source): `supports_mop_features` (water-level entity), `supports_mop_wash`, `supports_mop_dry`, `supports_empty_dust`, `supports_path_control` (cleaning-intensity entity). The hint comes from the adapter's `capability_hints` (model-family driven, §5.2 step 3) — so on a **model-known** device these read `True` **even when the entity is absent**.
+- **pure entity presence**: `supports_robot_position` (position X/Y sensors), `supports_station_water` (station water sensor).
+- **special case** — `supports_water_control`: an explicit adapter hint wins; otherwise it **equals `supports_mop_features`** (it is *never* entity-probed). The Roborock S6 passes `False` (unsettable water).
+- **hardcoded `True`** (never probed): `supports_edge_mopping`, plus `supports_passes`, `supports_custom_room_config`, `supports_room_clean` (the latter three aren't in the table above but are in the return).
+
+The full `detect_capabilities()` return is **larger** than the nine flags the Eufy config copies out: ~20 `supports_*` flags plus `entities` (resolved ids), `maintenance_sources`, `sources`, `robot_position_status`/`_message`, and `model_family` (defaults to `"generic"` for an unknown model). Its signature is keyword-only after `hass` (§5.2 step 4).
+
+> **Note — the flags above are not the whole block.** They are the framework's derived `supports_*` set (per the derivation above — **not** pure entity probes). The same `capabilities` block also carries **adapter-literal behavioral
 > flags** that no entity probe can see — they describe firmware behavior and are set
 > directly in the adapter config (e.g. the Roborock S6 adapter at
 > `adapters/roborock/adapter.py`): `honors_clean_order`, `supports_room_profiles`,
-> `position_lock_reliable`, and `rooms_unique_per_job` (plus the Roborock zone caps
-> `supports_zone_clean` and `zone_max` at `adapters/roborock/adapter.py`). See
+> `position_lock_reliable`, and `rooms_unique_per_job`. **Both** brands declare zone
+> caps, with **different units**: Eufy `supports_zone_clean=True`, `zone_max=10`, and
+> per-**side** bounds `zone_min_side_m=0.5` / `zone_max_side_m=10.0`; Roborock `zone_max=5`
+> with per-**area** bounds `zone_min_area_m2` / `zone_max_area_m2`. See
 > [Adapter config reference](22-adapter-config-reference.md)
 > §14 for the full set and each flag's default and effect.
 >
 > Do **not** treat `supports_base_station` and `supports_map_bounds` as
 > adapter-literal capability flags — no adapter config sets them. They are computed
 > at snapshot time in `core/manager.py::get_dashboard_snapshot`:
-> `supports_base_station` (line 3648) from `dock_events.enabled` OR the mop-wash /
-> mop-dry / empty-dust / station-water caps, and `supports_map_bounds` (line 3659)
+> `supports_base_station` (`manager.py:3950`) from `dock_events.enabled` OR the mop-wash /
+> mop-dry / empty-dust / station-water caps, and `supports_map_bounds` (`:3961`)
 > from `mapping.segmenter_engine != "noop_fallback"`.
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field documentation of every block (`entities`, `vocabulary`, `dispatch`, `maintenance_components`, `capabilities`, and all sub-schemas).
@@ -336,7 +357,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 
 ### 5.2 Assembly steps
 
-1. Read `vacuum.attributes.detected_model` to determine `model_family` via `_detect_model_family()`.
+1. Resolve the model code — the **device-registry** model is the primary source (`_registry_model_code`, reads `device_entry.model`); the `vacuum.attributes.detected_model` attribute is only the **fallback** when the registry has none. This matters: scalar/Tuya-transport Eufy devices don't set the attribute, so reading *only* the attribute pinned them to `model_family="generic"` — the registry carries the code either way. Then compute `model_family` via `_detect_model_family()`.
 2. Build `entity_candidates` dict (two naming-variant candidates per entity where robovac_mqtt uses different suffixes between versions).
 3. Build `capability_hints` dict — model-based boolean hints for `detect_capabilities()`.
 4. Call `detect_capabilities(hass, *, vacuum_entity_id, detected_model, entity_candidates, model_family, capability_hints, maintenance_components)` (all args after `hass` are keyword-only) — probes the HA entity registry and state machine; returns capability flags and resolved entity IDs.
@@ -364,7 +385,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 
 ### 5.4 Entity ID construction
 
-`build_entity_id(vacuum_entity_id, suffix, domain="sensor")` derives an entity ID using the `object_id_suffix` strategy:
+`build_entity_id(vacuum_entity_id, suffix, domain="sensor", *, strategy=STRATEGY_OBJECT_ID_SUFFIX)` derives an entity ID. The default (and only shipping) strategy `object_id_suffix`:
 
 ```
 object_id = vacuum_entity_id.split(".", 1)[1]   # e.g. "alfred"
