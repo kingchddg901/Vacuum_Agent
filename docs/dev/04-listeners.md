@@ -33,7 +33,7 @@ All listeners are wired from `__init__.py` `async_setup_entry` (each module's
 ```python
 get_adapter_vocab(vacuum_entity_id, section, key, fallback) -> frozenset
 ```
-Reads a list/set value from the adapter config and returns it as a `frozenset`. Returns the fallback frozenset if the key is missing or the value is empty.
+Reads a list/set value from the adapter config and returns it as a `frozenset`. Returns the fallback frozenset only when the value is **missing or not a list/set/frozenset** — an explicitly **empty** list yields an empty frozenset (not the fallback).
 
 ```python
 get_adapter_value(vacuum_entity_id, *path, fallback) -> Any
@@ -63,24 +63,24 @@ The job-active binary probe. Returns `True` when the adapter declares `entities.
 ```python
 completed_finalize_signals(hass, vacuum_entity_id) -> dict
 ```
-Reads current state for all lifecycle-watch entities and returns a snapshot dict used in completion checks.
+Reads current state and returns a **4-key** snapshot used in completion checks: `vacuum_state`, `task_status`, `dock_status`, `active_target` (each `.strip().lower()`ed; `""` for absent/unavailable). Note it is a **subset** — `active_map` and `job_active` are watched but not in this dict.
 
 ```python
 completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
 ```
 The adapter-driven secondary-clear check used in the completion gate (§3.4). When the brand declares `completion.require_job_active_clear` (Roborock), the sentinel check is bypassed (returns `True`) — the job-active binary clearing is the completion signal instead, enforced separately by `is_job_active`. Otherwise (default, Eufy) it requires the snapshot's `active_target` to read one of `clear_sentinels`.
 
-### 2.3 Event payload builder
+### 2.3 Event payload builders
 
 ```python
-job_finished_event_data(
-    *,
-    vacuum_entity_id: str,
-    map_id: str,
-    finalize_result: dict,
-) -> dict
+job_finished_event_data(*, vacuum_entity_id, map_id, finalize_result: dict | None) -> dict
 ```
-Builds the consistent payload dict fired with every `eufy_vacuum_job_finished` event.
+Builds the payload fired with every `eufy_vacuum_job_finished` event — **11 keys** (sourced from `finalize_result` → `completed_job.outcome` / `.job`): `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `duration_minutes`, `actual_cleaning_minutes`, `job_path`.
+
+```python
+run_incomplete_event_data(*, vacuum_entity_id, finalize_result: dict | None) -> dict | None
+```
+Builds the `eufy_vacuum_run_incomplete` payload — but **returns `None` unless** `finalize_result`'s `incomplete_run_log.missed_room_ids` is non-empty (nothing was left uncleaned → no event). The 5-key payload (no `map_id`): `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms`. Fired from the `cancel_and_event` path (§5) and both reaps (§6).
 
 ---
 
@@ -157,9 +157,9 @@ Watches dock status entities and records dock cycle events via `DockManager`.
 Builds `watched: dict[str, str]` mapping dock_entity_id → vacuum_entity_id for all managed vacuums.
 
 On dock_status state change:
-1. Reads `dock_events.triggers` from adapter config.
-2. Normalizes the new state (`.strip().lower()`).
-3. For each `event_type` in the triggers dict: if normalized state matches any trigger string, call `DockManager.record_dock_event(vacuum_entity_id, event_type, dry_duration)`.
+1. **Dedup guard** — `if new_val == old_val: return` (ignores attribute-only same-value updates).
+2. Reads `dock_events.triggers` from adapter config; normalizes the new state (`.strip().lower()`).
+3. For each `event_type` in the triggers dict: if normalized state matches any trigger string, call `manager.record_dock_event(vacuum_entity_id, event_type, dry_duration)` — which **delegates** to `DockManager.record_dock_event` (§14) — then `manager._async_save_logged()` to persist.
 4. For `last_dry_start` events: reads dry duration from the entity at `adapter_config["entities"]["dry_duration"]`.
 
 ---
@@ -172,27 +172,22 @@ Watches binary sensors configured as path blockers for rooms and fires `eufy_vac
 
 Builds `watch_map: dict[str, list[tuple[str, str]]]` mapping entity_id → [(vacuum_entity_id, map_id)]. Re-registers itself via `register_room_update_callback` whenever rooms change, so newly added blocker sensors are picked up without an integration restart.
 
-On watched entity state change to `"on"`:
-1. Reads the `path_block_action` for the active job. Values:
-   - `"event_only"` (default): fires `eufy_vacuum_path_blocked` only.
-   - `"pause_and_event"`: pauses the job and fires the event.
-   - `"cancel_and_event"`: cancels the job, fires `eufy_vacuum_job_finished`, then fires `eufy_vacuum_path_blocked`.
+On **any** watched-entity state change (dedup-guarded `old != new` — it does **not** gate on the literal `"on"`): whether a change is actually a *block* is decided by `manager.get_runtime_path_block_report(..., trigger_entity_state=new_state)` returning a dict — that logic is owned by [09-room-rules](09-room-rules-system.md). On a block, the `path_block_action` for the active job drives:
+- `"event_only"` (default): fires `eufy_vacuum_path_blocked` only.
+- `"pause_and_event"`: pauses the job and fires the event.
+- `"cancel_and_event"`: cancels the job, fires `eufy_vacuum_job_finished`, then `eufy_vacuum_run_incomplete` (when rooms were missed), then `eufy_vacuum_path_blocked`.
+
+The `eufy_vacuum_path_blocked` payload is the **`get_runtime_path_block_report` dict augmented** with `path_block_action`, `action_taken`, and (only when a pause/cancel ran) `action_result` (consistent with [02 §7](02-ha-integration.md)).
 
 ---
 
-## 6. Pause Timeout Watchdog (`pause_timeout.py`)
+## 6. Stale-Job Reaper (`pause_timeout.py`)
 
-Cancels jobs that have been paused longer than the configured timeout.
+A **two-reap** stale-job reaper (not just a pause watchdog). **Module:** `listeners/pause_timeout.py`. **Timer:** `async_track_time_interval` fires every **1 minute**. On each tick, for each managed (vacuum, map) pair it runs two independent reaps:
 
-**Module:** `listeners/pause_timeout.py`
+**Reap 1 — paused-timeout.** `get_paused_job_timeout_report()` returns a report only once a job has been paused past the configured timeout (`None` otherwise — the common case). On a report: `async_cancel_active_job()`, then fires `eufy_vacuum_job_finished` **and** — when rooms were left uncleaned — `eufy_vacuum_run_incomplete` (via `run_incomplete_event_data`).
 
-**Timer:** `async_track_time_interval` fires every **1 minute**.
-
-On each tick:
-1. Calls `get_paused_job_timeout_report()` for each managed (vacuum, map) pair.
-2. If a report is returned (timeout exceeded): calls `async_cancel_active_job()` and fires `eufy_vacuum_job_finished`.
-
-Returns `None` from `get_paused_job_timeout_report()` when no timeout has been exceeded — the common case on every tick.
+**Reap 2 — stranded-`started` (FN-1).** Independent of the paused check (a stranded run is never paused). `poll_stranded_started_job(...)` stamps/clears a `stranded_since` marker and returns a report only once a dispatched `started` run has gone past its grace window without hitting its brand's completion terminal (power-loss / HA-restart / app-cancel-without-terminal). On a report: `async_finalize_stranded_job(..., ended_at=stranded_since)` finalizes it as **`interrupted`** (making the run Restore-able instead of stranding), and on `finalized` fires `eufy_vacuum_job_finished` **and** `eufy_vacuum_run_incomplete` (the "if it strands it is incomplete" case, so `retry_missed_rooms` can act). See [06-job-lifecycle](06-job-lifecycle.md) (`async_finalize_stranded_job`).
 
 ---
 
@@ -207,8 +202,8 @@ Pushes periodic progress snapshots for active jobs.
 On each tick:
 - Only processes vacuums with active jobs in `{"started", "paused"}` status.
 - For **non-phased (contiguous) active jobs only**, calls `manager.maybe_pulse_live_room_refresh(vacuum_entity_id)` (Lever B) *before* the snapshot, keeping the brand's live current-room/map fresh so per-room rollover + live fan track the adapter's interval rather than the device's slower native map cadence. Strict-order phased runs (those carrying `phases`, which advance one room per dispatched phase and dock between rooms) are excluded — they already get a free refresh on each state flip. The pulse is a no-op unless the adapter declares `dispatch.live_room_refresh`; per-vacuum rate-limiting and local-gating live inside the `live_refresh` subsystem (`LiveRoomRefreshManager` in `live_refresh/manager.py`, reached via the `maybe_pulse_live_room_refresh` manager delegator).
-- Calls `get_job_progress_snapshot()` — drives stall detection and bounds-exit derivation.
-- Fires `eufy_vacuum_job_progress_tick` event with the snapshot for each active (vacuum, map).
+- Calls `get_job_progress_snapshot()` for its **side effects** (stall detection + bounds-exit derivation, which themselves fire `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED`); the returned snapshot is **discarded**, not attached to the event.
+- Fires `eufy_vacuum_job_progress_tick` with a payload of **`{vacuum_entity_id, map_id}` only** (a lightweight polling signal — consistent with [02 §7](02-ha-integration.md)), **not** the snapshot.
 
 ---
 
@@ -226,7 +221,9 @@ Watches three entities per vacuum from two different sources: `cleaning_time` an
 | `cleaning_area` (adapter `entities`) | `last_cleaning_area_m2` (float) |
 | `capabilities.entities.water_level` (fallback `capabilities.entities.station_water`) | `last_station_water_percent` (float) |
 
-On state change: validates the new value is numeric, converts to the target type, and calls `record_active_job_sensor_value(vacuum_entity_id, key, value)`. When the changed key is `last_cleaning_time_seconds` or `last_cleaning_area_m2`, the handler additionally calls `manager.record_counter_sample(vacuum_entity_id=...)`, appending one time-stamped counter sample (carrying the last-seen cleaning_time + cleaning_area + battery already pushed into the active-job state) to each in-flight job's `counter_samples` buffer, feeding `counter_segmentation.segment_counters()` for counter-plateau per-room segmentation at finalization.
+On state change: validates the new value is numeric, **normalizes units**, and calls `record_active_job_sensor_value(vacuum_entity_id, key, value)`. The conversions are load-bearing (§4.1/§4.3):
+- **cleaning_time → seconds** (`_duration_state_to_seconds`): ms/min/hr → seconds. The entity's `unit_of_measurement` wins; the adapter's `cleaning_time_unit` is the **fallback** for a bare-number sensor (Roborock reports minutes → `"min"`; absent → treated as seconds — the 60× learning-corruption guard, see [29](29-roborock-adapter.md)).
+- **cleaning_area → m²** (`cleaning_area_to_m2`): normalizes ft² → m² by the entity's unit. When the changed key is `last_cleaning_time_seconds` or `last_cleaning_area_m2`, the handler additionally calls `manager.record_counter_sample(vacuum_entity_id=...)`, appending one time-stamped counter sample (carrying the last-seen cleaning_time + cleaning_area + battery already pushed into the active-job state) to each in-flight job's `counter_samples` buffer, feeding `counter_segmentation.segment_counters()` for counter-plateau per-room segmentation at finalization.
 
 ---
 
@@ -240,11 +237,11 @@ Triggers room discovery on lifecycle events and periodic intervals.
 
 | Trigger | HA event / condition |
 |---|---|
-| `"vacuum_docked"` | dock_status transitions to a docked-vocabulary state |
+| `"vacuum_docked"` | the **vacuum entity** transitions to the literal state `"docked"` (edge-guarded `old != "docked"`) — **not** the `dock_status` entity, and not a vocabulary set |
 | `"active_map_changed"` | active_map entity state changes |
 | `"config_entry_reload"` | one-shot pass deferred via `async_at_started` — runs once HA has fully started (or immediately if HA is already running, e.g. a live config-entry reload). Deferred rather than run at `register()`/setup time so service-response room sources (e.g. Roborock `get_maps`) are registered before the pass reads them. |
 
-**Optional periodic refresh:** `async_track_time_interval` fires every `discovery.auto_refresh_interval_seconds` seconds (default: 6 hours / 21,600 seconds). Only registered if the adapter declares a non-zero interval.
+**Periodic refresh:** `async_track_time_interval` fires every `discovery.auto_refresh_interval_seconds` seconds. `get_discovery_cadence` injects a **default of 6 hours (21,600 s)** when the adapter is silent, so the ticker is registered **by default**; it is skipped only when the adapter explicitly sets the interval to `0`.
 
 On trigger: each pass runs three steps in order — (1) `await async_refresh_room_source(hass, vacuum_entity_id)` (from `rooms/source_refresh.py`), which refreshes the Roborock `get_maps` service-response source into the flattened cache before the sync pass reads it (a no-op for Eufy's entity-attribute source); (2) `run_discovery_pass(hass, manager, vacuum_entity_id)` from `setup/drift.py`; (3) `await manager.async_save()` to persist.
 
@@ -254,16 +251,16 @@ Uses `_make_run_pass(vid)` closure-binding pattern to avoid late-binding bugs in
 
 ## 10. Pose Sampler (`pose_sampler.py`)
 
-Records the per-tick robot pose time-series during an **external** (app-started) run, for room auto-attribution (W5b). It is the production version of the throwaway `debug_log_live_room` probe.
+Records the per-tick robot pose time-series during an **active** run — both **external** (app-started, to recover its unknown room set) and **dispatched (`started`)** — for room auto-attribution (W5b). It is the production version of the throwaway `debug_log_live_room` probe.
 
 **Module:** `listeners/pose_sampler.py`
 
 **Timer:** `async_track_time_interval`. The period is the **smallest declared `room_attribution.tuning.interval_s` across all configured vacuums** (one ticker samples them all). The value is resolved from the adapter — never hardcoded: adapter `room_attribution.tuning.interval_s` → else the resolved engine's `DEFAULT_TUNING['interval_s']` → else a last-resort `_FALLBACK_INTERVAL_S` of 2 s. No adapter declaring `room_attribution` ⇒ no ticker is registered at all.
 
 **Gating** (a vacuum is skipped this tick unless all hold):
-- **External runs only.** Only `(vacuum, map)` pairs whose active job has `status == "external"` are sampled — dispatched runs already know their rooms.
-- **Live-pose-capable vacuums only.** The vacuum's adapter must declare `map_state_source.live_pose`; without it `current_room` is always `None` and sampling is pointless.
-- **Live pose present this tick.** `manager.async_get_map_live_pose()` must return `present` — otherwise the tick is skipped rather than polluting the buffer with `None`.
+- **Active runs only** — `status ∈ {external, started}` (`_SAMPLED_STATUSES`). An **external** run recovers its unknown cleaned-room set; a **dispatched (`started`)** run feeds the atomic-finalize positional-identity reconcile (strict-order phase jobs buffer samples but ignore them at finalize).
+- **Capture-source-capable.** The adapter's `room_attribution.source` (default `"live_pose"`) selects one of two sources, each with its own prerequisite: **`live_pose`** (Eufy fork — a raster-lookup of the robot pixel via `async_get_map_live_pose`) needs `map_state_source.live_pose`; **`native_current_room`** (Roborock — the brand publishes the live room as a NAME entity, slugified + matched to a managed room id) needs `entities.active_cleaning_target`.
+- **(`live_pose` source only) Live pose present this tick.** `async_get_map_live_pose()` must return `present`, else the tick is skipped rather than buffering a `None`. The `native_current_room` source has **no** such gate — it always records (a momentary unknown target is a genuine `None` current_room, not a skip).
 
 On each qualifying tick it reads the declared `entities.cleaning_area` value and records one sample via `manager.record_pose_sample(...)` (`current_room`, `anchor`, `cleaning_area`, `heading`). While the robot is parked/docked — detected primarily from the MQTT `task_status` not being one of the adapter's `vocabulary.active_run_task_states` (more reliable than eufy-clean's pose `robot_docked` flag), with the pose flag as a fallback — `current_room` and `anchor` are nulled so a dock-sitting tick is not mis-attributed to the dock's room.
 
@@ -278,8 +275,8 @@ On each qualifying tick it reads the declared `entities.cleaning_area` value and
 | `lifecycle.py` | State change (lifecycle entities) | — | Job start/finish detection, learning finalization, event fire |
 | `dock_events.py` | State change (dock entities) | — | Dock cycle recording via DockManager |
 | `path_blockers.py` | State change (binary sensors) | — | `eufy_vacuum_path_blocked` event, optional pause/cancel |
-| `pause_timeout.py` | Time interval | 1 min | Cancel timed-out paused jobs |
+| `pause_timeout.py` | Time interval | 1 min | **Two reaps**: timed-out paused jobs + stranded-`started` jobs (FN-1) → both fire `job_finished` (+`run_incomplete` when rooms missed) |
 | `job_progress.py` | Time interval | 5 sec | `eufy_vacuum_job_progress_tick` event (+ Lever B live-room refresh pulse on contiguous runs) |
 | `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/water into active job (+ counter-sample append on time/area change) |
 | `discovery.py` | State change + time interval | 6 hr | Run discovery pass, update drift history |
-| `pose_sampler.py` | Time interval | min adapter `room_attribution.interval_s` (fallback 2 s) | Record per-tick pose sample into the external run slot (`record_pose_sample`), external-run/live-pose-gated |
+| `pose_sampler.py` | Time interval | min adapter `room_attribution.tuning.interval_s` (fallback 2 s) | Record per-tick pose sample (`record_pose_sample`) on **active** runs (`external`+`started`), dual-source (`live_pose` / `native_current_room`) |
