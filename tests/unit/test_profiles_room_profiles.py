@@ -20,6 +20,7 @@ Coverage targets
 [RP-16] legacy profile names are resolved via LEGACY_PROFILE_ALIASES.
 [RP-17] _normalize_floor_type: granite + concrete are canonical settable floor types (not coerced).
 [RP-18] apply_room_profile_to_config fills omitted fields from the adapter catalog's normalize_defaults, not the in-code Eufy defaults.
+[RP-19] 'Standard'/'Normal' are dead Eufy cleaning-path values → fold to Quick (case-insensitive); real paths pass through unchanged.
 """
 
 from __future__ import annotations

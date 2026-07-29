@@ -30,6 +30,7 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
 [SP-15] stashed run steps survive a PREFLIGHT (peek) and are consumed only by the real
         dispatch (consume_pending_steps=True) — the shipped bug where get_start_status'
         preflight popped the stash, so a stepped profile ran an atomic (flat) job.
+[SP-16] regression (B2): a stored room whose value dict lacks room_id survives normalization with room_id recovered from its dict KEY.
 """
 
 from __future__ import annotations

@@ -13,6 +13,8 @@ unlike a charge_wait/wait which a dock poller drives.
 [ZN-6] a completed zone phase advances to the next phase (participates in the normal cycle).
 [ZN-7] a zone phase confirms via state==cleaning (no target room) -> guard clears -> can finalize.
 [ZN-8] a zone that never starts (no-show) returns False so the watchdog re-dispatches.
+[ZN-9] a run ENDING on a zone clears via the listener's unconditional mark_active_job_finalized.
+[ZN-10] Cancel Run must ALWAYS clear the active job — even if the learning-only finalizer raises on a zone-ending run.
 [ZN-11] _capture_finishing_phase_timing on a zone phase records zone_timing (wall from the phase
         boundary, mode from has_mop_mode, area from the saved zone) + EMPTY room_timing.
 [ZN-12] the completed-job recorder folds a single-zone observation into map_bucket['learned_zones'];

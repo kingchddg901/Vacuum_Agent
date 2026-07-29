@@ -30,6 +30,7 @@ Coverage targets
 [DIAG-11] self_check surfaces a completion_health warning (missing job_active binary
           on a require_job_active_clear brand) at the top as a warnings entry.
 [DIAG-12] self_check with no completion_health problem → empty warnings list.
+[DIAG-13] an unrecognized cleaning_area unit surfaces as a loud warning — the guardrail for a mis-declared unit.
 [DIAG-14] active_map entity EXISTS but its state is a sentinel (`unavailable`) and no
           rooms are visible -> rooms_importable 'no', a loud warning, and a note that
           explains it, instead of the old "maps, rooms and the live map all work".

@@ -19,7 +19,8 @@
 [ZP-3] add_queue_zone needs >= 2 rooms.
 [ZP-4] set_queue_breaks round-trips a zone entry (reorder preserves zone_ids).
 [ZP-5] normalize dedupes/validates zone_ids; empty -> dropped.
-[SP-1/2] save_run_profile captures the stepped plan; flat queue -> single group.
+[SP-1] save_run_profile from a stepped queue captures the WHOLE plan (rooms + break), not a flattened clean.
+[SP-2] a flat queue (no breaks) saves as a single room_group — no phantom break/zone.
 [ZT-1] a zone can TRAIL (after_index == room_count -> cleaned after the last room).
 [ZT-2] set_queue_breaks: zone trails, charge/wait clamp to interior.
 [ZT-3] a rooms+zone queue (no charge) takes the stepped plan (gate fix; zone not dropped).

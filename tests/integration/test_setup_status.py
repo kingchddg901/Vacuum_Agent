@@ -10,6 +10,8 @@ Coverage targets
 [SS-6]  Per-vacuum entry contains setup_steps, next_step, room_drift, maps.
 [SS-7]  setup_complete is False when no vacuum has an imported map.
 [SS-8]  next_actions is empty when state=ready.
+[SS-9]  after the active map changes to one with no configured rooms, save_rooms re-opens despite its sticky flag.
+[SS-10] with the active map pointing at the configured map, save_rooms stays complete — no spurious re-open.
 """
 
 from __future__ import annotations

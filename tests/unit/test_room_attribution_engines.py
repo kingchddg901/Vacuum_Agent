@@ -10,6 +10,9 @@
 [RA-8]  partial tuning merges over DEFAULT_TUNING (unspecified keys keep defaults).
 [RA-9]  attribute(): empty -> empty; mode = robust iff cleaning_area present, else anchor_only.
 [RA-10] noop validate_tuning rejects tuning keys.
+[RA-11] cleaning_area that RESETS mid-run is re-baselined: swept-area sums the POSITIVE increments.
+[RA-12] regression: a clean monotonic counter is unchanged (positive-increment sum = last-minus-first).
+[RA-13] a multi-room run where cleaning_area resets at the room change: each room credited its OWN positive rise.
 
 The real classifier behaviour (the 3 adversarial validation runs) lives SOLO in
 tests/adapters/eufy/test_room_attribution.py — this file is the brand-agnostic seam.
