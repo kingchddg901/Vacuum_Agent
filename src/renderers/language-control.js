@@ -30,6 +30,21 @@ function esc(s) {
 }
 
 /**
+ * Compact (≤2-char) badge for the header globe button.
+ *
+ * A locale whose primary subtag alone is ambiguous — `zh-Hans` and `zh-Hant`
+ * both reduce to "ZH" — gets its native one-glyph distinguisher (简 = Simplified,
+ * 繁 = Traditional), exactly how the two scripts are marked in Chinese and
+ * mirroring the dropdown's native endonyms (简体中文 / 繁體中文). Every other locale
+ * keeps its uppercased primary subtag (EN, DE, RU, AR, JA, ES, …).
+ */
+const _BADGE_OVERRIDES = { "zh-hans": "简", "zh-hant": "繁" };
+function languageBadge(code) {
+  const c = String(code || "en");
+  return _BADGE_OVERRIDES[c.toLowerCase()] ?? c.split("-")[0].toUpperCase();
+}
+
+/**
  * Render the header language control.
  *
  * @param {{ t: (key: string, vars?: object) => string }} renderers - the card's
@@ -45,7 +60,7 @@ function esc(s) {
 export function renderLanguageControl(renderers, { langOverride, currentLang, open, autoInfo } = {}) {
   const t = (k, v) => renderers.t(k, v);
   const active = langOverride && langOverride !== "auto" ? String(langOverride) : "auto";
-  const badge = String(currentLang || "en").split("-")[0].toUpperCase();
+  const badge = languageBadge(currentLang);
 
   const locales = listLocales();
 
