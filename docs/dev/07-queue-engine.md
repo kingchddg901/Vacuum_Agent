@@ -67,42 +67,58 @@ The `payload` sub-object is the exact body sent to the Eufy API via
       "clean_times": 1,
       "fan_speed": "Max",
       "clean_mode": "vacuum",
-      "clean_intensity": "Standard"
+      "clean_intensity": "Quick"
     }
   ]
 }
 ```
 
-Capability-gated fields (`water_level`, `edge_mopping`, `path_type`) are
-present only when the capabilities dict says the vacuum supports them *and* the
-room's `clean_mode` requires them.
+Capability-gated fields are present only when the capabilities dict says the
+vacuum supports them: `path_type` whenever `supports_path_control` (no clean_mode
+condition); `water_level` and `edge_mopping` additionally require the room's
+`clean_mode` to be in `{"mop", "vacuum_mop"}`.
 
 **Field reference**
 
 | Field | Type | Condition |
 |---|---|---|
-| `map_id` | `int \| str` | Numeric when the ID is all-digits; raw string otherwise |
+| `map_id` | `int \| str` | Cast by the adapter's `dispatch.map_id_type`: `"int"` forces int, `"str"` forces str, absent = auto-cast (numeric when all-digits, else raw string). When `map_id_type == "int"` but the id can't become an int (a scalar / `"main"` anchor), the field is **omitted entirely** from the wire payload. |
 | `id` | `int` | Room ID from the vacuum firmware |
-| `clean_times` | `int` | Number of cleaning passes (always ≥ 1) |
+| `clean_times` | `int` | Cleaning passes. **The Eufy engine passes `int(clean_passes)` through unclamped** — no ≥1 floor, no Eufy ≤2 cap; only the flat-id / Dreame engines clamp to `[1, passes_max]`. Capability gating forces `1` only when `supports_passes` is false. |
 | `fan_speed` | `str` | `"Quiet"`, `"Standard"`, `"Boost"`, `"Max"` |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
-| `clean_intensity` | `str` | `"Quick"`, `"Standard"`, `"Deep"` (default `"Standard"`) |
+| `clean_intensity` | `str` | `"Quick"`, `"Narrow"`, `"Deep"`. Legacy `"Standard"` / `"Normal"` are **dead** values folded to `"Quick"` on read (`normalize_clean_intensity`); nothing emits `"Standard"` on the wire. |
 | `water_level` | `str` | Only when `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `edge_mopping` | `bool` | Only when `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `path_type` | `str` | `"wide"`, `"narrow"` (default `"wide"`); only when `supports_path_control` |
+
+Every wire field **name and value** above is renamable per-adapter via the
+`dispatch` block (`map_id_field`, `rooms_field`, `room_id_field`,
+`clean_passes_field`, and the per-room `room_fields` rename/value/omit map); the
+table shows the Eufy defaults. See §7 and [22](22-adapter-config-reference.md) §13.
 
 The vacuum processes rooms in the order they appear in the `rooms` array.
 
 ### The `resolved_rooms` sidecar
 
 `resolved_rooms` is a parallel list used by the integration for display and job
-tracking. It carries every field in the API payload plus:
-- `name`, `slug`
-- `selected_profile_name`, `resolved_profile_name`
-- `carpet` (bool derived from `floor_type`)
-- `capability_gated` dict
+tracking (learning / history read it). It is **never sent to the vacuum**. Each
+entry has exactly these 14 fields (`build_room_clean_payload`), using **canonical**
+internal names — note `room_id` / `clean_passes`, not the wire's `id` / `clean_times`:
 
-It is never sent to the vacuum.
+| Field | Type | Notes |
+|---|---|---|
+| `room_id` | int | canonical (wire uses `id`) |
+| `name`, `slug` | str | room identity |
+| `selected_profile_name` | str | what the room stored |
+| `resolved_profile_name` | str | what was actually used |
+| `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `path_type` | str | **all present unconditionally** here (unlike the capability-gated wire payload) |
+| `clean_passes` | int | canonical (wire uses `clean_times`) |
+| `edge_mopping` | bool | always present |
+| `carpet` | bool | derived: `floor_type` starts with `"carpet"` |
+| `capability_gated` | dict | the **5-key** support map `{supports_mop_features, supports_water_control, supports_path_control, supports_edge_mopping, supports_passes}` — NOT the `capability_gated: True` boolean that `apply_capability_gate` stamps onto the settings dict |
+
+(A read-back via `get_payload_state` further enriches these with display labels — a separate read-time layer.)
 
 ---
 
@@ -147,19 +163,29 @@ floor-type fan/water defaults — reaches the dispatched per-room settings.
 
 For each room, the engine resolves which cleaning settings to use:
 
-1. `room["profile_name"]` is looked up in the merged profile library
-   (custom + built-in) via `resolve_room_profile_for_room`, using the
-   adapter-resolved catalog.
-2. If the profile name is `"custom"` or not found, the room's direct fields
-   (`fan_speed`, `water_level`, etc.) are used as-is.
-3. Carpet/mop invariants are enforced inside `resolve_room_profile_for_room`
-   itself (carpet/floor-type defaults), not by a separate pass:
-   - Carpet rooms: `fan_speed` set to the floor-type fan default;
-     `water_level` forced to `"Off"`; `edge_mopping` forced to `False`.
-   - Non-mop modes (and carpet): `edge_mopping` forced to `False`.
-4. Capability gating is applied via `apply_capability_gate` (also passed the
-   resolved catalog) — removes fields the vacuum hardware doesn't support and
-   derives the mop→vacuum downgrade fallback from the catalog's built-ins.
+1. **Field-by-field precedence** (`resolve_room_profile_for_room`): for every
+   setting — `clean_mode`, `clean_intensity`, `path_type`, `edge_mopping`,
+   `fan_speed`, `water_level`, `clean_passes` — the value is
+   `room_config.get(X)` → `resolved_profile.get(X)` → hardcoded default. The
+   room's **own stored field always wins**; the named profile only fills gaps —
+   this holds for *every* profile, not just `custom`/not-found. A `custom` or
+   unknown name still resolves through `get_room_profile`, which uses
+   `default_profile` (`vacuum_quick`) as the gap-filler. `clean_intensity` is run
+   through `normalize_clean_intensity` (dead `Standard`/`Normal` → `Quick`).
+2. **Floor-type / carpet / mop overrides**, applied on top:
+   - carpet floor → `fan_speed = floor_type_fan_defaults[ft]` (default `Max`),
+     `water_level = "Off"`, `edge_mopping = False`;
+   - non-carpet with **no** explicit `water_level` → `water_level = floor_type_water_defaults[ft]` (default `Low`);
+   - mop mode + `water_level == "Off"` + non-carpet → `water_level = floor_type_water_defaults[ft]` (mop-with-Off is invalid);
+   - non-mop mode **or** carpet → `edge_mopping = False`.
+3. **Capability gating** (`apply_capability_gate`, at payload-build time, not during
+   resolution): if mop is unsupported and mode is `mop`/`vacuum_mop`, **downgrade**
+   to a vacuum built-in (`vacuum_deep` when `resolved_profile_name == "vacuum_mop_deep"`,
+   else `vacuum_quick`) — set `clean_mode="vacuum"`, `water_level="Off"`,
+   `edge_mopping=False`, and pull **only** `path_type` + `clean_intensity` from that
+   fallback. Then the flat clamps: `clean_mode=="vacuum"` → water `Off` + edge `False`;
+   `!supports_water` → water `Off`; `!supports_edge` → edge `False`; `!supports_path`
+   → path `"wide"`; `!supports_passes` → passes `1`.
 
 The final `ResolvedRoom` records both the `selected_profile_name` (what the
 room stored) and the `resolved_profile_name` (what was actually used).
@@ -195,13 +221,19 @@ that room:
 
 One room is marked `is_dock_room: true` — the root of the graph.
 
+**Normalization** (`_normalize_grants_access_to`): a non-list becomes `[]`, and
+per entry it drops ids ≤ 0, self-references, and duplicates. `grants_access_to` is
+stored on each room object in the map bucket (`rooms[room_key].grants_access_to`).
+
 **Structural constraints enforced by `AccessGraphManager`:**
 - Each non-dock room may have at most one inbound edge.
 - No self-references.
 - No duplicate edges.
 - No cycles.
-- The dock room must be reachable from every other room following
-  `grants_access_to` edges in reverse.
+- **Every non-dock room must be forward-reachable from the dock** by following
+  `grants_access_to` edges outward from the dock room. A room not in that reachable
+  set is flagged `unreachable_from_dock`; a room with no inbound edge at all is
+  flagged `missing_dependency`.
 
 ### Graph states
 
@@ -296,7 +328,7 @@ Calls `build_queue_from_managed_rooms`. Produces a lightweight queue summary
 have **not** been evaluated. This is the pre-rule queue used for display.
 
 Stores the result in `self.data["queue"][vacuum_entity_id][map_id]` and updates
-`runtime.queue_room_ids`.
+`runtime.selected_map_id` **and** `runtime.queue_room_ids`.
 
 ### `build_room_payload`
 
@@ -304,7 +336,8 @@ Stores the result in `self.data["queue"][vacuum_entity_id][map_id]` and updates
 manager.build_room_payload(vacuum_entity_id=..., map_id=...)
 ```
 
-Resolves the brand dispatch engine (`get_dispatch_engine(dispatch.template)`)
+First runs every room through `protected_room_config` (carpet/mop invariants),
+then resolves the brand dispatch engine (`get_dispatch_engine(dispatch.template)`)
 and calls its `build_payload(...)`; for the Eufy engine that delegates to
 `build_room_clean_payload`, which reads current queue state, resolves profiles,
 applies capability gating, and builds the full API payload. Stores the result in
@@ -391,6 +424,31 @@ whenever the run's steps contain a `charge_wait` / `wait` stop, so a
 path-optimizing brand runs each group's rooms in the exact order shown rather than
 silently re-ordering them inside one batch. The `honors_clean_order` gate still
 folds it to a no-op for Eufy.
+
+### Signatures & the dispatch-engine registry
+
+```python
+build_room_clean_payload(*, vacuum_entity_id: str, map_id: str,
+    managed_rooms: dict, queue_room_ids: list[int] | None = None,
+    stored_profiles: dict | None = None, capabilities: dict | None = None,
+    dispatch: dict | None = None) -> dict          # {payload, resolved_rooms, room_count}
+build_queue_from_managed_rooms(*, vacuum_entity_id: str, map_id: str, managed_rooms: dict) -> dict
+manager.build_queue(*, vacuum_entity_id: str, map_id: str) -> dict
+manager.build_room_payload(*, vacuum_entity_id: str, map_id: str) -> dict
+manager.set_rooms_enabled_subset(*, vacuum_entity_id: str, map_id: str,
+    room_ids: list[int] | list[str]) -> dict
+```
+
+**Registry** (`queue/dispatch_engines.py`): `_DISPATCH_ENGINES` maps four template
+names → engine instances: `eufy_room_clean`, `roborock_segment_clean`,
+`generic_room_ids` (Ecovacs + catch-all), `dreame_room_clean`.
+`get_dispatch_engine(name)` returns the match, falling back to
+`_FALLBACK_TEMPLATE = "eufy_room_clean"` for an **absent** name (silent — the legacy
+default) or an **unknown** name (logs a warning). The `DispatchEngine` Protocol
+requires four members: `template_name`, `job_model` (`"atomic_batch"` |
+`"sequenced"`), `build_payload(...)`, and `build_phases(*, strict_order=False, ...)`
+(whose default single phase == `build_payload`, so an atomic engine is just a
+one-phase sequenced engine).
 
 ### Send-side dispatch (`DispatchManager`)
 
@@ -508,14 +566,19 @@ the active-job `phases` list 1:1:
 
 - Each `room_group` → its brand dispatch phase(s) (via `_build_dispatch_phases`),
   scoped to that group's **included** (enabled + not-blocked) room IDs.
-- Each `charge_wait` / `wait` step → a break phase carrying only its
-  `phase_type` + `target_battery_percent` / `wait_minutes` and empty room fields.
-- Each `zone` step → a `{phase_type: "zone", zone_ids}` **clean** phase (not a
-  break). The ids resolve to bbox rects at dispatch time
-  (`manager._resolve_saved_zone_rects` over the map's `saved_zones` geometry) and go
-  out through `dispatch_zone_clean`; completion reuses the room-group watchdog hook,
-  so no new lifecycle mechanism is added. Because it is a clean, a `zone` is **never**
-  trimmed by the leading/trailing/collapse rules that apply to stops.
+- Each `charge_wait` / `wait` step → a break phase carrying only its `phase_type`
+  + `target_battery_percent` (default **100**) / `wait_minutes` (default **5**) and
+  empty room fields.
+- Each `zone` step → a **clean** phase (not a break):
+  `{phase_type: "zone", zone_ids: [str], zones: <resolved rects>, resolved_rooms: [],
+  queue_room_ids: [], queue_rooms: [], payload: {}, room_count: 0}`. The rects are
+  resolved at **materialization** time (here, via `manager._resolve_saved_zone_rects`
+  over the map's `saved_zones` geometry) and stored on the phase's `zones` field —
+  **not** at dispatch time. A zone step whose ids resolve to nothing is **skipped**
+  (like an empty room_group). At dispatch it goes out through `dispatch_zone_clean`;
+  completion reuses the room-group watchdog hook, so no new lifecycle mechanism is
+  added. Because it is a clean, a `zone` is **never** trimmed by the
+  leading/trailing/collapse rules that apply to stops.
 - **Break-phase cleanup**: leading and trailing breaks are dropped (a stop with
   no clean to bracket is pointless), and consecutive same-type breaks collapse to
   the last (two charges → last target). If no break survives, it falls back to one
@@ -533,7 +596,7 @@ dropping unparseable room ids and any group left with no valid room.
 
 `_build_effective_start_plan` invokes `_build_steps_phases` only when the pending
 run steps (stashed by `start_run_profile`, popped on the real dispatch) contain a
-`charge_wait` / `wait` stop; otherwise it takes the normal single-phase
+`charge_wait` / `wait` / `zone` step; otherwise it takes the normal single-phase
 `_build_dispatch_phases` path. A stepped run with stops forces `strict_order=True`
 (see §7).
 
@@ -611,7 +674,7 @@ display) rather than a fabricated estimate.
   thin `start_run_profile` delegator for its service + button-entity callers, and
   `start_selected_rooms` / `build_queue` / `build_room_payload` stay on the core
   manager (reached via `self._manager`). It only stashes `_pending_run_steps` when
-  the profile actually has a `charge_wait` / `wait` stop, and — because
+  the profile actually has a `charge_wait` / `wait` / `zone` step, and — because
   `start_selected_rooms` pops that stash only deep in `_build_effective_start_plan`,
   which an early return (blocked / confirmation-required without a token / vacuum
   missing) never reaches — it deletes the leftover stash on a **non-started**
