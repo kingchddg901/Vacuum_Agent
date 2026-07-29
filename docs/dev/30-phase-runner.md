@@ -56,7 +56,7 @@ reads/writes the same `manager.data["active_jobs"]` store.
 > (one room per phase) when `strict_order=True` is requested **and** the brand
 > does not natively honor order (`honors_clean_order` is False). Eufy, which
 > honors order, folds a clean group back to a single atomic phase and never runs
-> the intra-group watchdog. A run profile with **charge/wait stops** forces
+> the intra-group watchdog. A run profile with **charge/wait/zone steps** force
 > `strict_order=True` (`_build_effective_start_plan`, §3.1) so a path-optimizing
 > brand runs each group in the shown order; the stop phases themselves still
 > split the job into multiple phases on **either** brand (a stepped Eufy run is
@@ -146,26 +146,38 @@ stop → clean group*. When such a profile starts, its steps are stashed under
   each group room's own fields (`clean_mode` / `fan_speed` / `water_level` / …)
   overlay the global effective-room view, so the same room can vacuum in one
   group and mop in the next;
-- a `charge_wait` step → a phase `{phase_type: "charge_wait",
-  target_battery_percent}`; a `wait` step → `{phase_type: "wait", wait_minutes}`;
-  both carry no rooms.
-- a `zone` step → a phase `{phase_type: "zone", zone_ids: [...]}` — a **real
-  clean phase** (unlike a stop), carrying no rooms but a saved-zone id list. It
-  dispatches via `dispatch_zone_clean` (the ids resolve to bbox rects at dispatch
-  time) and advances on clean-complete through the **same room-group watchdog
-  hook** as a clean phase — no new completion mechanism. A `zone` may sit at the
-  tail (after the last room group); leading stops don't apply to it.
+- a `charge_wait` step → a phase `{phase_type: "charge_wait", target_battery_percent}`;
+  a `wait` step → `{phase_type: "wait", wait_minutes}`. Both (and the `zone` phase) also
+  carry empty scaffolding keys `resolved_rooms: [], queue_room_ids: [], queue_rooms: [],
+  payload: {}, room_count: 0` (read with `.get` defaults downstream, so a rebuild omitting
+  them still works, but the on-disk shape has them).
+- a `zone` step → a **real clean phase** (unlike a stop):
+  `{phase_type: "zone", zone_ids: [...], zones: [[x0,y0,x1,y1], ...]}`. The saved-zone
+  ids are resolved to normalized bbox **rects at phase-BUILD time** (via
+  `_resolve_saved_zone_rects`) and stored on the phase's **`zones`** field — only the
+  rect→device-coordinate inversion happens later, inside `dispatch_zone_clean` at
+  dispatch. (`zone_ids` are retained for the `zone_timing` snapshot / learning key.) A
+  zone reuses the watchdog + completion gate but with a **zone-specific verify signal**
+  (sustained `vacuum.state == "cleaning"`, §6.4), not the room current-room match. A
+  `zone` may sit at the tail (after the last room group); leading stops don't apply to it.
 - **Leading/trailing stops are dropped** and **consecutive same-type stops
   collapse** (two charges → the last target) so phase 0 is always a real clean
   the initial dispatch can send; if no stop survives, it falls back to one atomic
   clean. (A `zone` is a clean phase, so it is never trimmed as a "stop.")
 
 `_build_effective_start_plan` forces `strict_order=True` whenever the run's steps
-contain any `charge_wait`/`wait` stop, so a path-optimizing brand runs each
+contain any `charge_wait`/`wait`/`zone` step, so a path-optimizing brand runs each
 group's rooms in the shown order (a multi-room group then splits into per-room
 phases); it is a no-op for an order-honoring brand (Eufy folds it back to
 False). The stashed steps are **popped** only on the real dispatch; preflight
 callers peek so they can't consume the stash early.
+
+**Two step sources.** The explicit `set_run_profile_steps` stash above
+(`_pending_run_steps`) is one; when there is **no** stash, `_build_effective_start_plan`
+falls back to the live queue's own breaks via `get_queue_steps(...)` (an ad-hoc stepped
+queue composed in the card). The explicit stash wins when both exist. Either source is
+materialized by the same `_build_steps_phases`, and either drives strict order when it
+contains a `charge_wait`/`wait`/`zone` step.
 
 ---
 
@@ -299,9 +311,10 @@ than running the whole counter stream through `_build_transit_blocks`:
 - `transit_capture_valid` is True only when **every** phase contributed a
   non-empty timing (`_every_phase_captured`); a single empty phase marks the run
   as not-fully-captured (excluded from learning). A stop phase's timing is
-  intentionally empty (§5.1), so a stepped run that includes a `charge_wait`/`wait`
-  stop is currently reported not-fully-captured for transit-learning purposes —
-  the per-room `room_timing` entries of its clean phases are still concatenated.
+  intentionally empty (§5.1) — as is a **`zone`** phase's `room_timing` (it captures a
+  `zone_timing` instead, §5.5) — so a stepped run that includes a `charge_wait`/`wait`
+  stop **or a zone** is currently reported not-fully-captured for transit-learning
+  purposes; the per-room `room_timing` entries of its clean phases are still concatenated.
 - Atomic jobs leave `phases` absent → the legacy `_build_transit_blocks` path.
 
 See [10-learning-system](10-learning-system.md) for how finalized
@@ -326,8 +339,10 @@ phases[idx]["zone_timing"] = {
 }
 ```
 
-The learned quantity is **wall-clock** (`_wall_seconds(started_at, now)`), not a
-counter slice: for a small mop zone the clock is dominated by dock-prep and pad
+The learned quantity is **wall-clock** (`_wall_seconds(start, now)` where `start` = the
+**previous phase's recorded `_timing_end_t`** — ≈ when this zone dispatched — or
+`active_job["started_at"]` **only** for a *leading* zone with no prior captured phase;
+**not** `job.started_at` in the general `rooms → zone` case), not a counter slice: for a small mop zone the clock is dominated by dock-prep and pad
 wash, so wall time is the honest cost while area is not (see
 [10-learning-system §2.5](10-learning-system.md#25-zone-learning-learned_zones)).
 `zone_names` and `area_m2` come from `_saved_zone_names` / `_saved_zone_area_sum`
@@ -393,6 +408,12 @@ stalled** — recoverable by the user via *Cancel Run*, rather than silently hun
 await runner._dispatch_active_phase(*, vacuum_entity_id, map_id, job, attempt=1) -> None
 ```
 
+**Zone short-circuit (step 0):** if `phase_type == "zone"`, dispatch the phase's
+`zones` rects via `manager.dispatch_zone_clean(vacuum_entity_id=…, zones=_phase["zones"],
+map_id=…)` (per-brand coordinate conversion + caps live there) and **return** — the room
+pre-calls / per-room settings / live-resolve / segment payload below are all skipped.
+Otherwise (a `room_group` phase):
+
 1. Run this phase's **global pre-calls** *per phase*
    (`manager._run_global_pre_calls(...)`) from THIS phase's own resolved rooms. A
    brand that exposes fan/water only as global device settings (Roborock mop
@@ -424,6 +445,14 @@ never retried (only ~1 room in 4 actually fired). The strong signal is the
 brand's **native current-room** matching the phase's target *while actually
 cleaning, sustained*.
 
+- **Zone phase** (checked **first**): a zone carries no target room, so the native
+  current-room match can never confirm it (`current_room_id` is `None`) — without a
+  zone-specific signal the phase would lock ACTIVE forever and the completion gate would
+  stay suppressed. Verify a zone on **sustained `vacuum.state == "cleaning"`** instead:
+  accumulate `cleaning_in_target += poll_seconds`, confirm (**True**) at
+  `confirm_seconds`, and apply the same idle-exit weak-confirm (`idle >= verify_seconds`
+  → return `cleaning_in_target > 0`). Not the job-active binary (it stays on across the
+  job and false-passes).
 - **Native path** (adapter declares `entities.active_cleaning_target`):
   - Accumulates `cleaning_in_target` seconds when **all** hold:
     `vacuum.state == "cleaning"` (rules out docked-in-the-target-room),
@@ -492,7 +521,10 @@ phase, so both route through one guarded entry.
   idempotent against a live poller. The re-spawned poller is idempotent by its own
   already-at-target / deadline / `_still_ours` logic; the `wait` poller recomputes
   its deadline from the **persisted `wait_started_at`**, so a restart mid-wait does
-  not restart the full timer. Called from two sites:
+  not restart the full timer. The **charge** poller, by contrast, recomputes a *fresh*
+  `timeout_min` deadline on each spawn (it does **not** subtract elapsed charge time from
+  `charge_started_at`) — the battery target is the real gate, so a re-arm's
+  already-at-target check keeps the fresh window harmless. Called from two sites:
   - `core/manager.py::async_initialize` (on load) — loops every `"started"` job
     once `self.phase_runner` exists.
   - `jobs/active_job.py::async_resume_active_job` (on resume) — right after
@@ -509,8 +541,10 @@ charging, so no room-finish event can advance it; this coroutine owns its whole
 lifecycle. It is spawned by `maybe_advance_phase` when the advanced phase's
 `phase_type == "charge_wait"`.
 
-- Reads `target_battery_percent` (default `100`) and
-  `charge_wait_timeout_minutes` (default `180`) off the phase dict.
+- Reads `target_battery_percent` (default `100`) and `charge_wait_timeout_minutes`
+  (default `180`) off the phase dict. **Note:** the step builder (`_build_steps_phases`)
+  currently writes only `target_battery_percent`; nothing feeds `charge_wait_timeout_minutes`,
+  so it is read-with-default and effectively a constant 180 min (not settable per-step today).
 - **Already at/above target on entry** → advance immediately via
   `maybe_advance_phase`, no charge.
 - Otherwise it stamps `charge_from_battery` / `charge_started_at` on the phase
@@ -520,8 +554,9 @@ lifecycle. It is spawned by `maybe_advance_phase` when the advanced phase's
 - On reaching the target it stamps `charge_to_battery` / `charge_ended_at` and
   calls `maybe_advance_phase` to continue.
 - **Timeout** → `async_cancel_active_job(cancel_reason="charge_timeout",
-  forced_lifecycle_state="charge_timeout")` so the un-cleaned remaining rooms are
-  finalized as missed rather than left hung.
+  forced_lifecycle_state="charge_timeout", forced_lifecycle_message="Charging to {target}%
+  timed out after {timeout_min} min; remaining rooms were not cleaned.", map_id=…)` so the
+  un-cleaned remaining rooms are finalized as missed rather than left hung.
 - A genuine user Cancel (`_cancel_in_flight`), pause, or advance (the
   `_still_ours` guard: job present, `status == "started"`,
   `current_phase_index == phase_index`) → bail; the phase is no longer ours.
