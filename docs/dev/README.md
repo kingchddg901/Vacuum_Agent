@@ -94,13 +94,14 @@ Cross-cutting features that span several subsystems.
 
 ---
 
-## Design references & follow-up trackers
+## Design references
 
-Not in the numbered reading order — design rationale the subsystem docs point to, plus open-item trackers.
+Not in the numbered reading order — design rationale the subsystem docs point to.
 
 - **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation), `voice-assist-wizard` (design-only, not yet implemented).
 - **[32-core-minimality-and-deconstruction](32-core-minimality-and-deconstruction.md)** — the irreducible-core map (analysis, not a changelog).
-- **[battery-subsystem-followups](battery-subsystem-followups.md)** / **[external-run-robustness-followups](external-run-robustness-followups.md)** — open-item trackers; each resolved item is documented canonically in [12](12-battery-system.md) / [28](28-external-run-ingestion.md).
+
+*(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
 
 ---
 

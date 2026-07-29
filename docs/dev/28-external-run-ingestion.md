@@ -223,7 +223,7 @@ engine recovers the cleaned-room set and **promotes** each counter segment's ide
 the room's swept area confirmed it; `presence` = the counter vouched the segment is a real clean
 but the swept area was masked (e.g. a stale `cleaning_area` through the run's first room), so it's
 named by the dominant room the robot dwelt in. Pose-only runs (no counter segments) stand a record
-up straight from pose. See [external-run-robustness-followups](external-run-robustness-followups.md).
+up straight from pose.
 
 **Attribution source + robust mode (1.8.0 — both brands).** The capture source is
 **adapter-declared** via `room_attribution.source`: Eufy = `live_pose` (the fork's decoded-map
@@ -656,6 +656,26 @@ settings instead of forming a parallel bucket. See
   Distinguishing it would need wash-mode awareness; out of scope. The user's
   ByRoom setup is unaffected, and the room-count stepper / "Merge up" let the user
   collapse it (§5a).
+- **Freeze / long-pause tolerance (observer-only)** — external runs are deliberately excluded
+  from the dispatched pause-timeout watchdog (the integration didn't start the app's job, so it
+  must not cancel it), so capture has to *tolerate* an arbitrarily long firmware freeze. Two
+  robustness carve-outs handle it, both capture/segmentation-side only (a frozen external run is
+  never cancelled): **(1) the pose buffer** — `record_pose_sample` (`jobs/active_job.py`)
+  coalesces a static tail (`_pose_sample_is_static`: same `current_room` + anchor within a small
+  epsilon, or both `None`, + `cleaning_area` not advancing) once static past ~30 s, bumping the
+  last marker's `t` instead of appending, so a multi-hour freeze can't flood the buffer and rotate
+  the run's real early cleaning data out of the 3000-sample cap; **(2) the counter wall** —
+  `counter_segmentation.build_segments` carves a gap longer than `stall_wall_s` (adapter
+  `job_segmenter.tuning`, default 600 s) between two `cleaning_time` ticks out of the enclosing
+  segment's `time_wall_s` (the cleaning clock stopped = dead time, booked as overhead), so a
+  freeze can't inflate a real room's learned clean-time. `cleaning_time` is the discriminator (it
+  ticks only while cleaning), so a legit mop wash (minutes) is under both thresholds and normal
+  runs are unaffected. **Still open:** a freeze can still spawn a **phantom ~0 m² mid-segment** in
+  the review record — `_enrich_segments` drops only *trailing* sub-`_MIN_ROOM_AREA_M2` segments (a
+  leading/middle ~0 m² is kept on purpose for the legit `cleaning_area`-lag case: a short first
+  room whose area lands on the next segment), so a middle freeze-phantom survives. Auto-dropping it
+  safely would need to tell a freeze-phantom from a lag-0 m²; deferred. The review card is the
+  mitigation — the user re-segments / merges a bad record before it graduates (§5a).
 - **Live-validated (2026-06-07)** — detection, counter + settings capture (all
   five selects, value-mapped), finalize on `docked`/`idle`, the review wizard, and
   Confirm → graduate → rebuild were confirmed end-to-end on real firmware. The

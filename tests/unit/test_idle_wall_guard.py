@@ -124,8 +124,8 @@ def test_run_had_break_phase_non_dict_state():
 # --- _run_had_charge_wait_phase (mid_job_recharge flag; charge_wait ONLY) -----
 # The recharge flag must NOT trip on a plain `wait` phase: a timed hold does not
 # recharge, so its start-end drain is accurate and should still feed the per-config
-# means. Only a `charge_wait` (a real mid-run recharge) nets out drain — Item 1 of
-# battery-subsystem-followups.md.
+# means. Only a `charge_wait` (a real mid-run recharge) nets out drain
+# (docs/dev/12-battery-system.md §10).
 
 @pytest.mark.parametrize("phases,expected", [
     ([{"phase_type": "charge_wait"}], True),

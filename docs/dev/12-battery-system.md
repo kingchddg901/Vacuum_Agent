@@ -498,8 +498,7 @@ Called from `learning/job_finalizer.py` after the completed_job dict is built an
 > `battery/store.py` writes the full per-sample JSONL + `sessions.csv`, so the TRUE discharge of any
 > run (dispatched or app-started) is always recoverable from the archive. If app-started cleans
 > dominate an install and per-config drain coverage matters, external-run drain capture (from the
-> recorder battery timeline at the run-window edges) is the future add — see
-> `battery-subsystem-followups.md` Item 2.
+> recorder battery timeline at the run-window edges) is the documented future add.
 
 > **Thread context:** The finalizer body runs in HA's executor thread pool (`hass.async_add_executor_job`), so `record_job_metrics` and everything it calls — `_schedule_save`, `_notify`, sensor `async_write_ha_state` — are reached from a worker thread, not the event loop. The dispatch helpers in this module bridge across that boundary; see [01-architecture-overview.md §7 Concurrency & Thread Safety](01-architecture-overview.md#11-concurrency--thread-safety) for the rule and pattern.
 
@@ -609,10 +608,18 @@ buckets above, the returned `battery_metrics` dict also carries:
 decimal places are a code-level detail, not a pinned contract.
 
 > **`mid_job_recharge` is not produced here.** `learning/job_finalizer.py` adds it
-> to the metrics dict *after* this compute (from the active job's recharge
-> counters); `record_job_metrics` then snapshots it into `last_job` and gates a
-> flagged run out of the per-config drain buckets. See
-> [battery-subsystem-followups.md](battery-subsystem-followups.md) Item 1.
+> to the metrics dict *after* this compute; `record_job_metrics` then snapshots it
+> into `last_job` and gates a flagged run out of the per-config drain buckets (a
+> recharge nets out of `start − end`, understating the run's true discharge, so a
+> single-setting recharge run would otherwise bias a per-config mean low). **Two
+> pathways set it:** an **unplanned deep-low return** (the active job's
+> `recharge_seconds_accumulated` / `observed_mid_job_recharge_count`, set from
+> `_is_low_battery_return_state`), and a **deliberate native `charge_wait` step** —
+> that phase's commanded dock is intentionally NOT counted as a battery-driven
+> recharge (so those counters stay 0), and is caught separately by the run's
+> `active_job['phases']` containing a `charge_wait` phase (`_run_had_charge_wait_phase`).
+> A plain `wait` phase does not recharge and is not flagged (its `start − end` drain
+> is accurate).
 
 ---
 

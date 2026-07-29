@@ -168,7 +168,8 @@ def _run_had_charge_wait_phase(active_job_state: Any) -> bool:
     A ``charge_wait`` phase docks the robot and RECHARGES it mid-run, so the raw
     ``start − end`` battery delta nets that recharge back out and understates the
     true discharge — the run must be kept out of the per-config drain aggregates
-    (see ``mid_job_recharge`` below and ``battery-subsystem-followups.md`` Item 1).
+    (see ``mid_job_recharge`` below; both recharge pathways are documented canonically
+    in ``docs/dev/12-battery-system.md`` §10).
     Unlike :func:`_run_had_break_phase` this deliberately EXCLUDES a plain ``wait``
     phase: a timed hold does not recharge, so its ``start − end`` drain is accurate
     and should still feed the per-config means.
@@ -925,7 +926,7 @@ class LearningJobFinalizer:
                 # A mid-job recharge nets out of the raw start−end drain (start−end then
                 # UNDERSTATES the true discharge — duration IS recharge-adjusted, drain is not),
                 # so flag the run; record_job_metrics keeps a flagged run out of the per-config
-                # drain MEANS while still recording last_job. See battery-subsystem-followups.md.
+                # drain MEANS while still recording last_job. See docs/dev/12-battery-system.md §9-10.
                 # Two recharge pathways: an UNPLANNED deep-low return (the two counters below,
                 # set from _is_low_battery_return_state) and a DELIBERATE native charge step (a
                 # charge_wait phase — its commanded dock is intentionally NOT counted as a
