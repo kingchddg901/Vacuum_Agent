@@ -3,9 +3,10 @@
 Three things live here:
 
 1. Helpers used by every domain module — manager accessor, the
-   ``map_id`` auto-resolver, and the job-finished event payload
-   builder (used by domains that fire EVENT_JOB_FINISHED, currently
-   only ``job_control`` for the cancel path).
+   ``map_id`` auto-resolver, the job-finished event payload builder,
+   and the run-incomplete event payload builder (both used by domains
+   that fire those events, currently only ``job_control`` for the
+   cancel path).
 
 2. Schemas that are genuinely shared across domains — VACUUM_ONLY,
    VACUUM_MAP, JOB_CONTROL. Domain-specific schemas live with their
@@ -111,6 +112,38 @@ def job_finished_event_payload(
         "duration_minutes": job_info.get("duration_minutes"),
         "actual_cleaning_minutes": job_info.get("actual_cleaning_minutes"),
         "job_path": job_path,
+    }
+
+
+def run_incomplete_event_payload(
+    *,
+    vacuum_entity_id: str,
+    result: dict | None,
+) -> dict | None:
+    """Build the run-incomplete event payload, or None when nothing was missed.
+
+    Used by the cancel-active-job service handler (job_control domain): a manual
+    cancel finalizes as ``cancelled``, which writes an ``incomplete_run_log`` when
+    rooms were queued but never cleaned. When that log names at least one missed
+    room this returns the ``EVENT_RUN_INCOMPLETE`` payload; otherwise ``None`` so
+    the caller skips the fire.
+
+    Mirrors ``listeners/_common.run_incomplete_event_data`` (kept in sync, lives
+    separately for the same reason as ``job_finished_event_payload``). Accepts
+    either the raw finalize result or a ``{"finalize_result": ...}`` wrapper.
+    """
+    result = result if isinstance(result, dict) else {}
+    incomplete_log = result.get("incomplete_run_log")
+    if incomplete_log is None and isinstance(result.get("finalize_result"), dict):
+        incomplete_log = result["finalize_result"].get("incomplete_run_log")
+    if not isinstance(incomplete_log, dict) or not incomplete_log.get("missed_room_ids"):
+        return None
+    return {
+        "vacuum_entity_id": vacuum_entity_id,
+        "job_id": incomplete_log.get("job_id"),
+        "outcome_status": incomplete_log.get("outcome_status"),
+        "missed_room_ids": list(incomplete_log.get("missed_room_ids", [])),
+        "missed_rooms": list(incomplete_log.get("missed_rooms", [])),
     }
 
 

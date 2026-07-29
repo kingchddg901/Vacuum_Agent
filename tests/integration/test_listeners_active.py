@@ -11,6 +11,9 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [PT-1]  pause_timeout: elapsed report → cancel + EVENT_JOB_FINISHED + save.
 [PT-2]  pause_timeout: no report → no cancel.
 [PT-3]  pause_timeout: cancel returns not-cancelled → no event, no save.
+[PT-4]  pause_timeout: auto-cancel that stranded rooms → also EVENT_RUN_INCOMPLETE.
+[PT-5]  pause_timeout: auto-cancel with no missed rooms → JOB_FINISHED only.
+[ST-1]  pause_timeout: stranded-run reaper that stranded rooms → JOB_FINISHED + RUN_INCOMPLETE.
 [JP-1]  job_progress: active job → snapshot + EVENT_JOB_PROGRESS_TICK.
 [JP-2]  job_progress: inactive status → skipped.
 [JP-3]  job_progress: snapshot raises → swallowed, no event.
@@ -19,6 +22,7 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [PB-3]  path_blockers: event_only → just EVENT_PATH_BLOCKED.
 [PB-4]  path_blockers: pause_and_event + already-paused job → action_taken=already_paused, no pause call.
 [PB-5]  path_blockers: cancel_and_event + cancel returns not-cancelled → action_taken=cancel_failed, no JOB_FINISHED.
+[PB-6]  path_blockers: cancel_and_event that stranded rooms → also EVENT_RUN_INCOMPLETE.
 [LC-1]  lifecycle: completion signals met → finalize + JOB_FINISHED + save.
 [LC-2]  lifecycle: signals not met → observed recorded, no finalize/event.
 [LC-3]  lifecycle: finalized MOP job → post-job water amendment registered.
@@ -57,6 +61,7 @@ from custom_components.eufy_vacuum.const import (
     EVENT_JOB_FINISHED,
     EVENT_JOB_PROGRESS_TICK,
     EVENT_PATH_BLOCKED,
+    EVENT_RUN_INCOMPLETE,
 )
 from custom_components.eufy_vacuum.listeners import (
     job_progress,
@@ -140,6 +145,98 @@ async def test_pause_timeout_cancel_fails(hass):
     pause_timeout.remove(hass)
     assert finished == []
     m.async_save.assert_not_awaited()
+
+
+_INCOMPLETE_LOG = {
+    "job_id": "j1",
+    "outcome_status": "cancelled",
+    "missed_room_ids": [2, 3],
+    "missed_rooms": [
+        {"room_id": 2, "name": "Kitchen"},
+        {"room_id": 3, "name": "Den"},
+    ],
+}
+
+
+async def test_pause_timeout_fires_run_incomplete(hass):
+    """[PT-4] An involuntary auto-cancel that stranded rooms fires EVENT_RUN_INCOMPLETE
+    (payload mirrors the finalize_learning_job service path) in addition to
+    EVENT_JOB_FINISHED, so an automation's retry_missed_rooms trigger fires."""
+    m = _mgr(hass)
+    m.get_paused_job_timeout_report.return_value = {
+        "forced_lifecycle_state": "pause_timeout_cancelled",
+        "forced_lifecycle_message": "Paused too long",
+        "cancel_reason": "pause_timeout", "pause_timeout_minutes": 30}
+    m.async_cancel_active_job = AsyncMock(return_value={
+        "cancelled": True,
+        "finalize_result": {"job_id": "j1", "incomplete_run_log": _INCOMPLETE_LOG}})
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    incomplete = _collect(hass, EVENT_RUN_INCOMPLETE)
+    pause_timeout.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1, seconds=5))
+    await hass.async_block_till_done()
+    pause_timeout.remove(hass)
+    assert len(finished) == 1
+    assert len(incomplete) == 1
+    data = incomplete[0].data
+    assert data["vacuum_entity_id"] == _VAC
+    assert data["job_id"] == "j1"
+    assert data["outcome_status"] == "cancelled"
+    assert data["missed_room_ids"] == [2, 3]
+    assert data["missed_rooms"] == _INCOMPLETE_LOG["missed_rooms"]
+    # Mirrors the service-path payload: no map_id key.
+    assert "map_id" not in data
+
+
+async def test_pause_timeout_no_missed_rooms_no_run_incomplete(hass):
+    """[PT-5] An auto-cancel with no stranded rooms fires only EVENT_JOB_FINISHED —
+    no incomplete_run_log means no EVENT_RUN_INCOMPLETE."""
+    m = _mgr(hass)
+    m.get_paused_job_timeout_report.return_value = {
+        "forced_lifecycle_state": "pause_timeout_cancelled",
+        "forced_lifecycle_message": "Paused too long",
+        "cancel_reason": "pause_timeout", "pause_timeout_minutes": 30}
+    m.async_cancel_active_job = AsyncMock(return_value={
+        "cancelled": True, "finalize_result": {"job_id": "j1"}})
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    incomplete = _collect(hass, EVENT_RUN_INCOMPLETE)
+    pause_timeout.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1, seconds=5))
+    await hass.async_block_till_done()
+    pause_timeout.remove(hass)
+    assert len(finished) == 1
+    assert incomplete == []
+
+
+async def test_stranded_reaper_fires_run_incomplete(hass):
+    """[ST-1] The stranded-run reaper finalizing an interrupted run that stranded
+    rooms fires EVENT_JOB_FINISHED + EVENT_RUN_INCOMPLETE (the user's 'if it
+    strands it is incomplete' case)."""
+    m = _mgr(hass)
+    # No paused job — exercise only the stranded branch.
+    m.get_paused_job_timeout_report.return_value = None
+    m.poll_stranded_started_job.return_value = {
+        "stranded_since": "2026-01-01T09:00:00+00:00"}
+    m.async_finalize_stranded_job = AsyncMock(return_value={
+        "finalized": True,
+        "finalize_result": {"job_id": "j9", "incomplete_run_log": {
+            "job_id": "j9", "outcome_status": "interrupted",
+            "missed_room_ids": [5],
+            "missed_rooms": [{"room_id": 5, "name": "Hall"}]}}})
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    incomplete = _collect(hass, EVENT_RUN_INCOMPLETE)
+    pause_timeout.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1, seconds=5))
+    await hass.async_block_till_done()
+    pause_timeout.remove(hass)
+    m.async_finalize_stranded_job.assert_awaited_once()
+    assert len(finished) == 1
+    assert len(incomplete) == 1
+    data = incomplete[0].data
+    assert data["vacuum_entity_id"] == _VAC
+    assert data["job_id"] == "j9"
+    assert data["outcome_status"] == "interrupted"
+    assert data["missed_room_ids"] == [5]
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +388,33 @@ async def test_path_blocker_cancel_fails(hass):
     assert blocked[0].data["action_taken"] == "cancel_failed"
     assert finished == []
     m.async_cancel_active_job.assert_awaited_once()
+
+
+async def test_path_blocker_cancel_fires_run_incomplete(hass):
+    """[PB-6] A rule-driven cancel_and_event that stranded rooms fires
+    EVENT_RUN_INCOMPLETE alongside EVENT_JOB_FINISHED + EVENT_PATH_BLOCKED."""
+    m = _wire_path_blocker(hass, path_block_action="cancel_and_event")
+    m.async_cancel_active_job = AsyncMock(return_value={
+        "cancelled": True,
+        "finalize_result": {"job_id": "j1", "incomplete_run_log": {
+            "job_id": "j1", "outcome_status": "cancelled",
+            "missed_room_ids": [2],
+            "missed_rooms": [{"room_id": 2, "name": "Kitchen"}]}}})
+    blocked = _collect(hass, EVENT_PATH_BLOCKED)
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    incomplete = _collect(hass, EVENT_RUN_INCOMPLETE)
+    hass.states.async_set("binary_sensor.win", "off")
+    path_blockers.register(hass)
+    hass.states.async_set("binary_sensor.win", "on")
+    await hass.async_block_till_done()
+    path_blockers.remove(hass)
+    assert blocked[0].data["action_taken"] == "cancelled"
+    assert len(finished) == 1
+    assert len(incomplete) == 1
+    data = incomplete[0].data
+    assert data["vacuum_entity_id"] == _VAC
+    assert data["outcome_status"] == "cancelled"
+    assert data["missed_room_ids"] == [2]
 
 
 # ---------------------------------------------------------------------------

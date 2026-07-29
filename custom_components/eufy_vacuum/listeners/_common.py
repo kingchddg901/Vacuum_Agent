@@ -14,6 +14,7 @@ Public surface:
 - completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, str]
 - completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
 - job_finished_event_data(*, vacuum_entity_id, map_id, finalize_result) -> dict
+- run_incomplete_event_data(*, vacuum_entity_id, finalize_result) -> dict | None
 """
 
 from __future__ import annotations
@@ -233,4 +234,42 @@ def job_finished_event_data(
         "duration_minutes": job_info.get("duration_minutes"),
         "actual_cleaning_minutes": job_info.get("actual_cleaning_minutes"),
         "job_path": finalize_result.get("job_path"),
+    }
+
+
+def run_incomplete_event_data(
+    *,
+    vacuum_entity_id: str,
+    finalize_result: dict | None,
+) -> dict | None:
+    """Build the run-incomplete event payload, or None when nothing was missed.
+
+    A finalize writes an ``incomplete_run_log`` only for a cancelled / failed /
+    interrupted outcome, and only that log lists the rooms that were queued but
+    never cleaned. When it names at least one missed room this returns the
+    ``EVENT_RUN_INCOMPLETE`` payload; otherwise it returns ``None`` so the caller
+    simply skips the fire.
+
+    Used by every listener path whose finalize can strand rooms — the
+    pause-timeout auto-cancel, the stranded-run reaper, and the path-block cancel.
+    The shape mirrors the ``finalize_learning_job`` service handler
+    (``learning/services.py``) so an automation's ``retry_missed_rooms`` trigger
+    fires identically whether the run was reaped internally or finalized via the
+    service. Keeps the payload consistent across firing sites, exactly like
+    ``job_finished_event_data`` does for EVENT_JOB_FINISHED.
+
+    ``finalize_result`` is the raw finalize result (the dict carrying
+    ``incomplete_run_log``) — listener callers unwrap ``result["finalize_result"]``
+    before passing it here.
+    """
+    finalize_result = finalize_result if isinstance(finalize_result, dict) else {}
+    incomplete_log = finalize_result.get("incomplete_run_log")
+    if not isinstance(incomplete_log, dict) or not incomplete_log.get("missed_room_ids"):
+        return None
+    return {
+        "vacuum_entity_id": vacuum_entity_id,
+        "job_id": incomplete_log.get("job_id"),
+        "outcome_status": incomplete_log.get("outcome_status"),
+        "missed_room_ids": list(incomplete_log.get("missed_room_ids", [])),
+        "missed_rooms": list(incomplete_log.get("missed_rooms", [])),
     }

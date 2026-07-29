@@ -11,9 +11,11 @@ Twelve services covering the active-job lifecycle:
   get_lifecycle_state: read-only inspection
 
 cancel_active_job fires EVENT_JOB_FINISHED when the cancel actually
-finalizes a job; the other lifecycle controls don't fire that event
-themselves (the lifecycle listener / pause-timeout listener / path-
-blocker listener own those firings).
+finalizes a job — plus EVENT_RUN_INCOMPLETE when that cancel stranded
+rooms (so an automation's retry_missed_rooms trigger fires the same as on
+the finalize_learning_job service path); the other lifecycle controls
+don't fire those events themselves (the lifecycle listener / pause-timeout
+listener / path-blocker listener own those firings).
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from homeassistant.helpers import config_validation as cv
 from ..const import (
     DOMAIN,
     EVENT_JOB_FINISHED,
+    EVENT_RUN_INCOMPLETE,
     SERVICE_CANCEL_ACTIVE_JOB,
     SERVICE_CLEAR_ACTIVE_JOB,
     SERVICE_GET_ACTIVE_JOB,
@@ -49,6 +52,7 @@ from ._common import (
     get_manager,
     job_finished_event_payload,
     resolved_call_data,
+    run_incomplete_event_payload,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -217,6 +221,15 @@ async def _handle_cancel_active_job(hass: HomeAssistant, call: ServiceCall) -> d
                 result=payload.get("finalize_result"),
             ),
         )
+        # If the cancel stranded rooms, fire EVENT_RUN_INCOMPLETE too so an
+        # automation's retry_missed_rooms trigger fires just as it does on the
+        # finalize_learning_job service path.
+        run_incomplete = run_incomplete_event_payload(
+            vacuum_entity_id=resolved.get("vacuum_entity_id"),
+            result=payload.get("finalize_result"),
+        )
+        if run_incomplete is not None:
+            hass.bus.async_fire(EVENT_RUN_INCOMPLETE, run_incomplete)
     _LOGGER.debug("cancel_active_job complete: %s", payload)
     await get_manager(hass).async_save()
     return payload

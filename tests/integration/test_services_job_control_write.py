@@ -10,6 +10,8 @@ Coverage targets
 [JCW-7]  cancel_active_job cancelled=False → no event, still saves.
 [JCW-8]  clear_active_job manager raises → HomeAssistantError.
 [JCW-9]  cancel_active_job manager raises → HomeAssistantError.
+[JCW-10] cancel_active_job that stranded rooms → also fires EVENT_RUN_INCOMPLETE.
+[JCW-11] cancel_active_job with no missed rooms → JOB_FINISHED only.
 
 The device-I/O action handlers (start/pause/resume/cancel) are driven through
 the module-level _handle_* coroutines with a mock manager rather than the
@@ -29,6 +31,7 @@ from custom_components.eufy_vacuum.const import (
     DATA_RUNTIME,
     DOMAIN,
     EVENT_JOB_FINISHED,
+    EVENT_RUN_INCOMPLETE,
 )
 from custom_components.eufy_vacuum.services.job_control import (
     _handle_cancel_active_job,
@@ -201,6 +204,57 @@ async def test_cancel_no_finalize_no_event(jc):
     await hass.async_block_till_done()
     assert events == []
     mgr.async_save.assert_awaited_once()
+
+
+async def test_cancel_stranded_rooms_fires_run_incomplete(jc):
+    """[JCW-10] A manual cancel that stranded rooms fires EVENT_RUN_INCOMPLETE
+    alongside EVENT_JOB_FINISHED, so an automation's retry_missed_rooms trigger
+    fires the same as on the finalize_learning_job service path."""
+    hass, mgr = jc
+    mgr.async_cancel_active_job = AsyncMock(return_value={
+        "cancelled": True,
+        "finalize_result": {
+            "job_id": "j1",
+            "completed_job": {"outcome": {"status": "cancelled"},
+                              "job": {"room_count": 2}},
+            "incomplete_run_log": {
+                "job_id": "j1", "outcome_status": "cancelled",
+                "missed_room_ids": [2, 3],
+                "missed_rooms": [{"room_id": 2, "name": "Kitchen"},
+                                 {"room_id": 3, "name": "Den"}]},
+        },
+    })
+    finished = []
+    incomplete = []
+    hass.bus.async_listen(EVENT_JOB_FINISHED, lambda e: finished.append(e))
+    hass.bus.async_listen(EVENT_RUN_INCOMPLETE, lambda e: incomplete.append(e))
+    await _handle_cancel_active_job(hass, _call())
+    await hass.async_block_till_done()
+    assert len(finished) == 1
+    assert len(incomplete) == 1
+    data = incomplete[0].data
+    assert data["vacuum_entity_id"] == _VAC
+    assert data["outcome_status"] == "cancelled"
+    assert data["missed_room_ids"] == [2, 3]
+    assert "map_id" not in data
+
+
+async def test_cancel_no_missed_rooms_no_run_incomplete(jc):
+    """[JCW-11] A manual cancel with no stranded rooms fires only EVENT_JOB_FINISHED."""
+    hass, mgr = jc
+    mgr.async_cancel_active_job = AsyncMock(return_value={
+        "cancelled": True,
+        "finalize_result": {"job_id": "j1", "completed_job": {
+            "outcome": {"status": "cancelled"}, "job": {"room_count": 2}}},
+    })
+    finished = []
+    incomplete = []
+    hass.bus.async_listen(EVENT_JOB_FINISHED, lambda e: finished.append(e))
+    hass.bus.async_listen(EVENT_RUN_INCOMPLETE, lambda e: incomplete.append(e))
+    await _handle_cancel_active_job(hass, _call())
+    await hass.async_block_till_done()
+    assert len(finished) == 1
+    assert incomplete == []
 
 
 async def test_clear_active_job_manager_raises(jc):

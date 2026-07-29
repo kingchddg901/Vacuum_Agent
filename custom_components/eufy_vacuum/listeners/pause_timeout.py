@@ -1,5 +1,9 @@
 """Stale-job reaper — a lightweight 1-minute ticker over every managed vacuum's
-active job. Two independent reaps, each firing the standard EVENT_JOB_FINISHED:
+active job. Two independent reaps, each firing the standard EVENT_JOB_FINISHED —
+and, when the involuntarily-ended run left rooms uncleaned, also EVENT_RUN_INCOMPLETE
+(mirroring the finalize_learning_job service path) so an automation's
+`retry_missed_rooms` trigger fires for a reaped run just as it does for a service
+finalize:
 
 1. Paused-timeout: a job paused past its configured timeout is cancelled.
 2. Stranded-`started` (FN-1): a dispatched run that ended without hitting its
@@ -23,9 +27,9 @@ from datetime import timedelta
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
 
-from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED
+from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED, EVENT_RUN_INCOMPLETE
 from ..core.manager import EufyVacuumManager
-from ._common import job_finished_event_data
+from ._common import job_finished_event_data, run_incomplete_event_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +91,14 @@ def register(hass: HomeAssistant) -> None:
                                     finalize_result=result.get("finalize_result"),
                                 ),
                             )
+                            # An auto-cancel is involuntary: if it stranded rooms,
+                            # fire EVENT_RUN_INCOMPLETE too so retry_missed_rooms can act.
+                            run_incomplete = run_incomplete_event_data(
+                                vacuum_entity_id=vacuum_entity_id,
+                                finalize_result=result.get("finalize_result"),
+                            )
+                            if run_incomplete is not None:
+                                hass.bus.async_fire(EVENT_RUN_INCOMPLETE, run_incomplete)
                             any_changes = True
                             _LOGGER.debug(
                                 "Auto-cancelled paused job for %s map %s after %s minute timeout",
@@ -118,6 +130,16 @@ def register(hass: HomeAssistant) -> None:
                                     finalize_result=result.get("finalize_result"),
                                 ),
                             )
+                            # A stranded run ended involuntarily: if it left rooms
+                            # uncleaned, fire EVENT_RUN_INCOMPLETE too (this is the
+                            # user's "if it strands it is incomplete" case) so
+                            # retry_missed_rooms can act.
+                            run_incomplete = run_incomplete_event_data(
+                                vacuum_entity_id=vacuum_entity_id,
+                                finalize_result=result.get("finalize_result"),
+                            )
+                            if run_incomplete is not None:
+                                hass.bus.async_fire(EVENT_RUN_INCOMPLETE, run_incomplete)
                             any_changes = True
                             _LOGGER.info(
                                 "Auto-finalized STRANDED job for %s map %s as interrupted "

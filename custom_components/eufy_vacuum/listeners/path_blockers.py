@@ -20,9 +20,15 @@ from collections.abc import Callable
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
-from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED, EVENT_PATH_BLOCKED
+from ..const import (
+    DATA_RUNTIME,
+    DOMAIN,
+    EVENT_JOB_FINISHED,
+    EVENT_PATH_BLOCKED,
+    EVENT_RUN_INCOMPLETE,
+)
 from ..core.manager import EufyVacuumManager
-from ._common import job_finished_event_data
+from ._common import job_finished_event_data, run_incomplete_event_data
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -158,6 +164,14 @@ def register(hass: HomeAssistant) -> None:
                                 finalize_result=(action_result or {}).get("finalize_result"),
                             ),
                         )
+                        # A rule-driven cancel is involuntary: if it stranded rooms,
+                        # fire EVENT_RUN_INCOMPLETE too so retry_missed_rooms can act.
+                        run_incomplete = run_incomplete_event_data(
+                            vacuum_entity_id=vacuum_entity_id,
+                            finalize_result=(action_result or {}).get("finalize_result"),
+                        )
+                        if run_incomplete is not None:
+                            hass.bus.async_fire(EVENT_RUN_INCOMPLETE, run_incomplete)
 
                 report["path_block_action"] = path_block_action
                 report["action_taken"] = action_taken

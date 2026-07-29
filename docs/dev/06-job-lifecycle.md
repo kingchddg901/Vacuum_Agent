@@ -745,7 +745,9 @@ finalizing (see §4). Otherwise: `finalize_learning_for_active_job` →
 `vacuum_state in {"docked", "idle"}` or `task_status in {"completed", "complete"}`.
 If not confirmed within 30 s, finalizes anyway with a warning. Calls
 `finalize_learning_for_active_job` with `forced_outcome_status="cancelled"` and
-`forced_lifecycle_state="job_cancelled"`, then `mark_active_job_finalized`.
+`forced_lifecycle_state="job_cancelled"`, then `mark_active_job_finalized`. The
+service handler (`services/job_control.py`) fires `EVENT_JOB_FINISHED`, plus
+`EVENT_RUN_INCOMPLETE` when the cancel stranded rooms (§8).
 
 ### 6c. Pause timeout
 
@@ -756,7 +758,9 @@ beyond the configured limit.
 sets a 1-minute `async_track_time_interval` tick. On each tick,
 `get_paused_job_timeout_report` is called for each known job. If it returns a
 report, `async_cancel_active_job` is called with
-`forced_lifecycle_state="pause_timeout_cancelled"`.
+`forced_lifecycle_state="pause_timeout_cancelled"`. The tick then fires
+`EVENT_JOB_FINISHED`, plus `EVENT_RUN_INCOMPLETE` when the auto-cancel stranded
+rooms (§8).
 
 ### 6d. Path blocker cancel
 
@@ -770,7 +774,8 @@ re-evaluates rules. Behaviour by
 - `"event_only"` — fires `EVENT_PATH_BLOCKED` only.
 - `"pause_and_event"` — `async_pause_active_job` + `EVENT_PATH_BLOCKED`.
 - `"cancel_and_event"` — `async_cancel_active_job` + `EVENT_JOB_FINISHED` +
-  `EVENT_PATH_BLOCKED`.
+  `EVENT_PATH_BLOCKED`, **plus `EVENT_RUN_INCOMPLETE` when the cancel stranded
+  rooms** (a rule-driven cancel is involuntary; §8).
 
 ### 6e. Cancel detection heuristic (automatic)
 
@@ -815,7 +820,9 @@ dock never accrues grace. Once the strand has held past
 calls `manager.async_finalize_stranded_job`, which finalizes the run as
 `interrupted` (`forced_lifecycle_state="stranded_no_completion"`) **without**
 `return_to_base` (the robot is already docked/over), using `stranded_since` as
-`ended_at` so the duration reflects the real end, then fires `EVENT_JOB_FINISHED`.
+`ended_at` so the duration reflects the real end, then fires `EVENT_JOB_FINISHED`
+— **plus `EVENT_RUN_INCOMPLETE` when the strand left rooms uncleaned** (the user's
+"if it strands it is incomplete" case; §8), so `retry_missed_rooms` can act.
 As an interrupted run it is held from learning but lands in the same review flow,
 **Restore-able** rather than lost.
 
@@ -954,15 +961,33 @@ kept out of the corpus and Restore-able.
 
 ### When `EVENT_RUN_INCOMPLETE` fires
 
-`EVENT_RUN_INCOMPLETE` is fired **only** by the `handle_finalize_learning_job`
-service handler (`learning/services.py`), after finalization completes, when the
-returned `incomplete_run_log` is non-null and carries at least one
-`missed_room_id`. **The internal reaper paths do not fire it** — a manual
-`cancel_active_job`, the pause-timeout cancel, the stranded-run reaper, and a
-path-block cancel all *write* `incomplete_run.json` (through
-`finalize_learning_for_active_job`) but emit only `EVENT_JOB_FINISHED`. So the
-event-driven `retry_missed_rooms` trigger fires only on the service-driven finalize
-path, not after those internal cancels.
+`EVENT_RUN_INCOMPLETE` fires after finalization completes whenever the returned
+`incomplete_run_log` is non-null and carries at least one `missed_room_id` —
+i.e. an involuntarily- or deliberately-ended run left rooms uncleaned. It is
+fired by **every** path whose finalize can strand rooms:
+
+| Firing site | Code path | Payload builder |
+|---|---|---|
+| `finalize_learning_job` service | `handle_finalize_learning_job` (`learning/services.py`) | inline (reference shape) |
+| Pause-timeout auto-cancel | `listeners/pause_timeout.py` (via `async_cancel_active_job`) | `run_incomplete_event_data` (`listeners/_common.py`) |
+| Stranded-run reaper | `listeners/pause_timeout.py` (via `async_finalize_stranded_job`) | `run_incomplete_event_data` (`listeners/_common.py`) |
+| Path-block cancel (`cancel_and_event`) | `listeners/path_blockers.py` (via `async_cancel_active_job`) | `run_incomplete_event_data` (`listeners/_common.py`) |
+| Manual `cancel_active_job` service | `services/job_control.py` (via `async_cancel_active_job`) | `run_incomplete_event_payload` (`services/_common.py`) |
+
+Each site fires `EVENT_JOB_FINISHED` first, then `EVENT_RUN_INCOMPLETE` when the
+finalize result's `incomplete_run_log` names missed rooms (a completed run carries
+no log, so the second event is simply skipped). The payload is byte-identical
+across all sites — `{vacuum_entity_id, job_id, outcome_status, missed_room_ids,
+missed_rooms}` (no `map_id`) — so an automation's event-driven `retry_missed_rooms`
+trigger fires the same regardless of how the run ended. The two payload builders
+mirror the `job_finished_event_data` / `job_finished_event_payload` split
+(listener vs. service package; kept in sync, live separately).
+
+> **Historical note (finding B1):** through the job-lifecycle DR hardening this
+> event was *service-path-only* — the internal reapers wrote `incomplete_run.json`
+> but emitted just `EVENT_JOB_FINISHED`, so `retry_missed_rooms` never fired after
+> an internal cancel/strand. A run that stranded rooms was therefore "finished"
+> but not "incomplete", and the retry never triggered. The reapers now fire it too.
 
 The incomplete run log is written only when
 `outcome_status in {"cancelled", "failed", "interrupted"}`; a normal completion
@@ -1068,7 +1093,7 @@ successful run, no cancellations or stalls).
 | 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | The full `get_runtime_path_block_report` dict **plus** `path_block_action`, `action_taken`, and `action_result` (present only when a cancel/pause action ran). Includes `affected_remaining_room_ids` among the report fields. |
 | 6 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | Once per room, when the live queue advances *past* an uncompleted queued room (non-sequential advance — ~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
 | 7 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | After finalization completes | **Two shapes.** *Lifecycle / reaper path* (`job_finished_event_data`, `listeners/_common.py` — normal completion + pause-timeout + stranded + path-block cancel) = 11 fields: the 9 below **plus `duration_minutes` and `actual_cleaning_minutes`**, with `reason_detail = lifecycle_message or status`. *Service path* (`finalize_learning_job` handler) = 9 fields: `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail` (= `lifecycle_message`, no status fallback), `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
-| 8 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | After `job_finished`, only when rooms were missed | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
+| 8 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | After `job_finished`, when the finalize's `incomplete_run_log` names missed rooms — from **every** finalize path that can strand rooms (service finalize, pause-timeout, stranded reaper, path-block cancel, manual cancel); see §8 | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` (no `map_id`) |
 
 **Notes:**
 - Events 2 and 3 repeat for each room beyond the first. A 4-room job produces 3
@@ -1080,7 +1105,7 @@ successful run, no cancellations or stalls).
   effectively never seen on Eufy (sequential counter rollover); the reliable
   post-run "missed rooms" signal remains `EVENT_RUN_INCOMPLETE`.
 - Events 5, 6, and 8 are conditional and may not appear in every job.
-- `EVENT_RUN_INCOMPLETE` (event 8) fires **only** on the `finalize_learning_job` service path; the internal cancel / pause-timeout / stranded / path-block reapers write `incomplete_run.json` but emit only `EVENT_JOB_FINISHED` (so event-driven `retry_missed_rooms` will not fire after those).
+- `EVENT_RUN_INCOMPLETE` (event 8) fires from **every** finalize path that can strand rooms — the `finalize_learning_job` service, the pause-timeout auto-cancel, the stranded-run reaper, a path-block `cancel_and_event`, and the manual `cancel_active_job` service — each after its `EVENT_JOB_FINISHED`, whenever the finalize's `incomplete_run_log` names missed rooms. So event-driven `retry_missed_rooms` fires after an internal cancel/strand just as it does after a service finalize. (Finding B1: previously service-path-only — see §8.)
 - `EVENT_PATH_BLOCKED` and `EVENT_JOB_FINISHED` can both fire in the same job
   when `path_block_action == "cancel_and_event"`.
 - Event `room_id` is a **string** in `EVENT_ROOM_STARTED` / `EVENT_ROOM_FINISHED` (job start + rollover) but an **int** in `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED`. On `EVENT_ROOM_FINISHED`, `actual_duration_minutes` rounds to 2 dp and `confidence` to 4 dp (`None` when ≤ 0).
