@@ -12,6 +12,8 @@ multiple times for the same finalized job"), and NO test covered it, which is wh
        the nested call happens while the first is suspended, exactly as two authorities would.
 [XO-3] a FAILED finalize releases the claim, so a later legitimate finalize still succeeds.
 [XO-4] a normal single finalize is unaffected (the happy path must stay untouched).
+[XO-5] a claim orphaned by a crash/restart is cleared at startup — otherwise that job
+       could never finalize again, which is worse than the duplicate it prevents.
 """
 
 from __future__ import annotations
@@ -132,3 +134,56 @@ async def test_single_finalize_is_unaffected(manager, monkeypatch):
     )
     assert result == {"completed_job": {}}
     assert "finalize_claimed_at" not in job
+
+
+async def test_restart_clears_an_orphaned_claim(manager):
+    """[XO-5] SHIPPING SAFETY. active_jobs is persisted, so a claim orphaned by a crash or
+    a restart mid-finalize would come back on the next boot — and block that job from EVER
+    finalizing, which is strictly worse than the duplicate finalize the claim prevents.
+
+    A claim cannot legitimately survive a restart: if the process is starting, no finalize
+    is in flight. async_initialize therefore calls this unconditionally at boot.
+    """
+    manager.data["active_jobs"] = {
+        _VAC: {
+            _MAP: {
+                "started_at": "2026-01-01T10:00:00+00:00",
+                "battery_start": 90,
+                "finalize_claimed_at": "2026-01-01T10:05:00+00:00",  # orphaned by a crash
+            },
+            "7": {"started_at": "2026-01-01T09:00:00+00:00"},  # no claim -> untouched
+        }
+    }
+
+    cleared = manager._clear_orphaned_finalize_claims()
+
+    assert cleared == 1
+    job = manager.data["active_jobs"][_VAC][_MAP]
+    assert "finalize_claimed_at" not in job, (
+        "an orphaned claim survived a restart — this job could never finalize again"
+    )
+    # The job itself, and its claim-free sibling, must be left otherwise intact.
+    assert job["started_at"] == "2026-01-01T10:00:00+00:00"
+    assert manager.data["active_jobs"][_VAC]["7"]["started_at"] == "2026-01-01T09:00:00+00:00"
+
+
+async def test_a_cleared_claim_lets_the_job_finalize_again(manager, monkeypatch):
+    """[XO-6] The point of XO-5: after the claim is cleared, finalize must actually work.
+    Without the clear this job was permanently unfinalizable."""
+    async def _fake(**kwargs):
+        return {"completed_job": {}}
+
+    _install_fake_learning(manager, monkeypatch, _fake)
+    _seed_active_job(manager, finalize_claimed_at="2026-01-01T10:05:00+00:00")
+
+    blocked = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, battery_end=50
+    )
+    assert blocked["reason"] == "finalize_in_flight"
+
+    manager._clear_orphaned_finalize_claims()
+
+    ok = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, battery_end=50
+    )
+    assert ok == {"completed_job": {}}

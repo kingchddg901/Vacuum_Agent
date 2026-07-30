@@ -478,6 +478,34 @@ class EufyVacuumManager:
                         vacuum_entity_id=_vac_id, map_id=str(_map_id)
                     )
 
+        self._clear_orphaned_finalize_claims()
+
+    def _clear_orphaned_finalize_claims(self) -> int:
+        """Drop any exactly-once finalize claim left behind by a crash or restart.
+
+        A ``finalize_claimed_at`` cannot legitimately survive a restart: if this process is
+        starting, no finalize is in flight. But ``active_jobs`` IS persisted, so a claim
+        orphaned mid-finalize would come back on the next boot and block that job from EVER
+        finalizing — strictly worse than the duplicate finalize the claim exists to prevent.
+
+        Clearing unconditionally at startup is therefore both safe and sufficient; no age
+        heuristic and no reaper integration are needed. Returns the number cleared.
+        """
+        cleared = 0
+        for vac_id, vac_jobs in self.data.get("active_jobs", {}).items():
+            if not isinstance(vac_jobs, dict):
+                continue
+            for map_id, job in vac_jobs.items():
+                if isinstance(job, dict) and job.pop("finalize_claimed_at", None):
+                    cleared += 1
+                    _LOGGER.debug(
+                        "eufy_vacuum: cleared an orphaned finalize claim for %s/%s "
+                        "(interrupted during finalize)",
+                        vac_id,
+                        map_id,
+                    )
+        return cleared
+
     def _migrate_setup_progress(self) -> None:
         """One-time back-fill of setup_progress for pre-state-machine installs.
 
