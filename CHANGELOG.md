@@ -13,9 +13,10 @@ only.
 ## [1.11.0] - 2026-07-29
 
 ### Added
-- **Eleven more languages — 18 total.** Arabic & Hebrew (with full right-to-left
+- **Ten more languages — 18 in total.** Arabic & Hebrew (with full right-to-left
   layout), Japanese, Korean, Chinese (Simplified & Traditional), Polish, Czech,
-  Turkish, Indonesian — joining English and the original six. Pick any from the
+  Turkish, Indonesian — on top of the eight already shipped (English, Russian,
+  German, French, Spanish, Dutch, Italian, Portuguese). Pick any from the
   per-user language globe; drop-in custom locales are still supported. New packs
   are AI-drafted and ship as `draft` (chosen from the globe, never auto-activated
   from your Home Assistant language) until a native speaker reviews them.
