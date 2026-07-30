@@ -241,6 +241,7 @@ class LearningJobFinalizer:
         *,
         estimate_fn: Callable[..., dict[str, Any]] | None = None,
         error_source: Callable[..., dict[str, Any] | None] | None = None,
+        error_commit: Callable[..., bool] | None = None,
         battery_sink: Callable[..., None] | None = None,
     ) -> None:
         self.hass = hass
@@ -250,12 +251,17 @@ class LearningJobFinalizer:
         # Injected seams so the finalizer holds no host-internals (§9.3):
         #  - estimate_fn: the estimator (LearningManager.estimate_from_manager) — the
         #    cancel-likely heuristic must NOT re-fetch the learning manager (re-entrancy).
-        #  - error_source: harvest + null the active-run error latch (returns the dict).
+        #  - error_source: PEEK the active-run error latch (non-destructive read).
+        #  - error_commit: clear that latch, called only AFTER the durable record is
+        #    written. Split from error_source because a single read-and-clear cannot be
+        #    made safe against a save that fails afterwards — the run's error history
+        #    would be destroyed with no record carrying it.
         #  - battery_sink: push completed-job battery metrics to the sibling manager.
         # error_source / battery_sink are optional: absent means "no harvest / no push",
         # so a host without those sibling subsystems degrades cleanly.
         self._estimate_fn = estimate_fn
         self._error_source = error_source
+        self._error_commit = error_commit
         self._battery_sink = battery_sink
 
     def build_live_snapshot(
@@ -993,6 +999,20 @@ class LearningJobFinalizer:
             job_id=job_id,
             payload=completed_job,
         )
+
+        # Clear the error latch we PEEKED before building the record. Deferred to here so a
+        # save that raises leaves the latch intact and the run's error history recoverable —
+        # the old read-and-clear destroyed it at peek time, and nothing could get it back.
+        # commit_active_run is keyed on latch IDENTITY: if a rising edge extended the latch
+        # while we were writing, it now holds evidence belonging to the NEXT run, so it is
+        # left alone rather than discarded.
+        if self._error_commit is not None and error_latch is not None:
+            try:
+                self._error_commit(vacuum_entity_id, error_latch)
+            except Exception:  # pragma: no cover - never break a completed finalize
+                _LOGGER.exception(
+                    "job_finalizer: error-latch commit failed for %s", vacuum_entity_id
+                )
 
         # Battery aggregates are an incremental store OUTSIDE rebuild_all — a push for a
         # run whose record never landed is unrepairable, so it waits for the commit above.

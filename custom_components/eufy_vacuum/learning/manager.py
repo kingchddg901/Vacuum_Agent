@@ -251,9 +251,25 @@ def _make_error_source(hass: HomeAssistant):
 
     def _source(vacuum_entity_id: str, job_id: str) -> dict[str, Any] | None:
         tracker = (hass.data.get(DOMAIN, {}) or {}).get(DATA_ERROR_TRACKER) if hass is not None else None
-        return tracker.harvest_active_run(vacuum_entity_id, job_id) if tracker is not None else None
+        # PEEK, not harvest: the finalizer needs this to build the record but must not
+        # destroy it until the record is durable. The matching commit runs after
+        # save_completed_job — see _make_error_commit.
+        return tracker.peek_active_run(vacuum_entity_id, job_id) if tracker is not None else None
 
     return _source
+
+
+def _make_error_commit(hass: HomeAssistant):
+    """Default finalizer error commit — clears the latch the peek returned, but only
+    once the durable record is written. A failed save therefore leaves the run's error
+    history intact and recoverable instead of destroying it."""
+    from ..const import DATA_ERROR_TRACKER
+
+    def _commit(vacuum_entity_id: str, peeked: dict[str, Any] | None) -> bool:
+        tracker = (hass.data.get(DOMAIN, {}) or {}).get(DATA_ERROR_TRACKER) if hass is not None else None
+        return bool(tracker.commit_active_run(vacuum_entity_id, peeked)) if tracker is not None else False
+
+    return _commit
 
 
 def _make_battery_sink(hass: HomeAssistant):
@@ -279,6 +295,7 @@ class LearningManager:
             hass,
             estimate_fn=self.estimate_from_manager,
             error_source=_make_error_source(hass),
+            error_commit=_make_error_commit(hass),
             battery_sink=_make_battery_sink(hass),
         )
         self.rebuilder = LearningStatsRebuilder(hass)

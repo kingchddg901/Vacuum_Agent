@@ -41,6 +41,7 @@ state-change listeners per device and restores latches from storage.
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections import deque
 from datetime import datetime, timezone
@@ -717,12 +718,99 @@ class ErrorTracker:
 
     # -- job-end harvest -----------------------------------------------------
 
+    def peek_active_run(
+        self,
+        vacuum_entity_id: str,
+        job_id: str | None,
+    ) -> dict[str, Any] | None:
+        """Return a SNAPSHOT of the active-run latch without clearing it.
+
+        The read half of the peek/commit pair that replaces the old read-and-clear
+        ``harvest_active_run``. The finalizer needs the latch data BEFORE it can build the
+        durable record (it feeds had_errors / error_count / total_error_seconds into that
+        record), but must not DESTROY it until the record is safely written — otherwise a
+        save that fails after the harvest loses the run's error history permanently, and
+        the retry records had_errors=False.
+
+        Returns a DEEP COPY. The live latch is mutable and shared by reference with the
+        error entities, and a rising edge between peek and commit would otherwise mutate
+        the list already folded into the record.
+
+        A mismatched ``job_id`` is returned anyway, as before — losing history is worse
+        than attaching it to the wrong job. (The predicate that made mismatches routine
+        was fixed separately: the tracker no longer treats a finalized job as in-flight.)
+        """
+        record = self._ensure_record(vacuum_entity_id)
+        latch = record.get("active_run_error")
+        if latch is None:
+            return None
+        if (
+            job_id is not None
+            and latch.get("active_job_id") not in (None, job_id)
+        ):
+            _LOGGER.debug(
+                "error_tracker: peek job_id mismatch for %s (latch=%s, peek=%s)"
+                " — attaching anyway",
+                vacuum_entity_id,
+                latch.get("active_job_id"),
+                job_id,
+            )
+        return copy.deepcopy(latch)
+
+    def commit_active_run(
+        self,
+        vacuum_entity_id: str,
+        peeked: dict[str, Any] | None,
+    ) -> bool:
+        """Clear the latch that ``peek_active_run`` returned, once the record is durable.
+
+        The commit half. Called AFTER ``save_completed_job`` succeeds, so a failed save
+        leaves the latch intact and the run's error history recoverable.
+
+        Keyed on IDENTITY, not on "set it to None": because the clear is no longer atomic
+        with the read, a rising edge can extend the latch in between. If the live latch has
+        moved on (a different first_seen_at, or more edges than we peeked), it now contains
+        evidence that does NOT belong to the record we just wrote — clearing it would
+        discard the next run's errors. In that case the latch is left alone and the harvest
+        for the next job will pick it up.
+
+        Returns True if the latch was cleared.
+        """
+        if not isinstance(peeked, dict):
+            return False
+        record = self._ensure_record(vacuum_entity_id)
+        latch = record.get("active_run_error")
+        if not isinstance(latch, dict):
+            return False
+
+        moved_on = (
+            latch.get("first_seen_at") != peeked.get("first_seen_at")
+            or (_safe_int(latch.get("error_count")) or 0)
+            != (_safe_int(peeked.get("error_count")) or 0)
+        )
+        if moved_on:
+            _LOGGER.debug(
+                "error_tracker: latch changed between peek and commit for %s "
+                "— leaving it for the next harvest",
+                vacuum_entity_id,
+            )
+            return False
+
+        record["active_run_error"] = None
+        self._persist_and_notify(vacuum_entity_id)
+        return True
+
     def harvest_active_run(
         self,
         vacuum_entity_id: str,
         job_id: str | None,
     ) -> dict[str, Any] | None:
         """Pull and clear the active-run latch when a job ends.
+
+        DEPRECATED in favour of ``peek_active_run`` + ``commit_active_run``. Retained
+        because the read-and-clear semantic is asserted by existing tests; the finalizer no
+        longer uses it. Do not add new callers — a single destructive read cannot be made
+        safe against a persistence failure.
 
         Called by ``learning/job_finalizer.py`` right before ``outcome`` is
         constructed. The returned dict gets folded into ``extra_outcome``

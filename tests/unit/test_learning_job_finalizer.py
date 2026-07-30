@@ -578,3 +578,53 @@ def test_battery_push_does_not_happen_when_the_record_fails_to_save(tmp_path):
 # push entirely rather than deferring it. Closing this needs a fixture with real
 # battery_start/battery_end/duration/resolved_rooms — worth doing when the battery
 # subsystem is next touched, and tracked as a coverage gap rather than silently ignored.
+
+
+def test_error_latch_is_not_cleared_when_the_record_fails_to_save(tmp_path):
+    """[JF-commit-2] Wave 2b. A failed save must leave the error latch INTACT.
+
+    The old harvest read-and-cleared in one call, before the record was built. A save that
+    raised afterwards destroyed the run's error history permanently — and the retry then
+    recorded had_errors=False, because the latch was already gone. Peek/commit defers the
+    clear past save_completed_job.
+    """
+    commits: list[str] = []
+    peeked = {"first_seen_at": "t0", "error_count": 1, "errors": [{"captured_at": "t0"}]}
+
+    hass = MagicMock()
+    hass.config.config_dir = str(tmp_path)
+    fin = LearningJobFinalizer(
+        hass,
+        error_source=lambda vac, jid: dict(peeked),
+        error_commit=lambda vac, p: commits.append(vac) or True,
+    )
+
+    def _boom(**kwargs):
+        raise OSError("disk full")
+    fin.store.save_completed_job = _boom
+
+    with pytest.raises(OSError):
+        _finalize(fin, _inputs_manager())
+
+    assert commits == [], "the error latch was cleared for a run with no record"
+
+
+def test_error_latch_is_cleared_after_a_successful_save(tmp_path):
+    """[JF-commit-2] The inverse: the commit must still happen on the happy path, or the
+    latch would leak into the next run. Without this the test above would pass on a change
+    that simply never committed."""
+    commits: list[str] = []
+    peeked = {"first_seen_at": "t0", "error_count": 1, "errors": [{"captured_at": "t0"}]}
+
+    hass = MagicMock()
+    hass.config.config_dir = str(tmp_path)
+    fin = LearningJobFinalizer(
+        hass,
+        error_source=lambda vac, jid: dict(peeked),
+        error_commit=lambda vac, p: commits.append(vac) or True,
+    )
+    fin.store.save_completed_job = lambda **kwargs: "/tmp/job.json"
+
+    _finalize(fin, _inputs_manager())
+
+    assert commits == ["vacuum.fin_test"], "the latch was never cleared after a good save"
