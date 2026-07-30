@@ -21,10 +21,11 @@ from custom_components.eufy_vacuum.adapters.eufy.upkeep_guides_i18n import (
 FAMILY = "x10_pro_omni"
 # Every locale that overlays guide translations. The original 7 (official Eufy
 # X10 manuals + our gap-fills) plus the RTL + CJK locales added 2026-07-25 (AI +
-# manual-sourced, all 5 families), plus Polish added 2026-07-29 (AI draft, all 5
-# families). Update this when a locale's guides are added.
+# manual-sourced, all 5 families), plus Polish + Czech/Turkish/Indonesian added
+# 2026-07-29 (AI draft, all 5 families — no official Eufy/Roborock manuals exist
+# in those languages, so no verbatim source). Update this when a locale is added.
 LANGS = {
-    "de", "es", "fr", "nl", "it", "pt", "pl", "ru",
+    "de", "es", "fr", "nl", "it", "pt", "pl", "cs", "tr", "id", "ru",
     "ar", "he", "ja", "zh-Hans", "zh-Hant", "ko",
 }
 

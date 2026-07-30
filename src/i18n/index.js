@@ -60,6 +60,7 @@ const CATALOGS = { en };
 const LOCALE_STATUS = {
   en: "stable",
   ru: "draft", de: "draft", fr: "draft", es: "draft", nl: "draft", it: "draft", pt: "draft", pl: "draft",
+  cs: "draft", tr: "draft", id: "draft",
   ar: "draft", he: "draft",
   ja: "draft", "zh-Hans": "draft", "zh-Hant": "draft", ko: "draft",
 };
@@ -69,12 +70,14 @@ const LOCALE_STATUS = {
 const LOCALE_ENDONYMS = {
   en: "English", ru: "Русский", de: "Deutsch", fr: "Français",
   es: "Español", nl: "Nederlands", it: "Italiano", pt: "Português", pl: "Polski",
+  cs: "Čeština", tr: "Türkçe", id: "Bahasa Indonesia",
   ar: "العربية", he: "עברית",
   ja: "日本語", "zh-Hans": "简体中文", "zh-Hant": "繁體中文", ko: "한국어",
 };
 const DRAFT_WORD = {
   en: "draft", ru: "черновик", de: "Entwurf", fr: "brouillon",
   es: "borrador", nl: "concept", it: "bozza", pt: "rascunho", pl: "wersja robocza",
+  cs: "koncept", tr: "taslak", id: "draf",
   ar: "مسودة", he: "טיוטה",
   ja: "下書き", "zh-Hans": "草稿", "zh-Hant": "草稿", ko: "초안",
 };

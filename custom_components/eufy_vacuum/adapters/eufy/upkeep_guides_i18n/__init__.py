@@ -11,7 +11,7 @@ resolved language (frontend) / hass.config.language (backend). Pure data.
 
 Edit a ``<lang>.py``, then run ``python scripts/sync-guide-translations.py``.
 """
-from . import de, es, fr, nl, it, pt, pl, ru, ar, he, ja, zh_hans, zh_hant, ko  # noqa: F401
+from . import de, es, fr, nl, it, pt, pl, cs, tr, id, ru, ar, he, ja, zh_hans, zh_hant, ko  # noqa: F401  (`id` = Indonesian; shadows builtin id() in this pure-data module only — harmless)
 
 UPKEEP_GUIDE_TRANSLATIONS = {
     "de": de.GUIDE_TRANSLATIONS,
@@ -21,6 +21,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {
     "it": it.GUIDE_TRANSLATIONS,
     "pt": pt.GUIDE_TRANSLATIONS,
     "pl": pl.GUIDE_TRANSLATIONS,
+    "cs": cs.GUIDE_TRANSLATIONS,
+    "tr": tr.GUIDE_TRANSLATIONS,
+    "id": id.GUIDE_TRANSLATIONS,
     "ru": ru.GUIDE_TRANSLATIONS,
     "ar": ar.GUIDE_TRANSLATIONS,
     "he": he.GUIDE_TRANSLATIONS,
