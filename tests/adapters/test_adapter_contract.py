@@ -360,3 +360,21 @@ class TestAdapterContract:
                 f"{name}: water model {model_code!r} robot_internal_tank_ml "
                 f"must be numeric"
             )
+
+
+def test_no_undeclared_top_level_keys(adapter):
+    """[AC-schema] Every top-level key a brand ships MUST be declared in
+    ADAPTER_CONFIG_SCHEMA.
+
+    The schema walker (_validate) iterates schema.items(), so it is structurally blind to
+    a config key the schema does not declare: a whole block can ship, be load-bearing at
+    runtime, and never be validated or documented. This assertion is the inverse direction
+    and is what makes a future schema-absent block a RED test instead of a silent gap.
+    """
+    name, config = adapter
+    undeclared = sorted(set(config) - set(ADAPTER_CONFIG_SCHEMA))
+    assert not undeclared, (
+        f"{name}: top-level keys shipped but NOT declared in ADAPTER_CONFIG_SCHEMA: "
+        f"{undeclared}. Declare them in config_schema.py (the schema is the contract) "
+        f"or stop shipping them."
+    )

@@ -1441,4 +1441,134 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             },
         },
     },
+
+    # === PLUGGABLE ENGINES + LATE-ADDED BLOCKS =============================
+    #
+    # These blocks shipped before they were declared here. The schema had no runtime
+    # importer, so nothing noticed: `_validate` in tests/adapters/test_adapter_contract.py
+    # walks ADAPTER_CONFIG_SCHEMA and is structurally blind to a config key the schema
+    # omits. `test_no_undeclared_top_level_keys` now asserts the inverse direction, so a
+    # future block cannot ship undeclared.
+    #
+    # Nested shapes are intentionally NOT enumerated for the engine blocks: several are
+    # already validated at registration by registry._validate_adapter (mapping,
+    # job_segmenter, room_attribution, room_profiles), and declaring a nested field here
+    # incorrectly would produce false conformance failures. Declaring the block is what
+    # closes the blind spot; tightening the interiors is a separate, additive step.
+
+    "mapping": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Pluggable MAP segmenter engine selection + tuning (doc 22 §13a). "
+            "Engine name and tuning keys are validated at registration by "
+            "registry._validate_adapter. Absent => the framework default engine."
+        ),
+    },
+
+    "map_state_source": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Read the provider's own map segmentation instead of segmenting an image "
+            "(doc 22 §13a.2). Absent => no provider-side room source."
+        ),
+    },
+
+    "map_render": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "VA-owned client-side map render declaration (doc 22 §13a.3). Presence is "
+            "the gate for supports_va_render (core/manager.py ~:4055) — presence only; "
+            "the interior is not validated."
+        ),
+    },
+
+    "job_segmenter": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Pluggable JOB/run segmenter engine + threshold tuning (doc 22 §13a.1). "
+            "NOTE: an absent block does NOT mean 'no segmentation' — the resolver falls "
+            "back to the Eufy counter engine, not to noop. A brand that emits no counter "
+            "signal must declare an explicit engine."
+        ),
+    },
+
+    "room_attribution": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Pluggable room-attribution engine (doc 22 §13a.4) — decides which room a "
+            "captured run segment belongs to. Absent => the Eufy anchor-winding engine, "
+            "which a brand with no pose/anchor signal cannot satisfy."
+        ),
+    },
+
+    "room_profiles": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Adapter-declared room profile catalog / overrides (doc 22 §13d). "
+            "Validated at registration by registry._validate_adapter."
+        ),
+    },
+
+    "anomaly": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Anomaly-detection thresholds for run sanity checks (doc 22 §13c)."
+        ),
+    },
+
+    "wash_frequency_bounds": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Bounds for the mop-wash cadence control, in minutes (doc 22 §17a). "
+            "planning/run_plan.py reads these; the learning estimator historically "
+            "hardcoded the Eufy X10 range instead."
+        ),
+        "fields": {
+            "default": {"type": "float", "required": False},
+            "min": {"type": "float", "required": False},
+            "max": {"type": "float", "required": False},
+        },
+    },
+
+    "cleaning_time_unit": {
+        "type": "str",
+        "required": False,
+        "description": (
+            "Unit of the vacuum's bare-number cleaning-time counter — \"min\" or \"s\" "
+            "(doc 22 §14d). Roborock reports minutes; Eufy reports seconds. Omitted => "
+            "the framework default. This is the ONE BrandFacts property only Roborock "
+            "declares, so it is the seam most likely to be missed by an Eufy-anchored test."
+        ),
+    },
+
+    "model_family": {
+        "type": "str",
+        "required": False,
+        "description": (
+            "Coarse hardware family (e.g. \"x10\", \"s6\") used to select model-specific "
+            "behavior and maintenance catalogs. Shipped by the Eufy adapter and consumed "
+            "by capability detection; previously undeclared in both the schema and doc 22."
+        ),
+    },
+
+    "capability_hints": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Explicit capability declarations fed INTO runtime detection "
+            "(core/capabilities.detect_capabilities). Distinct from the `capabilities` "
+            "block above, which is the adapter's own declared capability set — the two "
+            "share key names but are different dictionaries with different consumers. "
+            "A hint here is authoritative: it overrides the derived default, and it is "
+            "what reaches the room payload gate."
+        ),
+    },
 }
