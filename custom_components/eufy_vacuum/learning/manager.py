@@ -659,7 +659,88 @@ class LearningManager:
         forced_lifecycle_state: str | None = None,
         forced_lifecycle_message: str | None = None,
     ) -> dict[str, Any]:
-        """Async version of finalize_completed_job — offloads file I/O to executor."""
+        """Async version of finalize_completed_job — offloads file I/O to executor.
+
+        Holds the EXACTLY-ONCE CLAIM. It lives here, at the chokepoint, rather than on
+        core.finalize_learning_for_active_job — that wrapper is only ONE of two entry
+        points, and the `finalize_learning_job` service reached this method directly,
+        walking straight past a guard placed on the wrapper. A second finalize then
+        harvested an already-nulled error latch and os.replace'd the record with
+        had_errors=False, destroying the run's error history unrepairably (rebuild_all
+        reads FROM these files). Guarding the chokepoint makes any future entry point
+        safe by construction.
+        """
+        # --- EXACTLY-ONCE CLAIM ---------------------------------------------------
+        # HA is a single event loop, so a claim written synchronously before the first
+        # await below is atomic. `finalized` is the permanent gate once a job is done;
+        # `finalize_claimed_at` covers entry up to that write. get_active_job() returns a
+        # NORMALIZED COPY, so the claim must be written into the STORED dict.
+        _stored_job = (
+            manager.data.setdefault("active_jobs", {})
+            .setdefault(vacuum_entity_id, {})
+            .get(str(map_id))
+        )
+        if not isinstance(_stored_job, dict):
+            _stored_job = None
+        if _stored_job is not None:
+            if _stored_job.get("finalized"):
+                return {
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": str(map_id),
+                    "finalized": False,
+                    "reason": "already_finalized",
+                }
+            if str(_stored_job.get("finalize_claimed_at", "")).strip():
+                return {
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": str(map_id),
+                    "finalized": False,
+                    "reason": "finalize_in_flight",
+                }
+            # Timestamped so a claim orphaned by a crash is reapable by age; cleared
+            # unconditionally at startup by core.manager._clear_orphaned_finalize_claims.
+            _stored_job["finalize_claimed_at"] = _iso_now()
+
+        try:
+            return await self._finalize_claimed(
+                manager=manager,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                battery_start=battery_start,
+                battery_end=battery_end,
+                started_at=started_at,
+                ended_at=ended_at,
+                used_for_learning=used_for_learning,
+                rebuild_stats=rebuild_stats,
+                rebuild_csv=rebuild_csv,
+                forced_outcome_status=forced_outcome_status,
+                forced_lifecycle_state=forced_lifecycle_state,
+                forced_lifecycle_message=forced_lifecycle_message,
+            )
+        finally:
+            # RELEASE on every exit path so a transient failure stays retryable. After a
+            # successful finalize `finalized` is the gate, so releasing does not reopen it.
+            if _stored_job is not None:
+                _stored_job.pop("finalize_claimed_at", None)
+
+    async def _finalize_claimed(
+        self,
+        *,
+        manager,
+        vacuum_entity_id: str,
+        map_id: str,
+        battery_start: int,
+        battery_end: int,
+        started_at: str,
+        ended_at: str | None = None,
+        used_for_learning: bool = True,
+        rebuild_stats: bool = True,
+        rebuild_csv: bool = False,
+        forced_outcome_status: str | None = None,
+        forced_lifecycle_state: str | None = None,
+        forced_lifecycle_message: str | None = None,
+    ) -> dict[str, Any]:
+        """The finalize body. Only ever called with the exactly-once claim held."""
         ended_at = ended_at or _iso_now()
         inputs = self.finalizer._collect_finalization_inputs(
             manager=manager,

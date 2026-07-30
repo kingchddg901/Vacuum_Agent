@@ -4604,94 +4604,48 @@ class EufyVacuumManager:
                 "reason": "missing_started_at",
             }
 
-        # --- EXACTLY-ONCE CLAIM ------------------------------------------------------
-        # Home Assistant runs a SINGLE EVENT LOOP, so everything above and below this
-        # comment down to the first `await` executes without interleaving. A claim written
-        # here is therefore atomic — no lock, no ledger, no compare-and-swap.
-        #
-        # Two gates, covering two different windows:
-        #   `finalized`             — set by mark_active_job_finalized AFTER the await
-        #                             below. The permanent gate once a job is done.
-        #   `finalize_claimed_at`   — covers the window BETWEEN entry and that write, which
-        #                             is where duplicate finalizes were landing: the real
-        #                             suspension is a disk-I/O executor hop, and every
-        #                             authority re-entered without re-checking its gate.
-        #
-        # `started_at` alone could not gate this: mark_active_job_finalized never clears
-        # it, so it stays truthy forever after a run and every later caller passed.
-        if active_job.get("finalized"):
-            return {
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "finalized": False,
-                "reason": "already_finalized",
-            }
-        if str(active_job.get("finalize_claimed_at", "")).strip():
-            return {
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "finalized": False,
-                "reason": "finalize_in_flight",
-            }
+        # NOTE: the EXACTLY-ONCE CLAIM used to live here. It was MOVED DOWN to
+        # LearningManager.async_finalize_completed_job — the chokepoint — because this
+        # wrapper is only one of two entry points: the `finalize_learning_job` service
+        # calls that method directly and walked straight past a guard placed here, then
+        # harvested an already-nulled error latch and overwrote the record with
+        # had_errors=False. Guarding the chokepoint makes both paths safe, and any future
+        # entry point safe by construction. Do not re-add a claim here — it would
+        # double-claim and the inner gate would refuse the outer call.
+        if battery_end is None:
+            battery_end = self._get_battery_level(vacuum_entity_id)
 
-        # NB: get_active_job() returns a NORMALIZED COPY, so the claim must be written into
-        # the STORED dict or it is silently discarded and this gate never fires. Same access
-        # pattern as mark_active_job_finalized, which mutates storage directly for exactly
-        # this reason. Reading the gates above off the copy is fine; writing is not.
-        _stored_job = (
-            self.data.setdefault("active_jobs", {})
-            .setdefault(vacuum_entity_id, {})
-            .get(str(map_id))
+        # Box-level toggle gates the stats REBUILD; collection (the save) always happens.
+        effective_rebuild = rebuild_stats and self.learning_processing_enabled
+        result = await learning.async_finalize_completed_job(
+            manager=self,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            battery_start=battery_start,
+            battery_end=_safe_int(battery_end, 0),
+            started_at=started_at,
+            ended_at=ended_at or _iso_now(),
+            used_for_learning=True,
+            rebuild_stats=effective_rebuild,
+            rebuild_csv=rebuild_csv,
+            forced_outcome_status=forced_outcome_status,
+            forced_lifecycle_state=forced_lifecycle_state,
+            forced_lifecycle_message=forced_lifecycle_message,
         )
-        if not isinstance(_stored_job, dict):
-            _stored_job = None
-        if _stored_job is not None:
-            # Timestamped rather than a bare flag so a claim orphaned by a crash mid-finalize
-            # is REAPABLE by age — active_jobs is persisted, so a claim survives a restart.
-            _stored_job["finalize_claimed_at"] = _iso_now()
+        completed_job = result.get("completed_job", {}) if isinstance(result, dict) else {}
+        if rebuild_stats and not effective_rebuild:
+            # Collected but not processed (toggle off) — mark it pending for the card.
+            self._bump_learning_pending(vacuum_entity_id)
 
-        try:
-            if battery_end is None:
-                battery_end = self._get_battery_level(vacuum_entity_id)
-
-            # Box-level toggle gates the stats REBUILD; collection (the save) always happens.
-            effective_rebuild = rebuild_stats and self.learning_processing_enabled
-            result = await learning.async_finalize_completed_job(
-                manager=self,
+        if self._ingest_completed_job_into_room_history(
+            vacuum_entity_id=vacuum_entity_id,
+            completed_job=completed_job,
+        ):
+            self._notify_room_history_updated(
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=str(map_id),
-                battery_start=battery_start,
-                battery_end=_safe_int(battery_end, 0),
-                started_at=started_at,
-                ended_at=ended_at or _iso_now(),
-                used_for_learning=True,
-                rebuild_stats=effective_rebuild,
-                rebuild_csv=rebuild_csv,
-                forced_outcome_status=forced_outcome_status,
-                forced_lifecycle_state=forced_lifecycle_state,
-                forced_lifecycle_message=forced_lifecycle_message,
             )
-            completed_job = result.get("completed_job", {}) if isinstance(result, dict) else {}
-            if rebuild_stats and not effective_rebuild:
-                # Collected but not processed (toggle off) — mark it pending for the card.
-                self._bump_learning_pending(vacuum_entity_id)
-
-            if self._ingest_completed_job_into_room_history(
-                vacuum_entity_id=vacuum_entity_id,
-                completed_job=completed_job,
-            ):
-                self._notify_room_history_updated(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=str(map_id),
-                )
-            return result
-        finally:
-            # RELEASE on every exit path (Chris's call): a transient failure must be
-            # retryable. After a SUCCESSFUL finalize the `finalized` flag is the gate, so
-            # dropping the claim here does not reopen the door. The accepted cost is that
-            # a FAILED finalize reopens the original race window for that one job.
-            if _stored_job is not None:
-                _stored_job.pop("finalize_claimed_at", None)
+        return result
 
     def get_maintenance_state(self, **kwargs):
         """Return maintenance reset snapshots -- delegates to MaintenanceManager."""

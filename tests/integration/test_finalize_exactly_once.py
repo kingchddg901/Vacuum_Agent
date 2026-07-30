@@ -33,11 +33,20 @@ def _seed_active_job(manager, **extra):
 
 
 def _install_fake_learning(manager, monkeypatch, finalize):
-    monkeypatch.setattr(
-        manager,
-        "_get_learning_manager",
-        lambda: SimpleNamespace(async_finalize_completed_job=finalize),
-    )
+    """Install a REAL LearningManager with only its finalize BODY stubbed.
+
+    The exactly-once claim lives on LearningManager.async_finalize_completed_job (the
+    chokepoint -- it was moved there because the finalize_learning_job service reached that
+    method directly and walked past a guard placed on the core-manager wrapper). So these
+    tests must exercise the real method and stub only `_finalize_claimed`; replacing the
+    whole learning manager would replace the claim itself and prove nothing.
+    """
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    lm = LearningManager(manager.hass)
+    monkeypatch.setattr(lm, "_finalize_claimed", finalize)
+    monkeypatch.setattr(manager, "_get_learning_manager", lambda: lm)
+    return lm
 
 
 async def test_finalized_job_refuses_re_entry(manager, monkeypatch):
@@ -187,3 +196,39 @@ async def test_a_cleared_claim_lets_the_job_finalize_again(manager, monkeypatch)
         vacuum_entity_id=_VAC, map_id=_MAP, battery_end=50
     )
     assert ok == {"completed_job": {}}
+
+
+async def test_the_service_entry_point_also_inherits_the_claim(manager, monkeypatch):
+    """[XO-7] ED-1 REGRESSION. The claim must live at the CHOKEPOINT, not on the
+    core-manager wrapper.
+
+    `finalize_learning_job` (the documented manual retry) calls
+    LearningManager.async_finalize_completed_job DIRECTLY. With the guard on the wrapper it
+    walked straight past, re-derived the same job_id, harvested an already-nulled error
+    latch and os.replace'd the record with had_errors=False -- destroying the run's error
+    history unrepairably, since rebuild_all rebuilds FROM those files.
+
+    This drives the learning manager directly, exactly as the service does.
+    """
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    bodies: list[int] = []
+
+    async def _body(**kwargs):
+        bodies.append(1)
+        return {"completed_job": {}}
+
+    lm = LearningManager(manager.hass)
+    monkeypatch.setattr(lm, "_finalize_claimed", _body)
+    _seed_active_job(manager, finalized=True)
+
+    # The service path — no core-manager wrapper involved.
+    result = await lm.async_finalize_completed_job(
+        manager=manager,
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        battery_start=90, battery_end=50,
+        started_at="2026-01-01T10:00:00+00:00",
+    )
+
+    assert result["reason"] == "already_finalized"
+    assert bodies == [], "the service path re-ran finalize on an already-finalized job"
