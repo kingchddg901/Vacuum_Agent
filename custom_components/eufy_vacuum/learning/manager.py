@@ -619,13 +619,26 @@ class LearningManager:
             self._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
 
         # Auto-record estimate accuracy if the snapshot carried estimated minutes.
-        # This fires regardless of used_for_learning — accuracy data is still
-        # useful even for jobs that are excluded from stat rebuilds.
-        accuracy_result = self._auto_record_accuracy(
-            result=result,
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
+        #
+        # GATED on the run being learning-eligible (Chris, 2026-07-30). This previously
+        # fired unconditionally, on the reasoning that "accuracy data is still useful even
+        # for jobs excluded from stat rebuilds". That reasoning does not hold: accuracy
+        # measures ESTIMATE vs ACTUAL, and every reason a run is excluded — cancelled,
+        # interrupted, an idle-wall anomaly, a manual exclude — is a reason its ACTUAL
+        # duration is unrepresentative. Recording it does not measure estimator drift, it
+        # measures the anomaly, and then penalises confidence for it.
+        #
+        # A run we do not trust for learning is not trustworthy for anything derived from
+        # its duration. This also keeps the live path and the archive rebuild in agreement;
+        # gating only one of them would make a rebuild silently change the numbers.
+        _final_outcome = ((result or {}).get("completed_job") or {}).get("outcome") or {}
+        accuracy_result = None
+        if bool(_final_outcome.get("used_for_learning", True)):
+            accuracy_result = self._auto_record_accuracy(
+                result=result,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+            )
         result["accuracy"] = accuracy_result
 
         return result
@@ -693,13 +706,19 @@ class LearningManager:
                 "async_finalize_completed_job: zone learning failed", exc_info=True
             )
 
-        accuracy_result = await self.hass.async_add_executor_job(
-            lambda: self._auto_record_accuracy(
-                result=result,
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=map_id,
+        # Gated on learning-eligibility for the same reason as the sibling call in the sync
+        # path: accuracy measures ESTIMATE vs ACTUAL, and every reason a run is excluded is
+        # a reason its ACTUAL is unrepresentative. See that call site for the full rationale.
+        # BOTH sites must carry this gate — this async one is the production path.
+        accuracy_result = None
+        if bool(_final_outcome.get("used_for_learning", True)):
+            accuracy_result = await self.hass.async_add_executor_job(
+                lambda: self._auto_record_accuracy(
+                    result=result,
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id,
+                )
             )
-        )
         self._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
         if rebuild_stats:
             self.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)

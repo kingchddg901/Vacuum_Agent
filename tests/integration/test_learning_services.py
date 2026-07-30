@@ -3018,3 +3018,72 @@ async def test_discard_external_run_service_delegates_to_manager(
     assert result == {"ok": True, "discarded": "ext-pending-99"}
     # ... and forwarded exactly the schema fields, in positional order.
     assert captured == [(_VAC, "ext-pending-99")]
+
+
+# ---------------------------------------------------------------------------
+# [LS-54a] a run excluded from learning must not feed accuracy_stats either
+# ---------------------------------------------------------------------------
+
+async def _drive_finalize(hass, learning, monkeypatch, *, used_for_learning: bool):
+    """Run async_finalize_completed_job with the finalizer stubbed, returning the calls
+    made to _auto_record_accuracy."""
+    calls: list[int] = []
+    monkeypatch.setattr(
+        learning, "_auto_record_accuracy",
+        lambda **kw: (calls.append(1), {"recorded": True})[1],
+    )
+    monkeypatch.setattr(
+        learning.finalizer, "_collect_finalization_inputs",
+        lambda **kw: {"outcome_status": "completed", "active_job_state": {}, "job_id": "j1"},
+    )
+    monkeypatch.setattr(
+        learning.finalizer, "finalize_from_inputs",
+        lambda **kw: {
+            "completed_job": {
+                "outcome": {"status": "completed", "used_for_learning": used_for_learning}
+            }
+        },
+    )
+    monkeypatch.setattr(learning, "_record_zone_learning", None, raising=False)
+
+    manager = hass.data[DOMAIN]["runtime"]
+    await learning.async_finalize_completed_job(
+        manager=manager,
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        battery_start=90, battery_end=60,
+        started_at="2026-01-01T10:00:00+00:00",
+        ended_at="2026-01-01T10:30:00+00:00",
+    )
+    return calls
+
+
+async def test_accuracy_is_not_recorded_for_a_run_excluded_from_learning(
+    hass, learning_services, monkeypatch
+):
+    """[LS-54a] Accuracy measures ESTIMATE vs ACTUAL. Every reason a run is excluded from
+    learning -- cancelled, interrupted, an idle-wall anomaly, a manual exclude -- is a
+    reason its ACTUAL duration is unrepresentative, so recording it does not measure
+    estimator drift; it measures the anomaly, and then penalises confidence for it.
+
+    This previously fired unconditionally, on the reasoning that accuracy data was "still
+    useful" for excluded jobs. A run we do not trust for learning is not trustworthy for
+    anything derived from its duration. Gating here also keeps the live path in agreement
+    with the archive rebuild -- gating only one would let a rebuild silently change values.
+    """
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    learning = _get_learning_manager(hass)
+    calls = await _drive_finalize(hass, learning, monkeypatch, used_for_learning=False)
+    assert calls == [], "an excluded run fed accuracy_stats"
+
+
+async def test_accuracy_is_still_recorded_for_an_eligible_run(
+    hass, learning_services, monkeypatch
+):
+    """[LS-54a] The inverse -- the gate must not simply disable accuracy recording. Without
+    this, the test above would pass on a change that removed the call entirely."""
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    learning = _get_learning_manager(hass)
+    calls = await _drive_finalize(hass, learning, monkeypatch, used_for_learning=True)
+    assert calls == [1], "an eligible run stopped feeding accuracy_stats"
