@@ -166,6 +166,11 @@ def register_roborock_adapter_for_vacuum(
         "supports_mop_dry": profile["has_dock"],
         "supports_empty_dust": profile["has_dock"],
         "supports_path_control": False,  # no per-room fan/water on the wire
+        # Declared False in the config capabilities block too (see ~:571). It must ALSO be
+        # a hint: the room payload gate reads the runtime-detected capabilities payload
+        # (manager.get_vacuum_capabilities -> data["capabilities"]), not the config block,
+        # so a config-only declaration never reaches queue_engine.
+        "supports_edge_mopping": False,
     }
     caps = detect_capabilities(
         hass,

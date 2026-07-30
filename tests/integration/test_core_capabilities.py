@@ -114,6 +114,30 @@ def test_detect_water_control_hint_wins(hass):
     assert caps["supports_water_control"] is False
 
 
+def test_detect_edge_mopping_hint_wins(hass):
+    """[CAP-8a] REGRESSION: supports_edge_mopping / supports_passes were HARDCODED True,
+    one line below the correctly hint-driven supports_water_control, so an adapter
+    declaring edge mopping unsupported could not reach the gate at all. The room payload
+    gate (queue_engine) reads this runtime-detected dict — not the adapter's config
+    capabilities block — so Roborock's declared False was inert."""
+    hass.states.async_set(_VAC, "docked")
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        capability_hints={"supports_edge_mopping": False, "supports_passes": False},
+    )
+    assert caps["supports_edge_mopping"] is False
+    assert caps["supports_passes"] is False
+
+
+def test_detect_edge_mopping_defaults_true_without_a_hint(hass):
+    """[CAP-8b] Eufy passes no such hint and must keep the permissive default."""
+    hass.states.async_set(_VAC, "docked")
+    caps = detect_capabilities(hass, vacuum_entity_id=_VAC)
+    assert caps["supports_edge_mopping"] is True
+    assert caps["supports_passes"] is True
+
+
 def test_detect_water_control_defaults_to_mop_without_hint(hass):
     """[CAP-8] with no hint, supports_water_control still derives from mop support
     (the unchanged Eufy path)."""

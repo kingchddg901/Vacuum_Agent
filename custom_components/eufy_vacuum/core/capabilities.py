@@ -272,15 +272,21 @@ def detect_capabilities(
     # RoborockUnsupportedFeature); otherwise derive it from mop support as before. Eufy
     # is unchanged (it passes no such hint, or passes True, so it falls through to
     # supports_mop_features=True either way).
-    supports_water_control = (
-        bool(_hints["supports_water_control"])
-        if "supports_water_control" in _hints
-        else supports_mop_features
-    )
-    supports_edge_mopping      = True
-    supports_passes            = True
-    supports_custom_room_config = True
-    supports_room_clean        = True
+    def _hint_wins(name: str, derived: bool) -> bool:
+        """An explicit adapter capability_hint overrides the derived/default value.
+
+        Distinct from the permissive "hint OR entity presence" rule above: these are
+        capabilities a brand can categorically NOT do, so a declared False must be
+        authoritative. A hardcoded default here is unreachable by any adapter -- which is
+        exactly how supports_edge_mopping stayed True for a brand declaring it False.
+        """
+        return bool(_hints[name]) if name in _hints else derived
+
+    supports_water_control      = _hint_wins("supports_water_control", supports_mop_features)
+    supports_edge_mopping       = _hint_wins("supports_edge_mopping", True)
+    supports_passes             = _hint_wins("supports_passes", True)
+    supports_custom_room_config = _hint_wins("supports_custom_room_config", True)
+    supports_room_clean         = _hint_wins("supports_room_clean", True)
 
     # --- maintenance sources ------------------------------------------------
 
