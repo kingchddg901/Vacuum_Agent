@@ -1036,7 +1036,7 @@
     "outcome_cancelled": "cancelled",  // incomplete-run cause, lowercase mid-sentence: 'Last run cancelled — …'
     "outcome_failed": "failed",
     "outcome_interrupted": "interrupted",  // incomplete-run cause, lowercase mid-sentence (e.g. power/connection loss)
-    "overhead_breakdown": "Overhead breakdown",  // Expander heading for non-cleaning time overhead (startup/transitions/wash/recharge), not financial overhead
+    "overhead_breakdown": "Overhead breakdown",  // Expander heading. OVERHEAD = time or resources (e.g. water) spent on necessary SUPPORTING activity, not direct floor cleaning: transitions, docking, startup, recovery, mop washing, dust emptying, mid-job recharge, and dock water not applied to the floor. NOT financial overhead. Translate in that operational sense; keep as a loanword where idiomatic.
     "overhead_dust_empty": "Dust empty",  // time-overhead segment: dock auto-empty minutes
     "overhead_mop_wash": "Mop wash",  // time-overhead segment: dock mop-wash minutes
     "overhead_recharge": "Recharge",  // time-overhead segment: mid-job recharge minutes
@@ -1421,7 +1421,7 @@
     "chip_search_aria": "Search {label}",
     "chip_search_placeholder": "Search…",
     "detail_jobs_used": "{jobs} jobs | {used} used",  // Window-card detail: '|' divides two stats; '{used}' = jobs used for learning
-    "detail_robot_overhead": "Robot {robot} | Overhead {overhead}",  // Water detail: 'Robot'/'Overhead' = ml amounts (robot-applied vs dock-wash water)
+    "detail_robot_overhead": "Robot {robot} | Overhead {overhead}",  // Water detail (ml): 'Robot' = water applied to the floor while cleaning; 'Overhead' = water used by dock services (wash/empty), not applied to the floor — the water facet of overhead.
     "detail_runs_used": "{runs} runs | {used} used",  // Card detail line: '|' is a divider; '{used}' = runs used for learning, not consumed
     "detail_trust_runs_to_trusted": "Trust {trust} | {runs} runs to trusted",  // Room detail: 'Trust'=tier label, 'runs to trusted'=runs until estimate is reliable
     "detail_water_recharge": "Water {water} | Recharge {recharge}",  // Window detail: 'Water'={ml} used, 'Recharge'=mid-job recharge count; '|' divider
