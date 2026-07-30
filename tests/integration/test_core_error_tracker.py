@@ -50,12 +50,22 @@ def tracker(hass):
     return ErrorTracker(hass, runtime_manager=mgr), mgr
 
 
-def _seed_active_job(mgr, *, job_id="j1", room_id=3, started_minutes_ago=2):
+def _seed_active_job(mgr, *, job_id="j1", room_id=3, started_minutes_ago=2,
+                     status="started"):
+    """Seed an active job.
+
+    `status` is REQUIRED in production — every real active-job record carries one, and
+    "in flight" is decided from it (`dispatched_job_is_in_flight`). This fixture used to
+    omit it, which is a shape production never produces; the tracker's in-flight check was
+    therefore never exercised against a realistic record. Pass status="completed" to model
+    a FINISHED job still sitting in the slot, which is the state that caused error
+    misattribution.
+    """
     started = (datetime.now(timezone.utc)
                - timedelta(minutes=started_minutes_ago)).isoformat()
     mgr.data["active_jobs"] = {
         _VAC: {"6": {"job_id": job_id, "started_at": started,
-                     "current_room_id": room_id}}}
+                     "status": status, "current_room_id": room_id}}}
 
 
 # ---------------------------------------------------------------------------
@@ -363,3 +373,44 @@ async def test_persist_and_notify(tracker, hass):
     t._persist_and_notify(_VAC)
     await hass.async_block_till_done()
     assert seen == [_VAC]
+
+
+def test_no_latch_forms_for_a_finalized_job(tracker):
+    """[ET-inflight] REGRESSION: an error observed BETWEEN runs must not latch onto the
+    finished job.
+
+    The in-flight check was `started_at and not ended_at`, but ended_at is never written to
+    an active-job record — mark_active_job_finalized sets status="completed" and leaves
+    started_at. So a finished job matched forever: an error after docking formed a latch
+    under the dead job's id, turning the problem binary_sensor on with nothing running, and
+    the NEXT run then inherited that latch's identity fields at harvest.
+    """
+    et, mgr = tracker
+    _seed_active_job(mgr, job_id="j_done", status="completed")
+
+    assert et._lookup_active_job(_VAC) is None, "a finalized job read as in flight"
+
+    # And the live case still works.
+    _seed_active_job(mgr, job_id="j_live", status="started")
+    live = et._lookup_active_job(_VAC)
+    assert live is not None and live["job_id"] == "j_live"
+
+
+def test_multi_map_does_not_let_a_stale_bucket_shadow_the_live_one(tracker):
+    """[ET-inflight-2] The traversal returns the FIRST matching map. With the old predicate
+    a finished map-A bucket permanently shadowed a live map-B run, so every error was
+    stamped with map A's job id, elapsed time and room."""
+    et, mgr = tracker
+    started = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    mgr.data["active_jobs"] = {
+        _VAC: {
+            "6": {"job_id": "old_mapA", "started_at": started,
+                  "status": "completed", "finalized": True, "current_room_id": 1},
+            "7": {"job_id": "live_mapB", "started_at": started,
+                  "status": "started", "current_room_id": 9},
+        }
+    }
+    found = et._lookup_active_job(_VAC)
+    assert found is not None and found["job_id"] == "live_mapB", (
+        "a stale finalized map bucket shadowed the live run"
+    )

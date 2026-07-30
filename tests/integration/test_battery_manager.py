@@ -323,12 +323,25 @@ async def test_out_of_range_ignored(bm):
 # ---------------------------------------------------------------------------
 
 def test_has_active_job(bm, manager):
-    """[BM-13]"""
+    """[BM-13] In-flight is decided by STATUS, not by ended_at.
+
+    This test previously drove the transition by setting ``ended_at`` — a write production
+    NEVER performs. ``mark_active_job_finalized`` sets status="completed"/finalized=True and
+    leaves ``started_at`` in place; no code path writes ``ended_at`` onto an active-job
+    record. So the old assertion encoded a contract that does not exist, and the real
+    behaviour (a finished job reading as in-flight forever) went unnoticed.
+    """
     assert bm._has_active_job(_VAC) is False
-    manager.data["active_jobs"] = {_VAC: {"6": {"started_at": "t", "ended_at": None}}}
+
+    manager.data["active_jobs"] = {_VAC: {"6": {"started_at": "t", "status": "started"}}}
     assert bm._has_active_job(_VAC) is True
-    manager.data["active_jobs"][_VAC]["6"]["ended_at"] = "t2"
-    assert bm._has_active_job(_VAC) is False
+
+    manager.data["active_jobs"][_VAC]["6"]["status"] = "paused"
+    assert bm._has_active_job(_VAC) is True, "a paused run is still in flight"
+
+    # How a run ACTUALLY ends: mark_active_job_finalized sets these and leaves started_at.
+    manager.data["active_jobs"][_VAC]["6"].update({"status": "completed", "finalized": True})
+    assert bm._has_active_job(_VAC) is False, "a finalized job still read as in-flight"
 
 
 def test_is_charging_delegates_and_fallback(bm, manager, hass, monkeypatch):

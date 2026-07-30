@@ -450,14 +450,16 @@ class BatteryHealthManager:
         Used at session-open time to classify a charge session as mid-job
         (vacuum paused mid-clean to recharge) vs post-job vs idle.
         """
+        from ..jobs.active_job import dispatched_job_is_in_flight
+
         active_jobs = self._manager.data.get("active_jobs", {})
         per_map = active_jobs.get(vacuum_entity_id, {})
         if not isinstance(per_map, dict):
             return False
         for map_state in per_map.values():
-            if not isinstance(map_state, dict):
-                continue
-            if map_state.get("started_at") and not map_state.get("ended_at"):
+            # Was `started_at and not ended_at`; ended_at is never written to an
+            # active-job record, so a finished job read as in-flight indefinitely.
+            if dispatched_job_is_in_flight(map_state):
                 return True
         return False
 

@@ -760,14 +760,20 @@ class ErrorTracker:
         per-map active_jobs dict and return the first entry that has
         ``started_at`` and no ``ended_at``.
         """
+        from ..jobs.active_job import dispatched_job_is_in_flight
+
         active_jobs = self._manager.data.get("active_jobs", {})
         per_map = active_jobs.get(vacuum_entity_id, {})
         if not isinstance(per_map, dict):
             return None
         for map_state in per_map.values():
-            if not isinstance(map_state, dict):
-                continue
-            if map_state.get("started_at") and not map_state.get("ended_at"):
+            # Was `started_at and not ended_at` — but ended_at is never written to an
+            # active-job record, so a FINISHED job matched forever. Errors observed
+            # between runs formed a latch under the dead job's id (sticking the problem
+            # binary_sensor on), and on multi-map installs the first finalized bucket
+            # permanently shadowed the live one, stamping every error with the wrong
+            # job's id, elapsed time and room.
+            if dispatched_job_is_in_flight(map_state):
                 return map_state
         return None
 

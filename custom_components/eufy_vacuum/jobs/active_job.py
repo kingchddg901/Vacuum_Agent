@@ -127,6 +127,27 @@ _POSE_STALL_COALESCE_TICKS = 15    # ~30 s at a 2 s cadence before the tail coll
 _POSE_STALL_AREA_EPS_M2 = 0.05     # cleaning_area must climb by more than this to count as progress
 
 
+def dispatched_job_is_in_flight(job: Any) -> bool:
+    """Is this active-job record a DISPATCHED run that is actually still running?
+
+    THE single answer to that question, because the obvious-looking predicate is wrong:
+    ``started_at and not ended_at`` reads as "started and not finished", but **nothing in
+    this integration ever writes ``ended_at`` onto an active-job record**.
+    ``mark_active_job_finalized`` sets ``status="completed"`` / ``finalized=True`` and
+    leaves ``started_at`` in place, so that predicate stays TRUE forever after a run — until
+    the next run overwrites the slot. Callers using it treat a finished job as in-flight.
+
+    Status is the authoritative signal (matching ``core/manager`` and ``jobs`` elsewhere).
+
+    NOTE — deliberately DISPATCHED-only. Do NOT reuse this for the sample recorders
+    (``record_counter_sample``, ``record_active_job_sensor_value``) or the pose sampler:
+    those must also match ``status == "external"``, because capturing app-started runs is
+    exactly their job, and gating them here would break external capture. Different
+    question, different predicate — see the pose sampler, which states its own.
+    """
+    return isinstance(job, dict) and job.get("status") in ("started", "paused")
+
+
 def _pose_sample_is_static(prev: dict, new: dict) -> bool:
     """True when ``new`` is a static repeat of ``prev`` — same managed ``current_room``, anchor
     within ``_POSE_STALL_ANCHOR_EPS`` (or both ``None``), and ``cleaning_area`` NOT advancing.
