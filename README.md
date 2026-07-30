@@ -1,6 +1,6 @@
 # Vacuum Agent
 
-A custom Home Assistant integration that adds a whole control-and-intelligence layer on top of your robot vacuum — **room-level cleaning, a live map you can actually drive from, a learning/ETA system, saved zones, battery-health tracking, a themeable dashboard, fifteen languages, and automation events** — for **Eufy** *and* **Roborock**. It uses an adapter pattern, so more brands can follow.
+A custom Home Assistant integration that adds a whole control-and-intelligence layer on top of your robot vacuum — **room-level cleaning, a live map you can actually drive from, a learning/ETA system, saved zones, battery-health tracking, a themeable dashboard, eighteen languages, and automation events** — for **Eufy** *and* **Roborock**. It uses an adapter pattern, so more brands can follow.
 
 ![Vacuum Agent — a real home's map with every room painted in its own floor material, robot mid-clean](docs/screenshots/floor-texture-map.png)
 
@@ -49,7 +49,7 @@ A built-in **theme editor** for the panel card, with three layers: ready-made pr
 
 ![Themes — presets](docs/screenshots/themes-presets.png)
 
-The card **speaks fifteen languages** out of the box — English plus fourteen translations: German, French, Spanish, Dutch, Italian, Portuguese, Russian, Polish, Arabic, Hebrew, Japanese, Korean, and Chinese (Simplified & Traditional), including right-to-left Arabic & Hebrew — via a per-user language globe in the header, plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English. (Native reviewers very welcome — see the [translations discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).)
+The card **speaks eighteen languages** out of the box — English plus seventeen translations: German, French, Spanish, Dutch, Italian, Portuguese, Russian, Polish, Czech, Turkish, Indonesian, Arabic, Hebrew, Japanese, Korean, and Chinese (Simplified & Traditional), including right-to-left Arabic & Hebrew — via a per-user language globe in the header, plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English. (Native reviewers very welcome — see the [translations discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).)
 
 The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered across the shipped languages:
 
@@ -57,7 +57,7 @@ The proof is the everyday surfaces themselves — a room's own controls and a sa
 
 ![The Profile card's "Runs as" step manifest and Run button, shown across the shipped languages](docs/screenshots/translations-hero-profile-card.png)
 
-*Placeholder hero shots — these show seven of the fifteen languages; the final selection and layout are still being decided.*
+*Placeholder hero shots — these show seven of the eighteen languages; the final selection and layout are still being decided.*
 
 ## Also on Roborock
 
@@ -258,7 +258,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Maintenance tracking — reset maintenance counters from the UI; lifetime usage totals and dock firmware where the device reports them
 - Room drift detection — auto-surfaces new rooms for review, suppresses phantoms
 - Theme system — full theme editor with clipboard and file-based import/export
-- Multi-language card — per-user language picker, 14 built-in translations + drop-in locales (English fallback)
+- Multi-language card — per-user language picker, 17 built-in translations + drop-in locales (English fallback)
 - Accessibility — a validated colorblind-safe theme plus always-on shape-coded status badges
 
 ## Documentation
@@ -304,7 +304,7 @@ Built and maintained by [@kingchddg901](https://github.com/kingchddg901), with c
 - [@Nebr88](https://github.com/Nebr88) (Andrey Dmitriyev) — Roborock adapter fixes: clean-duration and live-room tracking ([#19](https://github.com/kingchddg901/Vacuum_Agent/pull/19)) and unnamed-map imports ([#18](https://github.com/kingchddg901/Vacuum_Agent/pull/18)).
 - [@fhteagle](https://github.com/fhteagle) — *honorary contributor.* One simple question about the staged run ([#41](https://github.com/kingchddg901/Vacuum_Agent/issues/41)) got me over the edge on what the stepped-profile engine needed — the foundation the whole [Profile Cookbook](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/10a-profile-cookbook/) stands on — plus the report of a bug that would have quietly killed the profile buttons ([#42](https://github.com/kingchddg901/Vacuum_Agent/issues/42)).
 
-**Translations.** The fourteen built-in language packs — German, French, Spanish, Dutch, Italian, Portuguese, Russian, Polish, Arabic, Hebrew, Japanese, Korean, and Chinese (Simplified & Traditional) — are AI-drafted and ship as `draft` until a native speaker reviews them (a `draft` pack never auto-activates from your Home Assistant language; you pick it from the globe). Corrections, promotions to `stable`, and brand-new locales are all welcome — start in the [translation discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25) or follow the [Translate the card](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/translating/) guide (a translation is data, not code). Community translators are credited here.
+**Translations.** The seventeen built-in language packs — German, French, Spanish, Dutch, Italian, Portuguese, Russian, Polish, Czech, Turkish, Indonesian, Arabic, Hebrew, Japanese, Korean, and Chinese (Simplified & Traditional) — are AI-drafted and ship as `draft` until a native speaker reviews them (a `draft` pack never auto-activates from your Home Assistant language; you pick it from the globe). Corrections, promotions to `stable`, and brand-new locales are all welcome — start in the [translation discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25) or follow the [Translate the card](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/translating/) guide (a translation is data, not code). Community translators are credited here.
 
 ## Acknowledgements
 
