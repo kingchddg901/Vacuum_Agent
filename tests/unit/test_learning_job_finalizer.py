@@ -435,6 +435,46 @@ def test_collect_inputs_interrupted_outcome(finalizer):
     assert inputs["was_cancelled"] is False
 
 
+def test_collect_inputs_job_id_falls_back_to_active_job_not_a_timestamp(finalizer):
+    """[Wave 0] The record's job_id must come from the ACTIVE JOB when the live snapshot
+    carries none — not from a synthesised timestamp.
+
+    The fallback is f"job_{now():%Y-%m-%dT%H-%M-%S}", whose 1-second resolution can COLLIDE:
+    two jobs finalized in the same second would share a record id. The record id is the only
+    handle anything downstream has on a job, and exactly-once finalization will key on it,
+    so a synthesised id must be a last resort rather than a second choice.
+    """
+    m = _inputs_manager()
+    m.get_active_job.return_value = {"job_id": "job_from_active"}
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=80,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["job_id"] == "job_from_active"
+
+
+def test_collect_inputs_job_id_synthesised_only_as_last_resort(finalizer):
+    """[Wave 0] With neither a snapshot nor an active-job id, the timestamp fallback still
+    applies (and logs a warning) — the behaviour is preserved, just demoted."""
+    inputs = finalizer._collect_finalization_inputs(
+        manager=_inputs_manager(),
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=80,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert str(inputs["job_id"]).startswith("job_")
+
+
 def test_collect_inputs_cancel_likely_marks_cancelled(finalizer, monkeypatch):
     """When the lifecycle says nothing special (would default to 'completed') but the
     cancel-likely detector fires, the run is reclassified 'cancelled' + lifecycle_name

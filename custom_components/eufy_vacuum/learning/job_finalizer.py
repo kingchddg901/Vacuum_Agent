@@ -466,8 +466,22 @@ class LearningJobFinalizer:
         job_id = None
         if isinstance(snapshot, dict):
             job_id = str(snapshot.get("job_id", "")).strip() or None
+        if not job_id and isinstance(active_job_state, dict):
+            # The authoritative id, already loaded a few lines above. Preferred over the
+            # timestamp fallback below, whose 1-second resolution can COLLIDE — two jobs
+            # finalized in the same second would share a record id. The record id is the
+            # only handle anything downstream has on a job, so a synthesised one is a last
+            # resort, not a second choice.
+            job_id = str(active_job_state.get("job_id", "")).strip() or None
         if not job_id:
             job_id = f"job_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
+            _LOGGER.warning(
+                "eufy_vacuum: finalize for %s/%s had no job_id on either the snapshot or "
+                "the active job; synthesised %s. This id is not collision-safe.",
+                vacuum_entity_id,
+                map_id,
+                job_id,
+            )
 
         # Lifecycle name and message are derived from the caller-supplied
         # forced values for non-completed outcomes (cancellation, failure,
