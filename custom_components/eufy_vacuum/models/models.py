@@ -191,6 +191,11 @@ class RoomConfig:
     path_type: Optional[str] = None
 
     is_dock_room: bool = False
+    # Transition/pass-through room (a hallway the vacuum crosses rather than dwells in).
+    # Read by mapping/tracker.py when attributing a live room. Must round-trip a re-save:
+    # build_managed_rooms rebuilds every room through this dataclass, so a field missing
+    # here is silently dropped from storage. Mirrors maps/map_manager.py's preserve list.
+    is_transition: bool = False
     grants_access_to: list = field(default_factory=list)
     rules: list = field(default_factory=list)
 

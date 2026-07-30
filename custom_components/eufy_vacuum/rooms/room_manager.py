@@ -84,6 +84,7 @@ def build_managed_rooms(
             edge_mopping=bool(existing.get("edge_mopping", False)),
             path_type=existing.get("path_type"),
             is_dock_room=bool(existing.get("is_dock_room", False)),
+            is_transition=bool(existing.get("is_transition", False)),  # preserve across a re-save
             grants_access_to=list(existing.get("grants_access_to", [])),
             rules=list(existing.get("rules", [])),
             color=existing.get("color"),  # preserve per-room map fill override across a re-save

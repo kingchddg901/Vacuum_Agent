@@ -138,6 +138,23 @@ def test_build_defaults_color_none_for_new_room():
     assert result["2"]["color"] is None
 
 
+def test_build_preserves_existing_is_transition():
+    """REGRESSION: a re-save must not un-mark a transition room. RoomConfig had no
+    is_transition field at all, so build_managed_rooms rebuilt every room without it and
+    the flag was dropped from storage — while maps/map_manager.py's parallel preserve list
+    kept it. mapping/tracker.py reads it when attributing a live room."""
+    result = build_managed_rooms(
+        discovered_rooms=[_disc(1)],
+        existing_rooms={"1": {"is_transition": True}},
+    )
+    assert result["1"]["is_transition"] is True
+
+
+def test_build_defaults_is_transition_false_for_new_room():
+    result = build_managed_rooms(discovered_rooms=[_disc(2)])
+    assert result["2"]["is_transition"] is False
+
+
 def test_build_preserves_existing_clean_passes():
     result = build_managed_rooms(
         discovered_rooms=[_disc(1)],
