@@ -672,12 +672,17 @@ class LearningManager:
         # Zone learning (Wave 1): fold a COMPLETED job's single-zone step(s) into a per-
         # (zone_id, mop|vacuum) wall-clock average. Best-effort: finalize already succeeded.
         try:
+            # Read the POST-finalize outcome, not `inputs` — the idle-wall hold runs during
+            # finalize and clears used_for_learning while leaving status == "completed", so
+            # inputs["outcome_status"] alone cannot see a held run.
+            _final_outcome = ((result or {}).get("completed_job") or {}).get("outcome") or {}
             await self._record_zone_learning(
                 manager,
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=map_id,
                 active_job_state=inputs.get("active_job_state"),
                 outcome_status=inputs.get("outcome_status"),
+                used_for_learning=bool(_final_outcome.get("used_for_learning", True)),
             )
         except Exception:  # noqa: BLE001 - learning is advisory; never break finalize
             _LOGGER.debug(
@@ -705,6 +710,7 @@ class LearningManager:
         map_id: str,
         active_job_state: Any,
         outcome_status: str | None,
+        used_for_learning: bool = True,
     ) -> None:
         """Fold a completed job's single-zone observations into ``map_bucket['learned_zones']``.
 
@@ -712,8 +718,16 @@ class LearningManager:
         under-count (and a mid-zone Cancel is treated as a likely partial). The averaging is
         pure (``zone_learning``); this reads the finalized job's zone phases, updates the store
         on the map bucket, and persists only when a sample actually applied (a rooms-only job or
-        a multi-zone step yields nothing, so no needless save)."""
-        if outcome_status != "completed":
+        a multi-zone step yields nothing, so no needless save).
+
+        ``used_for_learning`` is the POST-finalize flag and must be passed from the finalize
+        RESULT, not from the pre-finalize inputs snapshot: ``_apply_idle_wall_hold`` clears
+        ``used_for_learning`` but deliberately LEAVES ``status == "completed"``, so a status-only
+        gate lets a held run through. ``learned_zones`` is an incremental store outside
+        ``rebuild_all``, so a bad sample here is permanent — it cannot be repaired by a rebuild
+        and is not undone by ``restore_learning_job``. This mirrors the battery sink's
+        both-signals gate (``job_finalizer`` ~:947)."""
+        if outcome_status != "completed" or not used_for_learning:
             return
         observations = collect_zone_observations(
             active_job_state if isinstance(active_job_state, dict) else None

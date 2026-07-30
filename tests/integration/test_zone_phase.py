@@ -328,3 +328,37 @@ async def test_zone_recorder_learns_only_on_completed(hass, manager):
     )
     bucket = manager.data["maps"][_VAC][_MAP]["learned_zones"]["z_a"]["mop"]
     assert bucket["sample_count"] == 1 and bucket["avg_wall_seconds"] == 270
+
+
+async def test_zone_recorder_respects_a_learning_hold(hass, manager):
+    """[ZN-12a] REGRESSION: a run held from learning must not feed learned_zones, even though
+    its status is still "completed". _apply_idle_wall_hold clears used_for_learning but
+    deliberately LEAVES status == "completed", so a status-only gate let a held run through.
+    learned_zones is an incremental store outside rebuild_all, so the bad sample would be
+    permanent — unrepairable by a rebuild and not undone by restore_learning_job."""
+    lm = LearningManager(hass)
+    _seed_saved_zone_area(manager, "z_a", area=0.5)
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "phases": [
+            _room_phase(5, "kitchen"),
+            {**_zone_phase(zone_ids=("z_a",)),
+             "zone_timing": {"zone_ids": ["z_a"], "clean_mode": "mop",
+                             "wall_seconds": 270, "area_m2": 0.5}},
+        ],
+    }
+
+    # Completed BUT held (used_for_learning cleared) -> nothing recorded.
+    await lm._record_zone_learning(
+        manager, vacuum_entity_id=_VAC, map_id=_MAP,
+        active_job_state=job, outcome_status="completed", used_for_learning=False,
+    )
+    assert not manager.data["maps"][_VAC][_MAP].get("learned_zones")
+
+    # Same run, not held -> the observation lands (proves the fixture is otherwise valid).
+    await lm._record_zone_learning(
+        manager, vacuum_entity_id=_VAC, map_id=_MAP,
+        active_job_state=job, outcome_status="completed", used_for_learning=True,
+    )
+    bucket = manager.data["maps"][_VAC][_MAP]["learned_zones"]["z_a"]["mop"]
+    assert bucket["sample_count"] == 1
