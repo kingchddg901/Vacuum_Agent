@@ -464,6 +464,24 @@ class ErrorTracker:
         if _is_error_value(msg_value, not_error=_get_not_error_set(vacuum_entity_id)):
             return
 
+        # Do not re-arm while an unrecovered placeholder latch from a PREVIOUS expiry is
+        # still standing. _on_grace_expired pops its own _grace_cancels entry before doing
+        # anything, so the guard above is false again the moment it fires — and the rising
+        # edge it records carries no dedup key of any kind. Without this check, one
+        # sustained fault re-arms on every upstream state write and manufactures a run of
+        # identical "Unknown error during run" edges: error_count in the tens for a single
+        # physical fault, and the 50-entry recent_errors ring — the ONLY shadow copy that
+        # survives a harvest — flushed of all real history.
+        #
+        # This was dormant only because the sentinel bug above returned early. The two MUST
+        # ship together: fixing that one alone unmasks this loop on both brands.
+        _latch = self._ensure_record(vacuum_entity_id).get("active_run_error")
+        if isinstance(_latch, dict) and not _latch.get("recovered"):
+            _cfg = (get_adapter_config(vacuum_entity_id) or {}).get("error_tracking", {})
+            _unknown = _cfg.get("unknown_error_message") or "Unknown error during run"
+            if str(_latch.get("current_message") or "") == _unknown:
+                return
+
         self._grace_cancels[vacuum_entity_id] = async_call_later(
             self._hass,
             _ERROR_MESSAGE_GRACE_SECONDS,
@@ -504,7 +522,13 @@ class ErrorTracker:
         _err_msg_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("error_message")
         msg_state = self._hass.states.get(_err_msg_entity) if _err_msg_entity else None
         msg_value = msg_state.state if msg_state is not None else None
-        if _is_error_value(msg_value):
+        # The ADAPTER's not-error set, matching the two sibling checks in
+        # _handle_secondary_error_signal. Without it this used the generic set, in which a
+        # brand's own IDLE value ("none" for both brands, "normal" for Eufy) reads as an
+        # error — so this returned early and latched NOTHING for exactly the fault class
+        # the secondary channels exist to catch (firmware that never populates
+        # error_message on a stuck/trapped event). That was total evidence loss.
+        if _is_error_value(msg_value, not_error=_get_not_error_set(vacuum_entity_id)):
             return
         self._record_rising_edge(
             vacuum_entity_id,

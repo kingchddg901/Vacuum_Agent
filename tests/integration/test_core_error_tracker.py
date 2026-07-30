@@ -414,3 +414,78 @@ def test_multi_map_does_not_let_a_stale_bucket_shadow_the_live_one(tracker):
     assert found is not None and found["job_id"] == "live_mapB", (
         "a stale finalized map bucket shadowed the live run"
     )
+
+
+async def test_grace_expiry_latches_when_message_sits_at_the_brand_idle_value(tracker, hass):
+    """[ET-12a] ES-1 REGRESSION. The expiry check must use the ADAPTER's not-error set.
+
+    With the generic set, a brand's own IDLE value ("none" for both brands, "normal" for
+    Eufy) reads as an ERROR, so _on_grace_expired returned early and latched NOTHING —
+    total evidence loss for exactly the fault class the secondary channels exist to catch
+    (firmware that never populates error_message on a stuck event).
+
+    The pre-existing grace test uses "unknown", the one value where the generic and adapter
+    sets AGREE, so it was structurally incapable of catching this.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"error_message": "sensor.alfred_err", "task_status": None},
+        "vocabulary": {"not_error_sentinels": ["none", "normal"]},
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+    hass.states.async_set(_VAC, "error")
+    hass.states.async_set("sensor.alfred_err", "none")   # the BRAND's idle value
+
+    t._handle_secondary_error_signal(_VAC)
+    assert _VAC in t._grace_cancels
+
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+
+    latch = t.get_record(_VAC)["active_run_error"]
+    assert latch is not None, "the fault produced NO durable evidence at all"
+    assert latch["current_message"] == "Unknown error during run"
+
+
+async def test_grace_does_not_rearm_while_a_placeholder_latch_stands(tracker, hass):
+    """[ET-12b] FIND-2 REGRESSION. One sustained fault must not manufacture N edges.
+
+    _on_grace_expired pops its own _grace_cancels entry before doing anything, so the
+    "already pending" guard is false again the instant it fires, and the rising edge it
+    records carries no dedup key. Every further upstream state write re-armed and produced
+    another identical placeholder — inflating error_count into the tens for ONE physical
+    fault and flushing the 50-entry recent_errors ring, the only shadow copy that survives
+    a harvest.
+
+    This was dormant only because ES-1 returned early; fixing that alone unmasks it.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"error_message": "sensor.alfred_err", "task_status": None},
+        "vocabulary": {"not_error_sentinels": ["none", "normal"]},
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+    hass.states.async_set(_VAC, "error")
+    hass.states.async_set("sensor.alfred_err", "none")
+
+    # First arm -> expiry -> one placeholder edge.
+    t._handle_secondary_error_signal(_VAC)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    assert t.get_record(_VAC)["active_run_error"]["error_count"] == 1
+
+    # The fault persists; upstream writes state again. Must NOT re-arm or re-latch.
+    t._handle_secondary_error_signal(_VAC)
+    assert _VAC not in t._grace_cancels, "re-armed while a placeholder latch was standing"
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=12))
+    await hass.async_block_till_done()
+
+    latch = t.get_record(_VAC)["active_run_error"]
+    assert latch["error_count"] == 1, (
+        f"one physical fault produced {latch['error_count']} edges"
+    )
+    assert len(latch.get("errors") or []) == 1
