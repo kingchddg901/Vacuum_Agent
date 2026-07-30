@@ -42,7 +42,11 @@ from .estimator import LearningEstimator
 from .history_store import LearningHistoryStore
 from .job_finalizer import LearningJobFinalizer
 from .stats_rebuilder import LearningStatsRebuilder
-from .zone_learning import collect_zone_observations, record_observations
+from .zone_learning import (
+    collect_zone_observations,
+    observations_from_timings,
+    record_observations,
+)
 
 
 def _normalize_graph_targets(value: Any) -> list[int]:
@@ -850,6 +854,58 @@ class LearningManager:
             rebuild_csv=rebuild_csv,
         )
         return result
+
+    def rebuild_learned_zones(
+        self,
+        manager,
+        *,
+        vacuum_entity_id: str,
+    ) -> dict[str, int]:
+        """Recompute ``learned_zones`` for every map from the completed-job archive.
+
+        ``learned_zones`` is an incremental read-modify-write store: the live path folds one
+        observation per finalize and never recomputes. That made it UNREPAIRABLE — a bad
+        sample (a duplicate finalize, or the held-run leak fixed separately) stayed in the
+        average forever, and ``rebuild_all`` does not write this store, so a rebuild silently
+        left it alone.
+
+        The record carries everything needed to replay: ``history_store`` writes each zone
+        phase's ``zone_timing`` into the payload as ``zone_timings``, and the learnability
+        rules are shared with the live path via ``observations_from_timings`` — so a replay
+        reproduces exactly what the live fold would have produced, minus the bad samples.
+
+        Eligibility uses the same archive-derived gate as the stats rebuild
+        (``is_learning_job``), so an excluded or held run is excluded here too — which is the
+        whole point: this is what makes ``exclude_learning_job`` finally effective against
+        zone data.
+
+        Returns ``{map_id: observations_applied}``. Callers persist.
+        """
+        from ..maps.map_manager import ensure_map_bucket
+
+        jobs = self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id)
+        by_map: dict[str, list[dict[str, Any]]] = {}
+        for job in jobs:
+            if not isinstance(job, dict) or not self.store.is_learning_job(job):
+                continue
+            map_id = str(job.get("map_id") or (job.get("job") or {}).get("map_id") or "").strip()
+            if not map_id:
+                continue
+            obs = observations_from_timings(job.get("zone_timings"))
+            if obs:
+                by_map.setdefault(map_id, []).extend(obs)
+
+        applied_by_map: dict[str, int] = {}
+        for map_id, observations in by_map.items():
+            bucket = ensure_map_bucket(
+                data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id
+            )
+            # Rebuild from empty — this is a recompute, not a top-up. Folding onto the
+            # existing store would preserve exactly the bad samples this exists to remove.
+            store, applied = record_observations({}, observations, now_iso=_iso_now())
+            bucket["learned_zones"] = store
+            applied_by_map[map_id] = applied
+        return applied_by_map
 
     def get_learning_history_snapshot(
         self,

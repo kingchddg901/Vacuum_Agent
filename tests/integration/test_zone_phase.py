@@ -362,3 +362,67 @@ async def test_zone_recorder_respects_a_learning_hold(hass, manager):
     )
     bucket = manager.data["maps"][_VAC][_MAP]["learned_zones"]["z_a"]["mop"]
     assert bucket["sample_count"] == 1
+
+
+async def test_rebuild_learned_zones_recomputes_from_the_archive(hass, manager, tmp_path):
+    """[ZN-13] Wave 3: learned_zones becomes REPAIRABLE.
+
+    It is an incremental store outside rebuild_all, so a bad sample (a duplicate finalize,
+    or the held-run leak) used to be permanent. The record carries each zone phase's timing
+    as `zone_timings`, so the whole store can be recomputed from the archive — and it
+    rebuilds from EMPTY, because folding onto the existing store would preserve exactly the
+    bad samples this exists to remove.
+    """
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    lm = LearningManager(hass)
+    _seed_saved_zone_area(manager, "z_a", area=0.5)
+
+    # Pre-poison the store the way a duplicate finalize would have.
+    bucket = manager.data["maps"][_VAC][_MAP]
+    bucket["learned_zones"] = {
+        "z_a": {"mop": {"avg_wall_seconds": 9999, "sample_count": 7}}
+    }
+
+    archive = [
+        {
+            "record_type": "completed_job",
+            "map_id": _MAP,
+            "outcome": {"status": "completed", "used_for_learning": True},
+            "zone_timings": [
+                {"zone_ids": ["z_a"], "clean_mode": "mop", "wall_seconds": 300, "area_m2": 0.5}
+            ],
+        },
+        {
+            "record_type": "completed_job",
+            "map_id": _MAP,
+            "outcome": {"status": "completed", "used_for_learning": True},
+            "zone_timings": [
+                {"zone_ids": ["z_a"], "clean_mode": "mop", "wall_seconds": 200, "area_m2": 0.5}
+            ],
+        },
+        {   # excluded from learning -> must NOT contribute
+            "record_type": "completed_job",
+            "map_id": _MAP,
+            "outcome": {"status": "completed", "used_for_learning": False},
+            "zone_timings": [
+                {"zone_ids": ["z_a"], "clean_mode": "mop", "wall_seconds": 8000, "area_m2": 0.5}
+            ],
+        },
+        {   # multi-zone step -> not attributable, must be skipped
+            "record_type": "completed_job",
+            "map_id": _MAP,
+            "outcome": {"status": "completed", "used_for_learning": True},
+            "zone_timings": [
+                {"zone_ids": ["z_a", "z_b"], "clean_mode": "mop", "wall_seconds": 400}
+            ],
+        },
+    ]
+    lm.store.load_all_completed_jobs = lambda **kw: archive
+
+    applied = lm.rebuild_learned_zones(manager, vacuum_entity_id=_VAC)
+
+    assert applied == {_MAP: 2}, f"expected the 2 eligible single-zone samples, got {applied}"
+    entry = manager.data["maps"][_VAC][_MAP]["learned_zones"]["z_a"]["mop"]
+    assert entry["sample_count"] == 2, "the poisoned sample_count survived the rebuild"
+    assert entry["avg_wall_seconds"] == 250, "expected mean(300, 200) — excluded/multi-zone leaked in"

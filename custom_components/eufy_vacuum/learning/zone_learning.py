@@ -45,23 +45,26 @@ def normalize_clean_mode(has_mop_mode: Any) -> str:
     return "mop" if bool(has_mop_mode) else "vacuum"
 
 
-def collect_zone_observations(active_job: dict[str, Any] | None) -> list[dict[str, Any]]:
-    """Pull learnable zone observations from a finalized job's phases.
+def observations_from_timings(timings: Any) -> list[dict[str, Any]]:
+    """Convert ``zone_timing`` snapshots into learnable observations.
 
-    Each ``zone`` phase carries a ``zone_timing`` snapshot (written by the phase-runner at
-    completion). Only SINGLE-zone observations are returned — a multi-zone step's wall time
-    can't be attributed to one ``zone_id``, so it is skipped for learning (still estimated, as
-    the sum of its zones). An observation needs a positive wall time to be worth learning."""
-    if not isinstance(active_job, dict):
-        return []
-    phases = active_job.get("phases")
-    if not isinstance(phases, list):
-        return []
+    THE single definition of "is this zone timing learnable, and what observation does it
+    yield". Two callers ask that same question from different places:
+
+      - ``collect_zone_observations`` — live, from a finalized job's phases;
+      - the archive replay in the learning manager — from a stored record's
+        ``zone_timings`` list, which history_store writes with the identical shape.
+
+    Keeping one converter means a rebuild reproduces exactly what the live path learned; two
+    copies of these filters would drift, and a rebuild that disagreed with the live fold
+    would be worse than no rebuild at all.
+
+    Only SINGLE-zone observations qualify — a multi-zone step's wall time can't be attributed
+    to one ``zone_id``, so it is skipped for learning (still estimated, as the sum of its
+    zones). An observation needs a positive wall time to be worth learning.
+    """
     out: list[dict[str, Any]] = []
-    for phase in phases:
-        if not isinstance(phase, dict) or phase.get("phase_type") != "zone":
-            continue
-        timing = phase.get("zone_timing")
+    for timing in (timings if isinstance(timings, list) else []):
         if not isinstance(timing, dict):
             continue
         zone_ids = timing.get("zone_ids") or []
@@ -85,6 +88,23 @@ def collect_zone_observations(active_job: dict[str, Any] | None) -> list[dict[st
             "area_m2": area,
         })
     return out
+
+
+def collect_zone_observations(active_job: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Pull learnable zone observations from a finalized job's phases.
+
+    Each ``zone`` phase carries a ``zone_timing`` snapshot (written by the phase-runner at
+    completion). The learnability rules live in ``observations_from_timings``."""
+    if not isinstance(active_job, dict):
+        return []
+    phases = active_job.get("phases")
+    if not isinstance(phases, list):
+        return []
+    return observations_from_timings([
+        phase.get("zone_timing")
+        for phase in phases
+        if isinstance(phase, dict) and phase.get("phase_type") == "zone"
+    ])
 
 
 def update_learned_zone(
