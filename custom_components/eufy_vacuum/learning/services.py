@@ -439,6 +439,14 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             vacuum_entity_id,
             call.data["rebuild_csv"],
         )
+        # Also recompute the incremental accumulators rebuild_all does not write
+        # (learned_zones, battery drain aggregates). Without this a user-triggered rebuild
+        # silently leaves them holding whatever bad samples they accumulated.
+        runtime = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if runtime is not None:
+            await runtime.async_rebuild_learning_accumulators(
+                vacuum_entity_id=vacuum_entity_id
+            )
         learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
         learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         _LOGGER.debug("rebuild_learning_stats complete: %s", result)

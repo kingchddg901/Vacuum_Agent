@@ -137,3 +137,56 @@ async def test_dashboard_snapshot_exposes_learning_processing(manager):
     assert lp["enabled"] is False
     assert lp["pending_runs"] == 2
     assert lp["has_last_estimate"] is False  # no learning manager in the fixture
+
+
+async def test_catch_up_also_rebuilds_the_incremental_accumulators(manager, monkeypatch):
+    """[LP-8] WIRING: the catch-up must recompute the accumulators rebuild_all does NOT
+    write (learned_zones, battery drain aggregates).
+
+    Without this the repair mechanisms exist but nothing invokes them, so a user running a
+    rebuild would silently keep whatever bad samples those stores accumulated — which is
+    the state that made them 'unrepairable' in the first place.
+    """
+    called: list[str] = []
+
+    monkeypatch.setattr(
+        manager,
+        "_get_learning_manager",
+        lambda: SimpleNamespace(
+            rebuild_learning=lambda *a, **k: {"ok": True},
+            _invalidate_learning_stats_cache=lambda **k: None,
+            async_preload_learning_stats=lambda **k: None,
+        ),
+    )
+
+    async def _spy(*, vacuum_entity_id):
+        called.append(vacuum_entity_id)
+        return {"vacuum_entity_id": vacuum_entity_id}
+
+    monkeypatch.setattr(manager, "async_rebuild_learning_accumulators", _spy)
+    manager.data["vacuums"] = {"vacuum.alfred": {}}
+
+    await manager.async_process_pending_learning()
+
+    assert called == ["vacuum.alfred"], "the catch-up did not rebuild the accumulators"
+
+
+async def test_accumulator_rebuild_survives_one_sink_failing(manager, monkeypatch):
+    """[LP-9] One accumulator blowing up must not abort the others or the rebuild — these
+    are best-effort repairs layered on top of a stats rebuild that already succeeded."""
+    def _boom(self_, **kwargs):
+        raise RuntimeError("zone store unreadable")
+
+    monkeypatch.setattr(
+        manager,
+        "_get_learning_manager",
+        lambda: SimpleNamespace(
+            rebuild_learned_zones=_boom,
+            collect_archived_battery_metrics=lambda **k: [],
+        ),
+    )
+
+    # Must not raise.
+    out = await manager.async_rebuild_learning_accumulators(vacuum_entity_id="vacuum.alfred")
+    assert out["vacuum_entity_id"] == "vacuum.alfred"
+    assert "learned_zones" not in out, "a failing sink reported a result"

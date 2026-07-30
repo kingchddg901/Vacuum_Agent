@@ -4469,6 +4469,65 @@ class EufyVacuumManager:
         except Exception:  # pragma: no cover - defensive
             return False
 
+    async def async_rebuild_learning_accumulators(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> dict[str, Any]:
+        """Recompute the incremental accumulators that ``rebuild_all`` does not write.
+
+        ``rebuild_all`` rebuilds room_stats / job_stats / jobs_index from ``jobs/`` and is
+        genuinely idempotent. Several sinks were added later OUTSIDE that model as
+        incremental read-modify-write stores, so a bad sample used to be permanent — not
+        repairable by a rebuild and not undone by ``exclude_learning_job``.
+
+        This is the seam that makes "run a rebuild" actually clean them. It lives on the
+        core manager because it is the only place that can reach BOTH the learning archive
+        and the battery subsystem; neither reaches into the other.
+
+        Best-effort per accumulator: one failing must not abort the rest, and none of this
+        may break the stats rebuild it follows.
+
+        NOT included: ``trouble_rooms``. It is a RATE over an always-incrementing
+        denominator (``is_trouble`` is recomputed on every finalize from
+        ``miss_count / run_count``), so a bad sample decays on its own within a few runs. A
+        rebuilder for it would be dead weight. Only AVERAGES feeding predictions need repair.
+        """
+        out: dict[str, Any] = {"vacuum_entity_id": vacuum_entity_id}
+        learning = self._get_learning_manager()
+        if learning is None:
+            out["reason"] = "learning_unavailable"
+            return out
+
+        try:
+            out["learned_zones"] = await self.hass.async_add_executor_job(
+                lambda: learning.rebuild_learned_zones(self, vacuum_entity_id=vacuum_entity_id)
+            )
+        except Exception:  # pragma: no cover - one accumulator must not block the rest
+            _LOGGER.exception(
+                "rebuild_accumulators: learned_zones failed for %s", vacuum_entity_id
+            )
+
+        try:
+            from ..const import DATA_BATTERY
+
+            battery = (self.hass.data.get(DOMAIN, {}) or {}).get(DATA_BATTERY)
+            if battery is not None:
+                metrics = await self.hass.async_add_executor_job(
+                    lambda: learning.collect_archived_battery_metrics(
+                        vacuum_entity_id=vacuum_entity_id
+                    )
+                )
+                out["battery_aggregates"] = battery.rebuild_job_aggregates(
+                    vacuum_entity_id=vacuum_entity_id, metrics_list=metrics
+                )
+        except Exception:  # pragma: no cover - one accumulator must not block the rest
+            _LOGGER.exception(
+                "rebuild_accumulators: battery aggregates failed for %s", vacuum_entity_id
+            )
+
+        return out
+
     async def async_process_pending_learning(self) -> dict[str, Any]:
         """Catch-up: rebuild learned stats for every managed vacuum from FULL history
         (so everything collected while processing was off is reprocessed) and clear the
@@ -4482,6 +4541,11 @@ class EufyVacuumManager:
             try:
                 await self.hass.async_add_executor_job(
                     learning.rebuild_learning, vacuum_entity_id, False
+                )
+                # The incremental accumulators rebuild_all does not write — otherwise a
+                # catch-up would leave exactly the stores this campaign found unrepairable.
+                await self.async_rebuild_learning_accumulators(
+                    vacuum_entity_id=vacuum_entity_id
                 )
                 learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
                 learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
