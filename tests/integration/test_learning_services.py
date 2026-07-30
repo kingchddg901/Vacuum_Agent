@@ -1292,6 +1292,54 @@ async def test_get_room_learning_estimates_hits_learned_match(hass, learning_ser
     assert rooms[0]["source"] == "learned"
 
 
+async def test_get_room_learning_estimates_forwards_edge_mopping(
+    hass, learning_services, monkeypatch
+):
+    """[LS-26a] REGRESSION: the manager entry point must FORWARD edge_mopping to
+    _find_room_match. It is part of the learned room key (schema 6), but the parameter
+    carries `edge_mopping: bool = False`, so an omitted argument silently returns the
+    edge-OFF bucket at full confidence instead of raising. The unit test
+    test_find_room_match_edge_split proves the matcher itself is correct; nothing
+    previously drove it through this call site."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import SERVICE_GET_ROOM_LEARNING_ESTIMATES
+    # The manager imports _find_room_match locally at call time, so patch the source
+    # module (learning.estimator) — the call-time import picks the patch up.
+    from custom_components.eufy_vacuum.learning import estimator as learning_estimator
+
+    setup_map(learning_services, _VAC, _MAP, count=1)
+    rooms_bucket = (
+        learning_services.data
+        .get("maps", {}).get(_VAC, {}).get(_MAP, {}).get("rooms", {})
+    )
+    assert "1" in rooms_bucket
+    rooms_bucket["1"]["slug"] = "room_1"
+    rooms_bucket["1"]["edge_mopping"] = True
+
+    seen: list[object] = []
+    real = learning_estimator._find_room_match
+
+    def _capture(**kwargs):
+        seen.append(kwargs.get("edge_mopping", "MISSING"))
+        return real(**kwargs)
+
+    monkeypatch.setattr(learning_estimator, "_find_room_match", _capture)
+
+    await hass.services.async_call(
+        DOMAIN, SERVICE_GET_ROOM_LEARNING_ESTIMATES,
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+
+    assert seen, "_find_room_match was never called — fixture no longer exercises the lookup"
+    # The defect was that the kwarg was NEVER PASSED, so the matcher's `= False` default
+    # silently selected the edge-OFF bucket. Assert forwarding, which is the broken
+    # contract; the matcher's own edge split is proven by test_find_room_match_edge_split.
+    # Before the fix this captured "MISSING".
+    assert seen[0] != "MISSING", "edge_mopping was not forwarded to _find_room_match"
+    assert isinstance(seen[0], bool)
+
+
 async def test_get_room_learning_estimates_cold_cache_no_blocking_reload(
     hass, learning_services, monkeypatch
 ):

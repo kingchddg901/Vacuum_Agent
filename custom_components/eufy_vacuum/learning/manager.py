@@ -1932,6 +1932,10 @@ class LearningManager:
                     "clean_passes": _safe_int(room.get("clean_passes", 1), 1),
                     "clean_intensity": str(room.get("clean_intensity", "standard")).strip().lower(),
                     "carpet": bool(room.get("carpet", False)) or str(room.get("floor_type", "")).startswith("carpet"),
+                    # Part of the learned room key (schema 6) — the estimator reads it via
+                    # _find_room_match, whose `edge_mopping: bool = False` default silently
+                    # returns the edge-OFF bucket if this projection omits it.
+                    "edge_mopping": bool(room.get("edge_mopping", False)),
                 }
             )
 
@@ -2049,6 +2053,7 @@ class LearningManager:
                     clean_passes=clean_passes,
                     is_carpet=is_carpet,
                     clean_intensity=clean_intensity,
+                    edge_mopping=edge_mopping,
                 )
 
                 if match:
