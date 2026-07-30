@@ -283,10 +283,10 @@ def test_upkeep_catalog(s6_config):
     # Station mop_cloth is overridden (dock auto-washes) — differs from the base.
     assert lib["wash_station"]["mop_cloth"] != std["mop_cloth"]
 
-    # Guide translations wired for all 13 languages (ar/he/ko AI-draft, rest official).
+    # Guide translations wired for all 17 languages (ar/he/ko/pl/cs/tr/id AI-draft, rest official).
     gt = cat["guide_translations"]
     assert set(gt) == {"de", "es", "fr", "it", "nl", "pt", "ru", "ja", "ko",
-                       "zh-Hans", "zh-Hant", "ar", "he"}
+                       "zh-Hans", "zh-Hant", "ar", "he", "pl", "cs", "tr", "id"}
     # Every language covers the full standard set (9 comps) + the station dock deltas.
     _STD = {"main_brush", "side_brush", "filter", "sensor", "dustbin",
             "mop_cloth", "water_filter", "caster_wheel", "main_wheel"}
