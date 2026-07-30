@@ -438,3 +438,57 @@ def test_classify_session_idle_when_stale_or_absent(bm):
         "recorded_ts": datetime.now(timezone.utc) - timedelta(hours=5),
     }
     assert bm._classify_session_kind(_VAC) == "idle"
+
+
+def test_rebuild_job_aggregates_recomputes_from_scratch(bm):
+    """[BM-4d] Wave 3b: the drain aggregates become REPAIRABLE.
+
+    job_aggregates is an incremental read-modify-write store outside the learning rebuild,
+    so a bad sample (a duplicate finalize, or a run that should have been excluded) sat in
+    the drain means permanently — and per-config buckets are narrow enough that it may never
+    dilute. The rebuild recomputes from EMPTY; folding onto the existing aggregates would
+    preserve exactly what it exists to remove.
+    """
+    # Poison the store the way a duplicate finalize would.
+    bm.record_job_metrics(vacuum_entity_id=_VAC, job_id="dupe", metrics={
+        "battery_used_pct": 99, "duration_min": 1, "area_m2": 1,
+        "drain_per_min": 99.0, "is_single_clean_mode": True, "single_clean_mode": "vacuum",
+    })
+    bm.record_job_metrics(vacuum_entity_id=_VAC, job_id="dupe", metrics={
+        "battery_used_pct": 99, "duration_min": 1, "area_m2": 1,
+        "drain_per_min": 99.0, "is_single_clean_mode": True, "single_clean_mode": "vacuum",
+    })
+    assert bm.get_record(_VAC)["job_aggregates"]["all_jobs"]["count"] == 2
+
+    archive = [
+        {"battery_used_pct": 20, "duration_min": 40, "area_m2": 25, "drain_per_min": 0.5,
+         "is_single_clean_mode": True, "single_clean_mode": "vacuum"},
+        {"battery_used_pct": 10, "duration_min": 20, "area_m2": 12, "drain_per_min": 0.5,
+         "is_single_clean_mode": True, "single_clean_mode": "vacuum"},
+        # mid-job recharge -> all_jobs only, must stay OUT of the per-config bucket
+        {"battery_used_pct": 30, "duration_min": 60, "area_m2": 30, "drain_per_min": 0.5,
+         "is_single_clean_mode": True, "single_clean_mode": "vacuum", "mid_job_recharge": True},
+    ]
+    applied = bm.rebuild_job_aggregates(vacuum_entity_id=_VAC, metrics_list=archive)
+
+    assert applied == 3
+    aggr = bm.get_record(_VAC)["job_aggregates"]
+    assert aggr["all_jobs"]["count"] == 3, "the poisoned duplicate survived the rebuild"
+    assert aggr["by_clean_mode"]["vacuum"]["count"] == 2, "mid-recharge run leaked into a config bucket"
+
+
+def test_rebuild_job_aggregates_leaves_last_job_and_charge_linkage_alone(bm):
+    """[BM-4e] A rebuild must NOT replay point-in-time state. last_job and the pending
+    post-job-charge linkage describe the MOST RECENT run, not derived history — replaying
+    them would leave a stale post_job_charge slot for the next real charge to link into."""
+    bm.record_job_metrics(vacuum_entity_id=_VAC, job_id="real_last", metrics={
+        "battery_used_pct": 20, "duration_min": 40, "area_m2": 25, "drain_per_min": 0.5,
+    })
+    bm._pending_post_job.pop(_VAC, None)  # simulate it already being consumed
+
+    bm.rebuild_job_aggregates(vacuum_entity_id=_VAC, metrics_list=[
+        {"battery_used_pct": 5, "duration_min": 10, "area_m2": 5, "drain_per_min": 0.5},
+    ])
+
+    assert bm.get_record(_VAC)["last_job"]["job_id"] == "real_last", "the rebuild overwrote last_job"
+    assert _VAC not in bm._pending_post_job, "the rebuild re-armed the post-job-charge linkage"

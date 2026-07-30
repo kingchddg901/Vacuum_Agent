@@ -972,6 +972,92 @@ class BatteryHealthManager:
 
     # -- job metrics ingestion -------------------------------------------------
 
+    def _apply_metrics_to_aggregates(
+        self,
+        record: dict[str, Any],
+        metrics: dict[str, Any],
+    ) -> None:
+        """Fold one job's metrics into the drain aggregates.
+
+        THE single definition of "which buckets does this job feed". Shared by the live
+        path (``record_job_metrics``) and the archive replay (``rebuild_job_aggregates``)
+        so a rebuild reproduces exactly what the live folds produced — two copies of this
+        bucket-selection logic would drift, and a rebuild that disagreed with the live path
+        would be worse than no rebuild.
+        """
+        aggregates = record.setdefault("job_aggregates", {})
+        aggregates.setdefault("all_jobs", _new_aggregate_bucket())
+        aggregates.setdefault("by_clean_mode", {})
+        aggregates.setdefault("by_fan_speed", {})
+        aggregates.setdefault("by_water_level", {})
+
+        self._update_aggregate_bucket(aggregates["all_jobs"], metrics)
+
+        # A mid-job recharge nets out of the raw start−end drain, understating the true
+        # discharge — so keep a flagged run OUT of the per-config drain means (the same
+        # anti-bias spirit as the is_single_* gates). last_job / all_jobs still record it.
+        single_ok = not bool(metrics.get("mid_job_recharge"))
+
+        if single_ok and metrics.get("is_single_clean_mode") and metrics.get("single_clean_mode"):
+            bucket = aggregates["by_clean_mode"].setdefault(
+                metrics["single_clean_mode"], _new_aggregate_bucket()
+            )
+            self._update_aggregate_bucket(bucket, metrics)
+
+        if single_ok and metrics.get("is_single_fan_speed") and metrics.get("single_fan_speed"):
+            bucket = aggregates["by_fan_speed"].setdefault(
+                metrics["single_fan_speed"], _new_aggregate_bucket()
+            )
+            self._update_aggregate_bucket(bucket, metrics)
+
+        if single_ok and metrics.get("is_single_water_level") and metrics.get("single_water_level"):
+            bucket = aggregates["by_water_level"].setdefault(
+                metrics["single_water_level"], _new_aggregate_bucket()
+            )
+            self._update_aggregate_bucket(bucket, metrics)
+
+    def rebuild_job_aggregates(
+        self,
+        *,
+        vacuum_entity_id: str,
+        metrics_list: list[dict[str, Any]],
+    ) -> int:
+        """Recompute the drain aggregates from scratch over an archive of job metrics.
+
+        ``job_aggregates`` is an incremental read-modify-write store outside the learning
+        rebuild, so a bad sample — a duplicate finalize, or a run that should have been
+        excluded — used to sit in the drain means permanently. Per-config buckets are
+        narrow, so a poisoned sample may never dilute.
+
+        Rebuilds from EMPTY: folding onto the existing aggregates would preserve exactly
+        the samples this exists to remove.
+
+        Deliberately does NOT touch ``last_job`` or the pending-post-job-charge linkage.
+        Those are point-in-time state about the MOST RECENT run, not derived history —
+        replaying them would leave a stale ``post_job_charge`` slot for the next real
+        charge session to link into. Only the aggregates are recomputed.
+
+        Returns the number of metric sets applied. Caller supplies the archive because the
+        battery subsystem does not own it.
+        """
+        record = self.ensure_record(vacuum_entity_id)
+        record["job_aggregates"] = {
+            "all_jobs": _new_aggregate_bucket(),
+            "by_clean_mode": {},
+            "by_fan_speed": {},
+            "by_water_level": {},
+        }
+        applied = 0
+        for metrics in metrics_list or []:
+            if not isinstance(metrics, dict):
+                continue
+            self._apply_metrics_to_aggregates(record, metrics)
+            applied += 1
+
+        self._schedule_save()
+        self._notify(vacuum_entity_id)
+        return applied
+
     def record_job_metrics(
         self,
         *,
@@ -1021,36 +1107,7 @@ class BatteryHealthManager:
         }
         record["last_job"] = last_job
 
-        aggregates = record.setdefault("job_aggregates", {})
-        aggregates.setdefault("all_jobs", _new_aggregate_bucket())
-        aggregates.setdefault("by_clean_mode", {})
-        aggregates.setdefault("by_fan_speed", {})
-        aggregates.setdefault("by_water_level", {})
-
-        self._update_aggregate_bucket(aggregates["all_jobs"], metrics)
-
-        # A mid-job recharge nets out of the raw start−end drain, understating the true
-        # discharge — so keep a flagged run OUT of the per-config drain means (the same
-        # anti-bias spirit as the is_single_* gates). last_job / all_jobs still record it.
-        single_ok = not bool(metrics.get("mid_job_recharge"))
-
-        if single_ok and metrics.get("is_single_clean_mode") and metrics.get("single_clean_mode"):
-            bucket = aggregates["by_clean_mode"].setdefault(
-                metrics["single_clean_mode"], _new_aggregate_bucket()
-            )
-            self._update_aggregate_bucket(bucket, metrics)
-
-        if single_ok and metrics.get("is_single_fan_speed") and metrics.get("single_fan_speed"):
-            bucket = aggregates["by_fan_speed"].setdefault(
-                metrics["single_fan_speed"], _new_aggregate_bucket()
-            )
-            self._update_aggregate_bucket(bucket, metrics)
-
-        if single_ok and metrics.get("is_single_water_level") and metrics.get("single_water_level"):
-            bucket = aggregates["by_water_level"].setdefault(
-                metrics["single_water_level"], _new_aggregate_bucket()
-            )
-            self._update_aggregate_bucket(bucket, metrics)
+        self._apply_metrics_to_aggregates(record, metrics)
 
         # Mark the next charge session for post-job linkage. Cleared either
         # when consumed by _close_session() or when stale.

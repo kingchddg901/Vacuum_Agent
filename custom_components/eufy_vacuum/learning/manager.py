@@ -855,6 +855,33 @@ class LearningManager:
         )
         return result
 
+    def collect_archived_battery_metrics(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> list[dict[str, Any]]:
+        """Return every learning-eligible run's ``battery_metrics``, oldest first.
+
+        The finalizer writes ``battery_metrics`` into the record's inner ``job`` dict, so the
+        drain aggregates are fully reconstructible from the archive. Learning owns the
+        archive; the battery subsystem owns its aggregates — so this hands over the data and
+        ``BatteryHealthManager.rebuild_job_aggregates`` does the folding, rather than either
+        side reaching into the other.
+
+        Uses the same archive-derived gate as the stats rebuild (``is_learning_job``), so an
+        excluded or held run stays out — which is what makes ``exclude_learning_job``
+        effective against battery means rather than silently ineffective.
+        """
+        out: list[dict[str, Any]] = []
+        for job in self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id):
+            if not isinstance(job, dict) or not self.store.is_learning_job(job):
+                continue
+            inner = job.get("job")
+            metrics = inner.get("battery_metrics") if isinstance(inner, dict) else None
+            if isinstance(metrics, dict) and metrics:
+                out.append(metrics)
+        return out
+
     def rebuild_learned_zones(
         self,
         manager,
