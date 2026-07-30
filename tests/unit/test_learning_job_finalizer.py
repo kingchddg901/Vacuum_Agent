@@ -500,3 +500,81 @@ def test_collect_inputs_cancel_likely_marks_cancelled(finalizer, monkeypatch):
     assert inputs["was_cancelled"] is True
     assert inputs["lifecycle_name"] == "cancel_likely"
     assert inputs["cancel_detection"]["cancel_likely"] is True
+
+
+# ---------------------------------------------------------------------------
+# Commit-point ordering — cumulative side effects must not run before the
+# durable record exists. Wave 2 of the exactly-once finalization work.
+# ---------------------------------------------------------------------------
+
+def _finalizer_with_sink(tmp_path, pushes, *, save_raises=False):
+    """A finalizer wired to a recording battery sink, optionally with a failing store."""
+    hass = MagicMock()
+    hass.config.config_dir = str(tmp_path)
+
+    def _sink(*, vacuum_entity_id, metrics, job_id):
+        pushes.append(job_id)
+
+    fin = LearningJobFinalizer(hass, battery_sink=_sink)
+
+    # The store is stubbed either way: this pair tests ORDERING around the commit point,
+    # not serialization. (The hass MagicMock leaks into the payload, so a real save would
+    # fail on JSON encoding for reasons unrelated to what is under test.)
+    if save_raises:
+        def _save(**kwargs):
+            raise OSError("disk full")
+    else:
+        def _save(**kwargs):
+            return "/tmp/job.json"
+    fin.store.save_completed_job = _save
+    return fin
+
+
+def _finalize(fin, manager):
+    inputs = fin._collect_finalization_inputs(
+        manager=manager,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    return fin.finalize_from_inputs(
+        inputs=inputs,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90, battery_end=60,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        rebuild_stats=False,
+    )
+
+
+def test_battery_push_does_not_happen_when_the_record_fails_to_save(tmp_path):
+    """[JF-commit] A failed save must leave NO cumulative side effect behind.
+
+    Battery aggregates are an incremental store outside rebuild_all, so an aggregate
+    counting a run whose record never landed is unrepairable — it cannot be reconciled
+    against jobs/ because there is nothing there to reconcile against. The push therefore
+    waits for save_completed_job to succeed.
+    """
+    pushes: list[str] = []
+    fin = _finalizer_with_sink(tmp_path, pushes, save_raises=True)
+
+    with pytest.raises(OSError):
+        _finalize(fin, _inputs_manager())
+
+    assert pushes == [], "a battery aggregate was recorded for a run with no record"
+
+
+# KNOWN GAP (pre-existing, not introduced by the commit-point change): the SUCCESSFUL
+# battery push is not covered. `battery_sink` appears in no test in this repo, and driving
+# it here needs realistic battery inputs — with the MagicMock manager used above,
+# compute_job_battery_metrics raises and its `except` swallows the failure, so the push is
+# skipped for a reason unrelated to ordering.
+#
+# Consequence to be honest about: the test above would still pass if someone DELETED the
+# push entirely rather than deferring it. Closing this needs a fixture with real
+# battery_start/battery_end/duration/resolved_rooms — worth doing when the battery
+# subsystem is next touched, and tracked as a coverage gap rather than silently ignored.

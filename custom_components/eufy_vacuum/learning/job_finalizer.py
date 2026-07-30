@@ -854,6 +854,11 @@ class LearningJobFinalizer:
                 0,
             ),
         )
+        # Cumulative battery push, deferred past the commit point below. Declared at this
+        # scope so the push site sees it even when the job payload is malformed and the
+        # block that sets it never runs.
+        pending_battery_push: dict[str, Any] | None = None
+
         _job = completed_job.get("job")
         if isinstance(_job, dict):
             # Apply error-time-adjusted cleaning_time_seconds when an error
@@ -914,6 +919,7 @@ class LearningJobFinalizer:
             # Battery metrics — drain rates + per-mode/suction/water rollup.
             # Only single-bucket jobs (every room same setting) feed per-bucket
             # aggregates downstream; mixed runs still get full job-level stats.
+            # Set here, pushed after the commit point below.
             try:
                 # `resolved_rooms` lives at the TOP LEVEL of completed_job
                 # (build_completed_job_payload promotes it there), not inside
@@ -953,18 +959,16 @@ class LearningJobFinalizer:
                 )
                 _job["battery_metrics"] = battery_metrics
 
-                # Push to BatteryHealthManager so sensors and aggregates update.
+                # DEFERRED until after save_completed_job — see the push site below.
+                # The metrics COMPUTATION stays here because the record carries it; only the
+                # cumulative push moves. Eligibility is evaluated here, while the outcome is
+                # in hand, so the deferred push stays a dumb "do the thing".
                 # Skipped on cancelled/failed/test runs — those drains are not
                 # representative of normal cleaning.
                 outcome = completed_job.get("outcome", {}) or {}
                 outcome_status = str(outcome.get("status", "")).lower()
                 if outcome_status in {"completed", "interrupted"} and outcome.get("used_for_learning", True):
-                    if self._battery_sink is not None:
-                        self._battery_sink(
-                            vacuum_entity_id=vacuum_entity_id,
-                            metrics=battery_metrics,
-                            job_id=job_id,
-                        )
+                    pending_battery_push = battery_metrics
             except Exception:  # pragma: no cover - best-effort metrics record
                 _LOGGER.exception("battery: failed to compute job metrics")
 
@@ -979,11 +983,29 @@ class LearningJobFinalizer:
         if trace_run_id:
             completed_job["trace_run_id"] = str(trace_run_id)
 
+        # ---- COMMIT POINT ----------------------------------------------------------
+        # Everything above is recoverable: if it raises, no record exists and nothing
+        # cumulative has been written. Everything below runs only once the record is
+        # durable, so a partial failure can no longer leave an accumulator counting a run
+        # that has no record.
         job_path = self.store.save_completed_job(
             vacuum_entity_id=vacuum_entity_id,
             job_id=job_id,
             payload=completed_job,
         )
+
+        # Battery aggregates are an incremental store OUTSIDE rebuild_all — a push for a
+        # run whose record never landed is unrepairable, so it waits for the commit above.
+        # Eligibility was decided before the save, while the outcome was in hand.
+        if pending_battery_push is not None and self._battery_sink is not None:
+            try:
+                self._battery_sink(
+                    vacuum_entity_id=vacuum_entity_id,
+                    metrics=pending_battery_push,
+                    job_id=job_id,
+                )
+            except Exception:  # pragma: no cover - best-effort metrics record
+                _LOGGER.exception("battery: failed to record job metrics")
 
         incomplete_run_log = self._write_incomplete_run_log(
             vacuum_entity_id=vacuum_entity_id,
