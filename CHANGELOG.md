@@ -10,6 +10,36 @@ only.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-07-29
+
+### Added
+- **Eleven more languages — 18 total.** Arabic & Hebrew (with full right-to-left
+  layout), Japanese, Korean, Chinese (Simplified & Traditional), Polish, Czech,
+  Turkish, Indonesian — joining English and the original six. Pick any from the
+  per-user language globe; drop-in custom locales are still supported. New packs
+  are AI-drafted and ship as `draft` (chosen from the globe, never auto-activated
+  from your Home Assistant language) until a native speaker reviews them.
+- **Localized maintenance guides.** Upkeep steps, notes, and service intervals now
+  render in your language for both Eufy and Roborock — verbatim from the official
+  manuals where they exist, AI-drafted otherwise.
+- **Right-to-left support.** The whole card mirrors correctly for Arabic & Hebrew.
+
+### Fixed
+- Maintenance interval override is no longer lost after a reset.
+- Setup honors a low discovery confirmation-pass count, and re-opens Configure
+  Rooms when the active map has no configured rooms yet.
+- Run profiles: a vacuum's rooms match their saved preset instead of always
+  showing "custom"; several profile edge cases resolved.
+- Room configuration state is preserved across a map rebuild.
+- Eufy clean-pass counts are clamped to a valid range on the wire.
+- A "run incomplete" event now fires from involuntary reapers and cancels.
+- Learning accuracy: a stalled-pose tail is coalesced and interior freeze
+  dead-time is carved out of segment timing, so a frozen run can't skew estimates.
+
+### Changed
+- Developer documentation hardened to a disaster-recovery-grade standard
+  (internal; no runtime impact).
+
 ## [1.10.0] - 2026-07-20
 
 ### Added
