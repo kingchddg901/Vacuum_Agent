@@ -491,7 +491,7 @@ def test_overwrite_run_profile_clears_stale_steps(pm):
 
 def test_has_stops_flags_sequenced_runs(pm):
     """[PM-25] Defect #4b: has_stops means "sequenced run, not a plain queue" — set by
-    any break step (charge_wait/wait) OR more than one room_group. It is DISTINCT from
+    any break step (charge_wait/wait/zone) OR more than one room_group. It is DISTINCT from
     the charge-only has_charge_steps, and a single-group queue is NOT a stop."""
     # plain single-group queue -> not a stop, no charge
     plain = pm._enrich_saved_run_profile("a", {"name": "Q", "rooms": [{"room_id": 1}, {"room_id": 2}]})
@@ -513,6 +513,15 @@ def test_has_stops_flags_sequenced_runs(pm):
         {"type": "charge_wait", "target_battery_percent": 90},
         {"type": "room_group", "rooms": [{"room_id": 2}]}]})
     assert charge["has_stops"] is True and charge["has_charge_steps"] is True
+    # [PM-25a] REGRESSION: a trailing zone is the ONLY break — one room_group, so the
+    # >1-group clause cannot fire and "zone" must be in the step-type tuple. This gate
+    # shipped zone-less while its four siblings (manager.py:1308, run_plan.py:1348/1353,
+    # core/manager.py:1647) carried it, so a rooms->zone profile presented as a flat queue.
+    trailing_zone = pm._enrich_saved_run_profile("e", {"name": "Z", "steps": [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "zone", "zone_ids": ["stove"]}]})
+    assert trailing_zone["has_stops"] is True
+    assert trailing_zone["has_charge_steps"] is False
 
 
 def test_normalize_steps_validates_room_group_room_ids(pm):

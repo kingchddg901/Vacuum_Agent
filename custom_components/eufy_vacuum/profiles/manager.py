@@ -842,11 +842,14 @@ class ProfileManager:
             "steps": steps,
             "has_charge_steps": any(s.get("type") == "charge_wait" for s in steps),
             # has_stops == "this is a SEQUENCED run, not a plain queue": any break step
-            # (charge_wait / wait) OR more than one room_group. DISTINCT from the
+            # (charge_wait / wait / zone) OR more than one room_group. DISTINCT from the
             # charge-only has_charge_steps. The frontend gates stepped preview/routing
             # on has_stops. (SHARED CONTRACT with the frontend lane.)
+            # The step-type tuple MUST mirror the stepped-path gates at
+            # profiles/manager.py:1308, planning/run_plan.py:1348/1353 and
+            # core/manager.py:1647 — "zone" was added to those and missed here.
             "has_stops": (
-                any(s.get("type") in ("charge_wait", "wait") for s in steps)
+                any(s.get("type") in ("charge_wait", "wait", "zone") for s in steps)
                 or len(_room_group_steps) > 1
             ),
         }
