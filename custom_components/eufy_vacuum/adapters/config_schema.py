@@ -74,6 +74,42 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": True,
         "description": "Full HA entity IDs for companion entities.",
         "fields": {
+            # --- shipped before they were declared (see the block comment at the
+            # bottom of this file); types read from the adapters, all optional
+            # because neither brand ships the full set. ---
+            "job_active": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Binary sensor that is on while a job runs. Roborock only. Drives "
+                    "completion.require_job_active_clear — the brand's terminal signal."
+                ),
+            },
+            "mop_active": {
+                "type": "str",
+                "required": False,
+                "description": "Binary sensor reporting the mop is attached/active. Roborock only.",
+            },
+            "dock_firmware_version": {
+                "type": "str",
+                "required": False,
+                "description": "Dock firmware version sensor. Diagnostic only.",
+            },
+            "total_cleaning_area": {
+                "type": "str",
+                "required": False,
+                "description": "Lifetime cleaned-area counter. Diagnostic only.",
+            },
+            "total_cleaning_count": {
+                "type": "str",
+                "required": False,
+                "description": "Lifetime completed-job counter. Diagnostic only.",
+            },
+            "total_cleaning_time": {
+                "type": "str",
+                "required": False,
+                "description": "Lifetime cleaning-time counter. Diagnostic only.",
+            },
             "task_status": {
                 "type": "str",
                 "required": False,
@@ -718,6 +754,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": False,
         "description": "Room discovery configuration.",
         "fields": {
+            "implicit_map_id": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Synthetic map id used when the transport exposes no real map "
+                    "(Eufy scalar/Tuya ships \"main\"). NOTE: it is non-numeric, which is "
+                    "why map-id handling must not assume an int — learned area bands are "
+                    "keyed by map id and become unreachable for such installs."
+                ),
+            },
             "source": {
                 "type": "str",
                 "required": False,
@@ -898,6 +944,41 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": True,
         "description": "Job dispatch configuration.",
         "fields": {
+            "passes_max": {
+                "type": "int",
+                "required": False,
+                "description": (
+                    "Maximum clean_passes the wire accepts. Load-bearing: the queue engine "
+                    "clamps to it before dispatch. Absent => the framework default, which "
+                    "may exceed what the brand tolerates."
+                ),
+            },
+            "zone_command": {
+                "type": "str",
+                "required": False,
+                "description": "Service/command name used to dispatch a zone clean.",
+            },
+            "zone_coords": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Coordinate space the zone command expects (e.g. \"device_mm\"). "
+                    "Zone rectangles are converted into this space before dispatch."
+                ),
+            },
+            "phase_timing": {
+                "type": "dict",
+                "required": False,
+                "description": "Per-phase dispatch timing/settle tuning for stepped runs.",
+            },
+            "live_room_refresh": {
+                "type": "dict",
+                "required": False,
+                "description": (
+                    "Live current-room pulse config (Lever B) — nudges the provider to "
+                    "refresh its current-room signal faster than its own cache interval."
+                ),
+            },
             "template": {
                 "type": "str",
                 "required": True,
@@ -1149,6 +1230,35 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "For config adapters these are set by the user in the UI."
         ),
         "fields": {
+            # --- zone clean: the whole sub-vocabulary shipped undeclared. Note the two
+            # brands express zone limits in DIFFERENT units (Eufy side-length metres,
+            # Roborock area m2), so a consumer must not assume one shape. ---
+            "supports_zone_clean": {"type": "bool", "required": False},
+            "zone_max": {
+                "type": "int",
+                "required": False,
+                "description": "Maximum number of zones accepted in a single dispatch.",
+            },
+            "zone_max_side_m": {
+                "type": "float",
+                "required": False,
+                "description": "Max zone side length in metres (Eufy-style limit).",
+            },
+            "zone_min_side_m": {
+                "type": "float",
+                "required": False,
+                "description": "Min zone side length in metres (Eufy-style limit).",
+            },
+            "zone_max_area_m2": {
+                "type": "float",
+                "required": False,
+                "description": "Max zone area in m2 (Roborock-style limit).",
+            },
+            "zone_min_area_m2": {
+                "type": "float",
+                "required": False,
+                "description": "Min zone area in m2 (Roborock-style limit).",
+            },
             "supports_mop_features": {"type": "bool", "required": False},
             "supports_water_control": {"type": "bool", "required": False},
             "supports_path_control": {"type": "bool", "required": False},
@@ -1352,6 +1462,15 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "step-by-step instructions."
         ),
         "fields": {
+            "guide_translations": {
+                "type": "dict",
+                "required": False,
+                "description": (
+                    "Per-language upkeep guide bundles, keyed by language code. Both "
+                    "brands ship one; the set of languages is asserted by the adapter "
+                    "guide tests."
+                ),
+            },
             "model_names": {
                 "type": "dict[str, str]",
                 "required": False,

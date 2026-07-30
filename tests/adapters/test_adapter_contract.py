@@ -378,3 +378,44 @@ def test_no_undeclared_top_level_keys(adapter):
         f"{undeclared}. Declare them in config_schema.py (the schema is the contract) "
         f"or stop shipping them."
     )
+
+
+def _undeclared_nested(config: Any, schema: dict[str, Any], path: str = "") -> list[str]:
+    """Return dotted paths of config keys not declared under a schema ``fields`` block.
+
+    Descends ONLY where the schema declares ``fields``. A block with no ``fields`` is
+    opaque BY DECLARATION (several engine blocks are validated at registration instead),
+    so its interior is deliberately not policed here — that keeps this check precise
+    rather than noisy.
+    """
+    out: list[str] = []
+    if not isinstance(config, dict):
+        return out
+    for key, spec in schema.items():
+        if key not in config or not isinstance(spec, dict):
+            continue
+        fields = spec.get("fields")
+        if not isinstance(fields, dict):
+            continue
+        value = config[key]
+        if not isinstance(value, dict):
+            continue
+        loc = f"{path}.{key}" if path else key
+        out.extend(f"{loc}.{k}" for k in sorted(set(value) - set(fields)))
+        out.extend(_undeclared_nested(value, fields, loc))
+    return out
+
+
+def test_no_undeclared_nested_keys(adapter):
+    """[AC-schema-nested] A key inside a declared ``fields`` block must itself be declared.
+
+    Same blind spot as the top-level case, one level down: the walker checks the fields it
+    knows about and never notices an extra one. Only blocks that declare ``fields`` are
+    descended into, so deliberately-opaque blocks stay opaque.
+    """
+    name, config = adapter
+    undeclared = _undeclared_nested(config, ADAPTER_CONFIG_SCHEMA)
+    assert not undeclared, (
+        f"{name}: nested keys shipped but NOT declared in ADAPTER_CONFIG_SCHEMA: "
+        f"{undeclared}. Declare them under the parent's 'fields' or stop shipping them."
+    )
