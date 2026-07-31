@@ -229,7 +229,19 @@ async def test_acknowledge_scopes(tracker, hass):
     rec = t.get_record(_VAC)
     assert rec["last_device_error"] is None
     assert rec["active_run_error"] is not None
-    # scope=both clears the rest
+    # scope=both, job STILL IN FLIGHT -> the latch is MARKED, not destroyed. Deleting it
+    # here would strip the run's error evidence before the finalizer reads it, and with it
+    # the had_errors idle-wall exemption — so a stuck-then-freed run would be held from
+    # learning as "unexplained idle" while its own record denied the error happened.
+    t.acknowledge(_VAC, scope="both")
+    latch = t.get_record(_VAC)["active_run_error"]
+    assert latch is not None, "acknowledging mid-run destroyed the finalizer's evidence"
+    assert latch["acknowledged"] is True
+    assert latch["current_message"] == ""   # nothing left for the entities to show
+    assert latch["errors"], "the error history itself must survive"
+
+    # Same call with NO job in flight -> nothing to preserve, so it clears as before.
+    mgr.data["active_jobs"][_VAC]["6"]["status"] = "completed"
     t.acknowledge(_VAC, scope="both")
     assert t.get_record(_VAC)["active_run_error"] is None
 

@@ -854,10 +854,39 @@ class ErrorTracker:
         root = self._root()
         if vacuum_entity_id not in root:
             return False
+        from ..jobs.active_job import dispatched_job_is_in_flight
+
         record = self._ensure_record(vacuum_entity_id)
         scope_n = (scope or "both").strip().lower()
         if scope_n in ("active_run", "both"):
-            record["active_run_error"] = None
+            # MARK acknowledged rather than delete while a job is still in flight.
+            #
+            # Deleting it here destroyed the evidence the finalizer needs, and the natural
+            # order of operations makes that the COMMON case: the robot gets stuck, the
+            # user goes and frees it, then clears the alert — which is *why* they went. The
+            # run then finishes and finalizes with had_errors=False, error_count=0,
+            # total_error_seconds=0.
+            #
+            # The second-order effect is worse than the missing history. `had_errors` is an
+            # explicit exemption in the idle-wall guard, so losing it strips the run's
+            # exemption — and being stuck is exactly what produces a large wall-vs-cleaning
+            # gap. The run is then HELD from learning with blocker "extreme_idle_wall", and
+            # the review tab reports "unexplained idle" for a run whose explanation the user
+            # had just handled, while its own record denies the error happened.
+            #
+            # Acknowledging is a UI intent ("I've dealt with it"), not a statement that the
+            # error never occurred. The entities already treat a recovered/blank latch as
+            # nothing to show, so marking satisfies the user's intent while the finalizer
+            # still gets its evidence — and the post-finalize auto-clear collects it.
+            latch = record.get("active_run_error")
+            if isinstance(latch, dict) and dispatched_job_is_in_flight(
+                self._lookup_active_job(vacuum_entity_id)
+            ):
+                latch["acknowledged"] = True
+                latch["current_message"] = ""
+                latch["recovered"] = True
+            else:
+                record["active_run_error"] = None
         if scope_n in ("last_device", "both"):
             record["last_device_error"] = None
         self._persist_and_notify(vacuum_entity_id)
