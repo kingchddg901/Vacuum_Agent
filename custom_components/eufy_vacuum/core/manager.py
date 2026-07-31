@@ -3960,6 +3960,22 @@ class EufyVacuumManager:
         _caps_cfg = _adapter_cfg.get("capabilities", {}) or {}
         supports_room_profiles = bool(_caps_cfg.get("supports_room_profiles", True))
 
+        # Per-room setting capabilities the CARD needs in order to hide controls the brand
+        # cannot honour. The dispatch gate already strips these fields before they reach the
+        # wire, so nothing was mis-dispatched — but the card was never told, so it kept
+        # OFFERING (and saving) an Edge Mopping toggle and a water-level picker to a brand
+        # that declares them unsupported. The user set a value that silently did nothing.
+        #
+        # Read from `_caps_cfg` — the adapter's DECLARED capabilities — matching every
+        # sibling flag in this builder. Note there is a second, runtime-DETECTED capability
+        # dict (core/capabilities.detect_capabilities) which the dispatch gate reads, and
+        # the two share key names; they agree for both shipped brands only because each
+        # declares in both places. Reconciling those two dictionaries is a separate open
+        # finding (adapter audit CAP-3) — until it lands, a brand that declares here but
+        # not as a capability_hint would show the control and have it stripped at dispatch.
+        supports_water_control = bool(_caps_cfg.get("supports_water_control", True))
+        supports_edge_mopping = bool(_caps_cfg.get("supports_edge_mopping", True))
+
         # Capability hints surfaced in the dashboard snapshot:
         # - supports_base_station: the vacuum has a dock/Base Station — True when
         #   the adapter declares an enabled dock_events block OR any station/wash/
@@ -3998,6 +4014,23 @@ class EufyVacuumManager:
         # Per-clean zone cap surfaced to the card so the draw stops at the brand limit
         # (Eufy 10, Roborock S6 5). Per-zone SIZE limits are enforced server-side at dispatch.
         zone_max = int(_caps_cfg.get("zone_max", 10) or 10)
+        # Per-zone SIZE bounds. These ARE enforced server-side at dispatch, but the card
+        # was never told them — so the only way a user discovered an out-of-bounds box was
+        # to draw it and have the clean silently refuse. Surfacing them lets the draw stop
+        # at the limit instead. The two brands express the limit in DIFFERENT units (Eufy:
+        # side length in metres; Roborock: area in m2), so both shapes are sent and the
+        # card uses whichever its brand declares. None means "this brand declares no limit".
+        _zone_bounds = {
+            "min_side_m": _caps_cfg.get("zone_min_side_m"),
+            "max_side_m": _caps_cfg.get("zone_max_side_m"),
+            "min_area_m2": _caps_cfg.get("zone_min_area_m2"),
+            "max_area_m2": _caps_cfg.get("zone_max_area_m2"),
+        }
+        zone_bounds = {
+            _k: float(_v)
+            for _k, _v in _zone_bounds.items()
+            if isinstance(_v, (int, float))
+        }
         # Whether the brand cleans rooms in the DISPATCHED order (Eufy) or path-optimizes
         # and ignores it (Roborock -> False). Surfaced so the dashboard card offers the
         # strict-order toggle only where it matters (it's a no-op on order-honoring brands).
@@ -4116,6 +4149,9 @@ class EufyVacuumManager:
             "supports_map_bounds": supports_map_bounds,
             "supports_zone_clean": supports_zone_clean,
             "zone_max": zone_max,
+            "zone_bounds": zone_bounds,
+            "supports_water_control": supports_water_control,
+            "supports_edge_mopping": supports_edge_mopping,
             "honors_clean_order": honors_clean_order,
             "setting_entities": setting_entities,
             "scene_select": scene_select,

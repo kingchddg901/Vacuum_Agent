@@ -958,3 +958,51 @@ def test_resolve_active_map_id_no_adapter_config_returns_none(manager, hass):
     needed; the registry is left clean."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     assert manager.resolve_active_map_id(_VAC) is None
+
+
+async def test_dashboard_snapshot_surfaces_per_room_capabilities_and_zone_bounds(manager, hass):
+    """[LS-8a] The card must be TOLD which per-room controls the brand can honour, and the
+    per-zone size bounds.
+
+    The dispatch gate already strips edge_mopping / water_level for a brand that declares
+    them unsupported, so nothing was mis-dispatched — but the snapshot never carried the
+    flags, so the card kept OFFERING and saving controls whose values were silently
+    discarded. Likewise the zone SIZE bounds are enforced server-side at dispatch, and the
+    only way a user learned a box was too big was to draw it and have the clean refuse.
+
+    Both brands express zone size differently (Eufy: side length in metres; Roborock: area
+    in m2), so both shapes are carried and the card uses whichever its brand declares.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+
+    def _snap(cfg):
+        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        try:
+            return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        finally:
+            unregister_adapter_config(_VAC)
+
+    # A brand declaring these unsupported (the Roborock S6 shape) must say so.
+    s = _snap({"capabilities": {
+        "supports_water_control": False,
+        "supports_edge_mopping": False,
+    }})
+    assert s["supports_water_control"] is False
+    assert s["supports_edge_mopping"] is False
+
+    # Absent -> permissive default, so an older adapter config is unchanged.
+    s = _snap({"capabilities": {}})
+    assert s["supports_water_control"] is True
+    assert s["supports_edge_mopping"] is True
+
+    # Eufy-style side-length bounds.
+    s = _snap({"capabilities": {"zone_min_side_m": 0.5, "zone_max_side_m": 10.0}})
+    assert s["zone_bounds"] == {"min_side_m": 0.5, "max_side_m": 10.0}
+
+    # Roborock-style area bounds — a different shape, both supported.
+    s = _snap({"capabilities": {"zone_min_area_m2": 0.0929, "zone_max_area_m2": 400.0}})
+    assert s["zone_bounds"] == {"min_area_m2": 0.0929, "max_area_m2": 400.0}
+
+    # A brand declaring no size limit gets an empty dict, not fabricated numbers.
+    assert _snap({"capabilities": {}})["zone_bounds"] == {}
