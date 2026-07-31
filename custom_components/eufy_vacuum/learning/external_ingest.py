@@ -973,6 +973,26 @@ def build_graduated_job(
         room_id = _safe_int(assignment.get("room_id"), -1)
         room_cfg = rooms.get(str(room_id), {}) if isinstance(rooms.get(str(room_id)), dict) else {}
         slug = str(room_cfg.get("slug", "")).strip().lower()
+
+        # An unresolved room id must BLOCK, not graduate. This used to fall through with an
+        # empty slug, and the empty slug then made things worse at every downstream step:
+        # the plausibility gate looked up bands_by_slug[""] -> None -> "cold start" ->
+        # plausible, so the miss ENABLED the graduate instead of stopping it; the record was
+        # written with slug ""; and stats_rebuilder then skipped it (`if not slug: continue`)
+        # AFTER the pending file had already been unlinked. The user saw {"ok": true} and the
+        # run vanished — no pending entry to retry, no learned record.
+        #
+        # Reachable whenever the room list moved between capture and confirm: a map switch,
+        # a re-map, a room deleted or renamed while the wizard sat open.
+        if not slug:
+            blocked.append({
+                "segment_orders": orders,
+                "room_id": room_id,
+                "plausible": False,
+                "reason": "unknown_room",
+            })
+            continue
+
         area = round(sum(_safe_float(s.get("area_m2")) for s in covered), 2)
         active_s = sum(_safe_int(s.get("time_active_s")) for s in covered)
         wall_s = sum(_safe_int(s.get("time_wall_s")) for s in covered)

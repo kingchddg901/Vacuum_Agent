@@ -638,3 +638,63 @@ def test_load_pending_runs_missing_dir_is_empty():
     from custom_components.eufy_vacuum.learning.external_ingest import load_pending_runs
 
     assert load_pending_runs("/no/such/external_jobs") == []
+
+
+# ---------------------------------------------------------------------------
+# Group C: an unresolved room must BLOCK, not graduate with an empty slug.
+# ---------------------------------------------------------------------------
+
+def test_unknown_room_blocks_instead_of_graduating_with_an_empty_slug():
+    """[XR-2] Confirming after the room list moved (map switch, re-map, room deleted or
+    renamed while the wizard sat open) resolved to an EMPTY slug and fell through.
+
+    The empty slug then made every downstream step worse: the plausibility gate looked up
+    bands_by_slug[""] -> None -> cold start -> plausible, so the miss ENABLED the graduate;
+    the record was written with slug ""; and stats_rebuilder skipped it (`if not slug:
+    continue`) AFTER the pending file had been unlinked. The user saw {"ok": true} and the
+    run vanished — nothing to retry, nothing learned.
+    """
+    from custom_components.eufy_vacuum.learning.external_ingest import build_graduated_job
+
+    pending_record = {
+        "segments": [{
+            "order": 0, "area_m2": 12.0,
+            "time_active_s": 600, "time_wall_s": 660,
+            "settings": {}, "pass_count": 1,
+        }],
+    }
+    graduated, blocked = build_graduated_job(
+        pending_record=pending_record,
+        assignments=[{"segment_orders": [0], "room_id": 999}],  # not in the room list
+        rooms={"1": {"slug": "kitchen"}},
+        bands_by_slug={},
+        vacuum_entity_id="vacuum.alfred",
+        job_id="job_test",
+        ended_at="2026-01-01T10:00:00+00:00",
+    )
+
+    assert graduated is None, "an unresolved room graduated instead of blocking"
+    assert blocked, "no blocked assignment was reported"
+    assert blocked[0].get("reason") == "unknown_room"
+    assert blocked[0].get("plausible") is False
+
+
+# ---------------------------------------------------------------------------
+# Group C: a pending id is untrusted input on the mutating service paths.
+# ---------------------------------------------------------------------------
+
+def test_pending_job_id_shape_is_enforced():
+    """[XR-1] The id is echoed back by the card and interpolated into a filesystem path
+    before unlink/rewrite. pathlib does not normalise "..", so traversal resolves outside
+    external_jobs/. Authenticated-only, so hardening — but it is a delete/write primitive
+    over arbitrary .json paths."""
+    from custom_components.eufy_vacuum.learning.external_run import _is_valid_pending_job_id
+
+    assert _is_valid_pending_job_id("job_2026-07-30T12-00-00") is True
+    assert _is_valid_pending_job_id("job_abc.123+x-y") is True
+
+    for bad in (
+        "../../etc/passwd", "job_../../x", "/abs/path", "job_a/b",
+        "", None, "notajob", "JOB_upper", "job_", r"job_x\y",
+    ):
+        assert _is_valid_pending_job_id(bad) is False, f"{bad!r} should be rejected"

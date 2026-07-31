@@ -30,6 +30,7 @@ core: ``_ingest_completed_job_into_room_history`` / ``_ingest_jobs_index_entry_i
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import callback
@@ -41,6 +42,26 @@ if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
 
 _LOGGER = logging.getLogger(__name__)
+
+#: Shape of a pending-record id, as written by ``_finalize_external_run`` (``f"job_{ts}"``).
+#:
+#: The card echoes this id back on confirm / discard / re-segment, so on those three service
+#: paths it is UNTRUSTED input — and each one interpolates it straight into a filesystem path
+#: before unlinking or rewriting the file. ``pathlib`` does not normalise "..", so an id like
+#: "../../foo" resolves outside ``external_jobs/``. Only an authenticated caller can reach it,
+#: so this is hardening rather than an exploit — but it is a delete/write primitive over
+#: arbitrary ``.json`` paths, and the listing side already assumes this shape.
+_PENDING_JOB_ID_RE = re.compile(r"^job_[A-Za-z0-9._+-]+$")
+
+
+def _is_valid_pending_job_id(pending_job_id: Any) -> bool:
+    """Return whether an id is safe to interpolate into a pending-record path.
+
+    Rejects rather than sanitises: a malformed id is not a path to repair, it is a request
+    for a record that cannot exist. Callers return the same "pending_not_found" they already
+    return for a genuinely missing record, so the card needs no new error handling.
+    """
+    return bool(_PENDING_JOB_ID_RE.fullmatch(str(pending_job_id or "")))
 
 
 class ExternalRunManager:
@@ -395,6 +416,8 @@ class ExternalRunManager:
 
         store = LearningHistoryStore(self._manager.hass)
         paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        if not _is_valid_pending_job_id(pending_job_id):
+            return {"ok": False, "error": "pending_not_found"}
         pending_path = paths.root / "external_jobs" / f"{pending_job_id}.json"
         try:
             with open(pending_path, encoding="utf-8") as handle:
@@ -484,6 +507,8 @@ class ExternalRunManager:
 
         store = LearningHistoryStore(self._manager.hass)
         paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        if not _is_valid_pending_job_id(pending_job_id):
+            return {"ok": False, "error": "pending_not_found"}
         path = paths.root / "external_jobs" / f"{pending_job_id}.json"
         try:
             path.unlink(missing_ok=True)
@@ -515,6 +540,8 @@ class ExternalRunManager:
 
         store = LearningHistoryStore(self._manager.hass)
         paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        if not _is_valid_pending_job_id(pending_job_id):
+            return {"ok": False, "error": "pending_not_found"}
         path = paths.root / "external_jobs" / f"{pending_job_id}.json"
         try:
             with open(path, encoding="utf-8") as handle:
