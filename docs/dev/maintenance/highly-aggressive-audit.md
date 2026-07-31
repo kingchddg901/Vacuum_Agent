@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**43 changes shipped**, all with tests, all deployed.
+**44 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -98,16 +98,17 @@ comments rather than by a shared helper.
 | `994f16e` | docs(maintenance): commit the hostile-audit ledger — completed and open, in one place |
 | `a332a04` | docs(maintenance): fold audit #11 into the ledger — map source lifecycle |
 | `e0bdf9e` | docs(maintenance): fold audit #12 into the ledger — the listener input layer |
+| `b96c0ee` | docs(maintenance): fold audit #13 into the ledger — services, the public API |
 
 ---
 
 ## Open
 
-**267 findings** across 7 audits, none applied. 19 clusters + 221 singles.
+**293 findings** across 8 audits, none applied. 20 clusters + 244 singles.
 
-CRITICAL 15 · HIGH 58 · MEDIUM 88 · LOW 106
+CRITICAL 17 · HIGH 62 · MEDIUM 97 · LOW 117
 
-The same audits recorded **432 areas examined and found correct**.
+The same audits recorded **485 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -242,9 +243,16 @@ The same audits recorded **432 areas examined and found correct**.
 #### C19. A public service call wipes a map's entire room configuration, silently — **verified by hand**
 
 - **Seam:** `rooms/room_crud.py:261 (map_bucket['rooms'] = managed_rooms)`
-- **Closes:** A3-ROOMS-1, A3-ROOMS-2, A4-SETUP-1
-- **Defect:** VERIFIED BY EXECUTION. Three routes to one unconditional replace. (1) save_managed_rooms against a map with no cached discovery: discovery.get('rooms',[]) is [], build_managed_rooms returns {}, and line 261 replaces wholesale. (2) `enabled_room_ids:` with a blank YAML value -- cv.ensure_list(None) returns [] (confirmed against installed HA core), so the schema turns null into [], which passes the manager's `is not None` check while _normalize_enabled_room_ids([]) yields an empty set, so every room hits `continue`. The None-vs-empty distinction the manager deliberately relies on is destroyed one layer up, at the schema boundary. (3) setup_save_rooms rebuilds from the stale/absent discovery cache and returns {'status':'success'}. Every per-room setting, rule, grant, colour and floor type is gone; none of the three services declares supports_response, so the caller gets no error and no room_count. Documented behaviour is the OPPOSITE: docs/advanced/03-services.md:255 says 'Omit to keep all rooms enabled'.
+- **Closes:** A3-ROOMS-1, A3-ROOMS-2, A4-SETUP-1, A5-FACADE-1, A5-FACADE-3
+- **Defect:** VERIFIED BY EXECUTION. Three routes to one unconditional replace. (1) save_managed_rooms against a map with no cached discovery: discovery.get('rooms',[]) is [], build_managed_rooms returns {}, and line 261 replaces wholesale. (2) `enabled_room_ids:` with a blank YAML value -- cv.ensure_list(None) returns [] (confirmed against installed HA core), so the schema turns null into [], which passes the manager's `is not None` check while _normalize_enabled_room_ids([]) yields an empty set, so every room hits `continue`. The None-vs-empty distinction the manager deliberately relies on is destroyed one layer up, at the schema boundary. (3) setup_save_rooms rebuilds from the stale/absent discovery cache and returns {'status':'success'}. Every per-room setting, rule, grant, colour and floor type is gone; none of the three services declares supports_response, so the caller gets no error and no room_count. Documented behaviour is the OPPOSITE: docs/advanced/03-services.md:255 says 'Omit to keep all rooms enabled'. AUDIT #14 CONFIRMS THE LAYER: the same unguarded total-wipe is reachable at the FACADE (A5-FACADE-1) and rebuild_map has it too (A5-FACADE-3) -- so the facade, not the service, is where the precondition belongs.
 - **Fix:** Guard the wholesale replace: refuse to persist an empty room set when the previous bucket was non-empty and discovery is empty. Separately, stop the schema collapsing null into [] -- an explicit null must either be rejected or preserved as None. Give these three services a response so a caller can tell.
+
+#### C20. A config-entry reload leaves the OLD manager alive; its orphaned timer then overwrites the store — **verified by hand**
+
+- **Seam:** `core/manager.py:473 + __init__.py:465 (async_unload_entry)`
+- **Closes:** A1-INIT-1
+- **Defect:** VERIFIED. async_initialize spawns loop-lifetime work -- the dock re-arm poller (hass.async_create_task) and external-run grace timers (async_call_later, 300s x up to 8 re-arms = ~45 min). There is NO manager teardown anywhere: grep for async_shutdown / def shutdown / EVENT_HOMEASSISTANT_STOP across manager.py, phase_runner.py and external_run.py returns nothing, and nothing is registered with entry.async_on_unload. async_unload_entry removes listeners/services/panels and pops DATA_RUNTIME but cancels none of it. A reload then builds a SECOND manager over the same STORAGE_KEY, while the orphaned callbacks still hold self._manager = the OLD one and end in external_run.py:213 async_save() / phase_runner.py:856 _async_save_logged() -- and async_save is a bare whole-root-dict write. So the pre-reload snapshot replaces everything persisted since. The orphaned dock poller can also still call maybe_advance_phase, so a dead manager and a live one can both dispatch to the same physical robot; _dock_poller_active is per-instance and cannot dedupe across two.
+- **Fix:** Give the manager a teardown that cancels its spawned tasks and timers, and register it with entry.async_on_unload. Consider guarding async_save against a manager whose entry has been unloaded.
 
 ### Singles
 
@@ -259,14 +267,23 @@ The same audits recorded **432 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (37)</summary>
+<details><summary><strong>HIGH</strong> (41)</summary>
 
+- **A5-FACADE-2** `core/manager.py:1426` · both  
+  discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
+  On its own the user sees a discover_rooms call that reports 0 rooms and silently forgets the last known good room list. Combined with FACADE-1 it is the loaded gun: after one blip-time discovery, the next Save in the Set
+- **A4-START-1** `core/manager.py:2863` · both  
+  get_start_status validates PHASE 0's room count as if it were the whole job — a stepped run whose first phase is a zone is refused with a false "invalid payload" error  
+  A run profile like "clean the entryway zone, then the kitchen", or any rooms+zone queue whose first room happens to be blocked by a room rule that moment, refuses to start and reports "Room-clean payload is missing or in
 - **DQ-ZONE-1** `dispatch/manager.py:234` · eufy  
   Zone-clean pass count is never clamped on the Eufy branch — the clamp lives inside the device_mm branch Eufy never enters  
   An automation / YAML / script call `eufy_vacuum.start_zone_clean` (or `clean_saved_zone`/`clean_saved_zones`) with clean_times above the device ceiling reaches the robot unmodified: the value lands in the SelectZonesClea
 - **DQ-ACT-5** `dispatch/manager.py:442` · roborock  
   The mixed-batch water SAFETY pre-call is best-effort — if it fails the clean still dispatches and the robot wet-mops the vacuum-only rooms  
   The robot wet-mops a room the user explicitly configured vacuum-only — on hardwood, rugs, or carpet. The user is shown a normal successful start; the only trace is a stack trace in the HA log. The failure mode is silent
+- **A6-VAC-1** `dock/manager.py:154` · eufy  
+  Dock-action gate is blind to app-started (external) runs — every dock action reports "Ready" and fires while the robot is mid-run at the dock  
+  The user starts a clean from the Eufy app. The robot returns to the dock to recharge ("Charging (Resume)") or wash the pad mid-run. The card's Base Station tab shows Wash Mop / Dry Mop / Empty Dust as Ready. Tapping Dry
 - **A4-AJ-1** `jobs/active_job.py:472` · both  
   Mid-job recharge NEVER ends: the recharge-end branch is unreachable dead code, so recharge_seconds_accumulated is always 0 and every recharging run is silently held from learning  
   Any run where the robot returns to dock to recharge mid-job (the common case for large multi-room Eufy jobs) is silently excluded from learning with an `extreme_idle_wall` blocker, and its stored duration is inflated by
@@ -372,14 +389,41 @@ The same audits recorded **432 areas examined and found correct**.
 - **A4-SETUP-6** `services/setup.py:243` · both  
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
+- **A2-CB-1** `switch.py:71` · both _(finder said CRITICAL; verifier corrected)_  
+  Room-update fan-out identifies "stale" entities by unique_id PREFIX, so a room edit on one vacuum permanently deletes a sibling vacuum's entities from the entity registry  
+  On any multi-vacuum install where one vacuum's entity_id is another's plus a numeric suffix (HA's own default for a second identical robot), the first room edit — toggling a room switch, applying a room profile, saving r
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (80)</summary>
+<details><summary><strong>MEDIUM</strong> (89)</summary>
 
+- **A1-INIT-3** `core/manager.py:347` · both _(finder said HIGH; verifier corrected)_  
+  Startup re-seed of the bundled theme library resurrects themes the user deleted, and re-points default_theme_id  
+  A user who curates the theme library — deleting the bundled themes they do not want, with a confirm dialog implying it stuck — finds all of them back in the picker after the next HA restart, silently and with no error. I
+- **A6-VAC-4** `core/manager.py:1035` · both  
+  remove_vacuum_record drops data["room_history"][vacuum] but leaves the _room_history_cache_ready marker — three sibling call sites invalidate it, the one that DELETES the data does not  
+  On a multi-vacuum config entry, a user who deletes vacuum B's device and then re-adds the same vacuum entity (import map / save rooms) sees an empty Room Cleaning History panel for it — no history rows, no error, no way
+- **A6-VAC-3** `core/manager.py:1126` · eufy  
+  refresh_vacuum_capabilities does NOT reproduce startup's detect_capabilities inputs — it silently drops the dock-button entity candidates, contradicting the comment above it  
+  On an Eufy model outside the x10/x8 hint families that nevertheless exposes wash/dry/empty dock buttons, running the `eufy_vacuum.get_vacuum_capabilities` service (schema default refresh=True, and it async_save()s the re
 - **A6-AGX-2** `core/manager.py:1374` · both _(finder said HIGH; verifier corrected)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
   After a Roborock re-segment + migrate, the user can no longer change ANY room setting on that map — changing a room's fan speed or disabling a room fails with an error claiming they requested illegal access links, which
+- **A1-INIT-2** `core/manager.py:2275` · both _(finder said HIGH; verifier corrected)_  
+  Room-history preload overwrites the persisted cache with {} whenever the rebuild throws, and marks the cache ready so it never retries  
+  Every room's cleaning-history sensor and the card's last-cleaned/last-mopped chips read 'never cleaned' for the rest of the HA run, with nothing shown to the user (the only signal is a log line). The blank state is then
+- **A2-CB-2** `core/manager.py:2275` · both  
+  async_preload_room_history_cache replaces the whole per-vacuum room_history subtree AFTER an executor await, silently discarding any room-history written during that await  
+  A run that finishes while a room-history rebuild is in flight has its per-room "last cleaned / last vacuumed / last mopped" timestamps reverted to the previous run's values on every room-history sensor, and the wrong val
+- **A3-SNAP-3** `core/manager.py:3844` · both  
+  The snapshot has no read of the exactly-once finalize claim, so across the finalize await it reports a finished run as actively cleaning and offers Pause / Cancel on it  
+  For the duration of the finalize (a stats rebuild over a long history is easily seconds), the card shows "Cleaning <room>" with a live queue and enabled Pause / Cancel buttons for a run that is already over and being wri
+- **A3-SNAP-2** `core/manager.py:3914` · both  
+  get_dashboard_snapshot composes get_job_progress_snapshot TWICE, so job_progress and job_control in the same payload can describe different rooms — and every side effect in the progress composer fires twice per card poll  
+  During a multi-room run the card can render a timeline that highlights room B as in-progress while the status line above it reads "Cleaning C" and C is also drawn as an upcoming room — a self-contradicting view with no e
+- **A3-SNAP-1** `core/manager.py:3948` · roborock _(finder said HIGH; verifier corrected)_  
+  mop_active collapses "tank sensor unreadable" into a definite False, so the card confidently reports "Vacuuming" and hides the water-level control on Roborock  
+  On a Roborock S6 (observe-only tank, supports_water_control False) the card takes mop_active at face value: `showWaterLevel()` (src/state/room-editor.js:417-429) returns `mopActive` directly for observe-only brands, and
 - **DQ-ACT-6** `core/manager.py:5005` · roborock  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
@@ -395,6 +439,9 @@ The same audits recorded **432 areas examined and found correct**.
 - **DQ-ZONE-4** `dispatch/manager.py:216` · eufy  
   Eufy per-side bound check is skipped entirely when live-map dims are unreadable, while the mm branch REFUSES on the same missing input  
   An automation-fired or saved-zone clean issued before the map source is warm sends a zone whose side is outside the device's 0.5-10 m range to the robot. The provider builds and sends the quad regardless (it validates ne
+- **A6-VAC-2** `dock/manager.py:93` · eufy  
+  Dock action returns performed=True / "Dock action sent." when the resolved button entity exists only in the registry (disabled or not loaded) — a silent no-op reported as success  
+  A user who has disabled the upstream wash/dry/empty button entity (or whose upstream integration is reloading) sees the dock control offered as Ready, taps it, gets a success response, and the dock does nothing. There is
 - **A3-REC-5** `jobs/active_job.py:1721` · both  
   Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths  
   Per-room battery drain is never observed on either brand: every completed_job record's room_timings[].battery_delta is null, so the only per-room battery figure available anywhere is the even split total_battery_used / r
@@ -620,14 +667,38 @@ The same audits recorded **432 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (102)</summary>
+<details><summary><strong>LOW</strong> (112)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
   No user impact today (dead code), but it is a green-tested Eufy-flavoured copy of the identity functions sitting in the adapter package a future brand port would read first — reviving it re-introduces the 'null' sentinel
+- **A1-INIT-5** `core/manager.py:429` · future_brand_only  
+  The startup backfill and setup_progress migration hard-code Eufy vocabulary and structurally cannot consult the adapter  
+  No divergence on the two shipped brands today. A third brand whose room_profiles.default_profile is not 'vacuum_quick' would have any legacy room missing profile_name stamped with another brand's profile key at startup (
+- **A2-CB-3** `core/manager.py:579` · both  
+  The manager's four own callback registries append without a duplicate check while the theme registry they delegate to dedupes, and unregister removes only one copy  
+  Latent today. If any future caller registers a room-update callback twice — or if the path_blockers `remove()`/`register()` pairing is ever broken so its `remove` no-ops — that subscriber survives config-entry unload and
+- **A2-CB-4** `core/manager.py:1035` · both  
+  remove_vacuum_record wipes every bucket the five callback registries exist to mirror and fires none of them, dropping the notification obligation its narrower sibling remove_map documents  
+  Contained today by HA's own device-deletion sweep, so no user-visible breakage on the shipped path. The residual is that the in-memory `entity_map` / `room_history_entities` / `room_rule_status_entities` dicts in switch.
+- **A6-VAC-5** `core/manager.py:1084` · both  
+  get_managed_vacuums reads data["capabilities"] raw and reports supports_* as None when no snapshot exists, unlike its sibling get_vacuum_capabilities which detects on demand  
+  Latent today: the only consumer, setup/status.py:171, reads just `vacuum_entity_id` from the returned items. Any future consumer of the four supports_* fields (or a diagnostics dump) would read `null` and treat it as "un
+- **A5-FACADE-4** `core/manager.py:1239` · both _(finder said MEDIUM; verifier corrected)_  
+  save_user_room_profile facade silently overwrites the existing 'user_1' profile when profile_name is omitted, while its sibling mints a unique id  
+  A user (or automation) that saves two custom room profiles without supplying profile_name ends up with one: the second silently replaces the first, and both calls report saved=True. Every room whose stored `profile_name`
+- **A4-START-3** `core/manager.py:2943` · both _(finder said MEDIUM; verifier corrected)_  
+  get_start_status can never surface a non-blocking lifecycle warning message — preflight's "ready" text shadows it, making dock-drying starts show warning=True with the message "Ready to start cleaning."  
+  Every start attempt during the post-mop dock-drying window — which follows every mop run on both brands — returns a warning flag whose explanatory text says "Ready to start cleaning." and whose reason is "ready". The car
+- **A3-SNAP-4** `core/manager.py:4017` · future_brand_only  
+  zone_max invents Eufy's device limit (10) for any brand that declares none, while the dispatch gate enforces no cap at all when the key is absent  
+  A future adapter that declares no `zone_max` gets a card that silently stops the zone draw at 10 boxes with no explanation, while the backend would happily have dispatched more — a limit the user is shown but that the de
 - **DQ-ZONE-5** `core/manager.py:4030` · both _(finder said MEDIUM; verifier corrected)_  
   zone_bounds is computed and shipped in the dashboard snapshot but has no consumer anywhere — and the card replaces the precise refusal message with a generic toast  
   Roborock's declared ceiling is 3.05 m² (roborock/adapter.py:614) — about a 1.75 m square, smaller than many ordinary draws — so a user drawing a normal box gets a refusal on press, and the actionable text explaining WHY
+- **A4-START-2** `core/manager.py:5021` · both _(finder said MEDIUM; verifier corrected)_  
+  start_selected_rooms dispatches phase 0 with no phase_type branch, unlike its phase_runner sibling — and _build_steps_phases' docstring claims a guard that does not exist  
+  Latent today: the only thing stopping a segment-clean command with an empty room list from reaching the robot is the accidental `payload_room_count <= 0` block described in START-1, which is a side effect of the zone pha
 - **A1-WIRE-5** `debug_capture.py:510` · both  
   The debug-capture auto-stop timer is not cancelled on unload, so an orphaned timer from before a reload kills a capture started after it  
   User starts a capture with `max_minutes: 60`, reloads the integration, starts a new capture — the new capture silently stops at the old timer's deadline, logged only as 'debug capture auto-stopped after 60 min'. Diagnost
@@ -853,6 +924,9 @@ The same audits recorded **432 areas examined and found correct**.
 - **A4-SRC-4** `rooms/source_refresh.py:274` · roborock _(finder said MEDIUM; verifier corrected)_  
   No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it  
   Redundant cloud calls raise the probability of the get_maps failure that triggers SRC-1's wrong-room dispatch. When a pre-switch response wins the race, the cache holds the previous map's segment ids under the current ma
+- **A5-FACADE-5** `services.yaml:1179` · both  
+  services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects  
+  Calling either service exactly as the HA Developer Tools > Actions form renders it — the form marks Carpet required, so a user filling it in will include it — fails validation with an opaque 'extra keys not allowed' erro
 - **A2-JOB-9** `services/_common.py:58` · both  
   resolved_call_data's docstring claims a "clear error" on unresolvable map_id; the actual failure is a bare TypeError, and no service in either module raises ServiceValidationError  
   A user on an adapter that declares no `active_map` entity (scalar/Tuya Eufy, or any brand-3 adapter) who omits `map_id` — which every schema marks Optional and every services.yaml field describes as "Leave blank to use t
@@ -928,6 +1002,9 @@ The same audits recorded **432 areas examined and found correct**.
 - **A5-RUNPROF-8** `services/snapshots.py:78` · both  
   No service here checks that vacuum_entity_id is a vacuum this integration manages; unknown ids create durable storage buckets, and a read service writes  
   A typo'd entity id in an automation gets a plausible-looking response (`{"vacuum_entity_id": "vacuum.typo", "pause_timeout_minutes_default": 0}`) instead of an error, so the user's real setting change appears to have wor
+- **A2-CB-5** `switch.py:89` · both  
+  Three of the four fan-out subscribers call async_write_ha_state() unguarded while the fourth routes through a hass-is-None guard, so one bad entity aborts the rest of that subscriber's sync silently  
+  When it triggers, some of a map's room switches or number entities silently fail to appear after a room change, with only an "Room update callback failed for ... map ..." ERROR in the log and no user-facing signal. They
 
 </details>
 
@@ -949,22 +1026,23 @@ The same audits recorded **432 areas examined and found correct**.
 Ordered by (verified) × (blast radius) × (cost), not by severity label.
 
 1. **C5** — 2 lines, verified, and it closes a gap introduced by an earlier fix in this campaign. Cheapest real win.
-2. **C19** — verified CRITICAL. A blank `enabled_room_ids:` in an automation destroys a map's entire room configuration, silently, and the docs promise the opposite. Public API, trivially reachable, no undo.
-3. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
-4. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
-5. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
-6. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
-7. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
-8. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
-9. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
-10. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
-11. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
-12. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
-13. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
-14. **C2** — cancel correctness. Needs care around the await boundaries.
-15. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
-16. **C4** — per-phase attribution. Touches the shape of learning data.
-17. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
+2. **C20** — verified CRITICAL, and the most dangerous shape found: silent data loss with a DELAYED fuse. A reload (which `setup_add_vacuum` schedules itself) leaves the old manager's timers alive; minutes later one fires and reverts the store wholesale. The UI keeps showing the lost data until the next restart.
+3. **C19** — verified CRITICAL. A blank `enabled_room_ids:` in an automation destroys a map's entire room configuration, silently, and the docs promise the opposite. Public API, trivially reachable, no undo.
+4. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
+5. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
+6. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
+7. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
+8. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
+9. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
+10. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
+11. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
+12. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
+13. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
+14. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
+15. **C2** — cancel correctness. Needs care around the await boundaries.
+16. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
+17. **C4** — per-phase attribution. Touches the shape of learning data.
+18. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
 ## Calibration
 
@@ -979,6 +1057,7 @@ Measured cost per audit, for scoping future runs.
 | #11 | map source + tracker (scoped) | 3,126 | 1.39M | 27 min |
 | #12 | listeners (input layer) | 2,000 | 1.22M | 22 min |
 | #13 | services (public API, dual mode) | 2,938 | 1.35M | 23 min |
+| #14 | core/manager.py (the hub) | 5,155 | 1.51M | 25 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
