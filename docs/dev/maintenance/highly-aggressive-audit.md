@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**42 changes shipped**, all with tests, all deployed.
+**43 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -97,16 +97,17 @@ comments rather than by a shared helper.
 | `8144e82` | feat(adapters): say out loud which Eufy default a brand just inherited |
 | `994f16e` | docs(maintenance): commit the hostile-audit ledger — completed and open, in one place |
 | `a332a04` | docs(maintenance): fold audit #11 into the ledger — map source lifecycle |
+| `e0bdf9e` | docs(maintenance): fold audit #12 into the ledger — the listener input layer |
 
 ---
 
 ## Open
 
-**210 findings** across 6 audits, none applied. 18 clusters + 167 singles.
+**267 findings** across 7 audits, none applied. 19 clusters + 221 singles.
 
-CRITICAL 12 · HIGH 52 · MEDIUM 66 · LOW 80
+CRITICAL 15 · HIGH 58 · MEDIUM 88 · LOW 106
 
-The same audits recorded **376 areas examined and found correct**.
+The same audits recorded **432 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -238,6 +239,13 @@ The same audits recorded **376 areas examined and found correct**.
 - **Defect:** jobs/active_job.py owns two deliberate predicates (dispatched_job_is_in_flight, run_is_in_flight). The listener layer uses NEITHER -- _common.is_job_active is an independent third implementation, and job_progress gates on a hand-copied {'started','paused'} literal that is a fourth. On Roborock, is_job_active treats a not-yet-added job_active entity as 'not active'. Fifth instance of the campaign's forgotten-override-sibling pattern, and the first where the divergence is a whole LAYER.
 - **Fix:** Route the listener layer at the canonical predicates, or state explicitly why the input layer needs a different question and derive it from the same constant.
 
+#### C19. A public service call wipes a map's entire room configuration, silently — **verified by hand**
+
+- **Seam:** `rooms/room_crud.py:261 (map_bucket['rooms'] = managed_rooms)`
+- **Closes:** A3-ROOMS-1, A3-ROOMS-2, A4-SETUP-1
+- **Defect:** VERIFIED BY EXECUTION. Three routes to one unconditional replace. (1) save_managed_rooms against a map with no cached discovery: discovery.get('rooms',[]) is [], build_managed_rooms returns {}, and line 261 replaces wholesale. (2) `enabled_room_ids:` with a blank YAML value -- cv.ensure_list(None) returns [] (confirmed against installed HA core), so the schema turns null into [], which passes the manager's `is not None` check while _normalize_enabled_room_ids([]) yields an empty set, so every room hits `continue`. The None-vs-empty distinction the manager deliberately relies on is destroyed one layer up, at the schema boundary. (3) setup_save_rooms rebuilds from the stale/absent discovery cache and returns {'status':'success'}. Every per-room setting, rule, grant, colour and floor type is gone; none of the three services declares supports_response, so the caller gets no error and no room_count. Documented behaviour is the OPPOSITE: docs/advanced/03-services.md:255 says 'Omit to keep all rooms enabled'.
+- **Fix:** Guard the wholesale replace: refuse to persist an empty room set when the previous bucket was non-empty and discovery is empty. Separately, stop the schema collapsing null into [] -- an explicit null must either be rejected or preserved as None. Give these three services a response so a caller can tell.
+
 ### Singles
 
 <details><summary><strong>CRITICAL</strong> (2)</summary>
@@ -251,7 +259,7 @@ The same audits recorded **376 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (31)</summary>
+<details><summary><strong>HIGH</strong> (37)</summary>
 
 - **DQ-ZONE-1** `dispatch/manager.py:234` · eufy  
   Zone-clean pass count is never clamped on the Eufy branch — the clamp lives inside the device_mm branch Eufy never enters  
@@ -346,10 +354,28 @@ The same audits recorded **376 areas examined and found correct**.
 - **A3-CRUD-2** `rooms/room_manager.py:64` · both  
   build_managed_rooms matches stored rooms by numeric id while room identity is the slug — a re-save after a re-segment transplants the previous occupant's access grants, rules and dock flag onto a different physical room and erases the reconciliation evidence  
   After any re-segment followed by the ordinary rescan-and-save, rooms silently carry the wrong configuration: the wrong room is flagged as the dock room, access grants point through rooms that are no longer adjacent (so r
+- **A4-SETUP-2** `services/adapter_config.py:67` · both _(finder said CRITICAL; verifier corrected)_  
+  save_adapter_config accepts a two-key config and registers it OVER the live code adapter — every omitted block silently resolves to Eufy behaviour on a Roborock  
+  A Roborock is driven with Eufy vocabulary and Eufy learning engines from the moment the call returns until the next reload: wrong fan/water strings sent to the robot, room boundaries learned from a counter signal Roboroc
+- **A2-JOB-2** `services/job_control.py:170` · both  
+  start_zone_clean is the only start service with zero preconditions — it dispatches to the robot mid-job and strands the tracked room job  
+  Called while a tracked room job is running, the robot abandons the in-flight room clean and starts a zone clean, while the integration's active_job stays `started` with its full room list, timers, and counter/pose sample
+- **A2-JOB-3** `services/job_control.py:238` · both  
+  clear_active_job destroys a running job's record unconditionally and returns nothing — no status precondition, no supports_response, immediate persist  
+  A user or automation clearing what they believe is a stale job while the robot is actually mid-run permanently loses that run's learning data — the run is never finalized, per-room durations are gone, and the incomplete-
+- **A2-JOB-1** `services/job_control.py:322` · both  
+  start_selected_rooms discards every refusal — no supports_response, no exception, DEBUG log only; docs promise a response it cannot return  
+  An automation that calls `eufy_vacuum.start_selected_rooms` at 09:00 gets a green checkmark whether the robot started or was refused for any of eleven reasons. The house is not cleaned, no error, no notification, nothing
+- **A6-DIAG-2** `services/maintenance.py:94` · both  
+  set_maintenance_interval accepts ANY component string, persists it, and returns saved:true — its sibling reset_maintenance raises ServiceValidationError for exactly that input  
+  An automation that copies a working Eufy call to a Roborock (or just typos the component) gets `{"saved": true, "component": "rolling_brush", "interval_hours": 240.0}` back, no error and no log warning, while the interva
+- **A4-SETUP-6** `services/setup.py:243` · both  
+  setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
+  A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (58)</summary>
+<details><summary><strong>MEDIUM</strong> (80)</summary>
 
 - **A6-AGX-2** `core/manager.py:1374` · both _(finder said HIGH; verifier corrected)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
@@ -519,6 +545,72 @@ The same audits recorded **376 areas examined and found correct**.
 - **A4-SRC-2** `rooms/source_refresh.py:280` · roborock _(finder said HIGH; verifier corrected)_  
   set_cached_room_source is called unconditionally on every successful service call, so a response the flatten shim does not recognise (or an empty maps list) silently REPLACES a good cache with {} — logged at DEBUG only  
   Every room silently disappears from the setup tab, the card, and the room picker; after three passes the drift system reports the user's entire room set as removed. Any job whose targets can no longer be resolved degrade
+- **A1-WIRE-2** `services/_common.py:57` · both _(finder said HIGH; verifier corrected)_  
+  resolved_call_data's docstring claims an unresolvable map_id always raises; discover_rooms is the one consumer that silently falls through and persists the payload under an empty-string map key  
+  Pressing "Discover rooms" — exactly what a user does when the active_map sensor is stale/unavailable — returns a clean success (the service is registered without supports_response, and the handler's `except Exception ->
+- **A4-SETUP-5** `services/adapter_config.py:86` · both _(finder said HIGH; verifier corrected)_  
+  save_adapter_config persists to storage BEFORE registering, so a config the registry flags as invalid is written to disk anyway and reloaded at every restart  
+  A user building a custom adapter types a template name that does not exist. The call succeeds silently, the config is written to .storage, and every subsequent cleaning run is dispatched with the Eufy payload shape — on
+- **A4-SETUP-3** `services/adapter_config.py:108` · both _(finder said HIGH; verifier corrected)_  
+  delete_adapter_config unregisters the CURRENTLY REGISTERED adapter — after startup that is the code adapter — leaving the vacuum with no adapter at all  
+  A Roborock user who once experimented with save_adapter_config, then later calls delete_adapter_config to clean up, silently converts their Roborock into a vacuum driven by the Eufy dispatch engine and Eufy defaults unti
+- **A6-DIAG-1** `services/dock.py:83` · eufy _(finder said HIGH; verifier corrected)_  
+  Dock actions return performed:true / "Dock action sent." when the resolved button entity has no state — the press is silently dropped by HA  
+  User taps Wash Mop on the card (or calls eufy_vacuum.wash_mop from an automation), gets a success response and a success toast, and the mop is never washed. Nothing in the response or the raised-error path distinguishes
+- **A6-DIAG-6** `services/dock.py:124` · both  
+  set_dock_event_count overwrites and immediately saves a durable counter for any entity_id, with no managed-vacuum check and no way back except the response body  
+  An automation aimed at the wrong entity id silently seeds a phantom dock_events branch that persists forever and reports success. Aimed at the RIGHT id with a wrong count, it destroys the mop-wash/dust-empty/dry-start li
+- **A2-JOB-4** `services/job_control.py:130` · eufy _(finder said HIGH; verifier corrected)_  
+  start_zone_clean clean_times has no upper bound; the schema comment claims a dispatch-side per-brand ceiling that exists only on the Roborock branch  
+  On a Eufy, `service: eufy_vacuum.start_zone_clean` with `clean_times: 200` from YAML — or a template that produces a bad number — is forwarded verbatim to the device. The robot either repeats the zone far beyond what the
+- **A1-WIRE-1** `services/job_control.py:156` · both _(finder said HIGH; verifier corrected)_  
+  get_manager() is re-fetched after a device-length await, so a config-entry reload mid-dispatch loses the just-started job record (or raises a bare KeyError)  
+  The robot is cleaning but the integration has no active-job record: the card shows no run in progress, no per-room progress or attribution, no learning sample, and no finalization. In path (b) nothing is logged at all —
+- **A2-JOB-7** `services/job_control.py:156` · both  
+  async_save() sits after the try/except in every job_control handler — a raise after dispatch leaves a running job in memory only  
+  The robot is cleaning, the user sees a red "Failed to start cleaning: …" error, and the active job exists only in RAM. A restart or reload before the next unrelated save orphans the run: it is never finalized, never lear
+- **A6-DIAG-3** `services/maintenance.py:46` · both  
+  set_maintenance_interval bypasses the min/max its own docstring claims, and interval_hours: 0 silently turns off the consumable's alert  
+  A YAML typo (`interval_hours: 0`, or hours vs. days confusion producing 10 instead of 240) permanently disables the replace-me alert for that filter/brush with a success response, or pushes the interval past the adapter'
+- **A3-ROOMS-4** `services/room_profiles.py:43` · both _(finder said HIGH; verifier corrected)_  
+  services.yaml advertises required fields that the voluptuous schemas reject — three services fail outright when the user fills the form HA renders  
+  A user who opens Developer Tools -> Actions, picks 'Save user room profile', and fills in every field HA marks required gets a hard validation failure and cannot save a custom profile through the UI at all. The card has
+- **A3-ROOMS-7** `services/room_profiles.py:52` · both  
+  save_user_room_profile silently overwrites an existing custom profile and reports saved: true, while its sibling rename_room_profile refuses the identical collision  
+  An automation that re-saves a profile under a name the user already uses replaces the user's saved settings with no warning and a success response. The card has no caller for this service (src/actions/room-profiles.js:26
+- **A3-ROOMS-5** `services/room_profiles.py:168` · both _(finder said HIGH; verifier corrected)_  
+  apply_room_profile silently no-ops on unknown room ids and returns a success-shaped response with no way to tell  
+  An automation that applies a named profile to rooms after a re-segment renumbered them (Roborock does this routinely) reports success while changing nothing — the rooms clean at their old settings and the user has no sig
+- **A3-ROOMS-3** `services/rooms.py:79` · both _(finder said HIGH; verifier corrected)_  
+  save_managed_rooms stamps every room's floor type as user-confirmed while its schema makes it structurally impossible to supply one  
+  A carpeted room created through this service is recorded as hardwood and confirmed, so the user is never asked. The carpet invariants in _protected_room_config (profiles/manager.py:98-105 — force water 'Off', edge_moppin
+- **A3-ROOMS-6** `services/rooms.py:102` · both _(finder said HIGH; verifier corrected)_  
+  update_room_fields accepts any clean_mode string; a casing/spelling variant keeps water in storage and in the UI but silently drops it from the wire payload  
+  A hand-written automation that sets clean_mode to 'Vacuum_Mop' or 'Mop' (there is no enumeration anywhere for the user to copy the exact token from) produces a room the card shows as mopping at water 'Medium' with edge m
+- **A3-ROOMS-9** `services/rooms.py:103` · both  
+  update_room_fields accepts any fan_speed string; on Roborock an unrecognised value leaves the device's previous suction in place with no error  
+  A room configured through the service with a slightly-off fan speed cleans at the wrong suction indefinitely. The card shows the value the user typed, get_payload_state echoes it back, and nothing anywhere reports that t
+- **A5-RUNPROF-4** `services/run_profiles.py:85` · both  
+  set_run_profile_steps accepts a bare `list` and silently drops or clamps every malformed step; only 'at least one room_group survived' is enforced  
+  A YAML author who mistypes a step type or a percent field gets `saved: True` and a profile that has lost its charge stop — the robot then runs the whole sequence in one go and can strand mid-run instead of docking to cha
+- **A5-RUNPROF-1** `services/run_profiles.py:97` · both _(finder said HIGH; verifier corrected)_  
+  save_run_profile never inspects the manager's `saved` flag — a save that stored nothing returns a success-shaped response and raises nothing  
+  An automation whose 'save my current selection as a profile' step runs when the queue is empty (e.g. after a run, where `_clear_room_selections_after_start` turns every room off on a successful start) reports success and
+- **A5-RUNPROF-2** `services/run_profiles.py:114` · both _(finder said HIGH; verifier corrected)_  
+  apply_run_profile persists a full room-selection wipe and reports no error when the profile's rooms no longer exist on the map  
+  After room ids churn (map rebuild / factory reset — Eufy re-scan renumbers segments; a Roborock map re-save likewise), applying an older profile clears the user's entire current room selection, applies nothing, and neith
+- **A5-RUNPROF-3** `services/run_profiles.py:146` · both _(finder said HIGH; verifier corrected)_  
+  overwrite_run_profile exposes the step-sequence destruction with no warning, no confirmation, no response signal — and commits it with async_save  
+  A user (or automation) that overwrites a stepped profile — vacuum group A, charge to 95%, mop group B, or a mop-dry `wait` — loses the charge/wait boundaries permanently and irrecoverably at the moment of the call. The n
+- **A4-SETUP-10** `services/setup.py:100` · both  
+  floor_types accepts any string; an unrecognised value is silently clamped to "hardwood" at read time, so a mistyped carpet becomes a wet-mopped carpet  
+  A YAML caller sets a floor type with a typo or picks a documented-but-unmapped value; the service returns success and the stored value is silently discarded. In the carpet case the robot mops a carpet with water at the h
+- **A4-SETUP-7** `services/setup.py:215` · both  
+  Three setup handlers subscript data["map_id"] after resolved_call_data and raise a bare KeyError — the helper's docstring claims the manager raises a clear error instead  
+  A YAML caller following docs/advanced/03-services.md (which documents map_id as optional on all three) gets an opaque `KeyError: 'map_id'` and an aborted automation whenever the vacuum is offline or HA has just restarted
+- **A4-SETUP-11** `services/setup.py:229` · both  
+  setup_delete_map auto-resolves an omitted map_id to whatever map happens to be active at call time  
+  An automation written while the upstairs map was active later deletes the downstairs map, taking its rooms, queue, job records and learned history with it. docs/advanced/03-services.md:1498 flags the operation as irrever
 - **A1-ID-4** `setup/drift.py:540` · both  
   Drift keys its history by bare device room_id across ALL maps but feeds it only the ACTIVE map's discovery, so a multi-map vacuum's inactive rooms decay toward 'removed' and colliding ids mask each other  
   A user with an upstairs and a downstairs map is repeatedly told that the rooms on whichever floor is not currently active have been removed from the vacuum, with the wrong floor's name attached; and a room genuinely dele
@@ -528,7 +620,7 @@ The same audits recorded **376 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (76)</summary>
+<details><summary><strong>LOW</strong> (102)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -536,6 +628,9 @@ The same audits recorded **376 areas examined and found correct**.
 - **DQ-ZONE-5** `core/manager.py:4030` · both _(finder said MEDIUM; verifier corrected)_  
   zone_bounds is computed and shipped in the dashboard snapshot but has no consumer anywhere — and the card replaces the precise refusal message with a generic toast  
   Roborock's declared ceiling is 3.05 m² (roborock/adapter.py:614) — about a 1.75 m square, smaller than many ordinary draws — so a user drawing a normal box gets a refusal on press, and the actionable text explaining WHY
+- **A1-WIRE-5** `debug_capture.py:510` · both  
+  The debug-capture auto-stop timer is not cancelled on unload, so an orphaned timer from before a reload kills a capture started after it  
+  User starts a capture with `max_minutes: 60`, reloads the integration, starts a new capture — the new capture silently stops at the old timer's deadline, logged only as 'debug capture auto-stopped after 60 min'. Diagnost
 - **DQ-ACT-7** `dispatch/manager.py:421` · future_brand_only  
   The OFF-fallback lowercases the select's options for the membership test but then sends the lowercased string as the option value  
   On a future brand whose select uses capitalized or numeric options, the mop-intensity pre-call silently no-ops and the run uses whatever water the device was last left on — the same physical outcome as DQ-ACT-5, reached
@@ -758,6 +853,81 @@ The same audits recorded **376 areas examined and found correct**.
 - **A4-SRC-4** `rooms/source_refresh.py:274` · roborock _(finder said MEDIUM; verifier corrected)_  
   No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it  
   Redundant cloud calls raise the probability of the get_maps failure that triggers SRC-1's wrong-room dispatch. When a pre-switch response wins the race, the cache holds the previous map's segment ids under the current ma
+- **A2-JOB-9** `services/_common.py:58` · both  
+  resolved_call_data's docstring claims a "clear error" on unresolvable map_id; the actual failure is a bare TypeError, and no service in either module raises ServiceValidationError  
+  A user on an adapter that declares no `active_map` entity (scalar/Tuya Eufy, or any brand-3 adapter) who omits `map_id` — which every schema marks Optional and every services.yaml field describes as "Leave blank to use t
+- **A4-SETUP-4** `services/adapter_config.py:57` · both _(finder said HIGH; verifier corrected)_  
+  save_adapter_config / delete_adapter_config declare no supports_response and return None on every rejection path — a rejected write is indistinguishable from a successful one  
+  An automation or script calling save_adapter_config with a config missing adapter_id gets a clean successful service call and continues to the next step; nothing was written. The only evidence is a log line the user is n
+- **A4-SETUP-14** `services/adapter_config.py:198` · both  
+  get_vacuum_capabilities uses the raising get_manager() while its siblings in the same module use the tolerant .get() form, and it writes storage on a read-shaped service  
+  Calling the capability service during a reload produces an unhandled KeyError instead of a clean error, and a read-only-looking call touches .storage on every invocation.
+- **A6-DIAG-8** `services/dock.py:51` · future_brand_only  
+  Dock event-type vocabulary is hand-copied into three places, none derived from the adapter that declares it  
+  No user-visible defect on either shipped brand today. A third adapter that names its dock events differently gets `set_dock_event_count` rejecting every one of its own declared event types at the schema, with the fix req
+- **A6-DIAG-7** `services/dock.py:59` · both _(finder said MEDIUM; verifier corrected)_  
+  get_dock_action_status raises a raw TypeError when map_id cannot be auto-resolved — the only unwrapped handler in the three modules, and _common's docstring claims the opposite  
+  Both brands hit this in the restart window and whenever the active-map entity reads unknown/unavailable (Eufy's `sensor.<id>_active_map` before the first map sync; Roborock's `select.<id>_selected_map` while the coordina
+- **A1-WIRE-3** `services/dock.py:174` · both  
+  Sixteen registered services documented as public API have no services.yaml descriptor, including set_dock_event_count whose five dock siblings all have one  
+  A YAML author who follows docs/advanced/03-services.md to `set_dock_event_count` or any setup_* service finds it in Developer Tools -> Actions with no name, no description, and no field UI — just a bare data editor with
+- **A6-DIAG-4** `services/errors.py:71` · both _(finder said MEDIUM; verifier corrected)_  
+  acknowledge_error returns the same {"acknowledged": true} whether the latch was deleted, merely MARKED, or was never there — and both docstrings still describe the pre-audit delete semantics  
+  A caller (card or automation) that wants to confirm the alert was cleared cannot: `acknowledged: true` is returned for a vacuum with no error at all, and the mid-run case reports the same success while the latch is delib
+- **A6-DIAG-5** `services/errors.py:93` · both _(finder said MEDIUM; verifier corrected)_  
+  get_recent_errors — a read-only service — creates and persists a durable error_tracker record for any entity_id the caller names  
+  A mistyped or foreign `vacuum_entity_id` in an automation looks like a healthy vacuum with a clean error history — the user concludes there are no errors when in fact they queried nothing. The storage file accumulates pe
+- **A6-DIAG-9** `services/maintenance.py:95` · both  
+  Mutate-then-save is not atomic in all three write services: a save failure surfaces an error while the change has already taken effect in memory  
+  On a storage write failure the user sees "Failed to save maintenance interval" (or, for the dock/reset services, an unhandled traceback) and reasonably re-checks or re-enters the value — but the change is already live an
+- **A2-JOB-5** `services/queue.py:40` · both _(finder said MEDIUM; verifier corrected)_  
+  Break schemas do not enforce the break_type→parameter dependency, and the two sibling schemas disagree on which break types exist  
+  A YAML user builds a stepped queue with `add_queue_break: {break_type: wait, after_index: 2}`, gets a successful service call, and the break is never added. Their next run is a flat clean with no pause — the robot cleans
+- **A2-JOB-6** `services/queue.py:51` · both _(finder said MEDIUM; verifier corrected)_  
+  get_queue_steps returns `breaks` in a shape set_queue_breaks rejects — the documented read-modify-write round trip fails validation  
+  The obvious automation pattern — call get_queue_steps into a response_variable, edit one break's minutes, send the list back through set_queue_breaks — fails with a voluptuous error the user has to reverse-engineer, beca
+- **A2-JOB-8** `services/queue.py:151` · both  
+  Queue mutators create and persist a storage bucket for any syntactically-valid entity id, including one that is not a vacuum this integration manages  
+  A typo in an automation permanently accumulates junk vacuum/map entries in the integration's store, with no error and a response that says only "needs_two_rooms" rather than "unknown vacuum". Storage junk rather than a f
+- **A3-ROOMS-8** `services/room_profiles.py:97` · both _(finder said MEDIUM; verifier corrected)_  
+  delete_room_profile / rename_room_profile leave dangling profile_name references on rooms, which then silently resolve to a built-in preset  
+  After deleting or renaming a custom profile, every room that used it reports selected_profile_name/'selected_profile_label' as 'vacuum_quick'/'Vacuum Only Quick' in the room editor and in get_effective_room_details, whil
+- **A3-ROOMS-11** `services/room_profiles.py:122` · both  
+  Error-surfacing is inconsistent across the area: rooms.py wraps 4 of 5 handlers, room_profiles.py wraps 0 of 8, access_graph.py wraps 0 of 2  
+  The same root cause produces a readable error from one service and an unhandled-exception traceback plus a generic 'Unknown error' toast from its sibling. For the supports_response services the websocket call is rejected
+- **A1-WIRE-4** `services/room_profiles.py:203` · both  
+  get_room_profiles is the only one of the 79 registrations with no schema, so caller-supplied scoping arguments are accepted and silently ignored  
+  A caller who passes `vacuum_entity_id` or `map_id` — a reasonable assumption given that every neighbouring room-profile service requires `vacuum_entity_id` — gets the global profile library back with no indication the ar
+- **A3-ROOMS-10** `services/rooms.py:251` · both _(finder said MEDIUM; verifier corrected)_  
+  save_managed_rooms is the most destructive service in the area and the only mutation registered without supports_response  
+  The one service in this area that can replace a map's entire room set wholesale gives the caller nothing to check — not room_count, not the resulting room list. An automation cannot detect ROOMS-1 or ROOMS-2 even defensi
+- **A5-RUNPROF-5** `services/run_profiles.py:71` · both _(finder said MEDIUM; verifier corrected)_  
+  rename_run_profile accepts a blank name and silently relabels the profile 'Untitled', returning renamed:True — the sibling save rejects the same input  
+  An automation renaming a profile from a template that renders empty (`name: "{{ states('input_text.profile_name') }}"` while the helper is empty/unknown/unavailable) destroys the profile's label — the user's named run be
+- **A5-RUNPROF-7** `services/run_profiles.py:90` · both  
+  get_saved_run_profiles and get_dashboard_snapshot lack the package's try/except wrap; an unresolvable map_id surfaces as a raw TypeError, contradicting resolved_call_data's docstring  
+  During an HA restart or while the vacuum's active_map entity is unavailable, the card's primary read (get_dashboard_snapshot) and the run-profile library read fail with an unactionable internal error instead of a message
+- **A5-RUNPROF-6** `services/run_profiles.py:152` · both _(finder said MEDIUM; verifier corrected)_  
+  overwrite_run_profile with no rooms enabled returns overwritten:False as a success — the raise gate matches one literal reason, not the failure flag  
+  An automation that refreshes a stored profile after a run — the common 'clean these rooms, then remember what I just did' shape — silently no-ops when the selection has already been cleared, and the user believes the pro
+- **A4-SETUP-9** `services/setup.py:131` · both _(finder said MEDIUM; verifier corrected)_  
+  adapter `setup.steps` is never validated at registration despite two docstrings and the schema claiming it is; two declared step IDs have no completion writer and strand the wizard permanently  
+  Either the wizard silently skips a mandatory step and declares setup complete, or it pins next_step to a step no service can ever mark done and the user is stranded with a permanently incomplete onboarding panel and setu
+- **A4-SETUP-12** `services/setup.py:184` · both _(finder said MEDIUM; verifier corrected)_  
+  setup_get_map_rooms returns a success-shaped empty room list when the runtime manager is missing — the caller cannot tell "integration not loaded" from "map has no rooms"  
+  During the reload window that setup_add_vacuum itself schedules (services/setup.py:165), the room editor opens with zero rooms and no error. If the user then clicks Save, the card sends `enabled_room_ids: []` (src/bindin
+- **A4-SETUP-8** `services/setup.py:222` · both _(finder said MEDIUM; verifier corrected)_  
+  setup_save_rooms stamps the setup step complete unconditionally, unlike both of its sibling step-advancing handlers  
+  The setup panel reports the wizard complete and `setup_complete: true` for a vacuum whose map now has zero configured rooms. The user is told onboarding finished; the queue has nothing to build from.
+- **A4-SETUP-13** `services/setup.py:336` · both  
+  setup_set_map_camera stores an unvalidated entity_id and reports success even when the entity does not exist  
+  A typo in the camera entity id is confirmed as set. The Map view then shows no live backdrop and the user has no signal connecting the two — the stored value looks correct in setup_get_status (status.py:207) because that
+- **A4-SETUP-15** `services/setup.py:353` · both  
+  None of the 10 setup_* services and 5 of the 6 adapter-config services have services.yaml or translation entries  
+  In Developer Tools → Actions these 15 services appear with the raw slug and no field editors, so the only way to call them correctly is to hand-write YAML from the prose docs — for services including the two most destruc
+- **A5-RUNPROF-8** `services/snapshots.py:78` · both  
+  No service here checks that vacuum_entity_id is a vacuum this integration manages; unknown ids create durable storage buckets, and a read service writes  
+  A typo'd entity id in an automation gets a plausible-looking response (`{"vacuum_entity_id": "vacuum.typo", "pause_timeout_minutes_default": 0}`) instead of an error, so the user's real setting change appears to have wor
 
 </details>
 
@@ -779,21 +949,22 @@ The same audits recorded **376 areas examined and found correct**.
 Ordered by (verified) × (blast radius) × (cost), not by severity label.
 
 1. **C5** — 2 lines, verified, and it closes a gap introduced by an earlier fix in this campaign. Cheapest real win.
-2. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
-3. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
-4. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
-5. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
-6. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
-7. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
-8. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
-9. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
-10. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
-11. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
-12. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
-13. **C2** — cancel correctness. Needs care around the await boundaries.
-14. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
-15. **C4** — per-phase attribution. Touches the shape of learning data.
-16. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
+2. **C19** — verified CRITICAL. A blank `enabled_room_ids:` in an automation destroys a map's entire room configuration, silently, and the docs promise the opposite. Public API, trivially reachable, no undo.
+3. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
+4. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
+5. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
+6. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
+7. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
+8. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
+9. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
+10. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
+11. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
+12. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
+13. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
+14. **C2** — cancel correctness. Needs care around the await boundaries.
+15. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
+16. **C4** — per-phase attribution. Touches the shape of learning data.
+17. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
 ## Calibration
 
@@ -807,6 +978,7 @@ Measured cost per audit, for scoping future runs.
 | #10 | rooms / identity | 2,531 | 1.07M | 21 min |
 | #11 | map source + tracker (scoped) | 3,126 | 1.39M | 27 min |
 | #12 | listeners (input layer) | 2,000 | 1.22M | 22 min |
+| #13 | services (public API, dual mode) | 2,938 | 1.35M | 23 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
