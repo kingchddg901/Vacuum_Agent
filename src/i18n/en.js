@@ -365,6 +365,8 @@ export const en = {
   "learning.queue_missed_rooms": "Queue missed rooms",  // Imperative button: re-add the rooms a run skipped to the clean queue ('Queue' is the verb)
   "learning.returning_to_dock": "Returning to dock",
   "learning.robot_stuck": "Robot may be stuck in current room",  // stall warning: robot may be stuck in the room it's cleaning
+  "learning.room_skipped": "Skipped",  // Live-progress marker for a room the robot passed over mid-run. Shown INSTEAD of
+  // an ETA — a time for a room that will not be cleaned is a false promise.
   "learning.room_fallback": "Room {id}",
   "learning.stall_detail": "({elapsed} elapsed)",
   "learning.stall_detail_expected": "({elapsed} elapsed, expected {expected})",

@@ -391,10 +391,19 @@ export function applyLearningRenderers(proto) {
               return this._renderLearningCurrentRow(entry);
             }
 
-            if (!entry.current && !entry.remaining && !entry.completed) {
-              return this._renderLearningCurrentRow(entry);
+            // A SKIPPED room is not the room being cleaned. The backend flags it, and the
+            // sibling queue-chip surface already reads that flag — this list did not, and
+            // the all-flags-false catch-all below routed it into the CURRENT row. During a
+            // run where the robot takes a room out of queue order (common on Eufy), the
+            // list showed several rows at once marked "▶ <Room>" in the actively-cleaning
+            // style: the real one plus every room the backend had marked skipped.
+            if (entry.skipped) {
+              return this._renderLearningRemainingRow(entry, { skipped: true });
             }
 
+            // Anything still unclassified falls to the REMAINING row, not the current one.
+            // "Not yet done" is the honest default for an entry we cannot place; claiming
+            // it is being cleaned right now is not.
             return this._renderLearningRemainingRow(entry);
           }).join("")}
         </div>
@@ -691,18 +700,24 @@ proto._renderLearningCurrentRow = function (entry) {
   `;
 };
 
-  proto._renderLearningRemainingRow = function (entry) {
+  proto._renderLearningRemainingRow = function (entry, opts = {}) {
+    // `skipped` marks a room the backend reported the robot passed over. It renders in the
+    // remaining style with a distinct marker and no ETA — an ETA for a room that will not
+    // be cleaned is a false promise. It must never render as the current row.
+    const skipped = Boolean(opts.skipped);
     return `
       <div
-        class="evcc-learning-progress-row evcc-learning-progress-row--remaining evcc-learning-progress-row--animated"
+        class="evcc-learning-progress-row evcc-learning-progress-row--remaining${skipped ? " evcc-learning-progress-row--skipped" : ""} evcc-learning-progress-row--animated"
         data-learning-key="${this.escapeHtml(String(entry.room_id ?? entry.position ?? ""))}"
       >
         <div class="evcc-learning-progress-main">
           <div class="evcc-learning-progress-name">
-            ○ ${entry.room_name != null ? this.escapeHtml(entry.room_name) : this.t("learning.room_fallback", { id: this.escapeHtml(String(entry.room_id ?? "")) })}
+            ${skipped ? "⤫" : "○"} ${entry.room_name != null ? this.escapeHtml(entry.room_name) : this.t("learning.room_fallback", { id: this.escapeHtml(String(entry.room_id ?? "")) })}
           </div>
           <div class="evcc-learning-progress-meta">
-            ${entry.eta_at ? this.escapeHtml(this._formatLearningWallClock(entry.eta_at)) : ""}
+            ${skipped
+              ? this.escapeHtml(this.t("learning.room_skipped"))
+              : entry.eta_at ? this.escapeHtml(this._formatLearningWallClock(entry.eta_at)) : ""}
           </div>
         </div>
       </div>

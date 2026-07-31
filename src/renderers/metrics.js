@@ -803,7 +803,16 @@ export function applyMetricsRenderers(proto) {
 
     const numFmt = (raw, digits = 2) => {
       const n = Number(raw);
-      return Number.isFinite(n) ? n.toFixed(digits).replace(/\.?0+$/, "") : "—";
+      if (!Number.isFinite(n)) return "—";
+      // Trim only INSIDE a fractional part. The previous pattern was /\.?0+$/, whose
+      // optional dot let it eat the trailing zero DIGITS of a whole number: with digits=0,
+      // toFixed gives "100" and the regex matched the "00", rendering battery health as
+      // "1%". Also "90"->"9", "20"->"2", and — worse, and missed by the audit — "0"->""
+      // (a blank cell, not a zero). The dot is now mandatory, so an integer is untouched.
+      return n
+        .toFixed(digits)
+        .replace(/(\.\d*?)0+$/, "$1")   // 12.50 -> 12.5 ; 3.00 -> 3.
+        .replace(/\.$/, "");            // 3. -> 3
     };
 
     // HA reports "unknown" / "unavailable" as literal strings for sensors
