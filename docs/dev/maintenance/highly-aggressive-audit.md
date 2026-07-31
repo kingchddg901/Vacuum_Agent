@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**48 changes shipped**, all with tests, all deployed.
+**40 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -104,22 +104,14 @@ comments rather than by a shared helper.
 | `0e9f28c` | fix(rooms): a new room's settings come from its BRAND's default profile |
 | `300dc1d` | test(adapters): give the contract test teeth — and it immediately found three real gaps |
 | `8144e82` | feat(adapters): say out loud which Eufy default a brand just inherited |
-| `994f16e` | docs(maintenance): commit the hostile-audit ledger — completed and open, in one place |
-| `a332a04` | docs(maintenance): fold audit #11 into the ledger — map source lifecycle |
-| `e0bdf9e` | docs(maintenance): fold audit #12 into the ledger — the listener input layer |
-| `b96c0ee` | docs(maintenance): fold audit #13 into the ledger — services, the public API |
-| `4262f34` | docs(maintenance): fold audit #14 into the ledger — core/manager.py, the hub |
-| `fc721c9` | docs(maintenance): fold audit #15 into the ledger — the integration assembly script |
-| `44b3cd6` | docs(maintenance): fold audit #16 into the ledger — the learning consumers |
-| `d48f7ae` | docs(maintenance): fold audit #17 into the ledger — themes/manager.py |
 
 ---
 
 ## Open
 
-**376 findings** — 369 across 11 audits plus 7 from direct reads. None applied. 29 clusters + 301 singles.
+**383 findings** — 369 across 11 audits plus 14 from direct reads. None applied. 29 clusters + 308 singles.
 
-CRITICAL 17 · HIGH 73 · MEDIUM 135 · LOW 151
+CRITICAL 17 · HIGH 74 · MEDIUM 137 · LOW 155
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -343,7 +335,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (45)</summary>
+<details><summary><strong>HIGH</strong> (46)</summary>
 
 - **A5-FACADE-2** `core/manager.py:1426` · both  
   discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
@@ -351,6 +343,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-START-1** `core/manager.py:2863` · both  
   get_start_status validates PHASE 0's room count as if it were the whole job — a stepped run whose first phase is a zone is refused with a false "invalid payload" error  
   A run profile like "clean the entryway zone, then the kitchen", or any rooms+zone queue whose first room happens to be blocked by a room rule that moment, refuses to start and reports "Room-clean payload is missing or in
+- **DR-DBG-1** `debug_capture.py:173` · n/a (drop-in helper) · `direct read`  
+  exc_info tracebacks are stored UNREDACTED and UNTRUNCATED — both published claims hold only for the message field  
+  PROVEN by execution, not read. The forum post states 'Secrets (token/password/api_key/bearer) are masked before a record is stored' and 'Capping each message (I use ~2 kB, eliding the rest) is what actually killed the mu
 - **DQ-ZONE-1** `dispatch/manager.py:234` · eufy  
   Zone-clean pass count is never clamped on the Eufy branch — the clamp lives inside the device_mm branch Eufy never enters  
   An automation / YAML / script call `eufy_vacuum.start_zone_clean` (or `clean_saved_zone`/`clean_saved_zones`) with clean_times above the device ceiling reaches the robot unmodified: the value lands in the SelectZonesClea
@@ -483,7 +478,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (115)</summary>
+<details><summary><strong>MEDIUM</strong> (117)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -518,6 +513,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **DQ-ACT-6** `core/manager.py:5005` · roborock  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
+- **DR-DBG-4** `debug_capture.py:374` · n/a (drop-in helper) · `direct read`  
+  An unrecognised `areas` value silently produces a capture that records nothing  
+  _resolve_areas falls back to the substring f'.{a}' for any name not in the configured map. Via the UI the options are generated so they are always valid, but the debug_capture_start SERVICE takes free-form strings: `area
+- **DR-DBG-2** `debug_capture.py:605` · n/a (drop-in helper) · `direct read`  
+  The switch bypasses the auto-stop bookkeeping the services maintain — forgotten override sibling at the entry-point layer  
+  max_minutes lives in an `autostop` dict closed over inside register_debug_services; only the start/stop SERVICES cancel it. DebugCaptureSwitch.async_turn_on/off call capture.start()/stop() directly and lexically cannot r
 - **DQ-ZONE-2** `dispatch/manager.py:120` · both  
   supports_zone_clean is honored by the card but never consulted by the actuation path  
   A model catalog entry that declares supports_zone_clean: False — the exact 'a model that categorically cannot zone-clean had no way to say so' case the capability was added for — still gets a zone_clean/app_zoned_clean s
@@ -833,7 +834,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (139)</summary>
+<details><summary><strong>LOW</strong> (143)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -871,6 +872,18 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-START-2** `core/manager.py:5021` · both _(finder said MEDIUM; verifier corrected)_  
   start_selected_rooms dispatches phase 0 with no phase_type branch, unlike its phase_runner sibling — and _build_steps_phases' docstring claims a guard that does not exist  
   Latent today: the only thing stopping a segment-clean command with an empty room list from reaching the robot is the accidental `payload_room_count <= 0` block described in START-1, which is a side effect of the zone pha
+- **DR-DBG-5** `debug_capture.py:263` · n/a (drop-in helper) · `direct read`  
+  The restore guard cannot distinguish its own DEBUG from a user's mid-capture `logger:` DEBUG  
+  The post claims stop 'restores the prior level + propagate — but only if they're still the values it installed, so it won't clobber a logger: change you made mid-capture.' True for any level EXCEPT debug: the guard is `l
+- **DR-DBG-6** `debug_capture.py:286` · n/a (drop-in helper) · `direct read`  
+  status() reports stale started_at / services / areas after a stop  
+  stop() clears _ring, _logger_name and the prior-state fields but leaves _areas, _targets and _started_at. debug_capture_status then returns active: False beside a populated services list and a started_at from the finishe
+- **DR-DBG-7** `debug_capture.py:457` · n/a (drop-in helper) · `direct read`  
+  Two dumps in the same second overwrite each other  
+  The dump filename is second-resolution (debug-%Y%m%d-%H%M%S.log) and so is the .tmp path. Two dumps inside one second silently collide -- plausible when the switch auto-dumps on off and the user also calls debug_capture_
+- **DR-DBG-3** `debug_capture.py:483` · n/a (drop-in helper) · `direct read`  
+  Reload orphans a pending auto-stop timer  
+  `autostop` is re-created per register_debug_services call, so reloading the integration while a max_minutes timer is armed leaves the old async_call_later uncancellable. It fires later and stops an unrelated capture. Sam
 - **A1-WIRE-5** `debug_capture.py:510` · both  
   The debug-capture auto-stop timer is not cancelled on unload, so an orphaned timer from before a reload kills a capture started after it  
   User starts a capture with `max_minutes: 60`, reloads the integration, starts a new capture — the new capture silently stops at the old timer's deadline, logged only as 'debug capture auto-stopped after 60 min'. Diagnost
