@@ -152,6 +152,33 @@ def _detect_maintenance_sources(
 # ----------------------------------------------------------------------
 
 
+#: Every flag ``capability_hints`` may carry — the ONLY keys this module reads.
+#:
+#: A hint is a silent no-op if the key is not in this set: ``_hints.get(name)`` simply
+#: misses and the derived/default value stands. That makes a typo indistinguishable from
+#: an undeclared capability, which is the same silent-wrong-answer shape as the hardcoded
+#: `True` that ``_hint_wins`` exists to prevent — a brand declaring
+#: ``supports_zone_cleen: False`` would be ignored exactly as thoroughly as one declaring
+#: nothing. ``registry._validate_adapter`` checks adapter ``capability_hints`` against this
+#: set so the typo is caught at registration instead of at "why is this control showing?".
+#:
+#: Keep in sync with the ``_hints`` reads below; the contract test asserts it matches.
+KNOWN_CAPABILITY_HINTS: frozenset[str] = frozenset({
+    "has_attribute_rooms",
+    "supports_custom_room_config",
+    "supports_edge_mopping",
+    "supports_empty_dust",
+    "supports_mop_dry",
+    "supports_mop_features",
+    "supports_mop_wash",
+    "supports_passes",
+    "supports_path_control",
+    "supports_room_clean",
+    "supports_water_control",
+    "supports_zone_clean",
+})
+
+
 def detect_capabilities(
     hass: HomeAssistant,
     *,

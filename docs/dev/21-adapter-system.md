@@ -475,4 +475,27 @@ silent wrong default.
 5. Register via `register_adapter_config(vacuum_entity_id, config)` at startup.
 6. The adapter's `setup.steps` declaration controls which setup-wizard screens the user sees (see `setup/drift.py`).
 
+### 7.1 What the framework checks, and what it will not tell you
+
+Three layers, deliberately different in strictness:
+
+| Layer | When | On failure |
+|---|---|---|
+| `registry._validate_adapter` | Every registration | Logged as a warning; a non-dict config raises. Gates the four engine blocks (`mapping`, `job_segmenter`, `room_attribution`, `room_profiles`), `dispatch.template`, and `capability_hints` key names. |
+| `registry._warn_eufy_fallbacks` | Every registration | Advisory warning only. Names each engine block you did **not** declare, the Eufy default that takes over, and how to opt out. |
+| `tests/adapters/test_adapter_contract.py` | CI | Red. Walks the config against `ADAPTER_CONFIG_SCHEMA` — required keys, types, enum membership, **and any key the schema does not declare**. |
+
+**Every permissive default in this framework resolves to a concrete *Eufy* answer, not to
+a refusal.** An absent `job_segmenter` runs Eufy's counter-plateau segmenter; an absent
+`room_attribution` runs Eufy's anchor-winding attributor. Against a brand that emits
+neither signal that is not a crash — it is wrong learned boundaries, quietly. That is why
+the advisory exists, and why the opt-out engines (`noop_job_fallback`,
+`noop_room_attribution`, `noop_fallback`) are worth declaring explicitly even when you
+mean "this brand has nothing here".
+
+**`capability_hints` keys are checked against `KNOWN_CAPABILITY_HINTS`.** A hint the
+reader does not know is a silent no-op — `_hints.get(name)` misses and the default stands
+— so a typo is indistinguishable from declaring nothing, and a brand saying "I
+categorically cannot do this" gets ignored as thoroughly as one saying nothing.
+
 See the [porting guide](../contributing/porting-guide.md) for the complete porting walkthrough.

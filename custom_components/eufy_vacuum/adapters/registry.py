@@ -168,6 +168,8 @@ class AdapterCoordinator:
                     f"refusing to register"
                 )
 
+        _warn_eufy_fallbacks(vacuum_entity_id, config)
+
         self._registry[vacuum_entity_id] = config
         _LOGGER.debug(
             "adapter_registry: registered adapter '%s' for %s (source=%s)",
@@ -221,6 +223,62 @@ class AdapterCoordinator:
 # bare-function shims as well as the coordinator method. The shape is
 # stable: dict-of-config -> list-of-issue-strings.
 # ---------------------------------------------------------------------------
+
+
+#: Blocks whose ABSENCE resolves to concrete Eufy behaviour rather than to a refusal, and
+#: what the framework will silently do instead. Keyed by block -> (what it decides, the
+#: Eufy default, the opt-out declaration).
+#:
+#: The engine resolvers already warn on an UNKNOWN name; an ABSENT block was silent,
+#: because a resolver only receives a name and cannot tell "no adapter registered at all"
+#: (legacy, fine) from "an adapter registered and omitted this" (a brand-3 bug). At
+#: registration the whole config is in hand and the difference is knowable, so that is
+#: where the advisory belongs.
+_EUFY_FALLBACK_BLOCKS: dict[str, tuple[str, str, str]] = {
+    "mapping": (
+        "map segmentation",
+        "eufy_cv_v1 (Eufy computer-vision room splitting)",
+        "declare mapping.segmenter_engine='noop_fallback' if the brand yields no map image",
+    ),
+    "job_segmenter": (
+        "per-room run boundaries",
+        "eufy_counter_v1 (Eufy counter-plateau detection)",
+        "declare job_segmenter.engine='noop_job_fallback' if the brand emits no per-room signal",
+    ),
+    "room_attribution": (
+        "external-run room attribution",
+        "eufy_anchor_winding_v1 (Eufy live-pose anchor winding)",
+        "declare room_attribution.engine='noop_room_attribution' to disable auto-attribution",
+    ),
+}
+
+
+def _warn_eufy_fallbacks(vacuum_entity_id: str, config: dict[str, Any]) -> None:
+    """Log once per registration for each engine block this adapter did not declare.
+
+    RC-4: every permissive default in this framework resolves to a concrete EUFY answer,
+    not to a refusal. A brand-3 config assembled from the schema therefore runs Eufy's
+    counter-plateau segmenter and anchor-winding attribution against a device emitting
+    neither signal — no crash, no warning, wrong learned boundaries.
+
+    Both shipped brands declare all three blocks, so this is silent on every real install
+    today. It exists to make the NEXT brand's omission audible at setup rather than
+    discoverable months later in bad learning data.
+
+    Advisory only — deliberately not an entry in the validation issues list, because an
+    omission is legal and the framework does still work. It just should not be quiet.
+    """
+    if not isinstance(config, dict):
+        return
+    adapter_id = config.get("adapter_id", "unknown")
+    for block, (decides, default, opt_out) in _EUFY_FALLBACK_BLOCKS.items():
+        if config.get(block) is not None:
+            continue
+        _LOGGER.warning(
+            "adapter '%s' for %s declares no '%s' block, so %s falls back to %s. "
+            "If that is wrong for this brand, %s.",
+            adapter_id, vacuum_entity_id, block, decides, default, opt_out,
+        )
 
 
 def _validate_adapter(config: dict[str, Any]) -> list[str]:
@@ -350,6 +408,23 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 if value is not None and not isinstance(value, dict):
                     issues.append(f"room_profiles.{key} must be a dict if present")
 
+    # capability_hints check — an unrecognised hint key is a SILENT no-op: the reader does
+    # `_hints.get(name)`, misses, and the derived/default value stands. So a typo is
+    # indistinguishable from declaring nothing, which is how a brand saying "I cannot do
+    # this" gets ignored. Caught here rather than at "why is this control showing?".
+    hints_block = config.get("capability_hints")
+    if hints_block is not None:
+        if not isinstance(hints_block, dict):
+            issues.append("'capability_hints' must be a dict if present")
+        else:
+            from ..core.capabilities import KNOWN_CAPABILITY_HINTS
+
+            for key in sorted(set(hints_block) - KNOWN_CAPABILITY_HINTS):
+                issues.append(
+                    f"capability_hints.{key!r} is not a known capability flag and will be "
+                    f"silently ignored; valid: {sorted(KNOWN_CAPABILITY_HINTS)}"
+                )
+
     # Dispatch template check — a declared template must resolve to a registered
     # dispatch engine. A schema-valid template with no engine yet (e.g.
     # dreame_room_clean before its engine ships) is rejected at registration
@@ -413,6 +488,8 @@ def register_adapter_config(
                 f"adapter config for {vacuum_entity_id} is not a dict; "
                 f"refusing to register"
             )
+
+    _warn_eufy_fallbacks(vacuum_entity_id, config)
 
     _REGISTRY[vacuum_entity_id] = config
     _LOGGER.debug(

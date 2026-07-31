@@ -29,7 +29,9 @@ from custom_components.eufy_vacuum.adapters.config_schema import ADAPTER_CONFIG_
 from custom_components.eufy_vacuum.adapters.registry import (
     AdapterCoordinator,
     _validate_adapter,
+    clear_registry,
     get_active_coordinator,
+    register_adapter_config,
 )
 from custom_components.eufy_vacuum.const import DOMAIN
 
@@ -210,3 +212,108 @@ def test_schema_shape():
     for key in ("adapter_id", "source", "entities", "dispatch"):
         assert key in ADAPTER_CONFIG_SCHEMA
     assert ADAPTER_CONFIG_SCHEMA["adapter_id"]["required"] is True
+
+
+# --- RC-4: an omitted engine block resolves to EUFY, and must say so ----------
+
+def _minimal(**extra):
+    """The smallest registerable config, plus whatever blocks the test declares."""
+    return {
+        "adapter_id": "brand3", "source": "code",
+        "entities": {}, "dispatch": {},
+        **extra,
+    }
+
+
+def test_omitting_an_engine_block_warns_which_eufy_default_takes_over(caplog):
+    """[RC-4] Every permissive default in this framework resolves to a concrete EUFY
+    answer rather than to a refusal.
+
+    A brand-3 config assembled from the schema silently runs Eufy's counter-plateau
+    segmenter and anchor-winding attribution against a device that emits neither signal:
+    no crash, no warning, wrong learned boundaries. The engine resolvers already warn on
+    an UNKNOWN name, but an ABSENT block was silent — a resolver only receives a name and
+    cannot tell "no adapter at all" (legacy, fine) from "an adapter omitted this".
+
+    At registration the whole config is in hand, so the difference is knowable there.
+    """
+    import logging
+    caplog.set_level(logging.WARNING)
+    clear_registry()
+
+    register_adapter_config("vacuum.brand3", _minimal())
+
+    text = caplog.text
+    for block, eufy_default in (
+        ("mapping", "eufy_cv_v1"),
+        ("job_segmenter", "eufy_counter_v1"),
+        ("room_attribution", "eufy_anchor_winding_v1"),
+    ):
+        assert block in text, f"no advisory for the omitted {block!r} block"
+        assert eufy_default in text, (
+            f"the {block!r} advisory does not name the Eufy default it falls back to"
+        )
+    # The advisory must tell the porter how to opt OUT, not just that it happened.
+    assert "noop_job_fallback" in text and "noop_room_attribution" in text
+
+
+def test_declaring_the_blocks_is_silent(caplog):
+    """[RC-4] Both shipped brands declare all three, so this must be silent on every real
+    install today — an advisory that fires for correct configs is noise, and noise is how
+    a real warning gets ignored."""
+    import logging
+    caplog.set_level(logging.WARNING)
+    clear_registry()
+
+    register_adapter_config("vacuum.brand3", _minimal(
+        mapping={"segmenter_engine": "noop_fallback"},
+        job_segmenter={"engine": "noop_job_fallback"},
+        room_attribution={"engine": "noop_room_attribution"},
+    ))
+
+    for block in ("mapping", "job_segmenter", "room_attribution"):
+        assert f"declares no '{block}' block" not in caplog.text
+
+
+def test_an_unknown_capability_hint_is_reported_not_ignored():
+    """[RC-3] A hint key the reader does not know is a SILENT no-op.
+
+    `_hints.get(name)` misses and the derived/default value stands, so a typo is
+    indistinguishable from declaring nothing — a brand saying "I categorically cannot do
+    this" gets ignored exactly as thoroughly as a brand saying nothing. That is the same
+    silent-wrong-answer shape `_hint_wins` exists to prevent, one level up.
+    """
+    issues = _validate_adapter({
+        "adapter_id": "brand3", "source": "code", "entities": {}, "dispatch": {},
+        "capability_hints": {"supports_zone_cleen": False, "supports_passes": True},
+    })
+    # Exactly one issue, and it names the typo as its SUBJECT. Checked by count rather
+    # than by substring: every message also prints the valid-key list, so `"supports_passes"
+    # in issue` is true for the typo's own message too.
+    assert len(issues) == 1, issues
+    assert issues[0].startswith("capability_hints.'supports_zone_cleen'"), issues[0]
+
+
+def test_known_capability_hints_matches_what_the_module_actually_reads():
+    """[RC-3] The gate is only as good as its key set, and that set is hand-maintained.
+
+    Derive the truth from the source instead of trusting the list: every `_hints` read in
+    capabilities.py must appear in KNOWN_CAPABILITY_HINTS, and vice versa. Without this a
+    newly-added hint would be rejected as a typo, which is a worse failure than the one
+    the gate fixes.
+    """
+    import inspect
+    import re
+
+    from custom_components.eufy_vacuum.core import capabilities as caps_mod
+    from custom_components.eufy_vacuum.core.capabilities import KNOWN_CAPABILITY_HINTS
+
+    src = inspect.getsource(caps_mod)
+    read = set(re.findall(r'_hints(?:\.get\(|\[)"([a-z_]+)"', src))
+    read |= set(re.findall(r'_hint_wins\("([a-z_]+)"', src))
+
+    assert read == set(KNOWN_CAPABILITY_HINTS), (
+        f"KNOWN_CAPABILITY_HINTS drifted from the reads:\n"
+        f"  read but undeclared: {sorted(read - set(KNOWN_CAPABILITY_HINTS))}\n"
+        f"  declared but unread: {sorted(set(KNOWN_CAPABILITY_HINTS) - read)}"
+    )
