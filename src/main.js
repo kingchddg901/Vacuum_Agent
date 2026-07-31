@@ -960,6 +960,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: vacuumEntityId,
       map_id: mapId,
     });
+    // A FAILED fetch returns null. Writing that into the library replaced the user's
+    // saved profiles with "No saved profiles yet." — asserting they have none — and
+    // dropped any profile staged for the next run. refreshRoomProfiles (just below)
+    // already guards exactly this; this sibling did not.
+    if (!payload) return null;
 
     this._state.setRunProfilesLibrary?.(payload);
     this._scheduleRender();
@@ -1002,7 +1007,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: vacuumEntityId,
       map_id: mapId,
     });
-    this._state.setSavedZonesLibrary?.(zones ?? []);
+    // `zones ?? []` turned a FAILED fetch into an empty library — the panel then said
+    // "No saved zones yet." and the selection badge and Clean-selected button vanished,
+    // with no error, spinner or toast. A failure must leave the last known library alone.
+    if (zones == null) return null;
+
+    this._state.setSavedZonesLibrary?.(zones);
     this._scheduleRender();
     return zones;
   }
@@ -1056,7 +1066,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: vacuumEntityId,
     });
 
-    this._troubleRoomsLogLoaded = true;
+    // Only latch "loaded" on a SUCCESSFUL fetch. Setting it unconditionally meant one
+    // failed fetch permanently suppressed every chronic-trouble warning for the session:
+    // the log stayed null, troubleRoomForRoom returned null for every room, and each room
+    // card rendered like a healthy one — while the latch stopped anything re-fetching.
+    if (payload) this._troubleRoomsLogLoaded = true;
 
     if (!this._state) return null;
 

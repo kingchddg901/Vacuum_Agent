@@ -27,8 +27,13 @@ export function applySavedZonesActions(proto) {
       { vacuum_entity_id, map_id },
       true
     );
-    const data = result?.response ?? result;
-    return data?.saved_zones ?? [];
+    // Distinguish "the call failed" from "this map genuinely has no zones". `?? []`
+    // collapsed both into an empty array, so a failure was indistinguishable from an
+    // empty library — and the caller then asserted to the user that they had never
+    // saved a zone. null means we could not ask; [] means we asked and there are none.
+    const data = result?.response ?? result ?? null;
+    if (data == null) return null;
+    return Array.isArray(data.saved_zones) ? data.saved_zones : [];
   };
 
   /**

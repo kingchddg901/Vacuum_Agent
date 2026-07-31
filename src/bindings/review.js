@@ -33,8 +33,14 @@ export function applyReviewBindings(proto) {
         return;
       }
 
+      // The chip highlight comes from state, but the DATA behind it comes from the
+      // refresh. If the refresh fails the chip renders as applied over unfiltered
+      // numbers — a filter that silently did not take is worse than one that visibly
+      // failed. Roll the selection back so the UI keeps telling the truth.
+      const prev = this.card._state.learningHistoryFilters?.()?.[key];
       this.card._state.setLearningHistoryFilter?.(key, value);
-      await this.card.refreshLearningHistorySnapshot?.();
+      const applied = await this.card.refreshLearningHistorySnapshot?.();
+      if (applied == null) this.card._state.setLearningHistoryFilter?.(key, prev);
       this.card._scheduleRender();
     });
 
