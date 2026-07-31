@@ -44,6 +44,7 @@ from ..rooms.room_manager import build_managed_rooms, build_room_selection_summa
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 from .capabilities import detect_capabilities
 from .storage import EufyVacuumStorage
+from ..step_types import step_requires_stepped_execution
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -1672,7 +1673,7 @@ class EufyVacuumManager:
             # "has_breaks" == "the queue is stepped / non-flat" (kept the name for the card's
             # queueHasBreaks gate). A zone is an inserted step too, so it counts.
             "has_breaks": any(
-                s.get("type") in ("charge_wait", "wait", "zone") for s in steps
+                step_requires_stepped_execution(s) for s in steps
             ),
         }
 

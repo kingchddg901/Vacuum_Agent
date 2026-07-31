@@ -37,6 +37,7 @@ from ..profiles.room_profiles import (
 )
 from ..rooms.room_manager import build_room_selection_summary
 from ..timestamp_utils import utc_now_iso
+from ..step_types import plan_requires_stepped_execution, step_requires_stepped_execution
 
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
@@ -849,7 +850,7 @@ class ProfileManager:
             # profiles/manager.py:1308, planning/run_plan.py:1348/1353 and
             # core/manager.py:1647 — "zone" was added to those and missed here.
             "has_stops": (
-                any(s.get("type") in ("charge_wait", "wait", "zone") for s in steps)
+                plan_requires_stepped_execution(steps)
                 or len(_room_group_steps) > 1
             ),
         }
@@ -1308,8 +1309,7 @@ class ProfileManager:
         ).get(profile_id, {})
         _prof_steps = self.run_profile_steps(_prof)
         if any(
-            isinstance(s, dict) and s.get("type") in ("charge_wait", "wait", "zone")
-            for s in _prof_steps
+            step_requires_stepped_execution(s) for s in _prof_steps
         ):
             self._manager.data.setdefault("_pending_run_steps", {}).setdefault(
                 vacuum_entity_id, {}

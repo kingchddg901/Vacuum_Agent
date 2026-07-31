@@ -53,6 +53,7 @@ from ..listeners._common import (
 from .job_monitor import STRANDED_REAP_GRACE_MINUTES, is_stranded_started
 from ..rooms.utils import slugify_room_name
 from ..timestamp_utils import parse_timestamp, utc_now_iso
+from ..step_types import is_dock_polled_phase
 
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
@@ -394,7 +395,7 @@ class ActiveJobTracker:
             if (
                 0 <= _rc_idx < len(_rc_phases)
                 and isinstance(_rc_phases[_rc_idx], dict)
-                and str(_rc_phases[_rc_idx].get("phase_type") or "") in ("charge_wait", "wait")
+                and is_dock_polled_phase(_rc_phases[_rc_idx])
             ):
                 return active_job
 

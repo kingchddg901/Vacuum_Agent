@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Any
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..queue.queue_engine import advance_active_job_phase
 from ..timestamp_utils import utc_now_iso
+from ..step_types import is_dock_polled_phase, is_dock_polled_phase_type
 
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
@@ -121,7 +122,7 @@ class PhaseRunner:
         if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
             return False
         phase_type = str(phases[idx].get("phase_type") or "")
-        if phase_type not in ("charge_wait", "wait"):
+        if not is_dock_polled_phase_type(phase_type):
             return False
         # Re-assert the dock guard the restart cleared, so the intentional dock the poller is
         # about to (re)drive isn't finalized by the completion gate. No-op if already set.
@@ -179,7 +180,7 @@ class PhaseRunner:
             else {}
         )
         _next_type = str(_next_phase.get("phase_type") or "")
-        if _next_type in ("charge_wait", "wait"):
+        if is_dock_polled_phase_type(_next_type):
             # Route through the guarded spawn so a normal advance and a re-arm
             # (rearm_dock_phase_if_needed) can't both drive the same dock phase.
             self._spawn_dock_poller(
@@ -248,7 +249,7 @@ class PhaseRunner:
         if phases[idx].get("_timing_end_t"):
             return  # already attempted (idempotent — an empty capture must not re-run either)
 
-        if str(phases[idx].get("phase_type") or "") in ("charge_wait", "wait"):
+        if is_dock_polled_phase(phases[idx]):
             # A charge_wait / wait phase never cleaned (its counter slice is flat while the
             # robot charges or idles on the dock). Record an EMPTY timing so finalize reads
             # it as a dock/hold interval, not a phantom zero-metric room.

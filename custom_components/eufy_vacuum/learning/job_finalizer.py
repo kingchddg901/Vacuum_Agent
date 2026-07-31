@@ -36,6 +36,7 @@ from .utils import (
 )
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
+from ..step_types import is_dock_polled_phase
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,7 +158,7 @@ def _run_had_break_phase(active_job_state: Any) -> bool:
         return False
     return any(
         isinstance(p, dict)
-        and str(p.get("phase_type") or "").strip().lower() in ("charge_wait", "wait")
+        and is_dock_polled_phase(p)
         for p in phases
     )
 
