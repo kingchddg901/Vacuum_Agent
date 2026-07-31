@@ -110,9 +110,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**393 findings** — 369 across 11 audits plus 24 from direct reads. None applied. 29 clusters + 318 singles.
+**397 findings** — 369 across 11 audits plus 28 from direct reads. None applied. 29 clusters + 322 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 143 · LOW 159
+CRITICAL 17 · HIGH 74 · MEDIUM 143 · LOW 163
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -853,11 +853,17 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (147)</summary>
+<details><summary><strong>LOW</strong> (151)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
   No user impact today (dead code), but it is a green-tested Eufy-flavoured copy of the identity functions sitting in the adapter package a future brand port would read first — reviving it re-introduces the 'null' sentinel
+- **DR-BAT-2** `battery/manager.py:601` · both · `direct read`  
+  An out-of-order sample is correctly skipped but still rewinds the last-sample anchor  
+  Line 522 guards the delta block with `if elapsed_sec > 0`, so a sample whose timestamp is not newer contributes no drain/rate -- correct. But lines 601-603 then commit last_battery_level / last_sample_ts unconditionally,
+- **DR-BAT-3** `battery/manager.py:653` · both · `direct read`  
+  After a stale-session discard, charging stays untracked until the next charge cycle  
+  _update_session discards a session older than SESSION_MAX_HOURS and sets session=None. Control then reaches `if session is None: return` (line 680) on every later sample, because prev_charging is already True so the open
 - **A3-FLOW-3** `config_flow.py:98` · both  
   The options flow rebuilds the options dict from the stale form snapshot, so a submit can resurrect a vacuum that was deleted while the dialog was open  
   A user who deletes a vacuum's device while the Configure dialog is open in another tab sees the vacuum reappear after saving the dialog — as an empty shell that has lost all its learning history and maps. No error is sho
@@ -918,6 +924,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-DOCK-3** `dock/manager.py:446` · both · `direct read`  
   A manual counter reset leaves the debounce marker, suppressing the next genuine event  
   set_dock_event_count zeroes the counter but never clears {event_type}_last_counted_at. Reset inside the debounce window and the next real wash is silently not counted -- reset and debounce state are not kept coherent.
+- **DR-BAT-1** `docs/dev/12-battery-system.md:88` · both · `direct read`  
+  Doc §3 states the MAX_DELTA_PCT boundary one step off from the code and from its own §5.2  
+  The tunable-constants table says 'Reject single-sample deltas this large OR LARGER' (>= 3.0). manager.py:524 is `if abs(raw_delta) <= MAX_DELTA_PCT`, so exactly 3.0 is ACCEPTED and only >3.0 is rejected -- which is what
+- **DR-BAT-4** `docs/dev/12-battery-system.md:338` · both · `direct read`  
+  Doc omits two live conditions present in the code  
+  §6.4/§8 give the mid-job rate-stat gate as `kind == 'mid_job' and avg > 0`; manager.py:771 also requires `delta_pct > 0`. §5.2's _process_sample snippet omits the `elapsed_sec > 0` guard at line 522 entirely. Both are co
 - **DR-ONB-6** `docs/dev/18-onboarding-manager.md:228` · both · `direct read`  
   Doc cites the start gate at core/manager.py:2776; it is at 2805  
   The CLAIM is correct -- the gate really does block on floor_types_complete alone and never consults rooms_discovered. Only the line reference drifted. Recorded because this doc's stated scope is that 'a developer should
