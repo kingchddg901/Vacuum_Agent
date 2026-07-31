@@ -45,6 +45,13 @@ plugins:
   - search
   - awesome-pages
 
+# Repo-only pages: version-controlled and readable in the repo, but NOT published to the
+# site. docs/dev/maintenance/ holds the hostile-audit ledger, which lists open findings that
+# have not all been hand-verified — a working document for contributors, not a public
+# defect disclosure for people running the released integration.
+exclude_docs: |
+  dev/maintenance/
+
 markdown_extensions:
   - tables
   - admonition
