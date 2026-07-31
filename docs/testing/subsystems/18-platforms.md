@@ -34,9 +34,9 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `config_flow.py` | 38 | 94% | `test_config_flow.py` |
 | `repairs.py` | 15 | 100% | `test_platform_files.py` |
 | `timestamp_utils.py` | 37 | 98% | `test_timestamp_utils.py` (unit) |
-| `models/models.py` | 133 | 98% | `test_models.py` (unit) |
-| `maps/map_manager.py` | 41 | 100% | `test_maps_map_manager.py` (unit) |
-| `entity_helpers.py` | 21 | 96% | `test_platform_files.py` |
+| `models/models.py` | 134 | 99% | `test_models.py` (unit) |
+| `maps/map_manager.py` | 44 | 100% | `test_maps_map_manager.py` (unit) |
+| `entity_helpers.py` | 26 | 97% | `test_platform_files.py` |
 | `_frontend_url.py` | 18 | 89% | `test_platform_files.py` |
 
 ---

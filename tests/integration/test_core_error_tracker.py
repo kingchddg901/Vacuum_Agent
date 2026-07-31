@@ -530,3 +530,129 @@ async def test_job_finished_without_a_record_does_not_clear_the_latch(hass, trac
     assert et.get_active_run_latch(_VAC) is not None, (
         "the run's only error evidence was cleared after a failed finalize"
     )
+
+
+# --- ET-VOC-3: the three advertised-but-unread error_tracking knobs -----------
+# Every assertion below uses a value DIFFERENT from the hardcoded default, so each
+# test fails against the pre-fix tracker. Both shipped brands declare exactly the
+# defaults, so wiring these up is behaviour-neutral for Eufy and Roborock — it makes
+# the contract doc 22 §9 advertises actually true for the next brand.
+
+def test_task_status_error_value_is_brand_vocabulary(tracker, hass):
+    """[ET-VOC-3a] A brand whose task_status says something other than "error".
+
+    The value was hardcoded to == "error", so this entire secondary channel was
+    silently dead for any such brand: no grace window, no placeholder latch, and a
+    hardware fault that never populates error_message produced no evidence at all.
+    """
+    t, mgr = tracker
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"error_message": "sensor.alfred_err",
+                     "task_status": "sensor.alfred_task"},
+        "error_tracking": {"task_status_error_value": "fault"},
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err",
+                                "task_status": "sensor.alfred_task"}
+    hass.states.async_set(_VAC, "docked")           # vacuum channel NOT in error
+
+    hass.states.async_set("sensor.alfred_task", "Fault")   # capitalized, as firmware sends
+    assert t._is_in_secondary_error(_VAC) is True, "declared error value was ignored"
+
+    # The DEFAULT vocabulary must not leak in beside the declared one.
+    hass.states.async_set("sensor.alfred_task", "error")
+    assert t._is_in_secondary_error(_VAC) is False, (
+        "hardcoded 'error' still matched for a brand that declared 'fault'"
+    )
+
+
+async def test_grace_window_seconds_is_honoured(tracker, hass):
+    """[ET-VOC-3b] Firmware that emits the state DPS well before the message DPS.
+
+    5s was a module constant, so a slower brand could not ask for a longer window and
+    every real message arriving at, say, 20s was thrown away — the latch had already
+    been finalized as the generic placeholder with code None.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"error_message": "sensor.alfred_err", "task_status": None},
+        "vocabulary": {"not_error_sentinels": ["none", "normal"]},
+        "error_tracking": {"grace_window_seconds": 30},
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+    hass.states.async_set(_VAC, "error")
+    hass.states.async_set("sensor.alfred_err", "none")
+
+    t._handle_secondary_error_signal(_VAC)
+
+    # Past the OLD default, well short of the declared window: nothing may latch yet.
+    # This is the half that matters — before the fix the placeholder was already written
+    # here, and a real message arriving at 20s had nothing left to upgrade.
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    assert t.get_record(_VAC).get("active_run_error") is None, (
+        "latched at the hardcoded 5s instead of the declared 30s"
+    )
+
+    # Past the declared window: the timer really is armed, just later.
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=31))
+    await hass.async_block_till_done()
+    latch = t.get_record(_VAC)["active_run_error"]
+    assert latch is not None, "the declared window never fired at all"
+    assert latch["current_message"] == "Unknown error during run"
+
+
+def test_error_code_attribute_names_is_an_ordered_brand_list(tracker, hass):
+    """[ET-VOC-3c] A brand exposing its code under a name outside the default tuple.
+
+    doc 22 §9 documents this as an ordered list, first non-zero int wins. It was a
+    hardcoded tuple, so such a brand got code=None on every error — losing exactly the
+    field the error-mining work exists to capture.
+    """
+    t, mgr = tracker
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"error_message": "sensor.alfred_err", "task_status": None},
+        "error_tracking": {"error_code_attribute_names": ["fault_id", "legacy_code"]},
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+
+    hass.states.async_set("sensor.alfred_err", "Stuck", {"fault_id": 70})
+    assert t._read_error_code_attr(_VAC) == 70, "declared attribute name was not read"
+
+    # Ordered: the first declared name that yields a non-zero int wins...
+    hass.states.async_set("sensor.alfred_err", "Stuck",
+                          {"fault_id": 0, "legacy_code": 12})
+    assert t._read_error_code_attr(_VAC) == 12, "list is not tried in order"
+
+    # ...and the declared list REPLACES the default rather than extending it, so a
+    # stale upstream error_code attribute cannot shadow the brand's real one.
+    hass.states.async_set("sensor.alfred_err", "Stuck", {"error_code": 99})
+    assert t._read_error_code_attr(_VAC) is None, (
+        "default attribute names still consulted for a brand that declared its own"
+    )
+
+
+def test_error_tracking_cfg_degrades_to_each_callers_default(tracker, hass):
+    """[ET-VOC-3d] No adapter, no error_tracking block, junk values → documented defaults.
+
+    _error_tracking_cfg never raises; each caller then applies its own default. This is
+    the path every currently-shipped install takes when adapter registration has not
+    completed yet.
+    """
+    register_adapter_config(_VAC, {"adapter_id": "t", "source": "t", "entities": {}})
+    assert et._error_tracking_cfg(_VAC) == {}
+    assert et._error_tracking_cfg("vacuum.never_registered") == {}
+
+    # A block of the wrong type must not propagate to callers as a mapping.
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t", "entities": {}, "error_tracking": "nonsense",
+    })
+    assert et._error_tracking_cfg(_VAC) == {}
+
+    t, _mgr = tracker
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+    hass.states.async_set("sensor.alfred_err", "Stuck", {"errorCode": 70})
+    assert t._read_error_code_attr(_VAC) == 70, "fell off the default attribute tuple"

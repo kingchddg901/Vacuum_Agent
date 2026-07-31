@@ -1969,7 +1969,7 @@ device:
 
 ```
 {
-  "active_run_error":  ActiveRunError | None   # sticky during a job; nulled at harvest
+  "active_run_error":  ActiveRunError | None   # sticky during a job; cleared at commit
   "last_device_error": DeviceError | None      # persistent until acknowledged
   "recent_errors":     list[RecentErrorEntry]  # ring buffer; max 50
 }
@@ -1977,27 +1977,62 @@ device:
 
 ### `ActiveRunError`
 
-Set on first rising edge (non-empty error message) while a job is active.
+Formed on the first rising edge **while a job is active** — a rising edge with no
+job in flight updates `last_device_error` and `recent_errors` only. Subsequent
+rising edges in the same run extend this latch rather than replacing it, so
+`errors` is the full within-run history.
 
 ```
 {
-  "job_id":         str | None
-  "first_seen_at":  str           # ISO timestamp
-  "last_seen_at":   str
-  "message":        str
-  "code":           str | None
-  "rising_edges":   int           # count of distinct rising edges in this run
-  "recovered":      bool          # True when error message cleared mid-run
+  "active_job_id":                   str
+  "first_seen_at":                   str          # ISO timestamp
+  "last_seen_at":                    str
+  "first_seen_job_elapsed_seconds":  int          # seconds into the run
+  "error_count":                     int          # one per rising edge
+  "current_message":                 str          # "" once recovered
+  "current_code":                    int | None
+  "errored_room_id":                 str | None   # room at the FIRST edge
+  "recovered":                       bool         # message cleared mid-run
+  "errors":                          list[LatchErrorEntry]   # max 50
+  "acknowledged":                    bool         # optional; see below
 }
 ```
 
-### `DeviceError`
+`acknowledged` is written **only** by `acknowledge(scope="active_run"|"both")`
+while a job is in flight. That path marks the latch (`acknowledged: True`,
+`current_message: ""`, `recovered: True`) instead of deleting it, so the
+finalizer still receives the run's error evidence — the entities already render a
+recovered/blank latch as nothing to show. With no job in flight the key is never
+written, because the latch is simply nulled.
+
+### `LatchErrorEntry` (inside `ActiveRunError.errors`)
 
 ```
 {
-  "seen_at":  str      # ISO timestamp of most recent rising edge
-  "message":  str
-  "code":     str | None
+  "message":              str
+  "code":                 int | None
+  "captured_at":          str          # ISO timestamp
+  "job_elapsed_seconds":  int
+  "room_id":              str | None   # room at THIS edge
+  "recovered_at":         str | None   # stamped by the falling edge
+}
+```
+
+A falling edge stamps `recovered_at` on the newest entry that does not have one,
+so an unrecovered entry is one whose fault was still live when the run ended.
+
+### `DeviceError`
+
+Overwritten on **every** rising edge regardless of run context.
+
+```
+{
+  "message":                   str
+  "code":                      int | None
+  "captured_at":               str          # ISO timestamp
+  "vacuum_state_at_capture":   str | None
+  "was_during_active_run":     bool
+  "active_job_id_at_capture":  str | None
 }
 ```
 
@@ -2005,28 +2040,45 @@ Set on first rising edge (non-empty error message) while a job is active.
 
 ```
 {
-  "seen_at":    str
-  "message":    str
-  "code":       str | None
-  "in_active_run": bool
-  "job_id":     str | None
+  "message":        str
+  "code":           int | None
+  "captured_at":    str          # ISO timestamp
+  "active_job_id":  str | None
+  "vacuum_state":   str | None
 }
 ```
+
+`recent_errors` is the only shadow copy that survives a harvest, which is why the
+grace window refuses to re-arm while a placeholder latch stands — an unbounded
+re-arm loop would flush 50 entries of real history for one physical fault.
 
 **Edge detection:** the core fallback "not-error" set is
 `{"", "unknown", "unavailable"}` (the `_NOT_ERROR` frozenset in
 `core/error_tracker.py`, used only when no adapter is registered). When an
-adapter is present, its `vocabulary.not_error_sentinels` is used — the Eufy
-adapter adds the firmware sentinels `"none"` and `"normal"` (from robovac_mqtt's
-`"NONE"` / `"Normal"`), so the effective Eufy set is
-`{"", "unknown", "unavailable", "none", "normal"}`. Matching is case-normalized
-to lowercase. Any other value is an error string; a rising edge is a transition
-*into* an error value, a falling edge is the reverse.
+adapter is present, its `vocabulary.not_error_sentinels` **replaces** that set
+rather than merging with it, so each adapter must re-include the generic
+sentinels itself — Eufy declares `"none"` and `"normal"` (from robovac_mqtt's
+`"NONE"` / `"Normal"`); Roborock deliberately declares `"none"` but **not**
+`"normal"`. Matching is case-normalized to lowercase.
 
-**Late-arrival grace window:** when the vacuum state transitions to `"error"`
-but the error message sensor is still empty, a 5-second one-shot callback
-upgrades the latch. If the message doesn't arrive in time, the latch is
-finalized as `"Unknown error during run"`.
+A **rising edge** fires on any observation whose value is an error — it is *not*
+gated on a transition, so re-reporting the same error appends another entry and
+increments `error_count` by design (one observation, one entry). A **falling
+edge** is a transition back to a not-error value.
+
+**Late-arrival grace window:** when the vacuum state transitions to `"error"` but
+the error message sensor is still empty, a one-shot callback upgrades the latch;
+if the message doesn't arrive in time the latch is finalized with the adapter's
+`error_tracking.unknown_error_message` (default `"Unknown error during run"`) and
+`code: None`. The duration comes from `error_tracking.grace_window_seconds`
+(default 5), and the `task_status` channel's error value from
+`error_tracking.task_status_error_value` (default `"error"`) — see
+[22-adapter-config-reference](22-adapter-config-reference.md) §9.
+
+**Lifecycle:** the finalizer reads the latch via `peek_active_run`
+(non-destructive) and clears it via `commit_active_run` only **after** the
+durable record is written, so a save that fails leaves the run's error history
+recoverable. See [23-error-tracker](23-error-tracker.md) for the full contract.
 
 ---
 

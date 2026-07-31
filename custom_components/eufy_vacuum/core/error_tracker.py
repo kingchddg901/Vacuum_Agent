@@ -11,8 +11,12 @@ Three buffers per device, all stored under
 
 - ``active_run_error`` — sticky during a job. Set on first rising edge while
   a job is active; appended-to on subsequent rising edges; recovered=True
-  flag flips when the upstream message clears mid-run; nulled out on harvest
-  (called by the JobFinalizer).
+  flag flips when the upstream message clears mid-run. Read by the
+  JobFinalizer via ``peek_active_run`` (non-destructive) and cleared by
+  ``commit_active_run`` only AFTER the durable record is written, so a save
+  that fails leaves the run's error history recoverable. Acknowledging while
+  a job is in flight MARKS it (``acknowledged``) rather than deleting it, for
+  the same reason.
 - ``last_device_error`` — persistent until acknowledged. Overwritten on
   every rising edge regardless of run context. Cleared only by the
   ``eufy_vacuum.acknowledge_error`` service.
@@ -20,18 +24,35 @@ Three buffers per device, all stored under
   for the ``eufy_vacuum.get_recent_errors`` service and debugging.
 
 Edge detection:
-- ``not_error`` set: ``{"", "unknown", "unavailable", "NONE", "Normal"}``.
-  Anything else is treated as an error string.
-- A *rising edge* is a transition from a not_error value (or no prior
-  value) to an error value. A *falling edge* is the reverse.
+- The not-error set is BRAND vocabulary, read from
+  ``adapter_config.vocabulary.not_error_sentinels`` (Eufy declares "none" and
+  "normal"; Roborock declares "none" and deliberately NOT "normal").
+  ``_NOT_ERROR = {"", "unknown", "unavailable"}`` is only the last-resort
+  fallback when no adapter is registered. Comparison lowercases first, so
+  sentinels are matched case-insensitively.
+- A *rising edge* fires on ANY observation whose value is an error — it is
+  NOT gated on a transition. Re-reporting the same error appends another
+  entry and increments ``error_count`` by design (one observation, one
+  entry), which is also why an HA restart while an error is live records it
+  a second time. A *falling edge* is a transition back to a not-error value
+  and stamps ``recovered_at`` on the newest un-stamped entry.
 
 Late-arrival grace window:
 - When ``vacuum.<obj>`` transitions to ``"error"`` but
-  ``sensor.<obj>_error_message`` is still empty/unknown, a 5-second one-shot
-  callback is scheduled. If the message arrives within that window, the
-  placeholder latch is upgraded with the actual message + code. If the
-  window elapses, the latch is finalized as
-  ``"Unknown error during run"`` with ``code: None``.
+  ``sensor.<obj>_error_message`` is still empty/unknown, a one-shot callback
+  is scheduled. If the message arrives within that window, the placeholder
+  latch is upgraded with the actual message + code. If the window elapses,
+  the latch is finalized with the brand's ``unknown_error_message`` and
+  ``code: None``.
+- Duration comes from ``error_tracking.grace_window_seconds`` (default
+  ``_ERROR_MESSAGE_GRACE_SECONDS``); both shipped brands declare 5.
+
+Adapter-configurable knobs (all read via ``_error_tracking_cfg``, all
+documented in doc 22 §9): ``task_status_error_value``,
+``grace_window_seconds``, ``error_code_attribute_names``,
+``unknown_error_message``. The ``vacuum.<obj>`` state comparison is
+deliberately NOT among them — ``"error"`` there is Home Assistant's own
+VacuumActivity value, not brand vocabulary.
 
 The tracker is instantiated by ``__init__.async_setup_entry`` after the
 runtime ``EufyVacuumManager`` is loaded. ``start(known_vacuum_ids)`` wires
@@ -71,6 +92,10 @@ _NOT_ERROR: frozenset[str] = frozenset({"", "unknown", "unavailable"})
 #: ``error_message`` to arrive before finalising the latch with a generic
 #: placeholder. Some firmware emits the state DPS before the message DPS.
 _ERROR_MESSAGE_GRACE_SECONDS = 5
+
+#: Attribute names searched, in order, for the upstream numeric error code.
+#: Default only — a brand overrides via error_tracking.error_code_attribute_names.
+_DEFAULT_ERROR_CODE_ATTRS: tuple[str, ...] = ("error_code", "code", "errorCode")
 
 #: Cap on per-device recent_errors ring buffer.
 _RECENT_ERRORS_LIMIT = 50
@@ -113,6 +138,24 @@ def _get_not_error_set(vacuum_entity_id: str) -> frozenset[str]:
     except Exception:
         pass
     return _NOT_ERROR
+
+
+def _error_tracking_cfg(vacuum_entity_id: str) -> dict[str, Any]:
+    """Return this vacuum's ``adapter_config["error_tracking"]`` block.
+
+    Every knob doc 22 §9 advertises is read through here, so a brand that
+    registers no adapter (or an adapter with no error_tracking block) gets an
+    empty mapping and each caller falls back to its own documented default.
+    Never raises.
+    """
+    try:
+        config = get_adapter_config(vacuum_entity_id)
+        block = (config or {}).get("error_tracking")
+        if isinstance(block, dict):
+            return block
+    except Exception:
+        pass
+    return {}
 
 
 def _safe_int(value: Any) -> int | None:
@@ -410,8 +453,16 @@ class ErrorTracker:
             return True
         _ts_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("task_status")
         if _ts_entity:
+            # task_status is BRAND vocabulary, so honour the adapter's declared value.
+            # doc 22 §9 advertises `task_status_error_value` and both shipped adapters
+            # declare it — it was simply never read, so a brand whose firmware says
+            # anything other than "error" had its secondary channel silently dead.
+            # (The vacuum.<obj> check above stays hardcoded: that is Home Assistant's own
+            # VacuumActivity value, not something a brand gets to rename.)
+            _cfg = _error_tracking_cfg(vacuum_entity_id)
+            _err_value = str(_cfg.get("task_status_error_value") or "error").strip().lower()
             ts = self._hass.states.get(_ts_entity)
-            if ts is not None and str(ts.state or "").strip().lower() == "error":
+            if ts is not None and str(ts.state or "").strip().lower() == _err_value:
                 return True
         return False
 
@@ -476,16 +527,28 @@ class ErrorTracker:
         #
         # This was dormant only because the sentinel bug above returned early. The two MUST
         # ship together: fixing that one alone unmasks this loop on both brands.
+        _cfg = _error_tracking_cfg(vacuum_entity_id)
         _latch = self._ensure_record(vacuum_entity_id).get("active_run_error")
         if isinstance(_latch, dict) and not _latch.get("recovered"):
-            _cfg = (get_adapter_config(vacuum_entity_id) or {}).get("error_tracking", {})
             _unknown = _cfg.get("unknown_error_message") or "Unknown error during run"
             if str(_latch.get("current_message") or "") == _unknown:
                 return
 
+        # doc 22 §9 advertises `grace_window_seconds`; the module constant is the default
+        # for a brand that declares nothing. Firmware that emits the state DPS well before
+        # the message DPS needs a longer window than 5s, and could not ask for one. A
+        # declared 0 is honoured (fire on the next tick), so test explicitly for None
+        # rather than leaning on falsiness.
+        _declared = _cfg.get("grace_window_seconds")
+        try:
+            _grace_s = (
+                float(_declared) if _declared is not None else _ERROR_MESSAGE_GRACE_SECONDS
+            )
+        except (TypeError, ValueError):
+            _grace_s = _ERROR_MESSAGE_GRACE_SECONDS
         self._grace_cancels[vacuum_entity_id] = async_call_later(
             self._hass,
-            _ERROR_MESSAGE_GRACE_SECONDS,
+            max(0.0, _grace_s),
             lambda _now, vid=vacuum_entity_id: self._on_grace_expired(vid),
         )
 
@@ -581,13 +644,24 @@ class ErrorTracker:
         better to record None ("we don't know the code") than to claim
         zero, which has a different meaning in the upstream's vocabulary.
         """
+        # doc 22 §9 advertises `error_code_attribute_names` as an ordered list, tried in
+        # order. It was never read, so a brand exposing its code under any other attribute
+        # name got no code at all. Hoisted out of the entity loop — the answer cannot
+        # differ between the two entities of the same vacuum.
+        _names = _error_tracking_cfg(vacuum_entity_id).get("error_code_attribute_names")
+        _keys: tuple[str, ...] = _DEFAULT_ERROR_CODE_ATTRS
+        if isinstance(_names, (list, tuple)):
+            _declared = tuple(str(k).strip() for k in _names if str(k).strip())
+            if _declared:
+                _keys = _declared
+
         _err_msg_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("error_message")
         for entity_id in filter(None, (_err_msg_entity, vacuum_entity_id)):
             state = self._hass.states.get(entity_id)
             if state is None:
                 continue
             attrs = getattr(state, "attributes", None) or {}
-            for key in ("error_code", "code", "errorCode"):
+            for key in _keys:
                 value = _safe_int(attrs.get(key))
                 if value is not None and value != 0:
                     return value

@@ -148,11 +148,11 @@ The main vacuum entity. An error is detected when `str(state.state or "").strip(
 
 Entity ID read from adapter config `entities.task_status`.
 
-An error is detected when `str(task_status.state or "").strip().lower() == "error"`. **The
-`.lower()` is load-bearing:** `task_status` emits the **capitalized** `"Error"` on fault (the
-adapter's normalized `task_status_error_value` is `"error"`), so a literal `== "error"` compare
-would silently miss this channel. This channel mirrors the vacuum-state channel — the Eufy
-firmware flips both simultaneously on hardware fault.
+An error is detected when the lowercased state equals the adapter's
+`error_tracking.task_status_error_value` (both shipped brands declare `"error"`). **The `.lower()`
+is load-bearing:** `task_status` emits the **capitalized** `"Error"` on fault, so a
+case-sensitive compare would silently miss this channel. This channel mirrors the vacuum-state
+channel — the Eufy firmware flips both simultaneously on hardware fault.
 
 ### 5.4 Secondary Error Predicate
 
@@ -298,11 +298,22 @@ The tracker reads the following from the adapter registry at runtime:
 | `entities.task_status` | Secondary channel B entity ID |
 | `vocabulary.not_error_sentinels` | Brand-specific non-error strings that **replace** the generic set (no merge) — each adapter must re-include `""` / `"unknown"` / `"unavailable"` itself |
 | `error_tracking.unknown_error_message` | Placeholder text used on grace expiry (default: `"Unknown error during run"`) |
+| `error_tracking.task_status_error_value` | Value of the **`task_status`** channel that counts as an error (default: `"error"`) |
+| `error_tracking.grace_window_seconds` | Late-arrival grace duration (default: the module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`) |
+| `error_tracking.error_code_attribute_names` | Ordered attribute names searched for the numeric code (default: `("error_code", "code", "errorCode")`) |
 
-All lookups use `get_adapter_config()` with safe fallbacks — the tracker degrades gracefully if adapter config is incomplete. Note: the grace window duration is the hardcoded module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`, the secondary-channel error value is a hardcoded `== "error"` comparison, and the error-code attribute keys are a hardcoded tuple (`"error_code"`, `"code"`, `"errorCode"`) — these are **not** read from the adapter registry. **Caveat:** the Eufy adapter *declares*
-`error_tracking.grace_window_seconds`, `error_tracking.task_status_error_value`, and
-`error_tracking.error_code_attribute_names`, but the tracker **ignores all three** (dead config) —
-tuning them requires editing the module constants, not the adapter.
+Every `error_tracking` read goes through the module-level `_error_tracking_cfg()` helper, which
+returns `{}` for an unregistered adapter or a missing block; each caller then applies its own
+documented default. The helper never raises, so the tracker degrades gracefully when adapter
+config is incomplete.
+
+Two comparisons are deliberately **not** adapter-configurable:
+
+- **`vacuum.<obj>` state `== "error"`** — that is Home Assistant's own `VacuumActivity` value, not
+  brand vocabulary. A brand does not get to rename it. (The `task_status` channel beside it *is*
+  brand vocabulary and *is* configurable — see the table above.)
+- **`grace_window_seconds` of `0`** is honoured (fire on the next event-loop tick) rather than
+  treated as "unset", so the read tests for `None` instead of falsiness.
 
 ---
 

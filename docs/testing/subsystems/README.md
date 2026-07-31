@@ -13,9 +13,9 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 95% |
 | 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 93% |
 | 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 93% |
-| 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 95% |
+| 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 94% |
 | 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 89% |
-| 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 94% |
+| 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 95% |
 | 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 89% |
 | 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 97% |
 | 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 92% |
