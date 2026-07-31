@@ -86,3 +86,94 @@ MOP_MODE_OPTIONS: list[dict] = [
     {"value": "standard", "label": "Standard"},
     {"value": "deep", "label": "Deep"},
 ]
+
+
+# --- room profiles -----------------------------------------------------------
+#
+# Roborock's own room-profile catalog. Declared rather than inherited: the framework's
+# in-code catalog is Eufy's (Eufy declares it BY REFERENCE), so a brand that omits this
+# block silently gets Eufy DISPLAY vocabulary — "Max", "Off", "Quick" — in its rooms.
+#
+# That was not theoretical. It is why `dispatch.per_room_live_settings` for fan_speed
+# carries an `options_key` filter: a new room's "Max" is not in FAN_SPEED_OPTIONS, so the
+# filter dropped it and an unedited Roborock room got NO suction applied at all, while the
+# card's chip row (a strict `===` against option values) rendered nothing as selected.
+#
+# Values below come straight from FAN_SPEED_OPTIONS / WATER_LEVEL_OPTIONS /
+# CLEAN_MODE_OPTIONS above, which are read off the live entities. Same profile KEYS as the
+# framework catalog so stored rooms and the card's profile picker keep working across a
+# brand switch; only the VALUES are Roborock's.
+#
+# clean_intensity is OMITTED from every profile on purpose — Roborock exposes no intensity
+# axis (see the adapter's `clean_intensity_options`, deliberately absent). An omitted key
+# means the room stores nothing for it, rather than an inert "Quick" nobody can act on.
+ROOM_PROFILES: dict[str, dict] = {
+    "vacuum_quick": {
+        "label": "Vacuum Only Quick",
+        "clean_mode": "vacuum",
+        "fan_speed": "balanced",
+        "water_level": "off",
+        "path_type": "wide",
+        "clean_passes": 1,
+        "edge_mopping": False,
+        "mop_required": False,
+    },
+    "vacuum_deep": {
+        "label": "Vacuum Only Deep",
+        "clean_mode": "vacuum",
+        "fan_speed": "max",
+        "water_level": "off",
+        "path_type": "narrow",
+        "clean_passes": 2,
+        "edge_mopping": False,
+        "mop_required": False,
+    },
+    "vacuum_mop_quick": {
+        "label": "Quick",
+        "clean_mode": "vacuum_mop",
+        "fan_speed": "balanced",
+        "water_level": "medium",
+        "path_type": "wide",
+        "clean_passes": 1,
+        "edge_mopping": False,
+        "mop_required": True,
+    },
+    "vacuum_mop_deep": {
+        "label": "Deep",
+        "clean_mode": "vacuum_mop",
+        "fan_speed": "max",
+        "water_level": "medium",
+        "path_type": "narrow",
+        "clean_passes": 2,
+        "edge_mopping": True,
+        "mop_required": True,
+    },
+}
+
+CUSTOM_ROOM_PROFILE: dict = {
+    "label": "User Profile 1",
+    "clean_mode": "vacuum",
+    "fan_speed": "balanced",
+    "water_level": "off",
+    "path_type": "wide",
+    "clean_passes": 1,
+    "edge_mopping": False,
+    "mop_required": False,
+}
+
+# Carpet suppresses water and raises suction; hard floors get a per-surface water default.
+# The resolver reads the carpet entry of FLOOR_TYPE_WATER_DEFAULTS as this brand's
+# no-water value, so "off" here is load-bearing, not decorative.
+FLOOR_TYPE_WATER_DEFAULTS: dict[str, str] = {
+    "hardwood": "low",
+    "laminate": "low",
+    "tile": "medium",
+    "marble": "low",
+    "carpet_low_pile": "off",
+    "carpet_high_pile": "off",
+}
+
+FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
+    "carpet_low_pile": "max",
+    "carpet_high_pile": "turbo",
+}

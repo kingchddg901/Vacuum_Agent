@@ -402,11 +402,47 @@ The two-phase registration order at `async_setup_entry` time:
 1. load_stored_adapter_configs(hass, data)
    → registers any UI-wizard-built configs first
 
-2. register_eufy_adapter_for_vacuum(hass, vacuum_entity_id)   [for each managed vacuum]
+2. register_brand_adapter(hass, vacuum_entity_id, data=data)  [for each managed vacuum]
+   → resolves the brand, runs that brand's registrar
    → overwrites stored configs; code adapters always win
 ```
 
-This order means: if a user built a custom adapter config via the UI wizard and then the Eufy code adapter is also registered, the code adapter takes precedence. The stored config is not deleted — it persists for reference and is used if the code adapter is removed.
+This order means: if a user built a custom adapter config via the UI wizard and then the
+code adapter is also registered, the code adapter takes precedence. The stored config is
+not deleted — it persists for reference and is used if the code adapter is removed.
+
+### 6.1 Brand selection (`adapters/brands.py`)
+
+Which registrar runs is decided by an ordered table, **not** by a branch in
+`__init__.py`. `BRAND_REGISTRARS` holds one `BrandRegistrar` per brand
+(`brand_id`, `detect`, `register`, `is_default`), and `resolve_brand` returns both the
+registrar and **how** it was chosen:
+
+| `source` | Meaning |
+|---|---|
+| `"override"` | An explicit per-vacuum choice in `data["brand_overrides"][vacuum_entity_id]`. A user's stated brand outranks auto-detection — that is the point of a selector. **Nothing writes this key yet**; the read path exists so the planned UI has somewhere to land. |
+| `"detected"` | The first registrar whose `detect` returned True, in table order. `detect` is *positive identification only* and may be `None` for a brand with no honest test. |
+| `"default"` | No override and no positive match — the terminal `is_default` arm. Exactly one entry declares it. |
+
+**The default arm is Eufy, and that is a declared decision rather than a leftover.**
+`is_roborock_vacuum` reads the device registry, which is sparse or absent on real installs,
+so a Eufy with a blank `manufacturer` has always resolved this way and must keep working.
+Refusing an unidentified brand would be a regression, not a fix, while there is no UI
+selector to recover with.
+
+What changed is that reaching it is no longer silent: `register_brand_adapter` logs at INFO
+when the default was reached by *no-match* rather than by detection. "This is a Eufy" and
+"we could not tell, so we assumed Eufy" are different facts and now read differently in the
+log.
+
+Eufy declares no `detect` at all, deliberately — the Eufy adapter never reads the device
+registry for manufacturer or model, so there is no positive test to write, and inventing
+one would dress an assumption up as an identification.
+
+Every failure mode degrades rather than raising, because this runs for every managed vacuum
+during setup: an unknown override id falls through to detection (with a warning), a
+malformed stored value is ignored, and a `detect` that throws is skipped so later brands
+still get their turn.
 
 ---
 
@@ -414,10 +450,28 @@ This order means: if a user built a custom adapter config via the UI wizard and 
 
 To add a new brand adapter:
 
-1. Create `adapters/{brand}/adapter.py` with a `register_{brand}_adapter_for_vacuum(hass, vacuum_entity_id)` function.
+1. Create `adapters/{brand}/adapter.py` with a `register_{brand}_adapter_for_vacuum(hass, vacuum_entity_id)` function, plus an `is_{brand}_vacuum(hass, vacuum_entity_id)` predicate for positive identification.
+1b. **Add one row to `BRAND_REGISTRARS` in `adapters/brands.py`** pairing the two (see §6.1). This is the only edit outside your brand package — integration core is not touched. Place it before the default arm; detection runs in table order.
 2. Build the config dict using `ADAPTER_CONFIG_SCHEMA` as the reference. Every framework-read field must be present; card-only fields (`vocabulary.clean_mode_options`, etc.) are optional.
 3. Set `dispatch.template` to one of the four built-in templates, or add a new template to the dispatch engine.
-4. Pick the two segmenter engines (see §2.4). Declare `mapping.segmenter_engine` (or `noop_fallback` if the brand yields no map image) and `job_segmenter.engine` (or `noop_job_fallback` if the brand emits no per-room run signal). For Eufy these are `eufy_cv_v1` and `eufy_counter_v1`; a brand whose boundary detection differs registers its own engine in the relevant registry and names it here. Optionally declare `room_profiles` to override the framework's default profile vocabulary (an absent block uses the in-code defaults verbatim).
+4. Pick the two segmenter engines (see §2.4). Declare `mapping.segmenter_engine` (or `noop_fallback` if the brand yields no map image) and `job_segmenter.engine` (or `noop_job_fallback` if the brand emits no per-room run signal). For Eufy these are `eufy_cv_v1` and `eufy_counter_v1`; a brand whose boundary detection differs registers its own engine in the relevant registry and names it here. **Declare `room_profiles`.** This is listed as optional above and in doc 22, and for a
+non-Eufy brand that is misleading: the framework's in-code catalog *is Eufy's* (Eufy
+declares it by reference), so an absent block gives your rooms Eufy display vocabulary —
+`"Max"`, `"Off"`, `"Quick"`. Roborock shipped without it and every Roborock room was
+created with settings the brand does not recognise: the card's chip rows compare option
+values strictly so nothing rendered as selected, and `per_room_live_settings` filters on
+`fan_speed_options` so an unedited room got no suction applied at all.
+
+Declare `builtins` + `default_profile` in your own vocabulary, using the same profile KEYS
+as the framework catalog so stored rooms and the card's profile picker survive a brand
+switch, and declare `floor_type_water_defaults` / `floor_type_fan_defaults` too — those are
+applied to *every* room, not just new ones, and the resolver reads the carpet entry of the
+water map as your brand's no-water value. Omit an axis your brand does not have (Roborock
+omits `clean_intensity` from every profile) so nothing inert is written onto rooms.
+
+`tests/adapters/test_adapter_contract.py` asserts all of this for every brand in
+`ADAPTER_BUILDERS`, so a missing or mis-cased declaration is a red test rather than a
+silent wrong default.
 5. Register via `register_adapter_config(vacuum_entity_id, config)` at startup.
 6. The adapter's `setup.steps` declaration controls which setup-wizard screens the user sees (see `setup/drift.py`).
 

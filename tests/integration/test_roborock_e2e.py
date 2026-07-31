@@ -71,6 +71,30 @@ def _setup(hass, manager, monkeypatch, model="roborock.vacuum.s6"):
         vacuum_entity_id=_VAC, map_id=_MAP, enabled_room_ids=[_KITCHEN, _OFFICE]
     )
     rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+
+    # RB-1 REGRESSION GUARD — assert the SHIPPED defaults before overwriting them.
+    #
+    # This overwrite is what masked RB-1. Room creation used to hardcode Eufy display
+    # literals, so every Roborock room was born with fan_speed "Max" / water_level "Off" /
+    # clean_intensity "Quick" — none of which is in this brand's vocabulary. The test then
+    # immediately replaced fan_speed with valid values, and the e2e went green over a room
+    # the real onboarding path could never have produced.
+    #
+    # The overwrite still earns its place below (two rooms need DIFFERENT fans to prove
+    # per-room live pushing), so it stays — but not before the defaults it hides are
+    # checked. See tests/adapters/test_adapter_contract.py for the brand-agnostic version.
+    for _rid in (_KITCHEN, _OFFICE):
+        _fresh = rooms[str(_rid)]
+        assert _fresh["fan_speed"] == "balanced", (
+            f"a new Roborock room was created with fan_speed {_fresh['fan_speed']!r} — "
+            "brand defaults regressed to another vocabulary"
+        )
+        assert _fresh["water_level"] == "off"
+        assert not _fresh.get("clean_intensity"), (
+            "Roborock exposes no intensity axis; a new room must not store one"
+        )
+        assert _fresh["profile_name"] == "vacuum_quick"
+
     rooms[str(_KITCHEN)]["order"] = 1   # queue order; device will path-optimize
     rooms[str(_OFFICE)]["order"] = 2
     # Per-room fan (valid Roborock vocab values) -> pushed live on room entry.

@@ -54,7 +54,11 @@ from .vocabulary import (
     ACTIVE_RUN_TASK_STATES,
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
+    CUSTOM_ROOM_PROFILE,
     FAN_SPEED_OPTIONS,
+    FLOOR_TYPE_FAN_DEFAULTS as RB_FLOOR_TYPE_FAN_DEFAULTS,
+    FLOOR_TYPE_WATER_DEFAULTS as RB_FLOOR_TYPE_WATER_DEFAULTS,
+    ROOM_PROFILES,
     WATER_LEVEL_OPTIONS,
     CLEAN_MODE_OPTIONS,
 )
@@ -657,7 +661,27 @@ def register_roborock_adapter_for_vacuum(
         # live rollover, filtered to job targets).
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs,
-        #   settings_selects, room_profiles, anomaly, live_transition.
+        #   settings_selects, anomaly, live_transition.
+        #
+        # room_profiles is NO LONGER omitted. "Framework defaults suffice" was wrong for
+        # this one: the in-code catalog is EUFY's (Eufy declares it by reference), so
+        # omitting the block gave every Roborock room Eufy display vocabulary — "Max",
+        # "Off", "Quick" — none of which is in this brand's own option lists. A new room's
+        # "Max" was dropped by the per_room_live_settings options_key filter (no suction
+        # applied at all) and rendered as no-chip-selected in the card's strict-equality
+        # chip row. Same profile KEYS as the framework catalog so stored rooms and the
+        # profile picker keep working; only the VALUES are Roborock's.
+        "room_profiles": {
+            "default_profile": "vacuum_quick",
+            "builtins": ROOM_PROFILES,
+            "custom_template": CUSTOM_ROOM_PROFILE,
+            "normalize_defaults": CUSTOM_ROOM_PROFILE,
+            "floor_type_water_defaults": RB_FLOOR_TYPE_WATER_DEFAULTS,
+            "floor_type_fan_defaults": RB_FLOOR_TYPE_FAN_DEFAULTS,
+            # legacy_aliases deliberately absent — the framework's Eufy-era aliases
+            # (vacuum_standard -> vacuum_quick) are harmless key renames, not vocabulary,
+            # and Roborock has no legacy of its own to map.
+        },
     }
 
     register_adapter_config(vacuum_entity_id, config)

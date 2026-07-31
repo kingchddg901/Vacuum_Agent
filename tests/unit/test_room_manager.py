@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import pytest
 
+from custom_components.eufy_vacuum.rooms.room_defaults import resolve_new_room_defaults
 from custom_components.eufy_vacuum.rooms.room_manager import (
     _normalize_enabled_room_ids,
     build_managed_rooms,
     build_room_selection_summary,
 )
+
+
+#: What the Eufy adapter's declared catalog resolves to — the framework in-code catalog,
+#: which Eufy declares by reference. Passed explicitly because build_managed_rooms takes
+#: new_room_defaults as a REQUIRED argument: a permissive default there is precisely the
+#: pattern that let every Roborock room be created with Eufy vocabulary.
+_EUFY_DEFAULTS = resolve_new_room_defaults(None)
 
 
 # ---------------------------------------------------------------------------
@@ -76,12 +84,14 @@ def test_normalize_deduplicates():
 # ---------------------------------------------------------------------------
 
 def test_build_all_discovered_rooms_included_when_no_filter():
-    result = build_managed_rooms(discovered_rooms=[_disc(1), _disc(2), _disc(3)])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(1), _disc(2), _disc(3)])
     assert set(result.keys()) == {"1", "2", "3"}
 
 
 def test_build_filtered_by_enabled_room_ids():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1), _disc(2), _disc(3)],
         enabled_room_ids=[1, 3],
     )
@@ -91,6 +101,7 @@ def test_build_filtered_by_enabled_room_ids():
 
 def test_build_empty_enabled_ids_excludes_all():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1), _disc(2)],
         enabled_room_ids=[],
     )
@@ -99,6 +110,7 @@ def test_build_empty_enabled_ids_excludes_all():
 
 def test_build_string_enabled_room_ids_filter():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1), _disc(2)],
         enabled_room_ids=["1"],
     )
@@ -106,9 +118,26 @@ def test_build_string_enabled_room_ids_filter():
 
 
 def test_build_defaults_for_new_room():
-    result = build_managed_rooms(discovered_rooms=[_disc(5, name="Hallway")])
+    """A new room's settings come from the brand's DEFAULT PROFILE.
+
+    BEHAVIOUR CHANGE, deliberate and approved. This asserted fan_speed == "Max", which was
+    the hardcoded literal. But the room is simultaneously labelled profile_name
+    "vacuum_quick", and that profile declares fan_speed "Standard" — so a new room claimed
+    a profile it did not follow, and because resolve_room_profile_for_room lets the stored
+    per-room field win, the profile was never consulted. The label had been decorative
+    since it was written.
+
+    Sourcing from the profile is what makes the label true, and is the same move that lets
+    a non-Eufy brand supply its own defaults at all. Existing rooms are untouched — they
+    carry stored values and nothing rewrites them.
+    """
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS, discovered_rooms=[_disc(5, name="Hallway")])
     room = result["5"]
-    assert room["fan_speed"] == "Max"
+    assert room["profile_name"] == "vacuum_quick"
+    assert room["fan_speed"] == "Standard", "must match the profile it claims to be on"
+    assert room["water_level"] == "Off"
+    assert room["clean_intensity"] == "Quick"
     assert room["clean_passes"] == 1
     assert room["enabled"] is True
     assert room["clean_mode"] == "vacuum"
@@ -116,8 +145,32 @@ def test_build_defaults_for_new_room():
     assert room["floor_type"] == "hardwood"
 
 
+def test_a_new_room_agrees_with_the_profile_it_claims():
+    """The invariant behind the change above, stated once so it cannot silently rot.
+
+    Whatever the catalog's default profile declares IS what a new room gets — no literal
+    in build_managed_rooms gets to disagree with it.
+    """
+    from custom_components.eufy_vacuum.profiles.room_profiles import (
+        resolve_profile_catalog,
+    )
+
+    catalog = resolve_profile_catalog(None)
+    profile = catalog["builtins"][catalog["default_profile"]]
+
+    room = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS, discovered_rooms=[_disc(9)],
+    )["9"]
+
+    assert room["profile_name"] == catalog["default_profile"]
+    for key in ("clean_mode", "fan_speed", "water_level", "clean_intensity",
+                "clean_passes", "edge_mopping"):
+        assert room[key] == profile[key], f"{key} disagrees with the declared profile"
+
+
 def test_build_preserves_existing_fan_speed():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"fan_speed": "quiet"}},
     )
@@ -127,6 +180,7 @@ def test_build_preserves_existing_fan_speed():
 def test_build_preserves_existing_color():
     """A re-save (save_managed_rooms / setup wizard) must not wipe a per-room color override."""
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"color": "#ff0000"}},
     )
@@ -134,7 +188,8 @@ def test_build_preserves_existing_color():
 
 
 def test_build_defaults_color_none_for_new_room():
-    result = build_managed_rooms(discovered_rooms=[_disc(2)])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(2)])
     assert result["2"]["color"] is None
 
 
@@ -144,6 +199,7 @@ def test_build_preserves_existing_is_transition():
     the flag was dropped from storage — while maps/map_manager.py's parallel preserve list
     kept it. mapping/tracker.py reads it when attributing a live room."""
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"is_transition": True}},
     )
@@ -151,12 +207,14 @@ def test_build_preserves_existing_is_transition():
 
 
 def test_build_defaults_is_transition_false_for_new_room():
-    result = build_managed_rooms(discovered_rooms=[_disc(2)])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(2)])
     assert result["2"]["is_transition"] is False
 
 
 def test_build_preserves_existing_clean_passes():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"clean_passes": 2}},
     )
@@ -165,6 +223,7 @@ def test_build_preserves_existing_clean_passes():
 
 def test_build_preserves_existing_enabled_false():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"enabled": False}},
     )
@@ -173,6 +232,7 @@ def test_build_preserves_existing_enabled_false():
 
 def test_build_floor_type_from_floor_types_arg():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         floor_types={1: "carpet_low_pile"},
     )
@@ -182,6 +242,7 @@ def test_build_floor_type_from_floor_types_arg():
 def test_build_floor_type_string_key_lookup():
     """floor_types keyed by string room_id should also resolve."""
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(2)],
         floor_types={"2": "tile"},
     )
@@ -190,6 +251,7 @@ def test_build_floor_type_string_key_lookup():
 
 def test_build_floor_types_arg_overrides_existing():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"floor_type": "marble"}},
         floor_types={1: "carpet_high_pile"},
@@ -199,6 +261,7 @@ def test_build_floor_types_arg_overrides_existing():
 
 def test_build_configured_at_preserved_from_existing():
     result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,
         discovered_rooms=[_disc(1)],
         existing_rooms={"1": {"configured_at": "2024-01-01T00:00:00Z"}},
     )
@@ -206,23 +269,27 @@ def test_build_configured_at_preserved_from_existing():
 
 
 def test_build_configured_at_set_for_new_room():
-    result = build_managed_rooms(discovered_rooms=[_disc(1)])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(1)])
     assert result["1"]["configured_at"] is not None
     assert isinstance(result["1"]["configured_at"], str)
 
 
 def test_build_room_name_from_discovered():
-    result = build_managed_rooms(discovered_rooms=[_disc(7, name="Living Room")])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(7, name="Living Room")])
     assert result["7"]["name"] == "Living Room"
 
 
 def test_build_map_id_from_discovered():
-    result = build_managed_rooms(discovered_rooms=[_disc(1, map_id="42")])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(1, map_id="42")])
     assert result["1"]["map_id"] == "42"
 
 
 def test_build_no_discovered_rooms():
-    result = build_managed_rooms(discovered_rooms=[])
+    result = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[])
     assert result == {}
 
 
@@ -311,7 +378,8 @@ def test_map_rebuild_and_room_save_agree_on_every_field():
     """
     from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket, rebuild_map_bucket
 
-    saved = build_managed_rooms(discovered_rooms=[_disc(1)], existing_rooms={})["1"]
+    saved = build_managed_rooms(
+        new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[_disc(1)], existing_rooms={})["1"]
 
     data: dict = {}
     ensure_map_bucket(data=data, vacuum_entity_id="vacuum.alfred", map_id="1")

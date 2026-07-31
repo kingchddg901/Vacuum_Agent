@@ -119,7 +119,19 @@ def rebuild_map_bucket(
     Stale room entries (no longer discovered) are removed. Existing per-room
     settings are preserved when ``preserve_existing_settings`` is True.
     Other maps and vacuums are not affected.
+
+    A room the rebuild has to create fresh (or one whose settings are being dropped
+    because ``preserve_existing_settings`` is False) takes the BRAND's default-profile
+    settings, through the same seam the wizard path uses — so the two room writers cannot
+    answer "what does a fresh room look like?" differently. They already drifted once on
+    the field LIST (``is_transition``); this closes the same gap on the VALUES.
     """
+    # Local import: maps <- rooms <- rooms.access_graph <- maps is a cycle at module load.
+    from ..profiles.room_profiles import DEFAULT_ROOM_PROFILE_NAME
+    from ..rooms.room_defaults import resolve_new_room_defaults_for_vacuum
+
+    new_room_defaults = resolve_new_room_defaults_for_vacuum(vacuum_entity_id)
+
     map_bucket = ensure_map_bucket(
         data=data,
         vacuum_entity_id=vacuum_entity_id,
@@ -153,6 +165,14 @@ def rebuild_map_bucket(
         # question, so the divergence is expressed here rather than hidden in a shared default.
         _prev_grants = previous.get("grants_access_to")
         _prev_rules = previous.get("rules")
+
+        def _prev_or_brand(key: str, fallback: Any, _prev=previous) -> Any:
+            """An existing value wins; else the brand's default profile; else the field
+            default. Mirrors build_managed_rooms._default exactly — same precedence,
+            same seam."""
+            if key in _prev:
+                return _prev[key]
+            return new_room_defaults.get(key, fallback)
         rebuilt_rooms[room_id_key] = RoomConfig(
             room_id=room_id,
             map_id=str(map_id),
@@ -160,15 +180,15 @@ def rebuild_map_bucket(
             slug=room.get("slug"),
             enabled=bool(previous.get("enabled", True)),
             order=int(previous.get("order", index)),
-            profile_name=str(previous.get("profile_name", "vacuum_quick")),
+            profile_name=str(_prev_or_brand("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
-            clean_mode=str(previous.get("clean_mode", "vacuum")),
-            fan_speed=str(previous.get("fan_speed", "Max")),
-            water_level=str(previous.get("water_level", "Off")),
-            clean_intensity=str(previous.get("clean_intensity", "Quick")),
-            clean_passes=int(previous.get("clean_passes", 1)),
-            edge_mopping=bool(previous.get("edge_mopping", False)),
-            path_type=previous.get("path_type"),
+            clean_mode=str(_prev_or_brand("clean_mode", "vacuum")),
+            fan_speed=str(_prev_or_brand("fan_speed", "")),
+            water_level=str(_prev_or_brand("water_level", "")),
+            clean_intensity=str(_prev_or_brand("clean_intensity", "")),
+            clean_passes=int(_prev_or_brand("clean_passes", 1)),
+            edge_mopping=bool(_prev_or_brand("edge_mopping", False)),
+            path_type=_prev_or_brand("path_type", None),
             is_dock_room=bool(previous.get("is_dock_room", False)),
             is_transition=bool(previous.get("is_transition", False)),
             grants_access_to=list(_prev_grants) if isinstance(_prev_grants, list) else [],

@@ -26,6 +26,7 @@ def _normalize_enabled_room_ids(enabled_room_ids: list[int] | list[str] | None) 
 def build_managed_rooms(
     *,
     discovered_rooms: list[dict[str, Any]],
+    new_room_defaults: dict[str, Any],
     existing_rooms: dict[str, Any] | None = None,
     enabled_room_ids: list[int] | list[str] | None = None,
     floor_types: dict[int, str] | None = None,
@@ -34,9 +35,19 @@ def build_managed_rooms(
 
     Only rooms in ``enabled_room_ids`` are included when that list is supplied.
     Existing per-room settings are preserved for rooms that are still discovered;
-    new rooms receive safe defaults.
+    new rooms take their settings from ``new_room_defaults``.
+
+    ``new_room_defaults`` is REQUIRED and has deliberately no default value. It comes from
+    ``rooms.room_defaults.resolve_new_room_defaults_for_vacuum`` — the brand's own default
+    profile. A permissive default here is exactly the pattern the adapter audit kept
+    finding: an omitted argument that quietly resolves to a concrete *Eufy* answer. Making
+    it required means a future call site cannot forget and silently get Eufy vocabulary;
+    it gets a TypeError instead.
     """
+    from ..profiles.room_profiles import DEFAULT_ROOM_PROFILE_NAME   # local: import cycle
+
     existing_rooms = existing_rooms or {}
+    new_room_defaults = new_room_defaults or {}
     floor_types = floor_types or {}
     explicit_enabled_ids = _normalize_enabled_room_ids(enabled_room_ids)
     has_explicit_enabled_ids = enabled_room_ids is not None
@@ -67,6 +78,16 @@ def build_managed_rooms(
         from ..learning.utils import _iso_now
         existing_configured_at = existing.get("configured_at")
 
+        # A field a room already carries wins; otherwise the BRAND's default profile
+        # answers, via new_room_defaults. _default() keeps that precedence in one place so
+        # the two cannot be wired differently per field, and returns the RoomConfig field
+        # default when neither the room nor the brand's profile declares the key — silence
+        # from a brand is not a value.
+        def _default(key: str, fallback: Any) -> Any:
+            if key in existing:
+                return existing[key]
+            return new_room_defaults.get(key, fallback)
+
         room_config = RoomConfig(
             room_id=room_id,
             map_id=str(room["map_id"]),
@@ -74,15 +95,15 @@ def build_managed_rooms(
             slug=room.get("slug"),
             enabled=bool(existing.get("enabled", True)),
             order=int(existing.get("order", index)),
-            profile_name=str(existing.get("profile_name", "vacuum_quick")),
+            profile_name=str(_default("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
-            clean_mode=str(existing.get("clean_mode", "vacuum")),
-            fan_speed=str(existing.get("fan_speed", "Max")),
-            water_level=str(existing.get("water_level", "Off")),
-            clean_intensity=str(existing.get("clean_intensity", "Quick")),
-            clean_passes=int(existing.get("clean_passes", 1)),
-            edge_mopping=bool(existing.get("edge_mopping", False)),
-            path_type=existing.get("path_type"),
+            clean_mode=str(_default("clean_mode", "vacuum")),
+            fan_speed=str(_default("fan_speed", "")),
+            water_level=str(_default("water_level", "")),
+            clean_intensity=str(_default("clean_intensity", "")),
+            clean_passes=int(_default("clean_passes", 1)),
+            edge_mopping=bool(_default("edge_mopping", False)),
+            path_type=_default("path_type", None),
             is_dock_room=bool(existing.get("is_dock_room", False)),
             is_transition=bool(existing.get("is_transition", False)),  # preserve across a re-save
             grants_access_to=list(existing.get("grants_access_to", [])),

@@ -80,7 +80,7 @@ shared.
     "job_segmenter": { ... },    # optional — pluggable JOB/run segmenter engine + threshold tuning
     "room_attribution": { ... }, # optional — pluggable ROOM-ATTRIBUTION engine (external-run room recovery)
     "live_transition": { ... },  # optional — live current-room rollover orchestration
-    "room_profiles": { ... },    # optional — adapter-sourced room-profile vocabulary
+    "room_profiles": { ... },    # adapter-sourced room-profile vocabulary — see §13d; effectively REQUIRED for a non-Eufy brand
     "anomaly": { ... },          # optional — live anomaly ratios (running-long / stall)
     "wash_frequency_bounds": { ... },    # optional — mop-wash interval clamp
     "settings_selects": { ... },         # optional — external-run per-room setting recovery
@@ -1595,6 +1595,17 @@ returns the in-code defaults verbatim, so a vacuum without the block (and
 Eufy, which declares it *by reference* to the in-code constants) resolves
 byte-identically. The Eufy adapter declares it so room resolution is
 adapter-sourced and a future brand can inline its own vocabulary.
+
+> **Effectively required for a non-Eufy brand.** The in-code catalog *is Eufy's*, so an
+> absent block does not mean "neutral defaults" — it means Eufy display vocabulary
+> (`"Max"` / `"Off"` / `"Quick"`) in that brand's rooms. Roborock shipped without this
+> block and every Roborock room was created with values the brand does not recognise: the
+> card's chip rows compare option values strictly (nothing rendered as selected) and
+> `dispatch.per_room_live_settings` filters on `fan_speed_options` (no suction applied at
+> all). Declare at minimum `builtins` + `default_profile`, plus
+> `floor_type_water_defaults` / `floor_type_fan_defaults` — those apply to *every* room,
+> and the resolver reads the carpet entry of the water map as the brand's no-water value.
+> `tests/adapters/test_adapter_contract.py` enforces this for every registered brand.
 
 ### Schema
 

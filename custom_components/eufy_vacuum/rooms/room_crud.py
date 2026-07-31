@@ -18,6 +18,7 @@ from ..maps.map_manager import (
 )
 from ..rooms.reconciliation import compute_reconciliation, plan_migration
 from ..rooms.room_discovery import discover_rooms_payload
+from ..rooms.room_defaults import resolve_new_room_defaults_for_vacuum
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
 
 if TYPE_CHECKING:
@@ -249,6 +250,9 @@ class RoomMapManager:
 
         managed_rooms = build_managed_rooms(
             discovered_rooms=filtered_rooms,
+            # The BRAND's default profile decides what a newly-approved room starts with,
+            # rather than the framework's Eufy-shaped literals.
+            new_room_defaults=resolve_new_room_defaults_for_vacuum(vacuum_entity_id),
             existing_rooms=existing_rooms,
             enabled_room_ids=enabled_room_ids,
             floor_types=floor_types or {},

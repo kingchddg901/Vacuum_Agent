@@ -419,3 +419,117 @@ def test_no_undeclared_nested_keys(adapter):
         f"{name}: nested keys shipped but NOT declared in ADAPTER_CONFIG_SCHEMA: "
         f"{undeclared}. Declare them under the parent's 'fields' or stop shipping them."
     )
+
+
+# --- new-room defaults must be the brand's OWN vocabulary --------------------
+#
+# The tripwire for RC-6/RB-1. Room creation used to hardcode Eufy display literals
+# ("Max"/"Off"/"Quick") with no way to consult the adapter at all, so every Roborock room
+# was created with settings its own brand does not recognise. These run for every entry in
+# ADAPTER_BUILDERS, so a THIRD brand that forgets to declare room_profiles goes red here
+# rather than shipping silently with Eufy vocabulary in its rooms.
+
+def _option_values(config, key):
+    """Declared card dropdown values for one axis, or None when the brand omits the axis.
+
+    The option lists live under ``vocabulary`` (both brands declare them there), alongside
+    the state-vocabulary sets.
+    """
+    options = (config.get("vocabulary") or {}).get(key)
+    if not isinstance(options, list) or not options:
+        return None
+    return {str(o.get("value")) for o in options if isinstance(o, dict)}
+
+
+def test_new_room_defaults_use_only_this_brands_declared_vocabulary(adapter):
+    """A new room's settings must be selectable in this brand's own option lists.
+
+    This is the assertion that would have caught the shipped bug: a Roborock room created
+    with fan_speed "Max" is not in FAN_SPEED_OPTIONS (whose values are lowercase), so the
+    card's strict-equality chip row showed nothing selected and the per_room_live_settings
+    options_key filter dropped the value entirely — no suction applied at all.
+    """
+    from custom_components.eufy_vacuum.rooms.room_defaults import (
+        resolve_new_room_defaults,
+    )
+
+    brand, config = adapter
+    defaults = resolve_new_room_defaults(config.get("room_profiles"))
+
+    for field, options_key in (
+        ("fan_speed", "fan_speed_options"),
+        ("water_level", "water_level_options"),
+        ("clean_mode", "clean_mode_options"),
+        ("clean_intensity", "clean_intensity_options"),
+    ):
+        declared = _option_values(config, options_key)
+        value = defaults.get(field)
+
+        if declared is None:
+            # A brand that exposes no such axis must not have a default for it either —
+            # Roborock declares no clean_intensity_options, so storing "Quick" on every
+            # one of its rooms would be an inert field nobody can act on.
+            assert not value, (
+                f"{brand}: declares no {options_key} but a new room would store "
+                f"{field}={value!r}"
+            )
+            continue
+
+        # An axis the brand DOES expose may still be left to the room/profile; but if the
+        # default profile names a value, it has to be one the user could have picked.
+        if value:
+            assert value in declared, (
+                f"{brand}: a new room would get {field}={value!r}, which is not in its "
+                f"declared {options_key} {sorted(declared)}"
+            )
+
+
+def test_new_room_default_profile_exists_in_this_brands_catalog(adapter):
+    """default_profile must name a profile the brand actually declares.
+
+    Cheap, and it is the failure a brand-3 port makes first: declare builtins, forget to
+    point default_profile at one of them (or point it at a key from the Eufy catalog that
+    the brand's own builtins do not define).
+    """
+    from custom_components.eufy_vacuum.profiles.room_profiles import (
+        resolve_profile_catalog,
+    )
+
+    brand, config = adapter
+    catalog = resolve_profile_catalog(config.get("room_profiles"))
+
+    name = catalog.get("default_profile")
+    builtins = catalog.get("builtins")
+    assert isinstance(builtins, dict) and builtins, f"{brand}: no builtins resolved"
+    assert name in builtins, (
+        f"{brand}: default_profile {name!r} is not among its builtins "
+        f"{sorted(builtins)}"
+    )
+
+
+def test_floor_type_defaults_use_only_this_brands_declared_vocabulary(adapter):
+    """The carpet/hard-floor overrides are applied to EVERY room, not just new ones.
+
+    resolve_room_profile_for_room reads the carpet entry as this brand's no-water value,
+    so a Eufy-cased "Off" sitting in a Roborock catalog is not cosmetic — it is written
+    onto the resolved settings of every carpet room.
+    """
+    from custom_components.eufy_vacuum.profiles.room_profiles import (
+        resolve_profile_catalog,
+    )
+
+    brand, config = adapter
+    catalog = resolve_profile_catalog(config.get("room_profiles"))
+
+    for catalog_key, options_key in (
+        ("floor_type_water_defaults", "water_level_options"),
+        ("floor_type_fan_defaults", "fan_speed_options"),
+    ):
+        declared = _option_values(config, options_key)
+        if declared is None:
+            continue
+        for floor_type, value in (catalog.get(catalog_key) or {}).items():
+            assert str(value) in declared, (
+                f"{brand}: {catalog_key}[{floor_type}] = {value!r} is not in its declared "
+                f"{options_key} {sorted(declared)}"
+            )

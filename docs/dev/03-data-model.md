@@ -426,12 +426,19 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `order` | `int` | Zero-based sort position within the map. |
 | `is_configured` | `bool` | Gating flag: only rooms with `True` become HA entities. Backfilled `True` for pre-existing rooms; new rooms enter `False` and advance through the setup wizard. |
 | `configured_at` | `str \| None` | ISO timestamp the room was approved/backfilled — stamped (`setdefault`) when `is_configured` first flips `True`. Defined on `RoomConfig`; like `is_transition`, not in the `RoomRecord` TypedDict. |
-| `profile_name` | `str \| None` | Active preset name; default `"vacuum_quick"`. |
+| `profile_name` | `str \| None` | Active preset name; defaults to the brand's `room_profiles.default_profile`. |
 | `floor_type` | `str` | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"granite"`, `"concrete"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
-| `fan_speed` | `str` | e.g. `"Max"`, `"Boost"`, `"Standard"`, `"Quiet"`. |
-| `water_level` | `str` | `"Off"`, `"Low"`, `"Medium"`, `"High"`. |
-| `clean_intensity` | `str` | One of `"Quick"`, `"Narrow"`, `"Deep"`. Legacy `"Standard"`/`"Normal"` are **dead** — normalized to `"Quick"` by `normalize_clean_intensity` (same as §07/§08). |
+| `fan_speed` | `str` | **Brand vocabulary.** Eufy: `"Max"`, `"Boost"`, `"Standard"`, `"Quiet"`. Roborock: `"max"`, `"turbo"`, `"balanced"`, `"quiet"`, `"gentle"`. Values are the brand's declared `vocabulary.fan_speed_options`; casing differs between brands and the card compares strictly. |
+| `water_level` | `str` | **Brand vocabulary.** Eufy: `"Off"`/`"Low"`/`"Medium"`/`"High"`; Roborock the same set lowercased. |
+| `clean_intensity` | `str` | **Brand vocabulary, and may be absent entirely** — Roborock exposes no intensity axis and stores nothing for it. Eufy: `"Quick"`, `"Narrow"`, `"Deep"`; legacy `"Standard"`/`"Normal"` are **dead**, normalized to `"Quick"` by `normalize_clean_intensity` (same as §07/§08). |
+
+> **New-room defaults come from the brand's default profile.** `build_managed_rooms` and
+> the map-rebuild path both take a `new_room_defaults` mapping resolved by
+> `rooms/room_defaults.py` from `room_profiles.default_profile` — they no longer carry
+> their own literals. A field the room already has wins; otherwise the profile answers;
+> otherwise the value is left empty ("nobody said") rather than defaulted to one brand's
+> vocabulary. See [21-adapter-system](21-adapter-system.md) §7.
 | `clean_passes` | `int` | Number of cleaning passes; minimum 1. |
 | `edge_mopping` | `bool` | Whether edge mopping is active. |
 | `path_type` | `str \| None` | `"wide"`, `"narrow"`, or `None`. |

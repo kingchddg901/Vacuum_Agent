@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
+
 try:
     from typing import TypedDict
 except ImportError:
@@ -174,6 +175,27 @@ class RoomConfig:
 
     enabled: bool = True
     order: int = 0
+
+    # === per-room settings ===================================================
+    #
+    # These carry NO brand-flavoured defaults, deliberately. They used to default to
+    # "vacuum_quick" / "Max" / "Off" / "Quick" — Eufy display vocabulary — which made this
+    # dataclass an independent source of Eufy answers for every construction site that
+    # omitted a field. Roborock's vocabulary is lowercase, so a room built here without
+    # explicit values silently carried settings its own brand does not recognise.
+    #
+    # The brand's answer now comes from its default profile, resolved by
+    # rooms/room_defaults.py and passed in by each room-creating caller. An empty string
+    # here means "nobody said" — visibly unset rather than confidently wrong — and is what
+    # a brand whose profile omits an axis gets (Roborock declares no clean_intensity).
+    #
+    # profile_name keeps a real default because it is the framework's own catalog KEY,
+    # not brand vocabulary; a brand overrides it by declaring room_profiles.default_profile.
+    #
+    # Spelled literally rather than imported: importing profiles here would cycle
+    # (models <- maps.map_manager <- profiles.manager <- profiles/__init__), and a dataclass
+    # field default cannot be resolved lazily. It is kept honest by a test asserting
+    # RoomConfig().profile_name == DEFAULT_ROOM_PROFILE_NAME rather than by this comment.
     profile_name: str = "vacuum_quick"
 
     # floor_type encodes carpet pile height in the value (e.g. "carpet_low_pile");
@@ -181,9 +203,9 @@ class RoomConfig:
     floor_type: str = "hardwood"
 
     clean_mode: str = "vacuum"
-    fan_speed: str = "Max"
-    water_level: str = "Off"
-    clean_intensity: str = "Quick"
+    fan_speed: str = ""
+    water_level: str = ""
+    clean_intensity: str = ""
     clean_passes: int = 1
     edge_mopping: bool = False
 

@@ -408,27 +408,44 @@ def resolve_room_profile_for_room(
         catalog=catalog,
     )
 
+    # Last-resort fallbacks are "" ("nobody said"), NOT Eufy display literals. They fire
+    # only when the room AND the brand's profile both omit the key; a value here would be
+    # this module quietly becoming a fourth source of Eufy vocabulary, which is the exact
+    # thing rooms/room_defaults.py exists to stop.
     resolved_clean_mode = str(room_config.get("clean_mode", resolved_profile.get("clean_mode", "vacuum")))
     resolved_clean_intensity = normalize_clean_intensity(
-        room_config.get("clean_intensity", resolved_profile.get("clean_intensity", "Quick"))
+        room_config.get("clean_intensity", resolved_profile.get("clean_intensity", ""))
     )
     resolved_path_type = str(room_config.get("path_type", resolved_profile.get("path_type", "wide")))
     resolved_edge_mopping = bool(room_config.get("edge_mopping", resolved_profile.get("edge_mopping", False)))
 
-    resolved_fan_speed = str(room_config.get("fan_speed", resolved_profile.get("fan_speed", "Max")))
-    resolved_water_level = str(room_config.get("water_level", resolved_profile.get("water_level", "Off")))
+    resolved_fan_speed = str(room_config.get("fan_speed", resolved_profile.get("fan_speed", "")))
+    resolved_water_level = str(room_config.get("water_level", resolved_profile.get("water_level", "")))
 
     # Carpet overrides fan speed and suppresses water; hard floors apply
     # per-surface water defaults only when the room has no explicit override.
+    #
+    # Both come from the CATALOG, which a brand declares. floor_type_water_defaults already
+    # maps carpet -> the brand's no-water value, so the carpet arm reads it rather than
+    # assigning a literal "Off" — that literal wrote Eufy casing into a Roborock
+    # resolution, where the value is "off".
     if floor_type.startswith("carpet"):
-        resolved_fan_speed = fan_defaults.get(floor_type, "Max")
-        resolved_water_level = "Off"
+        resolved_fan_speed = fan_defaults.get(floor_type, "")
+        resolved_water_level = water_defaults.get(floor_type, "")
     elif "water_level" not in room_config:
-        resolved_water_level = water_defaults.get(floor_type, "Low")
+        resolved_water_level = water_defaults.get(floor_type, "")
 
-    # Mop mode with water Off is invalid — fall back to the floor's water default.
-    if resolved_clean_mode in {"mop", "vacuum_mop"} and resolved_water_level == "Off" and not floor_type.startswith("carpet"):
-        resolved_water_level = water_defaults.get(floor_type, "Low")
+    # Mop mode with no water is invalid — fall back to the floor's water default.
+    # Compared case-insensitively: "off" is a FRAMEWORK concept (the absence of water),
+    # and brands differ only in how they case the label. A strict == "Off" meant this
+    # guard never fired on Roborock, whose value is "off", so a mop room with water off
+    # stayed dry-mopping instead of being corrected.
+    if (
+        resolved_clean_mode in {"mop", "vacuum_mop"}
+        and resolved_water_level.strip().lower() in ("", "off")
+        and not floor_type.startswith("carpet")
+    ):
+        resolved_water_level = water_defaults.get(floor_type, "")
 
     # Edge mopping is only meaningful for mop modes on non-carpet floors.
     if resolved_clean_mode not in {"mop", "vacuum_mop"} or floor_type.startswith("carpet"):
