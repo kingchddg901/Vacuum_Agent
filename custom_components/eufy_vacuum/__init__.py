@@ -46,11 +46,7 @@ from .adapters.registry import (
     AdapterCoordinator,
     unregister_adapter_config,
 )
-from .adapters.eufy.adapter import register_eufy_adapter_for_vacuum
-from .adapters.roborock.adapter import (
-    register_roborock_adapter_for_vacuum,
-    is_roborock_vacuum,
-)
+from .adapters.brands import register_brand_adapter
 from .adapters.config_loader import load_stored_adapter_configs
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
@@ -303,16 +299,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _stored_count,
         )
 
-    # Register the brand code adapter for each managed vacuum. This overwrites
-    # any stored config for the same vacuum. The brand is auto-detected from the
-    # HA device registry (manufacturer / model); Eufy is the default. A future
-    # UI brand selector will override this per vacuum.
+    # Register the brand code adapter for each managed vacuum. This overwrites any
+    # stored config for the same vacuum. Which brand runs is decided by the registrar
+    # table in adapters/brands.py — an explicit per-vacuum override, else positive
+    # detection, else the declared default arm. Adding a brand is a row in that table,
+    # not an edit here.
     for _vacuum_entity_id in manager.get_known_vacuum_ids():
         try:
-            if is_roborock_vacuum(hass, _vacuum_entity_id):
-                register_roborock_adapter_for_vacuum(hass, _vacuum_entity_id)
-            else:
-                register_eufy_adapter_for_vacuum(hass, _vacuum_entity_id)
+            register_brand_adapter(hass, _vacuum_entity_id, data=manager.data)
         except Exception:
             _LOGGER.exception(  # pragma: no cover
                 "eufy_vacuum: failed to register adapter config for %s",
