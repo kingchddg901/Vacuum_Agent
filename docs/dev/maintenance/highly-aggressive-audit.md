@@ -5,10 +5,16 @@ This page is the working ledger: **what it found, what has been fixed, and what 
 
 ## What the campaign is
 
-Each audit takes one subsystem and runs **eight agents** against it — six discovery agents
+Each audit takes one subsystem and runs a fan-out of agents against it — discovery agents
 split by area, then two adversarial verifiers over the pooled findings. One verifier is
 scored on *false positives killed*; the other must reproduce each finding with concrete
 inputs and correct the severity. A finding only survives if neither kills it.
+
+The fan-out is **scaled to the target**, not fixed: six finders for a large subsystem, three
+for a 668-line module. Cost tracks agent count far more than lines of code, and the verify
+stage has a floor of roughly 200k tokens regardless of target size — so below a few hundred
+lines the shape stops paying and a **direct read** by the orchestrator is better value. Some
+entries below came that way; they are marked `direct read`.
 
 Rules that earned their place across the runs:
 
@@ -21,6 +27,9 @@ Rules that earned their place across the runs:
   is real, and the distinction is stated per subsystem.
 - **A comment asserting a guard is a claim to verify, not evidence.** This has repeatedly
   been the finding itself.
+- **Read the subsystem's doc before adjudicating a finding.** The doc states INTENT, so a
+  code/doc divergence is the finding either way — but it stops a documented design choice
+  being reported as a defect. This demonstrably narrowed a claim from three sites to one.
 
 ## Confidence
 
@@ -34,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**47 changes shipped**, all with tests, all deployed.
+**48 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -102,14 +111,15 @@ comments rather than by a shared helper.
 | `4262f34` | docs(maintenance): fold audit #14 into the ledger — core/manager.py, the hub |
 | `fc721c9` | docs(maintenance): fold audit #15 into the ledger — the integration assembly script |
 | `44b3cd6` | docs(maintenance): fold audit #16 into the ledger — the learning consumers |
+| `d48f7ae` | docs(maintenance): fold audit #17 into the ledger — themes/manager.py |
 
 ---
 
 ## Open
 
-**369 findings** across 11 audits, none applied. 29 clusters + 294 singles.
+**376 findings** — 369 across 11 audits plus 7 from direct reads. None applied. 29 clusters + 301 singles.
 
-CRITICAL 17 · HIGH 73 · MEDIUM 131 · LOW 148
+CRITICAL 17 · HIGH 73 · MEDIUM 135 · LOW 151
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -473,7 +483,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (111)</summary>
+<details><summary><strong>MEDIUM</strong> (115)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -523,6 +533,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **A6-VAC-2** `dock/manager.py:93` · eufy  
   Dock action returns performed=True / "Dock action sent." when the resolved button entity exists only in the registry (disabled or not loaded) — a silent no-op reported as success  
   A user who has disabled the upstream wash/dry/empty button entity (or whose upstream integration is reloading) sees the dock control offered as Ready, taps it, gets a success response, and the dock does nothing. There is
+- **DR-DOCK-1** `dock/manager.py:383` · eufy · `direct read`  
+  The dock-event timestamp is written BEFORE the debounce, so a debounced event still corrupts last_*  
+  CONFIRMS audit #12's A1-REG-1 from the receiving side. vacuum_events[event_type] = now runs unconditionally at :383; the debounce block at :388-424 gates only the COUNTER. So even where debounce is configured (Eufy decla
+- **DR-DOCK-2** `dock/manager.py:383` · both · `direct read`  
+  record_dock_event validates nothing; its sibling set_dock_event_count validates the same vocabulary  
+  set_dock_event_count checks event_type against counter_map and returns {'updated': False, 'error': ...} for anything unknown. record_dock_event writes vacuum_events[event_type] = now for ANY string. Since event_type come
 - **A3-REC-5** `jobs/active_job.py:1721` · both  
   Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths  
   Per-room battery drain is never observed on either brand: every completed_job record's room_timings[].battery_delta is null, so the only per-room battery figure available anywhere is the even split total_battery_used / r
@@ -604,6 +620,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **A1-REG-2** `listeners/lifecycle.py:390` · eufy  
   lifecycle registers a state listener + timer (post-job water amendment) whose unsubs are function-local and unreachable from lifecycle.remove()/async_unload_entry — the only unsub leak among the eight modules  
   An unloaded/reloaded integration keeps a live state subscription and a pending timer for up to 180 s and rewrites a completed-job learning file after teardown. Because the leaked `_commit` reads the live water_level enti
+- **DR-LR-1** `live_refresh/manager.py:170` · roborock · `direct read`  
+  A misdeclared returns_response retries forever at DEBUG and never sticky-disables  
+  ServiceValidationError subclasses HomeAssistantError, so a wrong `returns_response` flag lands in the handler documented as TRANSIENT-do-not-disable. It logs at DEBUG and returns; the next tick repeats. A one-word adapte
+- **DR-MNT-1** `maintenance/manager.py:713` · both · `direct read`  
+  source_available reports True for a MISSING usage_hours attribute, and reset_maintenance's invalid_usage_hours is unreachable for it  
+  DOC-CHECKED against doc 13 §5.2: the `0.0 if unavailable` default is documented INTENT, so that half is not a defect. What remains: `.get('usage_hours', 0)` means a missing attribute never raises, so source_available is
 - **A3-EXT-4** `mapping/map_source.py:243` · eufy  
   Room-outline offset is the exact NEGATION of the fork renderer's — overlays desync from the live backdrop whenever the outline origin differs from the map origin  
   On any Eufy map whose room-outline origin differs from the map origin (VA's own notes record an X10 map at +105 cells), the card's room tap-regions, room labels, current-room highlight and robot dot sit displaced by twic
@@ -811,7 +833,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (136)</summary>
+<details><summary><strong>LOW</strong> (139)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -855,6 +877,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **DQ-ACT-7** `dispatch/manager.py:421` · future_brand_only  
   The OFF-fallback lowercases the select's options for the membership test but then sends the lowercased string as the option value  
   On a future brand whose select uses capitalized or numeric options, the mop-intensity pre-call silently no-ops and the run uses whatever water the device was last left on — the same physical outcome as DQ-ACT-5, reached
+- **DR-DOCK-3** `dock/manager.py:446` · both · `direct read`  
+  A manual counter reset leaves the debounce marker, suppressing the next genuine event  
+  set_dock_event_count zeroes the counter but never clears {event_type}_last_counted_at. Reset inside the debounce window and the next real wash is silently not counted -- reset and debounce state are not kept coherent.
 - **A2-CAN-6** `jobs/active_job.py:2189` · both  
   async_cancel_active_job is re-entrant — a second cancel arriving inside the 30 s confirm window overwrites finalize_summary with all-None  
   The post-run summary on the card goes blank after a double cancel — no outcome, no learning verdict, no sanity flags — even though the record on disk is intact. An automation listening on EVENT_JOB_FINISHED fires twice,
@@ -1005,6 +1030,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **A6-TRK-7** `mapping/tracker.py:286` · both  
   start_job/end_job are dispatched to an executor thread on the strength of a comment describing disk I/O that start_job does not perform  
   No user-visible failure proven: the individual dict operations are GIL-atomic and the interleaving window is a handful of bytecodes, so at worst one position sample is misrouted at job start. The real cost is that a fals
+- **DR-MAP-1** `maps/map_manager.py:62` · both · `direct read`  
+  get_map_bucket returns a DETACHED dict on a miss and live storage on a hit  
+  Mutation through the getter persists or silently vanishes depending on whether the map already exists -- the shape audit #1 found (a claim written to a copy). Sibling ensure_map_bucket uses setdefault and always returns
+- **DR-MAP-2** `maps/map_manager.py:95` · both · `direct read`  
+  get_vacuum_maps_summary mixes a live room_count with CACHED enabled/disabled counts  
+  room_count is live len(rooms); enabled_room_count/disabled_room_count come from the stored summary block. Anything writing rooms without recomputing summary makes them disagree in one payload.
 - **A3-CRUD-6** `maps/map_manager.py:181` · both _(finder said MEDIUM; verifier corrected)_  
   Both room writers auto-enable and auto-approve rooms the user has never seen (DQ-Q-5 extension: the live instance is save_managed_rooms, not rebuild_map)  
   A segment that appeared since the last save — a re-segment splitting one room in two, or a stray CV artefact — is added to the map already enabled, already approved and already floor-type-confirmed by the next `save_mana
