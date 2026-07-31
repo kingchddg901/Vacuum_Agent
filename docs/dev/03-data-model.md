@@ -814,9 +814,32 @@ lagged area; every other boundary stays same-instant).
   "active_boundaries":   list[int]     # candidate ids that started a kept segment
   "counter_samples":     list          # [{t, cleaning_time, cleaning_area, battery}] — stripped before serving
   "settings_samples":    list          # [{t, settings:{...}}] — stripped before serving
+  "pose_samples":        list          # the run-active pose stream — stripped before serving
   "segments":            list[PendingSegment]
 }
 ```
+
+#### Stamped after the build (`_finalize_external_run`)
+
+`build_pending_record` produces the shape above from the samples alone. The finalize
+then adds three keys it had to gather from elsewhere, before writing the file:
+
+```
+{
+  "return_overhead_s":  float                   # dock/return time inside the run window
+  "return_intervals":   list                    # the individual docked spans
+  "run_errors":         ActiveRunError | None   # §13 latch, peeked from the ErrorTracker
+}
+```
+
+`run_errors` is peeked (not harvested) while the capture slot is still in flight — the
+finalize clears the slot in its `finally` — and the latch is committed (released) only
+after this file is durably written, so a failed write leaves the run's error history
+recoverable. `build_graduated_job` reads it into the graduated record's `outcome` (§9b).
+Absent on records captured before external runs latched at all; see §13.
+
+A separate `pending_job_id` (the filename stem) is attached at read time by
+`load_pending_runs`, not stored in the file.
 
 `segment_count == suggested_room_count` on the default (confident-only) view —
 uncertain / transit / weak cuts ship in `candidates` with `confident: false` and
@@ -1668,10 +1691,27 @@ written.
     "origin":            str    # "external"
     "sanity_passed":     bool   # True  — sane by construction (passed the identity gate)
     "sanity_flags":      list   # []
+    "had_errors":        bool          # carried from the pending record's run_errors
+    "error_count":       int           # 0 when no evidence was captured
+    "errors":            ActiveRunError | None   # the verbatim latch (§13)
   }
   "finalized_at":   str | None
 }
 ```
+
+**Error evidence.** The three `outcome` error keys use the same names the dispatched
+finalizer writes (§9 `OutcomeInfo`), so the review tab and every history consumer read
+one shape regardless of how the run started. They are populated from
+`pending_record["run_errors"]` — the latch the ErrorTracker formed *during* the
+app-started run and `_finalize_external_run` peeked onto the pending record.
+
+`total_error_seconds` is deliberately **absent** rather than zero: the dispatched path
+derives it from per-phase timings this path does not have, and writing `0` would assert
+that the run spent no time in error — a stronger claim than "we did not measure it".
+
+A pending record written before external runs latched at all has no `run_errors` key;
+that reads as *no evidence* (`had_errors: False`, `errors: None`), which is the same
+rendering as a clean run but not the same claim.
 
 `ExtRoomTiming` carries `{room_id, slug, cleaning_start, cleaning_end,
 cleaning_seconds, cleaning_wall_seconds, area_m2}` (one or more merged segments per

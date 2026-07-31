@@ -127,6 +127,14 @@ _POSE_STALL_ANCHOR_EPS = 2.0       # decoded-map pixels; jitter below this = "no
 _POSE_STALL_COALESCE_TICKS = 15    # ~30 s at a 2 s cadence before the tail collapses
 _POSE_STALL_AREA_EPS_M2 = 0.05     # cleaning_area must climb by more than this to count as progress
 
+#: Statuses of a run WE dispatched that is still going. See dispatched_job_is_in_flight.
+_DISPATCHED_IN_FLIGHT_STATUSES: tuple[str, ...] = ("started", "paused")
+
+#: Statuses of ANY run still going, ours or app-started. See run_is_in_flight. Derived
+#: from the dispatched set rather than re-listed, so the two cannot drift apart — the
+#: only difference between them is, and should remain, the external capture slot.
+_RUN_IN_FLIGHT_STATUSES: tuple[str, ...] = _DISPATCHED_IN_FLIGHT_STATUSES + ("external",)
+
 
 def dispatched_job_is_in_flight(job: Any) -> bool:
     """Is this active-job record a DISPATCHED run that is actually still running?
@@ -143,10 +151,37 @@ def dispatched_job_is_in_flight(job: Any) -> bool:
     NOTE — deliberately DISPATCHED-only. Do NOT reuse this for the sample recorders
     (``record_counter_sample``, ``record_active_job_sensor_value``) or the pose sampler:
     those must also match ``status == "external"``, because capturing app-started runs is
-    exactly their job, and gating them here would break external capture. Different
-    question, different predicate — see the pose sampler, which states its own.
+    exactly their job, and gating them here would break external capture. That is a
+    different question with its own answer — ``run_is_in_flight`` below.
     """
-    return isinstance(job, dict) and job.get("status") in ("started", "paused")
+    return isinstance(job, dict) and job.get("status") in _DISPATCHED_IN_FLIGHT_STATUSES
+
+
+def run_is_in_flight(job: Any) -> bool:
+    """Is this active-job record ANY run still going — dispatched OR app-started?
+
+    The companion question to ``dispatched_job_is_in_flight``. Both exist on purpose and
+    the distinction is load-bearing, so they live side by side rather than behind a flag:
+
+    - Ask **``dispatched_job_is_in_flight``** when the answer only makes sense for a run
+      *we* commanded — anything that reads the queue, the payload, or resolved room
+      identity. An external slot has none of those (see ``start_external_capture``), so
+      including it there would produce confident nonsense.
+    - Ask **``run_is_in_flight``** when the question is about the ROBOT rather than the
+      queue: is it out on the floor right now? Observation belongs here — sampling,
+      recording, and error capture. An app-started run is every bit as real to the
+      hardware, and refusing to observe it is how evidence goes missing.
+
+    That second case was answered three different ways before this existed:
+    ``_SAMPLED_STATUSES`` in the pose sampler, an inline tuple in ``record_pose_sample``,
+    and — the actual bug — ``dispatched_job_is_in_flight`` in the ErrorTracker, which is
+    why an app-started run formed no error latch at all. One question, one answer.
+
+    ``paused`` counts here as well as in the dispatched predicate: a paused robot is still
+    mid-run and off the dock, and a fault is a perfectly ordinary reason for it to be
+    paused. Excluding it would blind the tracker to exactly the runs it matters most for.
+    """
+    return isinstance(job, dict) and job.get("status") in _RUN_IN_FLIGHT_STATUSES
 
 
 def _pose_sample_is_static(prev: dict, new: dict) -> bool:

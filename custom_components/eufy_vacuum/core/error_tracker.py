@@ -180,6 +180,14 @@ def _job_elapsed_seconds(active_job: dict[str, Any] | None) -> int:
         started_dt = datetime.fromisoformat(started.replace("Z", "+00:00"))
     except (TypeError, ValueError):
         return 0
+    if started_dt.tzinfo is None:
+        # A naive timestamp PARSES fine and then raises TypeError on the subtraction
+        # below — which this function promises not to do, and which would propagate out
+        # of a state-change callback and kill error recording for the run.
+        # Everything we write is aware (_iso_now), so this only shows up for a value
+        # restored from an older store or hand-edited; UTC is the right reading of it,
+        # since that is what this integration has always written.
+        started_dt = started_dt.replace(tzinfo=timezone.utc)
     now = datetime.now(timezone.utc)
     elapsed = int((now - started_dt).total_seconds())
     return max(0, elapsed)
@@ -716,8 +724,13 @@ class ErrorTracker:
             ring = ring[-_RECENT_ERRORS_LIMIT:]
         record["recent_errors"] = ring
 
-        # active_run_error — only forms when there is an active job.
-        if active_job_id is not None:
+        # active_run_error — forms whenever a RUN is in flight, which is not the same as
+        # "we have a job id". An external capture slot carries no job_id (it is assigned
+        # at graduate time, from the pending record), so gating on the id here silently
+        # excluded every app-started run. The latch's active_job_id is then legitimately
+        # None for those runs; peek/commit key on first_seen_at + error_count rather than
+        # identity, and peek already treats a None id as a non-mismatch.
+        if active_job is not None:
             latch = record.get("active_run_error")
             if latch is None:
                 # First rising edge of this run.
@@ -928,7 +941,7 @@ class ErrorTracker:
         root = self._root()
         if vacuum_entity_id not in root:
             return False
-        from ..jobs.active_job import dispatched_job_is_in_flight
+        from ..jobs.active_job import run_is_in_flight
 
         record = self._ensure_record(vacuum_entity_id)
         scope_n = (scope or "both").strip().lower()
@@ -952,8 +965,12 @@ class ErrorTracker:
             # error never occurred. The entities already treat a recovered/blank latch as
             # nothing to show, so marking satisfies the user's intent while the finalizer
             # still gets its evidence — and the post-finalize auto-clear collects it.
+            # run_is_in_flight, matching _lookup_active_job: an app-started run's evidence
+            # needs preserving for exactly the same reason a dispatched run's does — the
+            # user frees the stuck robot, clears the alert, and the run must not then
+            # graduate claiming nothing went wrong.
             latch = record.get("active_run_error")
-            if isinstance(latch, dict) and dispatched_job_is_in_flight(
+            if isinstance(latch, dict) and run_is_in_flight(
                 self._lookup_active_job(vacuum_entity_id)
             ):
                 latch["acknowledged"] = True
@@ -971,11 +988,16 @@ class ErrorTracker:
     def _lookup_active_job(self, vacuum_entity_id: str) -> dict[str, Any] | None:
         """Return the in-flight active_job dict for this vacuum, if any.
 
-        Mirrors BatteryHealthManager._has_active_job's traversal: walk the
-        per-map active_jobs dict and return the first entry that has
-        ``started_at`` and no ``ended_at``.
+        Walks the per-map active_jobs dict and returns the first run still going.
+
+        Uses ``run_is_in_flight``, NOT ``dispatched_job_is_in_flight``: the tracker's
+        question is about the robot, not the queue. An app-started run is a real run on
+        real hardware that can get stuck in a real doorway, and gating on the dispatched
+        predicate meant it formed no latch at all — every fault during an app-started run
+        was recorded in last_device_error and recent_errors, then omitted from the run's
+        own record, which is the one place a reviewer would look.
         """
-        from ..jobs.active_job import dispatched_job_is_in_flight
+        from ..jobs.active_job import run_is_in_flight
 
         active_jobs = self._manager.data.get("active_jobs", {})
         per_map = active_jobs.get(vacuum_entity_id, {})
@@ -988,7 +1010,7 @@ class ErrorTracker:
             # binary_sensor on), and on multi-map installs the first finalized bucket
             # permanently shadowed the live one, stamping every error with the wrong
             # job's id, elapsed time and room.
-            if dispatched_job_is_in_flight(map_state):
+            if run_is_in_flight(map_state):
                 return map_state
         return None
 

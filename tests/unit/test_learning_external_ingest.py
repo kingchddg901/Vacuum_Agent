@@ -541,9 +541,12 @@ def test_build_graduated_job_produces_completed_record():
     assert blocked == []
     assert rec["record_type"] == "completed_job"
     assert rec["origin"] == "external"
+    # A pending record with no run_errors key — every record captured before external
+    # runs latched at all. Reads as "no evidence", never as a claim that the run was clean.
     assert rec["outcome"] == {
         "status": "completed", "used_for_learning": True, "origin": "external",
         "sanity_passed": True, "sanity_flags": [],
+        "had_errors": False, "error_count": 0, "errors": None,
     }
     assert rec["job"]["transit_capture_valid"] is True
     assert rec["job"]["room_timings"][0]["area_m2"] == 6.0
@@ -698,3 +701,67 @@ def test_pending_job_id_shape_is_enforced():
         "", None, "notajob", "JOB_upper", "job_", r"job_x\y",
     ):
         assert _is_valid_pending_job_id(bad) is False, f"{bad!r} should be rejected"
+
+
+def test_build_graduated_job_carries_run_errors_from_the_pending_record():
+    """[FIND-6] An app-started run that hit a fault must not graduate claiming it didn't.
+
+    The ErrorTracker latches for external runs now, _finalize_external_run peeks the latch
+    into the pending record, and the graduate carries it into `outcome` under the SAME key
+    names the dispatched finalizer uses — so the review tab and every history consumer read
+    one shape regardless of how the run started.
+    """
+    pending = _pending_two_rooms()
+    pending["run_errors"] = {
+        "active_job_id": None,          # external captures carry no job id
+        "first_seen_at": "2026-06-07T03:20:00+00:00",
+        "last_seen_at": "2026-06-07T03:28:00+00:00",
+        "error_count": 2,
+        "current_message": "",
+        "recovered": True,
+        "errors": [
+            {"message": "Brush stuck", "code": 70, "recovered_at": "2026-06-07T03:22:00+00:00"},
+            {"message": "Wheel stuck", "code": 71, "recovered_at": "2026-06-07T03:28:00+00:00"},
+        ],
+    }
+
+    rec, blocked = build_graduated_job(
+        pending_record=pending,
+        assignments=[
+            {"segment_order": 0, "room_id": 1, "edge_mopping": True},
+            {"segment_order": 1, "room_id": 2, "edge_mopping": False},
+        ],
+        rooms=_ROOMS, bands_by_slug={},
+        vacuum_entity_id="vacuum.alfred", job_id="ext-err",
+        ended_at="2026-06-07T04:00:00",
+    )
+
+    assert blocked == []
+    outcome = rec["outcome"]
+    assert outcome["had_errors"] is True
+    assert outcome["error_count"] == 2
+    assert [e["code"] for e in outcome["errors"]["errors"]] == [70, 71]
+    # Deliberately absent rather than 0 — this path has no per-phase timings to derive it
+    # from, and writing 0 would assert the run spent no time in error.
+    assert "total_error_seconds" not in outcome
+
+
+def test_build_graduated_job_ignores_a_malformed_run_errors_value():
+    """[FIND-6] A hand-edited or truncated pending file must not poison the record."""
+    pending = _pending_two_rooms()
+    pending["run_errors"] = "not a latch"
+
+    rec, blocked = build_graduated_job(
+        pending_record=pending,
+        assignments=[
+            {"segment_order": 0, "room_id": 1, "edge_mopping": True},
+            {"segment_order": 1, "room_id": 2, "edge_mopping": False},
+        ],
+        rooms=_ROOMS, bands_by_slug={},
+        vacuum_entity_id="vacuum.alfred", job_id="ext-bad",
+        ended_at="2026-06-07T04:00:00",
+    )
+
+    assert blocked == []
+    assert rec["outcome"]["had_errors"] is False
+    assert rec["outcome"]["errors"] is None

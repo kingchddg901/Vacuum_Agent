@@ -824,3 +824,79 @@ def test_get_external_pending_runs_empty_when_no_dir(manager):
     assert out["count"] == 0
     assert out["pending"] == []
     assert out["brand"] is None
+
+
+async def test_external_finalize_carries_the_error_latch_and_commits_it(manager, hass):
+    """[FIND-6] the error latch reaches the pending record, and is released only after.
+
+    The write half of the FIND-6 chain. The tracker now latches for app-started runs, so
+    _finalize_external_run peeks the latch onto the record before clearing the slot, and
+    commits (clears) it only once the file is on disk — the same peek/commit discipline the
+    dispatched finalizer uses, so a failed write leaves the history recoverable.
+
+    Peek ordering matters here: `clear_active_job` runs in the finalize's `finally`, so the
+    peek must happen while the capture is still in flight.
+    """
+    from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
+    from custom_components.eufy_vacuum.core.error_tracker import ErrorTracker
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    register_adapter_config(_VAC, _EXT_ADAPTER)
+
+    tracker = ErrorTracker(hass, runtime_manager=manager)
+    tracker._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err",
+                                      "task_status": "sensor.alfred_task"}
+    hass.data.setdefault(DOMAIN, {})[DATA_ERROR_TRACKER] = tracker
+
+    events: list[dict] = []
+    unsub = hass.bus.async_listen(
+        EVENT_EXTERNAL_RUN_PENDING, lambda ev: events.append(dict(ev.data))
+    )
+
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+        slot = manager.data["active_jobs"][_VAC][_MAP]
+        slot["counter_samples"] = [dict(s) for s in _COUNTER_SAMPLES]
+        slot["settings_samples"] = [dict(s) for s in _SETTINGS_SAMPLES]
+        # AWARE, because that is what start_external_capture writes (_iso_now). The other
+        # tests here use a naive _BASE and never notice, since they don't run the tracker.
+        slot["started_at"] = _BASE.replace(tzinfo=timezone.utc).isoformat()
+
+        # The robot gets stuck mid-run and then recovers — the ordinary shape.
+        tracker._record_rising_edge(_VAC, message="Brush stuck", code=70,
+                                    attribute_code=None)
+        tracker._record_falling_edge(_VAC)
+        await hass.async_block_till_done()
+        assert tracker.get_record(_VAC)["active_run_error"] is not None, (
+            "precondition: the external run must latch at all"
+        )
+
+        hass.states.async_set(_VAC, "docked")
+        hass.states.async_set("sensor.alfred_task", "Charging")
+        assert await manager.maybe_handle_external_run(vacuum_entity_id=_VAC) is False
+
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(seconds=EXTERNAL_FINALIZE_GRACE_S + 1)
+        )
+        await hass.async_block_till_done()
+
+        assert len(events) == 1
+        record = json.loads(Path(events[0]["record_path"]).read_text(encoding="utf-8"))
+
+        run_errors = record.get("run_errors")
+        assert run_errors is not None, "the pending record carries no error evidence"
+        assert run_errors["error_count"] == 1
+        assert run_errors["errors"][0]["message"] == "Brush stuck"
+        assert run_errors["errors"][0]["recovered_at"] is not None
+        # No job id to attach — external captures get theirs at graduate time.
+        assert run_errors["active_job_id"] is None
+
+        # Committed: the record is durable, so the latch is released for the next run.
+        assert tracker.get_record(_VAC)["active_run_error"] is None
+        # The device-level buffer is untouched by a commit — it clears on acknowledge only.
+        assert tracker.get_record(_VAC)["last_device_error"]["message"] == "Brush stuck"
+    finally:
+        unsub()
+        hass.data.get(DOMAIN, {}).pop(DATA_ERROR_TRACKER, None)
+        unregister_adapter_config(_VAC)

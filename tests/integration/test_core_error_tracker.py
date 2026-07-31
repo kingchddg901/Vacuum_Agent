@@ -104,6 +104,23 @@ def test_job_elapsed_seconds():
     assert et._job_elapsed_seconds({"started_at": started}) >= 85
 
 
+def test_job_elapsed_seconds_survives_a_naive_timestamp():
+    """[ET-1b] A naive started_at PARSES fine and then raised on the subtraction.
+
+    The function documents itself as clamping to 0 rather than raising, but the
+    try/except only wraps fromisoformat — so a tz-naive value sailed through it and
+    threw TypeError from inside a state-change callback, killing error recording for
+    the whole run. Everything this integration writes is aware (_iso_now), so the
+    reachable source is a value restored from an older store or hand-edited; UTC is
+    the correct reading of it.
+    """
+    naive = (datetime.now(timezone.utc) - timedelta(seconds=90)).replace(tzinfo=None)
+    assert et._job_elapsed_seconds({"started_at": naive.isoformat()}) >= 85
+    # A future timestamp still clamps rather than going negative.
+    ahead = (datetime.now(timezone.utc) + timedelta(seconds=90)).replace(tzinfo=None)
+    assert et._job_elapsed_seconds({"started_at": ahead.isoformat()}) == 0
+
+
 # ---------------------------------------------------------------------------
 # record access
 # ---------------------------------------------------------------------------
@@ -656,3 +673,93 @@ def test_error_tracking_cfg_degrades_to_each_callers_default(tracker, hass):
     t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
     hass.states.async_set("sensor.alfred_err", "Stuck", {"errorCode": 70})
     assert t._read_error_code_attr(_VAC) == 70, "fell off the default attribute tuple"
+
+
+# --- FIND-6: app-started (external) runs must latch too -----------------------
+
+def _seed_external_capture(mgr, *, room_id=3, started_minutes_ago=2):
+    """Seed a real external capture slot.
+
+    Deliberately shaped like ``start_external_capture`` writes it: status="external",
+    a started_at, and **no job_id** — the id is assigned at graduate time from the
+    pending record. Seeding a job_id here would hide the second half of the defect.
+    """
+    started = (datetime.now(timezone.utc)
+               - timedelta(minutes=started_minutes_ago)).isoformat()
+    mgr.data["active_jobs"] = {
+        _VAC: {"6": {"started_at": started, "status": "external",
+                     "current_room_id": room_id}}}
+
+
+async def test_external_run_forms_an_active_run_latch(tracker, hass):
+    """[FIND-6] An app-started run is a real run on real hardware.
+
+    The tracker asked `dispatched_job_is_in_flight`, which is DISPATCH-only by design, so
+    an external capture never counted as in flight. Even past that, the latch was gated on
+    `active_job_id is not None` and an external slot carries no job_id — two independent
+    reasons the latch could not form.
+
+    The user-visible result: every fault during an app-started run landed in
+    last_device_error and recent_errors, then was omitted from the run's own record — the
+    one place the review wizard looks when it asks "does this look right?".
+    """
+    t, mgr = tracker
+    _seed_external_capture(mgr)
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+
+    t._record_rising_edge(_VAC, message="Brush stuck", code=70, attribute_code=None)
+    await hass.async_block_till_done()
+
+    latch = t.get_record(_VAC)["active_run_error"]
+    assert latch is not None, "an app-started run formed no error latch at all"
+    assert latch["error_count"] == 1
+    assert latch["errors"][0]["message"] == "Brush stuck"
+    assert latch["errors"][0]["room_id"] == "3", "external attribution was dropped"
+    # Honest about identity: there IS no job id yet, and claiming one would be worse.
+    assert latch["active_job_id"] is None
+    # The elapsed clock still works — started_at is present on an external slot.
+    assert latch["first_seen_job_elapsed_seconds"] >= 100
+
+
+async def test_a_finished_external_slot_does_not_latch(tracker, hass):
+    """[FIND-6] The widened predicate must not re-open the hole it replaced.
+
+    `run_is_in_flight` adds "external" to the dispatched set and nothing else. A slot the
+    external finalizer has already cleared is status="idle", so errors seen between runs
+    still form no latch — the misattribution bug that the in-flight predicate was
+    introduced to fix stays fixed.
+    """
+    t, mgr = tracker
+    _seed_external_capture(mgr)
+    mgr.data["active_jobs"][_VAC]["6"]["status"] = "idle"   # clear_active_job's shape
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+
+    t._record_rising_edge(_VAC, message="Brush stuck", code=70, attribute_code=None)
+    await hass.async_block_till_done()
+
+    assert t.get_record(_VAC)["active_run_error"] is None
+    # ...but the device-level buffers still record it, as they always did.
+    assert t.get_record(_VAC)["last_device_error"]["message"] == "Brush stuck"
+    assert len(t.get_record(_VAC)["recent_errors"]) == 1
+
+
+async def test_acknowledging_mid_external_run_marks_rather_than_deletes(tracker, hass):
+    """[FIND-6 + FIND-3] The mid-run preservation applies to external runs too.
+
+    Same story as the dispatched case: the user frees the stuck robot and clears the
+    alert — which is why they went. The run must not then graduate claiming nothing
+    happened. Both sites now ask `run_is_in_flight`, so they cannot drift apart.
+    """
+    t, mgr = tracker
+    _seed_external_capture(mgr)
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+    t._record_rising_edge(_VAC, message="Brush stuck", code=70, attribute_code=None)
+    await hass.async_block_till_done()
+
+    assert t.acknowledge(_VAC, scope="active_run") is True
+
+    latch = t.get_record(_VAC)["active_run_error"]
+    assert latch is not None, "acknowledging destroyed an external run's only evidence"
+    assert latch["acknowledged"] is True
+    assert latch["current_message"] == ""      # nothing left for the entities to show
+    assert latch["errors"][0]["message"] == "Brush stuck"   # ...but the history survives

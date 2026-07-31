@@ -212,6 +212,46 @@ class ExternalRunManager:
         )
         await self._manager.async_save()
 
+    def _error_tracker(self) -> Any | None:
+        """The live ErrorTracker, or None when it isn't loaded.
+
+        Looked up rather than injected, matching how core/manager reaches it. Every call
+        site tolerates None, so an install where the tracker failed to start still
+        finalizes external runs — just without error evidence.
+        """
+        from ..const import DATA_ERROR_TRACKER, DOMAIN
+
+        hass = getattr(self._manager, "hass", None)
+        if hass is None:
+            return None
+        return (hass.data.get(DOMAIN, {}) or {}).get(DATA_ERROR_TRACKER)
+
+    def _peek_run_errors(self, vacuum_entity_id: str) -> dict[str, Any] | None:
+        """Snapshot the active-run error latch without clearing it. Never raises."""
+        tracker = self._error_tracker()
+        if tracker is None:
+            return None
+        try:
+            # job_id None: an external capture slot has no job id — one is assigned at
+            # graduate time. peek treats None as a non-mismatch by design.
+            return tracker.peek_active_run(vacuum_entity_id, None)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.debug("external_run: error-latch peek failed", exc_info=True)
+            return None
+
+    def _commit_run_errors(
+        self, vacuum_entity_id: str, peeked: dict[str, Any] | None
+    ) -> bool:
+        """Release the peeked latch now the pending record is durable. Never raises."""
+        tracker = self._error_tracker()
+        if tracker is None or peeked is None:
+            return False
+        try:
+            return bool(tracker.commit_active_run(vacuum_entity_id, peeked))
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.debug("external_run: error-latch commit failed", exc_info=True)
+            return False
+
     async def _extract_return_overhead(
         self, vacuum_entity_id: str, start_ts: Any, end_ts: Any
     ) -> dict[str, Any]:
@@ -319,6 +359,18 @@ class ExternalRunManager:
             vacuum_entity_id, detection_ts, last_t
         )
 
+        # Run errors, PEEKED (not harvested) while the capture slot is still in flight —
+        # `clear_active_job` in the finally below ends the run, and this must happen first.
+        # An app-started run gets stuck in exactly the same doorways a dispatched one does;
+        # until the tracker learned to latch for external runs there was nothing here to
+        # read, and the review wizard asked "does this look right?" while withholding the
+        # one fact that would make the user say no.
+        #
+        # Same peek/commit discipline as the dispatched finalizer: the clear happens only
+        # after the pending record is durably written, so a failed write leaves the error
+        # history recoverable instead of destroying it.
+        peeked_errors = self._peek_run_errors(vacuum_entity_id)
+
         def _build_and_write() -> dict[str, Any] | None:
             import json
 
@@ -355,6 +407,9 @@ class ExternalRunManager:
                 return None
             record["return_overhead_s"] = overhead["return_overhead_s"]
             record["return_intervals"] = overhead["return_intervals"]
+            # Verbatim latch; build_graduated_job derives had_errors / error_count from it
+            # so the pending record and the graduated record cannot disagree.
+            record["run_errors"] = peeked_errors
             safe_ts = (
                 str(detection_ts or "unknown").split("+")[0].split(".")[0].replace(":", "-")
             )
@@ -377,6 +432,9 @@ class ExternalRunManager:
         finally:
             self._manager.clear_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if result is not None:
+            # The record is on disk — now, and only now, release the latch.
+            self._commit_run_errors(vacuum_entity_id, peeked_errors)
+
             from ..const import EVENT_EXTERNAL_RUN_PENDING
 
             self._manager.hass.bus.async_fire(

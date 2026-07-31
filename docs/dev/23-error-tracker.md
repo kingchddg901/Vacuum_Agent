@@ -61,14 +61,22 @@ The three values in a per-device record have distinct shapes.
 
 ### 4.1 `active_run_error` — the run latch
 
-A single latch dict (or `None`). Formed on the first rising edge while a job is active, extended on subsequent rising edges, and nulled out on harvest. Fields:
+A single latch dict (or `None`). Formed on the first rising edge **while a run is in
+flight**, extended on subsequent rising edges, and cleared at commit.
+
+"In flight" here is `run_is_in_flight` (`jobs/active_job.py`), **not**
+`dispatched_job_is_in_flight`: the tracker's question is about the robot, not the queue,
+so an **app-started (external) run latches too**. Those runs carry no `job_id` — one is
+assigned at graduate time — so the latch's `active_job_id` is legitimately `None` for
+them, and `_finalize_external_run` peeks the latch onto the pending record instead of the
+dispatched finalizer doing it. See [03-data-model](03-data-model.md) §5a / §9b.
 
 | Field | Type | Description |
 |---|---|---|
-| `active_job_id` | str | Job ID in flight when the latch first formed |
+| `active_job_id` | str \| None | Job ID in flight when the latch first formed; `None` for an external run |
 | `first_seen_at` | str | ISO-8601 timestamp of the first rising edge |
 | `last_seen_at` | str | ISO-8601 timestamp of the most recent rising or falling edge |
-| `first_seen_job_elapsed_seconds` | int | Seconds into the job when the first error fired (`_job_elapsed_seconds`: clamped ≥ 0; **0** when there is no active job or `started_at` is missing/unparseable) |
+| `first_seen_job_elapsed_seconds` | int | Seconds into the run when the first error fired (`_job_elapsed_seconds`: clamped ≥ 0; **0** when there is no run in flight or `started_at` is missing/unparseable; a tz-naive `started_at` is read as UTC rather than raising) |
 | `error_count` | int | Number of rising edges accumulated into this latch |
 | `current_message` | str | Latest error message (`""` after recovery) |
 | `current_code` | int \| None | Latest numeric error code (`None` after recovery) |
@@ -235,9 +243,31 @@ Clears one or both single-value latches for a vacuum. `scope` is **keyword-only*
 
 | `scope` value | Effect |
 |---|---|
-| `"active_run"` | Clears only `active_run_error` |
+| `"active_run"` | Clears `active_run_error` — or **marks** it, if a run is in flight (below) |
 | `"last_device"` | Clears only `last_device_error` |
-| `"both"` (default) | Clears both `active_run_error` and `last_device_error` (sets each to `None`) |
+| `"both"` (default) | Both of the above |
+
+**Acknowledging mid-run MARKS rather than deletes.** When `run_is_in_flight` is true, the
+`active_run` scope sets `acknowledged: True`, blanks `current_message` and sets
+`recovered: True` instead of nulling the latch. The natural order of operations makes this
+the common case, not an edge one: the robot gets stuck, the user goes and frees it, then
+clears the alert — which is *why* they went. Deleting the latch there destroyed the
+evidence the finalizer needs, and the run then finalized with `had_errors: False`.
+
+The second-order effect was worse than the missing history: `had_errors` is an explicit
+exemption in the idle-wall guard, and being stuck is exactly what produces a large
+wall-vs-cleaning gap — so losing the flag stripped the exemption, held the run from
+learning with blocker `extreme_idle_wall`, and reported "unexplained idle" for a run whose
+explanation the user had just personally handled.
+
+Acknowledging is a UI intent ("I've dealt with it"), not a claim that the error never
+occurred. The entities already render a recovered/blank latch as nothing to show, so
+marking satisfies the intent while the finalizer still gets its evidence; the
+post-finalize auto-clear then collects it. With no run in flight there is nothing to
+preserve and the latch clears outright, exactly as before.
+
+This applies to **external runs too** — both this check and `_lookup_active_job` ask
+`run_is_in_flight`, so they cannot drift apart.
 
 `recent_errors` is never cleared by `acknowledge` — it is a non-destructive rolling log.
 

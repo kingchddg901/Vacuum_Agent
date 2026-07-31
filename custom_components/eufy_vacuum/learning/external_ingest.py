@@ -1046,6 +1046,13 @@ def build_graduated_job(
         return None, []
 
     map_id = _safe_int(pending_record.get("map_id"), 0)
+    # Written by _finalize_external_run from the live error latch. Absent on records
+    # captured before external runs latched at all, so treat a missing key as "no
+    # evidence" rather than "no errors" — both render as had_errors False, but only one
+    # of them is a claim.
+    run_errors = pending_record.get("run_errors")
+    if not isinstance(run_errors, dict):
+        run_errors = None
     record = {
         "record_type": "completed_job",
         "schema_version": 1,
@@ -1081,6 +1088,18 @@ def build_graduated_job(
             # so the history view never reads a missing key as a sanity failure.
             "sanity_passed": True,
             "sanity_flags": [],
+            # Error evidence captured live during the app-started run, carried through
+            # from the pending record. Same key names as the dispatched finalizer's
+            # extra_outcome so the review tab and any history consumer read ONE shape
+            # regardless of how the run started.
+            #
+            # total_error_seconds is deliberately absent rather than zero: the dispatched
+            # path derives it from per-phase timings this path does not have, and writing
+            # 0 would assert "the run spent no time in error", which is a stronger claim
+            # than "we did not measure it".
+            "had_errors": bool(run_errors),
+            "error_count": _safe_int((run_errors or {}).get("error_count"), 0),
+            "errors": run_errors,
         },
         "finalized_at": ended_at,
     }
