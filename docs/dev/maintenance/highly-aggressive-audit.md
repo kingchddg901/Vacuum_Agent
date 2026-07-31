@@ -110,9 +110,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**397 findings** — 369 across 11 audits plus 28 from direct reads. None applied. 29 clusters + 322 singles.
+**399 findings** — 369 across 11 audits plus 30 from direct reads. None applied. 29 clusters + 324 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 143 · LOW 163
+CRITICAL 17 · HIGH 74 · MEDIUM 144 · LOW 164
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -479,7 +479,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (123)</summary>
+<details><summary><strong>MEDIUM</strong> (124)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -757,6 +757,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SRC-2** `rooms/source_refresh.py:280` · roborock _(finder said HIGH; verifier corrected)_  
   set_cached_room_source is called unconditionally on every successful service call, so a response the flatten shim does not recognise (or an empty maps list) silently REPLACES a good cache with {} — logged at DEBUG only  
   Every room silently disappears from the setup tab, the card, and the room picker; after three passes the drift system reports the user's entire room set as removed. Any job whose targets can no longer be resolved degrade
+- **DR-SENS-1** `sensor/lifecycle.py:203` · both · `direct read`  
+  The active_job sensor reports 'none' during an app-started run the system itself considers in flight  
+  native_value hand-enumerates started / paused / completed and defaults everything else to 'none'. But `external` is a first-class status in this codebase: jobs/active_job.py:136 puts it in _RUN_IN_FLIGHT_STATUSES so run_
 - **DR-ONB-3** `sensor/onboarding.py:62` · both · `direct read`  
   The 'empty means complete' guard exists in setup/status.py and was never mirrored onto the onboarding summary — forgotten override sibling  
   UPGRADED from LOW after finding the sibling that HAS the guard. Both sites answer the same question with the same optimistic-accumulator shape: setup/status.py initialises all_steps_complete=True and all_in_sync=True and
@@ -853,7 +856,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (151)</summary>
+<details><summary><strong>LOW</strong> (152)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1194,6 +1197,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SRC-4** `rooms/source_refresh.py:274` · roborock _(finder said MEDIUM; verifier corrected)_  
   No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it  
   Redundant cloud calls raise the probability of the get_maps failure that triggers SRC-1's wrong-room dispatch. When a pre-switch response wins the race, the cache holds the previous map's segment ids under the current ma
+- **DR-SENS-2** `sensor/__init__.py:250` · both · `direct read`  
+  Two ~40-line dynamic-entity reconciliation blocks are hand-duplicated and must be edited in lockstep  
+  _sync_room_history_entities and _sync_room_rule_status_entities are byte-identical apart from the entity-dict name -- same prefix derivation, same stale-id scan, same registry removal, same add path, same refresh helper.
 - **DR-ONB-5** `sensor/onboarding.py:55` · both · `direct read`  
   The sensor recomputes the entire onboarding summary twice per update  
   native_value and extra_state_attributes each call _get_summary() independently, and each call iterates every map building a full get_onboarding_state dict. A polling diagnostic entity does the whole aggregation twice per
