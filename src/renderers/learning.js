@@ -813,8 +813,11 @@ proto._renderLearningCurrentRow = function (entry) {
     ? Number(summary.total_minutes) - predictedMinutes
     : null;
 
+  // Both signs, not just the positive one. Math.abs strips the sign and only "+" was
+  // re-added, so a run that finished EARLY — the good outcome — rendered its delta
+  // identically to one that ran late: "12 min" either way, with nothing to say which.
   const deltaLabel = Number.isFinite(deltaMinutes)
-    ? `${deltaMinutes > 0 ? "+" : ""}${this._formatLearningDuration(Math.abs(deltaMinutes))}`
+    ? `${deltaMinutes > 0 ? "+" : deltaMinutes < 0 ? "−" : ""}${this._formatLearningDuration(Math.abs(deltaMinutes))}`
     : "";
 
   return `

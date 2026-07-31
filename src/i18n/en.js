@@ -335,6 +335,9 @@ export const en = {
   "learning.hours_minutes": "{hours}h {minutes}m",  // Duration format '{hours}h {minutes}m'; h/m = hour/minute unit abbrevs, localize per language
   "learning.hours_only": "{hours}h",  // Duration '{hours}h'; h = hours unit abbreviation, localize if your language differs
   "learning.incomplete_title": { one: "Last run {outcome} — 1 room missed", other: "Last run {outcome} — {count} rooms missed" },  // plural
+  "learning.run_incomplete_toast": { one: "Run incomplete — 1 room missed. Open Rooms to retry.", other: "Run incomplete — {count} rooms missed. Open Rooms to retry." },  // plural. Toast fired when a
+  // run ends with rooms uncleaned. Was hardcoded English in the controller, so it was invisible to
+  // check:i18n and untranslated in all 18 locales.
   "learning.job_will_use": "Job will use",  // water row: clean water this job is projected to consume
   "learning.learning_active": "Learning active",  // live banner title before first room update; system is recording data
   "learning.live_progress": "Live Progress",

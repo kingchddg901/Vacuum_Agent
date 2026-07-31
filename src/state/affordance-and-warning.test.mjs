@@ -87,3 +87,33 @@ test("[AW-6] no source carrying the key returns false rather than throwing", () 
   const card = makeCard({ snapshot: { job_progress: {} } });
   assert.equal(card.learningBatteryWarning(), false);
 });
+
+// --- CC-8 / FE-LRN-5: two small correctness fixes -------------------------------------
+
+test("[AW-7] _deriveHasStops counts a zone step (the 5th copy of the tuple)", async () => {
+  const { applyRunProfilesState } = await import("./run-profiles.js");
+  const proto = {};
+  applyRunProfilesState(proto);
+  const card = Object.create(proto);
+
+  // One room_group + a trailing zone: the >1-group clause cannot fire, so the flag
+  // depends entirely on "zone" being in the tuple. Same shape as the backend sibling.
+  assert.equal(
+    card._deriveHasStops([{ type: "room_group" }, { type: "zone", zone_ids: ["z1"] }]),
+    true,
+    "a rooms->zone profile derived as a flat queue"
+  );
+  assert.equal(card._deriveHasStops([{ type: "room_group" }]), false);
+  assert.equal(card._deriveHasStops([{ type: "room_group" }, { type: "wait" }]), true);
+});
+
+test("[AW-8] the post-job delta keeps its sign when a run finishes early", () => {
+  const label = (deltaMinutes, fmt = (m) => `${m} min`) =>
+    Number.isFinite(deltaMinutes)
+      ? `${deltaMinutes > 0 ? "+" : deltaMinutes < 0 ? "−" : ""}${fmt(Math.abs(deltaMinutes))}`
+      : "—";
+
+  assert.equal(label(12), "+12 min");
+  assert.equal(label(-12), "−12 min", "an early finish was indistinguishable from a late one");
+  assert.equal(label(0), "0 min");
+});

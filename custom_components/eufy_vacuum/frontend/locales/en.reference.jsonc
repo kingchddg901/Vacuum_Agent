@@ -1021,6 +1021,7 @@
     "hours_minutes": "{hours}h {minutes}m",  // Duration format '{hours}h {minutes}m'; h/m = hour/minute unit abbrevs, localize per language
     "hours_only": "{hours}h",  // Duration '{hours}h'; h = hours unit abbreviation, localize if your language differs
     "incomplete_title": {"one":"Last run {outcome} — 1 room missed","other":"Last run {outcome} — {count} rooms missed"},  // plural
+    "run_incomplete_toast": {"one":"Run incomplete — 1 room missed. Open Rooms to retry.","other":"Run incomplete — {count} rooms missed. Open Rooms to retry."},  // plural. Toast fired when a
     "job_will_use": "Job will use",  // water row: clean water this job is projected to consume
     "learning_active": "Learning active",  // live banner title before first room update; system is recording data
     "live_progress": "Live Progress",

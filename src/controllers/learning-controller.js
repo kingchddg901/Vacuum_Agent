@@ -252,8 +252,12 @@ export class LearningController {
       : (this.card?._state?.incompleteRunMissedRoomIds?.()?.length ?? 0);
 
     if (missedCount > 0) {
+      // Was a hardcoded English template literal, including its own ad-hoc pluralisation.
+      // That made it invisible to check:i18n and untranslated in all 18 locales — a user
+      // running the card in any other language got an English sentence here.
       this.card?.showToast?.(
-        `Run incomplete — ${missedCount} room${missedCount === 1 ? "" : "s"} missed. Open Rooms to retry.`,
+        this.card?.t?.("learning.run_incomplete_toast", { count: missedCount }) ??
+          `Run incomplete — ${missedCount} rooms missed. Open Rooms to retry.`,
         { kind: "info", ttl: 6000 }
       );
     }

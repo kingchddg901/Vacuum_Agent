@@ -81,7 +81,13 @@ export function applyRunProfilesState(proto) {
     let roomGroups = 0;
     for (const step of steps) {
       const type = step?.type;
-      if (type === "charge_wait" || type === "wait") return true;
+      // "zone" belongs here. This is the FIFTH copy of the stepped-step-type tuple
+      // (profiles/manager.py x2, planning/run_plan.py x2, core/manager.py), and the
+      // backend sibling that omitted it was fixed earlier today — a rooms->zone profile
+      // reported has_stops=false and presented as a flat queue. This card-side fallback
+      // had the identical omission, so it reproduced the bug whenever it was the one
+      // deriving the flag rather than reading the backend's.
+      if (type === "charge_wait" || type === "wait" || type === "zone") return true;
       if (type === "room_group") roomGroups += 1;
     }
     return roomGroups > 1;
