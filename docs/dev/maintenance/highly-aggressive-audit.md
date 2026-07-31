@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**45 changes shipped**, all with tests, all deployed.
+**46 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -100,16 +100,17 @@ comments rather than by a shared helper.
 | `e0bdf9e` | docs(maintenance): fold audit #12 into the ledger — the listener input layer |
 | `b96c0ee` | docs(maintenance): fold audit #13 into the ledger — services, the public API |
 | `4262f34` | docs(maintenance): fold audit #14 into the ledger — core/manager.py, the hub |
+| `fc721c9` | docs(maintenance): fold audit #15 into the ledger — the integration assembly script |
 
 ---
 
 ## Open
 
-**305 findings** across 9 audits, none applied. 22 clusters + 247 singles.
+**347 findings** across 10 audits, none applied. 26 clusters + 278 singles.
 
-CRITICAL 17 · HIGH 62 · MEDIUM 101 · LOW 125
+CRITICAL 17 · HIGH 73 · MEDIUM 119 · LOW 138
 
-The same audits recorded **526 areas examined and found correct**.
+The same audits recorded **570 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -269,6 +270,34 @@ The same audits recorded **526 areas examined and found correct**.
 - **Defect:** This audit's assignment was to build the table -- everything setup starts, checked against what unload stops. C20 (the manager's spawned tasks/timers) was one known row; these are the others: async_unregister_learning_services removes 16 of the 21 services setup registers, so FIVE learning services survive an unload; the post-job water-amendment state listener and its 180s timer are never cancelled; the debug-capture auto-stop timer survives; and two hass.data[DOMAIN] keys are left behind. Individually LOW/MEDIUM; together they are the same shape as C20 and should be fixed as one pass over the setup/unload pair.
 - **Fix:** Make unload the exact inverse of setup: register every unsub/timer/key with entry.async_on_unload at the point of creation, so the two cannot drift.
 
+#### C23. The confidence tier system is INVERTED at the top, and green is unreachable — **verified by hand**
+
+- **Seam:** `learning/estimator.py:117 (_BREAKPOINTS) + :165 (_breakpoint_for_score)`
+- **Closes:** A1-EST-1, A1-EST-5
+- **Defect:** VERIFIED BY EXECUTION. _LEARNED_BASE (0.55) + _SAMPLE_BONUS_MAX (0.25) = 0.80, which is EXACTLY high.min_score -- so HIGH/green requires a perfect score, i.e. minutes_stddev exactly 0, which real timing data never has. And medium.max_score is 0.79 while high.min_score is 0.80, so the band (0.79, 0.80) matches no bucket; _breakpoint_for_score falls through to _BREAKPOINTS[-1], which is LOW/error -- the BOTTOM of the table, not the nearest tier. Sweep at 12 samples / avg 10 min: stddev 0.05 -> 0.7975 -> RED; stddev 0.15 -> 0.7925 -> RED; stddev 0.20 -> 0.7900 -> AMBER. A room consistent to 3 seconds shows red while a room consistent to 12 seconds shows amber. ui_variant reaches the card verbatim (src/renderers/learning.js:534, rooms.js:742/1196) and job confidence is min(room scores), so one such room drags the whole job estimate red.
+- **Fix:** Close the band (make the tiers contiguous, or use a one-sided descending test), and make the fall-through return the nearest tier rather than the last entry. Separately decide whether HIGH should be reachable at all -- as written it needs zero variance.
+
+#### C24. External runs contribute battery=0.0 and the estimator consumes it as a real measurement
+
+- **Seam:** `learning/estimator.py:844 + learning/external_ingest.py:1056`
+- **Closes:** A1-EST-2
+- **Defect:** THE HYPOTHESIS THIS AUDIT WAS BUILT ON, CONFIRMED. build_graduated_job constructs the completed-job record with NO battery block at all (grep for 'battery' in external_ingest.py returns zero hits), yet outcome.status is 'completed' and used_for_learning is True, so is_learning_job admits it. The rebuilder reads job.get('battery',{}).get('used') -> 0.0 and accumulates that into the SAME room_stats bucket as dispatched runs. _safe_float only substitutes a default for None/''/unknown/unavailable -- 0.0 is a valid float and passes straight through. There is no battery_sample_count and no source marker, so 'learned 0%' is indistinguishable from 'no battery data'. With an all-external archive avg_battery_used is exactly 0.0: the card asserts the job costs ZERO battery and battery_warning is False at ANY charge level. And confidence_score is computed from TIMING samples only, so the number carries no warning.
+- **Fix:** Either exclude records with no battery block from the battery aggregate, or carry a battery_sample_count so a zero-sample bucket is distinguishable from a measured zero.
+
+#### C25. The incomplete-run log misreports which rooms were missed
+
+- **Seam:** `learning/history_store.py (incomplete-run family)`
+- **Closes:** A4-STATE-1, A4-STATE-2, A4-STATE-4, A2-ACC-4
+- **Defect:** The final room of EVERY non-completed run is recorded as missed; clear_incomplete_run's docstring claims '(full clean)' but ANY completion clears it; missed_room_ids survive a re-segment and a map switch, so they can name rooms that no longer exist or now mean something else; and a skipped room holds 'current' for the rest of the run so it can never be resolved.
+- **Fix:** One pass over the incomplete-run lifecycle: who writes it, what clears it, and whether its room ids are still valid at read time.
+
+#### C26. Learning services destroy or misreport, and say success either way
+
+- **Seam:** `learning/services.py`
+- **Closes:** A5-SVC-1, A5-SVC-2, A5-SVC-3, A5-SVC-6
+- **Defect:** The 22 registrations here were NOT covered by audit #13's services sweep, and they have the same shape: exclude/restore_learning_job report 'stats rebuilt' without rebuilding; finalize_learning_job fires the job-finished event with a FABRICATED payload; retry_missed_rooms permanently destroys the map's room-enable selection; rebuild_learning_stats blanks accuracy_stats before replaying, so a failure partway leaves it empty.
+- **Fix:** Same treatment as C19/C26's siblings: make the destructive ones confirm or be reversible, and make every response honest about what actually happened.
+
 ### Singles
 
 <details><summary><strong>CRITICAL</strong> (2)</summary>
@@ -282,7 +311,7 @@ The same audits recorded **526 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (41)</summary>
+<details><summary><strong>HIGH</strong> (45)</summary>
 
 - **A5-FACADE-2** `core/manager.py:1426` · both  
   discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
@@ -323,6 +352,18 @@ The same audits recorded **526 areas examined and found correct**.
 - **DQ-ACT-2** `jobs/phase_runner.py:1025` · roborock _(finder said CRITICAL; verifier corrected)_  
   Cancel is defeated by the phase watchdog: _cancel_in_flight is checked once, before two multi-second awaits, then the clean is dispatched unconditionally  
   User presses Cancel Run. The robot heads for the dock, then turns around and cleans the next room. The integration has already finalized and discarded the job, so nothing tracks or will stop the run; the user must cancel
+- **A2-ACC-1** `learning/estimator.py:589` · both _(finder said CRITICAL; verifier corrected)_  
+  A single transient read failure makes record_estimate_accuracy silently overwrite the entire accuracy history with one job's rooms  
+  Concrete: store holds 14 room keys / 60 graded samples; one OSError while reading learned/accuracy_stats.json during a 2-room job's finalize rewrites the file with 2 keys at sample_count 1. The 12 lost keys had mean_abs_
+- **A2-ACC-2** `learning/estimator.py:1122` · both  
+  reanchor_timeline ignores its own reanchor_at parameter — every ETA is anchored to job start plus the sum of room durations, so all wall-clock dead time is invisible and "Done at" times slide into the past  
+  Concrete: 3 rooms at 10 min each, overhead 7.02, started 12:00. R1 completes at 12:10 with actual_duration 10.0. The user pauses the vacuum at 12:10 and resumes at 12:40. At 12:45 the card refreshes and reanchors with co
+- **A3-IO-2** `learning/history_store.py:176` · both  
+  read_json turns a corrupt or unreadable file into None, and the trouble-rooms read-modify-write then overwrites the file with a one-job store — permanently destroying history that has no rebuilder by design  
+  A transient network-share hiccup, or one legacy-corrupt file predating the atomic-write fix, silently wipes the chronic-trouble-room history: rooms the card has been correctly flagging as repeatedly missed stop being fla
+- **A3-IO-1** `learning/history_store.py:989` · both  
+  An empty room_timing on a charge/wait/zone phase is read as "capture failed", so every stepped run with a break or a zone is stripped of its accurate per-room timings and learns an even split instead  
+  Using the flagship charge-break step (vac -> charge to X% -> mop) or queueing a saved zone alongside rooms silently downgrades that run's learning from exact per-room capture to an even time split, and contributes zero a
 - **DQ-PH-1** `learning/history_store.py:996` · both  
   Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included  
   Every run that uses the charge_wait / wait / zone step feature writes corrupted per-room baselines: the exact per-room area and wall-minutes that were captured are thrown away, and each room instead learns an even share
@@ -410,7 +451,7 @@ The same audits recorded **526 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (90)</summary>
+<details><summary><strong>MEDIUM</strong> (105)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -484,6 +525,51 @@ The same audits recorded **526 areas examined and found correct**.
 - **A1-WD-5** `jobs/phase_runner.py:891` · future_brand_only  
   Adapter-declared phase_timing overrides are applied with no clamping — poll_seconds: 0 pins the event loop in a hot loop, max_attempts: 0 dispatches nothing and wedges the phase  
   A future brand adapter (the seam exists precisely so a third path-optimizing brand can declare its own profile) that ships a typo or a deliberate 0 either freezes Home Assistant's event loop for every integration on the
+- **A1-EST-3** `learning/estimator.py:476` · roborock _(finder said HIGH; verifier corrected)_  
+  _find_room_match Pass 1 can NEVER match a Roborock room: it compares the raw "" intensity against the rebuilder's normalized "standard", so every Roborock room takes a permanent -0.15 intensity-mismatch penalty  
+  Roborock users see their room and job estimates permanently badged one confidence tier lower — often red "Low" instead of amber "Medium" — no matter how many clean runs they accumulate, because the estimator believes it
+- **A1-EST-6** `learning/estimator.py:484` · both  
+  _find_room_match relaxed passes return the lexicographically-first bucket and ignore sample_count entirely — a 1-sample bucket beats a 30-sample one  
+  Changing one room setting the user has not run before throws away every accumulated sample for that room and answers from whichever adjacent bucket happens to sort first, which is systematically the slowest bucket for in
+- **A2-ACC-6** `learning/estimator.py:637` · both  
+  The "exact vs allocated" quality flag is recorded and never used — job-average actuals are blended into the same drift mean, permanently capping affected rooms below HIGH confidence while the card promises they will get there  
+  Concrete: a 5-room job whose real per-room times are Bathroom 3 / Kitchen 15 / Living 20 / Hall 4 / Den 18 (60 min total) grades every room against actual_per_room = 12.0. Bathroom (estimated 3) records pct_error = |12-3
+- **A1-EST-4** `learning/estimator.py:843` · both _(finder said HIGH; verifier corrected)_  
+  Estimate consumes avg_minutes with no outlier rejection and no band check, and a single poisoned sample scores MEDIUM confidence because stddev of one sample is 0 by construction  
+  A single bad archived run — one multi-room phase that credited the group's whole time to room[0] — moves the displayed job ETA by an order of magnitude, and when it is the room's FIRST run it does so under an amber "Medi
+- **A2-ACC-3** `learning/estimator.py:1178` · both _(finder said HIGH; verifier corrected)_  
+  Reanchoring drops inter-room transit from remaining rooms while keeping it in overhead — remaining ETAs jump earlier then later (oscillation) and the job ETA inflates by one transit leg per completed room on a run that is exactly on estimate  
+  Concrete: 3 rooms × 10 min estimated, learned transit 2.0 min per boundary, overhead 7.02 (startup 1 + transitions 4 + recharge 0.12 + dust 0.9 + return 1), started 12:00. Original timeline: R2 eta 12:22, R3 eta 12:34, j
+- **A3-IO-6** `learning/history_store.py:138` · both  
+  get_paths derives the archive directory from the entity_id's object_id, so renaming the vacuum entity silently orphans all learned history and the predictor restarts from cold with no notice  
+  Renaming the vacuum entity throws away months of learned per-room timings, accuracy stats and trouble-room history from the user's point of view — estimates silently revert to cold-start guesses with no warning, no migra
+- **A3-IO-4** `learning/history_store.py:148` · both  
+  ensure_dirs runs inside every path getter, so the caches that exist to keep the loop-bound estimate off disk still issue ~32 blocking filesystem syscalls per dashboard snapshot  
+  Sustained blocking filesystem I/O on the HA event loop whenever a card is open — measurable UI latency and HA's "Detected blocking call ... by custom integration 'eufy_vacuum'" warnings on a network-mounted config dir, d
+- **A4-STATE-3** `learning/history_store.py:301` · both _(finder said HIGH; verifier corrected)_  
+  trouble_rooms.json is keyed by raw room_id and scoped per-vacuum, so its counters silently reattach to the wrong physical room after a re-segment or on a second map — the one id-keyed store reconcile-migrate forgets  
+  A room that has never been missed is permanently badged "chronically missed, 67%" on its card tile, while the room that actually is missed shows clean — and there is no rebuild, service or UI action that can correct it (
+- **A4-STATE-5** `learning/history_store.py:306` · both  
+  trouble_rooms is a raw-counter store with no rebuilder, no clear service and a denominator that only advances when the room is queued — the "decays on its own" justification for excluding it from repair does not hold  
+  A permanent, unclearable "chronically missed" warning on a room tile, with the only remedy being manual deletion of trouble_rooms.json from the config share — which is exactly the repair path the design note declared unn
+- **A4-STATE-8** `learning/history_store.py:327` · both  
+  The live snapshot has no clear: last_job_snapshot.json and _live_snapshot_cache are never invalidated after a run, and the stale snapshot's job_id outranks the active job's — a failed snapshot save makes the next finalize overwrite the previous job's record  
+  A completed run's permanent history record is silently replaced by a later run's, corrupting the learning corpus that every duration/battery/water prediction is built from, with no error surfaced.
+- **A3-IO-5** `learning/history_store.py:368` · both  
+  get_completed_job_path interpolates an unvalidated job_id into a filesystem path, giving exclude/restore_learning_job an arbitrary *.json overwrite primitive — the exact hole the sibling module already hardened  
+  An authenticated HA user or any automation/script/dashboard that can call eufy_vacuum.exclude_learning_job can overwrite or create JSON files anywhere the HA process can write, corrupting unrelated integration data; the
+- **A3-IO-3** `learning/history_store.py:536` · both  
+  A failed or absent read is cached as None for the life of the process, and load_*_stats has no bypass — so _reload_learning_stats_now's documented "guarantees the current on-disk stats" is false  
+  One unlucky read at startup makes the card report no learned data / cold-start estimates for the whole HA session, and the two escape hatches a maintainer would reach for (the "reload now" helper and the cache invalidato
+- **A4-STATE-6** `learning/history_store.py:1092` · both  
+  build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run  
+  The missed-rooms banner names a room that was never cleaned in that job — often as an unnamed "Room N" — and omits the room that actually was missed; the phantom room then accrues a permanent chronic-trouble badge.
+- **A5-SVC-4** `learning/services.py:486` · both  
+  record_estimate_accuracy's schema requires no keys at all; an entry missing map_id/slug writes a permanently unreadable durable record and returns a confident success payload  
+  An automation written against the service (which the docs encourage: 03-services.md:1287 "Records estimated-vs-actual minutes per room after a job completes, feeding the estimator's accuracy tracking") but missing map_id
+- **A5-SVC-5** `learning/services.py:492` · both  
+  record_estimate_accuracy writes accuracy_stats to disk but never invalidates the manager's in-memory accuracy cache, so estimates keep serving the pre-write numbers  
+  A caller records real accuracy data, receives a success payload with the new mean, and the card's per-room estimates and confidence scores do not change. Looks like the learning system ignored the data; the user is likel
 - **A6-GUARD-5** `listeners/discovery.py:140` · both  
   A discovery pass on the active map is scored against configured rooms across ALL maps, so switching maps makes the other map's rooms accrue "removed" strikes  
   On a multi-floor/multi-map setup, switching maps makes the setup tab report rooms as removed from the vacuum and flips setup_complete out of sync (setup/status.py:193-218), prompting the user to delete room configuration
@@ -685,7 +771,7 @@ The same audits recorded **526 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (114)</summary>
+<details><summary><strong>LOW</strong> (126)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -738,6 +824,42 @@ The same audits recorded **526 areas examined and found correct**.
 - **A6-PRE-3** `jobs/job_monitor.py:58` · both  
   PreflightResult declares `available` with a documented contract the producer never honours, and omits two keys the producer writes  
   Latent trap rather than live misbehaviour: nothing reads `available` today (manager.get_start_status derives the all-blocked case from included_room_count instead, core/manager.py:2834). Any future consumer that trusts t
+- **A1-EST-7** `learning/estimator.py:238` · future_brand_only _(finder said MEDIUM; verifier corrected)_  
+  _load_mop_wash_config hard-codes Eufy's wash-frequency bounds (15/20/25) in the brand-agnostic estimator while the adapter already declares wash_frequency_bounds  
+  On any brand whose wash cadence falls outside Eufy's 15-25 minute helper range, the ETA carries a wrong mop-wash overhead and the payload reports a wash interval the dock is not set to. Eufy itself is unaffected because
+- **A2-ACC-7** `learning/estimator.py:592` · both _(finder said MEDIUM; verifier corrected)_  
+  A non-dict `rooms` block crashes both accuracy readers — including estimate() on the event loop — while the sibling reader in the same subsystem explicitly tolerates it  
+  A hand-edited or older accuracy_stats.json with a list-shaped `rooms` block takes down the entire job-progress snapshot on every card refresh (no estimate, no timeline, no live banner) rather than degrading to zero drift
+- **A1-EST-9** `learning/estimator.py:766` · both  
+  estimate() runs ensure_dirs (four mkdir syscalls) three times per call on the event loop, even on full cache hits  
+  Recurring blocking filesystem I/O on the HA event loop on every dashboard snapshot. On a network-mounted config directory this can surface as HA's "blocking call inside the event loop" warning or as UI stutter, without a
+- **A1-EST-8** `learning/estimator.py:829` · future_brand_only  
+  is_mop raw-compares clean_mode against a hand-copied literal set while the very same function canonicalizes it for the stats lookup  
+  Latent today: both shipped adapters put canonical tokens ("vacuum"/"mop"/"vacuum_mop") into resolved_rooms, so is_mop resolves correctly. A brand or a restored older payload carrying a display-string mode silently loses
+- **A2-ACC-5** `learning/estimator.py:1130` · both _(finder said MEDIUM; verifier corrected)_  
+  Completed-room slug matching is keyed on the literal string "none" — the documented slug fallback is dead, and a room with a null slug is marked complete before it is cleaned  
+  Concrete: 3-room queue where R2's stored slug is null. R1 completes with actual 9.0, so completed_by_slug = {"none": 9.0}. On the next reanchor R2 is not in completed_by_id, but its slug normalizes to "none" and hits the
+- **A3-IO-7** `learning/history_store.py:196` · both  
+  write_json is rename-atomic but not durable — no fsync before os.replace, so a power loss can leave a zero-length learned file that read_json then reports as "no data"  
+  A power cut during a stats write can leave the learned file empty; on the next run the integration reports no learned history rather than an error, and the trouble-rooms accumulator then overwrites what remains (IO-2).
+- **A4-STATE-7** `learning/history_store.py:232` · both _(finder said MEDIUM; verifier corrected)_  
+  load_live_snapshot performs 4 mkdir syscalls plus an open()/read() on the Home Assistant event loop at every cold finalize  
+  The event loop stalls for the duration of a network filesystem mkdir×4 + read at the moment a job finishes, delaying every other entity update in Home Assistant, and HA logs a blocking-call warning.
+- **A3-IO-8** `learning/history_store.py:599` · both  
+  append_job_csv_row / append_room_csv_rows are dead, and each CSV header is a hand-copied literal duplicated between the dead append writer and the live rebuild writer  
+  None today (the append path never runs). Latent: a future schema column added to one copy of a header and not the other, or a re-enabled append writer, silently produces a misaligned exports CSV that a user opens in a sp
+- **A5-SVC-9** `learning/services.py:72` · both  
+  Schemas mark map_id Required on three services the documentation marks optional, so an automation written from the docs fails validation  
+  An automation authored from the published service reference fails at call time with a schema error on three services, two of which the docs specifically position for manual/edge-case use ("historical corrections").
+- **A5-SVC-8** `learning/services.py:450` · both  
+  invalidate-then-preload is a no-op when a preload is already in flight, letting a stale in-flight load repopulate the cache with pre-rebuild data  
+  After an exclude, restore, or rebuild, the card can keep showing pre-rebuild estimates and confidence until some later event invalidates the cache — making a correct repair look like it did nothing.
+- **A4-STATE-9** `learning/services.py:892` · both  
+  Dismissing the incomplete-run banner is client-only and no clear service is exposed, so the banner returns on every card load  
+  "Dismiss" does not dismiss — the missed-rooms alert reappears on every dashboard reload until the user either accepts the retry (which rewrites their room selection) or happens to complete another run.
+- **A5-SVC-7** `learning/services.py:901` · both  
+  Five registered services are never unregistered, surviving integration unload as phantom entries that fail with an unhandled KeyError  
+  After removing or reloading the integration, five services (including the destructive discard_external_run) remain visible and callable in the HA service picker and Developer Tools, each failing with an opaque KeyError t
 - **A3-COMMON-5** `listeners/_common.py:52` · both  
   get_adapter_value() is a second, independent implementation of the identical lookup already shipped in adapters/registry.py  
   No behavioural difference today. A fix or semantic change applied to one implementation (e.g. distinguishing a declared null from an absent key, or adding a diagnostic when a declared block is the wrong type) would silen
@@ -1051,22 +1173,23 @@ Ordered by (verified) × (blast radius) × (cost), not by severity label.
 
 1. **C5** — 2 lines, verified, and it closes a gap introduced by an earlier fix in this campaign. Cheapest real win.
 2. **C20** — verified CRITICAL, and the most dangerous shape found: silent data loss with a DELAYED fuse. A reload (which `setup_add_vacuum` schedules itself) leaves the old manager's timers alive; minutes later one fires and reverts the store wholesale. The UI keeps showing the lost data until the next restart.
-3. **C19** — verified CRITICAL. A blank `enabled_room_ids:` in an automation destroys a map's entire room configuration, silently, and the docs promise the opposite. Public API, trivially reachable, no undo.
-4. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
-5. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
-6. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
-7. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
-8. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
-9. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
-10. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
-11. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
-12. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
-13. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
-14. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
-15. **C2** — cancel correctness. Needs care around the await boundaries.
-16. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
-17. **C4** — per-phase attribution. Touches the shape of learning data.
-18. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
+3. **C23** — verified by execution, and cheap. The confidence chip is inverted at the top: your best-learned rooms render RED and the green tier needs literally zero variance. Two constants and a fall-through.
+4. **C19** — verified CRITICAL. A blank `enabled_room_ids:` in an automation destroys a map's entire room configuration, silently, and the docs promise the opposite. Public API, trivially reachable, no undo.
+5. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
+6. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
+7. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
+8. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
+9. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
+10. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
+11. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
+12. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
+13. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
+14. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
+15. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
+16. **C2** — cancel correctness. Needs care around the await boundaries.
+17. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
+18. **C4** — per-phase attribution. Touches the shape of learning data.
+19. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
 ## Calibration
 
@@ -1083,6 +1206,7 @@ Measured cost per audit, for scoping future runs.
 | #13 | services (public API, dual mode) | 2,938 | 1.35M | 23 min |
 | #14 | core/manager.py (the hub) | 5,155 | 1.51M | 25 min |
 | #15 | integration script (**4+2 agents**) | 853 | **0.76M** | 20 min |
+| #16 | learning consumers (5+2 agents) | 3,308 | 1.23M | 24 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
