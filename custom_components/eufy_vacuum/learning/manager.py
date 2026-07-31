@@ -972,6 +972,60 @@ class LearningManager:
         )
         return result
 
+    def rebuild_accuracy_stats(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> int:
+        """Recompute ``accuracy_stats`` for one vacuum from the completed-job archive.
+
+        The third and last of the incremental accumulators to become repairable (after
+        ``learned_zones`` and the battery drain aggregates). Like those, it is a
+        read-modify-write store outside ``rebuild_all``, so a bad sample used to be
+        permanent — and unlike them it feeds the CONFIDENCE penalty, so a poisoned entry
+        quietly degrades every estimate for that room.
+
+        Replays through ``_auto_record_accuracy`` — the SAME extractor the live finalize
+        path uses — rather than reimplementing the estimated-vs-actual derivation. A second
+        copy would drift, and a rebuild that disagreed with the live fold would be worse
+        than no rebuild. The archived record IS a ``completed_job``, so it can be handed to
+        that function directly.
+
+        Rebuilds from EMPTY: folding onto the existing stats would preserve exactly the
+        samples this exists to remove.
+
+        Uses the same archive-derived gate as the stats rebuild (``is_learning_job``), which
+        now matches the live path — a run excluded from learning no longer feeds accuracy in
+        either direction.
+
+        Returns the number of records that contributed. Caller persists.
+        """
+        self.store.save_accuracy_stats(vacuum_entity_id=vacuum_entity_id, payload={})
+
+        applied = 0
+        for job in self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id):
+            if not isinstance(job, dict) or not self.store.is_learning_job(job):
+                continue
+            map_id = str(
+                job.get("map_id") or (job.get("job") or {}).get("map_id") or ""
+            ).strip()
+            if not map_id:
+                continue
+            try:
+                if self._auto_record_accuracy(
+                    result={"completed_job": job},
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id,
+                ):
+                    applied += 1
+            except Exception:  # noqa: BLE001 - one bad record must not abort the rebuild
+                _LOGGER.debug(
+                    "rebuild_accuracy_stats: skipped a record for %s",
+                    vacuum_entity_id,
+                    exc_info=True,
+                )
+        return applied
+
     def collect_archived_battery_metrics(
         self,
         *,

@@ -3087,3 +3087,56 @@ async def test_accuracy_is_still_recorded_for_an_eligible_run(
     learning = _get_learning_manager(hass)
     calls = await _drive_finalize(hass, learning, monkeypatch, used_for_learning=True)
     assert calls == [1], "an eligible run stopped feeding accuracy_stats"
+
+
+# ---------------------------------------------------------------------------
+# [LS-56] accuracy_stats becomes repairable from the archive
+# ---------------------------------------------------------------------------
+
+async def test_rebuild_accuracy_stats_recomputes_from_the_archive(hass, learning_services):
+    """[LS-56] Group B: the last of the three incremental accumulators becomes repairable.
+
+    accuracy_stats is a read-modify-write store outside rebuild_all, so a bad sample was
+    permanent — and unlike the other two it feeds the CONFIDENCE penalty, so a poisoned
+    entry quietly degrades every estimate for that room.
+
+    The rebuild replays through _auto_record_accuracy, the SAME extractor the live path
+    uses, so it cannot drift from what the live fold produced. It rebuilds from EMPTY, and
+    an excluded run must stay out — which is what makes exclude_learning_job finally
+    effective against accuracy.
+    """
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    learning = _get_learning_manager(hass)
+
+    def _rec(minutes, *, used=True, status="completed"):
+        return {
+            "record_type": "completed_job",
+            "map_id": _MAP,
+            "outcome": {"status": status, "used_for_learning": used},
+            "job": {"duration_minutes": minutes, "map_id": _MAP},
+            "job_profile": {"rooms": [{
+                "slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+                "is_carpet": False, "clean_intensity": "standard",
+                "estimated_minutes": 10,
+            }]},
+            "resolved_rooms": [{
+                "slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+                "is_carpet": False, "clean_intensity": "standard",
+                "estimated_minutes": 10, "map_id": _MAP,
+            }],
+        }
+
+    archive = [_rec(12), _rec(14), _rec(999, used=False)]  # the last must NOT contribute
+    learning.store.load_all_completed_jobs = lambda **kw: archive
+
+    # Poison the store the way a duplicate finalize would.
+    learning.store.save_accuracy_stats(
+        vacuum_entity_id=_VAC, payload={"rooms": {"poisoned": {"sample_count": 99}}}
+    )
+
+    applied = learning.rebuild_accuracy_stats(vacuum_entity_id=_VAC)
+
+    stats = learning.store.load_accuracy_stats(vacuum_entity_id=_VAC) or {}
+    assert "poisoned" not in (stats.get("rooms") or {}), "the rebuild folded onto stale data"
+    assert applied == 2, f"expected the 2 learning-eligible records, got {applied}"

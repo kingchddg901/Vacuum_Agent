@@ -4545,6 +4545,15 @@ class EufyVacuumManager:
             )
 
         try:
+            out["accuracy_stats"] = await self.hass.async_add_executor_job(
+                lambda: learning.rebuild_accuracy_stats(vacuum_entity_id=vacuum_entity_id)
+            )
+        except Exception:  # pragma: no cover - one accumulator must not block the rest
+            _LOGGER.exception(
+                "rebuild_accumulators: accuracy_stats failed for %s", vacuum_entity_id
+            )
+
+        try:
             from ..const import DATA_BATTERY
 
             battery = (self.hass.data.get(DOMAIN, {}) or {}).get(DATA_BATTERY)
