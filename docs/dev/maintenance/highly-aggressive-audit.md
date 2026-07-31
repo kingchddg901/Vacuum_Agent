@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**44 changes shipped**, all with tests, all deployed.
+**45 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -99,16 +99,17 @@ comments rather than by a shared helper.
 | `a332a04` | docs(maintenance): fold audit #11 into the ledger — map source lifecycle |
 | `e0bdf9e` | docs(maintenance): fold audit #12 into the ledger — the listener input layer |
 | `b96c0ee` | docs(maintenance): fold audit #13 into the ledger — services, the public API |
+| `4262f34` | docs(maintenance): fold audit #14 into the ledger — core/manager.py, the hub |
 
 ---
 
 ## Open
 
-**293 findings** across 8 audits, none applied. 20 clusters + 244 singles.
+**305 findings** across 9 audits, none applied. 22 clusters + 247 singles.
 
-CRITICAL 17 · HIGH 62 · MEDIUM 97 · LOW 117
+CRITICAL 17 · HIGH 62 · MEDIUM 101 · LOW 125
 
-The same audits recorded **485 areas examined and found correct**.
+The same audits recorded **526 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -254,6 +255,20 @@ The same audits recorded **485 areas examined and found correct**.
 - **Defect:** VERIFIED. async_initialize spawns loop-lifetime work -- the dock re-arm poller (hass.async_create_task) and external-run grace timers (async_call_later, 300s x up to 8 re-arms = ~45 min). There is NO manager teardown anywhere: grep for async_shutdown / def shutdown / EVENT_HOMEASSISTANT_STOP across manager.py, phase_runner.py and external_run.py returns nothing, and nothing is registered with entry.async_on_unload. async_unload_entry removes listeners/services/panels and pops DATA_RUNTIME but cancels none of it. A reload then builds a SECOND manager over the same STORAGE_KEY, while the orphaned callbacks still hold self._manager = the OLD one and end in external_run.py:213 async_save() / phase_runner.py:856 _async_save_logged() -- and async_save is a bare whole-root-dict write. So the pre-reload snapshot replaces everything persisted since. The orphaned dock poller can also still call maybe_advance_phase, so a dead manager and a live one can both dispatch to the same physical robot; _dock_poller_active is per-instance and cannot dedupe across two.
 - **Fix:** Give the manager a teardown that cancels its spawned tasks and timers, and register it with entry.async_on_unload. Consider guarding async_save against a manager whose entry has been unloaded.
 
+#### C21. Panels registered outside async_setup_entry are never tracked, so unload cannot remove them — **verified by hand**
+
+- **Seam:** `__init__.py:420 + setup/workflow.py:106`
+- **Closes:** A1-UP-1, A2-DOWN-1, A4-RELOAD-1
+- **Defect:** VERIFIED. Only __init__.py ever writes `_panels_<entry_id>`, and it appends only what its OWN loop registered. setup/workflow.py:106 (add_vacuum, reached from the panel's own onboarding flow) registers a per-vacuum panel and tracks nothing. panels.py swallows HA's duplicate-url ValueError at DEBUG and returns None, which `if panel_url:` then drops -- so on the next setup the panel is not re-tracked either. services/setup.py:161 schedules a reload immediately after add_vacuum, so the interleaving is automatic. Steady state from a BLANK install: two sidebar entries, one rendering the 'no vacuum configured' placeholder, self-perpetuating across reloads until a full HA restart clears hass.data[DATA_PANELS]. Found independently by THREE of four agents. The reproducer corrected an over-stated sub-claim: it does NOT affect 'every second and later vacuum unconditionally' -- it needs the blank-install path.
+- **Fix:** Track every panel registration in the `_panels_` list regardless of where it happens, or give panels.py a register-and-track helper that is the only entry point.
+
+#### C22. Setup starts several things unload never stops — the systemic version of C20
+
+- **Seam:** `__init__.py async_setup_entry vs async_unload_entry`
+- **Closes:** A1-UP-3, A2-DOWN-2, A2-DOWN-3, A4-RELOAD-2, A4-RELOAD-3, A4-RELOAD-4
+- **Defect:** This audit's assignment was to build the table -- everything setup starts, checked against what unload stops. C20 (the manager's spawned tasks/timers) was one known row; these are the others: async_unregister_learning_services removes 16 of the 21 services setup registers, so FIVE learning services survive an unload; the post-job water-amendment state listener and its 180s timer are never cancelled; the debug-capture auto-stop timer survives; and two hass.data[DOMAIN] keys are left behind. Individually LOW/MEDIUM; together they are the same shape as C20 and should be fixed as one pass over the setup/unload pair.
+- **Fix:** Make unload the exact inverse of setup: register every unsub/timer/key with entry.async_on_unload at the point of creation, so the two cannot drift.
+
 ### Singles
 
 <details><summary><strong>CRITICAL</strong> (2)</summary>
@@ -395,8 +410,11 @@ The same audits recorded **485 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (89)</summary>
+<details><summary><strong>MEDIUM</strong> (90)</summary>
 
+- **A1-UP-2** `__init__.py:316` · both  
+  async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
+  After any setup failure (a corrupt/hand-edited storage block reaching an unguarded ensure_record, an ImportError in a lazily-imported listener module after an update, an exception in any service registration), the integr
 - **A1-INIT-3** `core/manager.py:347` · both _(finder said HIGH; verifier corrected)_  
   Startup re-seed of the bundled theme library resurrects themes the user deleted, and re-points default_theme_id  
   A user who curates the theme library — deleting the bundled themes they do not want, with a confirm dialog implying it stuck — finds all of them back in the picker after the next HA restart, silently and with no error. I
@@ -667,11 +685,17 @@ The same audits recorded **485 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (112)</summary>
+<details><summary><strong>LOW</strong> (114)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
   No user impact today (dead code), but it is a green-tested Eufy-flavoured copy of the identity functions sitting in the adapter package a future brand port would read first — reviving it re-introduces the 'null' sentinel
+- **A3-FLOW-3** `config_flow.py:98` · both  
+  The options flow rebuilds the options dict from the stale form snapshot, so a submit can resurrect a vacuum that was deleted while the dialog was open  
+  A user who deletes a vacuum's device while the Configure dialog is open in another tab sees the vacuum reappear after saving the dialog — as an empty shell that has lost all its learning history and maps. No error is sho
+- **A3-FLOW-2** `config_flow.py:103` · both _(finder said MEDIUM; verifier corrected)_  
+  Changing the vacuum in the options flow ADDS a second managed vacuum instead of replacing the first — the old pick is never reconciled away  
+  A user who picked the wrong entity at install (or renamed their vacuum entity and updated the option to match) ends up with TWO sidebar panels, both titled "Vacuum Agent" by default and therefore indistinguishable, two s
 - **A1-INIT-5** `core/manager.py:429` · future_brand_only  
   The startup backfill and setup_progress migration hard-code Eufy vocabulary and structurally cannot consult the adapter  
   No divergence on the two shipped brands today. A third brand whose room_profiles.default_profile is not 'vacuum_quick' would have any legacy room missing profile_name stamped with another brand's profile key at startup (
@@ -1058,6 +1082,7 @@ Measured cost per audit, for scoping future runs.
 | #12 | listeners (input layer) | 2,000 | 1.22M | 22 min |
 | #13 | services (public API, dual mode) | 2,938 | 1.35M | 23 min |
 | #14 | core/manager.py (the hub) | 5,155 | 1.51M | 25 min |
+| #15 | integration script (**4+2 agents**) | 853 | **0.76M** | 20 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
