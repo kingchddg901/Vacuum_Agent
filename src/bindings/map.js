@@ -1750,16 +1750,34 @@ export function applyMapBindings(proto) {
      ========================================================= */
 
   proto._ensureMapSegments = async function () {
-    if (this.card._state.mapSegmentsData()) return;
-    if (this._mapSegmentsFetching) return;
-
     const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
     const mapId = rooms[0]?.mapId ?? this.card._state.activeMapId?.() ?? null;
     if (!mapId) return;
 
+    // Gate on STALENESS, not mere presence. This was `if (mapSegmentsData()) return;` —
+    // fetch-once for the life of the element — so after a map switch the segments slice
+    // still held map A while the raster had already been refetched for map B. The result
+    // was map A's room outlines drawn over map B's floor plan, map B's own device labels
+    // suppressed (the renderer skips them when segments exist), and a tap resolving
+    // through map A's segment ids against map B's rooms.
+    //
+    // The panel had an invalidation for this in its `set hass`; the embedded
+    // <eufy-vacuum-map> host did not. Putting the check HERE — in the one fetch helper
+    // both hosts already call — fixes it for every host including any future one, rather
+    // than adding a second copy of the panel's guard for the next host to forget.
+    if (this.card._state.mapSegmentsData() && this._mapSegmentsMapId === mapId) return;
+    if (this._mapSegmentsFetching) return;
+
+    if (this.card._state.mapSegmentsData() && this._mapSegmentsMapId !== mapId) {
+      // Drop the stale slice BEFORE awaiting the refetch. Otherwise every render in that
+      // window keeps painting the previous map's rooms — which is the visible bug.
+      this.card._state.setMapSegmentsData?.(null);
+    }
+
     this._mapSegmentsFetching = true;
     try {
       await this.card._actions.getMapSegments(mapId);
+      this._mapSegmentsMapId = mapId;
       if (this.card._state.mapSegmentsData()) {
         this._syncSegmentsFromRooms();
         this.card._scheduleRender();
