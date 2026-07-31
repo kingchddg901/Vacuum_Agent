@@ -112,7 +112,7 @@ comments rather than by a shared helper.
 
 **393 findings** — 369 across 11 audits plus 24 from direct reads. None applied. 29 clusters + 318 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 142 · LOW 160
+CRITICAL 17 · HIGH 74 · MEDIUM 143 · LOW 159
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -479,7 +479,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (122)</summary>
+<details><summary><strong>MEDIUM</strong> (123)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -757,6 +757,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SRC-2** `rooms/source_refresh.py:280` · roborock _(finder said HIGH; verifier corrected)_  
   set_cached_room_source is called unconditionally on every successful service call, so a response the flatten shim does not recognise (or an empty maps list) silently REPLACES a good cache with {} — logged at DEBUG only  
   Every room silently disappears from the setup tab, the card, and the room picker; after three passes the drift system reports the user's entire room set as removed. Any job whose targets can no longer be resolved degrade
+- **DR-ONB-3** `sensor/onboarding.py:62` · both · `direct read`  
+  The 'empty means complete' guard exists in setup/status.py and was never mirrored onto the onboarding summary — forgotten override sibling  
+  UPGRADED from LOW after finding the sibling that HAS the guard. Both sites answer the same question with the same optimistic-accumulator shape: setup/status.py initialises all_steps_complete=True and all_in_sync=True and
 - **A1-WIRE-2** `services/_common.py:57` · both _(finder said HIGH; verifier corrected)_  
   resolved_call_data's docstring claims an unresolvable map_id always raises; discover_rooms is the one consumer that silently falls through and persists the payload under an empty-string map key  
   Pressing "Discover rooms" — exactly what a user does when the active_map sensor is stale/unavailable — returns a clean success (the service is registered without supports_response, and the handler's `except Exception ->
@@ -850,7 +853,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (148)</summary>
+<details><summary><strong>LOW</strong> (147)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1182,9 +1185,6 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-ONB-5** `sensor/onboarding.py:55` · both · `direct read`  
   The sensor recomputes the entire onboarding summary twice per update  
   native_value and extra_state_attributes each call _get_summary() independently, and each call iterates every map building a full get_onboarding_state dict. A polling diagnostic entity does the whole aggregation twice per
-- **DR-ONB-3** `sensor/onboarding.py:62` · both · `direct read`  
-  The onboarding sensor reports 'complete' for a vacuum with no maps at all  
-  native_value scans maps for rooms_needed, then for floor_type_needed, then falls through to 'complete'. With maps == [] both loops are skipped and the sensor asserts setup is finished. Doc 18 §4.5 names this 'vacuous tru
 - **A5-FACADE-5** `services.yaml:1179` · both  
   services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects  
   Calling either service exactly as the HA Developer Tools > Actions form renders it — the form marks Carpet required, so a user filling it in will include it — fails validation with an opaque 'extra keys not allowed' erro
