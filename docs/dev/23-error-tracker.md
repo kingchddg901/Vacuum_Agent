@@ -294,11 +294,27 @@ tracker.recent_errors(vacuum_entity_id: str, *, limit: int | None = None) -> lis
 | Accessor | Returns |
 |---|---|
 | `get_record` | The full per-device record dict (`active_run_error` / `last_device_error` / `recent_errors`) |
-| `get_active_run_latch` | The `active_run_error` latch dict, or `None` |
-| `get_last_device_latch` | The `last_device_error` dict, or `None` |
+| `get_active_run_latch` | A **deep copy** of the `active_run_error` latch, or `None` |
+| `get_last_device_latch` | A **deep copy** of the `last_device_error` dict, or `None` |
 | `recent_errors` | A copy of the `recent_errors` list, tail-trimmed to the last `limit` entries when `limit` is a non-negative int (`limit` keyword-only; `None` = all). **Edge:** `limit=0` returns **all** entries (`items[-0:]` is `items[:]`) — reachable only via this direct accessor; the `get_recent_errors` service enforces `limit ≥ 1`. |
 
-`sensor/error.py` calls `get_active_run_latch` and `get_last_device_latch` directly to drive the error sensors.
+`sensor/error.py` calls `get_active_run_latch` and `get_last_device_latch` directly to drive
+the error sensors.
+
+**The two latch accessors deep-copy, and that is load-bearing.** Every caller is a
+presentation surface that hands what it gets to something which KEEPS it — the sensors'
+`extra_state_attributes`, the binary_sensor, the lifecycle snapshot served to the card.
+Home Assistant wraps a State's attributes in a `ReadOnlyDict` but does **not** copy the
+nested values, so returning the live latch made the `errors` entries inside an
+already-written State the same dicts the tracker went on to mutate: `_record_falling_edge`
+stamps `recovered_at` in place, reaching back into a State written minutes earlier and
+making history report the fault as already recovered at a time when it was not. A shallow
+`dict(latch)` at the call site does not help — the nesting is where the sharing lives.
+
+`peek_active_run` deep-copies for the same reason and says so; these accessors are the
+other half of that guarantee, so nothing hands out the live object. `get_record` is
+deliberately **not** copied — it is the internal mutation seam the tracker itself writes
+through, not a presentation accessor.
 
 ### 7.6 Recent-Errors Service Accessor
 

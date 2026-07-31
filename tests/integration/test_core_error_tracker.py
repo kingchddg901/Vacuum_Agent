@@ -763,3 +763,66 @@ async def test_acknowledging_mid_external_run_marks_rather_than_deletes(tracker,
     assert latch["acknowledged"] is True
     assert latch["current_message"] == ""      # nothing left for the entities to show
     assert latch["errors"][0]["message"] == "Brush stuck"   # ...but the history survives
+
+
+# --- FIND-7: nothing hands out the live latch ---------------------------------
+
+async def test_the_latch_handed_to_entities_does_not_change_underneath_them(tracker, hass):
+    """[FIND-7] A recorded State must not be rewritten by a later edge.
+
+    `get_active_run_latch` returned the LIVE latch. Home Assistant wraps a State's
+    attributes in a ReadOnlyDict but does not copy the nested values, so the `errors`
+    entries inside an already-written State were the same dicts the tracker went on to
+    mutate. `_record_falling_edge` stamps `recovered_at` IN PLACE on the newest unstamped
+    entry — reaching back into a State written minutes earlier and making history claim the
+    fault was already recovered at a time when it demonstrably was not.
+
+    A shallow `dict(latch)` at the call site does not help; the nesting is where the
+    sharing lives. This is the same hazard `peek_active_run` already deep-copies against.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    t._record_rising_edge(_VAC, message="Brush stuck", code=70, attribute_code=None)
+    await hass.async_block_till_done()
+
+    # What a presentation surface was handed, and would hold onto.
+    handed_out = t.get_active_run_latch(_VAC)
+    assert handed_out["errors"][0]["recovered_at"] is None
+
+    # Time passes; the robot recovers.
+    t._record_falling_edge(_VAC)
+    await hass.async_block_till_done()
+
+    assert handed_out["errors"][0]["recovered_at"] is None, (
+        "a later falling edge rewrote an already-recorded snapshot"
+    )
+    assert handed_out["recovered"] is False, "the top-level flag was rewritten too"
+    # The live latch did of course advance — the snapshot just isn't it.
+    assert t.get_active_run_latch(_VAC)["errors"][0]["recovered_at"] is not None
+
+
+async def test_a_handed_out_latch_cannot_corrupt_the_tracker(tracker, hass):
+    """[FIND-7] The isolation holds in the other direction too.
+
+    A consumer that mutates what it was given — a card payload builder normalizing a
+    field, a test, anything — must not be able to reach into the tracker's own state.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    t._record_rising_edge(_VAC, message="Brush stuck", code=70, attribute_code=None)
+    await hass.async_block_till_done()
+
+    handed_out = t.get_active_run_latch(_VAC)
+    handed_out["error_count"] = 999
+    handed_out["errors"][0]["message"] = "tampered"
+    handed_out["errors"].append({"message": "injected"})
+
+    live = t.get_active_run_latch(_VAC)
+    assert live["error_count"] == 1
+    assert live["errors"][0]["message"] == "Brush stuck"
+    assert len(live["errors"]) == 1
+
+    # last_device_error is flat today, but the same guarantee applies.
+    device = t.get_last_device_latch(_VAC)
+    device["message"] = "tampered"
+    assert t.get_last_device_latch(_VAC)["message"] == "Brush stuck"

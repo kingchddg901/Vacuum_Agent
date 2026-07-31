@@ -283,12 +283,36 @@ class ErrorTracker:
     def get_active_run_latch(
         self, vacuum_entity_id: str
     ) -> dict[str, Any] | None:
-        return self._ensure_record(vacuum_entity_id).get("active_run_error")
+        """Return a DEEP COPY of the active-run latch, or None.
+
+        The copy is the point. Every caller is a presentation surface — the error
+        sensors' ``extra_state_attributes``, the binary_sensor, the lifecycle snapshot
+        the card reads — and each one hands what it gets to something that KEEPS it.
+        Home Assistant wraps a State's attributes in a ReadOnlyDict but does not copy
+        the nested values, so returning the live latch meant the ``errors`` entries
+        inside an already-recorded State were the same dicts the tracker went on to
+        mutate: ``_record_falling_edge`` stamping ``recovered_at`` reached back and
+        changed a State written minutes earlier, so history showed the fault as already
+        recovered at a time when it was not. A shallow ``dict(latch)`` at the call site
+        does not help — the nesting is where the sharing lives.
+
+        ``peek_active_run`` deep-copies for the same reason, and states it. This is the
+        other half of that: nothing hands out the live object.
+        """
+        latch = self._ensure_record(vacuum_entity_id).get("active_run_error")
+        return copy.deepcopy(latch) if isinstance(latch, dict) else None
 
     def get_last_device_latch(
         self, vacuum_entity_id: str
     ) -> dict[str, Any] | None:
-        return self._ensure_record(vacuum_entity_id).get("last_device_error")
+        """Return a DEEP COPY of the last-device latch, or None.
+
+        Flat today, copied anyway: the guarantee callers rely on is "what I was handed
+        will not change underneath me", and that should not quietly depend on the
+        current shape of a record.
+        """
+        latch = self._ensure_record(vacuum_entity_id).get("last_device_error")
+        return copy.deepcopy(latch) if isinstance(latch, dict) else None
 
     def recent_errors(
         self, vacuum_entity_id: str, *, limit: int | None = None
