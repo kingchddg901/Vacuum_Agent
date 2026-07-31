@@ -35,6 +35,25 @@ export function applyCoreActions(proto) {
         `[eufy-vacuum-command-center] ${domain}.${service} failed`,
         { data, err }
       );
+      // Surface it. `notifyOnError: false` above suppresses Home Assistant's own error
+      // toast, which means THIS helper owns telling the user — and until now it did not.
+      // Every service call in the card funnels through here, so a failed start, a refused
+      // zone clean, or a fetch that could not run all resolved to `null` and were rendered
+      // as ordinary empty/idle states. A console line is not user-visible.
+      //
+      // The toast is best-effort and deliberately never rethrows: a card that explodes
+      // while reporting an error is worse than the error. Callers still receive `null`,
+      // so every existing null-check keeps working — this only adds the missing signal.
+      try {
+        const label = `${domain}.${service}`;
+        this.showToast?.(
+          this.t?.("common.service_failed", { service: label }) ||
+            `Could not complete ${label}`,
+          { kind: "error", ttl: 6000 }
+        );
+      } catch (toastErr) {
+        console.error("[eufy-vacuum-command-center] toast failed", toastErr);
+      }
       return null;
     }
   };

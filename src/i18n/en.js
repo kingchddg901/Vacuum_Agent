@@ -32,6 +32,9 @@ export const en = {
   // --- common ---
   "common.cancel": "Cancel",
   "common.close": "Close",
+  "common.service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
+  // service, or a backend error). {service} is a raw "domain.service" identifier — do NOT
+  // translate it. The second clause matters: the user must not assume the robot acted.
   "common.confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
   "common.delete": "Delete",
   "common.edit": "Edit",

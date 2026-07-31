@@ -13,6 +13,7 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
+    "service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
     "confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
     "delete": "Delete",
     "edit": "Edit",
