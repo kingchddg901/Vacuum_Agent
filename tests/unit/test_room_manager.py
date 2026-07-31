@@ -295,3 +295,56 @@ def test_summary_room_id_is_int():
     summary = build_room_selection_summary(managed_rooms=managed)
     assert summary["enabled_rooms"][0]["room_id"] == 3
     assert isinstance(summary["enabled_rooms"][0]["room_id"], int)
+
+
+# ---------------------------------------------------------------------------
+# Group F: the room field list had TWO writers. They are now ONE dataclass.
+# ---------------------------------------------------------------------------
+
+def test_map_rebuild_and_room_save_agree_on_every_field():
+    """[RM-F] The map rebuild and build_managed_rooms both construct through RoomConfig,
+    so a field added to the dataclass reaches BOTH writers automatically.
+
+    They had already drifted once: is_transition was preserved by the map rebuild and
+    absent from RoomConfig, so a re-save silently un-marked transition rooms. Asserting
+    the KEY SETS match means the next added field cannot reach only one writer.
+    """
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket, rebuild_map_bucket
+
+    saved = build_managed_rooms(discovered_rooms=[_disc(1)], existing_rooms={})["1"]
+
+    data: dict = {}
+    ensure_map_bucket(data=data, vacuum_entity_id="vacuum.alfred", map_id="1")
+    rebuild_map_bucket(
+        data=data,
+        vacuum_entity_id="vacuum.alfred",
+        map_id="1",
+        discovered_rooms=[{"room_id": 1, "name": "Kitchen", "slug": "kitchen", "map_id": "1"}],
+    )
+    rebuilt = data["maps"]["vacuum.alfred"]["1"]["rooms"]["1"]
+
+    assert set(saved) == set(rebuilt), (
+        "the two room writers disagree on their field set — one of them will drop a field"
+    )
+
+
+def test_map_rebuild_preserves_approval_rather_than_stamping_it():
+    """[RM-F2] The one place the two writers MUST differ: build_managed_rooms is an
+    explicit user approval and stamps is_configured=True; a rebuild must PRESERVE the
+    prior approval — neither auto-approving nor silently un-approving a saved room."""
+    from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket, rebuild_map_bucket
+
+    data: dict = {}
+    bucket = ensure_map_bucket(data=data, vacuum_entity_id="vacuum.alfred", map_id="1")
+    bucket["rooms"] = {"1": {"room_id": 1, "is_configured": False, "is_transition": True}}
+
+    rebuild_map_bucket(
+        data=data,
+        vacuum_entity_id="vacuum.alfred",
+        map_id="1",
+        discovered_rooms=[{"room_id": 1, "name": "Kitchen", "slug": "kitchen", "map_id": "1"}],
+    )
+    room = data["maps"]["vacuum.alfred"]["1"]["rooms"]["1"]
+
+    assert room["is_configured"] is False, "a rebuild silently auto-approved a room"
+    assert room["is_transition"] is True, "a rebuild dropped the transition marking"

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..models.models import RoomConfig
+
 
 def ensure_map_bucket(
     *,
@@ -137,39 +139,44 @@ def rebuild_map_bucket(
         # (e.g. "carpet_low_pile"); there is no separate carpet_type field.
         floor_type = str(previous.get("floor_type", "hardwood"))
 
-        rebuilt_rooms[room_id_key] = {
-            "room_id": room_id,
-            "map_id": str(map_id),
-            "name": str(room["name"]),
-            "slug": room.get("slug"),
-            "enabled": bool(previous.get("enabled", True)),
-            "order": int(previous.get("order", index)),
-            "profile_name": str(previous.get("profile_name", "vacuum_quick")),
-            "floor_type": floor_type,
-            "clean_mode": str(previous.get("clean_mode", "vacuum")),
-            "fan_speed": str(previous.get("fan_speed", "Max")),
-            "water_level": str(previous.get("water_level", "Off")),
-            "clean_intensity": str(previous.get("clean_intensity", "Quick")),
-            "clean_passes": int(previous.get("clean_passes", 1)),
-            "edge_mopping": bool(previous.get("edge_mopping", False)),
-            "path_type": previous.get("path_type"),
-            "is_dock_room": bool(previous.get("is_dock_room", False)),
-            "is_transition": bool(previous.get("is_transition", False)),
-            # Preserve the setup-approval flags across a rebuild. Without this a rebuilt
-            # room reads as UNCONFIGURED — filtered out of entity creation and flagged by
-            # the drift tracker — because rebuild is the only writer of these keys that
-            # dropped them and the load-time backfill does not setdefault is_configured.
-            # A map-bucket room is a saved (approved) room, so default is_configured True.
-            "is_configured": bool(previous.get("is_configured", True)),
-            "configured_at": previous.get("configured_at"),
-            "color": previous.get("color"),  # preserve per-room map fill override across a rebuild
-            "grants_access_to": list(previous.get("grants_access_to", []))
-            if isinstance(previous.get("grants_access_to"), list)
-            else [],
-            "rules": list(previous.get("rules", []))
-            if isinstance(previous.get("rules"), list)
-            else [],
-        }
+        # Built through RoomConfig — the SAME dataclass build_managed_rooms uses — rather
+        # than a second hand-maintained field list. The two lists had already drifted once:
+        # is_transition was preserved here and absent from RoomConfig, so a re-save silently
+        # un-marked transition rooms. A field added to the dataclass now reaches BOTH
+        # writers automatically instead of relying on someone remembering this copy.
+        #
+        # The approval flags stay LOCAL and deliberately differ: build_managed_rooms is an
+        # explicit user approval and stamps is_configured=True, while a rebuild must
+        # PRESERVE whatever approval already existed — a rebuilt room must not read as
+        # unconfigured (filtered out of entity creation and flagged by the drift tracker),
+        # and equally must not silently auto-approve. Same fields, genuinely different
+        # question, so the divergence is expressed here rather than hidden in a shared default.
+        _prev_grants = previous.get("grants_access_to")
+        _prev_rules = previous.get("rules")
+        rebuilt_rooms[room_id_key] = RoomConfig(
+            room_id=room_id,
+            map_id=str(map_id),
+            name=str(room["name"]),
+            slug=room.get("slug"),
+            enabled=bool(previous.get("enabled", True)),
+            order=int(previous.get("order", index)),
+            profile_name=str(previous.get("profile_name", "vacuum_quick")),
+            floor_type=floor_type,
+            clean_mode=str(previous.get("clean_mode", "vacuum")),
+            fan_speed=str(previous.get("fan_speed", "Max")),
+            water_level=str(previous.get("water_level", "Off")),
+            clean_intensity=str(previous.get("clean_intensity", "Quick")),
+            clean_passes=int(previous.get("clean_passes", 1)),
+            edge_mopping=bool(previous.get("edge_mopping", False)),
+            path_type=previous.get("path_type"),
+            is_dock_room=bool(previous.get("is_dock_room", False)),
+            is_transition=bool(previous.get("is_transition", False)),
+            grants_access_to=list(_prev_grants) if isinstance(_prev_grants, list) else [],
+            rules=list(_prev_rules) if isinstance(_prev_rules, list) else [],
+            color=previous.get("color"),
+            is_configured=bool(previous.get("is_configured", True)),
+            configured_at=previous.get("configured_at"),
+        ).as_dict()
 
     map_bucket["rooms"] = rebuilt_rooms
     map_bucket.setdefault("metadata", {})
