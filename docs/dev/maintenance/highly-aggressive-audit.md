@@ -110,9 +110,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**387 findings** — 369 across 11 audits plus 18 from direct reads. None applied. 29 clusters + 312 singles.
+**393 findings** — 369 across 11 audits plus 24 from direct reads. None applied. 29 clusters + 318 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 139 · LOW 157
+CRITICAL 17 · HIGH 74 · MEDIUM 142 · LOW 160
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -479,7 +479,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (119)</summary>
+<details><summary><strong>MEDIUM</strong> (122)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -655,6 +655,15 @@ The same audits recorded **595 areas examined and found correct**.
 - **DQ-Q-5** `maps/map_manager.py:197` · both  
   A map rebuild silently auto-enables AND auto-approves rooms that never existed before, adding them to the clean queue unseen  
   After a Rebuild Map, any segment that appeared since the last rebuild — a room the user renamed into existence in the vendor app, or on Eufy a phantom segment the CV segmenter split off — is cleaned on the next Start wit
+- **DR-ONB-4** `onboarding/manager.py:66` · both · `direct read`  
+  The five-key default record is hand-duplicated between _get_map_onboarding and reset_onboarding  
+  Lines 66-72 and 252-258 are two hand-maintained copies of one vocabulary -- the campaign's structural root cause, in a 263-line module. A sixth flag added to the lazy-create path silently produces reset records missing i
+- **DR-ONB-1** `onboarding/manager.py:182` · both · `direct read`  
+  remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap  
+  PROVEN by execution. The loop pops str(old_id) and writes str(new_id) into the SAME dict it is iterating over, so a new_id that is also a later old_id consumes the entry just written. Measured: id_remap={1:2, 2:3, 3:4} w
+- **DR-ONB-2** `onboarding/manager.py:186` · both · `direct read`  
+  check_for_new_rooms compares a PER-MAP stored count against a source with no map scoping  
+  The stored side, room_count_at_last_check, is stamped by mark_rooms_discovered from data['maps'][vacuum][map_id]['rooms'] -- per map. The live side reads the vacuum entity's `segments` attribute, which carries only the A
 - **A6-PP-EST-DSP-2** `planning/run_plan.py:125` · both _(finder said HIGH; verifier corrected)_  
   _settings_profile_display's "selected != resolved" custom-detection arm is dead for every name the resolver can rewrite — a carpet-downgraded mop room is still labelled "Vacuum + Mop Quick"  
   The run-plan / payload row for a carpeted room set to a vacuum+mop preset reads "Living Room Vacuum + Mop Quick" with is_custom_profile False, while the carpet constraint has already downgraded the run to vacuum-only. No
@@ -841,7 +850,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (145)</summary>
+<details><summary><strong>LOW</strong> (148)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -906,6 +915,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-DOCK-3** `dock/manager.py:446` · both · `direct read`  
   A manual counter reset leaves the debounce marker, suppressing the next genuine event  
   set_dock_event_count zeroes the counter but never clears {event_type}_last_counted_at. Reset inside the debounce window and the next real wash is silently not counted -- reset and debounce state are not kept coherent.
+- **DR-ONB-6** `docs/dev/18-onboarding-manager.md:228` · both · `direct read`  
+  Doc cites the start gate at core/manager.py:2776; it is at 2805  
+  The CLAIM is correct -- the gate really does block on floor_types_complete alone and never consults rooms_discovered. Only the line reference drifted. Recorded because this doc's stated scope is that 'a developer should
 - **A2-CAN-6** `jobs/active_job.py:2189` · both  
   async_cancel_active_job is re-entrant — a second cancel arriving inside the 30 s confirm window overwrites finalize_summary with all-None  
   The post-run summary on the card goes blank after a double cancel — no outcome, no learning verdict, no sanity flags — even though the record on disk is intact. An automation listening on EVENT_JOB_FINISHED fires twice,
@@ -1167,6 +1179,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SRC-4** `rooms/source_refresh.py:274` · roborock _(finder said MEDIUM; verifier corrected)_  
   No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it  
   Redundant cloud calls raise the probability of the get_maps failure that triggers SRC-1's wrong-room dispatch. When a pre-switch response wins the race, the cache holds the previous map's segment ids under the current ma
+- **DR-ONB-5** `sensor/onboarding.py:55` · both · `direct read`  
+  The sensor recomputes the entire onboarding summary twice per update  
+  native_value and extra_state_attributes each call _get_summary() independently, and each call iterates every map building a full get_onboarding_state dict. A polling diagnostic entity does the whole aggregation twice per
+- **DR-ONB-3** `sensor/onboarding.py:62` · both · `direct read`  
+  The onboarding sensor reports 'complete' for a vacuum with no maps at all  
+  native_value scans maps for rooms_needed, then for floor_type_needed, then falls through to 'complete'. With maps == [] both loops are skipped and the sensor asserts setup is finished. Doc 18 §4.5 names this 'vacuous tru
 - **A5-FACADE-5** `services.yaml:1179` · both  
   services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects  
   Calling either service exactly as the HA Developer Tools > Actions form renders it — the form marks Carpet required, so a user filling it in will include it — fails validation with an opaque 'extra keys not allowed' erro
