@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**40 changes shipped**, all with tests, all deployed.
+**41 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -104,14 +104,15 @@ comments rather than by a shared helper.
 | `0e9f28c` | fix(rooms): a new room's settings come from its BRAND's default profile |
 | `300dc1d` | test(adapters): give the contract test teeth — and it immediately found three real gaps |
 | `8144e82` | feat(adapters): say out loud which Eufy default a brand just inherited |
+| `fbf7d57` | docs(debug): the mid-capture `logger:` case is a footgun, not a bug — say so |
 
 ---
 
 ## Open
 
-**382 findings** — 369 across 11 audits plus 13 from direct reads. None applied. 29 clusters + 307 singles.
+**387 findings** — 369 across 11 audits plus 18 from direct reads. None applied. 29 clusters + 312 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 137 · LOW 154
+CRITICAL 17 · HIGH 74 · MEDIUM 139 · LOW 157
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -478,7 +479,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (117)</summary>
+<details><summary><strong>MEDIUM</strong> (119)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -519,6 +520,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-DBG-2** `debug_capture.py:605` · n/a (drop-in helper) · `direct read`  
   The switch bypasses the auto-stop bookkeeping the services maintain — forgotten override sibling at the entry-point layer  
   max_minutes lives in an `autostop` dict closed over inside register_debug_services; only the start/stop SERVICES cancel it. DebugCaptureSwitch.async_turn_on/off call capture.start()/stop() directly and lexically cannot r
+- **DR-DIAG-2** `diagnostics.py:326` · both · `direct read`  
+  Nine repr(err) sinks bypass the key-based redaction the docstring promises unconditionally  
+  async_redact_data matches KEYS. capabilities_error, maps_error, upkeep_snapshot_error, roborock_geometry_drift_error, vacuums_error, integration_version_error, completion_health.error, area_units.error and managed_rooms_
+- **DR-DIAG-1** `diagnostics.py:570` · both · `direct read`  
+  "Everything in _vacuum_diagnostics is read-only" is false — refresh=False does not make the capability call inert  
+  The module docstring EXCLUDES the dashboard snapshot on read-only grounds ('computing it can advance room timing and fire room-transition events during a live clean, and a diagnostics download must stay read-only'), and
 - **DQ-ZONE-2** `dispatch/manager.py:120` · both  
   supports_zone_clean is honored by the card but never consulted by the actuation path  
   A model catalog entry that declares supports_zone_clean: False — the exact 'a model that categorically cannot zone-clean had no way to say so' case the capability was added for — still gets a zone_clean/app_zoned_clean s
@@ -834,7 +841,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (142)</summary>
+<details><summary><strong>LOW</strong> (145)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -884,6 +891,15 @@ The same audits recorded **595 areas examined and found correct**.
 - **A1-WIRE-5** `debug_capture.py:510` · both  
   The debug-capture auto-stop timer is not cancelled on unload, so an orphaned timer from before a reload kills a capture started after it  
   User starts a capture with `max_minutes: 60`, reloads the integration, starts a new capture — the new capture silently stops at the old timer's deadline, logged only as 'debug capture auto-stopped after 60 min'. Diagnost
+- **DR-DIAG-5** `diagnostics.py:53` · both · `direct read`  
+  Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork  
+  _SENTINELS = BLANK_STATE_VALUES is assigned and never read; the live use is _ACTIVE_MAP_SENTINELS, which IS BLANK_STATE_VALUES (same object, correctly centralized). So the file carries a second, unused name for the same
+- **DR-DIAG-3** `diagnostics.py:286` · both · `direct read`  
+  A failed health probe is silently absent from the warnings block designed to be read first  
+  _self_check appends completion_health['warning'] and area_units['warning'] into `warnings` -- described as 'loud, actionable warnings that belong at the top of a support read'. Both collectors instead produce {'error': r
+- **DR-DIAG-4** `diagnostics.py:539` · both · `direct read`  
+  entry.title is dumped unredacted while entry.data and entry.options are redacted  
+  Only data and options pass through async_redact_data. The title is user-settable free text on the config entry, dumped verbatim. Low, but it is the same field class as `notes`, which TO_REDACT covers precisely because it
 - **DQ-ACT-7** `dispatch/manager.py:421` · future_brand_only  
   The OFF-fallback lowercases the select's options for the membership test but then sends the lowercased string as the option value  
   On a future brand whose select uses capitalized or numeric options, the mop-intensity pre-call silently no-ops and the run uses whatever water the device was last left on — the same physical outcome as DQ-ACT-5, reached
