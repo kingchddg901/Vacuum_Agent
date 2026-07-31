@@ -15,6 +15,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from ..timestamp_utils import datetime_to_utc_iso, utc_now
 from ..adapters.registry import get_adapter_config
+from ..entity_helpers import BLANK_STATE_VALUES, is_blank_state
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ EVENT_ROOM_COMPLETED = "eufy_vacuum_room_completed"
 EVENT_BOUNDARY_SAVED = "eufy_vacuum_boundary_saved"
 
 # Current-room name sentinels that mean "no usable signal" (hold, never a room exit).
-_BLANK_ROOM_SENTINELS = frozenset({"", "unknown", "unavailable", "none", "null"})
+_BLANK_ROOM_SENTINELS = BLANK_STATE_VALUES  # derived; see entity_helpers
 _ROOM_NAME_SEP = re.compile(r"[\s_-]+")
 
 
@@ -411,7 +412,7 @@ class MappingTracker:
         comes straight from the device (the same signal the card's mascot dwell
         reads)."""
         norm = _norm_room_name(self._read_active_cleaning_target(vacuum_entity_id))
-        if norm in _BLANK_ROOM_SENTINELS:
+        if is_blank_state(norm):
             return None
         for room_id, room_data in rooms.items():
             if room_data.get("is_transition", False):

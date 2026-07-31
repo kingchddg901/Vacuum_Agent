@@ -32,6 +32,7 @@ from .const import DATA_RUNTIME, DOMAIN
 # self-check has to reject exactly the same set or it reports "everything works"
 # for a device the importer will refuse. See _self_check.
 from .rooms.room_discovery import _ACTIVE_MAP_SENTINELS
+from .entity_helpers import BLANK_STATE_VALUES, is_blank_state
 
 # Keys whose values may carry secrets. entity_ids and map_ids are NOT secret and
 # are needed for support, so they are deliberately NOT redacted.
@@ -49,7 +50,7 @@ TO_REDACT = {
 }
 
 # HA sentinel values that mean "no real value".
-_SENTINELS = {"", "unknown", "unavailable", "none", "None"}
+_SENTINELS = BLANK_STATE_VALUES  # derived; see entity_helpers
 
 
 def _entity_snapshot(hass: HomeAssistant, entity_id: Any) -> dict[str, Any]:
@@ -75,7 +76,7 @@ def _entity_snapshot(hass: HomeAssistant, entity_id: Any) -> dict[str, Any]:
 def resolve_active_map_id(entity_resolution: dict[str, Any]) -> str | None:
     """Derive the active map id from the resolved active_map entity's state."""
     state = (entity_resolution.get("active_map") or {}).get("state")
-    if state is None or str(state) in _SENTINELS:
+    if is_blank_state(state):
         return None
     return str(state)
 

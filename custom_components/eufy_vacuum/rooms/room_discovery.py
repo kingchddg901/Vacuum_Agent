@@ -29,11 +29,15 @@ from .source_refresh import (
     get_cached_room_source,
 )
 from ..adapters.registry import get_adapter_config
+from ..entity_helpers import BLANK_STATE_VALUES, is_blank_state
 
 _LOGGER = logging.getLogger(__name__)
 
 # HA sentinel states that mean "no usable value".
-_ACTIVE_MAP_SENTINELS = {"unknown", "unavailable", "", "none", "None"}
+#: Kept as a NAME (diagnostics imports it) but derived from the shared vocabulary so it
+#: cannot drift again. It gains "null" — this sensor previously caught only the Python
+#: str(None) leak form and missed the JSON one.
+_ACTIVE_MAP_SENTINELS = BLANK_STATE_VALUES
 
 
 def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
@@ -62,7 +66,7 @@ def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
         state = hass.states.get(active_map_entity)
         if state is not None:
             value = state.state
-            if value in _ACTIVE_MAP_SENTINELS:
+            if is_blank_state(value):
                 _LOGGER.debug(
                     "Active map entity %s sentinel value for %s: %s",
                     active_map_entity, vacuum_entity_id, value,

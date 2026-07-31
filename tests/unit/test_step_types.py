@@ -74,3 +74,46 @@ def test_malformed_input_is_falsy():
     assert is_dock_polled_phase(None) is False
     # case/whitespace tolerance, matching the old str().strip().lower() call sites
     assert is_dock_polled_phase_type(" Charge_Wait ") is True
+
+
+# ---------------------------------------------------------------------------
+# Shared blank-state vocabulary — the OTHER Group F promotion.
+#   [BS-1] both leak forms are blank ("None" from Python, "null" from JSON)
+#   [BS-2] a real None is blank without the caller stringifying
+#   [BS-3] a genuine value is NOT blank — including values that merely contain a sentinel
+#   [BS-4] the derived named constants stay in lockstep with the shared set
+# ---------------------------------------------------------------------------
+
+from custom_components.eufy_vacuum.entity_helpers import (  # noqa: E402
+    BLANK_STATE_VALUES,
+    is_blank_state,
+)
+
+
+def test_both_absent_leak_forms_are_blank():
+    """[BS-1] The six hand-copied variants each caught only the leak form their own
+    producer emitted: "None" (Python str(None)) or "null" (JSON). Both now count."""
+    for raw in ("", "unknown", "unavailable", "none", "None", "null", "NULL", "  Unknown  "):
+        assert is_blank_state(raw) is True, f"{raw!r} should read as blank"
+
+
+def test_a_real_none_is_blank():
+    """[BS-2]"""
+    assert is_blank_state(None) is True
+
+
+def test_a_genuine_value_is_not_blank():
+    """[BS-3] Substring matching is a forbidden pattern in this repo — 'Nonesuch' and
+    'Unknown Room' are real values, not sentinels."""
+    for raw in ("Kitchen", "1", "Nonesuch", "Unknown Room", "0", 0, 1):
+        assert is_blank_state(raw) is False, f"{raw!r} should be a usable value"
+
+
+def test_derived_constants_stay_in_lockstep():
+    """[BS-4] room_discovery and mapping/tracker keep NAMED constants (diagnostics imports
+    one), but they are now DERIVED. If someone re-lists members locally, this fails."""
+    from custom_components.eufy_vacuum.rooms.room_discovery import _ACTIVE_MAP_SENTINELS
+    from custom_components.eufy_vacuum.mapping.tracker import _BLANK_ROOM_SENTINELS
+
+    assert _ACTIVE_MAP_SENTINELS is BLANK_STATE_VALUES
+    assert _BLANK_ROOM_SENTINELS is BLANK_STATE_VALUES

@@ -9,6 +9,38 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from .const import DOMAIN
 
 
+#: Entity-state values that carry NO usable information.
+#:
+#: Hand-copied variants of this set existed at six sites and had drifted into three
+#: shapes. The differences were not arbitrary — they tracked how "absent" reaches the
+#: state machine on different transports:
+#:   "None"  Python's str(None) leaking from a backend that stringifies
+#:   "null"  a JSON/JS null leaking from the map/websocket side
+#: so each site caught the leak form its own producer emitted and missed the others.
+#:
+#: Covering BOTH makes every caller strictly more robust rather than merely
+#: deduplicated: no legitimate entity state is the literal string "None" or "null".
+BLANK_STATE_VALUES: frozenset[str] = frozenset(
+    {"", "unknown", "unavailable", "none", "null"}
+)
+
+
+def is_blank_state(value: Any) -> bool:
+    """Return whether an entity state carries no usable information.
+
+    THE question — "did we actually get a value?" — rather than the raw set, so a caller
+    cannot drift by re-listing members. Case- and whitespace-insensitive, and a real
+    ``None`` counts as blank without the caller having to stringify first.
+
+    NOT for deciding whether a state is an ERROR: that is brand vocabulary
+    (``NOT_ERROR_SENTINELS``, declared per adapter, where Roborock deliberately excludes
+    "normal"). Different question, correctly different answer — see the error tracker.
+    """
+    if value is None:
+        return True
+    return str(value).strip().lower() in BLANK_STATE_VALUES
+
+
 def _friendly_vacuum_name(vacuum_entity_id: str) -> str:
     """Return a title-cased display name derived from the vacuum entity_id's object_id."""
     object_id = vacuum_entity_id.split(".", 1)[1]
