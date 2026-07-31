@@ -797,7 +797,23 @@ export function applyLearningState(proto) {
   };
 
   proto.learningBatteryWarning = function () {
-    const source = this.dashboardJobProgress() ?? this.learningReanchored() ?? this.learningEstimate();
+    // Pick the first source that actually CARRIES the key, not the first non-null source.
+    //
+    // This was `dashboardJobProgress() ?? learningReanchored() ?? learningEstimate()`, and
+    // `??` short-circuits on any non-nullish operand — including an object that simply
+    // lacks the key. The backend always emits a job_progress object, and job_progress does
+    // NOT carry `battery_warning` (only the estimate / re-anchor payloads do), so the two
+    // working branches behind it were unreachable and the warning could never render on
+    // any brand, at any battery level, in any run.
+    //
+    // The same `?? `chain is correct for the siblings around it, because job_progress DOES
+    // carry those fields — which is exactly why prepending it here went unnoticed.
+    const sources = [
+      this.dashboardJobProgress(),
+      this.learningReanchored(),
+      this.learningEstimate(),
+    ];
+    const source = sources.find((s) => s && typeof s === "object" && "battery_warning" in s);
     return Boolean(source?.battery_warning);
   };
 

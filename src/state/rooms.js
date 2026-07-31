@@ -438,11 +438,32 @@ export function applyRoomsState(proto) {
     return timeline.length > 0 && this.hasActiveRun();
   };
 
+  /**
+   * Pause / Resume affordances.
+   *
+   * These read the BACKEND's `job_control` verdict, which is computed from the tracked
+   * job's own status (can_pause = status "started", can_resume = status "paused"). They
+   * used to be derived from the brand vacuum entity's raw `state` string instead — and
+   * that string describes the ROBOT, not the JOB.
+   *
+   * The gap that exposed it: during a charge_wait or wait step in a stepped run the job
+   * stays "started" (the phase runner depends on that), but the robot is docked and
+   * charging. The entity string is then "docked", so BOTH affordances read false and the
+   * Pause button disappeared for the whole stop — which can be an hour.
+   *
+   * The entity check is kept as a FALLBACK for a snapshot that predates job_control or
+   * arrives empty, so an older backend degrades to the previous behaviour rather than
+   * losing the buttons entirely.
+   */
   proto.canPauseRun = function () {
+    const control = this.dashboardJobControl?.();
+    if (control && "can_pause" in control) return Boolean(control.can_pause);
     return String(this.vacuumState() ?? "").toLowerCase() === "cleaning";
   };
 
   proto.canResumeRun = function () {
+    const control = this.dashboardJobControl?.();
+    if (control && "can_resume" in control) return Boolean(control.can_resume);
     return String(this.vacuumState() ?? "").toLowerCase() === "paused";
   };
 
