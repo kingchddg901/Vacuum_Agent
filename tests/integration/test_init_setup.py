@@ -232,8 +232,13 @@ async def test_setup_with_maps_and_rooms(hass, hass_storage, mock_config_entry):
     await hass.async_block_till_done()
 
     # job-finished → refresh history sensors + auto-clear the recovered latch
+    # job_path is present on EVERY real payload (both builders emit the key) and is only
+    # non-empty when a record actually landed. The auto-clear is gated on it, because the
+    # event ALSO fires on paths where the finalize raised — where the latch is the run's
+    # only surviving error evidence. This models a SUCCESSFUL finalize.
     hass.bus.async_fire(EVENT_JOB_FINISHED,
-                        {"vacuum_entity_id": _VAC, "map_id": "6"})
+                        {"vacuum_entity_id": _VAC, "map_id": "6",
+                         "job_path": "/config/eufy_vacuum/jobs/job_x.json"})
     await hass.async_block_till_done()
     tracker = hass.data[DOMAIN][DATA_ERROR_TRACKER]
     assert tracker.get_active_run_latch(_VAC) is None

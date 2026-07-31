@@ -398,8 +398,18 @@ async def async_setup_entry(
         # latch dict exists — the error cleared mid-run and no new error fired.
         # An "active" latch (current_message non-empty) is left in place so the
         # user still sees the error after the job ends and must acknowledge it.
+        # ONLY when a record was actually written. EVENT_JOB_FINISHED also fires on paths
+        # where the finalize RAISED (a cancel still marks the job finalized and fires the
+        # event with finalize_result=None) — and on those paths the latch was deliberately
+        # NOT harvested, so it is the run's only surviving error evidence. Clearing it here
+        # discarded exactly what the peek/commit split exists to preserve: the commit keeps
+        # the latch when the record write fails, and this door then threw it away anyway.
+        #
+        # `job_path` is present only on a successful finalize, so it is the cheapest honest
+        # proof that the record landed and the latch is genuinely spent.
+        _finalized_ok = bool(str((data or {}).get("job_path") or "").strip())
         _error_tracker = hass.data[DOMAIN].get(DATA_ERROR_TRACKER)
-        if _error_tracker is not None:
+        if _finalized_ok and _error_tracker is not None:
             latch = _error_tracker.get_active_run_latch(vacuum_entity_id)
             if isinstance(latch, dict) and not latch.get("current_message"):
                 _error_tracker.acknowledge(vacuum_entity_id, scope="active_run")

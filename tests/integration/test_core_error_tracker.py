@@ -489,3 +489,32 @@ async def test_grace_does_not_rearm_while_a_placeholder_latch_stands(tracker, ha
         f"one physical fault produced {latch['error_count']} edges"
     )
     assert len(latch.get("errors") or []) == 1
+
+
+async def test_job_finished_without_a_record_does_not_clear_the_latch(hass, tracker):
+    """[ET-ED3] EVENT_JOB_FINISHED also fires on paths where the finalize RAISED — a cancel
+    still marks the job finalized and fires the event with finalize_result=None.
+
+    On those paths the latch was never harvested, so it is the run's ONLY surviving error
+    evidence. Clearing it here discarded exactly what the peek/commit split exists to
+    preserve: the commit deliberately keeps the latch when the record write fails, and this
+    door then threw it away anyway.
+
+    job_path is present on every real payload and non-empty only when a record landed.
+    """
+    et, mgr = tracker
+    _seed_active_job(mgr, status="started")
+
+    # A recovered latch — the shape the auto-clear targets.
+    et._ensure_record(_VAC)["active_run_error"] = {
+        "current_message": "", "recovered": True, "errors": [{"captured_at": "t0"}],
+    }
+
+    # Finalize raised -> job_path absent/empty.
+    from custom_components.eufy_vacuum.const import EVENT_JOB_FINISHED
+    hass.bus.async_fire(EVENT_JOB_FINISHED, {"vacuum_entity_id": _VAC, "map_id": "6"})
+    await hass.async_block_till_done()
+
+    assert et.get_active_run_latch(_VAC) is not None, (
+        "the run's only error evidence was cleared after a failed finalize"
+    )
