@@ -232,8 +232,13 @@ def test_maintenance_components(s6_config):
         "dock_dust_bag", "clean_water_tank", "dirty_water_tank",
     }
     assert mc["main_brush"]["sensor_suffix"] == "main_brush_time_left"
-    assert mc["main_brush"]["remaining_is_state"] is True
     assert mc["main_brush"]["maintenance_only"] is False
+    # `remaining_is_state` is PRUNED, not renamed. It was declared on four components,
+    # projected onto all twelve with a False default, and read by absolutely nothing —
+    # its documented consumer ("core seam — Wave 1b") never shipped. This assertion used
+    # to check the flag was True, which proved the declaration existed rather than that
+    # it did anything; asserting its absence is the honest version.
+    assert "remaining_is_state" not in mc["main_brush"]
     # Filter reset button is "air_filter", not "filter".
     assert mc["filter"]["reset_button"]["entity_suffixes"] == ["reset_air_filter_consumable"]
     # Guide-only cleanables: maintenance_only, no upstream sensor, zero intervals.

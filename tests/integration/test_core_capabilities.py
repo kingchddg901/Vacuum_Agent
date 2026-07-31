@@ -315,3 +315,31 @@ def test_get_vacuum_capabilities_self_heals_stale_model_family(hass, manager):
 
     # The refresh wrote the adapter family back, so the mismatch is gone.
     assert manager.data["capabilities"][_VAC]["model_family"] == "x10"
+
+
+def test_detect_zone_clean_hint_wins(hass):
+    """[RC-5/CAP-2] The same shape as CAP-8a above, one finding later.
+
+    `supports_zone_clean` was hardcoded `True` in BOTH shipped adapters' config dicts —
+    not derived, not hinted, just asserted. Each had a good reason written beside it
+    (no runtime probe distinguishes eufy-clean versions; the S6 zone-cleans via stock
+    send_command), and both were right about their own brand. The defect is that a MODEL
+    which categorically cannot zone-clean had nothing to declare against: a hardcoded
+    default in the adapter config is unreachable by a model catalog entry, which is
+    exactly how supports_edge_mopping stayed True for a brand declaring it False.
+
+    True remains the default — both brands do support it — but it is now a hint.
+    """
+    hass.states.async_set(_VAC, "docked")
+
+    # Default: unchanged from the hardcoded behaviour.
+    caps = detect_capabilities(hass, vacuum_entity_id=_VAC)
+    assert caps["supports_zone_clean"] is True
+
+    # A model that cannot do it is now believed.
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        capability_hints={"supports_zone_clean": False},
+    )
+    assert caps["supports_zone_clean"] is False

@@ -287,6 +287,12 @@ def detect_capabilities(
     supports_passes             = _hint_wins("supports_passes", True)
     supports_custom_room_config = _hint_wins("supports_custom_room_config", True)
     supports_room_clean         = _hint_wins("supports_room_clean", True)
+    # Ad-hoc free-form zone cleaning ("draw a box on the live map"). BOTH shipped adapters
+    # hardcoded this True in their config dicts, which is the unreachable-default shape this
+    # helper's docstring warns about: a model that categorically cannot zone-clean had no way
+    # to say so, because there was nothing to declare AGAINST. True stays the default — both
+    # brands do support it today — but it is now a hint a model catalog can override.
+    supports_zone_clean         = _hint_wins("supports_zone_clean", True)
 
     # --- maintenance sources ------------------------------------------------
 
@@ -325,6 +331,7 @@ def detect_capabilities(
         "supported_features": supported_features,
         "supports_room_clean": supports_room_clean,
         "supports_custom_room_config": supports_custom_room_config,
+        "supports_zone_clean": supports_zone_clean,
         "supports_rooms": supports_rooms,
         "supports_segments": supports_segments,
         "supports_active_map": supports_active_map,

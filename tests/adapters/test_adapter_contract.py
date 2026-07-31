@@ -108,6 +108,21 @@ def _validate(config: Any, schema: dict[str, dict], path: str = "") -> list[str]
     if not isinstance(config, dict):
         return [f"{path or '<root>'}: expected dict, got {type(config).__name__}"]
 
+    # UNKNOWN KEYS (RC-1). The loop below iterates the SCHEMA, so without this a key the
+    # schema does not declare is never looked at — the walker reported an identical (empty)
+    # result for a clean config and for one carrying a typo'd top-level block plus a made-up
+    # entity key. That is the whole reason the "contract, as data" artifact could sit ~10
+    # blocks behind what shipped without a single test going red.
+    #
+    # Only applied where the schema actually enumerates the shape. Nine blocks are declared
+    # as bare `dict` with no `fields` (settings_selects, mapping, map_render, room_profiles,
+    # …) and are legitimately open-ended; asserting there would be noise, not a contract.
+    unknown = sorted(set(config) - set(schema))
+    if unknown:
+        issues.append(
+            f"{path or '<root>'}: key(s) not declared in the schema: {unknown}"
+        )
+
     for key, spec in schema.items():
         loc = f"{path}.{key}" if path else key
         present = key in config
@@ -167,6 +182,44 @@ def _validate(config: Any, schema: dict[str, dict], path: str = "") -> list[str]
 
 
 class TestValidatorItself:
+    def test_an_undeclared_key_is_caught_at_every_level(self):
+        """[RC-1] The walker iterates the SCHEMA, so an unknown key was never inspected.
+
+        A verifier proved this by running it: a config carrying a typo'd top-level block
+        AND a made-up nested key produced output IDENTICAL to the clean config. That is
+        why the artifact called "the contract, as data" could sit blocks behind what
+        actually shipped without one test going red.
+
+        Adding the check immediately found three real undeclared keys in SHIPPED configs
+        (`dispatch.global_pre_calls[].mixed_mode_water_policy`,
+        `water_model_configs[].water_rates`, and the dead `remaining_is_state`), so this
+        is not only a tripwire for brand 3.
+        """
+        schema = {
+            "known": {"type": "str", "required": False},
+            "block": {
+                "type": "dict",
+                "required": False,
+                "fields": {"inner": {"type": "str", "required": False}},
+            },
+        }
+        assert _validate({"known": "x"}, schema) == []
+
+        top = _validate({"known": "x", "typoo": 1}, schema)
+        assert len(top) == 1 and "typoo" in top[0]
+
+        # Nested too — a typo inside a block the schema DOES enumerate.
+        nested = _validate({"block": {"inner": "x", "inr": "y"}}, schema)
+        assert len(nested) == 1 and "inr" in nested[0] and "block" in nested[0]
+
+    def test_open_ended_blocks_are_not_flagged(self):
+        """[RC-1] Nine schema blocks are declared as bare `dict` with no `fields`
+        (settings_selects, mapping, map_render, room_profiles, …) and are legitimately
+        open-ended. Asserting unknown keys inside those would be noise, not a contract —
+        so the check only applies where the schema actually enumerates the shape."""
+        schema = {"opaque": {"type": "dict", "required": False}}
+        assert _validate({"opaque": {"anything": 1, "at": "all"}}, schema) == []
+
     def test_type_ok_basic_families(self):
         assert _type_ok("x", "str")
         assert _type_ok(3, "int")

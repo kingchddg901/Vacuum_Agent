@@ -1169,6 +1169,22 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                             "wire)."
                         ),
                     },
+                    "mixed_mode_water_policy": {
+                        "type": "str | null",
+                        "required": False,
+                        "values": ["safest"],
+                        "description": (
+                            "Mixed-batch safety for a device-GLOBAL water/mop-intensity "
+                            "select, which cannot be zeroed per room. Declare 'safest' so "
+                            "a batch containing BOTH mop rooms and vacuum-only rooms "
+                            "picks the lowest rung (off) instead of max-wins — otherwise "
+                            "the dry rooms get wet-mopped. Under-mop is accepted over "
+                            "wet-mop. A single-mode batch keeps max-wins. Omit on entries "
+                            "where max-wins is always right (a fan entry must NOT carry "
+                            "it, or suction drops to the weakest room's setting). "
+                            "Read by dispatch/manager.py."
+                        ),
+                    },
                 },
             },
             "room_fields": {
@@ -1556,6 +1572,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Subtracted from the total dock-water delta to isolate "
                     "the floor-mopping water from the post-job wash water. "
                     "Omit for models with no dock wash cycle."
+                ),
+            },
+            "water_rates": {
+                "type": "dict[str, float]",
+                "required": False,
+                "description": (
+                    "Per-water-level flow rate in ml/min, keyed by the LOWERCASED "
+                    "canonical water level ('off'/'low'/'medium'/'high'). Overrides the "
+                    "framework's generic rate table when estimating a run's water use. "
+                    "Omit to use the generic table. Read by planning/run_plan.py."
                 ),
             },
         },

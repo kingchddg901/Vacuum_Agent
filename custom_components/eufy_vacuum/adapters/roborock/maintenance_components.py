@@ -11,13 +11,19 @@ separate ``buttons.py``). Rated lives confirmed from the integration diagnostics
 SHAPE NOTE vs Eufy: Eufy's source sensor exposes a ``usage_hours`` accumulator
 and the FRAMEWORK computes remaining + owns the reset. Roborock's ``*_time_left``
 sensors are DEVICE-owned countdowns (no ``usage_hours`` / ``total_life_hours``);
-the device counts down and resets itself when its own button is pressed. The
-``remaining_is_state`` flag marks "the sensor STATE is remaining-hours; do not
-recompute it." Replacement-status already reads the raw state as remaining hours,
-so the maintenance status works natively; the flag is consumed by the
-framework's parallel remaining model (core seam — Wave 1b) to suppress a stale
-duplicate. ``default_interval_hours`` / ``max_interval_hours`` are advisory for
-Roborock (the device, not the framework interval, drives the real countdown).
+the device counts down and resets itself when its own button is pressed.
+Replacement-status already reads the raw state as remaining hours, so the
+maintenance status works natively with no framework recompute.
+``default_interval_hours`` / ``max_interval_hours`` are advisory for Roborock
+(the device, not the framework interval, drives the real countdown).
+
+REMOVED — ``remaining_is_state``. Every component carried it, and nothing read
+it: the flag was documented as "consumed by the framework's parallel remaining
+model (core seam — Wave 1b)", and that consumer never shipped. Thirteen copies of
+a declaration defended by a comment rather than by a reader is the exact pattern
+the 2026-07-30 adapter audit was looking for, so it is pruned rather than left to
+read as working configuration. Re-add it WITH its consumer if Wave 1b lands; the
+shape note above is the part that was actually load-bearing.
 """
 
 from __future__ import annotations
@@ -25,7 +31,6 @@ from __future__ import annotations
 MAINTENANCE_COMPONENTS: dict[str, dict] = {
     "main_brush": {
         "sensor_suffix": "main_brush_time_left",
-        "remaining_is_state": True,
         "reset_button": {
             "entity_suffixes": ["reset_main_brush_consumable"],
             "token_sets": [["reset", "main", "brush"]],
@@ -37,7 +42,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "side_brush": {
         "sensor_suffix": "side_brush_time_left",
-        "remaining_is_state": True,
         "reset_button": {
             "entity_suffixes": ["reset_side_brush_consumable"],
             "token_sets": [["reset", "side", "brush"]],
@@ -50,7 +54,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     "filter": {
         # Note the reset button is "air_filter", not "filter".
         "sensor_suffix": "filter_time_left",
-        "remaining_is_state": True,
         "reset_button": {
             "entity_suffixes": ["reset_air_filter_consumable"],
             "token_sets": [["reset", "filter"]],
@@ -62,7 +65,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "sensor": {
         "sensor_suffix": "sensor_time_left",
-        "remaining_is_state": True,
         "reset_button": {
             "entity_suffixes": ["reset_sensor_consumable"],
             "token_sets": [["reset", "sensor"]],

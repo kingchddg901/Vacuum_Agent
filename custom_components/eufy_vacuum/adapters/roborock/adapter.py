@@ -602,7 +602,9 @@ def register_roborock_adapter_for_vacuum(
             # Zone clean (draw-a-box) via app_zoned_clean (device-mm; see dispatch.
             # zone_command). The S6 supports zoned cleaning through stock send_command; the
             # card un-rotates the drawn rect so it works at any display rotation.
-            "supports_zone_clean": True,
+            # Read from caps rather than hardcoded, so a model catalog entry can declare
+            # supports_zone_clean False and be believed (see capabilities._hint_wins).
+            "supports_zone_clean": caps.get("supports_zone_clean", True),
             # app_zoned_clean device limits (S6, likely all Roborock): at most 5 zones per
             # call, each between 1 ft² and 32.8 ft². Count is enforced in the card (zoneMax
             # via the snapshot) + dispatch (defence-in-depth); size in dispatch_zone_clean
@@ -614,13 +616,16 @@ def register_roborock_adapter_for_vacuum(
 
         "maintenance_components": {
             # Sourced from maintenance_components.py. Life-tracked consumables carry a
-            # remaining-hours countdown sensor (remaining_is_state) + an inline reset
-            # button; guide-only cleanables (maintenance_only) carry neither and
-            # default their intervals to 0. label/icon are mandatory (bare-deref'd).
+            # remaining-hours countdown sensor + an inline reset button; guide-only
+            # cleanables (maintenance_only) carry neither and default their intervals
+            # to 0. label/icon are mandatory (bare-deref'd).
+            #
+            # `remaining_is_state` used to be projected here with a False default, which
+            # put it on ALL 13 components — nothing read it on any of them. Pruned with
+            # its source declarations; see maintenance_components.py.
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
                 "proxy_for": component.get("proxy_for"),
-                "remaining_is_state": component.get("remaining_is_state", False),
                 "maintenance_only": component.get("maintenance_only", False),
                 "default_interval_hours": component.get("default_interval_hours", 0.0),
                 "max_interval_hours": component.get("max_interval_hours", 0.0),

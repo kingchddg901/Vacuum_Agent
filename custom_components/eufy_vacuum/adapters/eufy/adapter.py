@@ -793,10 +793,12 @@ def register_eufy_adapter_for_vacuum(
             # Ad-hoc free-form zone cleaning (draw a box on the live map, clean it).
             # No runtime probe distinguishes eufy-clean v1.11.1+ (which accepts
             # zone_clean — see dispatch.zone_command) from older eufy-clean, so this
-            # is True for Eufy and the card gates the zone-draw control on a RESOLVED
+            # DEFAULTS True for Eufy and the card gates the zone-draw control on a RESOLVED
             # live-map image: the version (v1.11.0+) that adds zone_clean is the same one
             # exposing camera.<device>_map, so older installs (no live map) never see it.
-            "supports_zone_clean": True,
+            # Read from caps rather than hardcoded, so a model catalog entry can declare
+            # supports_zone_clean False and be believed (see capabilities._hint_wins).
+            "supports_zone_clean": caps.get("supports_zone_clean", True),
             # Eufy zone-clean device limits (mirror the app): up to 10 zones per clean, and
             # each zone SIDE 0.5-10 m. This is a per-SIDE bound (checked against the live map
             # dims in dispatch_zone_clean), NOT Roborock's per-zone AREA bound. 100 m² (10x10 m)
