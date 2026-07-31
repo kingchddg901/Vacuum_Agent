@@ -110,9 +110,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**399 findings** — 369 across 11 audits plus 30 from direct reads. None applied. 29 clusters + 324 singles.
+**403 findings** — 369 across 11 audits plus 34 from direct reads. None applied. 29 clusters + 328 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 144 · LOW 164
+CRITICAL 17 · HIGH 75 · MEDIUM 145 · LOW 166
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -336,7 +336,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (46)</summary>
+<details><summary><strong>HIGH</strong> (47)</summary>
 
 - **A5-FACADE-2** `core/manager.py:1426` · both  
   discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
@@ -473,13 +473,16 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SETUP-6** `services/setup.py:243` · both  
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
+- **DR-SETUP-1** `setup/delete.py:136` · both · `direct read`  
+  Deleting map N from vacuum.X sweeps every entity of vacuum.X_N from the registry  
+  PROVEN. Room entity ids are make_room_unique_id -> {vac_key}_{map_id}_{room_id}_{suffix}. The post-delete registry sweep matches on {vac_key}_{map_id}_, so deleting map 2 from vacuum.alfred builds prefix vacuum_alfred_2_
 - **A2-CB-1** `switch.py:71` · both _(finder said CRITICAL; verifier corrected)_  
   Room-update fan-out identifies "stale" entities by unique_id PREFIX, so a room edit on one vacuum permanently deletes a sibling vacuum's entities from the entity registry  
   On any multi-vacuum install where one vacuum's entity_id is another's plus a numeric suffix (HA's own default for a second identical robot), the first room edit — toggling a room switch, applying a room profile, saving r
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (124)</summary>
+<details><summary><strong>MEDIUM</strong> (125)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -829,6 +832,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SETUP-11** `services/setup.py:229` · both  
   setup_delete_map auto-resolves an omitted map_id to whatever map happens to be active at call time  
   An automation written while the upstairs map was active later deletes the downstairs map, taking its rooms, queue, job records and learned history with it. docs/advanced/03-services.md:1498 flags the operation as irrever
+- **DR-SETUP-2** `setup/drift.py:117` · both · `direct read`  
+  auto_refresh_on still uses the bare or-coercion that code-flag CS-2 fixed for its three siblings  
+  get_discovery_cadence reads list(disc.get(auto_refresh_on) or _DEFAULT_AUTO_REFRESH_TRIGGERS). The other three keys in the same dict literal were converted to an is-not-None guard precisely because or silently reverts a
 - **A1-ID-4** `setup/drift.py:540` · both  
   Drift keys its history by bare device room_id across ALL maps but feeds it only the ACTIVE map's discovery, so a multi-map vacuum's inactive rooms decay toward 'removed' and colliding ids mask each other  
   A user with an upstairs and a downstairs map is repeatedly told that the rooms on whichever floor is not currently active have been removed from the vacuum, with the wrong floor's name attached; and a room genuinely dele
@@ -856,7 +862,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (152)</summary>
+<details><summary><strong>LOW</strong> (154)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1281,6 +1287,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **A5-RUNPROF-8** `services/snapshots.py:78` · both  
   No service here checks that vacuum_entity_id is a vacuum this integration manages; unknown ids create durable storage buckets, and a read service writes  
   A typo'd entity id in an automation gets a plausible-looking response (`{"vacuum_entity_id": "vacuum.typo", "pause_timeout_minutes_default": 0}`) instead of an error, so the user's real setting change appears to have wor
+- **DR-SETUP-3** `setup/drift.py:336` · both · `direct read`  
+  Two unguarded int(key) coercions on drift-history keys, in a module that guards every other one  
+  The stale-entry prune and the history-only new-room branch both coerce a storage key with no try/except, while _room_lookup and _list_configured_room_ids in the same file wrap identical coercions in except (TypeError, Va
+- **DR-SETUP-4** `setup/protection.py:44` · both · `direct read`  
+  Protection evaluation calls .get() on map buckets and room records without isinstance guards  
+  The imported-map comprehension and the has_rules / has_access_graph scans assume dicts, where drift.py consistently checks isinstance(bucket, dict) first. A malformed record raises AttributeError out of evaluate_map_prot
 - **A2-CB-5** `switch.py:89` · both  
   Three of the four fan-out subscribers call async_write_ha_state() unguarded while the fourth routes through a hass-is-None guard, so one bad entity aborts the rest of that subscriber's sync silently  
   When it triggers, some of a map's room switches or number entities silently fail to appear after a room change, with only an "Room update callback failed for ... map ..." ERROR in the log and no user-facing signal. They
