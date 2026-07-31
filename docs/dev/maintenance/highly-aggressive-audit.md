@@ -109,9 +109,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**383 findings** — 369 across 11 audits plus 14 from direct reads. None applied. 29 clusters + 308 singles.
+**382 findings** — 369 across 11 audits plus 13 from direct reads. None applied. 29 clusters + 307 singles.
 
-CRITICAL 17 · HIGH 74 · MEDIUM 137 · LOW 155
+CRITICAL 17 · HIGH 74 · MEDIUM 137 · LOW 154
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -834,7 +834,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (143)</summary>
+<details><summary><strong>LOW</strong> (142)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -872,9 +872,6 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-START-2** `core/manager.py:5021` · both _(finder said MEDIUM; verifier corrected)_  
   start_selected_rooms dispatches phase 0 with no phase_type branch, unlike its phase_runner sibling — and _build_steps_phases' docstring claims a guard that does not exist  
   Latent today: the only thing stopping a segment-clean command with an empty room list from reaching the robot is the accidental `payload_room_count <= 0` block described in START-1, which is a side effect of the zone pha
-- **DR-DBG-5** `debug_capture.py:263` · n/a (drop-in helper) · `direct read`  
-  The restore guard cannot distinguish its own DEBUG from a user's mid-capture `logger:` DEBUG  
-  The post claims stop 'restores the prior level + propagate — but only if they're still the values it installed, so it won't clobber a logger: change you made mid-capture.' True for any level EXCEPT debug: the guard is `l
 - **DR-DBG-6** `debug_capture.py:286` · n/a (drop-in helper) · `direct read`  
   status() reports stale started_at / services / areas after a stop  
   stop() clears _ring, _logger_name and the prior-state fields but leaves _areas, _targets and _started_at. debug_capture_status then returns active: False beside a populated services list and a started_at from the finishe
@@ -1267,6 +1264,14 @@ The same audits recorded **595 areas examined and found correct**.
   After a scoped floor-texture import the card's footer keeps 'Discard' and 'Save changes' enabled (src/renderers/theme.js:1042, 1120-1133 gate purely on draft_dirty) with an empty draft behind them. The user sees a persis
 
 </details>
+
+### Examined and deliberately not fixed
+
+Real behaviour, but reaching it requires using the feature against its own purpose.
+Recorded so it is not re-reported as a new finding, and documented where it lives.
+
+- **DR-DBG-5** `debug_capture.py:263` — The restore guard cannot distinguish its own DEBUG from a user's mid-capture `logger:` DEBUG  
+  Reaching it requires starting the flight recorder — a tool whose entire purpose is to avoid enabling `logger:` debug — and then enabling `logger:` debug anyway, mid-capture. That is a user footgun, not a defect: the two actions contradict each other. Documented in the module and in the post rather than guarded against.
 
 ### Carried forward from before the audits
 

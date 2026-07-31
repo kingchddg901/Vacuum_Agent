@@ -258,6 +258,13 @@ class DebugCapture:
                 logger.removeHandler(self._passthrough)
             # Restore ONLY if the values are still the ones we installed — don't clobber a
             # level/propagate change made externally (e.g. via `logger:`) during capture.
+            #
+            # KNOWN AND ACCEPTED: the level check cannot distinguish OUR debug from a debug
+            # set externally mid-capture, so that one case IS restored away. Left alone on
+            # purpose — reaching it means starting the recorder (whose whole point is not
+            # having to enable `logger:` debug) and then enabling `logger:` debug anyway.
+            # The two actions contradict each other, so guarding it would add state to
+            # defend a self-defeating sequence. Every other level is correctly left alone.
             if self._prior_propagate is not None and logger.propagate is False:
                 logger.propagate = self._prior_propagate
             if self._prior_level is not None and logger.level == logging.DEBUG:
