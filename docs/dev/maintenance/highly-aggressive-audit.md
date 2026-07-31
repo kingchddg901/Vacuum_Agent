@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**40 changes shipped**, all with tests, all deployed.
+**41 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -95,16 +95,17 @@ comments rather than by a shared helper.
 | `0e9f28c` | fix(rooms): a new room's settings come from its BRAND's default profile |
 | `300dc1d` | test(adapters): give the contract test teeth — and it immediately found three real gaps |
 | `8144e82` | feat(adapters): say out loud which Eufy default a brand just inherited |
+| `994f16e` | docs(maintenance): commit the hostile-audit ledger — completed and open, in one place |
 
 ---
 
 ## Open
 
-**142 findings** across 4 audits, none applied. 10 clusters + 118 singles.
+**180 findings** across 5 audits, none applied. 14 clusters + 147 singles.
 
-CRITICAL 8 · HIGH 41 · MEDIUM 51 · LOW 42
+CRITICAL 11 · HIGH 48 · MEDIUM 58 · LOW 63
 
-The same audits recorded **259 areas examined and found correct**.
+The same audits recorded **321 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -180,17 +181,48 @@ The same audits recorded **259 areas examined and found correct**.
 - **Defect:** Callers cannot distinguish 'refreshed successfully' from 'refresh failed, you are looking at stale cache'. dispatch/manager.py calls this immediately before resolving live segment ids, so a silent failure means stale ids go to the wire -- the same wrong-room outcome as C1, by a different route.
 - **Fix:** Return a discriminable result and have dispatch refuse (or warn loudly) when the refresh did not actually succeed.
 
+#### C11. The Eufy in-memory map source has NO vacuum identity — **verified by hand**
+
+- **Seam:** `mapping/map_source_runtime.py:839 (eufy_inmem_candidates)`
+- **Closes:** A1-LC-1, A3-EXT-1, A4-RB-2
+- **Defect:** VERIFIED: eufy_inmem_candidates(hass, source_cfg) takes no vacuum_entity_id, no serial, no device_id, and appends the WHOLE hass.data['robovac_mqtt'] bucket first. The bounded BFS matches on attribute presence only, so coordinators[0] wins for EVERY vacuum. Six coordinator call sites inherit it (361/397/461/550/645/689): static rooms, live pose, the render raster the card draws, and the raster zone_membership consumes. The per-vacuum _mem_rooms_cache does not help -- its version is a hash of that same wrong raster, so it is self-consistently wrong. Only bites a MULTI-Eufy install; this install has one robot today.
+- **Fix:** Pass vacuum_entity_id through and select the coordinator by serial/device_id. The pattern is already there on the other brand: roborock_candidates accepts image_entity_id and puts the per-vacuum entity object FIRST. Forgotten override sibling, fourth instance. The storage fallback is correctly per-serial, which proves per-device identity was the intent.
+
+#### C12. Live pose is projected through the WRONG coordinate frame
+
+- **Seam:** `mapping/map_source_coordinator.py (_load_live_pose_geom / _apply_inmem_pose_to_result)`
+- **Closes:** A2-GEO-1, A5-POSE-1
+- **Defect:** A memory-frame robot pixel is normalized and room-looked-up against .storage-frame geometry. The two frames are not guaranteed equal, so the robot dot and the derived current_room can both be wrong while reporting present:True.
+- **Fix:** Normalize the pose against the frame it came from, or refuse to derive current_room when the frames disagree.
+
+#### C13. The sticky-hold `stale` flag is written and never read
+
+- **Seam:** `mapping/map_source_coordinator.py:126`
+- **Closes:** A1-LC-2, A5-POSE-2
+- **Defect:** The last-known-good hold re-serves a frozen current_room/robot_anchor as present:True and sets stale/stale_since/stale_reason -- which have NO consumer anywhere. A docked Roborock therefore reports a phantom room for up to 6 hours, and nothing downstream can tell the difference.
+- **Fix:** Either consume the stale flag at every presentation surface, or stop serving a frozen pose as present.
+
+#### C14. The tracker's end_job runs only on a SUCCESSFUL finalize
+
+- **Seam:** `mapping/tracker.py`
+- **Closes:** A6-TRK-1, A6-TRK-4
+- **Defect:** end_job has exactly one caller, so every cancel, abort and stranded-reap leaves tracker state live into the next run. The last room of every job also never fires room_completed, because end_job resets the state that would emit it.
+- **Fix:** Call end_job from every terminal path, and flush the final room before the reset.
+
 ### Singles
 
-<details><summary><strong>CRITICAL</strong> (1)</summary>
+<details><summary><strong>CRITICAL</strong> (2)</summary>
 
+- **A3-EXT-2** `mapping/map_source_runtime.py:966` · eufy  
+  Content version hashes ONLY the room raster, but the cache it gates holds the grid geometry the fork mutates independently  
+  During and after any run in which the map grows, or across any session where Eufy re-localizes its coordinate origin (a documented behaviour of this device), the robot dot lands metres from where the robot is, the room b
 - **A4-PP-RP-2** `profiles/manager.py:1086` · both  
   overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
   A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
 
 </details>
 
-<details><summary><strong>HIGH</strong> (28)</summary>
+<details><summary><strong>HIGH</strong> (29)</summary>
 
 - **DQ-ZONE-1** `dispatch/manager.py:234` · eufy  
   Zone-clean pass count is never clamped on the Eufy branch — the clamp lives inside the device_mm branch Eufy never enters  
@@ -225,6 +257,9 @@ The same audits recorded **259 areas examined and found correct**.
 - **DQ-PH-1** `learning/history_store.py:996` · both  
   Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included  
   Every run that uses the charge_wait / wait / zone step feature writes corrupted per-room baselines: the exact per-room area and wall-minutes that were captured are thrown away, and each room instead learns an even share
+- **A4-RB-1** `mapping/map_source_runtime.py:373` · roborock _(finder said CRITICAL; verifier corrected)_  
+  Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
+  On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
 - **A5-PP-RP-1** `planning/run_plan.py:1352` · both  
   A multi-room_group plan with no charge/wait/zone is silently flattened to ONE atomic dispatch — the card routes it as sequenced  
   The canonical two-pass profile — "vacuum every room, then mop the kitchen and bath" — is saved, displayed as a multi-step sequenced run in the card's stepped preview, and then executed as ONE flat clean: rooms that appea
@@ -279,7 +314,7 @@ The same audits recorded **259 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (48)</summary>
+<details><summary><strong>MEDIUM</strong> (54)</summary>
 
 - **A6-AGX-2** `core/manager.py:1374` · both _(finder said HIGH; verifier corrected)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
@@ -323,6 +358,24 @@ The same audits recorded **259 areas examined and found correct**.
 - **A1-WD-5** `jobs/phase_runner.py:891` · future_brand_only  
   Adapter-declared phase_timing overrides are applied with no clamping — poll_seconds: 0 pins the event loop in a hot loop, max_attempts: 0 dispatches nothing and wedges the phase  
   A future brand adapter (the seam exists precisely so a third path-optimizing brand can declare its own profile) that ships a typo or a deliberate 0 either freezes Home Assistant's event loop for every integration on the
+- **A3-EXT-4** `mapping/map_source.py:243` · eufy  
+  Room-outline offset is the exact NEGATION of the fork renderer's — overlays desync from the live backdrop whenever the outline origin differs from the map origin  
+  On any Eufy map whose room-outline origin differs from the map origin (VA's own notes record an X10 map at +105 cells), the card's room tap-regions, room labels, current-room highlight and robot dot sit displaced by twic
+- **A1-LC-3** `mapping/map_source_coordinator.py:261` · eufy  
+  The storage-path mtime cache early-return omits the `map_id` check its sibling `_commit_result` performs, so map A's geometry is returned as map B's answer with `present: True`  
+  For the window between a map switch and the fork's next store write, the card's room bboxes, the map-tap room resolution (`deviceRoomIdAtContentPct`) and the map_overlays sensor all describe the PREVIOUS floor's rooms wh
+- **A4-RB-4** `mapping/map_source_runtime.py:511` · roborock _(finder said HIGH; verifier corrected)_  
+  rooms_from_mapdata publishes the live segment number as the room's only identity and synthesizes the name, so after a Roborock re-map a tap on room A selects room B  
+  After the robot re-maps (an app-initiated re-scan, or the automatic re-map some models do after a large layout change), the live map's room labels and tap targets are shifted onto the wrong rooms with no visible error. T
+- **A4-RB-3** `mapping/map_source_runtime.py:743` · roborock _(finder said HIGH; verifier corrected)_  
+  roborock_result_from_candidates hard-returns on the first duck-typed MapData match, so one false positive permanently blanks the Roborock map source — and the stale-hold masks it for six hours  
+  A change in the HA core roborock integration's in-memory shape (or any provider object that happens to expose `.rooms` and `.image`) silently kills the entire Roborock map source: rooms, current room, robot/dock anchors,
+- **A6-TRK-2** `mapping/tracker.py:316` · both _(finder said HIGH; verifier corrected)_  
+  resume_sampling is provably unreachable — _sampling_paused is a one-way latch, so all room attribution stops permanently at the first mid-job recharge  
+  As soon as a run docks for an unplanned low-battery recharge, live per-room attribution dies for the whole rest of the run: no further `eufy_vacuum_room_completed` events, no dwell accrual, and the card's ETA timeline st
+- **A6-TRK-3** `mapping/tracker.py:450` · both _(finder said HIGH; verifier corrected)_  
+  The HOLD path keeps ACCRUING dwell and movement for a room the robot has already left, inflating duration_seconds and forcing confidence to 1.0  
+  src/controllers/learning-controller.js:154-164 reads `duration_seconds`, records it as the room's `actual_duration_minutes` (620/60 = 10.3 min instead of 0.3 min), adds it to `_jobProgress.completedRoomMinutes`, and call
 - **DQ-Q-5** `maps/map_manager.py:197` · both  
   A map rebuild silently auto-enables AND auto-approves rooms that never existed before, adding them to the clean queue unseen  
   After a Rebuild Map, any segment that appeared since the last rebuild — a room the user renamed into existence in the vendor app, or on Eufy a phantom segment the CV segmenter split off — is cleaned on the next Start wit
@@ -428,7 +481,7 @@ The same audits recorded **259 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (41)</summary>
+<details><summary><strong>LOW</strong> (62)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -448,6 +501,69 @@ The same audits recorded **259 areas examined and found correct**.
 - **A6-PRE-3** `jobs/job_monitor.py:58` · both  
   PreflightResult declares `available` with a documented contract the producer never honours, and omits two keys the producer writes  
   Latent trap rather than live misbehaviour: nothing reads `available` today (manager.get_start_status derives the all-blocked case from included_room_count instead, core/manager.py:2834). Any future consumer that trusts t
+- **A5-POSE-6** `mapping/map_source.py:139` · both _(finder said MEDIUM; verifier corrected)_  
+  `resolve_furnished_render` passes a stored placement transform through with no map-geometry stamp, so a re-mapped floor plan silently misaligns the art  
+  After the vacuum re-maps or expands its floor plan, the furnished digital-twin art keeps rendering at its old placement over a map that has moved and rescaled underneath it — off by metres — with nothing in the payload,
+- **A2-GEO-3** `mapping/map_source.py:191` · eufy _(finder said MEDIUM; verifier corrected)_  
+  normalize_rendered CLAMPS out-of-grid pixels onto the map border instead of rejecting them, so off-grid raster cells and bad poses fold onto an edge rather than disappearing — diverging from the card's own decoder, which drops them  
+  A room whose segmentation extends past the main grid gets a tap-region and label box pinned to the map edge. A saved zone drawn against the right edge can be filed to the wrong room because off-grid cells were swept into
+- **A2-GEO-5** `mapping/map_source.py:314` · both  
+  A room's normalized bbox excludes its last pixel row/column while width_m/height_m on the same dict include it (+1) — the two size descriptors disagree by exactly one cell, and Roborock's equivalent omits the +1  
+  resolve_furnished_render ships per-room art placement transforms while the card places art inside the room's bbox and sizes to width_m/height_m — furnished art is scaled ~2.5% too large in a 2 m room and ~10% too large i
+- **A2-GEO-2** `mapping/map_source.py:381` · eufy _(finder said MEDIUM; verifier corrected)_  
+  zone_membership scans the entire room_outline raster with a per-cell normalize_rendered before the bbox reject, synchronously on the event loop — measured ~0.10 s per zone, ~1.0 s per dashboard read  
+  On the first card load after zones exist without a stored area_m2, the whole Home Assistant event loop stalls for roughly a second — every other integration's updates, websocket pushes and service calls freeze with it. D
+- **A2-GEO-6** `mapping/map_source.py:387` · eufy  
+  zone_membership's docstring says the dominance vote counts cells 'whose centre falls inside the zone polygon'; the code tests the cell's top-left corner  
+  The >=90% floor-dominance filing of a saved zone is computed over a cell set biased by half a cell on each boundary. For the Eufy minimum 0.5 m zone (10 cells across) that is a ~5% shift in the counted set per edge, enou
+- **A5-POSE-7** `mapping/map_source.py:582` · eufy  
+  An off-grid robot pixel is clamped onto the map edge and reported as a confident anchor — "off the map" is indistinguishable from "at the edge"  
+  A robot whose reported pixel falls outside the map grid is drawn pinned to the map border as if that were its real position, and the live trail accumulates that clamped point (src/state/map.js:1032 `accumulateTrail`), so
+- **A3-EXT-3** `mapping/map_source.py:686` · eufy _(finder said MEDIUM; verifier corrected)_  
+  A dropped/renamed upstream geometry field degrades to a confidently WRONG map, not a loud absent one  
+  After an upstream fork schema change, room regions, current-room and the robot anchor are all displaced by a large fixed offset with no warning in the log and no `unavailable` state — the card looks live and is wrong. In
+- **A3-EXT-5** `mapping/map_source.py:808` · future_brand_only  
+  Two room extractors disagree on the input coordinate frame and the dead one is the one under test  
+  No user impact today (dead code). The trap is for the next brand adapter: the extractor that LOOKS canonical (it lives in the pure module, it has the descriptive name, it is the one with unit tests) divides raw device co
+- **A1-LC-5** `mapping/map_source_coordinator.py:136` · both  
+  `_commit_result` is blind last-writer-wins across the storage path's two executor awaits — a refresh started before a map switch can commit after a newer one  
+  Until the next tick (up to 60s, sooner if the card is polling), the snapshot and the map_overlays sensor serve the previous map's rooms/anchors under the new map — and since neither consumer compares `entry['map_id']` to
+- **A1-LC-4** `mapping/map_source_coordinator.py:266` · eufy _(finder said MEDIUM; verifier corrected)_  
+  The same mtime early-return skips `_apply_inmem_pose_to_result`, freezing the robot/dock/current_room/path overlays for as long as the store file is unchanged  
+  The map_overlays sensor's state (current room) and its `robot_anchor`/`dock_anchor`/`robot_heading` attributes stop advancing while the robot is cleaning — they only step forward when the fork happens to flush its Store
+- **A5-POSE-5** `mapping/map_source_coordinator.py:266` · eufy _(finder said MEDIUM; verifier corrected)_  
+  `_refresh_storage_map_source`'s mtime early-return bypasses the live-pose override entirely, re-serving the frozen pose it exists to kill  
+  On the storage backend the dashboard snapshot and the map-overlays sensor report the robot at a position and in a room it left minutes ago, with no error and no staleness marker — and the sensor's recorded room-over-time
+- **A5-POSE-3** `mapping/map_source_coordinator.py:491` · eufy _(finder said MEDIUM; verifier corrected)_  
+  The pose-geometry .storage read skips the `store_version` guard that every other reader of the same file applies  
+  After a fork store-schema bump, the map keeps rendering correctly from memory while the robot dot, the live trail and the current-room highlight are computed from stale-schema geometry — and the one designed signal for t
+- **A5-POSE-4** `mapping/map_source_coordinator.py:528` · eufy _(finder said MEDIUM; verifier corrected)_  
+  The live pose carries no freshness stamp, so a frozen `_robot_pixel` is reported as `present: True` forever — and the fork's own `_last_robot_render` timestamp is ignored  
+  When the fork's map/pose channel stalls while the state channel keeps flowing, the card shows a confident live robot dot parked at a position the robot left long ago, and the pose sampler records that same wrong room eve
+- **A4-RB-7** `mapping/map_source_runtime.py:260` · roborock  
+  _walk and _structure_tree can only descend objects exposing __dict__, so a slotted/C-extension node is both an undiscoverable dead end and an uninformative diagnostic  
+  When a python-roborock or HA core release moves the map behind a slotted container, the Roborock map source goes absent with reason `no_parsed_map` and a diagnostics dump that gives the maintainer nothing to tune — the f
+- **A4-RB-5** `mapping/map_source_runtime.py:427` · roborock _(finder said MEDIUM; verifier corrected)_  
+  roborock_geometry_drift_from_candidates pairs a MapData and a MapContent found by two independent BFS walks with no check they are the same map, and reports present:True regardless of the verdict  
+  The on-device decode validator — the tool the notes record as having turned Roborock calibration 'from eyeball to data' — can report a bogus systematic drift that sends the maintainer hunting a flip/trim bug that does no
+- **A2-GEO-4** `mapping/map_source_runtime.py:466` · roborock  
+  correspondences_from_mapdata's docstring claims clamped corners are skipped; _mapdata_projector silently clamps with no detection, leaving the affine round-trip check as the only guard  
+  No live mis-dispatch today. The risk is that the docstring reads as an implemented safety guard, so a future change to the projector, the trim/rotate config, or the residual tolerance would remove the only real protectio
+- **A4-RB-8** `mapping/map_source_runtime.py:534` · roborock  
+  correspondences_from_mapdata's docstring claims clamped corners are skipped; the code feeds them into the least-squares fit, turning a rare edge case into an unexplained zone refusal  
+  If any room bbox corner projects outside the rendered image (rotation/trim edge cases), zone cleaning refuses with 'map projection failed validation' for the whole vacuum and no diagnostic points at the single bad corner
+- **A4-RB-6** `mapping/map_source_runtime.py:760` · roborock _(finder said MEDIUM; verifier corrected)_  
+  image_entity_object silently drops the only per-vacuum candidate root on any HA-internals change, while the presence gate still reports the map as present  
+  An HA core refactor of the entity-component registry (or an image platform load order change) turns the per-vacuum map lookup into an account-wide guess with no error, no warning log, and a presence gate that still says
+- **A6-TRK-5** `mapping/tracker.py:47` · both _(finder said MEDIUM; verifier corrected)_  
+  _norm_room_name normalises differently from slugify_room_name — it merges room identities that rooms/ keeps distinct, and lacks the NFC canonicalisation slugify was given specifically to prevent this  
+  Case (a): live dwell is attributed to the wrong room id whenever two rooms' names differ only in a separator character, and the card's reanchored timeline marks the wrong room complete. Case (b): for non-ASCII room names
+- **A6-TRK-6** `mapping/tracker.py:196` · both  
+  Dock-drift append rewrites the entire log file on every reading, and a failed write silently forfeits that drift event via the already-committed _last_dock_pos  
+  On an SD-card or eMMC HA install the rewrite amplification is real flash wear for a purely diagnostic log; the cost scales with how often the reported docked position jitters, which is exactly what the log exists to meas
+- **A6-TRK-7** `mapping/tracker.py:286` · both  
+  start_job/end_job are dispatched to an executor thread on the strength of a comment describing disk I/O that start_job does not perform  
+  No user-visible failure proven: the individual dict operations are GIL-atomic and the interleaving window is a handful of bytecodes, so at worst one position sample is misrouted at job start. The real cost is that a fals
 - **A3-CRUD-6** `maps/map_manager.py:181` · both _(finder said MEDIUM; verifier corrected)_  
   Both room writers auto-enable and auto-approve rooms the user has never seen (DQ-Q-5 extension: the live instance is save_managed_rooms, not rebuild_map)  
   A segment that appeared since the last save — a re-segment splitting one room in two, or a stray CV artefact — is added to the map already enabled, already approved and already floor-type-confirmed by the next `save_mana
@@ -576,14 +692,18 @@ Ordered by (verified) × (blast radius) × (cost), not by severity label.
 1. **C5** — 2 lines, verified, and it closes a gap introduced by an earlier fix in this campaign. Cheapest real win.
 2. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
 3. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
-4. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
-5. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
-6. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
-7. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
-8. **C2** — cancel correctness. Needs care around the await boundaries.
-9. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
-10. **C4** — per-phase attribution. Touches the shape of learning data.
-11. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
+4. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
+5. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
+6. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
+7. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
+8. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
+9. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
+10. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
+11. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
+12. **C2** — cancel correctness. Needs care around the await boundaries.
+13. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
+14. **C4** — per-phase attribution. Touches the shape of learning data.
+15. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
 ## Calibration
 
@@ -595,6 +715,7 @@ Measured cost per audit, for scoping future runs.
 | #8 | profiles + planning | 3,677 | 1.95M *(includes a re-verify forced by a harness bug)* | 40 min |
 | #9 | jobs / run execution | 3,914 | 1.50M | 23 min |
 | #10 | rooms / identity | 2,531 | 1.07M | 21 min |
+| #11 | map source + tracker (scoped) | 3,126 | 1.39M | 27 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
