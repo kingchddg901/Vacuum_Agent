@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**41 changes shipped**, all with tests, all deployed.
+**42 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -96,16 +96,17 @@ comments rather than by a shared helper.
 | `300dc1d` | test(adapters): give the contract test teeth — and it immediately found three real gaps |
 | `8144e82` | feat(adapters): say out loud which Eufy default a brand just inherited |
 | `994f16e` | docs(maintenance): commit the hostile-audit ledger — completed and open, in one place |
+| `a332a04` | docs(maintenance): fold audit #11 into the ledger — map source lifecycle |
 
 ---
 
 ## Open
 
-**180 findings** across 5 audits, none applied. 14 clusters + 147 singles.
+**210 findings** across 6 audits, none applied. 18 clusters + 167 singles.
 
-CRITICAL 11 · HIGH 48 · MEDIUM 58 · LOW 63
+CRITICAL 12 · HIGH 52 · MEDIUM 66 · LOW 80
 
-The same audits recorded **321 areas examined and found correct**.
+The same audits recorded **376 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -209,6 +210,34 @@ The same audits recorded **321 areas examined and found correct**.
 - **Defect:** end_job has exactly one caller, so every cancel, abort and stranded-reap leaves tracker state live into the next run. The last room of every job also never fires room_completed, because end_job resets the state that would emit it.
 - **Fix:** Call end_job from every terminal path, and flush the final room before the reset.
 
+#### C15. `unavailable` satisfies every negating rule operator — a sensor dropout aborts a live run — **verified by hand**
+
+- **Seam:** `rooms/access_graph.py:907 (_room_rule_matches)`
+- **Closes:** A6-GUARD-1
+- **Defect:** VERIFIED: an unavailable entity still yields a State object, so state_value == 'unavailable' and there is NO availability check anywhere in the matcher. `not_equals` and `not_in` both return True; `missing` returns True the moment the entity is dropped. The rule matches, the room enters direct_blocked, and path_blockers applies path_block_action -- `cancel_and_event` calls async_cancel_active_job, which issues vacuum.return_to_base and finalizes the run as cancelled. `pause_and_event` ends the same way once pause_timeout reaps it. A battery-powered contact sensor dropping off a Zigbee mesh for one poll physically aborts a clean in progress, and the user sees a path-blocked event naming a door that never opened.
+- **Fix:** Treat unavailable/unknown as 'no answer' rather than as a value: skip the rule (or hold the previous verdict) instead of letting a negating operator match. Decide the same question once for `missing` vs `unavailable` -- they are different facts.
+
+#### C16. dock_events records a NEW cycle on first sighting or on an availability blip
+
+- **Seam:** `listeners/dock_events.py:74`
+- **Closes:** A1-REG-1, A6-GUARD-3
+- **Defect:** The only dedupe is new_val == old_val, with old_val = '' when old_state is None. So an entity first appearing (HA restart mid-cycle), unknown->drying, and unavailable->washing all read as a new cycle. record_dock_event overwrites the last-* timestamp BEFORE the debounce check, and the Eufy adapter declares debounce_seconds for last_mop_wash ONLY -- so dry-start and dust-empty have no suppression at all. An X10 dry cycle runs 2-4 hours, so the window is large and daily. The sibling listener discovery.py:127 DOES filter exactly this class; dock_events is the one of eight that writes durable counters from a raw state arrival and has no such filter.
+- **Fix:** Require the previous value to be a real non-trigger dock state before recording a cycle. Move the timestamp write inside the debounce guard.
+
+#### C17. Reactive listeners spawn unbounded concurrent work with no in-flight guard
+
+- **Seam:** `listeners/path_blockers.py + pause_timeout.py + lifecycle.py + pose_sampler.py`
+- **Closes:** A6-GUARD-2, A6-GUARD-4, A2-LIFE-2, A4-POSE-2
+- **Defect:** path_blockers spawns a _process task per event with no coalescing, so a bouncing sensor stacks them; the 1-minute reap ticker has no in-flight guard while each reap blocks; the pose timer is fire-and-forget so a slow tick overlaps the next; and _process tasks are untracked, so remove() drops the subscription but not the work already in flight.
+- **Fix:** One in-flight guard / coalescing pattern, applied to all four. This is the same question four times.
+
+#### C18. The listener layer is a THIRD answer to 'is a job active'
+
+- **Seam:** `listeners/_common.py:110 (is_job_active)`
+- **Closes:** A3-COMMON-1, A3-COMMON-6, A5-METRICS-1
+- **Defect:** jobs/active_job.py owns two deliberate predicates (dispatched_job_is_in_flight, run_is_in_flight). The listener layer uses NEITHER -- _common.is_job_active is an independent third implementation, and job_progress gates on a hand-copied {'started','paused'} literal that is a fourth. On Roborock, is_job_active treats a not-yet-added job_active entity as 'not active'. Fifth instance of the campaign's forgotten-override-sibling pattern, and the first where the divergence is a whole LAYER.
+- **Fix:** Route the listener layer at the canonical predicates, or state explicitly why the input layer needs a different question and derive it from the same constant.
+
 ### Singles
 
 <details><summary><strong>CRITICAL</strong> (2)</summary>
@@ -222,7 +251,7 @@ The same audits recorded **321 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (29)</summary>
+<details><summary><strong>HIGH</strong> (31)</summary>
 
 - **DQ-ZONE-1** `dispatch/manager.py:234` · eufy  
   Zone-clean pass count is never clamped on the Eufy branch — the clamp lives inside the device_mm branch Eufy never enters  
@@ -257,6 +286,12 @@ The same audits recorded **321 areas examined and found correct**.
 - **DQ-PH-1** `learning/history_store.py:996` · both  
   Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included  
   Every run that uses the charge_wait / wait / zone step feature writes corrupted per-room baselines: the exact per-room area and wall-minutes that were captured are thrown away, and each room instead learns an even share
+- **A2-LIFE-1** `listeners/lifecycle.py:354` · both  
+  The exactly-once claim's REFUSAL dict is consumed as a successful finalize — the duplicate EVENT_JOB_FINISHED survived the fix and now carries an all-null payload  
+  The documented public automation trigger `eufy_vacuum_job_finished` (docs/advanced/02-events.md; docs/dev/02-ha-integration.md:438 documents an 11-key contract) fires twice on a normal completed run, and the FIRST of the
+- **A4-POSE-1** `listeners/pose_sampler.py:309` · roborock  
+  Sampler cadence collapses to min() across all vacuums while the attribution engine multiplies tick counts by each vacuum's OWN declared interval_s — Roborock is sampled at 2.0s but its ticks are valued at 5.0s  
+  On an install with both shipped brands (the maintainer's own Alfred/Eufy + Ivy/Roborock setup), every Roborock app-started run writes per-room durations 2.5x too long: external_ingest.build_pose_only_record:649 computes
 - **A4-RB-1** `mapping/map_source_runtime.py:373` · roborock _(finder said CRITICAL; verifier corrected)_  
   Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
   On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
@@ -314,7 +349,7 @@ The same audits recorded **321 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (54)</summary>
+<details><summary><strong>MEDIUM</strong> (58)</summary>
 
 - **A6-AGX-2** `core/manager.py:1374` · both _(finder said HIGH; verifier corrected)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
@@ -358,6 +393,18 @@ The same audits recorded **321 areas examined and found correct**.
 - **A1-WD-5** `jobs/phase_runner.py:891` · future_brand_only  
   Adapter-declared phase_timing overrides are applied with no clamping — poll_seconds: 0 pins the event loop in a hot loop, max_attempts: 0 dispatches nothing and wedges the phase  
   A future brand adapter (the seam exists precisely so a third path-optimizing brand can declare its own profile) that ships a typo or a deliberate 0 either freezes Home Assistant's event loop for every integration on the
+- **A6-GUARD-5** `listeners/discovery.py:140` · both  
+  A discovery pass on the active map is scored against configured rooms across ALL maps, so switching maps makes the other map's rooms accrue "removed" strikes  
+  On a multi-floor/multi-map setup, switching maps makes the setup tab report rooms as removed from the vacuum and flips setup_complete out of sync (setup/status.py:193-218), prompting the user to delete room configuration
+- **A5-METRICS-2** `listeners/job_metrics.py:172` · both  
+  `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths  
+  Every archived run, on every brand, on both the atomic and strict-order dispatch paths, records `battery_delta: null` for every room. The per-room battery-consumption figure the run archive and diagnostics expose is perm
+- **A2-LIFE-3** `listeners/lifecycle.py:169` · eufy  
+  The inline mop-wash detector diverges from the dedicated dock_events listener: hard-coded Eufy wash vocabulary as a fallback, and no same-state guard against attribute-only re-triggers  
+  `observed_mop_wash_count` on the active job is inflated. That value is written into the completed-job record as `actual_mop_wash_count` and is handed to register_post_job_water_amendment at lifecycle.py:398 as `mop_wash_
+- **A1-REG-2** `listeners/lifecycle.py:390` · eufy  
+  lifecycle registers a state listener + timer (post-job water amendment) whose unsubs are function-local and unreachable from lifecycle.remove()/async_unload_entry — the only unsub leak among the eight modules  
+  An unloaded/reloaded integration keeps a live state subscription and a pending timer for up to 180 s and rewrites a completed-job learning file after teardown. Because the leaked `_commit` reads the live water_level enti
 - **A3-EXT-4** `mapping/map_source.py:243` · eufy  
   Room-outline offset is the exact NEGATION of the fork renderer's — overlays desync from the live backdrop whenever the outline origin differs from the map origin  
   On any Eufy map whose room-outline origin differs from the map origin (VA's own notes record an X10 map at +105 cells), the card's room tap-regions, room labels, current-room highlight and robot dot sit displaced by twic
@@ -481,7 +528,7 @@ The same audits recorded **321 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (62)</summary>
+<details><summary><strong>LOW</strong> (76)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -501,6 +548,48 @@ The same audits recorded **321 areas examined and found correct**.
 - **A6-PRE-3** `jobs/job_monitor.py:58` · both  
   PreflightResult declares `available` with a documented contract the producer never honours, and omits two keys the producer writes  
   Latent trap rather than live misbehaviour: nothing reads `available` today (manager.get_start_status derives the all-blocked case from included_room_count instead, core/manager.py:2834). Any future consumer that trusts t
+- **A3-COMMON-5** `listeners/_common.py:52` · both  
+  get_adapter_value() is a second, independent implementation of the identical lookup already shipped in adapters/registry.py  
+  No behavioural difference today. A fix or semantic change applied to one implementation (e.g. distinguishing a declared null from an absent key, or adding a diagnostic when a declared block is the wrong type) would silen
+- **A3-COMMON-3** `listeners/_common.py:166` · future_brand_only  
+  completed_finalize_signals() docstring claims it returns "" for unavailable entities; it actually returns the literal "unavailable"/"unknown"  
+  No wrong result on either shipped brand today. Latent: it is a false description of behaviour in the one place a new adapter author reads to choose their sentinel vocabulary, and it makes 'entity does not exist' indistin
+- **A3-COMMON-4** `listeners/_common.py:178` · both  
+  _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules  
+  No wrong result today (the two literal sets are identical). Latent divergence: changing the generic completion fallback in one place silently leaves the completion gate and the stranded reaper judging the same run agains
+- **A3-COMMON-2** `listeners/_common.py:198` · future_brand_only _(finder said MEDIUM; verifier corrected)_  
+  completion_secondary_satisfied() returns True from a config FLAG without verifying the entity it delegates to exists; the "Invariant" asserted in the caller is never validated  
+  For a brand-3 adapter written against Roborock's pattern, the completion gate silently degrades to "task_status equals one string" with no secondary confirmation at all — while has_observed_active_lifecycle never arms, s
+- **A1-REG-3** `listeners/discovery.py:96` · both  
+  Per-vacuum teardown never re-registers listeners, and the documented 'a subscription to a now-deleted entity is inert' invariant is false — discovery keeps running passes for the deleted vacuum and re-creates its setup_progress bucket  
+  After deleting one vacuum from a multi-vacuum install, an orphaned `setup_progress` entry for it is written back to .storage and survives restarts, and a background discovery pass (including a brand service call on Robor
+- **A6-GUARD-6** `listeners/discovery.py:133` · both  
+  Discovery triggers survive per-vacuum deletion and re-create a setup_progress record for the deleted vacuum — the "subscription to a deleted entity is inert" comment is false  
+  Deleting a vacuum's device leaves a resurrected setup_progress skeleton in storage that survives restarts and shows up in diagnostics. Cosmetic today because `vacuums` stays deleted so the card and `get_known_vacuum_ids`
+- **A1-REG-4** `listeners/dock_events.py:91` · future_brand_only  
+  dock_events.register() never reads the adapter's `dock_events.enabled` flag — a brand that declares enabled:False but inherits triggers still records dock events  
+  A future adapter that copies the Eufy dock_events block and flips `enabled: False` to opt out gets the opposite of what it declared: dock events are recorded and counters incremented, while the Base Station UI tab is hid
+- **A5-METRICS-3** `listeners/job_metrics.py:44` · future_brand_only  
+  `_duration_state_to_seconds` silently treats any unrecognized unit as seconds, and re-resolves the unit per event with no mid-run consistency check  
+  Latent. On the two shipped brands the resolved units are "s" (Eufy, absent → seconds) and the adapter hint "min" (Roborock, bare number), both handled correctly and test-covered, so no wrong value reaches a user today. T
+- **A5-METRICS-4** `listeners/job_metrics.py:117` · future_brand_only  
+  Station-water subscription guesses an entity key that exists nowhere, ignores the adapter's `supports_station_water` declaration, and swallows every lookup failure silently  
+  No wrong value on either shipped brand today (Eufy's `sensor.<vac>_water_level` is the station tank and is correct; Roborock never subscribes). The exposure is for the next adapter: an entities key named `water_level` th
+- **A5-METRICS-5** `listeners/job_metrics.py:165` · both  
+  watch_map's type annotation and the `int` value_type branch are both stale — the annotation declares 3-tuples while all three writers store 4-tuples, and no entry ever uses `int`  
+  None today — purely a maintenance hazard. The annotation actively misdescribes the structure a future contributor must match, and the dead branch implies an int-valued metric channel that does not exist.
+- **A4-POSE-6** `listeners/pose_sampler.py:10` · both  
+  Module docstring still declares the sampler 'Capture-only / inert — nothing consumes pose_samples yet', but the W5c consumption wire has landed  
+  No runtime effect on its own, but it materially understates blast radius: every defect in this file is currently read by maintainers as affecting an inert capture buffer, when in fact the samples drive which rooms an ext
+- **A4-POSE-3** `listeners/pose_sampler.py:129` · roborock _(finder said MEDIUM; verifier corrected)_  
+  _is_parked has no working fallback on the native_current_room path — when task_status is unreadable it returns 'not parked', the opposite of what its own docstring claims  
+  Every docked/parked tick in that window is treated as floor-cleaning and `_resolve_managed_room_id` resolves whatever `active_cleaning_target` reads — which on Roborock reverts to the DOCK's room name when parked (docume
+- **A4-POSE-4** `listeners/pose_sampler.py:242` · future_brand_only  
+  A zero or negative interval_s survives adapter registration (warn-only) and then splits the sampler in two: register() drops it, _sample_vacuum_once does not  
+  Single-vacuum case: room-attribution pose sampling is silently disabled for the whole install — external runs finalize with no pose_samples and fall back to counter-only attribution, with no error surfaced anywhere. Mult
+- **A4-POSE-5** `listeners/pose_sampler.py:312` · both  
+  _handle_pose_tick has no per-vacuum exception guard, and only the live_pose read is wrapped — one vacuum raising drops every later vacuum from that tick  
+  A deterministic raise on one vacuum silently costs the other vacuum(s) their entire pose stream for the duration of the run — room attribution for those runs degrades to the counter-only path with no user-visible indicat
 - **A5-POSE-6** `mapping/map_source.py:139` · both _(finder said MEDIUM; verifier corrected)_  
   `resolve_furnished_render` passes a stored placement transform through with no map-geometry stamp, so a re-mapped floor plan silently misaligns the art  
   After the vacuum re-maps or expands its floor plan, the furnished digital-twin art keeps rendering at its old placement over a map that has moved and rescaled underneath it — off by metres — with nothing in the payload,
@@ -690,20 +779,21 @@ The same audits recorded **321 areas examined and found correct**.
 Ordered by (verified) × (blast radius) × (cost), not by severity label.
 
 1. **C5** — 2 lines, verified, and it closes a gap introduced by an earlier fix in this campaign. Cheapest real win.
-2. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
-3. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
-4. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
-5. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
-6. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
-7. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
-8. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
-9. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
-10. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
-11. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
-12. **C2** — cancel correctness. Needs care around the await boundaries.
-13. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
-14. **C4** — per-phase attribution. Touches the shape of learning data.
-15. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
+2. **C15** — verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.
+3. **C7** — verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.
+4. **C1** — verified CRITICAL seam. The other wrong-physical-room path.
+5. **C11** — verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster — so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.
+6. **C10** — small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.
+7. **C9** — destructive writes. An empty selection wiping a map's stored rooms is one bad call away.
+8. **C3** — a `try/finally` so one transient failure stops bricking every subsequent run.
+9. **C8** — decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.
+10. **C13** — the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.
+11. **C14** — call the tracker's `end_job` from every terminal path, not only a successful finalize.
+12. **C12** — pose frame mismatch. Needs the memory-vs-storage frame question settled first.
+13. **C2** — cancel correctness. Needs care around the await boundaries.
+14. **C6** — user-visible on every mop room, but it changes resolution precedence, so test hard.
+15. **C4** — per-phase attribution. Touches the shape of learning data.
+16. Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
 ## Calibration
 
@@ -716,6 +806,7 @@ Measured cost per audit, for scoping future runs.
 | #9 | jobs / run execution | 3,914 | 1.50M | 23 min |
 | #10 | rooms / identity | 2,531 | 1.07M | 21 min |
 | #11 | map source + tracker (scoped) | 3,126 | 1.39M | 27 min |
+| #12 | listeners (input layer) | 2,000 | 1.22M | 22 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
