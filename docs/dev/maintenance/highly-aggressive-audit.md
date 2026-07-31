@@ -34,7 +34,7 @@ landed in between.
 
 ## Completed
 
-**46 changes shipped**, all with tests, all deployed.
+**47 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -101,16 +101,17 @@ comments rather than by a shared helper.
 | `b96c0ee` | docs(maintenance): fold audit #13 into the ledger — services, the public API |
 | `4262f34` | docs(maintenance): fold audit #14 into the ledger — core/manager.py, the hub |
 | `fc721c9` | docs(maintenance): fold audit #15 into the ledger — the integration assembly script |
+| `44b3cd6` | docs(maintenance): fold audit #16 into the ledger — the learning consumers |
 
 ---
 
 ## Open
 
-**347 findings** across 10 audits, none applied. 26 clusters + 278 singles.
+**369 findings** across 11 audits, none applied. 29 clusters + 294 singles.
 
-CRITICAL 17 · HIGH 73 · MEDIUM 119 · LOW 138
+CRITICAL 17 · HIGH 73 · MEDIUM 131 · LOW 148
 
-The same audits recorded **570 areas examined and found correct**.
+The same audits recorded **595 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -298,6 +299,27 @@ The same audits recorded **570 areas examined and found correct**.
 - **Defect:** The 22 registrations here were NOT covered by audit #13's services sweep, and they have the same shape: exclude/restore_learning_job report 'stats rebuilt' without rebuilding; finalize_learning_job fires the job-finished event with a FABRICATED payload; retry_missed_rooms permanently destroys the map's room-enable selection; rebuild_learning_stats blanks accuracy_stats before replaying, so a failure partway leaves it empty.
 - **Fix:** Same treatment as C19/C26's siblings: make the destructive ones confirm or be reversible, and make every response honest about what actually happened.
 
+#### C27. overwrite_theme resolves against the ACTIVE theme, never the target it names — **verified by hand**
+
+- **Seam:** `themes/manager.py:303`
+- **Closes:** A1-CRUD-1, A1-CRUD-2, A1-CRUD-4
+- **Defect:** VERIFIED at source and REPRODUCED by executing the module. overwrite_theme builds `resolved` from vac['active_theme_id'] + the working draft; `existing = library[theme_id]` is fetched but used ONLY to preserve name/source/tags/author. So calling it on any theme that is not the active one replaces that theme's palette with a CLONE of the active one, and line 326 then silently repoints the vacuum onto it. With no active theme the target's palette becomes {} outright. Both return ok:True and services.py persists. The metadata-preservation loop is what makes it silent -- the entry keeps its name and author, so it looks intact. The docstring claims it writes 'the vacuum's working draft'; it writes active+draft and works with an empty draft. The CARD masks it (bindings/theme.js only calls overwriteTheme inside `if (state.activeThemeId)` and passes that same id), so it is service-only reachable -- which is why the verifiers held it at MEDIUM. Also lets a BUNDLED theme's palette be permanently replaced (CRUD-4).
+- **Fix:** Resolve against the TARGET entry, or refuse when theme_id != active_theme_id. Decide which the docstring meant and make the code and the doc agree.
+
+#### C28. Bundled themes are protected from neither delete nor overwrite — **verified by hand**
+
+- **Seam:** `themes/manager.py delete_theme/overwrite_theme + preloaded.ensure_preloaded_theme_library`
+- **Closes:** A1-CRUD-3, A1-CRUD-4
+- **Defect:** delete_theme has no source=='core' guard, so a bundled theme can be deleted -- and audit #14's A1-INIT-3 showed the startup re-seed resurrects it, so the deletion is neither prevented nor durable ('gone until restart'). overwrite_theme can replace a bundled theme's palette PERMANENTLY, because the re-seed only restores absent entries, not modified ones. The discriminator already exists and is trustworthy: preloaded.py stamps source='core', _import_scoped allowlists {community,generated,manual} so an import cannot claim it, and save_theme_as_new hardcodes 'manual'.
+- **Fix:** Refuse both operations for source=='core'. Chris's spec: bundled themes are system inventory, not ordinary library entries -- protecting them removes the 'deleted until restart' behaviour rather than trying to make deletion durable.
+
+#### C29. delete_theme leaves the working draft orphaned on a base that no longer exists — **verified by hand**
+
+- **Seam:** `themes/manager.py:394`
+- **Closes:** A1-CRUD-5, A2-DRAFT-1
+- **Defect:** delete_theme nulls active_theme_id for every affected vacuum (that guard DOES exist) but line 394 only RE-NORMALIZES the working draft -- it does not empty it, and leaves draft_dirty untouched. set_active_theme twenty lines later does exactly the right thing (_empty_theme_draft + draft_dirty=False). So deleting the theme you are editing leaves a live draft of overrides authored against a base that is gone. Sibling divergence: two adjacent methods, one clears the draft, one does not.
+- **Fix:** Per Chris's spec: treat deletion as an atomic destructive transition -- resolve the fallback target FIRST (default_theme_id is nulled at :388 before the vacuum walk at :391, so the chain must run before that), clear working_draft, set draft_dirty=False, set active_theme_id, persist once, notify once. Note delete_theme currently does not persist at all.
+
 ### Singles
 
 <details><summary><strong>CRITICAL</strong> (2)</summary>
@@ -451,7 +473,7 @@ The same audits recorded **570 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (105)</summary>
+<details><summary><strong>MEDIUM</strong> (111)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -768,10 +790,28 @@ The same audits recorded **570 areas examined and found correct**.
 - **A6-AGX-6** `src/state/room-access.js:85` · both  
   The card's access modal renders an existing edge into the dock room as "Missing Room N" — an edge that exists is displayed as a stale reference to a room that does not  
   The editor misrepresents the stored graph: a live room is labelled missing/stale, inviting the user to delete a valid edge. Conversely they cannot re-create it, because the dock room is filtered out of the selectable lis
+- **A2-DRAFT-3** `themes/manager.py:411` · both  
+  set_active_theme's global-default branch is the only mutator that returns without firing _notify_updated, leaving the theme sensor's default_theme_id attribute stale  
+  An automation or script that calls eufy_vacuum.set_active_theme with only theme_id (the documented 'set the global default' form, services.yaml:2086-2087) gets ok:true, but every theme-state sensor keeps reporting the pr
+- **A3-PORT-4** `themes/manager.py:411` · both  
+  set_active_theme with vacuum_entity_id=None returns without firing _notify_updated — the only mutation in the module that skips the callback fan-out, leaving default_theme_id stale in HA state  
+  A user (or automation) sets the global default theme. The change is persisted, but the sensor.<vacuum>_theme_state attribute default_theme_id keeps reporting the OLD value until some unrelated theme mutation happens to f
+- **A2-DRAFT-2** `themes/manager.py:417` · both _(finder said HIGH; verifier corrected)_  
+  set_active_theme destroys the working draft unconditionally with no confirmation, no undo and no same-id short-circuit — clicking the already-active preset tile silently wipes every unsaved edit  
+  A user spends time in the token editor tuning twenty colours and radii, switches to the Themes tab to compare against another preset — or just clicks the tile that is already highlighted as active, which looks like a no-
+- **A3-PORT-1** `themes/manager.py:544` · both _(finder said HIGH; verifier corrected)_  
+  import_theme performs no key validation; the card applies every imported key as a real CSS declaration on the card host, so one imported theme file can render the card permanently blank  
+  A user uploads a community/shared theme JSON containing `"tokens": {"display": "none"}` (or position/visibility/opacity). Import succeeds with no error. When they activate it, the card element gets `display:none` inline
+- **A3-PORT-3** `themes/manager.py:625` · both  
+  A scoped import rewrites the ACTIVE library entry in place with no core/provenance check, permanently corrupting a bundled preloaded theme that the seeder will never repair  
+  The user's bundled 'Follow HA' (or any core) theme is permanently altered — its floor namespace now holds an imported palette. The Source facet still labels it `core`, so the card presents it as the shipped theme it no l
+- **A2-DRAFT-5** `themes/services.py:230` · both  
+  Every update_working_draft triggers an immediate full Store.async_save of the entire integration data dict, and the card fires it on `input` — once per keystroke in text and number token fields  
+  Typing a 25-character font stack into a theme token field issues 25 full-store writes back to back. On an HA Green / Raspberry Pi with SD or eMMC storage this is visible editor lag and real flash wear, and it scales with
 
 </details>
 
-<details><summary><strong>LOW</strong> (126)</summary>
+<details><summary><strong>LOW</strong> (136)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1151,6 +1191,36 @@ The same audits recorded **570 areas examined and found correct**.
 - **A2-CB-5** `switch.py:89` · both  
   Three of the four fan-out subscribers call async_write_ha_state() unguarded while the fourth routes through a hass-is-None guard, so one bad entity aborts the rest of that subscriber's sync silently  
   When it triggers, some of a map's room switches or number entities silently fail to appear after a room change, with only an "Room update callback failed for ... map ..." ERROR in the log and no user-facing signal. They
+- **A3-PORT-7** `themes/manager.py:42` · both  
+  _clean_theme_tags coerces non-string items with str(), reachable only through the unvalidated import payload, and silently drops rather than truncates over-long and over-count tags  
+  An imported theme arrives with junk tags like `{'a': 1}` or `none` shown in the card's tag/filter UI, which the user then has to notice and clean up by hand. Separately, a theme legitimately tagged with a 40-character ph
+- **A2-DRAFT-4** `themes/manager.py:111` · both _(finder said MEDIUM; verifier corrected)_  
+  _get_vacuum_theme creates per-vacuum draft state for ANY well-formed entity id, so update_working_draft / revert_draft / set_active_theme return ok:true for a vacuum that does not exist and persist a record nothing can reach  
+  A user writing a theme automation, or copying a call between two vacuums and mistyping the entity id, gets back {"ok": true, "draft_dirty": true} — a success response describing edits that landed nowhere. The card for th
+- **A3-PORT-8** `themes/manager.py:172` · both  
+  The _get_theme_library_entries docstring claims write-time normalization that does not exist — _normalize_theme_entry is called from two sites and both are read paths  
+  No direct user-visible symptom on its own — this is the enabling condition for PORT-1 and PORT-2. Its cost is that a maintainer reading this docstring reasonably concludes stored theme entries are already sanitised and a
+- **A2-DRAFT-7** `themes/manager.py:224` · both  
+  _minimal_theme_mutation_response cannot express 'there is now no active theme' — a None active_theme_id is dropped from the payload rather than sent as null  
+  A card whose cached activeThemeId is stale — for example after another browser tab or an automation deleted the active theme — keeps showing that dead theme as selected through any number of draft updates or reverts, bec
+- **A1-CRUD-8** `themes/manager.py:350` · both  
+  rename_theme accepts a blank/whitespace name and silently stores "Untitled"; no duplicate-name check on rename or save_theme_as_new  
+  A rename with an accidentally blank value silently renames the theme to 'Untitled' rather than being rejected; repeated saves/renames can produce several identically named presets that the grid renders indistinguishably
+- **A1-CRUD-6** `themes/manager.py:351` · both  
+  rename_theme writes into the raw stored entry with no isinstance-dict guard, unlike set_theme_tags — a corrupt entry raises TypeError out of the service  
+  An unhandled TypeError surfaces from the rename_theme service instead of a clean ServiceValidationError, if storage is ever corrupted or hand-edited. Latent — no in-tree path writes a non-dict library entry.
+- **A1-CRUD-7** `themes/manager.py:370` · both  
+  set_theme_tags silently discards tags past 16 or longer than 32 chars and still returns ok:True  
+  A user adding a 17th vibe tag, or importing a theme whose tags are long, watches tags vanish after the round-trip with no explanation of the limit. Cosmetic; nothing else is lost.
+- **A3-PORT-5** `themes/manager.py:554` · both  
+  Import name de-duplication appends '(imported)' at most once, so repeated imports of the same theme produce multiple indistinguishable library entries  
+  After importing the same theme file three or more times (a normal thing to do while iterating on a shared theme, or after a failed-looking import), the library lists two or more entries all named 'Ocean (imported)'. The
+- **A3-PORT-2** `themes/manager.py:643` · both _(finder said HIGH; verifier corrected)_  
+  _import_scoped clears a floor namespace in all three buckets but only re-applies the buckets the payload happens to contain, silently destroying per-layer opacity settings while reporting success  
+  A user who has tuned their wood-floor layer opacities imports a colors-only 'oak palette' file — hand-authored, shared by another user, or exported by an older build from before the layer-opacity tokens shipped in v1.6.0
+- **A2-DRAFT-6** `themes/manager.py:654` · both  
+  _import_scoped strips matching keys out of the working draft but never recomputes draft_dirty, so the draft can be left empty with the dirty flag stuck True  
+  After a scoped floor-texture import the card's footer keeps 'Discard' and 'Save changes' enabled (src/renderers/theme.js:1042, 1120-1133 gate purely on draft_dirty) with an empty draft behind them. The user sees a persis
 
 </details>
 
@@ -1207,6 +1277,7 @@ Measured cost per audit, for scoping future runs.
 | #14 | core/manager.py (the hub) | 5,155 | 1.51M | 25 min |
 | #15 | integration script (**4+2 agents**) | 853 | **0.76M** | 20 min |
 | #16 | learning consumers (5+2 agents) | 3,308 | 1.23M | 24 min |
+| #17 | themes/manager.py (**3+2 agents**) | 668 | **0.53M** | 16 min |
 
 Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
 2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
