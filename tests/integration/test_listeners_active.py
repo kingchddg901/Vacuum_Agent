@@ -41,6 +41,8 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
         routes a mid-job mop-wash observation to the manager.
 [LC-9]  lifecycle: recharge guard treats an 'unavailable' job-active binary as still
         active — a cloud blip mid-recharge does NOT finalize (avoids a truncated sample).
+[LC-10] lifecycle: PARITY — recharge-end driven through the real listener + real
+        manager/ActiveJobTracker matches the direct-call contract (AJI-13).
 """
 
 from __future__ import annotations
@@ -815,6 +817,48 @@ async def test_lifecycle_recharge_guard_suppresses_on_unavailable_binary(hass):
         m.finalize_learning_for_active_job.assert_not_awaited()
     finally:
         lifecycle.remove(hass)
+
+
+async def test_lifecycle_recharge_resolution_matches_direct_call(hass, manager, monkeypatch):
+    """[LC-10] RP-012/RF-31 parity check (required_behavior (2), Q14 closure): the
+    recharge-end transition delivered through the REAL lifecycle listener must match
+    the direct-call contract locked in by AJI-13
+    (test_jobs_active_job.test_recharge_ends_accumulates). Unlike every other test in
+    this file, this one wires the REAL manager/ActiveJobTracker at DATA_RUNTIME (not
+    the MagicMock _mgr helper) so the actual delegator chain the listener calls —
+    manager.resolve_mid_job_recharge_resumed -> ActiveJobTracker method — runs for
+    real, proving production listeners deliver the equivalent transition rather than
+    just proving the listener CALLS the right method name."""
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "status": "started",
+        "vacuum_entity_id": _VAC,
+        "map_id": _MAP,
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "pending_mid_job_recharge_return": True,
+        "observed_mid_job_recharge": True,
+        "observed_mid_job_recharge_started_at": "2026-01-01T09:00:00+00:00",
+        "recharge_seconds_accumulated": 0,
+    }
+    monkeypatch.setattr(manager.active_job, "_is_charging", lambda _v: False)
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.jobs.active_job._iso_now",
+        lambda: "2026-01-01T09:05:00+00:00",
+    )
+    fake_tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
+
+    lifecycle.register(hass)
+    try:
+        hass.states.async_set(_VAC, "docked")   # any watched entity -- ticks the listener
+        await hass.async_block_till_done()
+    finally:
+        lifecycle.remove(hass)
+
+    updated = manager.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert updated["observed_mid_job_recharge"] is False
+    assert updated["recharge_seconds_accumulated"] == 300   # 5 min -- same as AJI-13
+    fake_tracker.resume_sampling.assert_called_once_with(_VAC)
 
 
 async def test_path_blocker_ignores_unavailable_transition(hass):

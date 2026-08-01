@@ -472,20 +472,17 @@ class ActiveJobTracker:
         tracker = self._manager.hass.data.get(DOMAIN, {}).get("mapping_tracker")
 
         if bool(active_job.get("observed_mid_job_recharge", False)):
-            # Recharge already in progress — check if it ended (vacuum resumed cleaning).
-            if not self._is_charging(vacuum_entity_id):
-                started_str = str(active_job.get("observed_mid_job_recharge_started_at") or "").strip()
-                if started_str:
-                    started_dt = parse_timestamp(started_str)
-                    ended_dt = parse_timestamp(observed_at_value)
-                    if started_dt and ended_dt and ended_dt > started_dt:
-                        elapsed = int((ended_dt - started_dt).total_seconds())
-                        current = max(_safe_int(active_job.get("recharge_seconds_accumulated"), 0), 0)
-                        active_job["recharge_seconds_accumulated"] = current + elapsed
-                active_job["observed_mid_job_recharge"] = False
-                active_job["observed_mid_job_recharge_started_at"] = None
-                if tracker is not None:
-                    tracker.resume_sampling(vacuum_entity_id)
+            # RP-012/RF-31 (A4-AJ-1): recharge-end used to be checked HERE with a
+            # second self._is_charging() call — but this whole branch is only
+            # reached after the "if not self._is_charging(...): return" guard
+            # above already proved charging is True in THIS SAME synchronous
+            # call (a pure state read can't return a different answer twice in
+            # one call). That second read could therefore never observe False:
+            # recharge_seconds_accumulated stayed 0, the flag never cleared, and
+            # the sampler stayed paused for the rest of the run. Recharge-end
+            # is event-driven instead — resolve_mid_job_recharge_resumed is
+            # called on every lifecycle tick and can observe a LATER tick's
+            # charging state, after it has actually changed.
             self._manager.data.setdefault("active_jobs", {})
             self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
             self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
@@ -502,6 +499,51 @@ class ActiveJobTracker:
 
         if tracker is not None:
             tracker.pause_sampling(vacuum_entity_id)
+
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        return active_job
+
+    def resolve_mid_job_recharge_resumed(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        observed_at: str | None = None,
+    ) -> dict[str, Any]:
+        """RP-012/RF-31 (A4-AJ-1/TRK-2): close out a mid-job recharge once
+        charging has genuinely ended.
+
+        Event-driven: called on every lifecycle tick (any watched-entity
+        change), so unlike the dead in-place check this removed from
+        update_active_job_recharge_observation, it can observe a LATER tick's
+        charging state — after it has actually flipped, not still within the
+        same synchronous call that just proved it True.
+        """
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if active_job.get("status") not in {"started", "paused"}:
+            return active_job
+        if not bool(active_job.get("observed_mid_job_recharge", False)):
+            return active_job
+        if self._is_charging(vacuum_entity_id):
+            return active_job  # still charging -- nothing to resolve yet
+
+        observed_at_value = observed_at or _iso_now()
+        started_str = str(active_job.get("observed_mid_job_recharge_started_at") or "").strip()
+        if started_str:
+            started_dt = parse_timestamp(started_str)
+            ended_dt = parse_timestamp(observed_at_value)
+            if started_dt and ended_dt and ended_dt > started_dt:
+                elapsed = int((ended_dt - started_dt).total_seconds())
+                current = max(_safe_int(active_job.get("recharge_seconds_accumulated"), 0), 0)
+                active_job["recharge_seconds_accumulated"] = current + elapsed
+        active_job["observed_mid_job_recharge"] = False
+        active_job["observed_mid_job_recharge_started_at"] = None
+
+        tracker = self._manager.hass.data.get(DOMAIN, {}).get("mapping_tracker")
+        if tracker is not None:
+            tracker.resume_sampling(vacuum_entity_id)
 
         self._manager.data.setdefault("active_jobs", {})
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})

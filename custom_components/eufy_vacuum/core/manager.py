@@ -951,6 +951,10 @@ class EufyVacuumManager:
         """Record a recharge observation — delegates to ActiveJobTracker."""
         return self.active_job.update_active_job_recharge_observation(**kwargs)
 
+    def resolve_mid_job_recharge_resumed(self, **kwargs):
+        """Close out a mid-job recharge once charging ended — delegates to ActiveJobTracker."""
+        return self.active_job.resolve_mid_job_recharge_resumed(**kwargs)
+
     def update_active_job_mop_wash_observation(self, **kwargs):
         """Record a mop-wash observation — delegates to ActiveJobTracker."""
         return self.active_job.update_active_job_mop_wash_observation(**kwargs)

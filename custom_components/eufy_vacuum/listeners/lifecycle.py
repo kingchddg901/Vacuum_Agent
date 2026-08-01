@@ -153,6 +153,14 @@ def register(hass: HomeAssistant) -> None:
                         # adapter registry directly, with brand-specific fallbacks.
                     )
 
+                    # RP-012/RF-31 (A4-AJ-1/TRK-2): resolve a mid-job recharge that
+                    # has ENDED first (this tick can observe a charging state that
+                    # differs from the tick that started the observed_mid_job_recharge
+                    # flag), then evaluate whether a NEW recharge is starting.
+                    manager_local.resolve_mid_job_recharge_resumed(
+                        vacuum_entity_id=vacuum_entity_id,
+                        map_id=map_id,
+                    )
                     manager_local.update_active_job_recharge_observation(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id,

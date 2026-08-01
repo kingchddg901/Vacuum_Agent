@@ -248,7 +248,16 @@ def test_recharge_starts_and_pauses(hass, tracker, manager, monkeypatch):
 
 
 def test_recharge_ends_accumulates(hass, tracker, manager, monkeypatch):
-    """[AJI-13] an in-progress recharge that has ended accumulates seconds + resumes."""
+    """[AJI-13] SUPERSEDED (RP-012/RF-31, A4-AJ-1/TRK-2). An in-progress recharge
+    that has ended accumulates seconds + resumes sampling. This used to drive
+    BOTH the start-check and the end-check through ONE call to
+    update_active_job_recharge_observation (a two-value _is_charging
+    side_effect) -- but that "end" branch was UNREACHABLE: the SAME
+    synchronous call's top-level "if not is_charging: return" already proved
+    charging True before the branch could run, so it could never observe
+    False. Recharge-end is now its own method, resolve_mid_job_recharge_resumed
+    -- called separately (by the lifecycle listener, on a LATER tick) once
+    charging has genuinely ended, which is what this now exercises directly."""
     _seed(
         manager,
         pending_mid_job_recharge_return=True,
@@ -256,17 +265,36 @@ def test_recharge_ends_accumulates(hass, tracker, manager, monkeypatch):
         observed_mid_job_recharge_started_at="2026-01-01T09:00:00+00:00",
         recharge_seconds_accumulated=0,
     )
-    monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: False)
-    # First charging check (gate) True; second (recharge-ended check) False.
-    monkeypatch.setattr(tracker, "_is_charging", MagicMock(side_effect=[True, False]))
+    monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
     fake_tracker = MagicMock()
     hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
 
-    result = tracker.update_active_job_recharge_observation(
+    result = tracker.resolve_mid_job_recharge_resumed(
         vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
     assert result["observed_mid_job_recharge"] is False
     assert result["recharge_seconds_accumulated"] == 300  # 5 min
     fake_tracker.resume_sampling.assert_called_once_with(_VAC)
+
+
+def test_recharge_observation_alone_no_longer_detects_end(hass, tracker, manager, monkeypatch):
+    """[AJI-13b] RP-012/RF-31: update_active_job_recharge_observation alone is
+    now a stable no-op once charging has stopped (its own top-level "not
+    charging" guard returns early) -- it can no longer close out a recharge by
+    itself. Locks in the new two-method contract so the dead branch doesn't
+    quietly get reintroduced."""
+    _seed(
+        manager,
+        pending_mid_job_recharge_return=True,
+        observed_mid_job_recharge=True,
+        observed_mid_job_recharge_started_at="2026-01-01T09:00:00+00:00",
+        recharge_seconds_accumulated=0,
+    )
+    monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
+
+    result = tracker.update_active_job_recharge_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["observed_mid_job_recharge"] is True
+    assert result["recharge_seconds_accumulated"] == 0
 
 
 # ---------------------------------------------------------------------------
