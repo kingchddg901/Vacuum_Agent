@@ -69,10 +69,20 @@ def main() -> int:
         before_msg="1 timing entry for 3-room group — room[0] credited full: "
                    "rooms 5 and 6 leave no record at all and room 4 learns the "
                    "whole group's time, area and battery",
+        # TOTAL PRESERVATION IS ASSERTED, NOT ASSUMED. RP-013f's phase-sum
+        # derivation depends on a group phase's split preserving what the group
+        # measured — if allocation lost or duplicated seconds, RP-013f would
+        # compute a wrong job total and nothing else would catch it. An earlier
+        # draft claimed preservation in after_msg while asserting only the entry
+        # count; a cross-packet dependency resting on an unasserted property is
+        # how two correct-looking repairs compose into a wrong number.
         after=len(timings) == 3 and sorted(credited) == [4, 5, 6]
-        and all(allocated),
-        after_msg="3 allocated entries — one per member, allocated=True, and "
-                  "the measured totals are preserved across the split",
+        and all(allocated)
+        and total_secs == 540 and total_area == 12.0
+        and all(t.get("allocation_group_size") == 3 for t in timings),
+        after_msg="3 allocated entries — one per member, allocated=True, "
+                  "allocation_group_size=3, and the measured totals (540 s, "
+                  "12.0 m²) preserved exactly across the split",
         detail=f"entries={len(timings)} · credited rooms={credited} · "
                f"allocated flags={allocated} · summed seconds={total_secs} "
                f"area={total_area}",
@@ -100,9 +110,15 @@ def main() -> int:
         before_msg="phase-scoped ids missing — the capture read the JOB's "
                    "queue_room_ids and credited room 4, which this phase never "
                    "cleaned",
-        after=credited2 == [9],
+        # the packet also pins the single-room case: "single-room phases keep
+        # allocated=False (exact)" — a split that flagged every entry allocated
+        # would erase the distinction between a measured room and an apportioned
+        # one, which is exactly what ACC-6's quality flag consumes.
+        after=credited2 == [9]
+        and all(t.get("allocated") is False for t in t2),
         after_msg="phase-scoped ids — the capture sourced the PHASE's own "
-                  "resolved_rooms and credited room 9",
+                  "resolved_rooms and credited room 9, allocated=False (exact, "
+                  "not apportioned)",
         detail=f"phase 1 credited={credited2} (its own room is 9; the job "
                f"queue starts with 4)",
     )

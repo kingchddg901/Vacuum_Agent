@@ -119,9 +119,15 @@ def case_progress_tick_skips_external(proof: H.Proof) -> None:
                    "EVENT_JOB_PROGRESS_TICK, and no Lever B live-room pulse; "
                    "stall detection and the card's refresh are both dark for "
                    "exactly the run Lever B was built for",
-        after=len(snapshots) == 1 and pulses == [H.VAC] and len(ticks_fired) == 1,
-        after_msg="the tick covered the external run — snapshot taken, live-room "
-                  "pulse requested, progress event fired",
+        # The AFTER asserts only what the PACKET requires ("tick fired for
+        # external"): the snapshot and the progress event. The Lever B pulse is
+        # reported in `detail` but deliberately NOT asserted — the packet does
+        # not mandate where that pulse is gated, and a correct repair that gated
+        # it differently would report UNEXPECTED and invite someone to "fix" the
+        # proof. A reproducer must not demand more than the spec it proves.
+        after=len(snapshots) == 1 and len(ticks_fired) == 1,
+        after_msg="the tick covered the external run — snapshot taken and "
+                  "progress event fired",
         detail=f"snapshots={snapshots} · live-room pulses={pulses} · "
                f"progress events={len(ticks_fired)}",
     )

@@ -100,9 +100,15 @@ def main() -> int:
     proof.case(
         "the per-room evidence itself survives — only the flag is wrong",
         before=distinct and valid is False,
-        before_msg="even split — the record still holds 120s/180s but "
+        # NOTE the claim boundary: this proof observes the RECORD, not the
+        # learner. It shows the real 120s/180s survive while the flag says not to
+        # trust them. What the learner then does with an invalid capture (the
+        # even wall-time split) is downstream and NOT observed here — stating it
+        # as though it were measured is the "faithful where it actuates,
+        # unfaithful where it qualifies" pattern Audit #6 named.
+        before_msg="the record still holds the real 120s/180s, but "
                    "transit_capture_valid=False tells every consumer not to "
-                   "trust them, so the run is learned as an even wall-time split",
+                   "trust them — the evidence survives and is then disregarded",
         after=distinct and valid is True,
         after_msg="per-room timings preserved AND trusted",
         detail=f"room_timings entries={len(timings)} · seconds by room={secs}",
