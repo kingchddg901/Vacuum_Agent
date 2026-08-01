@@ -185,7 +185,24 @@ class FakeBus:
         return [d for t, d in self.events if t == event_type]
 
 
-def make_hass(config_dir: str | Path = "/tmp/_proof_hass") -> SimpleNamespace:
+class FakeHass(SimpleNamespace):
+    """A SimpleNamespace that is hashable BY IDENTITY.
+
+    Home Assistant's `@singleton` decorator (entity/device/area/issue registry
+    lookups all use it) wraps its accessor in `functools.lru_cache`, which hashes
+    the hass argument. `SimpleNamespace` defines `__eq__`, so Python sets
+    `__hash__ = None` and every such lookup raises `TypeError: unhashable`.
+
+    Value-equality is dropped along with it deliberately: two hass doubles with
+    the same contents would otherwise compare equal and the lru_cache could hand
+    one proof's registry to another.
+    """
+
+    __hash__ = object.__hash__
+    __eq__ = object.__eq__
+
+
+def make_hass(config_dir: str | Path = "/tmp/_proof_hass") -> FakeHass:
     """A hass double with the surfaces production reaches for.
 
     async_add_executor_job runs the function INLINE — deliberately: proofs that
@@ -207,7 +224,7 @@ def make_hass(config_dir: str | Path = "/tmp/_proof_hass") -> SimpleNamespace:
     async def _executor(func, *args):
         return func(*args)
 
-    hass = SimpleNamespace(
+    hass = FakeHass(
         data={},
         states=FakeStates(),
         services=FakeServices(),
@@ -377,9 +394,30 @@ def corrupt(path: Path) -> bytes:
     return path.read_bytes()
 
 
+def drain_idle_loop() -> None:
+    """Run to completion any task a SYNC proof spawned on the idle loop.
+
+    Production schedules its saves with ``hass.async_create_task``; in a sync
+    proof those land on the never-run idle loop and Python reports each one as
+    "Task was destroyed but it is pending" at exit — noise that would bury a real
+    signal in a later proof's output.
+
+    RUNNING them is the only honest resolution. Cancelling or swallowing would
+    make the harness decide that the task didn't matter, and a proof whose
+    outcome depends on a scheduled save would then quietly lose it.
+    """
+    if _IDLE_LOOP is None or _IDLE_LOOP.is_closed():
+        return
+    pending = [t for t in asyncio.all_tasks(_IDLE_LOOP) if not t.done()]
+    if not pending:
+        return
+    _IDLE_LOOP.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+
+
 def run(main_coro_or_fn) -> None:
     """Entry point: handles sync and async proof mains identically."""
     result = main_coro_or_fn()
     if asyncio.iscoroutine(result):
         result = asyncio.run(result)
+    drain_idle_loop()
     sys.exit(result or 0)
