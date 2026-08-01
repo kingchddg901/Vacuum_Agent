@@ -1,13 +1,13 @@
 {
- "frozen_at_sha": "91a777a0374a025d7443ab14b622b8af6f2b3ef8",
- "frozen_at": "2026-07-31T20:36:02",
+ "frozen_at_sha": "5be0931f318d5fd3aabd39f8721af6aca4cda22f",
+ "frozen_at": "2026-07-31T20:38:26",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
   "survivors_carrying_verdict_evidence": 421,
-  "non_audit_records": 64,
-  "non_audit_open": 62,
-  "open_total": 483,
+  "non_audit_records": 65,
+  "non_audit_open": 63,
+  "open_total": 484,
   "killed_records": 21,
   "clean_areas": 673
  },
@@ -24,7 +24,7 @@
   ".claude/notes/_frozen/audits/16-learning-consumers.json": "70e0cc9d9e8a508e",
   ".claude/notes/_frozen/audits/17-themes-manager.json": "22c1f1ec2ca62975",
   ".claude/notes/_frozen/audits/18-mapping-services.json": "3de91a2146a85bc6",
-  ".claude/notes/_frozen/_direct_reads.json": "398c26bfdf738ec5",
+  ".claude/notes/_frozen/_direct_reads.json": "2ec039608a95c729",
   ".claude/notes/_frozen/_clusters.json": "8d7617ed5bd1e8ee",
   ".claude/notes/_frozen/_order.json": "f023835b8e288458",
   ".claude/notes/_frozen/_calibration.json": "7eca993eda5668cf",
@@ -33,7 +33,7 @@
   ".claude/notes/_frozen/_carried.json": "7131e8623e6c7802",
   ".claude/notes/_frozen/journals/wf_56cc4abc-4b2-stageB.jsonl": "3b2fdac98de5b3bb",
   ".claude/notes/_frozen/journals/wf_6fbed40a-87e-audit18.jsonl": "170bf55e5ec3f6e8",
-  ".claude/notes/_frozen/corpus/audit-findings-canonical.jsonl": "6fe87997a379e05c",
+  ".claude/notes/_frozen/corpus/audit-findings-canonical.jsonl": "c4b3437dc124b347",
   ".claude/notes/_frozen/baseline/alfred-run-BEFORE-flagged-target-only.log": "09382cddf553a9a0",
   ".claude/notes/_frozen/baseline/alfred-run-BEFORE.log": "69d551fb35d282ba",
   ".claude/notes/_frozen/baseline/diagnostics-BEFORE.json": "583452ac252d5cdc",
@@ -42,6 +42,6 @@
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json": "ec518fa3db5d3f87",
   ".claude/notes/_frozen/baseline/phase-c-answers.json": "64dac2705658a746",
   ".claude/notes/_frozen/baseline/README.md": "97bbdfca5d81bd3b",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "650895a2097cc647"
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "49de3361b61bf431"
  }
 }

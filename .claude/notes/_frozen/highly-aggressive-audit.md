@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**46 changes shipped**, all with tests, all deployed.
+**50 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -110,14 +110,18 @@ comments rather than by a shared helper.
 | `b960ab3` | chore(audit): recover audit #18's per-finding verdicts and re-freeze |
 | `59daba3` | chore(audit): canonical corpus — Gate 1 steps 2-4, and three defects the build surfaced |
 | `61879f8` | chore(audit): evidence classes, historical-gap inventory, and the human report — Gate 1 complete bar hardware |
+| `c7d2ed5` | audit: capture Eufy hardware baseline, close Gate 1 |
+| `00a3dcb` | audit: Roborock hardware baseline + double-finalize observed on hardware |
+| `91a777a` | audit: refute my own OBS-IVY-1 mechanism, narrow the question |
+| `5be0931` | audit: OBS-IVY-1 CONFIRMED CRITICAL - exactly-once claim has a real race |
 
 ---
 
 ## Open
 
-**483 findings** — 421 across 12 audits plus 62 from direct reads. None applied. 29 clusters + 408 singles.
+**484 findings** — 422 across 12 audits plus 62 from direct reads. None applied. 29 clusters + 409 singles.
 
-CRITICAL 17 · HIGH 88 · MEDIUM 173 · LOW 205
+CRITICAL 18 · HIGH 88 · MEDIUM 173 · LOW 205
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -330,8 +334,13 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Singles
 
-<details><summary><strong>CRITICAL</strong> (2)</summary>
+<details><summary><strong>CRITICAL</strong> (3)</summary>
 
+- **HW-FINAL-1** `learning/manager.py:737` · both  
+  The exactly-once finalize claim releases BEFORE the permanent gate is written, and an await sits in the gap - the finalize body runs twice  
+  PROVEN ON HARDWARE AND BY SOURCE TRACE, 2026-07-31. REOPENS THE CAMPAIGN CRIT DECLARED FULLY CLOSED AT 71e089c.
+
+HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the finalize body ran TWICE for each
 - **A3-EXT-2** `mapping/map_source_runtime.py:966` · eufy  
   Content version hashes ONLY the room raster, but the cache it gates holds the grid geometry the fork mutates independently  
   During and after any run in which the map grows, or across any session where Eufy re-localizes its coordinate origin (a documented behaviour of this device), the robot dot lands metres from where the robot is, the room b
