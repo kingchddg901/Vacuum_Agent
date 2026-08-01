@@ -857,9 +857,12 @@ async def test_finalize_cancelled_fires_run_incomplete(hass, learning_services):
     from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
 
     # Seed two managed rooms and build the queue so finalization can see
-    # queue_room_ids = [1, 2].  With no active job, both rooms are missed.
+    # queue_room_ids = [1, 2]. RP-001/GATE4 Q1: finalize now requires a stored active-job
+    # record to finalize against, so seed one matching the call's started_at -- with no
+    # completed_room_ids, so both queued rooms are still missed.
     setup_map(learning_services, _VAC, _MAP, count=2)
     learning_services.build_queue(vacuum_entity_id=_VAC, map_id=_MAP)
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
 
     incomplete_events = []
     hass.bus.async_listen(EVENT_RUN_INCOMPLETE, lambda e: incomplete_events.append(e))
@@ -911,8 +914,14 @@ async def test_trouble_rooms_accumulate_across_finalize_calls(hass, learning_ser
         "rebuild_stats": False,
         "forced_outcome_status": "cancelled",
     }
-    # Two cancelled jobs — both rooms missed each time → miss_count reaches 2
+    # Two cancelled jobs — both rooms missed each time → miss_count reaches 2. RP-001/
+    # GATE4 Q1: finalize requires a stored active-job record, and a successful finalize
+    # marks that slot `finalized`. Re-seed before each call to model two SEPARATE
+    # dispatched job runs on the same map (a fresh dispatch overwrites the slot in
+    # production, same as here) rather than re-finalizing one already-finalized slot.
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
     await hass.services.async_call(DOMAIN, SERVICE_FINALIZE_LEARNING_JOB, _finalize, blocking=True)
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
     await hass.services.async_call(DOMAIN, SERVICE_FINALIZE_LEARNING_JOB, _finalize, blocking=True)
 
     result = await hass.services.async_call(
@@ -1552,7 +1561,10 @@ async def test_finalize_completed_clears_incomplete_log(hass, learning_services)
         "ended_at": "2026-01-01T09:30:00+00:00",
         "used_for_learning": False, "rebuild_stats": False,
     }
-    # First: cancelled → writes incomplete run log
+    # First: cancelled → writes incomplete run log. RP-001/GATE4 Q1: finalize requires a
+    # stored active-job record; re-seed before each call to model two separate dispatched
+    # job runs (a fresh dispatch overwrites the slot in production).
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {**base, "forced_outcome_status": "cancelled"}, blocking=True,
@@ -1565,6 +1577,7 @@ async def test_finalize_completed_clears_incomplete_log(hass, learning_services)
     assert isinstance(log, dict) and log  # non-empty
 
     # Second: completed → clears incomplete run log
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         base, blocking=True,
@@ -3047,6 +3060,10 @@ async def _drive_finalize(hass, learning, monkeypatch, *, used_for_learning: boo
     monkeypatch.setattr(learning, "_record_zone_learning", None, raising=False)
 
     manager = hass.data[DOMAIN]["runtime"]
+    # RP-001/GATE4 Q1: finalize requires a stored active-job record — seed one matching
+    # this call, modeling a normal dispatched-and-tracked job being finalized directly at
+    # the chokepoint (the finalize_learning_job service's call pattern).
+    _seed_active_job(manager, _VAC, _MAP, started_at="2026-01-01T10:00:00+00:00")
     await learning.async_finalize_completed_job(
         manager=manager,
         vacuum_entity_id=_VAC, map_id=_MAP,

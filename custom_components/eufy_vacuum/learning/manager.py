@@ -699,27 +699,41 @@ class LearningManager:
         )
         if not isinstance(_stored_job, dict):
             _stored_job = None
-        if _stored_job is not None:
-            if _stored_job.get("finalized"):
-                return {
-                    "vacuum_entity_id": vacuum_entity_id,
-                    "map_id": str(map_id),
-                    "finalized": False,
-                    "reason": "already_finalized",
-                }
-            if str(_stored_job.get("finalize_claimed_at", "")).strip():
-                return {
-                    "vacuum_entity_id": vacuum_entity_id,
-                    "map_id": str(map_id),
-                    "finalized": False,
-                    "reason": "finalize_in_flight",
-                }
-            # Timestamped so a claim orphaned by a crash is reapable by age; cleared
-            # unconditionally at startup by core.manager._clear_orphaned_finalize_claims.
-            _stored_job["finalize_claimed_at"] = _iso_now()
+        if _stored_job is None:
+            # GATE4 Q1: no active-job record to finalize against — refuse rather than
+            # running the body claim-less. No events, no slot marking, no summary.
+            _LOGGER.warning(
+                "async_finalize_completed_job: no active job record for %s map %s — "
+                "refusing finalize",
+                vacuum_entity_id,
+                map_id,
+            )
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "finalized": False,
+                "reason": "no_active_job_record",
+            }
+        if _stored_job.get("finalized"):
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "finalized": False,
+                "reason": "already_finalized",
+            }
+        if str(_stored_job.get("finalize_claimed_at", "")).strip():
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "finalized": False,
+                "reason": "finalize_in_flight",
+            }
+        # Timestamped so a claim orphaned by a crash is reapable by age; cleared
+        # unconditionally at startup by core.manager._clear_orphaned_finalize_claims.
+        _stored_job["finalize_claimed_at"] = _iso_now()
 
         try:
-            return await self._finalize_claimed(
+            result = await self._finalize_claimed(
                 manager=manager,
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=map_id,
@@ -734,11 +748,24 @@ class LearningManager:
                 forced_lifecycle_state=forced_lifecycle_state,
                 forced_lifecycle_message=forced_lifecycle_message,
             )
-        finally:
-            # RELEASE on every exit path so a transient failure stays retryable. After a
-            # successful finalize `finalized` is the gate, so releasing does not reopen it.
-            if _stored_job is not None:
-                _stored_job.pop("finalize_claimed_at", None)
+        except BaseException:
+            # RELEASE on a transient failure so a retry stays possible.
+            _stored_job.pop("finalize_claimed_at", None)
+            raise
+
+        # SUCCESS: the permanent gate is written HERE, inside the claimed window,
+        # before release — not left to the caller. The caller's mark_active_job_finalized
+        # (jobs/active_job.py) runs after an await (listeners/lifecycle.py's end_job
+        # executor hop), and a second listener task from the same physical event can
+        # interleave in that gap: it would find the claim already released by this
+        # function's old finally and `finalized` not yet written by the caller, and run
+        # the body again (hardware-proven, OBS-IVY-1 / HW-FINAL-1). Writing the gate here
+        # closes that window; mark_active_job_finalized remains a safe idempotent second
+        # writer for the caller's own bookkeeping.
+        if isinstance(result, dict) and isinstance(result.get("completed_job"), dict):
+            _stored_job["finalized"] = True
+        _stored_job.pop("finalize_claimed_at", None)
+        return result
 
     async def _finalize_claimed(
         self,

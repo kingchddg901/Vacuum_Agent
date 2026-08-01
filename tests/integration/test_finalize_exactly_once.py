@@ -232,3 +232,79 @@ async def test_the_service_entry_point_also_inherits_the_claim(manager, monkeypa
 
     assert result["reason"] == "already_finalized"
     assert bodies == [], "the service path re-ran finalize on an already-finalized job"
+
+
+async def test_finalized_is_set_before_the_claim_releases(manager, monkeypatch):
+    """[XO-8] RP-001 / HW-FINAL-1. The permanent gate must be written INSIDE the claimed
+    window, before release -- not left for the caller's mark_active_job_finalized (which
+    runs after an await). A second entrant arriving after the first call has FULLY
+    RETURNED must see finalized=True and refuse, never re-running the body. This is the
+    hardware-proven double-finalize race (ivy-run-BEFORE.log)."""
+    calls: list[int] = []
+
+    async def _fake(**kwargs):
+        calls.append(1)
+        return {"completed_job": {}}
+
+    _install_fake_learning(manager, monkeypatch, _fake)
+    job = _seed_active_job(manager)
+
+    first = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, battery_end=50
+    )
+    assert first == {"completed_job": {}}
+    assert job.get("finalized") is True, "finalized was not written before the claim released"
+
+    second = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, battery_end=50
+    )
+    assert second["finalized"] is False
+    assert second["reason"] == "already_finalized"
+    assert calls == [1], "the body ran again for an already-finalized job"
+
+
+async def test_a_non_success_result_does_not_set_finalized(manager, monkeypatch):
+    """[XO-9] A dict result WITHOUT `completed_job` (e.g. missing_started_at surfacing
+    from a nested path) is not a success -- it must release the claim without setting
+    `finalized`, so the job stays retryable."""
+    async def _fake(**kwargs):
+        return {"finalized": False, "reason": "missing_started_at"}
+
+    _install_fake_learning(manager, monkeypatch, _fake)
+    job = _seed_active_job(manager)
+
+    result = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, battery_end=50
+    )
+    assert result["reason"] == "missing_started_at"
+    assert job.get("finalized") is not True, "a non-success result set the permanent gate"
+    assert "finalize_claimed_at" not in job
+
+
+async def test_no_active_job_record_refuses_without_running_the_body(manager, monkeypatch):
+    """[XO-10] GATE4 Q1. A finalize call against a vacuum/map with NO stored active-job
+    record must refuse -- no claim-less fallback, no body run. (The wrapper already
+    refuses earlier via `missing_started_at` for its own callers; this covers a direct
+    chokepoint entry, as the `finalize_learning_job` service does -- XO-7's pattern.)"""
+    calls: list[int] = []
+
+    async def _fake(**kwargs):
+        calls.append(1)
+        return {"completed_job": {}}
+
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    lm = LearningManager(manager.hass)
+    monkeypatch.setattr(lm, "_finalize_claimed", _fake)
+    manager.data["active_jobs"] = {}
+
+    result = await lm.async_finalize_completed_job(
+        manager=manager,
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        battery_start=90, battery_end=50,
+        started_at="2026-01-01T10:00:00+00:00",
+    )
+
+    assert result["finalized"] is False
+    assert result["reason"] == "no_active_job_record"
+    assert calls == [], "the body ran with no active job record to finalize against"
