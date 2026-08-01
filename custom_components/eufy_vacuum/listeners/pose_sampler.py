@@ -308,9 +308,42 @@ def register(hass: HomeAssistant) -> None:
         return
     interval_s = min(intervals)
 
+    # RP-012/RF-31: per-vacuum cadence state (POSE-1) and in-flight guards
+    # (POSE-2), persisting across ticks via this closure.
+    _last_sample_ts: dict[str, float] = {}
+    _in_flight: set[str] = set()
+
     async def _handle_pose_tick(_now) -> None:
+        now_ts = hass.loop.time()
         for vacuum_entity_id in manager.get_known_vacuum_ids():
-            await _sample_vacuum_once(hass, manager, vacuum_entity_id)
+            # POSE-1: the shared ticker runs at min(intervals) across vacuums,
+            # but each vacuum is sampled only at its OWN declared interval --
+            # otherwise a slower vacuum's samples are valued at the ticker's
+            # faster cadence by the engine's dwell=n*interval_s math,
+            # over-weighting it (observed: a slower brand's samples counted
+            # 2.5x against a faster one sharing the same ticker).
+            own_interval = _room_attribution_interval_s(vacuum_entity_id)
+            if own_interval is None:
+                continue
+            if now_ts - _last_sample_ts.get(vacuum_entity_id, 0.0) < own_interval:
+                continue
+            # POSE-2: skip this vacuum's tick if its previous sample is still
+            # running (a slow live-pose await must not overlap with the next
+            # tick for the SAME vacuum).
+            if vacuum_entity_id in _in_flight:
+                continue
+            _in_flight.add(vacuum_entity_id)
+            _last_sample_ts[vacuum_entity_id] = now_ts
+            try:
+                await _sample_vacuum_once(hass, manager, vacuum_entity_id)
+            except Exception:
+                # POSE-5: one vacuum's sampling failure must not stop the tick
+                # from reaching the rest.
+                _LOGGER.exception(
+                    "eufy_vacuum: pose-sample tick failed for %s", vacuum_entity_id
+                )
+            finally:
+                _in_flight.discard(vacuum_entity_id)
 
     unsub = async_track_time_interval(hass, _handle_pose_tick, timedelta(seconds=interval_s))
     domain_data[_POSE_SAMPLER_UNSUBS] = [unsub]

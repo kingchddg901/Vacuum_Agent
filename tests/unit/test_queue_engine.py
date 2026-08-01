@@ -220,3 +220,27 @@ def test_advance_phase_swaps_and_resets():
     assert nxt["queue_stable_keys"] == [f"{_VAC}:{_MAP}:5", f"{_VAC}:{_MAP}:6"]
     assert nxt["has_observed_active_lifecycle"] is False   # fresh sub-job
     assert nxt["_phase_dispatch_pending"] is True           # not yet confirmed cleaning
+
+
+def test_advance_phase_resets_native_current_room_id():
+    """[QE-10] RP-012/RF-31 (DQ-PH-6): _native_current_room_id resets with its
+    sibling current_room_id -- left alone, the previous phase's native-signal
+    room id survives the advance while current_room_id moves on, so the two
+    pointers DISAGREE. The next native signal tick could then re-complete the
+    PREVIOUS phase's room into the freshly-emptied completed_room_ids and fire
+    a second room_completed for it."""
+    phases = [
+        {"resolved_rooms": [{"room_id": 1}], "payload": {}, "room_count": 1},
+        {"resolved_rooms": [{"room_id": 5}], "payload": {}, "room_count": 1},
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "phases": phases, "current_phase_index": 0,
+        "resolved_rooms": phases[0]["resolved_rooms"], "payload": phases[0]["payload"],
+        "completed_room_ids": [1], "completed_rooms": [{"room_id": 1}],
+        "current_room_id": 1, "_native_current_room_id": 1, "status": "started",
+    }
+    nxt = advance_active_job_phase(job)
+    assert nxt is not None
+    assert nxt["current_room_id"] == 5
+    assert nxt["_native_current_room_id"] is None

@@ -467,6 +467,13 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     advanced["completed_room_ids"] = []
     advanced["completed_rooms"] = []
     advanced["current_room_id"] = next_room_ids[0] if next_room_ids else None
+    # RP-012/RF-31 (DQ-PH-6): reset with its sibling current_room_id -- left
+    # alone, the previous phase's native-signal room id survives the advance
+    # while current_room_id moves on, so the two pointers DISAGREE. The next
+    # native signal tick could then re-complete the PREVIOUS phase's room into
+    # the freshly-emptied completed_room_ids and fire a second room_completed
+    # for it.
+    advanced["_native_current_room_id"] = None
     advanced["current_room_started_at"] = None
     advanced["current_room_paused_seconds"] = 0
     advanced["status"] = "started"
