@@ -500,6 +500,31 @@ async def test_lifecycle_refusal_fires_no_event(hass):
     tracker.end_job.assert_not_called()
 
 
+async def test_lifecycle_suppressed_during_cancel(hass):
+    """[LC-11] RP-010/RF-06 (CAN-3). A cancel's own return-to-base dock must not
+    read as job completion here -- the completion gate suppresses when
+    _cancel_in_flight is set, so this listener never races the cancel path's
+    own finalize (which owns finalization for a cancelling job)."""
+    m = _wire_lifecycle(hass)
+    m.get_active_job.return_value = {
+        "status": "started", "has_observed_active_lifecycle": True,
+        "queue_room_ids": [], "_cancel_in_flight": True,
+    }
+    m.finalize_learning_for_active_job = AsyncMock()
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+    assert finished == []
+    m.finalize_learning_for_active_job.assert_not_awaited()
+
+
 async def test_lifecycle_no_finalize_when_incomplete(hass):
     """[LC-2] active lifecycle observed but completion not met → no finalize."""
     m = _wire_lifecycle(hass)

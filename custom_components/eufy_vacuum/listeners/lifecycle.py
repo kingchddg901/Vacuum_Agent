@@ -298,6 +298,15 @@ def register(hass: HomeAssistant) -> None:
                     if should_finalize_completed and active_job.get("_phase_dispatch_pending"):
                         should_finalize_completed = False
 
+                    # RP-010/RF-06: a cancel in flight owns finalization for this
+                    # job. Its own return-to-base dock can otherwise read as
+                    # completion here — the cancel path releases
+                    # _phase_dispatch_pending before its terminal-confirm poll
+                    # completes, by design, which would let this listener race the
+                    # cancel's own finalize.
+                    if should_finalize_completed and active_job.get("_cancel_in_flight"):
+                        should_finalize_completed = False
+
                     if not should_finalize_completed:
                         continue
 

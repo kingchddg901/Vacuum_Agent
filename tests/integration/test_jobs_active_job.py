@@ -453,7 +453,16 @@ async def test_cancel_timeout(tracker, manager, hass, monkeypatch):
 async def test_cancel_sets_cancel_in_flight_before_rtb(tracker, manager, hass, monkeypatch):
     """[AJI-38] cancelling a SEQUENCED job sets _cancel_in_flight on the stored record
     BEFORE return_to_base, so the per-phase watchdog (which guards on it) stops before it
-    can re-dispatch app_segment_clean during the cancel window. Atomic jobs never get it."""
+    can re-dispatch app_segment_clean during the cancel window.
+
+    SUPERSEDED (RP-010/RF-06, Q9 taxonomy authored packet): this docstring used to
+    claim "atomic jobs never get it" -- that was true before RP-010, when the flag
+    was written only inside `if active_job.get("phases")`. RP-010 makes the write
+    universal because the flag now doubles as async_cancel_active_job's
+    single-flight latch (a second cancel arriving mid-confirm-window used to
+    re-run the whole body and null finalize_summary) -- atomic jobs need the
+    latch exactly as much as phased ones. See test_cancel_sets_cancel_in_flight_
+    for_atomic_job below for the companion case."""
     monkeypatch.setattr(type(tracker), "_CANCEL_CONFIRM_TIMEOUT_S", 1)
     monkeypatch.setattr(type(tracker), "_CANCEL_POLL_INTERVAL_S", 0.01)
     manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
@@ -474,6 +483,27 @@ async def test_cancel_sets_cancel_in_flight_before_rtb(tracker, manager, hass, m
 
     await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
     assert flag_at_rtb["value"] is True   # set BEFORE return_to_base fired
+
+
+async def test_cancel_sets_cancel_in_flight_for_atomic_job(tracker, manager, hass, monkeypatch):
+    """[AJI-39] RP-010/RF-06: an ATOMIC job (no phases) also gets _cancel_in_flight
+    set before return_to_base -- the flag is now universal because it is also the
+    single-flight latch, and an atomic job needs single-flight protection exactly
+    like a phased one."""
+    monkeypatch.setattr(type(tracker), "_CANCEL_CONFIRM_TIMEOUT_S", 1)
+    monkeypatch.setattr(type(tracker), "_CANCEL_POLL_INTERVAL_S", 0.01)
+    _seed(manager, queue_room_ids=[1])
+    assert "phases" not in manager.data["active_jobs"][_VAC][_MAP]
+    flag_at_rtb = {}
+
+    async def _rtb(call):
+        flag_at_rtb["value"] = manager.data["active_jobs"][_VAC][_MAP].get("_cancel_in_flight")
+
+    hass.services.async_register("vacuum", "return_to_base", _rtb)
+    hass.states.async_set(_VAC, "docked")
+
+    await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert flag_at_rtb["value"] is True
 
 
 # ---------------------------------------------------------------------------

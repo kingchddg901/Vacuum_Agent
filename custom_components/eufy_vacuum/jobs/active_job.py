@@ -2043,6 +2043,10 @@ class ActiveJobTracker:
         # mid-watchdog could otherwise leave it set). Harmless to the live gate, which
         # only inspects started/paused jobs, but keeps the stored record clean.
         active_job["_phase_dispatch_pending"] = False
+        # RP-010/RF-06: the cancel single-flight latch is cleared HERE — this is the
+        # terminal chokepoint every cancel/strand/success path reaches, so a fresh
+        # job later reusing this slot never inherits a stale latch.
+        active_job["_cancel_in_flight"] = False
         active_job["finalized_at"] = (
             finalize_result.get("completed_job", {}).get("finalized_at")
             if isinstance(finalize_result, dict)
@@ -2199,46 +2203,71 @@ class ActiveJobTracker:
                 "active_job": active_job,
             }
 
+        # RP-010/RF-06: single-flight latch. A second cancel arriving inside the
+        # terminal-confirm window used to run the whole body again and re-finalize
+        # with the exactly-once claim's REFUSAL dict, nulling finalize_summary
+        # (mark_active_job_finalized only rewrites it when given a real dict).
+        # Universal across atomic + phased jobs -- the strict-order guard below
+        # only ever covered phased jobs, so an atomic job had no latch at all.
+        if active_job.get("_cancel_in_flight"):
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "cancelled": False,
+                "reason": "cancel_in_progress",
+            }
+
         # Stop the strict-order watchdog up front (it guards on _cancel_in_flight) so it
         # can't re-dispatch app_segment_clean during the return-to-base + terminal-confirm
         # window — otherwise a cancel could be undone by the watchdog re-sending a clean.
         # Also release the dispatch guard. Written to the stored record the watchdog
-        # re-reads. No-op for atomic jobs.
+        # re-reads. _phase_dispatch_pending release is phase-specific; _cancel_in_flight
+        # is written for every job type (it is now also the single-flight latch above).
+        active_job["_cancel_in_flight"] = True
         if active_job.get("phases"):
-            active_job["_cancel_in_flight"] = True
             active_job["_phase_dispatch_pending"] = False
+        self._manager.data.setdefault("active_jobs", {}).setdefault(
+            vacuum_entity_id, {}
+        )[str(map_id)] = active_job
+
+        try:
+            await self._manager.hass.services.async_call(
+                "vacuum",
+                "return_to_base",
+                {"entity_id": vacuum_entity_id},
+                blocking=True,
+            )
+
+            task_status_entity_id = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("task_status")
+            deadline = self._manager.hass.loop.time() + self._CANCEL_CONFIRM_TIMEOUT_S
+            confirmed = False
+            last_vac_state: str | None = None
+            last_task_status: str | None = None
+
+            while self._manager.hass.loop.time() < deadline:
+                await asyncio.sleep(self._CANCEL_POLL_INTERVAL_S)
+                vac_state_obj = self._manager.hass.states.get(vacuum_entity_id)
+                last_vac_state = vac_state_obj.state if vac_state_obj else None
+                task_state_obj = (
+                    self._manager.hass.states.get(task_status_entity_id)
+                    if task_status_entity_id
+                    else None
+                )
+                last_task_status = task_state_obj.state if task_state_obj else None
+                task_lower = str(last_task_status or "").strip().lower()
+
+                if last_vac_state in {"docked", "idle"} or task_lower in {"completed", "complete"}:
+                    confirmed = True
+                    break
+        except BaseException:
+            # RP-010/RF-06: a transient failure here (e.g. return_to_base raising)
+            # must not turn into a PERMANENT single-flight lock -- clear the latch
+            # so a retry is possible.
+            active_job["_cancel_in_flight"] = False
             self._manager.data.setdefault("active_jobs", {}).setdefault(
                 vacuum_entity_id, {}
             )[str(map_id)] = active_job
-
-        await self._manager.hass.services.async_call(
-            "vacuum",
-            "return_to_base",
-            {"entity_id": vacuum_entity_id},
-            blocking=True,
-        )
-
-        task_status_entity_id = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("task_status")
-        deadline = self._manager.hass.loop.time() + self._CANCEL_CONFIRM_TIMEOUT_S
-        confirmed = False
-        last_vac_state: str | None = None
-        last_task_status: str | None = None
-
-        while self._manager.hass.loop.time() < deadline:
-            await asyncio.sleep(self._CANCEL_POLL_INTERVAL_S)
-            vac_state_obj = self._manager.hass.states.get(vacuum_entity_id)
-            last_vac_state = vac_state_obj.state if vac_state_obj else None
-            task_state_obj = (
-                self._manager.hass.states.get(task_status_entity_id)
-                if task_status_entity_id
-                else None
-            )
-            last_task_status = task_state_obj.state if task_state_obj else None
-            task_lower = str(last_task_status or "").strip().lower()
-
-            if last_vac_state in {"docked", "idle"} or task_lower in {"completed", "complete"}:
-                confirmed = True
-                break
+            raise
 
         if not confirmed:
             _LOGGER.warning(
