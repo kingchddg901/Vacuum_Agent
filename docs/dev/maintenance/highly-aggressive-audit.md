@@ -110,11 +110,11 @@ comments rather than by a shared helper.
 
 ## Open
 
-**430 findings** — 369 across 11 audits plus 61 from direct reads. None applied. 29 clusters + 355 singles.
+**482 findings** — 421 across 12 audits plus 61 from direct reads. None applied. 29 clusters + 407 singles.
 
-CRITICAL 17 · HIGH 79 · MEDIUM 152 · LOW 182
+CRITICAL 17 · HIGH 88 · MEDIUM 173 · LOW 204
 
-The same audits recorded **595 areas examined and found correct**.
+The same audits recorded **673 areas examined and found correct**.
 
 > **No fix from any audit has run on physical hardware.** That gate comes before a release tag.
 
@@ -336,7 +336,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (51)</summary>
+<details><summary><strong>HIGH</strong> (60)</summary>
 
 - **A5-FACADE-2** `core/manager.py:1426` · both  
   discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
@@ -404,6 +404,33 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-RB-1** `mapping/map_source_runtime.py:373` · roborock _(finder said CRITICAL; verifier corrected)_  
   Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
   On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
+- **A1-SERVIC-1** `mapping/mapping_services.py:450` · Both, but the rename trigger is Roborock-specific (map_id = user-editable map NAME from the select entity state). Eufy's numeric map ids make the accidental rename case unlikely; the empty/sentinel map_id case affects both.  
+  No mapping write service can tell "this map exists" from "this map does not" — every schema takes a free-form map_id and every handler mints the bucket, so an edit against a non-existent map is persisted to a phantom bucket and reported as saved  
+  Every geometry edit the user makes after a vendor-side map rename silently lands on a different bucket than the one holding their previous work, and the previous work becomes permanently unreachable — the write reports s
+- **A2-POLYGO-3** `mapping/mapping_services.py:762` · Both (get_map_segments serves CV and custom scopes identically; on Roborock it bites in custom mode via the active layout's stores)  
+  `_apply_segment_adjustments` returns the PERSISTED segment dicts by reference, and its caller writes `room_id` into them - baking a cleared/moved room link permanently into .storage and breaking the documented 1:1 invariant  
+  src/state/map.js:1690-1698 `roomIdForSegment` reads `seg.room_id` from the backend payload and comments 'Backend payload is canonical when present' - so the stale value fully drives the card. After clearing a link the ca
+- **A3-IMAGE--1** `mapping/mapping_services.py:1174` · Both. Eufy (eufy_cv_v1) is where re-analysis actually reshuffles ids; Roborock inherits the same read-time enrichment for any image_segments it holds.  
+  Re-analysis rebinds the user's room links and manual segment adjustments onto positionally-reassigned segment ids  
+  The map overlay silently mislabels rooms after any re-analysis in which blob ordering shifts, and the mislabel is actuating, not cosmetic: tapping a segment polygon calls toggleRoomEnabled for the LINKED room (src/bindin
+- **A3-IMAGE--2** `mapping/mapping_services.py:1174` · Both. Eufy via engine_exception / missing optional CV libs; Roborock and any adapter without a registered segmenter engine hits it on the very first analyze call via noop_fallback.  
+  A failed or unavailable segmenter run overwrites the good cached segmentation with an empty available:False envelope and persists it  
+  All room polygons disappear from the map view (src/renderers/map.js:109 falls back to a placeholder when `!segmentsData.available`) and the cached segmentation is unrecoverable: the source PNG the segments were derived f
+- **A4-CUSTOM-1** `mapping/mapping_services.py:1667` · Both (Eufy + Roborock) — custom layouts are brand-independent map-bucket state.  
+  set_custom_segments is a REPLACE-ALL write that cannot name its target layout — it lands on whatever layout is active at call time, destroying another layout's authored geometry  
+  Silent, unrecoverable loss of hand-authored map geometry plus its room links. The layout the user was editing is left untouched and the one they were not looking at is destroyed; the service returns {'saved': True, 'segm
+- **A6-ZONE-C-3** `mapping/mapping_services.py:2490` · Both.  
+  The `map_version` re-map invalidation the design doc specifies as the zone's safety key does not exist anywhere in the codebase  
+  Every saved zone on a re-mapped floor silently points at the wrong physical spot, and the design's own stated defence against exactly this was never built. This is the direct failure of "survives a re-import": the edit d
+- **A6-ZONE-C-1** `mapping/mapping_services.py:2608` · Both. Roborock is more exposed: map_id is the vendor map NAME read off a select entity that goes `unavailable` whenever the upstream integration reloads, and the wrong-map projection can land on a different FLOOR.  
+  Saved-zone clean dispatches to the device when the active-map signal is blank — the "active map only" guard is permissive, not a refusal  
+  The vacuum cleans a physically different area from the one the user named and tapped, with no error and no way to tell from the response (it returns {cleaned: true}). Requires the active-map entity to be blank (integrati
+- **A2-POLYGO-2** `mapping/segment_primitives.py:267` · Both (custom layouts are brand-agnostic; worst for Roborock, whose segmenter_engine is 'noop_fallback' so custom layouts are its only segment store)  
+  `rasterize_primitives` returns the same `[]` for 'numpy/Pillow missing' as for 'degenerate shape', so set_custom_segments silently wipes the layout and reports saved:true  
+  Destructive, silent, unrecoverable loss of an entire authored map layout on exactly the installs the CV-availability gate exists to protect. The card's comment 'Live/custom/manual paths don't need it' is a CLAIM and it i
+- **A2-POLYGO-1** `mapping/segment_primitives.py:277` · Both (custom layouts are brand-agnostic; Roborock declares segmenter_engine='noop_fallback' so the custom compose path is its ONLY segment source, making this its primary path)  
+  Authored custom segments grow ~1 working-pixel toward +X/+Y on every save, and the growth compounds without bound across save/reload cycles  
+  Every authored room polygon is stored 0.3% of the map larger than drawn from the very first save. `set_custom_segments` is REPLACE-ALL, so once the compose draft has been reloaded from storage (which happens on any map/l
 - **EP-2** `number.py:101` · both · `direct read`  
   number.py's prefix sweep also destroys NON-room maintenance entities that its callback can never rebuild  
   VERIFIED AT SOURCE, and this escalates DR-SETUP-1 on a second axis. number.py populates ONE entity_map with both the per-room order numbers AND the per-component maintenance-interval numbers ({vacuum_key}_{component}_mai
@@ -494,7 +521,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (132)</summary>
+<details><summary><strong>MEDIUM</strong> (153)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
@@ -664,6 +691,69 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-RB-3** `mapping/map_source_runtime.py:743` · roborock _(finder said HIGH; verifier corrected)_  
   roborock_result_from_candidates hard-returns on the first duck-typed MapData match, so one false positive permanently blanks the Roborock map source — and the stale-hold masks it for six hours  
   A change in the HA core roborock integration's in-memory shape (or any provider object that happens to expose `.rooms` and `.image`) silently kills the entire Roborock map source: rooms, current room, robot/dock anchors,
+- **A1-SERVIC-4** `mapping/mapping_services.py:443` · Both — the geometry layer is brand-independent; only the final dispatch conversion differs.  
+  `_saved_zone_coord`'s docstring claims it "mirrors the hidden-regions sanitizer" but omits that sanitizer's degenerate-drop — a zone that can be saved but can NEVER be cleaned, with no service able to repair its geometry  
+  A saved zone can enter storage in a state where every attempt to clean it fails with a generic error toast, and the user's only recourse is to delete and redraw it — the named zone is not repairable. The card's own conve
+- **A1-SERVIC-3** `mapping/mapping_services.py:493` · Eufy (unclamped). Roborock is protected by the device_mm-branch clamp.  
+  `clean_times` has no upper bound, defended by a sibling comment claiming dispatch enforces the per-brand ceiling — dispatch clamps it only on the Roborock (`zone_coords: device_mm`) branch; the Eufy branch ships it verbatim  
+  A user who types a pass count above the device's ceiling on a Eufy gets a success toast and a {"cleaned": true} response while the device either silently ignores the pass count or rejects the whole zone_clean command and
+- **A1-SERVIC-5** `mapping/mapping_services.py:563` · Both.  
+  services.yaml documents map_id as optional ("Leave blank to use the current active map") on 8 mapping services whose schemas make it `vol.Required`; the integration's shared resolver `resolved_call_data` is used 59 times elsewhere and zero times in this file  
+  Eight documented service calls fail with a raw voluptuous error when used exactly as their own UI documentation instructs, and the same field passed as an empty/sentinel string silently writes to the wrong bucket instead
+- **A2-POLYGO-5** `mapping/mapping_services.py:769` · Eufy only (adjust_map_segment writes against `image_segments`, populated only by the `eufy_cv_v1` engine; Roborock declares segmenter_engine='noop_fallback' at adapters/roborock/adapter.py:482 so it has no CV store to adjust)  
+  Stale `image_segment_adjustments` survive a CV re-analysis and are re-applied by segment_id to whatever polygon now carries that id - moving a room the user never edited  
+  Silently wrong overlay geometry after a re-analysis, attributed to a manual edit the user never made on that room. Reversible only by calling `adjust_map_segment` with the exact inverse deltas (the values ARE surfaced in
+- **A3-IMAGE--5** `mapping/mapping_services.py:896` · Both; Roborock materially more exposed because get_active_map_id returns the user-authored map NAME verbatim.  
+  Image filenames are built from an unsanitised free-form map_id, so one map's upload can silently overwrite another map's image  
+  The user edits/uploads a backdrop for the map they named and it lands on a different map's file, with the storage records still claiming otherwise — a direct answer to 'does the edit land on the map it names?' being 'not
+- **A3-IMAGE--7** `mapping/mapping_services.py:1012` · Both.  
+  delete_map_image drops the storage record and reports deleted:True even when the file removal failed, and analyze's filesystem probe then re-uses the orphan  
+  The user is told a bad upload was removed, the UI agrees it is gone, and the segmenter keeps using it — the delete is neither honest nor effective. Also leaves an undeletable orphan: with no image_variants record, a seco
+- **A3-IMAGE--6** `mapping/mapping_services.py:1014` · Both.  
+  delete_map_image calls itself the mirror of upload but has no layout_id/art_scope sibling and sweeps no back-references  
+  A layout survives its backdrop and becomes uneditable with a misleading reason ('no custom backdrop') while continuing to advertise one; get_map_segments silently substitutes the CV dark/default/light image metadata for
+- **A3-IMAGE--3** `mapping/mapping_services.py:1100` · Both.  
+  The analyze cache-hit gate tests truthiness, so a cached FAILURE envelope is served as a valid cache forever  
+  Analysis appears permanently broken with a stale, now-incorrect reason ('you're missing scipy') after the cause has been fixed. The card is immune today because both of its call sites hard-code force_reanalyze:true, so t
+- **A4-CUSTOM-3** `mapping/mapping_services.py:1449` · Eufy only — on Roborock async_get_map_data_dict returns None early (map_source_coordinator.py:683), so nothing is written. _(finder said HIGH; verifier corrected)_  
+  _backfill_saved_zone_area fails OPEN on an indeterminate active map and permanently persists area_m2 / room_number computed from the WRONG map's raster — the poisoned value never self-heals  
+  Permanently wrong zone size shown in the card, a zone filed under the wrong room in the browse list (grouped by room_number per docs/dev/frontend/saved-zones.md), and a wrong area feeding the learning/duration-estimate p
+- **A4-CUSTOM-4** `mapping/mapping_services.py:1467` · Eufy only — zone_membership returns room_number=None on Roborock (no per-pixel raster), so the `membership.get('room_number') is not None` arm never fires there.  
+  _backfill_saved_zone_area overwrites a user's explicit 'Unassigned' filing — room_number=None means both 'never computed' and 'user chose Unassigned', and the read path cannot tell them apart  
+  A saved zone silently jumps out of the Unassigned section into a room section the user explicitly moved it out of. Filing only — docs are explicit that room_number never affects dispatch, so no wrong physical clean. Narr
+- **A4-CUSTOM-2** `mapping/mapping_services.py:1550` · Both (Eufy + Roborock). The card path additionally needs a live map source present (mss.present) for the dock-mascot fallback, which is the normal Eufy fork configuration. _(finder said HIGH; verifier corrected)_  
+  In custom mode with no resolvable layout, _resolve_active_scope hands writers THROWAWAY dicts — set_companion_anchor / set_segment_room_link mutate a garbage-collected object and report saved: True  
+  The mascot visibly stays where the user parked it for the rest of the session (the card never refetches after an anchor write) and silently snaps back on the next page load — repeatedly, with no error and no way for the
+- **A4-CUSTOM-6** `mapping/mapping_services.py:1752` · Eufy only in practice — image_segment_adjustments is written against the CV image_segments store, which only the Eufy CV segmentor populates.  
+  adjust_map_segment persists a map-level record keyed by a segment id that CV re-analysis recycles — a nudge authored for one room silently re-attaches to whichever segment inherits that id  
+  A displayed room outline is silently offset from its true position and falsely labelled as manually adjusted, and the correction the user made is lost from the room it belonged to. Display/linking only — segment polygons
+- **A5-FURNIS-1** `mapping/mapping_services.py:2108` · both _(finder said HIGH; verifier corrected)_  
+  map_id is documented as optional + auto-resolving on 6 presentation services but is vol.Required; a literal blank map_id silently mints and writes a phantom map bucket  
+  The service reports success and the setting is permanently invisible — the classic silent-wrong-answer shape. It also leaves a ghost map in .storage that surfaces through get_vacuum_maps / diagnostics as an extra map wit
+- **A6-ZONE-C-5** `mapping/mapping_services.py:2346` · Both.  
+  create_custom_layout force-flips segmentation_mode to "custom" with no record of the prior mode; delete only restores "cv" when zero layouts remain, so create-then-delete strands the user on a layout they never chose  
+  Creating and then cancelling a layout silently changes what the map card renders — a different room-to-segment mapping, different mascot anchors, possibly a furnished art layer. Presentation-level only (room CLEAN dispat
+- **A6-ZONE-C-4** `mapping/mapping_services.py:2503` · Eufy only — async_get_map_data_dict is the Eufy-only coordinator accessor (degrades to None elsewhere per docs/dev/frontend/saved-zones.md Wave 2), so on Roborock both fields simply stay None.  
+  create_saved_zone files area_m2 + room_number from whatever raster is live when the active map is indeterminate, and that wrong value can never be corrected  
+  A zone shows the wrong m² in the card list, is filed under a room from another map, and every ETA derived from it is wrong — permanently, with no UI path to fix the size. Needs the active-map signal blank at authoring ti
+- **A6-ZONE-C-6** `mapping/mapping_services.py:2545` · Both for the phantom-bucket mechanism. The rename trigger is Roborock-specific (map NAME as id); the Roborock select's state changing on an in-app rename is near-certain but is device behaviour I could not verify from source.  
+  Every handler in the block mints a persisted map bucket for an unknown map_id — including on the pure not-found and read-only clean paths  
+  All saved zones and custom layouts for a floor appear to vanish after a vendor-side map rename, with no error and no migration path — the data is intact in .storage under the old key but unreachable through any service.
+- **A6-ZONE-C-2** `mapping/mapping_services.py:2552` · Both — the zone step and its resolver are brand-agnostic. _(finder said HIGH; verifier corrected)_  
+  delete_saved_zone performs no reference check; run-profile and queue `zone` steps keep the dead id and are silently dropped at run time while the UI still lists them  
+  A saved run silently stops doing part of what the user built, and the UI keeps advertising the step that no longer runs. There is no warning at delete time and no reason code — the divergence is only discoverable by watc
+- **A7-ROBORO-1** `mapping/roborock_raw_map.py:158` · roborock  
+  A raster containing ZERO rooms is published as present:True — decode's own room_ids signal is computed and discarded  
+  The card's `isVaRenderActive()` (src/state/map.js:1201) only tests `mapRenderData()?.present`, so the VA (▦) backdrop switches on over a completely blank canvas, replacing the live Roborock map image the user was looking
+- **A7-ROBORO-3** `mapping/roborock_raw_map.py:163` · roborock (the identical raster-only version hash exists for eufy in map_source.eufy_version_of, out of scope here)  
+  `version` hashes the raster ONLY, while the payload also ships room_names — a room rename cannot invalidate a fetched render payload  
+  Immediately after renaming a room, that room's custom fill colour and its floor-type material silently disappear from the rendered map and it reverts to the default palette fill — with no error and no way to tell why. It
+- **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` · roborock  
+  ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
+  IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
+- **A2-POLYGO-4** `mapping/segment_primitives.py:221` · Both (brand-agnostic custom-layout authoring)  
+  `mask_to_polygon` keeps only the largest traced loop, so merging two non-touching shapes into one room silently discards every piece but the biggest  
+  A user merging a room with a detached alcove, a galley across a doorway, or a split L-shape whose two rects do not quite touch loses the smaller piece permanently. There is no error and no `skipped` signal. Because the c
 - **A6-TRK-2** `mapping/tracker.py:316` · both _(finder said HIGH; verifier corrected)_  
   resume_sampling is provably unreachable — _sampling_paused is a one-way latch, so all room attribution stops permanently at the first mid-job recharge  
   As soon as a run docks for an unplanned low-battery recharge, live per-room attribution dies for the whole rest of the run: no further `eufy_vacuum_room_completed` events, no dwell accrual, and the card's ETA timeline st
@@ -895,7 +985,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (170)</summary>
+<details><summary><strong>LOW</strong> (192)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1134,6 +1224,72 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-RB-6** `mapping/map_source_runtime.py:760` · roborock _(finder said MEDIUM; verifier corrected)_  
   image_entity_object silently drops the only per-vacuum candidate root on any HA-internals change, while the presence gate still reports the map as present  
   An HA core refactor of the entity-component registry (or an image platform load order change) turns the per-vacuum map lookup into an account-wide guess with no error, no warning log, and a presence gate that still says
+- **A1-SERVIC-7** `mapping/mapping_services.py:115` · Both (no runtime effect).  
+  19 schemas (lines 115-301) are dead — defined once, referenced nowhere — and two of them are near-duplicate twins of LIVE schemas whose defaults would be rejected by the live validators  
+  No runtime impact today. The risk is maintenance: two of the dead schemas are indistinguishable at a glance from the live ones they shadow, and their defaults have already diverged from the live validators.
+- **A1-SERVIC-6** `mapping/mapping_services.py:406` · Both.  
+  `backdrop_source` is the only enum-shaped field in the file left as free-form `cv.string`, is absent from services.yaml, and a typo produces a custom layout that can never hold segments and cannot be repaired  
+  A hand-written create_custom_layout call with a near-miss value produces a layout that looks created, cannot be authored against, and cannot be fixed — only deleted. Not reachable from the card, which always sends the li
+- **A3-IMAGE--8** `mapping/mapping_services.py:910` · Both; depends on whether Pillow is importable on the host.  
+  Upload persists width/height as None when Pillow is unavailable and still reports saved:True  
+  On a Pillow-less install a successful upload is recorded in a state that makes custom-segment authoring report a missing backdrop, and the variant row displays null dimensions. Confined to installs without Pillow, and th
+- **A3-IMAGE--4** `mapping/mapping_services.py:933` · Both. _(finder said MEDIUM; verifier corrected)_  
+  Re-uploading a map image does not invalidate image_segments, so a default analyze returns the previous image's segments  
+  An automation or script that uploads a refreshed map export and analyzes it gets the previous map's room geometry back with a success-shaped response and no staleness signal. The card path is immune (it always passes for
+- **A3-IMAGE--9** `mapping/mapping_services.py:945` · Both.  
+  Layout existence is validated before the executor write and re-checked afterwards only by a silent isinstance guard, so a concurrent layout delete orphans the upload  
+  A leaked PNG plus a phantom image_variants entry, and an upload the user believes attached to their layout that attached to nothing. Requires two service calls to overlap across a single await, so it is rare in practice;
+- **A3-IMAGE--10** `mapping/mapping_services.py:964` · Both.  
+  Four of the five services in this block have no services.yaml description, including the destructive delete_map_image  
+  No runtime behaviour change — this is documentation/UI surface only. The consequence is that the one destructive service in this area (delete_map_image, which removes a file from disk) is the least discoverable and least
+- **A3-IMAGE--11** `mapping/mapping_services.py:1089` · Both; any adapter that tunes min_area_pixels away from 1200. _(finder said MEDIUM; verifier corrected)_  
+  min_area_pixels silently overrides the adapter's configured tuning because absent is coerced to 1200 before the is-not-None check  
+  An adapter-level segmentation tuning knob that the adapter-config reference documents as configurable is silently inert for the omit-the-field case, so small rooms vanish from the segmentation with no diagnostic. Masked
+- **A4-CUSTOM-5** `mapping/mapping_services.py:1379` · Both — saved zones and queue zone steps exist for Eufy and Roborock alike. _(finder said MEDIUM; verifier corrected)_  
+  _generate_saved_zone_id / _generate_custom_layout_id guarantee uniqueness only against LIVE ids, so an id is reused after a delete — and saved-zone ids are durably referenced by queue steps and run profiles  
+  Wrong physical area cleaned by a saved queue step or run profile, with no warning — the failure class is the most serious in this subsystem, but the window is narrow (delete and create must land in the same wall-clock se
+- **A4-CUSTOM-7** `mapping/mapping_services.py:1650` · Both.  
+  set_custom_segments' user-facing description is two features stale — it claims map-level scope and an uploaded-backdrop requirement that the layout + live-dims paths superseded  
+  Documentation precision only, but it is the load-bearing kind: the description is exactly what would have warned a caller about CUSTOM-1's implicit target, and it omits the two parameters that make the live-layout path u
+- **A5-FURNIS-6** `mapping/mapping_services.py:1969` · both  
+  Clearing a home-scope art placement setdefaults an empty home_art dict, flipping the 'no furnished data' sentinel from None to a confident empty payload  
+  No visible effect today: the card's clear button only renders when hasArt is true (src/renderers/map.js:1581), so the empty-home_art state is unreachable from the UI, and the current consumers key off art_url/render_mode
+- **A5-FURNIS-3** `mapping/mapping_services.py:2076` · both _(finder said MEDIUM; verifier corrected)_  
+  _handle_set_room_viewport is the only furnished writer with no clamp and a corner-valued default — zoom:0 and cx/cy:0.0 persist verbatim  
+  Latent today — say so plainly: docs/advanced/08-map-configuration.md line 270 records the per-room viewport as "service-only today, not yet a panel control", and the card reads no viewport (src/state/map.js: "Per-room ar
+- **A5-FURNIS-5** `mapping/mapping_services.py:2130` · both — sharpest on Roborock, whose rendered image is trimmed to the occupied extent _(finder said MEDIUM; verifier corrected)_  
+  hidden_regions are stored as normalized rects with no record of the frame they were authored against, so a re-map re-aims the masks onto different physical areas — and masks hide content by default  
+  Map content silently disappears with no indication of why, on a map the user never edited — the mask looks like a rendering bug rather than stale state. Recovery exists but is undiscoverable unless the user remembers the
+- **A5-FURNIS-4** `mapping/mapping_services.py:2162` · both _(finder said MEDIUM; verifier corrected)_  
+  area_label_anchors are keyed by device room id and nothing prunes them on a room rebuild, so a re-import silently re-aims one room's dragged label onto a different room  
+  This is the direct answer to 'does the edit survive a re-import?': the bytes survive, their meaning does not, and nothing detects it. Cosmetic in consequence (a mis-placed m² chip, not a mis-cleaned room) but silently wr
+- **A6-ZONE-C-8** `mapping/mapping_services.py:2482` · Both (Eufy 0.5-10 m per side, Roborock 1 ft²-3.05 m²), per the caps quoted in the _handle_clean_saved_zones docstring at 2641-2642.  
+  Zone size limits are not enforced at author time, contradicting the doc — an un-cleanable zone can be saved and only fails when the user taps clean  
+  A zone that can never be cleaned is savable and looks valid in the list. The failure is loud (an error toast) rather than silent, hence LOW — but it is discovered at the wrong moment, and in a batch it blocks the other z
+- **A6-ZONE-C-7** `mapping/mapping_services.py:2614` · Both.  
+  Both clean handlers ignore the zone's `kind`, so a zone saved with any non-"clean" kind is still dispatched as a clean  
+  Latent today: no UI produces a non-"clean" kind, so only a direct service call reaches this. It matters because the field is publicly accepted, publicly documented as extensible, and the failure mode when someone uses it
+- **A7-ROBORO-7** `mapping/roborock_raw_map.py:96` · roborock  
+  The IMAGE-block dimension guard is `header_len >= 16`, but the four dims occupy the LAST 16 bytes of a header whose first 8 are the fixed type/len fields — anything under 24 reads dims out of the header's own metadata  
+  Not reachable on a well-formed v1 blob (roborock uses >= 24-byte IMAGE headers). It matters as the module's stated defence posture: the docstring at lines 14-16 says the byte walk is 'mirrored from vacuum-map-parser-robo
+- **A7-ROBORO-5** `mapping/roborock_raw_map.py:198` · roborock  
+  Two functions in this module read the same `flip_y` key with OPPOSITE defaults, so a decoded dict missing the key renders flipped but drift-checks unflipped  
+  Latent today: decode_roborock_v1_segments unconditionally sets flip_y True (line 126), so no shipped path produces a dict without the key. It bites the first time anything else builds a decoded dict — a b01/Qrevo decoder
+- **A7-ROBORO-2** `mapping/roborock_raw_map.py:200` · roborock _(finder said MEDIUM; verifier corrected)_  
+  raster_room_bboxes runs an O(width*height) pure-Python per-pixel loop directly on the Home Assistant event loop  
+  Downloading diagnostics stalls the entire HA event loop — every integration, every automation trigger, the frontend websocket — for the duration of the scan. On x86 that is roughly 0.1-0.3 s for a mid-size map; on a Pi-c
+- **A7-ROBORO-6** `mapping/roborock_raw_map.py:284` · roborock  
+  geometry_drift reports max_center_delta: 0.0 when there are no common rooms — an optimistic accumulator that survives an empty loop  
+  Diagnostics-readability only. The drift block is the tool a maintainer reads to decide whether the Roborock decode is correct on a real device; 'max_center_delta: 0.0' next to 'aligned: false' invites reading the geometr
+- **A2-POLYGO-8** `mapping/segment_primitives.py:305` · Both (brand-agnostic custom-layout authoring)  
+  A malformed primitive is silently skipped mid-segment, so a partially-drawn room saves as a success with no signal in the response  
+  A card-side serialisation regression (a renamed field, a missing key on one shape type) degrades silently to a partial room rather than failing loudly, and the replace-all save makes the partial version canonical. `skipp
+- **A2-POLYGO-6** `mapping/segment_primitives.py:342` · Neither at runtime (Eufy CV thresholds are empirically tuned); affects future adapter authors, which is exactly this module's advertised audience  
+  `compactness` docstring claims 'Range 0-1; 1 = circle' - the attainable maximum is pi/4 and a circle scores LOWER than a square  
+  No runtime defect - segmentor.py's thresholds (e.g. `compactness < 0.08` for `fragmented_candidate`) were tuned empirically against the actual function. The harm is to the stated purpose of this module: its header calls
+- **A2-POLYGO-7** `mapping/segment_primitives.py:526` · Neither at runtime (Eufy CV only, thresholds empirically tuned); affects future adapter authors  
+  `normalized_color_features`' luminance normalisation provably cancels out - the Rec.709 weights are dead arithmetic and tuning them changes nothing  
+  No behavioural defect - the output is correct chromaticity and segmentor.py's hue clustering is tuned against it. The trap is for maintenance: the docstring says 'illumination-normalized chromaticity features' and the co
 - **A6-TRK-5** `mapping/tracker.py:47` · both _(finder said MEDIUM; verifier corrected)_  
   _norm_room_name normalises differently from slugify_room_name — it merges room identities that rooms/ keeps distinct, and lacks the NFC canonicalisation slugify was given specifically to prevent this  
   Case (a): live dwell is attributed to the wrong room id whenever two rooms' names differ only in a separator character, and the card's reanchored timeline marks the wrong room complete. Case (b): for non-ASCII room names
@@ -1486,6 +1642,7 @@ file-scoped. All measured on `claude-opus-5[1m]` — rescale for a different mod
 | *1 agent* | sensor leftovers (platform setup + 4 entity modules) | 887 | **0.17M** | 13 min |
 | *1 agent* | infrastructure (const/models/entity_helpers/config_flow/…) | 1,169 | **0.19M** | 14 min |
 | *direct read ×11* | live_refresh · maps · dock · maintenance · counter_segmentation · debug_capture · diagnostics · onboarding · battery · sensor · setup | 8,709 | **~0.55M total (~50K each)** | — |
+| #18 | mapping services (**7+2+1 agents**, incl. meta-verifier) | 3,690 | 1.87M | 37 min |
 
 Cost tracks the **agent shape far more than subsystem size** — one audit covered 2,531 lines
 for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent count, not by LOC.
