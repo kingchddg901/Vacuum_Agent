@@ -28,11 +28,12 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED, EVENT_RUN_INCOMPLETE
 from .external_ingest import strip_samples
-from .manager import LearningManager
+from .manager import LearningManager, finalize_result_succeeded
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -400,23 +401,50 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             rebuild_csv=call.data["rebuild_csv"],
             forced_outcome_status=call.data.get("forced_outcome_status"),
         )
-        hass.bus.async_fire(
-            EVENT_JOB_FINISHED,
-            {
-                "vacuum_entity_id": call.data["vacuum_entity_id"],
-                "map_id": str(call.data["map_id"]),
-                "job_id": result.get("job_id") if isinstance(result, dict) else None,
-                "status": result.get("completed_job", {}).get("outcome", {}).get("status", "completed") if isinstance(result, dict) else "completed",
-                "reason_detail": result.get("completed_job", {}).get("outcome", {}).get("lifecycle_message") if isinstance(result, dict) else None,
-                "used_for_learning": result.get("completed_job", {}).get("outcome", {}).get("used_for_learning") if isinstance(result, dict) else None,
-                "finalized_at": result.get("completed_job", {}).get("finalized_at") if isinstance(result, dict) else None,
-                "room_count": result.get("completed_job", {}).get("job", {}).get("room_count") if isinstance(result, dict) else None,
-                "job_path": result.get("job_path") if isinstance(result, dict) else None,
-            },
-        )
+
+        # RP-002/RF-01: a refusal ({"finalized": False, "reason": ...}) is not a
+        # success -- the caller must be told, not handed a fabricated "completed"
+        # event. This is the documented manual retry; a caller relying on it needs
+        # to see WHY it did not run.
+        if not finalize_result_succeeded(result):
+            reason = result.get("reason", "unknown_error") if isinstance(result, dict) else "unknown_error"
+            raise ServiceValidationError(
+                f"finalize_learning_job refused: {reason}",
+                translation_domain=DOMAIN,
+                translation_key="finalize_learning_job_refused",
+                translation_placeholders={"reason": reason},
+            )
+
+        outcome = result.get("completed_job", {}).get("outcome", {})
+        status = outcome.get("status")
+        if not status:
+            # No fabricated "completed" default -- a success result with no outcome
+            # status is a shape we do not understand; warn instead of lying.
+            _LOGGER.warning(
+                "finalize_learning_job: success result for %s map %s carried no "
+                "outcome status -- omitting %s",
+                call.data["vacuum_entity_id"],
+                call.data["map_id"],
+                EVENT_JOB_FINISHED,
+            )
+        else:
+            hass.bus.async_fire(
+                EVENT_JOB_FINISHED,
+                {
+                    "vacuum_entity_id": call.data["vacuum_entity_id"],
+                    "map_id": str(call.data["map_id"]),
+                    "job_id": result.get("job_id"),
+                    "status": status,
+                    "reason_detail": outcome.get("lifecycle_message"),
+                    "used_for_learning": outcome.get("used_for_learning"),
+                    "finalized_at": result.get("completed_job", {}).get("finalized_at"),
+                    "room_count": result.get("completed_job", {}).get("job", {}).get("room_count"),
+                    "job_path": result.get("job_path"),
+                },
+            )
 
         # Fire run-incomplete event when rooms were missed.
-        incomplete_log = result.get("incomplete_run_log") if isinstance(result, dict) else None
+        incomplete_log = result.get("incomplete_run_log")
         if isinstance(incomplete_log, dict) and incomplete_log.get("missed_room_ids"):
             hass.bus.async_fire(
                 EVENT_RUN_INCOMPLETE,

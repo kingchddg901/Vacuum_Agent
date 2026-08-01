@@ -702,31 +702,34 @@ async def test_save_learning_snapshot_empty_manager(hass, learning_services):
 # ---------------------------------------------------------------------------
 
 async def test_finalize_learning_job_empty_state(hass, learning_services):
-    """[LS-16] Finalize with no active job saves a job file and fires the finished event."""
+    """[LS-16] RP-001/GATE4 Q1 superseded this test's premise: finalize with NO active
+    job record used to save a job file and fire the finished event unconditionally.
+    "A job record that does not exist cannot be finalized" -- it must now refuse
+    (no_active_job_record) and fire no event."""
     from custom_components.eufy_vacuum.const import EVENT_JOB_FINISHED
+    from homeassistant.exceptions import ServiceValidationError
     fired = []
     hass.bus.async_listen(EVENT_JOB_FINISHED, lambda e: fired.append(e))
 
     from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
-    await hass.services.async_call(
-        DOMAIN,
-        SERVICE_FINALIZE_LEARNING_JOB,
-        {
-            "vacuum_entity_id": _VAC,
-            "map_id": _MAP,
-            "battery_start": 85,
-            "battery_end": 60,
-            "started_at": "2026-01-01T09:00:00+00:00",
-            "ended_at": "2026-01-01T09:30:00+00:00",
-            "used_for_learning": False,
-            "rebuild_stats": False,
-        },
-        blocking=True,
-    )
-    # Allow event loop to process the fired event
+    with pytest.raises(ServiceValidationError, match="no_active_job_record"):
+        await hass.services.async_call(
+            DOMAIN,
+            SERVICE_FINALIZE_LEARNING_JOB,
+            {
+                "vacuum_entity_id": _VAC,
+                "map_id": _MAP,
+                "battery_start": 85,
+                "battery_end": 60,
+                "started_at": "2026-01-01T09:00:00+00:00",
+                "ended_at": "2026-01-01T09:30:00+00:00",
+                "used_for_learning": False,
+                "rebuild_stats": False,
+            },
+            blocking=True,
+        )
     await hass.async_block_till_done()
-    assert len(fired) == 1
-    assert fired[0].data["vacuum_entity_id"] == _VAC
+    assert fired == []
 
 
 # ---------------------------------------------------------------------------
@@ -965,6 +968,36 @@ async def test_finalize_with_active_job_covers_wall_clock_and_trace(hass, learni
         },
         blocking=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# [LS-21b] RP-002/RF-01: finalize refusal raises, not a fabricated "completed" event
+# ---------------------------------------------------------------------------
+
+async def test_finalize_service_refusal_raises_service_validation_error(hass, learning_services):
+    """[LS-21b] A finalize refusal (no active job for this call, per GATE4 Q1) must
+    raise ServiceValidationError carrying the reason -- not fire EVENT_JOB_FINISHED
+    with a fabricated status="completed" default."""
+    from homeassistant.exceptions import ServiceValidationError
+    from custom_components.eufy_vacuum.const import EVENT_JOB_FINISHED
+    from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
+
+    finished = []
+    hass.bus.async_listen(EVENT_JOB_FINISHED, lambda e: finished.append(e))
+
+    with pytest.raises(ServiceValidationError, match="no_active_job_record"):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
+            {
+                "vacuum_entity_id": _VAC, "map_id": _MAP,
+                "battery_start": 85, "battery_end": 60,
+                "started_at": "2026-01-01T09:00:00+00:00",
+                "used_for_learning": True, "rebuild_stats": False,
+            },
+            blocking=True,
+        )
+    await hass.async_block_till_done()
+    assert finished == [], "a refusal fired EVENT_JOB_FINISHED"
 
 
 # ---------------------------------------------------------------------------
@@ -1402,6 +1435,8 @@ async def test_finalize_sensor_fallback_via_adapter_entity(hass, learning_servic
     hass.states.async_set(_CT, "1800")   # 1800 s of cleaning time
     hass.states.async_set(_CA, "25.5")   # 25.5 m² cleaned
 
+    # RP-001/GATE4 Q1: finalize requires a stored active-job record.
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
@@ -1840,6 +1875,8 @@ async def test_finalize_rebuild_csv(hass, learning_services):
     from custom_components.eufy_vacuum.const import DOMAIN
     from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
 
+    # RP-001/GATE4 Q1: finalize requires a stored active-job record.
+    _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
