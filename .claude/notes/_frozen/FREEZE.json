@@ -1,6 +1,6 @@
 {
- "frozen_at_sha": "c7d2ed5e0aa232d4a2813c72162a8fe32c492824",
- "frozen_at": "2026-07-31T20:24:47",
+ "frozen_at_sha": "00a3dcbff802870251a58e4a40072ad716a4a9bb",
+ "frozen_at": "2026-07-31T20:33:42",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
@@ -39,7 +39,7 @@
   ".claude/notes/_frozen/baseline/diagnostics-BEFORE.json": "583452ac252d5cdc",
   ".claude/notes/_frozen/baseline/ivy-run-BEFORE.log": "6c525468d54c57f3",
   ".claude/notes/_frozen/baseline/phase-b-coverage.json": "e11cb84cedd2c86f",
-  ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json": "510a7eb1f7c9039d",
+  ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json": "c51a9742bb71dc71",
   ".claude/notes/_frozen/baseline/phase-c-answers.json": "64dac2705658a746",
   ".claude/notes/_frozen/baseline/README.md": "97bbdfca5d81bd3b",
   ".claude/notes/_frozen/highly-aggressive-audit.md": "650895a2097cc647"
