@@ -2029,6 +2029,15 @@ class ActiveJobTracker:
         finalize_result: dict[str, Any] | None,
     ) -> dict[str, Any]:
         """Mark one tracked job finalized in runtime storage."""
+        # RP-012/RF-31 (TRK-1): this is the terminal chokepoint every path
+        # reaches -- cancel, strand, success -- so release the mapping
+        # tracker's hold on this job HERE, not only from the lifecycle
+        # finalize path's own finally block (which a cancel/strand never goes
+        # through). end_job itself flushes the currently-held room first
+        # (TRK-4) if its confidence cleared the fire threshold.
+        tracker = self._manager.hass.data.get(DOMAIN, {}).get("mapping_tracker")
+        if tracker is not None:
+            tracker.end_job(vacuum_entity_id=vacuum_entity_id)
         self._manager.data.setdefault("active_jobs", {})
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         active_job = self._manager.data["active_jobs"][vacuum_entity_id].get(str(map_id), {})

@@ -735,11 +735,18 @@ async def test_lifecycle_recharge_suppresses_finalize_until_binary_clears(hass):
         lifecycle.remove(hass)
 
 
-async def test_lifecycle_finalize_commits_mapping_tracker_job(hass):
-    """[LC-7] on finalize, the finally block runs the mapping tracker's end_job on the
-    executor so position samples gathered during the job are flushed to room bounds.
-    Mirrors [LC-1] but seeds a mapping_tracker into hass.data so the otherwise-skipped
-    end_job arm runs; a regression here would silently break spatial learning."""
+async def test_lifecycle_finalize_calls_mark_active_job_finalized(hass):
+    """[LC-7] SUPERSEDED (RP-012/RF-31, TRK-1). The finally block used to run the
+    mapping tracker's end_job directly, on the executor, so position samples
+    gathered during the job are flushed to room bounds. mark_active_job_finalized
+    (the terminal chokepoint every path reaches -- cancel, strand, success) now
+    releases the tracker's hold itself, and does so ON THE LOOP: TRK-4 may fire
+    an HA event (a flushed room_completed), which is unsafe from an executor
+    thread -- the old rationale for wrapping this call no longer holds. This
+    mock-manager test can't exercise mark_active_job_finalized's OWN internals
+    (see test_mark_finalized_ends_mapping_tracker_job in test_jobs_active_job.py
+    for that, against the real method); it verifies the call still reaches that
+    chokepoint on a successful finalize."""
     m = _wire_lifecycle(hass)
     m.finalize_learning_for_active_job = AsyncMock(return_value={
         "job_id": "j1", "job_path": None,
@@ -757,8 +764,7 @@ async def test_lifecycle_finalize_commits_mapping_tracker_job(hass):
     await hass.async_block_till_done()
     lifecycle.remove(hass)
     assert len(finished) == 1
-    # the finally block committed the tracker's job on the executor
-    tracker.end_job.assert_called_once_with(vacuum_entity_id=_VAC)
+    m.mark_active_job_finalized.assert_called_once()
 
 
 async def test_lifecycle_records_mop_wash_on_dock_wash_state(hass):

@@ -352,17 +352,13 @@ def register(hass: HomeAssistant) -> None:
                     # event — running them again here would be exactly A2-LIFE-1's
                     # all-null duplicate event.
                     if finalize_result_succeeded(finalize_result):
-                        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
-                        if tracker is not None:
-                            # end_job clears the tracker's per-job state as the
-                            # job ends; kept on the executor to stay off the loop.
-                            await hass.async_add_executor_job(
-                                functools.partial(
-                                    tracker.end_job,
-                                    vacuum_entity_id=vacuum_entity_id,
-                                )
-                            )
-
+                        # RP-012/RF-31 (TRK-1): mark_active_job_finalized now
+                        # releases the mapping tracker's hold itself (the
+                        # terminal chokepoint every path reaches) -- no separate
+                        # call needed here. It also may flush a room_completed
+                        # (TRK-4), which fires an HA event and so must run ON
+                        # THE LOOP, not from an executor thread (the old
+                        # rationale for wrapping this call no longer holds).
                         manager_local.mark_active_job_finalized(
                             vacuum_entity_id=vacuum_entity_id,
                             map_id=map_id,
@@ -419,17 +415,9 @@ def register(hass: HomeAssistant) -> None:
                             )
                         any_changes = True
                     elif finalize_raised:
-                        # A genuine error (not a refusal shape) — still end the tracker
-                        # job and clear the active_job record so it can never be
-                        # stranded as status:started regardless of the failure.
-                        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
-                        if tracker is not None:
-                            await hass.async_add_executor_job(
-                                functools.partial(
-                                    tracker.end_job,
-                                    vacuum_entity_id=vacuum_entity_id,
-                                )
-                            )
+                        # A genuine error (not a refusal shape) — mark_active_job_finalized
+                        # (TRK-1) ends the tracker job too, so the active_job record and
+                        # the tracker's hold can never be stranded regardless of the failure.
                         manager_local.mark_active_job_finalized(
                             vacuum_entity_id=vacuum_entity_id,
                             map_id=map_id,

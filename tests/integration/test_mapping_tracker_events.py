@@ -192,6 +192,82 @@ async def test_room_completed_event(hass, tracker, monkeypatch):
     assert any(d["room_id"] == "3" and d["room_name"] == "Kitchen" for d in events)
 
 
+# ---------------------------------------------------------------------------
+# RP-012/RF-31: TRK-3 (hold freezes accrual) + TRK-4 (end_job flushes the
+# currently-held room) + TRK-1 (mark_active_job_finalized releases the hold)
+# ---------------------------------------------------------------------------
+
+async def test_hold_freezes_confidence_accrual(hass, tracker, monkeypatch):
+    """[MTE-12] TRK-3: a HOLD (blank/unmatched signal) must not accrue dwell
+    time or confidence -- the robot's actual location during the hold is
+    unknown, so crediting wall-clock time there would let a long hold alone
+    push confidence to the fire threshold without any observed presence. The
+    room id itself stays held (display continuity)."""
+    _register(tracker)
+    target = {"name": "Kitchen"}
+    monkeypatch.setattr(tracker, "_read_active_cleaning_target", lambda vac: target["name"])
+    job = {"map_id": _MAP, "rooms": _ROOMS}
+
+    tracker._update_confidence(_VAC, 0.0, 0.0, job)  # enters room 3
+    conf = tracker._confidence[_VAC]
+    before_time = conf.time_in_room_seconds
+    before_confidence = conf.confidence
+    before_movement = conf.movement_count
+
+    target["name"] = ""  # blank signal this tick -> HOLD
+    tracker._update_confidence(_VAC, 500.0, 500.0, job)  # a large "move" during the hold
+
+    assert conf.current_room_id == "3"  # room id held, not cleared
+    assert conf.time_in_room_seconds == before_time
+    assert conf.confidence == before_confidence
+    assert conf.movement_count == before_movement
+
+
+async def test_end_job_flushes_held_room_past_threshold(hass, tracker):
+    """[MTE-13] TRK-4: end_job flushes the CURRENTLY-HELD room as room_completed
+    if its confidence cleared the fire threshold -- _update_confidence only
+    fires room_completed on a room SWITCH, so the room a job finishes IN would
+    otherwise never get one."""
+    _register(tracker)
+    events: list = []
+    hass.bus.async_listen(EVENT_ROOM_COMPLETED, lambda e: events.append(e.data))
+
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms={
+        "3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"},
+    })
+    conf = tracker._confidence[_VAC]
+    conf.current_room_id = "3"
+    conf.confidence = 0.95
+    conf.entered_at = utc_now() - timedelta(seconds=45)
+    conf.time_in_room_seconds = 45.0
+
+    tracker.end_job(vacuum_entity_id=_VAC)
+    await hass.async_block_till_done()
+
+    assert any(d["room_id"] == "3" and d["room_name"] == "Kitchen" for d in events)
+    assert _VAC not in tracker._active_job  # job state still cleared as before
+
+
+async def test_end_job_does_not_flush_below_threshold(hass, tracker):
+    """[MTE-14] control: end_job does NOT fabricate a room_completed for a room
+    whose confidence never cleared the fire threshold."""
+    _register(tracker)
+    events: list = []
+    hass.bus.async_listen(EVENT_ROOM_COMPLETED, lambda e: events.append(e.data))
+
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms={
+        "3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"},
+    })
+    conf = tracker._confidence[_VAC]
+    conf.current_room_id = "3"
+    conf.confidence = 0.10  # well below CONFIDENCE_THRESHOLD
+
+    tracker.end_job(vacuum_entity_id=_VAC)
+    await hass.async_block_till_done()
+
+    assert events == []
+
+
 def test_detect_current_room_resolution(tracker, monkeypatch):
     """[MTE-8b] _detect_current_room resolves the native target NAME to a
     non-transition job room by slug/name, and HOLDS (None) on blank / sentinel /

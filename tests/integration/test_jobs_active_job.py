@@ -400,6 +400,32 @@ def test_mark_finalized_without_result(tracker, manager):
     assert "finalize_summary" not in job
 
 
+def test_mark_finalized_ends_mapping_tracker_job(hass, tracker, manager):
+    """[AJI-41] RP-012/RF-31 (TRK-1): mark_active_job_finalized -- the terminal
+    chokepoint every path reaches (cancel, strand, success) -- releases the
+    mapping tracker's hold on this job. Cancel/strand never went through the
+    lifecycle finalize path's own finally block, so before this the tracker
+    was stuck holding a cancelled/stranded job's state for the NEXT run."""
+    _seed(manager)
+    fake_tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
+
+    tracker.mark_active_job_finalized(
+        vacuum_entity_id=_VAC, map_id=_MAP, finalize_result=None)
+
+    fake_tracker.end_job.assert_called_once_with(vacuum_entity_id=_VAC)
+
+
+def test_mark_finalized_no_tracker_registered_does_not_raise(hass, tracker, manager):
+    """[AJI-42] no mapping_tracker registered (e.g. no position entities
+    configured) -- mark_active_job_finalized must still complete normally."""
+    _seed(manager)
+    hass.data[DOMAIN].pop("mapping_tracker", None)
+    job = tracker.mark_active_job_finalized(
+        vacuum_entity_id=_VAC, map_id=_MAP, finalize_result=None)
+    assert job["finalized"] is True
+
+
 # ---------------------------------------------------------------------------
 # async_cancel_active_job — return-to-base + terminal-state polling
 # ---------------------------------------------------------------------------

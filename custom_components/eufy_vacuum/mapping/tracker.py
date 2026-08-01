@@ -318,7 +318,32 @@ class MappingTracker:
         self._sampling_paused.discard(vacuum_entity_id)
 
     def end_job(self, *, vacuum_entity_id: str) -> None:
-        """Notify tracker that a cleaning job has ended."""
+        """Notify tracker that a cleaning job has ended.
+
+        RP-012/RF-31 (TRK-4): flush the CURRENTLY-HELD room as room_completed
+        first if its confidence cleared the fire threshold -- _update_confidence
+        only fires room_completed on a ROOM SWITCH, so the room the job actually
+        finished IN would otherwise never get one.
+        """
+        job = self._active_job.get(vacuum_entity_id)
+        conf_state = self._confidence.get(vacuum_entity_id)
+        if (
+            job is not None
+            and conf_state is not None
+            and conf_state.current_room_id is not None
+            and conf_state.confidence >= CONFIDENCE_THRESHOLD
+            and conf_state.current_room_id not in conf_state.fired_rooms
+        ):
+            self._fire_room_completed(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=job.get("map_id"),
+                room_id=conf_state.current_room_id,
+                room_data=job.get("rooms", {}).get(conf_state.current_room_id, {}),
+                confidence=conf_state.confidence,
+                duration_seconds=conf_state.time_in_room_seconds,
+                entered_at=conf_state.entered_at,
+            )
+            conf_state.fired_rooms.add(conf_state.current_room_id)
         self._active_job.pop(vacuum_entity_id, None)
         self._sampling_paused.discard(vacuum_entity_id)
         if vacuum_entity_id in self._confidence:
@@ -446,8 +471,12 @@ class MappingTracker:
         current_room_id = self._detect_current_room(vacuum_entity_id, rooms)
 
         if current_room_id is None:
-            if conf_state.current_room_id is not None:
-                conf_state.update(vx, vy)   # keep accruing dwell for the held room
+            # RP-012/RF-31 (TRK-3): a HOLD (blank/transition/unknown signal) keeps
+            # the room id (display continuity) but must NOT accrue confidence --
+            # the robot's actual location during the hold is unknown, so crediting
+            # wall-clock/movement here let a long hold alone push confidence to
+            # the fire threshold without any observed presence. Freeze: hold the
+            # room id only, call conf_state.update() for NOTHING during a hold.
             return
 
         if current_room_id != conf_state.current_room_id:
