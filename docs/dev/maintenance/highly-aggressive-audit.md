@@ -1457,10 +1457,20 @@ Ordered by (verified) × (blast radius) × (cost), not by severity label.
 
 ## Calibration
 
-Measured cost per audit, for scoping future runs.
+Measured cost per audit, for scoping future runs. **Complete** — every run in the campaign,
+plus the cheap methods. Audits #1-#6 were scoped by CONTRACT ("the exactly-once finalize
+lifecycle") rather than by file list, so LOC is not meaningful for them; #7 onward were
+file-scoped. All measured on `claude-opus-5[1m]` — rescale for a different model.
 
 | Audit | Subsystem | LOC | Tokens | Wall |
 |---|---|---|---|---|
+| #1 | active-job lifecycle + exactly-once finalize *(calibration pass)* | — | 1.86M | 41 min |
+| #2 | learning persistence | — | 1.77M | 32.6 min |
+| #3 | external-run ingestion | — | 1.82M | 31.9 min |
+| #4 | adapter contract | — | 1.84M | 37.8 min |
+| #5 | error tracker | — | 1.53M | 30.2 min |
+| #6 | card / frontend (6 by feature vertical) | — | 2.01M | 36.5 min |
+| *sweep* | forgotten-sibling sweep (**4 agents**; orchestrator did the mechanical discovery) | — | **0.76M** | 23.5 min |
 | #7 | dispatch + queue | 1,515 | 1.58M | 23 min |
 | #8 | profiles + planning | 3,677 | 1.95M *(includes a re-verify forced by a harness bug)* | 40 min |
 | #9 | jobs / run execution | 3,914 | 1.50M | 23 min |
@@ -1479,6 +1489,14 @@ Measured cost per audit, for scoping future runs.
 
 Cost tracks the **agent shape far more than subsystem size** — one audit covered 2,531 lines
 for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent count, not by LOC.
+
+**Finder false-positive rate, from the six runs that recorded it** (candidates -> survived):
+57->52, 52->45, 59->49, 44->39, 52->51. So the finder stage runs roughly 5-15% speculative,
+and the verifiers earn their ~22% of spend on that alone — before the severity corrections,
+which are the larger effect. Audit #6 (frontend) is the instructive outlier: only ONE finding
+killed, but 2 CRITICAL->HIGH and 10 HIGH->MEDIUM. A rendered string is easier to prove than a
+race, so frontend findings were less speculative but their user impact was more often
+overstated. Expect verifiers to shift from killing to re-grading on presentation layers.
 
 **The ladder, measured.** Roughly an order of magnitude separates each rung:
 
