@@ -1,0 +1,182 @@
+# MATERIALIZATION-02 — tranche-2 reproducers (wave 2)
+
+**Main agent, 2026-08-01, against master `1b32515`+.** Tranche 2 needs **35**
+reproducer artifacts (33 new, 2 extensions) against tranche 1's 5, so the stubs
+were consolidated first.
+
+## The harness
+
+`.claude/notes/_proof_harness.py` — fake hass (states/services/bus/loop),
+`ManagerStub` with a REAL `data` dict and inert unknown-attribute no-ops,
+fixture builders (`active_job`, `room_phase`, `break_phase`, `managed_rooms`,
+`seed_map`, `learning_store`, `corrupt`), and the `Proof` verdict reporter.
+
+**The inertness rule** (stated in the module docstring, load-bearing): the
+harness provides scaffolding ONLY — it must never implement, emulate or
+normalize production behaviour. Every proof drives the real production
+function. A harness that "helpfully" corrected something would make all 33
+proofs pass for the wrong reason at once: the tranche-1 battery lesson
+multiplied by 33.
+
+**The verdict contract**: each case declares mutually-exclusive BEFORE and AFTER
+shapes. Anything else is `UNEXPECTED SHAPE` and exits 1 — a proof that tolerates
+a third state proves nothing. Both-true is also UNEXPECTED (the shapes must be
+exclusive), so a sloppy proof reports itself.
+
+## Wave 2 — 8 of 8 DONE, 23 cases
+
+Verdicts as of `6598b0c` (RP-010/011/012 repaired and landed; the rest awaiting
+assignment):
+
+| proof | packet | cases | verdict now |
+|---|---|---|---|
+| `_proof_cancel_chokepoint.py` | RP-010 | 3 | 3 AFTER ✅ |
+| `_proof_watchdog_wedge.py` | RP-011 | 3 | 3 AFTER ✅ |
+| `_proof_tracker_lifecycle.py` | RP-012 | 4 | 4 AFTER ✅ |
+| `_proof_phase_validity.py` | RP-013a | 2 | 2 BEFORE (blocked — see below) |
+| `_proof_completed_evidence.py` | RP-013c + **013d** | 3 | 3 BEFORE |
+| `_proof_group_allocation.py` | RP-013b | 2 | 2 BEFORE |
+| `_proof_recorder_scope.py` | RP-013e | 3 | 3 BEFORE |
+| `_proof_inflight_askers.py` | RP-014 | 3 | 3 BEFORE |
+
+Every packet's `expected_before` fragment reproduces verbatim, including
+RP-014's three (`no tick for external` / `dock action allowed mid-external` /
+`sensor: none`) and RP-013e's two (`finished bucket absorbed sample` /
+`battery=None`).
+
+Notable confirmations:
+
+- **RP-011 case 3** drives the REAL captured tick closure; the `RuntimeError`
+  traceback in its output IS the evidence — production's `_process` task died on
+  slot 1 and never reached `vacuum.ivy`.
+- **RP-012 case 2** confirms `#9:A4-AJ-1` (HIGH) exactly as the corpus states
+  it: the recharge-end branch is unreachable because the early
+  `if not is_charging(): return` guarantees charging is True, so the same pure
+  state read can never be False. Seconds stay 0, the flag stays set, the sampler
+  stays paused for the rest of the run.
+- **RP-013a** shows the record keeps the real 120s/180s per-room timings while
+  `transit_capture_valid=False` tells every consumer not to trust them.
+- **RP-013e case 3** drives the REAL `job_metrics.register()` subscription set
+  and prints it: `['sensor.alfred_cleaning_area', 'sensor.alfred_cleaning_time']`
+  — the adapter-declared battery entity is simply not there. `last_battery_percent`
+  has **no writer anywhere in the integration**, so every counter sample has
+  carried `battery: None` since the key was introduced. That is OBS-B-3's null
+  per-room `battery_delta` located at source, not inferred.
+- **RP-014 case 2** is the actuating one: with an app-started run in flight and
+  the robot at the dock (mid-run recharge or wash), `get_dock_action_status`
+  returns `allowed=True, reason='ready'` for wash / dry / empty.
+
+## Three mis-models caught by the UNEXPECTED arm
+
+Recorded so the next author does not repeat them:
+
+1. **RP-010 double-cancel** — first draft stubbed finalize as `None` for both
+   cancels; the summary then survived and the case reported UNEXPECTED. The real
+   mechanism is that the second cancel receives a REFUSAL dict, and
+   `mark_active_job_finalized` only rewrites `finalize_summary` when it gets a
+   dict — so the summary is overwritten with Nones.
+2. **RP-012 phase advance** — first draft asserted `current_room_id` is cleared;
+   `advance_active_job_phase` actually MOVES it to the next phase's room. The
+   real divergence is sharper: `current_room_id=2` while
+   `_native_current_room_id=1`, i.e. the two pointers actively disagree.
+3. **Harness, Python 3.14** — `asyncio.get_event_loop()` no longer auto-creates
+   a loop for a sync caller. Fixed once in the harness (idle-loop fallback);
+   would otherwise have broken every sync proof.
+
+## Two more harness fixes, both found by wave 2's last proofs
+
+Recorded because both are one-line-class fixes that would each have cost an
+author an iteration to rediscover:
+
+4. **`hass` must be HASHABLE.** HA's `@singleton` decorator — used by *every*
+   registry accessor (`entity_registry.async_get`, device, area, issue) — wraps
+   its lookup in `functools.lru_cache`, which hashes the hass argument.
+   `SimpleNamespace` defines `__eq__`, so Python sets `__hash__ = None` and the
+   lookup dies with `TypeError: unhashable type`. `make_hass` now returns a
+   `FakeHass` subclass restoring identity hash **and identity equality** — value
+   equality would let the lru_cache hand one proof's registry to another.
+5. **Sync proofs must drain the idle loop.** Production schedules its saves with
+   `hass.async_create_task`; in a sync proof those land on the never-run idle
+   loop and Python prints `Task was destroyed but it is pending` for each at
+   exit — noise that would bury a real signal. `H.drain_idle_loop()` (called from
+   `H.run`) RUNS them. Cancelling or swallowing was rejected: that would make the
+   harness decide the task didn't matter, and a proof depending on a scheduled
+   save would silently lose it.
+
+## ✅ CLOSED — the RP-012 repair defect the proof found
+
+`RP-012(b)` moved recharge-end resolution into `resolve_mid_job_recharge_resumed`
+but dropped the commanded-dock guard, so a job parked on a `charge_wait` phase
+accrued `recharge_seconds_accumulated=300` for a PLANNED dock. Proof case 4
+caught it; **`6598b0c` (RP-012(d))** ported the `is_dock_polled_phase`
+early-return across with the original's reasoning referenced in-comment, plus a
+regression test. `_proof_tracker_lifecycle.py` now reports **4 AFTER**.
+
+Worth keeping: the defect existed only *because* the repair worked. Pre-repair
+the accrual branch was dead code, so the missing guard had nothing to guard. A
+repair can make a latent second defect reachable, and only a reproducer that
+asserts the post-repair invariant catches it.
+
+## ⚠ TWO FINDINGS FOR THE PACKET AUTHOR — RP-014 is under-scoped
+
+**1. RP-014 names five sites; there are seventeen.** Grepping the literal set:
+
+| module | count |
+|---|---|
+| `core/manager.py` | 6 |
+| `jobs/active_job.py` | 6 |
+| `dock/manager.py`, `listeners/job_progress.py`, `listeners/lifecycle.py`, `learning/external_run.py`, `planning/run_plan.py` | 1 each |
+
+The packet's per-site adjudication table must either cover all 17 or state
+explicitly which are deliberate queue questions and why. Shipping the table at 5
+would leave 12 unadjudicated sites looking blessed.
+
+**2. The repair campaign propagated an eighteenth.** `RP-012(b)` (`47f9a25`)
+added `if active_job.get("status") not in {"started", "paused"}` to the new
+`resolve_mid_job_recharge_resumed`. That is the sibling-sweep pattern exactly —
+vocabulary spreading by hand-copied literal — and it happened *inside the audit
+that exists to stop it*, three commits before the packet that would have caught
+it. Whatever RP-014 lands must include a gate, not just a sweep, or the
+population regrows.
+
+## ⏳ STILL BLOCKED — RP-013a / RP-013c hardware precondition
+
+**RP-013a's hardware precondition is unmet.** The packet requires a stepped-run
+(charge_wait + 2-room group) BEFORE capture and says to capture it if tranche-1's
+HC batch lacked one. It did — HC-0/1/2 covered cancel, reload and re-segment, all
+single/simple runs. **A stepped-run baseline is a decaying item and must be
+captured before RP-013a lands.** RP-013c additionally wants a cancelled stepped
+run (one extra Alfred cancel mid-phase-2, same session).
+
+> **HELD 2026-08-01 (Chris).** The stepped-run capture is deferred; work
+> continues around it. **RP-013a and RP-013c are therefore BLOCKED from
+> assignment** — not because their reproducers are missing (both are materialized
+> and reproducing) but because landing them without a before-picture destroys the
+> only chance to tell "we broke it" from "it always did that". This is the one
+> item in the plan that decays: the longer the repair waits, the more the
+> pre-repair behaviour is a memory rather than an artifact. Everything else in
+> wave 2 (RP-013b, RP-013d, RP-013e, RP-014) is unaffected and may proceed.
+>
+> **Capture recipe when it resumes** (two runs, one session, ~1h mostly
+> unattended): build a profile `[room] → charge_wait 90% → [room, room]`, start
+> below 90% so the charge step actually waits, arm
+> `eufy_vacuum.debug_capture_start` with `size: 50000, max_minutes: 120`.
+> **Run A** — let all three phases finish (HC-2b). **Run B** — same profile,
+> cancel from the card during phase 2, after the charge (RP-013c's exact shape).
+> Expect in run A: `transit_capture_valid=False` despite both room phases
+> capturing cleanly. In run B: the incomplete-run log listing phase 1's finished
+> room as missed.
+
+**Ride-along, free when that session happens:** RP-013e's hardware gate wants a
+non-null per-room `battery_delta` in a post-repair capture (closes OBS-B-3
+observably). Same run, no extra work — worth pinning to the same session rather
+than costing a second one.
+
+## Next
+
+1. Hostile review pass over the 8 wave-2 proofs before waves 3–6 (recommended —
+   tranche 1's review caught two mis-models).
+2. Assign RP-013b / RP-013d / RP-013e / RP-014 (unblocked). RP-014 needs its
+   site table widened to 17 first — see above.
+3. Waves 3–6: ~27 more artifacts.
+4. Ledger/corpus closure marking for tranche-1's ~40 findings, plus RP-010..012.

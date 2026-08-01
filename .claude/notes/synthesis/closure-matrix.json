@@ -1,0 +1,4393 @@
+[
+{
+"canonical_id": "#7:DQ-Q-1",
+"finding_id": "DQ-Q-1",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#7:DQ-Q-2",
+"finding_id": "DQ-Q-2",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#7:DQ-Q-3",
+"finding_id": "DQ-Q-3",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#7:DQ-Q-4",
+"finding_id": "DQ-Q-4",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#7:DQ-Q-5",
+"finding_id": "DQ-Q-5",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#7:DQ-Q-6",
+"finding_id": "DQ-Q-6",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#7:DQ-Q-7",
+"finding_id": "DQ-Q-7",
+"severity": "LOW",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#7:DQ-PAY-1",
+"finding_id": "DQ-PAY-1",
+"severity": "HIGH",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#7:DQ-PAY-2",
+"finding_id": "DQ-PAY-2",
+"severity": "HIGH",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#7:DQ-PAY-4",
+"finding_id": "DQ-PAY-4",
+"severity": "MEDIUM",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#7:DQ-PAY-5",
+"finding_id": "DQ-PAY-5",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#7:DQ-PAY-6",
+"finding_id": "DQ-PAY-6",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#7:DQ-PAY-7",
+"finding_id": "DQ-PAY-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "#7:DQ-DE-1",
+"finding_id": "DQ-DE-1",
+"severity": "CRITICAL",
+"families": [
+"RF-08"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#7:DQ-DE-2",
+"finding_id": "DQ-DE-2",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#7:DQ-DE-3",
+"finding_id": "DQ-DE-3",
+"severity": "LOW",
+"families": [
+"RF-18",
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#7:DQ-DE-4",
+"finding_id": "DQ-DE-4",
+"severity": "MEDIUM",
+"families": [
+"RF-18",
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#7:DQ-DE-5",
+"finding_id": "DQ-DE-5",
+"severity": "LOW",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#7:DQ-ACT-1",
+"finding_id": "DQ-ACT-1",
+"severity": "CRITICAL",
+"families": [
+"RF-08"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#7:DQ-ACT-2",
+"finding_id": "DQ-ACT-2",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#7:DQ-ACT-3",
+"finding_id": "DQ-ACT-3",
+"severity": "HIGH",
+"families": [
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#7:DQ-ACT-5",
+"finding_id": "DQ-ACT-5",
+"severity": "HIGH",
+"families": [
+"RF-08"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#7:DQ-ACT-6",
+"finding_id": "DQ-ACT-6",
+"severity": "MEDIUM",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#7:DQ-ACT-7",
+"finding_id": "DQ-ACT-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "#7:DQ-ZONE-1",
+"finding_id": "DQ-ZONE-1",
+"severity": "HIGH",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#7:DQ-ZONE-2",
+"finding_id": "DQ-ZONE-2",
+"severity": "MEDIUM",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#7:DQ-ZONE-3",
+"finding_id": "DQ-ZONE-3",
+"severity": "MEDIUM",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#7:DQ-ZONE-4",
+"finding_id": "DQ-ZONE-4",
+"severity": "MEDIUM",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#7:DQ-ZONE-5",
+"finding_id": "DQ-ZONE-5",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY",
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#7:DQ-PH-1",
+"finding_id": "DQ-PH-1",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#7:DQ-PH-2",
+"finding_id": "DQ-PH-2",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#7:DQ-PH-3",
+"finding_id": "DQ-PH-3",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#7:DQ-PH-5",
+"finding_id": "DQ-PH-5",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#7:DQ-PH-6",
+"finding_id": "DQ-PH-6",
+"severity": "LOW",
+"families": [
+"RF-11",
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#8:A1-PP-RES-2",
+"finding_id": "A1-PP-RES-2",
+"severity": "HIGH",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A1-PP-RES-3",
+"finding_id": "A1-PP-RES-3",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A1-PP-RES-4",
+"finding_id": "A1-PP-RES-4",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A1-PP-RES-5",
+"finding_id": "A1-PP-RES-5",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A1-PP-RES-6",
+"finding_id": "A1-PP-RES-6",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A1-PP-RES-7",
+"finding_id": "A1-PP-RES-7",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A1-PP-RES-8",
+"finding_id": "A1-PP-RES-8",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A1-PP-RES-9",
+"finding_id": "A1-PP-RES-9",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A2-PP-CAP-1",
+"finding_id": "A2-PP-CAP-1",
+"severity": "HIGH",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A2-PP-CAP-2",
+"finding_id": "A2-PP-CAP-2",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A2-PP-CAP-3",
+"finding_id": "A2-PP-CAP-3",
+"severity": "LOW",
+"families": [
+"RF-18",
+"RF-19"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A2-PP-CAP-4",
+"finding_id": "A2-PP-CAP-4",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A2-PP-CAP-6",
+"finding_id": "A2-PP-CAP-6",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A2-PP-CAP-7",
+"finding_id": "A2-PP-CAP-7",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-1",
+"finding_id": "A3-PP-CRUD-1",
+"severity": "HIGH",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-2",
+"finding_id": "A3-PP-CRUD-2",
+"severity": "HIGH",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-3",
+"finding_id": "A3-PP-CRUD-3",
+"severity": "HIGH",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-4",
+"finding_id": "A3-PP-CRUD-4",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-5",
+"finding_id": "A3-PP-CRUD-5",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-6",
+"finding_id": "A3-PP-CRUD-6",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-7",
+"finding_id": "A3-PP-CRUD-7",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A3-PP-CRUD-8",
+"finding_id": "A3-PP-CRUD-8",
+"severity": "LOW",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A4-PP-RP-2",
+"finding_id": "A4-PP-RP-2",
+"severity": "CRITICAL",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A4-PP-RP-1",
+"finding_id": "A4-PP-RP-1",
+"severity": "HIGH",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A4-PP-RP-3",
+"finding_id": "A4-PP-RP-3",
+"severity": "HIGH",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#8:A4-PP-RP-4",
+"finding_id": "A4-PP-RP-4",
+"severity": "HIGH",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A4-PP-RP-5",
+"finding_id": "A4-PP-RP-5",
+"severity": "LOW",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A4-PP-RP-6",
+"finding_id": "A4-PP-RP-6",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A4-PP-RP-7",
+"finding_id": "A4-PP-RP-7",
+"severity": "MEDIUM",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#8:A5-PP-RP-1",
+"finding_id": "A5-PP-RP-1",
+"severity": "HIGH",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A5-PP-RP-2",
+"finding_id": "A5-PP-RP-2",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A5-PP-RP-3",
+"finding_id": "A5-PP-RP-3",
+"severity": "HIGH",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A5-PP-RP-4",
+"finding_id": "A5-PP-RP-4",
+"severity": "LOW",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A5-PP-RP-5",
+"finding_id": "A5-PP-RP-5",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A5-PP-RP-6",
+"finding_id": "A5-PP-RP-6",
+"severity": "LOW",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A5-PP-RP-7",
+"finding_id": "A5-PP-RP-7",
+"severity": "LOW",
+"families": [
+"RF-18",
+"RF-35"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A5-PP-RP-8",
+"finding_id": "A5-PP-RP-8",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-18"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#8:A6-PP-EST-BLK-1",
+"finding_id": "A6-PP-EST-BLK-1",
+"severity": "HIGH",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#8:A6-PP-EST-DSP-1",
+"finding_id": "A6-PP-EST-DSP-1",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A6-PP-EST-DSP-2",
+"finding_id": "A6-PP-EST-DSP-2",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A6-PP-EST-H2O-1",
+"finding_id": "A6-PP-EST-H2O-1",
+"severity": "MEDIUM",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#8:A6-PP-EST-H2O-2",
+"finding_id": "A6-PP-EST-H2O-2",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#8:A6-PP-EST-GUESS-1",
+"finding_id": "A6-PP-EST-GUESS-1",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "#8:A6-PP-EST-LBL-1",
+"finding_id": "A6-PP-EST-LBL-1",
+"severity": "LOW",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#8:A6-PP-EST-TD-1",
+"finding_id": "A6-PP-EST-TD-1",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY",
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#8:A6-PP-EST-CLAMP-1",
+"finding_id": "A6-PP-EST-CLAMP-1",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#9:A1-WD-1",
+"finding_id": "A1-WD-1",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#9:A1-WD-2",
+"finding_id": "A1-WD-2",
+"severity": "HIGH",
+"families": [
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A1-WD-3",
+"finding_id": "A1-WD-3",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A1-WD-4",
+"finding_id": "A1-WD-4",
+"severity": "MEDIUM",
+"families": [
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A1-WD-5",
+"finding_id": "A1-WD-5",
+"severity": "MEDIUM",
+"families": [
+"RF-07",
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#9:A2-CAN-1",
+"finding_id": "A2-CAN-1",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#9:A2-CAN-2",
+"finding_id": "A2-CAN-2",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A2-CAN-3",
+"finding_id": "A2-CAN-3",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#9:A2-CAN-4",
+"finding_id": "A2-CAN-4",
+"severity": "MEDIUM",
+"families": [
+"RF-06",
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A2-CAN-5",
+"finding_id": "A2-CAN-5",
+"severity": "MEDIUM",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#9:A2-CAN-6",
+"finding_id": "A2-CAN-6",
+"severity": "LOW",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#9:A3-REC-1",
+"finding_id": "A3-REC-1",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A3-REC-2",
+"finding_id": "A3-REC-2",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A3-REC-3",
+"finding_id": "A3-REC-3",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A3-REC-4",
+"finding_id": "A3-REC-4",
+"severity": "MEDIUM",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A3-REC-5",
+"finding_id": "A3-REC-5",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#9:A4-AJ-1",
+"finding_id": "A4-AJ-1",
+"severity": "HIGH",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#9:A4-AJ-2",
+"finding_id": "A4-AJ-2",
+"severity": "MEDIUM",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#9:A4-AJ-3",
+"finding_id": "A4-AJ-3",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#9:A5-STR-1",
+"finding_id": "A5-STR-1",
+"severity": "MEDIUM",
+"families": [
+"RF-07",
+"RF-12"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A5-STR-2",
+"finding_id": "A5-STR-2",
+"severity": "HIGH",
+"families": [
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A5-STR-3",
+"finding_id": "A5-STR-3",
+"severity": "HIGH",
+"families": [
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A5-STR-4",
+"finding_id": "A5-STR-4",
+"severity": "HIGH",
+"families": [
+"RF-07"
+],
+"owner": "RF-07"
+},
+{
+"canonical_id": "#9:A5-STR-5",
+"finding_id": "A5-STR-5",
+"severity": "MEDIUM",
+"families": [
+"RF-01"
+],
+"owner": "RF-01"
+},
+{
+"canonical_id": "#9:A6-PRE-1",
+"finding_id": "A6-PRE-1",
+"severity": "HIGH",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "#9:A6-PRE-2",
+"finding_id": "A6-PRE-2",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#9:A6-PRE-3",
+"finding_id": "A6-PRE-3",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#9:A6-PRE-4",
+"finding_id": "A6-PRE-4",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#10:A1-ID-1",
+"finding_id": "A1-ID-1",
+"severity": "CRITICAL",
+"families": [
+"RF-24"
+],
+"owner": "RF-24"
+},
+{
+"canonical_id": "#10:A1-ID-2",
+"finding_id": "A1-ID-2",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A1-ID-3",
+"finding_id": "A1-ID-3",
+"severity": "LOW",
+"families": [
+"RF-24"
+],
+"owner": "RF-24"
+},
+{
+"canonical_id": "#10:A1-ID-4",
+"finding_id": "A1-ID-4",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A1-ID-5",
+"finding_id": "A1-ID-5",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE",
+"RF-24"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "#10:A1-ID-6",
+"finding_id": "A1-ID-6",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY",
+"RF-24"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "#10:A2-REC-1",
+"finding_id": "A2-REC-1",
+"severity": "HIGH",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A2-REC-2",
+"finding_id": "A2-REC-2",
+"severity": "CRITICAL",
+"families": [
+"RF-24"
+],
+"owner": "RF-24"
+},
+{
+"canonical_id": "#10:A2-REC-3",
+"finding_id": "A2-REC-3",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A2-REC-8",
+"finding_id": "A2-REC-8",
+"severity": "HIGH",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A2-REC-4",
+"finding_id": "A2-REC-4",
+"severity": "HIGH",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#10:A2-REC-5",
+"finding_id": "A2-REC-5",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A2-REC-6",
+"finding_id": "A2-REC-6",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A2-REC-7",
+"finding_id": "A2-REC-7",
+"severity": "LOW",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A3-CRUD-1",
+"finding_id": "A3-CRUD-1",
+"severity": "CRITICAL",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#10:A3-CRUD-2",
+"finding_id": "A3-CRUD-2",
+"severity": "HIGH",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A3-CRUD-3",
+"finding_id": "A3-CRUD-3",
+"severity": "HIGH",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A3-CRUD-4",
+"finding_id": "A3-CRUD-4",
+"severity": "CRITICAL",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#10:A3-CRUD-5",
+"finding_id": "A3-CRUD-5",
+"severity": "LOW",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A3-CRUD-6",
+"finding_id": "A3-CRUD-6",
+"severity": "LOW",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#10:A3-CRUD-7",
+"finding_id": "A3-CRUD-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "#10:A4-SRC-1",
+"finding_id": "A4-SRC-1",
+"severity": "CRITICAL",
+"families": [
+"RF-08"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#10:A4-SRC-2",
+"finding_id": "A4-SRC-2",
+"severity": "MEDIUM",
+"families": [
+"RF-03",
+"RF-08"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#10:A4-SRC-3",
+"finding_id": "A4-SRC-3",
+"severity": "MEDIUM",
+"families": [
+"RF-08"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#10:A4-SRC-4",
+"finding_id": "A4-SRC-4",
+"severity": "LOW",
+"families": [
+"RF-08"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#10:A4-SRC-5",
+"finding_id": "A4-SRC-5",
+"severity": "LOW",
+"families": [
+"RF-08",
+"RF-16"
+],
+"owner": "RF-08"
+},
+{
+"canonical_id": "#10:A5-AG-1",
+"finding_id": "A5-AG-1",
+"severity": "HIGH",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#10:A5-AG-2",
+"finding_id": "A5-AG-2",
+"severity": "MEDIUM",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#10:A6-AGX-1",
+"finding_id": "A6-AGX-1",
+"severity": "MEDIUM",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#10:A6-AGX-2",
+"finding_id": "A6-AGX-2",
+"severity": "MEDIUM",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#10:A6-AGX-3",
+"finding_id": "A6-AGX-3",
+"severity": "LOW",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#10:A6-AGX-4",
+"finding_id": "A6-AGX-4",
+"severity": "MEDIUM",
+"families": [
+"RF-27"
+],
+"owner": "RF-27"
+},
+{
+"canonical_id": "#10:A6-AGX-5",
+"finding_id": "A6-AGX-5",
+"severity": "LOW",
+"families": [
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#10:A6-AGX-6",
+"finding_id": "A6-AGX-6",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-26"
+],
+"owner": "RF-26"
+},
+{
+"canonical_id": "#11:A1-LC-1",
+"finding_id": "A1-LC-1",
+"severity": "CRITICAL",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A1-LC-2",
+"finding_id": "A1-LC-2",
+"severity": "HIGH",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A1-LC-3",
+"finding_id": "A1-LC-3",
+"severity": "MEDIUM",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A1-LC-4",
+"finding_id": "A1-LC-4",
+"severity": "LOW",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A1-LC-5",
+"finding_id": "A1-LC-5",
+"severity": "LOW",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A2-GEO-1",
+"finding_id": "A2-GEO-1",
+"severity": "HIGH",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A2-GEO-2",
+"finding_id": "A2-GEO-2",
+"severity": "LOW",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#11:A2-GEO-3",
+"finding_id": "A2-GEO-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A2-GEO-4",
+"finding_id": "A2-GEO-4",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A2-GEO-5",
+"finding_id": "A2-GEO-5",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A2-GEO-6",
+"finding_id": "A2-GEO-6",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A3-EXT-1",
+"finding_id": "A3-EXT-1",
+"severity": "CRITICAL",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A3-EXT-2",
+"finding_id": "A3-EXT-2",
+"severity": "CRITICAL",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A3-EXT-3",
+"finding_id": "A3-EXT-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A3-EXT-4",
+"finding_id": "A3-EXT-4",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A3-EXT-5",
+"finding_id": "A3-EXT-5",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "#11:A4-RB-1",
+"finding_id": "A4-RB-1",
+"severity": "HIGH",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A4-RB-2",
+"finding_id": "A4-RB-2",
+"severity": "HIGH",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A4-RB-3",
+"finding_id": "A4-RB-3",
+"severity": "MEDIUM",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A4-RB-4",
+"finding_id": "A4-RB-4",
+"severity": "MEDIUM",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A4-RB-5",
+"finding_id": "A4-RB-5",
+"severity": "LOW",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A4-RB-6",
+"finding_id": "A4-RB-6",
+"severity": "LOW",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#11:A4-RB-7",
+"finding_id": "A4-RB-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A4-RB-8",
+"finding_id": "A4-RB-8",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A5-POSE-1",
+"finding_id": "A5-POSE-1",
+"severity": "HIGH",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A5-POSE-2",
+"finding_id": "A5-POSE-2",
+"severity": "HIGH",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A5-POSE-3",
+"finding_id": "A5-POSE-3",
+"severity": "LOW",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A5-POSE-4",
+"finding_id": "A5-POSE-4",
+"severity": "LOW",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A5-POSE-5",
+"finding_id": "A5-POSE-5",
+"severity": "LOW",
+"families": [
+"RF-10"
+],
+"owner": "RF-10"
+},
+{
+"canonical_id": "#11:A5-POSE-6",
+"finding_id": "A5-POSE-6",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "#11:A5-POSE-7",
+"finding_id": "A5-POSE-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#11:A6-TRK-1",
+"finding_id": "A6-TRK-1",
+"severity": "HIGH",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#11:A6-TRK-2",
+"finding_id": "A6-TRK-2",
+"severity": "MEDIUM",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#11:A6-TRK-3",
+"finding_id": "A6-TRK-3",
+"severity": "MEDIUM",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#11:A6-TRK-4",
+"finding_id": "A6-TRK-4",
+"severity": "MEDIUM",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#11:A6-TRK-5",
+"finding_id": "A6-TRK-5",
+"severity": "LOW",
+"families": [
+"RF-24"
+],
+"owner": "RF-24"
+},
+{
+"canonical_id": "#11:A6-TRK-6",
+"finding_id": "A6-TRK-6",
+"severity": "LOW",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#11:A6-TRK-7",
+"finding_id": "A6-TRK-7",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY",
+"RF-29"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "#12:A1-REG-1",
+"finding_id": "A1-REG-1",
+"severity": "MEDIUM",
+"families": [
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "#12:A1-REG-2",
+"finding_id": "A1-REG-2",
+"severity": "MEDIUM",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#12:A1-REG-3",
+"finding_id": "A1-REG-3",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#12:A1-REG-4",
+"finding_id": "A1-REG-4",
+"severity": "LOW",
+"families": [
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "#12:A2-LIFE-1",
+"finding_id": "A2-LIFE-1",
+"severity": "HIGH",
+"families": [
+"RF-01"
+],
+"owner": "RF-01"
+},
+{
+"canonical_id": "#12:A2-LIFE-2",
+"finding_id": "A2-LIFE-2",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#12:A2-LIFE-3",
+"finding_id": "A2-LIFE-3",
+"severity": "MEDIUM",
+"families": [
+"RF-18",
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "#12:A3-COMMON-1",
+"finding_id": "A3-COMMON-1",
+"severity": "HIGH",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "#12:A3-COMMON-2",
+"finding_id": "A3-COMMON-2",
+"severity": "LOW",
+"families": [
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#12:A3-COMMON-3",
+"finding_id": "A3-COMMON-3",
+"severity": "LOW",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "#12:A3-COMMON-4",
+"finding_id": "A3-COMMON-4",
+"severity": "LOW",
+"families": [
+"RF-12"
+],
+"owner": "RF-12"
+},
+{
+"canonical_id": "#12:A3-COMMON-5",
+"finding_id": "A3-COMMON-5",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#12:A3-COMMON-6",
+"finding_id": "A3-COMMON-6",
+"severity": "LOW",
+"families": [
+"RF-12"
+],
+"owner": "RF-12"
+},
+{
+"canonical_id": "#12:A4-POSE-1",
+"finding_id": "A4-POSE-1",
+"severity": "HIGH",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#12:A4-POSE-2",
+"finding_id": "A4-POSE-2",
+"severity": "LOW",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#12:A4-POSE-3",
+"finding_id": "A4-POSE-3",
+"severity": "LOW",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "#12:A4-POSE-4",
+"finding_id": "A4-POSE-4",
+"severity": "LOW",
+"families": [
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#12:A4-POSE-5",
+"finding_id": "A4-POSE-5",
+"severity": "LOW",
+"families": [
+"RF-31"
+],
+"owner": "RF-31"
+},
+{
+"canonical_id": "#12:A4-POSE-6",
+"finding_id": "A4-POSE-6",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "#12:A5-METRICS-1",
+"finding_id": "A5-METRICS-1",
+"severity": "MEDIUM",
+"families": [
+"RF-12"
+],
+"owner": "RF-12"
+},
+{
+"canonical_id": "#12:A5-METRICS-2",
+"finding_id": "A5-METRICS-2",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#12:A5-METRICS-3",
+"finding_id": "A5-METRICS-3",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#12:A5-METRICS-4",
+"finding_id": "A5-METRICS-4",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#12:A5-METRICS-5",
+"finding_id": "A5-METRICS-5",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#12:A6-GUARD-1",
+"finding_id": "A6-GUARD-1",
+"severity": "CRITICAL",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "#12:A6-GUARD-2",
+"finding_id": "A6-GUARD-2",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#12:A6-GUARD-3",
+"finding_id": "A6-GUARD-3",
+"severity": "MEDIUM",
+"families": [
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "#12:A6-GUARD-4",
+"finding_id": "A6-GUARD-4",
+"severity": "MEDIUM",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#12:A6-GUARD-5",
+"finding_id": "A6-GUARD-5",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#12:A6-GUARD-6",
+"finding_id": "A6-GUARD-6",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#13:A1-WIRE-1",
+"finding_id": "A1-WIRE-1",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A1-WIRE-2",
+"finding_id": "A1-WIRE-2",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A1-WIRE-3",
+"finding_id": "A1-WIRE-3",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A1-WIRE-4",
+"finding_id": "A1-WIRE-4",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A1-WIRE-5",
+"finding_id": "A1-WIRE-5",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#13:A2-JOB-1",
+"finding_id": "A2-JOB-1",
+"severity": "HIGH",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A2-JOB-2",
+"finding_id": "A2-JOB-2",
+"severity": "HIGH",
+"families": [
+"RF-06"
+],
+"owner": "RF-06"
+},
+{
+"canonical_id": "#13:A2-JOB-3",
+"finding_id": "A2-JOB-3",
+"severity": "HIGH",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A2-JOB-4",
+"finding_id": "A2-JOB-4",
+"severity": "MEDIUM",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#13:A2-JOB-5",
+"finding_id": "A2-JOB-5",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A2-JOB-6",
+"finding_id": "A2-JOB-6",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A2-JOB-7",
+"finding_id": "A2-JOB-7",
+"severity": "MEDIUM",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#13:A2-JOB-8",
+"finding_id": "A2-JOB-8",
+"severity": "LOW",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#13:A2-JOB-9",
+"finding_id": "A2-JOB-9",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A3-ROOMS-1",
+"finding_id": "A3-ROOMS-1",
+"severity": "CRITICAL",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#13:A3-ROOMS-2",
+"finding_id": "A3-ROOMS-2",
+"severity": "CRITICAL",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#13:A3-ROOMS-3",
+"finding_id": "A3-ROOMS-3",
+"severity": "MEDIUM",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A3-ROOMS-4",
+"finding_id": "A3-ROOMS-4",
+"severity": "MEDIUM",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A3-ROOMS-5",
+"finding_id": "A3-ROOMS-5",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A3-ROOMS-6",
+"finding_id": "A3-ROOMS-6",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#13:A3-ROOMS-7",
+"finding_id": "A3-ROOMS-7",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A3-ROOMS-8",
+"finding_id": "A3-ROOMS-8",
+"severity": "LOW",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#13:A3-ROOMS-9",
+"finding_id": "A3-ROOMS-9",
+"severity": "MEDIUM",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#13:A3-ROOMS-10",
+"finding_id": "A3-ROOMS-10",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A3-ROOMS-11",
+"finding_id": "A3-ROOMS-11",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A4-SETUP-1",
+"finding_id": "A4-SETUP-1",
+"severity": "CRITICAL",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#13:A4-SETUP-2",
+"finding_id": "A4-SETUP-2",
+"severity": "HIGH",
+"families": [
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#13:A4-SETUP-3",
+"finding_id": "A4-SETUP-3",
+"severity": "MEDIUM",
+"families": [
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#13:A4-SETUP-4",
+"finding_id": "A4-SETUP-4",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A4-SETUP-5",
+"finding_id": "A4-SETUP-5",
+"severity": "MEDIUM",
+"families": [
+"RF-05",
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#13:A4-SETUP-6",
+"finding_id": "A4-SETUP-6",
+"severity": "HIGH",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A4-SETUP-7",
+"finding_id": "A4-SETUP-7",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A4-SETUP-8",
+"finding_id": "A4-SETUP-8",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A4-SETUP-9",
+"finding_id": "A4-SETUP-9",
+"severity": "LOW",
+"families": [
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#13:A4-SETUP-10",
+"finding_id": "A4-SETUP-10",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A4-SETUP-11",
+"finding_id": "A4-SETUP-11",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A4-SETUP-12",
+"finding_id": "A4-SETUP-12",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A4-SETUP-13",
+"finding_id": "A4-SETUP-13",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A4-SETUP-14",
+"finding_id": "A4-SETUP-14",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A4-SETUP-15",
+"finding_id": "A4-SETUP-15",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-1",
+"finding_id": "A5-RUNPROF-1",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-2",
+"finding_id": "A5-RUNPROF-2",
+"severity": "MEDIUM",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-3",
+"finding_id": "A5-RUNPROF-3",
+"severity": "MEDIUM",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-4",
+"finding_id": "A5-RUNPROF-4",
+"severity": "MEDIUM",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-5",
+"finding_id": "A5-RUNPROF-5",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-6",
+"finding_id": "A5-RUNPROF-6",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-7",
+"finding_id": "A5-RUNPROF-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A5-RUNPROF-8",
+"finding_id": "A5-RUNPROF-8",
+"severity": "LOW",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#13:A6-DIAG-1",
+"finding_id": "A6-DIAG-1",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A6-DIAG-2",
+"finding_id": "A6-DIAG-2",
+"severity": "HIGH",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A6-DIAG-3",
+"finding_id": "A6-DIAG-3",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A6-DIAG-4",
+"finding_id": "A6-DIAG-4",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#13:A6-DIAG-5",
+"finding_id": "A6-DIAG-5",
+"severity": "LOW",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#13:A6-DIAG-6",
+"finding_id": "A6-DIAG-6",
+"severity": "MEDIUM",
+"families": [
+"RF-14",
+"RF-15"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A6-DIAG-7",
+"finding_id": "A6-DIAG-7",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#13:A6-DIAG-8",
+"finding_id": "A6-DIAG-8",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#13:A6-DIAG-9",
+"finding_id": "A6-DIAG-9",
+"severity": "LOW",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#14:A1-INIT-1",
+"finding_id": "A1-INIT-1",
+"severity": "CRITICAL",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#14:A1-INIT-2",
+"finding_id": "A1-INIT-2",
+"severity": "MEDIUM",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#14:A1-INIT-3",
+"finding_id": "A1-INIT-3",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#14:A1-INIT-5",
+"finding_id": "A1-INIT-5",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#14:A2-CB-1",
+"finding_id": "A2-CB-1",
+"severity": "HIGH",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "#14:A2-CB-2",
+"finding_id": "A2-CB-2",
+"severity": "MEDIUM",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#14:A2-CB-3",
+"finding_id": "A2-CB-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#14:A2-CB-4",
+"finding_id": "A2-CB-4",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#14:A2-CB-5",
+"finding_id": "A2-CB-5",
+"severity": "LOW",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "#14:A3-SNAP-1",
+"finding_id": "A3-SNAP-1",
+"severity": "MEDIUM",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "#14:A3-SNAP-2",
+"finding_id": "A3-SNAP-2",
+"severity": "MEDIUM",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#14:A3-SNAP-3",
+"finding_id": "A3-SNAP-3",
+"severity": "MEDIUM",
+"families": [
+"RF-01"
+],
+"owner": "RF-01"
+},
+{
+"canonical_id": "#14:A3-SNAP-4",
+"finding_id": "A3-SNAP-4",
+"severity": "LOW",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#14:A4-START-1",
+"finding_id": "A4-START-1",
+"severity": "HIGH",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#14:A4-START-2",
+"finding_id": "A4-START-2",
+"severity": "LOW",
+"families": [
+"RF-35"
+],
+"owner": "RF-35"
+},
+{
+"canonical_id": "#14:A4-START-3",
+"finding_id": "A4-START-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "#14:A5-FACADE-1",
+"finding_id": "A5-FACADE-1",
+"severity": "CRITICAL",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#14:A5-FACADE-2",
+"finding_id": "A5-FACADE-2",
+"severity": "HIGH",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#14:A5-FACADE-3",
+"finding_id": "A5-FACADE-3",
+"severity": "LOW",
+"families": [
+"RF-02"
+],
+"owner": "RF-02"
+},
+{
+"canonical_id": "#14:A5-FACADE-4",
+"finding_id": "A5-FACADE-4",
+"severity": "LOW",
+"families": [
+"RF-19"
+],
+"owner": "RF-19"
+},
+{
+"canonical_id": "#14:A5-FACADE-5",
+"finding_id": "A5-FACADE-5",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#14:A6-VAC-1",
+"finding_id": "A6-VAC-1",
+"severity": "HIGH",
+"families": [
+"RF-12"
+],
+"owner": "RF-12"
+},
+{
+"canonical_id": "#14:A6-VAC-2",
+"finding_id": "A6-VAC-2",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#14:A6-VAC-3",
+"finding_id": "A6-VAC-3",
+"severity": "MEDIUM",
+"families": [
+"RF-32"
+],
+"owner": "RF-32"
+},
+{
+"canonical_id": "#14:A6-VAC-4",
+"finding_id": "A6-VAC-4",
+"severity": "MEDIUM",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#14:A6-VAC-5",
+"finding_id": "A6-VAC-5",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "#15:A1-UP-1",
+"finding_id": "A1-UP-1",
+"severity": "MEDIUM",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A1-UP-2",
+"finding_id": "A1-UP-2",
+"severity": "MEDIUM",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A1-UP-3",
+"finding_id": "A1-UP-3",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A2-DOWN-1",
+"finding_id": "A2-DOWN-1",
+"severity": "MEDIUM",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A2-DOWN-2",
+"finding_id": "A2-DOWN-2",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A2-DOWN-3",
+"finding_id": "A2-DOWN-3",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A3-FLOW-2",
+"finding_id": "A3-FLOW-2",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#15:A3-FLOW-3",
+"finding_id": "A3-FLOW-3",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "#15:A4-RELOAD-1",
+"finding_id": "A4-RELOAD-1",
+"severity": "MEDIUM",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A4-RELOAD-2",
+"finding_id": "A4-RELOAD-2",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A4-RELOAD-3",
+"finding_id": "A4-RELOAD-3",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#15:A4-RELOAD-4",
+"finding_id": "A4-RELOAD-4",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#16:A1-EST-1",
+"finding_id": "A1-EST-1",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A1-EST-2",
+"finding_id": "A1-EST-2",
+"severity": "HIGH",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A1-EST-3",
+"finding_id": "A1-EST-3",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A1-EST-4",
+"finding_id": "A1-EST-4",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A1-EST-5",
+"finding_id": "A1-EST-5",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A1-EST-6",
+"finding_id": "A1-EST-6",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A1-EST-7",
+"finding_id": "A1-EST-7",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#16:A1-EST-8",
+"finding_id": "A1-EST-8",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "#16:A1-EST-9",
+"finding_id": "A1-EST-9",
+"severity": "LOW",
+"families": [
+"RF-21",
+"RF-29"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A2-ACC-1",
+"finding_id": "A2-ACC-1",
+"severity": "HIGH",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#16:A2-ACC-2",
+"finding_id": "A2-ACC-2",
+"severity": "HIGH",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A2-ACC-3",
+"finding_id": "A2-ACC-3",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A2-ACC-4",
+"finding_id": "A2-ACC-4",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A2-ACC-5",
+"finding_id": "A2-ACC-5",
+"severity": "LOW",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A2-ACC-6",
+"finding_id": "A2-ACC-6",
+"severity": "MEDIUM",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A2-ACC-7",
+"finding_id": "A2-ACC-7",
+"severity": "LOW",
+"families": [
+"RF-21"
+],
+"owner": "RF-21"
+},
+{
+"canonical_id": "#16:A3-IO-1",
+"finding_id": "A3-IO-1",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#16:A3-IO-2",
+"finding_id": "A3-IO-2",
+"severity": "HIGH",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#16:A3-IO-3",
+"finding_id": "A3-IO-3",
+"severity": "MEDIUM",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#16:A3-IO-4",
+"finding_id": "A3-IO-4",
+"severity": "MEDIUM",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#16:A3-IO-5",
+"finding_id": "A3-IO-5",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#16:A3-IO-6",
+"finding_id": "A3-IO-6",
+"severity": "MEDIUM",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#16:A3-IO-7",
+"finding_id": "A3-IO-7",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#16:A3-IO-8",
+"finding_id": "A3-IO-8",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "#16:A4-STATE-1",
+"finding_id": "A4-STATE-1",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#16:A4-STATE-2",
+"finding_id": "A4-STATE-2",
+"severity": "HIGH",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#16:A4-STATE-3",
+"finding_id": "A4-STATE-3",
+"severity": "MEDIUM",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A4-STATE-4",
+"finding_id": "A4-STATE-4",
+"severity": "HIGH",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A4-STATE-5",
+"finding_id": "A4-STATE-5",
+"severity": "MEDIUM",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A4-STATE-6",
+"finding_id": "A4-STATE-6",
+"severity": "MEDIUM",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "#16:A4-STATE-7",
+"finding_id": "A4-STATE-7",
+"severity": "LOW",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#16:A4-STATE-8",
+"finding_id": "A4-STATE-8",
+"severity": "MEDIUM",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#16:A4-STATE-9",
+"finding_id": "A4-STATE-9",
+"severity": "LOW",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A5-SVC-1",
+"finding_id": "A5-SVC-1",
+"severity": "HIGH",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A5-SVC-2",
+"finding_id": "A5-SVC-2",
+"severity": "HIGH",
+"families": [
+"RF-01"
+],
+"owner": "RF-01"
+},
+{
+"canonical_id": "#16:A5-SVC-3",
+"finding_id": "A5-SVC-3",
+"severity": "HIGH",
+"families": [
+"RF-05"
+],
+"owner": "RF-05"
+},
+{
+"canonical_id": "#16:A5-SVC-4",
+"finding_id": "A5-SVC-4",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#16:A5-SVC-5",
+"finding_id": "A5-SVC-5",
+"severity": "MEDIUM",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A5-SVC-6",
+"finding_id": "A5-SVC-6",
+"severity": "MEDIUM",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#16:A5-SVC-7",
+"finding_id": "A5-SVC-7",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "#16:A5-SVC-8",
+"finding_id": "A5-SVC-8",
+"severity": "LOW",
+"families": [
+"RF-22"
+],
+"owner": "RF-22"
+},
+{
+"canonical_id": "#16:A5-SVC-9",
+"finding_id": "A5-SVC-9",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#17:A1-CRUD-1",
+"finding_id": "A1-CRUD-1",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A1-CRUD-2",
+"finding_id": "A1-CRUD-2",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A1-CRUD-3",
+"finding_id": "A1-CRUD-3",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A1-CRUD-4",
+"finding_id": "A1-CRUD-4",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A1-CRUD-5",
+"finding_id": "A1-CRUD-5",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A1-CRUD-6",
+"finding_id": "A1-CRUD-6",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A1-CRUD-7",
+"finding_id": "A1-CRUD-7",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#17:A1-CRUD-8",
+"finding_id": "A1-CRUD-8",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A2-DRAFT-1",
+"finding_id": "A2-DRAFT-1",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A2-DRAFT-2",
+"finding_id": "A2-DRAFT-2",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A2-DRAFT-3",
+"finding_id": "A2-DRAFT-3",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A2-DRAFT-4",
+"finding_id": "A2-DRAFT-4",
+"severity": "LOW",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#17:A2-DRAFT-5",
+"finding_id": "A2-DRAFT-5",
+"severity": "MEDIUM",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#17:A2-DRAFT-6",
+"finding_id": "A2-DRAFT-6",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A2-DRAFT-7",
+"finding_id": "A2-DRAFT-7",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-1",
+"finding_id": "A3-PORT-1",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-2",
+"finding_id": "A3-PORT-2",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-3",
+"finding_id": "A3-PORT-3",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-4",
+"finding_id": "A3-PORT-4",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-5",
+"finding_id": "A3-PORT-5",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-7",
+"finding_id": "A3-PORT-7",
+"severity": "LOW",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "#17:A3-PORT-8",
+"finding_id": "A3-PORT-8",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY",
+"RF-17"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "#18:A1-SERVIC-1",
+"finding_id": "A1-SERVIC-1",
+"severity": "HIGH",
+"families": [
+"RF-15",
+"RF-32"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#18:A1-SERVIC-3",
+"finding_id": "A1-SERVIC-3",
+"severity": "MEDIUM",
+"families": [
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#18:A1-SERVIC-4",
+"finding_id": "A1-SERVIC-4",
+"severity": "MEDIUM",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#18:A1-SERVIC-5",
+"finding_id": "A1-SERVIC-5",
+"severity": "MEDIUM",
+"families": [
+"RF-15",
+"RF-28"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#18:A1-SERVIC-6",
+"finding_id": "A1-SERVIC-6",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#18:A1-SERVIC-7",
+"finding_id": "A1-SERVIC-7",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE",
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#18:A2-POLYGO-1",
+"finding_id": "A2-POLYGO-1",
+"severity": "HIGH",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A2-POLYGO-2",
+"finding_id": "A2-POLYGO-2",
+"severity": "HIGH",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#18:A2-POLYGO-3",
+"finding_id": "A2-POLYGO-3",
+"severity": "HIGH",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A2-POLYGO-4",
+"finding_id": "A2-POLYGO-4",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A2-POLYGO-5",
+"finding_id": "A2-POLYGO-5",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#18:A2-POLYGO-6",
+"finding_id": "A2-POLYGO-6",
+"severity": "LOW",
+"families": [
+"DEF-3"
+],
+"owner": "DEF-3"
+},
+{
+"canonical_id": "#18:A2-POLYGO-7",
+"finding_id": "A2-POLYGO-7",
+"severity": "LOW",
+"families": [
+"DEF-3"
+],
+"owner": "DEF-3"
+},
+{
+"canonical_id": "#18:A2-POLYGO-8",
+"finding_id": "A2-POLYGO-8",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#18:A3-IMAGE--1",
+"finding_id": "A3-IMAGE--1",
+"severity": "HIGH",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#18:A3-IMAGE--2",
+"finding_id": "A3-IMAGE--2",
+"severity": "HIGH",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#18:A3-IMAGE--3",
+"finding_id": "A3-IMAGE--3",
+"severity": "MEDIUM",
+"families": [
+"RF-03"
+],
+"owner": "RF-03"
+},
+{
+"canonical_id": "#18:A3-IMAGE--4",
+"finding_id": "A3-IMAGE--4",
+"severity": "LOW",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#18:A3-IMAGE--5",
+"finding_id": "A3-IMAGE--5",
+"severity": "MEDIUM",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#18:A3-IMAGE--6",
+"finding_id": "A3-IMAGE--6",
+"severity": "MEDIUM",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#18:A3-IMAGE--7",
+"finding_id": "A3-IMAGE--7",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#18:A3-IMAGE--11",
+"finding_id": "A3-IMAGE--11",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A3-IMAGE--8",
+"finding_id": "A3-IMAGE--8",
+"severity": "LOW",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#18:A3-IMAGE--9",
+"finding_id": "A3-IMAGE--9",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A3-IMAGE--10",
+"finding_id": "A3-IMAGE--10",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-1",
+"finding_id": "A4-CUSTOM-1",
+"severity": "HIGH",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-2",
+"finding_id": "A4-CUSTOM-2",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-3",
+"finding_id": "A4-CUSTOM-3",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-4",
+"finding_id": "A4-CUSTOM-4",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-5",
+"finding_id": "A4-CUSTOM-5",
+"severity": "LOW",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-6",
+"finding_id": "A4-CUSTOM-6",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#18:A4-CUSTOM-7",
+"finding_id": "A4-CUSTOM-7",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#18:A5-FURNIS-1",
+"finding_id": "A5-FURNIS-1",
+"severity": "MEDIUM",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#18:A5-FURNIS-3",
+"finding_id": "A5-FURNIS-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A5-FURNIS-4",
+"finding_id": "A5-FURNIS-4",
+"severity": "LOW",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "#18:A5-FURNIS-5",
+"finding_id": "A5-FURNIS-5",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A5-FURNIS-6",
+"finding_id": "A5-FURNIS-6",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-1",
+"finding_id": "A6-ZONE-C-1",
+"severity": "HIGH",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-2",
+"finding_id": "A6-ZONE-C-2",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-3",
+"finding_id": "A6-ZONE-C-3",
+"severity": "HIGH",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-4",
+"finding_id": "A6-ZONE-C-4",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-5",
+"finding_id": "A6-ZONE-C-5",
+"severity": "MEDIUM",
+"families": [
+"RF-20"
+],
+"owner": "RF-20"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-6",
+"finding_id": "A6-ZONE-C-6",
+"severity": "MEDIUM",
+"families": [
+"RF-15"
+],
+"owner": "RF-15"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-7",
+"finding_id": "A6-ZONE-C-7",
+"severity": "LOW",
+"families": [
+"RF-28"
+],
+"owner": "RF-28"
+},
+{
+"canonical_id": "#18:A6-ZONE-C-8",
+"finding_id": "A6-ZONE-C-8",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS",
+"RF-23"
+],
+"owner": "RF-23"
+},
+{
+"canonical_id": "#18:A7-ROBORO-1",
+"finding_id": "A7-ROBORO-1",
+"severity": "MEDIUM",
+"families": [
+"DEF-2"
+],
+"owner": "DEF-2"
+},
+{
+"canonical_id": "#18:A7-ROBORO-2",
+"finding_id": "A7-ROBORO-2",
+"severity": "LOW",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "#18:A7-ROBORO-3",
+"finding_id": "A7-ROBORO-3",
+"severity": "MEDIUM",
+"families": [
+"DEF-2",
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "#18:A7-ROBORO-4",
+"finding_id": "A7-ROBORO-4",
+"severity": "MEDIUM",
+"families": [
+"DEF-1"
+],
+"owner": "DEF-1"
+},
+{
+"canonical_id": "#18:A7-ROBORO-5",
+"finding_id": "A7-ROBORO-5",
+"severity": "LOW",
+"families": [
+"DEF-2"
+],
+"owner": "DEF-2"
+},
+{
+"canonical_id": "#18:A7-ROBORO-6",
+"finding_id": "A7-ROBORO-6",
+"severity": "LOW",
+"families": [
+"DEF-2"
+],
+"owner": "DEF-2"
+},
+{
+"canonical_id": "#18:A7-ROBORO-7",
+"finding_id": "A7-ROBORO-7",
+"severity": "LOW",
+"families": [
+"DEF-2"
+],
+"owner": "DEF-2"
+},
+{
+"canonical_id": "direct read:DR-LR-1",
+"finding_id": "DR-LR-1",
+"severity": "MEDIUM",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-MAP-1",
+"finding_id": "DR-MAP-1",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "direct read:DR-MAP-2",
+"finding_id": "DR-MAP-2",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "direct read:DR-DOCK-1",
+"finding_id": "DR-DOCK-1",
+"severity": "MEDIUM",
+"families": [
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "direct read:DR-DOCK-2",
+"finding_id": "DR-DOCK-2",
+"severity": "MEDIUM",
+"families": [
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "direct read:DR-DOCK-3",
+"finding_id": "DR-DOCK-3",
+"severity": "LOW",
+"families": [
+"RF-30"
+],
+"owner": "RF-30"
+},
+{
+"canonical_id": "direct read:DR-MNT-1",
+"finding_id": "DR-MNT-1",
+"severity": "MEDIUM",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "direct read:DR-DBG-1",
+"finding_id": "DR-DBG-1",
+"severity": "HIGH",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DBG-2",
+"finding_id": "DR-DBG-2",
+"severity": "MEDIUM",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DBG-3",
+"finding_id": "DR-DBG-3",
+"severity": "LOW",
+"families": [
+"RF-16"
+],
+"owner": "RF-16"
+},
+{
+"canonical_id": "direct read:DR-DBG-4",
+"finding_id": "DR-DBG-4",
+"severity": "MEDIUM",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DBG-6",
+"finding_id": "DR-DBG-6",
+"severity": "LOW",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DBG-7",
+"finding_id": "DR-DBG-7",
+"severity": "LOW",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DIAG-1",
+"finding_id": "DR-DIAG-1",
+"severity": "MEDIUM",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DIAG-2",
+"finding_id": "DR-DIAG-2",
+"severity": "MEDIUM",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DIAG-3",
+"finding_id": "DR-DIAG-3",
+"severity": "LOW",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DIAG-4",
+"finding_id": "DR-DIAG-4",
+"severity": "LOW",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "direct read:DR-DIAG-5",
+"finding_id": "DR-DIAG-5",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE",
+"RF-33"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "direct read:DR-ONB-1",
+"finding_id": "DR-ONB-1",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "direct read:DR-ONB-2",
+"finding_id": "DR-ONB-2",
+"severity": "MEDIUM",
+"families": [
+"RF-25"
+],
+"owner": "RF-25"
+},
+{
+"canonical_id": "direct read:DR-ONB-3",
+"finding_id": "DR-ONB-3",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "direct read:DR-ONB-4",
+"finding_id": "DR-ONB-4",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "direct read:DR-ONB-5",
+"finding_id": "DR-ONB-5",
+"severity": "LOW",
+"families": [
+"RF-29"
+],
+"owner": "RF-29"
+},
+{
+"canonical_id": "direct read:DR-ONB-6",
+"finding_id": "DR-ONB-6",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "direct read:DR-BAT-1",
+"finding_id": "DR-BAT-1",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "direct read:DR-BAT-2",
+"finding_id": "DR-BAT-2",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "direct read:DR-BAT-3",
+"finding_id": "DR-BAT-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS"
+],
+"owner": "BATCH:SMALL-CORRECTNESS"
+},
+{
+"canonical_id": "direct read:DR-BAT-4",
+"finding_id": "DR-BAT-4",
+"severity": "LOW",
+"families": [
+"BATCH:DOC-ONLY"
+],
+"owner": "BATCH:DOC-ONLY"
+},
+{
+"canonical_id": "direct read:DR-SENS-1",
+"finding_id": "DR-SENS-1",
+"severity": "MEDIUM",
+"families": [
+"RF-12"
+],
+"owner": "RF-12"
+},
+{
+"canonical_id": "direct read:DR-SENS-2",
+"finding_id": "DR-SENS-2",
+"severity": "LOW",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "direct read:DR-SETUP-1",
+"finding_id": "DR-SETUP-1",
+"severity": "HIGH",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "direct read:DR-SETUP-2",
+"finding_id": "DR-SETUP-2",
+"severity": "MEDIUM",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "direct read:DR-SETUP-3",
+"finding_id": "DR-SETUP-3",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "direct read:DR-SETUP-4",
+"finding_id": "DR-SETUP-4",
+"severity": "LOW",
+"families": [
+"BATCH:SMALL-CORRECTNESS-"
+],
+"owner": "BATCH:SMALL-CORRECTNESS-"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-1",
+"finding_id": "SN-1",
+"severity": "HIGH",
+"families": [
+"RF-04",
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-2",
+"finding_id": "SN-2",
+"severity": "HIGH",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-3",
+"finding_id": "SN-3",
+"severity": "HIGH",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-4",
+"finding_id": "SN-4",
+"severity": "MEDIUM",
+"families": [
+"RF-04",
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-5",
+"finding_id": "SN-5",
+"severity": "MEDIUM",
+"families": [
+"RF-09"
+],
+"owner": "RF-09"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-6",
+"finding_id": "SN-6",
+"severity": "MEDIUM",
+"families": [
+"RF-17"
+],
+"owner": "RF-17"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-7",
+"finding_id": "SN-7",
+"severity": "LOW",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-8",
+"finding_id": "SN-8",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE",
+"RF-34"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-9",
+"finding_id": "SN-9",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-1",
+"finding_id": "INF-1",
+"severity": "MEDIUM",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-2",
+"finding_id": "INF-2",
+"severity": "MEDIUM",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-3",
+"finding_id": "INF-3",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-4",
+"finding_id": "INF-4",
+"severity": "LOW",
+"families": [
+"RF-13"
+],
+"owner": "RF-13"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-5",
+"finding_id": "INF-5",
+"severity": "LOW",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-6",
+"finding_id": "INF-6",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-7",
+"finding_id": "INF-7",
+"severity": "LOW",
+"families": [
+"BATCH:DEAD-CODE"
+],
+"owner": "BATCH:DEAD-CODE"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-8",
+"finding_id": "INF-8",
+"severity": "LOW",
+"families": [
+"RF-11"
+],
+"owner": "RF-11"
+},
+{
+"canonical_id": "agent: infra (2-lens verified):INF-9",
+"finding_id": "INF-9",
+"severity": "LOW",
+"families": [
+"RF-27"
+],
+"owner": "RF-27"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-1",
+"finding_id": "EP-1",
+"severity": "MEDIUM",
+"families": [
+"RF-14"
+],
+"owner": "RF-14"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-2",
+"finding_id": "EP-2",
+"severity": "HIGH",
+"families": [
+"RF-04"
+],
+"owner": "RF-04"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-3",
+"finding_id": "EP-3",
+"severity": "MEDIUM",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-4",
+"finding_id": "EP-4",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-5",
+"finding_id": "EP-5",
+"severity": "LOW",
+"families": [
+"RF-27"
+],
+"owner": "RF-27"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-6",
+"finding_id": "EP-6",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-7",
+"finding_id": "EP-7",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "agent: platforms (2-lens verified):EP-8",
+"finding_id": "EP-8",
+"severity": "LOW",
+"families": [
+"RF-18"
+],
+"owner": "RF-18"
+},
+{
+"canonical_id": "agent: sensor (2-lens verified):SN-10b",
+"finding_id": "SN-10b",
+"severity": "LOW",
+"families": [
+"RF-34"
+],
+"owner": "RF-34"
+},
+{
+"canonical_id": "direct read:HW-DIAG-1",
+"finding_id": "HW-DIAG-1",
+"severity": "LOW",
+"families": [
+"RF-33"
+],
+"owner": "RF-33"
+},
+{
+"canonical_id": "hardware baseline:HW-FINAL-1",
+"finding_id": "HW-FINAL-1",
+"severity": "CRITICAL",
+"families": [
+"RF-01"
+],
+"owner": "RF-01"
+}
+]
