@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**44 changes shipped**, all with tests, all deployed.
+**46 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -108,14 +108,16 @@ comments rather than by a shared helper.
 | `fe7edfd` | chore(audit): commit the frozen evidence snapshot — provenance was one temp sweep from gone |
 | `45fdc8c` | chore(audit): stop git translating line endings in the frozen evidence |
 | `b960ab3` | chore(audit): recover audit #18's per-finding verdicts and re-freeze |
+| `59daba3` | chore(audit): canonical corpus — Gate 1 steps 2-4, and three defects the build surfaced |
+| `61879f8` | chore(audit): evidence classes, historical-gap inventory, and the human report — Gate 1 complete bar hardware |
 
 ---
 
 ## Open
 
-**482 findings** — 421 across 12 audits plus 61 from direct reads. None applied. 29 clusters + 407 singles.
+**483 findings** — 421 across 12 audits plus 62 from direct reads. None applied. 29 clusters + 408 singles.
 
-CRITICAL 17 · HIGH 88 · MEDIUM 173 · LOW 204
+CRITICAL 17 · HIGH 88 · MEDIUM 173 · LOW 205
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -988,7 +990,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (192)</summary>
+<details><summary><strong>LOW</strong> (193)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1059,6 +1061,11 @@ The same audits recorded **673 areas examined and found correct**.
 - **DR-DIAG-3** `diagnostics.py:286` · both · `direct read`  
   A failed health probe is silently absent from the warnings block designed to be read first  
   _self_check appends completion_health['warning'] and area_units['warning'] into `warnings` -- described as 'loud, actionable warnings that belong at the top of a support read'. Both collectors instead produce {'error': r
+- **HW-DIAG-1** `diagnostics.py:365` · both · `direct read`  
+  The job-active warning asserts a run-time failure that is unreachable from the state triggering it — and computes presence from a stale snapshot  
+  SETTLED ON HARDWARE. THE SYSTEM BEHAVES CORRECTLY; THIS IS A REPORTING-LAYER DEFECT ONLY.
+
+When a Roborock idles out it drops the cloud connection and the upstream integration REMOVES the entities — HA reports them as no
 - **DR-DIAG-4** `diagnostics.py:539` · both · `direct read`  
   entry.title is dumped unredacted while entry.data and entry.options are redacted  
   Only data and options pass through async_redact_data. The title is user-settable free text on the config entry, dumped verbatim. Low, but it is the same field class as `notes`, which TO_REDACT covers precisely because it

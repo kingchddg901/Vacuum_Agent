@@ -693,5 +693,16 @@
   "line": 75,
   "title": "A raw stored null theme name renders as the string 'None' \u2014 valid, but not reachable in normal operation",
   "impact": "Split half B of the original SN-10, and the half both lenses agreed on. `str(entry.get('name', 'none'))` returns Python's str(None) == 'None' for a stored null rather than the intended 'none', and an empty string yields an empty state. CONFIRMED_EXECUTED by Stage B's reproducer at the line. REACHABILITY IS THE NARROW PART: no writer can produce it \u2014 import_theme stringifies, and _normalize_theme_entry gates stored entries \u2014 so it requires a direct .storage edit (discouraged; see the never-edit-.storage rule) or legacy pre-normalization data. Fix is one expression: `(entry.get('name') or 'none')`, which also handles the empty-string case. Low reachability, real defect, trivial repair \u2014 a candidate for `document_only` if Chris prefers."
+ },
+ {
+  "run": "direct read",
+  "id": "HW-DIAG-1",
+  "sev": "LOW",
+  "orig": "LOW",
+  "brands": "both",
+  "file": "diagnostics.py",
+  "line": 365,
+  "title": "The job-active warning asserts a run-time failure that is unreachable from the state triggering it \u2014 and computes presence from a stale snapshot",
+  "impact": "SETTLED ON HARDWARE. THE SYSTEM BEHAVES CORRECTLY; THIS IS A REPORTING-LAYER DEFECT ONLY.\n\nWhen a Roborock idles out it drops the cloud connection and the upstream integration REMOVES the entities \u2014 HA reports them as no-longer-provided and vacuum.<vac> becomes a restored stub. Every layer reports this honestly: the integration says the entity stopped being provided, the card says no map is loaded, and binary_sensor.<vac>_cleaning is genuinely absent. See reference_roborock_idle_disconnect.md.\n\n(1) THE WARNING IS UNREACHABLE-BY-CONSTRUCTION. It says \"EVERY run will strand (never finalize). Check the upstream integration didn't drop this entity.\" But from that state NO RUN CAN BE STARTED \u2014 vacuum.<vac> is a restored stub with no platform behind it, so the dispatch service call has nothing to reach. The warning describes a run-time failure mode in a state where runs cannot be initiated, and its remedial advice points at an upstream regression when the real cause is an idle device that a single wake resolves. Cost: three successive wrong diagnoses in this campaign.\n\n(2) RESIDUAL, AND THE PART WORTH FIXING: presence is computed from the wrong source. diagnostics.py:364 reads the LIVE adapter config for the entity id; :365 reads entity_resolution, built from get_vacuum_capabilities(refresh=False) \u2014 a STORED snapshot whose entity map lacks the job_active key entirely. That is latent today but WOULD produce a genuinely false alarm any time the snapshot lags while the entity exists. Same root as DR-DIAG-1; belongs in that cluster.\n\nLOW because no user-visible product behaviour is wrong \u2014 only the wording of one diagnostic string and a latent source-of-truth error behind it. Fix: resolve job_active from hass.states via the adapter-declared id (as :364 already does), and reword to state the observed condition \u2014 device appears disconnected, wake it \u2014 instead of asserting permanent failure."
  }
 ]

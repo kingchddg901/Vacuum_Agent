@@ -1,13 +1,13 @@
 {
- "frozen_at_sha": "59daba318840153a6c52492d5327013b0b38858b",
- "frozen_at": "2026-07-31T19:34:03",
+ "frozen_at_sha": "61879f8a52e6bfaa90ee4262f50d30a69f063519",
+ "frozen_at": "2026-07-31T20:09:52",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
   "survivors_carrying_verdict_evidence": 421,
-  "non_audit_records": 63,
-  "non_audit_open": 61,
-  "open_total": 482,
+  "non_audit_records": 64,
+  "non_audit_open": 62,
+  "open_total": 483,
   "killed_records": 21,
   "clean_areas": 673
  },
@@ -24,7 +24,7 @@
   ".claude/notes/_frozen/audits/16-learning-consumers.json": "70e0cc9d9e8a508e",
   ".claude/notes/_frozen/audits/17-themes-manager.json": "22c1f1ec2ca62975",
   ".claude/notes/_frozen/audits/18-mapping-services.json": "3de91a2146a85bc6",
-  ".claude/notes/_frozen/_direct_reads.json": "cfb59c09fbccb4a5",
+  ".claude/notes/_frozen/_direct_reads.json": "398c26bfdf738ec5",
   ".claude/notes/_frozen/_clusters.json": "8d7617ed5bd1e8ee",
   ".claude/notes/_frozen/_order.json": "f023835b8e288458",
   ".claude/notes/_frozen/_calibration.json": "7eca993eda5668cf",
@@ -33,7 +33,7 @@
   ".claude/notes/_frozen/_carried.json": "7131e8623e6c7802",
   ".claude/notes/_frozen/journals/wf_56cc4abc-4b2-stageB.jsonl": "3b2fdac98de5b3bb",
   ".claude/notes/_frozen/journals/wf_6fbed40a-87e-audit18.jsonl": "170bf55e5ec3f6e8",
-  ".claude/notes/_frozen/corpus/audit-findings-canonical.jsonl": "a1b1abc2568c8088",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "0f00d67921dad59e"
+  ".claude/notes/_frozen/corpus/audit-findings-canonical.jsonl": "6fe87997a379e05c",
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "650895a2097cc647"
  }
 }
