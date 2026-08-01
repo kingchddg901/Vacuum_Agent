@@ -86,6 +86,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A1-SERVIC-1",
+      "verdict": "CONFIRMED",
+      "reason": "Every cited claim holds at the source. ensure_map_bucket is a pure setdefault-on-read with no existence check, no schema in the file constrains map_id beyond cv.string, and get_active_map_id returns str(state.state) verbatim \u2014 which on Roborock is the user-editable map NAME from a select entity. The create-time and clean-time membership/active-map checks are compare-only and never gate the WRITE.",
+      "evidence": "maps/map_manager.py:10-28 ensure_map_bucket does data[\"maps\"][vac].setdefault(str(map_id), {...}) and returns it \u2014 no validation branch exists; the non-mutating sibling get_map_bucket (map_manager.py:55-74) exists and is NOT used by any handler in mapping_services.py. CREATE_SAVED_ZONE_SCHEMA (mapping_services.py:447-455) and the 28 siblings all declare vol.Required(\"map_id\"): cv.string; cv.string(\"\") returns \"\". rooms/room_discovery.py:69-74 returns str(value) of the active-map entity state. adapters/roborock/adapter.py:190-196 comment: active_map (select.{id}_selected_map) reports the map NAME (\"Main floor\"). The only map_id resolution in the whole module is the inline one at mapping_services.py:2241-2251 (set_map_overlay_visibility). grep for realpath|commonpath|slugify|re.sub across mapping/ and maps/ returns one hit, tracker.py:150, for an unrelated filename slug.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A1-SERVIC-1",
+      "verdict": "CONFIRMED",
+      "reason": "Every map-taking schema declares `vol.Required(\"map_id\"): cv.string` with no non-empty/existence constraint, and every handler routes it into ensure_map_bucket, which mints on read. A vendor-side map rename (Roborock map_id IS the select's map NAME) therefore strands all prior geometry under the old key with no migration path, and the write reports saved:true.",
+      "evidence": "maps/map_manager.py:10-28 `data[\"maps\"][vac].setdefault(str(map_id), {...})` \u2014 creates on read, no validation; get_map_bucket (55-74) is the non-mutating reader and is NOT used by these handlers. rooms/room_discovery.py:43-84 returns `str(state.state)` of the active_map entity verbatim; adapters/roborock/adapter.py:190 comment: active_map select \"reports the map NAME (\\\"Main floor\\\")\". Concrete input: map_id=\"Downstairs\" after a rename \u2192 ensure_map_bucket mints `data[\"maps\"][vac][\"Downstairs\"] = {map_id:\"Downstairs\", metadata:{}, rooms:{}, summary:{}}`; _migrate_saved_zones then writes saved_zones={}; the zone lookup misses; clean_saved_zone returns {\"cleaned\": false, \"reason\": \"zone_not_found\"} (line 2601). Prior bucket \"Main Floor\" is untouched and unreachable \u2014 grep confirms no rename/move/merge service exists in ALL_MAPPING_SERVICES (lines 73-109). cv.string(\"\") returns \"\", so map_id=\"\" mints a bucket keyed \"\" which then becomes a candidate for `next(iter(vac_maps), None)` at line 2251.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -106,6 +124,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A1-SERVIC-3",
+      "verdict": "CONFIRMED",
+      "reason": "The clamp genuinely lives only on the Roborock branch; the Eufy branch ships clean_times verbatim, and the Eufy adapter declares neither passes_max nor zone_passes_max so the mechanism that would clamp it is unused. The services.yaml divergence is verbatim as described.",
+      "evidence": "dispatch/manager.py:181-186 (inside `if cfg.get(\"zone_coords\") == \"device_mm\":`): _zone_repeat_max = int(cfg.get(\"zone_passes_max\", cfg.get(\"passes_max\", 3)) or 3); repeat = max(1, min(int(clean_times), _zone_repeat_max)). The else branch ends at dispatch/manager.py:234 with payload = {\"zones\": zones, \"clean_times\": int(clean_times)} \u2014 no clamp. grep passes_max over adapters/eufy/adapter.py returns ZERO hits; adapters/roborock/adapter.py:338 declares \"passes_max\": 3. Schemas: mapping_services.py:493 and :503 are vol.All(vol.Coerce(int), vol.Range(min=1)) \u2014 lower bound only. services.yaml clean_saved_zone clean_times selector is number: {min: 1, mode: box} with description \"Number of cleaning passes.\"; start_zone_clean's is number: {min: 1, max: 10} with \"Number of cleaning passes per zone (1-10).\" _handle_clean_saved_zone returns {\"cleaned\": True, ...} unconditionally once dispatch does not raise (mapping_services.py:2632).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A1-SERVIC-3",
+      "verdict": "CONFIRMED",
+      "reason": "The per-brand repeat clamp lives only inside the `zone_coords == \"device_mm\"` (Roborock) branch. The Eufy else-branch ships clean_times verbatim to the wire, and the Eufy adapter declares neither passes_max nor zone_passes_max.",
+      "evidence": "mapping_services.py:493 and 503: `vol.Optional(\"clean_times\", default=1): vol.All(vol.Coerce(int), vol.Range(min=1))` \u2014 lower bound only. dispatch/manager.py: inside `if cfg.get(\"zone_coords\") == \"device_mm\":` \u2192 `_zone_repeat_max = int(cfg.get(\"zone_passes_max\", cfg.get(\"passes_max\", 3)) or 3); repeat = max(1, min(int(clean_times), _zone_repeat_max))`. The else branch ends `payload = {\"zones\": zones, \"clean_times\": int(clean_times)}` then `_dispatch_clean_payload(... command_override=\"zone_clean\")` \u2192 `hass.services.async_call(\"vacuum\",\"send_command\",{command:\"zone_clean\", params:{\"zones\":[...], \"clean_times\":9}})`. adapters/eufy/adapter.py dispatch block (lines 551-575) declares `\"zone_command\": \"zone_clean\"` and no passes_max/zone_passes_max (grep over the file returns zero hits for either); adapters/roborock/adapter.py:338 declares `\"passes_max\": 3`. The handler then returns {\"cleaned\": true, \"dispatch\": {\"status\":\"dispatched\",\"clean_times\":9}} unconditionally. services.yaml divergence confirmed by extraction: clean_saved_zone/clean_saved_zones clean_times = `number: {min: 1, mode: box}` (no max); start_zone_clean = `number: {min: 1, max: 10}` with description \"(1-10)\".",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -126,6 +162,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A1-SERVIC-4",
+      "verdict": "CONFIRMED",
+      "reason": "The sanitizer asymmetry is real and the docstring's 'mirrors the hidden-regions sanitizer' claim is falsified by the hidden-regions code four hundred lines away, which additionally drops degenerate rects. Nothing on the create path checks area, and the dispatch-side _MIN_SIDE check fires only after the zone is persisted and listed. There is no geometry-repair service in the saved-zone surface.",
+      "evidence": "mapping_services.py:429-443 _saved_zone_coord: rejects bool, rejects non-finite, returns round(max(0.0, min(1.0, f)), 5) \u2014 no magnitude rejection, no degeneracy rule; its docstring explicitly says it 'mirrors the hidden-regions sanitizer at _handle_set_hidden_regions'. _handle_set_hidden_regions (mapping_services.py:2111-2124) adds the fourth rule: `if hi_x - lo_x > 0.001 and hi_y - lo_y > 0.001:  # drop degenerate / stray taps`. CREATE_SAVED_ZONE_SCHEMA:452 constrains only vol.Length(min=3) on the point list and _SAVED_ZONE_POINT vol.Length(min=2,max=2) on arity. _create_saved_zone (1396-1417) stores geometry with no area check. dispatch/manager.py:110-118 raises ValueError('zone ... is degenerate (near-zero area)') for any side < 0.01, wrapped at mapping_services.py:2629-2630 into HomeAssistantError. Saved-zone service list (schemas at 447-505) is create/rename/delete/set_room/clean/clean-many \u2014 no set-geometry. Doc asymmetry confirmed at docs/dev/17-map-manager.md:109-129: saved_zones geometry is '[[x, y], ...] normalized 0-1 point list' with no validity rule, while hidden_regions six lines below states 'each entry sanitized (4 finite numbers, clamped 0-1, ordered min<max, degenerate dropped)'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A1-SERVIC-4",
+      "verdict": "CONFIRMED",
+      "reason": "_saved_zone_coord clamps but never rejects, and neither the schema nor _create_saved_zone applies any area/degeneracy test. Both stated inputs produce a persisted zone whose every clean attempt raises.",
+      "evidence": "Arithmetic on the shipped validator (line 429-443): `round(max(0.0, min(1.0, f)), 5)`. Input (b) geometry=[[10,20],[60,20],[60,70]] \u2192 every coordinate maps to 1.0 \u2192 stored geometry [[1.0,1.0],[1.0,1.0],[1.0,1.0]]. Input (a) [[0.5,0.5]]\u00d73 stores verbatim. `_SAVED_ZONE_POINT = vol.All([_saved_zone_coord], vol.Length(min=2,max=2))` and `geometry: vol.All([_SAVED_ZONE_POINT], vol.Length(min=3))` \u2014 arity and count only. _create_saved_zone (1396-1417) stores with area_m2=None and no checks. At clean time, _handle_clean_saved_zone:2616-2622 computes rect=[min(xs),min(ys),max(xs),max(ys)] = [0.5,0.5,0.5,0.5] (or [1.0,1.0,1.0,1.0]); dispatch/manager.py `_MIN_SIDE = 0.01` then `if abs(_x1-_x0) < _MIN_SIDE or abs(_y1-_y0) < _MIN_SIDE: raise ValueError(f\"zone {_z!r} is degenerate (near-zero area)\")` \u2014 0.0 < 0.01, raises every time, wrapped at 2629 into HomeAssistantError. ALL_MAPPING_SERVICES (73-109) contains create/rename/delete/set_saved_zone_room/clean/clean-many and no geometry setter, so delete-and-redraw is the only remedy. Contrast _handle_set_hidden_regions:2123 which DOES drop `hi_x - lo_x <= 0.001` \u2014 the fourth rule the docstring claims to mirror.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -146,6 +200,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A1-SERVIC-5",
+      "verdict": "CONFIRMED",
+      "reason": "Verified the divergence directly in services.yaml for the named services and confirmed the import counts. The shared resolver exists, documents the universal policy in its own docstring, is used 59 times integration-wide, and zero times in this module.",
+      "evidence": "services.yaml set_segment_room_link (2385), set_companion_anchor (2480), set_hidden_regions (2524), set_area_label_anchor (2553), set_live_map_rotation (2597), set_furnished_art_placement (3059), set_furnished_render_mode (3124), set_room_viewport (3160) \u2014 each declares `map_id: ... description: Leave blank to use the current active map. required: false selector: text: {}`. Every matching schema in mapping_services.py declares vol.Required(\"map_id\"): cv.string. services/_common.py:40-60 resolved_call_data docstring: 'the map_id field is optional on every service that takes one' and 'silent fallback to a wrong map would be worse'. grep resolved_call_data over custom_components/eufy_vacuum = 59 hits; over custom_components/eufy_vacuum/mapping/ = 0. Card side verified verbatim: src/actions/map.js:372-373 `const mapId = this.state.activeMapId?.(); if (mapId) data.map_id = mapId;` (setHiddenRegions) and 393-394 (setAreaLabelAnchor, comment 'Map_id auto-resolves.'). src/state/rooms.js:474-488 activeMapId returns String(raw), else String(switches[0].attributes.map_id ?? \"1\"), else \"1\" \u2014 never falsy.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A1-SERVIC-5",
+      "verdict": "CONFIRMED",
+      "reason": "Machine-extracted services.yaml shows exactly eight services declaring map_id required:false while their voluptuous schemas declare vol.Required, and mapping_services.py imports the shared resolver zero times against 59 uses elsewhere.",
+      "evidence": "Programmatic extraction of every top-level services.yaml block's map_id `required:` flag returned required=false for set_segment_room_link (2385), set_companion_anchor (2480), set_hidden_regions (2524), set_area_label_anchor (2553), set_live_map_rotation (2597), set_furnished_art_placement (3059), set_furnished_render_mode (3124), set_room_viewport (3160) \u2014 eight \u2014 plus set_map_overlay_visibility (2646), which alone is `vol.Optional` in the schema. All eight schemas in mapping_services.py declare `vol.Required(\"map_id\"): cv.string`, so an omitted map_id raises `required key not provided @ data['map_id']`. Three of these carry the literal description \"Leave blank to use the current active map.\" services/_common.py:39-77 `resolved_call_data` docstring: \"the map_id field is optional on every service that takes one\" and \"silent fallback to a wrong map would be worse\"; `grep -rn resolved_call_data` = 59 hits across 9 files in services/, 0 in mapping/. src/actions/map.js:372-373 and 393-394 both build `if (mapId) data.map_id = mapId;`, and src/state/rooms.js:474-488 activeMapId() ends `return \"1\";` \u2014 never falsy, exactly as claimed.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -166,6 +238,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A1-SERVIC-6",
+      "verdict": "CONFIRMED",
+      "reason": "backdrop_source is the only free-form enum in the block, is absent from the published service contract, is compared with strict equality in six card sites, and no service rewrites it after create \u2014 so a near-miss value produces an unrepairable layout.",
+      "evidence": "mapping_services.py:406 `vol.Optional(\"backdrop_source\"): cv.string`. Siblings in the same block ARE constrained: mode vol.In([\"cv\",\"custom\"]) (372), art_scope vol.In([\"home\",\"room\"]) (334), scope (590), furnished mode vol.In([\"live\",\"art\",\"blend\"]) (605), rotation vol.In([0,90,180,270]) (628), variant _image_variant (326/343). _create_layout:1588-1589 `if backdrop_source: layout[\"backdrop_source\"] = backdrop_source`. Handler line 2338: `str(call.data.get(\"backdrop_source\") or \"\").strip() or None` \u2014 whitespace only. Strict-equality sites confirmed by grep: src/state/map.js:334, 393, 571, 1129; src/renderers/map.js:1348, 1357; src/bindings/map.js:1262 \u2014 plus the card's only writer src/actions/map.js:504-514 sends the literal from opts.backdropSource, and src/bindings/map.js:1266 passes \"live\". services.yaml create_custom_layout declares only vacuum_entity_id / map_id / name \u2014 backdrop_source is absent. RENAME_CUSTOM_LAYOUT_SCHEMA (410-417) writes only name.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A1-SERVIC-6",
+      "verdict": "CONFIRMED",
+      "reason": "backdrop_source is the only unconstrained enum in the block, is stored verbatim, is compared with strict equality in six card sites, and no service can rewrite it after create.",
+      "evidence": "mapping_services.py:406 `vol.Optional(\"backdrop_source\"): cv.string` against siblings mode `vol.In([\"cv\",\"custom\"])` (372), art_scope `vol.In([\"home\",\"room\"])` (334), scope (590), furnished mode `vol.In([\"live\",\"art\",\"blend\"])` (605), rotation `vol.In([0,90,180,270])` (628). _handle_create_custom_layout:2338 `str(call.data.get(\"backdrop_source\") or \"\").strip() or None` (whitespace only) \u2192 _create_layout:1588 `if backdrop_source: layout[\"backdrop_source\"] = backdrop_source`. Six strict-equality reads confirmed by grep: src/state/map.js:334, 393, 571, 1129; src/renderers/map.js:1348, 1357; src/bindings/map.js:1262. With backdrop_source=\"Live\": backdrop_variant is `custom_<layout_id>` (no upload exists) \u2192 set_custom_segments line 1669 `backdrop = image_variants.get(\"custom_<id>\") or {}` \u2192 map_w None; the card only supplies backdrop_width/height when the live image element is rendered, which renderers/map.js:1357 gates on `backdrop_source === \"live\"` \u2014 so the fallback never fires and line 1684 returns {\"saved\": False, \"reason\": \"no_custom_backdrop\"}. RENAME_CUSTOM_LAYOUT_SCHEMA (410-417) sets only `name`. src/actions/map.js:510 sends the literal from opts.backdropSource, and src/bindings/map.js:1266 passes \"live\", so the card is unaffected.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -186,6 +276,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A1-SERVIC-7",
+      "verdict": "CONFIRMED",
+      "reason": "All 19 names resolve to exactly one occurrence in the live tree (the definition). The two-hit grep count is an artifact of a checked-in worktree copy of the same file, which I verified. The near-twin hazard is real: the dead SAVE_MAP_IMAGE_SCHEMA defaults variant to a value the live validator rejects.",
+      "evidence": "grep -rn '<NAME>' --include=*.py --include=*.yaml . returns 2 hits for each of the 19; both are ./custom_components/eufy_vacuum/mapping/mapping_services.py and ./.claude/worktrees/zealous-moore-95ce57/custom_components/eufy_vacuum/mapping/mapping_services.py \u2014 the same definition line (e.g. :115 and :218) in the real tree and its worktree clone. Net: 1 reference each in the live tree. mapping_services.py:121 SAVE_MAP_IMAGE_SCHEMA declares vol.Optional(\"variant\", default=\"primary\"): cv.string; the live _image_variant (313-318) accepts only default/dark/light/custom or a custom_ prefix and otherwise raises vol.Invalid, so \"primary\" would be rejected. UPLOAD_MAP_IMAGE_SCHEMA (321-337) is the live twin and uses _image_variant.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A1-SERVIC-7",
+      "verdict": "CONFIRMED",
+      "reason": "Programmatic reference count confirms all 19 named schemas are defined once and referenced nowhere, and the two dangerous twins differ from their live counterparts exactly as described.",
+      "evidence": "`grep -rn '<NAME>' --include=*.py --include=*.yaml .` for each of the 19 returns 2 hits, both of which are the same definition line (115/126/134/143/151/158/166/175/184/192/200/208/218/242/255/266/275/282/291) \u2014 one in ./custom_components/... and one in the ./.claude/worktrees/zealous-moore-95ce57/ checkout of the same file. Net: one real definition, zero uses. None appears in the registration block (2814-2900) or in ALL_MAPPING_SERVICES. Concrete hazard verified: SAVE_MAP_IMAGE_SCHEMA:115-124 declares `vol.Optional(\"variant\", default=\"primary\"): cv.string`, and the live `_image_variant` (313-318) accepts only default/dark/light/custom/custom_* \u2014 `_image_variant(\"primary\")` raises `vol.Invalid(\"unknown image variant: primary\")`. TRANSLATE_IMAGE_SEGMENT_SCHEMA:218-240 is field-for-field ADJUST_MAP_SEGMENT_SCHEMA:516-535.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -206,6 +314,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-1",
+      "verdict": "CONFIRMED",
+      "reason": "I executed the exact scenario against the shipped module with numpy 2.3.2 / Pillow 12.2.0. The first save already stores 20.3% for an authored 20.0%, the min corner stays pinned at 10.00%, and eight round-trips through the card's own reload-as-polygon path grow it monotonically to 21.8% \u2014 never converging, never shrinking. The primitives are indeed not persisted, so the card's reload feeds the inflated polygon back in.",
+      "evidence": "Executed: rasterize_primitives([{'type':'rect','x':10,'y':10,'w':20,'h':20}], width=1000, height=1000) -> [[303,258],[303,303],[100,303],[100,100],[303,100]], i.e. x 100..303 = 10.0%..30.3%. Feeding polygon_pct back as a {'type':'polygon'} primitive (exactly what the card does) 8 times: 20.50, 20.70, 20.90, 21.10, 21.20, 21.40, 21.60, 21.80 percent width, min pinned at 10.00 every cycle. Mechanism confirmed in source: segment_primitives.py:277 _p() = max(0, min(res, int(round(v/100*res)))) into an inclusive PIL fill; mask_to_polygon (segment_primitives.py:170-181) emits corners at x+1/y+1 for the rightmost/bottommost filled pixel; lines 315-317 scale by width/res. Card round-trip path confirmed: src/state/map.js:1391-1402 loadComposeDraftFromSegments builds {type:'polygon', points: seg.polygon_pct} and 1370-1382 composeToSegments re-emits it as a polygon primitive; only the polygon is persisted (mapping_services.py:1710 stores 'segments': built).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-1",
+      "verdict": "CONFIRMED",
+      "reason": "Executed against the shipped module with numpy 2.3.2 / Pillow 12.2.0. The first save is already 0.3 pct-points wide of the authored rect, and the reload/re-save round trip grows monotonically, reproducing the finder's numbers digit-for-digit.",
+      "evidence": "rasterize_primitives([{\"type\":\"rect\",\"x\":10,\"y\":10,\"w\":20,\"h\":20}], width=1000, height=1000) \u2192 [[303,258],[303,303],[100,303],[100,100],[303,100]], bbox 100..303. Arithmetic: _p(10)=round(51.2)=51, _p(30)=round(153.6)=154, inclusive fill 51..154, corner trace emits 155, sx=1000/512=1.953125, 155*1.953125=302.73\u2192303; 51*1.953125=99.6\u2192100. Feeding polygon_pct back as a polygon primitive (exactly what src/state/map.js:1391-1402 loadComposeDraftFromSegments + 1344 composeToSegments do \u2014 verified: the draft is rebuilt as `{type:\"polygon\", points: seg.polygon_pct}`) for 8 cycles: 20.3%, 20.5%, 20.7%, 20.9%, 21.1%, 21.2%, 21.4%, 21.6% wide; area 41209 \u2192 45468 px (+10.3%). min x pinned at 10.0 throughout, so the shape creeps toward +X/+Y rather than growing about its centre. Monotonic, never converges. set_custom_segments is replace-all (line 1710 `layout[\"custom_segments\"] = {...}`), so one Save re-inflates every shape in a reloaded draft.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -226,6 +352,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-2",
+      "verdict": "CONFIRMED",
+      "reason": "The sentinel collision is exact and the caller's write is unconditional. The library-absent return is byte-identical to the legitimate degenerate return, the handler cannot distinguish them, and it overwrites layout['custom_segments'] with the empty result and persists before returning saved:True. The capability probe exists in the same module and is not consulted at either site.",
+      "evidence": "segment_primitives.py:267-268: `if PIL_Image is None or np is None: return []` \u2014 identical to the degenerate returns at :309 (`if not drew: return []`) and :313 (`if not poly: return []`). mapping_services.py:1697-1717: `if not poly: skipped += 1; continue` then, outside the loop and with no guard on `built` or `skipped`, `layout[\"custom_segments\"] = {\"available\": bool(built), ..., \"segments\": built}` followed by `await manager.async_save()` and `return {\"saved\": True, \"segment_count\": len(built), \"skipped\": skipped, ...}`. image_runtime_capabilities / _PIL_SCIPY_READY are defined at segment_primitives.py:57-59 and consulted by segmenter_engines.py and core/manager.py, but grep shows neither rasterize_primitives nor _handle_set_custom_segments references them. The live-backed layout path (mapping_services.py:1673-1682, fed by src/actions/map.js:474-477 backdrop_width/height) supplies map_w/map_h without any uploaded image, so the handler reaches the rasteriser on a Pillow-less host.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-2",
+      "verdict": "CONFIRMED",
+      "reason": "The library-missing return is byte-identical to the degenerate return, and the sole caller writes the empty result over the stored layout unconditionally and persists it while reporting saved:true.",
+      "evidence": "segment_primitives.py:267-268 `if PIL_Image is None or np is None: return []` \u2014 same `[]` as lines 309 and 313. mapping_services.py:1697-1717: `if not poly: skipped += 1; continue` then, outside any conditional, `layout[\"custom_segments\"] = {\"available\": bool(built), \"engine\":\"custom\", \"analyzed_at\":..., \"image\":{...}, \"segments\": built, \"summary\":{\"segment_count\": len(built)}}` followed by `await manager.async_save()` and `return {\"saved\": True, \"segment_count\": len(built), \"skipped\": skipped, ...}`. With built==[] the six prior segments are gone from .storage and the response is {\"saved\": true, \"segment_count\": 0, \"skipped\": 6}. manifest.json confirms `\"requirements\": []` \u2014 numpy/Pillow are never installed by the integration. image_runtime_capabilities()/_PIL_SCIPY_READY exist in the same module but neither rasterize_primitives nor _handle_set_custom_segments consults them; the only pre-flight guard (line 1673 `if not map_w or not map_h`) tests dims, not libraries. Registration at 2830-2833 is unconditional.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -246,6 +390,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-3",
+      "verdict": "CONFIRMED",
+      "reason": "The aliasing is real on the common no-adjustment path and the caller writes into the returned dicts. In CV mode the list handed to _apply_segment_adjustments is the live image_segments['segments'] list, and both polygon_pct and room_id are assigned onto those same dicts. The sibling reader proves the correct shape was known. Nothing anywhere prunes a stale room_id off a stored segment, and the enrichment loop is skipped entirely once links goes empty.",
+      "evidence": "mapping_services.py:761-762 `if not adjustments: return segments` (returns the caller's list object); :764-766 and :783-784 append the ORIGINAL seg for every segment without an adjustment record; only :786 `updated = dict(seg)` copies, and only for adjusted segments. _resolve_active_scope (mapping_services.py:1546-1556) returns `map_bucket.get(\"image_segments\") or {}` for cv \u2014 the live store; its docstring says links/anchors 'are the real mutable dicts'. _handle_get_map_segments then writes into them: :1229-1233 `seg[\"polygon_pct\"] = [...]` and :1240-1247 `if isinstance(links, dict) and links:` ... `if linked_room is not None: seg[\"room_id\"] = str(linked_room)` \u2014 there is no else-branch that pops a stale key. The correct sibling is _build_segments_response:1074-1076 `seg = {**seg, \"room_id\": str(linked_room)}` with the comment 'Original cache untouched'. Persistence: _handle_get_map_segments itself calls `await manager.async_save()` at :1265-1268 when the saved-zone backfill changes anything, and manager.async_save serialises the whole manager.data blob.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-3",
+      "verdict": "CONFIRMED",
+      "reason": "_apply_segment_adjustments returns the caller's live list object on the no-adjustment path, and _handle_get_map_segments then writes polygon_pct and room_id into those persisted dicts. The next async_save from any handler flushes the mutation, and the read path can never clear a room_id.",
+      "evidence": "mapping_services.py:761-762 `if not adjustments: return segments` (and 765-766/783-784 append the original `seg`). _resolve_active_scope's cv branch returns `map_bucket.get(\"image_segments\") or {}` \u2014 the real stored dict; its own docstring says links/anchors are \"the real mutable dicts\". _handle_get_map_segments then does `seg[\"polygon_pct\"] = [...]` (line 1230) and `seg[\"room_id\"] = str(linked_room)` (line 1247) on those same objects. The repo's own test pins the aliasing: tests/unit/test_mapping_services_helpers.py:57 `assert _apply_segment_adjustments(segs, {}) is segs`. Clearing is impossible on the read side: line 1246 is `if linked_room is not None:` (never writes None), and line 1240 `if isinstance(links, dict) and links:` skips the whole loop once links is empty. Persistence: core/manager.py:803-805 `async def async_save(self): await self.storage.async_save(self.data)` serialises the whole blob, and _handle_set_segment_room_link's 1:1 rule (1843-1846) pops the older link and then calls async_save \u2014 flushing the stale room_id. The sibling reader _build_segments_response:1077 does `seg = {**seg, \"room_id\": ...}` with the comment \"Original cache untouched\", proving the correct pattern exists one function away. Card consequence verified: src/state/map.js:1690-1698 roomIdForSegment returns `seg.room_id` from the backend payload (\"Backend payload is canonical when present\"), and src/bindings/map.js:888-897 calls `toggleRoomEnabled(room.mapId, room.id, ...)` on that room.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -266,6 +428,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-4",
+      "verdict": "CONFIRMED",
+      "reason": "Reproduced exactly against the shipped module: two non-touching rects in one segment return only the larger loop's polygon; the smaller component is absent from the output and the caller records the save as a full success. The card's merge tool has no proximity requirement.",
+      "evidence": "Executed: rasterize_primitives([{'type':'rect','x':10,'y':10,'w':20,'h':20},{'type':'rect','x':60,'y':60,'w':10,'h':10}], width=1000, height=1000) -> 5 points, bbox (100,100)-(303,303). The (600,600)-(700,700) component is entirely absent. Source: segment_primitives.py:221 `best_loop = max(loops, key=lambda pts: abs(polygon_area(pts)))` \u2014 a single loop is returned, other loops are discarded with no signal. mapping_services.py:1700-1702 increments `skipped` only when `not poly`, so the response is {'saved': True, 'segment_count': 1, 'skipped': 0}. Merge has no adjacency check: src/state/map.js:1442-1455 mergeComposeShapes takes (targetId, memberId) and only sets a shared `group`; the comment at 1444-1449 states 'Shapes sharing a `group` rasterise into ONE segment (room)'. Doc claims the union: docs/dev/11-mapping-system.md:746 'they union into a single polygon'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-4",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: two non-touching rects in one segment return only the larger component's loop, order-independently, and the caller records it as a clean success.",
+      "evidence": "rasterize_primitives([{\"type\":\"rect\",\"x\":10,\"y\":10,\"w\":20,\"h\":20},{\"type\":\"rect\",\"x\":60,\"y\":60,\"w\":10,\"h\":10}], width=1000, height=1000) \u2192 [[303,258],[303,303],[100,303],[100,100],[303,100]], bbox (100,100)-(303,303), 5 points, polygon_area 41209 px. Expected union 200*200 + 100*100 = 50000 px; the 100x100 component at (600,600)-(700,700) is entirely absent. Reversing the primitive order gives the identical bbox x 100..303, confirming it is largest-loop selection (segment_primitives.py:221 `best_loop = max(loops, key=lambda pts: abs(polygon_area(pts)))`), not draw order. `drew` is True and `poly` is non-empty, so mapping_services.py:1700-1702 never increments `skipped`: the response is {\"saved\": true, \"segment_count\": 1, \"skipped\": 0}. src/state/map.js merge is a two-tap group assignment with no proximity test (\"Shapes sharing a `group` rasterise into ONE segment (room)\"). docs/dev/11-mapping-system.md:746 promises \"they union into a single polygon\".",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -286,6 +466,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-5",
+      "verdict": "CONFIRMED",
+      "reason": "Re-analysis replaces image_segments wholesale and touches nothing else; adjustments are looked up purely by segment_id with no fingerprint of the polygon they were authored against; segment ids are per-run ordinals minted by a running counter with no anchor to a physical room. The comment enumerating what survives re-analysis omits adjustments, and adjustments are the one overlay that references vertex INDICES into the image-derived polygon. Note this is one of three reports of the same root cause (see A3-IMAGE--1, A4-CUSTOM-6).",
+      "evidence": "mapping_services.py:1172-1175: result = await hass.async_add_executor_job(_run); result['analyzed_at'] = ...; map_bucket['image_segments'] = result; await manager.async_save() \u2014 image_segment_adjustments is not referenced anywhere in the handler. grep image_segment_adjustments: read at :1205, written only at :1752 (adjust_map_segment); nothing prunes it. _apply_segment_adjustments:769-770 matches on `adjustments.get(seg_id)` only; _adjust_polygon_pixel:744-751 applies vertex_moves by list index with only a bounds check `if idx < 0 or idx >= len(translated): continue`. Ids: adapters/eufy/segmentor.py:1289 `\"segment_id\": f\"segment_{segment_id}\"` from a running counter, again at :1474; the list is then re-sorted by area at :1414 and :1485. The inline claim at mapping_services.py:1181-1184 names only segment_room_links and companion_anchors as preserved.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-5",
+      "verdict": "CONFIRMED",
+      "reason": "analyze replaces image_segments wholesale and never touches image_segment_adjustments; segment ids are per-run ordinals re-sorted by descending area, so a stored record re-attaches by id to whatever polygon now carries it. Confirmed from source; the exact re-labelling in the finder's scenario is illustrative, not measured.",
+      "evidence": "mapping_services.py:1172-1175 `result = await hass.async_add_executor_job(_run); result[\"analyzed_at\"]=...; map_bucket[\"image_segments\"] = result; await manager.async_save()` \u2014 nothing else in the handler is mutated. _apply_segment_adjustments:769-770 looks up purely by `adjustments.get(str(seg.get(\"segment_id\")))`; _adjust_polygon_pixel:740-748 applies vertex_moves by list INDEX with only `if idx < 0 or idx >= len(translated): continue`. Id instability proven in adapters/eufy/segmentor.py: `\"segment_id\": f\"segment_{segment_id}\"` (1289) / `candidate[\"segment_id\"] = f\"segment_{segment_id}\"` (1474) from a running counter, followed by `segments.sort(key=lambda item: (-float(item.get(\"area_pixels\", 0)), str(item.get(\"segment_id\", \"\"))))` at 1414 and 1485 \u2014 id N means \"Nth largest blob in THIS run\". The inline comment at 1181-1183 claims links and anchors are \"independent of the image-derived segments\" and omits adjustments; nothing anywhere prunes image_segment_adjustments (only written at 1752, read at 1205). Whether a specific re-analysis actually permutes the ordering is device/image data I do not have.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -306,6 +504,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-6",
+      "verdict": "CONFIRMED",
+      "reason": "Executed against the shipped functions: a square scores exactly pi/4 regardless of size (so pi/4 is the attainable ceiling, not 1) and a rasterised disc scores LOWER than a square. Both docstring assertions are false. The perimeter it divides by is mask_perimeter's city-block edge count, which is what produces the (4/pi)^2 penalty on curves.",
+      "evidence": "Executed: compactness(1600, 160) = 0.7853981633974483 (40x40 square); compactness(10000, 400) = 0.7853981633974483 (100x100 square) \u2014 identical, confirming pi/4 is size-independent. Rasterised disc r=40: area 5025, mask_perimeter 324, compactness = 0.601528085821091. Source: segment_primitives.py:342-345 docstring 'Return the isoperimetric quotient (4piA / P^2).  Range 0-1; 1 = circle.' over `4.0 * math.pi * area / max(float(perimeter*perimeter), 1.0)`, where perimeter comes from mask_perimeter (:326-341), a 4-neighbour exposed-edge count. Module header lines 3-5 declare this module 'the recommended starting point when writing a new segmentor adapter'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-6",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: the attainable maximum is exactly pi/4 for any square, and a rasterised disc scores materially lower than a square \u2014 both docstring assertions are false.",
+      "evidence": "compactness(1600,160) [40x40 square] = 0.7853981633974483; compactness(10000,400) [100x100 square] = 0.7853981633974483 \u2014 identical, confirming pi/4 = 0.7854 is a size-independent ceiling. A digital disc of radius 40 built as (x\u00b2+y\u00b2)<=r\u00b2: area 5025, mask_perimeter 324, compactness(5025,324) = 0.6015. So the range is 0..0.785 and a circle (0.60) scores BELOW a square (0.785), against the docstring at segment_primitives.py:342 \"Range 0-1; 1 = circle\". Cause: mask_perimeter counts exposed 4-neighbour edges (city-block), so P = 2(w+h) for a rectangle \u2192 4\u03c0wh/4(w+h)\u00b2 = \u03c0wh/(w+h)\u00b2, maximised at w=h to \u03c0/4; a disc's staircase perimeter is ~8r not 2\u03c0r. No runtime defect \u2014 segmentor.py thresholds (e.g. compactness < 0.08) were tuned against the real function.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -326,6 +542,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-7",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: the function's output is plain chromaticity to float32 epsilon, so the Rec.709 luminance division provably cancels. The 1e-6 clamp that could break the cancellation is unreachable because the +1.0 floor guarantees a channel sum/luminance ratio of at least ~0.0117.",
+      "evidence": "Executed on np.array([[[10,20,30],[200,5,60]]], uint8): function output [[0.17460318, 0.33333331, 0.49206349], [0.75, 0.02238806, 0.22761194]] vs plain (rgb+1)/sum(rgb+1) [[0.17460318, 0.33333334, 0.49206349], [0.75, 0.02238806, 0.22761194]]; max abs difference 2.98e-08. Source: segment_primitives.py:526-534 \u2014 rgb_float = rgb.astype(np.float32) + 1.0; luminance = 0.2126*R + 0.7152*G + 0.0722*B; luminance = np.maximum(luminance, 1.0); normalized = rgb_float / luminance[:,:,None]; channel_sum = np.maximum(normalized.sum(axis=2, keepdims=True), 1e-6); return normalized / channel_sum. Algebraically (rgb/L)/(sum(rgb)/L) = rgb/sum(rgb). Docstring says 'illumination-normalized chromaticity features'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-7",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: the function's output is bit-for-bit plain chromaticity; the Rec.709 luminance division cancels exactly, and the 1e-6 clamp that could break the cancellation is unreachable.",
+      "evidence": "normalized_color_features(np.array([[[10,20,30],[200,5,60]]], uint8)) \u2192 [[0.17460318, 0.33333331, 0.49206349],[0.75, 0.02238806, 0.22761194]]. Plain (rgb+1)/sum(rgb+1) \u2192 [[0.17460318, 0.33333334, 0.49206349],[0.75, 0.02238806, 0.22761194]]. max abs difference 2.98e-08 = float32 epsilon. Algebra: (rgb/L)/(sum(rgb)/L) = rgb/sum(rgb) for any L>0. Unreachability of the guard: `rgb_float = rgb.astype(float32) + 1.0` forces every channel >= 1 so sum >= 3, and L <= 0.2126*256+0.7152*256+0.0722*256 = 256, giving channel_sum = sum/L >= 3/256 = 0.0117 >> 1e-6, so `np.maximum(channel_sum, 1e-6)` never binds. Test [SP-24] asserts only that channels sum to 1, which plain chromaticity satisfies.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -346,6 +580,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A2-POLYGO-8",
+      "verdict": "CONFIRMED",
+      "reason": "Reproduced: a KeyError on the second primitive silently drops it mid-segment and the segment is saved as a partial room with skipped still 0. One sub-claim is slightly overstated \u2014 a primitive with an unrecognised `type` in ISOLATION leaves drew False and returns [], so it IS counted in skipped; it is only silent when mixed with a valid primitive. The core defect (per-primitive swallow that neither logs nor reaches the caller's failure signal) is exactly as described.",
+      "evidence": "Executed: rasterize_primitives([{'type':'rect','x':10,'y':10,'w':30,'h':30},{'type':'rect','x':50,'y':50}], width=1000, height=1000) -> max x = 402, i.e. only the first rect. rasterize_primitives([{'type':'ellipse','cx':50,'cy':50,'r':10}], ...) -> [] (so a lone unknown type does increment skipped). Source: segment_primitives.py:305-306 `except (KeyError, TypeError, ValueError): continue` \u2014 no log, no flag; `drew` (:279) is a single OR across all primitives; :308 `if not drew: return []` covers only the all-failed case. mapping_services.py:1700-1702 increments skipped only on an empty polygon, and there is no try/except around the rasterize_primitives call.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A2-POLYGO-8",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: a KeyError-raising primitive mid-list is silently dropped and the partial polygon is reported as a full success.",
+      "evidence": "rasterize_primitives([{\"type\":\"rect\",\"x\":10,\"y\":10,\"w\":30,\"h\":30},{\"type\":\"rect\",\"x\":50,\"y\":50}], width=1000, height=1000) \u2192 [[314,100],[402,100],[402,402],[100,402],[100,100]], max x 402 \u2014 only the first rect, which alone spans 10..40 pct (402/1000 = 40.2%). The second dict raises KeyError on prim[\"w\"] and is swallowed by `except (KeyError, TypeError, ValueError): continue` at segment_primitives.py:305-306, with no flag, no log, and no effect on `drew` (already True). mapping_services.py:1700-1702 increments `skipped` only when the WHOLE polygon comes back empty, so the response is {\"saved\": true, \"segment_count\": 1, \"skipped\": 0} for a half-drawn room. An unrecognised `type` matches no branch and raises nothing at all. Replace-all persistence (line 1710) makes the partial version canonical.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -366,6 +618,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--1",
+      "verdict": "CONFIRMED",
+      "reason": "Every link in the chain checks out, including the actuating consequence I verified card-side: tapping a segment polygon calls toggleRoomEnabled for the LINKED room. One mechanism nuance: the segment_id is minted in DETECTION order and the list is sorted by area afterwards, so 'id N = the Nth largest blob' is not literally how the id is assigned \u2014 but the ids remain per-run ordinals with nothing anchoring them to a physical room, so the conclusion (a re-analysis silently rebinds links and adjustments onto different regions) is unaffected. The docs do state a relink is forced; no code forces one.",
+      "evidence": "mapping_services.py:1174-1175 map_bucket['image_segments'] = result; await manager.async_save() \u2014 nothing else touched; the inline comment at :1181-1184 asserts links/anchors are 'independent of the image-derived segments'. Re-attachment by id: _build_segments_response:1071-1076 and _handle_get_map_segments:1240-1247 (`links.get(seg_id)`), _apply_segment_adjustments:769-770 (`adjustments.get(seg_id)`). Id minting: adapters/eufy/segmentor.py:1289 and :1474 `f\"segment_{segment_id}\"` from a running counter; segments.sort(key=lambda item: (-float(item.get(\"area_pixels\", 0)), ...)) at :1414 and :1485. Actuating: src/bindings/map.js:886-896 \u2014 on a single tap, `const roomId = this.card._state.roomIdForSegment(segmentId)` then `this.card._actions.toggleRoomEnabled(room.mapId, room.id, wasSelected)`. Card always forces re-analysis: src/bindings/map.js:1104 `analyzeMapImage(mapId, { force_reanalyze: true })`.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--1",
+      "verdict": "CONFIRMED",
+      "reason": "Re-analysis replaces image_segments wholesale while segment_room_links and image_segment_adjustments survive keyed by positional ids that the segmentor re-mints and re-sorts by area each run. The stale link is device-reaching through the card's segment-tap handler.",
+      "evidence": "mapping_services.py:1174-1175 `map_bucket[\"image_segments\"] = result; await manager.async_save()` \u2014 no clear, no relink, no fingerprint. Enrichment is by id only: _build_segments_response:1074 `linked_room = links.get(seg_id); if linked_room is not None: seg = {**seg, \"room_id\": str(linked_room)}` and _apply_segment_adjustments:769. Id instability proven: adapters/eufy/segmentor.py:1289/1474 mint `f\"segment_{N}\"` from a running counter and 1414/1485 then `segments.sort(key=lambda item: (-float(item.get(\"area_pixels\", 0)), ...))`, so a bedroom growing from 30,400 to 30,600 px past a 30,500 px kitchen swaps their ids. Actuating path verified in the card: src/state/map.js:1690-1698 roomIdForSegment reads seg.room_id from the payload (\"Backend payload is canonical when present\"), and src/bindings/map.js:888-897 does `const roomId = roomIdForSegment(segmentId); ... this.card._actions.toggleRoomEnabled(room.mapId, room.id, wasSelected)` \u2014 tapping the polygon over the kitchen enables the bedroom for the next run. The card always forces re-analysis (src/bindings/map.js:1104 `analyzeMapImage(mapId, { force_reanalyze: true })`). Vertex-index reapplication confirmed at _adjust_polygon_pixel:740-748.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -386,6 +656,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--2",
+      "verdict": "CONFIRMED",
+      "reason": "The engine seam genuinely never raises \u2014 both the CV engine's exception path and the noop engine return a fully-formed available:False envelope \u2014 and the handler assigns it over the cached segmentation and persists with no check on `available` and no snapshot. The 'an exception would have skipped the write' defence does not exist.",
+      "evidence": "mapping_services.py:1172-1175: result = await hass.async_add_executor_job(_run); result[\"analyzed_at\"] = utc_now_iso(); map_bucket[\"image_segments\"] = result; await manager.async_save() \u2014 no `if result.get(\"available\")`. segmenter_engines.py:279-291: `try: raw = detect_room_segments(**kwargs) except Exception: _LOGGER.exception(...); return _engine_unavailable(engine=..., reason=\"engine_exception\", ...)`. _engine_unavailable (segmenter_engines.py:416-440) returns {'available': False, 'reason': ..., 'image': None, 'segments': [], 'summary': {'segment_count': 0, ...}}. NoopSegmenter.segment_map_image (segmenter_engines.py:355-365) returns the same with reason 'noop'; get_segmenter_engine(None-or-unknown) (:386-403) returns it. adapters/roborock/adapter.py:482 declares \"segmenter_engine\": \"noop_fallback\". The only pre-flight abort is `if not image_path` at :1125, which returns before touching the bucket \u2014 proving the write-guard shape was available and not applied to the engine result.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--2",
+      "verdict": "CONFIRMED",
+      "reason": "Every engine failure arrives as a well-formed available:False envelope rather than an exception, and the handler writes it over the cached good segmentation and persists with no rollback or check.",
+      "evidence": "mapping_services.py:1172-1175 is unconditional: `result = await hass.async_add_executor_job(_run)` \u2192 `map_bucket[\"image_segments\"] = result` \u2192 `await manager.async_save()`. No `result.get(\"available\")` test exists in the handler. segmenter_engines.py:279-291: `try: raw = detect_room_segments(**kwargs) except Exception: _LOGGER.exception(...); return _engine_unavailable(engine=..., reason=\"engine_exception\", ...)`, and _engine_unavailable (429-440) returns `{\"available\": False, \"reason\":..., \"engine\":..., \"image\": None, \"segments\": [], \"summary\": {\"segment_count\": 0, ...}, \"engine_diagnostics\": {...}}` \u2014 a complete dict, so the executor frame never sees an exception and the \"an exception would have skipped the write\" defence does not hold. get_segmenter_engine(None) returns NoopSegmenter (391-403). The only pre-flight abort (`if not image_path` at 1125) returns before touching the bucket \u2014 the write-guard shape was available and not applied to the engine result. The image the segments came from was just overwritten at the same deterministic path (line 896, no versioning), so the prior result is unreproducible. Nuance: the finder's second path (Roborock/noop wiping on first analyze) requires an uploaded PNG to exist and prior CV segments to be present, which is unlikely on a noop_fallback adapter (adapters/roborock/adapter.py:482); the Eufy engine_exception / missing-optional-libs path is the solid one.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -406,6 +694,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--3",
+      "verdict": "CONFIRMED",
+      "reason": "The cache gate is a bare truthiness test on a dict that is non-empty in the failure case too, so a stored available:False envelope satisfies it permanently. `available` is present in the envelope and never read at this site, and there is no TTL or freshness comparison anywhere in the handler.",
+      "evidence": "mapping_services.py:1100-1102: `if not force_reanalyze and map_bucket.get(\"image_segments\"): _LOGGER.debug(...); return _build_segments_response(map_bucket)`. The failure envelope written by the same handler is a non-empty dict (segmenter_engines.py:429-440 returns keys available/reason/message/engine/image/segments/summary/engine_diagnostics). ANALYZE_MAP_IMAGE_SCHEMA (mapping_services.py:349-357) declares vol.Optional(\"force_reanalyze\", default=False): cv.boolean. Read side does the same: _build_segments_response:1055 `base = map_bucket.get(\"image_segments\") or {}`. Card immunity confirmed: src/bindings/map.js:1104 hard-codes force_reanalyze: true.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--3",
+      "verdict": "CONFIRMED",
+      "reason": "The cache gate is a bare truthiness test on a dict that a failure envelope satisfies, and nothing in the gate or the read path inspects `available`.",
+      "evidence": "mapping_services.py:1100 `if not force_reanalyze and map_bucket.get(\"image_segments\"):` \u2192 `return _build_segments_response(map_bucket)`. The stored failure envelope is `{\"available\": False, \"reason\": \"...\", \"engine\": \"...\", \"image\": None, \"segments\": [], \"summary\": {...}, \"engine_diagnostics\": {...}}` (segmenter_engines.py:429-440) \u2014 a non-empty dict, hence truthy, hence a cache hit. ANALYZE_MAP_IMAGE_SCHEMA line 355 `vol.Optional(\"force_reanalyze\", default=False): cv.boolean`, so the default caller takes the stale branch forever. `available` is present in the envelope and would have been a correct gate but is never read at 1100; _build_segments_response:1055 `base = map_bucket.get(\"image_segments\") or {}` applies the same truthiness on the read side. No TTL, analyzed_at check, or image-mtime comparison exists in the handler. The card is immune (src/bindings/map.js:1104 hard-codes force_reanalyze: true).",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -426,6 +732,24 @@
     "severity_corrections": [
      "unchanged",
      "LOW"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--4",
+      "verdict": "CONFIRMED",
+      "reason": "The upload success block writes only image_variants and (optionally) the layout art/backdrop pointers; image_segments, image_segment_adjustments and segment_room_links are untouched and no staleness marker is stamped. The truthiness cache gate then reports a hit for a segmentation computed from the replaced file.",
+      "evidence": "mapping_services.py:926-958 \u2014 the entire `if result[\"saved\"]:` block: ensure_map_bucket, variants = map_bucket.setdefault(\"image_variants\", {}), variants[variant] = {...}, then only the art_scope / layout_id branches writing layout['home_art']['art_variant'] / layout['rooms'][rid]['art_variant'] / layout['backdrop_variant'] and layout['updated_at'], then await manager.async_save(). No reference to image_segments in the function. Cache gate at :1100. get_map_segments divides by the stored envelope's own dims: :1224-1226 `store_img = raw.get(\"image\") ...; img_w = store_img.get(\"width\") or img_meta.get(\"width\") or 1`.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--4",
+      "verdict": "CONFIRMED",
+      "reason": "The upload success block touches only image_variants and the layout's variant pointers; image_segments and its analyzed_at are left intact, so a default analyze after a replacement upload serves the previous image's geometry. Real, but the only shipped consumer bypasses it.",
+      "evidence": "mapping_services.py:926-958 \u2014 `variants[variant] = {variant, path, browser_url, width, height}`, then the art_scope branch writes home_art/rooms[*].art_variant, or the layout branch writes backdrop_variant, then `await manager.async_save()`. Grep of that block shows no reference to image_segments, image_segment_adjustments, segment_room_links, or any staleness marker. _handle_analyze_map_image:1100 therefore still reports a cache hit and returns the old envelope with the old `analyzed_at` and the old `image` dims; _handle_get_map_segments:1224-1226 then scales those polygons by `store_img.get(\"width\")` from the stale store. Severity: the card is the only shipped caller and always passes force_reanalyze:true (src/bindings/map.js:1104), the stale read is non-destructive, and one explicit force_reanalyze fully repairs it \u2014 that is a LOW, not a MEDIUM.",
+      "severity_correction": "LOW",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -446,6 +770,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--5",
+      "verdict": "CONFIRMED",
+      "reason": "The primary claim \u2014 that map_id and variant are concatenated into one flat filename with an underscore and no escaping, so map 'Upstairs' variant 'dark' and map 'Upstairs_dark' variant 'default' resolve to the identical path while their storage buckets stay distinct \u2014 is arithmetically exact and confirmed at both the write and delete sites. The documented normalisation does not exist. One sub-claim is REFUTED and should be struck before this reaches a fix: the POSIX '../' traversal does NOT resolve outside base_dir, because the first path component always carries the literal 'map_' prefix and POSIX resolves '..' only after resolving the preceding component, so the walk fails with ENOENT (I executed it; it raised FileNotFoundError). The separator case is therefore an unhandled OSError, not a write outside the directory.",
+      "evidence": "mapping_services.py:894-897 suffix = \"\" if variant == \"default\" else f\"_{variant}\"; file_path = os.path.join(base_dir, f\"map_{map_id}{suffix}.png\"); browser_url built identically at :897; _handle_delete_map_image reproduces it at :999-1000 (with entry.get(\"path\") taking precedence). Collision arithmetic: (\"Upstairs\",\"dark\") -> map_Upstairs_dark.png; (\"Upstairs_dark\",\"default\") -> map_Upstairs_dark.png. Buckets stay distinct because ensure_map_bucket keys on str(map_id) (maps/map_manager.py:19). Roborock map_id is the free-text map NAME (adapters/roborock/adapter.py:190). Doc divergence confirmed: docs/dev/11-mapping-system.md:517 claims 'Variant names are normalised to lowercase, spaces and hyphens replaced by underscores' \u2014 grep for slugify|re.sub across mapping/ and maps/ returns only tracker.py:150 (unrelated). Traversal refutation: executed os.path.join(base, 'map_../../../../www/pwn.png') + open(...,'wb') -> FileNotFoundError [Errno 2]; os.path.normpath collapses lexically but open() does not.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--5",
+      "verdict": "CONFIRMED",
+      "reason": "The flat `map_{map_id}{_variant}.png` construction is genuinely ambiguous \u2014 two distinct map buckets can name the same file \u2014 and a map_id containing a separator produces an uncaught FileNotFoundError. The POSIX-traversal sub-claim in the reproduction is wrong, but it is not the finding's primary claim.",
+      "evidence": "Arithmetic on lines 895-897: map_id=\"Upstairs\", variant=\"dark\" \u2192 suffix \"_dark\" \u2192 \"map_Upstairs_dark.png\". map_id=\"Upstairs_dark\", variant=\"default\" \u2192 suffix \"\" \u2192 \"map_Upstairs_dark.png\". Identical path; ensure_map_bucket keys the two buckets separately by `str(map_id)` (maps/map_manager.py:17), so both records claim the same file with different recorded width/height, and _handle_delete_map_image:999-1000 reconstructs the same colliding path. `_image_variant` (313-318) constrains only the variant half; map_id is bare `cv.string` in all five schemas; no basename/slugify/commonpath call exists in the module (tracker.py:150 has the only re.sub in mapping-adjacent code). Separator case verified empirically: open() on `<base>/map_Main/2nd.png` raises FileNotFoundError because os.makedirs (line 900) creates only base_dir; the only try/except in _write_and_measure wraps the PIL measure (905-911), so the service raises instead of returning the {\"saved\": False, \"reason\": ...} shape. CORRECTION to the finding: the claim that a map_id beginning \"../\" \"resolves outside base_dir entirely\" is false on POSIX \u2014 I executed it and open() returns ENOENT because the literal `map_..` component does not exist; and the stated collapse target is off by one level (posixpath.normpath gives /config/eufy_vacuum/www/pwn.png, not /config/maps/x.png). Roborock exposure confirmed: adapters/roborock/adapter.py:190 documents active_map as the map NAME.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -466,6 +808,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--6",
+      "verdict": "CONFIRMED",
+      "reason": "The asymmetry is exactly as described and the docstring's 'Mirror of _handle_upload_map_image' is falsified by the schemas: upload takes layout_id/art_scope/room_id and validates the layout before writing, delete takes none of them and its whole mutation is a variant pop. _image_variant actively admits custom_* keys into the delete path, so nothing stops a layout's backdrop being deleted out from under it. The reverse sweep exists in delete_custom_layout, proving the pattern was known.",
+      "evidence": "DELETE_MAP_IMAGE_SCHEMA mapping_services.py:339-345 \u2014 only vacuum_entity_id, map_id, variant (default \"default\"); no layout_id, no art_scope. Handler mutation is mapping_services.py:1014-1021: variants.pop(variant, None) then map_bucket[\"image_variants\"] = variants (or {}). Upload's layout awareness at :846-875 (returns layout_not_found) and the repointing at :941-957. _image_variant:316 accepts `value.startswith(\"custom_\")`. Downstream consequence confirmed: _handle_set_custom_segments:1668-1684 does `backdrop = (map_bucket.get(\"image_variants\") or {}).get(variant) or {}` -> map_w None -> {\"saved\": False, \"reason\": \"no_custom_backdrop\"}, and _handle_get_map_segments:1211-1217 falls back through img_variants dark/default/light. The other half exists: _handle_delete_custom_layout:2392-2418 pops the backdrop variant plus every home_art / rooms[*] art_variant and os.removes their paths.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--6",
+      "verdict": "CONFIRMED",
+      "reason": "delete_map_image's schema has no layout_id/art_scope and its only mutation is a variant pop, while _image_variant explicitly admits custom_* keys \u2014 so a per-layout backdrop or art PNG can be deleted out from under a live layout that keeps advertising it. The reverse sweep exists on the layout-delete side, proving the asymmetry.",
+      "evidence": "DELETE_MAP_IMAGE_SCHEMA (339-345) = {vacuum_entity_id, map_id, variant} only. _handle_delete_map_image's whole mutation is `variants.pop(variant, None)` at 1014 plus the empty-dict normalisation; nothing scans custom_layouts. `_image_variant`:316 `value in (\"default\",\"dark\",\"light\",\"custom\") or value.startswith(\"custom_\")` \u2014 so variant=\"custom_cl_A\" and \"custom_cl_A_home_art\" both pass the schema. Contrast _handle_upload_map_image:846-875 and 941-957, which require layout_id, return {\"saved\": False, \"reason\": \"layout_not_found\"} if it does not resolve, and repoint backdrop_variant / home_art.art_variant / rooms[rid].art_variant. Contrast _handle_delete_custom_layout:2392-2418, which explicitly pops the backdrop variant AND every home_art/rooms[*].art_variant and os.removes their files \u2014 the reference sweep exists in exactly one direction. After the delete, set_custom_segments line 1669 `backdrop = (map_bucket.get(\"image_variants\") or {}).get(\"custom_cl_A\") or {}` \u2192 map_w None \u2192 1684 returns {\"saved\": False, \"reason\": \"no_custom_backdrop\"}, while get_map_segments:1256 still reports `backdrop_variant: \"custom_cl_A\"` in layouts_summary. Card reach is limited: src/bindings/map.js's delete-map-variant handler drives only the three CV variants.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -486,6 +846,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--7",
+      "verdict": "CONFIRMED",
+      "reason": "_remove_file returns False on OSError and the caller ignores the distinction, popping the variant and saving unconditionally while reporting deleted:True. The card checks only `deleted !== false`, so the failure is discarded end to end. The analyzer's filesystem probe then re-accepts the orphan, and a second delete returns not_found without retrying the unlink.",
+      "evidence": "mapping_services.py:1002-1022: `def _remove_file(): try: os.remove(file_path); return True; except FileNotFoundError: return False; except OSError as exc: _LOGGER.warning(...); return False` -> `file_removed = await hass.async_add_executor_job(_remove_file)` -> `variants.pop(variant, None)` ... `await manager.async_save()` with no branch on file_removed; result at :1024-1031 is {\"deleted\": True, \"file_removed\": file_removed, ...}. Card: src/bindings/map.js:1157-1161 `const ok = result && result.deleted !== false;` then a success toast. Orphan reachable: _variant_path (mapping_services.py:1109-1113) returns os.path.join(base_dir, f\"map_{map_id}{suffix}.png\") whenever the variant is absent from image_variants, and :1118-1123 accepts it on os.path.isfile. Second delete: :988-995 returns {\"deleted\": False, \"reason\": \"not_found\"} before reaching _remove_file.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--7",
+      "verdict": "CONFIRMED",
+      "reason": "The storage pop and the deleted:True response are unconditional on the unlink outcome, the real result is demoted to a secondary field the sole caller ignores, and the orphaned file remains reachable through analyze's filesystem fallback.",
+      "evidence": "_remove_file (1002-1010) returns False on both FileNotFoundError and OSError; the caller ignores the distinction \u2014 lines 1014-1022 pop and `await manager.async_save()` regardless, and 1024-1031 return `{\"deleted\": True, \"file_removed\": file_removed, ...}`. Caller verified: src/bindings/map.js:1157-1163 `const ok = result && result.deleted !== false;` \u2192 success toast; `file_removed` is never read anywhere in src/. Orphan reachability verified: _variant_path (1109-1113) `if v in variants and variants[v].get(\"path\"): return ...` else rebuilds `os.path.join(base_dir, f\"map_{map_id}{suffix}.png\")`, and 1118-1123 accepts it on `os.path.isfile(p)` \u2014 so after the variant record is gone, analyze re-reads the file the user was told was deleted and stamps a fresh analyzed_at. A second delete_map_image returns {\"deleted\": False, \"reason\": \"not_found\"} at 989 without retrying the unlink, so nothing in the integration can remove it again. The docstring's \"safe to call multiple times\" covers only the FileNotFoundError branch.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -506,6 +884,24 @@
     "severity_corrections": [
      "unchanged",
      "LOW"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--11",
+      "verdict": "CONFIRMED",
+      "reason": "The line reads exactly as claimed and the is-not-None guard four dozen lines later is consequently dead. The three sibling knobs use a bare .get() and are correct, which isolates this one line, and the schema deliberately gives the field no voluptuous default so 'absent' was representable and was discarded. The handler's own comment about precedence is falsified by the next twenty lines.",
+      "evidence": "mapping_services.py:1089 `min_area_pixels: int = call.data.get(\"min_area_pixels\", 1200)` versus the siblings at :1087 `expected_room_count = call.data.get(\"expected_room_count\")`, :1088 `max_segments = call.data.get(\"max_segments\")`, :1090 `simplify_epsilon = call.data.get(\"simplify_epsilon\")`. Layering at :1147-1156: tuning = dict(adapter_tuning); `if expected_room_count is not None: ...`; `if max_segments is not None: ...`; `if min_area_pixels is not None: tuning[\"min_area_pixels\"] = min_area_pixels` \u2014 always true. ANALYZE_MAP_IMAGE_SCHEMA:353 `vol.Optional(\"min_area_pixels\"): vol.All(vol.Coerce(int), vol.Range(min=1))` \u2014 no default. The engine's own correct fallback exists at segmenter_engines.py:273 `int(tuning.get(\"min_area_pixels\", 1200))`. Adapter declares the same literal at adapters/eufy/adapter.py:600 \"min_area_pixels\": 1200, which is what masks the bug today.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--11",
+      "verdict": "CONFIRMED",
+      "reason": "min_area_pixels is the one knob whose `.get` injects a literal default before the is-not-None test, so it unconditionally clobbers the adapter's persisted tuning. Confirmed, but the only shipped adapter declares exactly the injected value, so the runtime effect today is nil.",
+      "evidence": "mapping_services.py:1087-1090: `expected_room_count = call.data.get(\"expected_room_count\")`, `max_segments = call.data.get(\"max_segments\")`, `min_area_pixels: int = call.data.get(\"min_area_pixels\", 1200)`, `simplify_epsilon = call.data.get(\"simplify_epsilon\")` \u2014 three bare, one with an injected default. Lines 1147-1155: `tuning = dict(adapter_tuning)` then `if min_area_pixels is not None: tuning[\"min_area_pixels\"] = min_area_pixels` \u2014 the condition can never be False, so the adapter value is always overwritten. ANALYZE_MAP_IMAGE_SCHEMA:353 deliberately gives the field no voluptuous default (unlike the dead GET_IMAGE_SEGMENT_SUGGESTIONS_SCHEMA:212), so absence IS representable and is discarded one line later. segmenter_engines.py:273 `int(tuning.get(\"min_area_pixels\", 1200))` would have handled absence correctly. adapters/eufy/adapter.py:596-600 declares `\"segmenter_tuning\": {\"min_area_pixels\": 1200, ...}` \u2014 identical to the injected literal, so no shipped configuration observes a difference. Correcting MEDIUM\u2192LOW: a defect with provably zero current runtime effect, invisible until someone tunes the knob.",
+      "severity_correction": "LOW",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -526,6 +922,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--8",
+      "verdict": "CONFIRMED",
+      "reason": "The measurement fallback is to declared_width/declared_height, which have no schema default and which the card never sends \u2014 so with Pillow absent the recorded variant is {width: None, height: None} and saved is a hard-coded True. The downstream consequence names the wrong cause.",
+      "evidence": "mapping_services.py:899-922 _write_and_measure: `try: from PIL import Image as _PILImage; with _PILImage.open(file_path) as img: actual_width, actual_height = img.size; except Exception: actual_width = declared_width; actual_height = declared_height` and the returned dict hard-codes \"saved\": True. UPLOAD_MAP_IMAGE_SCHEMA:328-329 `vol.Optional(\"image_width\"): vol.Coerce(int)` / image_height \u2014 no defaults. Card never supplies them: src/actions/map.js:231-244 uploadMapImage builds {vacuum_entity_id, map_id, image_base64, ...options}; both call sites pass only variant/layout_id/art_scope (src/bindings/map.js:1090-1095 `const opts = { variant }; ... opts.layout_id = lid;` and :2230-2234 {variant, layout_id, art_scope}). Record written at :933-940 with \"width\": result[\"actual_width\"]. Downstream: :1673 `if not map_w or not map_h:` -> :1684 {\"saved\": False, \"reason\": \"no_custom_backdrop\"}.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--8",
+      "verdict": "CONFIRMED",
+      "reason": "With Pillow absent the measurement falls back to declared dims that no card path ever sends, so a successful upload records width/height None and still returns saved:True. Confirmed from source; whether Pillow is importable on a given host is not a source question.",
+      "evidence": "_write_and_measure (899-922): `try: from PIL import Image as _PILImage; with _PILImage.open(file_path) as img: actual_width, actual_height = img.size; except Exception: actual_width = declared_width; actual_height = declared_height` \u2014 the except catches ImportError, and `\"saved\": True` is a hard-coded literal in the returned dict, never reflecting the measurement. UPLOAD_MAP_IMAGE_SCHEMA:328-329 declares image_width/image_height as bare `vol.Optional` with no defaults. Card verified: src/actions/map.js:231-243 `uploadMapImage(mapId, imageBase64, options)` spreads only what callers pass, and both call sites \u2014 src/bindings/map.js:1095 (`opts = { variant }` plus optional layout_id) and 2230 ({variant, layout_id, art_scope}) \u2014 send no dimensions. So image_variants[variant] = {width: None, height: None}, and set_custom_segments:1673 `if not map_w or not map_h` then returns {\"saved\": False, \"reason\": \"no_custom_backdrop\"} for a backdrop that uploaded fine. manifest.json requirements=[] and segment_primitives.image_runtime_capabilities confirm Pillow is an optional, probed dependency.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -546,6 +960,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--9",
+      "verdict": "CONFIRMED",
+      "reason": "This is a genuine gap ACROSS an await, not an intra-block interleaving fantasy: the layout is validated before hass.async_add_executor_job and re-fetched after it, and the post-await re-check is a silent isinstance guard with no failure reason and no rollback of the file that was already written. The variant record is written unconditionally and saved:True is returned regardless.",
+      "evidence": "mapping_services.py:849-875 pre-write validation returning {\"saved\": False, \"reason\": \"layout_not_found\"}; :924 `result = await hass.async_add_executor_job(_write_and_measure)` \u2014 the suspension point; :933-940 variants[variant] = {...} written unconditionally; :945-946 and :954-955 `layout = (map_bucket.get(\"custom_layouts\") or {}).get(layout_id)` / `if isinstance(layout, dict):` with no else. The concurrent deleter exists and cannot see the in-flight variant: _handle_delete_custom_layout:2392-2420 sweeps only the art variants already recorded on the layout. Result is returned at :959 as the same dict carrying \"saved\": True.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--9",
+      "verdict": "CONFIRMED",
+      "reason": "The layout is validated before a genuine await (the executor file write) and re-checked afterwards only by a silent isinstance guard, while the variant record and the file are written unconditionally and the response still says saved:True. The gap is across an await, not inside a synchronous block.",
+      "evidence": "mapping_services.py:846-875 validate and return {\"saved\": False, \"reason\": \"layout_not_found\"}; line 924 `result = await hass.async_add_executor_job(_write_and_measure)` is the suspension point (PNG write, up to a few MB); lines 933-940 write `variants[variant] = {...}` unconditionally; lines 945-957 re-fetch the layout and guard with `if isinstance(layout, dict):` whose else branch is silence \u2014 no reason, no rollback of the just-written file. _handle_delete_custom_layout:2412-2420 pops the layout and sweeps only the art variants it can see, so an in-flight variant is invisible to it. The response is the `result` dict with saved:True and no indication that the repoint did not happen. Card delete UI covers dark/light/default only, so the leaked custom_* PNG cannot be removed through the UI (see IMAGE--6). Requires two overlapping service calls, hence genuinely rare.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -566,6 +998,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A3-IMAGE--10",
+      "verdict": "CONFIRMED",
+      "reason": "Verified by exact top-level-key grep: upload_map_image, delete_map_image, analyze_map_image, get_map_segments and adjust_map_segment have no services.yaml entry, while their sibling set_segmentation_mode and the whole saved-zone family do. The title's count is off by one \u2014 FIVE of the five handlers in that registration block are undeclared, not four (set_segmentation_mode is a sibling registered elsewhere) \u2014 but the substance and the named services are right.",
+      "evidence": "grep -c '^<name>:' custom_components/eufy_vacuum/services.yaml: upload_map_image 0, delete_map_image 0, analyze_map_image 0, get_map_segments 0, adjust_map_segment 0; set_segmentation_mode 1 (line 2419), set_custom_segments 1 (2449), create_custom_layout 1, clean_saved_zone 1, clean_saved_zones 1, set_map_overlay_visibility 1, set_segment_room_link 1 (2385). Registration is unconditional and does not require a description: mapping_services.py:2814-2833 wires all five via hass.services.async_register with supports_response. ALL_MAPPING_SERVICES (mapping_services.py:73-109) is not cross-checked against services.yaml anywhere.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A3-IMAGE--10",
+      "verdict": "CONFIRMED",
+      "reason": "Exact-key extraction of services.yaml top-level blocks shows upload_map_image, delete_map_image, analyze_map_image, get_map_segments and adjust_map_segment have no entry, while their same-block siblings do.",
+      "evidence": "Regex scan of every `^[a-z_]+:$` block in custom_components/eufy_vacuum/services.yaml returned set_segment_room_link (2385), set_segmentation_mode (2419), set_custom_segments (2449), set_companion_anchor (2480), set_hidden_regions (2524), set_area_label_anchor (2553), set_live_map_rotation (2597), set_map_overlay_visibility (2646), create_saved_zone (2773), clean_saved_zone (2890), clean_saved_zones (2923), create_custom_layout (2958), set_furnished_* (3059/3124), set_room_viewport (3160) \u2014 and NO block named upload_map_image, delete_map_image, analyze_map_image, get_map_segments or adjust_map_segment. All five are nonetheless registered with schemas and supports_response=True at mapping_services.py:2814-2833, and hass.services.async_register succeeds without a description, so nothing fails loudly. ALL_MAPPING_SERVICES (73-109) lists every name for registration/teardown but is not cross-checked against services.yaml. Documentation/UI-surface only.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -586,6 +1036,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-1",
+      "verdict": "CONFIRMED",
+      "reason": "The schema and the published contract both lack layout_id, the target is resolved from map-bucket global state at call time, and the write is a full replace with no merge, no prior-value capture and no concurrency token. The identity guard exists in the same file on the non-destructive upload path, which is the asymmetry the finding names. The in-flight-switch variant is a real gap across awaits (set_custom_segments, then N awaited set_segment_room_link calls each awaiting async_save).",
+      "evidence": "SET_CUSTOM_SEGMENTS_SCHEMA mapping_services.py:378-397 \u2014 vacuum_entity_id, map_id, segments, backdrop_width, backdrop_height; no layout_id. services.yaml set_custom_segments (2449-2478) declares vacuum_entity_id, map_id, segments only. Handler: :1666-1667 `_migrate_custom_layouts(map_bucket); layout = _ensure_default_layout(map_bucket)` -> _ensure_default_layout:1594-1600 -> _active_custom_layout:1477-1482 reading map_bucket['active_custom_layout_id']; :1710 `layout[\"custom_segments\"] = {...\"segments\": built...}` \u2014 replace-all. Contrast _handle_upload_map_image:849-875 which requires layout_id and returns {\"saved\": False, \"reason\": \"layout_not_found\"}. The layout picker is a separate binding with no busy-gate: src/bindings/map.js:1238-1251 set-active-custom-layout. 1:1 link popping that would clobber the other layout's links: mapping_services.py:1843-1846.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-1",
+      "verdict": "CONFIRMED",
+      "reason": "SET_CUSTOM_SEGMENTS_SCHEMA has no layout_id field, the target is resolved from mutable global state at call time, and the write is an unguarded replace-all \u2014 while the non-destructive upload path in the same file DOES require and validate layout_id.",
+      "evidence": "SET_CUSTOM_SEGMENTS_SCHEMA (378-397) = {vacuum_entity_id, map_id, segments, backdrop_width?, backdrop_height?} \u2014 no layout_id; services.yaml's set_custom_segments block likewise. mapping_services.py:1666-1667 `_migrate_custom_layouts(map_bucket); layout = _ensure_default_layout(map_bucket)` \u2192 _active_custom_layout reads `map_bucket[\"active_custom_layout_id\"]` (line 1470). Line 1710 `layout[\"custom_segments\"] = {...\"segments\": built...}` \u2014 full replace, no merge, no prior-value capture, no version token anywhere in the bucket. Contrast _handle_upload_map_image:849-875 which returns {\"saved\": False, \"reason\": \"layout_not_found\"} \u2014 the identity guard exists in this file, on the non-destructive path only. Multi-await window verified in the card: src/bindings/map.js:1398 `await setCustomSegments(...)` then 1420 `for (const seg of segments) { await setSegmentRoomLink(mapId, seg.id, seg.room_id ?? null); }` \u2014 each an awaited service call with its own manager.async_save(); the layout-picker handler (1237-1245) is a separate live click target with no busy gate. set_segment_room_link's 1:1 rule (1843-1846) pops the target layout's own colliding links. Client-side `_composeLoadedFor` (src/state/map.js:1406) is keyed on the LAST fetched active layout and is never sent to the server.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -606,6 +1074,24 @@
     "severity_corrections": [
      "unchanged",
      "MEDIUM"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-2",
+      "verdict": "CONFIRMED",
+      "reason": "_resolve_active_scope's no-layout branch returns freshly-constructed literals unreachable from manager.data, and two of the three writers through that seam mutate them and return saved:True. The third writer calls _ensure_default_layout, proving the fix exists and was wired into exactly one sibling. The state is reachable from the shipped card: the Custom toggle calls set_segmentation_mode directly, whose soft-select is gated on `if layouts:` and therefore does nothing when a map has zero layouts.",
+      "evidence": "mapping_services.py:1550-1554: `return {\"mode\": \"custom\", \"layout_id\": None, \"segments_store\": {}, \"links\": {}, \"anchors\": {}, \"backdrop_variant\": None}`. _handle_set_companion_anchor:1890 `anchors: dict = _resolve_active_scope(map_bucket)[\"anchors\"]` then :1900 `anchors[room_id] = {...}`, :1903 await manager.async_save(), :1908-1913 return {\"saved\": True, ..., \"companion_anchors\": dict(anchors)}. _handle_set_segment_room_link:1834 does the same with links. _handle_set_custom_segments:1667 calls _ensure_default_layout first. State creation: _handle_set_segmentation_mode:1336-1345 `map_bucket[\"segmentation_mode\"] = mode` then `if mode == \"custom\" and not _active_custom_layout(...): layouts = ...; if layouts: map_bucket[\"active_custom_layout_id\"] = sorted(layouts)[0]`. _migrate_custom_layouts:1487-1489 seeds custom_layouts={} + active_custom_layout_id=None. Card path: src/bindings/map.js:1220-1235 set-segmentation-mode -> setSegmentationMode(mapId, mode), no auto-create. Card ignores the response: src/bindings/map.js:1944-1947 `this.card._actions?.setCompanionAnchor?.(mapId, anchorKey, livePctX, livePctY);` \u2014 return value discarded. Doc divergence: docs/dev/11-mapping-system.md \u00a710.2 calls these 'empty read-only stores'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-2",
+      "verdict": "CONFIRMED",
+      "reason": "_resolve_active_scope's no-layout branch returns freshly-constructed dict literals that are not reachable from manager.data, and two of the three writers through that seam mutate them and return saved:True. The state is reachable from the shipped card. Severity corrected: in that state the segment store is empty too, so the only writable surface is the mascot's dock anchor.",
+      "evidence": "mapping_services.py:1550-1554: `return {\"mode\": \"custom\", \"layout_id\": None, \"segments_store\": {}, \"links\": {}, \"anchors\": {}, \"backdrop_variant\": None}` \u2014 literals, not stored refs. _handle_set_companion_anchor:1890 `anchors: dict = _resolve_active_scope(map_bucket)[\"anchors\"]` \u2192 `anchors[room_id] = {\"pct_x\":..., \"pct_y\":...}` \u2192 `await manager.async_save()` (which serialises manager.data, containing none of it) \u2192 `return {\"saved\": True, \"room_id\":..., \"action\": \"set\", \"companion_anchors\": dict(anchors)}`. _handle_set_segment_room_link:1834 does the same. _handle_set_custom_segments:1667 calls _ensure_default_layout first \u2014 the fix wired into exactly one of the three. Reachability from the card confirmed: src/bindings/map.js:1220-1234 the Custom toggle calls `setSegmentationMode(mapId, 'custom')` directly, and _handle_set_segmentation_mode:1342-1345 soft-selects only `if layouts:` \u2014 with custom_layouts=={} the map is left at mode=\"custom\", active_custom_layout_id=None. Correcting HIGH\u2192MEDIUM: in that same state `segments_store` is also the throwaway `{}`, so get_map_segments serves segments=[] and there is nothing to link \u2014 the only reachable write is the dock companion anchor, a display position that silently fails to persist. docs/dev/11-mapping-system.md \u00a710.2 calls these stores \"read-only\", which the writers violate.",
+      "severity_correction": "MEDIUM",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -626,6 +1112,24 @@
     "severity_corrections": [
      "unchanged",
      "MEDIUM"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-3",
+      "verdict": "CONFIRMED",
+      "reason": "The guard's None arm is permissive exactly as described, the map-data accessor takes no map_id so it cannot honour the caller's target, and the pending filter keys on area_m2 being None so a wrong value written once is never revisited. get_active_map_id returning None is a routine transient (sentinel state, or registered-but-no-state boot window), not an exotic case. The Eufy-only brand scoping is right.",
+      "evidence": "mapping_services.py:1445-1452: `if not (active_map_id is None or str(active_map_id) == str(map_id)): return False` with the comment 'Indeterminate active map -> attempt', then `map_data = await manager.async_get_map_data_dict(vacuum_entity_id=vacuum_entity_id)`. Pending filter at :1434-1437: `[z for z in zones.values() if isinstance(z, dict) and z.get(\"area_m2\") is None]`. Writes at :1465-1469 zone[\"area_m2\"] = area / zone[\"room_number\"] = ...; caller persists at :1265-1268. async_get_map_data_dict (mapping/map_source_coordinator.py:665-667) signature is (*, vacuum_entity_id) only \u2014 no map identity in or out. get_active_map_id (rooms/room_discovery.py:69-84) returns None on is_blank_state and on registered-but-not-materialised. Brand scoping confirmed at map_source_coordinator.py:683-684: returns None unless map_state_source.backend == \"storage\" (Eufy).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-3",
+      "verdict": "CONFIRMED",
+      "reason": "The active-map guard's `active_map_id is None` arm proceeds, and async_get_map_data_dict takes no map_id, so the backfill sizes and files a zone against whatever raster is currently loaded. The `pending` filter keys on area_m2 being None, so the wrong value is never revisited. Severity corrected for parity with the identical create-time defect (A6-ZONE-C-4).",
+      "evidence": "mapping_services.py:1449 `if not (active_map_id is None or str(active_map_id) == str(map_id)): return False` \u2014 the None arm falls through, with the comment \"Indeterminate active map -> attempt\". rooms/room_discovery.py:43-84 returns None for any BLANK_STATE_VALUES state and for a registered-but-stateless entity (boot window). map_source_coordinator.py:665-667 `async_get_map_data_dict(self, *, vacuum_entity_id: str)` \u2014 no map_id parameter; returns the current map's dict. Pending filter at 1434-1437 is `z.get(\"area_m2\") is None`, so once written the zone is permanently excluded. Arithmetic against the shipped formula (map_source.zone_membership:360-363 `dx_cm=(bx1-bx0)*width*res; dy_cm=(by1-by0)*height*res; area_m2=round(dx_cm*dy_cm/10000,1)`): \u0394nx=\u0394ny=0.10, map A 800x600 @res 5 \u2192 0.10*800*5=400 cm by 0.10*600*5=300 cm \u2192 400*300/10000 = 12.0 m\u00b2; map B 400x300 @res 5 \u2192 200 cm by 150 cm \u2192 3.0 m\u00b2. 4x wrong, persisted at 1466-1469 and saved by the caller at 1276-1279. Roborock is immune: map_source_coordinator.py:683 returns None for any non-\"storage\" backend. Correcting HIGH\u2192MEDIUM: this is a wrong advisory record (size label, filing bucket, ETA input) \u2014 it never reaches the device and never alters the zone's geometry, and it is the same fail-open guard the finder's own A6-ZONE-C-4 rates MEDIUM at the create site.",
+      "severity_correction": "MEDIUM",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -646,6 +1150,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-4",
+      "verdict": "CONFIRMED",
+      "reason": "room_number=None is genuinely overloaded: it is the mint-time 'not computed' sentinel and the value the user's explicit Unassigned choice writes, with no provenance field anywhere to distinguish them, and the backfill re-files on that test during a READ. The population is narrow (a zone must still be unsized to stay in `pending`) but reachable.",
+      "evidence": "mapping_services.py:1467-1468 `if zone.get(\"room_number\") is None and membership.get(\"room_number\") is not None: zone[\"room_number\"] = membership.get(\"room_number\")`. SET_SAVED_ZONE_ROOM_SCHEMA:476-484 `vol.Optional(\"room_number\", default=None): vol.Any(None, vol.Coerce(int))` with the comment 'null / omitted -> clear to Unassigned'. _handle_set_saved_zone_room:2573-2575 `zone[\"room_number\"] = room_number; zone[\"updated_at\"] = utc_now_iso()` \u2014 no source/provenance key. _create_saved_zone:1408-1409 mints area_m2=None and room_number=None with the same absent-sentinel. The pending filter (:1434) keys only on area_m2, so a user-edited but unsized zone stays eligible. Doc treats the override as first-class: docs/dev/frontend/saved-zones.md:102 and :115-116.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-4",
+      "verdict": "CONFIRMED",
+      "reason": "room_number=None is simultaneously the not-yet-computed sentinel and the user's explicit Unassigned value, no provenance field distinguishes them, and the backfill re-files on that test during a plain read.",
+      "evidence": "mapping_services.py:1467-1468 `if zone.get(\"room_number\") is None and membership.get(\"room_number\") is not None: zone[\"room_number\"] = membership.get(\"room_number\")`. SET_SAVED_ZONE_ROOM_SCHEMA (476-484) `vol.Optional(\"room_number\", default=None): vol.Any(None, vol.Coerce(int))` with the comment \"null / omitted -> clear to Unassigned\"; _handle_set_saved_zone_room:2573 writes `zone[\"room_number\"] = room_number` and bumps updated_at, recording no source flag. _create_saved_zone:1409-1410 seeds both area_m2 and room_number to None with no distinguishing key. The `pending` filter (1434) is `area_m2 is None`, which does NOT exclude a zone the user has already edited \u2014 a zone authored off its active map keeps area_m2=None through any number of set_saved_zone_room calls, so it stays in the pending set and gets re-filed on the next get_map_segments read (called from _handle_get_map_segments:1273-1279). Roborock immune (zone_membership returns room_number None with no raster). Filing only \u2014 docs are explicit it never affects dispatch.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -666,6 +1188,24 @@
     "severity_corrections": [
      "LOW",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-5",
+      "verdict": "CONFIRMED",
+      "reason": "The generators genuinely only check the currently-live id set, so a delete frees the id for immediate reuse within the same wall-clock second, and delete_saved_zone sweeps no durable references. The wrong-physical-clean outcome is real but requires the delete and the create to land in the same second AND a durable queue/profile reference to the freed id AND that run to execute \u2014 narrow enough that MEDIUM overstates it next to findings whose trigger is a routine transient. The far commoner outcome of the same missing sweep is the silent phase-drop already carried by A6-ZONE-C-2.",
+      "evidence": "mapping_services.py:1379-1386 _generate_saved_zone_id: `base = f\"sz_{datetime.now().strftime('%Y%m%dT%H%M%S')}\"; if base not in existing: return base; ...` and :1369-1376 for _generate_custom_layout_id. Caller supplies the live set only: _create_saved_zone:1404 `zone_id = _generate_saved_zone_id(set(zones))` where zones = map_bucket.setdefault(\"saved_zones\", {}). _handle_delete_saved_zone (mapping_services.py:2539-2554) pops the zone and saves \u2014 no scan of queue_breaks or run-profile steps. Resolution is by id with a silent skip: core/manager.py:1870-1883 _resolve_saved_zone_rects `zone = zones_store.get(str(zid)); if not isinstance(zone, dict): continue`, docstring 'Missing / degenerate zones are silently skipped'. datetime.now() is naive local time (no tz argument).",
+      "severity_correction": "LOW",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-5",
+      "verdict": "CONFIRMED",
+      "reason": "Both id generators test membership of the CURRENTLY-LIVE id set only, so a same-second delete-then-create re-mints the deleted id, and saved-zone ids are durably referenced from queue_breaks/run-profile steps that delete never sweeps.",
+      "evidence": "mapping_services.py:1379-1387 `base = f\"sz_{datetime.now().strftime('%Y%m%dT%H%M%S')}\"; if base not in existing: return base` with `existing = set(zones)` supplied by _create_saved_zone:1404 \u2014 the live map's saved_zones keys. _handle_delete_saved_zone:2539-2554 pops the zone and saves; grep of that handler shows no scan of queue_breaks or profile steps. Durable references verified: core/manager.py add_queue_zone (1719+) stores `{\"type\": \"zone\", \"zone_ids\": [...]}` into the map bucket's queue_breaks and its docstring states \"Existence + brand caps on zone_ids are enforced at dispatch\"; that enforcement is core/manager.py:1870-1883 `_resolve_saved_zone_rects`, whose own docstring says \"Missing / degenerate zones are silently skipped\" and whose loop `continue`s on a missing id. So a recycled id resolves to the NEW zone's bbox and dispatch_zone_clean fires it. datetime.now() is naive local time, so a DST fall-back replays an hour of id space. Window is genuinely one wall-clock second (or a DST repeat).",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -686,6 +1226,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-6",
+      "verdict": "CONFIRMED",
+      "reason": "Confirmed at the source: the adjustment record is map-level, keyed purely by segment_id, carries no fingerprint of the geometry it was authored against, and the re-analysis path neither clears nor validates it. This is the same root cause as A2-POLYGO-5 and A3-IMAGE--1 reported from a third angle \u2014 dedupe downstream. The write-time existence check cannot protect a record that outlives its segmentation.",
+      "evidence": "mapping_services.py:1752-1760 `adjustments[segment_id] = {\"offset_x\": ..., \"vertex_moves\": vertex_moves}` into `map_bucket.setdefault(\"image_segment_adjustments\", {})` (:1728) \u2014 no analyzed_at, no polygon hash, no bbox. Existence check is write-time only: :1748-1750 `segments = (map_bucket.get(\"image_segments\") or {}).get(\"segments\") or []; if not any(str(seg.get(\"segment_id\") or \"\") == segment_id for seg in segments): return {\"saved\": False, \"reason\": \"segment_not_found\"}`. Re-analysis: :1174 map_bucket[\"image_segments\"] = result with no adjustment invalidation. Re-application: _apply_segment_adjustments:769-770 matches on str(seg.get(\"segment_id\")) alone; issue tags added at :813-820. Positional ids: adapters/eufy/segmentor.py:1289.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-6",
+      "verdict": "CONFIRMED",
+      "reason": "image_segment_adjustments is a map-level dict keyed by a positional segment id with no geometry fingerprint, analyze replaces image_segments without touching it, and the read path re-applies the record by id alone. Same defect as A2-POLYGO-5, verified independently.",
+      "evidence": "mapping_services.py:1751-1760 `adjustments: dict = map_bucket.setdefault(\"image_segment_adjustments\", {})` then `adjustments[segment_id] = {offset_x, offset_y, edge_*, vertex_moves}` \u2014 no analyzed_at, no polygon hash, no bbox. The write-time existence check at 1748-1750 validates against the THEN-current image_segments and is never re-run. _handle_analyze_map_image:1174 `map_bucket[\"image_segments\"] = result` with no invalidation. _apply_segment_adjustments:769-770 matches on `str(seg.get(\"segment_id\"))` only. Id instability: adapters/eufy/segmentor.py:1289/1474 mint from a running counter and 1414/1485 re-sort by `-area_pixels`. The zero-netting cleanup at 1783-1794 only fires when the user manually nudges back to zero. Display/linking only \u2014 segment polygons are not dispatch geometry.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -706,6 +1264,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A4-CUSTOM-7",
+      "verdict": "CONFIRMED",
+      "reason": "Read the services.yaml block verbatim: it describes a map-scoped rebuild with no mention of layouts and asserts an uploaded-backdrop requirement, both of which the handler has superseded. The schema declares backdrop_width/backdrop_height that the prose never mentions, so the shipped metadata contradicts its own field list.",
+      "evidence": "services.yaml:2449-2457: 'Rebuilds the map's custom segment set from the supplied list ... Requires a \\'custom\\' backdrop image (uploaded via upload_map_image) for the pixel dimensions.' Fields declared: vacuum_entity_id, map_id, segments \u2014 backdrop_width/backdrop_height absent. Code: mapping_services.py:1667 `layout = _ensure_default_layout(map_bucket)` (auto-creates), :1673-1682 accepts call.data backdrop_width/backdrop_height and sets variant = \"live\", :1683-1684 refuses with no_custom_backdrop only when both sources are missing. SET_CUSTOM_SEGMENTS_SCHEMA:392-396 does declare backdrop_width / backdrop_height. Handler docstring first line (:1645) also says 'REPLACE-ALL into the map's custom_segments store'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A4-CUSTOM-7",
+      "verdict": "CONFIRMED",
+      "reason": "The shipped services.yaml prose is two features behind the handler: it describes a map-scoped write and an uploaded-backdrop requirement, while the code targets the active layout and accepts caller-supplied live dims.",
+      "evidence": "services.yaml set_custom_segments block begins at line 2449 and its description says the call rebuilds \"the map's custom segment set\" with no mention of layouts, and states it \"Requires a custom backdrop image (uploaded via upload_map_image) for the pixel dimensions\". The handler at mapping_services.py:1666-1667 resolves `_ensure_default_layout(map_bucket)` (auto-creating one) and writes `layout[\"custom_segments\"]` at 1710; lines 1673-1684 accept `backdrop_width`/`backdrop_height` from call.data and set variant=\"live\", refusing with no_custom_backdrop only when BOTH sources are missing. SET_CUSTOM_SEGMENTS_SCHEMA (378-397) does declare backdrop_width/backdrop_height, so the schema and the prose disagree; my extraction of the services.yaml block found no backdrop_width/backdrop_height field entries. The handler's own first docstring line (1645) also says \"REPLACE-ALL into the map's custom_segments store\". No runtime effect.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -726,6 +1302,24 @@
     "severity_corrections": [
      "MEDIUM",
      "MEDIUM"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A5-FURNIS-1",
+      "verdict": "CONFIRMED",
+      "reason": "The divergence is exactly as stated and I read all six services.yaml blocks: each declares map_id required:false with 'Leave blank to use the current active map', while every schema declares vol.Required. cv.string accepts the empty string and ensure_map_bucket mints on it. Correcting HIGH to MEDIUM: the loud branch is a plain voluptuous validation error (annoying, not damaging), the silent branch needs a caller to pass a literal blank string by hand, the card cannot reach either, and the authoritative dev doc (docs/advanced/03-services.md) correctly states Required \u2014 so the defect is a stale published contract, not a live corruption path. This also substantially duplicates A1-SERVIC-5, which covers the same divergence over a superset of eight services at MEDIUM.",
+      "evidence": "Handlers read call.data[\"map_id\"] directly at mapping_services.py:1943 (furnished art), :2010 (render mode), :2053 (viewport), :2108 (hidden regions), :2150 (area label), :2195 (rotation). Schemas: SET_HIDDEN_REGIONS_SCHEMA:560-566, SET_AREA_LABEL_ANCHOR_SCHEMA:570-578, SET_LIVE_MAP_ROTATION_SCHEMA:625-631, SET_FURNISHED_ART_PLACEMENT_SCHEMA:586-597, SET_FURNISHED_RENDER_MODE_SCHEMA:602-609, SET_ROOM_VIEWPORT_SCHEMA:613-622 \u2014 all vol.Required(\"map_id\"): cv.string. services.yaml blocks read verbatim at 2524 (set_hidden_regions), 2553 (set_area_label_anchor), 2597 (set_live_map_rotation), 3059 (set_furnished_art_placement), 3124 (set_furnished_render_mode), 3160 (set_room_viewport): all `required: false` + 'Leave blank to use the current active map.' ensure_map_bucket mints on \"\" (maps/map_manager.py:17-28). resolved_call_data: 59 uses integration-wide, 0 in mapping/. docs/advanced/03-services.md:285 and the per-service rows state '| `map_id` | Yes | Required \u2014 not auto-resolved. |', with :540 calling out set_map_overlay_visibility as the sole exception.",
+      "severity_correction": "MEDIUM",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A5-FURNIS-1",
+      "verdict": "CONFIRMED",
+      "reason": "All six handlers read call.data[\"map_id\"] against a vol.Required schema while services.yaml declares the field optional with a 'leave blank' instruction, and cv.string accepts \"\" so a blank value mints and writes a phantom bucket reported as saved. Severity corrected for parity with A1-SERVIC-5, which is the same defect over a superset of eight services.",
+      "evidence": "Programmatic extraction of services.yaml map_id flags: set_hidden_regions (2524), set_area_label_anchor (2553), set_live_map_rotation (2597), set_furnished_art_placement (3059), set_furnished_render_mode (3124), set_room_viewport (3160) all `required: false`; three carry \"Leave blank to use the current active map.\" Their schemas all declare `vol.Required(\"map_id\"): cv.string`, so omission raises `required key not provided @ data['map_id']`. cv.string(\"\") returns \"\", and ensure_map_bucket (maps/map_manager.py:17) does `data[\"maps\"][vac].setdefault(str(map_id), {\"map_id\": \"\", \"metadata\": {}, \"rooms\": {}, \"summary\": {}})` \u2014 a real, persisted bucket; _handle_set_live_map_rotation:2205 then writes live_map_rotation there, async_saves, and returns {\"saved\": True, \"live_map_rotation\": 90}. `grep -rn resolved_call_data` = 59 uses across services/*.py, 0 in mapping/. _handle_set_map_overlay_visibility:2242-2257 is the lone handler with an inline resolve. Doc split confirmed: docs/advanced/03-services.md lines 274-433 say \"map_id | Yes | Required \u2014 not auto-resolved\" (matches code); services.yaml says the opposite. Correcting HIGH\u2192MEDIUM: both branches are non-card paths (src/state/rooms.js:474-488 activeMapId() ends `return \"1\"` and can never be falsy), branch (A) fails loudly, and branch (B) writes a display-only preference to a ghost bucket \u2014 a wrong record, not data loss or a device path.",
+      "severity_correction": "MEDIUM",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -746,6 +1340,24 @@
     "severity_corrections": [
      "LOW",
      "LOW"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A5-FURNIS-3",
+      "verdict": "CONFIRMED",
+      "reason": "All three sub-claims verified: no clamp on cx/cy/zoom, a corner-valued 0.0 default, and the partial-update wipe (any non-null field takes the else branch, which rewrites all three). The sibling forty lines up clamps scale with a comment stating exactly why an unrenderable value must not persist, and the sibling below defaults a missing coordinate to 50.0. Correcting to LOW: the finding itself establishes there is currently no consumer \u2014 the card explicitly does not read viewports \u2014 so today this is an unrenderable value accepted into storage, not a user-visible defect.",
+      "evidence": "mapping_services.py:2069-2076: `if cx is None and cy is None and zoom is None: target.pop(\"viewport\", None)` else `target[\"viewport\"] = {\"cx\": _round4(cx, 0.0), \"cy\": _round4(cy, 0.0), \"zoom\": _round4(zoom, 1.0)}` \u2014 no vol.Range, no clamp, and the else branch overwrites all three. _round4 (mapping_services.py:1930-1932) `return round(float(value), 4) if value is not None else default`. Sibling clamp at :1978-1983: `\"scale\": _round4(None if scale is None else min(max(float(scale), 0.05), 20.0), 1.0)` with the comment 'A raw 0 (or negative) would persist as 0.0 but the renderer coerces it back to 1x (Number(scale) || 1), so state and render would silently disagree; clamp here so the stored value is always renderable.' Sibling centre default at :2162-2163 `x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0`. SET_ROOM_VIEWPORT_SCHEMA:613-622 uses vol.Any(None, vol.Coerce(float)) with no vol.Range. Reader passes through untouched: map_source.py:126 `\"viewport\": entry.get(\"viewport\")`.",
+      "severity_correction": "LOW",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A5-FURNIS-3",
+      "verdict": "CONFIRMED",
+      "reason": "The viewport writer has no clamp and defaults missing coordinates to 0.0 (a corner of the 0-100 pct frame), unlike both siblings in the same wave. Confirmed exactly; corrected to LOW because nothing reads the value today.",
+      "evidence": "mapping_services.py:2076-2080: `target[\"viewport\"] = {\"cx\": _round4(cx, 0.0), \"cy\": _round4(cy, 0.0), \"zoom\": _round4(zoom, 1.0)}` with `_round4(value, default) = round(float(value), 4) if value is not None else default` (1930-1932) \u2014 no range logic. Traced input (a) {room_id:\"7\", zoom:3.0} on a stored {cx:72.0, cy:41.0, zoom:2.5}: cx and cy are None so the else-branch stores {cx: 0.0, cy: 0.0, zoom: 3.0} \u2014 the prior framing is gone. Input (b) zoom:0 \u2192 value is not None \u2192 round(float(0),4) = 0.0 stored. Contrast the sibling 40 lines above, _handle_set_furnished_art_placement:2094-2099, which clamps `min(max(float(scale), 0.05), 20.0)` with a comment stating exactly why a raw 0 must not persist; and _handle_set_area_label_anchor:2168-2169, which clamps 0-100 and defaults a missing coordinate to 50.0 (centre). SET_ROOM_VIEWPORT_SCHEMA uses `vol.Any(None, vol.Coerce(float))` with no vol.Range. Correcting MEDIUM\u2192LOW: src/state/map.js states per-room viewports are \"Wave 2 \u2014 NOT read or written here\" and docs/advanced/08-map-configuration.md:270 records it as service-only with no panel control, so no consumer exists and the stored value has zero effect today.",
+      "severity_correction": "LOW",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -766,6 +1378,24 @@
     "severity_corrections": [
      "LOW",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A5-FURNIS-4",
+      "verdict": "CONFIRMED",
+      "reason": "Verified: rebuild_map_bucket replaces map_bucket['rooms'] wholesale and never looks at the sibling UI-state keys, and a grep across maps/ and rooms/ for area_label_anchors or companion_anchors returns zero hits \u2014 there is no prune, no reconcile, and no fingerprint of which room set an anchor was authored against. Correcting to LOW: the consequence is a mis-placed m\u00b2 chip (display-only, per-room, re-draggable), which does not sit at the same level as the wrong-clean and silent-data-loss findings in this set.",
+      "evidence": "maps/map_manager.py:201 `map_bucket[\"rooms\"] = rebuilt_rooms` at the end of a loop that builds rebuilt_rooms only from discovered_rooms, so rooms no longer discovered are dropped; the only other writes are metadata['last_rebuild'] (:203-207) and summary (:212+). grep -rn 'area_label_anchors|companion_anchors' over custom_components/eufy_vacuum/maps/ and custom_components/eufy_vacuum/rooms/ returns 0 hits. Writer: mapping_services.py:2158-2166 `anchors: dict = map_bucket.setdefault(\"area_label_anchors\", {})` then `anchors[room_id] = {\"pct_x\": round(x, 4), \"pct_y\": round(y, 4)}`, keyed by the raw device room id at map-bucket level. Read path passes them through: mapping_services.py:1314-1315 area_label_anchors in the get_map_segments payload. Doc defines the shape and the null-both reset only: docs/dev/17-map-manager.md:130-135.",
+      "severity_correction": "LOW",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A5-FURNIS-4",
+      "verdict": "CONFIRMED",
+      "reason": "Anchors are keyed by raw device room id at the map-bucket level, the room rebuild replaces map_bucket['rooms'] wholesale, and grep confirms nothing in maps/ or rooms/ ever reads, prunes, or reconciles the anchor keys.",
+      "evidence": "mapping_services.py:2162-2170 `anchors: dict = map_bucket.setdefault(\"area_label_anchors\", {})` then `anchors[room_id] = {\"pct_x\": round(x,4), \"pct_y\": round(y,4)}` \u2014 keyed by the raw id, map-bucket level. maps/map_manager.py rebuild_map_bucket (109-215) rebuilds `rebuilt_rooms` from discovered_rooms and at line 201 does `map_bucket[\"rooms\"] = rebuilt_rooms` (dropping undiscovered rooms), then writes metadata.last_rebuild and summary \u2014 and touches nothing else. `grep -rn \"area_label_anchors\\|companion_anchors\\|hidden_regions\" custom_components/eufy_vacuum/maps/ custom_components/eufy_vacuum/rooms/` returns ZERO hits: no prune, no reconcile, no room-set fingerprint. The dashboard reader hands them out verbatim: core/manager.py:4176-4179 `dict(_live_map_bucket.get(\"area_label_anchors\") or {}) if isinstance(...)` \u2014 type guard only, no key validation against the live room list. The write handler itself performs no room-existence check. Cosmetic consequence (a mis-placed m\u00b2 chip), silent and non-obvious.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -786,6 +1416,24 @@
     "severity_corrections": [
      "LOW",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A5-FURNIS-5",
+      "verdict": "CONFIRMED",
+      "reason": "The source-level claim is exactly right: the handler stores four normalized floats and nothing else \u2014 no image_size, no map fingerprint, no authored-at stamp, no schema version \u2014 and no consumer validates provenance. The sanitizer's correctness (including its accurate NaN-before-clamp note) is confirmed but validates shape only. Correcting to LOW: the impact premise (that the rendered extent changes across a re-map) is device behaviour the finding itself flags as needing hardware verification, the effect is display-only and non-destructive, and recovery exists via the overlay toggle and per-rect delete.",
+      "evidence": "mapping_services.py:2111-2130: the loop rejects non-4-tuples, rejects bool/non-finite BEFORE clamping, clamps to 0-1, orders min<max, drops rects under 0.001 per side, then `regions: list = map_bucket.setdefault(\"hidden_regions\", []); regions.clear(); regions.extend(cleaned)` \u2014 the stored element is `[round(lo_x,5), round(lo_y,5), round(hi_x,5), round(hi_y,5)]` and nothing else is written. Readers copy without validation: mapping_services.py:1310-1312 `list(map_bucket.get(\"hidden_regions\") or [])`. SET_HIDDEN_REGIONS_SCHEMA:560-566 carries no frame or version field. Doc records the frame and the sanitizer with no invalidation contract: docs/dev/17-map-manager.md:124-129 ('[[x0, y0, x1, y1], ...] normalized 0-1 top-left-origin mask rects ... Replace-all; each entry sanitized').",
+      "severity_correction": "LOW",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A5-FURNIS-5",
+      "verdict": "CONFIRMED",
+      "reason": "Confirmed on the source claim: hidden_regions are stored as bare normalized rects with no image_size, fingerprint, authored-at stamp or schema version, and every reader hands them back unconditionally. The premise that the rendered extent changes across a re-map is device behaviour I cannot settle from source.",
+      "evidence": "mapping_services.py:2111-2132 sanitizes shape only \u2014 `all(isinstance(c,(int,float)) and not isinstance(c,bool) and math.isfinite(c) for c in rect)` (correctly rejecting NaN/inf BEFORE the clamp, so the finder's note on CPython's max(0.0,min(1.0,nan))==1.0 is a real hazard that this code avoids), then clamp to 0-1, order min<max, drop `hi-lo <= 0.001`, then `regions.clear(); regions.extend(cleaned)`. The stored entry is exactly `[x0,y0,x1,y1]` \u2014 nothing else is written, and no consumer validates provenance. Readers: core/manager.py:4180-4183 `list(_live_map_bucket.get(\"hidden_regions\") or [])` for the dashboard, and mapping_services.py:1310-1312 on the get_map_segments payload \u2014 both unconditional, both copying so no aliasing. map_id is unchanged across a re-map (same bucket reused, per ensure_map_bucket keying), so nothing signals a mismatch. Arithmetic is straightforward: a rect stored at 0.80..0.95 renders at columns 104..123.5 of a 130-column frame regardless of what those columns now contain. Display-only; recoverable via the overlay toggle or per-rect delete.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -806,6 +1454,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A5-FURNIS-6",
+      "verdict": "CONFIRMED",
+      "reason": "Verified line for line: the writer takes `target = layout.setdefault(\"home_art\", {})` BEFORE branching on the clear, so a no-op clear on a layout with no art leaves an empty dict behind, and the reader's home branch tests `is None` while the per-room branch has the any()-over-fields guard that would have caught it. The result is that resolve_furnished_render stops returning its documented 'no furnished data' None sentinel for that layout.",
+      "evidence": "mapping_services.py:1966-1971: `if scope == \"room\": target = layout.setdefault(\"rooms\", {}).setdefault(room_id, {}) else: target = layout.setdefault(\"home_art\", {})` then `if tx is None and ty is None and scale is None and rotation is None: target.pop(\"art_placement_transform\", None); action = \"cleared\"`. Reader asymmetry in map_source.py:115-129: `_FURNISHED_FIELDS = (\"art_variant\", \"art_placement_transform\", \"viewport\", \"render_mode\")` with `if not any(entry.get(f) is not None for f in _FURNISHED_FIELDS): continue` for rooms, but `home_art_raw = layout.get(\"home_art\") if isinstance(layout.get(\"home_art\"), dict) else None` and `if home_art_raw is None and not rooms_out: return None` \u2014 {} is a dict, so home_art_raw is {} and the early return is defeated. The same setdefault-then-pop shape recurs at mapping_services.py:1967 (room scope) and :2071 (_handle_set_room_viewport clear). Card gate confirmed: the clear control renders only when hasArt (src/renderers/map.js:1581).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A5-FURNIS-6",
+      "verdict": "CONFIRMED",
+      "reason": "The clear path setdefaults home_art before deciding it is a clear, and the reader's early-return tests `is None` rather than emptiness \u2014 so a no-op clear permanently flips the documented 'no furnished data' sentinel from None to a populated payload.",
+      "evidence": "mapping_services.py:1969 `target = layout.setdefault(\"home_art\", {})` executes before the branch at 1972 `if tx is None and ty is None and scale is None and rotation is None: target.pop(\"art_placement_transform\", None)` \u2014 on a layout with no art this leaves `layout[\"home_art\"] = {}`. map_source.py:111-129: the per-room branch guards with `if not any(entry.get(f) is not None for f in _FURNISHED_FIELDS): continue`, but the home branch is only `home_art_raw = layout.get(\"home_art\") if isinstance(layout.get(\"home_art\"), dict) else None` and the early return is `if home_art_raw is None and not rooms_out: return None` \u2014 `{}` is a dict and is not None, so the function now returns `{active_layout_id:..., render_mode:..., home_art: {\"art_url\": None, \"transform\": None}, rooms: {}}` where it previously returned None. The same setdefault-then-pop shape leaves empty `rooms[<id>] = {}` entries via the room-scope clear (1967) and _handle_set_room_viewport:2071, absorbed by the reader's per-room guard but accumulating in storage. Card path unreachable (the clear button renders only when hasArt).",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -826,6 +1492,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-1",
+      "verdict": "CONFIRMED",
+      "reason": "The guard is permissive by construction \u2014 it refuses only when a value EXISTS and differs \u2014 and get_active_map_id returns None for every blank/sentinel state and for the registered-but-no-state boot window, which are routine transients. dispatch_zone_clean deliberately does not send map_id, so this service-layer check is genuinely the only thing binding the stored geometry to a map, and the Roborock affine is fitted from whatever MapData is currently in memory with no identity cross-check.",
+      "evidence": "mapping_services.py:2603-2612 and :2658-2667: `try: active_map_id = get_active_map_id(...) except Exception: active_map_id = None` then `if active_map_id is not None and str(active_map_id) != str(map_id): return {\"cleaned\": False, \"reason\": \"map_not_active\", ...}` \u2014 the None arm falls through to dispatch. rooms/room_discovery.py:69-84: returns None on is_blank_state(value) (BLANK_STATE_VALUES = {\"\",\"unknown\",\"unavailable\",\"none\",\"null\"}) and None when the entity is registered but has no state. dispatch/manager.py:104-106 docstring: 'map_id is accepted because the service layer auto-resolves it, but it is intentionally NOT sent: the provider uses its own currently-loaded map'. dispatch/manager.py:146-149 `map_obj = self._manager.map_source.get_live_mapdata_obj(vacuum_entity_id=..., map_id=str(map_id or \"\"))` then `corr = _msr.correspondences_from_mapdata(map_obj)` \u2014 no verification that map_obj is the named map. The remaining guards are geometry-only: _MIN_SIDE at :110-118, zone_max at :129-135, area/side bounds at :164-177 and :202-234. Doc states the requirement unconditionally: docs/advanced/03-services.md:75.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-1",
+      "verdict": "CONFIRMED",
+      "reason": "The active-map guard is `active_map_id is not None and str(active_map_id) != str(map_id)`, so an indeterminate signal falls through and the zone is dispatched against whatever map the provider currently holds. This is the only map binding in the path \u2014 dispatch deliberately does not send map_id.",
+      "evidence": "mapping_services.py:2603-2612 and 2658-2667 are identical: `try: active_map_id = get_active_map_id(...) except: active_map_id = None` then `if active_map_id is not None and str(active_map_id) != str(map_id): return {\"cleaned\": False, \"reason\": \"map_not_active\", ...}` \u2014 the None case proceeds. rooms/room_discovery.py:43-84 returns None for any is_blank_state value (entity_helpers.BLANK_STATE_VALUES = {\"\",\"unknown\",\"unavailable\",\"none\",\"null\"}) and for a registered-but-stateless entity. dispatch/manager.py dispatch_zone_clean docstring: \"map_id is accepted because the service layer auto-resolves it, but it is intentionally NOT sent: the provider uses its own currently-loaded map.\" On the device_mm branch it calls `self._manager.map_source.get_live_mapdata_obj(vacuum_entity_id=..., map_id=str(map_id or \"\"))`, and map_source_coordinator.py:330-358 uses map_id ONLY to resolve the live image entity, then returns the first MapData found by BFS with no identity check; `normalized_rects_to_mm(corr, zones)` then fits the affine from THAT map's correspondences \u2014 a wrong-map fit is perfectly self-consistent, so the residual gate cannot see it. On the Eufy branch `payload = {\"zones\": zones, \"clean_times\": int(clean_times)}` ships the normalized rects verbatim for the fork to de-normalize against its loaded map. Roborock's active_map is a select whose state is the map NAME (adapters/roborock/adapter.py:190) and which goes unavailable on an upstream reload. docs/advanced/03-services.md states the guard unconditionally.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -846,6 +1530,24 @@
     "severity_corrections": [
      "MEDIUM",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-2",
+      "verdict": "CONFIRMED",
+      "reason": "delete_saved_zone genuinely scans nothing but the zones dict, the deferred-to enforcer silently skips missing ids, and run_plan drops the entire zone phase before dispatch is ever reached \u2014 so dispatch_zone_clean's own `if not zones: raise` can never surface it. Correcting HIGH to MEDIUM: the trigger is a user-initiated delete of the very object the step references, which is materially less surprising than the transient-triggered wrong-clean findings at HIGH here; the real defect is the absent warning and the UI continuing to advertise a step that no longer runs.",
+      "evidence": "mapping_services.py:2539-2554 _handle_delete_saved_zone: ensure_map_bucket, _migrate_saved_zones, `if zone_id not in zones: return {\"saved\": False, \"reason\": \"zone_not_found\"}`, `zones.pop(zone_id, None)`, await manager.async_save() \u2014 no other store is read. core/manager.py:1870-1883 _resolve_saved_zone_rects: `zone = zones_store.get(str(zid)); if not isinstance(zone, dict): continue`, docstring 'Missing / degenerate zones are silently skipped'. planning/run_plan.py:861-872: `rects = self._manager._resolve_saved_zone_rects(...); if not rects: continue` \u2014 the phase never enters the plan, so dispatch/manager.py:108 `if not zones: raise ValueError(...)` is unreachable for this case. Durable references exist at core/manager.py:1736 ({'type': 'zone', 'zone_ids': [...]}) and are kept verbatim by profiles/manager.py:798-808.",
+      "severity_correction": "MEDIUM",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-2",
+      "verdict": "CONFIRMED",
+      "reason": "delete_saved_zone pops and saves with no reference scan, while the deferred-to enforcement is a silent skip that drops resolved rects and then the entire phase \u2014 and the queue UI keeps listing the dead step.",
+      "evidence": "mapping_services.py:2539-2554: `zones.pop(zone_id, None); await manager.async_save(); return {\"saved\": True, \"deleted\": True, \"zone_id\": zone_id}` \u2014 nothing else is inspected. Durable reference: core/manager.py add_queue_zone stores `{\"type\": \"zone\", \"zone_ids\": zone_ids}` into the map bucket's queue_breaks and its docstring defers existence \"at dispatch\". core/manager.py:1855-1883 `_resolve_saved_zone_rects` \u2014 docstring \"Missing / degenerate zones are silently skipped\"; loop body `zone = zones_store.get(str(zid)); if not isinstance(zone, dict): continue`. planning/run_plan.py:866-872 \u2014 `rects = self._manager._resolve_saved_zone_rects(...); if not rects: continue` \u2014 the zone phase is never appended, so dispatch_zone_clean's own `if not zones: raise` (dispatch/manager.py:108) is never reached. UI divergence confirmed: core/manager.py get_queue_steps (1632-1678) rebuilds steps straight from `self._map_queue_breaks(map_bucket)` via `steps.append(dict(breaks[bi][\"step\"]))` and then only shape-normalizes, so the deleted zone's step is still returned to the card. Partial case (one of two ids deleted) dispatches half the user's saved selection.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -866,6 +1568,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-3",
+      "verdict": "CONFIRMED",
+      "reason": "Verified by exhaustive grep: map_version appears exactly once in the repository, in the design doc's SavedZone schema, and zero times in custom_components/, src/ or tests/. The doc does not merely describe a behaviour \u2014 it specifies an invalidation key as part of the data model and devotes a section to the guarantee it provides. Nothing stamps it, nothing checks it, and the two self-heal/guard paths that could have compensated key on the wrong things.",
+      "evidence": "grep -rn 'map_version' custom_components/ src/ tests/ -> 0 hits; grep -rn 'map_version' docs/ -> 1 hit, docs/dev/frontend/saved-zones.md:61 `\"map_version\":   ...,            # invalidation key (\u00a76)`. _create_saved_zone (mapping_services.py:1406-1415) mints exactly {id, name, geometry, area_m2, room_number, kind, created_at, updated_at}. The self-heal cannot re-validate a populated value: _backfill_saved_zone_area:1434-1437 selects only `z.get(\"area_m2\") is None`. The active-map guard (:2607-2612) compares WHICH map, and a re-map keeps the same map_id. A usable version signal exists and is unread by saved-zone code: maps/map_manager.py:203-207 metadata['last_rebuild'].",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-3",
+      "verdict": "CONFIRMED",
+      "reason": "The invalidation key the design doc names as the SavedZone's safety mechanism does not exist in the codebase at all, and no other freshness signal is consulted before dispatch.",
+      "evidence": "`grep -rn map_version --include=*.py --include=*.js --include=*.mjs custom_components/ src/ tests/` returns 0 hits. `grep -rn map_version docs/` returns exactly one: docs/dev/frontend/saved-zones.md:61 `\"map_version\": ...,  # invalidation key (\u00a76)`, with \u00a710 (line 169-173) stating \"Saved zones are keyed to the map version. A genuine re-map changes the room_pixels raster -> the stored geometry no longer means the same thing -> the map's saved zones invalidate.\" _create_saved_zone (mapping_services.py:1406-1415) mints exactly {id, name, geometry, area_m2, room_number, kind, created_at, updated_at} \u2014 no map_version. Neither clean handler reads any freshness field; their only map test is the id equality at 2608/2663, and a re-map does not change map_id, so the guard passes. Self-heal cannot repair it: _backfill_saved_zone_area:1434-1437 selects only `z.get(\"area_m2\") is None`. maps/map_manager.py:203 does write `map_bucket[\"metadata\"][\"last_rebuild\"]` \u2014 a usable version signal that no saved-zone code reads (grep confirms).",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -886,6 +1606,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-4",
+      "verdict": "CONFIRMED",
+      "reason": "The create-time guard has the identical permissive None arm as the backfill, with an inline comment that says so outright, and the map-data accessor takes no map_id so it always returns the currently-live map. Neither correction path can repair area_m2 afterwards. This is the create-side twin of A4-CUSTOM-3 \u2014 same root cause, different entry point.",
+      "evidence": "mapping_services.py:2495-2510: comment 'Indeterminate active map -> compute', then `if active_map_id is None or str(active_map_id) == str(map_id): map_data = await manager.async_get_map_data_dict(vacuum_entity_id=vacuum_entity_id); if isinstance(map_data, dict): membership = zone_membership(map_data, zone[\"geometry\"]); zone[\"area_m2\"] = membership.get(\"area_m2\"); zone[\"room_number\"] = membership.get(\"room_number\")`, persisted at :2512. async_get_map_data_dict (map_source_coordinator.py:665-667) takes only vacuum_entity_id. Repair paths: _backfill_saved_zone_area:1434-1437 skips any zone with a non-None area_m2; _handle_set_saved_zone_room:2557-2576 writes room_number only. The area formula depends on the raster's own dims: map_source.py:356-363 uses map_data width/height/resolution. Brand scoping confirmed at map_source_coordinator.py:683-684 (storage backend only).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-4",
+      "verdict": "CONFIRMED",
+      "reason": "The create-time guard's indeterminate arm computes membership against the currently-loaded raster regardless of which map the zone belongs to, and neither correction path can ever rewrite area_m2.",
+      "evidence": "mapping_services.py:2496-2510: comment \"Indeterminate active map -> compute\", then `if active_map_id is None or str(active_map_id) == str(map_id): map_data = await manager.async_get_map_data_dict(vacuum_entity_id=vacuum_entity_id); if isinstance(map_data, dict): membership = zone_membership(map_data, zone[\"geometry\"]); zone[\"area_m2\"] = membership.get(\"area_m2\"); zone[\"room_number\"] = membership.get(\"room_number\")`, persisted at 2512. map_source_coordinator.py:665-667 confirms the accessor takes only vacuum_entity_id and returns the CURRENT map's dict (and returns None at 683 for any non-\"storage\" backend, so Roborock is unaffected). Repair paths: _backfill_saved_zone_area:1434-1439 filters on `area_m2 is None` \u2014 this zone is excluded forever; _handle_set_saved_zone_room:2557-2576 writes only room_number. The outer try/except at 2497/2509 catches failures, not wrongness \u2014 a successful compute against the wrong map raises nothing. docs/dev/frontend/saved-zones.md line 211 records the Wave-2 fix as \"only compute when map_id == the active map (get_active_map_id), else leave None\", which the shipped `active_map_id is None or ...` exceeds.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -906,6 +1644,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-5",
+      "verdict": "CONFIRMED",
+      "reason": "The pair is asymmetric exactly as described \u2014 create writes segmentation_mode unconditionally, delete restores 'cv' only inside the no-layouts-remain branch \u2014 and the prior mode is not stored anywhere, so restoring it is not merely un-wired, the information is destroyed. The repro's premise checks out: _migrate_custom_layouts deliberately does not touch segmentation_mode, so a migrated install genuinely sits in cv mode with a dormant layout.",
+      "evidence": "mapping_services.py:2346 `map_bucket[\"segmentation_mode\"] = \"custom\"` in _handle_create_custom_layout, with no capture of the previous value; the bucket has no prior-mode key anywhere. _handle_delete_custom_layout:2422-2432: `if map_bucket.get(\"active_custom_layout_id\") == layout_id: remaining = sorted(...); if remaining: map_bucket[\"active_custom_layout_id\"] = remaining[0].get(\"id\") else: map_bucket[\"active_custom_layout_id\"] = None; if map_bucket.get(\"segmentation_mode\") == \"custom\": map_bucket[\"segmentation_mode\"] = \"cv\"` \u2014 the restore is inside the else. _migrate_custom_layouts:1502-1528 mints the legacy layout, sets active_custom_layout_id, and never assigns segmentation_mode. Presentation-only consequence confirmed: the sole non-mapping_services consumer of segmentation_mode is map_source.py:103 `if (map_bucket.get(\"segmentation_mode\") or \"cv\") != \"custom\": return None`. Delete's response echoes segmentation_mode: 'custom' (:2437).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-5",
+      "verdict": "CONFIRMED",
+      "reason": "create forces segmentation_mode to custom unconditionally and stores no prior value; delete restores cv only in the zero-layouts branch, so create-then-delete on a map that already had a dormant layout strands the user in custom mode.",
+      "evidence": "mapping_services.py:2346 `map_bucket[\"segmentation_mode\"] = \"custom\"` \u2014 unconditional, and no prior-mode field is written anywhere in the bucket, so the information is destroyed. _handle_delete_custom_layout:2422-2432: the restore is inside `if map_bucket.get(\"active_custom_layout_id\") == layout_id:` and then `if remaining: map_bucket[\"active_custom_layout_id\"] = remaining[0].get(\"id\") else: ... if map_bucket.get(\"segmentation_mode\") == \"custom\": map_bucket[\"segmentation_mode\"] = \"cv\"` \u2014 the cv restore is only in the else. The dormant-layout precondition is real: _migrate_custom_layouts:1483-1528 mints cl_LEGACY named \"Custom\", sets active_custom_layout_id, and deliberately never writes segmentation_mode. Consequence verified: _resolve_active_scope's custom branch then serves cl_LEGACY's segments/links/anchors, and map_source.py:103 `if (map_bucket.get(\"segmentation_mode\") or \"cv\") != \"custom\": return None` means build_furnished_render also switches on. The delete response returns segmentation_mode:\"custom\" with no hint that a set_segmentation_mode(\"cv\") call is needed. Presentation-level only \u2014 room dispatch keys off device room ids.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -926,6 +1682,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-6",
+      "verdict": "CONFIRMED",
+      "reason": "Every handler in the block opens with ensure_map_bucket before any not-found return, including the two read-only clean handlers, and the read-only accessor that would avoid it exists and is used elsewhere in the integration. The Roborock rename trigger is real at the source level (map_id is the free-text vendor map NAME read off a select entity). This is the same mechanism as A1-SERVIC-1 reported from the zone/layout side \u2014 dedupe downstream.",
+      "evidence": "ensure_map_bucket called before the lookup in every handler: mapping_services.py:2341, 2361, 2383, 2452, 2486, 2526, 2545, 2566, 2595, 2652 \u2014 e.g. _handle_delete_saved_zone:2545-2551 mints the bucket, runs _migrate_saved_zones (which setdefaults saved_zones={}), and only then returns {\"saved\": False, \"reason\": \"zone_not_found\"}. maps/map_manager.py:17-28 is a pure setdefault; the non-mutating sibling get_map_bucket (map_manager.py:55-74) exists and is used at core/manager.py:1865. get_vacuum_maps_summary (map_manager.py:78-106) reports every bucket key as a map with room_count len(rooms). Roborock map_id source: adapters/roborock/adapter.py:190 'active_map (select.{id}_selected_map) reports the map NAME (\"Main floor\")'; rooms/room_discovery.py:74 returns str(value).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-6",
+      "verdict": "CONFIRMED",
+      "reason": "Every handler in the block calls ensure_map_bucket (which setdefaults a full bucket) before any not-found return, including the two read-only clean paths, and the non-mutating reader that would avoid it exists and is used elsewhere in the codebase.",
+      "evidence": "ensure_map_bucket appears at mapping_services.py:2341, 2361, 2383, 2452, 2486, 2526, 2545, 2566, 2595, 2652 \u2014 always the first statement after the call.data unpack, always before the `zone_not_found` / `layout_not_found` / `map_not_active` returns. maps/map_manager.py:17-28 setdefaults `{map_id, metadata, rooms, summary}`; _migrate_saved_zones (1386-1389) then writes `saved_zones = {}` into it. The read-only alternative exists and is used: get_map_bucket (maps/map_manager.py:55-74) returns a detached default without mutating, and core/manager.py:1865 and 3650 use it. Persistence: core/manager.py:803-805 async_save serialises the whole `self.data`, so the next save from any handler in the integration commits the phantom. get_vacuum_maps_summary (maps/map_manager.py:87-100) then reports it as a real map with room_count 0. Roborock rename trigger confirmed from adapters/roborock/adapter.py:190 (\"active_map (select.{id}_selected_map) reports the map NAME (\\\"Main floor\\\")\"); that the select's state actually changes on an in-app rename is device behaviour I cannot verify from source, but the typo variant needs no rename at all.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -946,6 +1720,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-7",
+      "verdict": "CONFIRMED",
+      "reason": "Verified that `kind` is accepted free-form, normalised only for blank, persisted, and then has no consumer anywhere \u2014 the clean handlers take the geometry bbox and dispatch without ever reading it. The field is publicly accepted and publicly documented as extensible, so a caller using it as documented gets a physical clean of a region they labelled otherwise.",
+      "evidence": "CREATE_SAVED_ZONE_SCHEMA mapping_services.py:453 `vol.Optional(\"kind\"): cv.string` \u2014 no vol.In. Handler :2483 `kind: str = str(call.data.get(\"kind\") or \"clean\").strip() or \"clean\"`; _create_saved_zone:1412 `\"kind\": (kind or \"clean\").strip() or \"clean\"`. grep for kind across mapping_services.py returns only lines 453, 1412, 2483 \u2014 i.e. schema, store, pass-through; neither _handle_clean_saved_zone (2614-2632) nor _handle_clean_saved_zones (2672-2702) references it, both going straight from geometry to `rect = [min(xs), min(ys), max(xs), max(ys)]` and dispatch_zone_clean. Card only forwards it: src/actions/saved-zones.js:51 `if (kind != null) data.kind = kind;`. dispatch_zone_clean receives only rects (dispatch/manager.py:86-93).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-7",
+      "verdict": "CONFIRMED",
+      "reason": "kind is accepted as free-form, normalised only for the empty case, persisted verbatim, and read by nothing \u2014 both clean handlers dispatch on geometry alone.",
+      "evidence": "CREATE_SAVED_ZONE_SCHEMA:453 `vol.Optional(\"kind\"): cv.string` \u2014 no vol.In, unlike five sibling enums in the same block. _handle_create_saved_zone:2483 `kind: str = str(call.data.get(\"kind\") or \"clean\").strip() or \"clean\"` \u2192 _create_saved_zone:1412 `\"kind\": (kind or \"clean\").strip() or \"clean\"` \u2014 passes any non-empty string through. Repo-wide grep for kind consumers returns only those three lines plus src/actions/saved-zones.js:51 `if (kind != null) data.kind = kind;` (forwarded, never set by the card). _handle_clean_saved_zone:2614-2628 and _handle_clean_saved_zones:2672-2698 build `rect = [min(xs), min(ys), max(xs), max(ys)]` from geometry and call dispatch_zone_clean \u2014 neither reads zone[\"kind\"], and dispatch_zone_clean receives only rects, so it cannot see it. A zone stored with kind=\"no_go\" is dispatched as a clean. Latent: no UI produces a non-\"clean\" kind.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -966,6 +1758,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A6-ZONE-C-8",
+      "verdict": "CONFIRMED",
+      "reason": "Create validates the name and lets the coordinate coercer clamp, but performs no size check against the adapter's declared bounds; those bounds are applied only inside dispatch_zone_clean, which raises. The doc explicitly promises enforcement at author time as well. The batch-abort consequence follows from the raise propagating out of the single shared dispatch call.",
+      "evidence": "_handle_create_saved_zone mapping_services.py:2478-2512: name check at :2479-2481, then _create_saved_zone, then the best-effort membership compute \u2014 the computed area_m2 at :2507 is stored and never compared against anything. Bounds live only at dispatch: dispatch/manager.py:164-177 (zone_min_area_m2 / zone_max_area_m2, raising 'a zone is too small (%.2f m\u00b2)') and :202-234 (zone_min_side_m / zone_max_side_m), plus the normalized _MIN_SIDE=0.01 at :110-118. Adapter caps: adapters/roborock/adapter.py:612-614 zone_max 5 / zone_max_area_m2 3.05; adapters/eufy/adapter.py:807-809 zone_max 10 / zone_min_side_m 0.5 / zone_max_side_m 10.0. Batch path: _handle_clean_saved_zones:2694-2698 makes ONE dispatch_zone_clean call for all rects inside a try that re-raises as HomeAssistantError, so one undersized zone aborts the whole set. Doc: docs/dev/frontend/saved-zones.md \u00a79 'Enforced at author + at clean-time'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A6-ZONE-C-8",
+      "verdict": "CONFIRMED",
+      "reason": "create validates the name and coordinate sanity but never compares the computed area against the adapter's declared bounds; those live only inside dispatch, after the zone is already stored and listed.",
+      "evidence": "_handle_create_saved_zone:2479-2512 \u2014 `if not name: return missing_name`, then _create_saved_zone, then the best-effort membership compute at 2497-2510 which STORES area_m2 without comparing it to anything. No reference to zone_min_area_m2 / zone_max_area_m2 / zone_min_side_m / zone_max_side_m exists anywhere in mapping_services.py. Those caps are read only in dispatch/manager.py: `_min_a = _zone_caps.get(\"zone_min_area_m2\")` \u2026 `if _min_a is not None and _area < float(_min_a): raise ValueError(f\"...a zone is too small ({_area:.2f} m\u00b2)...\")` (device_mm branch) and the zone_min_side_m/zone_max_side_m checks (Eufy branch). adapters/roborock/adapter.py:613 declares `\"zone_min_area_m2\": 0.0929`. Arithmetic: normalized [[0.50,0.50],[0.52,0.50],[0.52,0.52],[0.50,0.52]] on a 6 m map = 0.12 m x 0.12 m = 0.0144 m\u00b2 < 0.0929 \u2192 raise; the earlier `_MIN_SIDE = 0.01` check passes (|0.52-0.50| = 0.02 >= 0.01), so it is the area cap that fires. Batch atomicity confirmed: the raise happens inside dispatch_zone_clean before any send_command, and _handle_clean_saved_zones:2695-2696 re-raises as HomeAssistantError \u2014 the whole selection is aborted. docs/dev/frontend/saved-zones.md lines 165-166: \"Enforced at author + at clean-time\"; only the clean-time half exists.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -986,6 +1796,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-1",
+      "verdict": "CONFIRMED",
+      "reason": "Reproduced against the shipped module with a well-formed blob whose pixels are all MAP_SCAN: decode returns room_ids == [] with zero non-zero pixels, and roborock_render_data wraps it as present:True with no reason. The emptiness gate tests bytes truthiness, and an all-zero bytes object is truthy; decode's own room_ids is computed and never consulted by any caller.",
+      "evidence": "Executed: 20-byte map header + a 24-byte IMAGE block (type 2, 200x150, data_len 30000) + 30000 bytes of 0x07 -> decode_roborock_v1_segments returns room_ids [] and sum(1 for b in room_pixels if b) == 0 (resolve_rid(0x07) == 0 per roborock_raw_map.py:93-101); roborock_render_data(d, {16:'Kitchen'}) returns present True, width 200, height 150, room_names {'16': 'Kitchen'}. Source: roborock_raw_map.py:155-158 `rp = decoded.get(\"room_pixels\"); ... if not rp or not width or not height: return None`. room_ids computed at :116-118 and referenced by no caller (grep). Consumer accepts the first non-None: map_source_runtime.py:405-411 `rd = roborock_render_data(decoded, room_names); if rd is not None: return rd`. Card gate reads only present: src/state/map.js:1201-1205 isVaRenderActive -> `Boolean(this.mapRenderData()?.present)`. Contract the doc states: docs/dev/31-map-source-coordinator.md \u00a73.4 'Degrades to {present: False, reason}'.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-1",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: a well-formed IMAGE block containing zero room pixels decodes with room_ids=[] and is published as present:True, because the emptiness gate tests the bytes object (truthy) and never consults the decoder's own room_ids signal.",
+      "evidence": "Built a 20-byte map header + a 24-byte IMAGE block (type 2, data_len 30000, height 150, width 200) + 30000 bytes of 0x07 (MAP_SCAN). decode_roborock_v1_segments returned {'width': 200, 'height': 150, 'top': 0, 'left': 0, 'rid_shift': 0, 'catch_all_rid': 31, 'flip_y': True, 'room_ids': []} with 0 non-zero pixels (resolve_rid(0x07) == 0 by line 61's `pixel_type != _MAP_SCAN` test). roborock_render_data(decoded, {16:'Kitchen'}) then returned present=True, width=200, height=150, room_names={'16':'Kitchen'} \u2014 no reason field, no absent marker. Cause: line 158 `if not rp or not width or not height` \u2014 rp is b'\\x00'*30000, which is truthy. `room_ids` is computed at 116-118 and read by no caller (grep). map_source_runtime.py:411 `if rd is not None: return rd` then stops scanning further candidate roots. Card gate is `!rd || !rd.present` (src/bindings/map.js:223) and isVaRenderActive tests only `mapRenderData()?.present`, so the VA backdrop switches on over a blank canvas and every pixel hit-test returns rid 0.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -1006,6 +1834,24 @@
     "severity_corrections": [
      "unchanged",
      "LOW"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-2",
+      "verdict": "CONFIRMED",
+      "reason": "The per-pixel loop is pure Python with two integer divisions and a dict lookup per pixel, has no size cap (decode bounds width/height only by the blob length), and the entire call chain from the diagnostics coroutine down is synchronous \u2014 _vacuum_diagnostics is a plain function invoked directly from async_get_config_entry_diagnostics inside a list comprehension, once per vacuum, with no async_add_executor_job anywhere.",
+      "evidence": "roborock_raw_map.py:200-215 `for i, rid in enumerate(rp): if not (1 <= rid <= MAX_ROOM_RID): continue; x, y = i % w, i // w; b = acc.get(rid); ...`. No dimension cap: decode_roborock_v1_segments:111-114 checks only width<=0/height<=0, pixel_count>data_len, data_start+pixel_count>n. Chain: geometry_drift:259 calls raster_room_bboxes -> map_source_runtime.py:414-434 roborock_geometry_drift_from_candidates (plain def) -> diagnostics.py:496-505 inside `_vacuum_diagnostics` (a `def`, not `async def`) -> diagnostics.py:571 `vacuums = [_vacuum_diagnostics(hass, manager, vac) for vac in vacuum_ids]` inside `async def async_get_config_entry_diagnostics`. Contrast: the render path touches pixels only via bytes.translate / set() / base64 / hashlib (roborock_raw_map.py:117-124, 163-179), which is what map_source_coordinator.py's 'In-memory + pure -> loop-safe' comment covers.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-2",
+      "verdict": "CONFIRMED",
+      "reason": "The per-pixel Python loop and the un-offloaded synchronous call chain to the HA event loop are both exactly as described. Correcting to LOW: measured cost is ~75 ms for a 700x700 raster, on a user-initiated diagnostics download only.",
+      "evidence": "roborock_raw_map.py:200-215 `for i, rid in enumerate(rp): ... x, y = i % w, i // w; b = acc.get(rid); ...` \u2014 pure Python, one iteration per pixel, no cap (decode bounds width/height only by blob length at 111-114). Chain verified: raster_room_bboxes \u2190 geometry_drift:259 \u2190 map_source_runtime.roborock_geometry_drift_from_candidates:434 \u2190 diagnostics.py:496-505 (bare try/except, no async_add_executor_job) inside `def _vacuum_diagnostics(` (diagnostics.py:313 \u2014 a plain def), which `async def async_get_config_entry_diagnostics` (diagnostics.py:533) calls synchronously at :571 in a list comprehension, once per vacuum. Measured on this x86 host: a 700x700 (490,000-pixel) raster with 8 rooms took 0.0744 s. The render path for the same raster is bytes.translate / set() / b64encode / sha1 \u2014 all C-level \u2014 so this is the module's only Python-loop path and the only one not offloaded, exactly as claimed. Correcting MEDIUM\u2192LOW: sub-100 ms on x86 (a few hundred ms on Pi-class), on an explicit user action, with no data or device consequence \u2014 the finder's \"comfortably into multiple seconds\" is not supported by measurement.",
+      "severity_correction": "LOW",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -1026,6 +1872,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-3",
+      "verdict": "CONFIRMED",
+      "reason": "version is minted from the raster bytes alone while the payload also ships room_names sourced from live managed rooms; no caller ever passes a version, so the raster-only hash always wins. The card's only invalidation is a map-id change, and the per-room colour bridge keys on the CACHED payload's rid->name map against the CURRENT room names, so a rename makes the lookup miss and the override silently disappears.",
+      "evidence": "roborock_raw_map.py:161-179: `raw = bytes(rp); if version is None: version = hashlib.sha1(raw).hexdigest()[:12]` and the returned dict carries both \"room_names\": {str(k): str(v) for k, v in names.items()} and \"version\": version. No caller supplies version: map_source_runtime.py:409 calls roborock_render_data(decoded, room_names) with two positional args. Card invalidation: src/bindings/map.js:194-201 \u2014 `if (state.mapRenderData?.() && this._renderDataMapId != null && this._renderDataMapId !== mapId) state.setMapRenderData?.(null);` then `const rd = state.mapRenderData?.(); if (!rd && !this._vaRenderFetching) { ... }` \u2014 nothing compares versions. Name bridge: src/bindings/map.js:333-345 builds rgbByName from `state.getRoomsForActiveMap?.()` (current names) and looks up `rgbByName.get(norm(ridNames[ridStr]))` where `ridNames = (rd && rd.room_names) || {}` (cached names); the comment at :326-330 states keying by room.id would be WRONG, so there is no fallback. Cache key at :354-356 uses rd.version AND overrideSig, both derived from the stale payload.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-3",
+      "verdict": "CONFIRMED",
+      "reason": "version is a sha1 of the raster bytes alone while the payload also ships room_names sourced live from managed rooms, and the card's invalidation keys on map_id only \u2014 so a room rename silently drops that room's colour override until a reload.",
+      "evidence": "roborock_raw_map.py:161-163 `raw = bytes(rp); if version is None: version = hashlib.sha1(raw).hexdigest()[:12]`; line 178 `\"room_names\": {str(k): str(v) for k, v in names.items()}` is in the same payload and contributes nothing to the hash. No caller passes an explicit version (grep of map_source_runtime.py:411 `roborock_render_data(decoded, room_names)`), so the raster-only hash always wins. Card invalidation verified: src/bindings/map.js:194-196 clears rd only when `this._renderDataMapId !== mapId`, and 198 refetches only `if (!rd && !this._vaRenderFetching)` \u2014 nothing compares versions. The name bridge at 335-346 builds `rgbByName` from the CURRENT rooms and looks up `rgbByName.get(norm(ridNames[ridStr]))` where ridNames = the CACHED rd.room_names; after renaming room 16 Kitchen\u2192Cocina, rgbByName holds \"cocina\" and ridNames[16] is still \"Kitchen\", so the lookup misses and overrideByRid[16] stays unset. The comment at 326-330 states the name bridge is the only correct bridge (\"Keying by room.id directly is WRONG\"), so there is no fallback. The ImageData cache keys on rd.version AND overrideSig, but overrideSig is itself derived from the stale ridNames, so it is self-consistently stale. docs/dev/31-map-source-coordinator.md \u00a73.4 asserts \"the raster is static ... so it's fetch-once\" \u2014 true of the raster, false of room_names.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -1046,6 +1910,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-4",
+      "verdict": "CONFIRMED",
+      "reason": "The source-level facts are all as stated: decode reads top/left and returns them, no consumer in the module or its callers uses them, and roborock_render_data hardcodes ro_dx/ro_dy to 0 with ro_width/ro_height set equal to the canvas, defended only by a comment. The payload therefore has no field capable of expressing an offset between the raw IMAGE-block frame and the parser's rendered frame. The finding is honest that whether the two frames actually differ depends on the HA roborock integration's ImageConfig trim, which cannot be settled from this repo \u2014 I could not verify that premise either, and the shipped geometry_drift diagnostic is indeed the instrument that would settle it on a real device.",
+      "evidence": "roborock_raw_map.py:97-100 reads top/left/height/width; :122-123 returns \"top\": top, \"left\": left. grep for decoded['top'] / .get('top') across the module and its callers (map_source_runtime.py, map_source_coordinator.py, diagnostics.py) finds no consumer. roborock_render_data:169-172 `\"ro_width\": int(width), \"ro_height\": int(height), \"ro_dx\": 0, \"ro_dy\": 0,` with the inline comment 'the raster IS the canvas (no outline frame)'. The knob is filled from real geometry for the sibling brand: map_source.py:662-663 (_outline_geometry). raster_room_bboxes normalizes by the RAW frame (roborock_raw_map.py:219-222, dividing by w/h), while map_source_runtime._mapdata_projector:438-470 normalizes by the parser's own dims.to_img output over image.data.size. The round-trip gate cannot catch a frame mismatch because it validates the affine against the same parser-frame correspondences it was fit from (dispatch/manager.py:152-158).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-4",
+      "verdict": "CONFIRMED",
+      "reason": "The source-level claim holds exactly: ro_dx/ro_dy are literal zeros, and the decoded top/left are returned by the decoder and consumed by nothing, so the payload has no field able to express an offset between the raw IMAGE-block frame and the parser's rendered frame. Whether that offset is nonzero on a real device is not settleable from this repo.",
+      "evidence": "roborock_raw_map.py:169-172 `\"ro_width\": int(width), \"ro_height\": int(height), \"ro_dx\": 0, \"ro_dy\": 0` \u2014 hardcoded, with the comment \"the raster IS the canvas (no outline frame)\". decode_roborock_v1_segments:97-98 reads top/left and 122-123 returns them; grep across the module and its callers (map_source_runtime.roborock_render_data_from_candidates / roborock_geometry_drift_from_candidates) shows no consumer. The Eufy sibling fills the same fields from _outline_geometry (map_source.py:662-663), so the knob is present and pinned only here. map_source_runtime._mapdata_projector normalizes by the parser's rendered `image.data.size` after `dims.to_img`, i.e. a different frame by construction if the parser trims. zone_dispatch.normalized_rects_to_mm validates the affine against parser-frame correspondences only, so a card/dispatch frame mismatch produces ~0 residual and passes. UNRESOLVED FROM SOURCE: the HA roborock integration's ImageConfig trim is not in this repo, so I cannot compute the actual delta; the finder's 0.011-normalized / 0.39 m figure is a worked hypothetical with an assumed T=50, not a measurement. The shipped geometry_drift diagnostic is the instrument that would settle it on hardware. docs/dev/29-roborock-adapter.md does contain both statements the finder flags (a constant offset \"= the parser's trim\", and \"ro_dx/dy = 0\").",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -1066,6 +1948,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-5",
+      "verdict": "CONFIRMED",
+      "reason": "Reproduced: the same decoded dict lacking flip_y yields a bottom-origin bbox from raster_room_bboxes and flip_y True from roborock_render_data, and the two boxes do not intersect at all. The divergence is two hand-written defaults for one key in one module, with no shared accessor. Latent today only because decode always sets the key \u2014 that is not a guard, which the finding correctly says.",
+      "evidence": "Executed with d = {'width':2,'height':3,'room_pixels':bytes([5,5,0,0,0,0])} (no flip_y key): raster_room_bboxes(d) -> {5: [0.0, 0.0, 1.0, 0.3333]}; the same dict with 'flip_y': True -> {5: [0.0, 0.6667, 1.0, 1.0]}; roborock_render_data(d)['flip_y'] -> True. Source: roborock_raw_map.py:174 `\"flip_y\": bool(decoded.get(\"flip_y\", True)),` versus :198 `flip = bool(decoded.get(\"flip_y\"))`. decode_roborock_v1_segments:126 unconditionally sets \"flip_y\": True, which is what makes it unreachable today. geometry_drift:259 passes decoded straight to raster_room_bboxes with no normalization, and _bbox_iou of the two non-intersecting boxes is exactly 0.0 (:224-235).",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-5",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: the two functions in the same module read the same key with opposite absent-semantics, and on a dict lacking flip_y the render and the drift validator disagree by a full Y-flip with IoU exactly 0.",
+      "evidence": "roborock_raw_map.py:174 `\"flip_y\": bool(decoded.get(\"flip_y\", True))` vs :198 `flip = bool(decoded.get(\"flip_y\"))`. Ran d = {'width':2,'height':3,'room_pixels':bytes([5,5,0,0,0,0])} (no flip_y key): raster_room_bboxes(d) \u2192 {5: [0.0, 0.0, 1.0, 0.3333333333333333]}; with 'flip_y': True added \u2192 {5: [0.0, 0.6666666666666667, 1.0, 1.0]}; roborock_render_data(d)['flip_y'] \u2192 True for the SAME dict. _bbox_iou of the two boxes = 0.0, so geometry_drift would report min_iou 0.0 / aligned False \u2014 precisely the \"inverted axis = a flip bug\" signature docs/dev/29-roborock-adapter.md tells the maintainer to trust. Latent today: decode_roborock_v1_segments:126 unconditionally sets flip_y True, so no shipped path produces a key-less dict; no shared accessor or constant derives the default from one place.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -1086,6 +1986,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-6",
+      "verdict": "CONFIRMED",
+      "reason": "Reproduced exactly: with no common rooms the loop never runs and the optimistic pre-loop 0.0 is published as max_center_delta, while min_iou gets the correct empty-guard on the very next line. The empty case was clearly considered \u2014 it is applied to one metric and not its sibling.",
+      "evidence": "Executed: geometry_drift([{'number':16,'bbox':[0,0,.5,.5]},{'number':17,'bbox':[.5,0,1,.5]}], <all-MAP_SCAN raster>) -> {'common': [], 'max_center_delta': 0.0, 'min_iou': 0.0, 'aligned': False}. Source: roborock_raw_map.py:269-271 `max_center = 0.0` / `min_iou = 1.0` initialised before `for rid in common:`; :284 `\"max_center_delta\": round(max_center, 4),` unconditional; :285 `\"min_iou\": round(min_iou, 3) if common else 0.0,` guarded; :286-289 `\"aligned\": bool(common) and ...` also guarded.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-6",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: with no common rooms the pre-loop optimistic accumulator is published verbatim as a measurement, while the sibling metric on the adjacent line correctly guards the same case.",
+      "evidence": "geometry_drift([{'number':16,'bbox':[0,0,.5,.5]},{'number':17,'bbox':[.5,0,1,.5]}], <all-MAP_SCAN raster>) returned {'room_ids_parser': [16, 17], 'room_ids_raster': [], 'common': [], 'only_parser': [16, 17], 'only_raster': [], 'max_center_delta': 0.0, 'min_iou': 0.0, 'aligned': False, 'per_room': {}}. Source: `max_center = 0.0` / `min_iou = 1.0` initialised at 262-263 before the loop; line 284 emits `round(max_center, 4)` unconditionally while line 285 emits `round(min_iou, 3) if common else 0.0` \u2014 the empty-loop case was considered for one metric and not the sibling. The `aligned` verdict itself is correct (`bool(common) and ...` at 286-289); only the reported centre-delta is a phantom. Diagnostics-readability only; nothing gates on the value.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    },
    {
@@ -1106,6 +2024,24 @@
     "severity_corrections": [
      "unchanged",
      "unchanged"
+    ],
+    "verdicts": [
+     {
+      "finding_id": "A7-ROBORO-7",
+      "verdict": "CONFIRMED",
+      "reason": "The arithmetic is right: the block header's first 8 bytes are fixed type/header_len/data_len, so the four dim int32s at header_len-16..-4 only occupy bytes reserved for them when header_len >= 24, yet the gate is >= 16. For header_len in 16..23 the reads slide backwards over the header's own metadata. The finding is explicit that this is latent on well-formed v1 blobs, and my attempt to build a short-header blob that survives the downstream sanity checks returned None \u2014 consistent with the finding's own 'if width*height <= data_len and data_start + width*height <= n happen to hold' framing.",
+      "evidence": "roborock_raw_map.py:89-100: `header_len = _u16(raw, pos + 0x02); if header_len < 8 or pos + header_len > n: break; block_type = _u16(raw, pos); data_len = _u32(raw, pos + 0x04); ... if block_type == _BLOCK_TYPE_IMAGE and header_len >= 16: top = _u32(raw, pos + header_len - 16); left = _u32(raw, pos + header_len - 12); height = _u32(raw, pos + header_len - 8); width = _u32(raw, pos + header_len - 4)`. With header_len == 20 those offsets are pos+4 (the data_len field), pos+8, pos+12, pos+16; with header_len == 16 the first is pos+0 (type | header_len<<16). The real layout is 24: tests/unit/test_roborock_raw_map.py:45-55 builds a 24-byte header with dims at 8/12/16/20. Executed a header_len=20 blob: decode returned None (width read as 0 tripped :111), confirming the case is not reachable by accident on the fixture I could construct. Module docstring lines 18-25 and docs/dev/29-roborock-adapter.md state the offsets relative to header_len without a minimum.",
+      "severity_correction": "unchanged",
+      "lens": "refuter"
+     },
+     {
+      "finding_id": "A7-ROBORO-7",
+      "verdict": "CONFIRMED",
+      "reason": "Executed: the `header_len >= 16` gate admits headers too short to hold the four dim int32s after the 8 bytes of fixed fields, and the reads then slide back over type/header_len/data_len \u2014 producing a decode that returns a plausible raster built on coordinates read out of the header's own metadata.",
+      "evidence": "roborock_raw_map.py:96-100 `if block_type == _BLOCK_TYPE_IMAGE and header_len >= 16: top = _u32(raw, pos + header_len - 16); left = ...-12; height = ...-8; width = ...-4`. With header_len=20 (data_len=30000, height 150, width 200 at offsets 12/16): decode returned {'width': 200, 'height': 150, 'top': 30000, 'left': 0, ...} \u2014 `top` is the data_len field re-read as a coordinate. With header_len=16: decode returned {'width': 4, 'height': 4, 'top': 1048578, 'left': 16, ...}, and 1048578 == 2 | (16 << 16) == the type and header_len int16s read as one int32, exactly as predicted. In both cases the function returned a non-None raster because lines 111-114 (`width<=0 or height<=0 or pixel_count > data_len`, `data_start + pixel_count > n`) happened to be satisfiable. The real v1 layout uses a 24-byte header (tests/unit/test_roborock_raw_map.py:45-55 builds dims at offsets 8/12/16/20 == header_len-16/-12/-8/-4), so `>= 24` is the correct gate. Not reachable on a well-formed blob; it matters only on the firmware/format change the module docstring says it is designed to absorb.",
+      "severity_correction": "unchanged",
+      "lens": "reproducer"
+     }
     ]
    }
   ],

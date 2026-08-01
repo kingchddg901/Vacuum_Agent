@@ -1,6 +1,16 @@
 {
- "frozen_at_sha": "7108519b57d8adcf032c23aa5a133354c2d662ec",
- "frozen_at": "2026-07-31T19:12:41",
+ "frozen_at_sha": "45fdc8c0f28be20fda3cb4bc9d429b73630444c3",
+ "frozen_at": "2026-07-31T19:21:47",
+ "counts": {
+  "audits": 12,
+  "audit_survivors": 421,
+  "survivors_carrying_verdict_evidence": 421,
+  "non_audit_records": 63,
+  "non_audit_open": 61,
+  "open_total": 482,
+  "killed_records": 21,
+  "clean_areas": 673
+ },
  "digests": {
   ".claude/notes/_frozen/audits/7-dispatch+queue.json": "4b8bb91cf054e657",
   ".claude/notes/_frozen/audits/8-profiles+planning.json": "be625e94c84c686d",
@@ -13,22 +23,15 @@
   ".claude/notes/_frozen/audits/15-integration-script.json": "f70f8476941cc042",
   ".claude/notes/_frozen/audits/16-learning-consumers.json": "70e0cc9d9e8a508e",
   ".claude/notes/_frozen/audits/17-themes-manager.json": "22c1f1ec2ca62975",
-  ".claude/notes/_frozen/audits/18-mapping-services.json": "c7da4b7221ccd3b7",
+  ".claude/notes/_frozen/audits/18-mapping-services.json": "3de91a2146a85bc6",
   ".claude/notes/_frozen/_direct_reads.json": "cfb59c09fbccb4a5",
   ".claude/notes/_frozen/_clusters.json": "8d7617ed5bd1e8ee",
   ".claude/notes/_frozen/_order.json": "f023835b8e288458",
   ".claude/notes/_frozen/_calibration.json": "7eca993eda5668cf",
   ".claude/notes/_frozen/_stageB_result.json": "c31a98a810cae660",
   ".claude/notes/_frozen/_mapping_result.json": "ea4408261c4a9055",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "45f0f71b469d1f47"
- },
- "counts": {
-  "audits": 12,
-  "audit_survivors": 421,
-  "non_audit_records": 63,
-  "non_audit_open": 61,
-  "open_total": 482,
-  "killed_records": 21,
-  "clean_areas": 673
+  ".claude/notes/_frozen/journals/wf_56cc4abc-4b2-stageB.jsonl": "3b2fdac98de5b3bb",
+  ".claude/notes/_frozen/journals/wf_6fbed40a-87e-audit18.jsonl": "170bf55e5ec3f6e8",
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "ea1639929874d3ce"
  }
 }

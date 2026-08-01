@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**41 changes shipped**, all with tests, all deployed.
+**43 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -105,6 +105,8 @@ comments rather than by a shared helper.
 | `300dc1d` | test(adapters): give the contract test teeth — and it immediately found three real gaps |
 | `8144e82` | feat(adapters): say out loud which Eufy default a brand just inherited |
 | `fbf7d57` | docs(debug): the mid-capture `logger:` case is a footgun, not a bug — say so |
+| `fe7edfd` | chore(audit): commit the frozen evidence snapshot — provenance was one temp sweep from gone |
+| `45fdc8c` | chore(audit): stop git translating line endings in the frozen evidence |
 
 ---
 
