@@ -1352,6 +1352,7 @@
     "maps_imported": "{count} Karten importiert.",
     "no_rooms_discovered": "Noch keine Räume entdeckt. Führe einen Reinigungszyklus aus, damit der Saugroboter seine Raumliste meldet, und aktualisiere dann den Einrichtungsstatus.",
     "no_rooms_for_map": "Keine Räume für diese Karte gefunden.",
+    "no_rooms_selected_hint": "Wähle mindestens einen Raum aus, um zu speichern. Um diese Karte vollständig zu entfernen, nutze stattdessen „Karte löschen“.",
     "no_step_handler": "Kein Handler für Schritt \"{id}\".",
     "panel_name_hint": "Benenne den Eintrag dieses Saugroboters in der Home-Assistant-Seitenleiste um. Aktualisiere nach dem Speichern die Seite, um den neuen Namen zu sehen. Leer lassen, um auf den Standard zurückzusetzen.",
     "panel_name_title": "Panel-Name",

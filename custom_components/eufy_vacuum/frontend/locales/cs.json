@@ -1743,6 +1743,7 @@
     "maps_imported": "Importováno {count} map.",
     "no_rooms_discovered": "Zatím nebyly objeveny žádné místnosti. Spusťte úklidový cyklus, aby vysavač nahlásil svůj seznam místností, poté obnovte stav nastavení.",
     "no_rooms_for_map": "Pro tuto mapu nebyly nalezeny žádné místnosti.",
+    "no_rooms_selected_hint": "Vyberte alespoň jednu místnost pro uložení. Chcete-li tuto mapu zcela odstranit, použijte místo toho „Smazat mapu“.",
     "no_step_handler": "Žádná obsluha pro krok „{id}“.",
     "panel_name_hint": "Přejmenujte položku tohoto vysavače v postranním panelu Home Assistant. Po uložení obnovte stránku, abyste viděli nový název. Ponechte prázdné pro obnovení výchozího nastavení.",
     "panel_name_title": "Název panelu",

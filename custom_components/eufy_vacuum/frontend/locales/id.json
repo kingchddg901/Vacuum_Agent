@@ -1743,6 +1743,7 @@
     "maps_imported": "{count} peta diimpor.",
     "no_rooms_discovered": "Belum ada ruangan yang ditemukan. Jalankan satu siklus pembersihan agar penyedot debu melaporkan daftar ruangannya, lalu segarkan status penyiapan.",
     "no_rooms_for_map": "Tidak ada ruangan yang ditemukan untuk peta ini.",
+    "no_rooms_selected_hint": "Pilih setidaknya satu ruangan untuk menyimpan. Untuk menghapus peta ini sepenuhnya, gunakan 'Hapus Peta'.",
     "no_step_handler": "Tidak ada handler untuk langkah \"{id}\".",
     "panel_name_hint": "Ganti nama entri penyedot debu ini di bilah sisi Home Assistant. Setelah menyimpan, segarkan halaman untuk melihat nama baru. Kosongkan untuk mengatur ulang ke bawaan.",
     "panel_name_title": "Nama panel",

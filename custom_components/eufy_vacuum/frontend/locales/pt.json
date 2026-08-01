@@ -1367,6 +1367,7 @@
     "maps_imported": "{count} mapas importados.",
     "no_rooms_discovered": "Ainda nenhuma divisão descoberta. Execute um ciclo de limpeza para que o aspirador reporte a sua lista de divisões e depois atualize o estado da configuração.",
     "no_rooms_for_map": "Nenhuma divisão encontrada para este mapa.",
+    "no_rooms_selected_hint": "Selecione pelo menos um cômodo para salvar. Para remover este mapa por completo, use «Eliminar mapa».",
     "no_step_handler": "Sem handler para o passo \"{id}\".",
     "panel_name_hint": "Renomeie a entrada deste aspirador na barra lateral do Home Assistant. Após guardar, atualize a página para ver o novo nome. Deixe em branco para repor a predefinição.",
     "panel_name_title": "Nome do painel",

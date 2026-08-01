@@ -1743,6 +1743,7 @@
     "maps_imported": "Zaimportowano {count} map.",
     "no_rooms_discovered": "Nie wykryto jeszcze żadnych pokoi. Uruchom cykl sprzątania, aby odkurzacz zgłosił listę pokoi, a następnie odśwież status konfiguracji.",
     "no_rooms_for_map": "Nie znaleziono pokoi dla tej mapy.",
+    "no_rooms_selected_hint": "Wybierz co najmniej jeden pokój, aby zapisać. Aby całkowicie usunąć tę mapę, użyj „Usuń mapę”.",
     "no_step_handler": "Brak obsługi dla kroku „{id}”.",
     "panel_name_hint": "Zmień nazwę wpisu tego odkurzacza na pasku bocznym Home Assistant. Po zapisaniu odśwież stronę, aby zobaczyć nową nazwę. Pozostaw puste, aby przywrócić wartość domyślną.",
     "panel_name_title": "Nazwa panelu",

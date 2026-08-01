@@ -1368,6 +1368,7 @@
     "maps_imported": "{count} cartes importées.",
     "no_rooms_discovered": "Aucune pièce découverte pour l'instant. Lancez un cycle de nettoyage pour que l'aspirateur signale sa liste de pièces, puis actualisez l'état de la configuration.",
     "no_rooms_for_map": "Aucune pièce trouvée pour cette carte.",
+    "no_rooms_selected_hint": "Sélectionnez au moins une pièce pour enregistrer. Pour supprimer entièrement cette carte, utilisez plutôt « Supprimer la carte ».",
     "no_step_handler": "Aucun gestionnaire pour l'étape « {id} ».",
     "panel_name_hint": "Renommez l'entrée de cet aspirateur dans la barre latérale de Home Assistant. Après l'enregistrement, actualisez la page pour voir le nouveau nom. Laissez vide pour revenir à la valeur par défaut.",
     "panel_name_title": "Nom du panneau",

@@ -1352,6 +1352,7 @@
     "maps_imported": "{count} kaarten geïmporteerd.",
     "no_rooms_discovered": "Nog geen kamers ontdekt. Voer een schoonmaakcyclus uit zodat de stofzuiger zijn kamerlijst rapporteert, en ververs daarna de instelstatus.",
     "no_rooms_for_map": "Geen kamers gevonden voor deze kaart.",
+    "no_rooms_selected_hint": "Selecteer minstens één kamer om op te slaan. Gebruik anders 'Kaart verwijderen' om deze kaart volledig te verwijderen.",
     "no_step_handler": "Geen handler voor stap \"{id}\".",
     "panel_name_hint": "Hernoem het item van deze stofzuiger in de Home Assistant-zijbalk. Ververs na het opslaan de pagina om de nieuwe naam te zien. Laat leeg om terug te zetten naar de standaard.",
     "panel_name_title": "Paneelnaam",

@@ -369,6 +369,13 @@ export function applySetupRenderers(proto) {
             `;
           }).join("");
 
+      // RP-005/RF-02 (ROOMS-2, card half): an empty selection is not a savable
+      // state — the backend now refuses enabled_room_ids: [] at the schema, so
+      // surface the refusal HERE with a translated hint instead of letting the
+      // call fail with a raw schema error. "I want no rooms" = Delete Map.
+      const noneEnabled = rooms.length > 0
+        && rooms.every((room) => !enabledIdSet.has(String(room.room_id)));
+
       return `
         <div class="evcc-setup-room-editor">
           <div class="evcc-setup-room-editor-hint">
@@ -377,10 +384,11 @@ export function applySetupRenderers(proto) {
           <div class="evcc-setup-room-list">
             ${roomRowsHtml}
           </div>
+          ${noneEnabled ? `<div class="evcc-setup-result info">${this.t("setup.no_rooms_selected_hint")}</div>` : ""}
           <button class="evcc-setup-btn"
                   data-action="setup-save-rooms"
                   data-map-id="${mapId}"
-                  ${saving ? "disabled" : ""}>
+                  ${saving || noneEnabled ? "disabled" : ""}>
             ${saving ? this.t("common.saving") : this.t("setup.save_room_config")}
           </button>
         </div>

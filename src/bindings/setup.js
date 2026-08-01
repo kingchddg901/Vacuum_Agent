@@ -288,6 +288,14 @@ export function applySetupBindings(proto) {
         const enabledRoomIds = card._state.setupRoomEditorEnabledIds?.() ?? [];
         const floorTypes     = card._state.setupRoomEditorFloorTypesMap?.() ?? {};
 
+        // RP-005/RF-02 belt-and-braces: the Save button is disabled at zero
+        // selection, but a stale DOM or keyboard activation could still land
+        // here — never send enabled_room_ids: [] (the backend schema refuses it).
+        if (enabledRoomIds.length === 0) {
+          card._state.setSetupError?.(card.t("setup.no_rooms_selected_hint"));
+          return;
+        }
+
         await card._actions.saveSetupRooms?.(
           vacuumEntityId,
           mapId,

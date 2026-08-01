@@ -1379,6 +1379,7 @@ export const en = {
   "setup.maps_imported": "{count} maps imported.",
   "setup.no_rooms_discovered": "No rooms discovered yet. Run a clean cycle so the vacuum reports its room list, then refresh setup status.",
   "setup.no_rooms_for_map": "No rooms found for this map.",
+  "setup.no_rooms_selected_hint": "Select at least one room to save. To remove this map entirely, use Delete Map instead.",
   "setup.no_step_handler": "No handler for step \"{id}\".",  // Internal error fallback; {id}=setup-step id; 'handler' is dev jargon, keep terse
   "setup.panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
   "setup.panel_name_title": "Panel name",  // Heading for renaming this vacuum's Home Assistant sidebar entry ('Panel'=HA sidebar item)

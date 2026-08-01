@@ -2029,6 +2029,7 @@
     "maps_imported": "已导入 {count} 张地图。",
     "no_rooms_discovered": "尚未发现任何房间。运行一次清扫，让扫地机器人报告其房间列表，然后刷新设置状态。",
     "no_rooms_for_map": "未找到该地图的房间。",
+    "no_rooms_selected_hint": "请至少选择一个房间再保存。若要完全移除此地图，请使用“删除地图”。",
     "no_step_handler": "步骤“{id}”没有处理程序。",
     "panel_name_hint": "重命名此扫地机器人在 Home Assistant 侧边栏中的条目。保存后刷新页面即可看到新名称。留空以重置为默认值。",
     "panel_name_title": "面板名称",

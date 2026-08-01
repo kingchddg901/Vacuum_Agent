@@ -1743,6 +1743,7 @@
     "maps_imported": "{count} harita içe aktarıldı.",
     "no_rooms_discovered": "Henüz oda keşfedilmedi. Robot süpürgenin oda listesini bildirmesi için bir temizleme döngüsü çalıştırın, ardından kurulum durumunu yenileyin.",
     "no_rooms_for_map": "Bu harita için oda bulunamadı.",
+    "no_rooms_selected_hint": "Kaydetmek için en az bir oda seçin. Bu haritayı tamamen kaldırmak için bunun yerine 'Haritayı Sil' seçeneğini kullanın.",
     "no_step_handler": "\"{id}\" adımı için işleyici yok.",
     "panel_name_hint": "Bu robot süpürgenin Home Assistant kenar çubuğundaki girişini yeniden adlandırın. Kaydettikten sonra yeni adı görmek için sayfayı yenileyin. Varsayılana sıfırlamak için boş bırakın.",
     "panel_name_title": "Panel adı",

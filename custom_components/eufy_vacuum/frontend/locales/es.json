@@ -1368,6 +1368,7 @@
     "maps_imported": "{count} mapas importados.",
     "no_rooms_discovered": "Aún no se han descubierto habitaciones. Ejecuta un ciclo de limpieza para que el aspirador reporte su lista de habitaciones, luego actualiza el estado de la configuración.",
     "no_rooms_for_map": "No se encontraron habitaciones para este mapa.",
+    "no_rooms_selected_hint": "Selecciona al menos una habitación para guardar. Para eliminar este mapa por completo, usa «Eliminar mapa» en su lugar.",
     "no_step_handler": "No hay gestor para el paso \"{id}\".",
     "panel_name_hint": "Cambia el nombre de la entrada de este aspirador en la barra lateral de Home Assistant. Tras guardar, actualiza la página para ver el nuevo nombre. Déjalo en blanco para restablecer el predeterminado.",
     "panel_name_title": "Nombre del panel",

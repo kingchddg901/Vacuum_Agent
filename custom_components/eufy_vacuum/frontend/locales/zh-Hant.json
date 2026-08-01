@@ -2029,6 +2029,7 @@
     "maps_imported": "已匯入 {count} 張地圖。",
     "no_rooms_discovered": "尚未發現任何房間。執行一次清潔循環讓掃地機回報其房間清單，然後重新整理設定狀態。",
     "no_rooms_for_map": "找不到此地圖的房間。",
+    "no_rooms_selected_hint": "請至少選擇一個房間再儲存。若要完全移除此地圖，請使用「刪除地圖」。",
     "no_step_handler": "步驟「{id}」沒有處理常式。",
     "panel_name_hint": "重新命名此掃地機在 Home Assistant 側邊欄中的項目。儲存後，請重新整理頁面以查看新名稱。留空以重設為預設值。",
     "panel_name_title": "面板名稱",

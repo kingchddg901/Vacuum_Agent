@@ -1355,6 +1355,7 @@
     "maps_imported": "{count} mappe importate.",
     "no_rooms_discovered": "Ancora nessuna stanza scoperta. Esegui un ciclo di pulizia così l'aspirapolvere segnala il suo elenco di stanze, poi aggiorna lo stato della configurazione.",
     "no_rooms_for_map": "Nessuna stanza trovata per questa mappa.",
+    "no_rooms_selected_hint": "Seleziona almeno una stanza per salvare. Per rimuovere completamente questa mappa, usa invece «Elimina mappa».",
     "no_step_handler": "Nessun gestore per il passaggio \"{id}\".",
     "panel_name_hint": "Rinomina la voce di questo aspirapolvere nella barra laterale di Home Assistant. Dopo il salvataggio, aggiorna la pagina per vedere il nuovo nome. Lascia vuoto per reimpostare il valore predefinito.",
     "panel_name_title": "Nome pannello",
