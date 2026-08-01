@@ -1,0 +1,4 @@
+
+# Frozen audit evidence: byte-exact, digest-verified against FREEZE.json.
+# Any line-ending translation breaks the integrity check on a fresh clone.
+.claude/notes/_frozen/** -text
