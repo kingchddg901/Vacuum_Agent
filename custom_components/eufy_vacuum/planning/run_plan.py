@@ -1566,6 +1566,7 @@ class RunPlanManager:
         room_names: dict[int, str] = {}
         triggered_rule_ids: list[str] = []
         blocker_rules_present = False
+        indeterminate_rules: list[dict[str, Any]] = []   # RP-008 diagnostics
 
         for room_id in queue_room_ids:
             room = managed_rooms.get(str(room_id), {})
@@ -1581,7 +1582,24 @@ class RunPlanManager:
                     continue
                 blocker_rules_present = True
                 entity_id = str(rule.get("entity_id", "")).strip()
-                if not entity_id or not self._manager._room_rule_matches(rule):
+                if not entity_id:
+                    continue
+                # RP-008 step 2: INDETERMINATE (sensor dropout / entity absent) is
+                # HOLD-PREVIOUS — this evaluation neither blocks nor clears on it.
+                # A currently-blocked run stays blocked (the pause already taken
+                # persists; nothing here auto-resumes), a clear room stays clear
+                # (no new entry -> no new pause/cancel). Rationale pinned:
+                # treat-as-unmatched would UNPAUSE a genuinely-blocked run on
+                # dropout; treat-as-matched is GUARD-1's bug inverted.
+                _matched, _known = self._manager.access_graph._room_rule_matches_known(rule)
+                if not _known:
+                    indeterminate_rules.append({
+                        "rule_id": str(rule.get("id", "")).strip() or None,
+                        "entity_id": entity_id,
+                        "room_id": room_id,
+                    })
+                    continue
+                if not _matched:
                     continue
 
                 effect = (
@@ -1702,6 +1720,7 @@ class RunPlanManager:
             "job_id": active_job.get("job_id"),
             "trigger_entity_id": trigger_entity_id,
             "trigger_entity_state": trigger_entity_state,
+            "indeterminate_rules": indeterminate_rules,
             "affected_remaining_room_ids": [
                 str(item["room_id"]) for item in affected_remaining_rooms
             ],

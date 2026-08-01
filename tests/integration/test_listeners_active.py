@@ -295,6 +295,11 @@ def _wire_path_blocker(hass, *, path_block_action, job_status="started"):
     m.get_active_job.return_value = {
         "path_block_action": path_block_action, "status": job_status}
     m.get_runtime_path_block_report.return_value = {"affected_remaining_room_ids": [2]}
+    # RP-008 step 4: the cancel path re-checks the triggering rule with a KNOWN
+    # state before acting. These tests drive binary_sensor.win to a real "on",
+    # so the production evaluator would return (matched=True, known=True) —
+    # model exactly that (a bare MagicMock unpacks as an empty iterator).
+    m.access_graph._room_rule_matches_known.return_value = (True, True)
     return m
 
 
@@ -779,3 +784,65 @@ async def test_lifecycle_recharge_guard_suppresses_on_unavailable_binary(hass):
         m.finalize_learning_for_active_job.assert_not_awaited()
     finally:
         lifecycle.remove(hass)
+
+
+async def test_path_blocker_ignores_unavailable_transition(hass):
+    """[PB-7] (RP-008 step 3) a transition INTO a dropout sentinel triggers no
+    rule evaluation and no action — hold-previous by inaction: a clear room
+    stays clear (no cancel), a blocked room's already-taken pause persists."""
+    m = _wire_path_blocker(hass, path_block_action="cancel_and_event")
+    m.async_cancel_active_job = AsyncMock(return_value={"cancelled": True})
+    blocked = _collect(hass, EVENT_PATH_BLOCKED)
+    hass.states.async_set("binary_sensor.win", "on")
+    path_blockers.register(hass)
+    hass.states.async_set("binary_sensor.win", "unavailable")   # battery died
+    await hass.async_block_till_done()
+    path_blockers.remove(hass)
+    assert blocked == []
+    m.async_cancel_active_job.assert_not_awaited()
+
+
+async def test_path_blocker_recheck_suppresses_stale_cancel(hass):
+    """[PB-8] (RP-008 step 4) the cancel path re-checks the triggering rule with
+    a KNOWN state at action time; a rule that no longer matches suppresses the
+    cancel and reports it."""
+    m = _wire_path_blocker(hass, path_block_action="cancel_and_event")
+    m.access_graph._room_rule_matches_known.return_value = (False, False)  # dropped out
+    m.async_cancel_active_job = AsyncMock(return_value={"cancelled": True})
+    blocked = _collect(hass, EVENT_PATH_BLOCKED)
+    hass.states.async_set("binary_sensor.win", "off")
+    path_blockers.register(hass)
+    hass.states.async_set("binary_sensor.win", "on")
+    await hass.async_block_till_done()
+    path_blockers.remove(hass)
+    m.async_cancel_active_job.assert_not_awaited()
+    assert blocked[0].data["action_taken"] == "cancel_suppressed_recheck"
+
+
+async def test_path_blocker_rapid_edges_single_cancel(hass):
+    """[PB-9] (RP-008 / GUARD-2) two rapid genuine edges coalesce: one
+    evaluation runs, one re-check queues behind it, and the job — already
+    cancelled by the first — is not cancelled twice."""
+    m = _wire_path_blocker(hass, path_block_action="cancel_and_event")
+    # after the first cancel the job status flips — the re-check evaluation
+    # must see the flipped status (this is what production does; a static
+    # 'started' here would be a fixture asserting fiction)
+    m.get_active_job.side_effect = [
+        {"path_block_action": "cancel_and_event", "status": "started"},
+        {"path_block_action": "cancel_and_event", "status": "completed"},
+        {"path_block_action": "cancel_and_event", "status": "completed"},
+    ]
+    m.get_runtime_path_block_report.side_effect = [
+        {"affected_remaining_room_ids": [2]},
+        None,   # post-cancel evaluation: nothing actionable
+        None,
+    ]
+    m.async_cancel_active_job = AsyncMock(return_value={
+        "cancelled": True, "finalize_result": {"job_id": "j1"}})
+    hass.states.async_set("binary_sensor.win", "off")
+    path_blockers.register(hass)
+    hass.states.async_set("binary_sensor.win", "on")      # edge 1
+    hass.states.async_set("binary_sensor.win", "open")    # edge 2, rapid
+    await hass.async_block_till_done()
+    path_blockers.remove(hass)
+    m.async_cancel_active_job.assert_awaited_once()

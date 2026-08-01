@@ -329,15 +329,27 @@ def test_normalize_rule_operand(ag):
 
 
 def test_room_rule_matches_existence(ag, hass):
-    """[AG-12] exists / missing operators."""
+    """[AG-12] exists / missing operators.
+
+    RP-008 superseded contract: `missing` on an ABSENT entity used to match.
+    An absent entity is the definition of not-knowing, and a rule must not fire
+    on ignorance (GATE4 Q18) — so `missing` is INDETERMINATE there and the
+    boolean wrapper returns False. `exists` stays determinate both ways
+    (presence is an observable fact).
+    """
     g, _ = ag
     assert g._room_rule_matches(
         {"entity_id": "binary_sensor.ghost", "operator": "exists"}) is False
     assert g._room_rule_matches(
-        {"entity_id": "binary_sensor.ghost", "operator": "missing"}) is True
+        {"entity_id": "binary_sensor.ghost", "operator": "missing"}) is False
+    assert g._room_rule_matches_known(
+        {"entity_id": "binary_sensor.ghost", "operator": "missing"}) == (False, False)
     hass.states.async_set("binary_sensor.win", "on")
     assert g._room_rule_matches(
         {"entity_id": "binary_sensor.win", "operator": "exists"}) is True
+    # a PRESENT entity makes `missing` a known non-match, not indeterminate
+    assert g._room_rule_matches_known(
+        {"entity_id": "binary_sensor.win", "operator": "missing"}) == (False, True)
 
 
 def test_room_rule_matches_onoff_equals(ag, hass):
@@ -382,3 +394,27 @@ def test_room_rule_matches_in_and_numeric(ag, hass):
     # unrecognised operator → False
     assert g._room_rule_matches(
         {"entity_id": "sensor.mode", "operator": "", "value": "x"}) is False
+
+
+def test_room_rule_indeterminate_tristate(ag, hass):
+    """[AG-15] (RP-008 / GUARD-1) dropout sentinels are INDETERMINATE for every
+    value operator — negating operators especially must NOT match them (a
+    not_equals rule used to cancel a live run when a door sensor's battery died)."""
+    g, _ = ag
+    rule_ne = {"entity_id": "binary_sensor.door", "operator": "not_equals", "value": "closed"}
+    rule_ni = {"entity_id": "binary_sensor.door", "operator": "not_in", "value": ["closed"]}
+    rule_eq = {"entity_id": "binary_sensor.door", "operator": "equals", "value": "unavailable"}
+
+    for sentinel in ("unavailable", "unknown"):
+        hass.states.async_set("binary_sensor.door", sentinel)
+        assert g._room_rule_matches_known(rule_ne) == (False, False)
+        assert g._room_rule_matches_known(rule_ni) == (False, False)
+        # even an EXPLICIT equals-on-the-sentinel cannot match: dropout is the
+        # absence of a fact, not a value (GATE4 Q18 — recorded as a known
+        # limitation; fail-closed arrives as a per-rule field if ever wanted)
+        assert g._room_rule_matches_known(rule_eq) == (False, False)
+
+    hass.states.async_set("binary_sensor.door", "open")
+    assert g._room_rule_matches_known(rule_ne) == (True, True)   # genuine block
+    hass.states.async_set("binary_sensor.door", "closed")
+    assert g._room_rule_matches_known(rule_ne) == (False, True)  # genuine clear

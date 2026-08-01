@@ -904,22 +904,57 @@ class AccessGraphManager:
         except (TypeError, ValueError):
             return lowered
 
-    def _room_rule_matches(self, rule: dict[str, Any]) -> bool:
-        """Return whether one room rule matches the current HA state."""
+    # RP-008 (GUARD-1): states that mean "the sensor is not answering", not a
+    # value of the world. A rule is a statement about the world; it cannot bind
+    # to ignorance — so NO operator (including the negating ones and `missing`)
+    # may match while the rule entity reads one of these. GATE4 Q18: nothing in
+    # any install depends on matching these; if fail-closed-on-dropout is ever
+    # wanted it arrives as an explicit per-rule `when_unavailable` field, never
+    # by string-matching sentinels.
+    INDETERMINATE_STATE_VALUES = frozenset({"unavailable", "unknown"})
+
+    def _room_rule_matches_known(self, rule: dict[str, Any]) -> tuple[bool, bool]:
+        """Evaluate one room rule -> (matched, known).
+
+        known=False is INDETERMINATE: the rule entity is absent or reads a
+        dropout sentinel, so there is no fact to compare. Callers must treat
+        INDETERMINATE as hold-previous (runtime) or no-match (plan time) — a
+        dropout used to read as an ordinary string and a `not_equals` rule then
+        cancelled a live run because a door sensor's battery died.
+        """
         entity_id = str(rule.get("entity_id", "")).strip()
         operator = str(rule.get("operator", "equals")).strip().lower()
         state_obj = self._hass.states.get(entity_id) if entity_id else None
 
         if operator == "exists":
-            return state_obj is not None
+            # Presence of the entity is an observable fact either way.
+            return (state_obj is not None, True)
         if operator == "missing":
-            return state_obj is None
+            # An absent entity is the definition of not-knowing — `missing`
+            # matching it would be a rule firing on ignorance (dead by design;
+            # GATE4 Q18 records the principle and the future opt-in shape).
+            return (False, state_obj is not None)
         if state_obj is None:
-            return False
+            return (False, False)
 
         state_value = state_obj.state
+        if str(state_value).strip().lower() in self.INDETERMINATE_STATE_VALUES:
+            return (False, False)
+        matched = self._room_rule_value_matches(
+            operator=operator, state_value=state_value, target_value=rule.get("value")
+        )
+        return (matched, True)
+
+    def _room_rule_matches(self, rule: dict[str, Any]) -> bool:
+        """Boolean compat wrapper — INDETERMINATE never matches (plan-time rule)."""
+        matched, known = self._room_rule_matches_known(rule)
+        return matched and known
+
+    def _room_rule_value_matches(
+        self, *, operator: str, state_value: Any, target_value: Any
+    ) -> bool:
+        """The value-comparison core, on a KNOWN state only."""
         normalized_state = self._normalize_rule_operand(state_value)
-        target_value = rule.get("value")
 
         if operator == "is_on":
             return str(state_value).strip().lower() == "on"

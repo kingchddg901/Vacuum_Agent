@@ -34,6 +34,10 @@ _LOGGER = logging.getLogger(__name__)
 
 _PATH_BLOCKER_UNSUBS = "_path_blocker_unsubs"
 _PATH_BLOCKER_ROOM_CALLBACK = "_path_blocker_room_callback"
+#: RP-008 (GUARD-2): per-run single-flight for _process — a burst of blocker
+#: edges used to spawn one unbounded task per event. One evaluation runs; one
+#: re-check is queued behind it; further arrivals coalesce into that re-check.
+_PATH_BLOCKER_INFLIGHT = "_path_blocker_inflight"
 
 
 def remove(hass: HomeAssistant) -> None:
@@ -115,6 +119,19 @@ def register(hass: HomeAssistant) -> None:
             return
         if new_state_obj is None or old_state == new_state:
             return
+        # RP-008 step 3: a transition into or out of a dropout sentinel is not a
+        # fact about the world — it must not trigger RULE evaluation (GUARD-1: a
+        # dying door-sensor battery cancelled a live run). Still logged so the
+        # dropout is diagnosable.
+        _sentinels = {"unavailable", "unknown", "none", ""}
+        if (str(old_state).strip().lower() in _sentinels
+                or str(new_state).strip().lower() in _sentinels):
+            _LOGGER.debug(
+                "path_blockers: ignoring %s transition %s -> %s for rule "
+                "evaluation (indeterminate side)",
+                entity_id, old_state, new_state,
+            )
+            return
 
         manager_local: EufyVacuumManager | None = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
         if manager_local is None:
@@ -150,6 +167,38 @@ def register(hass: HomeAssistant) -> None:
                         )
                         action_taken = "paused" if bool((action_result or {}).get("paused")) else "pause_failed"
                 elif path_block_action == "cancel_and_event":
+                    # RP-008 step 4 (defense in depth): before the IRREVERSIBLE
+                    # action, re-check that the triggering rule still matches with
+                    # a KNOWN state — the report was computed from a snapshot, and
+                    # the sensor may have dropped out (or cleared) since.
+                    _still_matches = False
+                    for _room in manager_local._normalized_managed_rooms_with_automation(
+                        vacuum_entity_id=vacuum_entity_id, map_id=map_id
+                    ).values():
+                        if not isinstance(_room, dict):
+                            continue
+                        for _rule in _room.get("rules", []):
+                            if (isinstance(_rule, dict)
+                                    and str(_rule.get("entity_id", "")).strip() == entity_id
+                                    and bool(_rule.get("enabled", True))):
+                                _m, _k = manager_local.access_graph._room_rule_matches_known(_rule)
+                                if _m and _k:
+                                    _still_matches = True
+                                    break
+                        if _still_matches:
+                            break
+                    if not _still_matches:
+                        _LOGGER.warning(
+                            "path_blockers: cancel for %s map %s suppressed — the "
+                            "triggering rule on %s no longer matches with a known "
+                            "state at action time",
+                            vacuum_entity_id, map_id, entity_id,
+                        )
+                        report["path_block_action"] = path_block_action
+                        report["action_taken"] = "cancel_suppressed_recheck"
+                        hass.bus.async_fire(EVENT_PATH_BLOCKED, report)
+                        any_changes = True
+                        continue
                     action_result = await manager_local.async_cancel_active_job(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id,
@@ -191,7 +240,25 @@ def register(hass: HomeAssistant) -> None:
             if any_changes:
                 await manager_local.async_save()
 
-        hass.async_create_task(_process())
+        # RP-008 (GUARD-2): single concurrent evaluation with a queued re-check.
+        inflight = hass.data.setdefault(DOMAIN, {}).setdefault(
+            _PATH_BLOCKER_INFLIGHT, {"running": False, "rerun": False}
+        )
+
+        async def _process_single_flight() -> None:
+            if inflight["running"]:
+                inflight["rerun"] = True   # coalesce: one re-check after the current
+                return
+            inflight["running"] = True
+            try:
+                await _process()
+                while inflight["rerun"]:
+                    inflight["rerun"] = False
+                    await _process()
+            finally:
+                inflight["running"] = False
+
+        hass.async_create_task(_process_single_flight())
 
     unsub = async_track_state_change_event(
         hass,
