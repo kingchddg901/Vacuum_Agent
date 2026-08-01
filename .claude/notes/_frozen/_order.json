@@ -1,0 +1,21 @@
+[
+ "**C5** \u2014 2 lines, verified, and it closes a gap introduced by an earlier fix in this campaign. Cheapest real win.",
+ "**C20** \u2014 verified CRITICAL, and the most dangerous shape found: silent data loss with a DELAYED fuse. A reload (which `setup_add_vacuum` schedules itself) leaves the old manager's timers alive; minutes later one fires and reverts the store wholesale. The UI keeps showing the lost data until the next restart.",
+ "**C23** \u2014 verified by execution, and cheap. The confidence chip is inverted at the top: your best-learned rooms render RED and the green tier needs literally zero variance. Two constants and a fall-through.",
+ "**C19** \u2014 verified CRITICAL. A blank `enabled_room_ids:` in an automation destroys a map's entire room configuration, silently, and the docs promise the opposite. Public API, trivially reachable, no undo.",
+ "**C15** \u2014 verified CRITICAL, and the cheapest of the criticals. A blocker sensor going `unavailable` currently aborts a live run. One availability check in `_room_rule_matches`.",
+ "**C7** \u2014 verified CRITICAL. Slug uniqueness at discovery: wrong physical room, plus silent replacement of the second room's stored settings. Correct the docstring's false claim at the same time.",
+ "**C1** \u2014 verified CRITICAL seam. The other wrong-physical-room path.",
+ "**C11** \u2014 verified CRITICAL. Give the Eufy in-memory source a vacuum identity. Latent on a single-robot install, but a second Eufy robot gets the first one's map, rooms, pose and render raster \u2014 so a room tap cleans the wrong room. The fix pattern already exists on the Roborock side.",
+ "**C10** \u2014 small, and a third route to the same wrong-room outcome: a failed refresh is indistinguishable from a successful one, so stale ids reach the wire.",
+ "**C9** \u2014 destructive writes. An empty selection wiping a map's stored rooms is one bad call away.",
+ "**C3** \u2014 a `try/finally` so one transient failure stops bricking every subsequent run.",
+ "**C8** \u2014 decide reconciliation's trigger. The machinery is built and nothing calls it. This is the *root* of C1 and C7 rather than another instance of them.",
+ "**C13** \u2014 the sticky-hold `stale` flag has no consumer, so a frozen pose is served as present. Cheap, and it makes a whole class of phantom-room report visible.",
+ "**C14** \u2014 call the tracker's `end_job` from every terminal path, not only a successful finalize.",
+ "**C12** \u2014 pose frame mismatch. Needs the memory-vs-storage frame question settled first.",
+ "**C2** \u2014 cancel correctness. Needs care around the await boundaries.",
+ "**C6** \u2014 user-visible on every mop room, but it changes resolution precedence, so test hard.",
+ "**C4** \u2014 per-phase attribution. Touches the shape of learning data.",
+ "Remaining HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason."
+]

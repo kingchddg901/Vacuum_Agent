@@ -1,0 +1,170 @@
+[
+ [
+  "#1",
+  "active-job lifecycle + exactly-once finalize *(calibration pass)*",
+  "\u2014",
+  "1.86M",
+  "41 min"
+ ],
+ [
+  "#2",
+  "learning persistence",
+  "\u2014",
+  "1.77M",
+  "32.6 min"
+ ],
+ [
+  "#3",
+  "external-run ingestion",
+  "\u2014",
+  "1.82M",
+  "31.9 min"
+ ],
+ [
+  "#4",
+  "adapter contract",
+  "\u2014",
+  "1.84M",
+  "37.8 min"
+ ],
+ [
+  "#5",
+  "error tracker",
+  "\u2014",
+  "1.53M",
+  "30.2 min"
+ ],
+ [
+  "#6",
+  "card / frontend (6 by feature vertical)",
+  "\u2014",
+  "2.01M",
+  "36.5 min"
+ ],
+ [
+  "*sweep*",
+  "forgotten-sibling sweep (**4 agents**; orchestrator did the mechanical discovery)",
+  "\u2014",
+  "**0.76M**",
+  "23.5 min"
+ ],
+ [
+  "#7",
+  "dispatch + queue",
+  "1,515",
+  "1.58M",
+  "23 min"
+ ],
+ [
+  "#8",
+  "profiles + planning",
+  "3,677",
+  "1.95M *(includes a re-verify forced by a harness bug)*",
+  "40 min"
+ ],
+ [
+  "#9",
+  "jobs / run execution",
+  "3,914",
+  "1.50M",
+  "23 min"
+ ],
+ [
+  "#10",
+  "rooms / identity",
+  "2,531",
+  "1.07M",
+  "21 min"
+ ],
+ [
+  "#11",
+  "map source + tracker (scoped)",
+  "3,126",
+  "1.39M",
+  "27 min"
+ ],
+ [
+  "#12",
+  "listeners (input layer)",
+  "2,000",
+  "1.22M",
+  "22 min"
+ ],
+ [
+  "#13",
+  "services (public API, dual mode)",
+  "2,938",
+  "1.35M",
+  "23 min"
+ ],
+ [
+  "#14",
+  "core/manager.py (the hub)",
+  "5,155",
+  "1.51M",
+  "25 min"
+ ],
+ [
+  "#15",
+  "integration script (**4+2 agents**)",
+  "853",
+  "**0.76M**",
+  "20 min"
+ ],
+ [
+  "#16",
+  "learning consumers (5+2 agents)",
+  "3,308",
+  "1.23M",
+  "24 min"
+ ],
+ [
+  "#17",
+  "themes/manager.py (**3+2 agents**)",
+  "668",
+  "**0.53M**",
+  "16 min"
+ ],
+ [
+  "*1 agent*",
+  "entity platforms (button/number/switch/select/binary_sensor/room_entities)",
+  "1,075",
+  "**0.18M**",
+  "16 min"
+ ],
+ [
+  "*1 agent*",
+  "sensor leftovers (platform setup + 4 entity modules)",
+  "887",
+  "**0.17M**",
+  "13 min"
+ ],
+ [
+  "*1 agent*",
+  "infrastructure (const/models/entity_helpers/config_flow/\u2026)",
+  "1,169",
+  "**0.19M**",
+  "14 min"
+ ],
+ [
+  "*direct read \u00d711*",
+  "live_refresh \u00b7 maps \u00b7 dock \u00b7 maintenance \u00b7 counter_segmentation \u00b7 debug_capture \u00b7 diagnostics \u00b7 onboarding \u00b7 battery \u00b7 sensor \u00b7 setup",
+  "8,709",
+  "**~0.55M total (~50K each)**",
+  "\u2014"
+ ],
+ [
+  "#18",
+  "mapping services (**7+2+1 agents**, incl. meta-verifier)",
+  "3,690",
+  "1.87M",
+  "37 min"
+ ],
+ [
+  "*stage B*",
+  "verify the 27 targeted-agent findings (**2 agents, no finders**)",
+  "\u2014",
+  "**0.37M**",
+  "16.5 min"
+ ]
+]

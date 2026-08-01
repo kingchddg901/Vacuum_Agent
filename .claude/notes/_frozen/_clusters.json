@@ -1,0 +1,339 @@
+{
+ "C1": {
+  "name": "Live-id resolution falls back to STALE stored ids",
+  "ids": [
+   "DQ-DE-1",
+   "DQ-ACT-1"
+  ],
+  "seam": "dispatch/manager.py:317",
+  "note": "A single-target strict-order phase makes `dropped` non-empty EQUIVALENT to new_segments==[], so the 'live source unavailable' fallback fires for a target that was resolved and REJECTED. The robot cleans a different physical room, and the watchdog re-dispatches the same stale id up to 3x.",
+  "fix": "Distinguish 'live source unavailable' (keep stored ids) from 'targets resolved and rejected' (skip or abort). Also correct phase_runner.py:1029, whose comment describes behaviour the code does not have.",
+  "verified": true
+ },
+ "C2": {
+  "name": "Cancel is lost across the dispatch chain's awaits",
+  "ids": [
+   "A1-WD-1",
+   "A2-CAN-1"
+  ],
+  "seam": "jobs/phase_runner.py:553",
+  "note": "_cancel_in_flight is read ONCE per attempt, then four sequential awaits follow (global pre-calls, per-room live settings, live map refresh, dispatch) with no re-read. The user cancels, the robot returns to base, then drives back out and cleans the phase's room.",
+  "fix": "Re-read the job (or re-check the cancel flag) between each await inside _dispatch_active_phase.",
+  "verified": false
+ },
+ "C3": {
+  "name": "_phase_dispatch_pending left set makes a run un-reapable forever",
+  "ids": [
+   "A1-WD-2",
+   "A5-STR-3",
+   "A2-CAN-3",
+   "A4-AJ-3"
+  ],
+  "seam": "jobs/phase_runner.py:530",
+  "note": "There is no try/except anywhere in _run_advanced_phase or _dispatch_active_phase. Any raise leaves the guard set, and is_stranded_started returns False while it is set, so the reaper is DISABLED. The job sits status='started' permanently and blocks every future start.",
+  "fix": "try/finally so the guard always clears, plus a bounded age after which the reaper stops honouring it.",
+  "verified": false
+ },
+ "C4": {
+  "name": "A multi-room phase is recorded as ONE room",
+  "ids": [
+   "A3-REC-1",
+   "A3-REC-2",
+   "A3-REC-3",
+   "DQ-PH-3"
+  ],
+  "seam": "jobs/phase_runner.py:301",
+  "note": "A room_group phase attributes the group's entire cleaning time, area and battery to queue_room_ids[0]. A phased job also never records a completed room, so live progress freezes on the group.",
+  "fix": "Attribute per-phase metrics across the phase's rooms, or record the phase as a phase rather than as room[0].",
+  "verified": false
+ },
+ "C5": {
+  "name": "The repudiated `started_at and not ended_at` predicate is still live",
+  "ids": [
+   "A3-REC-4",
+   "A4-AJ-2"
+  ],
+  "seam": "jobs/active_job.py:1676,1709",
+  "note": "SELF-INFLICTED. 0f1e2a6 moved this question onto status because nothing ever writes ended_at, so a finalized job matched forever. Two sample recorders were left behind, and the docstring written in that same commit names both BY NAME as needing the external-inclusive predicate. record_pose_sample:1776 is NOT affected (it has its own status check) -- the finding over-reached on that third site.",
+  "fix": "Point record_active_job_sensor_value and record_counter_sample at run_is_in_flight. Roughly 2 lines.",
+  "verified": true
+ },
+ "C6": {
+  "name": "Profile round-trip is broken: applying a preset re-labels the room 'custom'",
+  "ids": [
+   "A1-PP-RES-2",
+   "A3-PP-CRUD-2",
+   "A6-PP-EST-DSP-1"
+  ],
+  "seam": "profiles/room_profiles.py:435",
+  "note": "water_level (and carpet fan_speed) use a DIFFERENT precedence than every sibling field: the floor-type default OVERRIDES the profile. Candidate dicts omit the key so they take the floor default, while real rooms carry it -- so mop profiles fail to match on every floor except tile.",
+  "fix": "Make the floor-type default lose to an explicit profile value, or resolve the candidate exactly the way the room is resolved.",
+  "verified": false
+ },
+ "C7": {
+  "name": "Slug identity has no uniqueness guarantee, and the docstring claims it does",
+  "ids": [
+   "A1-ID-1",
+   "A2-REC-2",
+   "A1-ID-3"
+  ],
+  "seam": "rooms/utils.py:35 + rooms/room_discovery.py:254",
+  "note": "EXECUTED: 'Bed & Bath'/'Bed and Bath', 'Kids Room'/'Kids_Room', \"Cat's Room\"/'Cats Room', '\"Guest\" Room'/'Guest Room' each collapse to ONE slug -- and utils.py:16-18 explicitly claims 'distinct names must yield distinct slugs'. Discovery dedupes on numeric room_id only. On Roborock, slug_to_live_id is first-wins, so the second room's target resolves to the FIRST room's segment id and the robot cleans the wrong physical room WITH NO LOG LINE (the dropped-warning path is not reached because the lookup succeeds). plan_migration's existing_by_slug.setdefault is also first-wins, so the second room's stored settings, grants and rules are overwritten and never reported as dropped.",
+  "fix": "Enforce slug uniqueness at discovery with deterministic disambiguation (append the device room_id on collision), and make the collision observable. Reconcile the docstring with whatever the code actually guarantees.",
+  "verified": true
+ },
+ "C8": {
+  "name": "Reconciliation never runs -- the divergence detector is never invoked",
+  "ids": [
+   "A2-REC-1"
+  ],
+  "seam": "rooms/reconciliation.py",
+  "note": "compute_reconciliation/plan_migration exist and work, but nothing triggers them: no schedule, no event hook, no UI entry point. This is the ROOT of audit #7's CRITICAL (DQ-DE-1): stored ids and live ids diverge because nothing ever checks that they agree.",
+  "fix": "Decide the trigger -- on map-source refresh, on job start, or a periodic check -- and surface the result. The machinery is already built.",
+  "verified": false
+ },
+ "C9": {
+  "name": "Destructive room writes with no confirmation or preservation",
+  "ids": [
+   "A3-CRUD-1",
+   "A3-CRUD-4"
+  ],
+  "seam": "rooms/room_crud.py",
+  "note": "save_managed_rooms unconditionally replaces map_bucket['rooms'], so an empty selection wipes the map's stored rooms. remove_map leaves the map's saved run-profile library, queue state and onboarding orphaned rather than removing or migrating them.",
+  "fix": "Guard the wholesale replace against an empty/degenerate discovery, and make remove_map account for every structure keyed on that map_id.",
+  "verified": false
+ },
+ "C10": {
+  "name": "async_refresh_room_source returns None on success AND on every failure path",
+  "ids": [
+   "A4-SRC-1"
+  ],
+  "seam": "rooms/source_refresh.py",
+  "note": "Callers cannot distinguish 'refreshed successfully' from 'refresh failed, you are looking at stale cache'. dispatch/manager.py calls this immediately before resolving live segment ids, so a silent failure means stale ids go to the wire -- the same wrong-room outcome as C1, by a different route.",
+  "fix": "Return a discriminable result and have dispatch refuse (or warn loudly) when the refresh did not actually succeed.",
+  "verified": false
+ },
+ "C11": {
+  "name": "The Eufy in-memory map source has NO vacuum identity",
+  "ids": [
+   "A1-LC-1",
+   "A3-EXT-1",
+   "A4-RB-2"
+  ],
+  "seam": "mapping/map_source_runtime.py:839 (eufy_inmem_candidates)",
+  "note": "VERIFIED: eufy_inmem_candidates(hass, source_cfg) takes no vacuum_entity_id, no serial, no device_id, and appends the WHOLE hass.data['robovac_mqtt'] bucket first. The bounded BFS matches on attribute presence only, so coordinators[0] wins for EVERY vacuum. Six coordinator call sites inherit it (361/397/461/550/645/689): static rooms, live pose, the render raster the card draws, and the raster zone_membership consumes. The per-vacuum _mem_rooms_cache does not help -- its version is a hash of that same wrong raster, so it is self-consistently wrong. Only bites a MULTI-Eufy install; this install has one robot today.",
+  "fix": "Pass vacuum_entity_id through and select the coordinator by serial/device_id. The pattern is already there on the other brand: roborock_candidates accepts image_entity_id and puts the per-vacuum entity object FIRST. Forgotten override sibling, fourth instance. The storage fallback is correctly per-serial, which proves per-device identity was the intent.",
+  "verified": true
+ },
+ "C12": {
+  "name": "Live pose is projected through the WRONG coordinate frame",
+  "ids": [
+   "A2-GEO-1",
+   "A5-POSE-1"
+  ],
+  "seam": "mapping/map_source_coordinator.py (_load_live_pose_geom / _apply_inmem_pose_to_result)",
+  "note": "A memory-frame robot pixel is normalized and room-looked-up against .storage-frame geometry. The two frames are not guaranteed equal, so the robot dot and the derived current_room can both be wrong while reporting present:True.",
+  "fix": "Normalize the pose against the frame it came from, or refuse to derive current_room when the frames disagree.",
+  "verified": false
+ },
+ "C13": {
+  "name": "The sticky-hold `stale` flag is written and never read",
+  "ids": [
+   "A1-LC-2",
+   "A5-POSE-2"
+  ],
+  "seam": "mapping/map_source_coordinator.py:126",
+  "note": "The last-known-good hold re-serves a frozen current_room/robot_anchor as present:True and sets stale/stale_since/stale_reason -- which have NO consumer anywhere. A docked Roborock therefore reports a phantom room for up to 6 hours, and nothing downstream can tell the difference.",
+  "fix": "Either consume the stale flag at every presentation surface, or stop serving a frozen pose as present.",
+  "verified": false
+ },
+ "C14": {
+  "name": "The tracker's end_job runs only on a SUCCESSFUL finalize",
+  "ids": [
+   "A6-TRK-1",
+   "A6-TRK-4"
+  ],
+  "seam": "mapping/tracker.py",
+  "note": "end_job has exactly one caller, so every cancel, abort and stranded-reap leaves tracker state live into the next run. The last room of every job also never fires room_completed, because end_job resets the state that would emit it.",
+  "fix": "Call end_job from every terminal path, and flush the final room before the reset.",
+  "verified": false
+ },
+ "C15": {
+  "name": "`unavailable` satisfies every negating rule operator \u2014 a sensor dropout aborts a live run",
+  "ids": [
+   "A6-GUARD-1"
+  ],
+  "seam": "rooms/access_graph.py:907 (_room_rule_matches)",
+  "note": "VERIFIED: an unavailable entity still yields a State object, so state_value == 'unavailable' and there is NO availability check anywhere in the matcher. `not_equals` and `not_in` both return True; `missing` returns True the moment the entity is dropped. The rule matches, the room enters direct_blocked, and path_blockers applies path_block_action -- `cancel_and_event` calls async_cancel_active_job, which issues vacuum.return_to_base and finalizes the run as cancelled. `pause_and_event` ends the same way once pause_timeout reaps it. A battery-powered contact sensor dropping off a Zigbee mesh for one poll physically aborts a clean in progress, and the user sees a path-blocked event naming a door that never opened.",
+  "fix": "Treat unavailable/unknown as 'no answer' rather than as a value: skip the rule (or hold the previous verdict) instead of letting a negating operator match. Decide the same question once for `missing` vs `unavailable` -- they are different facts.",
+  "verified": true
+ },
+ "C16": {
+  "name": "dock_events records a NEW cycle on first sighting or on an availability blip",
+  "ids": [
+   "A1-REG-1",
+   "A6-GUARD-3"
+  ],
+  "seam": "listeners/dock_events.py:74",
+  "note": "The only dedupe is new_val == old_val, with old_val = '' when old_state is None. So an entity first appearing (HA restart mid-cycle), unknown->drying, and unavailable->washing all read as a new cycle. record_dock_event overwrites the last-* timestamp BEFORE the debounce check, and the Eufy adapter declares debounce_seconds for last_mop_wash ONLY -- so dry-start and dust-empty have no suppression at all. An X10 dry cycle runs 2-4 hours, so the window is large and daily. The sibling listener discovery.py:127 DOES filter exactly this class; dock_events is the one of eight that writes durable counters from a raw state arrival and has no such filter.",
+  "fix": "Require the previous value to be a real non-trigger dock state before recording a cycle. Move the timestamp write inside the debounce guard.",
+  "verified": false
+ },
+ "C17": {
+  "name": "Reactive listeners spawn unbounded concurrent work with no in-flight guard",
+  "ids": [
+   "A6-GUARD-2",
+   "A6-GUARD-4",
+   "A2-LIFE-2",
+   "A4-POSE-2"
+  ],
+  "seam": "listeners/path_blockers.py + pause_timeout.py + lifecycle.py + pose_sampler.py",
+  "note": "path_blockers spawns a _process task per event with no coalescing, so a bouncing sensor stacks them; the 1-minute reap ticker has no in-flight guard while each reap blocks; the pose timer is fire-and-forget so a slow tick overlaps the next; and _process tasks are untracked, so remove() drops the subscription but not the work already in flight.",
+  "fix": "One in-flight guard / coalescing pattern, applied to all four. This is the same question four times.",
+  "verified": false
+ },
+ "C18": {
+  "name": "The listener layer is a THIRD answer to 'is a job active'",
+  "ids": [
+   "A3-COMMON-1",
+   "A3-COMMON-6",
+   "A5-METRICS-1"
+  ],
+  "seam": "listeners/_common.py:110 (is_job_active)",
+  "note": "jobs/active_job.py owns two deliberate predicates (dispatched_job_is_in_flight, run_is_in_flight). The listener layer uses NEITHER -- _common.is_job_active is an independent third implementation, and job_progress gates on a hand-copied {'started','paused'} literal that is a fourth. On Roborock, is_job_active treats a not-yet-added job_active entity as 'not active'. Fifth instance of the campaign's forgotten-override-sibling pattern, and the first where the divergence is a whole LAYER.",
+  "fix": "Route the listener layer at the canonical predicates, or state explicitly why the input layer needs a different question and derive it from the same constant.",
+  "verified": false
+ },
+ "C19": {
+  "name": "A public service call wipes a map's entire room configuration, silently",
+  "ids": [
+   "A3-ROOMS-1",
+   "A3-ROOMS-2",
+   "A4-SETUP-1",
+   "A5-FACADE-1",
+   "A5-FACADE-3"
+  ],
+  "seam": "rooms/room_crud.py:261 (map_bucket['rooms'] = managed_rooms)",
+  "note": "VERIFIED BY EXECUTION. Three routes to one unconditional replace. (1) save_managed_rooms against a map with no cached discovery: discovery.get('rooms',[]) is [], build_managed_rooms returns {}, and line 261 replaces wholesale. (2) `enabled_room_ids:` with a blank YAML value -- cv.ensure_list(None) returns [] (confirmed against installed HA core), so the schema turns null into [], which passes the manager's `is not None` check while _normalize_enabled_room_ids([]) yields an empty set, so every room hits `continue`. The None-vs-empty distinction the manager deliberately relies on is destroyed one layer up, at the schema boundary. (3) setup_save_rooms rebuilds from the stale/absent discovery cache and returns {'status':'success'}. Every per-room setting, rule, grant, colour and floor type is gone; none of the three services declares supports_response, so the caller gets no error and no room_count. Documented behaviour is the OPPOSITE: docs/advanced/03-services.md:255 says 'Omit to keep all rooms enabled'. AUDIT #14 CONFIRMS THE LAYER: the same unguarded total-wipe is reachable at the FACADE (A5-FACADE-1) and rebuild_map has it too (A5-FACADE-3) -- so the facade, not the service, is where the precondition belongs.",
+  "fix": "Guard the wholesale replace: refuse to persist an empty room set when the previous bucket was non-empty and discovery is empty. Separately, stop the schema collapsing null into [] -- an explicit null must either be rejected or preserved as None. Give these three services a response so a caller can tell.",
+  "verified": true
+ },
+ "C20": {
+  "name": "A config-entry reload leaves the OLD manager alive; its orphaned timer then overwrites the store",
+  "ids": [
+   "A1-INIT-1"
+  ],
+  "seam": "core/manager.py:473 + __init__.py:465 (async_unload_entry)",
+  "note": "VERIFIED. async_initialize spawns loop-lifetime work -- the dock re-arm poller (hass.async_create_task) and external-run grace timers (async_call_later, 300s x up to 8 re-arms = ~45 min). There is NO manager teardown anywhere: grep for async_shutdown / def shutdown / EVENT_HOMEASSISTANT_STOP across manager.py, phase_runner.py and external_run.py returns nothing, and nothing is registered with entry.async_on_unload. async_unload_entry removes listeners/services/panels and pops DATA_RUNTIME but cancels none of it. A reload then builds a SECOND manager over the same STORAGE_KEY, while the orphaned callbacks still hold self._manager = the OLD one and end in external_run.py:213 async_save() / phase_runner.py:856 _async_save_logged() -- and async_save is a bare whole-root-dict write. So the pre-reload snapshot replaces everything persisted since. The orphaned dock poller can also still call maybe_advance_phase, so a dead manager and a live one can both dispatch to the same physical robot; _dock_poller_active is per-instance and cannot dedupe across two.",
+  "fix": "Give the manager a teardown that cancels its spawned tasks and timers, and register it with entry.async_on_unload. Consider guarding async_save against a manager whose entry has been unloaded.",
+  "verified": true
+ },
+ "C21": {
+  "name": "Panels registered outside async_setup_entry are never tracked, so unload cannot remove them",
+  "ids": [
+   "A1-UP-1",
+   "A2-DOWN-1",
+   "A4-RELOAD-1"
+  ],
+  "seam": "__init__.py:420 + setup/workflow.py:106",
+  "note": "VERIFIED. Only __init__.py ever writes `_panels_<entry_id>`, and it appends only what its OWN loop registered. setup/workflow.py:106 (add_vacuum, reached from the panel's own onboarding flow) registers a per-vacuum panel and tracks nothing. panels.py swallows HA's duplicate-url ValueError at DEBUG and returns None, which `if panel_url:` then drops -- so on the next setup the panel is not re-tracked either. services/setup.py:161 schedules a reload immediately after add_vacuum, so the interleaving is automatic. Steady state from a BLANK install: two sidebar entries, one rendering the 'no vacuum configured' placeholder, self-perpetuating across reloads until a full HA restart clears hass.data[DATA_PANELS]. Found independently by THREE of four agents. The reproducer corrected an over-stated sub-claim: it does NOT affect 'every second and later vacuum unconditionally' -- it needs the blank-install path.",
+  "fix": "Track every panel registration in the `_panels_` list regardless of where it happens, or give panels.py a register-and-track helper that is the only entry point.",
+  "verified": true
+ },
+ "C22": {
+  "name": "Setup starts several things unload never stops \u2014 the systemic version of C20",
+  "ids": [
+   "A1-UP-3",
+   "A2-DOWN-2",
+   "A2-DOWN-3",
+   "A4-RELOAD-2",
+   "A4-RELOAD-3",
+   "A4-RELOAD-4"
+  ],
+  "seam": "__init__.py async_setup_entry vs async_unload_entry",
+  "note": "This audit's assignment was to build the table -- everything setup starts, checked against what unload stops. C20 (the manager's spawned tasks/timers) was one known row; these are the others: async_unregister_learning_services removes 16 of the 21 services setup registers, so FIVE learning services survive an unload; the post-job water-amendment state listener and its 180s timer are never cancelled; the debug-capture auto-stop timer survives; and two hass.data[DOMAIN] keys are left behind. Individually LOW/MEDIUM; together they are the same shape as C20 and should be fixed as one pass over the setup/unload pair.",
+  "fix": "Make unload the exact inverse of setup: register every unsub/timer/key with entry.async_on_unload at the point of creation, so the two cannot drift.",
+  "verified": false
+ },
+ "C23": {
+  "name": "The confidence tier system is INVERTED at the top, and green is unreachable",
+  "ids": [
+   "A1-EST-1",
+   "A1-EST-5"
+  ],
+  "seam": "learning/estimator.py:117 (_BREAKPOINTS) + :165 (_breakpoint_for_score)",
+  "note": "VERIFIED BY EXECUTION. _LEARNED_BASE (0.55) + _SAMPLE_BONUS_MAX (0.25) = 0.80, which is EXACTLY high.min_score -- so HIGH/green requires a perfect score, i.e. minutes_stddev exactly 0, which real timing data never has. And medium.max_score is 0.79 while high.min_score is 0.80, so the band (0.79, 0.80) matches no bucket; _breakpoint_for_score falls through to _BREAKPOINTS[-1], which is LOW/error -- the BOTTOM of the table, not the nearest tier. Sweep at 12 samples / avg 10 min: stddev 0.05 -> 0.7975 -> RED; stddev 0.15 -> 0.7925 -> RED; stddev 0.20 -> 0.7900 -> AMBER. A room consistent to 3 seconds shows red while a room consistent to 12 seconds shows amber. ui_variant reaches the card verbatim (src/renderers/learning.js:534, rooms.js:742/1196) and job confidence is min(room scores), so one such room drags the whole job estimate red.",
+  "fix": "Close the band (make the tiers contiguous, or use a one-sided descending test), and make the fall-through return the nearest tier rather than the last entry. Separately decide whether HIGH should be reachable at all -- as written it needs zero variance.",
+  "verified": true
+ },
+ "C24": {
+  "name": "External runs contribute battery=0.0 and the estimator consumes it as a real measurement",
+  "ids": [
+   "A1-EST-2"
+  ],
+  "seam": "learning/estimator.py:844 + learning/external_ingest.py:1056",
+  "note": "THE HYPOTHESIS THIS AUDIT WAS BUILT ON, CONFIRMED. build_graduated_job constructs the completed-job record with NO battery block at all (grep for 'battery' in external_ingest.py returns zero hits), yet outcome.status is 'completed' and used_for_learning is True, so is_learning_job admits it. The rebuilder reads job.get('battery',{}).get('used') -> 0.0 and accumulates that into the SAME room_stats bucket as dispatched runs. _safe_float only substitutes a default for None/''/unknown/unavailable -- 0.0 is a valid float and passes straight through. There is no battery_sample_count and no source marker, so 'learned 0%' is indistinguishable from 'no battery data'. With an all-external archive avg_battery_used is exactly 0.0: the card asserts the job costs ZERO battery and battery_warning is False at ANY charge level. And confidence_score is computed from TIMING samples only, so the number carries no warning.",
+  "fix": "Either exclude records with no battery block from the battery aggregate, or carry a battery_sample_count so a zero-sample bucket is distinguishable from a measured zero.",
+  "verified": false
+ },
+ "C25": {
+  "name": "The incomplete-run log misreports which rooms were missed",
+  "ids": [
+   "A4-STATE-1",
+   "A4-STATE-2",
+   "A4-STATE-4",
+   "A2-ACC-4"
+  ],
+  "seam": "learning/history_store.py (incomplete-run family)",
+  "note": "The final room of EVERY non-completed run is recorded as missed; clear_incomplete_run's docstring claims '(full clean)' but ANY completion clears it; missed_room_ids survive a re-segment and a map switch, so they can name rooms that no longer exist or now mean something else; and a skipped room holds 'current' for the rest of the run so it can never be resolved.",
+  "fix": "One pass over the incomplete-run lifecycle: who writes it, what clears it, and whether its room ids are still valid at read time.",
+  "verified": false
+ },
+ "C26": {
+  "name": "Learning services destroy or misreport, and say success either way",
+  "ids": [
+   "A5-SVC-1",
+   "A5-SVC-2",
+   "A5-SVC-3",
+   "A5-SVC-6"
+  ],
+  "seam": "learning/services.py",
+  "note": "The 22 registrations here were NOT covered by audit #13's services sweep, and they have the same shape: exclude/restore_learning_job report 'stats rebuilt' without rebuilding; finalize_learning_job fires the job-finished event with a FABRICATED payload; retry_missed_rooms permanently destroys the map's room-enable selection; rebuild_learning_stats blanks accuracy_stats before replaying, so a failure partway leaves it empty.",
+  "fix": "Same treatment as C19/C26's siblings: make the destructive ones confirm or be reversible, and make every response honest about what actually happened.",
+  "verified": false
+ },
+ "C27": {
+  "name": "overwrite_theme resolves against the ACTIVE theme, never the target it names",
+  "ids": [
+   "A1-CRUD-1",
+   "A1-CRUD-2",
+   "A1-CRUD-4"
+  ],
+  "seam": "themes/manager.py:303",
+  "note": "VERIFIED at source and REPRODUCED by executing the module. overwrite_theme builds `resolved` from vac['active_theme_id'] + the working draft; `existing = library[theme_id]` is fetched but used ONLY to preserve name/source/tags/author. So calling it on any theme that is not the active one replaces that theme's palette with a CLONE of the active one, and line 326 then silently repoints the vacuum onto it. With no active theme the target's palette becomes {} outright. Both return ok:True and services.py persists. The metadata-preservation loop is what makes it silent -- the entry keeps its name and author, so it looks intact. The docstring claims it writes 'the vacuum's working draft'; it writes active+draft and works with an empty draft. The CARD masks it (bindings/theme.js only calls overwriteTheme inside `if (state.activeThemeId)` and passes that same id), so it is service-only reachable -- which is why the verifiers held it at MEDIUM. Also lets a BUNDLED theme's palette be permanently replaced (CRUD-4).",
+  "fix": "Resolve against the TARGET entry, or refuse when theme_id != active_theme_id. Decide which the docstring meant and make the code and the doc agree.",
+  "verified": true
+ },
+ "C28": {
+  "name": "Bundled themes are protected from neither delete nor overwrite",
+  "ids": [
+   "A1-CRUD-3",
+   "A1-CRUD-4"
+  ],
+  "seam": "themes/manager.py delete_theme/overwrite_theme + preloaded.ensure_preloaded_theme_library",
+  "note": "delete_theme has no source=='core' guard, so a bundled theme can be deleted -- and audit #14's A1-INIT-3 showed the startup re-seed resurrects it, so the deletion is neither prevented nor durable ('gone until restart'). overwrite_theme can replace a bundled theme's palette PERMANENTLY, because the re-seed only restores absent entries, not modified ones. The discriminator already exists and is trustworthy: preloaded.py stamps source='core', _import_scoped allowlists {community,generated,manual} so an import cannot claim it, and save_theme_as_new hardcodes 'manual'.",
+  "fix": "Refuse both operations for source=='core'. Chris's spec: bundled themes are system inventory, not ordinary library entries -- protecting them removes the 'deleted until restart' behaviour rather than trying to make deletion durable.",
+  "verified": true
+ },
+ "C29": {
+  "name": "delete_theme leaves the working draft orphaned on a base that no longer exists",
+  "ids": [
+   "A1-CRUD-5",
+   "A2-DRAFT-1"
+  ],
+  "seam": "themes/manager.py:394",
+  "note": "delete_theme nulls active_theme_id for every affected vacuum (that guard DOES exist) but line 394 only RE-NORMALIZES the working draft -- it does not empty it, and leaves draft_dirty untouched. set_active_theme twenty lines later does exactly the right thing (_empty_theme_draft + draft_dirty=False). So deleting the theme you are editing leaves a live draft of overrides authored against a base that is gone. Sibling divergence: two adjacent methods, one clears the draft, one does not.",
+  "fix": "Per Chris's spec: treat deletion as an atomic destructive transition -- resolve the fallback target FIRST (default_theme_id is nulled at :388 before the vacuum walk at :391, so the chain must run before that), clear working_draft, set draft_dirty=False, set active_theme_id, persist once, notify once. Note delete_theme currently does not persist at all.",
+  "verified": true
+ }
+}

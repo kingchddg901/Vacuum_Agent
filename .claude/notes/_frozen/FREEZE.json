@@ -1,0 +1,34 @@
+{
+ "frozen_at_sha": "7108519b57d8adcf032c23aa5a133354c2d662ec",
+ "frozen_at": "2026-07-31T19:12:41",
+ "digests": {
+  ".claude/notes/_frozen/audits/7-dispatch+queue.json": "4b8bb91cf054e657",
+  ".claude/notes/_frozen/audits/8-profiles+planning.json": "be625e94c84c686d",
+  ".claude/notes/_frozen/audits/9-jobs-execution.json": "b83ac7939c14b521",
+  ".claude/notes/_frozen/audits/10-rooms-identity.json": "ab1ba10ea21b3049",
+  ".claude/notes/_frozen/audits/11-map-source-lifecycle.json": "0cf3e56d9dc515fb",
+  ".claude/notes/_frozen/audits/12-listeners-input.json": "03405bb69288dd0a",
+  ".claude/notes/_frozen/audits/13-services-public-API.json": "9f047eee2d3a73e8",
+  ".claude/notes/_frozen/audits/14-core-manager-hub.json": "e9dc94627be3b5ad",
+  ".claude/notes/_frozen/audits/15-integration-script.json": "f70f8476941cc042",
+  ".claude/notes/_frozen/audits/16-learning-consumers.json": "70e0cc9d9e8a508e",
+  ".claude/notes/_frozen/audits/17-themes-manager.json": "22c1f1ec2ca62975",
+  ".claude/notes/_frozen/audits/18-mapping-services.json": "c7da4b7221ccd3b7",
+  ".claude/notes/_frozen/_direct_reads.json": "cfb59c09fbccb4a5",
+  ".claude/notes/_frozen/_clusters.json": "8d7617ed5bd1e8ee",
+  ".claude/notes/_frozen/_order.json": "f023835b8e288458",
+  ".claude/notes/_frozen/_calibration.json": "7eca993eda5668cf",
+  ".claude/notes/_frozen/_stageB_result.json": "c31a98a810cae660",
+  ".claude/notes/_frozen/_mapping_result.json": "ea4408261c4a9055",
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "45f0f71b469d1f47"
+ },
+ "counts": {
+  "audits": 12,
+  "audit_survivors": 421,
+  "non_audit_records": 63,
+  "non_audit_open": 61,
+  "open_total": 482,
+  "killed_records": 21,
+  "clean_areas": 673
+ }
+}
