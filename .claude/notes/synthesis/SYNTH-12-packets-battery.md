@@ -1,5 +1,9 @@
 # Tranche-3 Packets — RF-36: battery / charge estimation (RP-042..RP-045)
 
+> **File renamed 2026-08-01 (was SYNTH-11).** It collided with Fable's
+> `SYNTH-11-packets-wave7-card.md`, authored in a parallel session. Wave 7 is
+> CARD; this is tranche 3.
+
 **Provenance is different from every other family in this campaign, and that is
 the point.** RF-01..RF-35 came from 17 hostile audits. These four came from
 watching one charge cycle on 2026-08-01 while Ivy sat on a `charge_wait` phase —
