@@ -2264,7 +2264,7 @@ class EufyVacuumManager:
             self.async_preload_room_history_cache(vacuum_entity_id=vacuum_key)
         )
 
-    def _load_room_history_cache_sync(self, vacuum_entity_id: str) -> dict[str, Any]:
+    def _load_room_history_cache_sync(self, vacuum_entity_id: str) -> dict[str, Any] | None:
         """Build and return room-history data from the learning store (executor thread).
 
         All state is local until the caller writes the result back to self.data
@@ -2314,6 +2314,10 @@ class EufyVacuumManager:
             _LOGGER.exception(  # pragma: no cover
                 "Failed rebuilding room history cache for %s", vacuum_key
             )
+            # RP-006 (INIT-2): failure must be DISTINGUISHABLE from "no history".
+            # Returning the partial dict here let the caller replace the persisted
+            # cache with whatever survived the crash — and mark it ready.
+            return None
         return temp_root.get(vacuum_key, {})
 
     async def async_preload_room_history_cache(
@@ -2333,7 +2337,48 @@ class EufyVacuumManager:
                 self._load_room_history_cache_sync,
                 vacuum_key,
             )
-            self.data.setdefault("room_history", {})[vacuum_key] = vacuum_history
+            if vacuum_history is None:
+                # RP-006 (INIT-2): the rebuild FAILED. Keep the persisted cache
+                # exactly as it is and do NOT mark ready — the next trigger
+                # retries. Assigning the partial result here used to replace real
+                # history with whatever survived the crash.
+                _LOGGER.warning(
+                    "room-history rebuild failed for %s; keeping the persisted "
+                    "cache and retrying on the next trigger",
+                    vacuum_key,
+                )
+                return
+            # RP-006 (CB-2): finalizes that landed DURING the executor await have
+            # already ingested into the live dict; a plain assignment would lose
+            # them. Merge the rebuilt history in with the same newer-wins rule the
+            # ingest path uses, so neither side's newer timestamps are lost.
+            live_history = self.data.setdefault("room_history", {}).setdefault(
+                vacuum_key, {}
+            )
+            for map_id, rebuilt_rooms in vacuum_history.items():
+                if not isinstance(rebuilt_rooms, dict):
+                    continue
+                live_map = live_history.setdefault(map_id, {})
+                for room_key, rebuilt_entry in rebuilt_rooms.items():
+                    if not isinstance(rebuilt_entry, dict):
+                        continue
+                    current = dict(live_map.get(room_key, {}))
+                    merged = dict(current)
+                    merged.update(
+                        {k: rebuilt_entry[k] for k in ("room_id", "map_id", "room_name")
+                         if k in rebuilt_entry}
+                    )
+                    for field in ("last_cleaned_at", "last_vacuumed_at", "last_mopped_at"):
+                        rebuilt_dt = parse_timestamp(rebuilt_entry.get(field))
+                        current_dt = parse_timestamp(current.get(field))
+                        if rebuilt_dt is not None and (
+                            current_dt is None or rebuilt_dt >= current_dt
+                        ):
+                            merged[field] = rebuilt_entry[field]
+                            if field == "last_cleaned_at" and "last_job_mode" in rebuilt_entry:
+                                merged["last_job_mode"] = rebuilt_entry["last_job_mode"]
+                    if merged != current:
+                        live_map[room_key] = merged
             self._room_history_cache_ready.add(vacuum_key)
             map_ids = list(
                 self.data.get("room_history", {}).get(vacuum_key, {}).keys()

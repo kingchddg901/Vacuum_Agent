@@ -277,6 +277,17 @@ async def async_refresh_room_source(
         vacuum_entity_id=vacuum_entity_id,
         active_map_id=_active_map_id_from_config(hass, config, vacuum_entity_id),
     )
+    # RP-006 (SRC-2): a response that flattens to NOTHING must not replace a
+    # previously-good cache — a transient upstream glitch would otherwise blank
+    # the room source and every consumer downstream (dispatch live-resolution,
+    # discovery) would see "no rooms" until the next successful refresh.
+    if not per_map and get_cached_room_source(hass, vacuum_entity_id):
+        _LOGGER.warning(
+            "room_source: refresh for %s returned no maps; keeping the previous "
+            "cached source",
+            vacuum_entity_id,
+        )
+        return
     set_cached_room_source(hass, vacuum_entity_id, per_map)
     _LOGGER.debug(
         "room_source: refreshed %s — %d map(s): %s",
