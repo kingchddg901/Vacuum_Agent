@@ -471,6 +471,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     if unload_ok:
+        # RP-007 step 4 (SRC-5): a reloaded entry must not serve the previous
+        # life's room-source cache as fresh — its freshness stamps survive the
+        # reload but its world may not (this is exactly the reload seam RP-003
+        # hardened for timers; the cache is the read-side analogue).
+        from .rooms.source_refresh import invalidate_room_source_cache
+
+        invalidate_room_source_cache(hass)
+
         domain_data = hass.data.get(DOMAIN, {})
         for panel_url in domain_data.pop(f"_panels_{entry.entry_id}", []):
             # panel_custom doesn't expose an unregister API; the panel is
