@@ -544,102 +544,165 @@ class PhaseRunner:
         Either way the retry cap is the per-phase watchdog — after it the run is
         left stalled (recoverable via Cancel Run) rather than silently hung.
         """
-        pt = self._manager._phase_timing(vacuum_entity_id)
-        if not initial:
-            job0 = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            settle = pt["settle_seconds"]
-            if self._phase_target_is_dock_room(
-                vacuum_entity_id, map_id, (job0 or {}).get("current_room_id")
-            ):
-                settle = pt["dock_settle_seconds"]
-                _LOGGER.info(
-                    "Strict-order: phase %s on %s targets the dock room — extending "
-                    "the post-dock settle to %ss before dispatch so the device's "
-                    "ignore-transient passes.",
-                    phase_index, vacuum_entity_id, settle,
-                )
-            await asyncio.sleep(settle)
-        for attempt in range(1, pt["max_attempts"] + 1):
-            job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            # The job advanced past this phase, finalized, paused (status flips), or is
-            # being cancelled — async_cancel sets _cancel_in_flight up front, BEFORE the
-            # status flips, so the watchdog stops before it can re-dispatch during the
-            # return-to-base window. In every case the phase is no longer ours, so bail.
-            if (
-                not job
-                or job.get("status") != "started"
-                or int(job.get("current_phase_index", -1)) != phase_index
-                or job.get("_cancel_in_flight")
-            ):
-                _LOGGER.info(
-                    "Strict-order: phase %s on %s not (re)dispatched — the job is no "
-                    "longer on this phase (status=%s, phase=%s); it finalized, "
-                    "advanced, was cancelled, or the guard was released.",
-                    phase_index, vacuum_entity_id,
-                    (job or {}).get("status"), (job or {}).get("current_phase_index"),
-                )
-                return
-            # The initial phase's first send already happened at job start — just
-            # verify it; a re-dispatch only happens on a retry (device ignored it).
-            if not (initial and attempt == 1):
-                try:
-                    await self._dispatch_active_phase(
-                        vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
+        try:
+            pt = self._manager._phase_timing(vacuum_entity_id)
+            # A fresh watchdog attempt (a normal advance, or a restart/resume
+            # re-arm) starts with a clean liveness slate -- a stale dead-flag
+            # from a PREVIOUS crashed watchdog on this same phase must not
+            # immediately exclude the reaper again before this attempt even runs.
+            self._reset_phase_watchdog_liveness(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index,
+            )
+            if not initial:
+                job0 = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+                settle = pt["settle_seconds"]
+                if self._phase_target_is_dock_room(
+                    vacuum_entity_id, map_id, (job0 or {}).get("current_room_id")
+                ):
+                    settle = pt["dock_settle_seconds"]
+                    _LOGGER.info(
+                        "Strict-order: phase %s on %s targets the dock room — extending "
+                        "the post-dock settle to %ss before dispatch so the device's "
+                        "ignore-transient passes.",
+                        phase_index, vacuum_entity_id, settle,
                     )
-                except HomeAssistantError as err:
-                    # RP-007 step 6: a live-resolution REFUSAL (the room no longer
-                    # exists on the current map, or freshness could not be
-                    # established) is not a transient — retrying the same phase
-                    # cannot succeed. Log, record the skip on the stored job
-                    # (cumulative evidence for RF-11), release the guard and
-                    # advance to the next phase instead of wedging the run.
-                    _LOGGER.warning(
-                        "Strict-order: phase %s on %s refused by live resolution "
-                        "(%s); marking its room(s) skipped and advancing",
-                        phase_index, vacuum_entity_id, err,
+                await asyncio.sleep(settle)
+            for attempt in range(1, pt["max_attempts"] + 1):
+                job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+                # The job advanced past this phase, finalized, paused (status flips), or is
+                # being cancelled — async_cancel sets _cancel_in_flight up front, BEFORE the
+                # status flips, so the watchdog stops before it can re-dispatch during the
+                # return-to-base window. In every case the phase is no longer ours, so bail.
+                # NOT a watchdog failure — no liveness marking (a different/no phase now
+                # owns _phase_dispatch_pending; marking here would poison it).
+                if (
+                    not job
+                    or job.get("status") != "started"
+                    or int(job.get("current_phase_index", -1)) != phase_index
+                    or job.get("_cancel_in_flight")
+                ):
+                    _LOGGER.info(
+                        "Strict-order: phase %s on %s not (re)dispatched — the job is no "
+                        "longer on this phase (status=%s, phase=%s); it finalized, "
+                        "advanced, was cancelled, or the guard was released.",
+                        phase_index, vacuum_entity_id,
+                        (job or {}).get("status"), (job or {}).get("current_phase_index"),
                     )
-                    _stored = (
-                        self._manager.data.get("active_jobs", {})
-                        .get(vacuum_entity_id, {})
-                        .get(str(map_id))
-                    )
-                    if isinstance(_stored, dict):
-                        skipped = _stored.setdefault("skipped_rooms", [])
-                        for _rid in (job.get("phases", [])[phase_index].get("queue_room_ids", [])
-                                     if 0 <= phase_index < len(job.get("phases", [])) else []):
-                            entry = {"room_id": _rid, "phase_index": phase_index,
-                                     "reason": "live_resolution_refused",
-                                     "at": utc_now_iso()}
-                            if entry not in skipped:
-                                skipped.append(entry)
+                    return
+                # The initial phase's first send already happened at job start — just
+                # verify it; a re-dispatch only happens on a retry (device ignored it).
+                if not (initial and attempt == 1):
+                    try:
+                        await self._dispatch_active_phase(
+                            vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
+                        )
+                    except HomeAssistantError as err:
+                        # RP-007 step 6: a live-resolution REFUSAL (the room no longer
+                        # exists on the current map, or freshness could not be
+                        # established) is not a transient — retrying the same phase
+                        # cannot succeed. Log, record the skip on the stored job
+                        # (cumulative evidence for RF-11), release the guard and
+                        # advance to the next phase instead of wedging the run.
+                        _LOGGER.warning(
+                            "Strict-order: phase %s on %s refused by live resolution "
+                            "(%s); marking its room(s) skipped and advancing",
+                            phase_index, vacuum_entity_id, err,
+                        )
+                        _stored = (
+                            self._manager.data.get("active_jobs", {})
+                            .get(vacuum_entity_id, {})
+                            .get(str(map_id))
+                        )
+                        if isinstance(_stored, dict):
+                            skipped = _stored.setdefault("skipped_rooms", [])
+                            for _rid in (job.get("phases", [])[phase_index].get("queue_room_ids", [])
+                                         if 0 <= phase_index < len(job.get("phases", [])) else []):
+                                entry = {"room_id": _rid, "phase_index": phase_index,
+                                         "reason": "live_resolution_refused",
+                                         "at": utc_now_iso()}
+                                if entry not in skipped:
+                                    skipped.append(entry)
+                        self._clear_phase_dispatch_pending(
+                            vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+                        )
+                        await self.maybe_advance_phase(
+                            vacuum_entity_id=vacuum_entity_id, map_id=map_id
+                        )
+                        return
+                if await self._await_phase_started(
+                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+                ):
+                    # Confirmed the device started THIS room — clear the dispatch-pending
+                    # guard so its real completion can finalize/advance normally.
                     self._clear_phase_dispatch_pending(
                         vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
                     )
-                    await self.maybe_advance_phase(
-                        vacuum_entity_id=vacuum_entity_id, map_id=map_id
+                    return  # the target room actually started — phase under way
+                if attempt < pt["max_attempts"]:
+                    _LOGGER.warning(
+                        "Strict-order: phase %s on %s hadn't started %ss after dispatch; "
+                        "retrying (%s/%s)",
+                        phase_index, vacuum_entity_id, pt["verify_seconds"],
+                        attempt + 1, pt["max_attempts"],
                     )
-                    return
-            if await self._await_phase_started(
-                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
-            ):
-                # Confirmed the device started THIS room — clear the dispatch-pending
-                # guard so its real completion can finalize/advance normally.
-                self._clear_phase_dispatch_pending(
-                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
-                )
-                return  # the target room actually started — phase under way
-            if attempt < pt["max_attempts"]:
-                _LOGGER.warning(
-                    "Strict-order: phase %s on %s hadn't started %ss after dispatch; "
-                    "retrying (%s/%s)",
-                    phase_index, vacuum_entity_id, pt["verify_seconds"],
-                    attempt + 1, pt["max_attempts"],
-                )
-        _LOGGER.warning(
-            "Strict-order: phase %s on %s failed to start after %s attempts; run "
-            "stalled — Cancel Run to recover",
-            phase_index, vacuum_entity_id, pt["max_attempts"],
+            # RP-011/RF-07 (WD-2): every attempt exhausted without confirming — the
+            # watchdog is giving up. Convert _phase_dispatch_pending from an
+            # unconditional reaper exclusion into a DEAD one: stamp the liveness
+            # fields instead of clearing pending (the phase may still start late;
+            # clearing would let the completion gate advance on a half-dispatched
+            # phase).
+            _LOGGER.warning(
+                "Strict-order: phase %s on %s failed to start after %s attempts; run "
+                "stalled — Cancel Run to recover",
+                phase_index, vacuum_entity_id, pt["max_attempts"],
+            )
+            self._mark_phase_watchdog_dead(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index,
+            )
+        except Exception:  # noqa: BLE001 - a crashed watchdog must be REAPABLE, not
+            # silently dead and invisible (WD-1). Logged with the phase context so
+            # it is diagnosable, then marked dead the same as an exhausted retry.
+            _LOGGER.exception(
+                "Strict-order: phase %s on %s watchdog crashed unexpectedly",
+                phase_index, vacuum_entity_id,
+            )
+            self._mark_phase_watchdog_dead(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index,
+            )
+
+    def _mark_phase_watchdog_dead(
+        self, *, vacuum_entity_id: str, map_id: str, phase_index: int
+    ) -> None:
+        """Stamp the liveness fields the reaper consults (RP-011/RF-07: WD-2/STR-3)
+        so a dead watchdog's phase becomes reapable without clearing
+        _phase_dispatch_pending itself -- the phase may still start late; only the
+        reaper's exclusion should lift, not the completion gate's."""
+        stored = (
+            self._manager.data.get("active_jobs", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id))
         )
+        if not isinstance(stored, dict) or int(stored.get("current_phase_index", -1)) != phase_index:
+            return  # the job moved on -- this watchdog's phase is no longer current
+        stored["_phase_watchdog_dead"] = True
+        stored.setdefault("_phase_dispatch_pending_since", _iso_now())
+
+    def _reset_phase_watchdog_liveness(
+        self, *, vacuum_entity_id: str, map_id: str, phase_index: int
+    ) -> None:
+        """Clear any liveness marking left by a PREVIOUS crashed/exhausted
+        watchdog on this phase before a fresh attempt begins (normal advance or
+        a restart/resume re-arm) -- a stale dead-flag must not immediately
+        exclude the reaper again before this new attempt even runs."""
+        stored = (
+            self._manager.data.get("active_jobs", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id))
+        )
+        if not isinstance(stored, dict) or int(stored.get("current_phase_index", -1)) != phase_index:
+            return
+        stored.pop("_phase_watchdog_dead", None)
+        stored.pop("_phase_dispatch_pending_since", None)
 
     async def _run_charge_wait_phase(
         self,
@@ -919,6 +982,11 @@ class PhaseRunner:
             and job.get("_phase_dispatch_pending")
         ):
             job["_phase_dispatch_pending"] = False
+            # RP-011/RF-07: a confirmed start proves the watchdog was alive after
+            # all -- drop any liveness marking so it doesn't leak into whatever
+            # phase runs next.
+            job.pop("_phase_watchdog_dead", None)
+            job.pop("_phase_dispatch_pending_since", None)
             self._manager.hass.async_create_task(self._manager._async_save_logged())
 
     async def _await_phase_started(
