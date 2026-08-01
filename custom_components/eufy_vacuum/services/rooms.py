@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Any
 
 import voluptuous as vol
 
@@ -73,17 +74,32 @@ _RECONCILE_ROOM_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Optional("action", default="migrate"): vol.In(["migrate", "ignore"]),
+        vol.Optional("force", default=False): cv.boolean,
     }
 )
+
+
+def _enabled_room_ids_validator(value: Any) -> list[int]:
+    """RP-005/RF-02 (ROOMS-2). Reject null and [] as loud schema errors instead of
+    letting cv.ensure_list(None) == [] coerce a "no selection" mistake into "delete
+    every room" -- the key must be OMITTED to keep the current selection."""
+    if value is None:
+        raise vol.Invalid(
+            "enabled_room_ids: null is not a selection; omit the key to keep the current selection"
+        )
+    coerced = cv.ensure_list(value)
+    if not coerced:
+        raise vol.Invalid(
+            "enabled_room_ids: empty selection cannot delete rooms; use enabled flags or remove_map"
+        )
+    return [vol.Coerce(int)(v) for v in coerced]
+
 
 _SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
-        vol.Optional("enabled_room_ids"): vol.All(
-            cv.ensure_list,
-            [vol.Coerce(int)],
-        ),
+        vol.Optional("enabled_room_ids"): _enabled_room_ids_validator,
     }
 )
 
@@ -160,6 +176,12 @@ async def _handle_save_managed_rooms(hass: HomeAssistant, call: ServiceCall) -> 
         payload = get_manager(hass).save_managed_rooms(**resolved_call_data(hass, call))
     except Exception as err:
         raise HomeAssistantError(f"Failed to save managed rooms: {err}") from err
+    if payload.get("saved") is False:
+        # This service does not support_response -- the refusal must still reach
+        # the caller somehow until RP-031 wires responses onto it. Log loudly and
+        # skip the save; no mutation happened to persist.
+        _LOGGER.warning("save_managed_rooms refused: %s", payload)
+        return
     _LOGGER.debug("save_managed_rooms complete: %s", payload)
     await get_manager(hass).async_save()
 
@@ -185,6 +207,7 @@ async def _handle_reconcile_room(hass: HomeAssistant, call: ServiceCall) -> dict
             vacuum_entity_id=data["vacuum_entity_id"],
             map_id=data["map_id"],
             action=data.get("action", "migrate"),
+            force=data.get("force", False),
         )
     except Exception as err:
         raise HomeAssistantError(f"Failed to reconcile room: {err}") from err

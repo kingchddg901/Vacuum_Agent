@@ -43,6 +43,15 @@ def build_managed_rooms(
     finding: an omitted argument that quietly resolves to a concrete *Eufy* answer. Making
     it required means a future call site cannot forget and silently get Eufy vocabulary;
     it gets a TypeError instead.
+
+    Can legitimately return ``{}`` (empty ``discovered_rooms``, or ``enabled_room_ids``
+    that excludes every room) — this function does not itself refuse a destructive
+    replacement of ``existing_rooms``, because it only sees ``existing_rooms`` as
+    per-room settings to preserve, not as a wipe-guard baseline (that baseline is the
+    CALLER's stored room map, which this function never reads back). RP-005/RF-02:
+    callers that write the result into a persisted room store (``save_managed_rooms``,
+    ``rebuild_map``) are responsible for guarding an empty result against a non-empty
+    stored map via ``room_crud._refuse_destructive_replace`` before assigning it.
     """
     from ..profiles.room_profiles import DEFAULT_ROOM_PROFILE_NAME   # local: import cycle
 

@@ -90,13 +90,30 @@ _SETUP_GET_MAP_ROOMS_SCHEMA = vol.Schema(
         vol.Optional("map_id"): cv.string,
     }
 )
+def _enabled_room_ids_validator(value):
+    """RP-005/RF-02 (ROOMS-2). Reject null and [] as loud schema errors instead of
+    letting cv.ensure_list(None) == [] coerce a "no selection" mistake into "delete
+    every room" -- the key must be OMITTED to keep the current selection. (Same
+    validator as services/rooms.py's _SAVE_MANAGED_ROOMS_SCHEMA -- kept local since
+    the two service modules share no common schema-helper module in scope here.)
+    """
+    if value is None:
+        raise vol.Invalid(
+            "enabled_room_ids: null is not a selection; omit the key to keep the current selection"
+        )
+    coerced = cv.ensure_list(value)
+    if not coerced:
+        raise vol.Invalid(
+            "enabled_room_ids: empty selection cannot delete rooms; use enabled flags or remove_map"
+        )
+    return [vol.Coerce(int)(v) for v in coerced]
+
+
 _SETUP_SAVE_ROOMS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
-        vol.Optional("enabled_room_ids"): vol.All(
-            cv.ensure_list, [vol.Coerce(int)]
-        ),
+        vol.Optional("enabled_room_ids"): _enabled_room_ids_validator,
         vol.Optional("floor_types"): vol.Schema({cv.string: cv.string}),
     }
 )
@@ -216,6 +233,15 @@ def register(hass: HomeAssistant) -> None:
             enabled_room_ids=data.get("enabled_room_ids"),
             floor_types=data.get("floor_types") or {},
         )
+        if result.get("saved") is False:
+            # This service supports_response=True -- the refusal reaches the caller
+            # directly rather than a WARNING log. Do not stamp the step complete or
+            # save: nothing changed.
+            return {
+                "status": "error",
+                "reason": result.get("reason"),
+                "message": f"Save refused: {result.get('reason')}",
+            }
         # is_configured stamping is handled by build_managed_rooms —
         # every room returned by save_managed_rooms now carries True
         # plus a configured_at timestamp. Mark the step complete here.

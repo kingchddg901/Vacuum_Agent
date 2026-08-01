@@ -116,6 +116,40 @@ async def test_setup_save_rooms(hass, manager_with_services):
     assert result["room_count"] == 3
 
 
+async def test_setup_save_rooms_refuses_empty_replacement(hass, manager_with_services):
+    """[SVS-3b] RP-005/RF-02. A discovery glitch that would wipe a non-empty
+    stored room map is refused -- the step is NOT stamped complete and the
+    stored rooms are untouched."""
+    seed_discovery(manager_with_services, _VAC, _MAP, make_rooms(_MAP, 3))
+    await _call(hass, SERVICE_SETUP_SAVE_ROOMS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    stored_before = dict(manager_with_services.data["maps"][_VAC][_MAP]["rooms"])
+    assert stored_before
+
+    seed_discovery(manager_with_services, _VAC, _MAP, [])
+    result = await _call(hass, SERVICE_SETUP_SAVE_ROOMS,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP})
+
+    assert result["status"] == "error"
+    assert result["reason"] == "empty_replacement_refused"
+    assert manager_with_services.data["maps"][_VAC][_MAP]["rooms"] == stored_before
+
+
+def test_setup_save_rooms_schema_rejects_null_enabled_room_ids():
+    """[SVS-3c] Same enabled_room_ids null/[] rejection as services/rooms.py's
+    schema, wired independently here (setup panel path)."""
+    from custom_components.eufy_vacuum.services.setup import _SETUP_SAVE_ROOMS_SCHEMA
+    import voluptuous as vol
+
+    with pytest.raises(vol.Invalid):
+        _SETUP_SAVE_ROOMS_SCHEMA(
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "enabled_room_ids": None}
+        )
+    with pytest.raises(vol.Invalid):
+        _SETUP_SAVE_ROOMS_SCHEMA(
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "enabled_room_ids": []}
+        )
+
+
 # ---------------------------------------------------------------------------
 # setup write-path service handlers (add / delete / reject / force-remove)
 # ---------------------------------------------------------------------------

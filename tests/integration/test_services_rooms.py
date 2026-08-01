@@ -28,6 +28,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.services.rooms import (
+    _SAVE_MANAGED_ROOMS_SCHEMA,
     _UPDATE_ROOM_FIELDS_SCHEMA,
     _handle_discover_rooms,
     _handle_reconcile_room,
@@ -323,3 +324,88 @@ def test_update_room_fields_schema_rejects_bad_color():
         _UPDATE_ROOM_FIELDS_SCHEMA(
             {"vacuum_entity_id": _VAC, "room_id": 1, "color": "not-a-color"}
         )
+
+
+# ---------------------------------------------------------------------------
+# [SR-10] RP-005/RF-02: enabled_room_ids null/[] rejected; save refusal surfaces
+# ---------------------------------------------------------------------------
+
+def test_save_managed_rooms_schema_rejects_null_enabled_room_ids():
+    """[SR-10] ROOMS-2: null is not a selection -- omit the key instead. Before
+    this, cv.ensure_list(None) == [] silently coerced it into "delete every room"."""
+    with pytest.raises(vol.Invalid):
+        _SAVE_MANAGED_ROOMS_SCHEMA(
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "enabled_room_ids": None}
+        )
+
+
+def test_save_managed_rooms_schema_rejects_empty_enabled_room_ids():
+    """[SR-10] An explicit [] cannot delete every room -- a loud schema error,
+    not a silent wipe."""
+    with pytest.raises(vol.Invalid):
+        _SAVE_MANAGED_ROOMS_SCHEMA(
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "enabled_room_ids": []}
+        )
+
+
+def test_save_managed_rooms_schema_omitted_key_still_valid():
+    """[SR-10] Compatibility: omitting the key entirely (keep current selection)
+    is unaffected by the null/[] rejection."""
+    out = _SAVE_MANAGED_ROOMS_SCHEMA({"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert "enabled_room_ids" not in out
+
+
+async def test_save_managed_rooms_service_refusal_leaves_rooms_untouched(
+    hass, manager_with_services
+):
+    """[SR-10] A save that would wipe a non-empty stored room map is refused --
+    the service does not support_response, so this drives the manager method
+    directly through the handler and checks the store is untouched."""
+    rooms = make_rooms(_MAP, 3)
+    seed_discovery(manager_with_services, _VAC, _MAP, rooms)
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    manager_with_services.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    stored_before = dict(manager_with_services.data["maps"][_VAC][_MAP]["rooms"])
+    assert stored_before
+
+    # A discovery glitch: the cached discovery for this map now reports zero rooms.
+    seed_discovery(manager_with_services, _VAC, _MAP, [])
+
+    await hass.services.async_call(
+        DOMAIN, "save_managed_rooms",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True,
+    )
+
+    assert manager_with_services.data["maps"][_VAC][_MAP]["rooms"] == stored_before
+
+
+async def test_reconcile_room_migrate_force_passthrough(hass, manager_with_services):
+    """[SR-10] The reconcile_room service passes force through to the manager --
+    without it a heavily-shrunk discovery is refused (partial_discovery_refused)."""
+    stored = {
+        str(i): {"room_id": i, "map_id": _MAP, "name": f"Room {i}", "slug": f"room-{i}"}
+        for i in range(1, 5)
+    }
+    manager_with_services.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "rooms": stored
+    }
+    seed_discovery(
+        manager_with_services, _VAC, _MAP,
+        [{"room_id": 1, "map_id": _MAP, "name": "Room 1", "slug": "room-1"}],
+    )
+
+    refused = await hass.services.async_call(
+        DOMAIN, "reconcile_room",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "action": "migrate"},
+        blocking=True, return_response=True,
+    )
+    assert refused["skipped"] == "partial_discovery_refused"
+
+    forced = await hass.services.async_call(
+        DOMAIN, "reconcile_room",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "action": "migrate", "force": True},
+        blocking=True, return_response=True,
+    )
+    assert forced.get("skipped") is None
+    assert forced["migrated_room_count"] == 1

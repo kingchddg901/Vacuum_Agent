@@ -102,6 +102,153 @@ def test_rebuild_map(rmm):
     assert set(rebuilt["rooms"]) == {"1"}
 
 
+# ---------------------------------------------------------------------------
+# RP-005/RF-02: the wipe guard at the room_crud chokepoints
+# ---------------------------------------------------------------------------
+
+def test_save_managed_rooms_refuses_empty_replacement(rmm):
+    """[RP-005] An empty discovery must not wipe a non-empty stored room map."""
+    rm, mgr = rmm
+    _seed_discovery(mgr, _DISCOVERED)
+    rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    stored_before = dict(mgr.data["maps"][_VAC][_MAP]["rooms"])
+    assert stored_before
+
+    _seed_discovery(mgr, [])  # a discovery glitch: zero rooms returned
+    result = rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert result == {
+        "saved": False,
+        "reason": "empty_replacement_refused",
+        "source": "save_managed_rooms",
+        "stored_room_count": 2,
+    }
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"] == stored_before
+
+
+def test_save_managed_rooms_first_import_still_writes_empty(rmm):
+    """[RP-005] Compatibility: a first-ever save with nothing stored yet must still
+    write freely, even if the discovery happens to be empty (nothing to refuse)."""
+    rm, mgr = rmm
+    _seed_discovery(mgr, [])
+    result = rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert "reason" not in result
+    assert result["room_count"] == 0
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"] == {}
+
+
+def test_save_managed_rooms_explicit_subset_still_prunes(rmm):
+    """[RP-005] Compatibility: an explicit non-empty enabled_room_ids subset still
+    prunes normally -- only a wipe TO EMPTY is refused."""
+    rm, mgr = rmm
+    _seed_discovery(mgr, _DISCOVERED)
+    rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    result = rm.save_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP, enabled_room_ids=[1]
+    )
+    assert "reason" not in result
+    assert set(result["rooms"]) == {"1"}
+
+
+def test_rebuild_map_refuses_empty_replacement(rmm):
+    """[RP-005] Same guard for rebuild_map -- an empty discovery must not wipe a
+    non-empty stored room map. rebuild_map_bucket (maps/map_manager.py) is out of
+    this packet's scope, so the guard fires BEFORE calling it."""
+    rm, mgr = rmm
+    _seed_discovery(mgr, _DISCOVERED)
+    rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    stored_before = dict(mgr.data["maps"][_VAC][_MAP]["rooms"])
+
+    _seed_discovery(mgr, [])
+    result = rm.rebuild_map(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert result["saved"] is False
+    assert result["reason"] == "empty_replacement_refused"
+    assert result["source"] == "rebuild_map"
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"] == stored_before
+
+
+def test_reconcile_room_migrate_refuses_partial_discovery(rmm):
+    """[RP-005] Minimum-evidence guard: a discovery smaller than what is stored
+    that would drop MORE THAN HALF the stored rooms on migrate is refused --
+    distinct from the no_discovery guard (a totally empty discovery), and
+    distinct from reconcile_room's own harness above (a normal shrink)."""
+    rm, mgr = rmm
+    stored = {
+        str(i): {"room_id": i, "map_id": _MAP, "name": f"Room {i}", "slug": f"room-{i}"}
+        for i in range(1, 5)  # 4 stored rooms
+    }
+    mgr.data["maps"] = {_VAC: {_MAP: {"rooms": stored}}}
+    # Discovery now sees only 1 of the 4 (dropping 3 of 4 = more than half).
+    mgr.data.setdefault("discovery", {}).setdefault(_VAC, {})[_MAP] = {
+        "rooms": [{"room_id": 1, "map_id": _MAP, "name": "Room 1", "slug": "room-1"}]
+    }
+
+    refused = rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    assert refused["skipped"] == "partial_discovery_refused"
+    assert refused["migrated_room_count"] == 0
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"] == stored  # untouched
+
+    forced = rm.reconcile_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, action="migrate", force=True
+    )
+    assert forced.get("skipped") is None
+    assert forced["migrated_room_count"] == 1
+
+
+def test_discover_rooms_keeps_cache_on_empty_result(manager):
+    """[RP-005] A discovery glitch that returns zero rooms must not replace a
+    previously-good cache -- save_managed_rooms reads FROM this cache, so an
+    unguarded overwrite here would wipe stored rooms on the NEXT save too."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {"room_list_entity": "vacuum_entity",
+                      "room_list_attribute": "segments",
+                      "room_id_key": "id", "room_name_key": "name"},
+    })
+    manager.hass.states.async_set("sensor.alfred_map", "6")
+    manager.hass.states.async_set(_VAC, "docked",
+                                   {"segments": [{"id": 1, "name": "Kitchen"},
+                                                 {"id": 2, "name": "Bath"}]})
+    rm = RoomMapManager(manager)
+    good = rm.discover_rooms(vacuum_entity_id=_VAC, map_id="6")
+    assert good["room_count"] == 2
+
+    # The next poll returns zero segments (a transient discovery glitch).
+    manager.hass.states.async_set(_VAC, "docked", {"segments": []})
+    kept = rm.discover_rooms(vacuum_entity_id=_VAC, map_id="6")
+
+    assert kept.get("cache_kept") is True
+    assert kept.get("reason") == "empty_discovery_kept"
+    assert kept["room_count"] == 2
+    assert manager.data["discovery"][_VAC]["6"]["rooms"] == good["rooms"]
+
+
+def test_discover_rooms_genuinely_empty_first_discovery_still_writes(manager):
+    """[RP-005] Compatibility: a genuinely-empty FIRST discovery (no prior cache)
+    still writes normally -- absent != failed."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {"room_list_entity": "vacuum_entity",
+                      "room_list_attribute": "segments",
+                      "room_id_key": "id", "room_name_key": "name"},
+    })
+    manager.hass.states.async_set("sensor.alfred_map", "6")
+    manager.hass.states.async_set(_VAC, "docked", {"segments": []})
+    rm = RoomMapManager(manager)
+    payload = rm.discover_rooms(vacuum_entity_id=_VAC, map_id="6")
+
+    assert payload.get("cache_kept") is None
+    assert payload["room_count"] == 0
+    assert "6" in manager.data["discovery"][_VAC]
+
+
 def test_remove_map_clears_related_state(rmm):
     """[RC-6] remove_map also clears history / rule-status / active-job slots and
     leaves any remaining map's access graph untouched."""

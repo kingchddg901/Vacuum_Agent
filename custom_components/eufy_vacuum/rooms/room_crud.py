@@ -27,6 +27,32 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
+def _refuse_destructive_replace(
+    stored_rooms: Any, new_rooms: Any, source_desc: str
+) -> dict[str, Any] | None:
+    """Refuse a save/rebuild that would replace a NON-EMPTY stored room map with an
+    EMPTY one. Returns a refusal dict, or None when the replace may proceed.
+
+    RP-005/RF-02. Compares against the STORED store, not the discovery input -- a
+    shrunk-but-non-empty discovery is reconcile_room's minimum-evidence guard's
+    business, not this one's (discovery legitimately returns partial lists; unnamed
+    or blank segments are skipped). Two siblings already guarded this shape before
+    this packet -- reconcile_room's no_discovery arm and the import workflow's own
+    refusal on an empty payload -- while five CRITICAL call sites did not:
+    save_managed_rooms, rebuild_map, reconcile_room's migrate arm on a partial
+    discovery, discover_rooms' cache overwrite, and enabled_room_ids: null/[]
+    reaching the schema as a valid (and destructive) selection.
+    """
+    if not new_rooms and stored_rooms:
+        return {
+            "saved": False,
+            "reason": "empty_replacement_refused",
+            "source": source_desc,
+            "stored_room_count": len(stored_rooms),
+        }
+    return None
+
+
 class RoomMapManager:
     """Owns room discovery, save, read, remove, and rebuild operations."""
 
@@ -55,6 +81,22 @@ class RoomMapManager:
 
         _disc_map_id = str(payload.get("active_map_id") or map_id or "")
 
+        self._manager.data.setdefault("discovery", {})
+        self._manager.data["discovery"].setdefault(vacuum_entity_id, {})
+        existing_cached = self._manager.data["discovery"][vacuum_entity_id].get(_disc_map_id)
+        existing_cached_rooms = (
+            existing_cached.get("rooms", []) if isinstance(existing_cached, dict) else []
+        )
+        if not payload.get("rooms") and existing_cached_rooms:
+            # RP-005/RF-02 (FACADE-2): a discovery glitch returning zero rooms must
+            # not silently replace a previously-good cache -- save_managed_rooms
+            # reads FROM this cache, so an empty cache here would wipe stored rooms
+            # too on the next save. A genuinely-empty FIRST discovery (no prior
+            # cache) still writes normally (absent != failed).
+            payload = dict(existing_cached)
+            payload["cache_kept"] = True
+            payload["reason"] = "empty_discovery_kept"
+
         # Identity-shift reconciliation: compare the fresh discovery against the
         # SAVED rooms for this map by slug. A known slug whose segment id changed
         # (re-segment) or a known id whose name changed (rename) surfaces as a
@@ -69,9 +111,7 @@ class RoomMapManager:
             discovered_rooms=payload.get("rooms", []),
             existing_rooms=existing_rooms,
         )
-
-        self._manager.data.setdefault("discovery", {})
-        self._manager.data["discovery"].setdefault(vacuum_entity_id, {})[_disc_map_id] = payload
+        self._manager.data["discovery"][vacuum_entity_id][_disc_map_id] = payload
 
         runtime = self._manager.ensure_runtime(vacuum_entity_id)
         runtime.active_map_id = payload.get("active_map_id")
@@ -84,6 +124,7 @@ class RoomMapManager:
         vacuum_entity_id: str,
         map_id: str,
         action: str = "migrate",
+        force: bool = False,
     ) -> dict[str, Any]:
         """Apply or dismiss the identity-shift reviews for one vacuum/map.
 
@@ -165,6 +206,32 @@ class RoomMapManager:
         )
 
         new_rooms = plan["rooms"]
+
+        # RP-005/RF-02: minimum-evidence guard. Discovery legitimately returns
+        # partial lists (unnamed/blank segments are skipped, REC-4) so this is
+        # deliberately looser than the no_discovery guard above -- it only refuses
+        # when the discovery is BOTH smaller than what is stored AND the resulting
+        # migration would drop more than half of the stored rooms, which is no
+        # longer "a few segments were unnamed" but "this discovery looks wrong."
+        # Overridable with force=True for a genuine re-map that really did shrink.
+        if (
+            not force
+            and existing_rooms
+            and len(discovered_rooms) < len(existing_rooms)
+            and len(new_rooms) * 2 < len(existing_rooms)
+        ):
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": map_id_str,
+                "action": "migrate",
+                "migrated_room_count": 0,
+                "id_remap": {},
+                "dropped": [],
+                "skipped": "partial_discovery_refused",
+                "stored_room_count": len(existing_rooms),
+                "discovered_room_count": len(discovered_rooms),
+            }
+
         map_bucket = ensure_map_bucket(
             data=self._manager.data,
             vacuum_entity_id=vacuum_entity_id,
@@ -257,6 +324,14 @@ class RoomMapManager:
             enabled_room_ids=enabled_room_ids,
             floor_types=floor_types or {},
         )
+
+        refusal = _refuse_destructive_replace(
+            stored_rooms=existing_rooms,
+            new_rooms=managed_rooms,
+            source_desc="save_managed_rooms",
+        )
+        if refusal is not None:
+            return refusal
 
         map_bucket["rooms"] = managed_rooms
         summary = build_room_selection_summary(managed_rooms=managed_rooms)
@@ -418,6 +493,23 @@ class RoomMapManager:
         filtered_rooms = [
             room for room in discovered_rooms if str(room.get("map_id")) == str(map_id)
         ]
+
+        # rebuild_map_bucket deterministically produces an empty room map from an
+        # empty discovered_rooms list (nothing to iterate) -- refuse BEFORE calling
+        # it rather than after, so a stale/glitched discovery can never wipe the
+        # stored map (rebuild_map_bucket itself is out of this packet's scope).
+        existing_rooms = get_map_bucket(
+            data=self._manager.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        ).get("rooms", {})
+        refusal = _refuse_destructive_replace(
+            stored_rooms=existing_rooms,
+            new_rooms=filtered_rooms,
+            source_desc="rebuild_map",
+        )
+        if refusal is not None:
+            return refusal
 
         rebuilt = rebuild_map_bucket(
             data=self._manager.data,
