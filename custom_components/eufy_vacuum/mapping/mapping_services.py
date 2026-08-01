@@ -1097,7 +1097,10 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         map_id=map_id,
     )
 
-    if not force_reanalyze and map_bucket.get("image_segments"):
+    # RP-006 (IMAGE--3): the cache-hit gate checks AVAILABLE, not truthiness — a
+    # cached FAILURE envelope is a truthy dict and used to be served as if it
+    # were a successful analysis forever.
+    if not force_reanalyze and (map_bucket.get("image_segments") or {}).get("available"):
         _LOGGER.debug("analyze_map_image: returning cached for %s map %s", vacuum_entity_id, map_id)
         return _build_segments_response(map_bucket)
 
@@ -1171,6 +1174,16 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
 
     result = await hass.async_add_executor_job(_run)
     result["analyzed_at"] = utc_now_iso()
+    # RP-006 (IMAGE--2): persist only a SUCCESSFUL analysis. A failure envelope
+    # must not replace previously-good segments (zones/layout/art anchor to them);
+    # the caller still receives the failure envelope to surface.
+    if not result.get("available"):
+        _LOGGER.warning(
+            "analyze_map_image: analysis failed for %s map %s (%s); keeping "
+            "previous segments",
+            vacuum_entity_id, map_id, result.get("reason") or "unavailable",
+        )
+        return result
     map_bucket["image_segments"] = result
     await manager.async_save()
 
