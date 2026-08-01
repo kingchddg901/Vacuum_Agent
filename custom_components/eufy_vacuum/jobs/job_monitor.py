@@ -317,6 +317,43 @@ def build_start_blocker_from_lifecycle(
 STRANDED_REAP_GRACE_MINUTES: float = 5.0
 
 
+#: RP-011/RF-07 (STR-4): a status="started" job that never observed an active
+#: lifecycle (never even started moving) is reapable once dispatched this long
+#: ago -- "still settling" stops being credible. Operational constant, not
+#: empirically tuned.
+NEVER_STARTED_SECONDS: int = 600
+
+#: RP-011/RF-07 (WD-2/STR-3): a pending dock-phase guard past this age with no
+#: liveness signal is treated as dead. Fallback only -- the real caller always
+#: computes and passes a margin derived from the resolved phase timing; this
+#: is what a caller that omits the margin gets.
+_DEFAULT_PHASE_WATCHDOG_LIVENESS_MARGIN_SECONDS: float = 600.0
+
+
+def _phase_pending_still_live(
+    *,
+    phase_watchdog_dead: bool,
+    phase_dispatch_pending_since: str | None,
+    liveness_margin_seconds: float,
+) -> bool:
+    """True while a pending dock-phase guard should still exclude the reaper --
+    i.e. the watchdog is presumed alive. False (reapable) once the dead flag is
+    explicitly set, or the guard has aged past its liveness margin. No age
+    information at all (a caller that has not been updated to supply it) keeps
+    the pre-repair conservative behaviour: presumed live."""
+    if phase_watchdog_dead:
+        return False
+    if not phase_dispatch_pending_since:
+        return True
+    from ..timestamp_utils import parse_timestamp, utc_now
+
+    since_dt = parse_timestamp(phase_dispatch_pending_since)
+    if since_dt is None:
+        return True
+    age_seconds = (utc_now() - since_dt).total_seconds()
+    return age_seconds <= liveness_margin_seconds
+
+
 def is_stranded_started(
     *,
     status: str,
@@ -328,6 +365,10 @@ def is_stranded_started(
     job_active_on: bool,
     is_mid_run_status: bool,
     phase_dispatch_pending: bool,
+    phase_watchdog_dead: bool = False,
+    phase_dispatch_pending_since: str | None = None,
+    phase_watchdog_liveness_margin_seconds: float = _DEFAULT_PHASE_WATCHDOG_LIVENESS_MARGIN_SECONDS,
+    dispatched_seconds_ago: float | None = None,
 ) -> bool:
     """True when a dispatched ``started`` run looks ENDED but never hit its brand's
     completion terminal — the FN-1 strand (the run leaves no record and can mask a
@@ -346,7 +387,15 @@ def is_stranded_started(
         ``status=="started"`` reaches here),
       - a mid-run dock (mop-wash / dust-empty / recharge-resume — Eufy),
       - the recharge job-active binary still ON (Roborock mid-job recharge),
-      - a sequenced phase mid-dispatch (``_phase_dispatch_pending``).
+      - a sequenced phase mid-dispatch whose watchdog is still LIVE
+        (``_phase_dispatch_pending`` alone is no longer an unconditional
+        exclusion — RP-011/RF-07 WD-2/STR-3: a DEAD watchdog's phase is reapable
+        via ``phase_watchdog_dead`` / ``phase_dispatch_pending_since``).
+
+    STR-4: a run that never observed an active lifecycle at all cannot be
+    evaluated by the ended-looking checks below (they all assume a real run
+    happened) — it is reapable once ``dispatched_seconds_ago`` clears
+    ``NEVER_STARTED_SECONDS``, independent of vacuum_state/docked signals.
 
     Requires vacuum docked/idle — a still-``returning`` run is not yet over, and an
     error state is left alone (it may recover; reaping a maybe-recovering run is
@@ -355,8 +404,17 @@ def is_stranded_started(
     if str(status or "").strip().lower() != "started":
         return False
     if not has_observed_active_lifecycle:
+        return (
+            dispatched_seconds_ago is not None
+            and dispatched_seconds_ago >= NEVER_STARTED_SECONDS
+        )
+    if phase_dispatch_pending and _phase_pending_still_live(
+        phase_watchdog_dead=phase_watchdog_dead,
+        phase_dispatch_pending_since=phase_dispatch_pending_since,
+        liveness_margin_seconds=phase_watchdog_liveness_margin_seconds,
+    ):
         return False
-    if phase_dispatch_pending or job_active_on or is_mid_run_status:
+    if job_active_on or is_mid_run_status:
         return False
     if str(vacuum_state or "").strip().lower() not in ("docked", "idle"):
         return False

@@ -43,6 +43,13 @@ Coverage targets
 [JM-39] is_stranded_started: mid-run dock (mop-wash/recharge status) → NOT stranded.
 [JM-40] is_stranded_started: job_active binary ON (Roborock recharge) → NOT stranded.
 [JM-41] is_stranded_started: sequenced phase mid-dispatch (_phase_dispatch_pending) → NOT stranded.
+[JM-42] is_stranded_started (RP-011/RF-07 WD-2/STR-3): pending + a DEAD watchdog → stranded.
+[JM-43] is_stranded_started: pending + a live-by-age pending_since (within margin) → NOT stranded.
+[JM-44] is_stranded_started: pending + a stale-by-age pending_since (past margin) → stranded.
+[JM-45] is_stranded_started (STR-4): never observed, dispatched long enough ago → stranded.
+[JM-46] is_stranded_started: never observed, dispatched recently → NOT stranded.
+[JM-47] is_stranded_started: never observed with no dispatch-age info at all → NOT stranded
+        (a caller that hasn't been updated to supply it keeps the old behaviour).
 """
 
 from __future__ import annotations
@@ -415,3 +422,61 @@ def test_not_stranded_when_job_active_on():
 def test_not_stranded_when_phase_pending():
     """[JM-41] a sequenced phase mid-dispatch sits docked/charging between rooms."""
     assert is_stranded_started(**_stranded_kwargs(phase_dispatch_pending=True)) is False
+
+
+# ---------------------------------------------------------------------------
+# is_stranded_started — RP-011/RF-07: liveness-aware pending + never-started
+# ---------------------------------------------------------------------------
+
+def test_stranded_when_pending_but_watchdog_dead():
+    """[JM-42] WD-2/STR-3: a DEAD watchdog no longer makes pending an exclusion --
+    the whole point of the liveness marking is to make this slot reapable."""
+    assert is_stranded_started(**_stranded_kwargs(
+        phase_dispatch_pending=True, phase_watchdog_dead=True,
+    )) is True
+
+
+def test_not_stranded_when_pending_since_within_margin():
+    """[JM-43] a pending guard stamped recently (within the resolved liveness
+    margin) is presumed to still have a live watchdog."""
+    from custom_components.eufy_vacuum.timestamp_utils import utc_now_iso
+    assert is_stranded_started(**_stranded_kwargs(
+        phase_dispatch_pending=True,
+        phase_dispatch_pending_since=utc_now_iso(),
+        phase_watchdog_liveness_margin_seconds=300,
+    )) is False
+
+
+def test_stranded_when_pending_since_past_margin():
+    """[JM-44] a pending guard stamped long before the liveness margin has no
+    live watchdog left to credit -- reapable."""
+    assert is_stranded_started(**_stranded_kwargs(
+        phase_dispatch_pending=True,
+        phase_dispatch_pending_since="2020-01-01T00:00:00+00:00",
+        phase_watchdog_liveness_margin_seconds=300,
+    )) is True
+
+
+def test_stranded_when_never_started_and_dispatched_long_ago():
+    """[JM-45] STR-4: a run dispatched 10+ minutes ago that never observed an
+    active lifecycle can never be reaped by the ended-looking checks (it never
+    ran) -- it is reapable purely on dispatch age."""
+    assert is_stranded_started(**_stranded_kwargs(
+        has_observed_active_lifecycle=False, dispatched_seconds_ago=601,
+    )) is True
+
+
+def test_not_stranded_when_never_started_but_recently_dispatched():
+    """[JM-46] "still settling" is credible for the first few minutes."""
+    assert is_stranded_started(**_stranded_kwargs(
+        has_observed_active_lifecycle=False, dispatched_seconds_ago=30,
+    )) is False
+
+
+def test_not_stranded_when_never_started_and_no_dispatch_age_known():
+    """[JM-47] a caller with no dispatch-age info at all (not yet passing
+    dispatched_seconds_ago) gets the pre-repair conservative behaviour: never
+    reaped purely for lacking has_observed_active_lifecycle."""
+    assert is_stranded_started(**_stranded_kwargs(
+        has_observed_active_lifecycle=False,
+    )) is False

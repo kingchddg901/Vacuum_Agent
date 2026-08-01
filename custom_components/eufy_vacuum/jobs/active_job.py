@@ -2411,6 +2411,40 @@ class ActiveJobTracker:
         mid_run_set = frozenset(str(s).strip().lower() for s in (mid_run or []))
         task_status_n = str(signals.get("task_status", "")).strip().lower()
 
+        # RP-011/RF-07 (STR-1): dock_status is already fetched into `signals` above
+        # but was never consulted here — a dock service cycle (mop wash / waste
+        # water recycling) reads docked+task-status-not-yet-completed exactly like
+        # a genuine strand, so without this a mid-service dock could be reaped as
+        # "interrupted" while the robot is about to resume.
+        blocked_dock_states = get_adapter_vocab(
+            vacuum_entity_id, "vocabulary", "blocked_dock_status_states", frozenset(),
+        )
+        dock_status_n = str(signals.get("dock_status", "")).strip().lower()
+        is_dock_mid_run = dock_status_n in blocked_dock_states
+
+        now = now or _iso_now()
+
+        # RP-011/RF-07 (WD-2/STR-3): a pending dock-phase guard is only a live
+        # exclusion while the watchdog could still be running -- resolve the
+        # margin from the SAME phase timing the watchdog itself uses (max
+        # attempts * verify seconds + a 60s margin), so the reaper's notion of
+        # "still live" tracks the watchdog's own retry budget.
+        _pt = self._manager._phase_timing(vacuum_entity_id)
+        liveness_margin_seconds = (
+            _safe_int(_pt.get("max_attempts"), 1) * _safe_int(_pt.get("verify_seconds"), 0) + 60
+        )
+
+        # STR-4: age since dispatch, from started_at (armed at job creation and
+        # unchanged by pause/resume) -- independent of has_observed_active_lifecycle,
+        # which is exactly what a never-started run never sets.
+        dispatched_seconds_ago: float | None = None
+        _started_at = str(active_job.get("started_at", "")).strip()
+        if _started_at:
+            _started_dt = self._parse_job_timestamp(_started_at)
+            _now_dt = self._parse_job_timestamp(now)
+            if _started_dt is not None and _now_dt is not None:
+                dispatched_seconds_ago = max((_now_dt - _started_dt).total_seconds(), 0.0)
+
         stranded = is_stranded_started(
             status="started",
             has_observed_active_lifecycle=bool(active_job.get("has_observed_active_lifecycle")),
@@ -2423,14 +2457,17 @@ class ActiveJobTracker:
                 vacuum_entity_id, signals, clear_sentinels
             ),
             job_active_on=is_job_active(hass, vacuum_entity_id, unavailable_is_active=True),
-            is_mid_run_status=task_status_n in mid_run_set,
+            is_mid_run_status=task_status_n in mid_run_set or is_dock_mid_run,
             phase_dispatch_pending=bool(active_job.get("_phase_dispatch_pending")),
+            phase_watchdog_dead=bool(active_job.get("_phase_watchdog_dead")),
+            phase_dispatch_pending_since=active_job.get("_phase_dispatch_pending_since"),
+            phase_watchdog_liveness_margin_seconds=liveness_margin_seconds,
+            dispatched_seconds_ago=dispatched_seconds_ago,
         )
         if not stranded:
             self._clear_stranded_stamp(vacuum_entity_id, map_id, active_job)
             return None
 
-        now = now or _iso_now()
         stranded_since = str(active_job.get("stranded_since", "")).strip()
         if not stranded_since:
             # First tick the strand held — stamp and wait out the grace.
@@ -2477,18 +2514,30 @@ class ActiveJobTracker:
                 "finalized": False,
                 "reason": "not_started",
             }
-        finalize_result = await self._manager.finalize_learning_for_active_job(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-            ended_at=ended_at or active_job.get("stranded_since") or None,
-            rebuild_stats=True,
-            rebuild_csv=False,
-            forced_outcome_status="interrupted",
-            forced_lifecycle_state="stranded_no_completion",
-            forced_lifecycle_message=(
-                "Run ended without a completion signal and was auto-finalized as interrupted."
-            ),
-        )
+        # RP-011/RF-07 (STR-2): mirrors async_cancel_active_job's own finalize
+        # wrap verbatim in style — a raising finalize must not kill the whole
+        # reaper tick. The branches below already treat a None/non-success
+        # result as "did not complete, stay reapable", so catching here is
+        # enough; no further recovery is needed.
+        finalize_result = None
+        try:
+            finalize_result = await self._manager.finalize_learning_for_active_job(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                ended_at=ended_at or active_job.get("stranded_since") or None,
+                rebuild_stats=True,
+                rebuild_csv=False,
+                forced_outcome_status="interrupted",
+                forced_lifecycle_state="stranded_no_completion",
+                forced_lifecycle_message=(
+                    "Run ended without a completion signal and was auto-finalized as interrupted."
+                ),
+            )
+        except Exception:  # noqa: BLE001 - the branches below are the recovery
+            _LOGGER.exception(
+                "async_finalize_stranded_job: finalize failed for %s map %s",
+                vacuum_entity_id, map_id,
+            )
 
         # RP-002/RF-01 (REVIEW D1): a refusal must not be treated as a completed
         # finalize -- without this branch the reaper re-reaps and re-refuses the
