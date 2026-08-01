@@ -43,13 +43,13 @@ landed in between.
 
 ## Completed
 
-**50 changes shipped**, all with tests, all deployed.
+**95 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
 | Audits fully applied | #1 lifecycle · #2 learning · #3 external ingestion · #4 adapters · #5 error tracker |
 | Partly applied | #6 card (root cause + top of the repair order) |
-| Not yet applied | #7 onward — see [Open](#open) |
+| #7 onward | **105** of 484 findings applied via 12 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012); rest open — see [Open](#open) |
 
 ### The recurring root cause
 
@@ -114,14 +114,59 @@ comments rather than by a shared helper.
 | `00a3dcb` | audit: Roborock hardware baseline + double-finalize observed on hardware |
 | `91a777a` | audit: refute my own OBS-IVY-1 mechanism, narrow the question |
 | `5be0931` | audit: OBS-IVY-1 CONFIRMED CRITICAL - exactly-once claim has a real race |
+| `c61b3eb` | audit: land HW-FINAL-1 in the corpus as a first-class CRITICAL |
+| `569d788` | audit: materialize the 5 tranche-1 reproducers - Sonnet precondition met |
+| `3ddcc1c` | RP-001: write the finalize permanent gate inside the claimed window |
+| `ca6dc75` | RP-002 (1/3): finalize_result_succeeded helper + lifecycle consumer |
+| `c2569bf` | RP-002 (2/3): finalize_learning_job service raises on refusal |
+| `3875f62` | RP-002 (3/3): stranded-job finalize branches on the refusal reason |
+| `76d92fc` | RP-003: manager shutdown seam + unload ledger (INIT-1) |
+| `27824be` | RP-004: flight recorder redacts + caps tracebacks (DR-DBG-1) |
+| `6989031` | RP-005 (card half): setup editor refuses an empty room selection |
+| `4217c3c` | RP-005: room-store wipe guard at the room_crud chokepoints |
+| `e598e3e` | RP-006 (1/3): read tri-state + learning-store RMW refusals |
+| `b0967eb` | RP-006 (2/3): cache write-back refusals (preload + room source) |
+| `e35b961` | RP-006 (3/3): map-analysis store gates on available + regression tests |
+| `4c42482` | RP-007 (1/3): room-source refresh — distinguishable exits, freshness, coalescing |
+| `4bdd3f8` | RP-007 (2/3): dispatch refuses stale segment ids (DQ-ACT-1, DQ-DE-1) |
+| `8d244dc` | RP-008: blocker rules — unavailable is indeterminate; edges dedup |
+| `6ab1b20` | RP-009: entity ownership without prefix matching (DR-SETUP-1, EP-2) |
+| `0ee7e07` | audit: freeze wave-1 reproducer evidence (_proof_wipe_guard + extended _proof_setup) |
+| `2c00da8` | audit: HC-0..HC-2 hardware checkpoints SATISFIED (tranche 1 validated on hardware) |
+| `1b32515` | docs(readme): HACS Default badges + accurate MIT statement |
+| `e967450` | audit: tranche-2 proof harness + wave-2 reproducers RP-010/011/012 |
+| `032d210` | audit: wave-2 reproducers RP-013a + RP-013c; MATERIALIZATION-02 |
+| `3e9e969` | RP-010 (1/3): dispatch chokepoint re-check + advance-gate suppression |
+| `de835ef` | RP-010 (2/3): cancel single-flight latch + lifecycle gate suppression |
+| `d3e6139` | RP-010 (3/3): start_zone_clean refuses on an in-flight job (JOB-2) |
+| `365f90b` | RP-011 (1/3): watchdog crash/exhaustion liveness marking |
+| `4cdcf51` | RP-011 (2/3): reaper consumes watchdog liveness; per-slot isolation |
+| `7f6b969` | RP-011 (3/3): room/zone phase re-arm; timing clamps; WD-3 has_native fix |
+| `7269020` | RP-012(a): tracker release + flush on finalize (TRK-1/TRK-3/TRK-4) |
+| `47f9a25` | RP-012(b): recharge-end resolved on a later listener tick (A4-AJ-1/TRK-2) |
+| `a02fd19` | RP-012(c): pose sampler per-vacuum cadence + isolation (POSE-1/2/5, DQ-PH-6) |
+| `532a774` | audit: RP-012 proof catches a regression in its own repair; stepped run HELD |
+| `4450181` | audit: wave-2 reproducer RP-013b (allocated group timing) |
+| `6598b0c` | RP-012(d): port the commanded-dock guard to resolve_mid_job_recharge_resumed |
+| `8009189` | audit: wave 2 reproducers COMPLETE — RP-013e, RP-014, RP-013d extension |
+| `623372a` | audit: RF-36 battery/charge packets + the coverage gap they expose |
+| `ea3d157` | audit: stepped Run A captured — RP-013a/013e confirmed, RP-013d packet is wrong |
+| `685a9d3` | audit: RP-013d corrected + RP-013f authored, both from stepped Run A |
+| `2712e75` | audit: hostile review of the 9 wave-2 proofs — 1 critical, 4 fixed |
+| `7346e84` | audit: coverage check — mapping/ IS covered; battery/+sensor/ are the real gaps |
+| `0664eba` | audit: correct the battery coverage claim — it was REVIEWED, and cleared |
+| `7d62c32` | audit: resolve SYNTH-11 collision — battery packets become SYNTH-12 |
+| `457331a` | audit: materialization handoff for the executing window (waves 3-7) |
+| `47a664f` | audit: staged Sonnet prompts to close out the campaign |
+| `56901ad` | audit: make S0 executable — verified packet map + four traps pre-cleared |
 
 ---
 
 ## Open
 
-**484 findings** — 422 across 12 audits plus 62 from direct reads. None applied. 29 clusters + 409 singles.
+**379 findings** — 338 across 12 audits plus 41 from direct reads. **105 more applied** via 12 landed packets (see [Applied](#applied)). 19 open clusters (10 fully applied) + 338 singles.
 
-CRITICAL 18 · HIGH 88 · MEDIUM 173 · LOW 205
+CRITICAL 7 · HIGH 57 · MEDIUM 141 · LOW 174
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -129,24 +174,24 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Clusters — several findings, one fix each. Start here.
 
-#### C1. Live-id resolution falls back to STALE stored ids — **verified by hand**
+#### C1. Live-id resolution falls back to STALE stored ids — **verified by hand** — **2/2 applied**
 
 - **Seam:** `dispatch/manager.py:317`
-- **Closes:** DQ-DE-1, DQ-ACT-1
+- **Closes:** ~~DQ-DE-1~~ ✅ RP-007 (`4c42482`), ~~DQ-ACT-1~~ ✅ RP-007 (`4c42482`)
 - **Defect:** A single-target strict-order phase makes `dropped` non-empty EQUIVALENT to new_segments==[], so the 'live source unavailable' fallback fires for a target that was resolved and REJECTED. The robot cleans a different physical room, and the watchdog re-dispatches the same stale id up to 3x.
 - **Fix:** Distinguish 'live source unavailable' (keep stored ids) from 'targets resolved and rejected' (skip or abort). Also correct phase_runner.py:1029, whose comment describes behaviour the code does not have.
 
-#### C2. Cancel is lost across the dispatch chain's awaits
+#### C2. Cancel is lost across the dispatch chain's awaits — **2/2 applied**
 
 - **Seam:** `jobs/phase_runner.py:553`
-- **Closes:** A1-WD-1, A2-CAN-1
+- **Closes:** ~~A1-WD-1~~ ✅ RP-010 (`3e9e969`), ~~A2-CAN-1~~ ✅ RP-010 (`3e9e969`)
 - **Defect:** _cancel_in_flight is read ONCE per attempt, then four sequential awaits follow (global pre-calls, per-room live settings, live map refresh, dispatch) with no re-read. The user cancels, the robot returns to base, then drives back out and cleans the phase's room.
 - **Fix:** Re-read the job (or re-check the cancel flag) between each await inside _dispatch_active_phase.
 
-#### C3. _phase_dispatch_pending left set makes a run un-reapable forever
+#### C3. _phase_dispatch_pending left set makes a run un-reapable forever — **4/4 applied**
 
 - **Seam:** `jobs/phase_runner.py:530`
-- **Closes:** A1-WD-2, A5-STR-3, A2-CAN-3, A4-AJ-3
+- **Closes:** ~~A1-WD-2~~ ✅ RP-011 (`365f90b`), ~~A5-STR-3~~ ✅ RP-011 (`365f90b`), ~~A2-CAN-3~~ ✅ RP-010 (`3e9e969`), ~~A4-AJ-3~~ ✅ RP-010 (`3e9e969`)
 - **Defect:** There is no try/except anywhere in _run_advanced_phase or _dispatch_active_phase. Any raise leaves the guard set, and is_stranded_started returns False while it is set, so the reaper is DISABLED. The job sits status='started' permanently and blocks every future start.
 - **Fix:** try/finally so the guard always clears, plus a bounded age after which the reaper stops honouring it.
 
@@ -185,17 +230,17 @@ The same audits recorded **673 areas examined and found correct**.
 - **Defect:** compute_reconciliation/plan_migration exist and work, but nothing triggers them: no schedule, no event hook, no UI entry point. This is the ROOT of audit #7's CRITICAL (DQ-DE-1): stored ids and live ids diverge because nothing ever checks that they agree.
 - **Fix:** Decide the trigger -- on map-source refresh, on job start, or a periodic check -- and surface the result. The machinery is already built.
 
-#### C9. Destructive room writes with no confirmation or preservation
+#### C9. Destructive room writes with no confirmation or preservation — **1/2 applied**
 
 - **Seam:** `rooms/room_crud.py`
-- **Closes:** A3-CRUD-1, A3-CRUD-4
+- **Closes:** ~~A3-CRUD-1~~ ✅ RP-005 (`4217c3c`), A3-CRUD-4
 - **Defect:** save_managed_rooms unconditionally replaces map_bucket['rooms'], so an empty selection wipes the map's stored rooms. remove_map leaves the map's saved run-profile library, queue state and onboarding orphaned rather than removing or migrating them.
 - **Fix:** Guard the wholesale replace against an empty/degenerate discovery, and make remove_map account for every structure keyed on that map_id.
 
-#### C10. async_refresh_room_source returns None on success AND on every failure path
+#### C10. async_refresh_room_source returns None on success AND on every failure path — **1/1 applied**
 
 - **Seam:** `rooms/source_refresh.py`
-- **Closes:** A4-SRC-1
+- **Closes:** ~~A4-SRC-1~~ ✅ RP-007 (`4c42482`)
 - **Defect:** Callers cannot distinguish 'refreshed successfully' from 'refresh failed, you are looking at stale cache'. dispatch/manager.py calls this immediately before resolving live segment ids, so a silent failure means stale ids go to the wire -- the same wrong-room outcome as C1, by a different route.
 - **Fix:** Return a discriminable result and have dispatch refuse (or warn loudly) when the refresh did not actually succeed.
 
@@ -220,17 +265,17 @@ The same audits recorded **673 areas examined and found correct**.
 - **Defect:** The last-known-good hold re-serves a frozen current_room/robot_anchor as present:True and sets stale/stale_since/stale_reason -- which have NO consumer anywhere. A docked Roborock therefore reports a phantom room for up to 6 hours, and nothing downstream can tell the difference.
 - **Fix:** Either consume the stale flag at every presentation surface, or stop serving a frozen pose as present.
 
-#### C14. The tracker's end_job runs only on a SUCCESSFUL finalize
+#### C14. The tracker's end_job runs only on a SUCCESSFUL finalize — **2/2 applied**
 
 - **Seam:** `mapping/tracker.py`
-- **Closes:** A6-TRK-1, A6-TRK-4
+- **Closes:** ~~A6-TRK-1~~ ✅ RP-012 (`7269020`), ~~A6-TRK-4~~ ✅ RP-012 (`7269020`)
 - **Defect:** end_job has exactly one caller, so every cancel, abort and stranded-reap leaves tracker state live into the next run. The last room of every job also never fires room_completed, because end_job resets the state that would emit it.
 - **Fix:** Call end_job from every terminal path, and flush the final room before the reset.
 
-#### C15. `unavailable` satisfies every negating rule operator — a sensor dropout aborts a live run — **verified by hand**
+#### C15. `unavailable` satisfies every negating rule operator — a sensor dropout aborts a live run — **verified by hand** — **1/1 applied**
 
 - **Seam:** `rooms/access_graph.py:907 (_room_rule_matches)`
-- **Closes:** A6-GUARD-1
+- **Closes:** ~~A6-GUARD-1~~ ✅ RP-008 (`8d244dc`)
 - **Defect:** VERIFIED: an unavailable entity still yields a State object, so state_value == 'unavailable' and there is NO availability check anywhere in the matcher. `not_equals` and `not_in` both return True; `missing` returns True the moment the entity is dropped. The rule matches, the room enters direct_blocked, and path_blockers applies path_block_action -- `cancel_and_event` calls async_cancel_active_job, which issues vacuum.return_to_base and finalizes the run as cancelled. `pause_and_event` ends the same way once pause_timeout reaps it. A battery-powered contact sensor dropping off a Zigbee mesh for one poll physically aborts a clean in progress, and the user sees a path-blocked event naming a door that never opened.
 - **Fix:** Treat unavailable/unknown as 'no answer' rather than as a value: skip the rule (or hold the previous verdict) instead of letting a negating operator match. Decide the same question once for `missing` vs `unavailable` -- they are different facts.
 
@@ -241,45 +286,45 @@ The same audits recorded **673 areas examined and found correct**.
 - **Defect:** The only dedupe is new_val == old_val, with old_val = '' when old_state is None. So an entity first appearing (HA restart mid-cycle), unknown->drying, and unavailable->washing all read as a new cycle. record_dock_event overwrites the last-* timestamp BEFORE the debounce check, and the Eufy adapter declares debounce_seconds for last_mop_wash ONLY -- so dry-start and dust-empty have no suppression at all. An X10 dry cycle runs 2-4 hours, so the window is large and daily. The sibling listener discovery.py:127 DOES filter exactly this class; dock_events is the one of eight that writes durable counters from a raw state arrival and has no such filter.
 - **Fix:** Require the previous value to be a real non-trigger dock state before recording a cycle. Move the timestamp write inside the debounce guard.
 
-#### C17. Reactive listeners spawn unbounded concurrent work with no in-flight guard
+#### C17. Reactive listeners spawn unbounded concurrent work with no in-flight guard — **3/4 applied**
 
 - **Seam:** `listeners/path_blockers.py + pause_timeout.py + lifecycle.py + pose_sampler.py`
-- **Closes:** A6-GUARD-2, A6-GUARD-4, A2-LIFE-2, A4-POSE-2
+- **Closes:** A6-GUARD-2, ~~A6-GUARD-4~~ ✅ RP-011 (`365f90b`), ~~A2-LIFE-2~~ ✅ RP-003 (`76d92fc`), ~~A4-POSE-2~~ ✅ RP-012 (`7269020`)
 - **Defect:** path_blockers spawns a _process task per event with no coalescing, so a bouncing sensor stacks them; the 1-minute reap ticker has no in-flight guard while each reap blocks; the pose timer is fire-and-forget so a slow tick overlaps the next; and _process tasks are untracked, so remove() drops the subscription but not the work already in flight.
 - **Fix:** One in-flight guard / coalescing pattern, applied to all four. This is the same question four times.
 
-#### C18. The listener layer is a THIRD answer to 'is a job active'
+#### C18. The listener layer is a THIRD answer to 'is a job active' — **1/3 applied**
 
 - **Seam:** `listeners/_common.py:110 (is_job_active)`
-- **Closes:** A3-COMMON-1, A3-COMMON-6, A5-METRICS-1
+- **Closes:** ~~A3-COMMON-1~~ ✅ RP-008 (`8d244dc`), A3-COMMON-6, A5-METRICS-1
 - **Defect:** jobs/active_job.py owns two deliberate predicates (dispatched_job_is_in_flight, run_is_in_flight). The listener layer uses NEITHER -- _common.is_job_active is an independent third implementation, and job_progress gates on a hand-copied {'started','paused'} literal that is a fourth. On Roborock, is_job_active treats a not-yet-added job_active entity as 'not active'. Fifth instance of the campaign's forgotten-override-sibling pattern, and the first where the divergence is a whole LAYER.
 - **Fix:** Route the listener layer at the canonical predicates, or state explicitly why the input layer needs a different question and derive it from the same constant.
 
-#### C19. A public service call wipes a map's entire room configuration, silently — **verified by hand**
+#### C19. A public service call wipes a map's entire room configuration, silently — **verified by hand** — **5/5 applied**
 
 - **Seam:** `rooms/room_crud.py:261 (map_bucket['rooms'] = managed_rooms)`
-- **Closes:** A3-ROOMS-1, A3-ROOMS-2, A4-SETUP-1, A5-FACADE-1, A5-FACADE-3
+- **Closes:** ~~A3-ROOMS-1~~ ✅ RP-005 (`4217c3c`), ~~A3-ROOMS-2~~ ✅ RP-005 (`4217c3c`), ~~A4-SETUP-1~~ ✅ RP-005 (`4217c3c`), ~~A5-FACADE-1~~ ✅ RP-005 (`4217c3c`), ~~A5-FACADE-3~~ ✅ RP-005 (`4217c3c`)
 - **Defect:** VERIFIED BY EXECUTION. Three routes to one unconditional replace. (1) save_managed_rooms against a map with no cached discovery: discovery.get('rooms',[]) is [], build_managed_rooms returns {}, and line 261 replaces wholesale. (2) `enabled_room_ids:` with a blank YAML value -- cv.ensure_list(None) returns [] (confirmed against installed HA core), so the schema turns null into [], which passes the manager's `is not None` check while _normalize_enabled_room_ids([]) yields an empty set, so every room hits `continue`. The None-vs-empty distinction the manager deliberately relies on is destroyed one layer up, at the schema boundary. (3) setup_save_rooms rebuilds from the stale/absent discovery cache and returns {'status':'success'}. Every per-room setting, rule, grant, colour and floor type is gone; none of the three services declares supports_response, so the caller gets no error and no room_count. Documented behaviour is the OPPOSITE: docs/advanced/03-services.md:255 says 'Omit to keep all rooms enabled'. AUDIT #14 CONFIRMS THE LAYER: the same unguarded total-wipe is reachable at the FACADE (A5-FACADE-1) and rebuild_map has it too (A5-FACADE-3) -- so the facade, not the service, is where the precondition belongs.
 - **Fix:** Guard the wholesale replace: refuse to persist an empty room set when the previous bucket was non-empty and discovery is empty. Separately, stop the schema collapsing null into [] -- an explicit null must either be rejected or preserved as None. Give these three services a response so a caller can tell.
 
-#### C20. A config-entry reload leaves the OLD manager alive; its orphaned timer then overwrites the store — **verified by hand**
+#### C20. A config-entry reload leaves the OLD manager alive; its orphaned timer then overwrites the store — **verified by hand** — **1/1 applied**
 
 - **Seam:** `core/manager.py:473 + __init__.py:465 (async_unload_entry)`
-- **Closes:** A1-INIT-1
+- **Closes:** ~~A1-INIT-1~~ ✅ RP-003 (`76d92fc`)
 - **Defect:** VERIFIED. async_initialize spawns loop-lifetime work -- the dock re-arm poller (hass.async_create_task) and external-run grace timers (async_call_later, 300s x up to 8 re-arms = ~45 min). There is NO manager teardown anywhere: grep for async_shutdown / def shutdown / EVENT_HOMEASSISTANT_STOP across manager.py, phase_runner.py and external_run.py returns nothing, and nothing is registered with entry.async_on_unload. async_unload_entry removes listeners/services/panels and pops DATA_RUNTIME but cancels none of it. A reload then builds a SECOND manager over the same STORAGE_KEY, while the orphaned callbacks still hold self._manager = the OLD one and end in external_run.py:213 async_save() / phase_runner.py:856 _async_save_logged() -- and async_save is a bare whole-root-dict write. So the pre-reload snapshot replaces everything persisted since. The orphaned dock poller can also still call maybe_advance_phase, so a dead manager and a live one can both dispatch to the same physical robot; _dock_poller_active is per-instance and cannot dedupe across two.
 - **Fix:** Give the manager a teardown that cancels its spawned tasks and timers, and register it with entry.async_on_unload. Consider guarding async_save against a manager whose entry has been unloaded.
 
-#### C21. Panels registered outside async_setup_entry are never tracked, so unload cannot remove them — **verified by hand**
+#### C21. Panels registered outside async_setup_entry are never tracked, so unload cannot remove them — **verified by hand** — **3/3 applied**
 
 - **Seam:** `__init__.py:420 + setup/workflow.py:106`
-- **Closes:** A1-UP-1, A2-DOWN-1, A4-RELOAD-1
+- **Closes:** ~~A1-UP-1~~ ✅ RP-003 (`76d92fc`), ~~A2-DOWN-1~~ ✅ RP-003 (`76d92fc`), ~~A4-RELOAD-1~~ ✅ RP-003 (`76d92fc`)
 - **Defect:** VERIFIED. Only __init__.py ever writes `_panels_<entry_id>`, and it appends only what its OWN loop registered. setup/workflow.py:106 (add_vacuum, reached from the panel's own onboarding flow) registers a per-vacuum panel and tracks nothing. panels.py swallows HA's duplicate-url ValueError at DEBUG and returns None, which `if panel_url:` then drops -- so on the next setup the panel is not re-tracked either. services/setup.py:161 schedules a reload immediately after add_vacuum, so the interleaving is automatic. Steady state from a BLANK install: two sidebar entries, one rendering the 'no vacuum configured' placeholder, self-perpetuating across reloads until a full HA restart clears hass.data[DATA_PANELS]. Found independently by THREE of four agents. The reproducer corrected an over-stated sub-claim: it does NOT affect 'every second and later vacuum unconditionally' -- it needs the blank-install path.
 - **Fix:** Track every panel registration in the `_panels_` list regardless of where it happens, or give panels.py a register-and-track helper that is the only entry point.
 
-#### C22. Setup starts several things unload never stops — the systemic version of C20
+#### C22. Setup starts several things unload never stops — the systemic version of C20 — **6/6 applied**
 
 - **Seam:** `__init__.py async_setup_entry vs async_unload_entry`
-- **Closes:** A1-UP-3, A2-DOWN-2, A2-DOWN-3, A4-RELOAD-2, A4-RELOAD-3, A4-RELOAD-4
+- **Closes:** ~~A1-UP-3~~ ✅ RP-003 (`76d92fc`), ~~A2-DOWN-2~~ ✅ RP-003 (`76d92fc`), ~~A2-DOWN-3~~ ✅ RP-003 (`76d92fc`), ~~A4-RELOAD-2~~ ✅ RP-003 (`76d92fc`), ~~A4-RELOAD-3~~ ✅ RP-003 (`76d92fc`), ~~A4-RELOAD-4~~ ✅ RP-003 (`76d92fc`)
 - **Defect:** This audit's assignment was to build the table -- everything setup starts, checked against what unload stops. C20 (the manager's spawned tasks/timers) was one known row; these are the others: async_unregister_learning_services removes 16 of the 21 services setup registers, so FIVE learning services survive an unload; the post-job water-amendment state listener and its 180s timer are never cancelled; the debug-capture auto-stop timer survives; and two hass.data[DOMAIN] keys are left behind. Individually LOW/MEDIUM; together they are the same shape as C20 and should be fixed as one pass over the setup/unload pair.
 - **Fix:** Make unload the exact inverse of setup: register every unsub/timer/key with entry.async_on_unload at the point of creation, so the two cannot drift.
 
@@ -304,10 +349,10 @@ The same audits recorded **673 areas examined and found correct**.
 - **Defect:** The final room of EVERY non-completed run is recorded as missed; clear_incomplete_run's docstring claims '(full clean)' but ANY completion clears it; missed_room_ids survive a re-segment and a map switch, so they can name rooms that no longer exist or now mean something else; and a skipped room holds 'current' for the rest of the run so it can never be resolved.
 - **Fix:** One pass over the incomplete-run lifecycle: who writes it, what clears it, and whether its room ids are still valid at read time.
 
-#### C26. Learning services destroy or misreport, and say success either way
+#### C26. Learning services destroy or misreport, and say success either way — **2/4 applied**
 
 - **Seam:** `learning/services.py`
-- **Closes:** A5-SVC-1, A5-SVC-2, A5-SVC-3, A5-SVC-6
+- **Closes:** A5-SVC-1, ~~A5-SVC-2~~ ✅ RP-001 (`3ddcc1c`), A5-SVC-3, ~~A5-SVC-6~~ ✅ RP-006 (`e598e3e`)
 - **Defect:** The 22 registrations here were NOT covered by audit #13's services sweep, and they have the same shape: exclude/restore_learning_job report 'stats rebuilt' without rebuilding; finalize_learning_job fires the job-finished event with a FABRICATED payload; retry_missed_rooms permanently destroys the map's room-enable selection; rebuild_learning_stats blanks accuracy_stats before replaying, so a failure partway leaves it empty.
 - **Fix:** Same treatment as C19/C26's siblings: make the destructive ones confirm or be reversible, and make every response honest about what actually happened.
 
@@ -334,13 +379,8 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Singles
 
-<details><summary><strong>CRITICAL</strong> (3)</summary>
+<details><summary><strong>CRITICAL</strong> (2)</summary>
 
-- **HW-FINAL-1** `learning/manager.py:737` · both  
-  The exactly-once finalize claim releases BEFORE the permanent gate is written, and an await sits in the gap - the finalize body runs twice  
-  PROVEN ON HARDWARE AND BY SOURCE TRACE, 2026-07-31. REOPENS THE CAMPAIGN CRIT DECLARED FULLY CLOSED AT 71e089c.
-
-HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the finalize body ran TWICE for each
 - **A3-EXT-2** `mapping/map_source_runtime.py:966` · eufy  
   Content version hashes ONLY the room raster, but the cache it gates holds the grid geometry the fork mutates independently  
   During and after any run in which the map grows, or across any session where Eufy re-localizes its coordinate origin (a documented behaviour of this device), the robot dot lands metres from where the robot is, the room b
@@ -350,71 +390,29 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 
 </details>
 
-<details><summary><strong>HIGH</strong> (60)</summary>
+<details><summary><strong>HIGH</strong> (38)</summary>
 
-- **A5-FACADE-2** `core/manager.py:1426` · both  
-  discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
-  On its own the user sees a discover_rooms call that reports 0 rooms and silently forgets the last known good room list. Combined with FACADE-1 it is the loaded gun: after one blip-time discovery, the next Save in the Set
 - **A4-START-1** `core/manager.py:2863` · both  
   get_start_status validates PHASE 0's room count as if it were the whole job — a stepped run whose first phase is a zone is refused with a false "invalid payload" error  
   A run profile like "clean the entryway zone, then the kitchen", or any rooms+zone queue whose first room happens to be blocked by a room rule that moment, refuses to start and reports "Room-clean payload is missing or in
-- **DR-DBG-1** `debug_capture.py:173` · n/a (drop-in helper) · `direct read`  
-  exc_info tracebacks are stored UNREDACTED and UNTRUNCATED — both published claims hold only for the message field  
-  PROVEN by execution, not read. The forum post states 'Secrets (token/password/api_key/bearer) are masked before a record is stored' and 'Capping each message (I use ~2 kB, eliding the rest) is what actually killed the mu
 - **DQ-ZONE-1** `dispatch/manager.py:234` · eufy  
   Zone-clean pass count is never clamped on the Eufy branch — the clamp lives inside the device_mm branch Eufy never enters  
   An automation / YAML / script call `eufy_vacuum.start_zone_clean` (or `clean_saved_zone`/`clean_saved_zones`) with clean_times above the device ceiling reaches the robot unmodified: the value lands in the SelectZonesClea
-- **DQ-ACT-5** `dispatch/manager.py:442` · roborock  
-  The mixed-batch water SAFETY pre-call is best-effort — if it fails the clean still dispatches and the robot wet-mops the vacuum-only rooms  
-  The robot wet-mops a room the user explicitly configured vacuum-only — on hardwood, rugs, or carpet. The user is shown a normal successful start; the only trace is a stack trace in the HA log. The failure mode is silent
 - **A6-VAC-1** `dock/manager.py:154` · eufy  
   Dock-action gate is blind to app-started (external) runs — every dock action reports "Ready" and fires while the robot is mid-run at the dock  
   The user starts a clean from the Eufy app. The robot returns to the dock to recharge ("Charging (Resume)") or wash the pad mid-run. The card's Base Station tab shows Wash Mop / Dry Mop / Empty Dust as Ready. Tapping Dry
-- **A4-AJ-1** `jobs/active_job.py:472` · both  
-  Mid-job recharge NEVER ends: the recharge-end branch is unreachable dead code, so recharge_seconds_accumulated is always 0 and every recharging run is silently held from learning  
-  Any run where the robot returns to dock to recharge mid-job (the common case for large multi-room Eufy jobs) is silently excluded from learning with an `extreme_idle_wall` blocker, and its stored duration is inflated by
 - **A2-CAN-2** `jobs/active_job.py:2255` · both  
   Cancelling a sequenced run reports the WRONG missed rooms — per-phase reset of queue_room_ids/completed_room_ids feeds the incomplete-run log and trouble-rooms counters  
   After cancelling a stepped run the card's incomplete-run banner and the EVENT_RUN_INCOMPLETE automation payload name the wrong rooms — under-reporting (rooms silently never retried by a `retry_missed_rooms` automation) o
-- **A5-STR-2** `jobs/active_job.py:2447` · both  
-  async_finalize_stranded_job calls the finalizer unguarded — one raising finalize kills the entire reaper tick for every vacuum, every minute, forever  
-  One stranded job whose finalize raises permanently disables BOTH reapers for EVERY managed vacuum. Paused jobs past their timeout are never cancelled, stranded runs are never recovered, and the offending job itself stays
-- **A6-PRE-1** `jobs/job_monitor.py:217` · both  
-  The vacuum-state busy branch is unreachable for every HA-standard vacuum state — an errored or externally-cleaning robot classifies as "ready" and Start dispatches at it  
-  The card shows "Ready to start cleaning." and an enabled Start button while the robot is sitting on the floor in an error/stuck state or paused mid-run. Pressing Start passes the only start gate and dispatches a real cle
-- **A5-STR-4** `jobs/job_monitor.py:357` · both  
-  A dispatched run the device never started can never be reaped, then the NEXT run's completion signals finalize the stale slot with the wrong run's data  
-  A dispatch the robot never acted on leaves a phantom 'running' job that no automatic path can clear, and the next app-started run is silently recorded against it: wrong rooms, wrong duration, wrong start time, fed into l
-- **DQ-ACT-3** `jobs/phase_runner.py:552` · both  
-  A raising dispatch kills the phase watchdog task and wedges the run in 'started' forever  
-  One transient service error mid-run (robot briefly unavailable, cloud hiccup) leaves the job permanently 'started'. The completion gate never fires, so the run is never finalized, learning records nothing, and every subs
-- **A1-WD-3** `jobs/phase_runner.py:889` · both  
-  has_native gates on the DECLARED entity-id string (always truthy on both shipped brands), so the coarse fallback is dead code and Eufy verifies phases against a signal its own adapter declares unusable as a live current-room source  
-  On a Eufy 'vacuum -> charge to 80% -> mop' profile, the mop phase is re-dispatched up to 3 times, 90 seconds apart, while the robot is already mopping — each room_clean restarts the clean, so the robot repeatedly abandon
-- **DQ-ACT-2** `jobs/phase_runner.py:1025` · roborock _(finder said CRITICAL; verifier corrected)_  
-  Cancel is defeated by the phase watchdog: _cancel_in_flight is checked once, before two multi-second awaits, then the clean is dispatched unconditionally  
-  User presses Cancel Run. The robot heads for the dock, then turns around and cleans the next room. The integration has already finalized and discarded the job, so nothing tracks or will stop the run; the user must cancel
-- **A2-ACC-1** `learning/estimator.py:589` · both _(finder said CRITICAL; verifier corrected)_  
-  A single transient read failure makes record_estimate_accuracy silently overwrite the entire accuracy history with one job's rooms  
-  Concrete: store holds 14 room keys / 60 graded samples; one OSError while reading learned/accuracy_stats.json during a 2-room job's finalize rewrites the file with 2 keys at sample_count 1. The 12 lost keys had mean_abs_
 - **A2-ACC-2** `learning/estimator.py:1122` · both  
   reanchor_timeline ignores its own reanchor_at parameter — every ETA is anchored to job start plus the sum of room durations, so all wall-clock dead time is invisible and "Done at" times slide into the past  
   Concrete: 3 rooms at 10 min each, overhead 7.02, started 12:00. R1 completes at 12:10 with actual_duration 10.0. The user pauses the vacuum at 12:10 and resumes at 12:40. At 12:45 the card refreshes and reanchors with co
-- **A3-IO-2** `learning/history_store.py:176` · both  
-  read_json turns a corrupt or unreadable file into None, and the trouble-rooms read-modify-write then overwrites the file with a one-job store — permanently destroying history that has no rebuilder by design  
-  A transient network-share hiccup, or one legacy-corrupt file predating the atomic-write fix, silently wipes the chronic-trouble-room history: rooms the card has been correctly flagging as repeatedly missed stop being fla
 - **A3-IO-1** `learning/history_store.py:989` · both  
   An empty room_timing on a charge/wait/zone phase is read as "capture failed", so every stepped run with a break or a zone is stripped of its accurate per-room timings and learns an even split instead  
   Using the flagship charge-break step (vac -> charge to X% -> mop) or queueing a saved zone alongside rooms silently downgrades that run's learning from exact per-room capture to an even time split, and contributes zero a
 - **DQ-PH-1** `learning/history_store.py:996` · both  
   Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included  
   Every run that uses the charge_wait / wait / zone step feature writes corrupted per-room baselines: the exact per-room area and wall-minutes that were captured are thrown away, and each room instead learns an even share
-- **A2-LIFE-1** `listeners/lifecycle.py:354` · both  
-  The exactly-once claim's REFUSAL dict is consumed as a successful finalize — the duplicate EVENT_JOB_FINISHED survived the fix and now carries an all-null payload  
-  The documented public automation trigger `eufy_vacuum_job_finished` (docs/advanced/02-events.md; docs/dev/02-ha-integration.md:438 documents an 11-key contract) fires twice on a normal completed run, and the FIRST of the
-- **A4-POSE-1** `listeners/pose_sampler.py:309` · roborock  
-  Sampler cadence collapses to min() across all vacuums while the attribution engine multiplies tick counts by each vacuum's OWN declared interval_s — Roborock is sampled at 2.0s but its ticks are valued at 5.0s  
-  On an install with both shipped brands (the maintainer's own Alfred/Eufy + Ivy/Roborock setup), every Roborock app-started run writes per-room durations 2.5x too long: external_ingest.build_pose_only_record:649 computes
 - **A4-RB-1** `mapping/map_source_runtime.py:373` · roborock _(finder said CRITICAL; verifier corrected)_  
   Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
   On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
@@ -427,9 +425,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A3-IMAGE--1** `mapping/mapping_services.py:1174` · Both. Eufy (eufy_cv_v1) is where re-analysis actually reshuffles ids; Roborock inherits the same read-time enrichment for any image_segments it holds.  
   Re-analysis rebinds the user's room links and manual segment adjustments onto positionally-reassigned segment ids  
   The map overlay silently mislabels rooms after any re-analysis in which blob ordering shifts, and the mislabel is actuating, not cosmetic: tapping a segment polygon calls toggleRoomEnabled for the LINKED room (src/bindin
-- **A3-IMAGE--2** `mapping/mapping_services.py:1174` · Both. Eufy via engine_exception / missing optional CV libs; Roborock and any adapter without a registered segmenter engine hits it on the very first analyze call via noop_fallback.  
-  A failed or unavailable segmenter run overwrites the good cached segmentation with an empty available:False envelope and persists it  
-  All room polygons disappear from the map view (src/renderers/map.js:109 falls back to a placeholder when `!segmentsData.available`) and the cached segmentation is unrecoverable: the source PNG the segments were derived f
 - **A4-CUSTOM-1** `mapping/mapping_services.py:1667` · Both (Eufy + Roborock) — custom layouts are brand-independent map-bucket state.  
   set_custom_segments is a REPLACE-ALL write that cannot name its target layout — it lands on whatever layout is active at call time, destroying another layout's authored geometry  
   Silent, unrecoverable loss of hand-authored map geometry plus its room links. The layout the user was editing is left untouched and the one they were not looking at is destroyed; the service returns {'saved': True, 'segm
@@ -445,9 +440,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A2-POLYGO-1** `mapping/segment_primitives.py:277` · Both (custom layouts are brand-agnostic; Roborock declares segmenter_engine='noop_fallback' so the custom compose path is its ONLY segment source, making this its primary path)  
   Authored custom segments grow ~1 working-pixel toward +X/+Y on every save, and the growth compounds without bound across save/reload cycles  
   Every authored room polygon is stored 0.3% of the map larger than drawn from the very first save. `set_custom_segments` is REPLACE-ALL, so once the compose draft has been reloaded from storage (which happens on any map/l
-- **EP-2** `number.py:101` · both · `direct read`  
-  number.py's prefix sweep also destroys NON-room maintenance entities that its callback can never rebuild  
-  VERIFIED AT SOURCE, and this escalates DR-SETUP-1 on a second axis. number.py populates ONE entity_map with both the per-room order numbers AND the per-component maintenance-interval numbers ({vacuum_key}_{component}_mai
 - **A5-PP-RP-1** `planning/run_plan.py:1352` · both  
   A multi-room_group plan with no charge/wait/zone is silently flattened to ONE atomic dispatch — the card routes it as sequenced  
   The canonical two-pass profile — "vacuum every room, then mop the kitchen and bath" — is saved, displayed as a multi-step sequenced run in the card's stepped preview, and then executed as ONE flat clean: rooms that appea
@@ -487,9 +479,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **DQ-PH-2** `queue/queue_engine.py:467` · both  
   advance_active_job_phase resets completed_room_ids/completed_rooms and no code path ever refills them for a phased job, so an abnormally-ended sequenced run reports every room as missed  
   Cancel a vac→charge→mop run (or a strict-order Roborock run) after 4 of 5 rooms are done and the 'Incomplete run' banner claims all 5 rooms were missed. Worse, the chronic-trouble counter increments miss_count for the 4
-- **A2-REC-4** `rooms/room_crud.py:173` · both  
-  migrate replaces the whole room map from one discovery snapshot — any room missing from that snapshot is permanently deleted, guarded only by 'the list wasn't empty'  
-  One flaky or partially-named discovery turns a confirmation about id shifts into permanent deletion of rooms' entire configuration, with no preview, no undo, and no backup — the deletion bypasses drift's deliberate 3-pas
 - **A3-CRUD-3** `rooms/room_crud.py:279` · both  
   save_managed_rooms auto-confirms floor type for every room it writes, permanently satisfying the onboarding_required start gate with the guessed value "hardwood"  
   The gate whose entire purpose is to force the user to declare carpet vs hardwood before the first clean is satisfied by a guess, on the very first import, for rooms the user has not looked at. A carpeted room reads as us
@@ -502,18 +491,9 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **SN-1** `sensor/__init__.py:98` · both · `direct read`  
   A managed vacuum with no imported map gets ZERO per-vacuum sensors, and importing a map never creates them  
   VERIFIED AT SOURCE. The per-vacuum loop is `maps = manager.data.get('maps', {}); for vacuum_entity_id in maps.keys()`, and EVERY per-vacuum sensor is built inside it: onboarding, theme, dock events, profiles, map overlay
-- **SN-3** `sensor/__init__.py:255` · both · `direct read`  
-  Two of the four sensor prefix sites are destructive - a room sync on one vacuum deletes a sibling's registry entries  
-  Per-site verdict extending DR-SETUP-1. :255 (_sync_room_history_entities) and :312 (_sync_room_rule_status_entities) compute stale_ids by prefix and then call _registry.async_remove() -- DESTRUCTIVE. :285 and :341 only p
-- **SN-2** `sensor/maintenance.py:95` · both · `direct read`  
-  The maintenance sensor's documented availability guard never fires; it publishes a fabricated full-life value  
-  CONSUMER SIDE OF DR-MNT-1 -- same root cause at maintenance/manager.py:713. CLUSTER THESE. The class docstring claims 'Returns available = False (and native_value = None) when the source entity is unavailable so stale ho
 - **A4-SETUP-2** `services/adapter_config.py:67` · both _(finder said CRITICAL; verifier corrected)_  
   save_adapter_config accepts a two-key config and registers it OVER the live code adapter — every omitted block silently resolves to Eufy behaviour on a Roborock  
   A Roborock is driven with Eufy vocabulary and Eufy learning engines from the moment the call returns until the next reload: wrong fan/water strings sent to the robot, room boundaries learned from a counter signal Roboroc
-- **A2-JOB-2** `services/job_control.py:170` · both  
-  start_zone_clean is the only start service with zero preconditions — it dispatches to the robot mid-job and strands the tracked room job  
-  Called while a tracked room job is running, the robot abandons the in-flight room clean and starts a zone clean, while the integration's active_job stays `started` with its full room list, timers, and counter/pose sample
 - **A2-JOB-3** `services/job_control.py:238` · both  
   clear_active_job destroys a running job's record unconditionally and returns nothing — no status precondition, no supports_response, immediate persist  
   A user or automation clearing what they believe is a stale job while the robot is actually mid-run permanently loses that run's learning data — the run is never finalized, per-room durations are gone, and the incomplete-
@@ -526,65 +506,29 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A4-SETUP-6** `services/setup.py:243` · both  
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
-- **DR-SETUP-1** `setup/delete.py:136` · both · `direct read`  
-  Deleting map N from vacuum.X sweeps every entity of vacuum.X_N from the registry  
-  PROVEN. Room entity ids are make_room_unique_id -> {vac_key}_{map_id}_{room_id}_{suffix}. The post-delete registry sweep matches on {vac_key}_{map_id}_, so deleting map 2 from vacuum.alfred builds prefix vacuum_alfred_2_
-- **A2-CB-1** `switch.py:71` · both _(finder said CRITICAL; verifier corrected)_  
-  Room-update fan-out identifies "stale" entities by unique_id PREFIX, so a room edit on one vacuum permanently deletes a sibling vacuum's entities from the entity registry  
-  On any multi-vacuum install where one vacuum's entity_id is another's plus a numeric suffix (HA's own default for a second identical robot), the first room edit — toggling a room switch, applying a room profile, saving r
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (153)</summary>
+<details><summary><strong>MEDIUM</strong> (127)</summary>
 
-- **A1-UP-2** `__init__.py:316` · both  
-  async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
-  After any setup failure (a corrupt/hand-edited storage block reaching an unguarded ensure_record, an ImportError in a lazily-imported listener module after an update, an exception in any service registration), the integr
 - **EP-1** `button.py:200` · both · `direct read`  
   The maintenance reset button discards a documented failure result and reports success  
   VERIFIED. async_press calls reset_maintenance(), throws the return value away, and unconditionally awaits async_save(). reset_maintenance is a result-returning API with three documented failure exits -- {'reset': False,
 - **A1-INIT-3** `core/manager.py:347` · both _(finder said HIGH; verifier corrected)_  
   Startup re-seed of the bundled theme library resurrects themes the user deleted, and re-points default_theme_id  
   A user who curates the theme library — deleting the bundled themes they do not want, with a confirm dialog implying it stuck — finds all of them back in the picker after the next HA restart, silently and with no error. I
-- **A6-VAC-4** `core/manager.py:1035` · both  
-  remove_vacuum_record drops data["room_history"][vacuum] but leaves the _room_history_cache_ready marker — three sibling call sites invalidate it, the one that DELETES the data does not  
-  On a multi-vacuum config entry, a user who deletes vacuum B's device and then re-adds the same vacuum entity (import map / save rooms) sees an empty Room Cleaning History panel for it — no history rows, no error, no way
 - **A6-VAC-3** `core/manager.py:1126` · eufy  
   refresh_vacuum_capabilities does NOT reproduce startup's detect_capabilities inputs — it silently drops the dock-button entity candidates, contradicting the comment above it  
   On an Eufy model outside the x10/x8 hint families that nevertheless exposes wash/dry/empty dock buttons, running the `eufy_vacuum.get_vacuum_capabilities` service (schema default refresh=True, and it async_save()s the re
 - **A6-AGX-2** `core/manager.py:1374` · both _(finder said HIGH; verifier corrected)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
   After a Roborock re-segment + migrate, the user can no longer change ANY room setting on that map — changing a room's fan speed or disabling a room fails with an error claiming they requested illegal access links, which
-- **A1-INIT-2** `core/manager.py:2275` · both _(finder said HIGH; verifier corrected)_  
-  Room-history preload overwrites the persisted cache with {} whenever the rebuild throws, and marks the cache ready so it never retries  
-  Every room's cleaning-history sensor and the card's last-cleaned/last-mopped chips read 'never cleaned' for the rest of the HA run, with nothing shown to the user (the only signal is a log line). The blank state is then
-- **A2-CB-2** `core/manager.py:2275` · both  
-  async_preload_room_history_cache replaces the whole per-vacuum room_history subtree AFTER an executor await, silently discarding any room-history written during that await  
-  A run that finishes while a room-history rebuild is in flight has its per-room "last cleaned / last vacuumed / last mopped" timestamps reverted to the previous run's values on every room-history sensor, and the wrong val
-- **A3-SNAP-3** `core/manager.py:3844` · both  
-  The snapshot has no read of the exactly-once finalize claim, so across the finalize await it reports a finished run as actively cleaning and offers Pause / Cancel on it  
-  For the duration of the finalize (a stats rebuild over a long history is easily seconds), the card shows "Cleaning <room>" with a live queue and enabled Pause / Cancel buttons for a run that is already over and being wri
 - **A3-SNAP-2** `core/manager.py:3914` · both  
   get_dashboard_snapshot composes get_job_progress_snapshot TWICE, so job_progress and job_control in the same payload can describe different rooms — and every side effect in the progress composer fires twice per card poll  
   During a multi-room run the card can render a timeline that highlights room B as in-progress while the status line above it reads "Cleaning C" and C is also drawn as an upcoming room — a self-contradicting view with no e
-- **A3-SNAP-1** `core/manager.py:3948` · roborock _(finder said HIGH; verifier corrected)_  
-  mop_active collapses "tank sensor unreadable" into a definite False, so the card confidently reports "Vacuuming" and hides the water-level control on Roborock  
-  On a Roborock S6 (observe-only tank, supports_water_control False) the card takes mop_active at face value: `showWaterLevel()` (src/state/room-editor.js:417-429) returns `mopActive` directly for observe-only brands, and
 - **DQ-ACT-6** `core/manager.py:5005` · roborock  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
-- **DR-DBG-4** `debug_capture.py:374` · n/a (drop-in helper) · `direct read`  
-  An unrecognised `areas` value silently produces a capture that records nothing  
-  _resolve_areas falls back to the substring f'.{a}' for any name not in the configured map. Via the UI the options are generated so they are always valid, but the debug_capture_start SERVICE takes free-form strings: `area
-- **DR-DBG-2** `debug_capture.py:605` · n/a (drop-in helper) · `direct read`  
-  The switch bypasses the auto-stop bookkeeping the services maintain — forgotten override sibling at the entry-point layer  
-  max_minutes lives in an `autostop` dict closed over inside register_debug_services; only the start/stop SERVICES cancel it. DebugCaptureSwitch.async_turn_on/off call capture.start()/stop() directly and lexically cannot r
-- **DR-DIAG-2** `diagnostics.py:326` · both · `direct read`  
-  Nine repr(err) sinks bypass the key-based redaction the docstring promises unconditionally  
-  async_redact_data matches KEYS. capabilities_error, maps_error, upkeep_snapshot_error, roborock_geometry_drift_error, vacuums_error, integration_version_error, completion_health.error, area_units.error and managed_rooms_
-- **DR-DIAG-1** `diagnostics.py:570` · both · `direct read`  
-  "Everything in _vacuum_diagnostics is read-only" is false — refresh=False does not make the capability call inert  
-  The module docstring EXCLUDES the dashboard snapshot on read-only grounds ('computing it can advance room timing and fire room-transition events during a live clean, and a diagnostics download must stay read-only'), and
 - **DQ-ZONE-2** `dispatch/manager.py:120` · both  
   supports_zone_clean is honored by the card but never consulted by the actuation path  
   A model catalog entry that declares supports_zone_clean: False — the exact 'a model that categorically cannot zone-clean had no way to say so' case the capability was added for — still gets a zone_clean/app_zoned_clean s
@@ -609,27 +553,9 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A3-REC-5** `jobs/active_job.py:1721` · both  
   Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths  
   Per-room battery drain is never observed on either brand: every completed_job record's room_timings[].battery_delta is null, so the only per-room battery figure available anywhere is the even split total_battery_used / r
-- **A2-CAN-5** `jobs/active_job.py:2101` · both  
-  Pause has NO in-flight flag at all — a dispatch already inside _dispatch_active_phase lands after vacuum.pause and the robot cleans while the record says 'paused'  
-  The card shows Paused while the vacuum keeps cleaning — the user's Pause visibly did nothing and no error is shown. The pause interval is also charged as paused time against the room's timing, so the room's learned durat
-- **A2-CAN-4** `jobs/active_job.py:2155` · both _(finder said HIGH; verifier corrected)_  
-  Pause+resume permanently kills the phase watchdog for room_group and zone phases — resume re-arms ONLY dock phases and never restores the dispatch guard  
-  A pause+resume during a stepped run silently skips a room or an entire saved-zone step, and the run then finalizes as a normal successful completion (the guard that would have stalled it is gone). The user sees a clean '
-- **A5-STR-1** `jobs/active_job.py:2378` · eufy _(finder said CRITICAL; verifier corrected)_  
-  Strand exclusion consults only task_status against a narrower vocabulary — an Eufy dock service cycle reaps a healthy mid-run job as `interrupted`  
-  A healthy Eufy vacuum+mop run parked at the dock for a service cycle is finalized as `interrupted` mid-run. `mark_active_job_finalized` sets status='completed' and clears the slot; the robot then resumes and cleans the r
-- **A5-STR-5** `jobs/active_job.py:2464` · both  
-  async_finalize_stranded_job reports success regardless of the finalizer's answer — a refused finalize still marks the slot 'completed' and fires a bogus EVENT_JOB_FINISHED  
-  On an overlapping tick the user gets two EVENT_JOB_FINISHED events for one run — one carrying real data, one claiming status 'completed' with job_id None for a run that was actually interrupted and, in the None/missing_s
 - **A6-PRE-2** `jobs/job_monitor.py:268` · both _(finder said HIGH; verifier corrected)_  
   invalid_payload uses phase 0's room count as the whole run's room count — a saved run profile whose first step is a zone is accepted on save but can never start  
   A user saves a run profile like "clean the hallway zone first, then the bedrooms", presses its exposed button, and gets "Room-clean payload is missing or invalid." every time, with rooms visibly selected and a valid queu
-- **A1-WD-4** `jobs/phase_runner.py:125` · both _(finder said HIGH; verifier corrected)_  
-  An HA restart during a room_group or zone phase's un-confirmed window strands the run — the re-arm covers ONLY dock phases and the comment's claimed recovery path cannot fire  
-  Restart HA (or reload the integration) while a phased run is between rooms, and the run stops dead: the robot never leaves the dock, the card shows the job still 'started' forever, no error and no log line is emitted, th
-- **A1-WD-5** `jobs/phase_runner.py:891` · future_brand_only  
-  Adapter-declared phase_timing overrides are applied with no clamping — poll_seconds: 0 pins the event loop in a hot loop, max_attempts: 0 dispatches nothing and wedges the phase  
-  A future brand adapter (the seam exists precisely so a third path-optimizing brand can declare its own profile) that ships a typo or a deliberate 0 either freezes Home Assistant's event loop for every integration on the
 - **A1-EST-3** `learning/estimator.py:476` · roborock _(finder said HIGH; verifier corrected)_  
   _find_room_match Pass 1 can NEVER match a Roborock room: it compares the raw "" intensity against the rebuilder's normalized "standard", so every Roborock room takes a permanent -0.15 intensity-mismatch penalty  
   Roborock users see their room and job estimates permanently badged one confidence tier lower — often red "Low" instead of amber "Medium" — no matter how many clean runs they accumulate, because the estimator believes it
@@ -657,15 +583,9 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A4-STATE-5** `learning/history_store.py:306` · both  
   trouble_rooms is a raw-counter store with no rebuilder, no clear service and a denominator that only advances when the room is queued — the "decays on its own" justification for excluding it from repair does not hold  
   A permanent, unclearable "chronically missed" warning on a room tile, with the only remedy being manual deletion of trouble_rooms.json from the config share — which is exactly the repair path the design note declared unn
-- **A4-STATE-8** `learning/history_store.py:327` · both  
-  The live snapshot has no clear: last_job_snapshot.json and _live_snapshot_cache are never invalidated after a run, and the stale snapshot's job_id outranks the active job's — a failed snapshot save makes the next finalize overwrite the previous job's record  
-  A completed run's permanent history record is silently replaced by a later run's, corrupting the learning corpus that every duration/battery/water prediction is built from, with no error surfaced.
 - **A3-IO-5** `learning/history_store.py:368` · both  
   get_completed_job_path interpolates an unvalidated job_id into a filesystem path, giving exclude/restore_learning_job an arbitrary *.json overwrite primitive — the exact hole the sibling module already hardened  
   An authenticated HA user or any automation/script/dashboard that can call eufy_vacuum.exclude_learning_job can overwrite or create JSON files anywhere the HA process can write, corrupting unrelated integration data; the
-- **A3-IO-3** `learning/history_store.py:536` · both  
-  A failed or absent read is cached as None for the life of the process, and load_*_stats has no bypass — so _reload_learning_stats_now's documented "guarantees the current on-disk stats" is false  
-  One unlucky read at startup makes the card report no learned data / cold-start estimates for the whole HA session, and the two escape hatches a maintainer would reach for (the "reload now" helper and the cache invalidato
 - **A4-STATE-6** `learning/history_store.py:1092` · both  
   build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run  
   The missed-rooms banner names a room that was never cleaned in that job — often as an unnamed "Room N" — and omits the room that actually was missed; the phantom room then accrues a permanent chronic-trouble badge.
@@ -684,15 +604,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A2-LIFE-3** `listeners/lifecycle.py:169` · eufy  
   The inline mop-wash detector diverges from the dedicated dock_events listener: hard-coded Eufy wash vocabulary as a fallback, and no same-state guard against attribute-only re-triggers  
   `observed_mop_wash_count` on the active job is inflated. That value is written into the completed-job record as `actual_mop_wash_count` and is handed to register_post_job_water_amendment at lifecycle.py:398 as `mop_wash_
-- **A1-REG-2** `listeners/lifecycle.py:390` · eufy  
-  lifecycle registers a state listener + timer (post-job water amendment) whose unsubs are function-local and unreachable from lifecycle.remove()/async_unload_entry — the only unsub leak among the eight modules  
-  An unloaded/reloaded integration keeps a live state subscription and a pending timer for up to 180 s and rewrites a completed-job learning file after teardown. Because the leaked `_commit` reads the live water_level enti
-- **DR-LR-1** `live_refresh/manager.py:170` · roborock · `direct read`  
-  A misdeclared returns_response retries forever at DEBUG and never sticky-disables  
-  ServiceValidationError subclasses HomeAssistantError, so a wrong `returns_response` flag lands in the handler documented as TRANSIENT-do-not-disable. It logs at DEBUG and returns; the next tick repeats. A one-word adapte
-- **DR-MNT-1** `maintenance/manager.py:713` · both · `direct read`  
-  source_available reports True for a MISSING usage_hours attribute, and reset_maintenance's invalid_usage_hours is unreachable for it  
-  DOC-CHECKED against doc 13 §5.2: the `0.0 if unavailable` default is documented INTENT, so that half is not a defect. What remains: `.get('usage_hours', 0)` means a missing attribute never raises, so source_available is
 - **A3-EXT-4** `mapping/map_source.py:243` · eufy  
   Room-outline offset is the exact NEGATION of the fork renderer's — overlays desync from the live backdrop whenever the outline origin differs from the map origin  
   On any Eufy map whose room-outline origin differs from the map origin (VA's own notes record an X10 map at +105 cells), the card's room tap-regions, room labels, current-room highlight and robot dot sit displaced by twic
@@ -726,9 +637,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A3-IMAGE--6** `mapping/mapping_services.py:1014` · Both.  
   delete_map_image calls itself the mirror of upload but has no layout_id/art_scope sibling and sweeps no back-references  
   A layout survives its backdrop and becomes uneditable with a misleading reason ('no custom backdrop') while continuing to advertise one; get_map_segments silently substitutes the CV dark/default/light image metadata for
-- **A3-IMAGE--3** `mapping/mapping_services.py:1100` · Both.  
-  The analyze cache-hit gate tests truthiness, so a cached FAILURE envelope is served as a valid cache forever  
-  Analysis appears permanently broken with a stale, now-incorrect reason ('you're missing scipy') after the cause has been fixed. The card is immune today because both of its call sites hard-code force_reanalyze:true, so t
 - **A4-CUSTOM-3** `mapping/mapping_services.py:1449` · Eufy only — on Roborock async_get_map_data_dict returns None early (map_source_coordinator.py:683), so nothing is written. _(finder said HIGH; verifier corrected)_  
   _backfill_saved_zone_area fails OPEN on an indeterminate active map and permanently persists area_m2 / room_number computed from the WRONG map's raster — the poisoned value never self-heals  
   Permanently wrong zone size shown in the card, a zone filed under the wrong room in the browse list (grouped by room_number per docs/dev/frontend/saved-zones.md), and a wrong area feeding the learning/duration-estimate p
@@ -768,12 +676,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A2-POLYGO-4** `mapping/segment_primitives.py:221` · Both (brand-agnostic custom-layout authoring)  
   `mask_to_polygon` keeps only the largest traced loop, so merging two non-touching shapes into one room silently discards every piece but the biggest  
   A user merging a room with a detached alcove, a galley across a doorway, or a split L-shape whose two rects do not quite touch loses the smaller piece permanently. There is no error and no `skipped` signal. Because the c
-- **A6-TRK-2** `mapping/tracker.py:316` · both _(finder said HIGH; verifier corrected)_  
-  resume_sampling is provably unreachable — _sampling_paused is a one-way latch, so all room attribution stops permanently at the first mid-job recharge  
-  As soon as a run docks for an unplanned low-battery recharge, live per-room attribution dies for the whole rest of the run: no further `eufy_vacuum_room_completed` events, no dwell accrual, and the card's ETA timeline st
-- **A6-TRK-3** `mapping/tracker.py:450` · both _(finder said HIGH; verifier corrected)_  
-  The HOLD path keeps ACCRUING dwell and movement for a room the robot has already left, inflating duration_seconds and forcing confidence to 1.0  
-  src/controllers/learning-controller.js:154-164 reads `duration_seconds`, records it as the room's `actual_duration_minutes` (620/60 = 10.3 min instead of 0.3 min), adds it to `_jobProgress.completedRoomMinutes`, and call
 - **DQ-Q-5** `maps/map_manager.py:197` · both  
   A map rebuild silently auto-enables AND auto-approves rooms that never existed before, adding them to the clean queue unseen  
   After a Rebuild Map, any segment that appeared since the last rebuild — a room the user renamed into existence in the vendor app, or on Eufy a phantom segment the CV segmenter split off — is cleaned on the next Start wit
@@ -879,12 +781,6 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A1-ID-2** `rooms/room_discovery.py:176` · roborock _(finder said HIGH; verifier corrected)_  
   discover_rooms_for_vacuum's single-map fallback serves ANOTHER map's room list and relabels it with the REQUESTED map_id, defeating the map_id filter at both room writers  
   On a multi-map (multi-floor) Roborock, importing or re-saving one floor writes the OTHER floor's rooms into that floor's bucket, destroying its stored per-room settings; and a live-id dispatch resolves 'bedroom' to the o
-- **A4-SRC-3** `rooms/source_refresh.py:205` · roborock  
-  flatten_maps_response keys the cache by map NAME with last-writer-wins and no collision detection; a collapsed cache chains into room_discovery's single-map fallback and serves one map's segment ids for a different map_id  
-  In a multi-map (multi-floor) Roborock home, a map whose cache key collides vanishes from discovery, and jobs targeting it can be dispatched against the surviving map's segment ids — the robot cleans the equivalently-name
-- **A4-SRC-2** `rooms/source_refresh.py:280` · roborock _(finder said HIGH; verifier corrected)_  
-  set_cached_room_source is called unconditionally on every successful service call, so a response the flatten shim does not recognise (or an empty maps list) silently REPLACES a good cache with {} — logged at DEBUG only  
-  Every room silently disappears from the setup tab, the card, and the room picker; after three passes the drift system reports the user's entire room set as removed. Any job whose targets can no longer be resolved degrade
 - **SN-4** `sensor/__init__.py:272` · both · `direct read`  
   Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
   VERIFIED: async_update_entity has ZERO occurrences anywhere in the integration. Both sync blocks construct a fresh entity per desired room and then discard it when the unique_id is already known, pushing only a state wri
@@ -999,7 +895,7 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 
 </details>
 
-<details><summary><strong>LOW</strong> (193)</summary>
+<details><summary><strong>LOW</strong> (171)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1052,32 +948,9 @@ HARDWARE EVIDENCE (.claude/notes/_frozen/baseline/ivy-run-BEFORE.log): the final
 - **A4-START-2** `core/manager.py:5021` · both _(finder said MEDIUM; verifier corrected)_  
   start_selected_rooms dispatches phase 0 with no phase_type branch, unlike its phase_runner sibling — and _build_steps_phases' docstring claims a guard that does not exist  
   Latent today: the only thing stopping a segment-clean command with an empty room list from reaching the robot is the accidental `payload_room_count <= 0` block described in START-1, which is a side effect of the zone pha
-- **DR-DBG-6** `debug_capture.py:286` · n/a (drop-in helper) · `direct read`  
-  status() reports stale started_at / services / areas after a stop  
-  stop() clears _ring, _logger_name and the prior-state fields but leaves _areas, _targets and _started_at. debug_capture_status then returns active: False beside a populated services list and a started_at from the finishe
-- **DR-DBG-7** `debug_capture.py:457` · n/a (drop-in helper) · `direct read`  
-  Two dumps in the same second overwrite each other  
-  The dump filename is second-resolution (debug-%Y%m%d-%H%M%S.log) and so is the .tmp path. Two dumps inside one second silently collide -- plausible when the switch auto-dumps on off and the user also calls debug_capture_
-- **DR-DBG-3** `debug_capture.py:483` · n/a (drop-in helper) · `direct read`  
-  Reload orphans a pending auto-stop timer  
-  `autostop` is re-created per register_debug_services call, so reloading the integration while a max_minutes timer is armed leaves the old async_call_later uncancellable. It fires later and stops an unrelated capture. Sam
-- **A1-WIRE-5** `debug_capture.py:510` · both  
-  The debug-capture auto-stop timer is not cancelled on unload, so an orphaned timer from before a reload kills a capture started after it  
-  User starts a capture with `max_minutes: 60`, reloads the integration, starts a new capture — the new capture silently stops at the old timer's deadline, logged only as 'debug capture auto-stopped after 60 min'. Diagnost
 - **DR-DIAG-5** `diagnostics.py:53` · both · `direct read`  
   Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork  
   _SENTINELS = BLANK_STATE_VALUES is assigned and never read; the live use is _ACTIVE_MAP_SENTINELS, which IS BLANK_STATE_VALUES (same object, correctly centralized). So the file carries a second, unused name for the same
-- **DR-DIAG-3** `diagnostics.py:286` · both · `direct read`  
-  A failed health probe is silently absent from the warnings block designed to be read first  
-  _self_check appends completion_health['warning'] and area_units['warning'] into `warnings` -- described as 'loud, actionable warnings that belong at the top of a support read'. Both collectors instead produce {'error': r
-- **HW-DIAG-1** `diagnostics.py:365` · both · `direct read`  
-  The job-active warning asserts a run-time failure that is unreachable from the state triggering it — and computes presence from a stale snapshot  
-  SETTLED ON HARDWARE. THE SYSTEM BEHAVES CORRECTLY; THIS IS A REPORTING-LAYER DEFECT ONLY.
-
-When a Roborock idles out it drops the cloud connection and the upstream integration REMOVES the entities — HA reports them as no
-- **DR-DIAG-4** `diagnostics.py:539` · both · `direct read`  
-  entry.title is dumped unredacted while entry.data and entry.options are redacted  
-  Only data and options pass through async_redact_data. The title is user-settable free text on the config entry, dumped verbatim. Low, but it is the same field class as `notes`, which TO_REDACT covers precisely because it
 - **DQ-ACT-7** `dispatch/manager.py:421` · future_brand_only  
   The OFF-fallback lowercases the select's options for the membership test but then sends the lowercased string as the option value  
   On a future brand whose select uses capitalized or numeric options, the mop-intensity pre-call silently no-ops and the run uses whatever water the device was last left on — the same physical outcome as DQ-ACT-5, reached
@@ -1093,18 +966,9 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
 - **DR-ONB-6** `docs/dev/18-onboarding-manager.md:228` · both · `direct read`  
   Doc cites the start gate at core/manager.py:2776; it is at 2805  
   The CLAIM is correct -- the gate really does block on floor_types_complete alone and never consults rooms_discovered. Only the line reference drifted. Recorded because this doc's stated scope is that 'a developer should
-- **INF-4** `entity_helpers.py:14` · both · `direct read`  
-  The BLANK_STATE_VALUES docstring asserts a consolidation that is roughly 20% applied  
-  The comment states the hand-copied variants 'existed at six sites and had drifted into three shapes', in the past tense as resolved. Three modules import the shared name (diagnostics.py, mapping/tracker.py, rooms/room_di
-- **INF-5** `entity_helpers.py:57` · both · `direct read`  
-  The unique-id scheme is a non-injective flat join with no parser, and its vacuum-key half is open-coded at four sites  
-  Extends DR-SETUP-1 on the CONSTRUCTION side. The join f'{vacuum_key}_{map_id}_{room_id}_{suffix}' uses '_' as separator while three of the four fields may contain '_', and there is NO companion parse function anywhere --
 - **INF-9** `entity_helpers.py:109` · both · `direct read`  
   get_floor_type_label emits hardcoded English into an 18-language product  
   Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
-- **A2-CAN-6** `jobs/active_job.py:2189` · both  
-  async_cancel_active_job is re-entrant — a second cancel arriving inside the 30 s confirm window overwrites finalize_summary with all-None  
-  The post-run summary on the card goes blank after a double cancel — no outcome, no learning verdict, no sanity flags — even though the record on disk is intact. An automation listening on EVENT_JOB_FINISHED fires twice,
 - **A6-PRE-4** `jobs/job_monitor.py:32` · both  
   BlockedRoomEntry.source documents "access_graph" for graph-propagated blocks; the producer writes "access_dependency", and the wrong literal is hand-copied into an exposed sensor attribute's type  
   The blocked-room `source` is surfaced as the `last_block_source` attribute on a per-room HA sensor. A user (or a future card branch) writing an automation template against the documented `access_graph` value silently nev
@@ -1144,27 +1008,15 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
 - **A4-STATE-9** `learning/services.py:892` · both  
   Dismissing the incomplete-run banner is client-only and no clear service is exposed, so the banner returns on every card load  
   "Dismiss" does not dismiss — the missed-rooms alert reappears on every dashboard reload until the user either accepts the retry (which rewrites their room selection) or happens to complete another run.
-- **A5-SVC-7** `learning/services.py:901` · both  
-  Five registered services are never unregistered, surviving integration unload as phantom entries that fail with an unhandled KeyError  
-  After removing or reloading the integration, five services (including the destructive discard_external_run) remain visible and callable in the HA service picker and Developer Tools, each failing with an opaque KeyError t
 - **A3-COMMON-5** `listeners/_common.py:52` · both  
   get_adapter_value() is a second, independent implementation of the identical lookup already shipped in adapters/registry.py  
   No behavioural difference today. A fix or semantic change applied to one implementation (e.g. distinguishing a declared null from an absent key, or adding a diagnostic when a declared block is the wrong type) would silen
-- **A3-COMMON-3** `listeners/_common.py:166` · future_brand_only  
-  completed_finalize_signals() docstring claims it returns "" for unavailable entities; it actually returns the literal "unavailable"/"unknown"  
-  No wrong result on either shipped brand today. Latent: it is a false description of behaviour in the one place a new adapter author reads to choose their sentinel vocabulary, and it makes 'entity does not exist' indistin
 - **A3-COMMON-4** `listeners/_common.py:178` · both  
   _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules  
   No wrong result today (the two literal sets are identical). Latent divergence: changing the generic completion fallback in one place silently leaves the completion gate and the stranded reaper judging the same run agains
 - **A3-COMMON-2** `listeners/_common.py:198` · future_brand_only _(finder said MEDIUM; verifier corrected)_  
   completion_secondary_satisfied() returns True from a config FLAG without verifying the entity it delegates to exists; the "Invariant" asserted in the caller is never validated  
   For a brand-3 adapter written against Roborock's pattern, the completion gate silently degrades to "task_status equals one string" with no secondary confirmation at all — while has_observed_active_lifecycle never arms, s
-- **A1-REG-3** `listeners/discovery.py:96` · both  
-  Per-vacuum teardown never re-registers listeners, and the documented 'a subscription to a now-deleted entity is inert' invariant is false — discovery keeps running passes for the deleted vacuum and re-creates its setup_progress bucket  
-  After deleting one vacuum from a multi-vacuum install, an orphaned `setup_progress` entry for it is written back to .storage and survives restarts, and a background discovery pass (including a brand service call on Robor
-- **A6-GUARD-6** `listeners/discovery.py:133` · both  
-  Discovery triggers survive per-vacuum deletion and re-create a setup_progress record for the deleted vacuum — the "subscription to a deleted entity is inert" comment is false  
-  Deleting a vacuum's device leaves a resurrected setup_progress skeleton in storage that survives restarts and shows up in diagnostics. Cosmetic today because `vacuums` stays deleted so the card and `get_known_vacuum_ids`
 - **A1-REG-4** `listeners/dock_events.py:91` · future_brand_only  
   dock_events.register() never reads the adapter's `dock_events.enabled` flag — a brand that declares enabled:False but inherits triggers still records dock events  
   A future adapter that copies the Eufy dock_events block and flips `enabled: False` to opt out gets the opposite of what it declared: dock events are recorded and counters incremented, while the Base Station UI tab is hid
@@ -1180,15 +1032,9 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
 - **A4-POSE-6** `listeners/pose_sampler.py:10` · both  
   Module docstring still declares the sampler 'Capture-only / inert — nothing consumes pose_samples yet', but the W5c consumption wire has landed  
   No runtime effect on its own, but it materially understates blast radius: every defect in this file is currently read by maintainers as affecting an inert capture buffer, when in fact the samples drive which rooms an ext
-- **A4-POSE-3** `listeners/pose_sampler.py:129` · roborock _(finder said MEDIUM; verifier corrected)_  
-  _is_parked has no working fallback on the native_current_room path — when task_status is unreadable it returns 'not parked', the opposite of what its own docstring claims  
-  Every docked/parked tick in that window is treated as floor-cleaning and `_resolve_managed_room_id` resolves whatever `active_cleaning_target` reads — which on Roborock reverts to the DOCK's room name when parked (docume
 - **A4-POSE-4** `listeners/pose_sampler.py:242` · future_brand_only  
   A zero or negative interval_s survives adapter registration (warn-only) and then splits the sampler in two: register() drops it, _sample_vacuum_once does not  
   Single-vacuum case: room-attribution pose sampling is silently disabled for the whole install — external runs finalize with no pose_samples and fall back to counter-only attribution, with no error surfaced anywhere. Mult
-- **A4-POSE-5** `listeners/pose_sampler.py:312` · both  
-  _handle_pose_tick has no per-vacuum exception guard, and only the live_pose read is wrapped — one vacuum raising drops every later vacuum from that tick  
-  A deterministic raise on one vacuum silently costs the other vacuum(s) their entire pose stream for the duration of the run — room attribution for those runs degrades to the counter-only path with no user-visible indicat
 - **A5-POSE-6** `mapping/map_source.py:139` · both _(finder said MEDIUM; verifier corrected)_  
   `resolve_furnished_render` passes a stored placement transform through with no map-geometry stamp, so a re-mapped floor plan silently misaligns the art  
   After the vacuum re-maps or expands its floor plan, the furnished digital-twin art keeps rendering at its old placement over a map that has moved and rescaled underneath it — off by metres — with nothing in the payload,
@@ -1414,9 +1260,6 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
 - **DQ-PAY-7** `queue/queue_engine.py:294` · future_brand_only  
   clean_passes_field: null omits passes in two engines but produces a None dict key in build_room_clean_payload  
   A brand whose room-clean command carries no per-room pass count cannot express that on the `eufy_room_clean` template: instead of omitting the field it gets a `{None: 1}` entry, which fails JSON serialisation or reaches
-- **DQ-PH-6** `queue/queue_engine.py:466` · future_brand_only  
-  advance_active_job_phase resets every per-phase pointer except _native_current_room_id, leaving a latent cross-phase carry-over that only the phases-gate currently hides  
-  None today. It is a tripwire under the phases-gate: relaxing active_job.py:937 (which is the natural fix for DQ-PH-2/DQ-PH-3, since a multi-room group phase genuinely needs intra-phase rollover) immediately activates dup
 - **INF-6** `repairs.py:1` · both · `direct read`  
   The repair flow is unreachable - nothing ever raises an issue - and the doc asserts the opposite  
   VERIFIED: a repo-wide grep for async_create_issue / ir.create_issue across custom_components returns ZERO hits, so async_create_fix_flow is never invoked. doc 02 §10 states 'Currently raised by the setup workflow when st
@@ -1441,21 +1284,9 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
 - **A3-CRUD-5** `rooms/room_manager.py:57` · both _(finder said MEDIUM; verifier corrected)_  
   A re-save resurrects a room the user explicitly rejected as a phantom — build_managed_rooms never consults rejected_rooms  
   A phantom segment the user deliberately banished comes back as a fully approved, enabled room with entities and a place in the clean queue, and the robot is sent to clean it on the next run. The user is never told; drift
-- **A4-SRC-5** `rooms/source_refresh.py:80` · roborock _(finder said MEDIUM; verifier corrected)_  
-  The room-source cache is never invalidated — not on config-entry unload/reload, not on map switch, not when a vacuum is unmanaged — and it keeps hass.data[DOMAIN] alive so the unload cleanup never fires  
-  Right after a reload — the moment the user is most likely to be reconfiguring rooms — discovery and dispatch can resolve against a snapshot from before the reload with no indication of its age. Stale entries for removed/
-- **A4-SRC-4** `rooms/source_refresh.py:274` · roborock _(finder said MEDIUM; verifier corrected)_  
-  No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it  
-  Redundant cloud calls raise the probability of the get_maps failure that triggers SRC-1's wrong-room dispatch. When a pre-switch response wins the race, the cache holds the previous map's segment ids under the current ma
-- **SN-7** `sensor/__init__.py:62` · both · `direct read`  
-  The stated thread-safety invariant is internally inconsistent, and copies 3 and 4 have already dropped it  
-  Extends DR-SENS-2. _request_entity_state_write asserts manager callbacks may fire from worker threads so all refreshes must funnel through it. If that premise holds, then hass.async_create_task, er.async_get + async_remo
 - **SN-8** `sensor/__init__.py:91` · both · `direct read`  
   active_job_entities and its explanatory comment are dead  
   The dict is documented as keyed by (vacuum, map) 'so the job-finished handler can refresh the right sensor directly', and is populated, but never read; _handle_job_finished refreshes only room-history sensors. Behaviour
-- **DR-SENS-2** `sensor/__init__.py:250` · both · `direct read`  
-  Two ~40-line dynamic-entity reconciliation blocks are hand-duplicated and must be edited in lockstep  
-  _sync_room_history_entities and _sync_room_rule_status_entities are byte-identical apart from the entity-dict name -- same prefix derivation, same stale-id scan, same registry removal, same add path, same refresh helper.
 - **SN-9** `sensor/map_overlays.py:76` · both · `direct read`  
   native_value returns the literal string 'unavailable', colliding with HA's reserved state  
   VERIFIED AT SOURCE: `if not res.get('present'): return 'unavailable'`. That is indistinguishable in hass.states, templates, is_state() and the frontend from an entity that is genuinely unavailable, while the real diagnos
@@ -1549,9 +1380,6 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
 - **DR-SETUP-4** `setup/protection.py:44` · both · `direct read`  
   Protection evaluation calls .get() on map buckets and room records without isinstance guards  
   The imported-map comprehension and the has_rules / has_access_graph scans assume dicts, where drift.py consistently checks isinstance(bucket, dict) first. A malformed record raises AttributeError out of evaluate_map_prot
-- **A2-CB-5** `switch.py:89` · both  
-  Three of the four fan-out subscribers call async_write_ha_state() unguarded while the fourth routes through a hass-is-None guard, so one bad entity aborts the rest of that subscriber's sync silently  
-  When it triggers, some of a map's room switches or number entities silently fail to appear after a room change, with only an "Room update callback failed for ... map ..." ERROR in the log and no user-facing signal. They
 - **A3-PORT-7** `themes/manager.py:42` · both  
   _clean_theme_tags coerces non-string items with str(), reachable only through the unvalidated import payload, and silently drops rather than truncates over-long and over-count tags  
   An imported theme arrives with junk tags like `{'a': 1}` or `none` shown in the card's tag/filter UI, which the user then has to notice and clean up by hand. Separately, a theme legitimately tagged with a 40-character ph
@@ -1584,6 +1412,224 @@ When a Roborock idles out it drops the cloud connection and the upstream integra
   After a scoped floor-texture import the card's footer keeps 'Discard' and 'Save changes' enabled (src/renderers/theme.js:1042, 1120-1133 gate purely on draft_dirty) with an empty draft behind them. The user sees a persis
 
 </details>
+
+### Applied
+
+**105 findings** closed by a landed packet. Not open work, but kept
+here rather than removed — a disappeared finding is indistinguishable from one never
+found. `.claude/notes/_landed_packets.json` is the source of truth for what has
+landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
+
+- [x] **A3-SNAP-3** `core/manager.py:3844` · both — **RP-001** (`3ddcc1c`, 2026-07-31)  
+  The snapshot has no read of the exactly-once finalize claim, so across the finalize await it reports a finished run as actively cleaning and offers Pause / Cancel on it
+- [x] **A5-STR-5** `jobs/active_job.py:2464` · both — **RP-001** (`3ddcc1c`, 2026-07-31)  
+  async_finalize_stranded_job reports success regardless of the finalizer's answer — a refused finalize still marks the slot 'completed' and fires a bogus EVENT_JOB_FINISHED
+- [x] **HW-FINAL-1** `learning/manager.py:737` · both — **RP-001** (`3ddcc1c`, 2026-07-31)  
+  The exactly-once finalize claim releases BEFORE the permanent gate is written, and an await sits in the gap - the finalize body runs twice
+- [x] **A5-SVC-2** `learning/services.py:409` · both — **RP-001** (`3ddcc1c`, 2026-07-31)  
+  finalize_learning_job fires eufy_vacuum_job_finished with a FABRICATED status "completed" when the finalize was rejected, and (no supports_response) tells the caller nothing
+- [x] **A2-LIFE-1** `listeners/lifecycle.py:354` · both — **RP-001** (`3ddcc1c`, 2026-07-31)  
+  The exactly-once claim's REFUSAL dict is consumed as a successful finalize — the duplicate EVENT_JOB_FINISHED survived the fix and now carries an all-null payload
+- [x] **A1-UP-1** `__init__.py:420` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Panels registered outside async_setup_entry are never tracked, so unload can't remove them and setup silently re-adds the "no vacuum configured" fallback panel
+- [x] **A1-UP-2** `__init__.py:316` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy
+- [x] **A2-DOWN-1** `__init__.py:420` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Panels registered outside async_setup_entry are never tracked, so unload cannot remove them — and setup then re-adds the "no vacuum configured" fallback panel next to the working one
+- [x] **A4-RELOAD-1** `__init__.py:420` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Panels registered outside async_setup_entry are never tracked, so unload never removes them
+- [x] **A4-RELOAD-3** `__init__.py:499` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Unload stops the debug capture but never cancels its auto-stop timer, which then kills a later capture
+- [x] **A1-INIT-1** `core/manager.py:473` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  async_initialize spawns loop-lifetime work with no teardown — after a config-entry reload the PREVIOUS manager writes its stale self.data over the live store
+- [x] **A6-VAC-4** `core/manager.py:1035` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  remove_vacuum_record drops data["room_history"][vacuum] but leaves the _room_history_cache_ready marker — three sibling call sites invalidate it, the one that DELETES the data does not
+- [x] **A2-DOWN-3** `core/water_amendment.py:246` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Post-job water-amendment listener + 180s timer, and two hass.data[DOMAIN] cache keys, are created outside setup and never removed by unload
+- [x] **A4-RELOAD-4** `core/water_amendment.py:246` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Post-job water-amendment state listener and 180s timeout are never cancelled by unload
+- [x] **A1-WIRE-5** `debug_capture.py:510` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  The debug-capture auto-stop timer is not cancelled on unload, so an orphaned timer from before a reload kills a capture started after it
+- [x] **DR-DBG-3** `debug_capture.py:483` · n/a (drop-in helper) — **RP-003** (`76d92fc`, 2026-07-31)  
+  Reload orphans a pending auto-stop timer
+- [x] **A1-UP-3** `learning/services.py:901` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Five learning services registered during setup are missing from async_unregister_learning_services, so they survive unload as ghost services
+- [x] **A2-DOWN-2** `learning/services.py:901` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  async_unregister_learning_services removes 16 of the 21 services async_register_learning_services registers — 5 survive unload and 3 raise a bare KeyError when called
+- [x] **A4-RELOAD-2** `learning/services.py:901` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Five learning services are registered on setup but missing from the unregister list, so they survive unload and entry removal
+- [x] **A5-SVC-7** `learning/services.py:901` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Five registered services are never unregistered, surviving integration unload as phantom entries that fail with an unhandled KeyError
+- [x] **A1-REG-3** `listeners/discovery.py:96` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Per-vacuum teardown never re-registers listeners, and the documented 'a subscription to a now-deleted entity is inert' invariant is false — discovery keeps running passes for the deleted vacuum and re-creates its setup_progress bucket
+- [x] **A6-GUARD-6** `listeners/discovery.py:133` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  Discovery triggers survive per-vacuum deletion and re-create a setup_progress record for the deleted vacuum — the "subscription to a deleted entity is inert" comment is false
+- [x] **A1-REG-2** `listeners/lifecycle.py:390` · eufy — **RP-003** (`76d92fc`, 2026-07-31)  
+  lifecycle registers a state listener + timer (post-job water amendment) whose unsubs are function-local and unreachable from lifecycle.remove()/async_unload_entry — the only unsub leak among the eight modules
+- [x] **A2-LIFE-2** `listeners/lifecycle.py:409` · both — **RP-003** (`76d92fc`, 2026-07-31)  
+  _process tasks are untracked — remove() drops only the subscription, so a config-entry reload orphans an in-flight finalize bound to the dead manager
+- [x] **DR-DBG-1** `debug_capture.py:173` · n/a (drop-in helper) — **RP-004** (`27824be`, 2026-07-31)  
+  exc_info tracebacks are stored UNREDACTED and UNTRUNCATED — both published claims hold only for the message field
+- [x] **DR-DBG-2** `debug_capture.py:605` · n/a (drop-in helper) — **RP-004** (`27824be`, 2026-07-31)  
+  The switch bypasses the auto-stop bookkeeping the services maintain — forgotten override sibling at the entry-point layer
+- [x] **DR-DBG-4** `debug_capture.py:374` · n/a (drop-in helper) — **RP-004** (`27824be`, 2026-07-31)  
+  An unrecognised `areas` value silently produces a capture that records nothing
+- [x] **DR-DBG-6** `debug_capture.py:286` · n/a (drop-in helper) — **RP-004** (`27824be`, 2026-07-31)  
+  status() reports stale started_at / services / areas after a stop
+- [x] **DR-DBG-7** `debug_capture.py:457` · n/a (drop-in helper) — **RP-004** (`27824be`, 2026-07-31)  
+  Two dumps in the same second overwrite each other
+- [x] **DR-DIAG-1** `diagnostics.py:570` · both — **RP-004** (`27824be`, 2026-07-31)  
+  "Everything in _vacuum_diagnostics is read-only" is false — refresh=False does not make the capability call inert
+- [x] **DR-DIAG-2** `diagnostics.py:326` · both — **RP-004** (`27824be`, 2026-07-31)  
+  Nine repr(err) sinks bypass the key-based redaction the docstring promises unconditionally
+- [x] **DR-DIAG-3** `diagnostics.py:286` · both — **RP-004** (`27824be`, 2026-07-31)  
+  A failed health probe is silently absent from the warnings block designed to be read first
+- [x] **DR-DIAG-4** `diagnostics.py:539` · both — **RP-004** (`27824be`, 2026-07-31)  
+  entry.title is dumped unredacted while entry.data and entry.options are redacted
+- [x] **HW-DIAG-1** `diagnostics.py:365` · both — **RP-004** (`27824be`, 2026-07-31)  
+  The job-active warning asserts a run-time failure that is unreachable from the state triggering it — and computes presence from a stale snapshot
+- [x] **DR-LR-1** `live_refresh/manager.py:170` · roborock — **RP-004** (`27824be`, 2026-07-31)  
+  A misdeclared returns_response retries forever at DEBUG and never sticky-disables
+- [x] **A5-FACADE-1** `core/manager.py:1434` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  save_managed_rooms facade wipes every stored room for a map when the discovery cache is empty — the precondition its sibling reconcile_room has
+- [x] **A5-FACADE-2** `core/manager.py:1426` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable
+- [x] **A5-FACADE-3** `core/manager.py:1450` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  rebuild_map facade has the same unguarded total-wipe as save_managed_rooms, with no in-repo caller to compensate
+- [x] **A2-REC-4** `rooms/room_crud.py:173` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  migrate replaces the whole room map from one discovery snapshot — any room missing from that snapshot is permanently deleted, guarded only by 'the list wasn't empty'
+- [x] **A3-CRUD-1** `rooms/room_crud.py:261` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  save_managed_rooms unconditionally replaces map_bucket["rooms"] — an empty selection or an empty discovery cache silently destroys every stored room on the map
+- [x] **A3-ROOMS-1** `services/rooms.py:160` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  save_managed_rooms silently wipes a map's entire saved room configuration when the discovery cache for that map is empty
+- [x] **A3-ROOMS-2** `services/rooms.py:83` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  enabled_room_ids: null coerces to [] and wipes every managed room — the exact opposite of omitting the key
+- [x] **A4-SETUP-1** `services/setup.py:213` · both — **RP-005** (`4217c3c`, `6989031`, 2026-08-01)  
+  setup_save_rooms rebuilds the map from the stale/absent `data["discovery"]` cache and REPLACES the map's rooms wholesale — returns {"status": "success"}
+- [x] **A1-INIT-2** `core/manager.py:2275` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  Room-history preload overwrites the persisted cache with {} whenever the rebuild throws, and marks the cache ready so it never retries
+- [x] **A2-CB-2** `core/manager.py:2275` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  async_preload_room_history_cache replaces the whole per-vacuum room_history subtree AFTER an executor await, silently discarding any room-history written during that await
+- [x] **A2-ACC-1** `learning/estimator.py:589` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  A single transient read failure makes record_estimate_accuracy silently overwrite the entire accuracy history with one job's rooms
+- [x] **A3-IO-2** `learning/history_store.py:176` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  read_json turns a corrupt or unreadable file into None, and the trouble-rooms read-modify-write then overwrites the file with a one-job store — permanently destroying history that has no rebuilder by design
+- [x] **A3-IO-3** `learning/history_store.py:536` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  A failed or absent read is cached as None for the life of the process, and load_*_stats has no bypass — so _reload_learning_stats_now's documented "guarantees the current on-disk stats" is false
+- [x] **A4-STATE-8** `learning/history_store.py:327` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  The live snapshot has no clear: last_job_snapshot.json and _live_snapshot_cache are never invalidated after a run, and the stale snapshot's job_id outranks the active job's — a failed snapshot save makes the next finalize overwrite the previous job's record
+- [x] **A5-SVC-6** `learning/services.py:447` · both — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  rebuild_learning_stats blanks accuracy_stats before replaying it; any failure after the blank leaves the store empty and the service reports nothing at all
+- [x] **A3-IMAGE--2** `mapping/mapping_services.py:1174` · Both. Eufy via engine_exception / missing optional CV libs; Roborock and any adapter without a registered segmenter engine hits it on the very first analyze call via noop_fallback. — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  A failed or unavailable segmenter run overwrites the good cached segmentation with an empty available:False envelope and persists it
+- [x] **A3-IMAGE--3** `mapping/mapping_services.py:1100` · Both. — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  The analyze cache-hit gate tests truthiness, so a cached FAILURE envelope is served as a valid cache forever
+- [x] **A4-SRC-2** `rooms/source_refresh.py:280` · roborock — **RP-006** (`e598e3e`, `b0967eb`, `e35b961`, 2026-08-01)  
+  set_cached_room_source is called unconditionally on every successful service call, so a response the flatten shim does not recognise (or an empty maps list) silently REPLACES a good cache with {} — logged at DEBUG only
+- [x] **DQ-DE-1** `dispatch/manager.py:317` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  Strict-order per-room phases invert the live-id safety rule: an unresolvable slug dispatches the STALE stored segment id instead of being skipped
+- [x] **DQ-ACT-1** `dispatch/manager.py:317` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  When NO target slug resolves live, dispatch falls back to the STALE stored ids — the exact wrong-room outcome the function exists to prevent
+- [x] **DQ-ACT-5** `dispatch/manager.py:442` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  The mixed-batch water SAFETY pre-call is best-effort — if it fails the clean still dispatches and the robot wet-mops the vacuum-only rooms
+- [x] **A4-SRC-1** `rooms/source_refresh.py:217` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  async_refresh_room_source returns None on success AND on every failure/skip path, and the cache carries no freshness stamp — dispatch cannot tell a fresh live snapshot from an arbitrarily old one, and rewrites the wire payload with stale segment ids while believing it re-resolved live
+- [x] **A4-SRC-3** `rooms/source_refresh.py:205` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  flatten_maps_response keys the cache by map NAME with last-writer-wins and no collision detection; a collapsed cache chains into room_discovery's single-map fallback and serves one map's segment ids for a different map_id
+- [x] **A4-SRC-4** `rooms/source_refresh.py:274` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it
+- [x] **A4-SRC-5** `rooms/source_refresh.py:80` · roborock — **RP-007** (`4c42482`, `4bdd3f8`, 2026-08-01)  
+  The room-source cache is never invalidated — not on config-entry unload/reload, not on map switch, not when a vacuum is unmanaged — and it keeps hass.data[DOMAIN] alive so the unload cleanup never fires
+- [x] **A3-SNAP-1** `core/manager.py:3948` · roborock — **RP-008** (`8d244dc`, 2026-08-01)  
+  mop_active collapses "tank sensor unreadable" into a definite False, so the card confidently reports "Vacuuming" and hides the water-level control on Roborock
+- [x] **INF-4** `entity_helpers.py:14` · both — **RP-008** (`8d244dc`, 2026-08-01)  
+  The BLANK_STATE_VALUES docstring asserts a consolidation that is roughly 20% applied
+- [x] **A6-PRE-1** `jobs/job_monitor.py:217` · both — **RP-008** (`8d244dc`, 2026-08-01)  
+  The vacuum-state busy branch is unreachable for every HA-standard vacuum state — an errored or externally-cleaning robot classifies as "ready" and Start dispatches at it
+- [x] **A3-COMMON-1** `listeners/_common.py:138` · roborock — **RP-008** (`8d244dc`, 2026-08-01)  
+  is_job_active() treats a NOT-YET-ADDED / removed job_active entity as "no job running", defeating the Roborock mid-recharge completion guard
+- [x] **A3-COMMON-3** `listeners/_common.py:166` · future_brand_only — **RP-008** (`8d244dc`, 2026-08-01)  
+  completed_finalize_signals() docstring claims it returns "" for unavailable entities; it actually returns the literal "unavailable"/"unknown"
+- [x] **A6-GUARD-1** `listeners/path_blockers.py:116` · both — **RP-008** (`8d244dc`, 2026-08-01)  
+  A blocker sensor going `unavailable` satisfies every negating rule operator, so a Zigbee/cloud dropout pauses or CANCELS a live run (return_to_base)
+- [x] **A4-POSE-3** `listeners/pose_sampler.py:129` · roborock — **RP-008** (`8d244dc`, 2026-08-01)  
+  _is_parked has no working fallback on the native_current_room path — when task_status is unreadable it returns 'not parked', the opposite of what its own docstring claims
+- [x] **DR-MNT-1** `maintenance/manager.py:713` · both — **RP-008** (`8d244dc`, 2026-08-01)  
+  source_available reports True for a MISSING usage_hours attribute, and reset_maintenance's invalid_usage_hours is unreachable for it
+- [x] **SN-2** `sensor/maintenance.py:95` · both — **RP-008** (`8d244dc`, 2026-08-01)  
+  The maintenance sensor's documented availability guard never fires; it publishes a fabricated full-life value
+- [x] **INF-5** `entity_helpers.py:57` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  The unique-id scheme is a non-injective flat join with no parser, and its vacuum-key half is open-coded at four sites
+- [x] **EP-2** `number.py:101` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  number.py's prefix sweep also destroys NON-room maintenance entities that its callback can never rebuild
+- [x] **DR-SENS-2** `sensor/__init__.py:250` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  Two ~40-line dynamic-entity reconciliation blocks are hand-duplicated and must be edited in lockstep
+- [x] **SN-3** `sensor/__init__.py:255` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  Two of the four sensor prefix sites are destructive - a room sync on one vacuum deletes a sibling's registry entries
+- [x] **SN-7** `sensor/__init__.py:62` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  The stated thread-safety invariant is internally inconsistent, and copies 3 and 4 have already dropped it
+- [x] **DR-SETUP-1** `setup/delete.py:136` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  Deleting map N from vacuum.X sweeps every entity of vacuum.X_N from the registry
+- [x] **A2-CB-1** `switch.py:71` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  Room-update fan-out identifies "stale" entities by unique_id PREFIX, so a room edit on one vacuum permanently deletes a sibling vacuum's entities from the entity registry
+- [x] **A2-CB-5** `switch.py:89` · both — **RP-009** (`6ab1b20`, 2026-08-01)  
+  Three of the four fan-out subscribers call async_write_ha_state() unguarded while the fourth routes through a hass-is-None guard, so one bad entity aborts the rest of that subscriber's sync silently
+- [x] **A2-CAN-3** `jobs/active_job.py:2205` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  Cancel OPENS the completion gate it is about to wait for — it clears _phase_dispatch_pending before return_to_base, and neither the gate nor maybe_advance_phase checks _cancel_in_flight
+- [x] **A2-CAN-5** `jobs/active_job.py:2101` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  Pause has NO in-flight flag at all — a dispatch already inside _dispatch_active_phase lands after vacuum.pause and the robot cleans while the record says 'paused'
+- [x] **A2-CAN-6** `jobs/active_job.py:2189` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  async_cancel_active_job is re-entrant — a second cancel arriving inside the 30 s confirm window overwrites finalize_summary with all-None
+- [x] **A4-AJ-3** `jobs/active_job.py:2205` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  Cancel clears `_phase_dispatch_pending` up front, so the return-to-base dock is read as phase completion and the job advances to the next phase during the 30 s cancel window
+- [x] **DQ-ACT-2** `jobs/phase_runner.py:1025` · roborock — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  Cancel is defeated by the phase watchdog: _cancel_in_flight is checked once, before two multi-second awaits, then the clean is dispatched unconditionally
+- [x] **A1-WD-1** `jobs/phase_runner.py:553` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  Cancel is defeated ACROSS _dispatch_active_phase's awaits — the watchdog re-sends a clean after return_to_base, then the run is finalized while the robot keeps cleaning
+- [x] **A2-CAN-1** `jobs/phase_runner.py:553` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  Cancel is LOST across _dispatch_active_phase's awaits — the watchdog re-sends a clean AFTER return_to_base and the robot is left cleaning with no job record
+- [x] **A2-JOB-2** `services/job_control.py:170` · both — **RP-010** (`3e9e969`, `de835ef`, `d3e6139`, 2026-08-01)  
+  start_zone_clean is the only start service with zero preconditions — it dispatches to the robot mid-job and strands the tracked room job
+- [x] **A2-CAN-4** `jobs/active_job.py:2155` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  Pause+resume permanently kills the phase watchdog for room_group and zone phases — resume re-arms ONLY dock phases and never restores the dispatch guard
+- [x] **A5-STR-1** `jobs/active_job.py:2378` · eufy — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  Strand exclusion consults only task_status against a narrower vocabulary — an Eufy dock service cycle reaps a healthy mid-run job as `interrupted`
+- [x] **A5-STR-2** `jobs/active_job.py:2447` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  async_finalize_stranded_job calls the finalizer unguarded — one raising finalize kills the entire reaper tick for every vacuum, every minute, forever
+- [x] **A5-STR-4** `jobs/job_monitor.py:357` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  A dispatched run the device never started can never be reaped, then the NEXT run's completion signals finalize the stale slot with the wrong run's data
+- [x] **DQ-ACT-3** `jobs/phase_runner.py:552` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  A raising dispatch kills the phase watchdog task and wedges the run in 'started' forever
+- [x] **A1-WD-2** `jobs/phase_runner.py:530` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  Every abnormal exit from the watchdog leaves _phase_dispatch_pending set, and that state is UN-REAPABLE BY DESIGN — the run wedges in 'started' forever and blocks all future starts
+- [x] **A1-WD-3** `jobs/phase_runner.py:889` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  has_native gates on the DECLARED entity-id string (always truthy on both shipped brands), so the coarse fallback is dead code and Eufy verifies phases against a signal its own adapter declares unusable as a live current-room source
+- [x] **A1-WD-4** `jobs/phase_runner.py:125` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  An HA restart during a room_group or zone phase's un-confirmed window strands the run — the re-arm covers ONLY dock phases and the comment's claimed recovery path cannot fire
+- [x] **A1-WD-5** `jobs/phase_runner.py:891` · future_brand_only — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  Adapter-declared phase_timing overrides are applied with no clamping — poll_seconds: 0 pins the event loop in a hot loop, max_attempts: 0 dispatches nothing and wedges the phase
+- [x] **A5-STR-3** `jobs/phase_runner.py:572` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  _phase_dispatch_pending is a permanent strand exclusion — a watchdog that gives up wedges the run AND blinds the reaper that exists to recover it
+- [x] **A6-GUARD-4** `listeners/pause_timeout.py:155` · both — **RP-011** (`365f90b`, `4cdcf51`, `7f6b969`, 2026-08-01)  
+  The 1-minute reap ticker has no in-flight guard while each reap blocks up to ~35s, so two reapable slots guarantee overlapping ticks and a duplicate cancel
+- [x] **A4-AJ-1** `jobs/active_job.py:472` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  Mid-job recharge NEVER ends: the recharge-end branch is unreachable dead code, so recharge_seconds_accumulated is always 0 and every recharging run is silently held from learning
+- [x] **A4-POSE-1** `listeners/pose_sampler.py:309` · roborock — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  Sampler cadence collapses to min() across all vacuums while the attribution engine multiplies tick counts by each vacuum's OWN declared interval_s — Roborock is sampled at 2.0s but its ticks are valued at 5.0s
+- [x] **A4-POSE-2** `listeners/pose_sampler.py:315` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  The sampling timer is fire-and-forget: a tick slower than interval_s overlaps the next tick, double-recording samples and stamping stale pose content with a fresh timestamp
+- [x] **A4-POSE-5** `listeners/pose_sampler.py:312` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  _handle_pose_tick has no per-vacuum exception guard, and only the live_pose read is wrapped — one vacuum raising drops every later vacuum from that tick
+- [x] **A6-TRK-1** `mapping/tracker.py:320` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  end_job has only ONE caller (successful finalize) — every cancel/abort/strand path leaves the tracker permanently stuck on the finished job's map and rooms
+- [x] **A6-TRK-2** `mapping/tracker.py:316` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  resume_sampling is provably unreachable — _sampling_paused is a one-way latch, so all room attribution stops permanently at the first mid-job recharge
+- [x] **A6-TRK-3** `mapping/tracker.py:450` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  The HOLD path keeps ACCRUING dwell and movement for a room the robot has already left, inflating duration_seconds and forcing confidence to 1.0
+- [x] **A6-TRK-4** `mapping/tracker.py:324` · both — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  The last room of every job never fires room_completed — end_job resets state without flushing the held room
+- [x] **DQ-PH-6** `queue/queue_engine.py:466` · future_brand_only — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
+  advance_active_job_phase resets every per-phase pointer except _native_current_room_id, leaving a latent cross-phase carry-over that only the phases-gate currently hides
 
 ### Examined and deliberately not fixed
 

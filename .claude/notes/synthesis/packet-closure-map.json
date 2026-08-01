@@ -1,0 +1,821 @@
+[
+ {
+  "packet_id": "RP-001",
+  "repair_family": "RF-01",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-03-packets-wave0.md"
+ },
+ {
+  "packet_id": "RP-002",
+  "repair_family": "RF-01",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-03-packets-wave0.md"
+ },
+ {
+  "packet_id": "RP-003",
+  "repair_family": "RF-16",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-03-packets-wave0.md"
+ },
+ {
+  "packet_id": "RP-004",
+  "repair_family": "RF-33",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-03-packets-wave0.md"
+ },
+ {
+  "packet_id": "RP-005",
+  "repair_family": "RF-02",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-04-packets-wave1.md"
+ },
+ {
+  "packet_id": "RP-006",
+  "repair_family": "RF-03",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-04-packets-wave1.md"
+ },
+ {
+  "packet_id": "RP-007",
+  "repair_family": "RF-08",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-04-packets-wave1.md"
+ },
+ {
+  "packet_id": "RP-008",
+  "repair_family": "RF-13",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-04-packets-wave1.md"
+ },
+ {
+  "packet_id": "RP-009",
+  "repair_family": "RF-04",
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-04-packets-wave1.md"
+ },
+ {
+  "packet_id": "RP-010",
+  "repair_family": "RF-06",
+  "finding_ids": [
+   "#7:DQ-ACT-2",
+   "#9:A1-WD-1",
+   "#9:A2-CAN-1",
+   "#9:A2-CAN-3",
+   "#9:A4-AJ-3",
+   "#9:A2-CAN-5",
+   "#9:A2-CAN-6",
+   "#13:A2-JOB-2"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-011",
+  "repair_family": "RF-07",
+  "finding_ids": [
+   "#9:A1-WD-2",
+   "#9:A5-STR-3",
+   "#7:DQ-ACT-3",
+   "#9:A1-WD-4",
+   "#9:A2-CAN-4",
+   "#9:A1-WD-5",
+   "#9:A5-STR-4",
+   "#9:A5-STR-1",
+   "#9:A5-STR-2",
+   "#12:A6-GUARD-4",
+   "#9:A1-WD-3"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-012",
+  "repair_family": "RF-31",
+  "finding_ids": [
+   "#11:A6-TRK-1",
+   "#11:A6-TRK-2",
+   "#9:A4-AJ-1",
+   "#11:A6-TRK-3",
+   "#11:A6-TRK-4",
+   "#12:A4-POSE-1",
+   "#12:A4-POSE-2",
+   "#12:A4-POSE-5",
+   "#7:DQ-PH-6"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-013a",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "#7:DQ-PH-1",
+   "#16:A3-IO-1",
+   "agent: infra (2-lens verified):INF-8"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-013c",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "#9:A3-REC-3",
+   "#7:DQ-PH-2",
+   "#9:A2-CAN-2",
+   "#16:A4-STATE-1",
+   "#16:A4-STATE-2"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-013b",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "#7:DQ-PH-3",
+   "#9:A3-REC-1",
+   "#9:A3-REC-2"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-013d",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "#16:A4-STATE-6"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-013f",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "live:REC-A",
+   "live:REC-B"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-013e",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "#9:A3-REC-4",
+   "#9:A4-AJ-2",
+   "#12:A5-METRICS-2",
+   "#9:A3-REC-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-014",
+  "repair_family": "RF-12",
+  "finding_ids": [
+   "#12:A5-METRICS-1",
+   "#14:A6-VAC-1",
+   "direct read:DR-SENS-1",
+   "#12:A3-COMMON-6",
+   "#12:A3-COMMON-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-06-packets-wave2.md"
+ },
+ {
+  "packet_id": "RP-015",
+  "repair_family": "RF-24",
+  "finding_ids": [
+   "#10:A1-ID-1",
+   "#10:A2-REC-2",
+   "#10:A1-ID-3",
+   "#11:A6-TRK-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-07-packets-wave3.md"
+ },
+ {
+  "packet_id": "RP-016",
+  "repair_family": "RF-20",
+  "finding_ids": [
+   "#10:A3-CRUD-4",
+   "#8:A3-PP-CRUD-3",
+   "#13:A3-ROOMS-8",
+   "#18:A6-ZONE-C-2",
+   "#18:A4-CUSTOM-5",
+   "#18:A3-IMAGE--6",
+   "#18:A6-ZONE-C-5",
+   "#16:A3-IO-6"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-07-packets-wave3.md"
+ },
+ {
+  "packet_id": "RP-017",
+  "repair_family": "RF-25",
+  "finding_ids": [
+   "#16:A4-STATE-3",
+   "#18:A5-FURNIS-4",
+   "#18:A2-POLYGO-5",
+   "#18:A4-CUSTOM-6",
+   "#18:A3-IMAGE--1",
+   "#18:A3-IMAGE--4",
+   "direct read:DR-ONB-1",
+   "direct read:DR-ONB-2"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-07-packets-wave3.md"
+ },
+ {
+  "packet_id": "RP-018",
+  "repair_family": "RF-25",
+  "finding_ids": [
+   "#10:A2-REC-8",
+   "#10:A3-CRUD-2",
+   "#10:A3-CRUD-3",
+   "#7:DQ-Q-5",
+   "#10:A3-CRUD-6",
+   "#10:A3-CRUD-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-07-packets-wave3.md"
+ },
+ {
+  "packet_id": "RP-019",
+  "repair_family": "RF-25",
+  "finding_ids": [
+   "#10:A2-REC-1",
+   "#10:A2-REC-5",
+   "#10:A2-REC-3",
+   "#10:A2-REC-6",
+   "#10:A2-REC-7",
+   "#10:A1-ID-2",
+   "#10:A1-ID-4",
+   "#12:A6-GUARD-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-07-packets-wave3.md"
+ },
+ {
+  "packet_id": "RP-020",
+  "repair_family": "RF-22",
+  "finding_ids": [
+   "#16:A5-SVC-1",
+   "#16:A5-SVC-5",
+   "#16:A5-SVC-8",
+   "#16:A4-STATE-5",
+   "#16:A4-STATE-3",
+   "#16:A4-STATE-4",
+   "#16:A4-STATE-9"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-07-packets-wave3.md"
+ },
+ {
+  "packet_id": "RP-021a",
+  "repair_family": "RF-35",
+  "finding_ids": [
+   "#7:DQ-Q-3",
+   "#9:A6-PRE-2",
+   "#14:A4-START-1",
+   "#14:A4-START-2",
+   "#8:A5-PP-RP-3",
+   "#7:DQ-DE-5",
+   "#7:DQ-Q-1",
+   "#8:A5-PP-RP-1",
+   "#8:A5-PP-RP-4",
+   "#8:A5-PP-RP-5",
+   "#7:DQ-Q-7",
+   "#7:DQ-DE-2",
+   "#8:A5-PP-RP-6",
+   "#8:A6-PP-EST-LBL-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+ },
+ {
+  "packet_id": "RP-021b",
+  "repair_family": "RF-35",
+  "finding_ids": [
+   "#8:A4-PP-RP-2",
+   "#8:A4-PP-RP-1",
+   "#8:A4-PP-RP-4",
+   "#8:A4-PP-RP-6",
+   "#13:A5-RUNPROF-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+ },
+ {
+  "packet_id": "RP-022",
+  "repair_family": "RF-23",
+  "finding_ids": [
+   "#7:DQ-ZONE-1",
+   "#7:DQ-PAY-4",
+   "#13:A2-JOB-4",
+   "#18:A1-SERVIC-3",
+   "#7:DQ-ZONE-3",
+   "#7:DQ-ZONE-4",
+   "#18:A6-ZONE-C-8",
+   "#14:A3-SNAP-4",
+   "#7:DQ-ZONE-2",
+   "#7:DQ-ZONE-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+ },
+ {
+  "packet_id": "RP-023",
+  "repair_family": null,
+  "finding_ids": [
+   "#10:A5-AG-1",
+   "#8:A6-PP-EST-BLK-1",
+   "#10:A5-AG-2",
+   "#10:A6-AGX-1",
+   "#10:A6-AGX-2",
+   "#10:A6-AGX-3",
+   "#10:A6-AGX-5",
+   "#10:A6-AGX-6",
+   "#10:A6-AGX-4",
+   "agent: infra (2-lens verified):INF-9",
+   "agent: platforms (2-lens verified):EP-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+ },
+ {
+  "packet_id": "RP-024",
+  "repair_family": "RF-19",
+  "finding_ids": [
+   "#8:A1-PP-RES-2",
+   "#8:A3-PP-CRUD-2",
+   "#8:A6-PP-EST-DSP-1",
+   "#8:A6-PP-EST-DSP-2",
+   "#7:DQ-PAY-2",
+   "#8:A1-PP-RES-4",
+   "#8:A6-PP-EST-H2O-1",
+   "#8:A1-PP-RES-3",
+   "#8:A1-PP-RES-7",
+   "#8:A3-PP-CRUD-5",
+   "#8:A3-PP-CRUD-8",
+   "#8:A4-PP-RP-5",
+   "#14:A5-FACADE-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+ },
+ {
+  "packet_id": "RP-025",
+  "repair_family": "RF-18",
+  "finding_ids": [
+   "#7:DQ-Q-4",
+   "#8:A1-PP-RES-6",
+   "#8:A2-PP-CAP-2",
+   "#8:A1-PP-RES-8",
+   "#8:A2-PP-CAP-7",
+   "#7:DQ-PAY-1",
+   "#8:A3-PP-CRUD-1",
+   "#8:A3-PP-CRUD-4",
+   "#7:DQ-Q-2",
+   "#8:A1-PP-RES-5",
+   "#8:A2-PP-CAP-4",
+   "#7:DQ-PAY-6",
+   "#8:A3-PP-CRUD-7",
+   "#7:DQ-Q-6",
+   "#8:A2-PP-CAP-6",
+   "#8:A2-PP-CAP-3",
+   "#8:A3-PP-CRUD-6",
+   "#8:A2-PP-CAP-1",
+   "#8:A5-PP-RP-7",
+   "#8:A5-PP-RP-8",
+   "#14:A1-INIT-5",
+   "#16:A1-EST-7",
+   "#16:A1-EST-8",
+   "#13:A6-DIAG-8",
+   "#7:DQ-PAY-5",
+   "#13:A3-ROOMS-6",
+   "#13:A3-ROOMS-9",
+   "agent: platforms (2-lens verified):EP-8",
+   "#8:A6-PP-EST-TD-1",
+   "#8:A1-PP-RES-9",
+   "#12:A2-LIFE-3"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+ },
+ {
+  "packet_id": "RP-026",
+  "repair_family": "RF-09",
+  "finding_ids": [
+   "#11:A1-LC-1",
+   "#11:A3-EXT-1",
+   "#11:A4-RB-2",
+   "#11:A4-RB-1",
+   "#11:A1-LC-3",
+   "#11:A1-LC-5",
+   "#11:A4-RB-3",
+   "#11:A3-EXT-2",
+   "#18:A7-ROBORO-3",
+   "#11:A4-RB-4",
+   "#11:A4-RB-5",
+   "#11:A4-RB-6",
+   "agent: sensor (2-lens verified):SN-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-09-packets-wave5.md"
+ },
+ {
+  "packet_id": "RP-027",
+  "repair_family": "RF-10",
+  "finding_ids": [
+   "#11:A1-LC-2",
+   "#11:A5-POSE-2",
+   "#11:A5-POSE-4",
+   "#11:A5-POSE-5",
+   "#11:A1-LC-4",
+   "#11:A5-POSE-1",
+   "#11:A2-GEO-1",
+   "#11:A5-POSE-3"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-09-packets-wave5.md"
+ },
+ {
+  "packet_id": "RP-028",
+  "repair_family": "RF-15",
+  "finding_ids": [
+   "#18:A1-SERVIC-1",
+   "#18:A6-ZONE-C-6",
+   "#18:A5-FURNIS-1",
+   "#18:A3-IMAGE--5",
+   "#13:A2-JOB-8",
+   "#13:A5-RUNPROF-8",
+   "#13:A6-DIAG-5",
+   "#13:A6-DIAG-6",
+   "#17:A2-DRAFT-4",
+   "#18:A1-SERVIC-5",
+   "#18:A4-CUSTOM-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-09-packets-wave5.md"
+ },
+ {
+  "packet_id": "RP-029",
+  "repair_family": null,
+  "finding_ids": [
+   "#18:A6-ZONE-C-1",
+   "#18:A6-ZONE-C-3",
+   "#18:A6-ZONE-C-4",
+   "#18:A4-CUSTOM-3",
+   "#18:A4-CUSTOM-4",
+   "#18:A2-POLYGO-1",
+   "#18:A2-POLYGO-3",
+   "#18:A2-POLYGO-4",
+   "#18:A6-ZONE-C-7",
+   "#18:A2-POLYGO-2",
+   "#18:A2-POLYGO-8",
+   "#18:A3-IMAGE--7"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-09-packets-wave5.md"
+ },
+ {
+  "packet_id": "RP-030",
+  "repair_family": null,
+  "finding_ids": [
+   "#11:A2-GEO-3",
+   "#11:A2-GEO-5",
+   "#11:A2-GEO-6",
+   "#11:A2-GEO-4",
+   "#11:A3-EXT-3",
+   "#11:A3-EXT-4",
+   "#11:A4-RB-7",
+   "#11:A4-RB-8",
+   "#11:A5-POSE-7",
+   "#11:A5-POSE-6",
+   "#18:A7-ROBORO-1",
+   "#18:A7-ROBORO-5",
+   "#18:A7-ROBORO-6",
+   "#18:A7-ROBORO-7",
+   "#18:A5-FURNIS-3",
+   "#18:A5-FURNIS-5",
+   "#18:A5-FURNIS-6",
+   "#18:A3-IMAGE--9",
+   "#18:A3-IMAGE--11",
+   "#11:A6-TRK-6",
+   "#18:A1-SERVIC-6"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-09-packets-wave5.md"
+ },
+ {
+  "packet_id": "RP-031",
+  "repair_family": null,
+  "finding_ids": [
+   "#13:A2-JOB-1",
+   "#13:A2-JOB-3",
+   "#13:A2-JOB-7",
+   "#13:A3-ROOMS-5",
+   "#13:A3-ROOMS-7",
+   "#13:A3-ROOMS-10",
+   "#13:A3-ROOMS-11",
+   "#13:A4-SETUP-4",
+   "#13:A4-SETUP-7",
+   "#13:A4-SETUP-8",
+   "#13:A4-SETUP-12",
+   "#13:A5-RUNPROF-1",
+   "#13:A5-RUNPROF-2",
+   "#13:A5-RUNPROF-3",
+   "#13:A5-RUNPROF-5",
+   "#13:A5-RUNPROF-6",
+   "#13:A6-DIAG-1",
+   "#13:A6-DIAG-2",
+   "#13:A6-DIAG-3",
+   "#13:A6-DIAG-6",
+   "#13:A6-DIAG-7",
+   "#13:A6-DIAG-9",
+   "#16:A5-SVC-3",
+   "#16:A5-SVC-4",
+   "#8:A4-PP-RP-3",
+   "#8:A4-PP-RP-7",
+   "#17:A1-CRUD-7",
+   "agent: platforms (2-lens verified):EP-1",
+   "#14:A6-VAC-2",
+   "#13:A1-WIRE-1",
+   "#13:A1-WIRE-2",
+   "#13:A2-JOB-9",
+   "#13:A5-RUNPROF-7",
+   "#13:A4-SETUP-10",
+   "#13:A4-SETUP-11",
+   "#13:A4-SETUP-13",
+   "#13:A4-SETUP-14",
+   "#13:A6-DIAG-4",
+   "#13:A2-JOB-5",
+   "#13:A2-JOB-6",
+   "#13:A2-JOB-8_response_note"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-032",
+  "repair_family": "RF-28",
+  "finding_ids": [
+   "#13:A3-ROOMS-4",
+   "#14:A5-FACADE-5",
+   "#13:A1-WIRE-3",
+   "#13:A4-SETUP-15",
+   "#18:A1-SERVIC-5_yaml_half",
+   "#18:A1-SERVIC-6_gate_note",
+   "#18:A1-SERVIC-7",
+   "#16:A5-SVC-9",
+   "#13:A2-JOB-5",
+   "#13:A2-JOB-6",
+   "#13:A1-WIRE-4",
+   "#13:A3-ROOMS-3",
+   "#18:A6-ZONE-C-7_schema_note",
+   "#18:A4-CUSTOM-7",
+   "#18:A3-IMAGE--10",
+   "#18:A1-SERVIC-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-033",
+  "repair_family": "RF-32",
+  "finding_ids": [
+   "#13:A4-SETUP-2",
+   "#13:A4-SETUP-3",
+   "#13:A4-SETUP-5",
+   "#13:A4-SETUP-9",
+   "#7:DQ-DE-4",
+   "#7:DQ-DE-3",
+   "#14:A6-VAC-3",
+   "#12:A4-POSE-4",
+   "#12:A3-COMMON-2",
+   "#9:A1-WD-5_validation_half"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-034",
+  "repair_family": "RF-17",
+  "finding_ids": [
+   "#17:A1-CRUD-1",
+   "#17:A1-CRUD-2",
+   "#17:A1-CRUD-3",
+   "#17:A1-CRUD-4",
+   "#17:A1-CRUD-5",
+   "#17:A1-CRUD-6",
+   "#17:A1-CRUD-8",
+   "#17:A2-DRAFT-1",
+   "#17:A2-DRAFT-2",
+   "#17:A2-DRAFT-3",
+   "#17:A2-DRAFT-6",
+   "#17:A2-DRAFT-7",
+   "#17:A3-PORT-1",
+   "#17:A3-PORT-2",
+   "#17:A3-PORT-3",
+   "#17:A3-PORT-4",
+   "#17:A3-PORT-5",
+   "#17:A3-PORT-7",
+   "#17:A3-PORT-8",
+   "agent: sensor (2-lens verified):SN-6",
+   "#14:A1-INIT-3"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-035",
+  "repair_family": "RF-34",
+  "finding_ids": [
+   "agent: sensor (2-lens verified):SN-1",
+   "agent: sensor (2-lens\n  verified):SN-4",
+   "agent: sensor (2-lens verified):SN-8",
+   "agent: sensor (2-lens\n  verified):SN-9",
+   "agent: sensor (2-lens verified):SN-10b",
+   "agent: platforms (2-lens verified):EP-3",
+   "agent: platforms (2-lens\n  verified):EP-4",
+   "agent: platforms (2-lens verified):EP-6",
+   "agent: platforms\n  (2-lens verified):EP-7",
+   "#15:A3-FLOW-2",
+   "#15:A3-FLOW-3",
+   "agent: infra (2-lens verified):INF-1",
+   "agent: infra (2-lens verified):INF-2",
+   "#9:A6-PRE-3",
+   "#9:A6-PRE-4",
+   "#7:DQ-PH-5",
+   "#12:A5-METRICS-3",
+   "#12:A5-METRICS-4",
+   "#12:A5-METRICS-5",
+   "#14:A6-VAC-5"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-036",
+  "repair_family": "RF-21",
+  "finding_ids": [
+   "#16:A1-EST-1",
+   "#16:A1-EST-2",
+   "#16:A1-EST-3",
+   "#16:A1-EST-4",
+   "#16:A1-EST-5",
+   "#16:A1-EST-6",
+   "#16:A2-ACC-2",
+   "#16:A2-ACC-3",
+   "#16:A2-ACC-4",
+   "#16:A2-ACC-5",
+   "#16:A2-ACC-6",
+   "#16:A2-ACC-7"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-037",
+  "repair_family": "RF-29",
+  "finding_ids": [
+   "#16:A1-EST-9",
+   "#16:A3-IO-4",
+   "#16:A4-STATE-7",
+   "#18:A7-ROBORO-2",
+   "#11:A2-GEO-2",
+   "direct read:DR-ONB-5",
+   "#14:A3-SNAP-2",
+   "#17:A2-DRAFT-5",
+   "#11:A6-TRK-7"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-038",
+  "repair_family": "RF-30",
+  "finding_ids": [
+   "#12:A1-REG-1",
+   "#12:A6-GUARD-3",
+   "direct read:DR-DOCK-1",
+   "direct read:DR-DOCK-2",
+   "direct read:DR-DOCK-3",
+   "#12:A1-REG-4",
+   "#12:A2-LIFE-3_edge_half"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-039",
+  "repair_family": null,
+  "finding_ids": [
+   "#15:A1-UP-1",
+   "#15:A2-DOWN-1",
+   "#15:A4-RELOAD-1",
+   "#15:A1-UP-2",
+   "#15:A1-UP-3",
+   "#15:A2-DOWN-2",
+   "#15:A4-RELOAD-2",
+   "#16:A5-SVC-7",
+   "#15:A2-DOWN-3",
+   "#15:A4-RELOAD-4",
+   "#15:A4-RELOAD-3",
+   "#13:A1-WIRE-5",
+   "direct read:DR-DBG-3",
+   "#12:A1-REG-2",
+   "#12:A2-LIFE-2",
+   "#14:A6-VAC-4",
+   "#12:A1-REG-3",
+   "#12:A6-GUARD-6",
+   "direct read:DR-DBG-2",
+   "direct read:DR-DBG-4",
+   "direct read:DR-DBG-6",
+   "direct read:DR-DBG-7",
+   "direct read:DR-DIAG-1",
+   "direct read:DR-DIAG-2",
+   "direct read:DR-DIAG-3",
+   "direct read:DR-DIAG-4",
+   "direct read:DR-DIAG-5",
+   "direct read:HW-DIAG-1",
+   "direct read:DR-LR-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-040",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "RP-041",
+  "repair_family": null,
+  "finding_ids": [
+   "#9:A6-PRE-1",
+   "#12:A3-COMMON-1",
+   "#14:A3-SNAP-1",
+   "agent: sensor (2-lens verified):SN-2",
+   "direct read:DR-MNT-1",
+   "#12:A3-COMMON-3",
+   "#12:A4-POSE-3",
+   "agent: infra (2-lens verified):INF-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-10-packets-wave6.md"
+ },
+ {
+  "packet_id": "CARD-1",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-2",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-3",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-4",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-5",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-6",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-7",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-8",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "CARD-9",
+  "repair_family": null,
+  "finding_ids": null,
+  "source_doc": ".claude/notes/synthesis/SYNTH-11-packets-wave7-card.md"
+ },
+ {
+  "packet_id": "RP-042",
+  "repair_family": "RF-36",
+  "finding_ids": [
+   "live:BAT-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
+ },
+ {
+  "packet_id": "RP-043",
+  "repair_family": "RF-36",
+  "finding_ids": [
+   "live:BAT-2"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
+ },
+ {
+  "packet_id": "RP-044",
+  "repair_family": "RF-36",
+  "finding_ids": [
+   "live:BAT-3"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
+ },
+ {
+  "packet_id": "RP-045",
+  "repair_family": "RF-36",
+  "finding_ids": [
+   "live:BAT-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
+ }
+]

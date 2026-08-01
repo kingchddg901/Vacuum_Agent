@@ -1,0 +1,74 @@
+[
+ {
+  "packet_id": "RP-001",
+  "commits": ["3ddcc1c"],
+  "landed_at": "2026-07-31",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-002",
+  "commits": ["ca6dc75", "c2569bf", "3875f62"],
+  "landed_at": "2026-07-31",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-003",
+  "commits": ["76d92fc"],
+  "landed_at": "2026-07-31",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-004",
+  "commits": ["27824be"],
+  "landed_at": "2026-07-31",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-005",
+  "commits": ["4217c3c", "6989031"],
+  "landed_at": "2026-08-01",
+  "note": "6989031 is the card-side half (setup editor refuses an empty room selection); 4217c3c is the backend wipe guard."
+ },
+ {
+  "packet_id": "RP-006",
+  "commits": ["e598e3e", "b0967eb", "e35b961"],
+  "landed_at": "2026-08-01",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-007",
+  "commits": ["4c42482", "4bdd3f8"],
+  "landed_at": "2026-08-01",
+  "note": "rollback_plan named 3 commits; only 2 landed. NOT incomplete -- step 7 (the freshness gate) landed folded inside 4bdd3f8 (2/3), visible at dispatch/manager.py:291 labelled \"RP-007 step 7\". Verified against source, not inferred from commit numbering."
+ },
+ {
+  "packet_id": "RP-008",
+  "commits": ["8d244dc"],
+  "landed_at": "2026-08-01",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-009",
+  "commits": ["6ab1b20"],
+  "landed_at": "2026-08-01",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-010",
+  "commits": ["3e9e969", "de835ef", "d3e6139"],
+  "landed_at": "2026-08-01",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-011",
+  "commits": ["365f90b", "4cdcf51", "7f6b969"],
+  "landed_at": "2026-08-01",
+  "note": ""
+ },
+ {
+  "packet_id": "RP-012",
+  "commits": ["7269020", "47f9a25", "a02fd19", "6598b0c"],
+  "landed_at": "2026-08-01",
+  "note": "4 commits: (a)/(b)/(c) the original packet's rollback groups, (d) a follow-up single-commit fix (commanded-dock guard ported to resolve_mid_job_recharge_resumed) after the reproducer's 4th case (DQ-PH-6, already in this packet's finding_ids) exposed a regression the first 3 commits missed."
+ }
+]
