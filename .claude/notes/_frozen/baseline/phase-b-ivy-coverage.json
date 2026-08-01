@@ -1,0 +1,99 @@
+{
+  "phase": "B",
+  "captured_on": "2026-07-31",
+  "device": "Ivy (Roborock S6)",
+  "file": "ivy-run-BEFORE.log",
+  "debug_target": "Everything (unfiltered)",
+  "window": "2026-07-31 20:16:02.567 -> 20:18:49.600",
+  "records": 229,
+  "ring_capacity": 3000,
+  "wrapped": false,
+  "levels": {"DEBUG": 229, "INFO": 0, "WARNING": 0, "ERROR": 0},
+  "precondition": "Device was woken and the Roborock integration reloaded earlier the same day; see reference_roborock_idle_disconnect.md. Capture started mid-return of job 1.",
+
+  "jobs_observed": [
+    {
+      "job_id": "job_2026-07-31T20-14-28",
+      "shape": "CANCELLED (sent home) - capture begins mid-return",
+      "started_at": "03:14:28Z", "ended_at": "03:16:13Z", "duration_minutes": 1.75,
+      "outcome_status": "cancelled",
+      "queued_room_ids": [27], "completed_room_ids": [], "missed_room_ids": [27],
+      "room_timings": [], "transit_capture_valid": false,
+      "map_id": "Main floor"
+    },
+    {
+      "job_id": "job_2026-07-31T20-16-17",
+      "shape": "CANCELLED from the card at ~45s remaining - full dispatch -> cancel -> return -> finalize",
+      "dispatch_span_ms": 390,
+      "finalized_at": "20:18:46",
+      "map_id": "Main floor"
+    }
+  ],
+
+  "paths_covered_beyond_alfred": [
+    "CANCEL path end-to-end, twice (this is what Alfred's clean completion could not exercise)",
+    "back-to-back job boundary: finalize of job 1 at 20:16:13 -> dispatch of job 2 at 20:16:17, 4s apart",
+    "incomplete_run_log / trouble_rooms_log write path (only reached on a non-complete outcome)",
+    "Roborock adapter dispatch payload shape ({'segments': [27], 'repeat': 1} vs Eufy's per-room dict)",
+    "a human-name map_id ('Main floor') flowing through dispatch, finalize and persistence"
+  ],
+
+  "observations_to_reconcile": [
+    {
+      "id": "OBS-IVY-1",
+      "severity_proposed": "CRITICAL",
+      "status": "EFFECT PROVEN ON HARDWARE / MECHANISM HYPOTHESIZED - must be verified before it becomes a finding",
+      "what": "The finalize body ran TWICE for each of two jobs on Roborock. The exactly-once claim did not stop it.",
+      "evidence": {
+        "job_2026-07-31T20-14-28": ["Auto-finalized at 20:16:13.339 and 20:16:13.342 (3ms apart)"],
+        "job_2026-07-31T20-16-17": ["Auto-finalized at 20:18:46.275 and 20:18:46.289 (14ms apart)"],
+        "not_a_rejected_claim": "All four emissions carry a full 'completed_job' payload. None carries reason='finalize_in_flight' or reason='already_finalized', which is what the claim returns when it rejects an attempt.",
+        "body_side_writes_also_doubled": [
+          "learning.job_finalizer 'Incomplete run log written' x2 for job 1 (20:16:13.284, .294)",
+          "learning.job_finalizer 'Trouble rooms log updated' x2 per job"
+        ],
+        "control": "Alfred's capture over a comparable window shows each of these exactly ONCE. The asymmetry is brand-side, not recorder-side.",
+        "internal_consistency": "Only LISTENER-driven handlers doubled (lifecycle, job_finalizer, mapping.tracker). SERVICE-driven ones did not - 'start_selected_rooms complete' and its debug.span open/close each appear exactly once. This rules out the flight recorder duplicating records and points at the state-change listener."
+      },
+      "mechanism_hypothesis": {
+        "fan_out": "listeners/lifecycle.py registers ONE state-change listener over up to six entities per vacuum (vacuum entity, task_status, dock_status, active_cleaning_target, active_map, job_active - listeners/_common.py get_lifecycle_watch_entities). A cancel-and-dock flips several of these within milliseconds and the handler fires once PER ENTITY, each firing hass.async_create_task(_process()).",
+        "why_the_claim_did_not_absorb_it": "learning/manager.py ~line 695: the claim reads _stored_job = active_jobs[vacuum][str(map_id)]. Check-and-set is synchronous before the first await, so on a single event loop it IS atomic - BUT the whole claim sits under `if _stored_job is not None:` and there is NO else branch. When the stored job is not found under str(map_id), the claim is skipped entirely and execution falls straight through to _finalize_claimed.",
+        "why_roborock_and_not_eufy": "Alfred's map_id is '12' - a stable numeric string that always resolves. Ivy's is 'Main floor'. The same capture shows planned_job_estimate.map_id coerced to 0 while the outer map_id is 'Main floor', proving at least one path does not preserve the name. A key mismatch makes _stored_job None and the guarantee silently vanishes.",
+        "not_yet_proven": "Which branch actually fired is NOT established. Confirming requires knowing the key the job was stored under at call time. Do not record this as fact until that is shown."
+      },
+      "why_it_matters": "Double finalize means the same job is ingested into learning twice - timings, battery metrics, area and trouble-room counters all counted twice. That is corruption of the learning model, and it is the exact failure class the campaign CRIT (Waves 0-3b, commit 71e089c) was declared FULLY CLOSED against.",
+      "relationship_to_open_findings": "Shares a root cause with A1-SERVIC-1 (map_id is a free-form human name that no writer validates). If confirmed, that finding's blast radius includes defeating the exactly-once guarantee, not only orphaning zones and layouts.",
+      "vindicates": "Capturing a baseline BEFORE any repair. Had this surfaced after fixes landed it would have been indistinguishable from a regression we introduced."
+    },
+    {
+      "id": "OBS-IVY-2",
+      "severity_proposed": "HIGH",
+      "what": "planned_job_estimate.map_id is 0 while the enclosing snapshot's map_id is 'Main floor'",
+      "detail": "A Roborock map NAME cannot cast to int, so the estimate block falls back to 0. Alfred shows '12' -> 12 consistently. Any per-map lookup keyed off the estimate's map_id therefore addresses bucket 0 on Roborock.",
+      "status": "OBSERVATION - direct evidence in the capture; needs a source read to name the coercion site."
+    },
+    {
+      "id": "OBS-IVY-3",
+      "severity_proposed": "MEDIUM",
+      "what": "A cancelled run persists room_cleaning_minutes=0.71 and actual_cleaning_minutes=1.23 with room_timings=[] and transit_capture_valid=false",
+      "detail": "Derived per-room duration survives into the record with no underlying timing samples. Cross-check #16:A3-IO-1, which reads an empty room_timing as 'capture failed'.",
+      "status": "OBSERVATION"
+    },
+    {
+      "id": "OBS-IVY-4",
+      "severity_proposed": "LOW",
+      "what": "Cross-brand vocabulary and default divergence visible side by side",
+      "detail": "Ivy resolves fan_speed='gentle', path_type='wide' (lowercase) where Alfred resolves 'Max', 'None' (title case). pause_timeout_minutes_default is 0 for Ivy, 15 for Alfred. mop_wash reports mode='unknown' with mode_entity_id=None yet still publishes interval_minutes=20.0. queue_stable_keys are colon-delimited and contain the map name verbatim ('vacuum.ivy:Main floor:27'), so a map name containing a colon would break the key.",
+      "status": "OBSERVATION - feeds the brand-parity family."
+    }
+  ],
+
+  "still_not_covered": [
+    "mopping and water paths on either device",
+    "multi-room queue advance and inter-room transitions",
+    "break phases (charge_wait / wait / zone)",
+    "stepped run profiles",
+    "error / fault latch paths - zero WARNING or ERROR records in either capture",
+    "external (app-started) run ingestion"
+  ]
+}
