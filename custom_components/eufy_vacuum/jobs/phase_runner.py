@@ -31,6 +31,8 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.exceptions import HomeAssistantError
+
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..queue.queue_engine import advance_active_job_phase
 from ..timestamp_utils import utc_now_iso
@@ -573,9 +575,43 @@ class PhaseRunner:
             # The initial phase's first send already happened at job start — just
             # verify it; a re-dispatch only happens on a retry (device ignored it).
             if not (initial and attempt == 1):
-                await self._dispatch_active_phase(
-                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
-                )
+                try:
+                    await self._dispatch_active_phase(
+                        vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
+                    )
+                except HomeAssistantError as err:
+                    # RP-007 step 6: a live-resolution REFUSAL (the room no longer
+                    # exists on the current map, or freshness could not be
+                    # established) is not a transient — retrying the same phase
+                    # cannot succeed. Log, record the skip on the stored job
+                    # (cumulative evidence for RF-11), release the guard and
+                    # advance to the next phase instead of wedging the run.
+                    _LOGGER.warning(
+                        "Strict-order: phase %s on %s refused by live resolution "
+                        "(%s); marking its room(s) skipped and advancing",
+                        phase_index, vacuum_entity_id, err,
+                    )
+                    _stored = (
+                        self._manager.data.get("active_jobs", {})
+                        .get(vacuum_entity_id, {})
+                        .get(str(map_id))
+                    )
+                    if isinstance(_stored, dict):
+                        skipped = _stored.setdefault("skipped_rooms", [])
+                        for _rid in (job.get("phases", [])[phase_index].get("queue_room_ids", [])
+                                     if 0 <= phase_index < len(job.get("phases", [])) else []):
+                            entry = {"room_id": _rid, "phase_index": phase_index,
+                                     "reason": "live_resolution_refused",
+                                     "at": utc_now_iso()}
+                            if entry not in skipped:
+                                skipped.append(entry)
+                    self._clear_phase_dispatch_pending(
+                        vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+                    )
+                    await self.maybe_advance_phase(
+                        vacuum_entity_id=vacuum_entity_id, map_id=map_id
+                    )
+                    return
             if await self._await_phase_started(
                 vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
             ):

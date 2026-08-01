@@ -10,9 +10,12 @@ Coverage targets
 [LID-1] flag off -> payload returned unchanged.
 [LID-2] flag on -> wire segment ids remapped slug->live; batch scalar untouched.
 [LID-3] a target slug absent from the live map is skipped.
-[LID-4] an unavailable live source falls back to the stored ids.
+[LID-4] an unavailable live source with no fresh cache REFUSES (RP-007/Q16 — no stored-id fallback).
 [LID-5] params_as_list wraps the wire payload in a list (Roborock app_segment_clean); bare dict by default (Eufy).
-[LID-6] live source has rooms but NONE matches a target slug → fall back to the stored payload.
+[LID-6] live source has rooms but NONE matches a target slug → REFUSE (RP-007 step 5 — total miss).
+[LID-7] a failed refresh with a FRESH cache still resolves (the freshness gate's other half).
+[LID-8] duplicate map names key collision-safely in the flattened source (SRC-3).
+[LID-9] concurrent refreshes coalesce onto one in-flight service call (SRC-4).
 """
 
 from __future__ import annotations
@@ -111,20 +114,29 @@ async def test_skips_slug_absent_from_live_map(hass, manager):
     assert out["segments"] == [27]
 
 
-async def test_unavailable_source_falls_back_to_stored(hass, manager):
-    """[LID-4] no get_maps service registered -> stored ids dispatched."""
+async def test_unavailable_source_refuses(hass, manager):
+    """[LID-4] (RP-007 / GATE4 Q16) no live source and no fresh cache -> REFUSE.
+
+    Superseded contract: this used to assert the stored ids were dispatched. That
+    fallback is exactly DQ-ACT-1's wrong-room CRITICAL — after a re-segment the
+    stored numbers belong to different rooms. The decided behaviour is
+    refuse-until-awake: no stored-id fallback, no dispatch-to-wake; the error
+    text tells the user to wake the robot.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
     _register(hass)
-    # No get_maps service registered: async_refresh swallows the error, the cache
-    # stays empty, and the resolver falls back to the stored payload.
-    out = await manager._resolve_live_dispatch_payload(
-        vacuum_entity_id=_VAC, map_id=_MAP,
-        payload={"segments": [16, 17], "repeat": 1},
-        resolved_rooms=[
-            {"room_id": 16, "slug": "kitchen"},
-            {"room_id": 17, "slug": "dining_room"},
-        ],
-    )
-    assert out["segments"] == [16, 17]
+    # No get_maps service registered: the refresh fails and no cache entry
+    # carries a freshness stamp -> the freshness gate refuses.
+    with pytest.raises(HomeAssistantError, match="wake the robot"):
+        await manager._resolve_live_dispatch_payload(
+            vacuum_entity_id=_VAC, map_id=_MAP,
+            payload={"segments": [16, 17], "repeat": 1},
+            resolved_rooms=[
+                {"room_id": 16, "slug": "kitchen"},
+                {"room_id": 17, "slug": "dining_room"},
+            ],
+        )
 
 
 # --- params_as_list wire-shape contract -------------------------------------
@@ -174,19 +186,105 @@ async def test_params_bare_dict_by_default(hass, manager):
     assert calls[0]["params"] == {"map_id": "1", "rooms": [{"id": 1}]}
 
 
-async def test_all_targets_absent_falls_back_to_stored(hass, manager):
-    """[LID-6] the live source HAS rooms but NONE matches a target slug → no segment
-    resolves, so the original stored payload is dispatched unchanged (vs LID-3 where one
-    target still resolved and only the missing one was dropped). Guards against a
-    zero-room dispatch when every target slug has drifted off the current map."""
+async def test_all_targets_absent_refuses(hass, manager):
+    """[LID-6] (RP-007 step 5) the live source HAS rooms but NONE matches a target
+    slug — a TOTAL miss — must REFUSE, not dispatch the stale stored ids.
+
+    Superseded contract: this used to assert the stored payload was dispatched
+    unchanged, which after a vendor-app re-segment cleans whatever rooms now wear
+    those numbers (DQ-ACT-1/DQ-DE-1). Partial-miss skip behaviour is unchanged
+    (LID-3 still passes).
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
     _register(hass)
     _register_get_maps(hass, {"27": "KITCHEN"})   # only kitchen is live; targets are elsewhere
+    with pytest.raises(HomeAssistantError, match="re-segmented"):
+        await manager._resolve_live_dispatch_payload(
+            vacuum_entity_id=_VAC, map_id=_MAP,
+            payload={"segments": [19, 20], "repeat": 1},
+            resolved_rooms=[
+                {"room_id": 19, "slug": "office"},
+                {"room_id": 20, "slug": "lounge"},
+            ],
+        )
+
+
+# --- RP-007 additions: freshness gate, collision keys, coalescing ------------
+
+
+async def test_fresh_cache_survives_failed_refresh(hass, manager):
+    """[LID-7] (RP-007 step 7) a FAILED refresh with a FRESH cache proceeds —
+    the freshness gate only refuses when the cache is stale/unstamped too."""
+    import asyncio
+
+    _register(hass)
+    _register_get_maps(hass, {"27": "kitchen"})
+    from custom_components.eufy_vacuum.rooms.source_refresh import (
+        async_refresh_room_source,
+    )
+
+    # a successful refresh stamps the cache...
+    result = await async_refresh_room_source(hass, _VAC)
+    assert result["ok"] is True and result["refreshed_at"]
+    # ...then the service disappears (device asleep) — refresh now fails
+    hass.services.async_remove("roborock", "get_maps")
+    await asyncio.sleep(0)
+
     out = await manager._resolve_live_dispatch_payload(
         vacuum_entity_id=_VAC, map_id=_MAP,
-        payload={"segments": [19, 20], "repeat": 1},
-        resolved_rooms=[
-            {"room_id": 19, "slug": "office"},
-            {"room_id": 20, "slug": "lounge"},
-        ],
+        payload={"segments": [16], "repeat": 1},
+        resolved_rooms=[{"room_id": 16, "slug": "kitchen"}],
     )
-    assert out == {"segments": [19, 20], "repeat": 1}   # stored ids dispatched unchanged
+    assert out["segments"] == [27]   # resolved from the FRESH cache, not refused
+
+
+def test_flatten_duplicate_map_names_key_collision_safely():
+    """[LID-8] (RP-007 / SRC-3) two maps with the same human name no longer
+    silently overwrite each other in the flattened source."""
+    from custom_components.eufy_vacuum.rooms.source_refresh import (
+        flatten_maps_response,
+    )
+
+    out = flatten_maps_response(
+        {"maps": [
+            {"flag": 0, "name": "Main", "rooms": {"1": "A"}},
+            {"flag": 1, "name": "Main", "rooms": {"2": "B"}},
+        ]},
+        discovery={},
+    )
+    assert set(out) == {"Main", "Main#flag1"}
+    assert out["Main"][0]["segment_id"] == "1"
+    assert out["Main#flag1"][0]["segment_id"] == "2"
+
+
+async def test_concurrent_refreshes_coalesce_to_one_call(hass):
+    """[LID-9] (RP-007 / SRC-4) two concurrent refreshes share one in-flight
+    service call instead of stampeding the upstream integration."""
+    import asyncio
+
+    from homeassistant.core import SupportsResponse
+
+    from custom_components.eufy_vacuum.rooms.source_refresh import (
+        async_refresh_room_source,
+    )
+
+    _register(hass)
+    calls = {"n": 0}
+
+    async def _slow_get_maps(call):
+        calls["n"] += 1
+        await asyncio.sleep(0)
+        return {"maps": [{"flag": 0, "name": _MAP, "rooms": {"27": "kitchen"}}]}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _slow_get_maps,
+        supports_response=SupportsResponse.ONLY,
+    )
+
+    r1, r2 = await asyncio.gather(
+        async_refresh_room_source(hass, _VAC),
+        async_refresh_room_source(hass, _VAC),
+    )
+    assert calls["n"] == 1
+    assert r1["ok"] is True and r2["ok"] is True

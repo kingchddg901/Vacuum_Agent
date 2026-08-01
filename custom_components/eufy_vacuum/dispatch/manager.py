@@ -26,6 +26,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.exceptions import HomeAssistantError
+
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 
 if TYPE_CHECKING:
@@ -275,10 +277,34 @@ class DispatchManager:
         if rooms_field not in payload:
             return payload
 
-        from ..rooms.source_refresh import async_refresh_room_source
+        from ..rooms.source_refresh import (
+            REFRESH_TTL_SECONDS,
+            async_refresh_room_source,
+            get_cached_room_source_with_age,
+        )
         from ..rooms.room_discovery import discover_rooms_for_vacuum
 
-        await async_refresh_room_source(self._manager.hass, vacuum_entity_id)
+        refresh_result = await async_refresh_room_source(
+            self._manager.hass, vacuum_entity_id
+        )
+
+        # RP-007 step 7 (GATE4 Q16 variant a): dispatch REQUIRES freshness. When
+        # the live refresh failed AND the cache is older than the TTL (or has no
+        # freshness stamp at all), the ids we would resolve against may describe a
+        # map that no longer exists — refuse rather than guess. This includes the
+        # asleep/unreachable-Roborock cold boot: NO stored-id fallback, NO
+        # dispatch-to-wake. Once a live refresh succeeds, dispatch proceeds
+        # normally.
+        _, cache_age_s = get_cached_room_source_with_age(
+            self._manager.hass, vacuum_entity_id
+        )
+        cache_fresh = cache_age_s is not None and cache_age_s <= REFRESH_TTL_SECONDS
+        if not refresh_result.get("ok") and not cache_fresh:
+            raise HomeAssistantError(
+                "the robot's live room data is unavailable — wake the robot (or "
+                "wait for the Roborock integration to reconnect), then try again"
+            )
+
         live_rooms = discover_rooms_for_vacuum(
             self._manager.hass, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
         )
@@ -291,13 +317,6 @@ class DispatchManager:
                 slug_to_live_id[slug] = int(room["room_id"])
             except (TypeError, ValueError, KeyError):
                 continue
-
-        if not slug_to_live_id:
-            _LOGGER.warning(
-                "dispatch: no live segment source for %s; dispatching stored ids",
-                vacuum_entity_id,
-            )
-            return payload
 
         new_segments: list[int] = []
         dropped: list[str] = []
@@ -315,11 +334,15 @@ class DispatchManager:
                 len(dropped), vacuum_entity_id, dropped,
             )
         if not new_segments:
-            _LOGGER.warning(
-                "dispatch: no target rooms resolved live for %s; dispatching stored ids",
-                vacuum_entity_id,
+            # RP-007 step 5 (DQ-ACT-1/DQ-DE-1): a TOTAL live-resolution miss used
+            # to fall back to the STALE stored ids — after a re-segment those
+            # numbers belong to whatever rooms the vendor renumbered, and the
+            # wrong rooms got cleaned while the log said "dispatching stored ids".
+            # Partial-miss skip behaviour (above) is unchanged.
+            raise HomeAssistantError(
+                "no target rooms resolved on the current map — the map may have "
+                "been re-segmented; re-import rooms"
             )
-            return payload
         return {**payload, rooms_field: new_segments}
 
     async def _run_global_pre_calls(
@@ -439,7 +462,18 @@ class DispatchManager:
                     {"entity_id": target_entity, value_key: wire_value},
                     blocking=True,
                 )
-            except Exception:  # pragma: no cover - best-effort global pre-call
+            except Exception as err:
+                # RP-007 step 8 (DQ-ACT-5): the mixed-batch SAFEST-water push is
+                # SAFETY-critical — if it fails, the device keeps its previous
+                # (possibly high) water and the dispatch would wet-mop the dry
+                # rooms it exists to protect. Abort the dispatch. Plain max-wins
+                # pre-calls (fan, single-mode water) stay best-effort.
+                if _use_safest:
+                    raise HomeAssistantError(
+                        f"could not apply the safe water setting before a mixed "
+                        f"mop+vacuum run ({domain}.{service_name} failed: {err}); "
+                        f"dispatch aborted to avoid wet-mopping dry rooms"
+                    ) from err
                 _LOGGER.exception(
                     "global pre-call %s.%s failed for %s",
                     domain, service_name, vacuum_entity_id,
