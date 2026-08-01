@@ -209,16 +209,32 @@ async def test_delete_map_no_remaining_maps_adds_warning(hass, manager):
 
 
 async def test_delete_map_sweeps_stale_registry_entities(hass, manager):
-    """[SD-10] delete sweeps leftover registry entities (platform=DOMAIN, unique_id
-    prefixed by vacuum+map) that platform teardown may have missed."""
+    """[SD-10] (RP-009 / REVIEW D3, GATE4 Q15) delete sweeps by the CLOSED SET of
+    ids reconstructed from the deleted map's stored rooms.
+
+    Superseded contract: the old prefix sweep deleted ANY prefix-matching entry —
+    including, provably, a sibling vacuum's entities (DR-SETUP-1). Now: an entry
+    whose unique_id is reconstructible from the map's rooms is swept; an entry
+    the old scan would have matched but the closed set cannot re-derive is
+    REPORTED as an orphan_candidate and left untouched — never delete what
+    cannot be re-derived.
+    """
     from homeassistant.helpers import entity_registry as er
     setup_map(manager, _VAC, _MAP, count=2)
     reg = er.async_get(hass)
     prefix = f"{_VAC.replace('.', '_')}_{_MAP}_"
-    ent = reg.async_get_or_create(
+    # a GENUINE straggler: room 2's enabled switch, reconstructible
+    genuine = reg.async_get_or_create(
+        "switch", DOMAIN, f"{prefix}2_enabled",
+        suggested_object_id="alfred_room2_enabled_stale")
+    # a NON-reconstructible stray (old id scheme / unknown provenance)
+    stray = reg.async_get_or_create(
         "sensor", DOMAIN, f"{prefix}roomhist_stale",
         suggested_object_id="alfred_stale_roomhist")
     result = await delete_map(
         hass, vacuum_entity_id=_VAC, map_id=_MAP, confirmation_token="confirm")
     assert result["status"] == "success"
-    assert reg.async_get(ent.entity_id) is None  # stale entity swept
+    assert reg.async_get(genuine.entity_id) is None      # reconstructible: swept
+    assert reg.async_get(stray.entity_id) is not None    # unknown: preserved
+    orphans = result["data"]["orphan_candidates"]
+    assert [o["unique_id"] for o in orphans] == [f"{prefix}roomhist_stale"]

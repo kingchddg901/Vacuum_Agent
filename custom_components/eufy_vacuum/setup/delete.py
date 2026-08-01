@@ -14,6 +14,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from ..const import DATA_RUNTIME, DOMAIN
+from ..entity_helpers import unique_ids_for_map
 from .protection import evaluate_map_protection
 
 _LOGGER = logging.getLogger(__name__)
@@ -117,6 +118,12 @@ async def delete_map(
         "Deleting map %s for %s (protection=%s)",
         map_id_str, vacuum_entity_id, level,
     )
+    # RP-009 step 4 (REVIEW D3): capture the room ids BEFORE remove_map — the
+    # closed-set sweep below reconstructs unique_ids from the stored rooms of
+    # the map being deleted, and after remove_map they are gone.
+    _deleted_room_ids = [
+        rid for rid in (bucket.get("rooms") or {}).keys()
+    ]
     removed = manager.remove_map(
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id_str,
@@ -131,19 +138,48 @@ async def delete_map(
         map_id=map_id_str,
     )
 
-    # Sweep the entity registry directly to remove any stragglers the platform
-    # teardown callbacks may have missed.
-    prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id_str}_"
+    # RP-009 step 4 (REVIEW D3): sweep the registry by the CLOSED SET of ids
+    # forward-reconstructed from this map's stored rooms — never by string
+    # prefix. The prefix scan was PROVEN (DR-SETUP-1) to delete every entity of
+    # a sibling vacuum whose entity_id was the prefix plus a suffix: deleting
+    # map "2" of vacuum.alfred swept ALL of vacuum.alfred_2's entities.
+    #
+    # Entries the old prefix scan would have matched but the closed set does
+    # not — pre-fix orphans from rooms removed before this repair, or older id
+    # schemes — are ENUMERATED AND REPORTED, never deleted: what cannot be
+    # re-derived must not be destroyed (GATE4 Q15: report-only; exact cleanup
+    # only when ownership is reconstructible).
+    owned_unique_ids = unique_ids_for_map(
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id_str,
+        room_ids=_deleted_room_ids,
+    )
+    _legacy_prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id_str}_"
     registry = er.async_get(hass)
     removed_entity_ids: list[str] = []
+    orphan_candidates: list[dict[str, str]] = []
     for entry in list(registry.entities.values()):
-        if (
-            entry.platform == DOMAIN
-            and entry.unique_id.startswith(prefix)
-        ):
+        if entry.platform != DOMAIN:
+            continue
+        if entry.unique_id in owned_unique_ids:
             _LOGGER.debug("Removing stale entity %s", entry.entity_id)
             registry.async_remove(entry.entity_id)
             removed_entity_ids.append(entry.entity_id)
+        elif entry.unique_id.startswith(_legacy_prefix):
+            # the old scan would have (possibly wrongly) deleted this — report it
+            orphan_candidates.append({
+                "entity_id": entry.entity_id,
+                "unique_id": entry.unique_id,
+            })
+    if orphan_candidates:
+        _LOGGER.warning(
+            "delete_map %s/%s: %d registry entr%s matched the legacy prefix but "
+            "not the closed room-id set — left untouched and reported "
+            "(orphan_candidates). They may belong to a SIBLING vacuum or to "
+            "rooms removed before the RP-009 repair.",
+            vacuum_entity_id, map_id_str, len(orphan_candidates),
+            "y" if len(orphan_candidates) == 1 else "ies",
+        )
 
     await manager.async_save()
 
@@ -166,6 +202,7 @@ async def delete_map(
         data={
             "removed": removed,
             "entities_removed": len(removed_entity_ids),
+            "orphan_candidates": orphan_candidates,
             "remaining_map_count": len(remaining_maps),
         },
         next_actions=["import_active_map"] if not remaining_maps else [],

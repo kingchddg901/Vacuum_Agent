@@ -67,9 +67,76 @@ def make_room_unique_id(
     room_id: int,
     suffix: str,
 ) -> str:
-    """Build a stable unique ID for a room entity."""
+    """Build a stable unique ID for a room entity.
+
+    NON-INJECTIVE JOIN, by decision (RP-009 / INF-5 document_only): "_" appears
+    inside vacuum keys, map ids and suffixes, so the concatenation cannot be
+    parsed back into its parts — ``vacuum_alfred_2_...`` is both (vacuum.alfred,
+    map "2") and (vacuum.alfred_2, any map). No parser exists and none may be
+    written; ownership questions are answered by ``entity_belongs_to`` (live
+    attributes) or ``unique_ids_for_map`` (forward reconstruction), never by
+    string dissection.
+    """
     vacuum_key = vacuum_entity_id.replace(".", "_")
     return f"{vacuum_key}_{map_id}_{room_id}_{suffix}"
+
+
+#: Every suffix a ROOM entity is built with — one per platform room class.
+#: setup/delete's closed-set sweep reconstructs ids from these; a NEW room
+#: entity class must add its suffix here (the parity test counts the classes).
+ROOM_ENTITY_SUFFIXES: tuple[str, ...] = (
+    "enabled",           # switch.EufyVacuumRoomEnabledSwitch
+    "order",             # number.EufyVacuumRoomOrderNumber
+    "cleaning_history",  # sensor.room_history.EufyVacuumRoomCleaningHistorySensor
+    "rule_status",       # sensor.room_rule_status.EufyVacuumRoomRuleStatusSensor
+)
+
+
+def unique_ids_for_map(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    room_ids: "list[int] | list[str]",
+    suffixes: "tuple[str, ...] | list[str]" = ROOM_ENTITY_SUFFIXES,
+) -> set[str]:
+    """FORWARD-reconstruct the exact unique_id set for one vacuum/map's rooms.
+
+    RP-009 (RF-04): the builder and the matcher live side by side so ownership
+    is answered by re-BUILDING ids from stored facts, never by prefix-scanning
+    the registry. Five prefix scans existed; one of them (setup/delete) was
+    PROVEN to registry-delete every entity of a sibling vacuum whose entity_id
+    was the scanned prefix plus a suffix (vacuum.alfred deleting map "2" swept
+    vacuum.alfred_2's entities — DR-SETUP-1).
+    """
+    out: set[str] = set()
+    for room_id in room_ids:
+        try:
+            rid = int(room_id)
+        except (TypeError, ValueError):
+            continue
+        for suffix in suffixes:
+            out.add(make_room_unique_id(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+                room_id=rid, suffix=suffix,
+            ))
+    return out
+
+
+def entity_belongs_to(entity: Any, *, vacuum_entity_id: str, map_id: str) -> bool:
+    """Whether a live room entity belongs to one vacuum/map — by ATTRIBUTES.
+
+    Consumes the read-only ``vacuum_entity_id`` / ``map_id`` properties the
+    shared room base entity exposes (RP-009 / REVIEW D2) — never the unique_id
+    string, which is a non-injective join (see make_room_unique_id). An entity
+    that does not carry both properties (e.g. a maintenance number sharing a
+    platform entity_map — EP-2's victim) is NOT a room entity and never
+    "belongs", so a sweep can never classify it stale.
+    """
+    ent_vac = getattr(entity, "vacuum_entity_id", None)
+    ent_map = getattr(entity, "map_id", None)
+    if not isinstance(ent_vac, str) or ent_map is None:
+        return False
+    return ent_vac == vacuum_entity_id and str(ent_map) == str(map_id)
 
 
 def sort_room_items(

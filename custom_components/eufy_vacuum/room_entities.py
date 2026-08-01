@@ -60,6 +60,21 @@ class EufyVacuumRoomEntity(Entity):
         """Return integration manager."""
         return self.hass.data[DOMAIN]["runtime"]
 
+    # RP-009 (REVIEW D2): ownership is answered by ATTRIBUTES, never by parsing
+    # the unique_id (a non-injective join — see entity_helpers.make_room_unique_id).
+    # Read-only accessors so entity_helpers.entity_belongs_to consumes the public
+    # surface instead of reaching for the underscore attrs.
+
+    @property
+    def vacuum_entity_id(self) -> str:
+        """The owning vacuum's entity_id (ownership attribute)."""
+        return self._vacuum_entity_id
+
+    @property
+    def map_id(self) -> str:
+        """The owning map id (ownership attribute)."""
+        return self._map_id
+
     def _get_room_data(self) -> dict[str, Any]:
         """Return current room data from manager storage."""
         map_bucket = (

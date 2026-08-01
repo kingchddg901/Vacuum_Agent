@@ -46,7 +46,7 @@ from ..adapters.registry import get_adapter_config
 from ..battery.sensors import build_battery_sensors
 from ..const import DATA_BATTERY, DATA_ERROR_TRACKER, DOMAIN, EVENT_JOB_FINISHED
 from ..core.error_tracker import ErrorTracker
-from ..entity_helpers import sort_room_items
+from ..entity_helpers import entity_belongs_to, sort_room_items
 from .dock_event import EufyVacuumDockEventSensor
 from .error import EufyVacuumActiveRunErrorSensor, EufyVacuumLastDeviceErrorSensor
 from .lifecycle import EufyVacuumActiveJobSensor
@@ -230,8 +230,29 @@ async def async_setup_entry(
             )
         )
 
-    def _sync_room_history_entities(*, vacuum_entity_id: str, map_id: str) -> None:
-        """Add new and remove stale room cleaning history sensors for one vacuum/map."""
+    def _sync_dynamic_entities(
+        *,
+        entity_dict: dict[str, SensorEntity],
+        entity_cls,
+        coordinator_key: str,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> None:
+        """Shared per-room sensor sync (RP-009 step 3 / DR-SENS-2).
+
+        The history and rule-status syncs were 50-line byte-identical twins that
+        had already drifted once; one body means the next fix lands in both.
+
+        THREAD MODEL (A2-CB-5 / SN-7): every state write in this sync routes
+        through _request_entity_state_write — manager callbacks may fire from
+        worker threads, and async_write_ha_state() must run on the loop. The
+        funnel is the single documented convention; a bare
+        entity.async_write_ha_state() in a callback is a bug.
+
+        Stale classification is by OWNERSHIP ATTRIBUTES (entity_belongs_to) +
+        absence from desired — never by unique_id prefix (RP-009/RF-04:
+        DR-SETUP-1 proved the prefix scan deleted a sibling vacuum's entities).
+        """
         map_bucket = (
             manager.data.get("maps", {})
             .get(vacuum_entity_id, {})
@@ -243,8 +264,8 @@ async def async_setup_entry(
 
         desired_entities: dict[str, SensorEntity] = {}
         for room_id_key, room_data in sort_room_items(rooms):
-            entity = EufyVacuumRoomCleaningHistorySensor(
-                coordinator_key="room_history_sensor",
+            entity = entity_cls(
+                coordinator_key=coordinator_key,
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=str(map_id),
                 room_id=int(room_id_key),
@@ -252,16 +273,15 @@ async def async_setup_entry(
             )
             desired_entities[entity.unique_id] = entity
 
-        prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id}_"
-
         stale_ids = [
             unique_id
-            for unique_id in list(room_history_entities.keys())
-            if unique_id.startswith(prefix) and unique_id not in desired_entities
+            for unique_id, ent in list(entity_dict.items())
+            if entity_belongs_to(ent, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+            and unique_id not in desired_entities
         ]
         _registry = er.async_get(hass)
         for unique_id in stale_ids:
-            existing = room_history_entities.pop(unique_id, None)
+            existing = entity_dict.pop(unique_id, None)
             if existing is not None:
                 hass.async_create_task(existing.async_remove())
             entity_id = _registry.async_get_entity_id("sensor", DOMAIN, unique_id)
@@ -270,78 +290,55 @@ async def async_setup_entry(
 
         new_entities: list[SensorEntity] = []
         for unique_id, entity in desired_entities.items():
-            existing = room_history_entities.get(unique_id)
+            existing = entity_dict.get(unique_id)
             if existing is not None:
                 _request_entity_state_write(existing)
                 continue
-            room_history_entities[unique_id] = entity
+            entity_dict[unique_id] = entity
             new_entities.append(entity)
 
         if new_entities:
             async_add_entities(new_entities)
+
+    def _refresh_dynamic_entities(
+        *,
+        entity_dict: dict[str, SensorEntity],
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> None:
+        """Push a state refresh to one vacuum/map's sensors (ownership match,
+        through the state-write funnel)."""
+        for _unique_id, entity in list(entity_dict.items()):
+            if entity_belongs_to(entity, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)):
+                _request_entity_state_write(entity)
+
+    def _sync_room_history_entities(*, vacuum_entity_id: str, map_id: str) -> None:
+        _sync_dynamic_entities(
+            entity_dict=room_history_entities,
+            entity_cls=EufyVacuumRoomCleaningHistorySensor,
+            coordinator_key="room_history_sensor",
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+        )
 
     def _refresh_room_history_entities(*, vacuum_entity_id: str, map_id: str) -> None:
-        """Push a state refresh to all history sensors for one vacuum/map."""
-        prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id}_"
-        for unique_id, entity in list(room_history_entities.items()):
-            if unique_id.startswith(prefix):
-                _request_entity_state_write(entity)
+        _refresh_dynamic_entities(
+            entity_dict=room_history_entities,
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+        )
 
     def _sync_room_rule_status_entities(*, vacuum_entity_id: str, map_id: str) -> None:
-        """Add new and remove stale room rule-status sensors for one vacuum/map."""
-        map_bucket = (
-            manager.data.get("maps", {})
-            .get(vacuum_entity_id, {})
-            .get(str(map_id), {})
+        _sync_dynamic_entities(
+            entity_dict=room_rule_status_entities,
+            entity_cls=EufyVacuumRoomRuleStatusSensor,
+            coordinator_key="room_rule_status_sensor",
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id,
         )
-        rooms = map_bucket.get("rooms", {})
-        if not isinstance(rooms, dict):
-            rooms = {}
-
-        desired_entities: dict[str, SensorEntity] = {}
-        for room_id_key, room_data in sort_room_items(rooms):
-            entity = EufyVacuumRoomRuleStatusSensor(
-                coordinator_key="room_rule_status_sensor",
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                room_id=int(room_id_key),
-                room_data=room_data,
-            )
-            desired_entities[entity.unique_id] = entity
-
-        prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id}_"
-        stale_ids = [
-            unique_id
-            for unique_id in list(room_rule_status_entities.keys())
-            if unique_id.startswith(prefix) and unique_id not in desired_entities
-        ]
-        _registry = er.async_get(hass)
-        for unique_id in stale_ids:
-            existing = room_rule_status_entities.pop(unique_id, None)
-            if existing is not None:
-                hass.async_create_task(existing.async_remove())
-            entity_id = _registry.async_get_entity_id("sensor", DOMAIN, unique_id)
-            if entity_id:
-                _registry.async_remove(entity_id)
-
-        new_entities: list[SensorEntity] = []
-        for unique_id, entity in desired_entities.items():
-            existing = room_rule_status_entities.get(unique_id)
-            if existing is not None:
-                _request_entity_state_write(existing)
-                continue
-            room_rule_status_entities[unique_id] = entity
-            new_entities.append(entity)
-
-        if new_entities:
-            async_add_entities(new_entities)
 
     def _refresh_room_rule_status_entities(*, vacuum_entity_id: str, map_id: str) -> None:
-        """Push a state refresh to all rule-status sensors for one vacuum/map."""
-        prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id}_"
-        for unique_id, entity in list(room_rule_status_entities.items()):
-            if unique_id.startswith(prefix):
-                _request_entity_state_write(entity)
+        _refresh_dynamic_entities(
+            entity_dict=room_rule_status_entities,
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+        )
 
     manager.register_room_update_callback(_sync_room_history_entities)
     entry.async_on_unload(

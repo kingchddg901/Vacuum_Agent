@@ -15,7 +15,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN
 from .debug_capture import build_debug_switch
-from .entity_helpers import sort_room_items
+from .entity_helpers import entity_belongs_to, sort_room_items
 from .room_entities import EufyVacuumRoomEntity
 
 
@@ -68,10 +68,14 @@ async def async_setup_entry(
             )
             desired[entity.unique_id] = entity
 
-        prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id}_"
+        # RP-009 (RF-04): stale = OWNED by this vacuum/map (live attributes, via
+        # entity_belongs_to) and absent from desired — never a unique_id prefix
+        # scan, which matched sibling vacuums whose entity_id is a string prefix
+        # (vacuum.alfred_2 under vacuum.alfred + map "2" — DR-SETUP-1).
         stale_ids = [
-            uid for uid in list(entity_map.keys())
-            if uid.startswith(prefix) and uid not in desired
+            uid for uid, ent in list(entity_map.items())
+            if entity_belongs_to(ent, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+            and uid not in desired
         ]
         _registry = er.async_get(hass)
         for uid in stale_ids:

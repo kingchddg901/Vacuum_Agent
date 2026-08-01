@@ -15,7 +15,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .adapters.registry import get_adapter_config
 from .const import DOMAIN
-from .entity_helpers import build_vacuum_device_info, sort_room_items
+from .entity_helpers import build_vacuum_device_info, entity_belongs_to, sort_room_items
 from .room_entities import EufyVacuumRoomEntity
 
 
@@ -98,10 +98,17 @@ async def async_setup_entry(
             ):
                 desired[entity.unique_id] = entity
 
-        prefix = f"{vacuum_entity_id.replace('.', '_')}_{map_id}_"
+        # RP-009 (RF-04 + EP-2): stale = a ROOM entity owned by this vacuum/map
+        # and absent from desired. entity_belongs_to answers by live attributes,
+        # so the maintenance-interval numbers sharing this entity_map (plain
+        # NumberEntity, no ownership attributes) can never be classified stale —
+        # the prefix scan destroyed them and this callback could never rebuild
+        # them (EP-2). isinstance keeps the restriction explicit.
         stale_ids = [
-            uid for uid in list(entity_map.keys())
-            if uid.startswith(prefix) and uid not in desired
+            uid for uid, ent in list(entity_map.items())
+            if isinstance(ent, EufyVacuumRoomEntity)
+            and entity_belongs_to(ent, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+            and uid not in desired
         ]
         _registry = er.async_get(hass)
         for uid in stale_ids:
