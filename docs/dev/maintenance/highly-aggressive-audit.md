@@ -1472,8 +1472,29 @@ Measured cost per audit, for scoping future runs.
 | #15 | integration script (**4+2 agents**) | 853 | **0.76M** | 20 min |
 | #16 | learning consumers (5+2 agents) | 3,308 | 1.23M | 24 min |
 | #17 | themes/manager.py (**3+2 agents**) | 668 | **0.53M** | 16 min |
+| *1 agent* | entity platforms (button/number/switch/select/binary_sensor/room_entities) | 1,075 | **0.18M** | 16 min |
+| *1 agent* | sensor leftovers (platform setup + 4 entity modules) | 887 | **0.17M** | 13 min |
+| *1 agent* | infrastructure (const/models/entity_helpers/config_flow/…) | 1,169 | **0.19M** | 14 min |
+| *direct read ×11* | live_refresh · maps · dock · maintenance · counter_segmentation · debug_capture · diagnostics · onboarding · battery · sensor · setup | 8,709 | **~0.55M total (~50K each)** | — |
 
-Cost tracks the **eight-agent shape far more than subsystem size** — one audit covered
-2,531 lines for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent
-count, not by lines of code.
+Cost tracks the **agent shape far more than subsystem size** — one audit covered 2,531 lines
+for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent count, not by LOC.
+
+**The ladder, measured.** Roughly an order of magnitude separates each rung:
+
+| Method | Shape | Typical cost |
+|---|---|---|
+| Full audit | 6 finders + 2 verifiers | 1.1–1.6M |
+| Scaled audit | 3–5 finders + 2 verifiers | 0.53–1.23M |
+| Targeted agent | 1 agent, no verifiers | ~0.18M |
+| Direct read | orchestrator, no agents | ~0.05M |
+
+Verify has a **~200k floor that does not shrink with the target**, so an audit has a cost
+floor regardless of size — which is why below a few hundred lines a direct read wins. Measured
+here: 11 direct reads covered 8,709 lines for ~0.55M, against ~2.5M for equivalent audits.
+
+Caveats: direct-read figures are **upper bounds** — each stretch also carried ledger updates
+and commits. Audits #1-#6 predate this table (their findings were applied and left the ledger).
+The targeted-agent rows had NO adversarial verification, which is a coverage difference, not
+just a cost difference.
 
