@@ -922,6 +922,7 @@ class LearningManager:
         result: dict[str, Any],
         vacuum_entity_id: str,
         map_id: str,
+        stats_sink: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Extract estimated vs actual per room from a finalized job result
         and record accuracy automatically.
@@ -1006,6 +1007,7 @@ class LearningManager:
         return self.estimator.record_estimate_accuracy(
             vacuum_entity_id=vacuum_entity_id,
             room_actuals=room_actuals,
+            stats_sink=stats_sink,
         )
 
     def rebuild_learning(
@@ -1048,8 +1050,13 @@ class LearningManager:
 
         Returns the number of records that contributed. Caller persists.
         """
-        self.store.save_accuracy_stats(vacuum_entity_id=vacuum_entity_id, payload={})
-
+        # RP-006 step 7 (SVC-6): build the replacement IN MEMORY over the archive
+        # replay, then ONE save at the end. The old shape (blank the store first,
+        # then save once per replayed record) meant a crash mid-rebuild left a
+        # partial store on disk and every intermediate state was briefly live.
+        # "Rebuild from EMPTY" is preserved — the sink starts empty; the live
+        # store just isn't the scratchpad any more.
+        sink: dict[str, Any] = {}
         applied = 0
         for job in self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id):
             if not isinstance(job, dict) or not self.store.is_learning_job(job):
@@ -1064,6 +1071,7 @@ class LearningManager:
                     result={"completed_job": job},
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=map_id,
+                    stats_sink=sink,
                 ):
                     applied += 1
             except Exception:  # noqa: BLE001 - one bad record must not abort the rebuild
@@ -1072,6 +1080,7 @@ class LearningManager:
                     vacuum_entity_id,
                     exc_info=True,
                 )
+        self.store.save_accuracy_stats(vacuum_entity_id=vacuum_entity_id, payload=sink)
         return applied
 
     def collect_archived_battery_metrics(

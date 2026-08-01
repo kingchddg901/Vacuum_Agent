@@ -25,7 +25,11 @@ import json
 import logging
 import os
 import tempfile
+import time
 from typing import Any
+
+# distinguishes "key not in cache" from "cached None" in the accuracy cache
+_CACHE_MISS = object()
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,28 +158,51 @@ class LearningHistoryStore:
         paths.live_dir.mkdir(parents=True, exist_ok=True)
         return paths
 
-    def read_json(self, path: Path) -> dict[str, Any] | list[Any] | None:
-        """Read a JSON file safely."""
+    # RP-006/RF-03 read tri-state. ABSENT and UNREADABLE are different facts:
+    # absent means "no data has ever been written" (seeding {} is correct);
+    # unreadable means "data exists but this read failed" (an RMW that proceeds
+    # will REPLACE the store with only its own delta — the conflation that let a
+    # corrupt 9-room trouble_rooms store be rewritten as a 1-room store).
+    READ_OK = "ok"
+    READ_ABSENT = "absent"
+    READ_UNREADABLE = "unreadable"
+
+    def read_json_outcome(
+        self, path: Path
+    ) -> tuple[str, dict[str, Any] | list[Any] | None]:
+        """Read a JSON file, distinguishing ABSENT from UNREADABLE.
+
+        Returns (READ_OK, payload) | (READ_ABSENT, None) | (READ_UNREADABLE, None).
+        Destructive read-modify-write callers MUST refuse on UNREADABLE; read-only
+        paths may keep treating both non-OK outcomes as "no data".
+        """
         try:
             if not path.exists() or not path.is_file():
-                return None
+                return (self.READ_ABSENT, None)
             raw = path.read_text(encoding="utf-8").strip()
             if not raw:
-                return None
+                # A zero-byte file is a torn write, not a store that never existed.
+                _LOGGER.warning("Empty JSON file (torn write?) at %s", path)
+                return (self.READ_UNREADABLE, None)
             parsed = json.loads(raw)
             if isinstance(parsed, (dict, list)):
-                return parsed
-            return None
+                return (self.READ_OK, parsed)
+            _LOGGER.warning("Non-container JSON in %s", path)
+            return (self.READ_UNREADABLE, None)
         except json.JSONDecodeError as err:
-            # Corrupt/partial file — recoverable: callers treat None as "no data"
-            # and derived stats rebuild from the job history. Warn (not a full
-            # traceback) so it's actionable without alarming, and self-heal on the
-            # next atomic write_json.
+            # Corrupt/partial file — recoverable for READERS (derived stats rebuild
+            # from the job history), fatal for WRITERS (never rewrite over it).
+            # Self-heals on the next atomic write_json.
             _LOGGER.warning("Ignoring malformed JSON in %s: %s", path, err)
-            return None
+            return (self.READ_UNREADABLE, None)
         except Exception:
             _LOGGER.exception("Failed to read JSON from %s", path)
-            return None
+            return (self.READ_UNREADABLE, None)
+
+    def read_json(self, path: Path) -> dict[str, Any] | list[Any] | None:
+        """Read a JSON file safely (None-tolerant compat wrapper over the
+        tri-state — read paths keep their existing "no data" behaviour)."""
+        return self.read_json_outcome(path)[1]
 
     def write_json(self, path: Path, payload: Any) -> None:
         """Write JSON payload to file atomically.
@@ -324,6 +351,18 @@ class LearningHistoryStore:
         payload = self.read_json(path)
         return payload if isinstance(payload, dict) else None
 
+    def load_trouble_rooms_outcome(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Tri-state read of the trouble rooms log — for the RMW writer (RP-006)."""
+        path = self.get_trouble_rooms_path(vacuum_entity_id=vacuum_entity_id)
+        outcome, payload = self.read_json_outcome(path)
+        if outcome == self.READ_OK and not isinstance(payload, dict):
+            return (self.READ_UNREADABLE, None)
+        return (outcome, payload if isinstance(payload, dict) else None)
+
     def save_live_snapshot(
         self,
         *,
@@ -344,6 +383,13 @@ class LearningHistoryStore:
         path = self.get_live_snapshot_path(vacuum_entity_id=vacuum_entity_id)
         payload = self.read_json(path)
         return payload if isinstance(payload, dict) else None
+
+    def clear_live_snapshot(self, *, vacuum_entity_id: str) -> None:
+        """Delete the live job snapshot file (RP-006 STATE-8: a consumed snapshot
+        must not survive to describe the NEXT job — finalize clears it)."""
+        path = self.get_live_snapshot_path(vacuum_entity_id=vacuum_entity_id)
+        with contextlib.suppress(OSError):
+            path.unlink(missing_ok=True)
 
     def save_access_graph_debug(
         self,
@@ -562,21 +608,47 @@ class LearningHistoryStore:
         self._accuracy_stats_cache()[str(path)] = payload if isinstance(payload, dict) else None
         return path
 
+    # RP-006 step 3 (REVIEW D4): an UNREADABLE accuracy read is cached WITH a
+    # retry-after stamp instead of a permanent None. Permanent caching poisoned
+    # every estimate until the next save (IO-3); NOT caching would re-attempt the
+    # blocking read on every loop-bound estimate() for the whole SMB outage.
+    _UNREADABLE_RETRY_SECONDS = 60.0
+
     def load_accuracy_stats(
         self,
         *,
         vacuum_entity_id: str,
     ) -> dict[str, Any] | None:
         """Load per-room estimate accuracy stats JSON (cached; see _accuracy_stats_cache)."""
+        return self.load_accuracy_stats_outcome(vacuum_entity_id=vacuum_entity_id)[1]
+
+    def load_accuracy_stats_outcome(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Tri-state read of accuracy stats, with the D4 unreadable-backoff cache."""
         path = self.get_accuracy_stats_path(vacuum_entity_id=vacuum_entity_id)
         cache = self._accuracy_stats_cache()
         key = str(path)
-        if key in cache:
-            return cache[key]
-        payload = self.read_json(path)
+        cached = cache.get(key) if key in cache else _CACHE_MISS
+        if isinstance(cached, dict) and "__unreadable_until" in cached:
+            if time.monotonic() < cached["__unreadable_until"]:
+                return (self.READ_UNREADABLE, None)
+            # backoff expired — fall through to a fresh read
+        elif cached is not _CACHE_MISS:
+            data = cached if isinstance(cached, dict) else None
+            return (self.READ_OK if data is not None else self.READ_ABSENT, data)
+
+        outcome, payload = self.read_json_outcome(path)
+        if outcome == self.READ_UNREADABLE or (
+            outcome == self.READ_OK and not isinstance(payload, dict)
+        ):
+            cache[key] = {"__unreadable_until": time.monotonic() + self._UNREADABLE_RETRY_SECONDS}
+            return (self.READ_UNREADABLE, None)
         data = payload if isinstance(payload, dict) else None
         cache[key] = data
-        return data
+        return (self.READ_OK if data is not None else self.READ_ABSENT, data)
 
     def jobs_csv_path(self, *, vacuum_entity_id: str) -> Path:
         """Return jobs export CSV path."""

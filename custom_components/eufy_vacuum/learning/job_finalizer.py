@@ -470,16 +470,30 @@ class LearningJobFinalizer:
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
         )
-        job_id = None
-        if isinstance(snapshot, dict):
-            job_id = str(snapshot.get("job_id", "")).strip() or None
-        if not job_id and isinstance(active_job_state, dict):
-            # The authoritative id, already loaded a few lines above. Preferred over the
-            # timestamp fallback below, whose 1-second resolution can COLLIDE — two jobs
-            # finalized in the same second would share a record id. The record id is the
-            # only handle anything downstream has on a job, so a synthesised one is a last
-            # resort, not a second choice.
-            job_id = str(active_job_state.get("job_id", "")).strip() or None
+        # RP-006 (STATE-8): the ACTIVE job's id is authoritative. A snapshot whose
+        # job_id differs is STALE (left over from an earlier job whose finalize
+        # never cleared it) — trusting it attributed this job's record to that one.
+        snapshot_job_id = (
+            str(snapshot.get("job_id", "")).strip() or None
+            if isinstance(snapshot, dict) else None
+        )
+        active_job_id = (
+            str(active_job_state.get("job_id", "")).strip() or None
+            if isinstance(active_job_state, dict) else None
+        )
+        if snapshot_job_id and active_job_id and snapshot_job_id != active_job_id:
+            _LOGGER.warning(
+                "finalize for %s/%s: live snapshot carries job_id %s but the active "
+                "job is %s — using the active job's id (stale snapshot ignored for "
+                "identity)",
+                vacuum_entity_id, map_id, snapshot_job_id, active_job_id,
+            )
+        # Preference order: active job id, then snapshot, then the timestamp
+        # fallback below, whose 1-second resolution can COLLIDE — two jobs
+        # finalized in the same second would share a record id. The record id is
+        # the only handle anything downstream has on a job, so a synthesised one
+        # is a last resort, not a second choice.
+        job_id = active_job_id or snapshot_job_id
         if not job_id:
             job_id = f"job_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
             _LOGGER.warning(
@@ -1000,6 +1014,19 @@ class LearningJobFinalizer:
             job_id=job_id,
             payload=completed_job,
         )
+
+        # RP-006 (STATE-8): the live snapshot describes THIS job and this job is now
+        # durably recorded — clear both the file and the read cache so a later
+        # finalize (of a different job) can never harvest a stale snapshot. Sited
+        # after save_completed_job on purpose: a failed save keeps the snapshot for
+        # the retry.
+        self._live_snapshot_cache.pop(vacuum_entity_id, None)
+        try:
+            self.store.clear_live_snapshot(vacuum_entity_id=vacuum_entity_id)
+        except Exception:  # pragma: no cover - never break a completed finalize
+            _LOGGER.exception(
+                "job_finalizer: live-snapshot clear failed for %s", vacuum_entity_id
+            )
 
         # Clear the error latch we PEEKED before building the record. Deferred to here so a
         # save that raises leaves the latch intact and the run's error history recoverable —
@@ -1621,7 +1648,22 @@ class LearningJobFinalizer:
 
             missed_ids = set(queued_room_ids) - set(active_completed)
 
-            existing = self.store.load_trouble_rooms(vacuum_entity_id=vacuum_entity_id) or {}
+            # RP-006 (IO-2): this is a destructive RMW — refuse on a FAILED read.
+            # ABSENT seeds {} exactly as before; UNREADABLE means a store exists
+            # but could not be read, and proceeding would replace years of
+            # chronic-miss history with only this job's rooms.
+            _outcome, existing = self.store.load_trouble_rooms_outcome(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            if _outcome == self.store.READ_UNREADABLE:
+                _LOGGER.warning(
+                    "trouble-rooms update skipped: store unreadable for %s "
+                    "(will retry on the next finalize; the file self-heals on the "
+                    "next successful atomic write)",
+                    vacuum_entity_id,
+                )
+                return
+            existing = existing or {}
             rooms_data: dict[str, dict] = existing.get("rooms", {})
             if not isinstance(rooms_data, dict):
                 rooms_data = {}

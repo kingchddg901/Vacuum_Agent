@@ -70,6 +70,7 @@ payload includes stats_stale=True so the card can warn the user.
 from __future__ import annotations
 
 import copy
+import logging
 import math
 from datetime import datetime, timedelta
 from typing import Any
@@ -80,6 +81,8 @@ from .history_store import LearningHistoryStore
 from .brand_facts import brand_facts_for
 from ..timestamp_utils import datetime_to_utc_iso, parse_timestamp, utc_now
 from .utils import _canonical_clean_mode, _iso_now, _room_key, _safe_float, _safe_int
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -569,6 +572,7 @@ class LearningEstimator:
         *,
         vacuum_entity_id: str,
         room_actuals: list[dict[str, Any]],
+        stats_sink: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Record estimated vs actual minutes per room after a job completes.
 
@@ -580,15 +584,37 @@ class LearningEstimator:
         Updates the running accuracy stats file with the new observations.
         Returns a summary of what was recorded.
         """
-        # Deep-copy the loaded stats: load_accuracy_stats may hand back the shared
-        # cached object, and we mutate per-room records in place below. Working on a
-        # copy keeps the cache immutable until save_accuracy_stats refreshes it by
-        # replacement — so a write_json failure (it re-raises, e.g. on an SMB
-        # hiccup) can't leave the cache out of sync with disk, and the loop-bound
-        # estimate never reads a half-updated record.
-        existing = copy.deepcopy(
-            self.store.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id) or {}
-        )
+        # RP-006 step 7: when a rebuild supplies stats_sink, read from and write
+        # into IT — no disk round-trip per replayed record, one save at the end
+        # (the rebuild's), and the live store stays intact until that save lands.
+        if stats_sink is not None:
+            existing = stats_sink
+        else:
+            # RP-006 (ACC-1): destructive RMW — refuse on a FAILED read. ABSENT
+            # starts fresh as before; UNREADABLE would let this fold rewrite the
+            # whole accuracy history as just this job's rooms.
+            _outcome, _stats = self.store.load_accuracy_stats_outcome(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            if _outcome == self.store.READ_UNREADABLE:
+                _LOGGER.warning(
+                    "accuracy update skipped: store unreadable for %s (retrying "
+                    "after backoff; history preserved on disk)",
+                    vacuum_entity_id,
+                )
+                return {
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "rooms_recorded": 0,
+                    "skipped": "store_unreadable",
+                    "detail": [],
+                }
+            # Deep-copy the loaded stats: load_accuracy_stats may hand back the shared
+            # cached object, and we mutate per-room records in place below. Working on a
+            # copy keeps the cache immutable until save_accuracy_stats refreshes it by
+            # replacement — so a write_json failure (it re-raises, e.g. on an SMB
+            # hiccup) can't leave the cache out of sync with disk, and the loop-bound
+            # estimate never reads a half-updated record.
+            existing = copy.deepcopy(_stats or {})
         rooms_data: dict[str, Any] = existing.get("rooms", {})
 
         recorded: list[dict[str, Any]] = []
@@ -658,10 +684,15 @@ class LearningEstimator:
             "updated_at": _iso_now(),
             "rooms": rooms_data,
         }
-        self.store.save_accuracy_stats(
-            vacuum_entity_id=vacuum_entity_id,
-            payload=updated_payload,
-        )
+        if stats_sink is not None:
+            # rebuild mode: fold into the caller's sink; the caller does ONE save
+            stats_sink.clear()
+            stats_sink.update(updated_payload)
+        else:
+            self.store.save_accuracy_stats(
+                vacuum_entity_id=vacuum_entity_id,
+                payload=updated_payload,
+            )
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
