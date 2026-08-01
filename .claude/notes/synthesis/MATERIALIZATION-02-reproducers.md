@@ -139,7 +139,88 @@ that exists to stop it*, three commits before the packet that would have caught
 it. Whatever RP-014 lands must include a gate, not just a sweep, or the
 population regrows.
 
-## ⏳ STILL BLOCKED — RP-013a / RP-013c hardware precondition
+## ✅ STEPPED RUN A CAPTURED — 2026-08-01, `job_2026-08-01T13-49-21` (Ivy)
+
+Profile `[Kitchen 27] → charge_wait 100% → [Hallway 25]`, completed, auto-finalized
+14:08:50. Persisted record:
+`config/eufy_vacuum/learning/ivy/jobs/job_2026-08-01T13-49-21.json`.
+
+**Use the persisted job record, not the debug log.** The capture was armed at the
+DEFAULT ring size (3000), so the log holds only 14:02:12–14:11:54 of a job that
+started 13:49:21 — phase 0, the phase advance and most of the charge hold were
+evicted. The finalize payload survived by luck. The job JSON is not subject to
+the ring and carried everything. Arm Run B with `size: 50000`.
+
+### Confirmed as predicted
+
+| packet | evidence |
+|---|---|
+| **RP-013a** ✅ | `transit_capture_valid: false` while BOTH room phases captured cleanly — kitchen 255 s / 4.1 m², hallway 302 s / 1.2 m². Exactly the predicted shape: honest per-room data, marked untrustworthy by the charge phase between them. |
+| **RP-013e** ✅ | `battery_delta: null` on both rooms. OBS-B-3 observed, not inferred. |
+| **RP-012(d)** ✅ | AFTER-picture: `recharge_seconds_accumulated: 0`, `mid_job_recharge_observed: false`, `overhead.recharge_minutes: 0.0`. The commanded ~9 min hold was correctly NOT booked as an unplanned recharge. The guard works on hardware. |
+
+**RP-013b was NOT exercised** — all three phases were single-room. The group
+defect needs a `[room, room]` group in ONE phase; add it to Run B's profile.
+
+### ⚠ RP-013d confirmed on hardware — AND THE PACKET IS INSUFFICIENT
+
+The record contradicts itself exactly as the proof shows:
+`queue.queue_room_ids: [25]` vs `resolved_rooms: [27, 25]`. The Kitchen — 255
+seconds of it — is absent from the queue half, so every missed/trouble-room
+consumer believes this run was only ever about the Hallway.
+
+But the MECHANISM is not the one the packet describes. RP-013d says *"job-frozen
+snapshot wins; live queue only when the job carries none."* **That would not fix
+this run.** On a PHASED job `advance_active_job_phase` overwrites the job's own
+top-level `queue_room_ids` with the phase it moved into, so the "job-frozen"
+value is itself `[25]`. Preferring it changes nothing.
+
+The queue block needs the **union-of-all-phases** ladder that `resolved_rooms`
+already uses (and whose in-code comment explains exactly why the top-level list
+cannot be trusted after an advance — the same reasoning, never applied to the
+queue). Two corrections follow:
+
+1. **RP-013d's `required_behavior` must be rewritten** to the phase-union ladder
+   before assignment. As written it ships a no-op for stepped runs.
+2. **`_proof_completed_evidence.py` case 3 under-models it** — it drives an
+   ATOMIC job whose top-level queue survives, so it proves the live-vs-frozen
+   precedence but not the post-advance clobber. Add a phased variant.
+
+### 🆕 NEW HIGH — job-level `cleaning_time_seconds` is the LAST phase's counter
+
+Not in any packet; found only because this was a stepped run.
+
+`job_finalizer.py:567` takes `cleaning_time_seconds` from
+`last_cleaning_time_seconds` — the last-seen device counter. **Every dispatched
+phase resets that counter**, so a stepped run records only its final phase:
+
+    recorded  cleaning_time_seconds = 302
+    measured  255 (kitchen) + 302 (hallway) = 557
+    under-reported by 46 %
+
+The cascade is worse than the number. `learning/utils.py:203` computes
+`total_overhead_minutes = duration − cleaning_minutes`:
+
+    19.48 − (302/60) = 14.45   ← matches the record exactly
+    truth:  19.48 − (557/60) = 10.19
+
+So overhead is inflated by the same 255 s, and `stats_rebuilder.py:316` averages
+`total_overhead_minutes` across jobs — **every stepped run poisons the learned
+overhead model**. This job carried `used_for_learning: true`,
+`learning_blockers: []`. It is already in.
+
+Note the asymmetry, because it constrains the fix: `cleaning_area_m2` recorded
+5.8 against a per-room sum of 5.3 — area accumulated across phases while time did
+not. The same `last_*` read yields a cumulative answer for one counter and a
+per-phase answer for the other, because the device resets them differently. So
+the fix cannot be "trust the other counter" — it must **sum per-phase deltas**,
+and it must not assume either counter's reset behaviour is brand-stable.
+
+Suggested id: **RP-013f** (RF-11 part 6), HIGH, `learning/job_finalizer.py` +
+`learning/utils.py`. Reproducer: a 2-phase job whose phases measure 255 and 302 —
+assert the job total is 557 and overhead is the residual against 557.
+
+## ⏳ STILL BLOCKED — RP-013c hardware precondition (RP-013a now UNBLOCKED)
 
 **RP-013a's hardware precondition is unmet.** The packet requires a stepped-run
 (charge_wait + 2-room group) BEFORE capture and says to capture it if tranche-1's

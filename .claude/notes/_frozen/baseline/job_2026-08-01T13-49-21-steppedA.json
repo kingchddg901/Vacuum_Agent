@@ -1,0 +1,318 @@
+{
+  "schema_version": 1,
+  "record_type": "completed_job",
+  "job_id": "job_2026-08-01T13-49-21",
+  "vacuum": {
+    "entity_id": "vacuum.ivy",
+    "name": "ivy"
+  },
+  "job": {
+    "started_at": "2026-08-01T20:49:21Z",
+    "ended_at": "2026-08-01T21:08:50Z",
+    "duration_minutes": 19.48,
+    "wall_clock_duration_minutes": 19.48,
+    "paused_duration_seconds": 0,
+    "room_count": 2,
+    "actual_cleaning_minutes": null,
+    "return_to_dock_minutes": null,
+    "room_cleaning_minutes": null,
+    "room_timings": [
+      {
+        "room_id": 27,
+        "slug": "kitchen",
+        "cleaning_start": "2026-08-01T20:49:53Z",
+        "cleaning_end": "2026-08-01T20:53:46Z",
+        "cleaning_seconds": 255,
+        "cleaning_wall_seconds": 233,
+        "area_m2": 4.1,
+        "battery_delta": null,
+        "boundary": "phase"
+      },
+      {
+        "room_id": 25,
+        "slug": "hallway",
+        "cleaning_start": "2026-08-01T21:03:10Z",
+        "cleaning_end": "2026-08-01T21:07:49Z",
+        "cleaning_seconds": 302,
+        "cleaning_wall_seconds": 279,
+        "area_m2": 1.2,
+        "battery_delta": null,
+        "boundary": "phase"
+      }
+    ],
+    "transitions": [],
+    "transit_capture_valid": false,
+    "has_attribution_disagreement": false,
+    "zone_timings": [],
+    "zone_count": 0,
+    "cleaning_time_seconds": 302,
+    "cleaning_area_m2": 5.8,
+    "cleaning_area_sensor_m2": 5.8,
+    "overhead_observed": {
+      "total_overhead_minutes": 14.45,
+      "entry_minutes": null,
+      "inter_room_minutes": null,
+      "return_minutes": null,
+      "recharge_minutes": 0.0,
+      "wash_minutes": null
+    },
+    "battery_metrics": {
+      "battery_used_pct": 3,
+      "duration_min": 19.48,
+      "area_m2": 5.8,
+      "drain_per_min": 0.154,
+      "drain_per_hour": 9.24,
+      "drain_per_m2": 0.5172,
+      "is_single_clean_mode": true,
+      "is_single_fan_speed": true,
+      "is_single_water_level": true,
+      "single_clean_mode": "vacuum",
+      "single_fan_speed": "gentle",
+      "single_water_level": "off",
+      "by_clean_mode": {
+        "vacuum": {
+          "share": 1.0,
+          "rooms": 2,
+          "area_m2": 5.8
+        }
+      },
+      "by_fan_speed": {
+        "gentle": {
+          "share": 1.0,
+          "rooms": 2,
+          "area_m2": 5.8
+        }
+      },
+      "by_water_level": {
+        "off": {
+          "share": 1.0,
+          "rooms": 2,
+          "area_m2": 5.8
+        }
+      },
+      "passes_share": {
+        "1": 1.0
+      },
+      "edge_mopping": {
+        "on_share": 0.0,
+        "off_share": 1.0
+      },
+      "weighted_by": "estimated_minutes",
+      "mid_job_recharge": true
+    }
+  },
+  "battery": {
+    "start": 98,
+    "end": 95,
+    "used": 3,
+    "mid_job_recharge_observed": false,
+    "mid_job_recharge_started_at": null,
+    "mid_job_recharge_count": 0,
+    "recharge_seconds_accumulated": 0
+  },
+  "water": {
+    "available": false,
+    "reason": "model_unsupported",
+    "message": "No water model is available for this vacuum.",
+    "actual_end_station_clean_water_percent": null,
+    "actual_mop_wash_count": 0,
+    "unexpected_wash_cycles": false,
+    "actual_dock_water_used_ml": null,
+    "actual_mop_wash_water_ml": null,
+    "actual_floor_water_ml": null,
+    "actual_vs_estimated_delta_ml": null
+  },
+  "queue": {
+    "vacuum_entity_id": "vacuum.ivy",
+    "map_id": "Main floor",
+    "room_count": 1,
+    "queue_room_ids": [
+      25
+    ],
+    "queue_rooms": []
+  },
+  "payload": {
+    "segments": [
+      25
+    ],
+    "repeat": 1
+  },
+  "resolved_rooms": [
+    {
+      "room_id": 27,
+      "name": "KITCHEN",
+      "slug": "kitchen",
+      "selected_profile_name": "vacuum_quick",
+      "resolved_profile_name": "vacuum_quick",
+      "clean_mode": "Vacuum",
+      "fan_speed": "gentle",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "path_type": "wide",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "carpet": false,
+      "capability_gated": {
+        "supports_mop_features": false,
+        "supports_water_control": false,
+        "supports_path_control": false,
+        "supports_edge_mopping": true,
+        "supports_passes": true
+      },
+      "estimated_minutes": 4.38,
+      "estimated_battery": 1.0,
+      "estimate_confidence_score": 0.1825,
+      "estimate_confidence_label": "low",
+      "estimate_source": "learned"
+    },
+    {
+      "room_id": 25,
+      "name": "Hallway",
+      "slug": "hallway",
+      "selected_profile_name": "vacuum_quick",
+      "resolved_profile_name": "vacuum_quick",
+      "clean_mode": "Vacuum",
+      "fan_speed": "gentle",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "path_type": "wide",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "carpet": false,
+      "capability_gated": {
+        "supports_mop_features": false,
+        "supports_water_control": false,
+        "supports_path_control": false,
+        "supports_edge_mopping": true,
+        "supports_passes": true
+      }
+    }
+  ],
+  "job_profile": {
+    "map_id": 0,
+    "room_count": 2,
+    "room_slugs": [
+      "kitchen",
+      "hallway"
+    ],
+    "rooms": [
+      {
+        "room_id": 27,
+        "name": "KITCHEN",
+        "slug": "kitchen",
+        "selected_profile_name": "vacuum_quick",
+        "resolved_profile_name": "vacuum_quick",
+        "clean_mode": "Vacuum",
+        "fan_speed": "gentle",
+        "water_level": "Off",
+        "clean_intensity": "Quick",
+        "path_type": "wide",
+        "clean_passes": 1,
+        "edge_mopping": false,
+        "carpet": false,
+        "capability_gated": {
+          "supports_mop_features": false,
+          "supports_water_control": false,
+          "supports_path_control": false,
+          "supports_edge_mopping": true,
+          "supports_passes": true
+        },
+        "estimated_minutes": 4.38,
+        "estimated_battery": 1.0,
+        "estimate_confidence_score": 0.1825,
+        "estimate_confidence_label": "low",
+        "estimate_source": "learned"
+      },
+      {
+        "room_id": 25,
+        "name": "Hallway",
+        "slug": "hallway",
+        "selected_profile_name": "vacuum_quick",
+        "resolved_profile_name": "vacuum_quick",
+        "clean_mode": "Vacuum",
+        "fan_speed": "gentle",
+        "water_level": "Off",
+        "clean_intensity": "Quick",
+        "path_type": "wide",
+        "clean_passes": 1,
+        "edge_mopping": false,
+        "carpet": false,
+        "capability_gated": {
+          "supports_mop_features": false,
+          "supports_water_control": false,
+          "supports_path_control": false,
+          "supports_edge_mopping": true,
+          "supports_passes": true
+        }
+      }
+    ]
+  },
+  "outcome": {
+    "status": "completed",
+    "used_for_learning": true,
+    "sanity_passed": true,
+    "sanity_flags": [],
+    "learning_blockers": [],
+    "was_cancelled": false,
+    "was_failed": false,
+    "was_interrupted": false,
+    "is_test_job": false,
+    "lifecycle_state": "completed",
+    "lifecycle_message": "",
+    "cancel_detection": {
+      "cancel_likely": false,
+      "reason": "duration_not_short",
+      "duration_minutes": 19.48,
+      "expected_room_minutes": 0.0,
+      "short_threshold_minutes": 1.0
+    },
+    "had_errors": false,
+    "error_count": 0,
+    "errors": null,
+    "total_error_seconds": 0
+  },
+  "finalized_at": "2026-08-01T21:08:50Z",
+  "learning_context": {
+    "schema_version": 1,
+    "queue_shape": {
+      "key": "map:0|count:1|rooms:25|modes:vacuum,vacuum",
+      "room_ids": [
+        25
+      ],
+      "room_slugs": [
+        "kitchen",
+        "hallway"
+      ],
+      "room_modes": [
+        "vacuum",
+        "vacuum"
+      ],
+      "room_count": 1
+    },
+    "estimate_snapshot": {
+      "available": true,
+      "estimated_room_minutes_total": 4.38,
+      "estimated_overhead_minutes": 2.18,
+      "estimated_total_minutes": 6.56,
+      "estimated_total_battery_used": 1.0,
+      "job_confidence_score": 0.1825,
+      "job_confidence_label": "low"
+    },
+    "actuals": {
+      "actual_job_minutes": 19.48,
+      "actual_battery_used": 3.0
+    },
+    "estimate_delta": {
+      "total_minutes_delta": 12.92,
+      "total_minutes_delta_ratio": 1.9695
+    },
+    "access_graph": {
+      "present": true,
+      "edge_count": 9,
+      "pair_count": 0,
+      "graph_transition_count": 0,
+      "graph_jump_count": 0,
+      "graph_coherence_score": null
+    }
+  }
+}
