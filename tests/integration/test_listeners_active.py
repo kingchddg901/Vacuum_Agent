@@ -468,6 +468,33 @@ async def test_lifecycle_finalizes(hass):
     m.async_save.assert_awaited()
 
 
+async def test_lifecycle_refusal_fires_no_event(hass):
+    """[LC-10] RP-002/RF-01. A refusal dict ({"finalized": False, "reason": ...}) is
+    NOT a success -- it must not fire EVENT_JOB_FINISHED, mark the slot finalized, or
+    run the mapping tracker's end_job (the pass that actually succeeded owns those).
+    Before RP-002, "finalize_result is not None" treated a refusal exactly like a
+    success -- A2-LIFE-1's all-null duplicate event."""
+    m = _wire_lifecycle(hass)
+    m.finalize_learning_for_active_job = AsyncMock(return_value={
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "finalized": False, "reason": "already_finalized"})
+    tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = tracker
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+    assert finished == [], "a refusal fired EVENT_JOB_FINISHED"
+    m.mark_active_job_finalized.assert_not_called()
+    tracker.end_job.assert_not_called()
+
+
 async def test_lifecycle_no_finalize_when_incomplete(hass):
     """[LC-2] active lifecycle observed but completion not met → no finalize."""
     m = _wire_lifecycle(hass)

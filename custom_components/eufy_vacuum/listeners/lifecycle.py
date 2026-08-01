@@ -27,6 +27,7 @@ from ..core.manager import EufyVacuumManager
 from ..core.water_amendment import (
     register_post_job_water_amendment as _register_post_job_water_amendment,
 )
+from ..learning.manager import finalize_result_succeeded
 from ._common import (
     completed_finalize_signals,
     completion_secondary_satisfied,
@@ -312,6 +313,7 @@ def register(hass: HomeAssistant) -> None:
                         continue
 
                     finalize_result = None
+                    finalize_raised = False
                     try:
                         finalize_result = await manager_local.finalize_learning_for_active_job(
                             vacuum_entity_id=vacuum_entity_id,
@@ -326,12 +328,21 @@ def register(hass: HomeAssistant) -> None:
                             finalize_result,
                         )
                     except Exception:  # pragma: no cover - best-effort auto-finalize
+                        finalize_raised = True
                         _LOGGER.exception(
                             "Failed to auto-finalize job for %s map %s",
                             vacuum_entity_id,
                             map_id,
                         )
-                    finally:
+
+                    # RP-002/RF-01: a refusal dict ({"finalized": False, "reason": ...})
+                    # is not a success — branch on finalize_result_succeeded, not on
+                    # "finalize_result is not None" (a refusal dict is also not None).
+                    # On refusal, the ENTRANT THAT ACTUALLY SUCCEEDED (this one, earlier,
+                    # or concurrently) owns end_job / mark_active_job_finalized / the
+                    # event — running them again here would be exactly A2-LIFE-1's
+                    # all-null duplicate event.
+                    if finalize_result_succeeded(finalize_result):
                         tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
                         if tracker is not None:
                             # end_job clears the tracker's per-job state as the
@@ -343,15 +354,11 @@ def register(hass: HomeAssistant) -> None:
                                 )
                             )
 
-                    # Always clear the active_job record so it can never be stranded
-                    # as status:started regardless of whether finalization succeeded.
-                    # Delegates ownership of finalization write-back to the manager.
-                    manager_local.mark_active_job_finalized(
-                        vacuum_entity_id=vacuum_entity_id,
-                        map_id=map_id,
-                        finalize_result=finalize_result,
-                    )
-                    if finalize_result is not None:
+                        manager_local.mark_active_job_finalized(
+                            vacuum_entity_id=vacuum_entity_id,
+                            map_id=map_id,
+                            finalize_result=finalize_result,
+                        )
                         hass.bus.async_fire(
                             EVENT_JOB_FINISHED,
                             job_finished_event_data(
@@ -401,7 +408,32 @@ def register(hass: HomeAssistant) -> None:
                                 debounce_seconds=_debounce,
                                 timeout_seconds=_timeout,
                             )
-                    any_changes = True
+                        any_changes = True
+                    elif finalize_raised:
+                        # A genuine error (not a refusal shape) — still end the tracker
+                        # job and clear the active_job record so it can never be
+                        # stranded as status:started regardless of the failure.
+                        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
+                        if tracker is not None:
+                            await hass.async_add_executor_job(
+                                functools.partial(
+                                    tracker.end_job,
+                                    vacuum_entity_id=vacuum_entity_id,
+                                )
+                            )
+                        manager_local.mark_active_job_finalized(
+                            vacuum_entity_id=vacuum_entity_id,
+                            map_id=map_id,
+                            finalize_result=None,
+                        )
+                        any_changes = True
+                    else:
+                        _LOGGER.debug(
+                            "Auto-finalize refused for %s map %s: %s",
+                            vacuum_entity_id,
+                            map_id,
+                            (finalize_result or {}).get("reason"),
+                        )
 
             if any_changes:
                 await manager_local.async_save()

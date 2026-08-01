@@ -62,6 +62,19 @@ def _normalize_graph_targets(value: Any) -> list[int]:
     return normalized
 
 
+def finalize_result_succeeded(result: Any) -> bool:
+    """True iff a finalize result is a real success (carries a completed_job dict).
+
+    RP-002/RF-01: the single source of truth for "did this finalize actually run",
+    replacing three open-coded siblings that each re-derived the same check —
+    `finalize_completed_job`'s and `async_finalize_completed_job`'s
+    `_final_outcome` extraction and `_auto_record_accuracy`'s own guard. A refusal
+    dict ({"finalized": False, "reason": ...}) is NOT a success: it must not fire
+    completion events, mark a slot finalized, or feed accuracy/zone learning.
+    """
+    return isinstance(result, dict) and isinstance(result.get("completed_job"), dict)
+
+
 FOUND_PROFILE_TRUST_THRESHOLD = 5
 
 
@@ -648,7 +661,11 @@ class LearningManager:
         # A run we do not trust for learning is not trustworthy for anything derived from
         # its duration. This also keeps the live path and the archive rebuild in agreement;
         # gating only one of them would make a rebuild silently change the numbers.
-        _final_outcome = ((result or {}).get("completed_job") or {}).get("outcome") or {}
+        _final_outcome = (
+            result["completed_job"].get("outcome") or {}
+            if finalize_result_succeeded(result)
+            else {}
+        )
         accuracy_result = None
         if bool(_final_outcome.get("used_for_learning", True)):
             accuracy_result = self._auto_record_accuracy(
@@ -817,7 +834,11 @@ class LearningManager:
             # Read the POST-finalize outcome, not `inputs` — the idle-wall hold runs during
             # finalize and clears used_for_learning while leaving status == "completed", so
             # inputs["outcome_status"] alone cannot see a held run.
-            _final_outcome = ((result or {}).get("completed_job") or {}).get("outcome") or {}
+            _final_outcome = (
+                result["completed_job"].get("outcome") or {}
+                if finalize_result_succeeded(result)
+                else {}
+            )
             await self._record_zone_learning(
                 manager,
                 vacuum_entity_id=vacuum_entity_id,
@@ -912,9 +933,9 @@ class LearningManager:
 
         Returns None if there is no usable data to record.
         """
-        completed_job = result.get("completed_job", {})
-        if not isinstance(completed_job, dict):
+        if not finalize_result_succeeded(result):
             return None
+        completed_job = result["completed_job"]
 
         job_info = completed_job.get("job", {})
         profile = completed_job.get("job_profile", {})
