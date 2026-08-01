@@ -51,6 +51,7 @@ from ..listeners._common import (
     is_job_active,
 )
 from .job_monitor import STRANDED_REAP_GRACE_MINUTES, is_stranded_started
+from ..learning.manager import finalize_result_succeeded
 from ..rooms.utils import slugify_room_name
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 from ..step_types import is_dock_polled_phase
@@ -236,6 +237,9 @@ class ActiveJobTracker:
         # Sensor update callbacks — same pattern as ErrorTracker.add_update_listener.
         # Fired with (vacuum_entity_id, map_id) on job status transitions.
         self._update_listeners: list[Callable[[str, str], None]] = []
+        # RP-002/RF-01: job_ids already WARNed about a stranded-finalize refusal —
+        # dedups the reaper's per-tick log spam while a slot stays unfinalizable.
+        self._stranded_finalize_warned: set[str] = set()
 
     # -- state defaults & normalization ----------------------------------------
 
@@ -2456,15 +2460,58 @@ class ActiveJobTracker:
                 "Run ended without a completion signal and was auto-finalized as interrupted."
             ),
         )
-        self.mark_active_job_finalized(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-            finalize_result=finalize_result,
-        )
+
+        # RP-002/RF-01 (REVIEW D1): a refusal must not be treated as a completed
+        # finalize -- without this branch the reaper re-reaps and re-refuses the
+        # SAME slot every tick, forever.
+        if finalize_result_succeeded(finalize_result):
+            self.mark_active_job_finalized(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                finalize_result=finalize_result,
+            )
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "finalized": True,
+                "reason": "stranded_no_completion",
+                "finalize_result": finalize_result,
+            }
+
+        reason = finalize_result.get("reason") if isinstance(finalize_result, dict) else None
+        if reason == "already_finalized":
+            # The learning record exists but the slot was never marked -- a crash
+            # window between the RP-001 chokepoint write and this reaper's mark.
+            # finalize_result=None: mark_active_job_finalized's own isinstance guard
+            # then writes NO fabricated finalize_summary.
+            self.mark_active_job_finalized(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                finalize_result=None,
+            )
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "finalized": True,
+                "reason": "already_finalized_slot_marked",
+            }
+
+        # finalize_in_flight, no_active_job_record, or an outright None -- the
+        # finalize did NOT complete. Leave the slot untouched (no
+        # mark_active_job_finalized) so the next reaper tick can retry.
+        job_id = active_job.get("job_id") or f"{vacuum_entity_id}:{map_id}"
+        if job_id not in self._stranded_finalize_warned:
+            self._stranded_finalize_warned.add(job_id)
+            _LOGGER.warning(
+                "async_finalize_stranded_job: %s map %s did not finalize (%s) -- "
+                "leaving the slot for the next reaper tick",
+                vacuum_entity_id,
+                map_id,
+                reason or "no_result",
+            )
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
-            "finalized": True,
-            "reason": "stranded_no_completion",
-            "finalize_result": finalize_result,
+            "finalized": False,
+            "reason": reason or "no_result",
         }

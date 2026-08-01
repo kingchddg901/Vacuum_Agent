@@ -308,3 +308,77 @@ async def test_no_active_job_record_refuses_without_running_the_body(manager, mo
     assert result["finalized"] is False
     assert result["reason"] == "no_active_job_record"
     assert calls == [], "the body ran with no active job record to finalize against"
+
+
+async def test_stranded_finalize_in_flight_leaves_slot_reapable(manager, monkeypatch):
+    """[XO-11] RP-002/RF-01 (REVIEW D1). A stranded-job finalize that hits
+    finalize_in_flight must NOT mark the slot finalized -- leave it reapable so the
+    next reaper tick can retry. Before this, a refusal was treated as a completed
+    finalize and the reaper would re-reap + re-refuse the SAME slot every tick,
+    forever."""
+    calls: list[int] = []
+
+    async def _fake(**kwargs):
+        calls.append(1)
+        return {"completed_job": {}}
+
+    _install_fake_learning(manager, monkeypatch, _fake)
+    job = _seed_active_job(
+        manager, status="started",
+        finalize_claimed_at="2026-01-01T10:05:00+00:00",
+    )
+
+    result = await manager.async_finalize_stranded_job(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+    )
+
+    assert result["finalized"] is False
+    assert result["reason"] == "finalize_in_flight"
+    assert calls == [], "the finalize body ran despite an in-flight claim"
+    assert job["status"] == "started", "the slot was marked despite the refusal"
+
+
+async def test_stranded_already_finalized_marks_the_slot(manager, monkeypatch):
+    """[XO-12] RP-002/RF-01 (REVIEW D1). The learning record exists but the slot was
+    never marked completed (the RP-001 crash window between the chokepoint write and
+    the caller's mark) -- the stranded reaper must mark it WITHOUT fabricating a
+    finalize_summary (mark_active_job_finalized(finalize_result=None))."""
+    calls: list[int] = []
+
+    async def _fake(**kwargs):
+        calls.append(1)
+        return {"completed_job": {}}
+
+    _install_fake_learning(manager, monkeypatch, _fake)
+    job = _seed_active_job(manager, status="started", finalized=True)
+
+    result = await manager.async_finalize_stranded_job(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+    )
+
+    assert result == {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "finalized": True, "reason": "already_finalized_slot_marked",
+    }
+    assert calls == [], "the finalize body ran for an already-finalized job"
+    assert job["status"] == "completed"
+    assert job["finalized"] is True
+    assert "finalize_summary" not in job, "a refusal fabricated a finalize_summary"
+
+
+async def test_stranded_finalize_success_is_unaffected(manager, monkeypatch):
+    """[XO-13] The happy path -- a stranded job that actually finalizes -- stays
+    untouched by the refusal branches."""
+    async def _fake(**kwargs):
+        return {"completed_job": {"resolved_rooms": []}}
+
+    _install_fake_learning(manager, monkeypatch, _fake)
+    job = _seed_active_job(manager, status="started")
+
+    result = await manager.async_finalize_stranded_job(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+    )
+
+    assert result["finalized"] is True
+    assert result["reason"] == "stranded_no_completion"
+    assert job["status"] == "completed"
