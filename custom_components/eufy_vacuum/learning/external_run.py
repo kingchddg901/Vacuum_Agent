@@ -72,6 +72,23 @@ class ExternalRunManager:
     def __init__(self, *, manager: "EufyVacuumManager") -> None:
         self._manager = manager
 
+    def cancel_timers(self) -> int:
+        """Cancel every pending external-run grace timer; return the count cancelled.
+
+        RP-003/INIT-1: on manager shutdown (reload) so a stale manager's grace
+        timer cannot fire _external_grace_finalize against a store it no longer
+        owns. Also drops the re-check counters — a restart makes them meaningless."""
+        timers = self._external_grace_timers()
+        count = len(timers)
+        for cancel in timers.values():
+            try:
+                cancel()
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.debug("cancel_timers: a grace-timer cancel raised", exc_info=True)
+        timers.clear()
+        self._external_grace_checks().clear()
+        return count
+
     async def maybe_handle_external_run(self, *, vacuum_entity_id: str) -> bool:
         """Detect + capture an app-started (external) run.
 

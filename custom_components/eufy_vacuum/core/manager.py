@@ -302,6 +302,62 @@ class EufyVacuumManager:
         # those readers don't reach across a subsystem. The coordinator-internal caches
         # (per-room scan, live-pose geometry) live on the coordinator itself.
         self._map_state_source_cache: dict[str, dict[str, Any]] = {}
+        # RP-003/INIT-1: a reloaded entry's previous manager must neither run nor
+        # write. _closed gates async_save (belt-and-braces); _background_tasks /
+        # _timers are generic reserved ledgers for future RF-16 packets' spawn
+        # sites (see the inventory in that packet's completion report) — the two
+        # spawn sites THIS packet covers (phase_runner's dock pollers, external_run's
+        # grace timers) are ledgered on their own owning subsystem instead, per the
+        # bundled-subsystem pattern, and exposed via cancel_all()/cancel_timers().
+        self._closed = False
+        self._background_tasks: set[asyncio.Task] = set()
+        self._timers: set = set()
+
+    async def async_shutdown(self) -> dict[str, int]:
+        """Tear down loop-lifetime work on unload so a reloaded entry's previous
+        manager can neither run nor write. Idempotent — a second call is a no-op.
+        """
+        if self._closed:
+            return {"timers_cancelled": 0, "tasks_cancelled": 0}
+        self._closed = True
+
+        cancelled_tasks: list[asyncio.Task] = []
+        if hasattr(self, "phase_runner"):
+            cancelled_tasks.extend(self.phase_runner.cancel_all())
+        timers_cancelled = 0
+        if hasattr(self, "external_run"):
+            timers_cancelled += self.external_run.cancel_timers()
+
+        for task in list(self._background_tasks):
+            task.cancel()
+            cancelled_tasks.append(task)
+        self._background_tasks.clear()
+
+        for cancel in list(self._timers):
+            try:
+                cancel()
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.debug("async_shutdown: a timer cancel raised", exc_info=True)
+        timers_cancelled += len(self._timers)
+        self._timers.clear()
+
+        if cancelled_tasks:
+            await asyncio.gather(*cancelled_tasks, return_exceptions=True)
+        residue = [t for t in cancelled_tasks if not t.done()]
+        if residue:  # pragma: no cover - defensive
+            _LOGGER.debug(
+                "async_shutdown: %d task(s) still not done after cancel+gather",
+                len(residue),
+            )
+        self._cancelled_count = len(cancelled_tasks) + timers_cancelled
+        _LOGGER.debug(
+            "async_shutdown: cancelled %d task(s), %d timer(s)",
+            len(cancelled_tasks), timers_cancelled,
+        )
+        return {
+            "timers_cancelled": timers_cancelled,
+            "tasks_cancelled": len(cancelled_tasks),
+        }
 
     async def async_initialize(self) -> None:
         """Load persistent storage and bring all data structures up to the current schema.
@@ -801,13 +857,18 @@ class EufyVacuumManager:
         )
 
     async def async_save(self) -> None:
-        """Save persistent data."""
+        """Save persistent data. No-op after async_shutdown (RP-003/INIT-1) —
+        belt-and-braces against a stale, unloaded manager clobbering the store a
+        newer manager (from a reload) already owns."""
+        if self._closed:
+            _LOGGER.warning("async_save: save after shutdown suppressed")
+            return
         await self.storage.async_save(self.data)
 
     async def _async_save_logged(self) -> None:
         """Save persistent data, logging any storage failure."""
         try:
-            await self.storage.async_save(self.data)
+            await self.async_save()
         except Exception:  # pragma: no cover - best-effort save, logs and swallows
             _LOGGER.exception("Failed to auto-save integration data")
 

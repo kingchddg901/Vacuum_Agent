@@ -73,6 +73,23 @@ class PhaseRunner:
         # vac/map) so a poller advancing to the NEXT dock phase can still spawn that phase's
         # poller before its own finally clears the old key. In-memory only (like the task).
         self._dock_poller_active: set[tuple[str, str, int]] = set()
+        # RP-003/INIT-1: ledger of live dock-poller tasks (both normal-advance and
+        # re-arm spawned — re-arm is a subset), so a manager shutdown (reload) can
+        # cancel every one it started rather than leaving them to keep driving a
+        # job on a manager that no longer owns the store.
+        self._dock_poller_tasks: dict[tuple[str, str, int], asyncio.Task] = {}
+
+    def cancel_all(self) -> list[asyncio.Task]:
+        """Cancel every live dock-poller task; return the cancelled tasks so the
+        caller can await their unwind. Clears both ledgers — a cancelled poller's
+        own finally would clear _dock_poller_active too, but shutdown does not wait
+        for that to happen before this returns."""
+        tasks = list(self._dock_poller_tasks.values())
+        for task in tasks:
+            task.cancel()
+        self._dock_poller_tasks.clear()
+        self._dock_poller_active.clear()
+        return tasks
 
     def _spawn_dock_poller(
         self, *, vacuum_entity_id: str, map_id: str, phase_type: str, phase_index: int
@@ -95,7 +112,13 @@ class PhaseRunner:
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), phase_index=phase_index
             )
         )
-        self._manager.hass.async_create_task(coro)
+        task = self._manager.hass.async_create_task(coro)
+        # Real hass.async_create_task always returns a Task; some tests stub it to
+        # close the coroutine and return None to skip running the poller body while
+        # still exercising the guard — nothing to ledger in that case.
+        if task is not None:
+            self._dock_poller_tasks[key] = task
+            task.add_done_callback(lambda _t, _k=key: self._dock_poller_tasks.pop(_k, None))
         return True
 
     def rearm_dock_phase_if_needed(self, *, vacuum_entity_id: str, map_id: str) -> bool:

@@ -232,6 +232,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR] = coordinator
 
     manager = EufyVacuumManager(hass)
+    # RP-003/INIT-1: registered BEFORE async_initialize so a mid-setup failure
+    # after construction still tears down (async_shutdown is idempotent — a
+    # never-initialized manager has empty ledgers and cancels nothing).
+    entry.async_on_unload(manager.async_shutdown)
     try:
         await manager.async_initialize()
     except Exception as exc:
