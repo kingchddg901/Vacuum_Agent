@@ -91,6 +91,13 @@ def _redact(message: str) -> str:
         message = pattern.sub(repl, message)
     return message
 
+
+def _cap_and_elide(text: str, limit: int = MAX_MESSAGE_CHARS) -> str:
+    """Cap text at limit chars, appending a count of elided chars past the cap."""
+    if len(text) > limit:
+        return text[:limit] + f"…(+{len(text) - limit} chars elided)"
+    return text
+
 # The four service names this helper registers. Fixed — the caller supplies the domain.
 DEBUG_CAPTURE_START = "debug_capture_start"
 DEBUG_CAPTURE_STOP = "debug_capture_stop"
@@ -160,9 +167,7 @@ class _RingHandler(logging.Handler):
                 self.full = True
                 return  # keep the first N, drop the rest
             self._seq += 1
-            message = _redact(record.getMessage())
-            if len(message) > MAX_MESSAGE_CHARS:
-                message = message[:MAX_MESSAGE_CHARS] + f"…(+{len(message) - MAX_MESSAGE_CHARS} chars elided)"
+            message = _cap_and_elide(_redact(record.getMessage()))
             entry: dict[str, Any] = {
                 "seq": self._seq,
                 "t": record.created,
@@ -171,7 +176,12 @@ class _RingHandler(logging.Handler):
                 "message": message,
             }
             if record.exc_info:
-                entry["exc"] = "".join(traceback.format_exception(*record.exc_info)).rstrip()
+                # RP-004/DR-DBG-1: a traceback can carry the same secrets and the same
+                # multi-MB blowup risk as a message (e.g. a raised value embedding a
+                # token, or an exception str carrying an oversized payload) -- it gets
+                # the same masking + cap, not a free pass.
+                exc_text = "".join(traceback.format_exception(*record.exc_info)).rstrip()
+                entry["exc"] = _cap_and_elide(_redact(exc_text))
             self.records.append(entry)
         except Exception:  # logging must never break the app
             self.handleError(record)
@@ -401,7 +411,11 @@ def render_text(records: list[dict[str, Any]]) -> str:
         ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)) + f".{int((t % 1) * 1000):03d}"
         lines.append(f"{ts} {str(r.get('level', '')):<7} {r.get('logger', '')}: {r.get('message', '')}")
         if r.get("exc"):
-            lines.append(str(r["exc"]))
+            # Defense in depth: re-mask + re-cap at render time too, so a record
+            # captured by any other path (e.g. a saved dump loaded back in) can't
+            # surface an unmasked traceback just because it skipped the emit-time
+            # treatment above.
+            lines.append(_cap_and_elide(_redact(str(r["exc"]))))
     return "\n".join(lines) + ("\n" if lines else "")
 
 

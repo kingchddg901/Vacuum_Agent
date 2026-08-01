@@ -350,6 +350,40 @@ def test_redaction_masks_secrets(capture):
     assert "«redacted»" in msg
 
 
+def test_redaction_masks_secrets_in_exc_info(capture):
+    """[RP-004/DR-DBG-1] A traceback gets the SAME masking as a message -- the
+    dump is safe to hand to a maintainer even when the secret rode an exception."""
+    capture.start()
+    logger = logging.getLogger(f"{PKG}.mapping.x")
+    try:
+        raise ValueError("auth failed for token=abc123secret retrying")
+    except ValueError:
+        logger.debug("handshake failed with token=abc123secret", exc_info=True)
+    record = capture.records()[0]
+    assert "abc123secret" not in record["message"]
+    assert "abc123secret" not in record["exc"]
+    assert "«redacted»" in record["exc"]
+    text = render_text(capture.records())
+    assert "abc123secret" not in text
+
+
+def test_exc_info_is_capped_and_elided(capture):
+    """[RP-004/DR-DBG-1] An oversized traceback is capped like a message, not a
+    free multi-MB pass into the dump."""
+    capture.start()
+    logger = logging.getLogger(f"{PKG}.mapping.x")
+    try:
+        raise RuntimeError("payload=" + "A" * 50000)
+    except RuntimeError:
+        logger.debug("dumping payload", exc_info=True)
+    record = capture.records()[0]
+    assert len(record["exc"]) < 50000
+    assert "elided" in record["exc"]
+    text = render_text(capture.records())
+    assert len(text) < 50000
+    assert "elided" in text
+
+
 def test_render_text_is_readable():
     text = render_text(
         [
