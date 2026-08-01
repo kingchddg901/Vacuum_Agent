@@ -260,8 +260,42 @@ Counting findings by top-level directory puts it in company:
 
 `adapters/` is the explainable one — Audit #4 covered the adapter seam but filed
 its findings against the CONSUMING call sites, which is consistent with its own
-verdict ("the seam is real but ~80 % applied"). `battery/` and `sensor/` have no
-such explanation: 3,700 lines between them and nobody has looked.
+verdict ("the seam is real but ~80 % applied").
+
+### CORRECTION (Chris, 2026-08-01): `battery/` WAS reviewed — and that is worse
+
+An earlier draft of this file said "nobody has looked". **Wrong.** `battery/` was
+reviewed on **2026-06-20**, against a real mid-job recharge run, producing
+`docs/dev/battery-subsystem-followups.md` — two tracked items, both resolved by
+2026-07-29 and folded into `docs/dev/12-battery-system.md` at `0ee1c38`. The
+learning audit's scope line even says **"Out of scope: battery (own doc)"** — it
+was deliberately excluded from the hostile corpus *because* it had been reviewed.
+
+So the accurate statement is: `battery/` was reviewed but was never one of the
+twelve hostile audit runs, and the review was TARGETED — scoped to the per-job
+drain metric, driven by one recharge run.
+
+**The part that matters.** That review did not merely fail to find today's four
+defects; it affirmatively CLEARED the exact areas they live in:
+
+> "Neither is a bug in the real-time session engine — cycle counting,
+> charge-session tracking, the CC/CV regime split, the per-install health proxy,
+> and the gold-standard `mid_job_recharge_stats` all handle a recharge
+> correctly."
+
+Today: **cycle counting** is inflated ~285 % by phantom drain (RP-042); the
+**CC/CV regime split** feeds an ETA that can never re-anchor (RP-043); the
+**per-install health proxy** reads `None` on both vacuums (RP-045). Three for
+three.
+
+That is a false-assurance record, which is more dangerous than a blank one — a
+blank subsystem invites suspicion, a cleared one deflects it, and this clearance
+is what the "out of scope (own doc)" exclusion was resting on. The
+recommendation below therefore stands and is STRONGER, not weaker: the argument
+was never "nobody looked", it is that **one targeted review driven by a single
+run cannot stand in for an audit**, and we now have four defects proving it.
+
+`sensor/` (1,595 lines) has no findings and no equivalent review doc.
 
 **Checked 2026-08-01, and the record was wrong in BOTH directions.** `mapping/`
 is the subsystem the campaign listed as uncovered, and it is in fact the
