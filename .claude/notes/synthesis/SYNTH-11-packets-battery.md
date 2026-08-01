@@ -263,6 +263,16 @@ its findings against the CONSUMING call sites, which is consistent with its own
 verdict ("the seam is real but ~80 % applied"). `battery/` and `sensor/` have no
 such explanation: 3,700 lines between them and nobody has looked.
 
+**Checked 2026-08-01, and the record was wrong in BOTH directions.** `mapping/`
+is the subsystem the campaign listed as uncovered, and it is in fact the
+best-covered in the repo — audits #11 and #18 between them filed 90 findings
+across 6,936 of its 7,419 lines. The only untouched files are
+`segmenter_engines.py` (442, the deliberately-excluded empirical-CV segmentor)
+and `boundary.py` (40, dead by decision). So the campaign was carrying a
+false NEGATIVE on `mapping/` and a false POSITIVE on everything else — which is
+the coverage-from-findings trap running in both directions at once, and a second
+reason to compute coverage from scopes.
+
 Four defects fell out of twenty minutes of incidental observation, one of them
 a permanent-corruption accumulator bug that has already inflated a
 user-visible metric by ~285 %. That is not a good yield for careful auditing;
