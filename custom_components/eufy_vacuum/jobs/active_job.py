@@ -524,6 +524,22 @@ class ActiveJobTracker:
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
+
+        # Commanded-dock guard -- same condition and reasoning as the
+        # is_dock_polled_phase check in update_active_job_recharge_observation
+        # (see its comment): a charge_wait/wait phase owns its own dock, so a
+        # recharge this method never should have been tracking must not be
+        # resolved/accrued here either.
+        _rc_phases = active_job.get("phases")
+        if isinstance(_rc_phases, list):
+            _rc_idx = _safe_int(active_job.get("current_phase_index"), -1)
+            if (
+                0 <= _rc_idx < len(_rc_phases)
+                and isinstance(_rc_phases[_rc_idx], dict)
+                and is_dock_polled_phase(_rc_phases[_rc_idx])
+            ):
+                return active_job
+
         if not bool(active_job.get("observed_mid_job_recharge", False)):
             return active_job
         if self._is_charging(vacuum_entity_id):

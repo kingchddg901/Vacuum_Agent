@@ -297,6 +297,56 @@ def test_recharge_observation_alone_no_longer_detects_end(hass, tracker, manager
     assert result["recharge_seconds_accumulated"] == 0
 
 
+def test_resolve_recharge_resumed_skips_commanded_dock_phase(hass, tracker, manager, monkeypatch):
+    """[AJI-13c] RP-012(d): a job parked on a charge_wait phase owns its own
+    dock -- resolve_mid_job_recharge_resumed must not accrue an unplanned
+    recharge for it, even if observed_mid_job_recharge carried over from a
+    prior phase. Ported from update_active_job_recharge_observation's
+    is_dock_polled_phase guard (same condition, same reasoning)."""
+    _seed(
+        manager,
+        phases=[{"phase_type": "charge_wait"}],
+        current_phase_index=0,
+        pending_mid_job_recharge_return=True,
+        observed_mid_job_recharge=True,
+        observed_mid_job_recharge_started_at="2026-01-01T09:00:00+00:00",
+        recharge_seconds_accumulated=0,
+    )
+    monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
+    fake_tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
+
+    result = tracker.resolve_mid_job_recharge_resumed(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["recharge_seconds_accumulated"] == 0
+    assert result["observed_mid_job_recharge"] is True   # untouched -- guard returned early
+    fake_tracker.resume_sampling.assert_not_called()
+
+
+def test_resolve_recharge_resumed_still_accrues_on_room_group_phase(hass, tracker, manager, monkeypatch):
+    """[AJI-13d] control for AJI-13c: the SAME job shape on a room_group phase
+    (not dock-polled) still accrues normally -- the guard is phase-type scoped,
+    not a blanket suppression."""
+    _seed(
+        manager,
+        phases=[{"phase_type": "room_group"}],
+        current_phase_index=0,
+        pending_mid_job_recharge_return=True,
+        observed_mid_job_recharge=True,
+        observed_mid_job_recharge_started_at="2026-01-01T09:00:00+00:00",
+        recharge_seconds_accumulated=0,
+    )
+    monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
+    fake_tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
+
+    result = tracker.resolve_mid_job_recharge_resumed(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["recharge_seconds_accumulated"] == 300
+    assert result["observed_mid_job_recharge"] is False
+    fake_tracker.resume_sampling.assert_called_once_with(_VAC)
+
+
 # ---------------------------------------------------------------------------
 # pause / resume
 # ---------------------------------------------------------------------------
