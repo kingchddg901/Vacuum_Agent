@@ -40,6 +40,7 @@ from custom_components.eufy_vacuum.services.job_control import (
     _handle_resume_active_job,
     _handle_start_run_profile,
     _handle_start_selected_rooms,
+    _handle_start_zone_clean,
 )
 
 from .conftest import setup_map
@@ -143,6 +144,72 @@ def jc(hass):
 
 def _call(**extra):
     return _Call({"vacuum_entity_id": _VAC, "map_id": _MAP, **extra})
+
+
+# ---------------------------------------------------------------------------
+# RP-010/RF-06 (JOB-2): start_zone_clean consults get_start_status first
+# ---------------------------------------------------------------------------
+
+_INFLIGHT_REASONS = ["job_paused", "active_job_running", "mid_job_service", "vacuum_busy"]
+
+
+@pytest.mark.parametrize("reason", _INFLIGHT_REASONS)
+async def test_zone_clean_refuses_when_job_in_progress(jc, reason):
+    """[JCW-12] start_zone_clean bypassed every lifecycle gate before RP-010 -- a
+    job already running/paused/being-serviced let a zone clean stack a second
+    dispatch on top of it. Refuses (Q9-shaped: flags, not a raised exception)
+    for each of the four in-flight reasons get_start_status can report."""
+    hass, mgr = jc
+    mgr.get_start_status = MagicMock(
+        return_value={"blocked": True, "reason": reason, "message": "busy"}
+    )
+    mgr.dispatch_zone_clean = AsyncMock(return_value={"success": True})
+
+    result = await _handle_start_zone_clean(
+        hass, _call(zones=[[0, 0, 1, 1]])
+    )
+
+    assert result == {
+        "success": False,
+        "reason": "job_in_progress",
+        "start_status_reason": reason,
+        "message": "busy",
+    }
+    mgr.dispatch_zone_clean.assert_not_awaited()
+
+
+async def test_zone_clean_ignores_non_inflight_block_reasons(jc):
+    """[JCW-13] a blocked-but-not-in-flight reason (onboarding_required,
+    no_target_map, etc. -- ROOM-QUEUE readiness that never applied to a
+    zones-based dispatch) must NOT newly block zone clean; only the four
+    in-flight reasons do."""
+    hass, mgr = jc
+    mgr.get_start_status = MagicMock(
+        return_value={"blocked": True, "reason": "onboarding_required", "message": "x"}
+    )
+    mgr.dispatch_zone_clean = AsyncMock(return_value={"success": True, "zones_dispatched": 1})
+
+    result = await _handle_start_zone_clean(
+        hass, _call(zones=[[0, 0, 1, 1]])
+    )
+
+    mgr.dispatch_zone_clean.assert_awaited_once()
+    assert result == {"success": True, "zones_dispatched": 1}
+
+
+async def test_zone_clean_proceeds_when_ready(jc):
+    """[JCW-14] sanity: a ready (not blocked) start status dispatches normally --
+    the documented no-tracking/fire-and-forget semantics are unchanged."""
+    hass, mgr = jc
+    mgr.get_start_status = MagicMock(return_value={"blocked": False, "reason": "ready"})
+    mgr.dispatch_zone_clean = AsyncMock(return_value={"success": True, "zones_dispatched": 1})
+
+    result = await _handle_start_zone_clean(
+        hass, _call(zones=[[0, 0, 1, 1]])
+    )
+
+    mgr.dispatch_zone_clean.assert_awaited_once()
+    assert result["success"] is True
 
 
 # Async action handler ↔ manager method ↔ error prefix.

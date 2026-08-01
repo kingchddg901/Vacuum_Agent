@@ -167,16 +167,49 @@ async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
     return payload
 
 
+#: RP-010/RF-06 (JOB-2): get_start_status's blocker evaluation covers a lot of
+#: ROOM-QUEUE readiness (no_target_map, onboarding, all_selected_rooms_blocked)
+#: that a zone clean's own zones-based dispatch never depended on and must not
+#: newly acquire. Only these reasons mean "a job is already happening on this
+#: vacuum" — the in-flight condition a zone clean must not stack a second
+#: dispatch on top of.
+_ZONE_CLEAN_INFLIGHT_BLOCK_REASONS = frozenset(
+    {"job_paused", "active_job_running", "mid_job_service", "vacuum_busy"}
+)
+
+
 async def _handle_start_zone_clean(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Dispatch an ad-hoc free-form zone clean (draw a box on the live map → clean).
 
     Fire-and-forget: it carries no room ids and does NOT touch the job/queue/
     learning store, so there is no async_save() — nothing was persisted.
+
+    RP-010/RF-06: previously bypassed every lifecycle gate, so it could stack a
+    second dispatch on top of a job already in flight. Consults
+    get_start_status's blocker evaluation first and refuses (Q9-shaped
+    structured response, not a raised exception — this is the
+    operational/automation-common class) when a job is already running,
+    paused, or being serviced. Otherwise the documented no-tracking,
+    fire-and-forget semantics are unchanged.
     """
+    resolved = resolved_call_data(hass, call)
+    start_status = get_manager(hass).get_start_status(
+        vacuum_entity_id=resolved.get("vacuum_entity_id"),
+        map_id=resolved.get("map_id"),
+    )
+    if (
+        start_status.get("blocked")
+        and start_status.get("reason") in _ZONE_CLEAN_INFLIGHT_BLOCK_REASONS
+    ):
+        return {
+            "success": False,
+            "reason": "job_in_progress",
+            "start_status_reason": start_status.get("reason"),
+            "message": start_status.get("message"),
+        }
+
     try:
-        payload = await get_manager(hass).dispatch_zone_clean(
-            **resolved_call_data(hass, call)
-        )
+        payload = await get_manager(hass).dispatch_zone_clean(**resolved)
     except Exception as err:
         raise HomeAssistantError(f"Failed to start zone clean: {err}") from err
     _LOGGER.debug("start_zone_clean complete: %s", payload)
