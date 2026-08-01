@@ -444,18 +444,140 @@ family_id: RF-11
 finding_ids: ["#16:A4-STATE-6"]
 files: [custom_components/eufy_vacuum/learning/history_store.py, tests/]
 symbols: [build_completed_job_payload queue block]
-problem: the payload's queue block prefers the LIVE queue over the job's own — a
-  room switch flipped mid-run makes missed-rooms/trouble-rooms name a room never in
+problem: >
+  the payload's queue block prefers the LIVE queue over the job's own — a room
+  switch flipped mid-run makes missed-rooms/trouble-rooms name a room never in
   the run (the exact incident already fixed for resolved_rooms, queue forgotten).
-required_behavior: mirror the resolved_rooms precedence ladder for the queue block
-  (job-frozen snapshot wins; live queue only when the job carries none).
+
+  AMENDED 2026-08-01 after stepped Run A (job_2026-08-01T13-49-21). There are
+  TWO ways the queue block goes wrong and the original packet only named one.
+  On that run the record came out queue_room_ids=[25] vs resolved_rooms=[27, 25]
+  — the Kitchen, 255 seconds of it, absent from the queue half — and the
+  originally-specified fix would NOT have changed it. On a PHASED job
+  advance_active_job_phase overwrites the job's OWN top-level queue_room_ids
+  with the phase it moved into, so the "job-frozen snapshot" is itself [25].
+  Preferring it over the live queue is a no-op for every stepped run.
+required_behavior: >
+  Mirror the resolved_rooms ladder PROPERLY — that ladder is a UNION-OF-PHASES,
+  not a preference between two flat lists, and its in-code comment
+  (history_store.py:829-843) already explains why the top-level list cannot be
+  trusted after an advance. The queue block needs the same four rungs:
+    1. a PHASED job  -> the union of ALL phases' queue_room_ids, deduped, order
+       preserved (this is the rung the original packet was missing);
+    2. an ATOMIC job -> the job's top-level queue_room_ids launch snapshot;
+    3. the LIVE queue_state only when the job carries none;
+    4. empty.
+  Derive it alongside resolved_rooms rather than as a second hand-written
+  walk — one traversal answering both questions, per the centralize-the-QUESTION
+  ladder. queue_rooms and room_count must follow the same source as the ids they
+  describe, or the block becomes internally inconsistent in a new way.
 rollback_plan: single commit (rebases on RP-013c's history_store edits — lesson 4).
-reproducer_script: extend _proof_completed_evidence.py — mid-run queue flip.
-expected_before: ["queue block = live flipped queue"]
-expected_after: ["queue block = job's frozen queue"]
-tests_to_add_or_modify: precedence parity test with resolved_rooms.
+reproducer_script: extend _proof_completed_evidence.py — TWO cases, not one.
+  (a) atomic job + mid-run queue flip (already written, case 3);
+  (b) PHASED job after an advance — the Run A shape. Case (b) is the one that
+  fails against the original required_behavior, so it is the load-bearing one.
+expected_before: ["queue block = live flipped queue",
+  "phased: queue block = only the last phase's rooms"]
+expected_after: ["queue block = job's frozen queue",
+  "phased: queue block = union of all phases"]
+hardware_evidence: >
+  job_2026-08-01T13-49-21.json, frozen at
+  .claude/notes/_frozen/baseline/job_2026-08-01T13-49-21-steppedA.json —
+  queue_room_ids [25] vs resolved_rooms [27, 25] on a completed 2-room run.
+tests_to_add_or_modify: precedence parity test with resolved_rooms, INCLUDING
+  the phased-union rung; a regression asserting the two blocks name the same
+  rooms for any job shape.
 broader_gates: full suite. hardware_gate: none (SOURCE_DECIDABLE).
 escalation_target: main agent → Chris
+```
+
+---
+
+## RP-013f — A stepped run's cleaning time is the whole run (RF-11 part 6)
+
+**Authored 2026-08-01 from stepped Run A. Not in the original synthesis — no
+audit could see it, because none had a stepped-run record to look at.**
+
+```yaml
+packet_id: RP-013f
+family_id: RF-11
+finding_ids: ["live:REC-A", "live:REC-B"]
+severity: HIGH
+files: [custom_components/eufy_vacuum/learning/job_finalizer.py,
+  custom_components/eufy_vacuum/learning/utils.py, tests/]
+symbols: [cleaning_time_seconds derivation + its wall-clock fallback,
+  build_overhead_observed]
+problem: >
+  REC-A (under-reports). cleaning_time_seconds is taken from
+  last_cleaning_time_seconds — the last-seen DEVICE counter. Every dispatched
+  phase RESETS that counter, so a stepped run records only its FINAL phase.
+  Run A recorded 302 s against a measured 255 + 302 = 557 s: 46 % short.
+
+  REC-B (over-reports, latent, and RP-012(d) just made it MORE reachable). When
+  the sensor path yields None the function derives wall-clock minus
+  paused_duration_seconds minus recharge_seconds_accumulated. It does NOT
+  subtract COMMANDED break phases. On Run A that path would have produced
+  1169 s against a true 557 s — 110 % over. It did not fire only because the
+  sensor happened to be readable. Note the interaction: before RP-012(d) a
+  commanded hold was (wrongly) accumulated into recharge_seconds_accumulated,
+  which accidentally compensated here. Fixing that bug removed the only term
+  that was masking this one — a repair making a latent defect reachable, the
+  same shape as RP-012(d)'s own origin.
+
+  THE CASCADE is what makes this HIGH rather than a cosmetic number.
+  learning/utils.py:203 computes total_overhead_minutes = duration −
+  cleaning_minutes, so Run A recorded 14.45 min of overhead against a true
+  10.19. learning/stats_rebuilder.py:316 then AVERAGES total_overhead_minutes
+  across jobs — every stepped run permanently inflates the learned overhead
+  model, and the model is what the card's ETAs are built from. Run A carried
+  used_for_learning: true, learning_blockers: [] — it is already in.
+required_behavior: >
+  Derive the job's cleaning time by SUMMING PHASE CONTRIBUTIONS, not by reading
+  a device counter whose reset semantics are brand-specific and undocumented:
+  room phases contribute their room_timing cleaning_seconds, zone phases their
+  zone_timings, break phases contribute ZERO. An ATOMIC job keeps today's
+  behaviour (one phase, one counter read — nothing to sum).
+
+  Compose-safe with RP-013b: that packet re-splits a group phase's single timing
+  entry into per-member allocated entries while PRESERVING the measured totals
+  (its proof asserts exactly that), so a sum over room_timing is correct both
+  before and after it lands. State this in the commit so the two are not seen to
+  conflict.
+
+  The wall-clock fallback must subtract commanded break-phase durations for the
+  same reason it already subtracts paused and recharge seconds. A phase carries
+  _timing_end_t and takes its start from the previous phase's, so the spans are
+  available without new plumbing.
+prohibited_changes: >
+  Do NOT "fix" this by preferring cleaning_area's behaviour. Run A recorded
+  cleaning_area_m2 5.8 against a per-room sum of 5.3 — area ACCUMULATED across
+  phases while time did not. The same last_* read yields a cumulative answer for
+  one counter and a per-phase answer for the other because the device resets
+  them differently, and nothing documents that per brand. Neither counter is a
+  trustworthy job total; only the phase sum is.
+rollback_plan: 2 commits (phase-sum derivation; wall-clock fallback break-phase
+  subtraction) — different failure modes, independently revertable.
+reproducer_script: NEW _proof_job_cleaning_total.py — a 3-phase job whose room
+  phases measured 255 s and 302 s with a charge_wait between them; assert the
+  job total and the derived overhead. Second case drives the wall-clock fallback
+  with the sensor absent.
+expected_before: ["job cleaning_time_seconds = 302 (last phase only)",
+  "overhead 14.45", "fallback counts the commanded hold as cleaning"]
+expected_after: ["job cleaning_time_seconds = 557", "overhead 10.2",
+  "fallback excludes the commanded hold"]
+hardware_evidence: >
+  job_2026-08-01T13-49-21.json, frozen at
+  .claude/notes/_frozen/baseline/job_2026-08-01T13-49-21-steppedA.json.
+tests_to_add_or_modify: phase-sum across room/zone/break phases; atomic job
+  unchanged; fallback with and without break phases; an overhead-residual test
+  pinning total_overhead to the summed cleaning time.
+superseded_tests: any test pinning a stepped job's cleaning_time_seconds to the
+  final phase's counter — that IS the defect; update with the decision recorded.
+broader_gates: full suite.
+hardware_gate: none to LAND (SOURCE_DECIDABLE — Run A is already the evidence).
+  Ride-along on the next stepped run: expect the job total to equal the sum of
+  its room timings, which Run A visibly violates.
+escalation_target: main agent -> Chris
 ```
 
 ---
@@ -551,3 +673,4 @@ hardware_gate: tier 2 — app-started run ride-along on the Wave-2 batch (VAC-1/
 stop_conditions: [the card's state enum cannot render an unknown state without error]
 escalation_target: main agent → Chris
 ```
+

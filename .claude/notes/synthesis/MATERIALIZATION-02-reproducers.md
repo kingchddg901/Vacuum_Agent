@@ -202,7 +202,7 @@ The cascade is worse than the number. `learning/utils.py:203` computes
 `total_overhead_minutes = duration − cleaning_minutes`:
 
     19.48 − (302/60) = 14.45   ← matches the record exactly
-    truth:  19.48 − (557/60) = 10.19
+    truth:  19.48 − (557/60) = 10.2
 
 So overhead is inflated by the same 255 s, and `stats_rebuilder.py:316` averages
 `total_overhead_minutes` across jobs — **every stepped run poisons the learned
@@ -216,9 +216,21 @@ per-phase answer for the other, because the device resets them differently. So
 the fix cannot be "trust the other counter" — it must **sum per-phase deltas**,
 and it must not assume either counter's reset behaviour is brand-stable.
 
-Suggested id: **RP-013f** (RF-11 part 6), HIGH, `learning/job_finalizer.py` +
-`learning/utils.py`. Reproducer: a 2-phase job whose phases measure 255 and 302 —
-assert the job total is 557 and overhead is the residual against 557.
+**AUTHORED** as RP-013f (RF-11 part 6, HIGH) in SYNTH-06, with a second half the
+first pass missed: the wall-clock FALLBACK subtracts paused and recharge seconds
+but not COMMANDED break phases, so it over-reports by the whole hold (1169 s
+against a true 557 s on Run A). It did not fire only because the sensor was
+readable — and **RP-012(d) made it more reachable**, because a commanded hold
+used to be wrongly accumulated into `recharge_seconds_accumulated`, which
+accidentally compensated. Fixing that removed the term that was masking this.
+Same shape as RP-012(d)'s own origin: a correct repair exposing a latent defect.
+
+Reproducer `_proof_job_cleaning_total.py` — **2 BEFORE**, and it has no fixture:
+both cases run against the frozen Run A record itself, so nothing in it can be
+mis-modelled. Its own UNEXPECTED arm then caught a hardcoded `10.19` in the
+author's arithmetic (the value rounds to `10.2`); the case now compares against a
+COMPUTED residual. A proof that pins a derived number to a literal is asserting
+the author's arithmetic, not production's.
 
 ## ⏳ STILL BLOCKED — RP-013c hardware precondition (RP-013a now UNBLOCKED)
 

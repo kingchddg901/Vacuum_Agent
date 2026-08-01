@@ -1,6 +1,6 @@
 {
- "frozen_at_sha": "6598b0c4137050ba5d9702b3adf504ed42989acb",
- "frozen_at": "2026-08-01T13:32:21",
+ "frozen_at_sha": "ea3d1579ecbdff6a2a5b1cdf7c198e42a58ba831",
+ "frozen_at": "2026-08-01T14:23:17",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
@@ -38,6 +38,7 @@
   ".claude/notes/_frozen/baseline/alfred-run-BEFORE.log": "69d551fb35d282ba",
   ".claude/notes/_frozen/baseline/diagnostics-BEFORE.json": "583452ac252d5cdc",
   ".claude/notes/_frozen/baseline/ivy-run-BEFORE.log": "6c525468d54c57f3",
+  ".claude/notes/_frozen/baseline/job_2026-08-01T13-49-21-steppedA.json": "d142aa3907f2dd68",
   ".claude/notes/_frozen/baseline/phase-b-coverage.json": "e11cb84cedd2c86f",
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json": "ec518fa3db5d3f87",
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json.hc-results.md": "da6f3497ae5f29f5",

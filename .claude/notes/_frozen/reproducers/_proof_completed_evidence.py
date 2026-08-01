@@ -190,11 +190,69 @@ def case_queue_block_is_live_first(proof: H.Proof) -> None:
     )
 
 
+def case_queue_block_after_a_phase_advance(proof: H.Proof) -> None:
+    """RP-013d, the PHASED shape — reproduces hardware run job_2026-08-01T13-49-21.
+
+    This is the load-bearing case. Case 3 above shows the live-vs-frozen
+    precedence, and the packet's ORIGINAL fix ("job-frozen snapshot wins") would
+    have satisfied it. It would NOT fix this one: advance_active_job_phase
+    overwrites the job's own top-level queue_room_ids with the phase it moved
+    into, so the "frozen" value has already been clobbered down to the last
+    phase. Only a union-of-all-phases ladder — the one resolved_rooms already
+    uses — recovers the run's real room set.
+    """
+    store = H.learning_store(tempfile.mkdtemp(prefix="_proof_ce4_"))
+
+    # [Kitchen 27] -> charge_wait -> [Hallway 25], parked on the last phase, with
+    # the top-level queue already clobbered by the advances (the observed shape).
+    job = H.active_job(
+        queue_room_ids=[25],
+        phases=[H.room_phase([27]), H.break_phase("charge_wait"), H.room_phase([25])],
+        current_phase_index=2,
+        room_count=1,
+    )
+    job["queue_rooms"] = [{"room_id": 25, "name": "Hallway"}]
+
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id=H.VAC,
+        job_id="job_proof_phased",
+        started_at="2026-08-01T20:49:21Z",
+        ended_at="2026-08-01T21:08:50Z",
+        battery_start=98,
+        battery_end=95,
+        queue_state={},                      # nothing live — the job is the only source
+        payload_state={},
+        active_job_state=job,
+    )
+    recorded_queue = list((payload.get("queue") or {}).get("queue_room_ids", []))
+    recorded_rooms = sorted(
+        r.get("room_id") for r in payload.get("resolved_rooms", [])
+        if isinstance(r, dict)
+    )
+
+    proof.case(
+        "RP-013d PHASED — [Kitchen] -> charge -> [Hallway], finalized on the "
+        "last phase (hardware: job_2026-08-01T13-49-21)",
+        before=recorded_queue == [25] and recorded_rooms == [25, 27],
+        before_msg="queue block holds ONLY the last phase's room — the advance "
+                   "clobbered the job's own top-level queue, so preferring it "
+                   "over the live queue fixes nothing; the Kitchen it really "
+                   "cleaned is absent from the queue half of its own record",
+        after=sorted(recorded_queue) == [25, 27] and recorded_rooms == [25, 27],
+        after_msg="queue block is the union of all phases — the two halves of "
+                  "the record name the same rooms",
+        detail=f"payload queue_room_ids={recorded_queue} vs "
+               f"resolved_rooms={recorded_rooms} (phases cleaned 27 and 25; the "
+               f"top-level queue was clobbered to [25] by the advance)",
+    )
+
+
 def main() -> int:
     proof = H.Proof("RP-013c/d", "job-cumulative completed evidence")
     case_missed_every_room(proof)
     case_unrelated_clear(proof)
     case_queue_block_is_live_first(proof)
+    case_queue_block_after_a_phase_advance(proof)
     return proof.finish()
 
 
