@@ -1,5 +1,12 @@
 # Vacuum Agent
 
+[![HACS Default][hacs-badge]][hacs-url]
+[![Release][release-badge]][release-url]
+[![Home Assistant][ha-badge]][ha-url]
+[![Tests][tests-badge]][tests-url]
+[![Validate][validate-badge]][validate-url]
+[![License: MIT][license-badge]][license-url]
+
 A custom Home Assistant integration that adds a whole control-and-intelligence layer on top of your robot vacuum — **room-level cleaning, a live map you can actually drive from, a learning/ETA system, saved zones, battery-health tracking, a themeable dashboard, eighteen languages, and automation events** — for **Eufy** *and* **Roborock**. It uses an adapter pattern, so more brands can follow.
 
 ![Vacuum Agent — a real home's map with every room painted in its own floor material, robot mid-clean](docs/screenshots/floor-texture-map.png)
@@ -314,10 +321,24 @@ Vacuum Agent's Roborock support builds on Home Assistant's built-in [Roborock in
 
 ## Licence
 
-MIT — you are free to fork and adapt this work without attribution to this repository.
+MIT — fork it, adapt it, ship it commercially. You don't need my permission and you don't owe this repository a credit line in your README. MIT's one requirement is that you keep the copyright notice and licence text with the code you reuse. See [LICENSE](LICENSE) for full terms.
 
-One condition: this project is a top-level addition built on [eufy-clean](https://github.com/jeppesens/eufy-clean). Any fork or derivative work must maintain acknowledgement of that dependency. See [LICENSE](LICENSE) for full terms.
+Beyond the licence, one ask: this project is a top-level addition built on [eufy-clean](https://github.com/jeppesens/eufy-clean). Please keep acknowledging that dependency in anything you build from this.
 
 ## Issues
 
 Please report bugs and feature requests at: <https://github.com/kingchddg901/Vacuum_Agent/issues>
+
+<!-- Badge definitions -->
+[hacs-badge]: https://img.shields.io/badge/HACS-Default-41BDF5.svg
+[hacs-url]: https://github.com/hacs/default
+[release-badge]: https://img.shields.io/github/v/release/kingchddg901/Vacuum_Agent?color=41BDF5
+[release-url]: https://github.com/kingchddg901/Vacuum_Agent/releases/latest
+[ha-badge]: https://img.shields.io/badge/Home%20Assistant-2025.6.0%2B-41BDF5.svg
+[ha-url]: https://www.home-assistant.io/
+[tests-badge]: https://github.com/kingchddg901/Vacuum_Agent/actions/workflows/tests.yml/badge.svg?branch=master
+[tests-url]: https://github.com/kingchddg901/Vacuum_Agent/actions/workflows/tests.yml
+[validate-badge]: https://github.com/kingchddg901/Vacuum_Agent/actions/workflows/validate.yml/badge.svg?branch=master
+[validate-url]: https://github.com/kingchddg901/Vacuum_Agent/actions/workflows/validate.yml
+[license-badge]: https://img.shields.io/github/license/kingchddg901/Vacuum_Agent?color=41BDF5
+[license-url]: LICENSE
