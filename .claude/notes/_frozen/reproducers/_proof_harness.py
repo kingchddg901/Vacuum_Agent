@@ -43,6 +43,8 @@ VAC = "vacuum.alfred"
 IVY = "vacuum.ivy"
 MAP = "12"
 
+_IDLE_LOOP: "asyncio.AbstractEventLoop | None" = None
+
 
 # ---------------------------------------------------------------------------
 # Verdict reporting — the before/after flip contract
@@ -191,7 +193,16 @@ def make_hass(config_dir: str | Path = "/tmp/_proof_hass") -> SimpleNamespace:
     that yield explicitly, so it is visible in the proof rather than an artefact
     of the harness.
     """
-    loop = asyncio.get_event_loop()
+    # Python 3.14 no longer auto-creates a loop for a sync caller. Sync proofs
+    # legitimately build a hass without one, so fall back to a fresh loop that
+    # is never run — production only reads hass.loop.time() in those paths.
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        global _IDLE_LOOP
+        if _IDLE_LOOP is None:
+            _IDLE_LOOP = asyncio.new_event_loop()
+        loop = _IDLE_LOOP
 
     async def _executor(func, *args):
         return func(*args)
