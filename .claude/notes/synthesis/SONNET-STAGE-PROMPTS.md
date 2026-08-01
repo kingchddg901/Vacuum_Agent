@@ -39,18 +39,60 @@ maps each canonical finding id -> its owning family/packet (484 rows,
 SYNTH-03/04/06..12 carries finding_ids. So: finding -> packet is already known.
 The ONLY missing input is which packets have landed.
 
+FOUR THINGS ALREADY CHECKED FOR YOU -- do not re-derive them, and do not
+contradict them without evidence.
+
+(a) _open_findings.json IS AN OUTPUT, NOT A SOURCE. _gen_checklist.py line ~19
+    REGENERATES it from the audit JSONs on every run. Put closure state there and
+    the next regeneration silently wipes it.
+
+(b) THERE IS ALREADY A PRECEDENT -- MIRROR IT, DO NOT INVENT A SECOND ONE.
+    _gen_checklist.py already carries a `wontfix` mechanism: rows with that key
+    are filtered out of the fix list and tracked separately, with the reasoning
+    "an unmarked wontfix just gets re-litigated". Shape `applied` the same way.
+    A parallel mechanism with different semantics is how the next person gets it
+    wrong.
+
+(c) COMMIT NUMBERING LIES -- VERIFY AGAINST SOURCE. RP-007's rollback_plan named
+    three commits and git log shows only "(1/3)" and "(2/3)". It is NOT
+    incomplete: step 7 (the freshness gate) landed folded INSIDE the 2/3 commit
+    and is visible at dispatch/manager.py:291, labelled "RP-007 step 7". Had you
+    inferred from the numbering you would have flagged a landed packet as open.
+
+(d) EVERY LANDED PACKET LEAVES IN-SOURCE MARKERS. Use this as the cross-check:
+    `grep -rl "RP-NNN" custom_components/` returns >0 files for all twelve.
+    Baseline counts (files, as of 47a664f) --
+      RP-001:1  RP-002:5  RP-003:6  RP-004:1  RP-005:8  RP-006:8
+      RP-007:5  RP-008:3  RP-009:9  RP-010:5  RP-011:8  RP-012:7
+    Non-zero is NECESSARY, not sufficient (a partial application still leaves
+    marks). Where the commit log and the source disagree, READ THE CODE and
+    report what you found.
+
+VERIFIED PACKET -> COMMIT MAP (mined and hand-checked; use it, don't re-mine):
+  RP-001 3ddcc1c | RP-002 ca6dc75,c2569bf,3875f62 | RP-003 76d92fc
+  RP-004 27824be | RP-005 6989031,4217c3c | RP-006 e598e3e,b0967eb,e35b961
+  RP-007 4c42482,4bdd3f8 (3 planned, 2 commits -- see (c))
+  RP-008 8d244dc | RP-009 6ab1b20
+  RP-010 3e9e969,de835ef,d3e6139 | RP-011 365f90b,4cdcf51,7f6b969
+  RP-012 7269020,47f9a25,a02fd19,6598b0c
+Nothing beyond RP-012 has landed. RP-013a..f, RP-014..041, CARD-1..9 and
+RP-042..045 are all OPEN.
+
 WHAT TO BUILD.
-1. .claude/notes/_landed_packets.json -- a list of {packet_id, commit, landed_at,
-   note}. Seed it from git history with the packets that HAVE landed: RP-001
-   through RP-009 (tranche 1), RP-010, RP-011, RP-012 (a/b/c/d). Find each
-   commit with `git log --oneline --all --grep="RP-0"`. Do NOT guess -- if a
-   packet id has no commit, leave it out and report it.
+1. .claude/notes/_landed_packets.json -- {packet_id, commits[], landed_at, note}.
+   Seed from the map above. If you believe a packet landed that is not on it,
+   say so with the evidence rather than adding it silently.
 2. Teach _gen_checklist.py and _gen_audit_doc.py to derive applied state: a
    finding is APPLIED when its owning packet (via closure-matrix.json) appears in
-   _landed_packets.json. Render applied findings distinctly -- a checked box and
-   the commit sha -- rather than removing them; the ledger's value is the audit
+   _landed_packets.json. Render applied findings DISTINCTLY -- a checked box and
+   the commit sha -- rather than removing them. The ledger's value is the audit
    trail, and a disappeared finding is indistinguishable from one never found.
-3. Regenerate both documents and confirm the counts move by the expected amount.
+3. THE SAFETY GATE, do not skip it: copy the CURRENT generated
+   docs/dev/maintenance/highly-aggressive-audit.md and OPEN-FIX-CHECKLIST.md
+   aside BEFORE touching the generators. After regenerating, diff against the
+   copies and confirm the ONLY changes are applied-markings. Any other diff means
+   you changed the generator's behaviour by accident -- stop and investigate.
+   Report the before/after open counts.
 
 PIPELINE ORDER IS LOAD-BEARING: _gen_corpus.py reads from _frozen/, so the
 sequence is FREEZE -> GENERATE -> FREEZE AGAIN. Running generate after editing a
