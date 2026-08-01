@@ -110,9 +110,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**482 findings** — 421 across 12 audits plus 61 from direct reads. None applied. 29 clusters + 407 singles.
+**481 findings** — 421 across 12 audits plus 60 from direct reads. None applied. 29 clusters + 406 singles.
 
-CRITICAL 17 · HIGH 88 · MEDIUM 173 · LOW 204
+CRITICAL 17 · HIGH 88 · MEDIUM 173 · LOW 203
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -985,7 +985,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (192)</summary>
+<details><summary><strong>LOW</strong> (191)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1443,9 +1443,6 @@ The same audits recorded **673 areas examined and found correct**.
 - **DR-ONB-5** `sensor/onboarding.py:55` · both · `direct read`  
   The sensor recomputes the entire onboarding summary twice per update  
   native_value and extra_state_attributes each call _get_summary() independently, and each call iterates every map building a full get_onboarding_state dict. A polling diagnostic entity does the whole aggregation twice per
-- **SN-10** `sensor/theme.py:75` · both · `direct read`  
-  str(entry.get('name', 'none')) renders an explicit null name as the string 'None'  
-  Absent-is-not-None: a library entry with 'name': null yields Python's str(None) == 'None' rather than the intended 'none', and an empty string yields an empty state. _normalize_theme_entry gates stored entries but import
 - **A5-FACADE-5** `services.yaml:1179` · both  
   services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects  
   Calling either service exactly as the HA Developer Tools > Actions form renders it — the form marks Carpet required, so a user filling it in will include it — fails validation with an opaque 'extra keys not allowed' erro
@@ -1573,6 +1570,8 @@ Recorded so it is not re-reported as a new finding, and documented where it live
 
 - **DR-DBG-5** `debug_capture.py:263` — The restore guard cannot distinguish its own DEBUG from a user's mid-capture `logger:` DEBUG  
   Reaching it requires starting the flight recorder — a tool whose entire purpose is to avoid enabling `logger:` debug — and then enabling `logger:` debug anyway, mid-capture. That is a user footgun, not a defect: the two actions contradict each other. Documented in the module and in the post rather than guarded against.
+- **SN-10** `sensor/theme.py:75` — str(entry.get('name', 'none')) renders an explicit null name as the string 'None'  
+  KILLED BY THE SURVIVAL RULE, split 1-1, and the substance needs Chris. Both lenses EXECUTED and agree on the facts; they disagree on whether a mislocated reachability paragraph kills a real line-level defect. The reproducer proved my reachability claim WRONG: import_theme does `name = str(source_theme.get('name','')).strip()` (themes/manager.py:537), so a JSON null is stored as the STRING 'None' and the truthy gate passes -- the sensor's str(entry.get('name', 'none')) can only fire on a RAW stored null, which needs a direct .storage edit (discouraged) or legacy data. So: defect real at the line, my stated entry path fictitious. Recorded rather than silently dropped, because audit #18's meta-review named exactly this -- a split resolved by the survival rule with nobody adjudicating the substance.
 
 ### Carried forward from before the audits
 
@@ -1643,6 +1642,7 @@ file-scoped. All measured on `claude-opus-5[1m]` — rescale for a different mod
 | *1 agent* | infrastructure (const/models/entity_helpers/config_flow/…) | 1,169 | **0.19M** | 14 min |
 | *direct read ×11* | live_refresh · maps · dock · maintenance · counter_segmentation · debug_capture · diagnostics · onboarding · battery · sensor · setup | 8,709 | **~0.55M total (~50K each)** | — |
 | #18 | mapping services (**7+2+1 agents**, incl. meta-verifier) | 3,690 | 1.87M | 37 min |
+| *stage B* | verify the 27 targeted-agent findings (**2 agents, no finders**) | — | **0.37M** | 16.5 min |
 
 Cost tracks the **agent shape far more than subsystem size** — one audit covered 2,531 lines
 for 1.07M tokens while another covered 1,515 lines for 1.58M. Scope by agent count, not by LOC.
