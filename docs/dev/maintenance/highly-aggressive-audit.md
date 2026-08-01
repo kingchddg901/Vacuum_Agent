@@ -110,9 +110,9 @@ comments rather than by a shared helper.
 
 ## Open
 
-**403 findings** — 369 across 11 audits plus 34 from direct reads. None applied. 29 clusters + 328 singles.
+**430 findings** — 369 across 11 audits plus 61 from direct reads. None applied. 29 clusters + 355 singles.
 
-CRITICAL 17 · HIGH 75 · MEDIUM 145 · LOW 166
+CRITICAL 17 · HIGH 79 · MEDIUM 152 · LOW 182
 
 The same audits recorded **595 areas examined and found correct**.
 
@@ -336,7 +336,7 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (47)</summary>
+<details><summary><strong>HIGH</strong> (51)</summary>
 
 - **A5-FACADE-2** `core/manager.py:1426` · both  
   discover_rooms facade overwrites a good persisted discovery cache with an empty one whenever the room source is momentarily unreadable  
@@ -404,6 +404,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-RB-1** `mapping/map_source_runtime.py:373` · roborock _(finder said CRITICAL; verifier corrected)_  
   Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
   On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
+- **EP-2** `number.py:101` · both · `direct read`  
+  number.py's prefix sweep also destroys NON-room maintenance entities that its callback can never rebuild  
+  VERIFIED AT SOURCE, and this escalates DR-SETUP-1 on a second axis. number.py populates ONE entity_map with both the per-room order numbers AND the per-component maintenance-interval numbers ({vacuum_key}_{component}_mai
 - **A5-PP-RP-1** `planning/run_plan.py:1352` · both  
   A multi-room_group plan with no charge/wait/zone is silently flattened to ONE atomic dispatch — the card routes it as sequenced  
   The canonical two-pass profile — "vacuum every room, then mop the kitchen and bath" — is saved, displayed as a multi-step sequenced run in the card's stepped preview, and then executed as ONE flat clean: rooms that appea
@@ -455,6 +458,15 @@ The same audits recorded **595 areas examined and found correct**.
 - **A3-CRUD-2** `rooms/room_manager.py:64` · both  
   build_managed_rooms matches stored rooms by numeric id while room identity is the slug — a re-save after a re-segment transplants the previous occupant's access grants, rules and dock flag onto a different physical room and erases the reconciliation evidence  
   After any re-segment followed by the ordinary rescan-and-save, rooms silently carry the wrong configuration: the wrong room is flagged as the dock room, access grants point through rooms that are no longer adjacent (so r
+- **SN-1** `sensor/__init__.py:98` · both · `direct read`  
+  A managed vacuum with no imported map gets ZERO per-vacuum sensors, and importing a map never creates them  
+  VERIFIED AT SOURCE. The per-vacuum loop is `maps = manager.data.get('maps', {}); for vacuum_entity_id in maps.keys()`, and EVERY per-vacuum sensor is built inside it: onboarding, theme, dock events, profiles, map overlay
+- **SN-3** `sensor/__init__.py:255` · both · `direct read`  
+  Two of the four sensor prefix sites are destructive - a room sync on one vacuum deletes a sibling's registry entries  
+  Per-site verdict extending DR-SETUP-1. :255 (_sync_room_history_entities) and :312 (_sync_room_rule_status_entities) compute stale_ids by prefix and then call _registry.async_remove() -- DESTRUCTIVE. :285 and :341 only p
+- **SN-2** `sensor/maintenance.py:95` · both · `direct read`  
+  The maintenance sensor's documented availability guard never fires; it publishes a fabricated full-life value  
+  CONSUMER SIDE OF DR-MNT-1 -- same root cause at maintenance/manager.py:713. CLUSTER THESE. The class docstring claims 'Returns available = False (and native_value = None) when the source entity is unavailable so stale ho
 - **A4-SETUP-2** `services/adapter_config.py:67` · both _(finder said CRITICAL; verifier corrected)_  
   save_adapter_config accepts a two-key config and registers it OVER the live code adapter — every omitted block silently resolves to Eufy behaviour on a Roborock  
   A Roborock is driven with Eufy vocabulary and Eufy learning engines from the moment the call returns until the next reload: wrong fan/water strings sent to the robot, room boundaries learned from a counter signal Roboroc
@@ -482,11 +494,14 @@ The same audits recorded **595 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (125)</summary>
+<details><summary><strong>MEDIUM</strong> (132)</summary>
 
 - **A1-UP-2** `__init__.py:316` · both  
   async_setup_entry has no failure unwind, and HA never calls async_unload_entry for an entry that failed setup — a mid-setup raise orphans every subsystem registered so far and the next reload builds a second live copy  
   After any setup failure (a corrupt/hand-edited storage block reaching an unguarded ensure_record, an ImportError in a lazily-imported listener module after an update, an exception in any service registration), the integr
+- **EP-1** `button.py:200` · both · `direct read`  
+  The maintenance reset button discards a documented failure result and reports success  
+  VERIFIED. async_press calls reset_maintenance(), throws the return value away, and unconditionally awaits async_save(). reset_maintenance is a result-returning API with three documented failure exits -- {'reset': False,
 - **A1-INIT-3** `core/manager.py:347` · both _(finder said HIGH; verifier corrected)_  
   Startup re-seed of the bundled theme library resurrects themes the user deleted, and re-points default_theme_id  
   A user who curates the theme library — deleting the bundled themes they do not want, with a confirm dialog implying it stuck — finds all of them back in the picker after the next HA restart, silently and with no error. I
@@ -658,6 +673,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **DQ-Q-5** `maps/map_manager.py:197` · both  
   A map rebuild silently auto-enables AND auto-approves rooms that never existed before, adding them to the clean queue unseen  
   After a Rebuild Map, any segment that appeared since the last rebuild — a room the user renamed into existence in the vendor app, or on Eufy a phantom segment the CV segmenter split off — is cleaned on the next Start wit
+- **EP-3** `number.py:22` · both · `direct read`  
+  Interval bounds are framework constants, and the ceiling is BELOW a shipped component's declared max  
+  VERIFIED: MAINTENANCE_INTERVAL_MAX = 500.0 is applied to every component of every brand, while the adapter declares a per-component max_interval_hours that the schema marks REQUIRED -- and Eufy's `sensor` component decla
 - **DR-ONB-4** `onboarding/manager.py:66` · both · `direct read`  
   The five-key default record is hand-duplicated between _get_map_onboarding and reset_onboarding  
   Lines 66-72 and 252-258 are two hand-maintained copies of one vocabulary -- the campaign's structural root cause, in a 263-line module. A sixth flag added to the lazy-create path silently produces reset records missing i
@@ -667,6 +685,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-ONB-2** `onboarding/manager.py:186` · both · `direct read`  
   check_for_new_rooms compares a PER-MAP stored count against a source with no map scoping  
   The stored side, room_count_at_last_check, is stamped by mark_rooms_discovered from data['maps'][vacuum][map_id]['rooms'] -- per map. The live side reads the vacuum entity's `segments` attribute, which carries only the A
+- **INF-1** `panels.py:29` · both · `direct read`  
+  panels.py claims to be the single registration seam; a fourth site hand-copies all three of its constants  
+  VERIFIED AT SOURCE. The module docstring asserts it is 'the single source of truth for that registration so the three call sites all compute the title and register the panel identically'. There are FOUR sites, and the fo
 - **A6-PP-EST-DSP-2** `planning/run_plan.py:125` · both _(finder said HIGH; verifier corrected)_  
   _settings_profile_display's "selected != resolved" custom-detection arm is dead for every name the resolver can rewrite — a carpet-downgraded mop room is still labelled "Vacuum + Mop Quick"  
   The run-plan / payload row for a carpeted room set to a vacuum+mop preset reads "Living Room Vacuum + Mop Quick" with is_custom_profile False, while the carpet constraint has already downgraded the run to vacuum-only. No
@@ -760,9 +781,15 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SRC-2** `rooms/source_refresh.py:280` · roborock _(finder said HIGH; verifier corrected)_  
   set_cached_room_source is called unconditionally on every successful service call, so a response the flatten shim does not recognise (or an empty maps list) silently REPLACES a good cache with {} — logged at DEBUG only  
   Every room silently disappears from the setup tab, the card, and the room picker; after three passes the drift system reports the user's entire room set as removed. Any job whose targets can no longer be resolved degrade
+- **SN-4** `sensor/__init__.py:272` · both · `direct read`  
+  Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
+  VERIFIED: async_update_entity has ZERO occurrences anywhere in the integration. Both sync blocks construct a fresh entity per desired room and then discard it when the unique_id is already known, pushing only a state wri
 - **DR-SENS-1** `sensor/lifecycle.py:203` · both · `direct read`  
   The active_job sensor reports 'none' during an app-started run the system itself considers in flight  
   native_value hand-enumerates started / paused / completed and defaults everything else to 'none'. But `external` is a first-class status in this codebase: jobs/active_job.py:136 puts it in _RUN_IN_FLIGHT_STATUSES so run_
+- **SN-5** `sensor/map_overlays.py:50` · both · `direct read`  
+  The overlays sensor serves a cache entry without checking its map_id or its stale flag  
+  _result() reads cache[vac]['result'] and ignores cache[vac]['map_id'] -- a key the producer maintains precisely so consumers cannot mix maps: map_source_coordinator.py:117 guards the hold path with cached.get('map_id') =
 - **DR-ONB-3** `sensor/onboarding.py:62` · both · `direct read`  
   The 'empty means complete' guard exists in setup/status.py and was never mirrored onto the onboarding summary — forgotten override sibling  
   UPGRADED from LOW after finding the sibling that HAS the guard. Both sites answer the same question with the same optimistic-accumulator shape: setup/status.py initialises all_steps_complete=True and all_in_sync=True and
@@ -847,6 +874,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A3-PORT-4** `themes/manager.py:411` · both  
   set_active_theme with vacuum_entity_id=None returns without firing _notify_updated — the only mutation in the module that skips the callback fan-out, leaving default_theme_id stale in HA state  
   A user (or automation) sets the global default theme. The change is persisted, but the sensor.<vacuum>_theme_state attribute default_theme_id keeps reporting the OLD value until some unrelated theme mutation happens to f
+- **SN-6** `themes/manager.py:412` · both · `direct read`  
+  Setting the GLOBAL default theme returns without notifying, so the theme sensor is stale indefinitely  
+  VERIFIED AT SOURCE. set_active_theme's `if vacuum_entity_id is None:` branch writes theme['default_theme_id'] and returns immediately; the per-vacuum branch two lines below ends with self._notify_updated(...). Every othe
 - **A2-DRAFT-2** `themes/manager.py:417` · both _(finder said HIGH; verifier corrected)_  
   set_active_theme destroys the working draft unconditionally with no confirmation, no undo and no same-id short-circuit — clicking the already-active preset tile silently wipes every unsaved edit  
   A user spends time in the token editor tuning twenty colours and radii, switches to the Themes tab to compare against another preset — or just clicks the tile that is already highlighted as active, which looks like a no-
@@ -859,10 +889,13 @@ The same audits recorded **595 areas examined and found correct**.
 - **A2-DRAFT-5** `themes/services.py:230` · both  
   Every update_working_draft triggers an immediate full Store.async_save of the entire integration data dict, and the card fires it on `input` — once per keystroke in text and number token fields  
   Typing a 25-character font stack into a theme token field issues 25 full-store writes back to back. On an HA Green / Raspberry Pi with SD or eMMC storage this is visible editor lag and real flash wear, and it scales with
+- **INF-2** `timestamp_utils.py:8` · both · `direct read`  
+  _LOCAL_TZ is a FIXED offset captured at import, so naive legacy timestamps get the wrong offset half the year  
+  VERIFIED BY EXECUTION. `_LOCAL_TZ = datetime.now().astimezone().tzinfo` does not return a DST-aware zone -- it returns a datetime.timezone with a frozen offset. Ran it: repr is datetime.timezone(timedelta(-1, 61200), 'Pa
 
 </details>
 
-<details><summary><strong>LOW</strong> (154)</summary>
+<details><summary><strong>LOW</strong> (170)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -873,12 +906,21 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-BAT-3** `battery/manager.py:653` · both · `direct read`  
   After a stale-session discard, charging stays untracked until the next charge cycle  
   _update_session discards a session older than SESSION_MAX_HOURS and sets session=None. Control then reaches `if session is None: return` (line 680) on every later sample, because prev_charging is already True so the open
+- **EP-6** `binary_sensor.py:86` · both · `direct read`  
+  _attr_suggested_object_id is not a Home Assistant attribute - four sites rely on a dead assignment  
+  VERIFIED BY EXECUTION against the installed HA: Entity has NO _attr_suggested_object_id (hasattr False); suggested_object_id exists only as a READ-ONLY property derived from the entity's resolved name, and _async_derive_
+- **EP-5** `button.py:256` · both · `direct read`  
+  The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
+  Every other entity class in scope declares _attr_translation_key and lets HA resolve the name from strings.json. EufyVacuumSavedRunProfileButton sets _attr_has_entity_name = True, declares NO translation key, and overrid
 - **A3-FLOW-3** `config_flow.py:98` · both  
   The options flow rebuilds the options dict from the stale form snapshot, so a submit can resurrect a vacuum that was deleted while the dialog was open  
   A user who deletes a vacuum's device while the Configure dialog is open in another tab sees the vacuum reappear after saving the dialog — as an empty shell that has lost all its learning history and maps. No error is sho
 - **A3-FLOW-2** `config_flow.py:103` · both _(finder said MEDIUM; verifier corrected)_  
   Changing the vacuum in the options flow ADDS a second managed vacuum instead of replacing the first — the old pick is never reconciled away  
   A user who picked the wrong entity at install (or renamed their vacuum entity and updated the option to match) ends up with TWO sidebar panels, both titled "Vacuum Agent" by default and therefore indistinguishable, two s
+- **INF-7** `const.py:27` · both · `direct read`  
+  Four constants are defined and never read - including three service names for services that do not exist  
+  Scripted check across every .py excluding const.py, cross-checked against services.yaml and the frontend bundle: SERVICE_REFRESH_BACKEND ('refresh_backend'), SERVICE_REBUILD_ACTIVE_MAP ('rebuild_active_map') and SERVICE_
 - **A1-INIT-5** `core/manager.py:429` · future_brand_only  
   The startup backfill and setup_progress migration hard-code Eufy vocabulary and structurally cannot consult the adapter  
   No divergence on the two shipped brands today. A third brand whose room_profiles.default_profile is not 'vacuum_quick' would have any legacy room missing profile_name stamped with another brand's profile key at startup (
@@ -942,6 +984,15 @@ The same audits recorded **595 areas examined and found correct**.
 - **DR-ONB-6** `docs/dev/18-onboarding-manager.md:228` · both · `direct read`  
   Doc cites the start gate at core/manager.py:2776; it is at 2805  
   The CLAIM is correct -- the gate really does block on floor_types_complete alone and never consults rooms_discovered. Only the line reference drifted. Recorded because this doc's stated scope is that 'a developer should
+- **INF-4** `entity_helpers.py:14` · both · `direct read`  
+  The BLANK_STATE_VALUES docstring asserts a consolidation that is roughly 20% applied  
+  The comment states the hand-copied variants 'existed at six sites and had drifted into three shapes', in the past tense as resolved. Three modules import the shared name (diagnostics.py, mapping/tracker.py, rooms/room_di
+- **INF-5** `entity_helpers.py:57` · both · `direct read`  
+  The unique-id scheme is a non-injective flat join with no parser, and its vacuum-key half is open-coded at four sites  
+  Extends DR-SETUP-1 on the CONSTRUCTION side. The join f'{vacuum_key}_{map_id}_{room_id}_{suffix}' uses '_' as separator while three of the four fields may contain '_', and there is NO companion parse function anywhere --
+- **INF-9** `entity_helpers.py:109` · both · `direct read`  
+  get_floor_type_label emits hardcoded English into an 18-language product  
+  Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
 - **A2-CAN-6** `jobs/active_job.py:2189` · both  
   async_cancel_active_job is re-entrant — a second cancel arriving inside the 30 s confirm window overwrites finalize_summary with all-None  
   The post-run summary on the card goes blank after a double cancel — no outcome, no learning verdict, no sanity flags — even though the record on disk is intact. An automation listening on EVENT_JOB_FINISHED fires twice,
@@ -1104,6 +1155,12 @@ The same audits recorded **595 areas examined and found correct**.
 - **A1-ID-6** `models/models.py:162` · both  
   RoomRecord documents grants_access_to as 'list[str] — room slugs' but every producer and consumer stores integer room ids  
   No current runtime defect; it is a loaded trap on the only place a developer looks up the field's namespace, in the exact subsystem where mixing the id and slug namespaces produces wrong-room behaviour.
+- **INF-3** `models/models.py:257` · both · `direct read`  
+  VacuumCapabilities is a never-constructed dataclass whose field names do not exist in the real capability payload  
+  The live capability map is built by core/capabilities.py:353-400. Five of VacuumCapabilities' fields do not exist in it: supports_map_selection (real key supports_active_map), supports_dock_empty (real key supports_empty
+- **EP-4** `number.py:7` · both · `direct read`  
+  Module comment asserts 'no polling'; the one class that polls is the one relying on it  
+  The comment `# All number entities write directly to manager storage; no polling.` sits above PARALLEL_UPDATES = 0. Verified as a claim: NumberEntity, unlike ButtonEntity, does NOT set _attr_should_poll = False, and Eufy
 - **A5-PP-RP-7** `planning/run_plan.py:125` · future_brand_only _(finder said MEDIUM; verifier corrected)_  
   _settings_profile_display hardcodes the Eufy-era built-in profile-name set and takes no vacuum_entity_id, so a brand with its own profile keys renders every room as "Custom"  
   A future adapter that declares its own `room_profiles.builtins` keys (the block is adapter-owned and free-form) gets `is_custom = True` for every room whose profile resolves cleanly, so the pre-run plan, the water-estima
@@ -1122,6 +1179,9 @@ The same audits recorded **595 areas examined and found correct**.
 - **A6-PP-EST-CLAMP-1** `planning/run_plan.py:476` · eufy  
   Tank-remaining ml is unclamped while its own percent is clamped to [0,100], and robot_internal_tank_ml is reported but never used in any calculation  
   A shortfall renders as a self-contradictory "-450 ml (0%)". And an adapter author is required by the schema to measure `robot_internal_tank_ml` on real hardware for a value the estimator never consults.
+- **INF-8** `planning/run_plan.py:883` · both · `direct read`  
+  The one call site step_types' docstring reasons about by name hand-copies the tuple instead of importing it  
+  step_types.py's docstring says 'The leading/trailing break-trim in planning.run_plan is deliberately the second set too' and closes with 'a caller that reaches for the set is one `and` clause away from re-creating the dr
 - **A5-PP-RP-4** `planning/run_plan.py:902` · both _(finder said MEDIUM; verifier corrected)_  
   The collapse fallback's `all_ids` is provably always [] — and the unit test manufactures the very key the real engines never emit  
   A stepped plan whose breaks are all trimmed (leading and/or trailing) runs as one flat clean using each room's GLOBAL stored settings instead of the per-group settings the card wrote into the step — e.g. `[room_group(kit
@@ -1182,6 +1242,15 @@ The same audits recorded **595 areas examined and found correct**.
 - **DQ-PH-6** `queue/queue_engine.py:466` · future_brand_only  
   advance_active_job_phase resets every per-phase pointer except _native_current_room_id, leaving a latent cross-phase carry-over that only the phases-gate currently hides  
   None today. It is a tripwire under the phases-gate: relaxing active_job.py:937 (which is the natural fix for DQ-PH-2/DQ-PH-3, since a multi-room group phase genuinely needs intra-phase rollover) immediately activates dup
+- **INF-6** `repairs.py:1` · both · `direct read`  
+  The repair flow is unreachable - nothing ever raises an issue - and the doc asserts the opposite  
+  VERIFIED: a repo-wide grep for async_create_issue / ir.create_issue across custom_components returns ZERO hits, so async_create_fix_flow is never invoked. doc 02 §10 states 'Currently raised by the setup workflow when st
+- **EP-7** `room_entities.py:87` · both · `direct read`  
+  _async_update_room silently drops non-managed keys from a mixed update  
+  Branch 2 filters `updates` to a hand-maintained managed_field_names set and, if ANY managed key is present, routes only that subset to update_room_fields and RETURNS -- so every non-managed key in the same call is discar
+- **EP-8** `room_entities.py:217` · both · `direct read`  
+  Hand-copied room defaults, including two that disagree about the same missing key  
+  extra_state_attributes re-declares defaults by hand rather than deriving them: profile_name defaults to the literal 'vacuum_quick' where the canonical DEFAULT_ROOM_PROFILE_NAME is imported properly by three other modules
 - **A6-AGX-3** `rooms/access_graph.py:559` · both _(finder said MEDIUM; verifier corrected)_  
   get_room_access_editor marks every unselected target unselectable when the graph is already broken elsewhere, with the contentless reason "Not selectable due to graph legality."  
   A consumer of the documented editor service sees every link greyed out with a message that explains nothing and blames the edge being offered rather than the pre-existing violation. The user cannot tell what to fix; the
@@ -1203,12 +1272,24 @@ The same audits recorded **595 areas examined and found correct**.
 - **A4-SRC-4** `rooms/source_refresh.py:274` · roborock _(finder said MEDIUM; verifier corrected)_  
   No in-flight coalescing or lock on the refresh: triggers spawn unbounded concurrent get_maps cloud calls, and an older response landing last becomes the resident cached snapshot — including one that started before a map switch and lands after it  
   Redundant cloud calls raise the probability of the get_maps failure that triggers SRC-1's wrong-room dispatch. When a pre-switch response wins the race, the cache holds the previous map's segment ids under the current ma
+- **SN-7** `sensor/__init__.py:62` · both · `direct read`  
+  The stated thread-safety invariant is internally inconsistent, and copies 3 and 4 have already dropped it  
+  Extends DR-SENS-2. _request_entity_state_write asserts manager callbacks may fire from worker threads so all refreshes must funnel through it. If that premise holds, then hass.async_create_task, er.async_get + async_remo
+- **SN-8** `sensor/__init__.py:91` · both · `direct read`  
+  active_job_entities and its explanatory comment are dead  
+  The dict is documented as keyed by (vacuum, map) 'so the job-finished handler can refresh the right sensor directly', and is populated, but never read; _handle_job_finished refreshes only room-history sensors. Behaviour
 - **DR-SENS-2** `sensor/__init__.py:250` · both · `direct read`  
   Two ~40-line dynamic-entity reconciliation blocks are hand-duplicated and must be edited in lockstep  
   _sync_room_history_entities and _sync_room_rule_status_entities are byte-identical apart from the entity-dict name -- same prefix derivation, same stale-id scan, same registry removal, same add path, same refresh helper.
+- **SN-9** `sensor/map_overlays.py:76` · both · `direct read`  
+  native_value returns the literal string 'unavailable', colliding with HA's reserved state  
+  VERIFIED AT SOURCE: `if not res.get('present'): return 'unavailable'`. That is indistinguishable in hass.states, templates, is_state() and the frontend from an entity that is genuinely unavailable, while the real diagnos
 - **DR-ONB-5** `sensor/onboarding.py:55` · both · `direct read`  
   The sensor recomputes the entire onboarding summary twice per update  
   native_value and extra_state_attributes each call _get_summary() independently, and each call iterates every map building a full get_onboarding_state dict. A polling diagnostic entity does the whole aggregation twice per
+- **SN-10** `sensor/theme.py:75` · both · `direct read`  
+  str(entry.get('name', 'none')) renders an explicit null name as the string 'None'  
+  Absent-is-not-None: a library entry with 'name': null yields Python's str(None) == 'None' rather than the intended 'none', and an empty string yields an empty state. _normalize_theme_entry gates stored entries but import
 - **A5-FACADE-5** `services.yaml:1179` · both  
   services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects  
   Calling either service exactly as the HA Developer Tools > Actions form renders it — the form marks Carpet required, so a user filling it in will include it — fails validation with an opaque 'extra keys not allowed' erro
