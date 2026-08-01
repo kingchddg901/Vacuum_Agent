@@ -178,6 +178,13 @@ class PhaseRunner:
         it would finalize.
         """
         active_job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        # RP-010/RF-06: a cancel's own return-to-base dock can read as phase
+        # completion (_phase_dispatch_pending is released before the terminal
+        # confirm, by design — see async_cancel_active_job). While a cancel is in
+        # flight the cancel path owns finalization; do not advance or snapshot
+        # timing for a phase the cancel is about to tear down.
+        if active_job.get("_cancel_in_flight"):
+            return False
         # Snapshot the FINISHING phase's room_timing from its OWN counter slice BEFORE advance
         # resets the queue/timing. Without this, strict-order finalization segments the whole
         # accumulated counter stream against only the LAST phase's queue (the per-room dock trips
@@ -1081,6 +1088,25 @@ class PhaseRunner:
             payload=job.get("payload", {}),
             resolved_rooms=list(job.get("resolved_rooms", [])),
         )
+
+        # RP-010/RF-06: the chokepoint. Four sequential awaits sit between the
+        # top-of-attempt check and the wire send with no re-read in between — a
+        # cancel/pause landing anywhere in that window still reached the send.
+        # Re-read the STORED job (not the `job` parameter, which is this attempt's
+        # stale snapshot) immediately before the send, after the last await.
+        _stored = (
+            self._manager.data.get("active_jobs", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id))
+        )
+        if not isinstance(_stored, dict) or _stored.get("_cancel_in_flight") or _stored.get("status") != "started":
+            _LOGGER.info(
+                "Strict-order advance: %s map %s -> dispatch aborted at the "
+                "chokepoint (cancelled or no longer started, attempt %s)",
+                vacuum_entity_id, map_id, attempt,
+            )
+            return
+
         await self._manager._dispatch_clean_payload(
             vacuum_entity_id=vacuum_entity_id, payload=wire_payload
         )
