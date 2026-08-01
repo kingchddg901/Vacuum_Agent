@@ -12,7 +12,8 @@ and re-asserts the dock guard. This module covers the re-arm helper + both call 
 
 [RA-1] re-arm spawns the charge poller when the current phase is charge_wait.
 [RA-2] re-arm spawns the wait poller when the current phase is wait.
-[RA-3] re-arm is a no-op for a room-group phase (its completion path drives it).
+[RA-3] re-arm spawns a fresh watchdog attempt for a room-group phase too
+       (RP-011/RF-07 WD-4/CAN-4 -- superseded the earlier "no-op" premise).
 [RA-4] re-arm is a no-op for a paused / finalized job (only 'started').
 [RA-5] the double-spawn guard: a second re-arm while a poller is live does NOT spawn again.
 [RA-6] re-arm re-asserts _phase_dispatch_pending (a restart cleared it) for a dock phase.
@@ -106,17 +107,34 @@ async def test_rearm_spawns_wait_poller(hass, manager, monkeypatch):
     assert spawned == ["wait"]
 
 
-async def test_rearm_noop_for_room_phase(hass, manager, monkeypatch):
-    """[RA-3] a room-group phase is driven by its completion path — nothing to re-arm."""
-    spawned = _capture_spawns(manager, monkeypatch)
+async def test_rearm_spawns_watchdog_for_room_phase(hass, manager, monkeypatch):
+    """[RA-3] SUPERSEDED (RP-011/RF-07, WD-4/CAN-4): this used to assert re-arm is a
+    no-op for a room-group phase ("its completion path drives it"). That premise
+    only holds for a phase ALREADY under way -- a room-group phase's ONLY driver
+    is ALSO an in-memory asyncio task (_run_advanced_phase's watchdog), and a
+    restart/resume loses it exactly like a dock poller, leaving the run wedged
+    with no dispatcher. Re-arm now spawns a fresh watchdog attempt
+    (initial=False -- it must actually dispatch, not just verify)."""
+    spawned = _capture_spawns(manager, monkeypatch)  # charge/wait pollers -- must stay untouched
+    watchdog_calls: list = []
+
+    async def _inert():
+        return None
+
+    def _fake_run_advanced_phase(*, vacuum_entity_id, map_id, phase_index, initial):
+        watchdog_calls.append((vacuum_entity_id, map_id, phase_index, initial))
+        return _inert()
+
+    monkeypatch.setattr(manager.phase_runner, "_run_advanced_phase", _fake_run_advanced_phase)
     _seed(manager, {
         "status": "started", "current_phase_index": 0,
         "phases": [_room_phase(5, "kitchen"), _charge_phase()],
         "_phase_dispatch_pending": True,
     })
     assert manager.phase_runner.rearm_dock_phase_if_needed(
-        vacuum_entity_id=_VAC, map_id=_MAP) is False
+        vacuum_entity_id=_VAC, map_id=_MAP) is True
     assert spawned == []
+    assert watchdog_calls == [(_VAC, _MAP, 0, False)]
 
 
 async def test_rearm_noop_for_paused_job(hass, manager, monkeypatch):

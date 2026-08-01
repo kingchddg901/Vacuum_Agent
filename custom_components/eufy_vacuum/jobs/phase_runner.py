@@ -124,7 +124,7 @@ class PhaseRunner:
         return True
 
     def rearm_dock_phase_if_needed(self, *, vacuum_entity_id: str, map_id: str) -> bool:
-        """Re-arm a dock phase whose in-memory poller was lost (pause+resume or HA restart).
+        """Re-arm a phase whose in-memory driver was lost (pause+resume or HA restart).
 
         A ``charge_wait`` / ``wait`` phase is driven ONLY by an in-memory asyncio task spawned
         from ``maybe_advance_phase``. A pause+resume (status flips back to 'started' but re-arms
@@ -135,8 +135,17 @@ class PhaseRunner:
         advance and a re-arm can't both spawn. The poller's own already-at-target / deadline /
         _still_ours logic makes a fresh spawn idempotent; the wait poller recomputes its deadline
         from the persisted ``wait_started_at`` so a restart mid-wait doesn't restart the full timer.
-        Also re-sets ``_phase_dispatch_pending`` (the restart cleared it) so the intentional dock
-        isn't read as a completion while the re-armed poller drives it. Returns True when re-armed."""
+
+        RP-011/RF-07 (WD-4/CAN-4): a ``room_group`` / ``zone`` phase's ONLY driver is ALSO an
+        in-memory asyncio task — ``_run_advanced_phase``'s watchdog — and loses it exactly the
+        same way. Previously nothing re-armed those, so a restart/resume mid-strict-order left
+        the run wedged with no dispatcher at all. Spawns a fresh watchdog attempt
+        (``initial=False`` — the original initial send, if any, is long gone, so this one must
+        actually dispatch) and clears any liveness marking a previous crashed watchdog left.
+
+        Either branch re-asserts ``_phase_dispatch_pending`` (the restart cleared it) so the
+        intentional dock/dispatch isn't read as a completion while the re-armed driver runs.
+        Returns True when re-armed."""
         job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
         if not isinstance(job, dict) or job.get("status") != "started":
             return False
@@ -147,21 +156,31 @@ class PhaseRunner:
         if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
             return False
         phase_type = str(phases[idx].get("phase_type") or "")
-        if not is_dock_polled_phase_type(phase_type):
-            return False
-        # Re-assert the dock guard the restart cleared, so the intentional dock the poller is
-        # about to (re)drive isn't finalized by the completion gate. No-op if already set.
+        # Re-assert the dispatch guard the restart cleared, so the intentional
+        # dock/dispatch the driver is about to (re)drive isn't finalized by the
+        # completion gate. No-op if already set.
         if not job.get("_phase_dispatch_pending"):
             job["_phase_dispatch_pending"] = True
             self._manager.data.setdefault("active_jobs", {}).setdefault(
                 vacuum_entity_id, {}
             )[str(map_id)] = job
-        return self._spawn_dock_poller(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            phase_type=phase_type,
-            phase_index=idx,
+        if is_dock_polled_phase_type(phase_type):
+            return self._spawn_dock_poller(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                phase_type=phase_type,
+                phase_index=idx,
+            )
+        self._reset_phase_watchdog_liveness(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), phase_index=idx,
         )
+        self._manager.hass.async_create_task(
+            self._run_advanced_phase(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+                phase_index=idx, initial=False,
+            )
+        )
+        return True
 
     async def maybe_advance_phase(
         self,
@@ -1019,8 +1038,19 @@ class PhaseRunner:
 
         Brands with no native current-room signal fall back to the coarse cleaning
         check (immediate, unchanged)."""
-        cfg = _get_adapter_config(vacuum_entity_id) or {}
-        has_native = bool(cfg.get("entities", {}).get("active_cleaning_target"))
+        # RP-011/RF-07 (WD-3): has_native gates on the SAME
+        # live_transition.native_transition_source flag active_job.py already
+        # trusts (:951) -- not on whether active_cleaning_target is merely
+        # DECLARED. Both Eufy and Roborock declare that entity, but only
+        # Roborock's is a genuinely native per-room signal (native_transition_
+        # source=True); Eufy's declares False, so the always-truthy entity-id
+        # check previously routed Eufy through the strong-confirmation path too,
+        # making the coarse fallback below unreachable for it.
+        has_native = bool(
+            self._manager.active_job._live_transition_config(
+                vacuum_entity_id
+            ).get("native_transition_source")
+        )
         pt = self._manager._phase_timing(vacuum_entity_id)
         _poll = float(pt["poll_seconds"])
         cleaning_in_target = 0.0  # cumulative seconds observed cleaning the target

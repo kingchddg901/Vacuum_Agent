@@ -5016,6 +5016,27 @@ class EufyVacuumManager:
                     pt[key] = type(pt[key])(declared[key])
                 except (TypeError, ValueError):
                     pass
+
+        # RP-011/RF-07 (WD-5): an adapter-declared override that resolves to a
+        # nonsensical value (a 0 poll interval busy-loops; 0 max_attempts means
+        # the watchdog never even tries) must not silently wedge every dispatch
+        # on that brand. Clamp with a WARNING naming the offending key so a bad
+        # adapter config is diagnosable, not just silently different.
+        _minimums = {
+            "settle_seconds": 0,
+            "dock_settle_seconds": 0,
+            "verify_seconds": 0,
+            "confirm_seconds": 0,
+            "poll_seconds": 1,
+            "max_attempts": 1,
+        }
+        for key, minimum in _minimums.items():
+            if pt[key] < minimum:
+                _LOGGER.warning(
+                    "_phase_timing: %s declared %s=%s (below the minimum %s) — clamped",
+                    vacuum_entity_id, key, pt[key], minimum,
+                )
+                pt[key] = minimum
         return pt
 
     def maybe_pulse_live_room_refresh(self, vacuum_entity_id: str) -> None:

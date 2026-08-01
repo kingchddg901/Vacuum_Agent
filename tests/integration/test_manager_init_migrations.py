@@ -30,8 +30,11 @@ Coverage targets
 [CMI-4] _migrate_setup_progress back-fills a rooms-bearing vacuum; skips non-dict
         records, no-managed-rooms vacuums, already-done entries, and non-dict
         map buckets/room values. (lines 392, 394, 402, 418, 421)
-[CMI-5] a persisted strict-order _phase_dispatch_pending guard is released on load
-        (a reload leaves no live watchdog, so it would otherwise stall the run forever).
+[CMI-5] a persisted strict-order _phase_dispatch_pending guard is cleared then
+        RE-ARMED with a fresh watchdog attempt on load (RP-011/RF-07 WD-4/CAN-4 --
+        a reload leaves no live watchdog for a room-group phase any more than for
+        a dock phase, so leaving the guard cleared with nothing re-armed was
+        itself a silent wedge).
 """
 
 from __future__ import annotations
@@ -113,10 +116,28 @@ async def test_init_carpet_default_pile(hass, hass_storage, mock_config_entry):
     assert "carpet_type" not in room
 
 
-async def test_init_releases_stale_phase_dispatch_guard(hass, hass_storage, mock_config_entry):
-    """[CMI-5] a reload/restart leaves no live strict-order watchdog, so a persisted
-    _phase_dispatch_pending guard would suppress the completion gate forever. The load
-    path releases it. No-op for atomic jobs (the flag is never set)."""
+async def test_init_rearms_room_phase_guard(hass, hass_storage, mock_config_entry, monkeypatch):
+    """[CMI-5] SUPERSEDED (RP-011/RF-07 WD-4/CAN-4). A reload/restart leaves no live
+    strict-order watchdog for EITHER a dock phase or a room-group phase — both are
+    driven ONLY by an in-memory asyncio task. This used to assert the load path
+    just releases a room-group phase's _phase_dispatch_pending guard and leaves it
+    cleared ("no-op for atomic jobs" was also inaccurate — this fixture is a
+    PHASED job, not atomic). Left cleared with no re-armed driver was itself a
+    silent wedge: the completion gate would read the still-parked device as
+    having finished the phase. The guard is now RESTORED (re-armed with a fresh
+    watchdog attempt), matching the dock-phase re-arm's own behaviour.
+
+    _run_advanced_phase is stubbed so this stays a fast unit test — the watchdog
+    spawn itself (not its multi-second settle/verify polling) is what's under
+    test here; RA-3 in test_dock_phase_rearm.py covers the spawn's exact args.
+    """
+    from custom_components.eufy_vacuum.jobs.phase_runner import PhaseRunner
+
+    async def _inert(self, **kw):
+        return None
+
+    monkeypatch.setattr(PhaseRunner, "_run_advanced_phase", _inert)
+
     hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
         "active_jobs": {_VAC: {"6": {
             "vacuum_entity_id": _VAC, "map_id": "6", "status": "started",
@@ -129,7 +150,7 @@ async def test_init_releases_stale_phase_dispatch_guard(hass, hass_storage, mock
 
     m = await _init_manager(hass, mock_config_entry)
 
-    assert m.data["active_jobs"][_VAC]["6"].get("_phase_dispatch_pending") is False
+    assert m.data["active_jobs"][_VAC]["6"].get("_phase_dispatch_pending") is True
 
 
 async def test_init_skips_non_dict_bucket_and_room(

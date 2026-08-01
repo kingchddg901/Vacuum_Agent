@@ -414,9 +414,15 @@ async def test_phase_verify_native_wrong_room_retries(manager, hass, monkeypatch
     hass.states.async_set(_VAC, "cleaning")            # the trap: old check passes
     hass.states.async_set("sensor.test_current_room", "Dining Room")  # dock, not a target
     calls = _register_dispatch(hass)
+    # RP-011/RF-07 (WD-3): has_native now gates on live_transition.
+    # native_transition_source (not mere entity presence) -- this fixture models
+    # the real Roborock adapter, which declares it True. Without it, this test
+    # would silently fall through to the coarse fallback and stop testing the
+    # native verify it documents.
     register_adapter_config(_VAC, {
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
+        "live_transition": {"native_transition_source": True},
     })
     try:
         _native_phase_job(manager)
@@ -524,9 +530,11 @@ async def test_phase_verify_requires_sustained_cleaning(manager, hass, monkeypat
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     hass.states.async_set(_VAC, "cleaning")
     hass.states.async_set("sensor.test_current_room", "Hallway")
+    # RP-011/RF-07 (WD-3): see the sibling comment above -- models real Roborock.
     register_adapter_config(_VAC, {
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
+        "live_transition": {"native_transition_source": True},
     })
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
@@ -580,9 +588,11 @@ async def test_phase_verify_tolerates_current_room_dips(manager, hass, monkeypat
 
     sleep_mock = AsyncMock(side_effect=_tick)
     monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
+    # RP-011/RF-07 (WD-3): see the sibling comment above -- models real Roborock.
     register_adapter_config(_VAC, {
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
+        "live_transition": {"native_transition_source": True},
     })
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
