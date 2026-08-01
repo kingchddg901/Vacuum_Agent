@@ -1,6 +1,6 @@
 {
- "frozen_at_sha": "45fdc8c0f28be20fda3cb4bc9d429b73630444c3",
- "frozen_at": "2026-07-31T19:21:47",
+ "frozen_at_sha": "b960ab3617c41a4eec663a08981cee54ffd2111b",
+ "frozen_at": "2026-07-31T19:29:43",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
@@ -30,8 +30,10 @@
   ".claude/notes/_frozen/_calibration.json": "7eca993eda5668cf",
   ".claude/notes/_frozen/_stageB_result.json": "c31a98a810cae660",
   ".claude/notes/_frozen/_mapping_result.json": "ea4408261c4a9055",
+  ".claude/notes/_frozen/_carried.json": "7131e8623e6c7802",
   ".claude/notes/_frozen/journals/wf_56cc4abc-4b2-stageB.jsonl": "3b2fdac98de5b3bb",
   ".claude/notes/_frozen/journals/wf_6fbed40a-87e-audit18.jsonl": "170bf55e5ec3f6e8",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "ea1639929874d3ce"
+  ".claude/notes/_frozen/corpus/audit-findings-canonical.jsonl": "8bb29bdae66ebbe0",
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "0f00d67921dad59e"
  }
 }

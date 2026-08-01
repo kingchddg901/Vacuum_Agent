@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**43 changes shipped**, all with tests, all deployed.
+**44 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -107,6 +107,7 @@ comments rather than by a shared helper.
 | `fbf7d57` | docs(debug): the mid-capture `logger:` case is a footgun, not a bug — say so |
 | `fe7edfd` | chore(audit): commit the frozen evidence snapshot — provenance was one temp sweep from gone |
 | `45fdc8c` | chore(audit): stop git translating line endings in the frozen evidence |
+| `b960ab3` | chore(audit): recover audit #18's per-finding verdicts and re-freeze |
 
 ---
 
@@ -1584,10 +1585,11 @@ Recorded so it is not re-reported as a new finding, and documented where it live
 - **Pose sampler predicates** — Two call sites were deliberately not re-pointed at the shared in-flight helper, because doing so would silently add `paused` to what gets sampled. Wants its own change.
 - **Roborock room migration** — Room *creation* now takes brand-correct defaults. Rooms created before that still carry the old values. Stored user data, so repairing it is a product decision.
 - **Three card strings untranslated** — `common.service_failed`, `learning.room_skipped`, `learning.run_incomplete_toast` are English-only across the 17 non-English locales.
-- **Card: the two failure-renders-as-success paths** — Blocked on a backend `supports_response` change.
-- **Card: the qualification gap** — Surface provenance, truncation and absent data honestly rather than as confident values.
-- **Card: surface captured run errors** — The backend now carries app-started-run error evidence end to end. Nothing displays it.
+- **Card: the two failure-renders-as-success paths (FE-ERR-1 / MZ-2)** — Blocked on a backend `supports_response` change.
+- **Card: the qualification gap (CC-5)** — Surface provenance, truncation and absent data honestly rather than as confident values.
+- **Card: surface captured run errors (`run_errors`)** — The backend now carries app-started-run error evidence end to end. Nothing displays it.
 - **OpenDyslexic font support** — Contract settled — English-only gate, one token override, glyph coverage proven per locale before offering another. No code written.
+- **Roborock edge-mopping control removal** — RECONSTRUCTED — the original note was lost when the orchestrator replaced the generators' hand-maintained CARRIED lists before verifying the replacement; only the title survived, from a diff printed earlier in the same session. Reconstructed from current source: the Roborock adapter declares supports_edge_mopping False (adapters/roborock/adapter.py:177 and :580, plus three edge_mopping:False entries in vocabulary.py), while the card still renders edge-mopping controls (src/renderers/external-jobs.js:287-289, src/renderers/metrics.js:537/551). The obligation is to gate or remove that control on a brand whose adapter declares it unsupported. VERIFY THE INTENT WITH CHRIS before acting — the reconstruction is grounded in source, but it is not the original wording.
 
 ---
 
