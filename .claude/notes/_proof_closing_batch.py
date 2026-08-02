@@ -750,6 +750,42 @@ async def _case_dr_setup_3(proof: H.Proof) -> None:
     )
 
 
+async def _case_dr_setup_4(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.setup.protection import evaluate_map_protection
+
+    # A malformed room record (a bare list instead of a dict) -- exactly the
+    # shape drift.py's isinstance(room, dict) guards already defend against.
+    manager = SimpleNamespace(data={
+        "maps": {H.VAC: {H.MAP: {
+            "rooms": {"1": ["not", "a", "dict"]},
+            "metadata": {},
+        }}},
+        "active_jobs": {}, "room_history": {},
+    })
+
+    raised = False
+    try:
+        evaluate_map_protection(manager, vacuum_entity_id=H.VAC, map_id=H.MAP)
+    except AttributeError:
+        raised = True
+
+    proof.case(
+        "setup/protection.py DR-SETUP-4: a malformed room record must not "
+        "crash evaluate_map_protection",
+        before=raised,
+        before_msg="has_rules/has_access_graph call .get() on each room "
+                   "with no isinstance guard, unlike drift.py's consistent "
+                   "isinstance(bucket, dict) checks -- a malformed record "
+                   "raises AttributeError out of a function both the "
+                   "delete gate and get_setup_status's per-map summaries "
+                   "call, taking out the whole Setup tab",
+        after=(not raised),
+        after_msg="malformed bucket/room records now degrade like drift.py's "
+                  "guards, instead of raising",
+        detail=f"raised={raised}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -771,6 +807,7 @@ CASES = [
     _case_dr_onb_3,
     _case_dr_setup_2,
     _case_dr_setup_3,
+    _case_dr_setup_4,
 ]
 
 

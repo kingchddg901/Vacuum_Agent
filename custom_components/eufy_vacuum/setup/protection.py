@@ -34,6 +34,12 @@ def evaluate_map_protection(
 
     vacuum_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
     bucket      = vacuum_maps.get(map_id_str, {})
+    # DR-SETUP-4: a malformed bucket/room record must degrade like drift.py's
+    # isinstance(bucket, dict) guards do, not raise AttributeError out of a
+    # function both the delete gate and get_setup_status's per-map summaries
+    # call -- one bad record would otherwise take out the whole Setup tab.
+    if not isinstance(bucket, dict):
+        bucket = {}
     rooms       = bucket.get("rooms", {})
     # Raw stored name, or None when unnamed. None is load-bearing: a synthesized
     # "Map N" token would be locale-dependent and break the typed match, so an
@@ -41,7 +47,8 @@ def evaluate_map_protection(
     stored_name = bucket.get("metadata", {}).get("display_name") or None
 
     imported_map_ids = [
-        mid for mid, b in vacuum_maps.items() if b.get("rooms")
+        mid for mid, b in vacuum_maps.items()
+        if isinstance(b, dict) and b.get("rooms")
     ]
     if len(imported_map_ids) <= 1:
         reasons.append({
@@ -72,7 +79,7 @@ def evaluate_map_protection(
         })
 
     has_rules = any(
-        room.get("rules") for room in rooms.values()
+        isinstance(room, dict) and room.get("rules") for room in rooms.values()
     )
     if has_rules:
         reasons.append({
@@ -81,7 +88,7 @@ def evaluate_map_protection(
         })
 
     has_access_graph = any(
-        room.get("grants_access_to") for room in rooms.values()
+        isinstance(room, dict) and room.get("grants_access_to") for room in rooms.values()
     )
     if has_access_graph:
         reasons.append({
