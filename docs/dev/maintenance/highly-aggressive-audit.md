@@ -43,13 +43,13 @@ landed in between.
 
 ## Completed
 
-**131 changes shipped**, all with tests, all deployed.
+**135 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
 | Audits fully applied | #1 lifecycle · #2 learning · #3 external ingestion · #4 adapters · #5 error tracker |
 | Partly applied | #6 card (root cause + top of the repair order) |
-| #7 onward | **108** of 484 findings applied via 14 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f); rest open — see [Open](#open) |
+| #7 onward | **112** of 484 findings applied via 15 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e); rest open — see [Open](#open) |
 
 ### The recurring root cause
 
@@ -195,14 +195,18 @@ comments rather than by a shared helper.
 | `3fcda23` | fix(ci): wave-7 CARD reproducers were committed RED and broke node-tests |
 | `0ff1e9f` | RP-013f (2/2): wall-clock fallback subtracts commanded breaks (REC-B) |
 | `d9ce30c` | audit: handoff gap that caused the red CI — frontend reproducers are CI-gated |
+| `9978a03` | audit: RP-013f landed — ledger closure regenerated |
+| `8606134` | audit: Stage E template — check CI conclusion after push, not just local |
+| `4b0cda3` | RP-013e (1/2): recorder predicate/scope — no more fan-out to finished jobs |
+| `dbbb348` | RP-013e (2/2): job_metrics watches the adapter-declared battery entity |
 
 ---
 
 ## Open
 
-**376 findings** — 335 across 12 audits plus 41 from direct reads. **108 more applied** via 14 landed packets (see [Applied](#applied)). 19 open clusters (10 fully applied) + 338 singles.
+**372 findings** — 331 across 12 audits plus 41 from direct reads. **112 more applied** via 15 landed packets (see [Applied](#applied)). 18 open clusters (11 fully applied) + 336 singles.
 
-CRITICAL 7 · HIGH 54 · MEDIUM 141 · LOW 174
+CRITICAL 7 · HIGH 54 · MEDIUM 137 · LOW 174
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -238,10 +242,10 @@ The same audits recorded **673 areas examined and found correct**.
 - **Defect:** A room_group phase attributes the group's entire cleaning time, area and battery to queue_room_ids[0]. A phased job also never records a completed room, so live progress freezes on the group.
 - **Fix:** Attribute per-phase metrics across the phase's rooms, or record the phase as a phase rather than as room[0].
 
-#### C5. The repudiated `started_at and not ended_at` predicate is still live — **verified by hand**
+#### C5. The repudiated `started_at and not ended_at` predicate is still live — **verified by hand** — **2/2 applied**
 
 - **Seam:** `jobs/active_job.py:1676,1709`
-- **Closes:** A3-REC-4, A4-AJ-2
+- **Closes:** ~~A3-REC-4~~ ✅ RP-013e (`4b0cda3`), ~~A4-AJ-2~~ ✅ RP-013e (`4b0cda3`)
 - **Defect:** SELF-INFLICTED. 0f1e2a6 moved this question onto status because nothing ever writes ended_at, so a finalized job matched forever. Two sample recorders were left behind, and the docstring written in that same commit names both BY NAME as needing the external-inclusive predicate. record_pose_sample:1776 is NOT affected (it has its own status check) -- the finding over-reached on that third site.
 - **Fix:** Point record_active_job_sensor_value and record_counter_sample at run_is_in_flight. Roughly 2 lines.
 
@@ -545,7 +549,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (127)</summary>
+<details><summary><strong>MEDIUM</strong> (125)</summary>
 
 - **EP-1** `button.py:200` · both · `direct read`  
   The maintenance reset button discards a documented failure result and reports success  
@@ -586,9 +590,6 @@ The same audits recorded **673 areas examined and found correct**.
 - **DR-DOCK-2** `dock/manager.py:383` · both · `direct read`  
   record_dock_event validates nothing; its sibling set_dock_event_count validates the same vocabulary  
   set_dock_event_count checks event_type against counter_map and returns {'updated': False, 'error': ...} for anything unknown. record_dock_event writes vacuum_events[event_type] = now for ANY string. Since event_type come
-- **A3-REC-5** `jobs/active_job.py:1721` · both  
-  Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths  
-  Per-room battery drain is never observed on either brand: every completed_job record's room_timings[].battery_delta is null, so the only per-room battery figure available anywhere is the even split total_battery_used / r
 - **A6-PRE-2** `jobs/job_monitor.py:268` · both _(finder said HIGH; verifier corrected)_  
   invalid_payload uses phase 0's room count as the whole run's room count — a saved run profile whose first step is a zone is accepted on save but can never start  
   A user saves a run profile like "clean the hallway zone first, then the bedrooms", presses its exposed button, and gets "Room-clean payload is missing or invalid." every time, with rooms visibly selected and a valid queu
@@ -634,9 +635,6 @@ The same audits recorded **673 areas examined and found correct**.
 - **A6-GUARD-5** `listeners/discovery.py:140` · both  
   A discovery pass on the active map is scored against configured rooms across ALL maps, so switching maps makes the other map's rooms accrue "removed" strikes  
   On a multi-floor/multi-map setup, switching maps makes the setup tab report rooms as removed from the vacuum and flips setup_complete out of sync (setup/status.py:193-218), prompting the user to delete room configuration
-- **A5-METRICS-2** `listeners/job_metrics.py:172` · both  
-  `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths  
-  Every archived run, on every brand, on both the atomic and strict-order dispatch paths, records `battery_delta: null` for every room. The per-room battery-consumption figure the run archive and diagnostics expose is perm
 - **A2-LIFE-3** `listeners/lifecycle.py:169` · eufy  
   The inline mop-wash detector diverges from the dedicated dock_events listener: hard-coded Eufy wash vocabulary as a fallback, and no same-state guard against attribute-only re-triggers  
   `observed_mop_wash_count` on the active job is inflated. That value is written into the completed-job record as `actual_mop_wash_count` and is handed to register_post_job_water_amendment at lifecycle.py:398 as `mop_wash_
@@ -1451,7 +1449,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Applied
 
-**108 findings** closed by a landed packet. Not open work, but kept
+**112 findings** closed by a landed packet. Not open work, but kept
 here rather than removed — a disappeared finding is indistinguishable from one never
 found. `.claude/notes/_landed_packets.json` is the source of truth for what has
 landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
@@ -1672,6 +1670,14 @@ landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
   A multi-room room_group phase records ONLY queue_room_ids[0] — the group's whole time/area lands on one room, the other N-1 rooms produce no timing at all, and the run is still flagged high-confidence
 - [x] **A3-REC-2** `jobs/phase_runner.py:297` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
   Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
+- [x] **A3-REC-4** `jobs/active_job.py:1709` · both — **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  Both sample recorders still use the `started_at and not ended_at` predicate the module itself documents as permanently true after finalize, and fan the write out to every map bucket
+- [x] **A3-REC-5** `jobs/active_job.py:1721` · both — **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths
+- [x] **A4-AJ-2** `jobs/active_job.py:1676` · both — **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  The two sample recorders still use the repudiated `started_at and not ended_at` predicate and write into EVERY map bucket, so a finished or stranded job silently absorbs another run's counters
+- [x] **A5-METRICS-2** `listeners/job_metrics.py:172` · both — **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths
 
 ### Examined and deliberately not fixed
 

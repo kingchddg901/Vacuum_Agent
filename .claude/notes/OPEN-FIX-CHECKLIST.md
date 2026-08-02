@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **108** findings via 14 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f) |
+| Fixes APPLIED (landed packets) | **112** findings via 15 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **376** -- 19 open clusters (10 fully applied) + 338 singles |
-| By severity | CRITICAL 7 / HIGH 54 / MEDIUM 141 / LOW 174 |
+| Open findings | **372** -- 18 open clusters (11 fully applied) + 336 singles |
+| By severity | CRITICAL 7 / HIGH 54 / MEDIUM 137 / LOW 174 |
 | Hardware validation | **none** -- nothing from this campaign has run on a real vacuum |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -59,13 +59,13 @@ audit is a snapshot, not a ledger.
 - **Fix:** Attribute per-phase metrics across the phase's rooms, or record the phase as a phase rather than as room[0].
 - [ ] applied  [ ] tested  [ ] hardware-checked
 
-### C5. The repudiated `started_at and not ended_at` predicate is still live **[VERIFIED AT SOURCE]**
+### C5. The repudiated `started_at and not ended_at` predicate is still live **[VERIFIED AT SOURCE]** — **2/2 applied**
 
 - **Seam:** `jobs/active_job.py:1676,1709`
-- **Closes:** A3-REC-4, A4-AJ-2
+- **Closes:** ~~A3-REC-4~~ ✅ RP-013e (`4b0cda3`), ~~A4-AJ-2~~ ✅ RP-013e (`4b0cda3`)
 - **What breaks:** SELF-INFLICTED. 0f1e2a6 moved this question onto status because nothing ever writes ended_at, so a finalized job matched forever. Two sample recorders were left behind, and the docstring written in that same commit names both BY NAME as needing the external-inclusive predicate. record_pose_sample:1776 is NOT affected (it has its own status check) -- the finding over-reached on that third site.
 - **Fix:** Point record_active_job_sensor_value and record_counter_sample at run_is_in_flight. Roughly 2 lines.
-- [ ] applied  [ ] tested  [ ] hardware-checked
+- [x] applied  [ ] tested  [ ] hardware-checked
 
 ### C6. Profile round-trip is broken: applying a preset re-labels the room 'custom' *(not independently verified)*
 
@@ -389,7 +389,7 @@ audit is a snapshot, not a ledger.
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
-### MEDIUM (127)
+### MEDIUM (125)
 
 - [ ] **EP-1** `button.py:200` [both]  
   The maintenance reset button discards a documented failure result and reports success  
@@ -430,9 +430,6 @@ audit is a snapshot, not a ledger.
 - [ ] **DR-DOCK-2** `dock/manager.py:383` [both]  
   record_dock_event validates nothing; its sibling set_dock_event_count validates the same vocabulary  
   -> set_dock_event_count checks event_type against counter_map and returns {'updated': False, 'error': ...} for anything unknown. record_dock_event writes vacuum_events[event_type] = now for ANY string. Since event_type come
-- [ ] **A3-REC-5** `jobs/active_job.py:1721` [both]  
-  Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths  
-  -> Per-room battery drain is never observed on either brand: every completed_job record's room_timings[].battery_delta is null, so the only per-room battery figure available anywhere is the even split total_battery_used / r
 - [ ] **A6-PRE-2** `jobs/job_monitor.py:268` [both] _(finder said HIGH)_  
   invalid_payload uses phase 0's room count as the whole run's room count — a saved run profile whose first step is a zone is accepted on save but can never start  
   -> A user saves a run profile like "clean the hallway zone first, then the bedrooms", presses its exposed button, and gets "Room-clean payload is missing or invalid." every time, with rooms visibly selected and a valid queu
@@ -478,9 +475,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-GUARD-5** `listeners/discovery.py:140` [both]  
   A discovery pass on the active map is scored against configured rooms across ALL maps, so switching maps makes the other map's rooms accrue "removed" strikes  
   -> On a multi-floor/multi-map setup, switching maps makes the setup tab report rooms as removed from the vacuum and flips setup_complete out of sync (setup/status.py:193-218), prompting the user to delete room configuration
-- [ ] **A5-METRICS-2** `listeners/job_metrics.py:172` [both]  
-  `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths  
-  -> Every archived run, on every brand, on both the atomic and strict-order dispatch paths, records `battery_delta: null` for every room. The per-room battery-consumption figure the run archive and diagnostics expose is perm
 - [ ] **A2-LIFE-3** `listeners/lifecycle.py:169` [eufy]  
   The inline mop-wash detector diverges from the dedicated dock_events listener: hard-coded Eufy wash vocabulary as a fallback, and no same-state guard against attribute-only re-triggers  
   -> `observed_mop_wash_count` on the active job is inflated. That value is written into the completed-job record as `actual_mop_wash_count` and is handed to register_post_job_water_amendment at lifecycle.py:398 as `mop_wash_
@@ -1291,7 +1285,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 108 findings closed by a landed packet
+## APPLIED -- 112 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1514,6 +1508,14 @@ a disappeared finding is indistinguishable from one never found.
   A multi-room room_group phase records ONLY queue_room_ids[0] — the group's whole time/area lands on one room, the other N-1 rooms produce no timing at all, and the run is still flagged high-confidence
 - [x] **A3-REC-2** `jobs/phase_runner.py:297` [eufy] -- **RP-013b** (`f212c20`, 2026-08-02)  
   Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
+- [x] **A3-REC-4** `jobs/active_job.py:1709` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  Both sample recorders still use the `started_at and not ended_at` predicate the module itself documents as permanently true after finalize, and fan the write out to every map bucket
+- [x] **A3-REC-5** `jobs/active_job.py:1721` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths
+- [x] **A4-AJ-2** `jobs/active_job.py:1676` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  The two sample recorders still use the repudiated `started_at and not ended_at` predicate and write into EVERY map bucket, so a finished or stranded job silently absorbs another run's counters
+- [x] **A5-METRICS-2** `listeners/job_metrics.py:172` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
+  `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths
 
 ---
 

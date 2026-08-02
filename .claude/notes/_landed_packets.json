@@ -82,5 +82,11 @@
   "commits": ["ed1a953", "0ff1e9f"],
   "landed_at": "2026-08-02",
   "note": "Stage X, packet 2/5. 2 commits per rollback_plan (REC-A phase-sum derivation; REC-B wall-clock fallback break-phase subtraction) -- different failure modes, independently revertable, split via git add -p plus manual test-file surgery to keep each commit self-consistent and green on its own."
+ },
+ {
+  "packet_id": "RP-013e",
+  "commits": ["4b0cda3", "dbbb348"],
+  "landed_at": "2026-08-02",
+  "note": "Stage X, packet 3/5. 2 commits per rollback_plan (recorder predicate/scope; battery watch) -- different files, split cleanly. All 3 reproducer cases report AFTER."
  }
 ]
