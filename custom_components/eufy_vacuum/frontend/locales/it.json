@@ -639,6 +639,8 @@
     "segment_fallback": "Segmento {id}",
     "segment_hint_configurable": "Tocca per mettere in coda · Doppio tocco per configurare",
     "segment_hint_queue": "Tocca per mettere in coda",
+    "stale_badge_title": "Impossibile aggiornare la mappa — viene mostrata l'ultima vista nota.",
+    "stale_last_seen": "Visto l'ultima volta {value}",
     "toggle_va_render": "Attiva/disattiva mappa renderizzata da VA",
     "upload": "Carica",
     "upload_failed": "Caricamento non riuscito",

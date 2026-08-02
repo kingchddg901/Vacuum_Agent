@@ -643,6 +643,8 @@
     "segment_fallback": "Segmento {id}",
     "segment_hint_configurable": "Toca para poner en cola · Doble toque para configurar",
     "segment_hint_queue": "Toca para poner en cola",
+    "stale_badge_title": "No se pudo actualizar el mapa — se muestra la última vista conocida.",
+    "stale_last_seen": "Visto por última vez {value}",
     "toggle_va_render": "Alternar mapa renderizado por VA",
     "upload": "Subir",
     "upload_failed": "Falló la subida",

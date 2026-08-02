@@ -884,6 +884,8 @@
     "segment_fallback": "分段 {id}",
     "segment_hint_configurable": "点按加入队列 · 双击进行配置",
     "segment_hint_queue": "点按加入队列",
+    "stale_badge_title": "地图无法刷新 — 正在显示最后已知的视图。",
+    "stale_last_seen": "最后一次出现于 {value}",
     "toggle_floor_texture": "切换地板纹理",
     "toggle_va_render": "切换 VA 渲染地图",
     "upload": "上传",

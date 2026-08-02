@@ -173,9 +173,19 @@ export function applyMapRenderers(proto) {
     const furnishedMode = furnishedOn ? (state.furnishedRenderMode?.() ?? "live") : "live";
     const baseFadeCls = furnishedOn && furnishedMode !== "live"
       ? ` evcc-map-image--furnished-${furnishedMode}` : "";
+    // CARD-2 clause 1 (RP-027's hold contract): a held/stale map_state_source dims the
+    // layer + shows a "last seen" badge, rather than presenting a frozen last-known
+    // position as a confident live one.
+    const isStale = state.isMapStale?.() ?? false;
+    const staleAgo = isStale ? (this.formatRelativeAgo?.(state.mapStaleSince?.()) ?? null) : null;
     return `
       <div class="evcc-map-view">
-        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}">
+        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}${isStale ? " evcc-map-container--stale" : ""}">
+          ${staleAgo ? `
+            <div class="evcc-map-stale-badge" title="${this.escapeHtml(this.t("map.stale_badge_title"))}">
+              ${this.escapeHtml(this.t("map.stale_last_seen", { value: staleAgo }))}
+            </div>
+          ` : ""}
 
           <div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
             <!-- Rotation turns this whole content layer (image + polygons + labels

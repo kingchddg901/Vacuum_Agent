@@ -885,6 +885,8 @@
     "segment_fallback": "Segmen {id}",
     "segment_hint_configurable": "Ketuk untuk mengantre · Ketuk dua kali untuk mengonfigurasi",
     "segment_hint_queue": "Ketuk untuk mengantre",
+    "stale_badge_title": "Peta tidak dapat diperbarui — menampilkan tampilan terakhir yang diketahui.",
+    "stale_last_seen": "Terakhir terlihat {value}",
     "toggle_floor_texture": "Alihkan tekstur lantai",
     "toggle_va_render": "Alihkan peta render VA",
     "upload": "Unggah",

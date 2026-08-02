@@ -910,6 +910,22 @@ export function applyMapState(proto) {
     return this.dashboardSnapshot?.()?.map_state_source ?? null;
   };
 
+  // CARD-2 clause 1 (RP-027's hold contract): true while the coordinator is
+  // showing a HELD result — the map source went transiently absent and the
+  // last-good read is being shown in its place, up to a 6h TTL. Overlay
+  // positions (robot/dock/current_room/path) inside a held result are FROZEN
+  // at their last live values, not nulled -- so this drives a dim treatment +
+  // "last seen" badge honestly describing a frozen-but-real last known state,
+  // not an "absent" one.
+  proto.isMapStale = function () {
+    return this.mapStateSource()?.stale === true;
+  };
+
+  // ISO timestamp the hold started, or null when not stale / absent entirely.
+  proto.mapStaleSince = function () {
+    return this.isMapStale() ? (this.mapStateSource()?.stale_since ?? null) : null;
+  };
+
   /* -- Auto-derived click targets: pixel-exact room hit-test ---------------------
      Given a CONTENT-box % point (0-100 of the rotator, i.e. AFTER unrotatePct), resolve the
      DEVICE ROOM ID under it by reading the room raster from the card-render data (room_pixels

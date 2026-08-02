@@ -887,6 +887,8 @@
     "segment_fallback": "מקטע {id}",
     "segment_hint_configurable": "הקישו להוספה לתור · הקישו פעמיים להגדרה",
     "segment_hint_queue": "הקישו להוספה לתור",
+    "stale_badge_title": "לא ניתן היה לרענן את המפה — מוצגת התצוגה הידועה האחרונה.",
+    "stale_last_seen": "נראה לאחרונה {value}",
     "toggle_floor_texture": "החלפת מרקמי רצפה",
     "toggle_va_render": "החלפת מפה בעיבוד VA",
     "upload": "העלאה",

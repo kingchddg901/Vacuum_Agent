@@ -884,6 +884,8 @@
     "segment_fallback": "分段 {id}",
     "segment_hint_configurable": "點按以排入 · 點按兩下以設定",
     "segment_hint_queue": "點按以排入",
+    "stale_badge_title": "地圖無法刷新 — 正在顯示最後已知的畫面。",
+    "stale_last_seen": "最後出現於 {value}",
     "toggle_floor_texture": "切換地板材質",
     "toggle_va_render": "切換 VA 繪製地圖",
     "upload": "上傳",

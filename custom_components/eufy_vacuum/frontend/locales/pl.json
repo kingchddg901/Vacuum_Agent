@@ -885,6 +885,8 @@
     "segment_fallback": "Segment {id}",
     "segment_hint_configurable": "Dotknij, aby dodać do kolejki · Dotknij dwukrotnie, aby skonfigurować",
     "segment_hint_queue": "Dotknij, aby dodać do kolejki",
+    "stale_badge_title": "Nie udało się odświeżyć mapy — wyświetlany jest ostatni znany widok.",
+    "stale_last_seen": "Ostatnio widziano {value}",
     "toggle_floor_texture": "Przełącz tekstury podłóg",
     "toggle_va_render": "Przełącz mapę renderowaną przez VA",
     "upload": "Prześlij",

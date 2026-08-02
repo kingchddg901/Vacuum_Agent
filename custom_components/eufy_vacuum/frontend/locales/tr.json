@@ -885,6 +885,8 @@
     "segment_fallback": "Bölüm {id}",
     "segment_hint_configurable": "Kuyruğa eklemek için dokunun · Yapılandırmak için çift dokunun",
     "segment_hint_queue": "Kuyruğa eklemek için dokunun",
+    "stale_badge_title": "Harita yenilenemedi — bilinen son görünüm gösteriliyor.",
+    "stale_last_seen": "Son görülme {value}",
     "toggle_floor_texture": "Zemin dokularını aç/kapat",
     "toggle_va_render": "VA tarafından çizilen haritayı aç/kapat",
     "upload": "Yükle",

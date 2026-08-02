@@ -315,6 +315,34 @@ export const mapStyles = `
   }
 
   /* =========================================================
+     STALE MAP (CARD-2 clause 1 — RP-027's hold contract)
+     =========================================================
+     A held/stale map_state_source dims the whole content layer + shows a
+     "last seen" badge, so a frozen last-known view never reads as confidently
+     live. Dims .evcc-map-layers (image + overlays together), not the
+     container background, so the themed panel bg stays full-strength. */
+  .evcc-map-container--stale .evcc-map-layers {
+    opacity:    0.5;
+    filter:     saturate(0.7);
+    transition: opacity 0.2s ease, filter 0.2s ease;
+  }
+
+  .evcc-map-stale-badge {
+    position:            absolute;
+    inset-inline-start:  10px;
+    top:                 10px;
+    z-index:             5;
+    padding:             4px 10px;
+    font-size:           12px;
+    line-height:         1.35;
+    color:               var(--evcc-map-tooltip-text, #fff);
+    background:          var(--evcc-map-tooltip-bg, rgba(20, 20, 20, 0.92));
+    border:              1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+    border-radius:       8px;
+    box-shadow:          0 2px 10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* =========================================================
      ZONE CLEAN (ad-hoc draw-a-box → clean)
      ========================================================= */
 

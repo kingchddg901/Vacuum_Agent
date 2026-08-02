@@ -643,6 +643,8 @@ export const en = {
   "map.segment_fallback": "Segment {id}",
   "map.segment_hint_configurable": "Tap to queue · Double-tap to configure",
   "map.segment_hint_queue": "Tap to queue",
+  "map.stale_badge_title": "The map couldn't be refreshed — showing the last known view.",  // Tooltip on the stale-map badge (RP-027's hold contract): explains WHY it's dimmed, not just that it is
+  "map.stale_last_seen": "Last seen {value}",  // Stale-map badge text; {value} is an already-localized relative time like "3 hours ago"
   "map.toggle_floor_texture": "Toggle floor textures",  // Button toggling the floor-texture map view: paints each room with its floor-type material (wood/tile/carpet…) instead of flat colors
   "map.toggle_va_render": "Toggle VA-rendered map",  // Button toggling the VA-rendered (integration-drawn) map vs live image; VA=Vacuum Agent, expand or keep as-is
   "map.upload": "Upload",

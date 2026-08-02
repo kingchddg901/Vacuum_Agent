@@ -884,6 +884,8 @@
     "segment_fallback": "세그먼트 {id}",
     "segment_hint_configurable": "탭하여 대기열에 추가 · 두 번 탭하여 구성",
     "segment_hint_queue": "탭하여 대기열에 추가",
+    "stale_badge_title": "지도를 새로고침할 수 없습니다 — 마지막으로 확인된 화면을 표시합니다.",
+    "stale_last_seen": "마지막 확인: {value}",
     "toggle_floor_texture": "바닥 텍스처 전환",
     "toggle_va_render": "VA 렌더링 지도 전환",
     "upload": "업로드",

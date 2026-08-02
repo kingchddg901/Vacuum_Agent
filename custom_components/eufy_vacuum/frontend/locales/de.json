@@ -637,6 +637,8 @@
     "segment_fallback": "Segment {id}",
     "segment_hint_configurable": "Tippen zum Einreihen · Doppeltippen zum Konfigurieren",
     "segment_hint_queue": "Tippen zum Einreihen",
+    "stale_badge_title": "Die Karte konnte nicht aktualisiert werden — zeigt die letzte bekannte Ansicht.",
+    "stale_last_seen": "Zuletzt gesehen {value}",
     "toggle_va_render": "VA-gerenderte Karte umschalten",
     "upload": "Hochladen",
     "upload_failed": "Upload fehlgeschlagen",
