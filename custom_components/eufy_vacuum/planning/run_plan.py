@@ -235,7 +235,14 @@ class RunPlanManager:
         table: with no override it applies ``off`` = 0 (no water, a universal) and a single
         generic ~4 ml/min to other levels, rather than imposing one brand's numbers on another."""
         normalized = self._normalize_water_level_key(water_level, aliases=aliases)
-        table = rate_override if (isinstance(rate_override, dict) and rate_override) else {"off": 0.0}
+        # EST-H2O-2: overlay the declared rates ONTO the off=0 base rather than
+        # replacing it wholesale -- an adapter that declares measured rates but
+        # omits "off" must still bill water-off rooms at 0, not fall through to
+        # the generic 4.0 ml/min, which is what the module comment above claims
+        # ("off=0, a universal") but a wholesale replace did not actually honour.
+        table = {"off": 0.0}
+        if isinstance(rate_override, dict) and rate_override:
+            table = {**table, **rate_override}
         return _safe_float(table.get(normalized, 4.0), 4.0)
 
     def _get_station_clean_water_percent(
@@ -327,7 +334,16 @@ class RunPlanManager:
         resolved_rooms: list[dict[str, Any]],
         room_timeline: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
-        """Estimate clean-water usage for the current job plan."""
+        """Estimate clean-water usage for the current job plan.
+
+        EST-GUESS-1: each room's ``estimated_minutes`` comes from
+        ``room_timeline``, which carries a ``source``/``sample_count`` per
+        entry (measured vs. default-guess), but this function reads only
+        ``minutes`` and drops that provenance. On a fresh map, or any room
+        whose settings combination has never run, the whole water figure is
+        therefore a constant guess presented identically to one backed by
+        real samples.
+        """
         model_config = self._get_water_model_config(vacuum_entity_id=vacuum_entity_id)
         if not model_config.get("available"):
             return {
@@ -455,6 +471,11 @@ class RunPlanManager:
         if mopping_room_count > 0:
             wash_cycle_count = max(wash_cycle_count, 2)
 
+        # EST-CLAMP-1: schema-required (every adapter's water model must measure
+        # this on real hardware) but reported-only below -- no calculation here
+        # consults it. Left as-is rather than invented; folding it into the
+        # estimate is a design question (per-refill capping? overhead timing?)
+        # for a dedicated follow-up, not a one-line fix.
         robot_internal_tank_ml = _safe_float(model_config.get("robot_internal_tank_ml"), 0.0)
         dock_clean_tank_capacity_ml = _safe_float(model_config.get("dock_clean_tank_capacity_ml"), 0.0)
         dock_wash_overhead_ml_per_cycle = _safe_float(model_config.get("dock_wash_overhead_ml_per_cycle"), 0.0)
@@ -474,8 +495,13 @@ class RunPlanManager:
 
         if station_water_percent is not None and dock_clean_tank_capacity_ml > 0:
             available_clean_tank_ml = round((station_water_percent / 100.0) * dock_clean_tank_capacity_ml, 2)
+            # EST-CLAMP-1: floor at 0 like estimated_clean_tank_remaining_percent
+            # already is below -- an unclamped negative here rendered as a
+            # self-contradictory "-450 ml (0%)". clean_water_shortfall_ml
+            # (below) is the field that carries "how far short", so no
+            # information is lost by clamping this one.
             estimated_clean_tank_remaining_ml = round(
-                available_clean_tank_ml - estimated_total_dock_clean_water_used_ml,
+                max(available_clean_tank_ml - estimated_total_dock_clean_water_used_ml, 0.0),
                 2,
             )
             estimated_clean_tank_remaining_percent = round(

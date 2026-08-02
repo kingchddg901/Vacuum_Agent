@@ -501,6 +501,75 @@ async def _case_dr_onb_4(proof: H.Proof) -> None:
     )
 
 
+async def _case_est_h2o_2(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.planning.run_plan import RunPlanManager
+
+    rp = RunPlanManager.__new__(RunPlanManager)
+    # adapter declares measured rates but omits "off"
+    rate = rp._water_rate_ml_per_minute("off", rate_override={"low": 2.0, "high": 6.0})
+
+    proof.case(
+        "planning/run_plan.py EST-H2O-2: a declared water_rates table that "
+        "omits 'off' must still bill water-off rooms at 0 ml/min, not the "
+        "generic 4.0 ml/min fallback",
+        before=(rate == 4.0),
+        before_msg="the declared table REPLACED the off=0 base wholesale, "
+                   "so an adapter omitting 'off' falls through to the "
+                   "generic 4.0 ml/min fallback for water-off mop rooms",
+        after=(rate == 0.0),
+        after_msg="the declared table overlays the off=0 base instead of "
+                  "replacing it, so 'off' resolves to 0 unless the adapter "
+                  "explicitly overrides it too",
+        detail=f"rate={rate}",
+    )
+
+
+async def _case_est_clamp_1(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.planning.run_plan import RunPlanManager
+
+    rp = RunPlanManager.__new__(RunPlanManager)
+    rp._manager = SimpleNamespace(
+        get_vacuum_capabilities=lambda **kw: {"entities": {}},
+        hass=SimpleNamespace(states=SimpleNamespace(get=lambda *a, **k: None)),
+    )
+    rp._get_water_model_config = lambda **kw: {
+        "available": True,
+        "model_code": "x", "model_name": "x",
+        "robot_internal_tank_ml": 0.0,
+        "dock_clean_tank_capacity_ml": 200.0,
+        "dock_wash_overhead_ml_per_cycle": 0.0,
+        "water_rates": None,
+        "low_clean_water_margin_ml": 300.0,
+    }
+    rp._derive_wash_frequency_config = lambda **kw: {
+        "mode": "by_room", "mode_label": "x", "interval_minutes": 0,
+    }
+    rp._get_station_clean_water_percent = lambda **kw: 10.0  # 10% of 200ml = 20ml available
+
+    # One mopping room whose estimated water use (240ml) far exceeds the
+    # 20ml available -- forces a shortfall.
+    resolved_rooms = [{"room_id": 1, "clean_mode": "mop", "water_level": "high"}]
+    room_timeline = [{"room_id": 1, "slug": "r1", "minutes": 60, "source": "measured"}]
+
+    out = rp.estimate_job_water_usage(
+        vacuum_entity_id=H.VAC, resolved_rooms=resolved_rooms, room_timeline=room_timeline,
+    )
+
+    proof.case(
+        "planning/run_plan.py EST-CLAMP-1: estimated_clean_tank_remaining_ml "
+        "must floor at 0 like its own percent sibling already does",
+        before=(out["estimated_clean_tank_remaining_ml"] < 0),
+        before_msg="a shortfall rendered as a self-contradictory negative ml "
+                   "figure alongside a percent already clamped to 0%",
+        after=(out["estimated_clean_tank_remaining_ml"] == 0.0),
+        after_msg="the ml figure floors at 0 like the percent does; "
+                  "clean_water_shortfall_ml still carries how far short",
+        detail=f"remaining_ml={out['estimated_clean_tank_remaining_ml']} "
+               f"remaining_pct={out['estimated_clean_tank_remaining_percent']} "
+               f"shortfall_ml={out['clean_water_shortfall_ml']}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -515,6 +584,8 @@ CASES = [
     _case_dr_map_1,
     _case_dr_map_2,
     _case_dr_onb_4,
+    _case_est_h2o_2,
+    _case_est_clamp_1,
 ]
 
 
