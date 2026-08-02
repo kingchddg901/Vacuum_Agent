@@ -85,7 +85,7 @@ All in `battery/manager.py`:
 
 | Constant | Default | Purpose |
 |---|---|---|
-| `MAX_DELTA_PCT` | 3.0 | Reject single-sample deltas this large or larger. Prevents inflation from sensor resets / HA gaps. |
+| `MAX_DELTA_PCT` | 3.0 | Reject single-sample deltas larger than this (code: `abs(raw_delta) <= MAX_DELTA_PCT` accepts, so exactly 3.0 is accepted). Prevents inflation from sensor resets / HA gaps. |
 | `MAX_RATE_INTERVAL_SEC` | 600.0 | Skip rate computation when sample interval exceeds this. Drain still counts toward cycles (drain is time-independent). |
 | `LOW_ZONE_MAX` | 29 | Battery level ≤ this counts as "low zone". |
 | `HIGH_ZONE_MIN` | 80 | Battery level ≥ this counts as "high zone". |
@@ -229,21 +229,23 @@ prev_ts = parse(record["last_sample_ts"])
 
 if prev_level is not None and prev_ts is not None:
     elapsed_sec = (ts - prev_ts).total_seconds()
-    raw_delta = battery_level - prev_level   # +charging, -draining
+    if elapsed_sec > 0:   # DR-BAT-2: an out-of-order/duplicate-timestamp sample
+                          # skips this whole block AND does not move the anchor
+        raw_delta = battery_level - prev_level   # +charging, -draining
 
-    if abs(raw_delta) <= MAX_DELTA_PCT:
-        # Cycle accounting — drain only, valid over any interval.
-        if raw_delta < 0:
-            drain_added = -raw_delta
-            cumulative_drain_pct += drain_added
-            cycles = cumulative_drain_pct / 100
+        if abs(raw_delta) <= MAX_DELTA_PCT:
+            # Cycle accounting — drain only, valid over any interval.
+            if raw_delta < 0:
+                drain_added = -raw_delta
+                cumulative_drain_pct += drain_added
+                cycles = cumulative_drain_pct / 100
 
-        # Rate metrics — only for charging samples within MAX_RATE_INTERVAL_SEC.
-        if raw_delta > 0 and elapsed_sec <= MAX_RATE_INTERVAL_SEC:
-            rate_per_min = delta_pct / (elapsed_sec / 60)
-            update rate_overall_per_min
-            if zone == "low":  update rate_low_zone_per_min
-            if zone == "high": update rate_high_zone_per_min
+            # Rate metrics — only for charging samples within MAX_RATE_INTERVAL_SEC.
+            if raw_delta > 0 and elapsed_sec <= MAX_RATE_INTERVAL_SEC:
+                rate_per_min = delta_pct / (elapsed_sec / 60)
+                update rate_overall_per_min
+                if zone == "low":  update rate_low_zone_per_min
+                if zone == "high": update rate_high_zone_per_min
 
 # Session lifecycle (see section 6)
 _update_session(record, battery_level, charging, ts, rate_per_min)
@@ -335,7 +337,7 @@ trim to HISTORY_LIMIT
 raw_store.append_session(summary)        # sessions.csv
 _update_health(record)                   # health proxy
 
-if kind == "mid_job" and avg > 0:
+if kind == "mid_job" and avg is not None and avg > 0 and delta_pct > 0:
     _update_mid_job_rate_stat(record, avg)
 
 if kind == "post_job":
