@@ -599,6 +599,17 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
                 rebuild_csv=call.data.get("rebuild_csv", False),
             )
         )
+        # RP-020/RF-22 (SVC-1): rebuild_learning_job's rebuild_all only reaches the
+        # four derived files (job/room stats, jobs index, CSV). The incremental
+        # accumulators outside it (learned_zones, battery drain aggregates) kept
+        # whatever the excluded job had already contributed until this call was
+        # added -- the sibling rebuild_learning_stats service already does this;
+        # exclude/restore silently didn't, despite both claiming "stats rebuilt".
+        runtime = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if runtime is not None:
+            await runtime.async_rebuild_learning_accumulators(
+                vacuum_entity_id=vacuum_entity_id
+            )
         learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
         learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         _LOGGER.debug("exclude_learning_job complete: %s", result)
@@ -615,6 +626,12 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
                 rebuild_csv=call.data.get("rebuild_csv", False),
             )
         )
+        # RP-020/RF-22 (SVC-1): same gap as exclude, mirror-imaged -- see comment there.
+        runtime = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if runtime is not None:
+            await runtime.async_rebuild_learning_accumulators(
+                vacuum_entity_id=vacuum_entity_id
+            )
         learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
         learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         _LOGGER.debug("restore_learning_job complete: %s", result)
