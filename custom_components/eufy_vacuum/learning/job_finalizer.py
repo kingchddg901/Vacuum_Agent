@@ -564,9 +564,54 @@ class LearningJobFinalizer:
         # Fall back to a live sensor read for the first run after a cold
         # start (listener not yet fired), then to wall-clock derivation.
         _job_state_for_metrics = active_job_state if isinstance(active_job_state, dict) else {}
-        cleaning_time_seconds: int | None = _safe_int(
-            _job_state_for_metrics.get("last_cleaning_time_seconds"), None
-        )
+        _phases_for_metrics = _job_state_for_metrics.get("phases")
+        # RP-013f/REC-A: a STEPPED run dispatches one phase at a time, and every
+        # dispatched phase RESETS the device's cleaning-time counter — so
+        # last_cleaning_time_seconds is only the FINAL phase's, not the run's.
+        # (Run A: 302s recorded against 255+302=557s actually measured, 46%
+        # short.) Derive the total by SUMMING PHASE CONTRIBUTIONS instead: room
+        # phases their room_timing cleaning_seconds, zone phases their
+        # zone_timing wall_seconds, break phases contribute zero. Compose-safe
+        # with RP-013b: its allocated split preserves a group phase's measured
+        # total across members, so summing room_timing entries is correct
+        # whether or not a phase was split into per-room allocated entries.
+        # Only trusted when at least one phase actually captured something —
+        # a stepped run that captured NOTHING (every phase's slice empty) is
+        # not "0 seconds cleaned", it's "we don't know", and falls through to
+        # the same device-counter/sensor/wall-clock cascade an atomic job
+        # uses (REC-B's break-phase-aware fallback included) rather than
+        # reporting a fabricated zero.
+        _phase_sum: int | None = None
+        if isinstance(_phases_for_metrics, list) and _phases_for_metrics:
+            _phase_sum = 0
+            _any_captured = False
+            for _p in _phases_for_metrics:
+                if not isinstance(_p, dict):
+                    continue
+                for _rt in (_p.get("room_timing") or []):
+                    if isinstance(_rt, dict):
+                        _phase_sum += _safe_int(_rt.get("cleaning_seconds"), 0)
+                        _any_captured = True
+                _zt = _p.get("zone_timing")
+                if isinstance(_zt, dict):
+                    _phase_sum += _safe_int(_zt.get("wall_seconds"), 0)
+                    _any_captured = True
+            if not _any_captured:
+                _phase_sum = None
+
+        if _phase_sum is not None:
+            cleaning_time_seconds: int | None = _phase_sum
+        else:
+            # Atomic job, or a stepped job that captured nothing — today's
+            # device-counter/sensor/wall-clock cascade, unchanged.
+            cleaning_time_seconds = _safe_int(
+                _job_state_for_metrics.get("last_cleaning_time_seconds"), None
+            )
+        # Neither the device counter NOR cleaning_area_m2 are reliable job
+        # totals for a stepped run (area ACCUMULATES across phases while time
+        # does not — the two counters reset differently and nothing documents
+        # that per brand), so area/water stay on the existing last_* path
+        # unchanged regardless of which cleaning_time_seconds path was taken.
         cleaning_area_m2: float | None = _safe_float(
             _job_state_for_metrics.get("last_cleaning_area_m2"), None
         )

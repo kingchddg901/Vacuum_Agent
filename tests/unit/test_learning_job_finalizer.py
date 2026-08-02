@@ -628,3 +628,85 @@ def test_error_latch_is_cleared_after_a_successful_save(tmp_path):
     _finalize(fin, _inputs_manager())
 
     assert commits == ["vacuum.fin_test"], "the latch was never cleared after a good save"
+
+
+# ---------------------------------------------------------------------------
+# RP-013f — a stepped run's cleaning_time_seconds is the WHOLE run, not just
+# its last dispatched phase (REC-A), and the wall-clock fallback subtracts
+# commanded break-phase durations the same way it already subtracts paused
+# and mid-job recharge seconds (REC-B).
+# ---------------------------------------------------------------------------
+
+def _room_timing(room_id: int, seconds: int) -> dict:
+    return {"room_id": room_id, "cleaning_seconds": seconds, "area_m2": 1.0}
+
+
+def test_collect_inputs_stepped_job_sums_room_and_zone_phases_not_break(finalizer):
+    """REC-A: a stepped run's cleaning_time_seconds is the SUM of its phases'
+    own captured contributions (room_timing cleaning_seconds + zone_timing
+    wall_seconds) — never the device's last-seen counter, which only ever
+    reflects the FINAL dispatched phase. Break phases contribute zero."""
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        "last_cleaning_time_seconds": 302,  # the clobbered device counter — must be ignored
+        "phases": [
+            {"phase_type": "room_group", "room_timing": [_room_timing(4, 255)]},
+            {"phase_type": "charge_wait", "room_timing": []},
+            {"phase_type": "room_group", "room_timing": [_room_timing(5, 302)]},
+            {"phase_type": "zone", "room_timing": [], "zone_timing": {"wall_seconds": 90}},
+        ],
+    }
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["cleaning_time_seconds"] == 255 + 302 + 90
+
+
+def test_collect_inputs_stepped_group_phase_multi_room_sums_all_entries(finalizer):
+    """Compose-safe with RP-013b: a group phase's room_timing can carry more
+    than one entry (one per member, after RP-013b's allocated split) — all of
+    them must be summed, not just the first."""
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        "phases": [
+            {"phase_type": "room_group", "room_timing": [
+                _room_timing(4, 100), _room_timing(5, 100), _room_timing(6, 100),
+            ]},
+        ],
+    }
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["cleaning_time_seconds"] == 300
+
+
+def test_collect_inputs_atomic_job_keeps_device_counter_unchanged(finalizer):
+    """An atomic job (no 'phases' key at all) is untouched by RP-013f — one
+    phase, one counter read, nothing to sum."""
+    m = _inputs_manager()
+    m.get_active_job.return_value = {"last_cleaning_time_seconds": 480}
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["cleaning_time_seconds"] == 480
