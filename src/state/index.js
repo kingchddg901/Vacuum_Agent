@@ -25,6 +25,7 @@ import { applyDialogState }   from "./dialog.js";
 
 // Learning is predictive, temporal, and controller-managed — applied after all structural modules.
 import { applyLearningState      } from "./learning.js";
+import { applyFaultState         } from "./faults.js";
 import { applySetupState         } from "./setup.js";
 import { applyExternalJobsState     } from "./external-jobs.js";
 
@@ -85,5 +86,6 @@ applyToastsState(VacuumCardState.prototype);
 /* === LEARNING / SETUP / MAPPING (FINAL LAYERS) === */
 
 applyLearningState(VacuumCardState.prototype);
+applyFaultState(VacuumCardState.prototype);
 applySetupState(VacuumCardState.prototype);
 applyExternalJobsState(VacuumCardState.prototype);

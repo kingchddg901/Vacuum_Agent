@@ -2383,5 +2383,202 @@
     "currently": "Currently",
     "after_move": "After move",
     "move_to_position": "Move to position"
+  },
+  "fault": {
+    "eufy": {
+      "base_station_clean_water_pump_electrical_fault": "Base station clean-water pump electrical fault",  // Eufy code 6013
+      "base_station_clean_water_pump_not_responding": "Base station clean-water pump not responding",  // Eufy code 6012
+      "base_station_clean_water_tank_not_connected": "Base station clean water tank not connected",  // Eufy code 6010
+      "base_station_cleaning_tray_not_installed": "Base station cleaning tray not installed",  // Eufy code 6030
+      "base_station_dirty_tank_full": "Base station dirty tank full",  // Eufy code 6021
+      "base_station_dirty_tank_leak": "Base station dirty tank leak",  // Eufy code 6024
+      "base_station_dirty_tank_missing": "Base station dirty tank missing",  // Eufy code 6020
+      "base_station_dirty_water_pump_electrical_fault": "Base station dirty-water pump electrical fault",  // Eufy code 6023
+      "base_station_dirty_water_pump_not_responding": "Base station dirty-water pump not responding",  // Eufy code 6022
+      "base_station_dust_duct_blocked": "Base station dust duct blocked — clear it",  // Eufy code 6112
+      "base_station_dust_leak": "Base station dust leak",  // Eufy code 6111
+      "base_station_exploration_failed": "Base station exploration failed",  // Eufy code 7033
+      "base_station_fan_overheat": "Base station fan overheat",  // Eufy code 6114
+      "base_station_full_dirty_water_or_dirty_water_tank": "Base station full dirty water or dirty water tank not connected",  // Eufy code 6025
+      "base_station_heater_not_responding": "Base station heater not responding",  // Eufy code 6042
+      "base_station_low_clean_water": "Base station low clean water",  // Eufy code 6011
+      "base_station_mop_dryer_electrical_fault": "Base station mop dryer electrical fault",  // Eufy code 6041
+      "base_station_mop_dryer_heater_fault": "Base station mop dryer heater fault",  // Eufy code 41
+      "base_station_mop_dryer_not_responding": "Base station mop dryer not responding",  // Eufy code 6040
+      "base_station_no_dust_bag_installed": "Base station no dust bag installed",  // Eufy code 6113
+      "base_station_not_found": "Base station not found",  // Eufy code 7055
+      "base_station_power_fault": "Base station power fault",  // Eufy code 6110
+      "base_station_power_off": "Base station power off",  // Eufy code 5014
+      "base_station_pressure_sensor_fault": "Base station pressure sensor fault",  // Eufy code 6115
+      "base_station_temperature_sensor_not_responding": "Base station temperature sensor not responding",  // Eufy code 6043
+      "base_station_tray_full": "Base station tray full",  // Eufy code 6031
+      "base_station_tray_missing_or_full": "Base station tray missing or full",  // Eufy code 6032
+      "base_station_water_valve_electrical_fault": "Base station water valve electrical fault",  // Eufy code 6014
+      "battery_electrical_fault": "Battery electrical fault",  // Eufy code 5011
+      "battery_fault": "Battery fault",  // Eufy code 101
+      "battery_not_responding": "Battery not responding",  // Eufy code 5010
+      "battery_temperature_out_of_range": "Battery temperature out of range",  // Eufy code 5018
+      "bluetooth_error": "Bluetooth error",  // Eufy code 5111
+      "both_wheel_motors_electrical_fault": "Both wheel motors electrical fault",  // Eufy code 1031
+      "both_wheel_motors_not_responding": "Both wheel motors not responding",  // Eufy code 1030
+      "both_wheels_fault": "Both wheels fault",  // Eufy code 1032
+      "both_wheels_jammed_check_for_tangled_hair_or_debris": "Both wheels jammed — check for tangled hair or debris",  // Eufy code 1033
+      "bumper_stuck": "Bumper stuck",  // Eufy code 1
+      "camera_blocked": "Camera blocked",  // Eufy codes 51, 4041
+      "camera_fault": "Camera fault",  // Eufy code 76
+      "camera_sensor_error": "Camera sensor error",  // Eufy code 4040
+      "cannot_find_start_point": "Cannot find start point",  // Eufy code 7034
+      "charge_temp_high": "Charge temp high",  // Eufy code 5023
+      "charge_temp_low": "Charge temp low",  // Eufy code 5024
+      "charging_current_too_high": "Charging current too high",  // Eufy code 5016
+      "charging_current_too_low": "Charging current too low",  // Eufy code 5012
+      "charging_voltage_fault": "Charging voltage fault",  // Eufy code 5017
+      "clean_dust_collector": "Clean dust collector",  // Eufy code 70
+      "clean_tray_needs": "Clean tray needs clean",  // Eufy code 82
+      "clean_tray_not_installed": "Clean tray not installed",  // Eufy code 79
+      "clean_water_low": "Clean water low",  // Eufy code 74
+      "could_not_dock_something_reflective_is_confusing": "Could not dock — something reflective is confusing the dock sensor",  // Eufy code 7037
+      "could_not_find_the_base_station": "Could not find the base station",  // Eufy code 55
+      "could_not_leave_the_base_station": "Could not leave the base station",  // Eufy code 52
+      "could_not_return_to_the_base_station_clear_the_area": "Could not return to the base station — clear the area",  // Eufy code 7031
+      "depth_sensor_blocked": "Depth sensor blocked — wipe it clean",  // Eufy code 4031
+      "depth_sensor_fault": "Depth sensor fault",  // Eufy codes 77, 4030
+      "dirty_tank_full": "Dirty tank full",  // Eufy code 73
+      "discharge_current_too_high": "Discharge current too high",  // Eufy code 5013
+      "discharge_temp_high": "Discharge temp high",  // Eufy code 5021
+      "discharge_temp_low": "Discharge temp low",  // Eufy code 5022
+      "dock_failed": "Dock failed",  // Eufy code 21
+      "docking_failed_no_power": "Docking failed (no power)",  // Eufy code 7035
+      "docking_failed_wheel_stuck": "Docking failed (wheel stuck)",  // Eufy code 7036
+      "drop_sensor_triggered": "Drop sensor triggered",  // Eufy code 7003
+      "dust_bin_missing": "Dust bin missing",  // Eufy code 14
+      "dustbin_full_10h_reminder": "Dustbin full (10h reminder)",  // Eufy code 2311
+      "dustbin_or_filter_missing": "Dustbin or filter missing",  // Eufy code 2310
+      "entered_carpet": "Entered carpet",  // Eufy code 7011
+      "entered_no_go_zone": "Entered no-go zone",  // Eufy code 7010
+      "forbidden_area_detected": "Forbidden area detected",  // Eufy code 17
+      "front_roller_brush_jammed_check_for_tangled_hair": "Front roller brush jammed — check for tangled hair",  // Eufy code 2122
+      "front_roller_brush_motor_electrical_fault": "Front roller brush motor electrical fault",  // Eufy code 2121
+      "front_roller_brush_motor_not_responding": "Front roller brush motor not responding",  // Eufy code 2120
+      "global_positioning_failed": "Global positioning failed",  // Eufy code 7020
+      "gyroscope_fault": "Gyroscope fault",  // Eufy code 4020
+      "hair_cutting_in_progress": "Hair cutting in progress",  // Eufy code 6300
+      "hair_cutting_module_stuck": "Hair cutting module stuck",  // Eufy code 6311
+      "infrared_link_to_the_base_station_failed": "Infrared link to the base station failed",  // Eufy code 5112
+      "laser_blocked": "Laser blocked",  // Eufy code 20
+      "laser_cover_stuck": "Laser cover stuck",  // Eufy code 18
+      "laser_distance_sensor_fault": "Laser distance sensor fault",  // Eufy code 107
+      "laser_sensor_stuck": "Laser sensor stuck",  // Eufy code 19
+      "left_bumper_stuck": "Left bumper stuck",  // Eufy code 4111
+      "left_mop_missing": "Left mop missing",  // Eufy code 3110
+      "left_side_brush_fault": "Left side brush fault",  // Eufy code 2222
+      "left_side_brush_jammed_check_for_tangled_hair": "Left side brush jammed — check for tangled hair",  // Eufy code 2223
+      "left_side_brush_motor_electrical_fault": "Left side brush motor electrical fault",  // Eufy code 2221
+      "left_side_brush_motor_not_responding": "Left side brush motor not responding",  // Eufy code 2220
+      "left_suction_fan_electrical_fault": "Left suction fan electrical fault",  // Eufy code 2021
+      "left_suction_fan_fault": "Left suction fan fault",  // Eufy code 2022
+      "left_suction_fan_not_responding": "Left suction fan not responding",  // Eufy code 2020
+      "left_suction_fan_not_spinning_correctly": "Left suction fan not spinning correctly — check for a blockage",  // Eufy code 2023
+      "left_wheel_fault": "Left wheel fault",  // Eufy code 1012
+      "left_wheel_jammed_check_for_tangled_hair_or_debris": "Left wheel jammed — check for tangled hair or debris",  // Eufy code 1013
+      "left_wheel_motor_electrical_fault": "Left wheel motor electrical fault",  // Eufy code 1011
+      "left_wheel_motor_not_responding": "Left wheel motor not responding",  // Eufy code 1010
+      "lidar_cover_stuck": "Lidar cover stuck",  // Eufy code 4130
+      "lidar_not_spinning_correctly_check_for_a_blockage": "Lidar not spinning correctly — check for a blockage",  // Eufy code 4012
+      "lift_motor_stuck": "Lift motor stuck",  // Eufy code 3133
+      "lost_connection_to_the_robot": "Lost connection to the robot",  // Eufy code 80
+      "lost_position_cleaning_ended_early": "Lost position — cleaning ended early",  // Eufy code 39
+      "lost_the_target_it_was_following": "Lost the target it was following",  // Eufy code 7054
+      "low_battery_no_auto_empty": "Low battery (no auto empty)",  // Eufy code 6117
+      "low_battery_no_hair_cutting": "Low battery (no hair cutting)",  // Eufy code 6301
+      "low_battery_no_scheduled": "Low battery (no scheduled clean)",  // Eufy code 5015
+      "low_battery_no_self": "Low battery (no self clean)",  // Eufy code 6118
+      "mop_cloth_dislodged": "Mop cloth dislodged",  // Eufy code 40
+      "mop_lift_motor_electrical_fault": "Mop lift motor electrical fault",  // Eufy code 3131
+      "mop_lift_motor_fault": "Mop lift motor fault",  // Eufy codes 112, 3132
+      "mop_lift_motor_not_responding": "Mop lift motor not responding",  // Eufy code 3130
+      "mop_rotation_motor_electrical_fault": "Mop rotation motor electrical fault",  // Eufy code 3121
+      "mop_rotation_motor_fault": "Mop rotation motor fault",  // Eufy codes 111, 3122
+      "mop_rotation_motor_not_responding": "Mop rotation motor not responding",  // Eufy code 3120
+      "mop_water_spray_fault": "Mop water spray fault",  // Eufy code 113
+      "path_planning_failed": "Path planning failed",  // Eufy code 7052
+      "poor_charging_contact": "Poor charging contact",  // Eufy code 83
+      "positioning_failed": "Positioning failed",  // Eufy code 7021
+      "power_failure": "Power failure",  // Eufy code 6310
+      "power_low_shutdown": "Power low shutdown",  // Eufy code 8
+      "radar_blocked": "Radar blocked",  // Eufy code 4011
+      "radar_communication_error": "Radar communication error",  // Eufy code 4010
+      "rear_roller_brush_jammed_check_for_tangled_hair": "Rear roller brush jammed — check for tangled hair",  // Eufy code 2125
+      "rear_roller_brush_motor_electrical_fault": "Rear roller brush motor electrical fault",  // Eufy code 2124
+      "rear_roller_brush_motor_not_responding": "Rear roller brush motor not responding",  // Eufy code 2123
+      "right_bumper_stuck": "Right bumper stuck",  // Eufy code 4112
+      "right_mop_missing": "Right mop missing",  // Eufy code 3111
+      "right_side_brush_fault": "Right side brush fault",  // Eufy code 2226
+      "right_side_brush_jammed_check_for_tangled_hair": "Right side brush jammed — check for tangled hair",  // Eufy code 2227
+      "right_side_brush_motor_electrical_fault": "Right side brush motor electrical fault",  // Eufy code 2225
+      "right_side_brush_motor_not_responding": "Right side brush motor not responding",  // Eufy code 2224
+      "right_suction_fan_electrical_fault": "Right suction fan electrical fault",  // Eufy code 2025
+      "right_suction_fan_fault": "Right suction fan fault",  // Eufy code 2026
+      "right_suction_fan_not_responding": "Right suction fan not responding",  // Eufy code 2024
+      "right_suction_fan_not_spinning_correctly": "Right suction fan not spinning correctly — check for a blockage",  // Eufy code 2027
+      "right_wheel_fault": "Right wheel fault",  // Eufy code 1022
+      "right_wheel_jammed_check_for_tangled_hair_or_debris": "Right wheel jammed — check for tangled hair or debris",  // Eufy code 1023
+      "right_wheel_motor_electrical_fault": "Right wheel motor electrical fault",  // Eufy code 1021
+      "right_wheel_motor_not_responding": "Right wheel motor not responding",  // Eufy code 1020
+      "robot_is_trapped": "Robot is trapped",  // Eufy code 6
+      "robot_is_trapped_clear_the_obstacles_around": "Robot is trapped — clear the obstacles around it",  // Eufy code 5
+      "robot_low_water": "Robot low water",  // Eufy code 72
+      "robot_on_carpet": "Robot on carpet",  // Eufy code 50
+      "robot_picked_up": "Robot picked up",  // Eufy code 7002
+      "robot_stuck": "Robot stuck",  // Eufy code 7004
+      "robot_suspended": "Robot suspended",  // Eufy code 7001
+      "robot_tilted": "Robot tilted",  // Eufy codes 13, 7053
+      "robot_water_pump_electrical_fault": "Robot water pump electrical fault",  // Eufy code 3011
+      "robot_water_pump_fault": "Robot water pump fault",  // Eufy codes 106, 114, 3012
+      "robot_water_pump_not_responding": "Robot water pump not responding",  // Eufy code 3010
+      "roller_brush_fault": "Roller brush fault",  // Eufy code 2113
+      "roller_brush_jammed_check_for_tangled_hair": "Roller brush jammed — check for tangled hair",  // Eufy code 2112
+      "roller_brush_motor_electrical_fault": "Roller brush motor electrical fault",  // Eufy code 2111
+      "roller_brush_motor_fault": "Roller brush motor fault",  // Eufy code 105
+      "roller_brush_motor_not_responding": "Roller brush motor not responding",  // Eufy code 2110
+      "roller_brush_stuck": "Roller brush stuck",  // Eufy code 4
+      "rotation_motor_stuck": "Rotation motor stuck",  // Eufy code 3123
+      "schedule_failed": "Schedule failed",  // Eufy code 7051
+      "scheduled_clean_could_not_start": "Scheduled clean could not start",  // Eufy code 26
+      "sewage_tank_leak": "Sewage tank leak",  // Eufy code 81
+      "side_brush_fault": "Side brush fault",  // Eufy codes 103, 2212
+      "side_brush_jammed_check_for_tangled_hair": "Side brush jammed — check for tangled hair",  // Eufy code 2213
+      "side_brush_motor_electrical_fault": "Side brush motor electrical fault",  // Eufy code 2211
+      "side_brush_motor_not_responding": "Side brush motor not responding",  // Eufy code 2210
+      "side_brush_stuck": "Side brush stuck",  // Eufy code 3
+      "suction_fan_electrical_fault": "Suction fan electrical fault",  // Eufy code 2011
+      "suction_fan_fault": "Suction fan fault",  // Eufy codes 104, 2012
+      "suction_fan_not_responding": "Suction fan not responding",  // Eufy code 2010
+      "suction_fan_not_spinning_correctly": "Suction fan not spinning correctly — check for a blockage",  // Eufy code 2013
+      "suction_port_obstruction": "Suction port obstruction",  // Eufy code 31
+      "took_too_long_in_a_small_space": "Took too long in a small space",  // Eufy code 7000
+      "ultrasonic_error_cleaning": "Ultrasonic error (cleaning)",  // Eufy code 4120
+      "ultrasonic_error_idle": "Ultrasonic error (idle)",  // Eufy code 4121
+      "ultrasonic_sensor_fault": "Ultrasonic sensor fault",  // Eufy codes 78, 117
+      "undocking_failed": "Undocking failed",  // Eufy code 7040
+      "unreachable_target": "Unreachable target",  // Eufy code 7050
+      "wall_sensor_blocked": "Wall sensor blocked",  // Eufy code 4091
+      "wall_sensor_error": "Wall sensor error",  // Eufy code 4090
+      "wall_sensor_fault": "Wall sensor fault",  // Eufy code 71
+      "water_tank_absent": "Water tank absent",  // Eufy code 75
+      "water_tank_empty": "Water tank empty",  // Eufy code 3013
+      "water_tank_removed": "Water tank removed",  // Eufy code 3020
+      "wheel_module_fault": "Wheel module fault",  // Eufy code 102
+      "wheel_overhanging": "Wheel overhanging",  // Eufy code 7
+      "wheel_stuck": "Wheel stuck",  // Eufy code 2
+      "wi_fi_error": "Wi-Fi error",  // Eufy code 5110
+      "wi_fi_or_bluetooth_fault": "Wi-Fi or Bluetooth fault",  // Eufy code 119
+      "wipe_holder_motor_stuck": "Wipe holder motor stuck",  // Eufy code 32
+      "wiping_bracket_motor_stuck": "Wiping bracket motor stuck"  // Eufy code 33,
+    }
+  },
+  "faults": {
+    "unknown_code": "Error {code}",  // fallback when the adapter has no label for a fault code — the raw vendor number is honest and searchable
+    "unknown": "Unknown error"  // fallback when neither a label key nor a raw code is available
   }
 }

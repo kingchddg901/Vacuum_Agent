@@ -29,6 +29,7 @@ from .constants import (
     POST_JOB_AMENDMENT_TIMEOUT_SECONDS,
 )
 from .vocabulary import (
+    EUFY_ERROR_LABEL_KEYS,
     EUFY_EVIDENCE_INVALIDATING_ERROR_CODES,
     EUFY_EVIDENCE_SAFE_ERROR_CODES,
     HARD_SERVICE_STATES,
@@ -476,6 +477,10 @@ def register_eufy_adapter_for_vacuum(
                 EUFY_EVIDENCE_INVALIDATING_ERROR_CODES
             ),
             "evidence_safe_error_codes": sorted(EUFY_EVIDENCE_SAFE_ERROR_CODES),
+            # CARD-3: code -> i18n key. The STRINGS live in the locale packs; core hands
+            # the card a key and never learns an Eufy number. A code absent here has no
+            # label and the card shows the raw number, which is honest -- never invent one.
+            "error_label_keys": dict(EUFY_ERROR_LABEL_KEYS),
         },
 
         "dock_events": {

@@ -645,6 +645,17 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "run rather than toward zeroing it."
                 ),
             },
+            "error_label_keys": {
+                "type": "dict[int, str]",
+                "required": False,
+                "description": (
+                    "Maps this brand's error codes to i18n keys for the card's "
+                    "fault labels. The strings live in the frontend locale "
+                    "packs; core only passes the key through, so it never "
+                    "learns a brand's codes. A code absent from this map has "
+                    "no label and the card falls back to the raw number."
+                ),
+            },
             "evidence_safe_error_codes": {
                 "type": "list[int]",
                 "required": False,

@@ -189,6 +189,29 @@ def classify_error_code(vacuum_entity_id: str, code: Any) -> str:
     return "unclassified"
 
 
+def error_label_key(vacuum_entity_id: str, code: Any) -> str | None:
+    """Return this fault's i18n key, or None when the brand declares no label for it.
+
+    CARD-3. Core passes the key through and never learns a brand's codes
+    [[feedback_eufy_ism_leak_layers]]; the strings are the frontend locale packs'.
+
+    None is a real answer. A brand that declares nothing, or a code the vendor shipped
+    after the adapter's table was written, gets no label -- and the card renders the raw
+    number, which is honest and searchable. Inventing a label would be worse than the
+    number it replaced.
+    """
+    rid = _exact_int(code)
+    if rid is None:
+        return None
+    mapping = _error_tracking_cfg(vacuum_entity_id).get("error_label_keys")
+    if not isinstance(mapping, dict):
+        return None
+    # Declared maps may arrive with string keys (a stored adapter config round-trips
+    # through JSON, which has no integer keys).
+    value = mapping.get(rid, mapping.get(str(rid)))
+    return value if isinstance(value, str) and value else None
+
+
 def _int_set(value: Any) -> frozenset[int]:
     """Coerce a declared code list to ints, dropping anything unusable."""
     if not isinstance(value, (list, tuple, set, frozenset)):
