@@ -8,13 +8,26 @@ Coverage targets
 [SQ-4]  get_payload_state service returns a response dict.
 [SQ-5]  build_room_payload service completes without error.
 [SQ-6]  clear_queue service empties the queue.
+[SQ-7]  RP-032/RF-28 (A2-JOB-5): break_type -> required-sibling-parameter
+        cross-field validation, at the schema layer.
+[SQ-8]  RP-032/RF-28 (A2-JOB-5): add_queue_break has no zone branch, so its
+        schema deliberately rejects break_type=zone (add_queue_zone's job).
+[SQ-9]  RP-032/RF-28 (A2-JOB-6): set_queue_breaks accepts the read shape
+        get_queue_steps emits ({after_index, step: {type, ...}}), not just
+        the flat write shape -- the documented round trip doesn't need
+        hand-flattening first.
 """
 
 from __future__ import annotations
 
 import pytest
+import voluptuous as vol
 
 from custom_components.eufy_vacuum.const import DOMAIN
+from custom_components.eufy_vacuum.services.queue import (
+    _ADD_QUEUE_BREAK_SCHEMA,
+    _QUEUE_BREAK_ENTRY_SCHEMA,
+)
 
 from .conftest import setup_map
 
@@ -160,3 +173,134 @@ async def test_clear_queue_service_empties_queue(hass, manager_with_services):
     )
     assert state["queue_room_ids"] == []
     assert state["room_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# [SQ-7]/[SQ-8] add_queue_break schema: break_type -> required parameter.
+# ---------------------------------------------------------------------------
+
+def test_add_queue_break_schema_rejects_wait_without_minutes():
+    """[SQ-7] Before this, {break_type: wait} with no wait_minutes validated
+    cleanly and only failed later, silently, inside the manager."""
+    with pytest.raises(vol.Invalid):
+        _ADD_QUEUE_BREAK_SCHEMA(
+            {"vacuum_entity_id": _VAC, "break_type": "wait", "after_index": 1}
+        )
+
+
+def test_add_queue_break_schema_rejects_charge_wait_without_target():
+    """[SQ-7] Same dependency for the charge_wait/target_battery_percent pair."""
+    with pytest.raises(vol.Invalid):
+        _ADD_QUEUE_BREAK_SCHEMA(
+            {"vacuum_entity_id": _VAC, "break_type": "charge_wait", "after_index": 1}
+        )
+
+
+def test_add_queue_break_schema_accepts_wait_with_minutes():
+    """[SQ-7] The matching parameter still validates cleanly."""
+    out = _ADD_QUEUE_BREAK_SCHEMA(
+        {
+            "vacuum_entity_id": _VAC,
+            "break_type": "wait",
+            "after_index": 1,
+            "wait_minutes": 20,
+        }
+    )
+    assert out["wait_minutes"] == 20
+
+
+def test_add_queue_break_schema_accepts_charge_wait_with_target():
+    """[SQ-7] Same for charge_wait + target_battery_percent."""
+    out = _ADD_QUEUE_BREAK_SCHEMA(
+        {
+            "vacuum_entity_id": _VAC,
+            "break_type": "charge_wait",
+            "after_index": 1,
+            "target_battery_percent": 90,
+        }
+    )
+    assert out["target_battery_percent"] == 90
+
+
+def test_add_queue_break_schema_rejects_zone_type():
+    """[SQ-8] add_queue_break has no zone branch -- zones go through the
+    dedicated add_queue_zone service, not through this schema."""
+    with pytest.raises(vol.Invalid):
+        _ADD_QUEUE_BREAK_SCHEMA(
+            {"vacuum_entity_id": _VAC, "break_type": "zone", "after_index": 1}
+        )
+
+
+# ---------------------------------------------------------------------------
+# [SQ-7] _QUEUE_BREAK_ENTRY_SCHEMA (set_queue_breaks): same dependency, plus
+# zone -> zone_ids.
+# ---------------------------------------------------------------------------
+
+def test_queue_break_entry_schema_rejects_zone_without_zone_ids():
+    """[SQ-7] zone entries need a non-empty zone_ids, same cross-field rule."""
+    with pytest.raises(vol.Invalid):
+        _QUEUE_BREAK_ENTRY_SCHEMA({"after_index": 1, "break_type": "zone"})
+
+
+def test_queue_break_entry_schema_rejects_zone_with_empty_zone_ids():
+    """[SQ-7] An explicit empty list is rejected the same as a missing key."""
+    with pytest.raises(vol.Invalid):
+        _QUEUE_BREAK_ENTRY_SCHEMA(
+            {"after_index": 1, "break_type": "zone", "zone_ids": []}
+        )
+
+
+def test_queue_break_entry_schema_accepts_zone_with_zone_ids():
+    """[SQ-7] The matching parameter still validates cleanly."""
+    out = _QUEUE_BREAK_ENTRY_SCHEMA(
+        {"after_index": 1, "break_type": "zone", "zone_ids": ["z1"]}
+    )
+    assert out["zone_ids"] == ["z1"]
+
+
+# ---------------------------------------------------------------------------
+# [SQ-9] set_queue_breaks accepts get_queue_steps's read shape directly.
+# ---------------------------------------------------------------------------
+
+def test_queue_break_entry_schema_accepts_flat_write_shape():
+    """[SQ-9] The pre-existing flat write shape still works unchanged."""
+    out = _QUEUE_BREAK_ENTRY_SCHEMA(
+        {"after_index": 2, "break_type": "wait", "wait_minutes": 15}
+    )
+    assert out == {"after_index": 2, "break_type": "wait", "wait_minutes": 15}
+
+
+def test_queue_break_entry_schema_accepts_get_queue_steps_read_shape():
+    """[SQ-9] The exact shape get_queue_steps's `breaks` entries have --
+    {after_index, step: {type, ...}} -- round-trips straight into
+    set_queue_breaks without the caller flattening `step` first."""
+    out = _QUEUE_BREAK_ENTRY_SCHEMA(
+        {
+            "after_index": 1,
+            "step": {"type": "charge_wait", "target_battery_percent": 90},
+        }
+    )
+    assert out == {
+        "after_index": 1,
+        "break_type": "charge_wait",
+        "target_battery_percent": 90,
+    }
+
+
+def test_queue_break_entry_schema_read_shape_zone():
+    """[SQ-9] The read shape round-trips a zone step too."""
+    out = _QUEUE_BREAK_ENTRY_SCHEMA(
+        {"after_index": 3, "step": {"type": "zone", "zone_ids": ["z1", "z2"]}}
+    )
+    assert out == {
+        "after_index": 3,
+        "break_type": "zone",
+        "zone_ids": ["z1", "z2"],
+    }
+
+
+def test_queue_break_entry_schema_read_shape_still_enforces_dependency():
+    """[SQ-9] Flattening doesn't bypass the break_type -> parameter check -- a
+    malformed step (e.g. a wait step missing wait_minutes) is still rejected."""
+    with pytest.raises(vol.Invalid):
+        _QUEUE_BREAK_ENTRY_SCHEMA({"after_index": 1, "step": {"type": "wait"}})

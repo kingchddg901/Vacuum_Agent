@@ -33,33 +33,86 @@ from ..const import (
 )
 from ._common import VACUUM_MAP_SCHEMA, get_manager, resolved_call_data
 
-_ADD_QUEUE_BREAK_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Optional("map_id"): cv.string,
-        vol.Required("break_type"): vol.In(["charge_wait", "wait"]),
-        vol.Required("after_index"): vol.Coerce(int),
-        vol.Optional("target_battery_percent"): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=100)
-        ),
-        vol.Optional("wait_minutes"): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=1440)
-        ),
-    }
+
+def _require_break_params(value: dict) -> dict:
+    """RP-032/RF-28 (A2-JOB-5). voluptuous's per-key vol.Optional can't express
+    "required only when break_type has a specific value", so this runs as a
+    post-check after the per-key schema (fields already type-coerced). Without
+    it a `{break_type: wait}` with no wait_minutes validated cleanly, then
+    silently normalized to nothing downstream and came back as a refusal the
+    caller had to notice in the response."""
+    break_type = value.get("break_type")
+    if break_type == "charge_wait" and value.get("target_battery_percent") is None:
+        raise vol.Invalid("break_type 'charge_wait' requires target_battery_percent")
+    if break_type == "wait" and value.get("wait_minutes") is None:
+        raise vol.Invalid("break_type 'wait' requires wait_minutes")
+    if break_type == "zone" and not value.get("zone_ids"):
+        raise vol.Invalid("break_type 'zone' requires a non-empty zone_ids")
+    return value
+
+
+def _flatten_break_entry(value):
+    """RP-032/RF-28 (A2-JOB-6). get_queue_steps's `breaks` returns each entry
+    as {after_index, step: {type, ...}} (the same shape a run-profile step
+    uses); accept that read shape here too, not just the flat write shape
+    ({after_index, break_type, ...}), so the documented read-modify-write
+    round trip (get_queue_steps -> edit one field -> set_queue_breaks) works
+    without the caller hand-flattening `step` first."""
+    if not isinstance(value, dict):
+        return value
+    step = value.get("step")
+    if not isinstance(step, dict):
+        return value
+    flattened = {k: v for k, v in value.items() if k != "step"}
+    flattened.setdefault("break_type", step.get("type"))
+    for key in ("target_battery_percent", "wait_minutes", "zone_ids"):
+        if key in step and key not in flattened:
+            flattened[key] = step[key]
+    return flattened
+
+
+# add_queue_break only ever builds a charge_wait or wait step (see
+# core/manager.py add_queue_break) -- a zone step has its own dedicated
+# service, add_queue_zone, with its own write path. So break_type here is
+# deliberately narrower than _QUEUE_BREAK_ENTRY_SCHEMA's set below: adding
+# "zone" here would validate but the handler has no zone branch, so it would
+# silently fall through to "wait" instead. _QUEUE_BREAK_ENTRY_SCHEMA needs
+# "zone" because set_queue_breaks REPLACES the whole store wholesale,
+# including zones added via add_queue_zone.
+_ADD_QUEUE_BREAK_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+            vol.Optional("map_id"): cv.string,
+            vol.Required("break_type"): vol.In(["charge_wait", "wait"]),
+            vol.Required("after_index"): vol.Coerce(int),
+            vol.Optional("target_battery_percent"): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=100)
+            ),
+            vol.Optional("wait_minutes"): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=1440)
+            ),
+        }
+    ),
+    _require_break_params,
 )
 
-_QUEUE_BREAK_ENTRY_SCHEMA = vol.Schema(
-    {
-        vol.Required("after_index"): vol.Coerce(int),
-        vol.Required("break_type"): vol.In(["charge_wait", "wait", "zone"]),
-        vol.Optional("target_battery_percent"): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=100)
-        ),
-        vol.Optional("wait_minutes"): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=1440)
-        ),
-        vol.Optional("zone_ids"): [cv.string],
-    }
+_QUEUE_BREAK_ENTRY_SCHEMA = vol.All(
+    _flatten_break_entry,
+    vol.Schema(
+        {
+            vol.Required("after_index"): vol.Coerce(int),
+            vol.Required("break_type"): vol.In(["charge_wait", "wait", "zone"]),
+            vol.Optional("target_battery_percent"): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=100)
+            ),
+            vol.Optional("wait_minutes"): vol.All(
+                vol.Coerce(int), vol.Range(min=1, max=1440)
+            ),
+            vol.Optional("zone_ids"): [cv.string],
+        }
+    ),
+    _require_break_params,
 )
 
 _ADD_QUEUE_ZONE_SCHEMA = vol.Schema(

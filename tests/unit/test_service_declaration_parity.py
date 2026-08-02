@@ -276,7 +276,18 @@ def _resolve_schema_object(reg: Registration):
 def _schema_field_requiredness(schema_obj) -> dict[str, bool] | None:
     """{field_name: is_required} for a vol.Schema wrapping a dict, else None
     (the schema isn't a plain dict-shaped vol.Schema this gate can introspect,
-    e.g. wraps a list or another combinator)."""
+    e.g. wraps a list or another combinator).
+
+    A registration's schema= may be `vol.All(..., vol.Schema({...}), ...)`
+    (a cross-field check layered on a per-key schema, e.g. queue.py's break
+    schemas -- RP-032/A2-JOB-5/6): unwrap to the first vol.Schema among
+    vol.All's sub-validators rather than losing field-parity coverage for it.
+    """
+    if isinstance(schema_obj, vol.All):
+        for validator in schema_obj.validators:
+            if isinstance(validator, vol.Schema):
+                schema_obj = validator
+                break
     if not isinstance(schema_obj, vol.Schema):
         return None
     inner = schema_obj.schema
