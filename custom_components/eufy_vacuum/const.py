@@ -24,10 +24,6 @@ CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 # Service names
 # ----------------------
 
-SERVICE_REFRESH_BACKEND = "refresh_backend"
-SERVICE_REBUILD_ACTIVE_MAP = "rebuild_active_map"
-SERVICE_CLEAR_RUNTIME_STATE = "clear_runtime_state"
-
 SERVICE_DISCOVER_ROOMS = "discover_rooms"
 SERVICE_SAVE_MANAGED_ROOMS = "save_managed_rooms"
 SERVICE_GET_VACUUM_MAPS = "get_vacuum_maps"
@@ -233,7 +229,6 @@ SERVICE_IMPORT_THEME = "import_theme"
 # Internal data keys
 # ----------------------
 
-DATA_SERVICES_REGISTERED = "services_registered"
 DATA_RUNTIME = "runtime"
 
 DATA_LEARNING = "learning"
