@@ -16,7 +16,7 @@ from ..maps.map_manager import (
     get_vacuum_maps_summary,
     rebuild_map_bucket,
 )
-from ..rooms.reconciliation import compute_reconciliation, plan_migration
+from ..rooms.reconciliation import compute_plan_token, compute_reconciliation, plan_migration
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_defaults import resolve_new_room_defaults_for_vacuum
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
@@ -102,14 +102,24 @@ class RoomMapManager:
         # (re-segment) or a known id whose name changed (rename) surfaces as a
         # review the user confirms — never an auto-migration ("no auto changes").
         # New/removed rooms are owned by drift, not reported here.
-        existing_rooms = get_map_bucket(
+        existing_map_bucket = get_map_bucket(
             data=self._manager.data,
             vacuum_entity_id=vacuum_entity_id,
             map_id=_disc_map_id,
-        ).get("rooms", {})
+        )
+        existing_rooms = existing_map_bucket.get("rooms", {})
+        dismiss_meta = existing_map_bucket.get("metadata", {})
         payload["reconciliation"] = compute_reconciliation(
             discovered_rooms=payload.get("rooms", []),
             existing_rooms=existing_rooms,
+            dismissed_at=dismiss_meta.get("reconciliation_dismissed_at"),
+            dismissed_plan_token=dismiss_meta.get("reconciliation_dismissed_token"),
+        )
+        # REC-5 (RP-019): a fingerprint of this exact review, for the card to round-trip
+        # back on confirm — see compute_plan_token / reconcile_room.
+        payload["reconciliation"]["plan_token"] = compute_plan_token(
+            reviews=payload["reconciliation"]["reviews"],
+            discovered_rooms=payload.get("rooms", []),
         )
         self._manager.data["discovery"][vacuum_entity_id][_disc_map_id] = payload
 
@@ -125,6 +135,7 @@ class RoomMapManager:
         map_id: str,
         action: str = "migrate",
         force: bool = False,
+        plan_token: str | None = None,
     ) -> dict[str, Any]:
         """Apply or dismiss the identity-shift reviews for one vacuum/map.
 
@@ -138,9 +149,14 @@ class RoomMapManager:
             old->new id remap. Learning history is slug-tagged in the job files,
             so it follows the room regardless. Saved rooms whose slug vanished
             from discovery are dropped (the user confirmed the re-map) and
-            reported.
+            reported. REQUIRES ``plan_token`` (REC-5/RP-019): the fingerprint
+            ``discover_rooms`` returned with the reviews the user actually saw.
+            Refused if missing, or if it no longer matches what the CURRENT
+            discovery/existing rooms fingerprint to — the plan on screen is not
+            necessarily the plan that would apply.
           - ``ignore`` — leave stored data untouched and stamp a dismissal so the
-            same reviews stop surfacing until the next real change.
+            same reviews stop surfacing until the next real change. No token
+            needed — dismissing doesn't apply anything.
 
         Requires a prior ``discover_rooms`` to have cached the discovery payload.
         """
@@ -156,7 +172,31 @@ class RoomMapManager:
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=map_id_str,
             )
-            map_bucket.setdefault("metadata", {})["reconciliation_dismissed_at"] = _iso_now()
+            # REC-7 (RP-019): fingerprint what's being dismissed (same discovery
+            # currently cached, if any) so a LATER genuinely-different review can
+            # still surface — see compute_reconciliation's dismissed_plan_token.
+            discovery = (
+                self._manager.data.get("discovery", {})
+                .get(vacuum_entity_id, {})
+                .get(map_id_str, {})
+            )
+            dismissed_rooms = [
+                room for room in discovery.get("rooms", [])
+                if str(room.get("map_id")) == map_id_str
+            ]
+            dismissed_reviews = compute_reconciliation(
+                discovered_rooms=dismissed_rooms,
+                existing_rooms=get_map_bucket(
+                    data=self._manager.data,
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id_str,
+                ).get("rooms", {}),
+            )["reviews"]
+            metadata = map_bucket.setdefault("metadata", {})
+            metadata["reconciliation_dismissed_at"] = _iso_now()
+            metadata["reconciliation_dismissed_token"] = compute_plan_token(
+                reviews=dismissed_reviews, discovered_rooms=dismissed_rooms,
+            )
             return {
                 "vacuum_entity_id": vacuum_entity_id,
                 "map_id": map_id_str,
@@ -199,6 +239,35 @@ class RoomMapManager:
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id_str,
         ).get("rooms", {})
+
+        # REC-5 (RP-019): recomputed fresh, never trusted from a cached field —
+        # see compute_plan_token's docstring for why.
+        current_reviews = compute_reconciliation(
+            discovered_rooms=discovered_rooms, existing_rooms=existing_rooms,
+        )["reviews"]
+        current_token = compute_plan_token(
+            reviews=current_reviews, discovered_rooms=discovered_rooms,
+        )
+        if plan_token is None:
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": map_id_str,
+                "action": "migrate",
+                "migrated_room_count": 0,
+                "id_remap": {},
+                "dropped": [],
+                "skipped": "plan_token_required",
+            }
+        if plan_token != current_token:
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": map_id_str,
+                "action": "migrate",
+                "migrated_room_count": 0,
+                "id_remap": {},
+                "dropped": [],
+                "skipped": "plan_changed",
+            }
 
         plan = plan_migration(
             discovered_rooms=discovered_rooms,

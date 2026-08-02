@@ -16,7 +16,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -75,6 +75,10 @@ _RECONCILE_ROOM_SCHEMA = vol.Schema(
         vol.Required("map_id"): cv.string,
         vol.Optional("action", default="migrate"): vol.In(["migrate", "ignore"]),
         vol.Optional("force", default=False): cv.boolean,
+        # Required for action=migrate (enforced by the manager, not here — ignore
+        # never needs one); optional at the schema level so ignore stays a
+        # one-field call. See RoomMapManager.reconcile_room (REC-5/RP-019).
+        vol.Optional("plan_token"): cv.string,
     }
 )
 
@@ -212,9 +216,14 @@ async def _handle_reconcile_room(hass: HomeAssistant, call: ServiceCall) -> dict
             map_id=data["map_id"],
             action=data.get("action", "migrate"),
             force=data.get("force", False),
+            plan_token=data.get("plan_token"),
         )
     except Exception as err:
         raise HomeAssistantError(f"Failed to reconcile room: {err}") from err
+    if result.get("skipped") in ("plan_token_required", "plan_changed"):
+        raise ServiceValidationError(
+            f"Could not reconcile room: {result['skipped']}"
+        )
     _LOGGER.debug("reconcile_room: %s", result)
     await manager.async_save()
     return result

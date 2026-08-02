@@ -173,10 +173,13 @@ def discover_rooms_for_vacuum(
         # the same value entities.active_map reports for these brands.
         per_map = get_cached_room_source(hass, vacuum_entity_id)
         segments = per_map.get(str(resolved_map_id))
-        if segments is None and len(per_map) == 1:
-            # Single-map brand whose active_map value didn't line up with the
-            # cache key (e.g. active_map unknown at refresh time) — use the one
-            # map we have rather than discovering nothing.
+        if segments is None and len(per_map) == 1 and resolved_map_id == "unknown":
+            # Single-map brand whose active_map was genuinely UNRESOLVABLE (no
+            # explicit map_id and get_active_map_id came back empty) — use the
+            # one map we have rather than discovering nothing. An explicit,
+            # resolved map_id that doesn't match the cached key is NEVER
+            # covered by this (RP-019/ID-2): serving another map's rooms
+            # relabeled with the requested id is exactly the bug this guards.
             segments = next(iter(per_map.values()))
         if not isinstance(segments, list):
             _LOGGER.debug(

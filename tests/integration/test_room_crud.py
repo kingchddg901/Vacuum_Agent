@@ -24,6 +24,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.eufy_vacuum.rooms.reconciliation import (
+    compute_plan_token,
+    compute_reconciliation,
+)
 from custom_components.eufy_vacuum.rooms.room_crud import RoomMapManager
 
 
@@ -184,13 +188,26 @@ def test_reconcile_room_migrate_refuses_partial_discovery(rmm):
         "rooms": [{"room_id": 1, "map_id": _MAP, "name": "Room 1", "slug": "room-1"}]
     }
 
-    refused = rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    # RP-019/REC-5: reconcile_room requires a plan_token matching what the current
+    # discovery/existing rooms fingerprint to — a valid one here so this test still
+    # exercises the partial-discovery guard, not the token gate.
+    discovered = mgr.data["discovery"][_VAC][_MAP]["rooms"]
+    token = compute_plan_token(
+        reviews=compute_reconciliation(
+            discovered_rooms=discovered, existing_rooms=stored,
+        )["reviews"],
+        discovered_rooms=discovered,
+    )
+
+    refused = rm.reconcile_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, action="migrate", plan_token=token
+    )
     assert refused["skipped"] == "partial_discovery_refused"
     assert refused["migrated_room_count"] == 0
     assert mgr.data["maps"][_VAC][_MAP]["rooms"] == stored  # untouched
 
     forced = rm.reconcile_room(
-        vacuum_entity_id=_VAC, map_id=_MAP, action="migrate", force=True
+        vacuum_entity_id=_VAC, map_id=_MAP, action="migrate", force=True, plan_token=token
     )
     assert forced.get("skipped") is None
     assert forced["migrated_room_count"] == 1

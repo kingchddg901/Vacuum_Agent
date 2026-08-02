@@ -36,6 +36,10 @@ from unittest.mock import MagicMock
 import pytest
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+from custom_components.eufy_vacuum.rooms.reconciliation import (
+    compute_plan_token,
+    compute_reconciliation,
+)
 from custom_components.eufy_vacuum.rooms.room_crud import RoomMapManager
 
 
@@ -62,6 +66,26 @@ def _seed_saved(mgr, rooms: dict[str, dict]):
 
 def _seed_discovery(mgr, rooms: list[dict]):
     mgr.data.setdefault("discovery", {}).setdefault(_VAC, {})[_MAP] = {"rooms": rooms}
+
+
+def _current_plan_token(mgr) -> str:
+    """[RP-019/REC-5] Fingerprint what reconcile_room will independently recompute
+    from the same seeded discovery + existing rooms — the token a real caller would
+    have gotten back from discover_rooms."""
+    discovered = mgr.data.get("discovery", {}).get(_VAC, {}).get(_MAP, {}).get("rooms", [])
+    existing = mgr.data.get("maps", {}).get(_VAC, {}).get(_MAP, {}).get("rooms", {})
+    reviews = compute_reconciliation(discovered_rooms=discovered, existing_rooms=existing)["reviews"]
+    return compute_plan_token(reviews=reviews, discovered_rooms=discovered)
+
+
+def _migrate(rm, mgr, **kwargs):
+    """reconcile_room(action="migrate") with a valid plan_token pre-computed from
+    whatever's currently seeded — the RP-019/REC-5 default for tests that aren't
+    specifically exercising the token contract itself."""
+    return rm.reconcile_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, action="migrate",
+        plan_token=_current_plan_token(mgr), **kwargs,
+    )
 
 
 # --- detection (real manager + hass) ----------------------------------------
@@ -113,7 +137,7 @@ def test_reconcile_migrate_rekeys_and_preserves(rmm):
         {"room_id": 18, "map_id": _MAP, "name": "Dining Room", "slug": "dining_room"},
     ])
 
-    result = rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    result = _migrate(rm, mgr)
 
     rooms = mgr.data["maps"][_VAC][_MAP]["rooms"]
     assert set(rooms) == {"27", "18"}
@@ -136,7 +160,7 @@ def test_reconcile_migrate_drops_stale_rule_status(rmm):
         "16": {"last_result": "allowed"},
     }
 
-    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    _migrate(rm, mgr)
 
     assert "16" not in mgr.data["room_rule_status"][_VAC][_MAP]
 
@@ -176,7 +200,7 @@ def test_reconcile_migrate_empty_discovery_preserves(rmm):
         "16": {"room_id": 16, "name": "KITCHEN", "slug": "kitchen", "grants_access_to": []},
     })
     # No discovery cached for this map.
-    result = rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    result = _migrate(rm, mgr)
 
     assert result["skipped"] == "no_discovery"
     assert result["migrated_room_count"] == 0
@@ -198,7 +222,7 @@ def test_reconcile_migrate_id_reuse_no_settings_bleed(rmm):
         {"room_id": 20, "map_id": _MAP, "name": "KITCHEN", "slug": "kitchen"},
         {"room_id": 16, "map_id": _MAP, "name": "Closet", "slug": "closet"},
     ])
-    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    _migrate(rm, mgr)
     rooms = mgr.data["maps"][_VAC][_MAP]["rooms"]
     assert rooms["20"]["profile_name"] == "deep_clean"   # Kitchen carried to its new id
     # the new Closet on the freed id 16 did NOT inherit Kitchen's settings
@@ -237,7 +261,7 @@ def test_reconcile_migrate_drops_stale_rule_status_on_target_id(rmm):
         "20": {"last_result": "blocked"},          # the dropped room's stale snapshot (target)
     }
 
-    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    _migrate(rm, mgr)
 
     status = mgr.data["room_rule_status"][_VAC][_MAP]
     assert "16" not in status        # source purged (RR-4)
@@ -254,6 +278,6 @@ def test_reconcile_migrate_remaps_floor_type_confirmations(rmm):
                "grants_access_to": [], "enabled": True},
     })
     _seed_discovery(mgr, [{"room_id": 27, "map_id": _MAP, "name": "KITCHEN", "slug": "kitchen"}])
-    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    _migrate(rm, mgr)
     mgr.onboarding.remap_confirmed_floor_types.assert_called_once_with(
         vacuum_entity_id=_VAC, map_id=_MAP, id_remap={16: 27})

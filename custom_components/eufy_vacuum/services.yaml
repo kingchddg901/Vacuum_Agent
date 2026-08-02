@@ -120,6 +120,17 @@ reconcile_room:
         anyway for a genuine re-map that really did shrink the room count.
       required: false
       default: false
+    plan_token:
+      name: Plan token
+      description: >
+        Required for action=migrate (ignored for action=ignore). The
+        plan_token returned by discover_rooms alongside the reviews you are
+        confirming. Refused with plan_changed if the live discovery no longer
+        matches what that token fingerprints — re-run discover_rooms and
+        review again before retrying.
+      required: false
+      selector:
+        text: {}
       selector:
         boolean: {}
 

@@ -30,6 +30,8 @@ applies a confirmed migration (it owns the data dict).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from .utils import slugify_room_name
@@ -56,18 +58,31 @@ def compute_reconciliation(
     *,
     discovered_rooms: list[dict[str, Any]],
     existing_rooms: dict[str, Any] | None,
+    dismissed_at: str | None = None,
+    dismissed_plan_token: str | None = None,
 ) -> dict[str, Any]:
     """Return identity-shift reviews comparing discovery to stored rooms.
 
     Args:
         discovered_rooms: normalized discovery dicts (room_id:int, name, slug).
         existing_rooms:   the saved map bucket's ``rooms`` dict, keyed by id-str.
+        dismissed_at: when the user last dismissed this map's reviews (reconcile_room
+          action=ignore stamps it), or None if never dismissed.
+        dismissed_plan_token: the plan_token fingerprint of the reviews that were
+          dismissed. REC-7/RP-019: an identical review must not re-fire on every
+          discovery pass, but a GENUINELY new shift must still surface — so a
+          dismissal only suppresses while the fresh reviews fingerprint the SAME as
+          what was dismissed. Once discovery moves on, this token no longer matches
+          and the (new) reviews return normally.
 
     Returns:
         ``{"reviews": [ ... ], "has_changes": bool}`` where each review is one of:
           {"kind": "id_changed", "slug", "name", "old_id", "new_id"}
           {"kind": "renamed", "room_id", "old_slug", "new_slug",
            "old_name", "new_name"}
+          {"kind": "renamed_and_renumbered", "old_id", "new_id", "old_slug",
+           "new_slug", "old_name", "new_name"}
+        plus ``"dismissed": True`` when a dismissal suppressed an identical set.
     """
     existing_rooms = existing_rooms or {}
 
@@ -95,6 +110,8 @@ def compute_reconciliation(
     }
 
     reviews: list[dict[str, Any]] = []
+    matched_existing_slugs: set[str] = set()
+    unmatched_discovered: list[dict[str, Any]] = []
 
     for discovered in discovered_rooms:
         if not isinstance(discovered, dict):
@@ -107,6 +124,7 @@ def compute_reconciliation(
 
         slug_match = existing_by_slug.get(slug)
         if slug_match is not None:
+            matched_existing_slugs.add(slug)
             old_id = _coerce_int(slug_match.get("room_id"))
             if old_id is not None and old_id != new_id:
                 reviews.append(
@@ -125,18 +143,53 @@ def compute_reconciliation(
         id_match = existing_by_id.get(new_id)
         if id_match is not None:
             old_slug = _room_slug(id_match)
-            if old_slug and old_slug != slug and old_slug not in discovered_slugs:
-                reviews.append(
-                    {
-                        "kind": "renamed",
-                        "room_id": new_id,
-                        "old_slug": old_slug,
-                        "new_slug": slug,
-                        "old_name": str(id_match.get("name") or ""),
-                        "new_name": name,
-                    }
-                )
-        # Otherwise it's a brand-new room → drift owns it, no review here.
+            if old_slug:
+                matched_existing_slugs.add(old_slug)
+                if old_slug != slug and old_slug not in discovered_slugs:
+                    reviews.append(
+                        {
+                            "kind": "renamed",
+                            "room_id": new_id,
+                            "old_slug": old_slug,
+                            "new_slug": slug,
+                            "old_name": str(id_match.get("name") or ""),
+                            "new_name": name,
+                        }
+                    )
+            continue
+        # Neither slug nor id matched — brand-new, UNLESS it turns out to be the
+        # other half of a rename+renumber (see the singleton pairing below).
+        unmatched_discovered.append(discovered)
+
+    # REC-3 (RP-019): a room renamed AND renumbered in the same re-map matches
+    # NEITHER a slug nor an id, so it is invisible to both branches above. When
+    # exactly one existing room and exactly one discovered room are left
+    # unclaimed, they can only be each other — anything more than one on either
+    # side is genuinely ambiguous and is deliberately left unpaired (no auto
+    # changes without a confident match; drift/new-room handling takes it from
+    # there, same as any other unmatched room).
+    unmatched_existing = [
+        room for slug, room in existing_by_slug.items() if slug not in matched_existing_slugs
+    ]
+    if len(unmatched_existing) == 1 and len(unmatched_discovered) == 1:
+        old_room = unmatched_existing[0]
+        new_room = unmatched_discovered[0]
+        reviews.append(
+            {
+                "kind": "renamed_and_renumbered",
+                "old_id": _coerce_int(old_room.get("room_id")),
+                "new_id": _coerce_int(new_room.get("room_id")),
+                "old_slug": _room_slug(old_room),
+                "new_slug": _room_slug(new_room),
+                "old_name": str(old_room.get("name") or ""),
+                "new_name": str(new_room.get("name") or "").strip(),
+            }
+        )
+
+    if dismissed_at is not None and reviews and dismissed_plan_token is not None:
+        fresh_token = compute_plan_token(reviews=reviews, discovered_rooms=discovered_rooms)
+        if fresh_token == dismissed_plan_token:
+            return {"reviews": [], "has_changes": False, "dismissed": True}
 
     return {"reviews": reviews, "has_changes": bool(reviews)}
 
@@ -198,6 +251,7 @@ def plan_migration(
     new_rooms: dict[str, dict[str, Any]] = {}
     id_remap: dict[int, int] = {}
     carried_slugs: set[str] = set()
+    unmatched_discovered: list[tuple[int, str, dict[str, Any]]] = []
 
     for discovered in discovered_rooms:
         if not isinstance(discovered, dict):
@@ -211,7 +265,9 @@ def plan_migration(
         if source is None and new_id not in consumed_old_ids:
             source = existing_by_id.get(new_id)
         if source is None:
-            # No durable data for this discovered room — it's new; not migrated.
+            # No durable data for this discovered room YET — see the REC-3 pairing
+            # below before concluding it's genuinely new.
+            unmatched_discovered.append((new_id, slug, discovered))
             continue
 
         old_id = _coerce_int(source.get("room_id"))
@@ -226,6 +282,27 @@ def plan_migration(
             source_slug = _room_slug(source)
             if source_slug:
                 carried_slugs.add(source_slug)
+
+    # REC-3 (RP-019): mirrors compute_reconciliation's singleton pairing — a room
+    # renamed AND renumbered in the same re-map matches neither by slug nor by id,
+    # so without this it is reported dropped (settings lost) and its new id
+    # treated as a brand-new room. When exactly one existing room and exactly one
+    # discovered room are left unclaimed, carry the old room's durable settings
+    # onto the new id rather than losing them; anything more than one on either
+    # side is ambiguous and is left as a genuine drop/new-room pair.
+    leftover_existing_slugs = [s for s in existing_by_slug if s not in carried_slugs]
+    if len(leftover_existing_slugs) == 1 and len(unmatched_discovered) == 1:
+        source = existing_by_slug[leftover_existing_slugs[0]]
+        new_id, slug, discovered = unmatched_discovered[0]
+        old_id = _coerce_int(source.get("room_id"))
+        carried = dict(source)
+        carried["room_id"] = new_id
+        carried["name"] = str(discovered.get("name") or source.get("name") or "")
+        carried["slug"] = slug
+        new_rooms[str(new_id)] = carried
+        if old_id is not None and old_id != new_id:
+            id_remap[old_id] = new_id
+        carried_slugs.add(leftover_existing_slugs[0])
 
     # Rewrite grants through the old->new id remap; drop targets that no longer
     # resolve to a carried room (their room was dropped in the re-map).
@@ -251,3 +328,21 @@ def plan_migration(
     )
 
     return {"rooms": new_rooms, "id_remap": id_remap, "dropped": dropped}
+
+
+def compute_plan_token(
+    *, reviews: list[dict[str, Any]], discovered_rooms: list[dict[str, Any]]
+) -> str:
+    """Deterministic fingerprint of a reconciliation review + the discovery it was
+    computed from (REC-5/RP-019).
+
+    ``reconcile_room`` recomputes this fresh from the CURRENT discovery/existing
+    rooms at confirm time and compares it against the token the caller reviewed —
+    never trusting a value cached at discover time, so this also catches a
+    discovery snapshot changed by any means, not only a repeat ``discover_rooms``
+    call. A mismatch means the plan on screen is not the plan that would apply.
+    """
+    canonical = json.dumps(
+        {"reviews": reviews, "rooms": discovered_rooms}, sort_keys=True, default=str
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]

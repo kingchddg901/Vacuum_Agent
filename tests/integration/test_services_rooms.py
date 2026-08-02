@@ -24,9 +24,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 import voluptuous as vol
 
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
+from custom_components.eufy_vacuum.rooms.reconciliation import (
+    compute_plan_token,
+    compute_reconciliation,
+)
 from custom_components.eufy_vacuum.services.rooms import (
     _SAVE_MANAGED_ROOMS_SCHEMA,
     _UPDATE_ROOM_FIELDS_SCHEMA,
@@ -271,6 +275,20 @@ async def test_reconcile_handler_raises(rmock):
         await _handle_reconcile_room(hass, _c(action="migrate"))
 
 
+async def test_reconcile_handler_converts_token_refusal(rmock):
+    """[SR-8b] RP-019/REC-5: a structured plan_token refusal from the manager
+    surfaces as ServiceValidationError (caller-error, Q9), not a bare pass-through
+    and not the internal-failure HomeAssistantError SR-8 covers."""
+    hass, mgr = rmock
+    mgr.reconcile_room.return_value = {
+        "vacuum_entity_id": "vacuum.alfred", "map_id": "6", "action": "migrate",
+        "migrated_room_count": 0, "id_remap": {}, "dropped": [], "skipped": "plan_changed",
+    }
+    with pytest.raises(ServiceValidationError, match="plan_changed"):
+        await _handle_reconcile_room(hass, _c(action="migrate", plan_token="stale"))
+    mgr.async_save.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # [SR-9] update_room_fields color validator (_hex_color_or_none)
 #
@@ -390,21 +408,29 @@ async def test_reconcile_room_migrate_force_passthrough(hass, manager_with_servi
     manager_with_services.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
         "rooms": stored
     }
-    seed_discovery(
-        manager_with_services, _VAC, _MAP,
-        [{"room_id": 1, "map_id": _MAP, "name": "Room 1", "slug": "room-1"}],
+    discovered = [{"room_id": 1, "map_id": _MAP, "name": "Room 1", "slug": "room-1"}]
+    seed_discovery(manager_with_services, _VAC, _MAP, discovered)
+    # RP-019/REC-5: reconcile_room requires a plan_token matching the current
+    # discovery/existing rooms — a valid one here so this test still exercises the
+    # force/partial-discovery passthrough, not the token gate (SR-8b covers that).
+    token = compute_plan_token(
+        reviews=compute_reconciliation(
+            discovered_rooms=discovered, existing_rooms=stored,
+        )["reviews"],
+        discovered_rooms=discovered,
     )
 
     refused = await hass.services.async_call(
         DOMAIN, "reconcile_room",
-        {"vacuum_entity_id": _VAC, "map_id": _MAP, "action": "migrate"},
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "action": "migrate", "plan_token": token},
         blocking=True, return_response=True,
     )
     assert refused["skipped"] == "partial_discovery_refused"
 
     forced = await hass.services.async_call(
         DOMAIN, "reconcile_room",
-        {"vacuum_entity_id": _VAC, "map_id": _MAP, "action": "migrate", "force": True},
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "action": "migrate", "force": True,
+         "plan_token": token},
         blocking=True, return_response=True,
     )
     assert forced.get("skipped") is None
