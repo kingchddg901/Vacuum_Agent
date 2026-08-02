@@ -20,6 +20,7 @@ import {
 import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 import { dashboardSuggestion } from "./card-suggestions.js";
+import { canZoneRepeat } from "./zone-repeat.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
@@ -314,6 +315,13 @@ class EufyDashboardCard extends HTMLElement {
     return (typeof m === "number" && m > 0) ? m : ZONE_MAX_FALLBACK;
   }
 
+  // CARD-6 clause 2 (Q12): the 1x/2x repeat chips render only when the
+  // snapshot declares the capability. See zone-repeat.js for why this is
+  // unconditionally false today.
+  _canZoneRepeat() {
+    return canZoneRepeat(this._snapshot);
+  }
+
   _mapRotation() { return normRotation(this._snapshot?.live_map_rotation ?? 0); }
 
   _sceneEntityId() {
@@ -554,8 +562,10 @@ class EufyDashboardCard extends HTMLElement {
         <div class="zone-bar">
           <span class="zone-hint">${n ? this.t("vacuum_card.zones_drawn", { count: n }) : this.t("vacuum_card.zones_hint")}${atCap ? ` · ${this.t("vacuum_card.zones_at_cap")}` : ""}</span>
           <span class="spacer"></span>
-          <button class="chip ${this._cleanTimes === 1 ? "active" : ""}" id="zone-times-1">1×</button>
-          <button class="chip ${this._cleanTimes === 2 ? "active" : ""}" id="zone-times-2">2×</button>
+          ${this._canZoneRepeat() ? `
+            <button class="chip ${this._cleanTimes === 1 ? "active" : ""}" id="zone-times-1">1×</button>
+            <button class="chip ${this._cleanTimes === 2 ? "active" : ""}" id="zone-times-2">2×</button>
+          ` : ""}
           ${n ? `<button class="btn" id="zone-clear">${this.t("vacuum_card.zones_clear")}</button>` : ""}
           <button class="btn btn-start" id="zone-clean" ${(!n || this._cleaningZones) ? "disabled" : ""}>
             ${this._cleaningZones ? `<span class="spin">↻</span> ` : ""}${this.t("vacuum_card.zones_clean", { count: n })}
