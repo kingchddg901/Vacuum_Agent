@@ -289,13 +289,42 @@ def test_advance_phase_cumulative_dedupes_and_keeps_order():
 
 @pytest.mark.parametrize("junk", [None, "x", -1, 0, {"room_id": 1}])
 def test_advance_phase_cumulative_ignores_unusable_ids(junk):
-    """[QE-13c] non-positive / non-integer entries are dropped, not crashed on."""
+    """[QE-13c] non-positive / non-integer entries are dropped, not crashed on.
+
+    Order pins the ladder: rolled-over rooms first, then the finishing phase's own
+    resolved rooms (room 1 from _phased's phase 0)."""
     nxt = advance_active_job_phase(_phased([junk, 4]))
-    assert nxt["completed_room_ids_cumulative"] == [4]
+    assert nxt["completed_room_ids_cumulative"] == [4, 1]
 
 
 def test_advance_phase_cumulative_absent_key_is_safe():
     """[QE-13c] a job written before this landed has no cumulative key."""
     job = _phased([1])
     job.pop("completed_room_ids_cumulative", None)
+    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
+
+
+def test_advance_phase_cumulative_includes_the_finished_phases_own_rooms():
+    """[QE-13c] a single-room phase ends by ADVANCE, not by a rollover, so
+    record_completed_room never fires and completed_room_ids is empty here. Without the
+    phase's own queue_room_ids it would contribute nothing at all (alfred
+    job_2026-08-02T01-31-46: cumulative stayed [] through a completed kitchen phase)."""
+    job = _phased([])                      # nothing rolled over
+    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
+
+
+def test_advance_phase_cumulative_credits_only_the_finished_phase():
+    """[QE-13c] the job's top-level queue_room_ids is the WHOLE queue until the first
+    advance rewrites it. Crediting that would mark rooms 2 and 3 completed the moment
+    phase 1 finished. Only phases[idx]'s own resolved rooms count."""
+    job = _phased([])
+    job["queue_room_ids"] = [1, 2, 3]      # the whole job, as built pre-advance
+    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
+
+
+def test_advance_phase_cumulative_ignores_a_break_phases_empty_room_set():
+    """[QE-13c] a charge_wait/wait phase carries no rooms, so it contributes nothing."""
+    job = _phased([], cumulative=[1], idx=1)
+    job["phases"][1] = {"resolved_rooms": [], "room_count": 0,
+                        "phase_type": "charge_wait"}
     assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]

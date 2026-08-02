@@ -480,15 +480,36 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     # Append-only and de-duplicated, order preserved: a room is evidence that it was
     # cleaned during THIS job, and a later phase re-listing it must not duplicate it.
     _cumulative: list[int] = []
-    for _key in ("completed_room_ids_cumulative", "completed_room_ids"):
-        _raw = active_job.get(_key)
-        for _v in _raw if isinstance(_raw, list) else []:
+
+    def _add(values) -> None:
+        for _v in values if isinstance(values, list) else []:
             try:
                 _rid = int(_v)
             except (TypeError, ValueError):
                 continue
             if _rid > 0 and _rid not in _cumulative:
                 _cumulative.append(_rid)
+
+    _add(active_job.get("completed_room_ids_cumulative"))
+    _add(active_job.get("completed_room_ids"))
+    # The FINISHING PHASE'S OWN resolved rooms. This function is only reached from the
+    # completion hook — a phase that did not finish is finalized, never advanced — so
+    # reaching this line means these rooms were cleaned. Without it a single-room phase
+    # contributes nothing: it ends by phase advance rather than by a rollover, so
+    # record_completed_room never fires and completed_room_ids is still empty here
+    # (alfred job_2026-08-02T01-31-46: cumulative stayed [] through a completed kitchen).
+    #
+    # Read from phases[idx], NOT the job's top-level queue_room_ids. That top-level list
+    # is the whole job's queue until the first advance rewrites it, so crediting it would
+    # mark every room in the job completed the moment phase 1 finished — including rooms
+    # that never ran. _proof_completed_evidence caught exactly that as UNEXPECTED while
+    # the full suite stayed green. A break phase has no resolved_rooms, so it adds
+    # nothing.
+    _finishing = phases[idx] if isinstance(phases[idx], dict) else {}
+    _add([
+        r.get("room_id") for r in _finishing.get("resolved_rooms", [])
+        if isinstance(r, dict)
+    ])
     advanced["completed_room_ids_cumulative"] = _cumulative
     # Reset per-phase progress — the next phase is a fresh atomic sub-job.
     advanced["completed_room_ids"] = []

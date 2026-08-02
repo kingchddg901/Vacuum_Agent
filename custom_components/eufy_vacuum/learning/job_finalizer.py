@@ -33,6 +33,7 @@ from .utils import (
     cleaning_area_to_m2,
     compute_overhead_observed,
     evaluate_idle_wall_hold,
+    known_completed_room_ids,
 )
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
@@ -1642,42 +1643,15 @@ class LearningJobFinalizer:
                 if _safe_int(r, -1) > 0
             ]
 
-            # RP-013c/RF-11: completed evidence is the UNION of three sources, because
-            # no single one survives a phased run.
-            #   - completed_room_ids        the CURRENT phase only; advance_active_job_phase
-            #                               empties it by design (fresh atomic sub-job)
-            #   - ..._cumulative            every earlier phase, carried across the resets
-            #   - room_timings              rooms whose phase finished but whose completion
-            #                               the rollover never rolled (clause 3)
-            # Reading only the first is what made a 3-phase run cancelled in phase 2 report
-            # phase 1's cleaned rooms as missed. Hardware: alfred job_2026-08-02T00-08-10
-            # logged completed [] / missed [5, 8] while its room_timings held kitchen at 120 s.
-            active_completed: list[int] = []
-            if isinstance(active_job_state, dict):
-                for _key in ("completed_room_ids_cumulative", "completed_room_ids"):
-                    raw = active_job_state.get(_key) or []
-                    if isinstance(raw, list):
-                        for r in raw:
-                            rid = _safe_int(r, -1)
-                            if rid > 0 and rid not in active_completed:
-                                active_completed.append(rid)
-
-            # Clause 3 — final-room honesty. A captured room_timing means the phase FINISHED
-            # (_capture_finishing_phase_timing only runs on a finishing phase), so the room
-            # was cleaned even when the job was cancelled before the rollover recorded it.
-            # Deliberately strict per the packet's REVIEW pin -- NO SYNTHESIS OF COMPLETION:
-            # a positive cleaning_seconds is required, so an interrupted room that never
-            # accrued time stays missed. Erring toward "missed" only costs a redundant
-            # re-clean; erring toward "completed" silently drops a room the user asked for.
+            # RP-013c/RF-11: three sources, one helper -- see known_completed_room_ids.
+            # This site and build_completed_job_payload MUST both use it; when they had
+            # their own ladders the archived record and the incomplete-run log disagreed
+            # about the same job (alfred job_2026-08-02T01-31-46).
             _job_block = completed_job.get("job")
-            for _t in (_job_block.get("room_timings") or []) if isinstance(_job_block, dict) else []:
-                if not isinstance(_t, dict):
-                    continue
-                rid = _safe_int(_t.get("room_id", -1), -1)
-                if rid > 0 and rid not in active_completed and _safe_float(
-                    _t.get("cleaning_seconds"), 0.0
-                ) > 0:
-                    active_completed.append(rid)
+            active_completed = known_completed_room_ids(
+                active_job_state,
+                _job_block.get("room_timings") if isinstance(_job_block, dict) else None,
+            )
 
             missed_room_ids = sorted(set(queued_room_ids) - set(active_completed))
 

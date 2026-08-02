@@ -903,3 +903,17 @@ def test_overlapping_rooms_on_a_different_map_do_not_clear(finalizer):
     )
     log = finalizer.store.load_incomplete_run(vacuum_entity_id=_VAC_13C)
     assert sorted(log["missed_room_ids"]) == [5, 6]
+
+
+def test_log_and_archive_agree_on_completed_rooms(finalizer):
+    """[JF-13c] the incomplete-run log and the archived record must not disagree about
+    the same job. They computed completed evidence separately once, and alfred
+    job_2026-08-02T01-31-46 shipped with log=[5] and queue.completed_room_ids=[]."""
+    from custom_components.eufy_vacuum.learning.utils import known_completed_room_ids
+
+    timings = [{"room_id": 5, "cleaning_seconds": 60}]
+    state = {"completed_room_ids": []}
+    written = _write(finalizer, _cancelled([5, 8], timings=timings), state)
+
+    assert sorted(written["completed_room_ids"]) == [5]
+    assert known_completed_room_ids(state, timings) == [5]

@@ -37,7 +37,13 @@ _LOGGER = logging.getLogger(__name__)
 from homeassistant.core import HomeAssistant
 from ..step_types import phase_capture_is_valid
 from ..timestamp_utils import parse_timestamp
-from .utils import _iso_now, _safe_bool, _safe_float, _safe_int
+from .utils import (
+    _iso_now,
+    _safe_bool,
+    _safe_float,
+    _safe_int,
+    known_completed_room_ids,
+)
 
 DOMAIN = "eufy_vacuum"
 LEARNING_ROOT = "eufy_vacuum/learning"
@@ -863,15 +869,6 @@ class LearningHistoryStore:
         else:
             _queue_room_ids = []
             _queue_rooms = []
-        _completed_room_ids: list[int] = []
-        if isinstance(active_job_state, dict):
-            for _key in ("completed_room_ids_cumulative", "completed_room_ids"):
-                _raw = active_job_state.get(_key)
-                for _v in _raw if isinstance(_raw, list) else []:
-                    _rid = _safe_int(_v, -1)
-                    if _rid > 0 and _rid not in _completed_room_ids:
-                        _completed_room_ids.append(_rid)
-
         _queue_block = {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": (
@@ -885,10 +882,10 @@ class LearningHistoryStore:
             # reconstructible. It lived only on the in-memory active job, which is torn
             # down at finalize -- so after the fact there was no way to tell a room that
             # was cleaned before a cancel from one that never ran, and the incomplete-run
-            # log (a separate, overwritten-per-run store) was the only witness. Union of
-            # every phase, same ladder the finalizer uses. Additive: readers tolerate
-            # absence on records written before this landed.
-            "completed_room_ids": _completed_room_ids,
+            # log (a separate, overwritten-per-run store) was the only witness. Filled in
+            # below once room_timings exist, via the SAME helper the finalizer uses.
+            # Additive: readers tolerate absence on records written before this landed.
+            "completed_room_ids": [],
         }
 
         queue_rooms = queue_state.get("queue_rooms", []) if isinstance(queue_state, dict) else []
@@ -1192,7 +1189,16 @@ class LearningHistoryStore:
                 "recharge_seconds_accumulated": recharge_seconds_accumulated,
             },
             "water": water_estimate if isinstance(water_estimate, dict) else {},
-            "queue": _queue_block,
+            "queue": {
+                **_queue_block,
+                # Filled HERE rather than where _queue_block is built, because the third
+                # evidence source (room_timings) does not exist until further down. The
+                # helper is shared with the finalizer's incomplete-run log on purpose:
+                # when the two computed it separately they disagreed about the same job.
+                "completed_room_ids": known_completed_room_ids(
+                    active_job_state, room_timings
+                ),
+            },
             "payload": (
                 # Brand-agnostic "is this payload populated?" check — room_count
                 # is set by every dispatch engine, vs. the old literal "rooms"

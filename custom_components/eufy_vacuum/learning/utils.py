@@ -264,3 +264,50 @@ def evaluate_idle_wall_hold(
     if idle_gap >= floor_minutes:
         return {"hold": True, "idle_gap_minutes": idle_gap, "reason": IDLE_WALL_HOLD_BLOCKER}
     return {"hold": False, "idle_gap_minutes": idle_gap, "reason": None}
+
+
+def known_completed_room_ids(
+    active_job_state: Any, room_timings: Any = None
+) -> list[int]:
+    """Which rooms of this job are KNOWN to have been cleaned.
+
+    RP-013c/RF-11. THE ONE PLACE that answers this question. It has three sources and
+    no single one survives a phased run, which is how the original defect arose:
+
+      completed_room_ids            the CURRENT phase only. advance_active_job_phase
+                                    empties it by design -- each phase is a fresh
+                                    atomic sub-job, and that divergence is deliberate.
+      ..._cumulative                every earlier phase, carried across those resets.
+      room_timings                  rooms whose phase FINISHED but whose completion no
+                                    rollover recorded. A single-room phase ends by phase
+                                    advance rather than by a rollover, so
+                                    record_completed_room never fires for it and this is
+                                    the ONLY witness that the room was cleaned.
+
+    Landed 2026-08-02 with the finalizer consuming all three and
+    build_completed_job_payload consuming only the first two. On alfred
+    job_2026-08-02T01-31-46 that put kitchen in the incomplete-run log as completed and
+    left the archived record's queue.completed_room_ids empty -- the record's two halves
+    disagreeing, the same defect class RP-013d had just fixed one field over. Hence one
+    helper: the question is centralized, not the vocabulary.
+
+    A timing counts only with POSITIVE cleaning_seconds -- the packet's REVIEW pin
+    forbids synthesizing completion. Erring toward "missed" costs a redundant re-clean;
+    erring toward "completed" silently drops a room the user asked for.
+    """
+    out: list[int] = []
+    if isinstance(active_job_state, dict):
+        for key in ("completed_room_ids_cumulative", "completed_room_ids"):
+            raw = active_job_state.get(key)
+            for value in raw if isinstance(raw, list) else []:
+                rid = _safe_int(value, -1)
+                if rid > 0 and rid not in out:
+                    out.append(rid)
+
+    for timing in room_timings if isinstance(room_timings, list) else []:
+        if not isinstance(timing, dict):
+            continue
+        rid = _safe_int(timing.get("room_id", -1), -1)
+        if rid > 0 and rid not in out and _safe_float(timing.get("cleaning_seconds"), 0.0) > 0:
+            out.append(rid)
+    return out
