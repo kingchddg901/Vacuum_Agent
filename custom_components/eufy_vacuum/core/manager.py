@@ -632,7 +632,8 @@ class EufyVacuumManager:
 
     def register_room_update_callback(self, callback) -> None:
         """Register a callback to fire when rooms are updated."""
-        self._room_update_callbacks.append(callback)
+        if callback not in self._room_update_callbacks:
+            self._room_update_callbacks.append(callback)
 
     def unregister_room_update_callback(self, callback) -> None:
         """Unregister a room update callback."""
@@ -641,7 +642,8 @@ class EufyVacuumManager:
 
     def register_run_profile_update_callback(self, callback) -> None:
         """Register a callback to fire when saved run profiles are updated."""
-        self._run_profile_update_callbacks.append(callback)
+        if callback not in self._run_profile_update_callbacks:
+            self._run_profile_update_callbacks.append(callback)
 
     def unregister_run_profile_update_callback(self, callback) -> None:
         """Unregister a saved run profile update callback."""
@@ -650,7 +652,8 @@ class EufyVacuumManager:
 
     def register_room_history_update_callback(self, callback) -> None:
         """Register a callback to fire when per-room cleaning history updates."""
-        self._room_history_update_callbacks.append(callback)
+        if callback not in self._room_history_update_callbacks:
+            self._room_history_update_callbacks.append(callback)
 
     def unregister_room_history_update_callback(self, callback) -> None:
         """Unregister a room history update callback."""
@@ -659,7 +662,8 @@ class EufyVacuumManager:
 
     def register_room_rule_status_update_callback(self, callback) -> None:
         """Register a callback to fire when per-room rule status updates."""
-        self._room_rule_status_update_callbacks.append(callback)
+        if callback not in self._room_rule_status_update_callbacks:
+            self._room_rule_status_update_callbacks.append(callback)
 
     def unregister_room_rule_status_update_callback(self, callback) -> None:
         """Unregister a room rule status update callback."""
@@ -1121,9 +1125,17 @@ class EufyVacuumManager:
         same vacuum recovers its history/maps (delete those dirs by hand for a
         clean wipe).
 
+        CB-4: fires every registered room/run-profile/room-history/room-rule-
+        status/theme update callback for each map this vacuum had, so live
+        entities (switch.py, number.py, sensor/__init__.py) drop their
+        cached references to the removed vacuum immediately rather than
+        only self-correcting on the next reload -- mirroring the
+        notification obligation ``remove_map``'s callers already honour.
+
         Returns ``{"vacuum_entity_id", "removed_buckets"}``.
         """
         removed: list[str] = []
+        map_ids = list(self.data.get("maps", {}).get(vacuum_entity_id, {}) or {})
         for key, bucket in list(self.data.items()):
             if isinstance(bucket, dict) and vacuum_entity_id in bucket:
                 bucket.pop(vacuum_entity_id, None)
@@ -1140,6 +1152,14 @@ class EufyVacuumManager:
                     and nested.pop(vacuum_entity_id, None) is not None
                 ):
                     removed.append(f"{parent_key}.vacuums")
+
+        for map_id in map_ids:
+            self._notify_rooms_updated(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            self._notify_run_profiles_updated(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            self._notify_room_history_updated(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            self._notify_room_rule_status_updated(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        self.themes._notify_updated(vacuum_entity_id=vacuum_entity_id)
+
         return {"vacuum_entity_id": vacuum_entity_id, "removed_buckets": removed}
 
     def get_managed_vacuums(self) -> dict[str, Any]:
@@ -3019,7 +3039,18 @@ class EufyVacuumManager:
                 "confirm_token": preflight.get("confirm_token"),
             }
 
-        runtime.start_block_reason = str(preflight.get("reason") or result["reason"])
+        # START-3: preflight's own "ready" sentinel (nothing wrong at the
+        # room-selection level) must not shadow a genuine non-blocking
+        # lifecycle warning carried in `result` (e.g. dock_drying) -- only a
+        # preflight reason/message OTHER than "ready" should take priority
+        # over the lifecycle blocker's own text.
+        _preflight_reason = preflight.get("reason")
+        _preflight_message = preflight.get("message")
+        if _preflight_reason == "ready":
+            _preflight_reason = None
+            _preflight_message = None
+
+        runtime.start_block_reason = str(_preflight_reason or result["reason"])
         water_estimate = self.get_planned_job_estimate(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
@@ -3048,9 +3079,9 @@ class EufyVacuumManager:
             "lifecycle_state": lifecycle_state["lifecycle_state"],
             "lifecycle_state_label": _display_label(lifecycle_state["lifecycle_state"]),
             "lifecycle_message": lifecycle_state["message"],
-            "reason": water_reason or preflight.get("reason") or result["reason"],
-            "reason_label": _display_label(water_reason or preflight.get("reason") or result["reason"]),
-            "message": water_message or preflight.get("message") or result["message"],
+            "reason": water_reason or _preflight_reason or result["reason"],
+            "reason_label": _display_label(water_reason or _preflight_reason or result["reason"]),
+            "message": water_message or _preflight_message or result["message"],
             "blocked": False,
             "warning": bool(result.get("warning", False) or water_warning or preflight.get("warnings") or preflight.get("requires_confirmation", False)),
             "water_warning": water_warning,
