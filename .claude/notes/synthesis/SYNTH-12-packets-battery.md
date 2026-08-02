@@ -393,8 +393,10 @@ required_behavior: >
   "unknown") and eufy_error_invalidates_cleaning() (bool). Both source sets explicit;
   unknown never invalidates. The evidence-safe exceptions are a named 19-code set so the
   judgment calls are visible, not spread across 200 rows. 54 tests.
-  (2) the finalizer subtracts only error seconds whose code
-  invalidates_cleaning_evidence. Everything else is REPORTED, never subtracted.
+  (2) DONE: the finalizer subtracts only error seconds whose code invalidates the run's
+  cleaning evidence. Everything else is REPORTED, never subtracted. Core asks
+  classify_error_code(); the adapter answers from two declared sets. Reproducer
+  _proof_dock_fault_seconds.py drives the ARCHIVED record's own latch -> 2 AFTER.
   (3) NO TIMELINE CORRELATION. An earlier draft resolved dimension two at runtime --
   "was the robot cleaning when this fired?" -- and it is rejected: the fault timestamp is
   when Eufy SURFACED the fault, not when it occurred, so the correlation is unsound at
@@ -429,7 +431,15 @@ stop_conditions: [a code whose source is genuinely ambiguous -- add it to NEITHE
 escalation_target: main agent -> Chris
 ```
 
-> **The table has ZERO consumers until clause (2) lands.** Stated rather than left to be
+> **UPSTREAM CANNOT REACH THIS BUG YET.** The triggering data does not exist on a stock
+> eufy-clean install: the parser reads only `warn[0]` and discards `error[]`, timestamps,
+> `new_code` and the obstacle reminder. Chris's PR jeppesens/eufy-clean#161 is what
+> surfaces them, and it is still open. So this is a FUTURE-FACING repair -- the downstream
+> semantic defect is fixed before the upstream capability that exposes it ships. Two
+> consequences: severity is real but not yet user-facing, and the reproducer must stay
+> driven by the archived record rather than by anything a stock install can produce.
+>
+> **Historical note, now resolved: the table had ZERO consumers until clause (2) landed.** Stated rather than left to be
 > discovered: this is the same reachability trap as the card-cancel bypass
 > [[feedback_audit_callsite_reachability]], and naming it is the only thing that stops it
 > repeating. `eufy_error_source` is dead code today, deliberately, for exactly one packet.

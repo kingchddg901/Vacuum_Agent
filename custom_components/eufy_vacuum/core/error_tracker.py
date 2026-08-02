@@ -158,6 +158,61 @@ def _error_tracking_cfg(vacuum_entity_id: str) -> dict[str, Any]:
     return {}
 
 
+def classify_error_code(vacuum_entity_id: str, code: Any) -> str:
+    """Does this fault invalidate the run's cleaning evidence?
+
+    Returns "invalidating", "safe", or "unclassified". RF-DOCK.
+
+    Error seconds are subtracted from cleaning_time_seconds, so a fault the robot worked
+    straight through silently zeroes a productive run. Observed live: five dock-side
+    STATION CLEAN WATER PUMP SHORT faults charged 455 s against a 360 s / 4 m2 clean
+    (alfred job_2026-08-01T23-23-35), and used_for_learning was true -- the model learned
+    that 4 m2 takes no time.
+
+    CORE ASKS THE QUESTION, THE ADAPTER ANSWERS IT. The two sets come from
+    ``error_tracking.evidence_invalidating_error_codes`` / ``evidence_safe_error_codes``.
+    Core never learns a brand's codes [[feedback_eufy_ism_leak_layers]].
+
+    UNCLASSIFIED IS A REAL ANSWER AND IS PRESERVED, not subtracted. A brand that declares
+    nothing therefore keeps every run's cleaning time intact -- the failure mode degrades
+    toward "trust the run" instead of toward zero, and a code the vendor adds after the
+    table was written cannot resurrect the incident above.
+    """
+    rid = _exact_int(code)
+    if rid is None:
+        return "unclassified"
+    cfg = _error_tracking_cfg(vacuum_entity_id)
+    if rid in _int_set(cfg.get("evidence_invalidating_error_codes")):
+        return "invalidating"
+    if rid in _int_set(cfg.get("evidence_safe_error_codes")):
+        return "safe"
+    return "unclassified"
+
+
+def _int_set(value: Any) -> frozenset[int]:
+    """Coerce a declared code list to ints, dropping anything unusable."""
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return frozenset()
+    out = {rid for rid in (_exact_int(v) for v in value) if rid is not None}
+    return frozenset(out)
+
+
+def _exact_int(value: Any) -> int | None:
+    """Exact integers only. NEVER int(): int(3.7) is 3, which is a real Eufy code (SIDE
+    BRUSH STUCK), so a malformed reading would classify as a genuine fault and be
+    subtracted. bool is an int subclass, so True would otherwise resolve to code 1."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
 def _safe_int(value: Any) -> int | None:
     try:
         return int(value)

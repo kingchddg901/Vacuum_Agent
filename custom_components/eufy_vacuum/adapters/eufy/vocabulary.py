@@ -548,3 +548,23 @@ def _exact_error_code(code: object) -> int | None:
         except (TypeError, ValueError):
             return None
     return None
+
+
+# The two sets CORE consumes. Core asks exactly one question -- "does this fault mean the
+# run's cleaning evidence cannot be trusted?" -- and the adapter answers it. Core never
+# learns an Eufy code [[feedback_eufy_ism_leak_layers]]; the derivation lives here.
+#
+# Declared as two sets rather than one so a code in NEITHER is visibly unclassified. With
+# a single set, an unrecognised fault would be indistinguishable from a deliberately-safe
+# one, and the whole point of this table is that unknown must be a real answer.
+
+#: Faults after which the run's cleaning evidence cannot be trusted. Core subtracts these.
+EUFY_EVIDENCE_INVALIDATING_ERROR_CODES: frozenset[int] = (
+    EUFY_ROBOT_SOURCED_ERROR_CODES - EUFY_EVIDENCE_SAFE_ROBOT_CODES
+)
+
+#: Faults that leave the floor work valid -- every station fault, plus the robot faults
+#: that bracket the clean rather than interrupt it. Core preserves these.
+EUFY_EVIDENCE_SAFE_ERROR_CODES: frozenset[int] = (
+    EUFY_DOCK_SOURCED_ERROR_CODES | EUFY_EVIDENCE_SAFE_ROBOT_CODES
+)

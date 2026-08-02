@@ -634,6 +634,31 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Default: 'Unknown error during run'."
                 ),
             },
+            "evidence_invalidating_error_codes": {
+                "type": "list[int]",
+                "required": False,
+                "description": (
+                    "Error codes after which the run's cleaning evidence "
+                    "cannot be trusted. ONLY these are deducted from "
+                    "cleaning_time_seconds. A brand that omits this deducts "
+                    "nothing — the failure mode degrades toward trusting the "
+                    "run rather than toward zeroing it."
+                ),
+            },
+            "evidence_safe_error_codes": {
+                "type": "list[int]",
+                "required": False,
+                "description": (
+                    "Error codes that leave the floor work valid — station "
+                    "faults the robot cleaned straight through, and robot "
+                    "faults that bracket the clean (docking, undocking) "
+                    "rather than interrupt it. Declared SEPARATELY from the "
+                    "invalidating list so a code in neither is visibly "
+                    "unclassified: unknown must stay distinguishable from "
+                    "deliberately-safe, or a code the vendor ships after this "
+                    "table was written silently changes the arithmetic."
+                ),
+            },
         },
     },
 

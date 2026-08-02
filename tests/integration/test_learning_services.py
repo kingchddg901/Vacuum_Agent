@@ -1531,11 +1531,26 @@ async def test_finalize_with_error_tracker_harvests_latch(hass, learning_service
 # ---------------------------------------------------------------------------
 
 async def test_finalize_error_seconds_exceeds_cleaning_time(hass, learning_services):
-    """[LS-29] total_error_seconds > cleaning_time_seconds → adjusted value clamped to 0 (lines 645-660)."""
+    """[LS-29] deductible error seconds > cleaning_time_seconds → clamped to 0.
+
+    RF-DOCK amended this test. It used to carry a code-less error entry, because the
+    deduction was flat: every error second came off cleaning time regardless of whose
+    fault it was. That is the defect RP-046 repairs, so the entry now carries a code
+    that genuinely invalidates the run's cleaning evidence (2112 ROLLER BRUSH
+    OVERCURRENT) and the adapter declares the table core reads. The CLAMP is still
+    real behaviour and still worth pinning; what changed is what reaches it.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
     from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
     from custom_components.eufy_vacuum.core.error_tracker import ErrorTracker
     from custom_components.eufy_vacuum.learning.services import _get_learning_manager
 
+    register_adapter_config(_VAC, {
+        "error_tracking": {
+            "evidence_invalidating_error_codes": [2112],
+            "evidence_safe_error_codes": [6013],
+        },
+    })
     tracker = ErrorTracker(hass, runtime_manager=learning_services)
     hass.data.setdefault(DOMAIN, {})[DATA_ERROR_TRACKER] = tracker
     record = tracker._ensure_record(_VAC)
@@ -1543,7 +1558,7 @@ async def test_finalize_error_seconds_exceeds_cleaning_time(hass, learning_servi
     record["active_run_error"] = {
         "error_count": 1,
         "errors": [
-            {"captured_at": "2026-01-01T09:00:00+00:00", "recovered_at": "2026-01-01T09:06:40+00:00"},
+            {"code": 2112, "captured_at": "2026-01-01T09:00:00+00:00", "recovered_at": "2026-01-01T09:06:40+00:00"},
         ],
     }
     _seed_active_job(learning_services, _VAC, _MAP, last_cleaning_time_seconds=300)
@@ -1567,6 +1582,104 @@ async def test_finalize_error_seconds_exceeds_cleaning_time(hass, learning_servi
     job = result.get("completed_job", {}).get("job", {})
     # clamped to 0 when error window exceeds cleaning time
     assert job.get("cleaning_time_seconds", -1) == 0
+
+
+
+# ---------------------------------------------------------------------------
+# [LS-29b] RF-DOCK — a dock fault must NOT be deducted from cleaning time
+# ---------------------------------------------------------------------------
+
+async def test_finalize_dock_fault_does_not_reduce_cleaning_time(hass, learning_services):
+    """The live incident: alfred job_2026-08-01T23-23-35 cleaned 4 m2 for 360 s and
+    recorded ZERO, because five station clean-water-pump faults (6013) were charged
+    against it while the robot worked straight through them."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
+    from custom_components.eufy_vacuum.core.error_tracker import ErrorTracker
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    register_adapter_config(_VAC, {
+        "error_tracking": {
+            "evidence_invalidating_error_codes": [2112],
+            "evidence_safe_error_codes": [6013],
+        },
+    })
+    tracker = ErrorTracker(hass, runtime_manager=learning_services)
+    hass.data.setdefault(DOMAIN, {})[DATA_ERROR_TRACKER] = tracker
+    record = tracker._ensure_record(_VAC)
+    record["active_run_error"] = {
+        "error_count": 1,
+        "errors": [
+            {"code": 6013, "captured_at": "2026-01-01T09:00:00+00:00", "recovered_at": "2026-01-01T09:06:40+00:00"},
+        ],
+    }
+    _seed_active_job(learning_services, _VAC, _MAP, last_cleaning_time_seconds=300)
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    learning_mgr = _get_learning_manager(hass)
+    result = await hass.async_add_executor_job(
+        lambda: learning_mgr.finalize_completed_job(
+            manager=core_manager,
+            vacuum_entity_id=_VAC,
+            map_id=_MAP,
+            battery_start=85,
+            battery_end=60,
+            started_at="2026-01-01T09:00:00+00:00",
+            ended_at="2026-01-01T09:30:00+00:00",
+            used_for_learning=False,
+            rebuild_stats=False,
+        )
+    )
+    job = result.get("completed_job", {}).get("job", {})
+    outcome = result.get("completed_job", {}).get("outcome", {})
+    assert job.get("cleaning_time_seconds") == 300, "a dock fault must not deduct"
+    # The full window stays visible; only the deducted share changed.
+    assert outcome.get("total_error_seconds") == 400
+    assert outcome.get("error_seconds_deducted") == 0
+    assert (outcome.get("error_seconds_by_evidence") or {}).get("safe") == 400
+
+
+async def test_finalize_unclassified_fault_is_preserved(hass, learning_services):
+    """A brand with no declared table, or a code the vendor shipped after the table was
+    written, must PRESERVE the run. Failing toward 'trust the run' is deliberate: wrongly
+    crediting adds noise that averages out, wrongly zeroing destroys the observation."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
+    from custom_components.eufy_vacuum.core.error_tracker import ErrorTracker
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    register_adapter_config(_VAC, {"error_tracking": {}})   # declares nothing
+    tracker = ErrorTracker(hass, runtime_manager=learning_services)
+    hass.data.setdefault(DOMAIN, {})[DATA_ERROR_TRACKER] = tracker
+    record = tracker._ensure_record(_VAC)
+    record["active_run_error"] = {
+        "error_count": 1,
+        "errors": [
+            {"code": 99999, "captured_at": "2026-01-01T09:00:00+00:00", "recovered_at": "2026-01-01T09:06:40+00:00"},
+        ],
+    }
+    _seed_active_job(learning_services, _VAC, _MAP, last_cleaning_time_seconds=300)
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    learning_mgr = _get_learning_manager(hass)
+    result = await hass.async_add_executor_job(
+        lambda: learning_mgr.finalize_completed_job(
+            manager=core_manager,
+            vacuum_entity_id=_VAC,
+            map_id=_MAP,
+            battery_start=85,
+            battery_end=60,
+            started_at="2026-01-01T09:00:00+00:00",
+            ended_at="2026-01-01T09:30:00+00:00",
+            used_for_learning=False,
+            rebuild_stats=False,
+        )
+    )
+    completed = result.get("completed_job", {})
+    assert completed.get("job", {}).get("cleaning_time_seconds") == 300
+    outcome = completed.get("outcome", {})
+    assert outcome.get("error_seconds_deducted") == 0
+    assert (outcome.get("error_seconds_by_evidence") or {}).get("unclassified") == 400
 
 
 # ---------------------------------------------------------------------------

@@ -29,6 +29,8 @@ from .constants import (
     POST_JOB_AMENDMENT_TIMEOUT_SECONDS,
 )
 from .vocabulary import (
+    EUFY_EVIDENCE_INVALIDATING_ERROR_CODES,
+    EUFY_EVIDENCE_SAFE_ERROR_CODES,
     HARD_SERVICE_STATES,
     DRYING_STATES,
     ACTIVE_RUN_TASK_STATES,
@@ -460,6 +462,20 @@ def register_eufy_adapter_for_vacuum(
             # Tried in order — first non-zero int wins.
             "error_code_attribute_names": ["error_code", "code", "errorCode"],
             "unknown_error_message": "Unknown error during run",
+            # RF-DOCK. Error seconds are subtracted from cleaning_time_seconds, so the
+            # finalizer needs to know WHICH faults mean the floor work cannot be
+            # trusted. It asks that one question; these two sets answer it, sourced
+            # from vocabulary.py. Core never learns an Eufy code.
+            #
+            # Two sets, not one: a code in NEITHER is visibly unclassified and is
+            # PRESERVED, so a fault Eufy adds after this table was written cannot zero
+            # a productive run. That is the incident this exists to prevent -- five
+            # dock-side 6013 faults charged 455 s against a 360 s clean
+            # (alfred job_2026-08-01T23-23-35).
+            "evidence_invalidating_error_codes": sorted(
+                EUFY_EVIDENCE_INVALIDATING_ERROR_CODES
+            ),
+            "evidence_safe_error_codes": sorted(EUFY_EVIDENCE_SAFE_ERROR_CODES),
         },
 
         "dock_events": {

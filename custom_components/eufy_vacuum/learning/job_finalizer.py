@@ -38,6 +38,7 @@ from .utils import (
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
 from ..step_types import is_dock_polled_phase
+from ..core.error_tracker import classify_error_code
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -106,6 +107,7 @@ def _compute_total_error_seconds(
     error_latch: dict[str, Any] | None,
     *,
     job_ended_at: str | None,
+    keep_entry: Any = None,
 ) -> int:
     """Sum the time the run spent inside an error state.
 
@@ -123,10 +125,18 @@ def _compute_total_error_seconds(
     Overlapping intervals are merged to keep us honest if a misbehaving
     firmware ever produces them despite the alternating-edge model.
 
-    Returns int seconds, clamped to ≥ 0. The caller subtracts this from
-    ``cleaning_time_seconds`` so a recoverable run isn't penalised for
-    transient faults that the vacuum worked through — the run stays in
-    the learning corpus rather than being marked excluded.
+    Returns int seconds, clamped to ≥ 0.
+
+    ``keep_entry`` (RF-DOCK) filters which entries count. Called with no filter it
+    returns the FULL window, which is what the record's ``total_error_seconds`` reports.
+    The caller passes a predicate to get the subtractable share -- only faults that
+    invalidate the run's cleaning evidence. Without it, a dock fault the robot worked
+    straight through was charged against cleaning time: five STATION CLEAN WATER PUMP
+    SHORT faults deducted 455 s from a 360 s clean and recorded it as zero
+    (alfred job_2026-08-01T23-23-35, archived in _frozen/baseline/).
+
+    The filter is applied per ENTRY, before merging, so overlapping windows of different
+    kinds cannot leak into each other's total.
     """
     if not isinstance(error_latch, dict):
         return 0
@@ -139,6 +149,8 @@ def _compute_total_error_seconds(
     intervals: list[tuple[datetime, datetime]] = []
     for index, entry in enumerate(raw_entries):
         if not isinstance(entry, dict):
+            continue
+        if keep_entry is not None and not keep_entry(entry):
             continue
         start = _parse_iso_to_utc(entry.get("captured_at"))
         if start is None:
@@ -892,24 +904,47 @@ class LearningJobFinalizer:
             error_latch, job_ended_at=ended_at,
         )
 
+        # RF-DOCK: only faults that invalidate the run's cleaning evidence may be
+        # deducted. A station fault the robot worked straight through must not be, and
+        # neither must a robot fault that brackets the clean (docking, undocking) rather
+        # than interrupting it. The adapter owns which is which; core asks the question.
+        # total_error_seconds still reports the FULL window -- the split is additive, so
+        # nothing that used to be visible stops being visible.
+        _split: dict[str, int] = {}
+        for _bucket in ("invalidating", "safe", "unclassified"):
+            _split[_bucket] = _compute_total_error_seconds(
+                error_latch,
+                job_ended_at=ended_at,
+                keep_entry=lambda e, b=_bucket: classify_error_code(
+                    vacuum_entity_id, e.get("code")
+                ) == b,
+            )
+        deductible_error_seconds = _split["invalidating"]
+        if _split["unclassified"]:
+            _LOGGER.debug(
+                "job_finalizer: %d error second(s) for %s/%s carry codes this brand "
+                "does not classify; PRESERVED, not deducted",
+                _split["unclassified"], vacuum_entity_id, job_id,
+            )
+
         raw_cleaning_seconds = inputs.get("cleaning_time_seconds")
         adjusted_cleaning_seconds = raw_cleaning_seconds
         if (
             raw_cleaning_seconds is not None
-            and total_error_seconds > 0
+            and deductible_error_seconds > 0
         ):
             adjusted_cleaning_seconds = max(
-                0, int(raw_cleaning_seconds) - total_error_seconds
+                0, int(raw_cleaning_seconds) - deductible_error_seconds
             )
-            if total_error_seconds > int(raw_cleaning_seconds):
+            if deductible_error_seconds > int(raw_cleaning_seconds):
                 # Defensive log: error window exceeded the upstream cleaning
                 # time. Probably overlapping rising edges or clock skew.
                 # Clamped to 0; record both values so the discrepancy is
                 # visible in audit.
                 _LOGGER.debug(
-                    "job_finalizer: total_error_seconds (%d) > "
+                    "job_finalizer: deductible error seconds (%d) > "
                     "cleaning_time_seconds (%d) for %s/%s; clamping to 0",
-                    total_error_seconds,
+                    deductible_error_seconds,
                     int(raw_cleaning_seconds),
                     vacuum_entity_id,
                     job_id,
@@ -945,6 +980,12 @@ class LearningJobFinalizer:
                 "error_count": error_count,
                 "errors": error_latch,
                 "total_error_seconds": total_error_seconds,
+                # RF-DOCK: which share of that window was actually deducted, and why.
+                # An unclassified fault is REPORTED here rather than silently dropped,
+                # so a vendor code newer than the adapter's table is visible instead of
+                # quietly changing the arithmetic.
+                "error_seconds_by_evidence": dict(_split),
+                "error_seconds_deducted": deductible_error_seconds,
             },
         )
         self._apply_snapshot_estimates_to_completed_job(
