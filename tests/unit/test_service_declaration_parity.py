@@ -150,26 +150,8 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     ("field_mismatch", "update_room_fields.color:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
     ("field_mismatch", "update_room_fields.is_transition:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
 
-    # --- dead_schema: SERVIC-7, 19 unreferenced constants in one file ------
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::SAVE_MAP_IMAGE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::START_ROOM_BOUNDARY_TRACE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::CLOSE_ROOM_BOUNDARY_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::CANCEL_ROOM_BOUNDARY_TRACE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::GET_MAPPING_STATE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::CLEAR_ROOM_BOUNDS_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::EXCLUDE_ROOM_JOB_BOUNDS_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::RESTORE_ROOM_JOB_BOUNDS_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::REBUILD_ROOM_BOUNDS_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::SAVE_MAPPING_PACKAGE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::APPEND_MAPPING_TRACE_EVIDENCE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::GET_IMAGE_SEGMENT_SUGGESTIONS_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::TRANSLATE_IMAGE_SEGMENT_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::SET_DOCK_ANCHOR_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::SET_DOCK_ROOM_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::START_TRACE_CAPTURE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::STOP_TRACE_CAPTURE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::CANCEL_TRACE_CAPTURE_SCHEMA"): "SERVIC-7",
-    ("dead_schema", "custom_components/eufy_vacuum/mapping/mapping_services.py::REVIEW_TRACE_RUN_SCHEMA"): "SERVIC-7",
+    # SERVIC-7 fixed: all 19 unreferenced schema constants deleted from
+    # mapping_services.py (they were never used by any registration call).
 }
 
 
