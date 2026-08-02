@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **161** findings via 19 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d, RP-040, RP-032) |
+| Fixes APPLIED (landed packets) | **166** findings via 20 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-032, RP-040) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **323** -- 18 open clusters (11 fully applied) + 287 singles |
-| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 129 / LOW 135 |
+| Open findings | **318** -- 17 open clusters (12 fully applied) + 285 singles |
+| By severity | CRITICAL 7 / HIGH 47 / MEDIUM 129 / LOW 135 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -51,13 +51,13 @@ audit is a snapshot, not a ledger.
 - **Fix:** try/finally so the guard always clears, plus a bounded age after which the reaper stops honouring it.
 - [x] applied  [ ] tested  [ ] hardware-checked
 
-### C4. A multi-room phase is recorded as ONE room *(not independently verified)* — **3/4 applied**
+### C4. A multi-room phase is recorded as ONE room *(not independently verified)* — **4/4 applied**
 
 - **Seam:** `jobs/phase_runner.py:301`
-- **Closes:** ~~A3-REC-1~~ ✅ RP-013b (`f212c20`), ~~A3-REC-2~~ ✅ RP-013b (`f212c20`), A3-REC-3, ~~DQ-PH-3~~ ✅ RP-013b (`f212c20`)
+- **Closes:** ~~A3-REC-1~~ ✅ RP-013b (`f212c20`), ~~A3-REC-2~~ ✅ RP-013b (`f212c20`), ~~A3-REC-3~~ ✅ RP-013c (`0ff4a8a`), ~~DQ-PH-3~~ ✅ RP-013b (`f212c20`)
 - **What breaks:** A room_group phase attributes the group's entire cleaning time, area and battery to queue_room_ids[0]. A phased job also never records a completed room, so live progress freezes on the group.
 - **Fix:** Attribute per-phase metrics across the phase's rooms, or record the phase as a phase rather than as room[0].
-- [ ] applied  [ ] tested  [ ] hardware-checked
+- [x] applied  [ ] tested  [ ] hardware-checked
 
 ### C5. The repudiated `started_at and not ended_at` predicate is still live **[VERIFIED AT SOURCE]** — **2/2 applied**
 
@@ -219,10 +219,10 @@ audit is a snapshot, not a ledger.
 - **Fix:** Either exclude records with no battery block from the battery aggregate, or carry a battery_sample_count so a zero-sample bucket is distinguishable from a measured zero.
 - [ ] applied  [ ] tested  [ ] hardware-checked
 
-### C25. The incomplete-run log misreports which rooms were missed *(not independently verified)*
+### C25. The incomplete-run log misreports which rooms were missed *(not independently verified)* — **2/4 applied**
 
 - **Seam:** `learning/history_store.py (incomplete-run family)`
-- **Closes:** A4-STATE-1, A4-STATE-2, A4-STATE-4, A2-ACC-4
+- **Closes:** ~~A4-STATE-1~~ ✅ RP-013c (`0ff4a8a`), ~~A4-STATE-2~~ ✅ RP-013c (`0ff4a8a`), A4-STATE-4, A2-ACC-4
 - **What breaks:** The final room of EVERY non-completed run is recorded as missed; clear_incomplete_run's docstring claims '(full clean)' but ANY completion clears it; missed_room_ids survive a re-segment and a map switch, so they can name rooms that no longer exist or now mean something else; and a skipped room holds 'current' for the rest of the run so it can never be resolved.
 - **Fix:** One pass over the incomplete-run lifecycle: who writes it, what clears it, and whether its room ids are still valid at read time.
 - [ ] applied  [ ] tested  [ ] hardware-checked
@@ -272,7 +272,7 @@ audit is a snapshot, not a ledger.
   overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
   -> A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
 
-### HIGH (36)
+### HIGH (34)
 
 - [ ] **A4-START-1** `core/manager.py:2863` [both]  
   get_start_status validates PHASE 0's room count as if it were the whole job — a stepped run whose first phase is a zone is refused with a false "invalid payload" error  
@@ -283,9 +283,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-VAC-1** `dock/manager.py:154` [eufy]  
   Dock-action gate is blind to app-started (external) runs — every dock action reports "Ready" and fires while the robot is mid-run at the dock  
   -> The user starts a clean from the Eufy app. The robot returns to the dock to recharge ("Charging (Resume)") or wash the pad mid-run. The card's Base Station tab shows Wash Mop / Dry Mop / Empty Dust as Ready. Tapping Dry
-- [ ] **A2-CAN-2** `jobs/active_job.py:2255` [both]  
-  Cancelling a sequenced run reports the WRONG missed rooms — per-phase reset of queue_room_ids/completed_room_ids feeds the incomplete-run log and trouble-rooms counters  
-  -> After cancelling a stepped run the card's incomplete-run banner and the EVENT_RUN_INCOMPLETE automation payload name the wrong rooms — under-reporting (rooms silently never retried by a `retry_missed_rooms` automation) o
 - [ ] **A2-ACC-2** `learning/estimator.py:1122` [both]  
   reanchor_timeline ignores its own reanchor_at parameter — every ETA is anchored to job start plus the sum of room durations, so all wall-clock dead time is invisible and "Done at" times slide into the past  
   -> Concrete: 3 rooms at 10 min each, overhead 7.02, started 12:00. R1 completes at 12:10 with actual_duration 10.0. The user pauses the vacuum at 12:10 and resumes at 12:40. At 12:45 the card refreshes and reanchors with co
@@ -352,9 +349,6 @@ audit is a snapshot, not a ledger.
 - [ ] **DQ-PAY-2** `queue/queue_engine.py:303` [both]  
   A mop room on a granite or concrete floor resolves water_level to the empty string and that empty string is written verbatim to the wire  
   -> A room the user configured to mop, on a granite or concrete floor, is dispatched to the Eufy with an empty water-level string — the robot either rejects the room_clean payload (the whole run silently fails to start) or m
-- [ ] **DQ-PH-2** `queue/queue_engine.py:467` [both]  
-  advance_active_job_phase resets completed_room_ids/completed_rooms and no code path ever refills them for a phased job, so an abnormally-ended sequenced run reports every room as missed  
-  -> Cancel a vac→charge→mop run (or a strict-order Roborock run) after 4 of 5 rooms are done and the 'Incomplete run' banner claims all 5 rooms were missed. Worse, the chronic-trouble counter increments miss_count for the 4
 - [ ] **A3-CRUD-3** `rooms/room_crud.py:279` [both]  
   save_managed_rooms auto-confirms floor type for every room it writes, permanently satisfying the onboarding_required start gate with the guessed value "hardwood"  
   -> The gate whose entire purpose is to force the user to declare carpet vs hardwood before the first clean is satisfied by a guess, on the very first import, for rooms the user has not looked at. A carpeted room reads as us
@@ -1138,7 +1132,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 161 findings closed by a landed packet
+## APPLIED -- 166 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1367,6 +1361,16 @@ a disappeared finding is indistinguishable from one never found.
   A multi-room room_group phase records ONLY queue_room_ids[0] — the group's whole time/area lands on one room, the other N-1 rooms produce no timing at all, and the run is still flagged high-confidence
 - [x] **A3-REC-2** `jobs/phase_runner.py:297` [eufy] -- **RP-013b** (`f212c20`, 2026-08-02)  
   Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
+- [x] **A2-CAN-2** `jobs/active_job.py:2255` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
+  Cancelling a sequenced run reports the WRONG missed rooms — per-phase reset of queue_room_ids/completed_room_ids feeds the incomplete-run log and trouble-rooms counters
+- [x] **A3-REC-3** `jobs/active_job.py:937` [eufy] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
+  A phased job never records a completed room, so live progress freezes on the group's first room and the stall detector fires a false 'stuck' event mid-run
+- [x] **A4-STATE-2** `learning/history_store.py:273` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
+  clear_incomplete_run's docstring claim "(full clean)" is false — ANY completed run erases the missed-room record, and it is unrecoverable because completed_room_ids is never persisted in the job archive
+- [x] **A4-STATE-1** `learning/services.py:689` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
+  The final room of EVERY non-completed run is recorded as "missed"; on a stranded run the documented retry automation re-dispatches the robot in an unbounded loop
+- [x] **DQ-PH-2** `queue/queue_engine.py:467` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
+  advance_active_job_phase resets completed_room_ids/completed_rooms and no code path ever refills them for a phased job, so an abnormally-ended sequenced run reports every room as missed
 - [x] **A4-STATE-6** `learning/history_store.py:1092` [both] -- **RP-013d** (`8f4c5a8`, 2026-08-02)  
   build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run
 - [x] **A3-REC-4** `jobs/active_job.py:1709` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
@@ -1503,7 +1507,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 19 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 14 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 20 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 15 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 

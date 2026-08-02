@@ -151,7 +151,7 @@
  {
   "packet_id": "RP-013c",
   "commits": [
-   "PENDING"
+   "0ff4a8a"
   ],
   "landed_at": "2026-08-02",
   "note": "job-cumulative completed evidence; clauses 1-5. NO hardware block yet -- job_2026-08-02T00-08-10 is the BEFORE picture, not validation of the fix."
