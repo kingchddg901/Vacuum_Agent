@@ -106,6 +106,15 @@ def register(hass: HomeAssistant) -> None:
             # Eufy's cleaning_area in ft²; Roborock's stays m²) — see cleaning_area_to_m2.
             watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "area_m2", None)
 
+        # RP-013e/METRICS-2/REC-5: battery has NO writer today even though both
+        # shipped adapters declare entities.battery — every counter sample reads
+        # last_battery_percent, and with nothing ever setting it, every sample
+        # carries battery=None, which is OBS-B-3's null per-room battery_delta
+        # at source. Same declared-entity pattern as cleaning_time/cleaning_area.
+        battery_entity = entities.get("battery")
+        if battery_entity:
+            watch_map[battery_entity] = (vacuum_entity_id, "last_battery_percent", "int", None)
+
         # Station water level — lives in capabilities entities, not the main
         # entities dict. Only added when the capability is exposed.
         try:

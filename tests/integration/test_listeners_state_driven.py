@@ -65,6 +65,17 @@ _ADAPTER_WITH_METRICS = {
     },
 }
 
+_BATTERY_ENTITY = "sensor.alfred_battery"
+
+_ADAPTER_WITH_BATTERY = {
+    "adapter_id": "test_metrics_battery",
+    "source": "test",
+    "entities": {
+        "cleaning_time": _CLEANING_TIME_ENTITY,
+        "battery": _BATTERY_ENTITY,
+    },
+}
+
 _ADAPTER_LIFECYCLE = {
     "adapter_id": "test_lifecycle",
     "source": "test",
@@ -267,6 +278,37 @@ async def test_job_metrics_state_change_no_active_job_no_error(hass, manager):
     await hass.async_block_till_done()
     # No active job — record_active_job_sensor_value is a no-op; no assertion needed
     # Just verifying the callback path runs without raising.
+
+
+async def test_job_metrics_battery_entity_watched_and_plumbed_to_sample(hass, manager):
+    """RP-013e/METRICS-2/REC-5: the adapter-declared battery entity is watched
+    (previously it was not — no writer for last_battery_percent existed
+    anywhere), and a battery reading pushed mid-run reaches the NEXT counter
+    sample (OBS-B-3's null per-room battery_delta had this as its root cause)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_BATTERY)
+    setup_map(manager, _VAC, _MAP, count=1)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "status": "started", "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "queue_room_ids": [1],
+    }
+    hass.states.async_set(_BATTERY_ENTITY, "0")
+    hass.states.async_set(_CLEANING_TIME_ENTITY, "0")
+    await hass.async_block_till_done()
+
+    job_metrics.register(hass)
+
+    hass.states.async_set(_BATTERY_ENTITY, "57")
+    await hass.async_block_till_done()
+
+    job = manager.data["active_jobs"][_VAC][_MAP]
+    assert job.get("last_battery_percent") == 57
+
+    hass.states.async_set(_CLEANING_TIME_ENTITY, "300")
+    await hass.async_block_till_done()
+
+    samples = job.get("counter_samples") or []
+    assert samples and samples[-1].get("battery") == 57
 
 
 # ---------------------------------------------------------------------------
