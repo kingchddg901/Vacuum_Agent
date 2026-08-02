@@ -96,8 +96,17 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     ("no_yaml_entry", "setup_force_remove_room"): "setup.py: panel-driven -- pending Chris review.",
     ("no_yaml_entry", "setup_set_panel_title"): "setup.py: panel-driven -- pending Chris review.",
     ("no_yaml_entry", "setup_set_map_camera"): "setup.py: panel-driven -- pending Chris review.",
+    # RP-032/A3-IMAGE--10: these 5 are card-driven (src/constants.js:120-122)
+    # so the missing description never surfaces on the path actually
+    # exercised -- but delete_map_image is DESTRUCTIVE (removes a file from
+    # disk) and is currently the least discoverable/documented service in
+    # the codebase as a result: no name, no description, no field editors in
+    # Developer Tools, so a caller there has to hand-write the exact variant
+    # key with no guidance. Flag delete_map_image as the priority item in
+    # this group when presenting the INTERNAL_SERVICES decision -- it reads
+    # differently from "card-driven, fine to leave internal" for the other four.
     ("no_yaml_entry", "upload_map_image"): "mapping_services.py: card-driven map upload flow -- pending Chris review.",
-    ("no_yaml_entry", "delete_map_image"): "mapping_services.py: card-driven -- pending Chris review.",
+    ("no_yaml_entry", "delete_map_image"): "mapping_services.py: card-driven, but DESTRUCTIVE (deletes a file) and undocumented -- pending Chris review, priority item.",
     ("no_yaml_entry", "analyze_map_image"): "mapping_services.py: card-driven -- pending Chris review.",
     ("no_yaml_entry", "get_map_segments"): "mapping_services.py: card-driven -- pending Chris review.",
     ("no_yaml_entry", "adjust_map_segment"): "mapping_services.py: card-driven -- pending Chris review.",
