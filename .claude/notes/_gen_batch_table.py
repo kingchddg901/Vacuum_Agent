@@ -16,9 +16,11 @@ per member and the executor never opens the corpus.
 
 Re-runnable. Output: .claude/notes/synthesis/RP-040-batch-table.md
 """
+import collections
+import glob
 import json
 import pathlib
-import collections
+import re
 
 N = pathlib.Path(".claude/notes")
 OUT = N / "synthesis/RP-040-batch-table.md"
@@ -46,13 +48,40 @@ def main() -> None:
         by_id.setdefault(r["id"], r)
         by_id.setdefault(f"{r.get('run', '')}:{r['id']}", r)
 
-    members, unresolved, ejected = [], [], []
+    # THE CROSS-CHECK THAT THE FIRST VERSION OF THIS SCRIPT LACKED.
+    # closure-matrix.json's `owner` is STALE: REVIEW-07 moved members out of the
+    # batches into named packets ("membership adds") and the matrix was never
+    # rewritten. Resolving every id to a prose record proved only that the record
+    # EXISTS — not that the batch still owns it. Without this, the table listed 75
+    # members of which 42 were already owned by RP-013e/025/029/030/031/034/035/
+    # 037/039, and RP-040's executor would have applied one-line batch treatment
+    # to findings those packets specify designed fixes for (three HIGH saved-zone
+    # items among them). The PACKETS are authoritative; the matrix is a hint.
+    claimed: dict[str, list[str]] = {}
+    for path in sorted(glob.glob(".claude/notes/synthesis/SYNTH-*.md")):
+        text = pathlib.Path(path).read_text(encoding="utf-8")
+        for pm in re.finditer(r"packet_id: ([A-Z]+-[0-9a-z]+)(.*?)(?=packet_id:|\Z)",
+                              text, re.S):
+            pid, body = pm.group(1), pm.group(2)
+            if pid == "RP-040":
+                continue
+            fm = re.search(r"finding[s]?_(?:ids|addressed): \[(.*?)\]", body, re.S)
+            if not fm:
+                continue
+            for fid in re.findall(r'"([^"]+)"', fm.group(1)):
+                claimed.setdefault(fid, []).append(pid)
+
+    members, unresolved, ejected, elsewhere = [], [], [], []
     for m in cm:
         owner = m.get("owner")
         if owner not in GATES:
             continue
         if m["finding_id"] in EJECTED:
             ejected.append(m["finding_id"])
+            continue
+        owners_named = claimed.get(m["canonical_id"]) or claimed.get(m["finding_id"])
+        if owners_named:
+            elsewhere.append((m["canonical_id"], sorted(set(owners_named))))
             continue
         r = by_id.get(m["canonical_id"]) or by_id.get(m["finding_id"])
         if r is None:
@@ -87,6 +116,18 @@ def main() -> None:
     if unresolved:
         A(f"> ⚠ {len(unresolved)} member(s) did not resolve to a prose record: "
           f"{', '.join(unresolved)}. Escalate rather than guessing.")
+        A("")
+    if elsewhere:
+        A(f"> **{len(elsewhere)} matrix members are EXCLUDED — a named packet already")
+        A("> owns them.** `closure-matrix.json`'s `owner` is stale: REVIEW-07 moved")
+        A("> members into named packets and the matrix was not rewritten. Applying")
+        A("> one-line batch treatment to these would collide with a designed fix.")
+        A("> The packets are authoritative.")
+        A("")
+        A("| finding | owned by |")
+        A("|---|---|")
+        for cid, pids in sorted(elsewhere):
+            A(f"| `{cid}` | {', '.join(pids)} |")
         A("")
     A("## Gates by batch")
     A("")

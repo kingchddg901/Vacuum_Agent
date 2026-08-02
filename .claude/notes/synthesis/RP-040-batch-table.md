@@ -7,16 +7,67 @@ This is the artifact RP-040's packet refers to four times and which did not
 exist. It carries the prose mechanism for every batch member, so the
 executor works from here and **never needs to open the audit corpus**.
 
-**75 members across 37 files.** One focused edit + one focused test each; commits grouped BY FILE (the packet's rollback_plan).
+**33 members across 22 files.** One focused edit + one focused test each; commits grouped BY FILE (the packet's rollback_plan).
+
+> **42 matrix members are EXCLUDED — a named packet already
+> owns them.** `closure-matrix.json`'s `owner` is stale: REVIEW-07 moved
+> members into named packets and the matrix was not rewritten. Applying
+> one-line batch treatment to these would collide with a designed fix.
+> The packets are authoritative.
+
+| finding | owned by |
+|---|---|
+| `#11:A2-GEO-3` | RP-030 |
+| `#11:A2-GEO-4` | RP-030 |
+| `#11:A2-GEO-5` | RP-030 |
+| `#11:A2-GEO-6` | RP-030 |
+| `#11:A3-EXT-3` | RP-030 |
+| `#11:A3-EXT-4` | RP-030 |
+| `#11:A4-RB-7` | RP-030 |
+| `#11:A4-RB-8` | RP-030 |
+| `#11:A5-POSE-6` | RP-030 |
+| `#11:A5-POSE-7` | RP-030 |
+| `#11:A6-TRK-7` | RP-037 |
+| `#12:A5-METRICS-2` | RP-013e |
+| `#13:A1-WIRE-1` | RP-031 |
+| `#13:A1-WIRE-2` | RP-031 |
+| `#13:A2-JOB-9` | RP-031 |
+| `#13:A4-SETUP-10` | RP-031 |
+| `#13:A4-SETUP-11` | RP-031 |
+| `#13:A4-SETUP-13` | RP-031 |
+| `#13:A4-SETUP-14` | RP-031 |
+| `#13:A4-SETUP-7` | RP-031 |
+| `#13:A5-RUNPROF-7` | RP-031 |
+| `#13:A6-DIAG-3` | RP-031 |
+| `#13:A6-DIAG-4` | RP-031 |
+| `#14:A6-VAC-5` | RP-035 |
+| `#17:A3-PORT-8` | RP-034 |
+| `#18:A2-POLYGO-1` | RP-029 |
+| `#18:A2-POLYGO-3` | RP-029 |
+| `#18:A2-POLYGO-4` | RP-029 |
+| `#18:A3-IMAGE--11` | RP-030 |
+| `#18:A3-IMAGE--9` | RP-030 |
+| `#18:A4-CUSTOM-3` | RP-029 |
+| `#18:A4-CUSTOM-4` | RP-029 |
+| `#18:A5-FURNIS-3` | RP-030 |
+| `#18:A5-FURNIS-5` | RP-030 |
+| `#18:A5-FURNIS-6` | RP-030 |
+| `#18:A6-ZONE-C-1` | RP-029 |
+| `#18:A6-ZONE-C-3` | RP-029 |
+| `#18:A6-ZONE-C-4` | RP-029 |
+| `#8:A5-PP-RP-8` | RP-025 |
+| `#9:A3-REC-5` | RP-013e |
+| `agent: sensor (2-lens verified):SN-8` | RP-035 |
+| `direct read:DR-DIAG-5` | RP-039 |
 
 ## Gates by batch
 
 | batch | members | gate |
 |---|---:|---|
-| `BATCH:SMALL-CORRECTNESS` | 48 | table-driven proof + full suite |
-| `BATCH:SMALL-CORRECTNESS-` | 11 | table-driven proof + full suite |
-| `BATCH:DOC-ONLY` | 8 | mkdocs --strict |
-| `BATCH:DEAD-CODE` | 8 | full suite |
+| `BATCH:SMALL-CORRECTNESS` | 12 | table-driven proof + full suite |
+| `BATCH:SMALL-CORRECTNESS-` | 10 | table-driven proof + full suite |
+| `BATCH:DOC-ONLY` | 5 | mkdocs --strict |
+| `BATCH:DEAD-CODE` | 6 | full suite |
 
 A DOC-ONLY member must not gain a proof case; a DEAD-CODE member's evidence
 is the suite still passing after the deletion. Only behaviour-bearing
@@ -45,7 +96,7 @@ members belong in `_proof_closing_batch.py`.
   - **What:** Four constants are defined and never read - including three service names for services that do not exist
   - **Impact:** Scripted check across every .py excluding const.py, cross-checked against services.yaml and the frontend bundle: SERVICE_REFRESH_BACKEND ('refresh_backend'), SERVICE_REBUILD_ACTIVE_MAP ('rebuild_active_map') and SERVICE_CLEAR_RUNTIME_STATE ('clear_runtime_state') have no async_register, no services.yaml entry and no occurrence in src/; DATA_SERVICES_REGISTERED has no reader. The other 137 names all have readers, and no const value is re-typed elsewhere except the panels trio (INF-1). Cosmetic -- but const.py is the file a brand port is told to consult, so three dead service names read as capability that does not exist.
 
-### `core/manager.py` — 4 member(s)
+### `core/manager.py` — 3 member(s)
 
 - **#14:A2-CB-3** · LOW · `core/manager.py:579` · _SMALL-CORRECTNESS_
   - **What:** The manager's four own callback registries append without a duplicate check while the theme registry they delegate to dedupes, and unregister removes only one copy
@@ -53,18 +104,9 @@ members belong in `_proof_closing_batch.py`.
 - **#14:A2-CB-4** · LOW · `core/manager.py:1035` · _SMALL-CORRECTNESS_
   - **What:** remove_vacuum_record wipes every bucket the five callback registries exist to mirror and fires none of them, dropping the notification obligation its narrower sibling remove_map documents
   - **Impact:** Contained today by HA's own device-deletion sweep, so no user-visible breakage on the shipped path. The residual is that the in-memory `entity_map` / `room_history_entities` / `room_rule_status_entities` dicts in switch.py, number.py and sensor/__init__.py keep hard references to the deleted vacuum's (now-removed) entity objects until the next reload, and the path_blockers watch_map keeps watching its blocker entities. The real cost is contract drift: the file's most destructive method is the one that documents the least, so the next caller added for `remove_vacuum_record` — a diagnostics reset, a bulk cleanup service — inherits none of the notification duty that `remove_map` spells out.
-- **#14:A6-VAC-5** · LOW · `core/manager.py:1084` · _SMALL-CORRECTNESS-_
-  - **What:** get_managed_vacuums reads data["capabilities"] raw and reports supports_* as None when no snapshot exists, unlike its sibling get_vacuum_capabilities which detects on demand
-  - **Impact:** Latent today: the only consumer, setup/status.py:171, reads just `vacuum_entity_id` from the returned items. Any future consumer of the four supports_* fields (or a diagnostics dump) would read `null` and treat it as "unsupported" rather than "not yet detected".
 - **#14:A4-START-3** · LOW · `core/manager.py:2943` · _SMALL-CORRECTNESS-_
   - **What:** get_start_status can never surface a non-blocking lifecycle warning message — preflight's "ready" text shadows it, making dock-drying starts show warning=True with the message "Ready to start cleaning."
   - **Impact:** Every start attempt during the post-mop dock-drying window — which follows every mop run on both brands — returns a warning flag whose explanatory text says "Ready to start cleaning." and whose reason is "ready". The card raises a caution the user cannot interpret, and the actual reason (the dock is mid-dry) is never shown. The same shadowing silently discards any future non-blocking lifecycle state added to build_start_blocker_from_lifecycle.
-
-### `diagnostics.py` — 1 member(s)
-
-- **direct read:DR-DIAG-5** · LOW · `diagnostics.py:53` · _DEAD-CODE_
-  - **What:** Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork
-  - **Impact:** _SENTINELS = BLANK_STATE_VALUES is assigned and never read; the live use is _ACTIVE_MAP_SENTINELS, which IS BLANK_STATE_VALUES (same object, correctly centralized). So the file carries a second, unused name for the same set directly beneath a comment explaining that this set must match the importer's or the self-check reports 'everything works' for a device the importer refuses. Harmless today; it is an invitation to create exactly the divergence the comment guards against.
 
 ### `dispatch/manager.py` — 1 member(s)
 
@@ -87,12 +129,6 @@ members belong in `_proof_closing_batch.py`.
   - **What:** Doc cites the start gate at core/manager.py:2776; it is at 2805
   - **Impact:** The CLAIM is correct -- the gate really does block on floor_types_complete alone and never consults rooms_discovered. Only the line reference drifted. Recorded because this doc's stated scope is that 'a developer should be able to re-implement the onboarding manager from this document alone', which makes its source references part of the contract.
 
-### `jobs/active_job.py` — 1 member(s)
-
-- **#9:A3-REC-5** · MEDIUM · `jobs/active_job.py:1721` · _SMALL-CORRECTNESS_
-  - **What:** Every counter sample carries battery=None — last_battery_percent is read but never written by anything, so per-room battery attribution is dead on both recording paths
-  - **Impact:** Per-room battery drain is never observed on either brand: every completed_job record's room_timings[].battery_delta is null, so the only per-room battery figure available anywhere is the even split total_battery_used / room_count (stats_rebuilder.py:433). A room that eats twice the battery of its neighbours is indistinguishable, and the recorded field silently reads 'no data' instead of surfacing as missing.
-
 ### `learning/history_store.py` — 3 member(s)
 
 - **#16:A3-IO-5** · MEDIUM · `learning/history_store.py:368` · _SMALL-CORRECTNESS_
@@ -111,107 +147,17 @@ members belong in `_proof_closing_batch.py`.
   - **What:** get_adapter_value() is a second, independent implementation of the identical lookup already shipped in adapters/registry.py
   - **Impact:** No behavioural difference today. A fix or semantic change applied to one implementation (e.g. distinguishing a declared null from an absent key, or adding a diagnostic when a declared block is the wrong type) would silently miss every listener, since the listeners all route through the copy that is not the registry's own.
 
-### `listeners/job_metrics.py` — 1 member(s)
-
-- **#12:A5-METRICS-2** · MEDIUM · `listeners/job_metrics.py:172` · _SMALL-CORRECTNESS_
-  - **What:** `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths
-  - **Impact:** Every archived run, on every brand, on both the atomic and strict-order dispatch paths, records `battery_delta: null` for every room. The per-room battery-consumption figure the run archive and diagnostics expose is permanently blank, and any future consumer that reads it (e.g. per-room battery estimation) would silently see "no data" rather than an error.
-
 ### `listeners/pose_sampler.py` — 1 member(s)
 
 - **#12:A4-POSE-6** · LOW · `listeners/pose_sampler.py:10` · _SMALL-CORRECTNESS-_
   - **What:** Module docstring still declares the sampler 'Capture-only / inert — nothing consumes pose_samples yet', but the W5c consumption wire has landed
   - **Impact:** No runtime effect on its own, but it materially understates blast radius: every defect in this file is currently read by maintainers as affecting an inert capture buffer, when in fact the samples drive which rooms an external run is recorded as having cleaned, the per-room durations written to the learning record, and — via reconcile_dispatched_identity's 'rescued' branch — the room identity stamped on a DISPATCHED run's timings. That framing is plausibly why this layer went eleven audits without review.
 
-### `mapping/map_source.py` — 8 member(s)
+### `mapping/map_source.py` — 1 member(s)
 
-- **#11:A3-EXT-4** · MEDIUM · `mapping/map_source.py:243` · _SMALL-CORRECTNESS_
-  - **What:** Room-outline offset is the exact NEGATION of the fork renderer's — overlays desync from the live backdrop whenever the outline origin differs from the map origin
-  - **Impact:** On any Eufy map whose room-outline origin differs from the map origin (VA's own notes record an X10 map at +105 cells), the card's room tap-regions, room labels, current-room highlight and robot dot sit displaced by twice the offset relative to the live fork camera backdrop they are drawn over — a visibly mis-registered map with no error. The VA-rendered backdrop is unaffected (it consumes VA's own `ro_dx`/`ro_dy` from `render_data_from_storage`, so it is self-consistent), which makes the defect appear and disappear with the backdrop toggle and look like a card bug.
-- **#11:A5-POSE-6** · LOW · `mapping/map_source.py:139` · _DOC-ONLY_
-  - **What:** `resolve_furnished_render` passes a stored placement transform through with no map-geometry stamp, so a re-mapped floor plan silently misaligns the art
-  - **Impact:** After the vacuum re-maps or expands its floor plan, the furnished digital-twin art keeps rendering at its old placement over a map that has moved and rescaled underneath it — off by metres — with nothing in the payload, the log, or the UI indicating the saved placement no longer matches the map it was aligned to.
-- **#11:A2-GEO-3** · LOW · `mapping/map_source.py:191` · _SMALL-CORRECTNESS_
-  - **What:** normalize_rendered CLAMPS out-of-grid pixels onto the map border instead of rejecting them, so off-grid raster cells and bad poses fold onto an edge rather than disappearing — diverging from the card's own decoder, which drops them
-  - **Impact:** A room whose segmentation extends past the main grid gets a tap-region and label box pinned to the map edge. A saved zone drawn against the right edge can be filed to the wrong room because off-grid cells were swept into its dominance vote. A hazard layer read in the wrong frame renders as a plausible-looking stripe glued to the map border rather than not rendering at all — the failure looks like data instead of like an error.
-- **#11:A2-GEO-5** · LOW · `mapping/map_source.py:314` · _SMALL-CORRECTNESS_
-  - **What:** A room's normalized bbox excludes its last pixel row/column while width_m/height_m on the same dict include it (+1) — the two size descriptors disagree by exactly one cell, and Roborock's equivalent omits the +1
-  - **Impact:** resolve_furnished_render ships per-room art placement transforms while the card places art inside the room's bbox and sizes to width_m/height_m — furnished art is scaled ~2.5% too large in a 2 m room and ~10% too large in a 0.5 m room, and the error grows as rooms get smaller. Room labels (src/renderers/map.js:566) and the bbox tap-target (src/state/map.js deviceRoomIdAtContentPct) are biased half a cell toward the top-left, so the last row/column of a room is not tappable.
-- **#11:A2-GEO-6** · LOW · `mapping/map_source.py:387` · _SMALL-CORRECTNESS_
-  - **What:** zone_membership's docstring says the dominance vote counts cells 'whose centre falls inside the zone polygon'; the code tests the cell's top-left corner
-  - **Impact:** The >=90% floor-dominance filing of a saved zone is computed over a cell set biased by half a cell on each boundary. For the Eufy minimum 0.5 m zone (10 cells across) that is a ~5% shift in the counted set per edge, enough to flip a borderline vote and file a zone under the neighbouring room (or leave it Unassigned). Filing only — it never affects dispatch, per the docstring, which I confirmed: room_number is written to the zone record at mapping_services.py:2507 and never read by the dispatch path.
-- **#11:A5-POSE-7** · LOW · `mapping/map_source.py:582` · _SMALL-CORRECTNESS_
-  - **What:** An off-grid robot pixel is clamped onto the map edge and reported as a confident anchor — "off the map" is indistinguishable from "at the edge"
-  - **Impact:** A robot whose reported pixel falls outside the map grid is drawn pinned to the map border as if that were its real position, and the live trail accumulates that clamped point (src/state/map.js:1032 `accumulateTrail`), so a genuine "position unknown" renders as a confident wrong position instead of hiding the marker.
-- **#11:A3-EXT-3** · LOW · `mapping/map_source.py:686` · _SMALL-CORRECTNESS_
-  - **What:** A dropped/renamed upstream geometry field degrades to a confidently WRONG map, not a loud absent one
-  - **Impact:** After an upstream fork schema change, room regions, current-room and the robot anchor are all displaced by a large fixed offset with no warning in the log and no `unavailable` state — the card looks live and is wrong. In the zero-rooms variant the map vanishes permanently (until HA restart or a re-map) even though the `.storage` fallback holds a perfectly good copy.
 - **#11:A3-EXT-5** · LOW · `mapping/map_source.py:808` · _DEAD-CODE_
   - **What:** Two room extractors disagree on the input coordinate frame and the dead one is the one under test
   - **Impact:** No user impact today (dead code). The trap is for the next brand adapter: the extractor that LOOKS canonical (it lives in the pure module, it has the descriptive name, it is the one with unit tests) divides raw device coordinates by image dimensions, which for any parser handing back millimetres yields bboxes clamped to a corner of the map. Test coverage on the unused function also inflates confidence in the extraction layer that ships.
-
-### `mapping/map_source_runtime.py` — 3 member(s)
-
-- **#11:A4-RB-7** · LOW · `mapping/map_source_runtime.py:260` · _SMALL-CORRECTNESS_
-  - **What:** _walk and _structure_tree can only descend objects exposing __dict__, so a slotted/C-extension node is both an undiscoverable dead end and an uninformative diagnostic
-  - **Impact:** When a python-roborock or HA core release moves the map behind a slotted container, the Roborock map source goes absent with reason `no_parsed_map` and a diagnostics dump that gives the maintainer nothing to tune — the failure looks like 'the vacuum has no map' rather than 'the introspector could not walk here'.
-- **#11:A2-GEO-4** · LOW · `mapping/map_source_runtime.py:466` · _SMALL-CORRECTNESS_
-  - **What:** correspondences_from_mapdata's docstring claims clamped corners are skipped; _mapdata_projector silently clamps with no detection, leaving the affine round-trip check as the only guard
-  - **Impact:** No live mis-dispatch today. The risk is that the docstring reads as an implemented safety guard, so a future change to the projector, the trim/rotate config, or the residual tolerance would remove the only real protection without anyone noticing the claimed one was never there. Overlay-side, a no-go zone drawn past the map edge renders with its outside vertices collapsed onto the border.
-- **#11:A4-RB-8** · LOW · `mapping/map_source_runtime.py:534` · _SMALL-CORRECTNESS_
-  - **What:** correspondences_from_mapdata's docstring claims clamped corners are skipped; the code feeds them into the least-squares fit, turning a rare edge case into an unexplained zone refusal
-  - **Impact:** If any room bbox corner projects outside the rendered image (rotation/trim edge cases), zone cleaning refuses with 'map projection failed validation' for the whole vacuum and no diagnostic points at the single bad corner — where the documented behaviour would have dropped that corner and fitted on the rest.
-
-### `mapping/mapping_services.py` — 11 member(s)
-
-- **#18:A2-POLYGO-3** · HIGH · `mapping/mapping_services.py:762` · _SMALL-CORRECTNESS_
-  - **What:** `_apply_segment_adjustments` returns the PERSISTED segment dicts by reference, and its caller writes `room_id` into them - baking a cleared/moved room link permanently into .storage and breaking the documented 1:1 invariant
-  - **Impact:** src/state/map.js:1690-1698 `roomIdForSegment` reads `seg.room_id` from the backend payload and comments 'Backend payload is canonical when present' - so the stale value fully drives the card. After clearing a link the card still shows the segment linked; `segmentIdForRoom(3)` returns whichever stale segment comes first in list order rather than the actually-linked one; and the room-chip UI that 'disables rooms already taken by another shape' locks the room out. It survives an HA restart because it is written into .storage, and it cannot be undone through the UI - clearing the link is already a no-op. The documented 1:1 invariant is violated in the SERVED data while the underlying `segment_room_links` dict is still perfectly 1:1, so the bug is invisible from the storage the doc tells you to inspect. Secondary: every polygon is duplicated into storage as `polygon_pct` on every read.
-- **#18:A6-ZONE-C-3** · HIGH · `mapping/mapping_services.py:2490` · _SMALL-CORRECTNESS_
-  - **What:** The `map_version` re-map invalidation the design doc specifies as the zone's safety key does not exist anywhere in the codebase
-  - **Impact:** Every saved zone on a re-mapped floor silently points at the wrong physical spot, and the design's own stated defence against exactly this was never built. This is the direct failure of "survives a re-import": the edit does not survive, and nothing tells the user it stopped being valid. It is also irreversible from the UI — the only repair is delete + redraw every zone, and there is no signal telling the user which zones need it.
-- **#18:A6-ZONE-C-1** · HIGH · `mapping/mapping_services.py:2608` · _SMALL-CORRECTNESS_
-  - **What:** Saved-zone clean dispatches to the device when the active-map signal is blank — the "active map only" guard is permissive, not a refusal
-  - **Impact:** The vacuum cleans a physically different area from the one the user named and tapped, with no error and no way to tell from the response (it returns {cleaned: true}). Requires the active-map entity to be blank (integration reload, cloud hiccup, HA restart window), so the common path is fine — but the failure is physical and silent, and an automation firing shortly after HA start sits exactly in that window.
-- **#18:A4-CUSTOM-3** · MEDIUM · `mapping/mapping_services.py:1449` · _SMALL-CORRECTNESS_
-  - **What:** _backfill_saved_zone_area fails OPEN on an indeterminate active map and permanently persists area_m2 / room_number computed from the WRONG map's raster — the poisoned value never self-heals
-  - **Impact:** Permanently wrong zone size shown in the card, a zone filed under the wrong room in the browse list (grouped by room_number per docs/dev/frontend/saved-zones.md), and a wrong area feeding the learning/duration-estimate path — which this function's own docstring claims it exists to make reliable. Irreversible from the UI: nothing recomputes area_m2 once set, so the only repair is editing .storage by hand. The single-map household is unaffected (the loaded map IS the zone's map); it needs 2+ maps plus a blank active-map entity at read time.
-- **#18:A4-CUSTOM-4** · MEDIUM · `mapping/mapping_services.py:1467` · _SMALL-CORRECTNESS_
-  - **What:** _backfill_saved_zone_area overwrites a user's explicit 'Unassigned' filing — room_number=None means both 'never computed' and 'user chose Unassigned', and the read path cannot tell them apart
-  - **Impact:** A saved zone silently jumps out of the Unassigned section into a room section the user explicitly moved it out of. Filing only — docs are explicit that room_number never affects dispatch, so no wrong physical clean. Narrow: only bites zones that reached the user-editing stage while still unsized (i.e. authored off-active-map or with no map data). Once a zone has an area_m2 it is out of `pending` and immune.
-- **#18:A6-ZONE-C-4** · MEDIUM · `mapping/mapping_services.py:2503` · _SMALL-CORRECTNESS_
-  - **What:** create_saved_zone files area_m2 + room_number from whatever raster is live when the active map is indeterminate, and that wrong value can never be corrected
-  - **Impact:** A zone shows the wrong m² in the card list, is filed under a room from another map, and every ETA derived from it is wrong — permanently, with no UI path to fix the size. Needs the active-map signal blank at authoring time, so the common path is unaffected; the damage is that it is silent AND unrepairable rather than that it is likely.
-- **#18:A3-IMAGE--9** · LOW · `mapping/mapping_services.py:945` · _SMALL-CORRECTNESS_
-  - **What:** Layout existence is validated before the executor write and re-checked afterwards only by a silent isinstance guard, so a concurrent layout delete orphans the upload
-  - **Impact:** A leaked PNG plus a phantom image_variants entry, and an upload the user believes attached to their layout that attached to nothing. Requires two service calls to overlap across a single await, so it is rare in practice; the missing part is that the post-await re-check has no failure reason and the earlier validation is never re-honoured.
-- **#18:A3-IMAGE--11** · LOW · `mapping/mapping_services.py:1089` · _SMALL-CORRECTNESS_
-  - **What:** min_area_pixels silently overrides the adapter's configured tuning because absent is coerced to 1200 before the is-not-None check
-  - **Impact:** An adapter-level segmentation tuning knob that the adapter-config reference documents as configurable is silently inert for the omit-the-field case, so small rooms vanish from the segmentation with no diagnostic. Masked today because the only shipped adapter declares exactly 1200 — the bug is invisible until someone tunes it, which is precisely the forgotten-sibling shape (three knobs wired correctly, the fourth not, with a permissive default hiding it).
-- **#18:A5-FURNIS-6** · LOW · `mapping/mapping_services.py:1969` · _SMALL-CORRECTNESS_
-  - **What:** Clearing a home-scope art placement setdefaults an empty home_art dict, flipping the 'no furnished data' sentinel from None to a confident empty payload
-  - **Impact:** No visible effect today: the card's clear button only renders when hasArt is true (src/renderers/map.js:1581), so the empty-home_art state is unreachable from the UI, and the current consumers key off art_url/render_mode rather than the payload's presence. It matters because `furnished_render is None` is the documented 'no furnished data' sentinel that a Wave-2 consumer is likely to branch on, and a no-op clear permanently falsifies it for that layout.
-- **#18:A5-FURNIS-3** · LOW · `mapping/mapping_services.py:2076` · _SMALL-CORRECTNESS_
-  - **What:** _handle_set_room_viewport is the only furnished writer with no clamp and a corner-valued default — zoom:0 and cx/cy:0.0 persist verbatim
-  - **Impact:** Latent today — say so plainly: docs/advanced/08-map-configuration.md line 270 records the per-room viewport as "service-only today, not yet a panel control", and the card reads no viewport (src/state/map.js: "Per-room art / sub-tabs / saved viewport are Wave 2 — NOT read or written here"), so nothing renders it yet. The cost is that unrenderable values are being accepted and persisted NOW, so a Wave-2 consumer inherits a store the two sibling writers were explicitly hardened against, and any automation-authored viewport is already silently mis-stored.
-- **#18:A5-FURNIS-5** · LOW · `mapping/mapping_services.py:2130` · _SMALL-CORRECTNESS_
-  - **What:** hidden_regions are stored as normalized rects with no record of the frame they were authored against, so a re-map re-aims the masks onto different physical areas — and masks hide content by default
-  - **Impact:** Map content silently disappears with no indication of why, on a map the user never edited — the mask looks like a rendering bug rather than stale state. Recovery exists but is undiscoverable unless the user remembers the Hide-area tool: toggling the hidden_regions overlay off reveals what is under, and edit mode exposes a per-rect delete. Not destructive (nothing else is overwritten) and not a dispatch risk (masks are display-only; cleaning is by room id).
-
-### `mapping/segment_primitives.py` — 2 member(s)
-
-- **#18:A2-POLYGO-1** · HIGH · `mapping/segment_primitives.py:277` · _SMALL-CORRECTNESS_
-  - **What:** Authored custom segments grow ~1 working-pixel toward +X/+Y on every save, and the growth compounds without bound across save/reload cycles
-  - **Impact:** Every authored room polygon is stored 0.3% of the map larger than drawn from the very first save. `set_custom_segments` is REPLACE-ALL, so once the compose draft has been reloaded from storage (which happens on any map/layout switch or page reload - `maybeLoadComposeDraft`), a single Save re-inflates EVERY shape in the layout, not just the one the user touched. A user who edits their layout across a few sessions watches rooms drift down-right and start overlapping their neighbours, with no control that shrinks them back. This is the direct answer to 'does the edit survive a re-import' - it does not: it comes back bigger and offset each time. Common path, not an edge case.
-- **#18:A2-POLYGO-4** · MEDIUM · `mapping/segment_primitives.py:221` · _SMALL-CORRECTNESS_
-  - **What:** `mask_to_polygon` keeps only the largest traced loop, so merging two non-touching shapes into one room silently discards every piece but the biggest
-  - **Impact:** A user merging a room with a detached alcove, a galley across a doorway, or a split L-shape whose two rects do not quite touch loses the smaller piece permanently. There is no error and no `skipped` signal. Because the card rebuilds its draft from the stored `polygon_pct` (src/state/map.js:1391-1402), the lost piece is not recoverable from the draft either - it is destroyed on the first save. Only the map overlay is affected (doc §4.3: polygons are never projected into vacuum space, so no wrong physical clean), which is why this is MEDIUM not HIGH. Common path (single shape, or an overlapping merge) is fine - only a non-touching merge bites, but when it does the loss is silent and permanent.
-
-### `mapping/tracker.py` — 1 member(s)
-
-- **#11:A6-TRK-7** · LOW · `mapping/tracker.py:286` · _DOC-ONLY_
-  - **What:** start_job/end_job are dispatched to an executor thread on the strength of a comment describing disk I/O that start_job does not perform
-  - **Impact:** No user-visible failure proven: the individual dict operations are GIL-atomic and the interleaving window is a handful of bytecodes, so at worst one position sample is misrouted at job start. The real cost is that a false comment currently justifies threading loop-owned mutable state, which is the kind of claim a future change would build on — and it defeats the single-event-loop reasoning that makes the rest of this state machine analysable.
 
 ### `maps/map_manager.py` — 2 member(s)
 
@@ -237,11 +183,8 @@ members belong in `_proof_closing_batch.py`.
   - **What:** The five-key default record is hand-duplicated between _get_map_onboarding and reset_onboarding
   - **Impact:** Lines 66-72 and 252-258 are two hand-maintained copies of one vocabulary -- the campaign's structural root cause, in a 263-line module. A sixth flag added to the lazy-create path silently produces reset records missing it, and vice versa; nothing derives one from the other. Compounding it, two of the five keys (discovery_notified, rebuild_notified) are already dead (doc code-flag CS-1: never read, never set True), so the duplication is maintaining fields nobody consumes. One shared default constant or builder closes it.
 
-### `planning/run_plan.py` — 4 member(s)
+### `planning/run_plan.py` — 3 member(s)
 
-- **#8:A5-PP-RP-8** · LOW · `planning/run_plan.py:142` · _SMALL-CORRECTNESS_
-  - **What:** The water-off suppression in _settings_profile_display compares against the literal "off" instead of the brand's no-water value
-  - **Impact:** A brand whose no-water label is "None", "Closed" or a localized string gets "Water: None" appended to every vacuum-only room's profile subtitle in the pre-run plan — cosmetic, but it is the same hand-copied-literal family as DQ-Q-4/DQ-Q-6 and it sits three lines from a helper that already resolves the question properly.
 - **#8:A6-PP-EST-H2O-2** · LOW · `planning/run_plan.py:237` · _SMALL-CORRECTNESS_
   - **What:** A declared water_rates table REPLACES the core table wholesale, so an adapter that omits "off" bills 4.0 ml/min for water-off mop rooms — contradicting the comment that asserts the invariant
   - **Impact:** For the next adapter that declares measured rates, every mop-mode room with water turned off is billed as if it were mopping at a mid-range flow rate, inflating the job total and firing spurious "Not enough clean water" start warnings — with no signal that the number came from a fallback rather than the brand's own measurement.
@@ -270,74 +213,17 @@ members belong in `_proof_closing_batch.py`.
   - **What:** get_managed_rooms returns the live stored rule dicts and metadata sub-objects by reference despite copying the outer containers
   - **Impact:** Any consumer that treats this response as a detached snapshot and mutates a rule entry writes straight through into persisted storage, so a change that was never meant to be saved is persisted by the next async_save. Latent today — no in-tree caller was observed mutating a returned rule — but the partial copying signals an intent to detach that the code does not deliver.
 
-### `sensor/__init__.py` — 1 member(s)
-
-- **agent: sensor (2-lens verified):SN-8** · LOW · `sensor/__init__.py:91` · _DEAD-CODE_
-  - **What:** active_job_entities and its explanatory comment are dead
-  - **Impact:** The dict is documented as keyed by (vacuum, map) 'so the job-finished handler can refresh the right sensor directly', and is populated, but never read; _handle_job_finished refreshes only room-history sensors. Behaviour is not lost -- EufyVacuumActiveJobSensor subscribes to EVENT_JOB_FINISHED itself plus a tracker listener, EVENT_ROOM_STARTED and a 5-minute safety net. So this is dead state plus a comment describing behaviour that does not exist: the campaign's own top rule pointed at itself.
-
 ### `sensor/onboarding.py` — 1 member(s)
 
 - **direct read:DR-ONB-3** · MEDIUM · `sensor/onboarding.py:62` · _SMALL-CORRECTNESS-_
   - **What:** The 'empty means complete' guard exists in setup/status.py and was never mirrored onto the onboarding summary — forgotten override sibling
   - **Impact:** UPGRADED from LOW after finding the sibling that HAS the guard. Both sites answer the same question with the same optimistic-accumulator shape: setup/status.py initialises all_steps_complete=True and all_in_sync=True and only sets them False INSIDE `for vac in managed:`, so an empty managed set leaves both True -- and line 218 defends exactly that with `setup_complete = bool(managed) and all_steps_complete and all_in_sync`. onboarding/manager.py:239 has the identical shape (any_incomplete=False, set True only inside `for map_id in maps.keys():`) and NO equivalent term, so all_complete is vacuously True for a vacuum with zero maps; sensor/onboarding.py:62 then falls through both scan loops and reports 'complete'. So the fix was made once, on the surface the card reads, and never carried to the diagnostic sensor. Doc 18 §4.5 records the behaviour as 'vacuous truth' without recognising a sibling had already rejected it. User-visible: the ONBOARDING sensor asserts setup is finished at the one moment it is most consulted -- fresh install, nothing imported, 'why can't I schedule a job?'. Fix mirrors line 218: require a non-empty maps collection, or add a distinct not_started state.
 
-### `services/_common.py` — 2 member(s)
-
-- **#13:A1-WIRE-2** · MEDIUM · `services/_common.py:57` · _SMALL-CORRECTNESS_
-  - **What:** resolved_call_data's docstring claims an unresolvable map_id always raises; discover_rooms is the one consumer that silently falls through and persists the payload under an empty-string map key
-  - **Impact:** Pressing "Discover rooms" — exactly what a user does when the active_map sensor is stale/unavailable — returns a clean success (the service is registered without supports_response, and the handler's `except Exception -> HomeAssistantError` at rooms.py:141 never fires because nothing raises). The rooms are cached under `""` while every reader (room_crud.py:132/233/365/412, setup/drift.py) keys by the real map id, so the setup panel shows zero discovered rooms with no error, and a stale `discovery[""]` bucket is persisted permanently.
-- **#13:A2-JOB-9** · LOW · `services/_common.py:58` · _SMALL-CORRECTNESS_
-  - **What:** resolved_call_data's docstring claims a "clear error" on unresolvable map_id; the actual failure is a bare TypeError, and no service in either module raises ServiceValidationError
-  - **Impact:** A user on an adapter that declares no `active_map` entity (scalar/Tuya Eufy, or any brand-3 adapter) who omits `map_id` — which every schema marks Optional and every services.yaml field describes as "Leave blank to use the current active map" — gets a Python TypeError instead of "this vacuum needs an explicit map_id". The docstring is the reason no one added the check.
-
-### `services/adapter_config.py` — 1 member(s)
-
-- **#13:A4-SETUP-14** · LOW · `services/adapter_config.py:198` · _SMALL-CORRECTNESS_
-  - **What:** get_vacuum_capabilities uses the raising get_manager() while its siblings in the same module use the tolerant .get() form, and it writes storage on a read-shaped service
-  - **Impact:** Calling the capability service during a reload produces an unhandled KeyError instead of a clean error, and a read-only-looking call touches .storage on every invocation.
-
-### `services/errors.py` — 1 member(s)
-
-- **#13:A6-DIAG-4** · LOW · `services/errors.py:71` · _SMALL-CORRECTNESS_
-  - **What:** acknowledge_error returns the same {"acknowledged": true} whether the latch was deleted, merely MARKED, or was never there — and both docstrings still describe the pre-audit delete semantics
-  - **Impact:** A caller (card or automation) that wants to confirm the alert was cleared cannot: `acknowledged: true` is returned for a vacuum with no error at all, and the mid-run case reports the same success while the latch is deliberately still present. A caller checking `reason` to explain a failure gets a KeyError-shaped absence for the most likely real failure (wrong entity id) and a value only for the least likely one (tracker not loaded). Anyone reading services/errors.py to understand acknowledge semantics is told the latch is deleted, which is exactly the behaviour audit #5 removed.
-
-### `services/job_control.py` — 1 member(s)
-
-- **#13:A1-WIRE-1** · MEDIUM · `services/job_control.py:156` · _SMALL-CORRECTNESS_
-  - **What:** get_manager() is re-fetched after a device-length await, so a config-entry reload mid-dispatch loses the just-started job record (or raises a bare KeyError)
-  - **Impact:** The robot is cleaning but the integration has no active-job record: the card shows no run in progress, no per-room progress or attribution, no learning sample, and no finalization. In path (b) nothing is logged at all — a clean success response with the job silently gone. In path (a) the user gets a raw `KeyError` traceback in the log because line 156 sits OUTSIDE the handler's try/except (lines 151-154).
-
-### `services/maintenance.py` — 1 member(s)
-
-- **#13:A6-DIAG-3** · MEDIUM · `services/maintenance.py:46` · _SMALL-CORRECTNESS_
-  - **What:** set_maintenance_interval bypasses the min/max its own docstring claims, and interval_hours: 0 silently turns off the consumable's alert
-  - **Impact:** A YAML typo (`interval_hours: 0`, or hours vs. days confusion producing 10 instead of 240) permanently disables the replace-me alert for that filter/brush with a success response, or pushes the interval past the adapter's declared ceiling so the part is never flagged. No error is shown at any layer and the number entity's own bounds do not protect the slot.
-
-### `services/run_profiles.py` — 1 member(s)
-
-- **#13:A5-RUNPROF-7** · LOW · `services/run_profiles.py:90` · _SMALL-CORRECTNESS_
-  - **What:** get_saved_run_profiles and get_dashboard_snapshot lack the package's try/except wrap; an unresolvable map_id surfaces as a raw TypeError, contradicting resolved_call_data's docstring
-  - **Impact:** During an HA restart or while the vacuum's active_map entity is unavailable, the card's primary read (get_dashboard_snapshot) and the run-profile library read fail with an unactionable internal error instead of a message telling the user to pass map_id.
-
-### `services/setup.py` — 5 member(s)
+### `services/setup.py` — 1 member(s)
 
 - **#13:A4-SETUP-6** · HIGH · `services/setup.py:243` · _SMALL-CORRECTNESS_
   - **What:** setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back
   - **Impact:** A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referencing them break, and no re-import can bring the room back because the id is now in rejected_rooms.
-- **#13:A4-SETUP-10** · MEDIUM · `services/setup.py:100` · _SMALL-CORRECTNESS_
-  - **What:** floor_types accepts any string; an unrecognised value is silently clamped to "hardwood" at read time, so a mistyped carpet becomes a wet-mopped carpet
-  - **Impact:** A YAML caller sets a floor type with a typo or picks a documented-but-unmapped value; the service returns success and the stored value is silently discarded. In the carpet case the robot mops a carpet with water at the hardwood default. In the granite/concrete case the room's water level resolves to empty.
-- **#13:A4-SETUP-7** · MEDIUM · `services/setup.py:215` · _SMALL-CORRECTNESS_
-  - **What:** Three setup handlers subscript data["map_id"] after resolved_call_data and raise a bare KeyError — the helper's docstring claims the manager raises a clear error instead
-  - **Impact:** A YAML caller following docs/advanced/03-services.md (which documents map_id as optional on all three) gets an opaque `KeyError: 'map_id'` and an aborted automation whenever the vacuum is offline or HA has just restarted, instead of the documented clear error. The shipped card always sends map_id, so this is reachable only from the public YAML surface — which is exactly the surface the docs advertise.
-- **#13:A4-SETUP-11** · MEDIUM · `services/setup.py:229` · _SMALL-CORRECTNESS_
-  - **What:** setup_delete_map auto-resolves an omitted map_id to whatever map happens to be active at call time
-  - **Impact:** An automation written while the upstairs map was active later deletes the downstairs map, taking its rooms, queue, job records and learned history with it. docs/advanced/03-services.md:1498 flags the operation as irreversible; nothing flags that the target is dynamic.
-- **#13:A4-SETUP-13** · LOW · `services/setup.py:336` · _SMALL-CORRECTNESS_
-  - **What:** setup_set_map_camera stores an unvalidated entity_id and reports success even when the entity does not exist
-  - **Impact:** A typo in the camera entity id is confirmed as set. The Map view then shows no live backdrop and the user has no signal connecting the two — the stored value looks correct in setup_get_status (status.py:207) because that field is echoed back verbatim.
 
 ### `setup/drift.py` — 2 member(s)
 
@@ -353,10 +239,4 @@ members belong in `_proof_closing_batch.py`.
 - **direct read:DR-SETUP-4** · LOW · `setup/protection.py:44` · _SMALL-CORRECTNESS-_
   - **What:** Protection evaluation calls .get() on map buckets and room records without isinstance guards
   - **Impact:** The imported-map comprehension and the has_rules / has_access_graph scans assume dicts, where drift.py consistently checks isinstance(bucket, dict) first. A malformed record raises AttributeError out of evaluate_map_protection, which both the delete gate and the per-map summaries in get_setup_status call -- so one bad room record takes out the whole Setup tab. Fails closed on the destructive path, hence LOW, but it is the inconsistent half of a defensive convention the sibling module keeps.
-
-### `themes/manager.py` — 1 member(s)
-
-- **#17:A3-PORT-8** · LOW · `themes/manager.py:172` · _DOC-ONLY_
-  - **What:** The _get_theme_library_entries docstring claims write-time normalization that does not exist — _normalize_theme_entry is called from two sites and both are read paths
-  - **Impact:** No direct user-visible symptom on its own — this is the enabling condition for PORT-1 and PORT-2. Its cost is that a maintainer reading this docstring reasonably concludes stored theme entries are already sanitised and adds the next writer without a validator, exactly as _import_scoped did. The comment is a claim, not a guard.
 
