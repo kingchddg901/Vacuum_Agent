@@ -96,3 +96,46 @@ Drop the files here and say so. I will:
 > **Note for the flight-recorder dumps:** `DR-DBG-1` is open — dumps carry unredacted, untruncated
 > tracebacks. These files stay local and go in `_frozen/baseline/`, which is committed. Skim them
 > before you hand them over if anything sensitive appears; the redaction gap is real and unfixed.
+
+---
+
+## RP-013c BEFORE-picture — captured 2026-08-02 (Alfred)
+
+Files: `job_2026-08-02T00-08-10-cancelledB.json`,
+`incomplete_run-2026-08-02T00-08-10-cancelledB.json`.
+
+Satisfies RP-013c's `hardware_gate` ("a cancelled stepped run — one extra Alfred
+cancel mid-phase-2") and matches its `expected_before: ["missed = every room"]`
+literally.
+
+Shape run: `kitchen -> wait -> entryway`, cancelled after kitchen finished, via
+`eufy_vacuum.cancel_active_job` from Developer Tools (NOT the card button — see
+below).
+
+**The contradiction, in two files:**
+
+| source | says |
+|---|---|
+| job record `room_timings` | kitchen, `cleaning_seconds: 120`, 07:08:13→07:10:35, `boundary: "phase"` |
+| incomplete-run log | `completed_room_ids: []`, `missed_room_ids: [5, 8]` — kitchen listed **missed** |
+
+`completed_room_ids` is EMPTY, not merely missing kitchen. The log is not
+mis-assigning; the per-phase field was reset by `advance_active_job_phase` when
+kitchen's phase finished and nothing refilled it, so
+`missed = queued - completed = [5,8] - []`. Exactly the packet's stated mechanism —
+no packet rewrite needed. User-visible harm: `retry_missed_rooms` re-cleans the
+kitchen it just cleaned.
+
+**Why the capture needed a Developer Tools call.** The card's Cancel button sent
+stock `vacuum.return_to_base` and never told the integration, so cancels recorded
+as `completed` and no incomplete-run entry was ever written — the before-picture
+was unreachable from the UI. Fixed in `7f1f462`; see
+`synthesis/FINDING-card-cancel-bypasses-seam.md`. This same record is also the
+proof of that fix on the real path: `was_cancelled: true`,
+`used_for_learning: false`, `learning_blockers: ["job_cancelled"]`.
+
+**Bonus:** all five landed RP-013x hold on a CANCELLED run (first observation of
+that) — `cleaning_time_seconds: 120` = the single timing, overhead `5.08` =
+7.08 − 2.0, `queue_room_ids: [5,8]`, `allocated: false`, `transit_capture_valid:
+true`. `cancel_detection` degraded cleanly to `{cancel_likely: false}` because
+`was_cancelled` was authoritative.
