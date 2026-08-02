@@ -506,6 +506,16 @@ tests_to_add_or_modify: snapshot shape for single-room vs group phases; the map 
 superseded_tests: any test asserting current_room_id is the sole progress target.
 broader_gates: full suite + check:i18n. hardware_gate: watch one grouped run advance --
   the same shape that found it.
+  (5) THE STALL DETECTOR MUST BE GROUP-SCOPED TOO (added 2026-08-02 from gpt review).
+  Labelling the phase is not enough. detect_run_anomalies fires a stall when the bounds
+  gate blocks rollover and elapsed >= stall_ratio (2.0) x the room's timing threshold.
+  A group member pinned as `current` for the whole phase clears that bar by an order of
+  magnitude -- entryway sat 13m40s against a ~1-minute estimate -- so a FALSE STALL is
+  likely on every grouped phase. When member attribution is unavailable the anomaly unit
+  is the PHASE: threshold from the group's combined estimate, one event for the group.
+  UNVERIFIED: predicted from the code, not observed. Chris reported only that the card
+  never advanced. Stalls fire as bus events, not record fields, so job_2026-08-02T11-15-51
+  cannot confirm it -- check the event log on the next grouped run.
 stop_conditions: [a brand DOES emit per-room signals inside a group -- then this is the
   wrong fix for that brand and the signal should drive a real advance; report]
 escalation_target: main agent -> Chris
