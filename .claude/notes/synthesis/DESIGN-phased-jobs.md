@@ -98,10 +98,18 @@ launched from a saved run profile   ->  profile:<vacuum>:<map>:<profile_name>
 ad-hoc (steps set, never saved)     ->  shape:<hash of the phase structure>
 ```
 
-Saved profiles are keyed by name in `run_profiles[vacuum][map_id]`, which survives
-re-runs. **A rename must carry the identity** — `rename_run_profile` already exists and
-becomes identity-bearing, or the key uses a stable internal id and the name is a label.
-**OPEN — see §11.1.**
+Saved profiles are keyed by name in `run_profiles[vacuum][map_id]` today. **RESOLVED
+(Chris, 2026-08-02): a profile gets a stable internal id; the name becomes a friendly
+label.** The learning key uses the id, so renaming a profile keeps its history instead of
+forking it.
+
+```
+profile:<vacuum>:<map>:<profile_id>      <- learning key, never the name
+name                                     <- display only, freely editable
+```
+
+Migration: existing profiles are keyed by name only, so each is assigned an id on first
+load. `rename_run_profile` becomes a pure label edit; nothing downstream re-keys.
 
 The ad-hoc shape key encodes structure, not just rooms:
 
@@ -122,6 +130,7 @@ included, because a 2-minute wait and a 20-minute wait are not the same shape.
 |---|---|---|
 | room | existing per-room key | duration, area, battery — **only from authoritative boundaries** |
 | clean phase (group) | phased-job identity + ordinal | composite duration, battery, area, settings, dispatch success |
+| zone phase | the zone's own identity | the ZONE only — never rooms (Chris, 2026-08-02) |
 | Phased Job | phased-job identity | orchestration cost ONLY — boundary transit |
 
 The Phased Job is an **aggregate for presentation** and a **learner for one narrow thing**.
@@ -342,19 +351,40 @@ Legacy records are marked `legacy_monolithic: true` and otherwise left alone.
 
 ---
 
-## 11. Open — needs Chris
+## 11. Resolved (Chris, 2026-08-02)
 
-1. **Profile rename and identity.** If the learning key is the profile NAME, renaming a
-   profile forks its history. Options: make `rename_run_profile` identity-preserving via a
-   stable internal id (name becomes a label), or accept that a rename starts fresh.
-   Recommend the internal id.
-2. **Phased Job status vocabulary** (§5.3). `completed / partial / cancelled / failed` is a
-   proposal, not a decision. User-visible.
-3. **Does an ad-hoc phased job teach at all?** Its shape key is stable but arbitrary; a user
-   who never repeats the exact structure accumulates one-sample buckets forever. Options:
-   teach anyway, teach only after N occurrences, or teach only profile-launched runs.
-4. **Zone phases.** Treated as clean phases here. Confirm — a zone has no room identity, so
-   it teaches the zone, not rooms.
+**1. Profile identity — friendly name vs id.** A stable internal id is the learning key;
+the name is a label. Rename preserves history. Folded into §3.2.
+
+**2. Status vocabulary — agreed.** `completed` · `partial` · `cancelled` · `failed`, per
+§5.3.
+
+**3. Ad-hoc Phased Jobs are RECORDED but NOT LEARNED by default.** They appear in the
+Phased Job list like any other, but the parent carries `used_for_learning: false` and its
+orchestration data teaches nothing until the user opts it in — **reusing the existing
+exclude/restore mechanism**, not a new one (`exclude_learning_job` / `restore_learning_job`
+already exist and behave exactly this way for ordinary jobs).
+
+Rationale: an ad-hoc shape key is stable but arbitrary. A user who never repeats a
+structure would otherwise accumulate one-sample orchestration buckets forever, and a
+one-sample bucket presented as learned is the same overconfidence as the 50/50 allocation.
+
+**This restriction is on the PARENT only.** A child of an ad-hoc run is an ordinary job
+with an ordinary room key and teaches normally — the concern is orchestration shape, not
+room duration. A profile-launched Phased Job's parent learns by default, because it
+repeats by construction.
+
+**4. Zone phases teach ZONES ONLY.** A zone has no room identity; it must never contribute
+to a room's stats. Folded into §3.3.
+
+## 11b. Still open
+
+Nothing blocking. Two items to settle during implementation, not before:
+
+- Whether a Phased Job whose children all completed but whose parent is ad-hoc should
+  surface an "include this run" affordance on the card, or stay service-only.
+- Whether `phase_count` alone is enough to detect truncation, or the parent needs an
+  explicit `planned_phase_count` for the case where the plan itself was rebuilt mid-run.
 
 ---
 
