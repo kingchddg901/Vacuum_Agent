@@ -348,6 +348,17 @@ class PhaseRunner:
             from ..learning.history_store import LearningHistoryStore
 
             store = LearningHistoryStore(self._manager.hass)
+            # The parent open is best-effort, so it may not be there. Check BEFORE
+            # writing a break record: written anyway, it is an orphan file referenced by
+            # nothing, which no reader will ever find and no close will ever account for.
+            if store.load_phased_job(
+                vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+            ) is None:
+                _LOGGER.warning(
+                    "phase %s of %s finished with no parent record -- skipping, the "
+                    "parent should have been opened at run start", idx, phased_job_id,
+                )
+                return
             record_id: str | None = None
             if is_dock_polled_phase(phase):
                 record_id = f"{phased_job_id}.phase{idx}"

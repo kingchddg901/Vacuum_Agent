@@ -212,3 +212,132 @@ def test_a_store_failure_cannot_block_the_next_phase(store, runner, monkeypatch)
     job["current_phase_index"] = 1
     job["phases"][1]["_timing_end_t"] = "2026-08-02T18:11:40+00:00"
     runner._record_phase_to_parent(_VAC, _MAP, job)  # must not raise
+
+
+# --------------------------------------------------------------------------
+# Hostile-probe repairs. Five of seven adversarial cases broke the wiring as
+# first landed (74ce10c); each fix is pinned below. See _probe_wire_hostile.py.
+# --------------------------------------------------------------------------
+
+
+def test_production_finalize_path_reaches_the_parent_close():
+    """H1, the serious one. The close hook first landed on the SYNC
+    finalize_completed_job — which only tests call. Production goes
+    async_finalize_completed_job -> _finalize_claimed -> finalize_from_inputs, so the
+    parent would have stayed "running" on every real run while every test passed.
+
+    A correct function with no live caller passes every suite; this asserts the caller.
+    """
+    import ast
+    from pathlib import Path
+
+    import custom_components.eufy_vacuum.learning.manager as lm_mod
+
+    src = Path(lm_mod.__file__).read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    bodies = {
+        n.name: ast.get_source_segment(src, n) or ""
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    chain, seen, reaches = ["async_finalize_completed_job"], set(), False
+    while chain:
+        fn = chain.pop()
+        if fn in seen:
+            continue
+        seen.add(fn)
+        body = bodies.get(fn, "")
+        if "_close_phased_job_parent" in body:
+            reaches = True
+        chain.extend(c for c in bodies if c != fn and f".{c}(" in body)
+    assert reaches, "the production finalize path does not close the phased-job parent"
+
+
+def test_closed_parent_has_no_null_outcomes(store, runner):
+    """H3. outcome None is the SAME value a phase carries while in flight — on a closed
+    parent nothing distinguishes "never ran" from "still going"."""
+    job = _job()
+    _open(store, job)
+    job["current_phase_index"] = 0
+    job["phases"][0]["_timing_end_t"] = "2026-08-02T18:09:00+00:00"
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+    closed = store.close_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ,
+        ended_at="2026-08-02T18:10:00+00:00", battery_end=80,
+    )
+    assert all(p.get("outcome") for p in closed["phases"])
+    assert closed["status"] == "partial"
+
+
+def test_cancel_propagates_to_the_later_phases(store, runner):
+    """H4 / Chris's directive 1. Sealed at CLOSE, not in the cancel path: the cancel path
+    returns early by design (it owns finalization), so it never visits what it cancelled.
+    """
+    job = _job()
+    _open(store, job)
+    job["current_phase_index"] = 0
+    job["phases"][0]["_timing_end_t"] = "2026-08-02T18:09:00+00:00"
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+    closed = store.close_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ,
+        ended_at="2026-08-02T18:10:00+00:00", battery_end=80,
+        ended_reason="cancelled",
+    )
+    slots = {p["index"]: p for p in closed["phases"]}
+    assert slots[1]["outcome"] == "cancelled_upstream"
+    assert slots[2]["outcome"] == "cancelled_upstream"
+
+
+def test_interrupted_run_does_not_claim_the_user_cancelled_it(store, runner):
+    """A restart-killed run reading "cancelled" is a false statement about who did what,
+    and the two have different repair paths (resume vs re-plan)."""
+    job = _job()
+    _open(store, job)
+    closed = store.close_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ,
+        ended_at="2026-08-02T18:10:00+00:00", battery_end=None,
+        ended_reason="interrupted",
+    )
+    assert closed["status"] == "interrupted"
+
+
+def test_no_orphan_break_record_when_the_parent_is_missing(store, runner):
+    """H6. The parent open is best-effort, so it may be absent. A break record written
+    anyway is referenced by nothing and accounted for by no close."""
+    job = _job()  # deliberately NOT opened
+    job["current_phase_index"] = 1
+    job["phases"][1]["_timing_end_t"] = "2026-08-02T18:11:40+00:00"
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+    phases_dir = store.get_paths(vacuum_entity_id=_VAC).phases_dir
+    assert not list(phases_dir.glob("*.json"))
+
+
+def test_reaper_closes_a_stranded_parent_and_spares_a_live_one():
+    """H2. Writing the parent at RUN START was justified by it being reapable — but the
+    reaper did not exist, so parents would have accumulated as "running" forever."""
+    import tempfile
+    from pathlib import Path
+
+    from custom_components.eufy_vacuum.core.manager import EufyVacuumManager
+
+    tmp = Path(tempfile.mkdtemp())
+    hass = MagicMock()
+    hass.config.config_dir = str(tmp)
+    store = LearningHistoryStore(hass)
+    for pj in ("pj_dead", "pj_live"):
+        store.open_phased_job(
+            vacuum_entity_id=_VAC, phased_job_id=pj, map_id=_MAP,
+            started_at="2026-08-02T18:00:00+00:00", battery_start=100,
+            planned_phases=[{"phase_type": "room_group", "queue_room_ids": [5]}],
+            planned_estimate={}, planned_rooms=[],
+        )
+    fake = MagicMock()
+    fake.hass = hass
+    fake.data = {"active_jobs": {_VAC: {_MAP: {"phased_job_id": "pj_live"}}}}
+
+    assert EufyVacuumManager._reap_stranded_phased_jobs(fake) == 1
+    dead = store.load_phased_job(vacuum_entity_id=_VAC, phased_job_id="pj_dead")
+    live = store.load_phased_job(vacuum_entity_id=_VAC, phased_job_id="pj_live")
+    assert dead["status"] == "interrupted"
+    assert all(p.get("outcome") for p in dead["phases"])
+    assert live["status"] == "running", "the reaper killed a live run"

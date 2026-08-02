@@ -538,6 +538,60 @@ class EufyVacuumManager:
                     )
 
         self._clear_orphaned_finalize_claims()
+        self._reap_stranded_phased_jobs()
+
+    def _reap_stranded_phased_jobs(self) -> int:
+        """Close Phased Job parents left "running" by a crash, restart or power loss.
+
+        This is what makes writing the parent at RUN START safe. That choice was made so
+        an abnormal end leaves a REAPABLE parent instead of children pointing at a parent
+        that never existed — but a reaper that does not exist reaps nothing, and the
+        parents would simply accumulate forever. A hostile probe caught the claim being
+        made with no implementation behind it.
+
+        Only parents with no live active job are touched: a run that survived the restart
+        keeps going and closes itself normally. Sealed as ``interrupted`` so the phases
+        that never ran read as torn down rather than merely unreported.
+        """
+        reaped = 0
+        try:
+            from ..learning.history_store import LearningHistoryStore
+
+            store = LearningHistoryStore(self.hass)
+            live = {
+                (str(v), str(j.get("phased_job_id") or ""))
+                for v, jobs in (self.data.get("active_jobs") or {}).items()
+                if isinstance(jobs, dict)
+                for j in jobs.values()
+                if isinstance(j, dict) and not j.get("finalized")
+            }
+            for vac_id in list((self.data.get("active_jobs") or {}).keys()) or []:
+                paths = store.get_paths(vacuum_entity_id=str(vac_id))
+                if not paths.phased_jobs_dir.exists():
+                    continue
+                for path in paths.phased_jobs_dir.glob("*.json"):
+                    parent = store.read_json(path)
+                    if not isinstance(parent, dict) or parent.get("status") != "running":
+                        continue
+                    pj_id = str(parent.get("phased_job_id") or "")
+                    if (str(vac_id), pj_id) in live:
+                        continue  # still running — leave it alone
+                    store.close_phased_job(
+                        vacuum_entity_id=str(vac_id),
+                        phased_job_id=pj_id,
+                        ended_at=str(parent.get("started_at") or utc_now_iso()),
+                        battery_end=None,
+                        ended_reason="interrupted",
+                    )
+                    reaped += 1
+            if reaped:
+                _LOGGER.info(
+                    "reaped %d stranded phased-job parent(s) left running by a restart",
+                    reaped,
+                )
+        except Exception:  # noqa: BLE001 - startup housekeeping must never block setup
+            _LOGGER.exception("could not reap stranded phased-job parents")
+        return reaped
 
     def _clear_orphaned_finalize_claims(self) -> int:
         """Drop any exactly-once finalize claim left behind by a crash or restart.

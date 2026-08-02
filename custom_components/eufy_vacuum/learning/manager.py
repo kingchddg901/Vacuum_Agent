@@ -690,6 +690,7 @@ class LearningManager:
     def _close_phased_job_parent(
         self, *, manager, vacuum_entity_id: str, map_id: str,
         ended_at: str | None, battery_end: int | None,
+        outcome_status: str | None = None,
     ) -> None:
         """Close the Phased Job parent, if this run had one.
 
@@ -713,6 +714,9 @@ class LearningManager:
                 phased_job_id=phased_job_id,
                 ended_at=str(ended_at or _iso_now()),
                 battery_end=battery_end,
+                # Carries Chris's directive 1: on a cancel, the phases that never ran are
+                # sealed `cancelled_upstream` rather than left blank.
+                ended_reason=outcome_status,
             )
         except Exception:  # noqa: BLE001 - must never break finalization
             _LOGGER.exception("could not close phased-job parent")
@@ -909,6 +913,26 @@ class LearningManager:
         if rebuild_stats:
             self.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         result["accuracy"] = accuracy_result
+
+        # Phased Jobs wave 1: close the parent HERE, on the production path, inside the
+        # exactly-once claim. The sibling call in the sync `finalize_completed_job` is
+        # reached only by tests — the same two-path hazard the accuracy gate above warns
+        # about, and a hostile probe caught this landing in exactly it: the parent would
+        # have stayed "running" on every real run.
+        await self.hass.async_add_executor_job(
+            lambda: self._close_phased_job_parent(
+                manager=manager,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                ended_at=ended_at,
+                battery_end=battery_end,
+                outcome_status=str(
+                    (result.get("completed_job") or {}).get("outcome", {}).get("status")
+                    or inputs.get("outcome_status")
+                    or ""
+                ) if isinstance(result, dict) else "",
+            )
+        )
         return result
 
     async def _record_zone_learning(

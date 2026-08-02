@@ -66,6 +66,11 @@ def _vacuum_slug(vacuum_entity_id: str) -> str:
 #: sanitise, since a malformed id can never be a real job's file.
 _JOB_ID_RE = re.compile(r"^[A-Za-z0-9._+-]+$")
 
+#: Run outcomes that mean the LATER phases were torn down rather than simply never
+#: reached. Both get `cancelled_upstream` at close; anything else gets `not_run`. The
+#: distinction is user-facing: "you stopped it" reads differently from "it ended early".
+_CANCEL_REASONS = frozenset({"cancelled", "interrupted", "stopped", "failed"})
+
 
 def _is_valid_job_id(job_id: Any) -> bool:
     return bool(_JOB_ID_RE.fullmatch(str(job_id or "")))
@@ -754,6 +759,7 @@ class LearningHistoryStore:
         phased_job_id: str,
         ended_at: str,
         battery_end: int | None,
+        ended_reason: str | None = None,
     ) -> dict[str, Any] | None:
         """Close the parent: final status, aggregate, boundaries.
 
@@ -772,6 +778,24 @@ class LearningHistoryStore:
             return None
 
         phases = parent.get("phases") or []
+        # SEAL THE UNREPORTED PHASES FIRST. A phase that never reported carries
+        # outcome None -- the SAME value it carries while in flight. On a closed parent
+        # that is unreadable: nothing distinguishes "this phase never ran" from "this
+        # phase is still going", on a run that is over.
+        #
+        # Chris's directive 1 (a cancel on any phase propagates to the later phases)
+        # lands here rather than in the cancel path: the cancel path returns early by
+        # design (it owns finalization and must not advance), so it never visits the
+        # phases it cancelled. Close is the one place that sees them all.
+        _sealed = (
+            "cancelled_upstream"
+            if str(ended_reason or "").strip().lower() in _CANCEL_REASONS
+            else "not_run"
+        )
+        for _ph in phases:
+            if _ph.get("outcome") in (None, ""):
+                _ph["outcome"] = _sealed
+
         clean = [p for p in phases
                  if str(p.get("type")) not in ("charge_wait", "wait")]
         done = [p for p in clean if p.get("outcome") == "completed"]
@@ -781,6 +805,11 @@ class LearningHistoryStore:
             status = "failed"
         elif done:
             status = "partial"
+        elif str(ended_reason or "").strip().lower() == "interrupted":
+            # NOT "cancelled". A run killed by a restart or a power loss telling the user
+            # they cancelled it is a false statement about who did what -- and the two
+            # have different repair paths (resume vs re-plan).
+            status = "interrupted"
         else:
             status = "cancelled"
 
