@@ -49,6 +49,10 @@ Coverage targets
 [LKG-6]  _commit_result: stale_since is set ONCE across repeated holds.
 [LKG-7]  _commit_result: transient-absent with no prior present cache -> written as-is.
 [LKG-8]  refresh (Roborock memory): a present read then no_parsed_map -> the held map is served.
+[LKG-9]  RP-027/RF-10: a held result nulls current_room/robot_anchor/path (held_static=True);
+         display statics (rooms) survive.
+[MSD-4b] RP-026/LC-3: an unchanged mtime is NOT a cache hit for a DIFFERENT map_id.
+[MSD-4c] RP-027/RF-10: an unchanged-mtime cache hit re-applies the live pose fresh each read.
 """
 
 from __future__ import annotations
@@ -147,7 +151,12 @@ async def test_refresh_storage_cache_hit(manager, monkeypatch):
     out = await manager.map_source.async_refresh_map_state_source(
         vacuum_entity_id=_VAC, map_id="6"
     )
-    assert out is cached_result
+    # RP-027/RF-10 clause 3: a cache hit now always returns a fresh COPY (pose
+    # re-applied against it, a no-op here since this adapter declares no
+    # live_pose config) rather than the exact same cached object — equal
+    # content, not identity.
+    assert out == cached_result
+    assert out is not cached_result
 
 
 async def test_refresh_storage_cache_hit_requires_same_map_id(manager, monkeypatch):
@@ -172,6 +181,40 @@ async def test_refresh_storage_cache_hit_requires_same_map_id(manager, monkeypat
     )
     assert out == fresh_result
     assert out is not cached_result
+
+
+async def test_refresh_storage_cache_hit_reapplies_live_pose(manager, monkeypatch):
+    """[MSD-4c] RP-027/RF-10 clause 3: an mtime cache hit re-applies the CURRENT live
+    pose on every read rather than re-serving whatever pose was frozen into the
+    cache — the .storage file's write cadence is coarser than the in-memory pose,
+    so an unchanged file is the common case while the robot is actually moving."""
+    _register(source={"backend": "storage", "live_pose": {"robot_pixel_attrs": ["x"]}})
+    _present(manager, monkeypatch)
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "/x/store.json")
+    monkeypatch.setattr(msc, "_stat_mtime", lambda p: 999.0)
+    monkeypatch.setattr(msr, "load_store_json", lambda p: {"data": {"map_data": {"width": 100, "height": 100}}})
+    monkeypatch.setattr(
+        msr, "eufy_result_from_store",
+        lambda *a, **k: {"present": True, "robot_anchor": None},
+    )
+    poses = iter([
+        {"present": True, "robot_pixel": (10, 10), "dock_pixel": None,
+         "robot_heading": None, "trail_pixels": None},
+        {"present": True, "robot_pixel": (90, 90), "dock_pixel": None,
+         "robot_heading": None, "trail_pixels": None},
+    ])
+    monkeypatch.setattr(manager.map_source, "_read_inmem_pose", lambda vac, cfg: next(poses))
+
+    r1 = await manager.map_source.async_refresh_map_state_source(
+        vacuum_entity_id=_VAC, map_id="6"
+    )
+    r2 = await manager.map_source.async_refresh_map_state_source(   # same mtime -> cache hit
+        vacuum_entity_id=_VAC, map_id="6"
+    )
+
+    assert r1["robot_anchor"] is not None
+    assert r2["robot_anchor"] is not None
+    assert r2["robot_anchor"] != r1["robot_anchor"]
 
 
 async def test_refresh_storage_version_mismatch_warns(manager, monkeypatch):
@@ -625,6 +668,27 @@ def test_commit_result_no_prior_present(manager):
     out = co._commit_result(_VAC, "6", dict(_ABSENT))
     assert out == _ABSENT
     assert manager._map_state_source_cache[_VAC]["result"] == _ABSENT
+
+
+def test_commit_result_hold_nulls_moving_fields(manager):
+    """[LKG-9] RP-027/RF-10: a held result keeps present:True + its frozen STATICS for
+    display (rooms unchanged), but nulls the MOVING attribution fields — a docked/idle
+    robot must not keep attributing to wherever it was last seen for the whole hold
+    window just because nothing downstream reads the stale flag."""
+    co = manager.map_source
+    live = {
+        "present": True, "backend": "memory", "rooms": [{"number": 1}],
+        "current_room": "Kitchen", "robot_anchor": [0.5, 0.5],
+        "path": [[0.1, 0.1], [0.2, 0.2]],
+    }
+    co._commit_result(_VAC, "6", dict(live))
+    held = co._commit_result(_VAC, "6", dict(_ABSENT))
+
+    assert held["present"] is True and held["rooms"] == [{"number": 1}]  # display surface intact
+    assert held["current_room"] is None
+    assert held["robot_anchor"] is None
+    assert held["path"] == []
+    assert held["held_static"] is True
 
 
 async def test_refresh_holds_roborock_map_on_idle_drop(manager, monkeypatch):

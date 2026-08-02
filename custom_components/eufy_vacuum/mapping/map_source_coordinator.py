@@ -83,6 +83,7 @@ class MapSourceCoordinator:
         *,
         mtime: float | None = None,
         present_gate: bool | None = None,
+        map_data: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Write a pre-warm result to ``manager._map_state_source_cache``, holding the
         last-known-good map through a TRANSIENT source dropout instead of dropping it.
@@ -101,6 +102,12 @@ class MapSourceCoordinator:
         entry: dict[str, Any] = {"mtime": mtime, "map_id": str(map_id), "result": result}
         if present_gate is not None:
             entry["present_gate"] = present_gate
+        if map_data is not None:
+            # RP-027/RF-10 clause 3: cached alongside so a later mtime cache-hit can
+            # re-apply a FRESH live pose without re-reading/re-parsing the file — the
+            # geometry is genuinely unchanged (that's what the mtime hit means), but
+            # the pose is live and must never be frozen at whatever it was here.
+            entry["map_data"] = map_data
 
         if not result.get("present"):
             reason = result.get("reason") or ""
@@ -127,6 +134,16 @@ class MapSourceCoordinator:
                     held["stale"] = True
                     held["stale_since"] = since
                     held["stale_reason"] = reason
+                    # RP-027/RF-10 clause 1: the hold stays present:True for DISPLAY (the
+                    # card keeps the frozen map + a stale badge — CF-6, not closed here),
+                    # but the MOVING attribution fields must not survive it. Without this a
+                    # docked/idle robot kept attributing to wherever it was last seen, at
+                    # whatever cadence the attribution consumer polls, for the whole TTL
+                    # window — the stale flag existed but nothing downstream read it.
+                    held["current_room"] = None
+                    held["robot_anchor"] = None
+                    held["path"] = []
+                    held["held_static"] = True
                     held_entry = dict(cached)  # preserve the original mtime/present_gate/map_id
                     held_entry["result"] = held
                     self._manager._map_state_source_cache[vacuum_entity_id] = held_entry
@@ -270,7 +287,19 @@ class MapSourceCoordinator:
             and cached.get("map_id") == str(map_id)
             and isinstance(cached.get("result"), dict)
         ):
-            return cached["result"]
+            # RP-027/RF-10 clause 3: the cache holds GEOMETRY (unchanged file), not the
+            # pose overlay — a live pose still needs applying fresh on every read, or a
+            # cache hit re-serves whatever position the robot was at when the file was
+            # last parsed for as long as it stays unchanged (often the common case
+            # while the robot moves — the fork's .storage write cadence is coarser
+            # than its in-memory pose). Re-applies against the map_data cached
+            # alongside the result rather than re-reading the file.
+            cached_result = dict(cached["result"])
+            self._apply_inmem_pose_to_result(
+                cached_result, cached.get("map_data") or {}, vacuum_entity_id,
+                source_cfg.get("live_pose"),
+            )
+            return cached_result
 
         store_json = await self._manager.hass.async_add_executor_job(_msr.load_store_json, path)
         expected_version = source_cfg.get("store_version")
@@ -294,6 +323,7 @@ class MapSourceCoordinator:
         )
         return self._commit_result(
             vacuum_entity_id, map_id, result, mtime=mtime, present_gate=present,
+            map_data=map_data,
         )
 
     def _apply_inmem_pose_to_result(
