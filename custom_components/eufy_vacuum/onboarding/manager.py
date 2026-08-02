@@ -25,6 +25,23 @@ from ..adapters.registry import get_adapter_config
 _LOGGER = logging.getLogger(__name__)
 
 
+def _default_map_onboarding() -> dict[str, Any]:
+    """Fresh onboarding-state record for one vacuum/map (DR-ONB-4).
+
+    Single source for the 5-key shape -- _get_map_onboarding's lazy-create
+    and reset_onboarding's explicit reset used to be two hand-maintained
+    copies of this same vocabulary, so a key added to one silently missed
+    the other.
+    """
+    return {
+        "rooms_discovered": False,
+        "floor_types_confirmed": {},
+        "room_count_at_last_check": 0,
+        "discovery_notified": False,
+        "rebuild_notified": False,
+    }
+
+
 class OnboardingManager:
     """Owns room-discovery and floor-type onboarding state per vacuum/map."""
 
@@ -61,16 +78,7 @@ class OnboardingManager:
         """Return onboarding state for one vacuum/map, creating defaults if absent."""
         ob = self._get_onboarding_data()
         ob.setdefault(vacuum_entity_id, {})
-        ob[vacuum_entity_id].setdefault(
-            str(map_id),
-            {
-                "rooms_discovered": False,
-                "floor_types_confirmed": {},
-                "room_count_at_last_check": 0,
-                "discovery_notified": False,
-                "rebuild_notified": False,
-            },
-        )
+        ob[vacuum_entity_id].setdefault(str(map_id), _default_map_onboarding())
         return ob[vacuum_entity_id][str(map_id)]
 
     # ------------------------------------------------------------------
@@ -249,13 +257,7 @@ class OnboardingManager:
         """Clear onboarding state for one map, forcing re-check on next evaluation."""
         ob = self._get_onboarding_data()
         ob.setdefault(vacuum_entity_id, {})
-        ob[vacuum_entity_id][str(map_id)] = {
-            "rooms_discovered": False,
-            "floor_types_confirmed": {},
-            "room_count_at_last_check": 0,
-            "discovery_notified": False,
-            "rebuild_notified": False,
-        }
+        ob[vacuum_entity_id][str(map_id)] = _default_map_onboarding()
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),

@@ -460,6 +460,47 @@ async def _case_dr_map_2(proof: H.Proof) -> None:
     )
 
 
+async def _case_dr_onb_4(proof: H.Proof) -> None:
+    from unittest.mock import patch
+
+    from custom_components.eufy_vacuum.onboarding import manager as onboarding_mod
+
+    data: dict = {}
+    hass = H.make_hass()
+    mgr = onboarding_mod.OnboardingManager(data, hass)
+
+    sentinel_calls: list = []
+
+    def _sentinel():
+        sentinel_calls.append(1)
+        return {"sentinel": True}
+
+    # create=True: on the pinned (pre-fix) tree _default_map_onboarding
+    # doesn't exist at all -- patch.object would otherwise raise instead of
+    # cleanly reporting BEFORE.
+    with patch.object(
+        onboarding_mod, "_default_map_onboarding", side_effect=_sentinel, create=True
+    ):
+        mgr._get_map_onboarding(vacuum_entity_id=H.VAC, map_id=H.MAP)
+        mgr.reset_onboarding(vacuum_entity_id=H.VAC, map_id=H.MAP)
+
+    both_routed = sentinel_calls == [1, 1]
+
+    proof.case(
+        "onboarding/manager.py DR-ONB-4: _get_map_onboarding's lazy-create "
+        "and reset_onboarding's explicit reset must build the 5-key default "
+        "record from ONE shared source, not two hand-maintained copies",
+        before=(not both_routed),
+        before_msg="patching the shared default builder has no effect on "
+                   "either call site -- each inlines its own independent "
+                   "copy of the 5-key shape",
+        after=both_routed,
+        after_msg="both call sites route through the same "
+                  "_default_map_onboarding() builder",
+        detail=f"sentinel_calls={sentinel_calls}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -473,6 +514,7 @@ CASES = [
     _case_pose_6,
     _case_dr_map_1,
     _case_dr_map_2,
+    _case_dr_onb_4,
 ]
 
 
