@@ -3,11 +3,14 @@
 Coverage targets
 ----------------
 [SQ-1]  build_queue service populates manager queue data.
+[SQ-1b] RP-031/Q9: build_queue now supports_response.
 [SQ-2]  get_queue_state service returns empty default for unknown vacuum.
 [SQ-3]  get_queue_state service returns populated data after build_queue.
 [SQ-4]  get_payload_state service returns a response dict.
 [SQ-5]  build_room_payload service completes without error.
+[SQ-5b] RP-031/Q9: build_room_payload now supports_response.
 [SQ-6]  clear_queue service empties the queue.
+[SQ-6b] RP-031/Q9: clear_queue now supports_response.
 [SQ-7]  RP-032/RF-28 (A2-JOB-5): break_type -> required-sibling-parameter
         cross-field validation, at the schema layer.
 [SQ-8]  RP-032/RF-28 (A2-JOB-5): add_queue_break has no zone branch, so its
@@ -51,6 +54,19 @@ async def test_build_queue_service_populates_queue(hass, manager_with_services):
     )
     assert _VAC in manager_with_services.data.get("queue", {})
     assert _MAP in manager_with_services.data["queue"][_VAC]
+
+
+async def test_build_queue_service_returns_response(hass, manager_with_services):
+    """[SQ-1b] RP-031/Q9: build_queue now supports_response -- was
+    fire-and-forget (-> None) even though it always builds a real payload."""
+    setup_map(manager_with_services, _VAC, _MAP, count=3)
+    result = await hass.services.async_call(
+        DOMAIN, "build_queue",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+    assert result["vacuum_entity_id"] == _VAC
+    assert result["room_count"] == 3
 
 
 async def test_build_queue_service_sets_room_ids(hass, manager_with_services):
@@ -151,6 +167,23 @@ async def test_build_room_payload_service_no_error(hass, manager_with_services):
     )
 
 
+async def test_build_room_payload_service_returns_response(hass, manager_with_services):
+    """[SQ-5b] RP-031/Q9: build_room_payload now supports_response -- was
+    fire-and-forget (-> None) even though it always builds a real payload dict."""
+    setup_map(manager_with_services, _VAC, _MAP, count=2)
+    await hass.services.async_call(
+        DOMAIN, "build_queue",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True,
+    )
+    result = await hass.services.async_call(
+        DOMAIN, "build_room_payload",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+    assert isinstance(result, dict) and result
+
+
 # ---------------------------------------------------------------------------
 # [SQ-6] clear_queue
 # ---------------------------------------------------------------------------
@@ -173,6 +206,19 @@ async def test_clear_queue_service_empties_queue(hass, manager_with_services):
     )
     assert state["queue_room_ids"] == []
     assert state["room_count"] == 0
+
+
+async def test_clear_queue_service_returns_response(hass, manager_with_services):
+    """[SQ-6b] RP-031/Q9: clear_queue now supports_response -- was
+    fire-and-forget (-> None) even though it always builds a real payload."""
+    setup_map(manager_with_services, _VAC, _MAP, count=3)
+    result = await hass.services.async_call(
+        DOMAIN, "clear_queue",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+    assert result["room_count"] == 0
+    assert result["queue_room_ids"] == []
 
 
 # ---------------------------------------------------------------------------

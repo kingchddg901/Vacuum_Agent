@@ -159,18 +159,20 @@ SERVICES = (
 )
 
 
-async def _handle_build_queue(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_build_queue(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Build cleaning queue from enabled rooms."""
     payload = get_manager(hass).build_queue(**resolved_call_data(hass, call))
     _LOGGER.debug("build_queue complete: %s", payload)
     await get_manager(hass).async_save()
+    return payload
 
 
-async def _handle_build_room_payload(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_build_room_payload(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Build payload for room cleaning."""
     payload = get_manager(hass).build_room_payload(**resolved_call_data(hass, call))
     _LOGGER.debug("build_room_payload complete: %s", payload)
     await get_manager(hass).async_save()
+    return payload
 
 
 async def _handle_get_queue_state(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -187,11 +189,12 @@ async def _handle_get_payload_state(hass: HomeAssistant, call: ServiceCall) -> d
     return payload
 
 
-async def _handle_clear_queue(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_clear_queue(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Clear queue state."""
     payload = get_manager(hass).clear_queue(**resolved_call_data(hass, call))
     _LOGGER.debug("clear_queue complete: %s", payload)
     await get_manager(hass).async_save()
+    return payload
 
 
 async def _handle_get_queue_steps(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -244,11 +247,11 @@ async def _handle_add_queue_zone(hass: HomeAssistant, call: ServiceCall) -> dict
 def register(hass: HomeAssistant) -> None:
     """Register queue services."""
 
-    async def build_queue(call: ServiceCall) -> None:
-        await _handle_build_queue(hass, call)
+    async def build_queue(call: ServiceCall) -> dict:
+        return await _handle_build_queue(hass, call)
 
-    async def build_room_payload(call: ServiceCall) -> None:
-        await _handle_build_room_payload(hass, call)
+    async def build_room_payload(call: ServiceCall) -> dict:
+        return await _handle_build_room_payload(hass, call)
 
     async def get_queue_state(call: ServiceCall) -> dict:
         return await _handle_get_queue_state(hass, call)
@@ -256,8 +259,8 @@ def register(hass: HomeAssistant) -> None:
     async def get_payload_state(call: ServiceCall) -> dict:
         return await _handle_get_payload_state(hass, call)
 
-    async def clear_queue(call: ServiceCall) -> None:
-        await _handle_clear_queue(hass, call)
+    async def clear_queue(call: ServiceCall) -> dict:
+        return await _handle_clear_queue(hass, call)
 
     async def get_queue_steps(call: ServiceCall) -> dict:
         return await _handle_get_queue_steps(hass, call)
@@ -278,10 +281,12 @@ def register(hass: HomeAssistant) -> None:
         return await _handle_add_queue_zone(hass, call)
 
     hass.services.async_register(
-        DOMAIN, SERVICE_BUILD_QUEUE, build_queue, schema=VACUUM_MAP_SCHEMA,
+        DOMAIN, SERVICE_BUILD_QUEUE, build_queue,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_BUILD_ROOM_PAYLOAD, build_room_payload, schema=VACUUM_MAP_SCHEMA,
+        DOMAIN, SERVICE_BUILD_ROOM_PAYLOAD, build_room_payload,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_GET_QUEUE_STATE, get_queue_state,
@@ -292,7 +297,8 @@ def register(hass: HomeAssistant) -> None:
         schema=VACUUM_MAP_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_CLEAR_QUEUE, clear_queue, schema=VACUUM_MAP_SCHEMA,
+        DOMAIN, SERVICE_CLEAR_QUEUE, clear_queue,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_GET_QUEUE_STEPS, get_queue_steps,
