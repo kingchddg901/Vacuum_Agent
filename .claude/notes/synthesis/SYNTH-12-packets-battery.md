@@ -443,3 +443,75 @@ escalation_target: main agent -> Chris
 > discovered: this is the same reachability trap as the card-cancel bypass
 > [[feedback_audit_callsite_reachability]], and naming it is the only thing that stops it
 > repeating. `eufy_error_source` is dead code today, deliberately, for exactly one packet.
+
+---
+
+## RP-047 — Live progress must show the PHASE, not room[0] (A3-REC-3, reopened)
+
+```yaml
+packet_id: RP-047
+family_id: RF-11
+finding_ids: ["#9:A3-REC-3"]
+severity: HIGH
+files: [custom_components/eufy_vacuum/core/manager.py,
+  custom_components/eufy_vacuum/jobs/active_job.py,
+  src/renderers/, src/state/, src/i18n/en.js, tests/, tests/frontend]
+symbols: [get_job_progress_snapshot, _derive_active_job_current_room_id]
+problem: >
+  During a room_group phase the card pins to the group's FIRST room for the phase's whole
+  duration and appears frozen. _derive_active_job_current_room_id returns the first
+  resolved_room not in the PER-PHASE completed_room_ids, and record_completed_room never
+  fires inside a group dispatch -- the group is one command, so there is no per-room
+  rollover to observe.
+evidence_live: >
+  alfred job_2026-08-02T11-15-51 — [kitchen] -> [entryway + hallway]. The card showed
+  Entryway for the entire 13m40s group phase and never advanced to Hallway. Chris found
+  it by watching the run; the ledger said C4 was 4/4 applied.
+reopened: >
+  A3-REC-3 was credited to RP-013c, which closed its FINALIZATION half only. See
+  _reopened_findings.json. C4's own stated fix names the open half: "record the phase as
+  a phase rather than as room[0]".
+required_behavior: >
+  (1) get_job_progress_snapshot emits `current_room_ids` (a LIST) alongside the existing
+  `current_room_id`: [id] for a single-room phase, every room id for a group. Additive --
+  current_room_id keeps its meaning and existing consumers keep working.
+  (2) it also emits `current_phase`: {index, phase_type, room_ids, is_group}. The snapshot
+  already reads current_phase_index; this exposes what it knows instead of collapsing it.
+  (3) the card renders ALL current rooms: the progress label names them, and the map
+  highlights every one (src/renderers/map.js:1009 currently falls back to a single
+  current_room_id).
+  (4) for a group, current_room_id is the group's first room UNCHANGED -- it is the map's
+  legacy fallback and a stable anchor. The fix is that the card stops treating it as the
+  whole answer, not that it starts lying differently.
+prohibited_changes: >
+  DO NOT advance current_room_id partway through a group. The split was never observed --
+  that is exactly what the record's `allocated: true` / `allocation_group_size` mean -- so
+  a synthesized boundary is the same invention RP-013c's REVIEW pin forbids. If a brand
+  ever emits a real per-room signal inside a group, THAT signal earns the advance.
+card_half: >
+  Join room names with Intl.ListFormat, not a hardcoded separator -- the names are user
+  data but the conjunction is locale-grammar ("A and B" / "A und B" / "A、B"). A " + "
+  literal would be an untranslated string smuggled past the i18n contract
+  [[feedback_no_string_without_i18n]]. One new key for the label frame; the names
+  interpolate.
+rollback_plan: 2 commits -- (a) snapshot fields, (b) card render + i18n.
+reproducer_script: NEW _proof_group_live_progress.py -- a 2-room group phase mid-run:
+  before -> current_room_id pins to room[0] and nothing names the second room; after ->
+  current_room_ids carries both and current_phase.is_group is true.
+expected_before: ["current_room_ids absent; only room[0] is nameable for the whole phase"]
+expected_after: ["current_room_ids [8, 4]", "current_phase.is_group true",
+  "current_room_id still 8 -- the anchor is unchanged, the card stops treating it as all"]
+tests_to_add_or_modify: snapshot shape for single-room vs group phases; the map highlight
+  over a list; ListFormat join across a CJK and an RTL locale.
+superseded_tests: any test asserting current_room_id is the sole progress target.
+broader_gates: full suite + check:i18n. hardware_gate: watch one grouped run advance --
+  the same shape that found it.
+stop_conditions: [a brand DOES emit per-room signals inside a group -- then this is the
+  wrong fix for that brand and the signal should drive a real advance; report]
+escalation_target: main agent -> Chris
+```
+
+> **Why this could not be found by audit.** The finding was marked closed, so no audit
+> would look at it. It took a human watching a robot. Recorded because the lesson is
+> reusable: partial closure is invisible to every mechanical check we have, and the only
+> defence is that reopening is cheap and loud [[feedback_audit_callsite_reachability]].
