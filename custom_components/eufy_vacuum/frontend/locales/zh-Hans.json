@@ -1810,7 +1810,11 @@
     "tank_now": "当前水箱",
     "unknown": "未知",
     "waiting_next_room": "等待下一个房间更新",
-    "water_estimate": "水量预估"
+    "water_estimate": "水量预估",
+    "room_skipped": "已跳过",
+    "run_incomplete_toast": {
+      "other": "清扫未完成，跳过了 {count} 个房间。打开“房间”重试。"
+    }
   },
   "maintenance": {
     "attention_empty": "目前一切正常。",
@@ -2309,7 +2313,8 @@
     "reset": "重置",
     "save": "保存",
     "saving": "保存中…",
-    "yes": "是"
+    "yes": "是",
+    "service_failed": "无法完成{service}，扫地机器人可能未收到该指令"
   },
   "card_editor": {
     "vacuum_label": "扫地机器人",

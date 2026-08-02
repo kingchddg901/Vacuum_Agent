@@ -13,7 +13,8 @@
     "saving": "A guardar…",
     "yes": "Sim",
     "confirm": "Confirmar",
-    "ok": "OK"
+    "ok": "OK",
+    "service_failed": "Não foi possível concluir {service} — o aspirador pode não ter recebido"
   },
   "base_station": {
     "action_available": "Ação disponível",
@@ -372,7 +373,12 @@
       "many": "{count} novas execuções pendentes",
       "other": "{count} novas execuções pendentes"
     },
-    "processing_toggle": "Processar execuções automaticamente"
+    "processing_toggle": "Processar execuções automaticamente",
+    "room_skipped": "Ignorada",
+    "run_incomplete_toast": {
+      "one": "Limpeza incompleta — 1 divisão ignorada. Abra Divisões para tentar novamente.",
+      "other": "Limpeza incompleta — {count} divisões ignoradas. Abra Divisões para tentar novamente."
+    }
   },
   "maintenance": {
     "attention_empty": "Tudo parece estar saudável de momento.",

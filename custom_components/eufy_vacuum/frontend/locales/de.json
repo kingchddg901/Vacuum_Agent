@@ -13,7 +13,8 @@
     "saving": "Wird gespeichert…",
     "yes": "Ja",
     "confirm": "Bestätigen",
-    "ok": "OK"
+    "ok": "OK",
+    "service_failed": "{service} konnte nicht abgeschlossen werden — der Saugroboter hat den Befehl möglicherweise nicht erhalten"
   },
   "base_station": {
     "action_available": "Aktion verfügbar",
@@ -368,7 +369,12 @@
       "one": "1 neuer Lauf ausstehend",
       "other": "{count} neue Läufe ausstehend"
     },
-    "processing_toggle": "Läufe automatisch verarbeiten"
+    "processing_toggle": "Läufe automatisch verarbeiten",
+    "room_skipped": "Übersprungen",
+    "run_incomplete_toast": {
+      "one": "Lauf unvollständig — 1 Raum ausgelassen. Zum Wiederholen Räume öffnen.",
+      "other": "Lauf unvollständig — {count} Räume ausgelassen. Zum Wiederholen Räume öffnen."
+    }
   },
   "maintenance": {
     "attention_empty": "Aktuell sieht alles gesund aus.",

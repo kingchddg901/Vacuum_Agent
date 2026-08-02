@@ -1606,7 +1606,12 @@
     "tank_now": "Tangki sekarang",
     "unknown": "Tidak diketahui",
     "waiting_next_room": "Menunggu pembaruan ruangan berikutnya",
-    "water_estimate": "Perkiraan air"
+    "water_estimate": "Perkiraan air",
+    "room_skipped": "Dilewati",
+    "run_incomplete_toast": {
+      "one": "Pembersihan tidak lengkap — 1 ruangan terlewat. Buka Ruangan untuk mencoba lagi.",
+      "other": "Pembersihan tidak lengkap — {count} ruangan terlewat. Buka Ruangan untuk mencoba lagi."
+    }
   },
   "maintenance": {
     "attention_empty": "Saat ini semuanya terlihat sehat.",
@@ -2336,7 +2341,8 @@
     "reset": "Atur ulang",
     "save": "Simpan",
     "saving": "Menyimpan…",
-    "yes": "Ya"
+    "yes": "Ya",
+    "service_failed": "Tidak dapat menyelesaikan {service} — penyedot debu mungkin tidak menerimanya"
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Pilih kunci profil kustom:\n\n{choiceText}",

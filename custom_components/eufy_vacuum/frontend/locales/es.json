@@ -13,7 +13,8 @@
     "saving": "Guardando…",
     "yes": "Sí",
     "confirm": "Confirmar",
-    "ok": "Aceptar"
+    "ok": "Aceptar",
+    "service_failed": "No se pudo completar {service}: es posible que el robot no lo haya recibido"
   },
   "base_station": {
     "action_available": "Acción disponible",
@@ -372,7 +373,12 @@
       "many": "{count} limpiezas nuevas pendientes",
       "other": "{count} limpiezas nuevas pendientes"
     },
-    "processing_toggle": "Procesar limpiezas automáticamente"
+    "processing_toggle": "Procesar limpiezas automáticamente",
+    "room_skipped": "Omitida",
+    "run_incomplete_toast": {
+      "one": "Limpieza incompleta: se omitió 1 habitación. Abre Habitaciones para reintentar.",
+      "other": "Limpieza incompleta: se omitieron {count} habitaciones. Abre Habitaciones para reintentar."
+    }
   },
   "maintenance": {
     "attention_empty": "Por ahora todo parece en buen estado.",

@@ -1606,7 +1606,12 @@
     "tank_now": "Zbiornik teraz",
     "unknown": "Nieznany",
     "waiting_next_room": "Oczekiwanie na aktualizację następnego pokoju",
-    "water_estimate": "Szacowane zużycie wody"
+    "water_estimate": "Szacowane zużycie wody",
+    "room_skipped": "Pominięty",
+    "run_incomplete_toast": {
+      "one": "Sprzątanie niepełne — pominięto 1 pokój. Otwórz Pokoje, aby ponowić.",
+      "other": "Sprzątanie niepełne — pominięto {count} pokoi. Otwórz Pokoje, aby ponowić."
+    }
   },
   "maintenance": {
     "attention_empty": "Obecnie wszystko wygląda prawidłowo.",
@@ -2336,7 +2341,8 @@
     "reset": "Resetuj",
     "save": "Zapisz",
     "saving": "Zapisywanie…",
-    "yes": "Tak"
+    "yes": "Tak",
+    "service_failed": "Nie udało się ukończyć {service} — odkurzacz mógł go nie otrzymać"
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Wybierz niestandardowy klucz profilu:\n\n{choiceText}",

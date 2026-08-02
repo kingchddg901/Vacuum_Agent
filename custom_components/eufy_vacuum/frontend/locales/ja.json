@@ -1810,7 +1810,11 @@
     "tank_now": "現在のタンク",
     "unknown": "不明",
     "waiting_next_room": "次の部屋の更新を待機中",
-    "water_estimate": "水量の予測"
+    "water_estimate": "水量の予測",
+    "room_skipped": "スキップ",
+    "run_incomplete_toast": {
+      "other": "清掃が完了していません。{count} 部屋がスキップされました。「部屋」を開いて再試行してください。"
+    }
   },
   "maintenance": {
     "attention_empty": "現在すべて正常です。",
@@ -2309,7 +2313,8 @@
     "reset": "リセット",
     "save": "保存",
     "saving": "保存中…",
-    "yes": "はい"
+    "yes": "はい",
+    "service_failed": "{service} を完了できませんでした。ロボット掠除機に届いていない可能性があります"
   },
   "card_editor": {
     "vacuum_label": "ロボット掃除機",

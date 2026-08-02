@@ -1606,7 +1606,12 @@
     "tank_now": "Şu anki depo",
     "unknown": "Bilinmiyor",
     "waiting_next_room": "Sonraki oda güncellemesi bekleniyor",
-    "water_estimate": "Su tahmini"
+    "water_estimate": "Su tahmini",
+    "room_skipped": "Atlandı",
+    "run_incomplete_toast": {
+      "one": "Temizlik tamamlanmadı — 1 oda atlandı. Yeniden denemek için Odalar bölümünü açın.",
+      "other": "Temizlik tamamlanmadı — {count} oda atlandı. Yeniden denemek için Odalar bölümünü açın."
+    }
   },
   "maintenance": {
     "attention_empty": "Şu anda her şey sağlıklı görünüyor.",
@@ -2336,7 +2341,8 @@
     "reset": "Sıfırla",
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
-    "yes": "Evet"
+    "yes": "Evet",
+    "service_failed": "{service} tamamlanamadı — robot süpürge komutu almamış olabilir"
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Özel bir profil anahtarı seçin:\n\n{choiceText}",

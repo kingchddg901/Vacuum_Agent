@@ -13,7 +13,8 @@
     "saving": "Opslaan…",
     "yes": "Ja",
     "confirm": "Bevestigen",
-    "ok": "OK"
+    "ok": "OK",
+    "service_failed": "Kan {service} niet voltooien — de stofzuiger heeft dit mogelijk niet ontvangen"
   },
   "base_station": {
     "action_available": "Actie beschikbaar",
@@ -368,7 +369,12 @@
       "one": "1 nieuwe openstaande run",
       "other": "{count} nieuwe openstaande runs"
     },
-    "processing_toggle": "Runs automatisch verwerken"
+    "processing_toggle": "Runs automatisch verwerken",
+    "room_skipped": "Overgeslagen",
+    "run_incomplete_toast": {
+      "one": "Reiniging onvolledig — 1 kamer overgeslagen. Open Kamers om opnieuw te proberen.",
+      "other": "Reiniging onvolledig — {count} kamers overgeslagen. Open Kamers om opnieuw te proberen."
+    }
   },
   "maintenance": {
     "attention_empty": "Alles ziet er momenteel gezond uit.",

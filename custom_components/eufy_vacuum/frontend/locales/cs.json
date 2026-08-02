@@ -1606,7 +1606,12 @@
     "tank_now": "Nádrž nyní",
     "unknown": "Neznámé",
     "waiting_next_room": "Čekání na aktualizaci další místnosti",
-    "water_estimate": "Odhad vody"
+    "water_estimate": "Odhad vody",
+    "room_skipped": "Přeskočeno",
+    "run_incomplete_toast": {
+      "one": "Úklid nedokončen — vynechaná 1 místnost. Otevřete Místnosti a zkuste to znovu.",
+      "other": "Úklid nedokončen — vynecháno {count} místností. Otevřete Místnosti a zkuste to znovu."
+    }
   },
   "maintenance": {
     "attention_empty": "Vše aktuálně vypadá v pořádku.",
@@ -2336,7 +2341,8 @@
     "reset": "Resetovat",
     "save": "Uložit",
     "saving": "Ukládání…",
-    "yes": "Ano"
+    "yes": "Ano",
+    "service_failed": "Nepodařilo se dokončit {service} — vysavač jej možná neobdržel"
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Vyberte vlastní klíč profilu:\n\n{choiceText}",

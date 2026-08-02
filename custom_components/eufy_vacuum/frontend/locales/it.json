@@ -13,7 +13,8 @@
     "saving": "Salvataggio…",
     "yes": "Sì",
     "confirm": "Conferma",
-    "ok": "OK"
+    "ok": "OK",
+    "service_failed": "Impossibile completare {service}: l'aspirapolvere potrebbe non averlo ricevuto"
   },
   "base_station": {
     "action_available": "Azione disponibile",
@@ -370,7 +371,12 @@
       "many": "{count} nuove esecuzioni in sospeso",
       "other": "{count} nuove esecuzioni in sospeso"
     },
-    "processing_toggle": "Elabora le esecuzioni automaticamente"
+    "processing_toggle": "Elabora le esecuzioni automaticamente",
+    "room_skipped": "Saltata",
+    "run_incomplete_toast": {
+      "one": "Ciclo incompleto: 1 stanza saltata. Apri Stanze per riprovare.",
+      "other": "Ciclo incompleto: {count} stanze saltate. Apri Stanze per riprovare."
+    }
   },
   "maintenance": {
     "attention_empty": "Al momento tutto sembra in salute.",

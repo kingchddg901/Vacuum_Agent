@@ -13,7 +13,8 @@
     "saving": "Enregistrement…",
     "yes": "Oui",
     "confirm": "Confirmer",
-    "ok": "OK"
+    "ok": "OK",
+    "service_failed": "Impossible de terminer {service} — l'aspirateur ne l'a peut-être pas reçu"
   },
   "base_station": {
     "action_available": "Action disponible",
@@ -372,7 +373,12 @@
       "many": "{count} nouvelles exécutions en attente",
       "other": "{count} nouvelles exécutions en attente"
     },
-    "processing_toggle": "Traiter les exécutions automatiquement"
+    "processing_toggle": "Traiter les exécutions automatiquement",
+    "room_skipped": "Ignorée",
+    "run_incomplete_toast": {
+      "one": "Cycle incomplet — 1 pièce ignorée. Ouvrez Pièces pour réessayer.",
+      "other": "Cycle incomplet — {count} pièces ignorées. Ouvrez Pièces pour réessayer."
+    }
   },
   "maintenance": {
     "attention_empty": "Tout semble en bon état pour le moment.",
