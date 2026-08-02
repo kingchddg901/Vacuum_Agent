@@ -517,8 +517,10 @@ class BatteryHealthManager:
         rejected_delta_pct: float | None = None
         zone = _zone_for(battery_level)
 
+        advance_anchor = True
         if prev_level is not None and prev_ts is not None:
             elapsed_sec = (ts - prev_ts).total_seconds()
+            advance_anchor = elapsed_sec > 0
             if elapsed_sec > 0:
                 raw_delta = battery_level - prev_level  # +charging, -draining
                 if abs(raw_delta) <= MAX_DELTA_PCT:
@@ -598,8 +600,13 @@ class BatteryHealthManager:
         # Session lifecycle.
         self._update_session(record, battery_level, charging, ts, rate_per_min)
 
-        record["last_battery_level"] = int(battery_level)
-        record["last_sample_ts"] = ts.isoformat()
+        # DR-BAT-2: an out-of-order sample (elapsed_sec <= 0) is correctly
+        # excluded from the delta/rate/drain accounting above, but must not
+        # rewind the anchor either -- else the NEXT (genuinely newer) sample
+        # computes its own delta against a stale, wrong anchor.
+        if advance_anchor:
+            record["last_battery_level"] = int(battery_level)
+            record["last_sample_ts"] = ts.isoformat()
         record["last_charging"] = bool(charging)
 
         # Persist + notify. The append is offloaded to a worker thread because
@@ -643,6 +650,7 @@ class BatteryHealthManager:
         session = record.get("current_session")
 
         # Force-close stale sessions
+        session_was_discarded = False
         if session is not None:
             start_ts = _parse_iso(session.get("start_ts"))
             if start_ts is not None and (ts - start_ts) > timedelta(hours=SESSION_MAX_HOURS):
@@ -652,11 +660,16 @@ class BatteryHealthManager:
                 )
                 record["current_session"] = None
                 session = None
+                session_was_discarded = True
 
         prev_charging = bool(record.get("last_charging"))
 
-        # Open a new session when charging begins.
-        if not prev_charging and charging:
+        # Open a new session when charging begins -- or when charging was
+        # already under way but its session was just force-closed as stale
+        # (DR-BAT-3): without the session_was_discarded check, prev_charging
+        # is already True so this branch never fires, and tracking goes dark
+        # until charging flips false and true again.
+        if charging and (not prev_charging or session_was_discarded):
             vacuum_entity_id = self._lookup_vacuum_for_record(record)
             kind = self._classify_session_kind(vacuum_entity_id)
             record["current_session"] = {

@@ -226,11 +226,27 @@ async def test_max_delta_guard(bm):
 
 
 async def test_charge_rates(bm):
-    """[BM-8]"""
+    """[BM-8]
+
+    Each zone block below is an independent 2-sample charge check, and
+    _feed() restarts its own clock at _T0 every call -- so the record's
+    last-sample anchor is cleared between blocks. Since DR-BAT-2 (RP-040
+    closing batch), an out-of-order sample no longer rewinds the anchor, so
+    without this reset the high/low-zone blocks' first sample would read as
+    out-of-order against the mid-zone block's anchor and be silently
+    dropped instead of independently exercising each zone.
+    """
     _feed(bm, [(50, True, 0), (52, True, 60)])          # mid zone
     assert bm.get_record(_VAC)["stats"]["rate_overall_per_min"] == pytest.approx(2.0)
+
+    rec = bm.get_record(_VAC)
+    rec["last_battery_level"] = None
+    rec["last_sample_ts"] = None
     _feed(bm, [(80, True, 600), (82, True, 60)])         # high zone (>= 80)
     assert bm.get_record(_VAC)["stats"]["rate_high_zone_per_min"] == pytest.approx(2.0)
+
+    rec["last_battery_level"] = None
+    rec["last_sample_ts"] = None
     _feed(bm, [(27, True, 600), (29, True, 60)])         # low zone (<= 29)
     assert bm.get_record(_VAC)["stats"]["rate_low_zone_per_min"] == pytest.approx(2.0)
 
