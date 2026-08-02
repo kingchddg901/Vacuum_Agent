@@ -14,9 +14,9 @@
 // Run: node --test src/i18n/card4-untranslated-strings.test.mjs
 //
 // FLIP CONVENTION (mirrors core-service-failure.test.mjs / core-refusal-shape
-// .test.mjs): CARD4-1 FAILS against the current locale packs (the three keys
-// are untranslated in all 17) and is expected to PASS once the packet's
-// translation pass lands (AI-draft tier, per feedback_guide_source_ai_default).
+// .test.mjs): CARD4-1 failed against the pre-fix locale packs (the three keys
+// were untranslated in all 17) and now passes -- the translation pass landed
+// in 1f8c1c2 (AI-draft tier, per feedback_guide_source_ai_default).
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -36,8 +36,7 @@ const TARGET_KEYS = [
   "learning.run_incomplete_toast",
 ];
 
-test("[CARD4-1] the three carried-CF-4 strings are translated in every shipped locale", 
-  { todo: "wave-7 CARD fix not yet executed - drop this flag as part of the fix" }, () => {
+test("[CARD4-1] the three carried-CF-4 strings are translated in every shipped locale", () => {
   const files = readdirSync(LOCALES_DIR).filter((f) => f.endsWith(".json") && f !== "index.json");
   assert.ok(files.length > 0, "no shipped locale files found -- check LOCALES_DIR");
 
