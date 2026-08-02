@@ -162,6 +162,9 @@ argument, matching the existing inline-English convention — `strings.json` has
 | `resegment_external_run` | learning/services.py | mutates persisted learning data; it is the repair lever for the EXT-1 room-collapse finding |
 | `get_incomplete_run_log` | learning/services.py | siblings `get_learning_history_snapshot` + `get_metrics_snapshot` have entries; same sibling tell |
 | `get_trouble_rooms_log` | learning/services.py | same sibling tell |
+| `confirm_external_run` | learning/services.py | mutates learning permanently; `room_assignments` is structured but typeable, not an opaque blob |
+| `get_external_pending_runs` | learning/services.py | one arg; **the only way to obtain the `pending_job_id`** the other two require |
+| `discard_external_run` | learning/services.py | destroys a captured external run. Destructive override |
 
 **Nineteen go to `INTERNAL_SERVICES`** (each still needs its per-entry comment as
 the packet already requires):
@@ -177,17 +180,24 @@ the packet already requires):
   `get_map_segments`, `adjust_map_segment`. Base64 blobs and geometry payloads;
   hand-calling is incoherent.
 
-**Count reconcile — do this first.** Sonnet reported 26 (setup 9, learning 6); the
-main-agent extraction found 24 (setup 10, learning 3). The likely cause: nine
-`learning/services.py` constants are defined OUTSIDE `const.py`, so a resolver
-reading only `const.py` reports them as missing when they **do** have yaml entries
-(`get_metrics_snapshot`, `restore_learning_job`, `retry_missed_rooms`,
-`record_estimate_accuracy`, `reanchor_learning_timeline`, `get_next_room`,
-`exclude_learning_job`, `get_room_learning_estimates`,
-`get_learning_history_snapshot`). Reconcile against the real registration walk
-before writing the allowlist. **If the reconcile turns up a name not in either
-table above, STOP and escalate** — do not classify it yourself; the licence to
-stop applies (MATERIALIZATION-03-HANDOFF §1).
+**Count reconcile — RESOLVED 2026-08-02. Sonnet's registration walk is the census;
+the main agent's grep was a heuristic and undercounted.**
+
+Sonnet's `learning/services.py` count of **6** was correct. The main agent's 3 was
+wrong: `confirm_external_run`, `get_external_pending_runs` and
+`discard_external_run` are declared INLINE beside their schemas
+(`SERVICE_CONFIRM_EXTERNAL_RUN = "confirm_external_run"` at learning/services.py:213)
+rather than in a constants block, so a grep seeded from `const.py` never saw them.
+Sonnet stopped and escalated rather than pattern-matching them into the flow —
+correct, and it is why the ruling is now right.
+
+Consequence: **where the two disagree, use the registration walk.** That includes
+`setup.py` (Sonnet 9 vs main-agent 10 — take 9 unless the walk says otherwise). The
+tables above are CLASSIFICATION guidance, not a census.
+
+Running totals after the addendum: **8 get entries, 19 internal.** If the walk's own
+total does not come to 27, the difference is a name nobody has classified — **STOP and
+escalate**, do not classify it yourself (MATERIALIZATION-03-HANDOFF §1).
 
 ---
 

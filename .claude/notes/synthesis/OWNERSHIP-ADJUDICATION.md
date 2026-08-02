@@ -200,3 +200,28 @@ both tables = STOP and escalate.
 Confirmed correct: a narrow requiredness fix that RP-028's `require_map_bucket`
 resolver then has to unpick is worse than the bug. RP-032 lands with those 8 still
 listed; emptying the allowlist is scoped to the `no_yaml_entry` class only.
+
+### RP-032 addendum — 3 more found by the real walk (2026-08-02)
+
+Sonnet's registration walk turned up three services in neither table:
+`confirm_external_run`, `get_external_pending_runs`, `discard_external_run`
+(learning/services.py:213/226/232). It left them unclassified in
+EXPECTED_FAILURES rather than guessing — correct, per the stop clause.
+
+**All three get entries.** They are siblings of `resegment_external_run`, already
+ruled in; documenting half a flow is the same sibling-asymmetry defect that
+produced the dock counter, the learning logs, and the card-cancel bypass
+[[feedback_audit_callsite_reachability]]. `discard_external_run` is destructive;
+`get_external_pending_runs` is the only way to obtain the `pending_job_id` the
+other two require; `confirm_external_run` mutates learning permanently and its
+`room_assignments` is structured but typeable, not an opaque blob. EXT-1 makes the
+card's assignment path known-unreliable, so a hand path has present value.
+
+**Totals: 27 services — 8 entries, 19 internal.**
+
+**Census correction:** Sonnet's `learning/services.py` count of 6 was right; the
+main agent's 3 was the undercount. These three are declared inline beside their
+schemas, so a grep seeded from `const.py` missed them. The earlier
+"9-constants-outside-const.py" hypothesis explained part of the delta but not this.
+**The registration walk is the authority; the main-agent tables are classification
+guidance only** — including for `setup.py` (take Sonnet's 9 over the grep's 10).
