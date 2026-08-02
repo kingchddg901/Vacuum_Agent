@@ -57,6 +57,27 @@ missing, pump blocked, and water-path obstruction, all of which are separate cod
 
 ## The 96
 
+### Two water systems, disambiguated (owner-confirmed 2026-08-02)
+
+The X10 Pro Omni sprays water from BOTH ends and "Water spray fault" did not say which:
+
+| system | function | codes |
+|---|---|---|
+| robot onboard tank (`robot_internal_tank_ml` 80 ml) | wets the mop pads WHILE cleaning the floor | 113, 114, 3010-3012, 106 |
+| base station clean-water tank | jets that WASH the pads at the dock | 6010-6014 |
+
+`113` sits in the legacy band between `112 Lift Motor` and `114 Water Pump`, surrounded by
+robot subsystems, so it is the ROBOT's spray -- confirmed with Chris, who first read it as
+the station jets because 6013 (the station pump) is the fault he actually saw. Every robot
+pump code now reads "Robot water pump ...", which also resolves the 114/3012/106 collision:
+they read alike because they ARE the same pump.
+
+**Had 113 been the station's jets it would have been misclassified** in the shipped table
+as robot-sourced AND evidence-invalidating -- i.e. it would deduct from cleaning time, the
+exact defect RP-046 repairs.
+
+## The 96
+
 | code | Eufy's string | proposed |
 |---|---|---|
 | 5 | Host Trapped Clear Obst | Robot is trapped — clear the obstacles around it |
@@ -74,8 +95,8 @@ missing, pump blocked, and water-path obstruction, all of which are separate cod
 | 107 | Laser Sensor Abnormal | Laser distance sensor fault |
 | 111 | Rotation Motor Abnormal | Mop rotation motor fault |
 | 112 | Lift Motor Abnormal | Mop lift motor fault |
-| 113 | Water Spray Abnormal | Water spray fault |
-| 114 | Water Pump Abnormal | Water pump fault |
+| 113 | Water Spray Abnormal | Mop water spray fault |
+| 114 | Water Pump Abnormal | Robot water pump fault |
 | 117 | Ultrasonic Abnormal | Ultrasonic sensor fault |
 | 119 | Wifi Bluetooth Abnormal | Wi-Fi or Bluetooth fault |
 | 1010 | Left Wheel Open Circuit | Left wheel motor not responding |
@@ -124,9 +145,9 @@ missing, pump blocked, and water-path obstruction, all of which are separate cod
 | 2225 | Right Side Brush Short Circuit | Right side brush motor electrical fault |
 | 2226 | Right Side Brush Abnormal | Right side brush fault |
 | 2227 | Right Side Brush Overcurrent | Right side brush jammed — check for tangled hair |
-| 3010 | Water Pump Open Circuit | Water pump not responding |
-| 3011 | Water Pump Short Circuit | Water pump electrical fault |
-| 3012 | Water Pump Abnormal | Water pump fault |
+| 3010 | Water Pump Open Circuit | Robot water pump not responding |
+| 3011 | Water Pump Short Circuit | Robot water pump electrical fault |
+| 3012 | Water Pump Abnormal | Robot water pump fault |
 | 3120 | Rotation Motor Open Circuit | Mop rotation motor not responding |
 | 3121 | Rotation Motor Short Circuit | Mop rotation motor electrical fault |
 | 3122 | Rotation Motor Abnormal | Mop rotation motor fault |
@@ -135,7 +156,7 @@ missing, pump blocked, and water-path obstruction, all of which are separate cod
 | 3132 | Lift Motor Abnormal | Mop lift motor fault |
 | 4012 | Radar Rpm Abnormal | Lidar not spinning correctly — check for a blockage |
 | 4020 | Gyroscope Abnormal | Gyroscope fault |
-| 4030 | Tof Sensor Error | Depth sensor error |
+| 4030 | Tof Sensor Error | Depth sensor fault |
 | 4031 | Tof Sensor Blocked | Depth sensor blocked — wipe it clean |
 | 5010 | Battery Open Circuit | Battery not responding |
 | 5011 | Battery Short Circuit | Battery electrical fault |
