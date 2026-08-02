@@ -12,8 +12,8 @@ Ivy sat on a `charge_wait` phase.
 `battery/` was NOT unaudited — it was covered by the campaign's direct-read tier
 (`corpus/audit-findings-report.md`), the method deliberately chosen for small
 subsystems, which found 2 LOW items there. Twenty minutes of live observation
-then found four more, one of them a HIGH that had already corrupted a
-user-visible counter by ~285 %.
+then found four more — a lying default that poisons the session ring, an ETA
+that can never re-anchor, and a health metric that reads None on both robots.
 
 So the headline is not a coverage gap. It is **calibration**: what a read of code
 at rest can see, versus what only shows up across time and accumulated state.
@@ -30,7 +30,7 @@ Evidence throughout is the LIVE production store
 packet_id: RP-042
 family_id: RF-36
 finding_ids: ["live:BAT-1"]
-severity: HIGH
+severity: MEDIUM   # was HIGH — see evidence_live; the accumulator is NOT corrupted
 files: [custom_components/eufy_vacuum/core/charging.py,
   custom_components/eufy_vacuum/battery/manager.py, tests/]
 symbols: [get_battery_level, _update_cycles drain accumulator]
@@ -42,28 +42,47 @@ problem: >
   therefore indistinguishable from a flat pack — and 0 is the most damaging
   value in the domain, because every consumer treats it as "empty".
 
-  This is RP-006's defect class exactly (read_json's lying default, repaired to
-  a tri-state) in a different file. The signature `-> int` cannot express
-  "unknown", so it invents a reading.
+  This is RP-006's defect class exactly (read_json's lying default) in a different
+  file. The signature `-> int` cannot express "unknown", so it invents a reading.
+
+  SCOPE NOTE: the damage is narrower than first written. The drain/cycle
+  accumulator is PROTECTED by MAX_DELTA_PCT and its numbers are honest; the
+  session ring is not, and that is what this packet repairs. See evidence_live.
 evidence_live: >
-  Both vacuums' session_history_recent contain physically impossible rows:
-  Ivy 98 -> 0 in 2.57 min, Alfred 100 -> 0 in 17.58 / 24.84 / 112.57 / 573.93
-  min. A pack cannot shed 98 points in 150 seconds.
+  CORRECTED 2026-08-01 after Chris asked why the impossible-delta guard did not
+  protect the accumulator. IT DOES. An earlier version of this packet claimed the
+  dropouts booked ~1.0 phantom cycle each and inflated Alfred's counter ~285 %.
+  That was FABRICATED — derived by reasoning from the accumulator code to the
+  impossible history rows without checking the guard sitting between them.
 
-  The damage is NOT confined to the history ring. battery/manager.py's cycle
-  accounting runs on every negative delta:
-      if raw_delta < 0: cumulative_drain_pct += -raw_delta
-                        cycles = cumulative_drain_pct / 100.0
-  so each dropout books ~1.0 phantom cycle. LIVE VALUES:
-      Alfred  cycles = 5.41, of which >= 4.0 are phantom (4 visible dropouts)
-      Ivy     cycles = 2.53, of which >= 1.98 are phantom (2 visible dropouts)
-  Alfred's true figure is ~1.4. The counter is inflated ~285 %.
+  battery/manager.py:526 wraps BOTH the drain accumulator and the rate metrics in
+  `if abs(raw_delta) <= MAX_DELTA_PCT`, with MAX_DELTA_PCT = 3.0. A 98-point flip
+  fails it, is recorded as `rejected_delta_pct` for post-hoc analysis, and adds
+  NOTHING to cumulative_drain_pct. The guard is symmetric: after a dropout leaves
+  the anchor at 0, the next real reading of 98 produces +98 and is rejected the
+  same way, so there is no phantom charge either.
 
-  ">=" is load-bearing: the ring holds only the recent 50 sessions, but
-  cumulative_drain_pct is MONOTONIC and has no rebuild path. Dropouts that have
-  rotated out of the ring are still baked into the total and are no longer
-  visible. The numbers above are LOWER BOUNDS. This is the Audit-#2 lesson
-  repeating — an accumulator outside the rebuild path takes permanent damage.
+  MEASURED on the live install, which is what settles it:
+      Alfred samples.jsonl — 592 samples, 42 carry rejected_delta_pct,
+      and ALL 42 have |delta| > 50. Every dropout was caught; none leaked.
+      cumulative_drain_pct = 541.0 (cycles 5.41) is 541 points of REAL drain
+      accumulated in <=3 % steps. Ivy 256.0 / 2.56, same story.
+  The cycle counter is HONEST. Do not repair it.
+
+  WHAT IS GENUINELY BROKEN — the SESSION RING, which has no such guard.
+  _update_session records `end_battery` from the raw reading, so the dropouts
+  land there intact:
+      Ivy    98 -> 0 in 2.57 min
+      Alfred 100 -> 0 in 17.58 / 24.84 / 112.57 / 573.93 min
+  A pack cannot shed 98 points in 150 seconds. Four such rows in Alfred's
+  50-session ring, two in Ivy's. That ring feeds health_pct and the
+  qualifying-session set, which is why RP-045 reads None on both vacuums — so
+  this defect and RP-045's symptom share a cause and should land together.
+
+  The ROOT is unchanged and is what this packet fixes: get_battery_level cannot
+  say "unknown", so it says 0, and 0 is a plausible-looking battery level that
+  every unguarded consumer accepts.
+
 required_behavior: >
   (1) get_battery_level gains an explicit UNKNOWN result. DECIDED BY CHRIS
   2026-08-01: **None (null), NOT a tri-state.** RP-006 needed three states because
@@ -76,22 +95,32 @@ required_behavior: >
   They must NOT difference against it, and must NOT carry the previous reading
   forward as though it had been observed — a carried-forward reading is the same
   lie as the 0, just quieter.
-  (3) A one-shot repair pass for the existing corruption: recompute
-  cumulative_drain_pct from the session ring, discarding rows whose end_battery
-  is 0 with a start_battery above a plausible-drain threshold, and record that
-  the pre-repair value is a floor (older damage is unrecoverable). Do NOT
-  silently zero it — the user has a number on a card today and it must change
-  visibly, with a reason.
+  (3) REMOVED 2026-08-01. This clause specified a one-shot repair of
+  cumulative_drain_pct. **DO NOT DO IT** — the guard already protected that
+  counter and the live values are honest (see evidence_live). Repairing it would
+  be surgery on a correct, user-visible number.
+  What DOES need attention is the SESSION RING, and it belongs with RP-045 rather
+  than here: an end_battery of 0 whose start_battery is far above it is not an
+  observation, and a session recorder taking the None from (1) must record the
+  session as ENDED-UNKNOWN rather than ended-at-zero. Landing (1) stops new bad
+  rows; the six existing ones age out of the 50-entry ring on their own.
 prohibited_changes: >
   No substring/heuristic fallback for the battery reading (the sibling
   is_charging deliberately refuses one — charging.py:67-75 — and the same
   reasoning applies).
-rollback_plan: 3 commits (None + call sites; consumer decisions; repair pass).
+rollback_plan: 2 commits (None + call sites; consumer decisions). The third
+  commit was the deleted repair pass.
 reproducer_script: NEW _proof_battery_unknown.py — battery sensor unavailable +
-  vacuum attribute absent: reading (before 0 / after unknown); a dropout sample
-  through the drain accumulator (before +98 pts / after skipped).
-expected_before: ["level=0 on an unreadable sensor", "phantom drain +98"]
-expected_after: ["level=unknown", "sample skipped, drain unchanged"]
+  vacuum attribute absent: the READING (before 0 / after None), and the SESSION
+  the recorder writes (before ended-at-zero / after ended-unknown). Do NOT write
+  a drain-accumulator case: the guard rejects the flip pre-repair, so it would
+  report the same shape before and after.
+expected_before: ["level=0 on an unreadable sensor",
+  "session recorded as ended-at-zero"]
+expected_after: ["level=None on an unreadable sensor",
+  "session recorded as ended-unknown"]
+  # NOT a drain-accumulator assertion — MAX_DELTA_PCT already rejects the flip,
+  # so a drain-based case would pass before AND after and prove nothing.
 tests_to_add_or_modify: dropout matrix (sensor unavailable / unknown / absent,
   attribute present / absent); accumulator skip; repair-pass idempotence.
 superseded_tests: any test asserting get_battery_level returns 0 for a missing
@@ -286,9 +315,16 @@ The direct-read tier **under-detected on `battery/`**, measurably:
 
 - ~50K tokens of direct read on `battery/` produced **2 LOW** findings
   (DR-BAT-2/3) plus 2 DOC-ONLY corrections.
-- Watching **one** charge cycle produced **four** more, including a HIGH whose
-  0-on-unreadable default had already inflated a user-visible cycle counter by
-  ~285 % — permanently, through a monotonic accumulator with no rebuild path.
+- Watching **one** charge cycle produced **four** more: a lying 0-on-unreadable
+  default that poisons the session ring, an ETA dividing by a baseline that can
+  never re-anchor, a first-quote using the previous session's rate, and a health
+  metric reading None on both robots.
+
+  (An earlier draft claimed the default had also inflated the cycle counter
+  ~285 %. It had not — `MAX_DELTA_PCT` rejects the flip, verified against 592
+  live samples. Corrected in RP-042; the calibration argument below stands
+  without it, since all four remaining defects are still time-and-state
+  defects a read of code at rest would not surface.)
 
 That is not an argument that nobody looked. It is calibration data about **what a
 direct read can and cannot see**, and the pattern is legible: a read inspects
