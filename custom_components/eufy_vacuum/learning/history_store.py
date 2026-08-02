@@ -24,6 +24,7 @@ import csv
 import json
 import logging
 import os
+import re
 import tempfile
 import time
 from typing import Any
@@ -47,6 +48,21 @@ def _vacuum_slug(vacuum_entity_id: str) -> str:
     if "." in vacuum_entity_id:
         return vacuum_entity_id.split(".", 1)[1].strip().lower()
     return str(vacuum_entity_id).strip().lower()
+
+
+#: job_id round-trips through exclude_learning_job / restore_learning_job,
+#: so on those service paths it is UNTRUSTED input -- get_completed_job_path
+#: interpolates it directly into a filesystem path, and pathlib does not
+#: normalise "..". job_finalizer.py generates ids shaped "job_<timestamp>",
+#: but other producers (imports, tests, external tooling) use other shapes,
+#: so this only excludes path separators and stays permissive otherwise --
+#: mirrors external_run.py's _is_valid_pending_job_id: reject rather than
+#: sanitise, since a malformed id can never be a real job's file.
+_JOB_ID_RE = re.compile(r"^[A-Za-z0-9._+-]+$")
+
+
+def _is_valid_job_id(job_id: Any) -> bool:
+    return bool(_JOB_ID_RE.fullmatch(str(job_id or "")))
 
 
 def _build_transit_blocks(
@@ -221,6 +237,13 @@ class LearningHistoryStore:
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 handle.write(data)
+                # IO-7: os.replace is rename-atomic but not durable on its
+                # own -- without this, a power loss between the write and
+                # the OS lazily flushing dirty pages can leave a zero-length
+                # file after the rename, which read_json_outcome then
+                # reports as READ_UNREADABLE ("no data") rather than an error.
+                handle.flush()
+                os.fsync(handle.fileno())
             os.replace(tmp_name, path)
         except BaseException:
             with contextlib.suppress(OSError):
@@ -410,8 +433,18 @@ class LearningHistoryStore:
         vacuum_entity_id: str,
         job_id: str,
     ) -> Path:
-        """Return completed-job path."""
+        """Return completed-job path.
+
+        IO-5: job_id round-trips through exclude_learning_job /
+        restore_learning_job as caller-supplied input and was interpolated
+        here unvalidated -- pathlib does not normalise "..", so a crafted id
+        gave those services an arbitrary *.json overwrite primitive. Raises
+        on a shape that isn't job_finalizer's own "job_<timestamp>" id;
+        load_completed_job (the only untrusted-input path) catches it.
+        """
         paths = self.ensure_dirs(vacuum_entity_id=vacuum_entity_id)
+        if not _is_valid_job_id(job_id):
+            raise ValueError(f"invalid job_id: {job_id!r}")
         return paths.jobs_dir / f"{job_id}.json"
 
     def save_completed_job(
@@ -436,10 +469,15 @@ class LearningHistoryStore:
         job_id: str,
     ) -> dict[str, Any] | None:
         """Load one completed job JSON."""
-        path = self.get_completed_job_path(
-            vacuum_entity_id=vacuum_entity_id,
-            job_id=job_id,
-        )
+        try:
+            path = self.get_completed_job_path(
+                vacuum_entity_id=vacuum_entity_id,
+                job_id=job_id,
+            )
+        except ValueError:
+            # IO-5: an invalid job_id can never be a real job's file --
+            # callers already treat this the same as "job not found".
+            return None
         payload = self.read_json(path)
         return payload if isinstance(payload, dict) else None
 
@@ -660,79 +698,6 @@ class LearningHistoryStore:
         """Return room export CSV path."""
         paths = self.ensure_dirs(vacuum_entity_id=vacuum_entity_id)
         return paths.exports_dir / "rooms_flat.csv"
-
-    def append_job_csv_row(
-        self,
-        *,
-        vacuum_entity_id: str,
-        row: list[Any],
-    ) -> Path:
-        """Append one jobs CSV row."""
-        path = self.jobs_csv_path(vacuum_entity_id=vacuum_entity_id)
-        header = [
-            "job_id",
-            "started_at",
-            "ended_at",
-            "map_id",
-            "room_count",
-            "duration_minutes",
-            "battery_start",
-            "battery_end",
-            "battery_used",
-            "status",
-            "used_for_learning",
-            "sanity_passed",
-            "sanity_flags",
-            "learning_blockers",
-            "job_drift_minutes",
-            "job_abs_drift_minutes",
-            "water_estimated_ml",
-            "water_end_station_pct",
-            "water_actual_used_ml",
-        ]
-        self.append_csv_row(path, header, row)
-        return path
-
-    def append_room_csv_rows(
-        self,
-        *,
-        vacuum_entity_id: str,
-        rows: list[list[Any]],
-    ) -> Path:
-        """Append multiple room CSV rows."""
-        path = self.rooms_csv_path(vacuum_entity_id=vacuum_entity_id)
-        header = [
-            "job_id",
-            "started_at",
-            "ended_at",
-            "map_id",
-            "room_slug",
-            "room_id",
-            "room_order",
-            "requested_mode",
-            "effective_mode",
-            "clean_times",
-            "fan_speed",
-            "water_level",
-            "clean_intensity",
-            "edge_mopping",
-            "is_carpet",
-            "job_room_count",
-            "job_duration_minutes",
-            "job_battery_used",
-            "status",
-            "used_for_learning",
-            "sanity_passed",
-            "sanity_flags",
-            "learning_blockers",
-            "allocated_room_minutes",
-            "allocated_room_battery_used",
-            "allocated_room_drift_minutes",
-            "allocated_room_abs_drift_minutes",
-        ]
-        for row in rows:
-            self.append_csv_row(path, header, row)
-        return path
 
     def rebuild_jobs_csv(
         self,

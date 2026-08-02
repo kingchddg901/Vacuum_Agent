@@ -279,6 +279,72 @@ async def _case_dq_act_7(proof: H.Proof) -> None:
         clear_registry()
 
 
+async def _case_io_5(proof: H.Proof) -> None:
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = H.learning_store(tmp)
+        jobs_dir = store.ensure_dirs(vacuum_entity_id=H.VAC).jobs_dir
+        malicious_id = "../../../../etc/passwd"
+
+        raised = False
+        resolved = None
+        try:
+            path = store.get_completed_job_path(vacuum_entity_id=H.VAC, job_id=malicious_id)
+            resolved = path.resolve()
+        except ValueError:
+            raised = True
+
+        escaped = (not raised) and (not resolved.is_relative_to(jobs_dir.resolve()))
+
+        proof.case(
+            "learning/history_store.py IO-5: a crafted job_id must not be "
+            "able to walk get_completed_job_path outside the jobs directory",
+            before=escaped,
+            before_msg="job_id is interpolated into the path unvalidated -- "
+                       "the resolved path lands outside jobs_dir, giving "
+                       "exclude/restore_learning_job an arbitrary *.json "
+                       "overwrite primitive",
+            after=raised,
+            after_msg="an id that doesn't match job_finalizer's own "
+                      "'job_<timestamp>' shape raises ValueError before a "
+                      "Path is even built",
+            detail=f"raised={raised} resolved={resolved} jobs_dir={jobs_dir}",
+        )
+
+
+async def _case_io_7(proof: H.Proof) -> None:
+    import tempfile
+    from pathlib import Path
+    from unittest.mock import patch
+
+    with tempfile.TemporaryDirectory() as tmp:
+        store = H.learning_store(tmp)
+        target = Path(tmp) / "probe.json"
+
+        with patch(
+            "custom_components.eufy_vacuum.learning.history_store.os.fsync"
+        ) as mock_fsync:
+            store.write_json(target, {"a": 1})
+            fsync_called = mock_fsync.called
+
+        proof.case(
+            "learning/history_store.py IO-7: write_json must fsync the temp "
+            "file's contents before the atomic rename",
+            before=(not fsync_called),
+            before_msg="os.replace is rename-atomic but not durable on its "
+                       "own -- nothing forces the written bytes to disk "
+                       "before the rename, so a crash between write and OS "
+                       "flush can leave a zero-length file that "
+                       "read_json_outcome then reports as 'no data' rather "
+                       "than an error",
+            after=fsync_called,
+            after_msg="the handle is flushed and fsync'd before os.replace, "
+                      "so the rename always points at durably-written bytes",
+            detail=f"fsync_called={fsync_called}",
+        )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -286,6 +352,8 @@ CASES = [
     _case_cb_4,
     _case_start_3,
     _case_dq_act_7,
+    _case_io_5,
+    _case_io_7,
 ]
 
 
