@@ -139,11 +139,18 @@ superseded_tests: bindings tests pinning force:true cross-map behaviour.
 ```yaml
 packet_id: CARD-6
 finding_ids: [Q17 card half (A5-PP-RP-5 display), Q12 card half (zone repeat
-  control), #7:DQ-ZONE-5 (zone_bounds consumer)]
+  control)]
 files: [src/state/run-profiles.js, src/state/steps-order.js, src/renderers/
   (steps editor + zone UI), src/cards/zone-geometry.js,
   src/cards/dashboard-card.js, i18n en + 17, src/styles/, tests/frontend]
 
+  >>> CLAUSE (3) DROPPED 2026-08-02 (Chris, OWNERSHIP-ADJUDICATION.md #5): NOT
+  >>> IN SCOPE. Building the zone_bounds live readout is a feature, not a
+  >>> repair, and does not belong in a defect campaign. Dropped, not deferred —
+  >>> #7:DQ-ZONE-5 removed from finding_ids above. zone_bounds remains a
+  >>> snapshot field with no frontend consumer BY DECISION, so a future reader
+  >>> files it as intent rather than an oversight, not as a gap to close later.
+  >>>
   >>> CLAUSE (2) FILE-LIST CORRECTED 2026-08-01 (main agent), after the executing
   >>> window correctly refused to guess between "file-list miss" and "build new".
   >>> It is a FILE-LIST MISS. The control EXISTS; the packet pointed at the wrong
@@ -182,10 +189,7 @@ required_behavior: >
   (2) Q12: the zone repeat control renders ONLY when the brand's capability
   declaration supports zone repeats (driven by the snapshot's declared caps —
   no brand string checks); on Eufy it disappears.
-  (3) ZONE-5: the zone draw UI consumes zone_bounds — live size readout +
-  out-of-bounds highlight while drawing, using the SAME declared values dispatch
-  enforces (one truth, three consumers closed).
-rollback_plan: 3 commits (steps editor; repeat control; draw bounds).
+rollback_plan: 2 commits (steps editor; repeat control).
 proof: unit tests on steps-order sanitize + capability-driven visibility;
   render-harness draw check. VISUAL=1: YES (draw overlay + struck step).
 superseded_tests: steps-editor tests permitting leading breaks.
