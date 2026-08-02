@@ -238,11 +238,15 @@ DELETE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
 # Saved zones (named reusable clean regions — a map holds many). geometry is a
 # normalized 0-1 point list (the drawn polygon); dispatch works off it directly.
 def _saved_zone_coord(v: Any) -> float:
-    """Coerce one zone coordinate to a FINITE float clamped to normalized 0-1
-    (mirrors the hidden-regions sanitizer at ``_handle_set_hidden_regions``): reject
-    non-numeric / bool / NaN / inf outright — bad input must never persist (orjson
-    would silently turn NaN/inf into ``null`` on save) — and clamp a value that
-    drifts a hair past the edge on a drag; round to kill float noise."""
+    """Coerce one zone coordinate to a FINITE float clamped to normalized 0-1:
+    reject non-numeric / bool / NaN / inf outright — bad input must never
+    persist (orjson would silently turn NaN/inf into ``null`` on save) — and
+    clamp a value that drifts a hair past the edge on a drag; round to kill
+    float noise. Per-coordinate only — does not (and cannot, in isolation)
+    catch a whole-geometry degenerate bbox; see
+    ``_reject_degenerate_zone_geometry`` for that, the fourth rule the
+    hidden-regions sanitizer (``_handle_set_hidden_regions``) applies that
+    this one alone used to just claim to mirror (RP-032/A1-SERVIC-4)."""
     if isinstance(v, bool):
         raise vol.Invalid("coordinate must be a number, not a bool")
     try:
@@ -254,21 +258,49 @@ def _saved_zone_coord(v: Any) -> float:
     return round(max(0.0, min(1.0, f)), 5)
 
 
+# RP-032/A1-SERVIC-4: matches dispatch/manager.py's zone-clean guard
+# (dispatch_zone_clean's own ``_MIN_SIDE``) so a zone that would pass here
+# never fails degenerate at clean time -- reject it at create time instead,
+# while there is still a service (retry create_saved_zone) that can fix it.
+# Before this, a bbox that collapsed to near-zero area (duplicate points, or
+# out-of-range/wrong-unit input that _saved_zone_coord's clamp turned into a
+# valid-looking point) saved cleanly and then failed EVERY clean attempt,
+# with no set-geometry service able to repair it -- delete-and-redraw was the
+# only remedy.
+_MIN_SIDE = 0.01
+
+
+def _reject_degenerate_zone_geometry(value: dict) -> dict:
+    """Cross-field check: geometry's bbox (points already clamped/rounded by
+    _saved_zone_coord) must have both sides >= _MIN_SIDE."""
+    geometry = value.get("geometry") or []
+    xs = [p[0] for p in geometry]
+    ys = [p[1] for p in geometry]
+    if xs and ys and (max(xs) - min(xs) < _MIN_SIDE or max(ys) - min(ys) < _MIN_SIDE):
+        raise vol.Invalid(
+            "geometry is degenerate (near-zero area) -- draw a larger region"
+        )
+    return value
+
+
 _SAVED_ZONE_POINT = vol.All([_saved_zone_coord], vol.Length(min=2, max=2))
-CREATE_SAVED_ZONE_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
-        vol.Required("name"): cv.string,
-        vol.Required("geometry"): vol.All([_SAVED_ZONE_POINT], vol.Length(min=3)),
-        # RP-032/RF-28 (A6-ZONE-C-7): "clean" is the only kind either clean
-        # handler reads -- both dispatch on the geometry bbox alone regardless
-        # of kind, so an unconstrained string (e.g. "no_go") got persisted and
-        # was then dispatched as a clean anyway. Restrict to what dispatch
-        # actually honors; widen this allow-list only alongside a real
-        # dispatch-side consumer for the new kind.
-        vol.Optional("kind"): vol.In(["clean"]),
-    }
+CREATE_SAVED_ZONE_SCHEMA = vol.All(
+    vol.Schema(
+        {
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+            vol.Required("map_id"): cv.string,
+            vol.Required("name"): cv.string,
+            vol.Required("geometry"): vol.All([_SAVED_ZONE_POINT], vol.Length(min=3)),
+            # RP-032/RF-28 (A6-ZONE-C-7): "clean" is the only kind either clean
+            # handler reads -- both dispatch on the geometry bbox alone regardless
+            # of kind, so an unconstrained string (e.g. "no_go") got persisted and
+            # was then dispatched as a clean anyway. Restrict to what dispatch
+            # actually honors; widen this allow-list only alongside a real
+            # dispatch-side consumer for the new kind.
+            vol.Optional("kind"): vol.In(["clean"]),
+        }
+    ),
+    _reject_degenerate_zone_geometry,
 )
 
 RENAME_SAVED_ZONE_SCHEMA = vol.Schema(

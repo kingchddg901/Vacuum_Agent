@@ -113,10 +113,17 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
             "id":          str,
             "name":        str,     # user label; "Zone" when blank
             "geometry":    list,    # [[x, y], ...] normalized 0-1 point list (the
-                                    #   zone shape; dispatch works off it directly)
+                                    #   zone shape; dispatch works off it directly).
+                                    #   Sanitized per-point (finite, clamped 0-1) AND
+                                    #   as a whole (bbox rejected if either side <
+                                    #   0.01 -- matches dispatch's own degenerate
+                                    #   check, so a saved zone can never be
+                                    #   permanently unrepairable at clean time;
+                                    #   RP-032/A1-SERVIC-4).
             "area_m2":     float,   # or None until computed (Wave 2)
             "room_number": int,     # filing bucket, or None until computed (Wave 2)
-            "kind":        str,     # default "clean"
+            "kind":        str,     # "clean" -- the only value the schema currently
+                                    #   accepts (no dispatch path reads any other)
             "created_at":  str,     # iso
             "updated_at":  str,     # iso
         },
@@ -358,7 +365,7 @@ The following keys live in the same bucket but are written by **other subsystems
 | `…[str(map_id)]["image_variants"]` | dict | `{variant: {variant, path, browser_url, width, height}}` uploaded backdrops, variant ∈ default/dark/light/custom. Written by `upload_map_image`, pruned by `delete_map_image` |
 | `…[str(map_id)]["segment_room_links"]` | dict | `{segment_id: room_id}` 1:1 segment→room links. Written by `set_segment_room_link` |
 | `…[str(map_id)]["companion_anchors"]` | dict | `{room_id\|"dock": {pct_x, pct_y}}` sprite anchors (0-100 %); reserved `"dock"` key is a map-level mascot spot. Written by `set_companion_anchor` |
-| `…[str(map_id)]["saved_zones"]` | dict | `{zone_id: {id, name, geometry, area_m2, room_number, kind, created_at, updated_at}}` named reusable clean regions; `geometry` is a normalized 0-1 point list, `kind` defaults `"clean"`, `area_m2`/`room_number` are `None` until computed. Seeded by `_migrate_saved_zones`, written by `_create_saved_zone` |
+| `…[str(map_id)]["saved_zones"]` | dict | `{zone_id: {id, name, geometry, area_m2, room_number, kind, created_at, updated_at}}` named reusable clean regions; `geometry` is a normalized 0-1 point list, sanitized per-point AND as a whole (bbox rejected if either side < 0.01, matching dispatch's own degenerate check), `kind` only accepts `"clean"` (no dispatch path reads any other value), `area_m2`/`room_number` are `None` until computed. Seeded by `_migrate_saved_zones`, written by `_create_saved_zone` |
 | `…[str(map_id)]["hidden_regions"]` | list | `[[x0, y0, x1, y1], …]` normalized 0-1 top-left-origin mask rects that hide map noise (replace-all; sanitized — finite, clamped 0-1, ordered min<max, degenerate dropped). Written by `_handle_set_hidden_regions` |
 | `…[str(map_id)]["area_label_anchors"]` | dict | `{room_id: {pct_x, pct_y}}` dragged m² label positions (0-100 % of the map content box); null both to reset to room centre. Written by `_handle_set_area_label_anchor` |
 | `…[str(map_id)]["live_map_rotation"]` | int | Display-only live-map rotation ∈ `{0, 90, 180, 270}`; never affects cleaning/dispatch. Written by `_handle_set_live_map_rotation` |

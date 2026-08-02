@@ -46,6 +46,9 @@ Coverage targets
         map; the backfill persists and is a no-op once every zone is sized.
 [ZONE-11] RP-032/RF-28 (A6-ZONE-C-7): CREATE_SAVED_ZONE_SCHEMA's kind only accepts "clean" —
         neither clean handler reads kind, so a wider value would silently dispatch as a clean anyway.
+[ZONE-12] RP-032/RF-28 (A1-SERVIC-4): a zone whose clamped bbox collapses to near-zero area is
+        rejected at create time (matching dispatch's own degenerate check) instead of persisting
+        as a zone that fails every clean attempt with no repair service.
 """
 
 from __future__ import annotations
@@ -545,9 +548,11 @@ def test_saved_zone_geometry_coord_validation():
             CREATE_SAVED_ZONE_SCHEMA(
                 {**base, "geometry": [[bad, 0.0], [0.0, 0.0], [1.0, 1.0]]})
     # finite but out of the normalized 0-1 range -> clamped, not rejected
+    # (third point deliberately clamps to the OPPOSITE corner from the first
+    # two, so the resulting bbox isn't degenerate -- see [ZONE-12] for that)
     out = CREATE_SAVED_ZONE_SCHEMA(
-        {**base, "geometry": [[5.0, -3.0], [100.0, 0.5], [1.0, 1.0]]})
-    assert out["geometry"] == [[1.0, 0.0], [1.0, 0.5], [1.0, 1.0]]
+        {**base, "geometry": [[5.0, -3.0], [100.0, 0.5], [-3.0, 1.0]]})
+    assert out["geometry"] == [[1.0, 0.0], [1.0, 0.5], [0.0, 1.0]]
     assert all(math.isfinite(c) for pt in out["geometry"] for c in pt)
 
 
@@ -569,6 +574,44 @@ def test_saved_zone_kind_only_accepts_clean():
     assert "kind" not in CREATE_SAVED_ZONE_SCHEMA(base)  # omitted -> handler defaults it
     with pytest.raises(vol.Invalid):
         CREATE_SAVED_ZONE_SCHEMA({**base, "kind": "no_go"})
+
+
+def test_saved_zone_geometry_rejects_degenerate_bbox():
+    """[ZONE-12] A bbox that collapses to near-zero area is rejected at create
+    time (matches dispatch/manager.py's own _MIN_SIDE=0.01 guard) rather than
+    persisting a zone that would fail every clean attempt with no repair
+    service available."""
+    import voluptuous as vol
+
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        CREATE_SAVED_ZONE_SCHEMA,
+    )
+    base = {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z"}
+
+    # (a) duplicate points -> zero-area bbox.
+    with pytest.raises(vol.Invalid):
+        CREATE_SAVED_ZONE_SCHEMA(
+            {**base, "geometry": [[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]})
+
+    # (b) wrong-unit input (0-100 pct instead of 0-1) that _saved_zone_coord's
+    # per-coordinate clamp alone would turn into a valid-looking degenerate point.
+    with pytest.raises(vol.Invalid):
+        CREATE_SAVED_ZONE_SCHEMA(
+            {**base, "geometry": [[10, 20], [60, 20], [60, 70]]})
+
+    # (c) a real, non-degenerate zone still validates.
+    out = CREATE_SAVED_ZONE_SCHEMA(
+        {**base, "geometry": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]})
+    assert out["geometry"] == [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]
+
+    # (d) a span comfortably above the 0.01 threshold passes; comfortably
+    # below it is rejected.
+    above = CREATE_SAVED_ZONE_SCHEMA(
+        {**base, "geometry": [[0.10, 0.10], [0.12, 0.10], [0.10, 0.50]]})
+    assert above["geometry"] == [[0.10, 0.10], [0.12, 0.10], [0.10, 0.50]]
+    with pytest.raises(vol.Invalid):
+        CREATE_SAVED_ZONE_SCHEMA(
+            {**base, "geometry": [[0.10, 0.10], [0.105, 0.10], [0.10, 0.50]]})
 
 
 def _synthetic_map_data(byte_list):
