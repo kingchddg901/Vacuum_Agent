@@ -9,11 +9,20 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **166** findings via 20 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-032, RP-040) |
+| Fixes APPLIED (landed packets) | **165** findings via 20 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-032, RP-040) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **318** -- 17 open clusters (12 fully applied) + 285 singles |
-| By severity | CRITICAL 7 / HIGH 47 / MEDIUM 129 / LOW 135 |
+| Open findings | **319** -- 18 open clusters (11 fully applied) + 285 singles |
+| By severity | CRITICAL 7 / HIGH 48 / MEDIUM 129 / LOW 135 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
+
+
+> ### 1 REOPENED finding(s) — a landed packet was credited with a fix that
+> does not hold. Closure is binary; findings are not.
+>
+> **#9:A3-REC-3** — credited to RP-013c, reopened 2026-08-02
+> - **Evidence:** alfred job_2026-08-02T11-15-51 — a [kitchen] -> [entryway + hallway] run. The card showed Entryway for the whole 13m40s group phase and never advanced to Hallway.
+> - **Why:** A3-REC-3 has TWO halves and RP-013c closed one. It made the FINALIZED record correct (completed_room_ids_cumulative carried at advance time, the finalizer's three-source union). The LIVE path is untouched: _derive_active_job_current_room_id returns the first resolved_room not in the PER-PHASE completed_room_ids, and record_completed_room never fires inside a group dispatch, so current_room_id pins to queue_room_ids[0] for the phase's duration. C4's own stated fix — 'record the phase as a phase rather than as room[0]' — is the half still open.
+> - **NOT fixable by:** Advancing 8 -> 4 partway through. The record's own allocated:true / allocation_group_size:2 means the split was NOT observed; inventing a boundary is the same synthesis RP-013c's REVIEW pin forbids.
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
 else was reported by a finder and confirmed by both adversarial verifiers, but not
@@ -51,13 +60,13 @@ audit is a snapshot, not a ledger.
 - **Fix:** try/finally so the guard always clears, plus a bounded age after which the reaper stops honouring it.
 - [x] applied  [ ] tested  [ ] hardware-checked
 
-### C4. A multi-room phase is recorded as ONE room *(not independently verified)* — **4/4 applied**
+### C4. A multi-room phase is recorded as ONE room *(not independently verified)* — **3/4 applied**
 
 - **Seam:** `jobs/phase_runner.py:301`
-- **Closes:** ~~A3-REC-1~~ ✅ RP-013b (`f212c20`), ~~A3-REC-2~~ ✅ RP-013b (`f212c20`), ~~A3-REC-3~~ ✅ RP-013c (`0ff4a8a`), ~~DQ-PH-3~~ ✅ RP-013b (`f212c20`)
+- **Closes:** ~~A3-REC-1~~ ✅ RP-013b (`f212c20`), ~~A3-REC-2~~ ✅ RP-013b (`f212c20`), A3-REC-3, ~~DQ-PH-3~~ ✅ RP-013b (`f212c20`)
 - **What breaks:** A room_group phase attributes the group's entire cleaning time, area and battery to queue_room_ids[0]. A phased job also never records a completed room, so live progress freezes on the group.
 - **Fix:** Attribute per-phase metrics across the phase's rooms, or record the phase as a phase rather than as room[0].
-- [x] applied  [ ] tested  [ ] hardware-checked
+- [ ] applied  [ ] tested  [ ] hardware-checked
 
 ### C5. The repudiated `started_at and not ended_at` predicate is still live **[VERIFIED AT SOURCE]** — **2/2 applied**
 
@@ -1132,7 +1141,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 166 findings closed by a landed packet
+## APPLIED -- 165 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1363,8 +1372,6 @@ a disappeared finding is indistinguishable from one never found.
   Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
 - [x] **A2-CAN-2** `jobs/active_job.py:2255` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
   Cancelling a sequenced run reports the WRONG missed rooms — per-phase reset of queue_room_ids/completed_room_ids feeds the incomplete-run log and trouble-rooms counters
-- [x] **A3-REC-3** `jobs/active_job.py:937` [eufy] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
-  A phased job never records a completed room, so live progress freezes on the group's first room and the stall detector fires a false 'stuck' event mid-run
 - [x] **A4-STATE-2** `learning/history_store.py:273` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  
   clear_incomplete_run's docstring claim "(full clean)" is false — ANY completed run erases the missed-room record, and it is unrecoverable because completed_room_ids is never persisted in the job archive
 - [x] **A4-STATE-1** `learning/services.py:689` [both] -- **RP-013c** (`0ff4a8a`, 2026-08-02)  

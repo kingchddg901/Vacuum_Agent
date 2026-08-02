@@ -1,0 +1,10 @@
+[
+ {
+  "finding_id": "#9:A3-REC-3",
+  "credited_to": "RP-013c",
+  "reopened_at": "2026-08-02",
+  "evidence": "alfred job_2026-08-02T11-15-51 — a [kitchen] -> [entryway + hallway] run. The card showed Entryway for the whole 13m40s group phase and never advanced to Hallway.",
+  "why": "A3-REC-3 has TWO halves and RP-013c closed one. It made the FINALIZED record correct (completed_room_ids_cumulative carried at advance time, the finalizer's three-source union). The LIVE path is untouched: _derive_active_job_current_room_id returns the first resolved_room not in the PER-PHASE completed_room_ids, and record_completed_room never fires inside a group dispatch, so current_room_id pins to queue_room_ids[0] for the phase's duration. C4's own stated fix — 'record the phase as a phase rather than as room[0]' — is the half still open.",
+  "not_fixable_by": "Advancing 8 -> 4 partway through. The record's own allocated:true / allocation_group_size:2 means the split was NOT observed; inventing a boundary is the same synthesis RP-013c's REVIEW pin forbids."
+ }
+]

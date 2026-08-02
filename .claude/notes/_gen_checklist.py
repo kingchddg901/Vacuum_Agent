@@ -89,11 +89,30 @@ for _pk in _landed:
     for _cid in _cids:
         APPLIED.setdefault(_cid, _pk)
 
+# REOPENED: a landed packet's finding_ids close findings WHOLE, but a finding can have
+# more than one half. RP-013c declared #9:A3-REC-3 and closed its finalization half; the
+# live-progress half was untouched, and the ledger claimed a fix Chris then disproved on
+# hardware in a single run. Closure is binary, findings are not -- so reopened entries are
+# subtracted here and reported LOUDLY below. Silently moving one back to open would repeat
+# the original error in the other direction.
+_REOPENED = json.loads(
+    pathlib.Path(".claude/notes/_reopened_findings.json").read_text(encoding="utf-8")
+) if pathlib.Path(".claude/notes/_reopened_findings.json").exists() else []
+for _r in _REOPENED:
+    _was = APPLIED.pop(_r["finding_id"], None)
+    if _was is None:
+        print(f"WARNING: reopened finding {_r['finding_id']!r} was not marked applied -- "
+              f"stale entry in _reopened_findings.json, or the packet that credited it "
+              f"was never landed")
+
 # bare-id lookup for cluster annotation (_clusters.json ids are bare, e.g. "DQ-DE-1")
 APPLIED_BARE = {_cid.rsplit(":", 1)[-1]: _pk for _cid, _pk in APPLIED.items()}
 
 APPLIED_ROWS = [r for r in rows if _canonical_id(r) in APPLIED]
 rows = [r for r in rows if _canonical_id(r) not in APPLIED]
+_reopened_ids = {_r["finding_id"] for _r in _REOPENED}
+rows += [r for r in APPLIED_ROWS if _canonical_id(r) in _reopened_ids]
+APPLIED_ROWS = [r for r in APPLIED_ROWS if _canonical_id(r) not in _reopened_ids]
 
 CLUSTERS = json.loads(pathlib.Path(".claude/notes/_clusters.json").read_text(encoding="utf-8"))
 
@@ -130,6 +149,19 @@ A(f"| Open findings | **{len(rows)}** -- {len(CLUSTERS) - len(_fully_closed_clus
 A(f"| By severity | CRITICAL {c['CRITICAL']} / HIGH {c['HIGH']} / MEDIUM {c['MEDIUM']} / LOW {c['LOW']} |")
 A(f"| Hardware validation | {_hw_standing} |")
 A("")
+if _REOPENED:
+    A("")
+    A(f"> ### {len(_REOPENED)} REOPENED finding(s) — a landed packet was credited with a fix that")
+    A("> does not hold. Closure is binary; findings are not.")
+    for _r in _REOPENED:
+        A(">")
+        A(f"> **{_r['finding_id']}** — credited to {_r['credited_to']}, reopened {_r['reopened_at']}")
+        A(f"> - **Evidence:** {_r['evidence']}")
+        A(f"> - **Why:** {_r['why']}")
+        if _r.get("not_fixable_by"):
+            A(f"> - **NOT fixable by:** {_r['not_fixable_by']}")
+    A("")
+
 A("`verified` = I personally opened the file and confirmed the mechanism at source. Everything")
 A("else was reported by a finder and confirmed by both adversarial verifiers, but not")
 A("independently re-checked by me.")
