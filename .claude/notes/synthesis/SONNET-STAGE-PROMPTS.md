@@ -8,9 +8,11 @@ calendar.
 Every prompt assumes: repo `C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager`,
 docker test image `eufy-vacuum-test`, nothing deployed unless the prompt says so.
 
-**Read `.claude/notes/synthesis/MATERIALIZATION-03-HANDOFF.md` first in every session.** The prompts
-below deliberately repeat its §1 licence, because that is the one instruction
-that must not be skimmed.
+**Read `.claude/notes/synthesis/MATERIALIZATION-03-HANDOFF.md` first in every
+session**, and `OWNERSHIP-ADJUDICATION.md` beside it — it carries four
+already-decided finding-ownership calls and Chris's scope decisions, none of
+which may be re-litigated. The prompts below deliberately repeat the handoff's
+§1 licence, because that is the one instruction that must not be skimmed.
 
 ---
 
@@ -123,6 +125,12 @@ Do NOT read the audit corpus -- the packets are the spec.
 YOUR PACKETS (in .claude/notes/synthesis/SYNTH-07-packets-wave3.md):
   RP-015 (4 findings) · RP-018 (6) · RP-019 (8) · RP-017 (8) · RP-020 (7)
 They cluster on rooms/, so read that source once and reuse it across all five.
+
+OWNERSHIP PIN: #16:A4-STATE-3 (trouble_rooms keyed by raw room_id) belongs to
+**RP-017**, NOT RP-020 — both packets claim it. RP-017's own problem statement
+names it verbatim; RP-020's subject is rebuild REACH, a different axis. Fixing
+the keying stops the reattachment; fixing the rebuild does not. Prove it under
+RP-017 and have RP-020 reference it. See OWNERSHIP-ADJUDICATION.md.
 
 FOR EACH: write .claude/notes/_proof_<name>.py using the shared harness
 (.claude/notes/_proof_harness.py). It must print the packet's expected_before
@@ -398,9 +406,10 @@ THE ALLOWLIST NEEDS A HUMAN. The packet says Chris reviews INTERNAL_SERVICES at
 this packet's review. Produce the list, do NOT self-approve it, and surface it in
 your summary as a decision item.
 
-KNOWN CONFLICT, report it rather than resolving it: #13:A2-JOB-5 and
-#13:A2-JOB-6 are claimed by BOTH RP-031 and RP-032. Ownership is unadjudicated.
-If your gate work touches them, say so and stop rather than picking.
+OWNERSHIP RESOLVED: #13:A2-JOB-5 and #13:A2-JOB-6 belong to **RP-032**, i.e. to
+you (see OWNERSHIP-ADJUDICATION.md). Both are schema-declaration defects, and
+RP-031 cannot fix a schema that accepts the wrong thing in the first place.
+RP-032 is already blocked_by RP-031, so sequencing is unchanged.
 
 Gate: docker pytest tests --no-cov -p no:cacheprovider
 (baseline 2026-08-01: 3096 passed, 1 skipped). Do NOT close ledger findings.
@@ -444,16 +453,16 @@ ambiguity.
 
 NEEDS A DECISION BEFORE STARTING, report and stop:
 
-CARD-2 clause (1) — map hold/stale badge needs a VISUAL=1 render-harness
-screenshot repin. That is a different gate from a unit test and nobody has run
-one this campaign. Ask before committing to it.
+(Both former "ask" items are now decided — see OWNERSHIP-ADJUDICATION.md.)
 
-CARD-6 clause (3) — zone_bounds live readout is NEW CODE, not a fix.
-zone_bounds ({min_side_m, max_side_m, min_area_m2, max_area_m2}) reaches
-_snapshot.zone_bounds on every dashboard fetch (core/manager.py:4263) with ZERO
-frontend consumers, and src/cards/zone-geometry.js is pure coordinate math with
-no concept of physical scale. There is no wrong function to fix; there is no
-function. Confirm it is in scope before building.
+CARD-2 clause (1) — map hold/stale badge. DECIDED IN SCOPE: do the VISUAL=1
+render-harness screenshot repin.
+
+CARD-6 clause (3) — zone_bounds live readout. DECIDED **NOT IN SCOPE** and
+DROPPED, not deferred: it is a feature, not a repair, and does not belong in a
+defect campaign. Remove the clause when you execute CARD-6, and note in the
+commit that zone_bounds remains a snapshot field with no frontend consumer BY
+DECISION — so the next reader files it as intent rather than an oversight.
 
 CARD-7 is EXCLUDED entirely -- it needs a design session with Chris.
 ```
