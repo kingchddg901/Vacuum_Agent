@@ -1686,6 +1686,37 @@ set_maintenance_interval:
           mode: box
           unit_of_measurement: h
 
+set_dock_event_count:
+  name: Set dock event count
+  description: >
+    Overwrite a dock event counter to a specific value — for historical
+    correction after a missed detection, or to seed a counter for testing.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    event_type:
+      name: Event type
+      required: true
+      selector:
+        select:
+          options:
+            - last_mop_wash
+            - last_dust_empty
+            - last_dry_start
+    count:
+      name: Count
+      description: New value for the counter. Must be zero or greater.
+      required: true
+      selector:
+        number:
+          min: 0
+          step: 1
+          mode: box
+
 # ============================================================
 # LEARNING
 # ============================================================
@@ -2331,6 +2362,36 @@ get_learning_history_snapshot:
           step: 1
           mode: box
 
+get_trouble_rooms_log:
+  name: Get trouble rooms log
+  description: >
+    Return the chronic trouble-rooms log for a vacuum: per-room miss counts
+    and miss rates. A room is flagged is_trouble when miss_count >= 2 and
+    miss_rate >= 0.33. Returns an empty payload when no log exists yet.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+get_incomplete_run_log:
+  name: Get incomplete run log
+  description: >
+    Return the last incomplete-run log for a vacuum — recorded when a job was
+    cancelled, failed, or interrupted before all queued rooms were cleaned.
+    Pairs with retry_missed_rooms, which reads this same log to decide which
+    rooms to re-queue. Returns an empty payload when no incomplete run log
+    exists.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
 retry_missed_rooms:
   name: Retry missed rooms
   description: >
@@ -2385,6 +2446,56 @@ retry_missed_rooms:
               value: pause_and_event
             - label: Cancel and event
               value: cancel_and_event
+
+resegment_external_run:
+  name: Resegment external run
+  description: >
+    Re-run room segmentation on a pending external (app-started) run record
+    server-side, then rewrite it in place — the review wizard's room-count /
+    boundary-toggle repair action. Reads the record's embedded raw samples,
+    so it only works on records captured with samples (not older v1
+    records). Fails without touching the file if the record is missing, has
+    no samples, or the requested selection yields no usable segment.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    pending_job_id:
+      name: Pending job ID
+      description: The pending external run to resegment.
+      required: true
+      selector:
+        text: {}
+    expected_rooms:
+      name: Expected room count
+      description: >
+        Target room count to resegment to. Mutually exclusive with
+        active_boundaries — omit both to reset to the segmenter's own
+        confident default.
+      required: false
+      selector:
+        number:
+          min: 1
+          step: 1
+          mode: box
+    active_boundaries:
+      name: Active boundary indices
+      description: >
+        Explicit list of boundary indices to keep, for hand-picking exactly
+        where the run splits into rooms. Mutually exclusive with
+        expected_rooms — omit both to reset to the segmenter's own confident
+        default.
+      required: false
+      selector:
+        object: {}
 
 # ============================================================
 # ERROR TRACKING
@@ -2452,6 +2563,37 @@ get_recent_errors:
 # ============================================================
 # MAP UI OVERLAY STATE
 # ============================================================
+
+delete_map_image:
+  name: Delete map image
+  description: >
+    Delete one uploaded image variant for a map: removes the PNG from disk
+    and drops it from the map's recorded variants. This is destructive and
+    cannot be undone — the file is gone, not archived. Safe to call again on
+    a variant that's already deleted (returns deleted: false, reason:
+    not_found rather than an error).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    variant:
+      name: Variant
+      description: >
+        Which uploaded image to delete: default, dark, light, custom, or a
+        per-layout custom_<layout_id> backdrop. Defaults to default.
+      required: false
+      default: default
+      selector:
+        text: {}
 
 set_segment_room_link:
   name: Set segment-room link

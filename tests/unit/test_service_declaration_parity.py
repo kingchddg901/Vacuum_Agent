@@ -18,6 +18,27 @@ Four assertions, each independent:
   4. no dead schemas: a module-level `vol.Schema(...)`/`vol.All(...)` constant
      defined but never referenced anywhere in its own file.
 
+THE INTERNAL_SERVICES RULE (Chris, 2026-08-02 -- the no_yaml_entry ruling in
+.claude/notes/synthesis/SYNTH-10-packets-wave6.md; centralizing the QUESTION,
+not a vocabulary list, is the point -- a new service earns its classification
+by answering this, not by pattern-matching an existing entry):
+
+  A service earns a services.yaml entry if a human calling it BY HAND is
+  COHERENT -- it takes arguments a person can type and does something a
+  person would want. It stays on INTERNAL_SERVICES if it is a HANDSHAKE: an
+  opaque payload the panel/card constructs, or a response only the card
+  consumes.
+
+  OVERRIDE: anything DESTRUCTIVE gets an entry regardless of the above. The
+  yaml entry IS the documentation and the Developer Tools field editor; a
+  service that deletes must never be the least-documented thing in the tree.
+
+  This is a judgment call, not something this gate can check mechanically --
+  a new no_yaml_entry violation still needs a human to apply the rule above
+  and either add a services.yaml entry or a commented INTERNAL_SERVICES
+  entry. The gate only guarantees the question gets asked (nothing lands
+  silently undocumented); it cannot answer the question itself.
+
 KNOWN GAP (transparent, not silent): field-parity (assertion 3) only covers
 registrations whose `schema=` argument is a plain named reference (e.g.
 `schema=_MY_SCHEMA`). Six registrations pass an INLINE `vol.Schema({...})`
@@ -57,14 +78,45 @@ _EXCLUDE_FILES = {"config_flow.py"}
 
 # ---------------------------------------------------------------------------
 # INTERNAL_SERVICES -- services intentionally registered with NO services.yaml
-# entry (not meant to be discovered through Developer Tools / the automation
-# UI's service picker the normal way). THE ALLOWLIST NEEDS A HUMAN: Chris
-# reviews this list at RP-032's review. Every entry needs a comment saying
-# WHY it's here instead of in services.yaml. Do not add an entry to make the
-# gate pass without that review -- a service missing a descriptor by omission
-# belongs in services.yaml, not here.
+# entry. See THE INTERNAL_SERVICES RULE in the module docstring above for the
+# actual test to apply -- every entry needs a comment saying WHY it passes
+# that test, not just "pending review". Do not add an entry to make the gate
+# pass without applying the rule -- a service missing a descriptor by
+# omission belongs in services.yaml, not here.
 # ---------------------------------------------------------------------------
-INTERNAL_SERVICES: dict[str, str] = {}
+INTERNAL_SERVICES: dict[str, str] = {
+    # setup.py x10 -- wizard step sequence; each step is meaningless called
+    # out of order. Chris's ruling places setup_delete_map here despite it
+    # being destructive (deletes a map, gated by its own confirmation_token
+    # step for elevated/high-risk cases) -- an explicit call, not an
+    # oversight, so it is NOT re-litigated against the destructive-override
+    # line in the rule above.
+    "setup_get_status": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_add_vacuum": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_import_active_map": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_get_map_rooms": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_save_rooms": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_delete_map": "setup.py: wizard step, panel-driven -- handshake. Destructive but explicitly ruled internal by Chris (2026-08-02), not an oversight -- gated by its own confirmation_token step.",
+    "setup_reject_rooms": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_force_remove_room": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_set_panel_title": "setup.py: wizard step, panel-driven -- handshake.",
+    "setup_set_map_camera": "setup.py: wizard step, panel-driven -- handshake.",
+    # adapter_config.py x5 -- panel discovery/observe handshakes; opaque
+    # payloads the adapter-config panel constructs, not human-typeable.
+    "save_adapter_config": "adapter_config.py: panel-constructed config payload -- handshake.",
+    "delete_adapter_config": "adapter_config.py: panel discovery handshake.",
+    "get_adapter_config": "adapter_config.py: panel discovery handshake.",
+    "discover_adapter_entities": "adapter_config.py: panel discovery handshake.",
+    "observe_entity_states": "adapter_config.py: panel observe handshake.",
+    # mapping_services.py x4 -- base64 image blobs and geometry payloads the
+    # card constructs; hand-calling is incoherent. delete_map_image, the
+    # fifth service in this same registration block, crossed the line on
+    # the destructive override instead -- see services.yaml.
+    "upload_map_image": "mapping_services.py: base64 image payload -- handshake.",
+    "analyze_map_image": "mapping_services.py: geometry/segment payload -- handshake.",
+    "get_map_segments": "mapping_services.py: card-consumed response only -- handshake.",
+    "adjust_map_segment": "mapping_services.py: geometry payload -- handshake.",
+}
 
 # ---------------------------------------------------------------------------
 # EXPECTED_FAILURES -- seeded 2026-08-02 (RP-032 commit a) with everything
@@ -77,45 +129,29 @@ INTERNAL_SERVICES: dict[str, str] = {}
 EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     # WIRE-4 fixed: get_room_profiles now registers with schema=vol.Schema({}).
 
-    # --- no_yaml_entry: 26 candidates for INTERNAL_SERVICES vs a real ------
-    # --- services.yaml descriptor. THE ALLOWLIST NEEDS A HUMAN -- these ----
-    # --- are grouped by likely disposition but none are decided yet. -------
-    ("no_yaml_entry", "save_adapter_config"): "adapter_config.py: likely internal/dev-tool -- pending Chris review.",
-    ("no_yaml_entry", "delete_adapter_config"): "adapter_config.py: likely internal/dev-tool -- pending Chris review.",
-    ("no_yaml_entry", "get_adapter_config"): "adapter_config.py: likely internal/dev-tool -- pending Chris review.",
-    ("no_yaml_entry", "discover_adapter_entities"): "adapter_config.py: likely internal/dev-tool -- pending Chris review.",
-    ("no_yaml_entry", "observe_entity_states"): "adapter_config.py: likely internal/dev-tool -- pending Chris review.",
-    ("no_yaml_entry", "set_dock_event_count"): "dock.py: likely diagnostic/test-only -- pending Chris review.",
-    ("no_yaml_entry", "setup_get_status"): "setup.py: panel-driven (const.py's own grouping comment) -- pending Chris review.",
-    ("no_yaml_entry", "setup_add_vacuum"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_import_active_map"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_get_map_rooms"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_save_rooms"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_delete_map"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_reject_rooms"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_force_remove_room"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_set_panel_title"): "setup.py: panel-driven -- pending Chris review.",
-    ("no_yaml_entry", "setup_set_map_camera"): "setup.py: panel-driven -- pending Chris review.",
-    # RP-032/A3-IMAGE--10: these 5 are card-driven (src/constants.js:120-122)
-    # so the missing description never surfaces on the path actually
-    # exercised -- but delete_map_image is DESTRUCTIVE (removes a file from
-    # disk) and is currently the least discoverable/documented service in
-    # the codebase as a result: no name, no description, no field editors in
-    # Developer Tools, so a caller there has to hand-write the exact variant
-    # key with no guidance. Flag delete_map_image as the priority item in
-    # this group when presenting the INTERNAL_SERVICES decision -- it reads
-    # differently from "card-driven, fine to leave internal" for the other four.
-    ("no_yaml_entry", "upload_map_image"): "mapping_services.py: card-driven map upload flow -- pending Chris review.",
-    ("no_yaml_entry", "delete_map_image"): "mapping_services.py: card-driven, but DESTRUCTIVE (deletes a file) and undocumented -- pending Chris review, priority item.",
-    ("no_yaml_entry", "analyze_map_image"): "mapping_services.py: card-driven -- pending Chris review.",
-    ("no_yaml_entry", "get_map_segments"): "mapping_services.py: card-driven -- pending Chris review.",
-    ("no_yaml_entry", "adjust_map_segment"): "mapping_services.py: card-driven -- pending Chris review.",
-    ("no_yaml_entry", "confirm_external_run"): "learning/services.py: card review-wizard flow -- pending Chris review.",
-    ("no_yaml_entry", "get_external_pending_runs"): "learning/services.py: card review-wizard flow -- pending Chris review.",
-    ("no_yaml_entry", "discard_external_run"): "learning/services.py: card review-wizard flow -- pending Chris review.",
-    ("no_yaml_entry", "resegment_external_run"): "learning/services.py: card review-wizard flow -- pending Chris review.",
-    ("no_yaml_entry", "get_trouble_rooms_log"): "learning/services.py: card diagnostics -- pending Chris review.",
-    ("no_yaml_entry", "get_incomplete_run_log"): "learning/services.py: card diagnostics -- pending Chris review.",
+    # no_yaml_entry: RESOLVED for 24 of the original 27 -- see Chris's
+    # no_yaml_entry ruling (.claude/notes/synthesis/SYNTH-10-packets-wave6.md,
+    # "RP-032 -- no_yaml_entry ruling"), applying THE INTERNAL_SERVICES RULE
+    # in this module's docstring. 5 got real services.yaml entries
+    # (delete_map_image, set_dock_event_count, resegment_external_run,
+    # get_incomplete_run_log, get_trouble_rooms_log); 19 moved to
+    # INTERNAL_SERVICES above with their own per-entry comments.
+    #
+    # The remaining 3 were NOT in either of the ruling's tables when
+    # reconciled against the real registration walk (learning/services.py:
+    # confirm_external_run L213, get_external_pending_runs L226,
+    # discard_external_run L232 -- all real, currently-registered services;
+    # confirmed zero services.yaml mentions by exact-name grep, so this is
+    # not the "resolver reads only const.py" false-negative the ruling
+    # anticipated for 9 other learning constants -- these three are
+    # genuinely undocumented and genuinely unclassified). Per the ruling's
+    # own instruction ("if the reconcile turns up a name not in either
+    # table, STOP and escalate -- do not classify it yourself"), these stay
+    # here unclassified pending a fresh decision, not auto-assigned to
+    # either side.
+    ("no_yaml_entry", "confirm_external_run"): "learning/services.py: card review-wizard flow -- NOT in Chris's 2026-08-02 no_yaml_entry ruling tables; escalated, unclassified.",
+    ("no_yaml_entry", "get_external_pending_runs"): "learning/services.py: card review-wizard flow -- NOT in Chris's 2026-08-02 no_yaml_entry ruling tables; escalated, unclassified.",
+    ("no_yaml_entry", "discard_external_run"): "learning/services.py: card review-wizard flow -- NOT in Chris's 2026-08-02 no_yaml_entry ruling tables; escalated, unclassified.",
 
     # --- field_mismatch: map_id required-vs-docs-optional, mapping_services -
     # --- .py cohort. EJECTED, not fixed here: RP-032's own required_behavior
