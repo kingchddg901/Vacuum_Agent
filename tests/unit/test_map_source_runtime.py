@@ -404,6 +404,49 @@ def test_eufy_mapdata_obj_from_candidates():
     assert miss["present"] is False and miss["reason"] == "no_mapdata"
 
 
+def test_eufy_mapdata_obj_from_candidates_device_id_selects():
+    """[MSR-2o] RP-026/LC-1/EXT-1: with two coordinators, device_id picks the
+    matching one instead of the first-hit; an unknown device_id is absent with
+    device_not_found rather than falling back to somebody else's map."""
+    coord_a = _Coordinator(device_id="AAA", _map_data=_Coordinator(room_pixels=bytes([1]) * 8))
+    coord_b = _Coordinator(device_id="BBB", _map_data=_Coordinator(room_pixels=bytes([2]) * 8))
+    candidates = [
+        ("hass_data", "robovac_mqtt[0]", coord_a),
+        ("hass_data", "robovac_mqtt[1]", coord_b),
+    ]
+
+    served_b = eufy_mapdata_obj_from_candidates(
+        candidates, mapdata_attrs=["_map_data"], device_id="BBB")
+    assert served_b["present"] is True
+    assert served_b["obj"] is coord_b._map_data
+
+    unknown = eufy_mapdata_obj_from_candidates(
+        candidates, mapdata_attrs=["_map_data"], device_id="ZZZ")
+    assert unknown["present"] is False
+    assert unknown["reason"] == "device_not_found"
+
+    # no device_id -> unchanged first-hit fallback (single-coordinator/legacy path).
+    first_hit = eufy_mapdata_obj_from_candidates(candidates, mapdata_attrs=["_map_data"])
+    assert first_hit["obj"] is coord_a._map_data
+
+
+def test_eufy_mapdata_obj_from_candidates_version_covers_geometry():
+    """[MSR-2p] RP-026/EXT-2: identical raster bytes at a DIFFERENT origin/resolution
+    must version-miss — geometry decides where the pixels sit and is not optional."""
+    same_raster = bytes([9]) * 8
+    before = eufy_mapdata_obj_from_candidates(
+        [("hass_data", "k", _Coordinator(
+            _map_data=_Coordinator(room_pixels=same_raster, origin_x=0, origin_y=0, res=50)))],
+        mapdata_attrs=["_map_data"],
+    )
+    after = eufy_mapdata_obj_from_candidates(
+        [("hass_data", "k", _Coordinator(
+            _map_data=_Coordinator(room_pixels=same_raster, origin_x=1500, origin_y=0, res=40)))],
+        mapdata_attrs=["_map_data"],
+    )
+    assert before["version"] != after["version"]
+
+
 def test_eufy_result_from_mapdata():
     """[MSR-2m] the memory-backend result builder: static rooms + image_size from the converted
     in-memory map_data dict (no stale .storage anchors — those come from the live pose)."""

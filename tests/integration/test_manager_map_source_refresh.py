@@ -150,6 +150,30 @@ async def test_refresh_storage_cache_hit(manager, monkeypatch):
     assert out is cached_result
 
 
+async def test_refresh_storage_cache_hit_requires_same_map_id(manager, monkeypatch):
+    """[MSD-4b] RP-026/LC-3: an unchanged mtime is NOT a cache hit for a DIFFERENT
+    map_id — the fork's .storage file is per-vacuum, so two different map_ids
+    queried close together can legitimately share one mtime; without the map_id
+    check the second query would silently inherit the first map's result."""
+    _register(source={"backend": "storage"})
+    _present(manager, monkeypatch)
+    cached_result = {"present": True, "rooms": [{"number": 9}], "from": "cache"}
+    manager._map_state_source_cache[_VAC] = {
+        "mtime": 222.0, "present_gate": True, "map_id": "6", "result": cached_result,
+    }
+    fresh_result = {"present": True, "rooms": [{"number": 3}], "from": "fresh"}
+    monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "/x/store.json")
+    monkeypatch.setattr(msc, "_stat_mtime", lambda p: 222.0)  # unchanged
+    monkeypatch.setattr(msr, "load_store_json", lambda p: {"data": {"map_data": {}}})
+    monkeypatch.setattr(msr, "eufy_result_from_store", lambda *a, **k: dict(fresh_result))
+
+    out = await manager.map_source.async_refresh_map_state_source(
+        vacuum_entity_id=_VAC, map_id="7"     # a DIFFERENT map_id than the cache entry
+    )
+    assert out == fresh_result
+    assert out is not cached_result
+
+
 async def test_refresh_storage_version_mismatch_warns(manager, monkeypatch):
     """[MSD-5] a store_version_mismatch result is logged and passed through."""
     _register(source={"backend": "storage", "store_version": 3})

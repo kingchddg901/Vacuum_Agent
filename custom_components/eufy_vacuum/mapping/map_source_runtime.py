@@ -931,6 +931,7 @@ def eufy_mapdata_obj_from_candidates(
     *,
     mapdata_attrs: Any,
     field_attrs: Any = None,
+    device_id: str | None = None,
 ) -> dict[str, Any]:
     """Find the fork's in-memory ``MapData`` OBJECT + a CHEAP content version, WITHOUT the
     ~180 KB base64 conversion.
@@ -940,14 +941,31 @@ def eufy_mapdata_obj_from_candidates(
     map_state_source path cache-check the version and only do the (expensive) dict conversion +
     per-room scan on a genuine re-map. Returns ``{present, obj, version, diagnostics}``; the
     absent marker on a miss. NEVER RAISES — runs on the event loop.
+
+    RP-026/LC-1/EXT-1: with two-plus coordinators (two vacuums on the fork), the walk
+    used to return the FIRST holder with a raster regardless of which vacuum asked —
+    the second vacuum silently got the first's floorplan. ``device_id``, when given,
+    requires the SAME object that carries the raster to also carry a matching
+    ``device_id`` attribute (the fork's coordinator shape — verified live: a
+    coordinator carries both ``device_id`` and ``_map_data`` directly). Omitted (the
+    single-coordinator/legacy call sites), the walk keeps today's first-hit
+    behaviour — the fallback required_behavior(1) calls for when no linkage exists.
+    A device_id given with no match is ABSENT (device_not_found), never a fallback
+    to another device's map — silently serving the wrong robot's floorplan is
+    exactly the defect being closed.
     """
     fa = field_attrs if isinstance(field_attrs, dict) else {}
     rp_name = fa.get("room_pixels", "room_pixels")
+    ox_name = fa.get("origin_x", "origin_x")
+    oy_name = fa.get("origin_y", "origin_y")
+    res_name = fa.get("res", "res")
     names = mapdata_attrs or ["_map_data", "map_data"]
     diag: dict[str, Any] = {"candidates": [c[0] + ":" + c[1] for c in candidates]}
 
     def _holds_mapdata(o: Any) -> bool:
         # Cheap predicate: an object exposing a MapData with a bytes raster (no convert).
+        if device_id is not None and getattr(o, "device_id", None) != device_id:
+            return False
         for a in names:
             v = getattr(o, a, None)
             if v is not None and isinstance(getattr(v, rp_name, None), (bytes, bytearray)):
@@ -963,12 +981,24 @@ def eufy_mapdata_obj_from_candidates(
                 v = getattr(holder, a, None)
                 rp = getattr(v, rp_name, None) if v is not None else None
                 if isinstance(rp, (bytes, bytearray)):
-                    version = hashlib.sha1(bytes(rp)).hexdigest()[:12]
+                    # EXT-2 (RP-026): the raster alone doesn't say where those pixels
+                    # SIT — a re-map to the same room shapes at a new origin/resolution
+                    # is a real content change the cache must not treat as a hit.
+                    geometry = (
+                        getattr(v, ox_name, None),
+                        getattr(v, oy_name, None),
+                        getattr(v, res_name, None),
+                    )
+                    version = hashlib.sha1(
+                        bytes(rp) + repr(geometry).encode("utf-8")
+                    ).hexdigest()[:12]
                     diag["mapdata_at"] = f"{origin}:{key}:{path}.{a}"
                     return {"present": True, "obj": v, "version": version, "diagnostics": diag}
         except Exception:  # noqa: BLE001 - a raising provider internal degrades to a miss
             continue
 
+    if device_id is not None:
+        return {"present": False, "reason": "device_not_found", "diagnostics": diag}
     return {"present": False, "reason": "no_mapdata", "diagnostics": diag}
 
 

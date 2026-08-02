@@ -255,12 +255,19 @@ class MapSourceCoordinator:
             mtime = None
 
         cached = self._manager._map_state_source_cache.get(vacuum_entity_id) or {}
-        # Reuse the cached normalized result iff the file is unchanged AND the
-        # presence gate is unchanged (live-map could appear/disappear between calls).
+        # Reuse the cached normalized result iff the file is unchanged, the presence
+        # gate is unchanged (live-map could appear/disappear between calls), AND the
+        # cache entry is for the SAME map_id (LC-3/RP-026, mirroring _commit_result's
+        # own map_id check above) — the fork's .storage file is per-VACUUM, not
+        # per-map, so its mtime does not vary by which map_id a caller is asking
+        # about; two different map_ids queried close enough together legitimately
+        # share one mtime, and without this check the second query would silently
+        # inherit the first map's cached geometry.
         if (
             mtime is not None
             and cached.get("mtime") == mtime
             and cached.get("present_gate") == present
+            and cached.get("map_id") == str(map_id)
             and isinstance(cached.get("result"), dict)
         ):
             return cached["result"]
