@@ -73,15 +73,40 @@ never planned", and that ambiguity is what produced the invisible wait.
 
 ## 3. Identity and learning keys
 
-### 3.1 Instance identity (unique per run, never a learning key)
+### 3.1 Instance identity — the phase key (Chris, 2026-08-02)
+
+> *"a key any job can carry but only phased jobs get it. IE. DTG_Phased job + internal
+> Phase id"*
+
+A **DTG anchor for the Phased Job, plus the phase ordinal**, on one field that every job
+record may carry and only a phased one populates:
 
 ```
-phased_job_id   "pj_2026-08-02T11-15-51"     one per user-initiated run
-phase_index     0, 1, 2 …                    ordinal within the run
-phase_count     3                            so a truncated run is detectable
+phase_key       "pj_2026-08-02T11-15-51_p0"     THE field. Absent on an atomic run.
+  phased_job_id "pj_2026-08-02T11-15-51"        the DTG anchor — the run's start
+  phase_index   0                               ordinal within the run
+phase_count     3                               so a truncated run is detectable
 ```
 
-Every child job record and every phase record carries all three.
+**PRESENCE IS THE SIGNAL.** There is deliberately no `is_phased` boolean. A boolean is a
+second source of truth that can disagree with the key, and this codebase has spent a
+campaign on fields that disagree with each other — `allocated` written and never read, a
+`queue` block scoped to a different phase than the `water` block, a ledger claiming a fix
+the hardware disproved. One field, absent or present, cannot contradict itself.
+
+The DTG anchor is the run's start, so **phase 0's child shares its timestamp with the
+parent**. That is intended: eyeballing the directory, the relationship is obvious.
+
+```
+phased_jobs/ pj_2026-08-02T11-15-51.json      parent
+jobs/        job_2026-08-02T11-15-51.json     phase 0 — same DTG, the run began here
+phases/      phase_2026-08-02T11-18-16.json   phase 1, the wait
+jobs/        job_2026-08-02T11-21-41.json     phase 2
+```
+
+Every child job record and every phase record carries `phase_key` and `phase_count`. A
+zone-only run is a Phased Job with one phase (§1.1) and carries `..._p0` — consistent, and
+the reason the model has no special case for it.
 
 ### 3.2 Learning identity (repeats across runs — THIS is what teaches)
 
