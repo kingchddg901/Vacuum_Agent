@@ -357,3 +357,79 @@ subsystem nobody audited produces no findings — it reads identically to a clea
 one. Any future coverage claim should be computed from the audit SCOPES, not
 inferred from where findings landed.
 
+
+---
+
+## RP-046 — A dock fault must not be charged against cleaning time (RF-DOCK)
+
+```yaml
+packet_id: RP-046
+family_id: RF-DOCK
+finding_ids: ["live:DOCK-1"]
+severity: HIGH
+files: [custom_components/eufy_vacuum/learning/job_finalizer.py,
+  custom_components/eufy_vacuum/core/error_tracker.py,
+  custom_components/eufy_vacuum/adapters/eufy/vocabulary.py (DONE),
+  custom_components/eufy_vacuum/adapters/roborock/vocabulary.py, tests/]
+symbols: [total_error_seconds accumulation, eufy_error_source]
+problem: >
+  total_error_seconds is subtracted from cleaning_time_seconds with no notion of WHOSE
+  fault it was. A station fault raised while the robot is out on the floor cleaning
+  normally is charged against the robot's cleaning time.
+evidence_live: >
+  alfred job_2026-08-01T23-23-35 (archived, _frozen/baseline/). The robot cleaned the
+  kitchen for 360 s, covered 4.0 m2, drew 3 % battery and used 30.8 ml of mop water. The
+  record says it cleaned for ZERO seconds:
+      cleaning_time_seconds_raw:  360     <- RP-013f's phase sum. CORRECT.
+      total_error_seconds:        455
+      cleaning_time_seconds:        0     <- max(0, 360 - 455)
+  Five faults, all code 6013 STATION CLEAN WATER PUMP SHORT, at job-elapsed 72, 83, 478,
+  486, 525 s. The station's clean-water pump complained while the robot worked through
+  it -- the area, duration, battery draw and water use all prove the run was productive.
+  used_for_learning was TRUE, so the model learned that 4 m2 takes no time.
+required_behavior: >
+  (1) DONE (landed with this packet's authoring): the Eufy adapter declares TWO static
+  dimensions over Eufy's own 200-code list -- eufy_error_source() ("dock"/"robot"/
+  "unknown") and eufy_error_invalidates_cleaning() (bool). Both source sets explicit;
+  unknown never invalidates. The evidence-safe exceptions are a named 19-code set so the
+  judgment calls are visible, not spread across 200 rows. 54 tests.
+  (2) the finalizer subtracts only error seconds whose code
+  invalidates_cleaning_evidence. Everything else is REPORTED, never subtracted.
+  (3) NO TIMELINE CORRELATION. An earlier draft resolved dimension two at runtime --
+  "was the robot cleaning when this fired?" -- and it is rejected: the fault timestamp is
+  when Eufy SURFACED the fault, not when it occurred, so the correlation is unsound at
+  its base; it fails when the timeline is absent or partial; and it converts a
+  deterministic, auditable adapter lookup into a state-dependent heuristic. The finite
+  code already names which operation failed. If a future code genuinely invalidates in
+  one phase and not another, THAT code earns a timeline check -- not the whole class.
+  (4) the record carries the split (`error_seconds_by_source` +
+  `error_seconds_unclassified`) so an unknown-sourced fault is visible rather than
+  silently dropped, and a brand with no declared table keeps every run's cleaning time
+  intact -- degrading toward "trust the run" instead of toward zero.
+  (5) Roborock declares its own table or declares none. Core must never learn a brand's
+  codes [[feedback_eufy_ism_leak_layers]].
+compatibility_constraints: >
+  Do NOT retroactively rewrite archived records. job_2026-08-01T23-23-35 stays as it is --
+  it is the evidence. New runs get the split; readers tolerate its absence.
+rollback_plan: 2 commits -- (a) the finalizer split + unknown handling, (b) Roborock's
+  table (or its explicit absence).
+reproducer_script: NEW _proof_dock_fault_seconds.py -- the archived alfred record's own
+  numbers: before -> cleaning_time_seconds 0; after -> 360, with the five 6013 seconds
+  reported under dock rather than subtracted.
+expected_before: ["a productive 360 s run recorded as 0 s cleaning time",
+  "used_for_learning true on a run the model reads as 4 m2 in no time"]
+expected_after: ["cleaning_time_seconds 360", "error_seconds_by_source dock=455",
+  "unknown-sourced faults reported, never subtracted"]
+tests_to_add_or_modify: source-split matrix (dock/robot/unknown x cleaning/not-cleaning);
+  the archived record as a fixture; a brand with no table subtracts nothing.
+superseded_tests: any test pinning total_error_seconds as a flat subtraction.
+broader_gates: full suite. hardware_gate: none -- the archived record IS the fixture.
+stop_conditions: [a code whose source is genuinely ambiguous -- add it to NEITHER set and
+  let it resolve unknown; do not guess]
+escalation_target: main agent -> Chris
+```
+
+> **The table has ZERO consumers until clause (2) lands.** Stated rather than left to be
+> discovered: this is the same reachability trap as the card-cancel bypass
+> [[feedback_audit_callsite_reachability]], and naming it is the only thing that stops it
+> repeating. `eufy_error_source` is dead code today, deliberately, for exactly one packet.
