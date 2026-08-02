@@ -344,3 +344,85 @@ def test_no_plan_supplied_leaves_nulls_not_zeros(store):
     assert parent["planned"]["total_minutes"] is None
     assert parent["planned"]["clean_mode"] is None
     assert parent["planned"]["room_count"] == 3   # structure IS known, from the phases
+
+
+# ---------------------------------------------------------------------------
+# Hostile audit of the store itself, 2026-08-02 — six probes, six repairs
+# ---------------------------------------------------------------------------
+
+def test_A1_a_zero_minute_estimate_is_real_not_unknown(store):
+    """`x or None` turned a genuine 0 into "unknown". Third instance of the falsy-zero
+    trap this session — get_battery_level's 0, faultLabel's code 0, now this."""
+    from custom_components.eufy_vacuum.learning.history_store import _planned_snapshot
+    assert _planned_snapshot({"total_minutes": 0.0}, [], [])["total_minutes"] == 0.0
+    assert _planned_snapshot({}, [], [])["total_minutes"] is None
+
+
+@pytest.mark.parametrize("value", [{"a": 1}, ["vacuum"], 7, object()])
+def test_A2_a_non_string_mode_is_unknown_not_manufactured(value):
+    """str() on a dict produced "{'a': 1}" and shipped it as a clean mode — a value
+    invented from malformed input, the same class as int(3.7) becoming a real code."""
+    from custom_components.eufy_vacuum.learning.history_store import clean_mode_of
+    assert clean_mode_of([{"clean_mode": value}]) is None
+
+
+def test_A3_the_plan_owns_the_phase_type(store):
+    """A caller's wrong argument rewrote `wait` into `room_group`. The type decides
+    whether a phase counts toward `completed` and whether its gap is a hold or transit,
+    so a typo silently changed the run's meaning."""
+    _open(store)
+    store.record_phase_outcome(vacuum_entity_id=_VAC, phased_job_id=_PJ, phase_index=1,
+                               phase_type="room_group",  # wrong: phase 1 is a wait
+                               outcome="completed", record_id="j1")
+    parent = store.load_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ)
+    assert parent["phases"][1]["type"] == "wait"
+
+
+def test_A4_a_child_that_will_not_load_is_VISIBLE(store):
+    """THE serious one. A parent read status "completed" with 0 seconds and no rooms
+    because its child record was gone — a record that LIES, the exact class this design
+    exists to remove. The phase outcomes stay authoritative; the gap is named."""
+    _open(store, [{"phase_type": "room_group", "queue_room_ids": [5]}])
+    store.record_phase_outcome(vacuum_entity_id=_VAC, phased_job_id=_PJ, phase_index=0,
+                               phase_type="room_group", outcome="completed",
+                               record_id="ghost")
+    parent = store.close_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ,
+                                    ended_at="2026-08-02T18:30:00Z", battery_end=95)
+    assert parent["aggregate"]["missing_children"] == ["ghost"]
+    assert parent["aggregate"]["cleaning_time_seconds"] == 0
+
+
+def test_A4b_a_healthy_run_reports_no_missing_children(store):
+    """The flag must stay empty in the normal case, or it teaches people to ignore it."""
+    _open(store, [{"phase_type": "room_group", "queue_room_ids": [5]}])
+    _child(store, "job_0", "2026-08-02T18:15:51Z", "2026-08-02T18:18:16Z", 120, 1.0, [5])
+    store.record_phase_outcome(vacuum_entity_id=_VAC, phased_job_id=_PJ, phase_index=0,
+                               phase_type="room_group", outcome="completed",
+                               record_id="job_0")
+    parent = store.close_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ,
+                                    ended_at="2026-08-02T18:30:00Z", battery_end=95)
+    assert parent["aggregate"]["missing_children"] == []
+
+
+def test_A6_a_phase_reported_after_close_reopens_the_run(store):
+    """A late report left status stale while the phase read "completed" — the parent
+    contradicting itself. A re-armed poller finishing after the reaper closed the run is
+    legitimate, so re-open rather than reject."""
+    _open(store, [{"phase_type": "room_group", "queue_room_ids": [5]}])
+    store.close_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ,
+                           ended_at="2026-08-02T18:30:00Z", battery_end=95)
+    store.record_phase_outcome(vacuum_entity_id=_VAC, phased_job_id=_PJ, phase_index=0,
+                               phase_type="room_group", outcome="completed",
+                               record_id="late")
+    parent = store.load_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ)
+    assert parent["status"] == "running"
+    assert parent["ended_at"] is None
+
+
+def test_A7_reopening_with_a_different_plan_keeps_the_original(store):
+    """The run's plan is fixed at start, so the existing parent wins — but a differing
+    plan means a re-plan or an id collision, and both must be logged, not swallowed."""
+    _open(store, [{"phase_type": "room_group", "queue_room_ids": [5]}])
+    again = _open(store, [{"phase_type": "room_group", "queue_room_ids": [9]},
+                          {"phase_type": "room_group", "queue_room_ids": [7]}])
+    assert [p["planned_room_ids"] for p in again["phases"]] == [[5]]

@@ -160,7 +160,11 @@ def clean_mode_of(rooms: Any) -> str | None:
     for room in rooms if isinstance(rooms, list) else []:
         if not isinstance(room, dict):
             continue
-        raw = str(room.get("clean_mode") or room.get("effective_clean_mode") or "").strip().lower()
+        # A2: only a STRING is a mode. str() on a dict manufactures "{'a': 1}" and ships
+        # it as a clean mode -- a value invented from malformed input, which is the same
+        # class as int(3.7) becoming a real error code.
+        value = room.get("clean_mode") or room.get("effective_clean_mode")
+        raw = value.strip().lower() if isinstance(value, str) else ""
         if raw:
             modes.add(raw.replace(" and ", "_").replace(" ", "_"))
     modes.discard("")
@@ -205,13 +209,18 @@ def _planned_snapshot(
             r = _safe_int(rid, -1)
             if r > 0 and r not in room_ids:
                 room_ids.append(r)
+    def _num(value: Any) -> float | None:
+        """A1: `x or None` turns a genuine 0 into "unknown". A zero-minute estimate is a
+        real answer and must stay distinguishable from an absent one -- the same trap as
+        an unreadable battery reporting 0 %."""
+        return None if value is None else _safe_float(value, 0.0)
+
     return {
-        "total_minutes": _safe_float(est.get("total_minutes"), 0.0) or None,
-        "eta_minutes": _safe_float(est.get("job_eta_minutes"), 0.0) or None,
+        "total_minutes": _num(est.get("total_minutes")),
+        "eta_minutes": _num(est.get("job_eta_minutes")),
         "room_count": len(room_ids),
         "clean_mode": clean_mode_of(rooms),
-        "water_ml": _safe_float(water.get("estimated_total_dock_clean_water_used_ml"), 0.0)
-        or None,
+        "water_ml": _num(water.get("estimated_total_dock_clean_water_used_ml")),
     }
 
 
@@ -598,6 +607,24 @@ class LearningHistoryStore:
             vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
         )
         if existing is not None:
+            # A7: the run's plan is fixed at start, so an existing parent WINS -- but a
+            # differing plan means the run was re-planned or an id collided, and silently
+            # discarding it hides both.
+            was = [
+                (str(p.get("type") or ""), list(p.get("planned_room_ids") or []))
+                for p in (existing.get("phases") or [])
+            ]
+            now = [
+                (str((ph or {}).get("phase_type") or "room_group"),
+                 list((ph or {}).get("queue_room_ids") or []))
+                for ph in (planned_phases or [])
+            ]
+            if was != now:
+                _LOGGER.warning(
+                    "phased job %s re-opened with a DIFFERENT plan (%d phases -> %d); "
+                    "keeping the one recorded at run start",
+                    phased_job_id, len(was), len(now),
+                )
             return existing
 
         payload = {
@@ -684,9 +711,33 @@ class LearningHistoryStore:
                     "planned_room_ids": [], "outcome": None, "record_id": None}
             parent.setdefault("phases", []).append(slot)
             parent["phases"].sort(key=lambda p: _safe_int(p.get("index"), 0))
-        slot["type"] = str(phase_type)
+        # A3: the PLAN owns the type. Overwriting it let a caller's wrong argument rewrite
+        # `wait` into `room_group`, and the type decides whether a phase counts toward
+        # `completed` and whether its gap is a hold or transit -- so a typo silently
+        # changed the run's meaning. Report the disagreement; never absorb it.
+        planned_type = str(slot.get("type") or "")
+        if planned_type and planned_type != str(phase_type):
+            _LOGGER.warning(
+                "phase %s of %s was planned as %s but reported as %s -- keeping the "
+                "planned type", phase_index, phased_job_id, planned_type, phase_type,
+            )
+        elif not planned_type:
+            slot["type"] = str(phase_type)
         slot["outcome"] = str(outcome)
         slot["record_id"] = record_id
+
+        # A6: a phase reported AFTER close left `status` stale while the phase itself read
+        # "completed" -- a record contradicting itself. A late report is legitimate (a
+        # re-armed poller finishing after the reaper closed the run), so RE-OPEN rather
+        # than reject; the caller closes again and the status recomputes from the phases.
+        if str(parent.get("status") or "") not in ("running", ""):
+            _LOGGER.warning(
+                "phased job %s was closed as %s and phase %s reported afterwards -- "
+                "re-opening; close again to recompute",
+                phased_job_id, parent.get("status"), phase_index,
+            )
+            parent["status"] = "running"
+            parent["ended_at"] = None
 
         self.write_json(
             self.phased_job_path(
@@ -735,11 +786,13 @@ class LearningHistoryStore:
 
         # DERIVED, not stored -- a child list beside the phase list is a second source
         # of truth for the same fact.
-        children = [
-            self.load_completed_job(vacuum_entity_id=vacuum_entity_id, job_id=p["record_id"])
-            for p in clean if p.get("record_id")
-        ]
-        children = [c for c in children if isinstance(c, dict)]
+        children, missing = [], []
+        for ph in clean:
+            rid = ph.get("record_id")
+            if not rid:
+                continue
+            loaded = self.load_completed_job(vacuum_entity_id=vacuum_entity_id, job_id=rid)
+            (children if isinstance(loaded, dict) else missing).append(loaded or rid)
         rooms: list[int] = []
         for c in children:
             for rid in known_completed_room_ids(
@@ -769,7 +822,17 @@ class LearningHistoryStore:
             ), 3),
             "rooms_cleaned": rooms,
             "clean_mode": _phased_clean_mode(children),
+            # A4: a phase that reported an outcome but whose record will not load. Without
+            # this a parent read "completed" with 0 seconds and no rooms -- a record that
+            # LIES, the exact class this design exists to remove. Empty is the normal case.
+            "missing_children": missing,
         }
+        if missing:
+            _LOGGER.warning(
+                "phased job %s: %d recorded child record(s) could not be loaded (%s) -- "
+                "its aggregate is INCOMPLETE",
+                phased_job_id, len(missing), ", ".join(missing),
+            )
         parent["boundaries"] = self._phased_boundaries(
             vacuum_entity_id=vacuum_entity_id, parent=parent, children=children
         )
