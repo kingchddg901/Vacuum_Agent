@@ -136,19 +136,19 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     # services.yaml required:true corrected to false (RP-005's established
     # omit-to-keep-selection contract).
 
-    # --- field_mismatch: schema accepts a field yaml never documents -------
-    # --- (each needs its own check: real accepted field -> add to yaml) ----
-    ("field_mismatch", "create_custom_layout.backdrop_source:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "finalize_learning_job.forced_outcome_status:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "import_theme.vacuum_entity_id:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "reanchor_learning_timeline.charge_percent_per_minute:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "reanchor_learning_timeline.reserve_battery_percent:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "reconcile_room.force:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "set_custom_segments.backdrop_height:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "set_custom_segments.backdrop_width:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "start_selected_rooms.pause_timeout_minutes_override:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "update_room_fields.color:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
-    ("field_mismatch", "update_room_fields.is_transition:schema_only"): "undocumented accepted field -- verify then add to services.yaml.",
+    # schema_only group fixed: all 11 fields were genuinely accepted by their
+    # schema and reachable from the handler to a real manager/estimator
+    # kwarg -- each got a services.yaml field doc (create_custom_layout
+    # backdrop_source; set_custom_segments backdrop_width/backdrop_height,
+    # plus its description rewritten -- CUSTOM-7; finalize_learning_job
+    # forced_outcome_status; import_theme vacuum_entity_id -- scoped-import
+    # target; reanchor_learning_timeline charge_percent_per_minute/
+    # reserve_battery_percent; reconcile_room force; update_room_fields
+    # color/is_transition). start_selected_rooms.pause_timeout_minutes_override
+    # was a services.yaml copy-paste bug, not a missing doc: the field block
+    # was attached to battery_rebaseline (whose real inline schema is
+    # vacuum_entity_id only -- documenting a field it doesn't accept) instead
+    # of start_selected_rooms (whose schema does have it); moved, not added.
 
     # SERVIC-7 fixed: all 19 unreferenced schema constants deleted from
     # mapping_services.py (they were never used by any registration call).

@@ -110,6 +110,18 @@ reconcile_room:
           options:
             - migrate
             - ignore
+    force:
+      name: Force
+      description: >
+        Only meaningful with action=migrate. A migration is normally refused
+        when the new discovery is both smaller than what is stored and would
+        drop more than half the stored rooms, since that usually means a
+        stale or bad discovery rather than a real re-map. Set true to proceed
+        anyway for a genuine re-map that really did shrink the room count.
+      required: false
+      default: false
+      selector:
+        boolean: {}
 
 get_vacuum_maps:
   name: Get vacuum maps
@@ -198,6 +210,22 @@ update_room_fields:
       required: false
       selector:
         boolean: {}
+    is_transition:
+      name: Transition room
+      description: >
+        Mark this room as a pass-through (e.g. a hallway) rather than a room
+        to be cleaned in its own right.
+      required: false
+      selector:
+        boolean: {}
+    color:
+      name: Room color
+      description: >
+        Per-room map fill color as a '#rrggbb' or '#rgb' hex string. Set to
+        null/empty to clear the override and fall back to the theme palette.
+      required: false
+      selector:
+        text: {}
     grants_access_to:
       name: Grants access to
       description: Downstream room IDs this room logically leads to.
@@ -852,6 +880,18 @@ start_selected_rooms:
               value: pause_and_event
             - label: Cancel and event
               value: cancel_and_event
+    pause_timeout_minutes_override:
+      name: Pause timeout override (minutes)
+      description: >
+        Optional one-job override for how long this run may remain paused before it is auto-cancelled.
+        Set to 0 to disable auto-cancel for this job.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 1
+          mode: box
 
 start_zone_clean:
   name: Start zone clean
@@ -1756,6 +1796,15 @@ finalize_learning_job:
       default: false
       selector:
         boolean: {}
+    forced_outcome_status:
+      name: Forced outcome status
+      description: >
+        Override automatic outcome detection (e.g. "completed", "cancelled",
+        "failed", "interrupted") for a historical correction. Leave blank to
+        let finalization infer the outcome as it normally would.
+      required: false
+      selector:
+        text: {}
 
 rebuild_learning_stats:
   name: Rebuild learning stats
@@ -1917,6 +1966,27 @@ reanchor_learning_timeline:
         number:
           min: 0
           max: 100
+          step: 1
+          mode: box
+    charge_percent_per_minute:
+      name: Charge rate (% per minute)
+      required: false
+      default: 1.0
+      selector:
+        number:
+          min: 0.1
+          max: 10
+          step: 0.1
+          mode: box
+    reserve_battery_percent:
+      name: Reserve battery %
+      description: Minimum battery buffer to keep in reserve.
+      required: false
+      default: 5.0
+      selector:
+        number:
+          min: 0
+          max: 20
           step: 1
           mode: box
 
@@ -2155,6 +2225,17 @@ import_theme:
       required: true
       selector:
         object: {}
+    vacuum_entity_id:
+      name: Vacuum entity
+      description: >
+        Optional target vacuum for a scoped import: replaces only the
+        floor-type namespaces named in payload's scope on that vacuum's
+        active theme. Leave blank for a full import, which adds a new
+        library theme instead.
+      required: false
+      selector:
+        entity:
+          domain: vacuum
 
 get_room_learning_estimates:
   name: Get room learning estimates
@@ -2436,12 +2517,14 @@ set_segmentation_mode:
 set_custom_segments:
   name: Set custom segments
   description: >
-    Author no-CV map segments from primitive shapes (replace-all). Rebuilds the
-    map's custom segment set from the supplied list; each segment's primitives
-    (rect/circle/polygon, coordinates in 0-100 map percentages, optional
-    op: subtract) are rasterised server-side into a polygon. Requires a 'custom'
-    backdrop image (uploaded via upload_map_image) for the pixel dimensions.
-    Never runs the segmenter.
+    Author no-CV map segments from primitive shapes (replace-all) on the map's
+    ACTIVE custom layout. Rebuilds that layout's custom segment set from the
+    supplied list; each segment's primitives (rect/circle/polygon, coordinates
+    in 0-100 map percentages, optional op: subtract) are rasterised
+    server-side into a polygon. Pixel dimensions for rasterisation come from
+    a 'custom' backdrop image (uploaded via upload_map_image) when the layout
+    has one, or from backdrop_width/backdrop_height for a live-image-backed
+    layout (no uploaded backdrop). Never runs the segmenter.
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -2463,6 +2546,28 @@ set_custom_segments:
       required: true
       selector:
         object: {}
+    backdrop_width:
+      name: Backdrop width
+      description: >
+        Rasterization pixel width. Only needed for a live-image-backed layout
+        (no uploaded custom backdrop) — send the rendered live image's
+        natural pixel width.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+    backdrop_height:
+      name: Backdrop height
+      description: >
+        Rasterization pixel height. Only needed for a live-image-backed
+        layout (no uploaded custom backdrop) — send the rendered live
+        image's natural pixel height.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
 
 set_companion_anchor:
   name: Set companion anchor
@@ -2963,6 +3068,14 @@ create_custom_layout:
         text: {}
     name:
       name: Layout name
+      required: false
+      selector:
+        text: {}
+    backdrop_source:
+      name: Backdrop source
+      description: >
+        "live" pins the layout to the brand's live-map image as its
+        backdrop instead of an uploaded custom image.
       required: false
       selector:
         text: {}
