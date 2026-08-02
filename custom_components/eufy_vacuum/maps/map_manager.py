@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 
 from ..models.models import RoomConfig
@@ -58,20 +59,25 @@ def get_map_bucket(
     vacuum_entity_id: str,
     map_id: str,
 ) -> dict[str, Any]:
-    """Return a map bucket if present, otherwise an empty map-shaped payload."""
-    return (
-        data.get("maps", {})
-        .get(vacuum_entity_id, {})
-        .get(
-            str(map_id),
-            {
-                "map_id": str(map_id),
-                "metadata": {},
-                "rooms": {},
-                "summary": {},
-            },
-        )
-    )
+    """Return a map bucket if present, otherwise an empty map-shaped payload.
+
+    DR-MAP-1: always returns a DETACHED copy, present or absent. The
+    previous version returned live storage on a hit but a throwaway dict
+    literal on a miss, so a caller mutating the result would sometimes
+    persist and sometimes silently vanish depending only on whether the
+    map already existed -- the same "claim written to a copy" shape audit
+    #1 found elsewhere. Callers that need to WRITE use ensure_map_bucket,
+    which always returns live storage via setdefault.
+    """
+    bucket = data.get("maps", {}).get(vacuum_entity_id, {}).get(str(map_id))
+    if bucket is None:
+        return {
+            "map_id": str(map_id),
+            "metadata": {},
+            "rooms": {},
+            "summary": {},
+        }
+    return copy.deepcopy(bucket)
 
 
 def get_vacuum_maps_summary(
@@ -86,15 +92,25 @@ def get_vacuum_maps_summary(
 
     for map_id, bucket in sorted(map_buckets.items(), key=lambda item: str(item[0])):
         metadata = bucket.get("metadata", {})
-        summary = bucket.get("summary", {})
         rooms = bucket.get("rooms", {})
+
+        # DR-MAP-2: derive enabled/disabled counts LIVE from rooms, the same
+        # source room_count already uses -- the stored summary block is a
+        # cache that a writer touching rooms without recomputing it can
+        # leave stale, which would disagree with room_count in this same
+        # payload.
+        enabled_room_count = sum(
+            1 for r in rooms.values()
+            if isinstance(r, dict) and bool(r.get("enabled", False))
+        )
+        disabled_room_count = len(rooms) - enabled_room_count
 
         maps.append(
             {
                 "map_id": str(map_id),
                 "room_count": len(rooms),
-                "enabled_room_count": int(summary.get("enabled_count", 0)),
-                "disabled_room_count": int(summary.get("disabled_count", 0)),
+                "enabled_room_count": enabled_room_count,
+                "disabled_room_count": disabled_room_count,
                 "last_discovery": metadata.get("last_discovery", {}),
             }
         )

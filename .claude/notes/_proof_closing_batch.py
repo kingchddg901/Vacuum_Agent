@@ -396,6 +396,70 @@ async def _case_pose_6(proof: H.Proof) -> None:
     )
 
 
+async def _case_dr_map_1(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.maps.map_manager import get_map_bucket
+
+    data = {"maps": {H.VAC: {H.MAP: {
+        "map_id": H.MAP, "metadata": {}, "rooms": {"1": {"name": "Kitchen"}}, "summary": {},
+    }}}}
+
+    bucket = get_map_bucket(data=data, vacuum_entity_id=H.VAC, map_id=H.MAP)
+    bucket["rooms"]["1"]["name"] = "MUTATED"
+
+    persisted = data["maps"][H.VAC][H.MAP]["rooms"]["1"]["name"] == "MUTATED"
+
+    proof.case(
+        "maps/map_manager.py DR-MAP-1: get_map_bucket must return a "
+        "detached copy on a hit, not the live stored dict",
+        before=persisted,
+        before_msg="mutating the returned bucket wrote straight through "
+                   "into storage when the map existed -- but the SAME "
+                   "mutation on a miss (a fresh dict literal) would have "
+                   "silently vanished, an inconsistent contract for any "
+                   "caller",
+        after=(not persisted),
+        after_msg="the returned bucket is a deep copy; mutating it never "
+                  "touches storage, present or absent",
+        detail=f"persisted={persisted}",
+    )
+
+
+async def _case_dr_map_2(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.maps.map_manager import get_vacuum_maps_summary
+
+    # rooms was updated (2 enabled, 1 disabled) but the cached summary block
+    # was never recomputed -- still says 0/0 from before the rooms existed.
+    data = {"maps": {H.VAC: {H.MAP: {
+        "map_id": H.MAP,
+        "metadata": {},
+        "rooms": {
+            "1": {"enabled": True},
+            "2": {"enabled": True},
+            "3": {"enabled": False},
+        },
+        "summary": {"enabled_count": 0, "disabled_count": 0},
+    }}}}
+
+    out = get_vacuum_maps_summary(data=data, vacuum_entity_id=H.VAC)
+    m = out["maps"][0]
+    agrees = (m["enabled_room_count"] + m["disabled_room_count"]) == m["room_count"]
+
+    proof.case(
+        "maps/map_manager.py DR-MAP-2: enabled/disabled room counts must "
+        "agree with the live room_count in the same payload",
+        before=(not agrees),
+        before_msg="enabled/disabled counts came from the cached summary "
+                   "block (stale: 0/0) while room_count is live (3) -- the "
+                   "two disagree in one payload",
+        after=agrees,
+        after_msg="enabled/disabled counts are derived live from the same "
+                  "rooms dict room_count uses, so they always agree",
+        detail=f"room_count={m['room_count']} "
+               f"enabled={m['enabled_room_count']} "
+               f"disabled={m['disabled_room_count']}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -407,6 +471,8 @@ CASES = [
     _case_io_7,
     _case_common_5,
     _case_pose_6,
+    _case_dr_map_1,
+    _case_dr_map_2,
 ]
 
 

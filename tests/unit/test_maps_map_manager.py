@@ -57,12 +57,15 @@ def test_vacuum_maps_summary():
     """[MAP-4]"""
     data: dict = {}
     b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="6")
-    b["rooms"] = {"1": {}, "2": {}}
-    b["summary"] = {"enabled_count": 1, "disabled_count": 1}
+    b["rooms"] = {"1": {"enabled": True}, "2": {"enabled": False}}
+    # DR-MAP-2: a deliberately stale cached summary -- enabled/disabled counts
+    # must be derived live from rooms (1/1), not read from this cache (0/2).
+    b["summary"] = {"enabled_count": 0, "disabled_count": 2}
     summary = get_vacuum_maps_summary(data=data, vacuum_entity_id=_VAC)
     assert summary["map_count"] == 1
     assert summary["maps"][0]["room_count"] == 2
     assert summary["maps"][0]["enabled_room_count"] == 1
+    assert summary["maps"][0]["disabled_room_count"] == 1
 
 
 def test_rebuild_map_bucket():
