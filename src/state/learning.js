@@ -288,6 +288,18 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * Whether the provider's edge-mopping control is meaningful on this device
+   * (Q11/CARD-8). Defaults true when the snapshot omits the key -- mirrors
+   * supportsBaseStation and the Eufy adapter's own default, so an older
+   * backend keeps the control; only a brand that reports false (Roborock,
+   * every engine) loses it.
+   */
+  proto.supportsEdgeMopping = function () {
+    const v = this.dashboardSnapshot()?.supports_edge_mopping;
+    return v === undefined || v === null ? true : Boolean(v);
+  };
+
+  /**
    * The vacuum's provider setting-select entity-ids, resolved by the backend from
    * the adapter's `settings_selects` (existence-checked). Keyed by setting name
    * (fan_speed / clean_mode / clean_intensity / water_level / …). The zone panel

@@ -534,7 +534,16 @@ export function applyMetricsRenderers(proto) {
     const fan = v("fan_speed", profile?.fan_speed);
     const water = (profile?.water_level != null && String(profile.water_level).toLowerCase() !== "off") ? v("water_level", profile.water_level) : "";
     const passes = Math.max(parseInt(profile?.clean_passes, 10) || 1, 1);
-    const edge = Boolean(profile?.edge_mopping);
+    // Q11/CARD-8: edge-mopping visibility is capability-driven, not brand-name.
+    // A profile fixture may declare supports_edge_mopping directly (tests, or a
+    // future backend payload); real callers carry no such field today, so fall
+    // back to the card's own device-capability state -- the same source
+    // _canZone() reads via supportsZoneClean(). Absence of BOTH defaults true
+    // (matches the Eufy adapter's own default), so this never goes product-wide.
+    const edgeCapable = profile?.supports_edge_mopping !== undefined
+      ? Boolean(profile.supports_edge_mopping)
+      : (this.card?._state?.supportsEdgeMopping?.() ?? true);
+    const edge = Boolean(profile?.edge_mopping) && edgeCapable;
     const presetCodes = ["vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep"];
     const isCustom = ["", "custom", "user_1"].includes(sel) || (sel !== res && !presetCodes.includes(sel));
 
