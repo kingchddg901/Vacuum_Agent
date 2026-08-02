@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **112** findings via 15 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e) |
+| Fixes APPLIED (landed packets) | **115** findings via 16 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **372** -- 18 open clusters (11 fully applied) + 336 singles |
-| By severity | CRITICAL 7 / HIGH 54 / MEDIUM 137 / LOW 174 |
+| Open findings | **369** -- 18 open clusters (11 fully applied) + 333 singles |
+| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 137 / LOW 173 |
 | Hardware validation | **none** -- nothing from this campaign has run on a real vacuum |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -272,7 +272,7 @@ audit is a snapshot, not a ledger.
   overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
   -> A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
 
-### HIGH (38)
+### HIGH (36)
 
 - [ ] **A4-START-1** `core/manager.py:2863` [both]  
   get_start_status validates PHASE 0's room count as if it were the whole job — a stepped run whose first phase is a zone is refused with a false "invalid payload" error  
@@ -289,12 +289,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A2-ACC-2** `learning/estimator.py:1122` [both]  
   reanchor_timeline ignores its own reanchor_at parameter — every ETA is anchored to job start plus the sum of room durations, so all wall-clock dead time is invisible and "Done at" times slide into the past  
   -> Concrete: 3 rooms at 10 min each, overhead 7.02, started 12:00. R1 completes at 12:10 with actual_duration 10.0. The user pauses the vacuum at 12:10 and resumes at 12:40. At 12:45 the card refreshes and reanchors with co
-- [ ] **A3-IO-1** `learning/history_store.py:989` [both]  
-  An empty room_timing on a charge/wait/zone phase is read as "capture failed", so every stepped run with a break or a zone is stripped of its accurate per-room timings and learns an even split instead  
-  -> Using the flagship charge-break step (vac -> charge to X% -> mop) or queueing a saved zone alongside rooms silently downgrades that run's learning from exact per-room capture to an even time split, and contributes zero a
-- [ ] **DQ-PH-1** `learning/history_store.py:996` [both]  
-  Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included  
-  -> Every run that uses the charge_wait / wait / zone step feature writes corrupted per-room baselines: the exact per-room area and wall-minutes that were captured are thrown away, and each room instead learns an even share
 - [ ] **A4-RB-1** `mapping/map_source_runtime.py:373` [roborock] _(finder said CRITICAL)_  
   Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
   -> On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
@@ -767,7 +761,7 @@ audit is a snapshot, not a ledger.
   _LOCAL_TZ is a FIXED offset captured at import, so naive legacy timestamps get the wrong offset half the year  
   -> VERIFIED BY EXECUTION. `_LOCAL_TZ = datetime.now().astimezone().tzinfo` does not return a DST-aware zone -- it returns a datetime.timezone with a frozen offset. Ran it: repr is datetime.timezone(timedelta(-1, 61200), 'Pa
 
-### LOW (171)
+### LOW (170)
 
 - [ ] **A1-ID-5** `adapters/eufy/discovery.py:47` [eufy]  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1072,9 +1066,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-PP-EST-CLAMP-1** `planning/run_plan.py:476` [eufy]  
   Tank-remaining ml is unclamped while its own percent is clamped to [0,100], and robot_internal_tank_ml is reported but never used in any calculation  
   -> A shortfall renders as a self-contradictory "-450 ml (0%)". And an adapter author is required by the schema to measure `robot_internal_tank_ml` on real hardware for a value the estimator never consults.
-- [ ] **INF-8** `planning/run_plan.py:883` [both]  
-  The one call site step_types' docstring reasons about by name hand-copies the tuple instead of importing it  
-  -> step_types.py's docstring says 'The leading/trailing break-trim in planning.run_plan is deliberately the second set too' and closes with 'a caller that reaches for the set is one `and` clause away from re-creating the dr
 - [ ] **A5-PP-RP-4** `planning/run_plan.py:902` [both] _(finder said MEDIUM)_  
   The collapse fallback's `all_ids` is provably always [] — and the unit test manufactures the very key the real engines never emit  
   -> A stepped plan whose breaks are all trimmed (leading and/or trailing) runs as one flat clean using each room's GLOBAL stored settings instead of the per-group settings the card wrote into the step — e.g. `[room_group(kit
@@ -1285,7 +1276,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 112 findings closed by a landed packet
+## APPLIED -- 115 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1502,6 +1493,12 @@ a disappeared finding is indistinguishable from one never found.
   The last room of every job never fires room_completed — end_job resets state without flushing the held room
 - [x] **DQ-PH-6** `queue/queue_engine.py:466` [future_brand_only] -- **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
   advance_active_job_phase resets every per-phase pointer except _native_current_room_id, leaving a latent cross-phase carry-over that only the phases-gate currently hides
+- [x] **DQ-PH-1** `learning/history_store.py:996` [both] -- **RP-013a** (`205ef7b`, 2026-08-02)  
+  Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included
+- [x] **A3-IO-1** `learning/history_store.py:989` [both] -- **RP-013a** (`205ef7b`, 2026-08-02)  
+  An empty room_timing on a charge/wait/zone phase is read as "capture failed", so every stepped run with a break or a zone is stripped of its accurate per-room timings and learns an even split instead
+- [x] **INF-8** `planning/run_plan.py:883` [both] -- **RP-013a** (`205ef7b`, 2026-08-02)  
+  The one call site step_types' docstring reasons about by name hand-copies the tuple instead of importing it
 - [x] **DQ-PH-3** `jobs/phase_runner.py:301` [eufy] -- **RP-013b** (`f212c20`, 2026-08-02)  
   A multi-room room_group phase is recorded as ONE room — the group's whole cleaning time, area and battery are attributed to its first room and every other room in the group vanishes from the record
 - [x] **A3-REC-1** `jobs/phase_runner.py:301` [eufy] -- **RP-013b** (`f212c20`, 2026-08-02)  

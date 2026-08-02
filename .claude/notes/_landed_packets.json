@@ -88,5 +88,11 @@
   "commits": ["4b0cda3", "dbbb348"],
   "landed_at": "2026-08-02",
   "note": "Stage X, packet 3/5. 2 commits per rollback_plan (recorder predicate/scope; battery watch) -- different files, split cleanly. All 3 reproducer cases report AFTER."
+ },
+ {
+  "packet_id": "RP-013a",
+  "commits": ["205ef7b"],
+  "landed_at": "2026-08-02",
+  "note": "Stage X, packet 4/5. Single commit per rollback_plan. Also closed INF-8 (run_plan.py's hand-copied _BREAKS literal, now imported from step_types.DOCK_POLLED_PHASE_TYPES). Hardware precondition satisfied by stepped Run A per Stage X's own text."
  }
 ]

@@ -43,13 +43,13 @@ landed in between.
 
 ## Completed
 
-**135 changes shipped**, all with tests, all deployed.
+**137 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
 | Audits fully applied | #1 lifecycle · #2 learning · #3 external ingestion · #4 adapters · #5 error tracker |
 | Partly applied | #6 card (root cause + top of the repair order) |
-| #7 onward | **112** of 484 findings applied via 15 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e); rest open — see [Open](#open) |
+| #7 onward | **115** of 484 findings applied via 16 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a); rest open — see [Open](#open) |
 
 ### The recurring root cause
 
@@ -199,14 +199,16 @@ comments rather than by a shared helper.
 | `8606134` | audit: Stage E template — check CI conclusion after push, not just local |
 | `4b0cda3` | RP-013e (1/2): recorder predicate/scope — no more fan-out to finished jobs |
 | `dbbb348` | RP-013e (2/2): job_metrics watches the adapter-declared battery entity |
+| `cc22c4a` | audit: RP-013e landed — ledger closure regenerated |
+| `205ef7b` | RP-013a: phase-type-aware capture validity — break/zone empty timing is valid |
 
 ---
 
 ## Open
 
-**372 findings** — 331 across 12 audits plus 41 from direct reads. **112 more applied** via 15 landed packets (see [Applied](#applied)). 18 open clusters (11 fully applied) + 336 singles.
+**369 findings** — 329 across 12 audits plus 40 from direct reads. **115 more applied** via 16 landed packets (see [Applied](#applied)). 18 open clusters (11 fully applied) + 333 singles.
 
-CRITICAL 7 · HIGH 54 · MEDIUM 137 · LOW 174
+CRITICAL 7 · HIGH 52 · MEDIUM 137 · LOW 173
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -430,7 +432,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>HIGH</strong> (38)</summary>
+<details><summary><strong>HIGH</strong> (36)</summary>
 
 - **A4-START-1** `core/manager.py:2863` · both  
   get_start_status validates PHASE 0's room count as if it were the whole job — a stepped run whose first phase is a zone is refused with a false "invalid payload" error  
@@ -447,12 +449,6 @@ The same audits recorded **673 areas examined and found correct**.
 - **A2-ACC-2** `learning/estimator.py:1122` · both  
   reanchor_timeline ignores its own reanchor_at parameter — every ETA is anchored to job start plus the sum of room durations, so all wall-clock dead time is invisible and "Done at" times slide into the past  
   Concrete: 3 rooms at 10 min each, overhead 7.02, started 12:00. R1 completes at 12:10 with actual_duration 10.0. The user pauses the vacuum at 12:10 and resumes at 12:40. At 12:45 the card refreshes and reanchors with co
-- **A3-IO-1** `learning/history_store.py:989` · both  
-  An empty room_timing on a charge/wait/zone phase is read as "capture failed", so every stepped run with a break or a zone is stripped of its accurate per-room timings and learns an even split instead  
-  Using the flagship charge-break step (vac -> charge to X% -> mop) or queueing a saved zone alongside rooms silently downgrades that run's learning from exact per-room capture to an even time split, and contributes zero a
-- **DQ-PH-1** `learning/history_store.py:996` · both  
-  Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included  
-  Every run that uses the charge_wait / wait / zone step feature writes corrupted per-room baselines: the exact per-room area and wall-minutes that were captured are thrown away, and each room instead learns an even share
 - **A4-RB-1** `mapping/map_source_runtime.py:373` · roborock _(finder said CRITICAL; verifier corrected)_  
   Roborock MapData lookup never binds the found map to the requested map_id — a multi-map (multi-floor) device converts drawn zones in the wrong floor's coordinate frame  
   On a Roborock with more than one saved map (a two-storey home — the exact case the adapter's `active_map = select.{id}_selected_map` block exists for), the user draws a zone box on the upstairs map and the robot vacuums
@@ -929,7 +925,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>LOW</strong> (171)</summary>
+<details><summary><strong>LOW</strong> (170)</summary>
 
 - **A1-ID-5** `adapters/eufy/discovery.py:47` · eufy  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
@@ -1234,9 +1230,6 @@ The same audits recorded **673 areas examined and found correct**.
 - **A6-PP-EST-CLAMP-1** `planning/run_plan.py:476` · eufy  
   Tank-remaining ml is unclamped while its own percent is clamped to [0,100], and robot_internal_tank_ml is reported but never used in any calculation  
   A shortfall renders as a self-contradictory "-450 ml (0%)". And an adapter author is required by the schema to measure `robot_internal_tank_ml` on real hardware for a value the estimator never consults.
-- **INF-8** `planning/run_plan.py:883` · both · `direct read`  
-  The one call site step_types' docstring reasons about by name hand-copies the tuple instead of importing it  
-  step_types.py's docstring says 'The leading/trailing break-trim in planning.run_plan is deliberately the second set too' and closes with 'a caller that reaches for the set is one `and` clause away from re-creating the dr
 - **A5-PP-RP-4** `planning/run_plan.py:902` · both _(finder said MEDIUM; verifier corrected)_  
   The collapse fallback's `all_ids` is provably always [] — and the unit test manufactures the very key the real engines never emit  
   A stepped plan whose breaks are all trimmed (leading and/or trailing) runs as one flat clean using each room's GLOBAL stored settings instead of the per-group settings the card wrote into the step — e.g. `[room_group(kit
@@ -1449,7 +1442,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Applied
 
-**112 findings** closed by a landed packet. Not open work, but kept
+**115 findings** closed by a landed packet. Not open work, but kept
 here rather than removed — a disappeared finding is indistinguishable from one never
 found. `.claude/notes/_landed_packets.json` is the source of truth for what has
 landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
@@ -1664,6 +1657,12 @@ landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
   The last room of every job never fires room_completed — end_job resets state without flushing the held room
 - [x] **DQ-PH-6** `queue/queue_engine.py:466` · future_brand_only — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
   advance_active_job_phase resets every per-phase pointer except _native_current_room_id, leaving a latent cross-phase carry-over that only the phases-gate currently hides
+- [x] **DQ-PH-1** `learning/history_store.py:996` · both — **RP-013a** (`205ef7b`, 2026-08-02)  
+  Every break/zone phase flips transit_capture_valid to False, so a stepped run's per-room learning silently degrades to an even split of the run's wall time — charge/wait dock time included
+- [x] **A3-IO-1** `learning/history_store.py:989` · both — **RP-013a** (`205ef7b`, 2026-08-02)  
+  An empty room_timing on a charge/wait/zone phase is read as "capture failed", so every stepped run with a break or a zone is stripped of its accurate per-room timings and learns an even split instead
+- [x] **INF-8** `planning/run_plan.py:883` · both — **RP-013a** (`205ef7b`, 2026-08-02)  
+  The one call site step_types' docstring reasons about by name hand-copies the tuple instead of importing it
 - [x] **DQ-PH-3** `jobs/phase_runner.py:301` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
   A multi-room room_group phase is recorded as ONE room — the group's whole cleaning time, area and battery are attributed to its first room and every other room in the group vanishes from the record
 - [x] **A3-REC-1** `jobs/phase_runner.py:301` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
