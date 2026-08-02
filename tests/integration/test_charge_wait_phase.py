@@ -14,6 +14,7 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-6] the unplanned-recharge observer must NOT claim a commanded charge_wait dock.
 [CW-7] _build_steps_phases: room_group -> clean phase, charge_wait -> charge phase, in order.
 [CW-8] _build_steps_phases: a charge with no clean to bracket is dropped (-> atomic when none survives).
+[CW-8b] Q17/RP-021a: a dropped leading/trailing break is recorded (normalized_steps), never silent.
 [CW-9] _build_steps_phases: a room_group whose rooms are all blocked is skipped.
 [CW-10] _build_steps_phases: consecutive charge steps collapse to the last target.
 [CW-11] a completed charge records from/to battery + timestamps on the phase (Wave 4 observability).
@@ -270,6 +271,15 @@ async def test_steps_phases_skips_blocked_group(hass, manager, monkeypatch):
     """[CW-9]"""
     phases = _steps_phases(manager, monkeypatch, [_rg(1), _cw(95), _rg(2)], included={1})
     assert len(phases) == 1 and phases[0]["ids"] == [1]   # group{2} blocked -> trailing charge dropped
+
+
+async def test_steps_phases_records_a_dropped_break(hass, manager, monkeypatch):
+    """[CW-8b] Q17/RP-021a: a run this old could only exist as legacy stored data (save
+    now refuses a leading/trailing break outright) — the drop is recorded on the
+    surviving phase rather than silent, even through the atomic-collapse path CW-8
+    exercises (both charges dropped -> one atomic clean)."""
+    phases = _steps_phases(manager, monkeypatch, [_cw(95), _rg(1), _cw(95)], included={1})
+    assert phases[0]["normalized_steps"] == ["charge_wait", "charge_wait"]
 
 
 async def test_steps_phases_collapses_consecutive_charges(hass, manager, monkeypatch):

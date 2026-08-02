@@ -23,6 +23,7 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from ..const import DOMAIN
 from ..entity_helpers import get_floor_type_label
 from ..maps.map_manager import ensure_map_bucket, get_map_bucket
 from ..profiles.room_profiles import (
@@ -38,6 +39,7 @@ from ..profiles.room_profiles import (
 from ..rooms.room_manager import build_room_selection_summary
 from ..timestamp_utils import utc_now_iso
 from ..step_types import plan_requires_stepped_execution, step_requires_stepped_execution
+from homeassistant.exceptions import ServiceValidationError
 
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
@@ -806,6 +808,24 @@ class ProfileManager:
                         clean_ids.append(zid)
                 if clean_ids:
                     out.append({"type": "zone", "zone_ids": clean_ids})
+        # Q17: a leading/trailing charge_wait or wait has nothing to bracket, so it can
+        # never run — it is unsupported, not silently droppable (RP-021a clause 1). A
+        # single-entry list (every ``queue_breaks`` call site normalizes one already-
+        # positioned break in isolation) is never "leading" or "trailing" in this sense,
+        # so the check only applies once there is a real sequence to be first/last in.
+        if len(out) > 1:
+            if out[0].get("type") in ("charge_wait", "wait"):
+                raise ServiceValidationError(
+                    "A run profile cannot start with a charge/wait break",
+                    translation_domain=DOMAIN,
+                    translation_key="leading_break_unsupported",
+                )
+            if out[-1].get("type") in ("charge_wait", "wait"):
+                raise ServiceValidationError(
+                    "A run profile cannot end with a charge/wait break",
+                    translation_domain=DOMAIN,
+                    translation_key="trailing_break_unsupported",
+                )
         return out
 
     @staticmethod
@@ -815,7 +835,30 @@ class ProfileManager:
         boundaries) lives in the steps list; old profiles carried only ``rooms``."""
         steps = profile.get("steps") if isinstance(profile, dict) else None
         if isinstance(steps, list) and steps:
-            return ProfileManager.normalize_run_profile_steps(steps)
+            try:
+                return ProfileManager.normalize_run_profile_steps(steps)
+            except ServiceValidationError:
+                # A profile saved before Q17's leading/trailing-break rejection existed.
+                # Reading it must never fail to start — strip the unsupported break(s)
+                # loudly and normalize what remains.
+                def _is_break(entry: Any) -> bool:
+                    return (
+                        isinstance(entry, dict)
+                        and str(entry.get("type", "")).lower() in ("charge_wait", "wait")
+                    )
+
+                trimmed = list(steps)
+                while trimmed and _is_break(trimmed[0]):
+                    _LOGGER.info(
+                        "Dropping legacy leading break from a stored run profile "
+                        "(unsupported since Q17): %r", trimmed.pop(0),
+                    )
+                while trimmed and _is_break(trimmed[-1]):
+                    _LOGGER.info(
+                        "Dropping legacy trailing break from a stored run profile "
+                        "(unsupported since Q17): %r", trimmed.pop(),
+                    )
+                return ProfileManager.normalize_run_profile_steps(trimmed)
         rooms = (profile or {}).get("rooms", [])
         return [{"type": "room_group", "rooms": list(rooms)}] if rooms else []
 
@@ -1011,7 +1054,11 @@ class ProfileManager:
         if not isinstance(existing, dict):
             return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
                     "saved": False, "reason": "profile_not_found", "profile_id": profile_id}
-        normalized = self.normalize_run_profile_steps(steps)
+        try:
+            normalized = self.normalize_run_profile_steps(steps)
+        except ServiceValidationError as err:
+            return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
+                    "saved": False, "reason": err.translation_key, "profile_id": profile_id}
         if not any(s.get("type") == "room_group" for s in normalized):
             return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
                     "saved": False, "reason": "no_room_group", "profile_id": profile_id}

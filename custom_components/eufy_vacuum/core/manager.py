@@ -10,6 +10,7 @@ import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
@@ -1747,7 +1748,26 @@ class EufyVacuumManager:
             steps.append(dict(breaks[bi]["step"]))
             bi += 1
 
-        steps = self.profiles.normalize_run_profile_steps(steps)
+        try:
+            steps = self.profiles.normalize_run_profile_steps(steps)
+        except ServiceValidationError:
+            # after_index is clamped to an interior slot whenever a break is added, so
+            # this should be unreachable — but a room disabled AFTER a break was placed
+            # can strand it at the edge. Self-heal rather than let a read crash: the
+            # derived queue is recomputed from stored rooms/breaks on every call, so
+            # dropping the stranded break here does not lose anything the next add/set
+            # can't recreate the same way this queue does today.
+            while steps and str(steps[0].get("type", "")).lower() in ("charge_wait", "wait"):
+                _LOGGER.info(
+                    "get_queue_steps: dropping stranded leading break for %s map %s: %r",
+                    vacuum_entity_id, map_id, steps.pop(0),
+                )
+            while steps and str(steps[-1].get("type", "")).lower() in ("charge_wait", "wait"):
+                _LOGGER.info(
+                    "get_queue_steps: dropping stranded trailing break for %s map %s: %r",
+                    vacuum_entity_id, map_id, steps.pop(),
+                )
+            steps = self.profiles.normalize_run_profile_steps(steps)
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),

@@ -46,6 +46,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 import pytest
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.eufy_vacuum.profiles.manager import ProfileManager
 from custom_components.eufy_vacuum.profiles.room_profiles import (
@@ -92,8 +93,22 @@ def test_run_profile_steps_uses_explicit_steps(pm):
     assert steps[1]["target_battery_percent"] == 95
 
 
+def test_run_profile_steps_strips_a_legacy_leading_break(pm):
+    """[PM-19b] Q17/RP-021a: a profile saved before the leading-break rejection existed
+    must still render/start — run_profile_steps normalizes it away loudly instead of
+    raising (compatibility_constraints: never fail to start on legacy data)."""
+    prof = {"rooms": [{"room_id": 9}], "steps": [
+        {"type": "charge_wait", "target_battery_percent": 80},
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+    ]}
+    steps = ProfileManager.run_profile_steps(prof)
+    assert [s["type"] for s in steps] == ["room_group"]
+
+
 def test_normalize_steps_drops_invalid_and_clamps(pm):
-    """[PM-20]"""
+    """[PM-20] The charge_wait sits between two room_groups (not trailing) — a trailing
+    one is unsupported since Q17/RP-021a and raises instead of clamping-then-keeping
+    (see test_normalize_steps_rejects_trailing_break)."""
     out = ProfileManager.normalize_run_profile_steps([
         "junk",
         {"type": "room_group", "rooms": []},                     # empty -> dropped
@@ -101,11 +116,42 @@ def test_normalize_steps_drops_invalid_and_clamps(pm):
         {"type": "charge_wait", "target_battery_percent": 250},   # clamp -> 100
         {"type": "charge_wait", "target_battery_percent": "x"},    # bad -> dropped
         {"type": "mystery"},                                       # unknown -> dropped
+        {"type": "room_group", "rooms": [{"room_id": 2}]},
     ])
     assert out == [
         {"type": "room_group", "rooms": [{"room_id": 1}]},
         {"type": "charge_wait", "target_battery_percent": 100},
+        {"type": "room_group", "rooms": [{"room_id": 2}]},
     ]
+
+
+def test_normalize_steps_rejects_leading_break(pm):
+    """[PM-20b] Q17/RP-021a: a leading charge_wait/wait has nothing to bracket."""
+    with pytest.raises(ServiceValidationError) as exc_info:
+        ProfileManager.normalize_run_profile_steps([
+            {"type": "charge_wait", "target_battery_percent": 80},
+            {"type": "room_group", "rooms": [{"room_id": 1}]},
+        ])
+    assert exc_info.value.translation_key == "leading_break_unsupported"
+
+
+def test_normalize_steps_rejects_trailing_break(pm):
+    """[PM-20c] Q17/RP-021a: same treatment for a trailing wait."""
+    with pytest.raises(ServiceValidationError) as exc_info:
+        ProfileManager.normalize_run_profile_steps([
+            {"type": "room_group", "rooms": [{"room_id": 1}]},
+            {"type": "wait", "wait_minutes": 5},
+        ])
+    assert exc_info.value.translation_key == "trailing_break_unsupported"
+
+
+def test_normalize_steps_single_break_is_never_leading_or_trailing(pm):
+    """[PM-20d] A lone break (the queue_breaks call sites: one already-positioned break
+    normalized in isolation) has no sequence to be first/last in — never rejected."""
+    out = ProfileManager.normalize_run_profile_steps(
+        [{"type": "charge_wait", "target_battery_percent": 80}]
+    )
+    assert out == [{"type": "charge_wait", "target_battery_percent": 80}]
 
 
 def _seed_run_profile(pm, profile_id="p1"):
@@ -140,6 +186,18 @@ def test_set_run_profile_steps_unknown_profile(pm):
     """[PM-23]"""
     out = pm.set_run_profile_steps(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="nope", steps=[])
     assert out["saved"] is False and out["reason"] == "profile_not_found"
+
+
+def test_set_run_profile_steps_rejects_leading_break(pm):
+    """[PM-24] Q17/RP-021a: the manager-layer save converts normalize's raise into the
+    same structured refusal shape every other set_run_profile_steps failure uses,
+    rather than letting a raw exception escape the manager boundary."""
+    _seed_run_profile(pm)
+    out = pm.set_run_profile_steps(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="p1", steps=[
+        {"type": "charge_wait", "target_battery_percent": 95},
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+    ])
+    assert out["saved"] is False and out["reason"] == "leading_break_unsupported"
 
 
 def test_get_room_profiles(pm):

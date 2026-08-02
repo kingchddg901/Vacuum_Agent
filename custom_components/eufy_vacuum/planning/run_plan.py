@@ -911,10 +911,21 @@ class RunPlanManager:
         # this vocabulary drifted (a missing "zone" was found and fixed twice in one
         # day on opposite sides of the stack; see that module's docstring).
         _BREAKS = DOCK_POLLED_PHASE_TYPES
+        dropped: list[str] = []
         while phases and phases[0].get("phase_type") in _BREAKS:
-            phases.pop(0)
+            dropped.append(phases.pop(0).get("phase_type"))
         while phases and phases[-1].get("phase_type") in _BREAKS:
-            phases.pop()
+            dropped.append(phases.pop().get("phase_type"))
+        if dropped:
+            # Q17 (RP-021a clause 1): a break with nothing to bracket cannot be saved
+            # today (normalize_run_profile_steps' validation arm refuses it), so
+            # reaching this drop means a profile stored BEFORE that check existed —
+            # normalize it loudly rather than silently, so the plan records what the
+            # card showed but will never run.
+            _LOGGER.info(
+                "_build_steps_phases: normalized away %d leading/trailing break "
+                "phase(s) with nothing to bracket: %s", len(dropped), dropped,
+            )
         collapsed: list[dict[str, Any]] = []
         for p in phases:
             pt = p.get("phase_type")
@@ -930,13 +941,19 @@ class RunPlanManager:
             for p in collapsed
         ):
             all_ids = [rid for p in collapsed for rid in p.get("queue_room_ids", [])]
-            return self._build_dispatch_phases(
+            result = self._build_dispatch_phases(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
                 managed_rooms=effective_rooms,
                 queue_room_ids=all_ids or sorted(included_room_ids),
                 strict_order=strict_order,
             )
-        return collapsed
+        else:
+            result = collapsed
+        # Carry the drop note onto whichever result shape wins — the atomic-collapse
+        # branch above rebuilds fresh phase dicts that would otherwise lose it.
+        if dropped and result:
+            result[0]["normalized_steps"] = dropped
+        return result
 
     def _build_effective_start_plan(
         self,
