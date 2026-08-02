@@ -159,7 +159,7 @@ class RoomRecord(TypedDict, total=False):
     edge_mopping: bool
     path_type: Optional[str]    # "wide" | "narrow" | None
     is_dock_room: bool
-    grants_access_to: list      # list[str] — room slugs this room grants access to
+    grants_access_to: list      # list[int] — room ids this room grants access to
     rules: list                 # list[dict] — scheduling/condition rules
     color: Optional[str]        # "#rrggbb" per-room map fill override, or None/absent for the palette
 
@@ -252,26 +252,6 @@ class MapConfig:
             "name": self.name,
             "rooms": {str(room_id): room.as_dict() for room_id, room in self.rooms.items()},
         }
-
-
-@dataclass(slots=True)
-class VacuumCapabilities:
-    """Detected capabilities for one vacuum."""
-
-    supports_room_clean: bool = False
-    supports_map_selection: bool = False
-    supports_dock_empty: bool = False
-    supports_mop_wash: bool = False
-    supports_mop_dry: bool = False
-    supports_live_map: bool = False
-    supports_maintenance_entities: bool = False
-
-    tested_profile: str = "generic"
-    detected_model: str | None = None
-
-    def as_dict(self) -> dict[str, Any]:
-        """Return capabilities as a dictionary."""
-        return asdict(self)
 
 
 @dataclass(slots=True)

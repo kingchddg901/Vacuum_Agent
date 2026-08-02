@@ -4,7 +4,6 @@ Coverage targets
 ----------------
 [MOD-1] RoomConfig defaults + as_dict round-trip.
 [MOD-2] MapConfig.as_dict nests room dicts keyed by str room id.
-[MOD-3] VacuumCapabilities.as_dict.
 [MOD-4] VacuumRuntimeState.as_dict.
 """
 
@@ -13,7 +12,6 @@ from __future__ import annotations
 from custom_components.eufy_vacuum.models.models import (
     MapConfig,
     RoomConfig,
-    VacuumCapabilities,
     VacuumRuntimeState,
 )
 
@@ -34,14 +32,6 @@ def test_map_config():
     d = mc.as_dict()
     assert d["map_id"] == "6"
     assert "1" in d["rooms"] and d["rooms"]["1"]["name"] == "Kitchen"
-
-
-def test_vacuum_capabilities():
-    """[MOD-3]"""
-    caps = VacuumCapabilities(supports_room_clean=True, detected_model="T2351")
-    d = caps.as_dict()
-    assert d["supports_room_clean"] is True
-    assert d["detected_model"] == "T2351"
 
 
 def test_runtime_state():
