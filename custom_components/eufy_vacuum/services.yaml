@@ -2759,14 +2759,15 @@ set_segmentation_mode:
 set_custom_segments:
   name: Set custom segments
   description: >
-    Author no-CV map segments from primitive shapes (replace-all) on the map's
-    ACTIVE custom layout. Rebuilds that layout's custom segment set from the
-    supplied list; each segment's primitives (rect/circle/polygon, coordinates
-    in 0-100 map percentages, optional op: subtract) are rasterised
-    server-side into a polygon. Pixel dimensions for rasterisation come from
-    a 'custom' backdrop image (uploaded via upload_map_image) when the layout
-    has one, or from backdrop_width/backdrop_height for a live-image-backed
-    layout (no uploaded backdrop). Never runs the segmenter.
+    Author no-CV map segments from primitive shapes (replace-all) on the
+    NAMED (layout_id) custom layout. Rebuilds that layout's custom segment
+    set from the supplied list; each segment's primitives (rect/circle/
+    polygon, coordinates in 0-100 map percentages, optional op: subtract)
+    are rasterised server-side into a polygon. Pixel dimensions for
+    rasterisation come from a 'custom' backdrop image (uploaded via
+    upload_map_image) when the layout has one, or from
+    backdrop_width/backdrop_height for a live-image-backed layout (no
+    uploaded backdrop). Never runs the segmenter.
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -2777,6 +2778,16 @@ set_custom_segments:
           domain: vacuum
     map_id:
       name: Map ID
+      required: true
+      selector:
+        text: {}
+    layout_id:
+      name: Layout ID
+      description: >
+        The custom layout to replace segments on. Required — this is a
+        destructive replace-all, so the target layout must be named
+        explicitly rather than falling back to whichever layout happens to
+        be active.
       required: true
       selector:
         text: {}

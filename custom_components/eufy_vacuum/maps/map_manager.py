@@ -29,6 +29,40 @@ def ensure_map_bucket(
     return data["maps"][vacuum_entity_id][str(map_id)]
 
 
+def require_map_bucket(
+    *,
+    data: dict[str, Any],
+    vacuum_entity_id: str,
+    map_id: str,
+) -> dict[str, Any] | None:
+    """Return the EXISTING map bucket, live storage — or None when this
+    (vacuum, map_id) has never been discovered/saved for this vacuum.
+
+    RP-028/SERVIC-1: the ADDRESSED-write counterpart to ``ensure_map_bucket``.
+    Every mapping SERVICE handler that WRITES against a caller-supplied map_id
+    (create/rename/delete a saved zone, custom segments, etc.) must refuse an
+    unknown address rather than mint a phantom durable bucket for it —
+    ``ensure_map_bucket``'s unconditional setdefault means a typo'd or
+    never-discovered map_id silently gets a real, persisted bucket and the
+    write reports success. Import/discovery paths that legitimately create the
+    FIRST record for a map keep using ``ensure_map_bucket`` (the bucket not
+    existing yet is the expected, by-design case there).
+
+    On a miss, callers build their own Q9-shaped refusal
+    (``{"saved": False, "reason": "map_not_found", "known_maps": [...]}}``) —
+    this returns ``None`` rather than raising so the caller keeps its own
+    established response shape (the key name for "did it work" varies per
+    service: ``saved``/``applied``/``set`` etc.).
+    """
+    return data.get("maps", {}).get(vacuum_entity_id, {}).get(str(map_id))
+
+
+def known_map_ids(*, data: dict[str, Any], vacuum_entity_id: str) -> list[str]:
+    """Sorted list of map_ids with a bucket for this vacuum — for a
+    map_not_found refusal's ``known_maps`` (RP-028/SERVIC-1)."""
+    return sorted((data.get("maps", {}).get(vacuum_entity_id) or {}).keys())
+
+
 def save_map_discovery_snapshot(
     *,
     data: dict[str, Any],

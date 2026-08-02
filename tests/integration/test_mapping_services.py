@@ -49,6 +49,10 @@ Coverage targets
 [ZONE-12] RP-032/RF-28 (A1-SERVIC-4): a zone whose clamped bbox collapses to near-zero area is
         rejected at create time (matching dispatch's own degenerate check) instead of persisting
         as a zone that fails every clean attempt with no repair service.
+[ZONE-13] RP-028/SERVIC-1: create_saved_zone refuses map_not_found (+ known_maps) for an
+        address that was never discovered, instead of minting a phantom bucket for it.
+[CUSTOM-2] RP-028/CUSTOM-1: set_custom_segments refuses layout_not_found for an unknown
+        layout_id — never falls back to whichever layout happened to be active.
 """
 
 from __future__ import annotations
@@ -472,6 +476,39 @@ async def test_custom_layout_crud(hass, mapping_services):
     assert d2["segmentation_mode"] == "cv"               # last delete flips to CV
 
 
+async def test_create_saved_zone_refuses_unknown_map(hass, mapping_services):
+    """[ZONE-13] RP-028/SERVIC-1: create_saved_zone against a map_id that was
+    never discovered/saved refuses map_not_found (with the vacuum's known
+    map_ids) instead of minting a phantom durable bucket for it."""
+    from custom_components.eufy_vacuum.const import SERVICE_CREATE_SAVED_ZONE
+
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    result = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": "never-discovered", "name": "z",
+        "geometry": [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]})
+    assert result["saved"] is False
+    assert result["reason"] == "map_not_found"
+    assert result["known_maps"] == [_MAP]
+    assert "never-discovered" not in mapping_services.data.get("maps", {}).get(_VAC, {})
+
+
+async def test_set_custom_segments_unknown_layout_refused(hass, mapping_services):
+    """[CUSTOM-2] RP-028/CUSTOM-1: set_custom_segments (a destructive replace-all)
+    refuses layout_not_found for a layout_id that doesn't exist on this map —
+    never falls back to whichever layout happened to be active. layout_id
+    being schema-required (so a call omitting it entirely never reaches the
+    handler) is exercised by _proof_phantom_buckets.py's direct handler call,
+    which bypasses the schema the same way a hand-rolled service caller
+    outside HA's dispatcher would."""
+    from custom_components.eufy_vacuum.const import SERVICE_SET_CUSTOM_SEGMENTS
+
+    seg = {"primitives": [{"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}]}
+    missing = await _call(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": "ghost", "segments": [seg]})
+    assert missing["saved"] is False
+    assert missing["reason"] == "layout_not_found"
+
+
 async def test_saved_zone_crud(hass, mapping_services):
     """[ZONE-1] create / rename / delete saved-zone lifecycle: distinct ids, persistence
     on the map bucket, W1 filing fields default None, unknown-id -> zone_not_found."""
@@ -480,6 +517,9 @@ async def test_saved_zone_crud(hass, mapping_services):
         SERVICE_DELETE_SAVED_ZONE,
         SERVICE_RENAME_SAVED_ZONE,
     )
+    # RP-028/SERVIC-1: create_saved_zone now requires the map to already be known
+    # (require_map_bucket) rather than minting a phantom bucket for it.
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
     quad = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]
     a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "The couch", "geometry": quad})
@@ -679,6 +719,7 @@ async def test_create_saved_zone_computes_filing_when_map_present(hass, mapping_
         "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
         lambda hass, vid: _MAP)
 
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
     a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "couch",
         "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
@@ -698,6 +739,7 @@ async def test_create_saved_zone_skips_compute_on_map_mismatch(hass, mapping_ser
         "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
         lambda hass, vid: "999")
 
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
     a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z",
         "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
@@ -747,6 +789,7 @@ async def test_set_saved_zone_room(hass, mapping_services):
         SERVICE_CREATE_SAVED_ZONE,
         SERVICE_SET_SAVED_ZONE_ROOM,
     )
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
     quad = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]
     a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z", "geometry": quad})
@@ -783,6 +826,7 @@ async def test_clean_saved_zone_dispatches_bbox(hass, mapping_services, monkeypa
         "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
         lambda hass, vid: _MAP)
 
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
     geom = [[0.2, 0.3], [0.6, 0.25], [0.55, 0.7], [0.15, 0.65]]   # non-rect -> bbox
     a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z", "geometry": geom})
@@ -828,6 +872,7 @@ async def test_clean_saved_zones_dispatches_combined_bboxes(hass, mapping_servic
         "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
         lambda hass, vid: _MAP)
 
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
     g1 = [[0.1, 0.1], [0.3, 0.1], [0.3, 0.3], [0.1, 0.3]]
     g2 = [[0.5, 0.5], [0.8, 0.5], [0.8, 0.75], [0.5, 0.75]]
     id1 = (await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
@@ -956,18 +1001,21 @@ async def test_set_custom_segments_live_backdrop_dims(hass, mapping_services):
     card supplies the live image's pixel size — so rooms drawn over the live map
     persist with no upload."""
     # auto-create + activate a custom layout (no uploaded backdrop in image_variants)
-    await _call(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
-                {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    activated = await _call(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+                            {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    layout_id = activated["active_custom_layout_id"]
     seg = {"id": "custom_1",
            "primitives": [{"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}]}
     # no uploaded backdrop + no card-supplied dims -> can't rasterise
     no_dims = await _call(hass, SERVICE_SET_CUSTOM_SEGMENTS,
-                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "segments": [seg]})
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": layout_id,
+                           "segments": [seg]})
     assert no_dims["saved"] is False
     assert no_dims["reason"] == "no_custom_backdrop"
     # the card supplies the live image's natural pixel size -> saves
     saved = await _call(hass, SERVICE_SET_CUSTOM_SEGMENTS,
-                        {"vacuum_entity_id": _VAC, "map_id": _MAP, "segments": [seg],
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": layout_id,
+                         "segments": [seg],
                          "backdrop_width": 1024, "backdrop_height": 768})
     assert saved["saved"] is True
     assert saved["segment_count"] == 1

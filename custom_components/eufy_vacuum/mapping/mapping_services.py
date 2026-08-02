@@ -52,7 +52,7 @@ from ..const import (
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
 )
-from ..maps.map_manager import ensure_map_bucket
+from ..maps.map_manager import ensure_map_bucket, known_map_ids, require_map_bucket
 from ..timestamp_utils import utc_now_iso
 from .map_source import (
     OVERLAY_VISIBILITY_DEFAULTS,
@@ -190,6 +190,12 @@ SET_CUSTOM_SEGMENTS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
+        # RP-028/CUSTOM-1: this is a destructive REPLACE-ALL of one layout's
+        # custom_segments — required, mirroring upload_map_image's contract, so
+        # a caller can never land on "whichever layout happened to be active"
+        # (the active-layout fallback this used to have was unaddressed and
+        # unreviewable).
+        vol.Required("layout_id"): cv.string,
         vol.Required("segments"): [
             vol.Schema(
                 {
@@ -1455,18 +1461,6 @@ def _create_layout(
     return layout
 
 
-def _ensure_default_layout(
-    map_bucket: dict, *, backdrop_variant: str = "custom", name: str = "Custom"
-) -> dict:
-    """Return the active custom layout, creating + activating a default one when
-    none exists. Keeps authoring valid with zero layouts — backward-compat with the
-    pre-layout flow (whose backdrop sits at the shared ``custom`` variant)."""
-    layout = _active_custom_layout(map_bucket)
-    if layout is not None:
-        return layout
-    return _create_layout(map_bucket, name, backdrop_variant=backdrop_variant)
-
-
 def _build_custom_segment(
     segment_id: str, polygon_pixel: list[list[int]], *, map_w: int, map_h: int
 ) -> dict:
@@ -1517,6 +1511,11 @@ async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) ->
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
     map_id: str = call.data["map_id"]
     seg_inputs: list = call.data["segments"]
+    # RP-028/CUSTOM-1: required (schema enforces this for a real service call;
+    # checked again here since this handler is also called directly in tests).
+    layout_id: str | None = call.data.get("layout_id")
+    if not layout_id:
+        return {"saved": False, "reason": "layout_id_required"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
     map_bucket = ensure_map_bucket(
@@ -1526,7 +1525,9 @@ async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) ->
     )
 
     _migrate_custom_layouts(map_bucket)
-    layout = _ensure_default_layout(map_bucket)
+    layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
+    if not isinstance(layout, dict):
+        return {"saved": False, "reason": "layout_not_found"}
 
     variant = layout.get("backdrop_variant") or "custom"
     backdrop = (map_bucket.get("image_variants") or {}).get(variant) or {}
@@ -2345,9 +2346,14 @@ async def _handle_create_saved_zone(hass: HomeAssistant, call: ServiceCall) -> d
     kind: str = str(call.data.get("kind") or "clean").strip() or "clean"
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
+    map_bucket = require_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if map_bucket is None:
+        return {
+            "saved": False, "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        }
     _migrate_saved_zones(map_bucket)
     zone = _create_saved_zone(map_bucket, name, geometry, kind=kind)
 
