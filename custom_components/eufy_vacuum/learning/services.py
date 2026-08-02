@@ -372,7 +372,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             call.data["pending_job_id"],
         )
 
-    async def handle_save_learning_snapshot(call: ServiceCall) -> None:
+    async def handle_save_learning_snapshot(call: ServiceCall) -> dict:
         core_manager = _get_core_manager(hass)
         learning = _get_learning_manager(hass)
         data = resolved_call_data(hass, call)
@@ -386,6 +386,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             data.get("job_id"),
         )
         _LOGGER.debug("save_learning_snapshot complete: %s", result)
+        return result
 
     async def handle_finalize_learning_job(call: ServiceCall) -> None:
         core_manager = _get_core_manager(hass)
@@ -462,7 +463,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
 
         _LOGGER.debug("finalize_learning_job complete: %s", result)
 
-    async def handle_rebuild_learning_stats(call: ServiceCall) -> None:
+    async def handle_rebuild_learning_stats(call: ServiceCall) -> dict:
         learning = _get_learning_manager(hass)
         vacuum_entity_id = call.data["vacuum_entity_id"]
         result = await hass.async_add_executor_job(
@@ -481,6 +482,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
         learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         _LOGGER.debug("rebuild_learning_stats complete: %s", result)
+        return result
 
     async def handle_set_learning_processing(call: ServiceCall) -> dict:
         manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
@@ -790,6 +792,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         SERVICE_SAVE_LEARNING_SNAPSHOT,
         handle_save_learning_snapshot,
         schema=SAVE_LEARNING_SNAPSHOT_SCHEMA,
+        supports_response=True,
     )
     hass.services.async_register(
         LEARNING_DOMAIN,
@@ -802,6 +805,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         SERVICE_REBUILD_LEARNING_STATS,
         handle_rebuild_learning_stats,
         schema=REBUILD_LEARNING_STATS_SCHEMA,
+        supports_response=True,
     )
     hass.services.async_register(
         LEARNING_DOMAIN,

@@ -6,6 +6,7 @@ Coverage targets
 [LS-2]  get_incomplete_run_log returns {} when no log exists.
 [LS-3]  get_trouble_rooms_log returns {} when no log exists.
 [LS-4]  rebuild_learning_stats with no jobs runs without error.
+[LS-4b] RP-031/Q9: rebuild_learning_stats now supports_response.
 [LS-5]  run_learning_estimate with empty queue returns error payload.
 [LS-6]  reanchor_learning_timeline passthrough returns reanchored estimate.
 [LS-7]  get_next_room returns {} for empty/no-room estimate.
@@ -17,6 +18,7 @@ Coverage targets
 [LS-13] exclude_learning_job + restore round-trip flips used_for_learning.
 [LS-14] Services are removed after async_unregister_learning_services.
 [LS-15] save_learning_snapshot completes against an empty manager.
+[LS-15b] RP-031/Q9: save_learning_snapshot now supports_response.
 [LS-16] finalize_learning_job fires EVENT_JOB_FINISHED.
 [LS-17] get_room_learning_estimates returns per-room list.
 [LS-18] retry_missed_rooms returns started=False when no log exists.
@@ -391,13 +393,28 @@ async def test_get_trouble_rooms_log_empty(hass, learning_services):
 
 async def test_rebuild_learning_stats_no_jobs(hass, learning_services):
     """[LS-4] Rebuild with no archived jobs completes without error."""
-    # Service returns None (no return_response), so just assert no exception.
+    # Caller doesn't request a response here -- just asserting no exception.
     await hass.services.async_call(
         DOMAIN,
         SERVICE_REBUILD_LEARNING_STATS,
         {"vacuum_entity_id": _VAC, "rebuild_csv": False},
         blocking=True,
     )
+
+
+async def test_rebuild_learning_stats_returns_response(hass, learning_services):
+    """[LS-4b] RP-031/Q9: rebuild_learning_stats now supports_response -- was
+    fire-and-forget (-> None) even though the underlying rebuild always
+    produces a real result dict a script could branch on."""
+    result = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False},
+        blocking=True,
+        return_response=True,
+    )
+    assert result["vacuum_entity_id"] == _VAC
+    assert result["job_files_found"] == 0
 
 
 # ---------------------------------------------------------------------------
@@ -694,6 +711,26 @@ async def test_save_learning_snapshot_empty_manager(hass, learning_services):
         blocking=True,
     )
     # Allow the scheduled snapshot write to run
+    await hass.async_block_till_done()
+
+
+async def test_save_learning_snapshot_returns_response(hass, learning_services):
+    """[LS-15b] RP-031/Q9: save_learning_snapshot now supports_response -- was
+    fire-and-forget (-> None) even though it always builds a real snapshot dict."""
+    result = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_SAVE_LEARNING_SNAPSHOT,
+        {
+            "vacuum_entity_id": _VAC,
+            "map_id": _MAP,
+            "started_at": "2026-01-01T09:00:00+00:00",
+            "battery_start": 85,
+        },
+        blocking=True,
+        return_response=True,
+    )
+    assert result["vacuum_entity_id"] == _VAC
+    assert result["snapshot"]["vacuum"]["entity_id"] == _VAC
     await hass.async_block_till_done()
 
 
