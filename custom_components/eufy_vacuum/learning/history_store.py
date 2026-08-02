@@ -150,6 +150,11 @@ class LearningPaths:
     learned_dir: Path
     exports_dir: Path
     live_dir: Path
+    # Phased Jobs (synthesis/DESIGN-phased-jobs.md). `jobs_dir` keeps holding CHILDREN --
+    # a child is a job in the full sense and every existing consumer of jobs/ keeps
+    # working on it unchanged. These two are new record KINDS, not a new job kind.
+    phases_dir: Path        # break records: a wait or charge is not a job
+    phased_jobs_dir: Path   # parents: the run a user started
 
 
 class LearningHistoryStore:
@@ -170,6 +175,8 @@ class LearningHistoryStore:
             learned_dir=root / "learned",
             exports_dir=root / "exports",
             live_dir=root / "live",
+            phases_dir=root / "phases",
+            phased_jobs_dir=root / "phased_jobs",
         )
 
     def ensure_dirs(self, *, vacuum_entity_id: str) -> LearningPaths:
@@ -179,6 +186,8 @@ class LearningHistoryStore:
         paths.learned_dir.mkdir(parents=True, exist_ok=True)
         paths.exports_dir.mkdir(parents=True, exist_ok=True)
         paths.live_dir.mkdir(parents=True, exist_ok=True)
+        paths.phases_dir.mkdir(parents=True, exist_ok=True)
+        paths.phased_jobs_dir.mkdir(parents=True, exist_ok=True)
         return paths
 
     # RP-006/RF-03 read tri-state. ABSENT and UNREADABLE are different facts:
@@ -452,6 +461,324 @@ class LearningHistoryStore:
         if not _is_valid_job_id(job_id):
             raise ValueError(f"invalid job_id: {job_id!r}")
         return paths.jobs_dir / f"{job_id}.json"
+
+    # ------------------------------------------------------------------
+    # Phased Jobs — the parent, and break records
+    # See synthesis/DESIGN-phased-jobs.md. The governing principle: "we stop losing
+    # good rooms because we stop treating each phase as a special thing." A CHILD is an
+    # ordinary job in jobs/ and needs nothing here; only the two genuinely new record
+    # kinds live below.
+    # ------------------------------------------------------------------
+
+    def phased_job_path(self, *, vacuum_entity_id: str, phased_job_id: str) -> Path:
+        paths = self.ensure_dirs(vacuum_entity_id=vacuum_entity_id)
+        if not _is_valid_job_id(phased_job_id):
+            raise ValueError(f"invalid phased_job_id: {phased_job_id!r}")
+        return paths.phased_jobs_dir / f"{phased_job_id}.json"
+
+    def load_phased_job(
+        self, *, vacuum_entity_id: str, phased_job_id: str
+    ) -> dict[str, Any] | None:
+        """Load one parent, or None when absent/unreadable."""
+        try:
+            path = self.phased_job_path(
+                vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+            )
+        except ValueError:
+            return None
+        if not path.exists():
+            return None
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001 - a corrupt parent must not kill a run
+            _LOGGER.warning("unreadable phased job %s for %s", phased_job_id, vacuum_entity_id)
+            return None
+
+    def open_phased_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        phased_job_id: str,
+        map_id: str,
+        started_at: str,
+        battery_start: int | None,
+        planned_phases: list[dict[str, Any]],
+        learning_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Write the parent at RUN START, status "running". Idempotent.
+
+        WRITTEN AT START, NOT AT CLOSE (audit H2). Written at close, any abnormal end --
+        HA restart, stranded job, power loss mid-phase -- leaves children carrying a
+        phase_key that points at a parent which never existed. Written at start, an
+        abnormal end leaves a parent stuck in "running", which the stranded-job reaper can
+        find and close as interrupted. Orphans become impossible by construction.
+
+        `planned_phases` records the SHAPE as planned, so a phase that never ran is still
+        visible. Absence must never be how "did not happen" is expressed -- absence is
+        indistinguishable from "was never planned", and that ambiguity is exactly what
+        made a user's two-minute wait invisible.
+        """
+        existing = self.load_phased_job(
+            vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+        )
+        if existing is not None:
+            return existing
+
+        payload = {
+            "schema_version": 1,
+            "record_type": "phased_job",
+            "phased_job_id": phased_job_id,
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "learning_key": learning_key,
+            "started_at": started_at,
+            "ended_at": None,
+            "status": "running",
+            "battery": {"start": battery_start, "end": None, "used": None},
+            # ONE array. An earlier draft carried planned_phases, outcome.phases,
+            # children[], phase_records[] and phase_count -- five encodings of one
+            # structure, four of which could disagree with the fifth. The parent's job is
+            # to hold the STRUCTURE and point at records; the records hold everything
+            # else. `record_id` is null until that phase finishes.
+            "phases": [
+                {
+                    "index": i,
+                    "type": str((ph or {}).get("phase_type") or "room_group"),
+                    "planned_room_ids": list((ph or {}).get("queue_room_ids") or []),
+                    "outcome": None,
+                    "record_id": None,
+                }
+                for i, ph in enumerate(planned_phases or [])
+            ],
+        }
+        self.write_json(
+            self.phased_job_path(
+                vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+            ),
+            payload,
+        )
+        return payload
+
+    def record_phase_outcome(
+        self,
+        *,
+        vacuum_entity_id: str,
+        phased_job_id: str,
+        phase_index: int,
+        phase_type: str,
+        outcome: str,
+        record_id: str | None,
+    ) -> dict[str, Any] | None:
+        """Attach one finished phase to its parent. Read-modify-write, idempotent per index.
+
+        The parent is an AGGREGATE and its children are the SOURCE OF TRUTH (audit H4) --
+        this appends an id and an outcome, never a recomputed number.
+        """
+        parent = self.load_phased_job(
+            vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+        )
+        if parent is None:
+            _LOGGER.warning(
+                "phase %s of %s finished with no parent record -- the parent should have "
+                "been opened at run start", phase_index, phased_job_id,
+            )
+            return None
+
+        slot = next(
+            (p for p in (parent.get("phases") or [])
+             if _safe_int(p.get("index"), -1) == int(phase_index)),
+            None,
+        )
+        if slot is None:
+            # A phase the plan never declared -- record it rather than drop it, and say so.
+            _LOGGER.warning(
+                "phase %s of %s was not in the planned structure", phase_index, phased_job_id
+            )
+            slot = {"index": int(phase_index), "type": str(phase_type),
+                    "planned_room_ids": [], "outcome": None, "record_id": None}
+            parent.setdefault("phases", []).append(slot)
+            parent["phases"].sort(key=lambda p: _safe_int(p.get("index"), 0))
+        slot["type"] = str(phase_type)
+        slot["outcome"] = str(outcome)
+        slot["record_id"] = record_id
+
+        self.write_json(
+            self.phased_job_path(
+                vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+            ),
+            parent,
+        )
+        return parent
+
+    def close_phased_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        phased_job_id: str,
+        ended_at: str,
+        battery_end: int | None,
+    ) -> dict[str, Any] | None:
+        """Close the parent: final status, aggregate, boundaries.
+
+        THE AGGREGATE IS A CACHE. Children are the source of truth (audit H4); this sums
+        them for cheap reads and rebuild_learning_stats recomputes it, so excluding a
+        child cannot leave a stale stored number.
+
+        STATUS IS NEVER COLLAPSED. The label is a summary and the per-phase list beside
+        it is the truth -- a run where the kitchen finished and the rest was cancelled
+        must stay legible as exactly that.
+        """
+        parent = self.load_phased_job(
+            vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+        )
+        if parent is None:
+            return None
+
+        phases = parent.get("phases") or []
+        clean = [p for p in phases
+                 if str(p.get("type")) not in ("charge_wait", "wait")]
+        done = [p for p in clean if p.get("outcome") == "completed"]
+        if clean and len(done) == len(clean):
+            status = "completed"
+        elif any(p.get("outcome") == "failed" for p in clean):
+            status = "failed"
+        elif done:
+            status = "partial"
+        else:
+            status = "cancelled"
+
+        # DERIVED, not stored -- a child list beside the phase list is a second source
+        # of truth for the same fact.
+        children = [
+            self.load_completed_job(vacuum_entity_id=vacuum_entity_id, job_id=p["record_id"])
+            for p in clean if p.get("record_id")
+        ]
+        children = [c for c in children if isinstance(c, dict)]
+        rooms: list[int] = []
+        for c in children:
+            for rid in known_completed_room_ids(
+                (c.get("queue") or {}), (c.get("job") or {}).get("room_timings")
+            ):
+                if rid not in rooms:
+                    rooms.append(rid)
+
+        parent["ended_at"] = ended_at
+        parent["battery"]["end"] = battery_end
+        start = parent["battery"].get("start")
+        parent["battery"]["used"] = (
+            _safe_int(start, 0) - _safe_int(battery_end, 0)
+            if start is not None and battery_end is not None else None
+        )
+        # An explicit PRESENTATION CACHE (audit H4): the children are authoritative and
+        # rebuild_learning_stats recomputes this. It exists so a card can show a run
+        # without loading every child, not as a second record of the same numbers.
+        parent["aggregate"] = {
+            "cleaning_time_seconds": sum(
+                _safe_int((c.get("job") or {}).get("cleaning_time_seconds"), 0)
+                for c in children
+            ),
+            "cleaning_area_m2": round(sum(
+                _safe_float((c.get("job") or {}).get("cleaning_area_m2"), 0.0)
+                for c in children
+            ), 3),
+            "rooms_cleaned": rooms,
+        }
+        parent["boundaries"] = self._phased_boundaries(
+            vacuum_entity_id=vacuum_entity_id, parent=parent, children=children
+        )
+        parent["status"] = status
+        self.write_json(
+            self.phased_job_path(
+                vacuum_entity_id=vacuum_entity_id, phased_job_id=phased_job_id
+            ),
+            parent,
+        )
+        return parent
+
+    def _phased_boundaries(
+        self,
+        *,
+        vacuum_entity_id: str,
+        parent: dict[str, Any],
+        children: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Split each gap between children into PLANNED HOLD and TRANSIT.
+
+        Only transit is learnable. A planned hold is a constant the user chose -- folding
+        it into overhead is how a two-minute pause taught a FLAT three-room run that it
+        takes two minutes longer. Entry and return stay with the children, where they
+        already are.
+
+            boundary = child[n].ended_at -> child[n+1].started_at
+            hold     = the break record's actual seconds (0 when there was no break)
+            transit  = boundary - hold
+        """
+        holds: dict[int, int] = {}
+        break_ids = [p["record_id"] for p in (parent.get("phases") or [])
+                     if p.get("record_id") and str(p.get("type")) in ("charge_wait", "wait")]
+        for rid in break_ids:
+            rec = None
+            try:
+                path = self.get_paths(vacuum_entity_id=vacuum_entity_id).phases_dir / f"{rid}.json"
+                if path.exists():
+                    rec = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001
+                rec = None
+            if isinstance(rec, dict):
+                holds[_safe_int(rec.get("phase_index"), -1)] = _safe_int(
+                    (rec.get("actual") or {}).get("seconds"), 0
+                )
+
+        # Each boundary is between two ADJACENT CLEAN phases; it absorbs the holds whose
+        # phase index falls strictly between them. Derived from the parent's own phase
+        # list rather than assuming one hold per boundary -- two consecutive breaks
+        # (a charge then a wait) share a single boundary.
+        by_index = {
+            _safe_int(p.get("index"), -1): p for p in (parent.get("phases") or [])
+        }
+        child_by_record = {
+            str((c.get("job_id") or "")): c for c in children
+        }
+        clean_indices = sorted(
+            i for i, p in by_index.items()
+            if i >= 0 and str(p.get("type")) not in ("charge_wait", "wait")
+        )
+
+        out: list[dict[str, Any]] = []
+        for a, b in zip(clean_indices, clean_indices[1:]):
+            prev = child_by_record.get(str(by_index[a].get("record_id") or ""))
+            nxt = child_by_record.get(str(by_index[b].get("record_id") or ""))
+            if not prev or not nxt:
+                continue
+            end_ts = parse_timestamp(str((prev.get("job") or {}).get("ended_at") or ""))
+            start_ts = parse_timestamp(str((nxt.get("job") or {}).get("started_at") or ""))
+            if end_ts is None or start_ts is None:
+                continue
+            boundary = int(max(0.0, (start_ts - end_ts).total_seconds()))
+            hold = sum(v for k, v in holds.items() if a < k < b)
+            hold = min(hold, boundary)
+            out.append({
+                "after_phase": a,
+                "seconds": boundary,
+                "planned_hold_seconds": hold,
+                # Clamped: clock skew, or a hold that outran its own boundary, must never
+                # teach a NEGATIVE travel time.
+                "transit_seconds": max(0, boundary - hold),
+            })
+        return out
+
+    def save_phase_record(
+        self, *, vacuum_entity_id: str, record_id: str, payload: dict[str, Any]
+    ) -> Path:
+        """Save one BREAK record. A wait or charge is not a job and must not wear the
+        completed_job schema -- it contributes to the parent's wall-clock and to nothing
+        else: never cleaning time, never learned cleaning overhead."""
+        paths = self.ensure_dirs(vacuum_entity_id=vacuum_entity_id)
+        if not _is_valid_job_id(record_id):
+            raise ValueError(f"invalid phase record id: {record_id!r}")
+        path = paths.phases_dir / f"{record_id}.json"
+        self.write_json(path, payload)
+        return path
 
     def save_completed_job(
         self,
