@@ -221,8 +221,25 @@ required_behavior: >
   plan_token, and the plan_changed refusal rendered as "the map changed —
   re-discover". Layout/entry-point/notification design happens WITH Chris
   before implementation (stop condition).
-stop_conditions: [DO NOT IMPLEMENT until Chris signs the pane design — this
-  packet is authored so the work is scoped, not to skip the design session]
+design_signed_off: >
+  2026-08-02 — see CARD-7-DESIGN.md. The design session happened; this packet's
+  stop condition is CLEARED. Read that file BEFORE this yaml: it corrects three
+  things the packet gets wrong about the shipped backend.
+    - TWO review kinds exist (id_changed, renamed), not four. "removed" is
+      plan_migration's `dropped`; "new" is drift's. The set this packet names
+      does not exist.
+    - There is NO per-review accept and there must not be. reconcile_room
+      rebuilds the whole map atomically and services.yaml says why: "a re-segment
+      renumbers many rooms at once, so this is one per-map decision." Rendering
+      checkboxes would imply a granularity the backend does not have.
+    - review_discovered_rooms has ZERO consumers anywhere, not just no card
+      wiring. It is dead until RP-019 lands.
+  Chris's calls: setup banner ONLY (no repair issue, no notification); NO
+  dropped-rooms dry-run (RP-019's scope unchanged) — but the card reports
+  `dropped` from reconcile_room's own response after the fact, which costs
+  nothing; stale plan_token AUTO-REFRESHES and re-renders rather than dead-ending.
+stop_conditions: [design signed 2026-08-02 — the remaining gate is RP-019, which
+  must ship plan_token + embedded reviews before any of this is wireable]
 proof: unit tests on the token round-trip binding; the rest follows design.
 ```
 
