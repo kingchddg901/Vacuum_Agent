@@ -114,8 +114,14 @@ def get_discovery_cadence(vacuum_entity_id: str) -> dict[str, Any]:
     """Read auto-discovery cadence config with safe defaults."""
     disc = (get_adapter_config(vacuum_entity_id) or {}).get("discovery", {}) or {}
     return {
+        # DR-SETUP-2: `is not None` (not `or`), matching auto_refresh_interval_seconds
+        # right below -- `or` silently reverts a configured falsy value (an adapter
+        # declaring auto_refresh_on: [] to wire NO auto-discovery triggers) back to
+        # the default, exactly the CS-2 shape already fixed for this dict's other keys.
         "auto_refresh_on": list(
-            disc.get("auto_refresh_on") or _DEFAULT_AUTO_REFRESH_TRIGGERS
+            disc.get("auto_refresh_on")
+            if disc.get("auto_refresh_on") is not None
+            else _DEFAULT_AUTO_REFRESH_TRIGGERS
         ),
         "auto_refresh_interval_seconds": int(
             disc.get("auto_refresh_interval_seconds")
@@ -331,10 +337,17 @@ def update_drift_history(
     # Clean up stale entries for rooms that no longer exist anywhere
     # (configured AND not currently discovered AND not in history-relevant
     # set). This prevents history from growing unboundedly across years.
-    stale_keys = [
-        key for key in list(history.keys())
-        if int(key) not in relevant_ids
-    ]
+    # DR-SETUP-3: guarded like every other room-id coercion in this module
+    # (_room_lookup, _list_configured_room_ids) -- a hand-edited or migrated
+    # record with a non-numeric key must not crash the whole discovery pass.
+    stale_keys = []
+    for key in list(history.keys()):
+        try:
+            rid = int(key)
+        except (TypeError, ValueError):
+            continue
+        if rid not in relevant_ids:
+            stale_keys.append(key)
     for key in stale_keys:
         history.pop(key, None)
 
@@ -400,13 +413,22 @@ def compute_room_drift(
             configured_ids - discovered_room_ids - confirmed_removed_ids
         )
     else:
-        new_confirmed_ids = {
-            int(key) for key, entry in history.items()
-            if int(entry.get("seen_passes", 0)) >= n_new
-            and int(entry.get("missing_passes", 0)) == 0
-            and int(key) not in configured_ids
-            and int(key) not in rejected_ids
-        }
+        # DR-SETUP-3: guarded like every other room-id coercion in this
+        # module -- a hand-edited or migrated record with a non-numeric
+        # key must not crash this branch.
+        new_confirmed_ids = set()
+        for key, entry in history.items():
+            try:
+                rid = int(key)
+            except (TypeError, ValueError):
+                continue
+            if (
+                int(entry.get("seen_passes", 0)) >= n_new
+                and int(entry.get("missing_passes", 0)) == 0
+                and rid not in configured_ids
+                and rid not in rejected_ids
+            ):
+                new_confirmed_ids.add(rid)
         transiently_missing_ids = {
             rid for rid in configured_ids
             if int(history.get(str(rid), {}).get("missing_passes", 0)) > 0

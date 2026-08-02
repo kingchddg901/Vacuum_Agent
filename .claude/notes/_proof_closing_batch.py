@@ -674,6 +674,82 @@ async def _case_dr_onb_3(proof: H.Proof) -> None:
     )
 
 
+async def _case_dr_setup_2(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry, register_adapter_config,
+    )
+    from custom_components.eufy_vacuum.setup.drift import get_discovery_cadence
+
+    clear_registry()
+    try:
+        register_adapter_config(H.VAC, {
+            "adapter_id": "test", "source": "code", "entities": {},
+            "dispatch": {
+                "template": "generic_room_ids", "service_domain": "vacuum",
+                "service_name": "send_command",
+            },
+            "discovery": {"auto_refresh_on": []},
+        })
+        cadence = get_discovery_cadence(H.VAC)
+
+        proof.case(
+            "setup/drift.py DR-SETUP-2: auto_refresh_on: [] (an adapter "
+            "explicitly wiring NO auto-discovery triggers) must not be "
+            "silently reverted to the default trigger set",
+            before=(cadence["auto_refresh_on"] != []),
+            before_msg="bare `or` coercion treats an empty list as falsy "
+                       "and silently reverts to "
+                       "_DEFAULT_AUTO_REFRESH_TRIGGERS -- the exact CS-2 "
+                       "shape already fixed for this dict's other keys",
+            after=(cadence["auto_refresh_on"] == []),
+            after_msg="an explicit empty list is honoured like the "
+                      "sibling keys' `is not None` guards already do",
+            detail=f"auto_refresh_on={cadence['auto_refresh_on']}",
+        )
+    finally:
+        clear_registry()
+
+
+async def _case_dr_setup_3(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.setup.drift import (
+        compute_room_drift, update_drift_history,
+    )
+
+    def _fresh_manager():
+        return SimpleNamespace(data={
+            "setup_progress": {H.VAC: {
+                "completed_steps": [], "last_advanced_at": None,
+                "rejected_rooms": [],
+                "room_drift_history": {
+                    "not-a-number": {"missing_passes": 0, "seen_passes": 5},
+                },
+            }},
+            "maps": {H.VAC: {}},
+        })
+
+    raised = False
+    try:
+        update_drift_history(_fresh_manager(), H.VAC, {1, 2})
+        compute_room_drift(_fresh_manager(), H.VAC, discovered_room_ids=None)
+    except (TypeError, ValueError):
+        raised = True
+
+    proof.case(
+        "setup/drift.py DR-SETUP-3: a non-numeric drift-history key must "
+        "not crash update_drift_history's stale-entry prune or "
+        "compute_room_drift's history-only new-room branch",
+        before=raised,
+        before_msg="int(key) in both spots has no guard, unlike every "
+                   "other room-id coercion in this module -- a hand-edited "
+                   "or migrated record with a non-numeric key raises "
+                   "ValueError out of the whole discovery pass",
+        after=(not raised),
+        after_msg="both spots now guard the coercion like their siblings "
+                  "and simply skip the malformed key",
+        detail=f"raised={raised}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -693,6 +769,8 @@ CASES = [
     _case_pay_7,
     _case_crud_7,
     _case_dr_onb_3,
+    _case_dr_setup_2,
+    _case_dr_setup_3,
 ]
 
 
