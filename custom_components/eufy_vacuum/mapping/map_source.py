@@ -805,45 +805,6 @@ def anchors_from_storage(data: dict[str, Any]) -> dict[str, list[float]]:
     return out
 
 
-def rooms_from_parsed_map(
-    rooms: Any,
-    image_width: int,
-    image_height: int,
-    *,
-    flip_y: bool = True,
-) -> list[dict[str, Any]]:
-    """Roborock memory backend: per-room bbox + name from the parser's `MapData.rooms`.
-
-    `rooms` is the parser's room collection — each entry exposes `x0,y0,x1,y1` (bbox),
-    `number`, `name` (vacuum-map-parser `Room`). Coords are in image pixels; we
-    normalize by the image dims. NOTE (Wave 1): the parser only gives bboxes, so
-    L-shaped rooms are approximate until Wave 2 reconstructs exact polygons. The exact
-    in-memory access path AND the ``flip_y`` orientation are UNVERIFIED against a live
-    Roborock map — the Wave 1 introspector (not yet built) confirms both; until then
-    ``flip_y`` is a hypothesis. This stays pure.
-    """
-    if not image_width or not image_height:
-        return []
-    items = rooms.values() if hasattr(rooms, "values") else rooms
-    out: list[dict[str, Any]] = []
-    for r in items:
-        x0 = getattr(r, "x0", None); y0 = getattr(r, "y0", None)
-        x1 = getattr(r, "x1", None); y1 = getattr(r, "y1", None)
-        if None in (x0, y0, x1, y1):
-            continue
-        n0 = normalize_rendered(min(x0, x1), min(y0, y1), image_width, image_height) if flip_y \
-            else [_clamp01(min(x0, x1) / image_width), _clamp01(min(y0, y1) / image_height)]
-        n1 = normalize_rendered(max(x0, x1), max(y0, y1), image_width, image_height) if flip_y \
-            else [_clamp01(max(x0, x1) / image_width), _clamp01(max(y0, y1) / image_height)]
-        out.append({
-            "number": getattr(r, "number", None),
-            "name": str(getattr(r, "name", None) or f"Room {getattr(r, 'number', '?')}"),
-            "bbox": [min(n0[0], n1[0]), min(n0[1], n1[1]), max(n0[0], n1[0]), max(n0[1], n1[1])],
-            "approximate": True,   # bbox-only from the parser; exact outline is Wave 2
-        })
-    return out
-
-
 def build_map_source_result(
     *,
     present: bool,

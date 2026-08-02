@@ -114,9 +114,10 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `rooms_from_room_pixels` (per-room bbox+name, Y-flip, catch-all rid 32 filtered,
   malformed/short buffers degrade to `[]`), `normalize_rendered` clamp+flip,
   `anchors_from_storage` (dock/robot normalize, non-numeric coords skipped),
-  `rooms_from_parsed_map` (Roborock parser path, flagged approximate), per-room area
-  (`pixel_count × (res_cm/100)²`), and `build_map_source_result`'s presence gate
-  (absent-with-reason vs populated, with `extra` overlay layers merged in).
+  per-room area (`pixel_count × (res_cm/100)²`), and `build_map_source_result`'s
+  presence gate (absent-with-reason vs populated, with `extra` overlay layers
+  merged in). (`rooms_from_parsed_map`, a dead second Roborock-parser room
+  extractor with a disputed coordinate frame, was removed -- #11:A3-EXT-5.)
 - **`map_source_runtime`** (`MSR-*` + `MSC-*`, unit,
   `test_map_source_runtime.py` + `test_map_source_collectors.py`) — the HA-aware
   glue tested with injected plain data: `eufy_result_from_store` (the `#136` version

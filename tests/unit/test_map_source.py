@@ -6,7 +6,6 @@ parsed-map path, and the presence gate.
 [MS-1] rooms_from_room_pixels: per-room bbox+name, Y-flip, catch-all (rid 32) filtered.
 [MS-2] normalize_rendered: Y-flip + clamp.
 [MS-3] anchors_from_storage: dock/robot normalized; absent when missing.
-[MS-4] rooms_from_parsed_map: parser Room bbox -> normalized, flagged approximate.
 [MS-5] build_map_source_result: presence gate (absent vs populated).
 [MS-6] rooms_from_room_pixels: per-room area_m2 = pixel_count x (res_cm/100)^2 (400 px @ res=5 -> 1.0 m2).
 [MS-7] current_room_from_storage: robot pixel -> exact room id by raster lookup; off-map / no trail -> None.
@@ -46,7 +45,6 @@ from custom_components.eufy_vacuum.mapping.map_source import (
     path_from_storage,
     render_data_from_storage,
     resolve_overlay_visibility,
-    rooms_from_parsed_map,
     rooms_from_room_pixels,
     _decimate_step,
 )
@@ -114,26 +112,6 @@ def test_anchors_from_storage():
     assert a["dock_anchor"] == [0.5, 0.4]
     assert a["robot_anchor"] == [0.8, 0.1]
     assert anchors_from_storage({"map_data": {"width": 10, "height": 10}}) == {}
-
-
-class _Room:
-    def __init__(self, x0, y0, x1, y1, number, name):
-        self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
-        self.number, self.name = number, name
-
-
-def test_rooms_from_parsed_map():
-    """[MS-4]"""
-    rooms = rooms_from_parsed_map(
-        {3: _Room(10, 20, 30, 40, 3, "Kitchen")}, 100, 100,
-    )
-    assert len(rooms) == 1
-    r = rooms[0]
-    assert r["number"] == 3 and r["name"] == "Kitchen"
-    assert r["approximate"] is True
-    assert r["bbox"] == [0.1, 0.59, 0.3, 0.79]
-    assert rooms_from_parsed_map([], 100, 100) == []
-    assert rooms_from_parsed_map({3: _Room(0, 0, 1, 1, 3, "x")}, 0, 0) == []
 
 
 def test_build_map_source_result():
@@ -205,13 +183,6 @@ def test_rooms_from_room_pixels_name_fallback():
           "room_outline_origin_x": 0, "room_outline_origin_y": 0,
           "room_names": {}, "room_pixels": _raster(10, 10, [(7, 0, 1, 0, 1)])}
     assert rooms_from_room_pixels(md)[0]["name"] == "Room 7"
-
-
-def test_rooms_from_parsed_map_no_flip_and_missing_coord():
-    """[MS-4b] flip_y=False uses raw normalization; a Room missing a coord is skipped."""
-    rooms = rooms_from_parsed_map({3: _Room(10, 20, 30, 40, 3, "K")}, 100, 100, flip_y=False)
-    assert rooms[0]["bbox"] == [0.1, 0.2, 0.3, 0.4]
-    assert rooms_from_parsed_map({3: _Room(None, 20, 30, 40, 3, "K")}, 100, 100) == []
 
 
 def test_anchors_from_storage_non_numeric():
