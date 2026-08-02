@@ -1,13 +1,30 @@
-# Materialization handoff — waves 3–7 (26 + CARD)
+# Materialization handoff — waves 3–7 + CARD
 
 **Written 2026-08-01 by the authoring window, FOR the executing window.** Fable
 authored the packets and is closed out; the campaign is now per-artifact
 write-run-fix work, which is Sonnet-shaped. This file carries the judgment that
 does not survive in a packet.
 
+> **How many reproducers remain: DO NOT read a number out of this file.**
+> Run `python .claude/notes/_gen_repro_status.py` and read
+> `.claude/notes/REPRODUCER-STATUS.md`. It derives the answer from the packet
+> blocks and the files on disk.
+>
+> This title used to say "26", authored before the wave-2, M5 and M6 proof work
+> and never updated. By 2026-08-02 the real figure was **10**, all belonging to
+> packets that have not been executed — so the M-stages were being scoped against
+> a number wrong by a factor of ~2.5. Same failure mode as the checklist's
+> hardcoded "Hardware validation: none". **Do not reintroduce a count here.**
+>
+> Before writing a missing proof, check that file's ORPHANS list first: some
+> packets name a file that already exists under a different name
+> (`_proof_map_identity.py` vs the existing `_proof_map_source_identity.py`). If
+> so the fix is one line of packet text, not a new proof.
+
 Read alongside: `MATERIALIZATION-01/-02` (what exists and why),
 `TRANCHE2-AUTHORING-INPUTS` (7 execution lessons), `REVIEW-03` (dependency
-edges). Do not re-read the audit corpus — the packets are the spec.
+edges), `REPRODUCER-STATUS.md` (generated coverage). Do not re-read the audit
+corpus — the packets are the spec.
 
 ---
 
