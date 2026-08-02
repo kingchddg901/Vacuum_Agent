@@ -129,29 +129,29 @@ INTERNAL_SERVICES: dict[str, str] = {
 EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     # WIRE-4 fixed: get_room_profiles now registers with schema=vol.Schema({}).
 
-    # no_yaml_entry: RESOLVED for 24 of the original 27 -- see Chris's
-    # no_yaml_entry ruling (.claude/notes/synthesis/SYNTH-10-packets-wave6.md,
-    # "RP-032 -- no_yaml_entry ruling"), applying THE INTERNAL_SERVICES RULE
-    # in this module's docstring. 5 got real services.yaml entries
-    # (delete_map_image, set_dock_event_count, resegment_external_run,
-    # get_incomplete_run_log, get_trouble_rooms_log); 19 moved to
-    # INTERNAL_SERVICES above with their own per-entry comments.
+    # no_yaml_entry: FULLY RESOLVED, all 27 -- see Chris's no_yaml_entry
+    # ruling (.claude/notes/synthesis/SYNTH-10-packets-wave6.md, "RP-032 --
+    # no_yaml_entry ruling"), applying THE INTERNAL_SERVICES RULE in this
+    # module's docstring. 8 got real services.yaml entries (delete_map_image,
+    # set_dock_event_count, resegment_external_run, get_incomplete_run_log,
+    # get_trouble_rooms_log, confirm_external_run, get_external_pending_runs,
+    # discard_external_run); 19 moved to INTERNAL_SERVICES above with their
+    # own per-entry comments.
     #
-    # The remaining 3 were NOT in either of the ruling's tables when
-    # reconciled against the real registration walk (learning/services.py:
-    # confirm_external_run L213, get_external_pending_runs L226,
-    # discard_external_run L232 -- all real, currently-registered services;
-    # confirmed zero services.yaml mentions by exact-name grep, so this is
-    # not the "resolver reads only const.py" false-negative the ruling
-    # anticipated for 9 other learning constants -- these three are
-    # genuinely undocumented and genuinely unclassified). Per the ruling's
-    # own instruction ("if the reconcile turns up a name not in either
-    # table, STOP and escalate -- do not classify it yourself"), these stay
-    # here unclassified pending a fresh decision, not auto-assigned to
-    # either side.
-    ("no_yaml_entry", "confirm_external_run"): "learning/services.py: card review-wizard flow -- NOT in Chris's 2026-08-02 no_yaml_entry ruling tables; escalated, unclassified.",
-    ("no_yaml_entry", "get_external_pending_runs"): "learning/services.py: card review-wizard flow -- NOT in Chris's 2026-08-02 no_yaml_entry ruling tables; escalated, unclassified.",
-    ("no_yaml_entry", "discard_external_run"): "learning/services.py: card review-wizard flow -- NOT in Chris's 2026-08-02 no_yaml_entry ruling tables; escalated, unclassified.",
+    # The last 3 (all learning/services.py) needed a second round: they
+    # weren't in the ruling's first-pass tables at all -- not because they're
+    # unclassifiable, but because the main agent's classification pass was
+    # seeded from const.py and these three are declared INLINE beside their
+    # own schemas (e.g. SERVICE_CONFIRM_EXTERNAL_RUN at services.py:213), so
+    # a const.py-only grep never saw them. Escalating instead of guessing
+    # (per the ruling's own "stop and escalate" instruction) is what
+    # surfaced the gap and got them ruled on explicitly: confirm_external_run
+    # mutates learning permanently (structured-but-typeable payload, not an
+    # opaque blob); get_external_pending_runs is the ONLY way to obtain the
+    # pending_job_id the other two require, so leaving it internal would
+    # strand them; discard_external_run is destructive (deletes a captured
+    # run). Documenting only part of a flow was itself flagged as the defect
+    # class this campaign keeps finding.
 
     # --- field_mismatch: map_id required-vs-docs-optional, mapping_services -
     # --- .py cohort. EJECTED, not fixed here: RP-032's own required_behavior

@@ -2447,6 +2447,92 @@ retry_missed_rooms:
             - label: Cancel and event
               value: cancel_and_event
 
+get_external_pending_runs:
+  name: Get external pending runs
+  description: >
+    List pending external (app-started, captured) runs awaiting review, each
+    with its candidate room segments and the full per-map room list so the
+    review wizard can offer any room, not just a shortlist. resegmentable is
+    true when the record embeds raw samples and can be resegmented; older
+    records cannot. This is the only way to obtain the pending_job_id that
+    confirm_external_run, discard_external_run, and resegment_external_run
+    all require.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+confirm_external_run:
+  name: Confirm external run
+  description: >
+    Graduate a reviewed external pending record into a normal completed-job
+    record, assigning each detected segment to a room. Each assignment is
+    gated against the room's learned area band; if any assignment is
+    implausible without its own override, the WHOLE confirm is blocked and
+    nothing is written — check the response's blocked list. On success the
+    pending record is deleted and learned stats rebuild (unless
+    rebuild_stats is false). This mutates learning data permanently; there
+    is no undo service.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    pending_job_id:
+      name: Pending job ID
+      description: From get_external_pending_runs.
+      required: true
+      selector:
+        text: {}
+    room_assignments:
+      name: Room assignments
+      description: >
+        List of dicts, each mapping one or more detected segments to a room:
+        segment_orders (list of ints) or segment_order (single int), room_id,
+        edge_mopping (bool, optional), override (bool, optional -- bypass the
+        area-plausibility gate for this assignment), overrides (dict,
+        optional -- per-field setting overrides such as clean_mode or
+        clean_passes, applied over the segment's own recovered settings).
+      required: true
+      selector:
+        object: {}
+    rebuild_stats:
+      name: Rebuild stats
+      description: Rebuild learned stats after graduating. Defaults to true.
+      required: false
+      default: true
+      selector:
+        boolean: {}
+
+discard_external_run:
+  name: Discard external run
+  description: >
+    Delete a pending external run record without graduating it. Destructive
+    and cannot be undone — the captured segments are gone, not archived.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    pending_job_id:
+      name: Pending job ID
+      description: From get_external_pending_runs.
+      required: true
+      selector:
+        text: {}
+
 resegment_external_run:
   name: Resegment external run
   description: >
