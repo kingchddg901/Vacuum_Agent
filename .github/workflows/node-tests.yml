@@ -32,6 +32,13 @@ on:
       - "package-lock.json"
       - ".github/workflows/node-tests.yml"
 
+# Matches tests.yml / validate.yml. Without this, a fast run of commits queues one
+# full Playwright-image run per push instead of only testing the tip. A cancelled
+# run here means "superseded by a newer commit", not "failed".
+concurrency:
+  group: node-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   node-test:
     runs-on: ubuntu-latest
