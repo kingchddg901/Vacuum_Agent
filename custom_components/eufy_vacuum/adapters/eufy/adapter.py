@@ -828,6 +828,11 @@ def register_eufy_adapter_for_vacuum(
             "zone_max": 10,
             "zone_min_side_m": 0.5,
             "zone_max_side_m": 10.0,
+            # Q12 (RF-23): the fork's zone_clean command has no repeat/passes field at
+            # all -- clean_times was previously shipped to the wire regardless. Explicit
+            # false rather than just omitting zone_passes_max, so dispatch_zone_clean's
+            # normalization is a documented adapter decision, not an implicit default.
+            "supports_zone_repeat": False,
             # Eufy firmware re-bases the raw coordinate frame every session, so
             # cross-session bounds geometry is unusable for room detection. Declares
             # whether the brand's localization is stable enough to trust position/

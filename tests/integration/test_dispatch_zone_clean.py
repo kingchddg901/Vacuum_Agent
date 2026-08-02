@@ -24,7 +24,10 @@ Coverage targets
 [ZC-13] Eufy per-side: a side over zone_max_side_m -> ValueError, no dispatch.
 [ZC-14] Eufy per-side: a side under zone_min_side_m -> ValueError, no dispatch.
 [ZC-15] Eufy zone within the per-side bounds -> dispatches the 0-1 rect verbatim.
-[ZC-16] Eufy side caps declared but no live map -> check skipped (dispatches, no false refuse).
+[ZC-16] Eufy side caps declared but no live map -> ValueError, no dispatch (RP-022/ZONE-4 -- was a skip).
+[ZC-17] supports_zone_clean: false -> ValueError, no dispatch (RP-022/ZONE-2 -- dispatch itself now checks it).
+[ZC-18] Eufy (non-device_mm) branch: a zone_max_area_m2 bound is now enforced there too (RP-022 item 2).
+[ZC-19] Eufy: supports_zone_repeat: false overrides an otherwise-valid declared cap (RP-022/Q12).
 """
 
 from __future__ import annotations
@@ -64,7 +67,10 @@ def _capture_send(hass):
 
 
 async def test_zone_clean_dispatch(hass, manager):
-    """[ZC-1] command=zone_clean, bare {zones, clean_times} payload + status dict."""
+    """[ZC-1] command=zone_clean, bare {zones, clean_times} payload + status dict.
+    RP-022/Q12: no capabilities registered at all means no zone_passes_max/
+    passes_max declared either, so clean_times normalizes to 1 (the non-device_mm
+    branch has no safe repeat default to fall back to — was previously verbatim)."""
     _register(hass, _EUFY_DISPATCH)
     calls = _capture_send(hass)
     zones = [[0.05, 0.70, 0.35, 0.95], [0.4, 0.4, 0.6, 0.6]]
@@ -72,10 +78,10 @@ async def test_zone_clean_dispatch(hass, manager):
         vacuum_entity_id=_VAC, zones=zones, clean_times=2
     )
     assert calls[0]["command"] == "zone_clean"
-    assert calls[0]["params"] == {"zones": zones, "clean_times": 2}
+    assert calls[0]["params"] == {"zones": zones, "clean_times": 1}
     assert out["status"] == "dispatched"
     assert out["zone_count"] == 2
-    assert out["clean_times"] == 2
+    assert out["clean_times"] == 1
 
 
 async def test_command_override(hass, manager):
@@ -99,6 +105,21 @@ async def test_no_zone_command_raises(hass, manager):
     _capture_send(hass)
     with pytest.raises(ValueError, match="zone_command"):
         await manager.dispatch_zone_clean(vacuum_entity_id=_VAC, zones=[[0, 0, 1, 1]])
+
+
+async def test_supports_zone_clean_false_refuses(hass, manager):
+    """[ZC-17] RP-022/ZONE-2: dispatch_zone_clean previously never consulted
+    supports_zone_clean at all -- only the card did, so a direct service call or
+    automation reached the device even when the brand declares it unsupported."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "dispatch": dict(_EUFY_DISPATCH),
+        "capabilities": {"supports_zone_clean": False},
+    })
+    calls = _capture_send(hass)
+    with pytest.raises(ValueError, match="supports_zone_clean"):
+        await manager.dispatch_zone_clean(vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.5, 0.5]])
+    assert calls == []
 
 
 async def test_empty_zones_raises(hass, manager):
@@ -362,17 +383,58 @@ async def test_eufy_zone_side_within_bounds_dispatches(hass, manager, monkeypatc
     assert out["zone_count"] == 1
 
 
+async def test_eufy_zone_area_bound_enforced(hass, manager, monkeypatch):
+    """[ZC-18] RP-022 item 2: a zone_max_area_m2 bound is now enforced on the
+    Eufy (non-device_mm) branch too -- previously area bounds only existed
+    inside the device_mm branch, so a bound declared here was silently never
+    checked regardless of how large the zone was. Map 360x300 @res 5 = 18x15 m;
+    a 0.5x0.5 rect = 9x7.5 m = 67.5 m^2, far over the 3.0 m^2 cap."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "dispatch": dict(_EUFY_DISPATCH),
+        "capabilities": {"zone_max_area_m2": 3.0},
+    })
+    calls = _capture_send(hass)
+    _stub_map_dims(manager, monkeypatch, 360, 300, 5)
+    with pytest.raises(ValueError, match="too large"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.6, 0.6]]
+        )
+    assert calls == []
+
+
+async def test_eufy_zone_repeat_explicit_unsupported(hass, manager, monkeypatch):
+    """[ZC-19] Q12 explicit override: an adapter that DOES declare a repeat cap
+    but also sets supports_zone_repeat: false still normalizes to 1 -- the
+    explicit flag wins over a declared cap, distinct from ZC-1's "no cap
+    declared at all" path."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "dispatch": {**_EUFY_DISPATCH, "zone_passes_max": 2},
+        "capabilities": {"supports_zone_repeat": False},
+    })
+    calls = _capture_send(hass)
+    out = await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.5, 0.5]], clean_times=2
+    )
+    assert calls[0]["params"]["clean_times"] == 1
+    assert out["clean_times"] == 1
+
+
 async def test_eufy_zone_side_check_skipped_without_map(hass, manager, monkeypatch):
-    """[ZC-16] with side caps declared but NO live map, the check degrades to skip (the card
-    validates at draw time) — the zone still dispatches rather than falsely refusing."""
+    """[ZC-16] RP-022/ZONE-4: with side caps declared but NO live map, the check now
+    REFUSES — parity with the device_mm branch's own refusal for the identical
+    "can't validate the geometry" situation. Previously degraded to a silent skip
+    (dispatched unchecked); a zone that WOULD be too long if dims were known must
+    not ship blind."""
     _register_eufy_caps(hass)
     calls = _capture_send(hass)
 
     async def _no_md(**_kw):
         return None
     monkeypatch.setattr(manager, "async_get_map_data_dict", _no_md, raising=False)
-    out = await manager.dispatch_zone_clean(
-        vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]]  # would be too long IF dims known
-    )
-    assert calls[0]["command"] == "zone_clean"
-    assert out["zone_count"] == 1
+    with pytest.raises(ValueError, match="no live map"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]]
+        )
+    assert calls == []

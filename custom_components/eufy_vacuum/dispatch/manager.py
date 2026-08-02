@@ -85,6 +85,47 @@ class DispatchManager:
             data = {"entity_id": vacuum_entity_id, **payload}
         await self._manager.hass.services.async_call(domain, name, data, blocking=True)
 
+    @staticmethod
+    def _check_zone_bounds(
+        *,
+        vacuum_entity_id: str,
+        side_x_m: float,
+        side_y_m: float,
+        min_side: float | None,
+        max_side: float | None,
+        min_area: float | None,
+        max_area: float | None,
+    ) -> None:
+        """Check one zone's side + area bounds. Shared by BOTH coordinate branches
+        (RP-022/RF-23) so a declared bound is enforced regardless of which branch
+        the adapter takes — previously area bounds only existed inside the
+        device_mm branch and side bounds only inside the else branch, so a bound
+        declared on the "wrong" branch for a brand was silently never checked."""
+        area_m2 = side_x_m * side_y_m
+        for _side in (side_x_m, side_y_m):
+            if min_side is not None and _side < float(min_side):
+                raise ValueError(
+                    f"{vacuum_entity_id}: a zone side is too short "
+                    f"({_side:.2f} m) — the minimum is {float(min_side):.2f} m; "
+                    "draw a bigger box"
+                )
+            if max_side is not None and _side > float(max_side):
+                raise ValueError(
+                    f"{vacuum_entity_id}: a zone side is too long "
+                    f"({_side:.2f} m) — the maximum is {float(max_side):.2f} m; "
+                    "draw a smaller box"
+                )
+        if min_area is not None and area_m2 < float(min_area):
+            raise ValueError(
+                f"{vacuum_entity_id}: a zone is too small ({area_m2:.2f} m²) — the "
+                f"minimum is {float(min_area):.2f} m² (~1 ft²); draw a bigger box"
+            )
+        if max_area is not None and area_m2 > float(max_area):
+            raise ValueError(
+                f"{vacuum_entity_id}: a zone is too large ({area_m2:.2f} m²) — the "
+                f"maximum is {float(max_area):.2f} m² (~32.8 ft²); draw a smaller box"
+            )
+
     async def dispatch_zone_clean(
         self,
         *,
@@ -125,16 +166,31 @@ class DispatchManager:
                 f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
                 "(zone cleaning is not supported for this brand/provider)"
             )
+        # ZONE-2: only the card previously consulted supports_zone_clean -- a direct
+        # service call or automation reached the device even when the brand declares
+        # it unsupported. Checked here so every call path is covered.
+        _zone_caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        if _zone_caps.get("supports_zone_clean") is False:
+            raise ValueError(
+                f"{vacuum_entity_id}: this vacuum's adapter declares zone cleaning "
+                "unsupported (supports_zone_clean: false)"
+            )
         # Device limits (from capabilities): a per-clean zone COUNT cap (defence-in-depth —
         # the card also caps the draw) plus per-zone SIZE bounds checked after the device-mm
         # conversion below. Absent => unconstrained for that brand.
-        _zone_caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
         _zone_max = _zone_caps.get("zone_max")
         if _zone_max is not None and len(zones) > int(_zone_max):
             raise ValueError(
                 f"{vacuum_entity_id}: too many zones ({len(zones)}) — this vacuum allows at "
                 f"most {int(_zone_max)} per clean"
             )
+        # Bound resolution HOISTED above the coordinate-space branch (RF-23 item 2):
+        # both area and side bounds are read once here and enforced on WHICHEVER
+        # branch actually runs, instead of area-only-on-device_mm / side-only-on-else.
+        _min_a = _zone_caps.get("zone_min_area_m2")
+        _max_a = _zone_caps.get("zone_max_area_m2")
+        _min_side = _zone_caps.get("zone_min_side_m")
+        _max_side = _zone_caps.get("zone_max_side_m")
         # Coordinate frame: most providers de-normalize on their side, so we ship the
         # 0-1 image rects verbatim (Eufy's fork zone_clean). Brands whose command wants
         # WORLD millimetres (Roborock app_zoned_clean) declare ``zone_coords: device_mm``;
@@ -161,26 +217,18 @@ class DispatchManager:
                     "coordinate frame (map projection failed validation) — refusing to "
                     "dispatch rather than risk cleaning the wrong area"
                 )
-            # Per-zone size bounds (device mm² -> m²). The device rejects zones outside its
-            # range, so refuse with a clear message rather than a silent device failure.
-            _min_a = _zone_caps.get("zone_min_area_m2")
-            _max_a = _zone_caps.get("zone_max_area_m2")
             for _x0, _y0, _x1, _y1 in mm_rects:
-                _area = abs(_x1 - _x0) * abs(_y1 - _y0) / 1_000_000.0
-                if _min_a is not None and _area < float(_min_a):
-                    raise ValueError(
-                        f"{vacuum_entity_id}: a zone is too small ({_area:.2f} m²) — the "
-                        f"minimum is {float(_min_a):.2f} m² (~1 ft²); draw a bigger box"
-                    )
-                if _max_a is not None and _area > float(_max_a):
-                    raise ValueError(
-                        f"{vacuum_entity_id}: a zone is too large ({_area:.2f} m²) — the "
-                        f"maximum is {float(_max_a):.2f} m² (~32.8 ft²); draw a smaller box"
-                    )
+                self._check_zone_bounds(
+                    vacuum_entity_id=vacuum_entity_id,
+                    side_x_m=abs(_x1 - _x0) / 1000.0,
+                    side_y_m=abs(_y1 - _y0) / 1000.0,
+                    min_side=_min_side, max_side=_max_side,
+                    min_area=_min_a, max_area=_max_a,
+                )
             # Per-zone repeat cap comes from the adapter, not a hardcoded 3:
             # dispatch.zone_passes_max (a zone-specific override) or the general
-            # dispatch.passes_max, default 3 (covers Eufy 1-2 and Roborock 1-3).
-            # A brand whose zone command supports more repeats just declares more.
+            # dispatch.passes_max, default 3 (covers Roborock 1-3). Unaffected by
+            # Q12 -- Q12 is scoped to the non-device_mm (Eufy) branch below.
             _zone_repeat_max = int(cfg.get("zone_passes_max", cfg.get("passes_max", 3)) or 3)
             repeat = max(1, min(int(clean_times), _zone_repeat_max))
             # app_zoned_clean params ARE the zone list: [[x0,y0,x1,y1,repeat], ...] (int mm).
@@ -196,15 +244,14 @@ class DispatchManager:
             )
         else:
             # Eufy ships the 0-1 image rects VERBATIM (the fork de-normalizes on its side).
-            # Enforce any per-SIDE device bound (zone_min_side_m / zone_max_side_m) here by
-            # converting each rect to metres via the live map's own dims — the SAME
-            # de-normalization the fork applies: side_m = Δnorm * dim * res / 100 (matches
-            # coordinator.normalized_rects_to_quads_cm). Refuse with a clear message rather
-            # than let the device silently reject. If no live map is readable we skip the
-            # check (the card validates at draw time; this is defence-in-depth).
-            _min_side = _zone_caps.get("zone_min_side_m")
-            _max_side = _zone_caps.get("zone_max_side_m")
-            if _min_side is not None or _max_side is not None:
+            # Any declared bound (area OR side) requires the live map's own dims to convert
+            # each rect to metres — the SAME de-normalization the fork applies:
+            # side_m = Δnorm * dim * res / 100 (matches
+            # coordinator.normalized_rects_to_quads_cm). ZONE-4: unreadable dims now REFUSE
+            # (parity with the device_mm branch's own refusal for "can't validate the
+            # geometry") instead of silently skipping the check. No bound declared at all
+            # → no live map needed, matching the card's own draw-time-only validation.
+            if _min_side is not None or _max_side is not None or _min_a is not None or _max_a is not None:
                 try:
                     _md = await self._manager.async_get_map_data_dict(
                         vacuum_entity_id=vacuum_entity_id,
@@ -215,25 +262,39 @@ class DispatchManager:
                 except (TypeError, ValueError):
                     _w = _h = 0
                     _res = 5
-                if _w and _h:
-                    for _x0, _y0, _x1, _y1 in zones:
-                        for _side in (
-                            abs(_x1 - _x0) * _w * _res / 100.0,
-                            abs(_y1 - _y0) * _h * _res / 100.0,
-                        ):
-                            if _min_side is not None and _side < float(_min_side):
-                                raise ValueError(
-                                    f"{vacuum_entity_id}: a zone side is too short "
-                                    f"({_side:.2f} m) — the minimum is {float(_min_side):.2f} m; "
-                                    "draw a bigger box"
-                                )
-                            if _max_side is not None and _side > float(_max_side):
-                                raise ValueError(
-                                    f"{vacuum_entity_id}: a zone side is too long "
-                                    f"({_side:.2f} m) — the maximum is {float(_max_side):.2f} m; "
-                                    "draw a smaller box"
-                                )
-            payload = {"zones": zones, "clean_times": int(clean_times)}
+                if not _w or not _h:
+                    raise ValueError(
+                        f"{vacuum_entity_id}: no live map available to validate the zone's "
+                        "declared size bounds — open the robot's map and try again"
+                    )
+                for _x0, _y0, _x1, _y1 in zones:
+                    self._check_zone_bounds(
+                        vacuum_entity_id=vacuum_entity_id,
+                        side_x_m=abs(_x1 - _x0) * _w * _res / 100.0,
+                        side_y_m=abs(_y1 - _y0) * _h * _res / 100.0,
+                        min_side=_min_side, max_side=_max_side,
+                        min_area=_min_a, max_area=_max_a,
+                    )
+            # Q12 (RF-23): a brand can declare zone repeats unsupported outright
+            # (supports_zone_repeat: false, e.g. Eufy) -- normalize to 1 with a
+            # warning instead of shipping the requested count verbatim (this
+            # branch previously had no clamp at all). No repeat cap declared at
+            # all defaults to unsupported here too (this branch's default was
+            # "ships verbatim", never a safe cap to fall back to like the
+            # device_mm branch's historical 3) -- an adapter that DOES support
+            # repeats on this branch declares zone_passes_max/passes_max.
+            _zone_repeat_cap = cfg.get("zone_passes_max", cfg.get("passes_max"))
+            if _zone_caps.get("supports_zone_repeat") is False or _zone_repeat_cap is None:
+                if int(clean_times) > 1:
+                    _LOGGER.warning(
+                        "%s: zone repeats are not supported by this adapter — "
+                        "clean_times=%s requested, normalized to 1",
+                        vacuum_entity_id, clean_times,
+                    )
+                repeat = 1
+            else:
+                repeat = max(1, min(int(clean_times), int(_zone_repeat_cap)))
+            payload = {"zones": zones, "clean_times": repeat}
             await self._dispatch_clean_payload(
                 vacuum_entity_id=vacuum_entity_id,
                 payload=payload,
@@ -243,7 +304,7 @@ class DispatchManager:
             "status": "dispatched",
             "vacuum_entity_id": vacuum_entity_id,
             "zone_count": len(zones),
-            "clean_times": int(clean_times),
+            "clean_times": repeat,
         }
 
     async def _resolve_live_dispatch_payload(

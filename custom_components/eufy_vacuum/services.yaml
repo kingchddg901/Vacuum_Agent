@@ -934,7 +934,10 @@ start_zone_clean:
         object: {}
     clean_times:
       name: Clean times
-      description: Number of cleaning passes per zone (1-10).
+      description: >
+        Number of cleaning passes per zone (1-10). Not every provider supports
+        repeats — an adapter that declares it unsupported (e.g. Eufy) always
+        normalizes to 1 regardless of this value.
       required: false
       default: 1
       selector:

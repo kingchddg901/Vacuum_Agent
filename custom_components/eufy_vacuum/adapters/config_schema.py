@@ -1286,6 +1286,15 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             # brands express zone limits in DIFFERENT units (Eufy side-length metres,
             # Roborock area m2), so a consumer must not assume one shape. ---
             "supports_zone_clean": {"type": "bool", "required": False},
+            "supports_zone_repeat": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "Whether the zone-clean command accepts a repeat count. False "
+                    "(or omitted zone_passes_max/passes_max in dispatch) normalizes "
+                    "clean_times to 1 rather than shipping it verbatim."
+                ),
+            },
             "zone_max": {
                 "type": "int",
                 "required": False,
