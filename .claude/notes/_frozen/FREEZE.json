@@ -1,6 +1,6 @@
 {
- "frozen_at_sha": "a293ad826ca43e14c05827ae6d6b0300e7f59756",
- "frozen_at": "2026-08-01T23:35:24",
+ "frozen_at_sha": "64e718bf0a36e7d3a946bd766ee09f0d6fe65ab5",
+ "frozen_at": "2026-08-02T00:23:11",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
@@ -37,13 +37,15 @@
   ".claude/notes/_frozen/baseline/alfred-run-BEFORE-flagged-target-only.log": "09382cddf553a9a0",
   ".claude/notes/_frozen/baseline/alfred-run-BEFORE.log": "69d551fb35d282ba",
   ".claude/notes/_frozen/baseline/diagnostics-BEFORE.json": "583452ac252d5cdc",
+  ".claude/notes/_frozen/baseline/incomplete_run-2026-08-02T00-08-10-cancelledB.json": "ef8841e628ad59a8",
   ".claude/notes/_frozen/baseline/ivy-run-BEFORE.log": "6c525468d54c57f3",
   ".claude/notes/_frozen/baseline/job_2026-08-01T13-49-21-steppedA.json": "d142aa3907f2dd68",
+  ".claude/notes/_frozen/baseline/job_2026-08-02T00-08-10-cancelledB.json": "446be6e830985a84",
   ".claude/notes/_frozen/baseline/phase-b-coverage.json": "e11cb84cedd2c86f",
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json": "ec518fa3db5d3f87",
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json.hc-results.md": "da6f3497ae5f29f5",
   ".claude/notes/_frozen/baseline/phase-c-answers.json": "64dac2705658a746",
-  ".claude/notes/_frozen/baseline/README.md": "97bbdfca5d81bd3b",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "7698db2457e418a0"
+  ".claude/notes/_frozen/baseline/README.md": "1163237b5d3b2eb7",
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "563ced7ddec1b996"
  }
 }

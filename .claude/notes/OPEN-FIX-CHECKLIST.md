@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **148** findings via 18 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d, RP-040) |
+| Fixes APPLIED (landed packets) | **161** findings via 19 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d, RP-040, RP-032) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **336** -- 18 open clusters (11 fully applied) + 300 singles |
-| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 132 / LOW 145 |
+| Open findings | **323** -- 18 open clusters (11 fully applied) + 287 singles |
+| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 129 / LOW 135 |
 | Hardware validation | **none** -- nothing from this campaign has run on a real vacuum |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -383,7 +383,7 @@ audit is a snapshot, not a ledger.
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
-### MEDIUM (120)
+### MEDIUM (117)
 
 - [ ] **EP-1** `button.py:200` [both]  
   The maintenance reset button discards a documented failure result and reports success  
@@ -478,9 +478,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-RB-3** `mapping/map_source_runtime.py:743` [roborock] _(finder said HIGH)_  
   roborock_result_from_candidates hard-returns on the first duck-typed MapData match, so one false positive permanently blanks the Roborock map source — and the stale-hold masks it for six hours  
   -> A change in the HA core roborock integration's in-memory shape (or any provider object that happens to expose `.rooms` and `.image`) silently kills the entire Roborock map source: rooms, current room, robot/dock anchors,
-- [ ] **A1-SERVIC-4** `mapping/mapping_services.py:443` [Both — the geometry layer is brand-independent; only the final dispatch conversion differs.]  
-  `_saved_zone_coord`'s docstring claims it "mirrors the hidden-regions sanitizer" but omits that sanitizer's degenerate-drop — a zone that can be saved but can NEVER be cleaned, with no service able to repair its geometry  
-  -> A saved zone can enter storage in a state where every attempt to clean it fails with a generic error toast, and the user's only recourse is to delete and redraw it — the named zone is not repairable. The card's own conve
 - [ ] **A1-SERVIC-3** `mapping/mapping_services.py:493` [Eufy (unclamped). Roborock is protected by the device_mm-branch clamp.]  
   `clean_times` has no upper bound, defended by a sibling comment claiming dispatch enforces the per-brand ceiling — dispatch clamps it only on the Roborock (`zone_coords: device_mm`) branch; the Eufy branch ships it verbatim  
   -> A user who types a pass count above the device's ceiling on a Eufy gets a success toast and a {"cleaned": true} response while the device either silently ignores the pass count or rejects the whole zone_clean command and
@@ -676,18 +673,12 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-DIAG-3** `services/maintenance.py:46` [both]  
   set_maintenance_interval bypasses the min/max its own docstring claims, and interval_hours: 0 silently turns off the consumable's alert  
   -> A YAML typo (`interval_hours: 0`, or hours vs. days confusion producing 10 instead of 240) permanently disables the replace-me alert for that filter/brush with a success response, or pushes the interval past the adapter'
-- [ ] **A3-ROOMS-4** `services/room_profiles.py:43` [both] _(finder said HIGH)_  
-  services.yaml advertises required fields that the voluptuous schemas reject — three services fail outright when the user fills the form HA renders  
-  -> A user who opens Developer Tools -> Actions, picks 'Save user room profile', and fills in every field HA marks required gets a hard validation failure and cannot save a custom profile through the UI at all. The card has
 - [ ] **A3-ROOMS-7** `services/room_profiles.py:52` [both]  
   save_user_room_profile silently overwrites an existing custom profile and reports saved: true, while its sibling rename_room_profile refuses the identical collision  
   -> An automation that re-saves a profile under a name the user already uses replaces the user's saved settings with no warning and a success response. The card has no caller for this service (src/actions/room-profiles.js:26
 - [ ] **A3-ROOMS-5** `services/room_profiles.py:168` [both] _(finder said HIGH)_  
   apply_room_profile silently no-ops on unknown room ids and returns a success-shaped response with no way to tell  
   -> An automation that applies a named profile to rooms after a re-segment renumbered them (Roborock does this routinely) reports success while changing nothing — the rooms clean at their old settings and the user has no sig
-- [ ] **A3-ROOMS-3** `services/rooms.py:79` [both] _(finder said HIGH)_  
-  save_managed_rooms stamps every room's floor type as user-confirmed while its schema makes it structurally impossible to supply one  
-  -> A carpeted room created through this service is recorded as hardwood and confirmed, so the user is never asked. The carpet invariants in _protected_room_config (profiles/manager.py:98-105 — force water 'Off', edge_moppin
 - [ ] **A3-ROOMS-6** `services/rooms.py:102` [both] _(finder said HIGH)_  
   update_room_fields accepts any clean_mode string; a casing/spelling variant keeps water in storage and in the UI but silently drops it from the wire payload  
   -> A hand-written automation that sets clean_mode to 'Vacuum_Mop' or 'Mop' (there is no enumeration anywhere for the user to copy the exact token from) produces a room the card shows as mopping at water 'Medium' with edge m
@@ -746,7 +737,7 @@ audit is a snapshot, not a ledger.
   _LOCAL_TZ is a FIXED offset captured at import, so naive legacy timestamps get the wrong offset half the year  
   -> VERIFIED BY EXECUTION. `_LOCAL_TZ = datetime.now().astimezone().tzinfo` does not return a DST-aware zone -- it returns a datetime.timezone with a frozen offset. Ran it: repr is datetime.timezone(timedelta(-1, 61200), 'Pa
 
-### LOW (142)
+### LOW (132)
 
 - [ ] **EP-6** `binary_sensor.py:86` [both]  
   _attr_suggested_object_id is not a Home Assistant attribute - four sites rely on a dead assignment  
@@ -811,9 +802,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-STATE-7** `learning/history_store.py:232` [both] _(finder said MEDIUM)_  
   load_live_snapshot performs 4 mkdir syscalls plus an open()/read() on the Home Assistant event loop at every cold finalize  
   -> The event loop stalls for the duration of a network filesystem mkdir×4 + read at the moment a job finishes, delaying every other entity update in Home Assistant, and HA logs a blocking-call warning.
-- [ ] **A5-SVC-9** `learning/services.py:72` [both]  
-  Schemas mark map_id Required on three services the documentation marks optional, so an automation written from the docs fails validation  
-  -> An automation authored from the published service reference fails at call time with a schema error on three services, two of which the docs specifically position for manual/edge-case use ("historical corrections").
 - [ ] **A5-SVC-8** `learning/services.py:450` [both]  
   invalidate-then-preload is a no-op when a preload is already in flight, letting a stale in-flight load repopulate the cache with pre-rebuild data  
   -> After an exclude, restore, or rebuild, the card can keep showing pre-rebuild estimates and confidence until some later event invalidates the cache — making a correct repair look like it did nothing.
@@ -892,9 +880,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-RB-6** `mapping/map_source_runtime.py:760` [roborock] _(finder said MEDIUM)_  
   image_entity_object silently drops the only per-vacuum candidate root on any HA-internals change, while the presence gate still reports the map as present  
   -> An HA core refactor of the entity-component registry (or an image platform load order change) turns the per-vacuum map lookup into an account-wide guess with no error, no warning log, and a presence gate that still says
-- [ ] **A1-SERVIC-7** `mapping/mapping_services.py:115` [Both (no runtime effect).]  
-  19 schemas (lines 115-301) are dead — defined once, referenced nowhere — and two of them are near-duplicate twins of LIVE schemas whose defaults would be rejected by the live validators  
-  -> No runtime impact today. The risk is maintenance: two of the dead schemas are indistinguishable at a glance from the live ones they shadow, and their defaults have already diverged from the live validators.
 - [ ] **A1-SERVIC-6** `mapping/mapping_services.py:406` [Both.]  
   `backdrop_source` is the only enum-shaped field in the file left as free-form `cv.string`, is absent from services.yaml, and a typo produces a custom layout that can never hold segments and cannot be repaired  
   -> A hand-written create_custom_layout call with a near-miss value produces a layout that looks created, cannot be authored against, and cannot be fixed — only deleted. Not reachable from the card, which always sends the li
@@ -907,18 +892,12 @@ audit is a snapshot, not a ledger.
 - [ ] **A3-IMAGE--9** `mapping/mapping_services.py:945` [Both.]  
   Layout existence is validated before the executor write and re-checked afterwards only by a silent isinstance guard, so a concurrent layout delete orphans the upload  
   -> A leaked PNG plus a phantom image_variants entry, and an upload the user believes attached to their layout that attached to nothing. Requires two service calls to overlap across a single await, so it is rare in practice;
-- [ ] **A3-IMAGE--10** `mapping/mapping_services.py:964` [Both.]  
-  Four of the five services in this block have no services.yaml description, including the destructive delete_map_image  
-  -> No runtime behaviour change — this is documentation/UI surface only. The consequence is that the one destructive service in this area (delete_map_image, which removes a file from disk) is the least discoverable and least
 - [ ] **A3-IMAGE--11** `mapping/mapping_services.py:1089` [Both; any adapter that tunes min_area_pixels away from 1200.] _(finder said MEDIUM)_  
   min_area_pixels silently overrides the adapter's configured tuning because absent is coerced to 1200 before the is-not-None check  
   -> An adapter-level segmentation tuning knob that the adapter-config reference documents as configurable is silently inert for the omit-the-field case, so small rooms vanish from the segmentation with no diagnostic. Masked
 - [ ] **A4-CUSTOM-5** `mapping/mapping_services.py:1379` [Both — saved zones and queue zone steps exist for Eufy and Roborock alike.] _(finder said MEDIUM)_  
   _generate_saved_zone_id / _generate_custom_layout_id guarantee uniqueness only against LIVE ids, so an id is reused after a delete — and saved-zone ids are durably referenced by queue steps and run profiles  
   -> Wrong physical area cleaned by a saved queue step or run profile, with no warning — the failure class is the most serious in this subsystem, but the window is narrow (delete and create must land in the same wall-clock se
-- [ ] **A4-CUSTOM-7** `mapping/mapping_services.py:1650` [Both.]  
-  set_custom_segments' user-facing description is two features stale — it claims map-level scope and an uploaded-backdrop requirement that the layout + live-dims paths superseded  
-  -> Documentation precision only, but it is the load-bearing kind: the description is exactly what would have warned a caller about CUSTOM-1's implicit target, and it omits the two parameters that make the live-layout path u
 - [ ] **A5-FURNIS-6** `mapping/mapping_services.py:1969` [both]  
   Clearing a home-scope art placement setdefaults an empty home_art dict, flipping the 'no furnished data' sentinel from None to a confident empty payload  
   -> No visible effect today: the card's clear button only renders when hasArt is true (src/renderers/map.js:1581), so the empty-home_art state is unreachable from the UI, and the current consumers key off art_url/render_mode
@@ -1066,9 +1045,6 @@ audit is a snapshot, not a ledger.
 - [ ] **SN-10b** `sensor/theme.py:75` [both]  
   A raw stored null theme name renders as the string 'None' — valid, but not reachable in normal operation  
   -> Split half B of the original SN-10, and the half both lenses agreed on. `str(entry.get('name', 'none'))` returns Python's str(None) == 'None' for a stored null rather than the intended 'none', and an empty string yields
-- [ ] **A5-FACADE-5** `services.yaml:1179` [both]  
-  services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects  
-  -> Calling either service exactly as the HA Developer Tools > Actions form renders it — the form marks Carpet required, so a user filling it in will include it — fails validation with an opaque 'extra keys not allowed' erro
 - [ ] **A2-JOB-9** `services/_common.py:58` [both]  
   resolved_call_data's docstring claims a "clear error" on unresolvable map_id; the actual failure is a bare TypeError, and no service in either module raises ServiceValidationError  
   -> A user on an adapter that declares no `active_map` entity (scalar/Tuya Eufy, or any brand-3 adapter) who omits `map_id` — which every schema marks Optional and every services.yaml field describes as "Leave blank to use t
@@ -1084,9 +1060,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-DIAG-7** `services/dock.py:59` [both] _(finder said MEDIUM)_  
   get_dock_action_status raises a raw TypeError when map_id cannot be auto-resolved — the only unwrapped handler in the three modules, and _common's docstring claims the opposite  
   -> Both brands hit this in the restart window and whenever the active-map entity reads unknown/unavailable (Eufy's `sensor.<id>_active_map` before the first map sync; Roborock's `select.<id>_selected_map` while the coordina
-- [ ] **A1-WIRE-3** `services/dock.py:174` [both]  
-  Sixteen registered services documented as public API have no services.yaml descriptor, including set_dock_event_count whose five dock siblings all have one  
-  -> A YAML author who follows docs/advanced/03-services.md to `set_dock_event_count` or any setup_* service finds it in Developer Tools -> Actions with no name, no description, and no field UI — just a bare data editor with
 - [ ] **A6-DIAG-4** `services/errors.py:71` [both] _(finder said MEDIUM)_  
   acknowledge_error returns the same {"acknowledged": true} whether the latch was deleted, merely MARKED, or was never there — and both docstrings still describe the pre-audit delete semantics  
   -> A caller (card or automation) that wants to confirm the alert was cleared cannot: `acknowledged: true` is returned for a vacuum with no error at all, and the mid-run case reports the same success while the latch is delib
@@ -1096,12 +1069,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-DIAG-9** `services/maintenance.py:95` [both]  
   Mutate-then-save is not atomic in all three write services: a save failure surfaces an error while the change has already taken effect in memory  
   -> On a storage write failure the user sees "Failed to save maintenance interval" (or, for the dock/reset services, an unhandled traceback) and reasonably re-checks or re-enters the value — but the change is already live an
-- [ ] **A2-JOB-5** `services/queue.py:40` [both] _(finder said MEDIUM)_  
-  Break schemas do not enforce the break_type→parameter dependency, and the two sibling schemas disagree on which break types exist  
-  -> A YAML user builds a stepped queue with `add_queue_break: {break_type: wait, after_index: 2}`, gets a successful service call, and the break is never added. Their next run is a flat clean with no pause — the robot cleans
-- [ ] **A2-JOB-6** `services/queue.py:51` [both] _(finder said MEDIUM)_  
-  get_queue_steps returns `breaks` in a shape set_queue_breaks rejects — the documented read-modify-write round trip fails validation  
-  -> The obvious automation pattern — call get_queue_steps into a response_variable, edit one break's minutes, send the list back through set_queue_breaks — fails with a voluptuous error the user has to reverse-engineer, beca
 - [ ] **A2-JOB-8** `services/queue.py:151` [both]  
   Queue mutators create and persist a storage bucket for any syntactically-valid entity id, including one that is not a vacuum this integration manages  
   -> A typo in an automation permanently accumulates junk vacuum/map entries in the integration's store, with no error and a response that says only "needs_two_rooms" rather than "unknown vacuum". Storage junk rather than a f
@@ -1111,9 +1078,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A3-ROOMS-11** `services/room_profiles.py:122` [both]  
   Error-surfacing is inconsistent across the area: rooms.py wraps 4 of 5 handlers, room_profiles.py wraps 0 of 8, access_graph.py wraps 0 of 2  
   -> The same root cause produces a readable error from one service and an unhandled-exception traceback plus a generic 'Unknown error' toast from its sibling. For the supports_response services the websocket call is rejected
-- [ ] **A1-WIRE-4** `services/room_profiles.py:203` [both]  
-  get_room_profiles is the only one of the 79 registrations with no schema, so caller-supplied scoping arguments are accepted and silently ignored  
-  -> A caller who passes `vacuum_entity_id` or `map_id` — a reasonable assumption given that every neighbouring room-profile service requires `vacuum_entity_id` — gets the global profile library back with no indication the ar
 - [ ] **A3-ROOMS-10** `services/rooms.py:251` [both] _(finder said MEDIUM)_  
   save_managed_rooms is the most destructive service in the area and the only mutation registered without supports_response  
   -> The one service in this area that can replace a map's entire room set wholesale gives the caller nothing to check — not room_count, not the resulting room list. An automation cannot detect ROOMS-1 or ROOMS-2 even defensi
@@ -1138,9 +1102,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-SETUP-13** `services/setup.py:336` [both]  
   setup_set_map_camera stores an unvalidated entity_id and reports success even when the entity does not exist  
   -> A typo in the camera entity id is confirmed as set. The Map view then shows no live backdrop and the user has no signal connecting the two — the stored value looks correct in setup_get_status (status.py:207) because that
-- [ ] **A4-SETUP-15** `services/setup.py:353` [both]  
-  None of the 10 setup_* services and 5 of the 6 adapter-config services have services.yaml or translation entries  
-  -> In Developer Tools → Actions these 15 services appear with the raw slug and no field editors, so the only way to call them correctly is to hand-write YAML from the prose docs — for services including the two most destruc
 - [ ] **A5-RUNPROF-8** `services/snapshots.py:78` [both]  
   No service here checks that vacuum_entity_id is a vacuum this integration manages; unknown ids create durable storage buckets, and a read service writes  
   -> A typo'd entity id in an automation gets a plausible-looking response (`{"vacuum_entity_id": "vacuum.typo", "pause_timeout_minutes_default": 0}`) instead of an error, so the user's real setting change appears to have wor
@@ -1177,7 +1138,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 148 findings closed by a landed packet
+## APPLIED -- 161 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1416,6 +1377,32 @@ a disappeared finding is indistinguishable from one never found.
   The two sample recorders still use the repudiated `started_at and not ended_at` predicate and write into EVERY map bucket, so a finished or stranded job silently absorbs another run's counters
 - [x] **A5-METRICS-2** `listeners/job_metrics.py:172` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
   `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths
+- [x] **A5-SVC-9** `learning/services.py:72` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  Schemas mark map_id Required on three services the documentation marks optional, so an automation written from the docs fails validation
+- [x] **A1-SERVIC-4** `mapping/mapping_services.py:443` [Both — the geometry layer is brand-independent; only the final dispatch conversion differs.] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  `_saved_zone_coord`'s docstring claims it "mirrors the hidden-regions sanitizer" but omits that sanitizer's degenerate-drop — a zone that can be saved but can NEVER be cleaned, with no service able to repair its geometry
+- [x] **A1-SERVIC-7** `mapping/mapping_services.py:115` [Both (no runtime effect).] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  19 schemas (lines 115-301) are dead — defined once, referenced nowhere — and two of them are near-duplicate twins of LIVE schemas whose defaults would be rejected by the live validators
+- [x] **A3-IMAGE--10** `mapping/mapping_services.py:964` [Both.] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  Four of the five services in this block have no services.yaml description, including the destructive delete_map_image
+- [x] **A4-CUSTOM-7** `mapping/mapping_services.py:1650` [Both.] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  set_custom_segments' user-facing description is two features stale — it claims map-level scope and an uploaded-backdrop requirement that the layout + live-dims paths superseded
+- [x] **A5-FACADE-5** `services.yaml:1179` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  services.yaml declares a REQUIRED 'carpet' field on save_user_room_profile and overwrite_room_profile that the voluptuous schema rejects
+- [x] **A1-WIRE-3** `services/dock.py:174` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  Sixteen registered services documented as public API have no services.yaml descriptor, including set_dock_event_count whose five dock siblings all have one
+- [x] **A2-JOB-5** `services/queue.py:40` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  Break schemas do not enforce the break_type→parameter dependency, and the two sibling schemas disagree on which break types exist
+- [x] **A2-JOB-6** `services/queue.py:51` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  get_queue_steps returns `breaks` in a shape set_queue_breaks rejects — the documented read-modify-write round trip fails validation
+- [x] **A1-WIRE-4** `services/room_profiles.py:203` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  get_room_profiles is the only one of the 79 registrations with no schema, so caller-supplied scoping arguments are accepted and silently ignored
+- [x] **A3-ROOMS-4** `services/room_profiles.py:43` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  services.yaml advertises required fields that the voluptuous schemas reject — three services fail outright when the user fills the form HA renders
+- [x] **A3-ROOMS-3** `services/rooms.py:79` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  save_managed_rooms stamps every room's floor type as user-confirmed while its schema makes it structurally impossible to supply one
+- [x] **A4-SETUP-15** `services/setup.py:353` [both] -- **RP-032** (`4fe48ab`, `8b90c28`, `bf75b22`, `2c461dd`, `04adb30`, `78c8bd0`, `64f566d`, `c9c4cba`, `a293ad8`, `1d52fa6`, `64e718b`, 2026-08-02)  
+  None of the 10 setup_* services and 5 of the 6 adapter-config services have services.yaml or translation entries
 - [x] **A1-ID-5** `adapters/eufy/discovery.py:47` [eufy] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals
 - [x] **DR-BAT-2** `battery/manager.py:601` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
