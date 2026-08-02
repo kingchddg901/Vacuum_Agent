@@ -1198,13 +1198,16 @@ class ProfileManager:
         if not isinstance(rooms, dict):
             rooms = {}
 
-        for room_key, room_data in list(rooms.items()):
-            if not isinstance(room_data, dict):
-                continue
-            rooms[room_key] = {**room_data, "enabled": False}
-
+        # RP-031/RF-05a: resolve the profile's rooms against the CURRENT map
+        # FIRST, without mutating anything -- a profile whose every referenced
+        # room has since been deleted/renumbered (a re-segment) must refuse
+        # without touching the map's pre-existing selection. The wipe below
+        # only runs once at least one room is confirmed to apply; it used to
+        # run unconditionally before this resolution, so a fully-failed apply
+        # still destroyed the user's prior selection with no rollback.
         applied_room_ids: list[int] = []
         missing_room_ids: list[int] = []
+        updates: dict[str, dict] = {}
         # Enable the rooms named by the profile's STEPS (room_group steps, in order).
         # Legacy rooms-only profiles are byte-identical — run_profile_steps back-fills
         # a single room_group of profile["rooms"]. Charge_wait steps carry no rooms.
@@ -1238,8 +1241,31 @@ class ProfileManager:
                     "edge_mopping": bool(room_snapshot.get("edge_mopping", current_room.get("edge_mopping", False))),
                 }
             )
-            rooms[room_key] = updated_room
+            updates[room_key] = updated_room
             applied_room_ids.append(room_id)
+
+        if not applied_room_ids:
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "applied": False,
+                "reason": "no_matching_rooms",
+                "profile_id": profile_id,
+                "profile": profile,
+                "applied_room_ids": applied_room_ids,
+                "missing_room_ids": missing_room_ids,
+            }
+
+        # Authorized: at least one profile room resolved against the current map.
+        # Wipe every room's enabled flag now, then layer the resolved updates on
+        # top — an unmatched room is left disabled rather than stuck at whatever
+        # it was before, same end state as before this fix, just ordered so a
+        # REFUSAL can never reach this point.
+        for room_key, room_data in list(rooms.items()):
+            if not isinstance(room_data, dict):
+                continue
+            rooms[room_key] = {**room_data, "enabled": False}
+        rooms.update(updates)
 
         map_bucket["rooms"] = rooms
         map_bucket["summary"] = build_room_selection_summary(managed_rooms=rooms)
@@ -1255,7 +1281,7 @@ class ProfileManager:
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
-            "applied": bool(applied_room_ids),
+            "applied": True,
             "profile_id": profile_id,
             "profile": profile,
             "applied_room_ids": applied_room_ids,

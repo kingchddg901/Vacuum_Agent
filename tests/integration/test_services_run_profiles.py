@@ -7,6 +7,8 @@ Coverage targets
 [SRN-3]  save_run_profile fails gracefully when no rooms are selected.
 [SRN-4]  apply_run_profile restores room selections from a saved profile.
 [SRN-5]  apply_run_profile raises ServiceValidationError for unknown profile_id.
+[SRN-5b] RP-031/RF-05a: a profile whose rooms no longer exist refuses without
+         wiping the map's pre-existing room selection (was: unconditional wipe).
 [SRN-6]  rename_run_profile updates the profile name.
 [SRN-7]  rename_run_profile raises ServiceValidationError for unknown profile_id.
 [SRN-8]  overwrite_run_profile raises ServiceValidationError for unknown profile_id.
@@ -204,6 +206,43 @@ async def test_apply_run_profile_service_unknown_raises(hass, manager_with_servi
             blocking=True,
             return_response=True,
         )
+
+
+async def test_apply_run_profile_no_matching_rooms_preserves_selection(
+    hass, manager_with_services
+):
+    """[SRN-5b] RP-031/RF-05a: a saved profile whose every referenced room has
+    since been deleted/renumbered (a re-segment) refuses with
+    applied:False/reason:no_matching_rooms via the SAME structured-response
+    path as other operational refusals (no exception -- this is a data-state
+    mismatch, not a caller error), and the map's PRE-EXISTING room selection
+    is left exactly as it was -- not wiped as a side effect of a call that
+    changed nothing. Was: the wipe ran unconditionally before room
+    resolution, so a fully-failed apply still destroyed the prior selection."""
+    profile_id = await _save_profile(hass, manager_with_services, "Stale Profile")
+
+    # Re-segment: replace rooms 1/2/3 with entirely different ids, so none of
+    # the saved profile's referenced rooms exist on the map any more. Room 10
+    # is left enabled with a distinctive setting to prove it survives untouched.
+    bucket = manager_with_services.data["maps"][_VAC][_MAP]
+    bucket["rooms"] = {
+        "10": {"room_id": 10, "name": "New Room", "enabled": True, "clean_mode": "vacuum_mop"},
+    }
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        "apply_run_profile",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": profile_id},
+        blocking=True,
+        return_response=True,
+    )
+    assert result["applied"] is False
+    assert result["reason"] == "no_matching_rooms"
+    assert result["applied_room_ids"] == []
+
+    room_after = manager_with_services.data["maps"][_VAC][_MAP]["rooms"]["10"]
+    assert room_after["enabled"] is True
+    assert room_after["clean_mode"] == "vacuum_mop"
 
 
 # ---------------------------------------------------------------------------
