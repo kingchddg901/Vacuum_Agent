@@ -13,7 +13,7 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
 | Open findings | **323** -- 18 open clusters (11 fully applied) + 287 singles |
 | By severity | CRITICAL 7 / HIGH 52 / MEDIUM 129 / LOW 135 |
-| Hardware validation | **none** -- nothing from this campaign has run on a real vacuum |
+| Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
 else was reported by a finder and confirmed by both adversarial verifiers, but not
@@ -65,7 +65,7 @@ audit is a snapshot, not a ledger.
 - **Closes:** ~~A3-REC-4~~ ✅ RP-013e (`4b0cda3`), ~~A4-AJ-2~~ ✅ RP-013e (`4b0cda3`)
 - **What breaks:** SELF-INFLICTED. 0f1e2a6 moved this question onto status because nothing ever writes ended_at, so a finalized job matched forever. Two sample recorders were left behind, and the docstring written in that same commit names both BY NAME as needing the external-inclusive predicate. record_pose_sample:1776 is NOT affected (it has its own status check) -- the finding over-reached on that third site.
 - **Fix:** Point record_active_job_sensor_value and record_counter_sample at run_is_in_flight. Roughly 2 lines.
-- [x] applied  [ ] tested  [ ] hardware-checked
+- [x] applied  [ ] tested  [x] hardware-checked
 
 ### C6. Profile round-trip is broken: applying a preset re-labels the room 'custom' *(not independently verified)*
 
@@ -1503,7 +1503,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Before any of it ships: a hardware run.** Nothing from this campaign has met a vacuum.
+**Hardware gate: 5 of 19 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 14 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 

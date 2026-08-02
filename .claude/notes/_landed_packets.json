@@ -1,113 +1,240 @@
 [
  {
   "packet_id": "RP-001",
-  "commits": ["3ddcc1c"],
+  "commits": [
+   "3ddcc1c"
+  ],
   "landed_at": "2026-07-31",
   "note": ""
  },
  {
   "packet_id": "RP-002",
-  "commits": ["ca6dc75", "c2569bf", "3875f62"],
+  "commits": [
+   "ca6dc75",
+   "c2569bf",
+   "3875f62"
+  ],
   "landed_at": "2026-07-31",
   "note": ""
  },
  {
   "packet_id": "RP-003",
-  "commits": ["76d92fc"],
+  "commits": [
+   "76d92fc"
+  ],
   "landed_at": "2026-07-31",
   "note": ""
  },
  {
   "packet_id": "RP-004",
-  "commits": ["27824be"],
+  "commits": [
+   "27824be"
+  ],
   "landed_at": "2026-07-31",
   "note": ""
  },
  {
   "packet_id": "RP-005",
-  "commits": ["4217c3c", "6989031"],
+  "commits": [
+   "4217c3c",
+   "6989031"
+  ],
   "landed_at": "2026-08-01",
   "note": "6989031 is the card-side half (setup editor refuses an empty room selection); 4217c3c is the backend wipe guard."
  },
  {
   "packet_id": "RP-006",
-  "commits": ["e598e3e", "b0967eb", "e35b961"],
+  "commits": [
+   "e598e3e",
+   "b0967eb",
+   "e35b961"
+  ],
   "landed_at": "2026-08-01",
   "note": ""
  },
  {
   "packet_id": "RP-007",
-  "commits": ["4c42482", "4bdd3f8"],
+  "commits": [
+   "4c42482",
+   "4bdd3f8"
+  ],
   "landed_at": "2026-08-01",
   "note": "rollback_plan named 3 commits; only 2 landed. NOT incomplete -- step 7 (the freshness gate) landed folded inside 4bdd3f8 (2/3), visible at dispatch/manager.py:291 labelled \"RP-007 step 7\". Verified against source, not inferred from commit numbering."
  },
  {
   "packet_id": "RP-008",
-  "commits": ["8d244dc"],
+  "commits": [
+   "8d244dc"
+  ],
   "landed_at": "2026-08-01",
   "note": ""
  },
  {
   "packet_id": "RP-009",
-  "commits": ["6ab1b20"],
+  "commits": [
+   "6ab1b20"
+  ],
   "landed_at": "2026-08-01",
   "note": ""
  },
  {
   "packet_id": "RP-010",
-  "commits": ["3e9e969", "de835ef", "d3e6139"],
+  "commits": [
+   "3e9e969",
+   "de835ef",
+   "d3e6139"
+  ],
   "landed_at": "2026-08-01",
   "note": ""
  },
  {
   "packet_id": "RP-011",
-  "commits": ["365f90b", "4cdcf51", "7f6b969"],
+  "commits": [
+   "365f90b",
+   "4cdcf51",
+   "7f6b969"
+  ],
   "landed_at": "2026-08-01",
   "note": ""
  },
  {
   "packet_id": "RP-012",
-  "commits": ["7269020", "47f9a25", "a02fd19", "6598b0c"],
+  "commits": [
+   "7269020",
+   "47f9a25",
+   "a02fd19",
+   "6598b0c"
+  ],
   "landed_at": "2026-08-01",
   "note": "4 commits: (a)/(b)/(c) the original packet's rollback groups, (d) a follow-up single-commit fix (commanded-dock guard ported to resolve_mid_job_recharge_resumed) after the reproducer's 4th case (DQ-PH-6, already in this packet's finding_ids) exposed a regression the first 3 commits missed."
  },
  {
   "packet_id": "RP-013b",
-  "commits": ["f212c20"],
+  "commits": [
+   "f212c20"
+  ],
   "landed_at": "2026-08-02",
-  "note": "Stage X, packet 1/5. One clause of required_behavior ('stats_rebuilder... records them for ACC-6's quality flag... the flag exists, RP-036 consumes it') does not hold against current source -- no single_room/quality flag exists anywhere in stats_rebuilder.py. Left unimplemented and flagged in the commit message rather than invented; ACC-6 is one of RP-036's own not-yet-executed findings."
+  "note": "Stage X, packet 1/5. One clause of required_behavior ('stats_rebuilder... records them for ACC-6's quality flag... the flag exists, RP-036 consumes it') does not hold against current source -- no single_room/quality flag exists anywhere in stats_rebuilder.py. Left unimplemented and flagged in the commit message rather than invented; ACC-6 is one of RP-036's own not-yet-executed findings.",
+  "hardware": {
+   "date": "2026-08-02",
+   "brands": [
+    "eufy (alfred, T2351)",
+    "roborock (ivy, S6)"
+   ],
+   "evidence": [
+    "_frozen/baseline/job_2026-08-01T23-11-30-alfred-validate.json",
+    "_frozen/baseline/job_2026-08-01T23-17-36-ivy-validate.json"
+   ],
+   "note": "allocated:false present on every room timing, both brands"
+  }
  },
  {
   "packet_id": "RP-013f",
-  "commits": ["ed1a953", "0ff1e9f"],
+  "commits": [
+   "ed1a953",
+   "0ff1e9f"
+  ],
   "landed_at": "2026-08-02",
-  "note": "Stage X, packet 2/5. 2 commits per rollback_plan (REC-A phase-sum derivation; REC-B wall-clock fallback break-phase subtraction) -- different failure modes, independently revertable, split via git add -p plus manual test-file surgery to keep each commit self-consistent and green on its own."
+  "note": "Stage X, packet 2/5. 2 commits per rollback_plan (REC-A phase-sum derivation; REC-B wall-clock fallback break-phase subtraction) -- different failure modes, independently revertable, split via git add -p plus manual test-file surgery to keep each commit self-consistent and green on its own.",
+  "hardware": {
+   "date": "2026-08-02",
+   "brands": [
+    "eufy (alfred, T2351)",
+    "roborock (ivy, S6)"
+   ],
+   "evidence": [
+    "_frozen/baseline/job_2026-08-01T23-11-30-alfred-validate.json",
+    "_frozen/baseline/job_2026-08-01T23-17-36-ivy-validate.json"
+   ],
+   "note": "cleaning_time_seconds equals the timings sum: 60 alfred, 694=205+195+294 ivy"
+  }
  },
  {
   "packet_id": "RP-013e",
-  "commits": ["4b0cda3", "dbbb348"],
+  "commits": [
+   "4b0cda3",
+   "dbbb348"
+  ],
   "landed_at": "2026-08-02",
-  "note": "Stage X, packet 3/5. 2 commits per rollback_plan (recorder predicate/scope; battery watch) -- different files, split cleanly. All 3 reproducer cases report AFTER."
+  "note": "Stage X, packet 3/5. 2 commits per rollback_plan (recorder predicate/scope; battery watch) -- different files, split cleanly. All 3 reproducer cases report AFTER.",
+  "hardware": {
+   "date": "2026-08-02",
+   "brands": [
+    "eufy (alfred, T2351)",
+    "roborock (ivy, S6)"
+   ],
+   "evidence": [
+    "_frozen/baseline/job_2026-08-01T23-11-30-alfred-validate.json",
+    "_frozen/baseline/job_2026-08-01T23-17-36-ivy-validate.json",
+    "_frozen/baseline/job_2026-08-01T23-23-35-alfred-heavy.json"
+   ],
+   "note": "overhead exact on both (7.03=8.03-1.0, 7.18); battery_delta 3.0 on the heavy Alfred run"
+  }
  },
  {
   "packet_id": "RP-013a",
-  "commits": ["205ef7b"],
+  "commits": [
+   "205ef7b"
+  ],
   "landed_at": "2026-08-02",
-  "note": "Stage X, packet 4/5. Single commit per rollback_plan. Also closed INF-8 (run_plan.py's hand-copied _BREAKS literal, now imported from step_types.DOCK_POLLED_PHASE_TYPES). Hardware precondition satisfied by stepped Run A per Stage X's own text."
+  "note": "Stage X, packet 4/5. Single commit per rollback_plan. Also closed INF-8 (run_plan.py's hand-copied _BREAKS literal, now imported from step_types.DOCK_POLLED_PHASE_TYPES). Hardware precondition satisfied by stepped Run A per Stage X's own text.",
+  "hardware": {
+   "date": "2026-08-02",
+   "brands": [
+    "eufy (alfred, T2351)",
+    "roborock (ivy, S6)"
+   ],
+   "evidence": [
+    "_frozen/baseline/job_2026-08-01T23-11-30-alfred-validate.json",
+    "_frozen/baseline/job_2026-08-01T23-17-36-ivy-validate.json"
+   ],
+   "note": "transit_capture_valid true on both; direct flip vs Run A's false on the same brand+shape"
+  }
  },
  {
   "packet_id": "RP-013d",
-  "commits": ["8f4c5a8"],
+  "commits": [
+   "8f4c5a8"
+  ],
   "landed_at": "2026-08-02",
-  "note": "Stage X, packet 5/5 -- Stage X COMPLETE. Single commit, rebased on RP-013a's history_store.py edits. Reproducer file is shared with held RP-013c (_proof_completed_evidence.py): cases 1-2 stay BEFORE (RP-013c, hardware-held, untouched), cases 3-4 (RP-013d) now AFTER -- matches Stage X's own documented end-state exactly."
+  "note": "Stage X, packet 5/5 -- Stage X COMPLETE. Single commit, rebased on RP-013a's history_store.py edits. Reproducer file is shared with held RP-013c (_proof_completed_evidence.py): cases 1-2 stay BEFORE (RP-013c, hardware-held, untouched), cases 3-4 (RP-013d) now AFTER -- matches Stage X's own documented end-state exactly.",
+  "hardware": {
+   "date": "2026-08-02",
+   "brands": [
+    "eufy (alfred, T2351)",
+    "roborock (ivy, S6)"
+   ],
+   "evidence": [
+    "_frozen/baseline/job_2026-08-01T23-11-30-alfred-validate.json",
+    "_frozen/baseline/job_2026-08-01T23-17-36-ivy-validate.json"
+   ],
+   "note": "queue_room_ids equals resolved_rooms; payload alone carried only the last phase"
+  }
  },
  {
   "packet_id": "RP-040",
   "commits": [
-   "7714931", "d37e501", "d86e18e", "59cdf66", "f3387e3", "cc9baba",
-   "0e6b1e0", "faf2e89", "aa413d7", "4405267", "ecb47ef", "d242c51",
-   "f7eae2d", "0db5e11", "c2bff98", "bea97f9", "21dce08", "74a6ac6",
-   "93b83be", "41aedd6", "9c42f03"
+   "7714931",
+   "d37e501",
+   "d86e18e",
+   "59cdf66",
+   "f3387e3",
+   "cc9baba",
+   "0e6b1e0",
+   "faf2e89",
+   "aa413d7",
+   "4405267",
+   "ecb47ef",
+   "d242c51",
+   "f7eae2d",
+   "0db5e11",
+   "c2bff98",
+   "bea97f9",
+   "21dce08",
+   "74a6ac6",
+   "93b83be",
+   "41aedd6",
+   "9c42f03"
   ],
   "landed_at": "2026-08-02",
   "note": "Stage M6, the RP-040 closing batch -- executed from the generated per-file table (.claude/notes/synthesis/RP-040-batch-table.md), not the packet's own finding_ids, per Stage M6's own instruction. 21 commits across 22 file groups covering all 33 table members (12 SMALL-CORRECTNESS + 10 SMALL-CORRECTNESS- behaviour-bearing, table-driven proof cases in _proof_closing_batch.py; 5 DOC-ONLY gated by mkdocs --strict; 6 DEAD-CODE gated by the full suite after deletion). rooms/room_crud.py's CRUD-7 required no code change -- verified (not assumed) that maps/map_manager.py's DR-MAP-1 fix (get_map_bucket now deep-copies) closed it as a side effect, same batch, earlier commit. One member ejected to the Held table in SONNET-STAGE-PROMPTS.md rather than force-fit: #13:A4-SETUP-6 (services/setup.py setup_reject_rooms) -- its required_behavior per RP-040's own Q10 materialization (.claude/notes/_proof_reject_rooms_map_scope.py) is a real 3-part design (map_id schema field + a new setup_unreject_rooms service + protection/confirmation routing), not a one-line fix; needs its own named packet. Stage M6 is otherwise COMPLETE."
@@ -115,8 +242,17 @@
  {
   "packet_id": "RP-032",
   "commits": [
-   "4fe48ab", "8b90c28", "bf75b22", "2c461dd", "04adb30", "78c8bd0",
-   "64f566d", "c9c4cba", "a293ad8", "1d52fa6", "64e718b"
+   "4fe48ab",
+   "8b90c28",
+   "bf75b22",
+   "2c461dd",
+   "04adb30",
+   "78c8bd0",
+   "64f566d",
+   "c9c4cba",
+   "a293ad8",
+   "1d52fa6",
+   "64e718b"
   ],
   "landed_at": "2026-08-02",
   "note": "Stage G. 2-commit rollback_plan expanded to 11 in practice -- (a) 4fe48ab built the AST-walking services.yaml<->registration parity gate with an EXPECTED_FAILURES allowlist seeded from its first real run (40+ violations); (b) the remaining 10 commits emptied it by coherent group: SVC-9 map_id requiredness (3 learning services), WIRE-4 + carpet/floor_type schema gaps, SERVIC-7 (19 dead schema constants deleted), 11 schema-accepted-but-undocumented fields (incl. a services.yaml copy-paste bug found along the way -- pause_timeout_minutes_override was documented under the wrong service), JOB-5 (break_type cross-field validation) + JOB-6 (read/write shape round trip) in queue.py, ZONE-C-7 (saved-zone kind restricted to what dispatch actually honors), SERVIC-4 (degenerate saved-zone geometry rejected at create time, matching dispatch's own guard), and the no_yaml_entry class across two rounds -- Chris's ruling in .claude/notes/synthesis/SYNTH-10-packets-wave6.md ('RP-032 -- no_yaml_entry ruling') plus its addendum. Final no_yaml_entry tally, verified by the gate itself: 27 names, 8 real services.yaml entries, 19 INTERNAL_SERVICES, 0 left in EXPECTED_FAILURES. THE INTERNAL_SERVICES RULE is now in the gate's module docstring, not just allowlist comments. The 8 map_id-requiredness field_mismatch entries (mapping_services.py) stay in EXPECTED_FAILURES as blocked_by RP-028 -- confirmed correct by Chris; RP-032 lands with those still listed, since RP-028 hasn't landed yet. Full suite: 3123 passed, 1 skipped."
