@@ -570,6 +570,42 @@ async def _case_est_clamp_1(proof: H.Proof) -> None:
     )
 
 
+async def _case_pay_7(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.queue.queue_engine import build_room_clean_payload
+
+    managed_rooms = {
+        "1": {"room_id": 1, "name": "Kitchen", "enabled": True, "order": 0,
+              "clean_mode": "vacuum", "fan_speed": "max", "water_level": "off",
+              "clean_intensity": "standard", "clean_passes": 1, "edge_mopping": False,
+              "path_type": None},
+    }
+
+    out = build_room_clean_payload(
+        vacuum_entity_id=H.VAC,
+        map_id=H.MAP,
+        managed_rooms=managed_rooms,
+        dispatch={"clean_passes_field": None},
+    )
+    payload_room = out["payload"]["rooms"][0]
+    has_none_key = None in payload_room
+
+    proof.case(
+        "queue/queue_engine.py PAY-7: clean_passes_field=null must omit the "
+        "passes key entirely, matching the batch/phase dispatch engines, "
+        "not produce a None dict key",
+        before=has_none_key,
+        before_msg="dict.get()'s default only covers an ABSENT key, so an "
+                   "explicit null passed through as the literal dict key "
+                   "None -- {None: 1} either fails JSON serialisation or "
+                   "reaches the device as a garbage key",
+        after=(not has_none_key),
+        after_msg="an explicit null now omits the passes field from the "
+                  "per-room payload entirely, like the other two engines "
+                  "already do",
+        detail=f"payload_room={payload_room}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -586,6 +622,7 @@ CASES = [
     _case_dr_onb_4,
     _case_est_h2o_2,
     _case_est_clamp_1,
+    _case_pay_7,
 ]
 
 

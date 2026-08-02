@@ -230,7 +230,7 @@ def build_room_clean_payload(
 
     # Per-room field names — fall back to Eufy defaults.
     room_id_field: str = dispatch.get("room_id_field", "id")
-    clean_passes_field: str = dispatch.get("clean_passes_field", "clean_times")
+    clean_passes_field: str | None = dispatch.get("clean_passes_field", "clean_times")
     passes_max: int = int(dispatch.get("passes_max", 2))  # Eufy caps at 2 passes
     room_fields: dict[str, dict[str, Any]] = dispatch.get("room_fields", {}) or {}
 
@@ -289,10 +289,14 @@ def build_room_clean_payload(
         # Clamp the WIRE pass count to [1, passes_max] (Eufy caps at 2), matching the
         # flat-id / Dreame engines. resolved_rooms below keeps the raw resolved value,
         # so learning records the user's intent rather than the device clamp.
-        payload_room: dict[str, Any] = {
-            room_id_field: room_id,
-            clean_passes_field: max(1, min(passes_max, clean_passes)),
-        }
+        payload_room: dict[str, Any] = {room_id_field: room_id}
+        # PAY-7: clean_passes_field: null means the brand's per-room command
+        # carries no pass-count field at all -- .get()'s default only covers
+        # an ABSENT key, so an explicit null must be checked separately, same
+        # guard the two batch/phase dispatch_engines already use. Omitting
+        # the key here (not writing a None key) matches those engines.
+        if clean_passes_field is not None:
+            payload_room[clean_passes_field] = max(1, min(passes_max, clean_passes))
 
         # Per-room fields written through the adapter rename map.
         # Unconditional fields first, then capability-gated ones.
