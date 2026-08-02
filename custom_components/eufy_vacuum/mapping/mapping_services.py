@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import itertools
 import json
 import logging
 import math
@@ -826,6 +827,39 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
     return result
 
 
+def _clear_layout_references_to_variant(map_bucket: dict, variant: str) -> dict[str, int]:
+    """Sweep every custom_layouts entry for a reference to a deleted image
+    variant and clear it (RP-016/RF-20, delegation-checked against
+    _handle_upload_map_image's three write sites: backdrop_variant,
+    home_art.art_variant, rooms[*].art_variant). Upload keeps these in sync
+    when it writes a variant; delete must mirror that or a layout is left
+    pointing at a file that no longer exists.
+
+    Returns counts of what was cleared, for the caller's log line.
+    """
+    cleared = {"backdrops": 0, "home_art": 0, "room_art": 0}
+    layouts = map_bucket.get("custom_layouts")
+    if not isinstance(layouts, dict):
+        return cleared
+    for layout in layouts.values():
+        if not isinstance(layout, dict):
+            continue
+        if layout.get("backdrop_variant") == variant:
+            layout["backdrop_variant"] = None
+            cleared["backdrops"] += 1
+        home_art = layout.get("home_art")
+        if isinstance(home_art, dict) and home_art.get("art_variant") == variant:
+            home_art["art_variant"] = None
+            cleared["home_art"] += 1
+        rooms = layout.get("rooms")
+        if isinstance(rooms, dict):
+            for room_art in rooms.values():
+                if isinstance(room_art, dict) and room_art.get("art_variant") == variant:
+                    room_art["art_variant"] = None
+                    cleared["room_art"] += 1
+    return cleared
+
+
 async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Delete one image variant for a map.
 
@@ -884,6 +918,13 @@ async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> di
         # next variants payload will surface an empty IMAGE VARIANTS row.
         map_bucket["image_variants"] = {}
 
+    cleared_refs = _clear_layout_references_to_variant(map_bucket, variant)
+    if any(cleared_refs.values()):
+        _LOGGER.info(
+            "delete_map_image: cleared dangling layout references to %s: %s",
+            variant, cleared_refs,
+        )
+
     await manager.async_save()
 
     result = {
@@ -893,6 +934,7 @@ async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> di
         "map_id": map_id,
         "variant": variant,
         "remaining_variants": list(map_bucket["image_variants"].keys()),
+        "cleared_layout_references": cleared_refs,
     }
     _LOGGER.debug("delete_map_image: %s", result)
     return result
@@ -1251,16 +1293,28 @@ def _generate_custom_layout_id(existing) -> str:
     return f"{base}_{n}"
 
 
+# RP-016/CUSTOM-5: a monotonic counter, process-lifetime, never reset by a
+# zone's deletion. The old scheme derived uniqueness purely from the CURRENT
+# `existing` collection (`base not in existing`) -- a zone created, deleted,
+# and recreated within the same wall-clock second regenerated the EXACT same
+# id, silently colliding with any durable reference (a queue break, a
+# run-profile zone step) still pointing at the deleted one. Scoped choice:
+# this counter is process-lifetime, not disk-persisted -- it resets on an HA
+# restart, which reopens the same-second collision window only across a
+# restart landing in that exact second AND a still-existing id from before
+# it, which the `existing` fallback below still catches.
+_SAVED_ZONE_ID_SEQ = itertools.count(1)
+
+
 def _generate_saved_zone_id(existing) -> str:
-    """Stable unique id for a new saved zone (mirrors _generate_custom_layout_id),
-    with a same-second collision guard so rapid creates (and tests) never clash."""
-    base = f"sz_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
-    if base not in existing:
-        return base
-    n = 2
-    while f"{base}_{n}" in existing:
-        n += 1
-    return f"{base}_{n}"
+    """Stable unique id for a new saved zone. Uniqueness comes from
+    ``_SAVED_ZONE_ID_SEQ`` (always increasing, ignores deletions), with an
+    ``existing``-membership check kept as a defensive fallback."""
+    date_part = datetime.now().strftime("%Y%m%dT%H%M%S")
+    while True:
+        candidate = f"sz_{date_part}_{next(_SAVED_ZONE_ID_SEQ)}"
+        if candidate not in existing:
+            return candidate
 
 
 def _migrate_saved_zones(map_bucket: dict) -> None:

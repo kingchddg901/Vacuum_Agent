@@ -1395,12 +1395,20 @@ delete_room_profile:
   description: >
     Delete one existing custom room profile.
     Core built-in room profiles cannot be deleted.
+    Refused when a room still uses this profile unless force is set.
   fields:
     profile_name:
       name: Existing profile name
       required: true
       selector:
         text: {}
+    force:
+      name: Force
+      description: Delete even if rooms still reference this profile.
+      required: false
+      default: false
+      selector:
+        boolean: {}
 
 apply_room_profile:
   name: Apply room profile

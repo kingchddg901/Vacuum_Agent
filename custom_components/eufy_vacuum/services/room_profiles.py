@@ -100,6 +100,7 @@ _RENAME_ROOM_PROFILE_SCHEMA = vol.Schema(
 _DELETE_ROOM_PROFILE_SCHEMA = vol.Schema(
     {
         vol.Required("profile_name"): cv.string,
+        vol.Optional("force", default=False): cv.boolean,
     }
 )
 

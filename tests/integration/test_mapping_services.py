@@ -562,6 +562,34 @@ async def test_saved_zone_crud(hass, mapping_services):
     assert d2["saved"] is False and d2["reason"] == "zone_not_found"
 
 
+async def test_saved_zone_id_never_reuses_after_delete(hass, mapping_services):
+    """RP-016/CUSTOM-5: the old id scheme derived uniqueness purely from the
+    CURRENT saved_zones collection (`base not in existing`) -- a zone
+    created, deleted, and recreated within the same wall-clock second
+    regenerated the exact same id, silently colliding with any durable
+    reference (a queue break, a run-profile zone step) still pointing at the
+    deleted one. A monotonic sequence counter must guarantee a fresh id even
+    when `existing` is back to empty."""
+    from custom_components.eufy_vacuum.const import (
+        SERVICE_CREATE_SAVED_ZONE,
+        SERVICE_DELETE_SAVED_ZONE,
+    )
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    quad = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]
+
+    first = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "First", "geometry": quad})
+    await _call(hass, SERVICE_DELETE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": first["zone_id"]})
+
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    assert bucket["saved_zones"] == {}  # back to empty, same as the id_first/id_second proof setup
+
+    second = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Second", "geometry": quad})
+    assert second["zone_id"] != first["zone_id"]
+
+
 async def test_saved_zones_migration_idempotent(hass, mapping_services):
     """[ZONE-2] _migrate_saved_zones seeds {} once and never clobbers existing zones."""
     from custom_components.eufy_vacuum.mapping.mapping_services import _migrate_saved_zones

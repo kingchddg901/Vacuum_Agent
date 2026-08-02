@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..maps.map_manager import (
+    PER_MAP_STORES,
     ensure_map_bucket,
     get_map_bucket,
     get_vacuum_maps_summary,
@@ -490,14 +491,26 @@ class RoomMapManager:
         room on the map being removed, so there is nothing to strip.
         """
         map_id_str = str(map_id)
+        # Named flags for the buckets that predate PER_MAP_STORES -- callers
+        # (tests, the delete-map service response) already key off these
+        # exact names. New buckets (run_profiles/queue/onboarding) get their
+        # own flags in `removed` too, so nothing the registry clears is
+        # invisible to a caller inspecting the summary.
+        FLAG_NAMES = {
+            "maps": None,  # handled separately below (needs rooms_removed count)
+            "discovery": "discovery_removed",
+            "room_history": "history_removed",
+            "room_rule_status": "rule_status_removed",
+            "run_profiles": "run_profiles_removed",
+            "queue": "queue_removed",
+            "onboarding": "onboarding_removed",
+            "active_jobs": "active_job_cleared",
+        }
         removed: dict[str, Any] = {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": map_id_str,
             "rooms_removed": 0,
-            "history_removed": False,
-            "rule_status_removed": False,
-            "discovery_removed": False,
-            "active_job_cleared": False,
+            **{name: False for name in FLAG_NAMES.values() if name},
         }
 
         vacuum_maps = self._manager.data.get("maps", {}).get(vacuum_entity_id, {})
@@ -506,30 +519,28 @@ class RoomMapManager:
             removed["rooms_removed"] = len(rooms)
             del vacuum_maps[map_id_str]
 
-        disc = self._manager.data.get("discovery", {}).get(vacuum_entity_id, {})
-        if map_id_str in disc:
-            del disc[map_id_str]
-            removed["discovery_removed"] = True
-
-        hist = self._manager.data.get("room_history", {}).get(vacuum_entity_id, {})
-        if map_id_str in hist:
-            del hist[map_id_str]
-            removed["history_removed"] = True
-
-        rule_st = self._manager.data.get("room_rule_status", {}).get(vacuum_entity_id, {})
-        if map_id_str in rule_st:
-            del rule_st[map_id_str]
-            removed["rule_status_removed"] = True
-
-        # Reset the active-job slot to a blank state rather than deleting it,
-        # so callers can always find a key for any known vacuum/map pair.
-        vac_jobs = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
-        if map_id_str in vac_jobs:
-            vac_jobs[map_id_str] = self._manager._default_active_job_state(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=map_id_str,
-            )
-            removed["active_job_cleared"] = True
+        # RP-016/RF-20: consume the SAME registry RP-017's id-remap walker
+        # reads, so a bucket added there is reachable here too without a
+        # second hand-maintained list -- the defect this packet closes
+        # (run_profiles/queue/onboarding survived remove_map for however
+        # long they existed as real per-map stores nobody added here).
+        for store_key, mode in PER_MAP_STORES:
+            if store_key == "maps":
+                continue  # handled above -- needs the room count
+            flag = FLAG_NAMES[store_key]
+            bucket = self._manager.data.get(store_key, {}).get(vacuum_entity_id, {})
+            if map_id_str not in bucket:
+                continue
+            if mode == "delete":
+                del bucket[map_id_str]
+            elif store_key == "active_jobs":
+                # Reset rather than delete: callers always index a known
+                # vacuum/map pair without a presence check.
+                bucket[map_id_str] = self._manager._default_active_job_state(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id_str,
+                )
+            removed[flag] = True
 
         return removed
 

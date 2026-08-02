@@ -10,6 +10,7 @@ Coverage targets
 [MSV-15] set_live_map_rotation stores the display rotation on the map bucket.
 [MSV-16] set_map_overlay_visibility persists only the user's deltas (not the resolved map), merges them over the defaults at read time, merges successive partial calls, rejects unknown layers, and resets cleanly back to defaults.
 [MSV-17] get_map_render_data is registered and degrades gracefully with present=False / reason=not_configured when the adapter declares no map_render block.
+[MSV-18] delete_map_image clears dangling custom_layouts references (backdrop, home art, room art) to the deleted variant (RP-016).
 """
 
 from __future__ import annotations
@@ -138,4 +139,41 @@ async def test_delete_map_image_file_already_gone(hass, mapping_services):
     assert result["remaining_variants"] == []
     # Persisted side effect: the stale variant is gone from the bucket.
     assert map_bucket["image_variants"] == {}
+
+
+async def test_delete_map_image_clears_layout_references(hass, mapping_services):
+    """RP-016/RF-20 (delegation-checked against upload's layout-awareness):
+    deleting an image variant still referenced by a layout's backdrop, home
+    art, or a room's art must clear those references too -- otherwise the
+    layout is left pointing at a file that no longer exists, unlike upload
+    which keeps the two in sync (mapping_services.py's own
+    _handle_upload_map_image)."""
+    manager = mapping_services
+    map_bucket = ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    missing_path = os.path.join(
+        hass.config.config_dir, "eufy_vacuum", "maps",
+        _VAC.split(".", 1)[1], "does_not_exist.png",
+    )
+    map_bucket["image_variants"] = {
+        "custom_L1": {"variant": "custom_L1", "path": missing_path},
+    }
+    map_bucket["custom_layouts"] = {
+        "L1": {
+            "backdrop_variant": "custom_L1",
+            "home_art": {"art_variant": "custom_L1"},
+            "rooms": {"3": {"art_variant": "custom_L1"}},
+        },
+        "L2": {"backdrop_variant": "custom_L2"},  # untouched -- different variant
+    }
+
+    result = await _call(hass, ms.SERVICE_DELETE_MAP_IMAGE,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "variant": "custom_L1"})
+
+    assert result["deleted"] is True
+    assert result["cleared_layout_references"] == {"backdrops": 1, "home_art": 1, "room_art": 1}
+    layouts = map_bucket["custom_layouts"]
+    assert layouts["L1"]["backdrop_variant"] is None
+    assert layouts["L1"]["home_art"]["art_variant"] is None
+    assert layouts["L1"]["rooms"]["3"]["art_variant"] is None
+    assert layouts["L2"]["backdrop_variant"] == "custom_L2"  # untouched
 

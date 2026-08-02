@@ -533,6 +533,29 @@ class ProfileManager:
             "message": saved.get("message"),
         }
 
+    def _find_rooms_referencing_profile(self, profile_name: str) -> list[dict[str, Any]]:
+        """Every room, across every vacuum/map, whose profile_name references
+        ``profile_name`` (RP-016/RF-20). delete/rename must know about these
+        before mutating the store -- rename repoints them, delete refuses
+        unless the caller says force=True.
+        """
+        referrers: list[dict[str, Any]] = []
+        for vac, maps in self._data.get("maps", {}).items():
+            if not isinstance(maps, dict):
+                continue
+            for map_id, bucket in maps.items():
+                if not isinstance(bucket, dict):
+                    continue
+                for room_id, room in bucket.get("rooms", {}).items():
+                    if isinstance(room, dict) and str(room.get("profile_name", "")) == profile_name:
+                        referrers.append({
+                            "vacuum_entity_id": vac,
+                            "map_id": map_id,
+                            "room_id": room_id,
+                            "name": room.get("name"),
+                        })
+        return referrers
+
     def rename_room_profile(
         self,
         *,
@@ -586,8 +609,22 @@ class ProfileManager:
                 }
             updated_profile["label"] = clean_label
 
+        repointed_rooms: list[dict[str, Any]] = []
         if target_name != normalized_name:
             del stored_profiles[normalized_name]
+            # RP-016/RF-20: the store key just moved -- every room still
+            # carrying the OLD name would silently orphan under it otherwise.
+            for referrer in self._find_rooms_referencing_profile(normalized_name):
+                room = (
+                    self._data.get("maps", {})
+                    .get(referrer["vacuum_entity_id"], {})
+                    .get(referrer["map_id"], {})
+                    .get("rooms", {})
+                    .get(referrer["room_id"])
+                )
+                if isinstance(room, dict):
+                    room["profile_name"] = target_name
+                    repointed_rooms.append(referrer)
         stored_profiles[target_name] = updated_profile
 
         return {
@@ -595,10 +632,20 @@ class ProfileManager:
             "profile_name": target_name,
             "previous_profile_name": normalized_name,
             "profile": updated_profile,
+            "repointed_rooms": repointed_rooms,
         }
 
-    def delete_room_profile(self, *, profile_name: str) -> dict[str, Any]:
-        """Delete one existing custom room profile."""
+    def delete_room_profile(self, *, profile_name: str, force: bool = False) -> dict[str, Any]:
+        """Delete one existing custom room profile.
+
+        RP-016/RF-20: refuses when rooms still reference this profile unless
+        ``force=True`` -- an unconditional delete left the referring room's
+        profile_name pointing at nothing (resolve_room_profile_for_room falls
+        back silently, but the record itself is orphaned with no signal that
+        happened). ``force`` deletes anyway and leaves referrers pointing at
+        the now-gone name, same as the old unconditional behaviour -- but as
+        an informed choice, not a silent default.
+        """
         normalized_name, existing = self._get_editable_room_profile(profile_name)
         if normalized_name in _PROTECTED_ROOM_PROFILE_NAMES:
             return {
@@ -614,11 +661,25 @@ class ProfileManager:
                 "profile_name": normalized_name,
             }
 
+        referrers = self._find_rooms_referencing_profile(normalized_name)
+        if referrers and not force:
+            return {
+                "deleted": False,
+                "reason": "has_referrers",
+                "profile_name": normalized_name,
+                "referring_rooms": referrers,
+                "message": (
+                    f"{len(referrers)} room(s) still use this profile -- "
+                    "pass force=true to delete anyway."
+                ),
+            }
+
         stored_profiles = self._get_custom_room_profile_store()
         del stored_profiles[normalized_name]
         return {
             "deleted": True,
             "profile_name": normalized_name,
+            "referring_rooms": referrers,
         }
 
     def apply_room_profile(

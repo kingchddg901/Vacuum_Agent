@@ -16,6 +16,8 @@ Coverage targets
 [RC-7] discover_rooms runs discovery + caches the payload.
 [RC-8] remove_map leaves sibling maps' access-graph grants untouched
        (grants are map-scoped room IDs; nothing to strip cross-map).
+[RC-9] remove_map clears run_profiles/queue/onboarding (RP-016/RF-20 --
+       PER_MAP_STORES coverage), leaving sibling maps' buckets untouched.
 """
 
 from __future__ import annotations
@@ -284,6 +286,31 @@ def test_remove_map_clears_related_state(rmm):
     assert removed["active_job_cleared"] is True
     # the remaining map's grant list is left exactly as-is
     assert mgr.data["maps"][_VAC]["7"]["rooms"]["5"]["grants_access_to"] == [1, 2]
+
+
+def test_remove_map_clears_run_profiles_queue_onboarding(rmm):
+    """RP-016/RF-20: remove_map used to leave run_profiles/queue/onboarding
+    behind -- a re-import at the same map_id resurrected a run profile and a
+    queue payload holding room ids from the DELETED segmentation. All three
+    are per-(vacuum, map) stores in PER_MAP_STORES, same as the five it
+    already cleared."""
+    rm, mgr = rmm
+    _seed_discovery(mgr, _DISCOVERED)
+    rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    mgr.data.setdefault("run_profiles", {}).setdefault(_VAC, {})[_MAP] = {"rp_1": {"name": "Weeknight"}}
+    mgr.data.setdefault("queue", {}).setdefault(_VAC, {})[_MAP] = {"queue_room_ids": [1, 2]}
+    mgr.data.setdefault("onboarding", {}).setdefault(_VAC, {})[_MAP] = {"rooms_discovered": True}
+    # a second map's own buckets must be left untouched
+    mgr.data["run_profiles"][_VAC]["7"] = {"rp_2": {"name": "Other Map"}}
+
+    removed = rm.remove_map(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert removed["run_profiles_removed"] is True
+    assert removed["queue_removed"] is True
+    assert removed["onboarding_removed"] is True
+    assert _MAP not in mgr.data["run_profiles"][_VAC]
+    assert _MAP not in mgr.data["queue"][_VAC]
+    assert _MAP not in mgr.data["onboarding"][_VAC]
+    assert mgr.data["run_profiles"][_VAC]["7"] == {"rp_2": {"name": "Other Map"}}
 
 
 def test_remove_map_leaves_sibling_grants_with_shared_ids(rmm):

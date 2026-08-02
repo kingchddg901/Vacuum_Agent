@@ -8,6 +8,34 @@ from typing import Any
 from ..models.models import RoomConfig
 
 
+# RP-016/RF-20: every per-(vacuum, map_id) bucket in the integration's root
+# data dict, so a map-scoped operation (remove_map's clear, RP-017's
+# id-remap walker) can reach all of them from ONE list instead of a
+# hand-maintained call sequence that silently drifts as new buckets get
+# added -- exactly how remove_map missed run_profiles/queue/onboarding for
+# however long they existed. Shape is uniform:
+# ``data[key][vacuum_entity_id][str(map_id)]``.
+#
+# mode="delete" -- the bucket is simply popped; a re-import of the same
+#   map_id starts clean.
+# mode="reset"  -- the bucket must always resolve to a key for any known
+#   vacuum/map pair, so it is reinitialized to a blank default instead
+#   (active_jobs: callers always index a known vacuum/map pair without a
+#   presence check). The reset VALUE is caller-specific (needs the manager's
+#   default-state builder), so this registry names the bucket, not the
+#   default -- the caller supplies it.
+PER_MAP_STORES: tuple[tuple[str, str], ...] = (
+    ("maps", "delete"),               # rooms/room_manager.py -- the map bucket itself
+    ("discovery", "delete"),          # rooms/room_discovery.py -- cached discovery snapshot
+    ("room_history", "delete"),       # rooms/room_crud.py -- per-room cleaning history
+    ("room_rule_status", "delete"),   # rooms/room_crud.py -- rule-evaluation cache
+    ("run_profiles", "delete"),       # profiles/manager.py -- saved run-profile library
+    ("queue", "delete"),              # core/manager.py build_queue -- built dispatch payload
+    ("onboarding", "delete"),         # onboarding/manager.py -- per-map setup/onboarding state
+    ("active_jobs", "reset"),         # core/manager.py -- active-job slot, reset not deleted
+)
+
+
 def ensure_map_bucket(
     *,
     data: dict[str, Any],

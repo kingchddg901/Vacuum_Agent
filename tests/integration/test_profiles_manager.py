@@ -39,6 +39,8 @@ Coverage targets
         bad room_id, drops an all-malformed group (Defect #6a).
 [PM-27] a stepped edit re-derives room_count/ids/names from the effective steps, not the stale
         profile["rooms"]; legacy rooms-only stays correct (Defect #7).
+[PM-28] delete_room_profile refuses when a room still references it, unless force=True (RP-016).
+[PM-29] rename_room_profile repoints every referring room's profile_name to the new name (RP-016).
 """
 
 from __future__ import annotations
@@ -255,6 +257,48 @@ def test_delete_profile(pm):
     assert pm.delete_room_profile(profile_name="user_brushes")["deleted"] is True
     assert pm.delete_room_profile(profile_name="vacuum_quick")["reason"] == "protected_profile"
     assert pm.delete_room_profile(profile_name="ghost")["reason"] == "profile_not_found"
+
+
+def test_delete_room_profile_refuses_with_referrers(pm):
+    """RP-016/RF-20: a room still referencing this profile refuses the
+    delete unless force=True; force deletes anyway. Rename repoints every
+    referring room to the new name in the same store write."""
+    _save(pm)
+    pm._data["maps"] = {_VAC: {_MAP: {"rooms": {
+        "1": {"room_id": 1, "name": "Kitchen", "profile_name": "user_brushes"},
+    }}}}
+
+    refused = pm.delete_room_profile(profile_name="user_brushes")
+    assert refused["deleted"] is False
+    assert refused["reason"] == "has_referrers"
+    assert refused["referring_rooms"] == [
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "1", "name": "Kitchen"}
+    ]
+    # unforced refusal is non-destructive -- the profile and referrer both survive.
+    assert pm.get_room_profiles()["profiles"]["user_brushes"]
+    assert pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["profile_name"] == "user_brushes"
+
+    forced = pm.delete_room_profile(profile_name="user_brushes", force=True)
+    assert forced["deleted"] is True
+    assert len(forced["referring_rooms"]) == 1
+
+
+def test_rename_room_profile_repoints_referrers(pm):
+    """RP-016/RF-20: rename must repoint every referring room's profile_name,
+    not just the store key -- the old behaviour orphaned referrers under a
+    name that no longer resolves to anything."""
+    _save(pm)
+    pm._data["maps"] = {_VAC: {_MAP: {"rooms": {
+        "1": {"room_id": 1, "name": "Kitchen", "profile_name": "user_brushes"},
+        "2": {"room_id": 2, "name": "Bath", "profile_name": "other_profile"},
+    }}}}
+
+    result = pm.rename_room_profile(profile_name="user_brushes", new_profile_name="user_renamed")
+    assert result["renamed"] is True
+    assert [r["room_id"] for r in result["repointed_rooms"]] == ["1"]
+    rooms = pm._data["maps"][_VAC][_MAP]["rooms"]
+    assert rooms["1"]["profile_name"] == "user_renamed"
+    assert rooms["2"]["profile_name"] == "other_profile"  # untouched -- different profile
 
 
 def test_overwrite_room_profile_rejections(pm):
