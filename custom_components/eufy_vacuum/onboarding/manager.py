@@ -242,9 +242,13 @@ class OnboardingManager:
             if not state["onboarding_complete"]:
                 any_incomplete = True
 
+        # DR-ONB-3: any_incomplete is only ever set True INSIDE the loop
+        # above, so a vacuum with zero maps leaves it False -- vacuously
+        # "complete". Mirrors setup/status.py's `bool(managed) and ...`
+        # guard (line 218) that already rejects the identical shape.
         return {
             "vacuum_entity_id": vacuum_entity_id,
-            "all_complete": not any_incomplete,
+            "all_complete": bool(maps) and not any_incomplete,
             "maps": summaries,
         }
 

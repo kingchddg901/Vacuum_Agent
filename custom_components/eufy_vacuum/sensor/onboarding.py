@@ -53,10 +53,17 @@ class EufyVacuumOnboardingSensor(SensorEntity):
     def native_value(self) -> str:
         """Return the worst-case status across all maps (rooms_needed > floor_type_needed > complete)."""
         summary = self._get_summary()
-        for map_state in summary.get("maps", []):
+        maps = summary.get("maps", [])
+        # DR-ONB-3: an empty maps collection is not vacuously complete --
+        # both scan loops below fall through on an empty list. Mirrors
+        # setup/status.py's non-empty-collection guard: no map imported yet
+        # means rooms genuinely need to be set up.
+        if not maps:
+            return "rooms_needed"
+        for map_state in maps:
             if map_state.get("status") == "rooms_needed":
                 return "rooms_needed"
-        for map_state in summary.get("maps", []):
+        for map_state in maps:
             if map_state.get("status") == "floor_type_needed":
                 return "floor_type_needed"
         return "complete"

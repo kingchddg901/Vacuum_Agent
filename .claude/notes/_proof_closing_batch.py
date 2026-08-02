@@ -639,6 +639,41 @@ async def _case_crud_7(proof: H.Proof) -> None:
     )
 
 
+async def _case_dr_onb_3(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.onboarding.manager import OnboardingManager
+    from custom_components.eufy_vacuum.sensor.onboarding import EufyVacuumOnboardingSensor
+
+    # A vacuum with zero imported maps -- onboarding hasn't started.
+    data = {"maps": {H.VAC: {}}}
+    hass = H.make_hass()
+    ob_mgr = OnboardingManager(data, hass)
+
+    fake_manager = SimpleNamespace(
+        get_rooms_onboarding_summary=lambda **kw: ob_mgr.get_rooms_onboarding_summary(**kw)
+    )
+    sensor = EufyVacuumOnboardingSensor(manager=fake_manager, vacuum_entity_id=H.VAC)
+
+    summary = ob_mgr.get_rooms_onboarding_summary(vacuum_entity_id=H.VAC)
+    state = sensor.native_value
+
+    proof.case(
+        "sensor/onboarding.py + onboarding/manager.py DR-ONB-3: a vacuum "
+        "with zero maps must not report onboarding as complete",
+        before=(summary["all_complete"] is True and state == "complete"),
+        before_msg="any_incomplete is only ever set True INSIDE the "
+                   "per-map loop, so zero maps leaves all_complete "
+                   "vacuously True, and the sensor's own empty-list scan "
+                   "falls through to 'complete' too -- the ONBOARDING "
+                   "sensor asserts setup is finished at the exact moment "
+                   "it is most consulted (fresh install, nothing imported)",
+        after=(summary["all_complete"] is False and state == "rooms_needed"),
+        after_msg="both the summary's all_complete flag and the sensor's "
+                  "own state now treat an empty maps collection as "
+                  "incomplete, mirroring setup/status.py's non-empty guard",
+        detail=f"all_complete={summary['all_complete']} state={state!r}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -657,6 +692,7 @@ CASES = [
     _case_est_clamp_1,
     _case_pay_7,
     _case_crud_7,
+    _case_dr_onb_3,
 ]
 
 
