@@ -379,7 +379,6 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 | `adapters/eufy/eufy_upkeep_guides.py` | `UPKEEP_GUIDE_LIBRARY` |
 | `adapters/eufy/water_config.py` | `WATER_MODEL_CONFIGS` |
 | `adapters/eufy/buttons.py` | `DOCK_ACTION_CANDIDATES`, `DOCK_ACTION_TOKENS`, `RESET_CANDIDATES`, `RESET_TOKENS` — dock-action and maintenance-reset button entity-resolution candidates / token-sets |
-| `adapters/eufy/discovery.py` | `get_active_map_id()`, `discover_rooms_for_vacuum()` — Eufy room-discovery helpers |
 | `adapters/eufy/lifecycle.py` | `_get_lifecycle_watch_entities()`, `_completed_finalize_signals()`, `_active_cleaning_target_cleared()` — translate Eufy entity naming + state vocabulary into the framework lifecycle listener's signals |
 | `adapters/eufy/segmentor.py` | `detect_room_segments()` — Eufy CV map-segmentation pipeline (the brand's *map* segmenter, `eufy_cv_v1`; distinct from the counter/run segmenter `eufy_counter_v1` in `learning/job_segmenter_engines.py` — see §2.4) |
 
