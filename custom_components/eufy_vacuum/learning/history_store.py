@@ -34,6 +34,7 @@ _CACHE_MISS = object()
 _LOGGER = logging.getLogger(__name__)
 
 from homeassistant.core import HomeAssistant
+from ..step_types import phase_capture_is_valid
 from ..timestamp_utils import parse_timestamp
 from .utils import _iso_now, _safe_bool, _safe_float, _safe_int
 
@@ -1060,7 +1061,15 @@ class LearningHistoryStore:
                 _rt = _p.get("room_timing") if isinstance(_p, dict) else None
                 if _rt:
                     _phase_room_timings.extend(_rt)
-                else:
+                # RP-013a: an empty room_timing is only a capture FAILURE for a
+                # CLEANING phase (room_group) — a non-cleaning phase
+                # (charge_wait/wait/zone) writes room_timing=[] on purpose
+                # (phase_runner._capture_finishing_phase_timing), and that is
+                # VALID-EMPTY, not evidence the segmenter failed. Conflating
+                # the two flagged EVERY stepped run transit_capture_valid=False,
+                # falling back to an even wall-time split that included dock
+                # time the break phase exists to represent.
+                elif not phase_capture_is_valid(_p):
                     _every_phase_captured = False
         if _phase_room_timings:
             room_timings = _phase_room_timings

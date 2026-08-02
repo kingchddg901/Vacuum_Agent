@@ -72,3 +72,44 @@ def is_dock_polled_phase_type(phase_type: Any) -> bool:
 def is_dock_polled_phase(phase: Any) -> bool:
     """Return whether a phase dict is driven by the dock poller (never "zone")."""
     return isinstance(phase, dict) and is_dock_polled_phase_type(phase.get("phase_type"))
+
+
+#: RP-013a — a THIRD vocabulary, and again not the same question as the two
+#: above. STEPPED_STEP_TYPES asks "does this step make the plan sequenced?"
+#: (build time); DOCK_POLLED_PHASE_TYPES asks "who drives this phase's
+#: completion?" (dispatch time). This asks a CAPTURE-READ-time question: "does
+#: this phase type produce per-room room_timing when properly captured?" Only
+#: room_group does — charge_wait/wait (dock-polled) and zone (captured into
+#: zone_timing instead) all deliberately write room_timing=[] on purpose
+#: (phase_runner._capture_finishing_phase_timing). The membership happens to
+#: match DOCK_POLLED_PHASE_TYPES + {"zone"} today; that is a coincidence of
+#: what exists, not a reason to derive one set from another — a future phase
+#: type could answer these two questions differently.
+CLEANING_PHASE_TYPES: frozenset[str] = frozenset({"room_group"})
+
+#: Phase types where an EMPTY room_timing is VALID-EMPTY, not a capture
+#: failure — the deliberate complement of CLEANING_PHASE_TYPES over today's
+#: known phase types.
+NON_CLEANING_PHASE_TYPES: frozenset[str] = frozenset({"charge_wait", "wait", "zone"})
+
+
+def is_cleaning_phase_type(phase_type: Any) -> bool:
+    """Return whether a phase TYPE is expected to produce per-room room_timing."""
+    return str(phase_type or "").strip().lower() in CLEANING_PHASE_TYPES
+
+
+def phase_capture_is_valid(phase: Any) -> bool:
+    """Return whether a phase's room_timing correctly reflects its capture,
+    whether empty or not.
+
+    A non-cleaning phase (charge_wait/wait/zone) intentionally writes
+    room_timing=[] — that is VALID-EMPTY, not a capture failure (RP-013a).
+    A CLEANING phase (room_group) with empty/missing room_timing IS the
+    capture failure: the segmenter found nothing for a phase that should
+    have cleaned something.
+    """
+    if not isinstance(phase, dict):
+        return False
+    if not is_cleaning_phase_type(phase.get("phase_type")):
+        return True
+    return bool(phase.get("room_timing"))

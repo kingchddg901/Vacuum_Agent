@@ -74,22 +74,72 @@ def test_build_payload_strict_order_concats_phase_room_timings(tmp_path):
 
 
 def test_build_payload_strict_order_partial_capture_invalid(tmp_path):
-    """A phase that never cleaned (empty room_timing) → transit_capture_valid False, but the
-    captured phases' timings still surface (excluded from learning aggregates by the gate)."""
+    """RP-013a: a CLEANING phase (room_group) that never cleaned (empty room_timing)
+    is a genuine capture failure -> transit_capture_valid False, but the captured
+    phases' timings still surface (excluded from learning aggregates by the gate)."""
     store = _make_store(tmp_path)
     payload = store.build_completed_job_payload(
         vacuum_entity_id="vacuum.ivy", job_id="jso2",
         started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
         battery_start=90, battery_end=60, queue_state={}, payload_state={},
         active_job_state=_phased_ajs([
-            {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
              "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 6.0, "cleaning_seconds": 120}]},
-            {"resolved_rooms": [{"room_id": 8, "slug": "dining_room"}], "room_timing": []},  # never cleaned
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 8, "slug": "dining_room"}],
+             "room_timing": []},  # never cleaned -- this IS a capture failure
         ]),
     )
     job = payload["job"]
     assert [rt["room_id"] for rt in job["room_timings"]] == [5]
     assert job["transit_capture_valid"] is False
+
+
+def test_build_payload_strict_order_break_phase_empty_timing_is_valid(tmp_path):
+    """RP-013a/DQ-PH-1: a NON-cleaning phase (charge_wait) intentionally writes
+    room_timing=[] (phase_runner._capture_finishing_phase_timing's own doc:
+    "record an EMPTY timing so finalize reads it as a dock/hold interval, not
+    a phantom zero-metric room"). That must NOT flag the whole run invalid --
+    before this fix, EVERY stepped run recorded transit_capture_valid=False
+    for exactly this reason, and the learner fell back to an even wall-time
+    split that included the dock/charge time."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.ivy", job_id="jso3",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=60, queue_state={}, payload_state={},
+        active_job_state=_phased_ajs([
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+             "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 6.0, "cleaning_seconds": 120}]},
+            {"phase_type": "charge_wait", "target_battery_percent": 90,
+             "resolved_rooms": [], "room_timing": []},  # deliberate, not a failure
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 8, "slug": "dining_room"}],
+             "room_timing": [{"room_id": 8, "slug": "dining_room", "area_m2": 4.5, "cleaning_seconds": 90}]},
+        ]),
+    )
+    job = payload["job"]
+    assert [rt["room_id"] for rt in job["room_timings"]] == [5, 8]
+    assert job["transit_capture_valid"] is True
+
+
+def test_build_payload_strict_order_zone_phase_empty_timing_is_valid(tmp_path):
+    """RP-013a: a zone phase's room_timing=[] is also VALID-EMPTY (its own
+    timing lives in zone_timing, not room_timing) -- deliberately the same
+    membership as STEPPED_STEP_TYPES today, tested here for its OWN reason
+    (a capture-validity question, not a plan-shape question)."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.ivy", job_id="jso4",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:10:00+00:00",
+        battery_start=90, battery_end=88, queue_state={}, payload_state={},
+        active_job_state=_phased_ajs([
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+             "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 6.0, "cleaning_seconds": 120}]},
+            {"phase_type": "zone", "zone_ids": ["z1"], "resolved_rooms": [], "room_timing": []},
+        ]),
+    )
+    job = payload["job"]
+    assert [rt["room_id"] for rt in job["room_timings"]] == [5]
+    assert job["transit_capture_valid"] is True
 
 
 def test_build_payload_rooms_zone_reconstructs_rooms_from_phases(tmp_path):

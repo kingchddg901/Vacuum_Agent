@@ -7,12 +7,16 @@ Coverage targets
 [RP-3] _profile_name_label preset names.
 [RP-4] _settings_profile_display: preset vs custom profile + subtitle bits.
 [RP-5] _room_surface_labels floor label.
+[RP-6] RP-013a/INF-8 — run_plan's break-phase vocabulary is IMPORTED from
+       step_types, not a local hand-copied literal.
 """
 
 from __future__ import annotations
 
 import pytest
 
+from custom_components.eufy_vacuum import step_types as _step_types
+from custom_components.eufy_vacuum.planning import run_plan as _run_plan
 from custom_components.eufy_vacuum.planning.run_plan import (
     _display_label,
     _profile_name_label,
@@ -21,6 +25,15 @@ from custom_components.eufy_vacuum.planning.run_plan import (
     _safe_int,
     _settings_profile_display,
 )
+
+
+def test_run_plan_imports_dock_polled_phase_types_from_step_types():
+    """[RP-6] run_plan.DOCK_POLLED_PHASE_TYPES must be the SAME object step_types
+    exports — an identity check, not just an equal-looking tuple. The vocabulary
+    drifted before (a missing "zone" was found and fixed twice in one day on
+    opposite sides of the stack); a local copy here would silently drift again
+    the next time step_types' membership changes without this import."""
+    assert _run_plan.DOCK_POLLED_PHASE_TYPES is _step_types.DOCK_POLLED_PHASE_TYPES
 
 
 @pytest.mark.parametrize("value,expected", [(5, 5), ("3.9", 3), (None, 0), ("unknown", 0)])

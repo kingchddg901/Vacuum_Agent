@@ -16,6 +16,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..step_types import DOCK_POLLED_PHASE_TYPES
 from ..entity_helpers import get_floor_type_label
 from ..queue.queue_engine import build_queue_from_managed_rooms
 from ..queue.dispatch_engines import get_dispatch_engine
@@ -880,7 +881,10 @@ class RunPlanManager:
         # charge_wait + wait are "break" phases (dock + hold). A break with no clean to
         # bracket is pointless -> drop leading/trailing breaks; collapse consecutive SAME-type
         # breaks (two charges -> last target; two waits -> last duration); mixed breaks kept.
-        _BREAKS = ("charge_wait", "wait")
+        # RP-013a/INF-8: imported from step_types, not a local hand-copied tuple —
+        # this vocabulary drifted (a missing "zone" was found and fixed twice in one
+        # day on opposite sides of the stack; see that module's docstring).
+        _BREAKS = DOCK_POLLED_PHASE_TYPES
         while phases and phases[0].get("phase_type") in _BREAKS:
             phases.pop(0)
         while phases and phases[-1].get("phase_type") in _BREAKS:
