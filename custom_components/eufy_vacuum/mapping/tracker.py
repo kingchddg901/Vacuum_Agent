@@ -16,6 +16,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from ..timestamp_utils import datetime_to_utc_iso, utc_now
 from ..adapters.registry import get_adapter_config
 from ..entity_helpers import BLANK_STATE_VALUES, is_blank_state
+from ..rooms.utils import slugify_room_name
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,12 +42,6 @@ EVENT_BOUNDARY_SAVED = "eufy_vacuum_boundary_saved"
 
 # Current-room name sentinels that mean "no usable signal" (hold, never a room exit).
 _BLANK_ROOM_SENTINELS = BLANK_STATE_VALUES  # derived; see entity_helpers
-_ROOM_NAME_SEP = re.compile(r"[\s_-]+")
-
-
-def _norm_room_name(value: Any) -> str:
-    """Normalize a room name/slug for comparison (lowercase, collapse separators)."""
-    return _ROOM_NAME_SEP.sub(" ", str(value or "").strip().lower()).strip()
 
 
 # ---------------------------------------------------------------------------
@@ -435,16 +430,27 @@ class MappingTracker:
         (blank / sentinel / a room not in this job). None means HOLD — never a
         room exit. Replaces the old learned-bounds position test; the room now
         comes straight from the device (the same signal the card's mascot dwell
-        reads)."""
-        norm = _norm_room_name(self._read_active_cleaning_target(vacuum_entity_id))
-        if is_blank_state(norm):
+        reads).
+
+        RP-015/A6-TRK-5: compares via ``slugify_room_name`` — the SAME
+        transform room admission uses to derive a room's identity key — not a
+        locally hand-rolled fold. The old ``_norm_room_name`` folded
+        space/``-``/``_`` all to a single space, coarser than
+        ``slugify_room_name`` (which only maps space -> underscore, leaving
+        ``-``/``_`` alone); two rooms admission keeps as DISTINCT identities
+        could both "match" the same live signal under the old fold, with
+        dict-iteration order silently picking one.
+        """
+        target = self._read_active_cleaning_target(vacuum_entity_id)
+        if is_blank_state(target):
             return None
+        norm = slugify_room_name(str(target or ""))
         for room_id, room_data in rooms.items():
             if room_data.get("is_transition", False):
                 continue
             if (
-                _norm_room_name(room_data.get("slug")) == norm
-                or _norm_room_name(room_data.get("name")) == norm
+                slugify_room_name(str(room_data.get("slug") or "")) == norm
+                or slugify_room_name(str(room_data.get("name") or "")) == norm
             ):
                 return room_id
         return None

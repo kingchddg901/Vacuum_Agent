@@ -7,6 +7,9 @@ Coverage targets
 [RD-1] get_active_map_id reads the adapter active_map entity; sentinels → None.
 [RD-2] get_active_map_id: no declared entity → None.
 [RD-3] discover_rooms_for_vacuum normalizes + dedups + skips bad rows.
+[RD-3b] RP-015/Q4: colliding slugs disambiguated — lowest room_id keeps the bare slug.
+[RD-3c] RP-015/Q4: a three-way collision suffixes every non-lowest room_id.
+[RD-3d] RP-015/A1-ID-3: a name that slugifies to empty is refused (not just an empty raw name).
 [RD-4] discover_rooms_for_vacuum: incomplete discovery config → [].
 [RD-5] discover_rooms_payload wraps the room list with counts.
 [RD-6] room_list_entity = concrete entity id sources from that entity, not the vacuum.
@@ -80,6 +83,45 @@ def test_discover_rooms(hass, manager):
     assert [r["room_id"] for r in rooms] == [1, 2]
     assert rooms[0]["slug"] == "kitchen"
     assert rooms[0]["map_id"] == "6"
+
+
+def test_discover_rooms_disambiguates_colliding_slugs(hass, manager):
+    """[RD-3b] RP-015/Q4 clause 1: two same-named rooms get distinct slugs —
+    the lowest room_id keeps the bare slug, the sibling gets `{slug}_r{id}`."""
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 7, "name": "Bathroom"},
+        {"id": 3, "name": "Bathroom"},   # deliberately discovered out of id order
+    ]})
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+    by_id = {r["room_id"]: r["slug"] for r in rooms}
+    assert by_id == {3: "bathroom", 7: "bathroom_r7"}
+
+
+def test_discover_rooms_three_way_collision(hass, manager):
+    """[RD-3c] a three-way name collision suffixes every non-lowest room_id."""
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 5, "name": "Office"},
+        {"id": 2, "name": "Office"},
+        {"id": 9, "name": "Office"},
+    ]})
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+    by_id = {r["room_id"]: r["slug"] for r in rooms}
+    assert by_id == {2: "office", 5: "office_r5", 9: "office_r9"}
+
+
+def test_discover_rooms_refuses_empty_slug(hass, manager):
+    """[RD-3d] RP-015/A1-ID-3: a name that strips to an empty SLUG (not just an
+    empty raw name) is refused — an all-punctuation name like a bare pair of
+    quote characters slugifies away to nothing."""
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 1, "name": "Kitchen"},
+        {"id": 9, "name": '""'},
+    ]})
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+    assert [r["room_id"] for r in rooms] == [1]
 
 
 def test_discover_incomplete_config(hass, manager):

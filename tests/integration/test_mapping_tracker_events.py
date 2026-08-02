@@ -291,6 +291,19 @@ def test_detect_current_room_resolution(tracker, monkeypatch):
         assert _detect(blank) is None          # blank / sentinel -> HOLD
 
 
+def test_detect_current_room_uses_slugify_not_coarser_fold(tracker, monkeypatch):
+    """[MTE-8c] RP-015/A6-TRK-5: comparison uses slugify_room_name, which only
+    maps space -> underscore — NOT the old _norm_room_name fold that also
+    collapsed '-' to a space and merged two rooms admission keeps distinct
+    (slugs 'foo-bar' and 'foo_bar') into the same comparison key."""
+    rooms = {
+        "22": {"is_transition": False, "slug": "foo-bar", "name": "Foo-Bar"},
+        "11": {"is_transition": False, "slug": "foo_bar", "name": "Foo Bar"},
+    }
+    monkeypatch.setattr(tracker, "_read_active_cleaning_target", lambda vac: "Foo Bar")
+    assert tracker._detect_current_room(_VAC, rooms) == "11"
+
+
 # ---------------------------------------------------------------------------
 # [MTE-9] _get_raw_position — capability/state read with all None branches
 # ---------------------------------------------------------------------------

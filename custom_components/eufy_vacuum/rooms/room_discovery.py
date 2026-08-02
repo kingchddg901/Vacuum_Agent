@@ -249,14 +249,46 @@ def discover_rooms_for_vacuum(
         if not name:
             continue
 
+        slug = slugify_room_name(name)
+        if not slug:
+            # RP-015/A1-ID-3: only the RAW name was checked for emptiness — an
+            # all-punctuation name (e.g. a bare pair of quote characters)
+            # strips to an empty slug, which can never be a stable identity
+            # key (reconciliation/dispatch/learning all key off it).
+            _LOGGER.warning(
+                "Room %s for %s slugifies to an empty identity from raw name "
+                "%r — skipped rather than admitted with no usable slug",
+                room_id, vacuum_entity_id, name,
+            )
+            continue
+
         rooms.append(
             {
                 "room_id": room_id,
                 "map_id": str(resolved_map_id),
                 "name": name,
-                "slug": slugify_room_name(name),
+                "slug": slug,
             }
         )
+
+    # RP-015/Q4 clause 1 (admission boundary): slugify_room_name is a pure
+    # per-name transform with no cross-room uniqueness guarantee — two
+    # same-named rooms would otherwise silently share one slug (dispatch's
+    # first-wins slug_to_live_id resolves the SAME live segment for both;
+    # reconciliation reports a phantom id_changed for the room that never
+    # actually renumbered). Disambiguate deterministically: the LOWEST stable
+    # room_id keeps the bare slug; every colliding sibling gets
+    # ``{slug}_r{room_id}``, so re-discovery of the same physical rooms always
+    # converges on the same suffixed identities.
+    by_slug: dict[str, list[dict[str, Any]]] = {}
+    for room in rooms:
+        by_slug.setdefault(room["slug"], []).append(room)
+    for slug, group in by_slug.items():
+        if len(group) < 2:
+            continue
+        group.sort(key=lambda r: r["room_id"])
+        for room in group[1:]:
+            room["slug"] = f"{slug}_r{room['room_id']}"
 
     return rooms
 
