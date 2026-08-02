@@ -294,19 +294,28 @@ class ThemeManager:
         vacuum_entity_id: str,
         theme_id: str,
     ) -> dict[str, Any]:
-        """Overwrite an existing library entry with the vacuum's working draft."""
+        """Overwrite an existing library entry with the vacuum's working draft.
+
+        Q7 (RP-034): resolves against the TARGET's own stored palette, never the
+        vacuum's currently ACTIVE theme — overwrite edits ONE library entry's
+        content in place; which theme happens to be active on screen is unrelated
+        and must never bleed into (or replace) a different theme's saved values.
+        Refuses rather than writing when the draft carries no actual edits, so
+        a stray call can never silently wipe the target to an empty palette.
+        """
         theme = self._get_theme_data()
         library = self._get_theme_library_entries()
         if theme_id not in library:
             return {"ok": False, "reason": "theme_not_found", "theme_id": theme_id}
         vac = self._get_vacuum_theme(vacuum_entity_id)
-        active_id = str(vac.get("active_theme_id") or "").strip()
-        active_entry = library.get(active_id) if active_id else None
-        resolved = self._resolved_theme_payload(
-            active_entry=active_entry,
-            draft=vac.get("working_draft"),
-        )
         existing = library[theme_id]
+        draft = self._normalize_theme_draft(vac.get("working_draft"))
+        if not (draft["tokens"] or draft["colors"] or draft["alpha"]):
+            return {"ok": False, "reason": "empty_draft", "theme_id": theme_id}
+        resolved = self._resolved_theme_payload(
+            active_entry=existing,
+            draft=draft,
+        )
 
         entry = {
             "id": theme_id,
@@ -377,13 +386,28 @@ class ThemeManager:
         return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
 
     def delete_theme(self, *, theme_id: str) -> dict[str, Any]:
-        """Remove a theme from the library. Clears it from any vacuum that uses it."""
+        """Remove a theme from the library. Clears it from any vacuum that uses it.
+
+        CRUD-3/INIT-3 (RP-034): deleting a bundled (source=='core') theme records
+        a tombstone the preloaded-library seeder consults on the next
+        construction — otherwise the delete survives exactly until the next
+        restart, when ensure_preloaded_theme_library re-adds every spec id not
+        currently in the library, silently undoing it.
+        """
         theme = self._get_theme_data()
         library = self._get_theme_library_entries()
         if theme_id not in library:
             return {"ok": False, "reason": "theme_not_found", "theme_id": theme_id}
 
+        was_core = library[theme_id].get("source") == "core"
         del theme["library"][theme_id]
+        if was_core:
+            tombstones = theme.setdefault("deleted_core_ids", [])
+            if not isinstance(tombstones, list):
+                tombstones = []
+                theme["deleted_core_ids"] = tombstones
+            if theme_id not in tombstones:
+                tombstones.append(theme_id)
 
         if theme["default_theme_id"] == theme_id:
             theme["default_theme_id"] = None
@@ -571,6 +595,20 @@ class ThemeManager:
             if isinstance(value, str) and value.strip():
                 metadata[key] = value.strip()[:200]
 
+        # PORT-1 (RP-034): a --evcc-* namespace check on every key, so one file
+        # carrying arbitrary CSS custom properties can't reach the card verbatim
+        # (a bogus var() name at best does nothing, at worst is a value/selector
+        # injection surface if it ever gets echoed into a style attribute). This
+        # is namespace-only, not a per-token registry match — the registry lives
+        # in src/theme-tokens/ (JS) with no single Python-reachable form to
+        # cross-check against without forking it (the packet's own
+        # stop_conditions guard on exactly this: reuse, don't fork).
+        clean_tokens, rejected = self._filter_evcc_keys(tokens)
+        clean_colors, rejected_colors = self._filter_evcc_keys(colors)
+        clean_alpha, rejected_alpha = self._filter_evcc_keys(alpha)
+        rejected.extend(rejected_colors)
+        rejected.extend(rejected_alpha)
+
         theme_id = self._generate_theme_id()
         theme = self._get_theme_data()
         theme["library"][theme_id] = {
@@ -578,13 +616,32 @@ class ThemeManager:
             "name": final_name,
             "source": entry_source,
             **metadata,
-            "tokens": dict(tokens) if isinstance(tokens, dict) else {},
-            "colors": dict(colors) if isinstance(colors, dict) else {},
-            "alpha": dict(alpha) if isinstance(alpha, dict) else {},
+            "tokens": clean_tokens,
+            "colors": clean_colors,
+            "alpha": clean_alpha,
         }
 
         self._notify_updated(vacuum_entity_id=None)
-        return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
+        response = self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
+        if rejected:
+            response["rejected"] = sorted(set(rejected))
+        return response
+
+    @staticmethod
+    def _filter_evcc_keys(mapping: Any) -> tuple[dict[str, Any], list[str]]:
+        """Split a tokens/colors/alpha dict into (kept, rejected_keys) — kept
+        entries carry only --evcc-* namespaced keys."""
+        if not isinstance(mapping, dict):
+            return {}, []
+        kept: dict[str, Any] = {}
+        rejected: list[str] = []
+        for key, value in mapping.items():
+            key_str = str(key)
+            if key_str.startswith("--evcc-"):
+                kept[key_str] = value
+            else:
+                rejected.append(key_str)
+        return kept, rejected
 
     def _import_scoped(
         self,

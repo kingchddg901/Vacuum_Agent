@@ -105,6 +105,14 @@ async def test_overwrite_theme_service_saves_and_returns_result(hass, manager_wi
     """
     manager = manager_with_theme_services
     theme_id = await _save_theme(hass, "Overwrite Me")
+    # RP-034/Q7: overwrite now refuses an empty draft (nothing to bracket a write
+    # with) rather than silently no-op-succeeding, so this test — whose actual
+    # goal is the save+return tail, not the refusal path — needs a real edit.
+    await hass.services.async_call(
+        DOMAIN, "update_working_draft",
+        {"vacuum_entity_id": _VAC, "tokens": {"--evcc-accent": "#ff8800"}},
+        blocking=True,
+    )
 
     # Spy on the real async_save (wraps -> persistence still runs) to confirm the
     # handler's save tail executed, while asserting the returned result too.

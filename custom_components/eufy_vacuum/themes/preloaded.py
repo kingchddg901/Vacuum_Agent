@@ -522,6 +522,13 @@ def ensure_preloaded_theme_library(theme_data: dict[str, Any]) -> None:
         library = {}
         theme_data["library"] = library
 
+    # CRUD-3/INIT-3 (RP-034): a bundled theme the user explicitly deleted must
+    # NOT come back on the next restart -- ThemeManager.delete_theme records the
+    # id here. Without this, deleting a core theme silently reverted itself the
+    # moment the integration reloaded.
+    deleted_core_ids = theme_data.get("deleted_core_ids")
+    deleted_core_ids = set(deleted_core_ids) if isinstance(deleted_core_ids, list) else set()
+
     for spec in PRELOADED_THEME_SPECS:
         theme_id = spec["id"]
         if theme_id in library:
@@ -532,6 +539,8 @@ def ensure_preloaded_theme_library(theme_data: dict[str, Any]) -> None:
             existing = library[theme_id]
             if isinstance(existing, dict):
                 existing.setdefault("source", "core")
+            continue
+        if theme_id in deleted_core_ids:
             continue
         library[theme_id] = _build_preloaded_theme_entry(
             theme_id,

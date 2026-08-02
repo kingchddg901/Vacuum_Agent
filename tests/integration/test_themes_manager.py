@@ -7,10 +7,14 @@ Coverage targets
 [TM-3]  save_theme_as_new(set_as_default=True) sets default_theme_id.
 [TM-4]  overwrite_theme() succeeds for known theme.
 [TM-5]  overwrite_theme() returns ok=False for unknown theme.
+[TM-5b] RP-034/Q7: overwrite_theme() refuses an empty working draft.
+[TM-5c] RP-034/Q7: overwrite_theme() resolves against the target, never the active theme.
 [TM-6]  rename_theme() updates theme name.
 [TM-7]  rename_theme() returns ok=False for unknown theme.
 [TM-8]  delete_theme() removes theme from library.
 [TM-9]  delete_theme() returns ok=False for unknown theme.
+[TM-9b] RP-034/CRUD-3/INIT-3: a deleted core theme does not survive a restart (tombstone).
+[TM-9c] RP-034: the tombstone is core-only — deleting a manual theme writes no tombstone.
 [TM-10] set_active_theme(vacuum_entity_id=...) points vacuum at theme.
 [TM-11] set_active_theme(vacuum_entity_id=None) sets global default.
 [TM-12] set_active_theme() returns ok=False for unknown theme.
@@ -20,6 +24,9 @@ Coverage targets
 [TM-16] export_theme() returns ok=False for unknown theme.
 [TM-17] import_theme() adds theme to library.
 [TM-18] import_theme() returns ok=False for invalid payload.
+[TM-18b] RP-034/PORT-1: a key outside --evcc-* is dropped and named in `rejected`.
+[TM-18c] a clean import carries no `rejected` key.
+[TM-18d] rejects combine across tokens/colors/alpha, deduplicated.
 [TM-19] source provenance: saved=manual, export/summary carry source, imported keeps
         its provenance, `core` reserved for seeded themes (an imported copy → manual).
 [TM-20] vibe tags + author survive import/export/overwrite; set_theme_tags
@@ -103,6 +110,41 @@ def test_overwrite_theme_unknown_returns_not_ok(manager):
     assert result["reason"] == "theme_not_found"
 
 
+def test_overwrite_theme_refuses_empty_draft(manager):
+    """[TM-5b] RP-034/Q7: an empty working draft refuses rather than silently
+    wiping the target to {} — save_theme_as_new already left the draft empty."""
+    theme_id = _save_new_theme(manager)
+    library_before = manager.get_theme_library()["library"][theme_id]
+    result = manager.overwrite_theme(vacuum_entity_id=_VAC, theme_id=theme_id)
+    assert result["ok"] is False
+    assert result["reason"] == "empty_draft"
+    assert manager.get_theme_library()["library"][theme_id] == library_before
+
+
+def test_overwrite_theme_uses_target_not_active(manager):
+    """[TM-5c] RP-034/Q7: overwrite resolves against the TARGET theme's own
+    stored palette, not whatever theme happens to be active — a distinct active
+    theme's values must never leak into a different theme being overwritten."""
+    target_id = manager.import_theme(
+        payload={"theme": {"name": "Target", "tokens": {"--evcc-bg": "#111111"}}}
+    )["theme_id"]
+    active_id = manager.import_theme(
+        payload={"theme": {"name": "Active", "tokens": {
+            "--evcc-bg": "#000000", "--evcc-warn": "#ff0000",
+        }}}
+    )["theme_id"]
+    manager.set_active_theme(vacuum_entity_id=_VAC, theme_id=active_id)
+    manager.update_working_draft(vacuum_entity_id=_VAC, tokens={"--evcc-fg": "#dddddd"})
+
+    result = manager.overwrite_theme(vacuum_entity_id=_VAC, theme_id=target_id)
+
+    assert result["ok"] is True
+    tokens = manager.get_theme_library()["library"][target_id]["tokens"]
+    assert tokens["--evcc-bg"] == "#111111"   # the target's own value, untouched
+    assert "--evcc-warn" not in tokens         # never leaked in from the active theme
+    assert tokens["--evcc-fg"] == "#dddddd"    # the actual draft edit still lands
+
+
 # ---------------------------------------------------------------------------
 # [TM-6] — [TM-7] rename_theme
 # ---------------------------------------------------------------------------
@@ -149,6 +191,33 @@ def test_delete_theme_unknown_returns_not_ok(manager):
     result = manager.delete_theme(theme_id="does_not_exist")
     assert result["ok"] is False
     assert result["reason"] == "theme_not_found"
+
+
+def test_delete_core_theme_does_not_survive_restart(manager):
+    """[TM-9b] RP-034/CRUD-3/INIT-3: deleting a bundled (source=='core') theme
+    stays deleted across a restart — a second ThemeManager constructed over the
+    same stored dict is that restart; the seeder must not re-add it."""
+    from custom_components.eufy_vacuum.themes.manager import ThemeManager
+
+    library = manager.get_theme_library()["library"]
+    core_id = next(tid for tid, t in library.items() if t.get("source") == "core")
+
+    result = manager.delete_theme(theme_id=core_id)
+    assert result["ok"] is True
+    assert core_id not in manager.get_theme_library()["library"]
+
+    restarted = ThemeManager(manager.data)
+    assert core_id not in restarted.get_theme_library()["library"]
+    assert core_id in manager.data["theme"].get("deleted_core_ids", [])
+
+
+def test_delete_manual_theme_does_not_tombstone(manager):
+    """[TM-9c] the tombstone is core-only — deleting a user theme must not write
+    a deleted_core_ids entry (nothing would ever consult it for a manual id, but
+    a stray write would be dead state accumulating for no reason)."""
+    theme_id = _save_new_theme(manager)
+    manager.delete_theme(theme_id=theme_id)
+    assert theme_id not in manager.data["theme"].get("deleted_core_ids", [])
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +325,44 @@ def test_import_theme_invalid_tokens_type_returns_not_ok(manager):
     )
     assert result["ok"] is False
     assert result["reason"] == "invalid_tokens"
+
+
+def test_import_theme_rejects_keys_outside_evcc_namespace(manager):
+    """[TM-18b] RP-034/PORT-1: a key outside the --evcc-* namespace is dropped
+    from the stored theme AND named in the response — the import still
+    succeeds (ok=True) with whatever valid tokens it carried."""
+    result = manager.import_theme(payload={"theme": {"name": "Mixed Import", "tokens": {
+        "--evcc-card-background": "#101014",
+        "--totally-not-a-real-token": "url(javascript:0)",
+    }}})
+    assert result["ok"] is True
+    assert result["rejected"] == ["--totally-not-a-real-token"]
+    stored = manager.get_theme_library()["library"][result["theme_id"]]["tokens"]
+    assert stored == {"--evcc-card-background": "#101014"}
+
+
+def test_import_theme_no_rejects_key_omitted(manager):
+    """[TM-18c] a fully-clean import carries no `rejected` key at all — the
+    card can gate its warning banner on presence, not an always-empty list."""
+    result = manager.import_theme(payload={"theme": {"name": "Clean Import", "tokens": {
+        "--evcc-card-background": "#101014",
+    }}})
+    assert result["ok"] is True
+    assert "rejected" not in result
+
+
+def test_import_theme_rejects_bad_keys_across_tokens_colors_alpha(manager):
+    """[TM-18d] the namespace check applies to all three buckets, and rejects
+    from every bucket are combined into one deduplicated response list."""
+    result = manager.import_theme(payload={"theme": {"name": "Multi-bucket", "tokens": {
+        "bad-token": "x",
+    }, "colors": {
+        "bad-color": "y",
+    }, "alpha": {
+        "bad-alpha": "0.5",
+    }}})
+    assert result["ok"] is True
+    assert sorted(result["rejected"]) == ["bad-alpha", "bad-color", "bad-token"]
 
 
 # ---------------------------------------------------------------------------
