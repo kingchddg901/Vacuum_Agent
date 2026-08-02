@@ -11,6 +11,7 @@ from custom_components.eufy_vacuum.adapters.registry import register_adapter_con
 from custom_components.eufy_vacuum.learning.job_finalizer import (
     LearningJobFinalizer,
     _apply_water_actuals,
+    _commanded_break_phase_seconds,
     _compute_total_error_seconds,
     _duration_state_to_seconds,
     _parse_iso_to_utc,
@@ -641,6 +642,31 @@ def _room_timing(room_id: int, seconds: int) -> dict:
     return {"room_id": room_id, "cleaning_seconds": seconds, "area_m2": 1.0}
 
 
+def test_commanded_break_phase_seconds_sums_only_break_phases():
+    """_commanded_break_phase_seconds: a room phase contributes nothing even
+    though it also carries _timing_end_t; only charge_wait/wait phases count,
+    each phase's span bounded by the PREVIOUS phase's own end."""
+    phases = [
+        {"phase_type": "room_group", "_timing_end_t": "2026-01-01T00:05:00+00:00"},
+        {"phase_type": "charge_wait", "_timing_end_t": "2026-01-01T00:15:00+00:00"},
+        {"phase_type": "room_group", "_timing_end_t": "2026-01-01T00:20:00+00:00"},
+    ]
+    # break phase spans 00:05:00 -> 00:15:00 = 600s; the room phases contribute 0.
+    assert _commanded_break_phase_seconds(phases, "2026-01-01T00:00:00+00:00") == 600
+
+
+def test_commanded_break_phase_seconds_leading_break_uses_run_start():
+    """A break phase with nothing before it spans from the run's own started_at,
+    not from an absent previous phase."""
+    phases = [{"phase_type": "wait", "_timing_end_t": "2026-01-01T00:10:00+00:00"}]
+    assert _commanded_break_phase_seconds(phases, "2026-01-01T00:00:00+00:00") == 600
+
+
+def test_commanded_break_phase_seconds_no_phases_is_zero():
+    assert _commanded_break_phase_seconds(None, "2026-01-01T00:00:00+00:00") == 0
+    assert _commanded_break_phase_seconds([], "2026-01-01T00:00:00+00:00") == 0
+
+
 def test_collect_inputs_stepped_job_sums_room_and_zone_phases_not_break(finalizer):
     """REC-A: a stepped run's cleaning_time_seconds is the SUM of its phases'
     own captured contributions (room_timing cleaning_seconds + zone_timing
@@ -710,3 +736,71 @@ def test_collect_inputs_atomic_job_keeps_device_counter_unchanged(finalizer):
         forced_lifecycle_message=None,
     )
     assert inputs["cleaning_time_seconds"] == 480
+
+
+def test_wall_clock_fallback_subtracts_commanded_break_phases(finalizer):
+    """REC-B: with the device sensor unavailable AND the phases carrying no
+    captured room_timing/zone_timing at all (a stepped run that captured
+    NOTHING — REC-A's phase-sum correctly declines to trust a fabricated 0
+    here and falls through), the wall-clock fallback must exclude the
+    commanded break phase's span the same way it already excludes
+    paused_duration_seconds and recharge_seconds_accumulated — otherwise the
+    hold counts as cleaning time and inflates the derived total."""
+    finalizer.hass.states.get.return_value = None  # sensor unavailable -> forces the fallback
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        # no last_cleaning_time_seconds -> None -> sensor path -> still None
+        # (mocked unavailable) -> wall-clock fallback.
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "paused_duration_seconds": 0,
+        "recharge_seconds_accumulated": 0,
+        # phases present but none captured anything -> REC-A's phase-sum
+        # yields None (not a fabricated 0), so this correctly falls through
+        # to the cascade below rather than short-circuiting it.
+        "phases": [
+            {"phase_type": "room_group", "_timing_end_t": "2026-01-01T00:05:00+00:00"},
+            {"phase_type": "charge_wait", "_timing_end_t": "2026-01-01T00:15:00+00:00"},
+            {"phase_type": "room_group", "_timing_end_t": "2026-01-01T00:20:00+00:00"},
+        ],
+    }
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    # wall = 1200s (20 min); commanded break = 600s (00:05 -> 00:15) subtracted
+    # the same way paused/recharge already are -> 600s left, not 1200.
+    assert inputs["cleaning_time_seconds"] == 600
+
+
+def test_wall_clock_fallback_atomic_job_subtracts_commanded_breaks(finalizer):
+    """REC-B's real reachable case: an ATOMIC job (no phases) whose sensor is
+    unavailable still falls back to wall-clock, and the fallback itself must
+    never fabricate a break-phase subtraction it has no phases to compute —
+    confirms the zero-phases path is a true no-op, matching the paused/
+    recharge-only arithmetic it always had."""
+    finalizer.hass.states.get.return_value = None
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        "started_at": "2026-01-01T00:00:00+00:00",
+        "paused_duration_seconds": 60,
+        "recharge_seconds_accumulated": 30,
+        # no "phases" key -> atomic job
+    }
+    inputs = finalizer._collect_finalization_inputs(
+        manager=m,
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=90,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    # wall = 1200s; paused 60 + recharge 30 = 90; no phases -> no break subtraction.
+    assert inputs["cleaning_time_seconds"] == 1200 - 90

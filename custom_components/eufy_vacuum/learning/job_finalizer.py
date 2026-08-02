@@ -55,6 +55,35 @@ def _parse_iso_to_utc(value: Any) -> datetime | None:
         return None
 
 
+def _commanded_break_phase_seconds(phases: Any, started_at: str) -> int:
+    """Total wall-clock seconds spent in COMMANDED break phases (charge_wait / wait).
+
+    RP-013f/REC-B: the wall-clock fallback already subtracts paused and mid-job
+    recharge seconds; a commanded break phase (a step-plan charge_wait or wait,
+    not a mid-job recharge) is the same shape — time the run wasn't cleaning —
+    and was never subtracted, so it inflated the fallback's derived cleaning
+    time whenever the device sensor was unavailable. Each phase's own span is
+    the previous phase's _timing_end_t (or the run start, for a leading break)
+    to its own _timing_end_t — the same boundary phase_runner's own capture
+    uses, so no new plumbing is needed."""
+    if not isinstance(phases, list) or not phases:
+        return 0
+    total = 0
+    prev_end = started_at
+    for p in phases:
+        if not isinstance(p, dict):
+            continue
+        end = p.get("_timing_end_t")
+        if is_dock_polled_phase(p) and end:
+            start_dt = _parse_iso_to_utc(prev_end)
+            end_dt = _parse_iso_to_utc(end)
+            if start_dt is not None and end_dt is not None:
+                total += max(0, int((end_dt - start_dt).total_seconds()))
+        if end:
+            prev_end = end
+    return total
+
+
 def _duration_state_to_seconds(raw: Any, unit: Any, default: int | None = None) -> int | None:
     """Convert a Home Assistant duration state to seconds."""
     try:
@@ -671,21 +700,30 @@ class LearningJobFinalizer:
                 _started_str = str(_job_state.get("started_at", "")).strip()
                 _paused_secs = _safe_int(_job_state.get("paused_duration_seconds"), 0) or 0
                 _recharge_secs = _safe_int(_job_state.get("recharge_seconds_accumulated"), 0) or 0
+                # RP-013f/REC-B: a COMMANDED break (step-plan charge_wait/wait) is
+                # wall-clock time the run wasn't cleaning, same as paused/recharge —
+                # subtracting only those two let a stepped run's commanded holds
+                # count as cleaning time whenever the sensor path was unavailable.
+                _break_secs = _commanded_break_phase_seconds(
+                    _job_state.get("phases"), _started_str
+                )
                 if _started_str and ended_at:
                     _s_dt = datetime.fromisoformat(_started_str.replace("Z", "+00:00"))
                     _e_dt = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
                     _wall = int((_e_dt - _s_dt).total_seconds())
-                    _derived = max(0, _wall - _paused_secs - _recharge_secs)
+                    _derived = max(0, _wall - _paused_secs - _recharge_secs - _break_secs)
                     if _derived > 0:
                         cleaning_time_seconds = _derived
                         _LOGGER.debug(
                             "job_finalizer: cleaning_time sensor unavailable for %s — "
-                            "derived %ds from wall-clock (wall=%ds paused=%ds recharge=%ds)",
+                            "derived %ds from wall-clock (wall=%ds paused=%ds "
+                            "recharge=%ds commanded_breaks=%ds)",
                             vacuum_entity_id,
                             _derived,
                             _wall,
                             _paused_secs,
                             _recharge_secs,
+                            _break_secs,
                         )
             except Exception:
                 _LOGGER.debug(  # pragma: no cover
