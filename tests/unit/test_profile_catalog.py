@@ -45,11 +45,17 @@ def test_catalog_partial_block_overrides_per_key():
 
 
 def test_resolution_honours_catalog_floor_water_default():
-    """[PC-3] a brand catalog's tile water default flows through resolution; None stays
-    byte-identical to the in-code default (Medium for tile)."""
-    room = {"profile_name": "vacuum_mop_quick", "floor_type": "tile"}
-    assert resolve_room_profile_for_room(room_config=room)["water_level"] == "Medium"
-    cat = resolve_profile_catalog({"floor_type_water_defaults": {"tile": "High"}})
+    """[PC-3] a brand catalog's carpet water default flows through resolution; None
+    stays byte-identical to the in-code default (Off for carpet_low_pile).
+
+    Q2/RP-024: hard-floor water defaults only fire when NEITHER the room NOR the
+    resolved profile supplies water_level — every built-in/normalized profile
+    always has one, so a hard floor (e.g. tile) can no longer demonstrate this;
+    the carpet safety clamp is unconditional regardless of profile, so it's the
+    catalog-plumbing case that still exercises floor_type_water_defaults."""
+    room = {"profile_name": "vacuum_mop_quick", "floor_type": "carpet_low_pile"}
+    assert resolve_room_profile_for_room(room_config=room)["water_level"] == "Off"
+    cat = resolve_profile_catalog({"floor_type_water_defaults": {"carpet_low_pile": "High"}})
     assert resolve_room_profile_for_room(room_config=room, catalog=cat)["water_level"] == "High"
 
 

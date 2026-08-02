@@ -432,7 +432,15 @@ def resolve_room_profile_for_room(
     if floor_type.startswith("carpet"):
         resolved_fan_speed = fan_defaults.get(floor_type, "")
         resolved_water_level = water_defaults.get(floor_type, "")
-    elif "water_level" not in room_config:
+    elif "water_level" not in room_config and "water_level" not in resolved_profile:
+        # Q2/RP-024 clause 1: this used to check ONLY the room's own dict, never
+        # whether the SELECTED PROFILE supplied water_level -- so a room relying
+        # on its profile (the normal case, no per-room override) always failed
+        # the old check, and the floor's hard-floor water default silently
+        # overwrote whatever the room > profile ladder above had just resolved,
+        # even a real, explicit profile water_level. Every sibling field's
+        # ladder is untouched by floor_type at all off carpet; this is the one
+        # field where "floor default" outranked "explicit profile value".
         resolved_water_level = water_defaults.get(floor_type, "")
 
     # Mop mode with no water is invalid — fall back to the floor's water default.

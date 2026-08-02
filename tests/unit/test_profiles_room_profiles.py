@@ -9,7 +9,7 @@ Coverage targets
 [RP-5]  normalize_room_profile applies safe defaults for all fields on empty input.
 [RP-6]  normalize_room_profile preserves provided values.
 [RP-7]  resolve_room_profile_for_room sets water_level=Off on carpet floor.
-[RP-8]  resolve_room_profile_for_room uses floor-type water default on hard floors.
+[RP-8]  Q2/RP-024: the resolved profile's own water_level outranks the hard-floor default.
 [RP-9]  resolve_room_profile_for_room overrides fan_speed for carpet_high_pile.
 [RP-10] resolve_room_profile_for_room mop mode + Off water → applies floor default.
 [RP-11] resolve_room_profile_for_room edge_mopping forced False in vacuum mode.
@@ -169,13 +169,17 @@ def test_resolve_carpet_sets_water_off():
     assert result["water_level"] == "Off"
 
 
-def test_resolve_hard_floor_uses_floor_water_default():
-    """[RP-8] Hard floor without explicit water_level override gets the floor default."""
+def test_resolve_hard_floor_profile_water_level_wins_over_floor_default():
+    """[RP-8] Q2/RP-024: the SELECTED PROFILE's own water_level outranks the hard
+    floor's default — vacuum_quick's explicit 'Off' survives on tile rather than
+    being silently overwritten by tile's 'Medium' floor default. Every built-in
+    (and normalize_room_profile-normalized) profile always carries a water_level,
+    so the hard-floor default line now fires only when the room AND the resolved
+    profile both genuinely omit it — which no normal profile-driven room does."""
     result = resolve_room_profile_for_room(
         room_config={"profile_name": "vacuum_quick", "floor_type": "tile"}
     )
-    # tile default is Medium
-    assert result["water_level"] == "Medium"
+    assert result["water_level"] == "Off"
 
 
 def test_resolve_hard_floor_explicit_water_level_respected():
