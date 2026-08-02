@@ -141,6 +141,80 @@ def _build_transit_blocks(
     return room_timings, transitions, valid
 
 
+def clean_mode_of(rooms: Any) -> str | None:
+    """The one mode a set of rooms shares, or "mixed". ONE derivation, two callers --
+    the parent's PLANNED block (rooms from the plan) and its ACTUAL aggregate (rooms from
+    the children). Two hand-rolled versions of this question is how vocabularies drift.
+
+    Normalizes rather than trusts: room settings are stored as DISPLAY strings
+    ("Vacuum and mop"), which is exactly what CLEAN_MODE_ALIASES exists for.
+
+    "vacuum_mop" is a real single mode, not a mixture -- a run where every room mops while
+    vacuuming is one thing the user chose. "mixed" means the rooms DISAGREED, the only
+    case a single label cannot honestly describe.
+
+    None when nothing is known. Absent is not "vacuum", and a review row that guesses is
+    worse than one that says nothing.
+    """
+    modes: set[str] = set()
+    for room in rooms if isinstance(rooms, list) else []:
+        if not isinstance(room, dict):
+            continue
+        raw = str(room.get("clean_mode") or room.get("effective_clean_mode") or "").strip().lower()
+        if raw:
+            modes.add(raw.replace(" and ", "_").replace(" ", "_"))
+    modes.discard("")
+    if not modes:
+        return None
+    return next(iter(modes)) if len(modes) == 1 else "mixed"
+
+
+def _phased_clean_mode(children: list[dict[str, Any]]) -> str | None:
+    """What a run ACTUALLY cleaned with, across its children.
+
+    Prefers each child's ``battery_metrics.by_clean_mode`` -- already canonical -- and
+    falls back to its per-room settings via ``clean_mode_of`` when a run was too short to
+    compute shares.
+    """
+    modes: set[str] = set()
+    for child in children:
+        by_mode = ((child.get("job") or {}).get("battery_metrics") or {}).get("by_clean_mode")
+        if isinstance(by_mode, dict) and by_mode:
+            modes.update(str(k).strip().lower() for k in by_mode if str(k).strip())
+            continue
+        one = clean_mode_of(child.get("resolved_rooms"))
+        if one:
+            modes.add(one)
+    modes.discard("")
+    if not modes:
+        return None
+    return next(iter(modes)) if len(modes) == 1 else "mixed"
+
+
+def _planned_snapshot(
+    estimate: dict[str, Any] | None,
+    rooms: list[dict[str, Any]] | None,
+    phases: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    """Scope the plan down to what a review row needs. Detail stays on the children."""
+    est = estimate if isinstance(estimate, dict) else {}
+    water = est.get("water_estimate") if isinstance(est.get("water_estimate"), dict) else {}
+    room_ids: list[int] = []
+    for ph in phases or []:
+        for rid in (ph or {}).get("queue_room_ids") or []:
+            r = _safe_int(rid, -1)
+            if r > 0 and r not in room_ids:
+                room_ids.append(r)
+    return {
+        "total_minutes": _safe_float(est.get("total_minutes"), 0.0) or None,
+        "eta_minutes": _safe_float(est.get("job_eta_minutes"), 0.0) or None,
+        "room_count": len(room_ids),
+        "clean_mode": clean_mode_of(rooms),
+        "water_ml": _safe_float(water.get("estimated_total_dock_clean_water_used_ml"), 0.0)
+        or None,
+    }
+
+
 @dataclass(slots=True)
 class LearningPaths:
     """Resolved filesystem paths for one vacuum."""
@@ -504,6 +578,8 @@ class LearningHistoryStore:
         battery_start: int | None,
         planned_phases: list[dict[str, Any]],
         learning_key: str | None = None,
+        planned_estimate: dict[str, Any] | None = None,
+        planned_rooms: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Write the parent at RUN START, status "running". Idempotent.
 
@@ -535,6 +611,16 @@ class LearningHistoryStore:
             "ended_at": None,
             "status": "running",
             "battery": {"start": battery_start, "end": None, "used": None},
+            # WHAT WAS INTENDED, snapshotted from the SAME source the card's estimate
+            # panel renders (get_planned_job_estimate) -- not a second computation.
+            # Deliberately scoped: the full water block and per-room detail live on the
+            # children, and the parent restating them is the duplication we removed.
+            #
+            # Its whole value is the DELTA against `aggregate` at close. Chris: "if you
+            # automate it and you come back -- I planned to do this, I did do this."
+            # job_2026-08-02T11-15-51 estimated 3.61 min and ran 21, with nowhere to
+            # record the miss, because the estimate was per-child and the run was merged.
+            "planned": _planned_snapshot(planned_estimate, planned_rooms, planned_phases),
             # ONE array. An earlier draft carried planned_phases, outcome.phases,
             # children[], phase_records[] and phase_count -- five encodings of one
             # structure, four of which could disagree with the fifth. The parent's job is
@@ -682,6 +768,7 @@ class LearningHistoryStore:
                 for c in children
             ), 3),
             "rooms_cleaned": rooms,
+            "clean_mode": _phased_clean_mode(children),
         }
         parent["boundaries"] = self._phased_boundaries(
             vacuum_entity_id=vacuum_entity_id, parent=parent, children=children

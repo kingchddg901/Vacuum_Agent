@@ -227,3 +227,120 @@ def test_closing_an_unopened_parent_returns_none(store):
     assert store.close_phased_job(
         vacuum_entity_id=_VAC, phased_job_id="pj_nope",
         ended_at="2026-08-02T18:36:51Z", battery_end=95) is None
+
+
+# ---------------------------------------------------------------------------
+# What the run cleaned WITH
+# ---------------------------------------------------------------------------
+
+def _child_modes(store, job_id, by_mode=None, room_modes=None):
+    job = {"started_at": "2026-08-02T18:15:51Z", "ended_at": "2026-08-02T18:18:16Z",
+           "cleaning_time_seconds": 60, "cleaning_area_m2": 1.0, "room_timings": []}
+    if by_mode is not None:
+        job["battery_metrics"] = {"by_clean_mode": {m: {"share": 1.0} for m in by_mode}}
+    payload = {"job_id": job_id, "job": job, "queue": {"completed_room_ids": []}}
+    if room_modes is not None:
+        payload["resolved_rooms"] = [{"room_id": i, "clean_mode": m}
+                                     for i, m in enumerate(room_modes, start=1)]
+    store.save_completed_job(vacuum_entity_id=_VAC, job_id=job_id, payload=payload)
+
+
+def _close_with(store, children_spec):
+    _open(store, [{"phase_type": "room_group", "queue_room_ids": []}
+                  for _ in children_spec])
+    for i, spec in enumerate(children_spec):
+        _child_modes(store, f"job_{i}", **spec)
+        store.record_phase_outcome(vacuum_entity_id=_VAC, phased_job_id=_PJ, phase_index=i,
+                                   phase_type="room_group", outcome="completed",
+                                   record_id=f"job_{i}")
+    return store.close_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ,
+                                  ended_at="2026-08-02T18:36:51Z", battery_end=95)
+
+
+@pytest.mark.parametrize("specs,expected", [
+    ([{"by_mode": ["vacuum"]}, {"by_mode": ["vacuum"]}], "vacuum"),
+    ([{"by_mode": ["mop"]}], "mop"),
+    # vacuum_mop is ONE mode the user chose, not a mixture of two.
+    ([{"by_mode": ["vacuum_mop"]}, {"by_mode": ["vacuum_mop"]}], "vacuum_mop"),
+    # "mixed" means the CHILDREN DISAGREED — the only case one label cannot describe.
+    ([{"by_mode": ["vacuum"]}, {"by_mode": ["mop"]}], "mixed"),
+    ([{"by_mode": ["vacuum", "mop"]}], "mixed"),
+])
+def test_run_clean_mode_from_child_metrics(store, specs, expected):
+    assert _close_with(store, specs)["aggregate"]["clean_mode"] == expected
+
+
+def test_falls_back_to_room_settings_and_NORMALIZES_them(store):
+    """A run too short to compute shares still has rooms. The fallback reads DISPLAY
+    strings ("Vacuum and mop"), the un-normalized-vocabulary trap CLEAN_MODE_ALIASES
+    exists for — so it normalizes rather than trusting."""
+    parent = _close_with(store, [{"room_modes": ["Vacuum and mop", "vacuum_mop"]}])
+    assert parent["aggregate"]["clean_mode"] == "vacuum_mop"
+
+
+def test_unknown_is_None_not_a_guess(store):
+    """Absent is not "vacuum". A review row that guesses is worse than one that says
+    nothing — the same rule as an unreadable battery being null, not 0."""
+    parent = _close_with(store, [{}])
+    assert parent["aggregate"]["clean_mode"] is None
+
+
+# ---------------------------------------------------------------------------
+# planned vs actual — "I planned to do this. I did do this."
+# ---------------------------------------------------------------------------
+
+def test_the_parent_carries_the_PLAN_snapshotted_at_open(store):
+    """Stolen from get_planned_job_estimate -- the same source the card's estimate panel
+    renders -- rather than computed a second time."""
+    parent = store.open_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ, map_id="12",
+        started_at="2026-08-02T18:15:51Z", battery_start=100,
+        planned_phases=[
+            {"phase_type": "room_group", "queue_room_ids": [5]},
+            {"phase_type": "wait"},
+            {"phase_type": "room_group", "queue_room_ids": [8, 4]},
+        ],
+        planned_estimate={
+            "total_minutes": 21.0, "job_eta_minutes": 21.0,
+            "water_estimate": {"estimated_total_dock_clean_water_used_ml": 240.0},
+        },
+        planned_rooms=[{"clean_mode": "Vacuum"}, {"clean_mode": "Vacuum"},
+                       {"clean_mode": "Vacuum and mop"}],
+    )
+    assert parent["planned"] == {
+        "total_minutes": 21.0, "eta_minutes": 21.0,
+        "room_count": 3,          # unioned across phases, the wait contributes none
+        "clean_mode": "mixed",    # 2 vacuum + 1 vacuum_mop
+        "water_ml": 240.0,
+    }
+
+
+def test_planned_and_actual_are_kept_APART(store):
+    """They can legitimately disagree -- a room rule can change a mode mid-run, or a room
+    can be blocked. The DELTA is the point, so collapsing them would destroy it."""
+    store.open_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ, map_id="12",
+        started_at="2026-08-02T18:15:51Z", battery_start=100,
+        planned_phases=[{"phase_type": "room_group", "queue_room_ids": [5]}],
+        planned_estimate={"total_minutes": 3.61},
+        planned_rooms=[{"clean_mode": "vacuum_mop"}],
+    )
+    _child_modes(store, "job_0", by_mode=["vacuum"])
+    store.record_phase_outcome(vacuum_entity_id=_VAC, phased_job_id=_PJ, phase_index=0,
+                               phase_type="room_group", outcome="completed",
+                               record_id="job_0")
+    parent = store.close_phased_job(vacuum_entity_id=_VAC, phased_job_id=_PJ,
+                                    ended_at="2026-08-02T18:36:51Z", battery_end=95)
+    assert parent["planned"]["clean_mode"] == "vacuum_mop"   # intent
+    assert parent["aggregate"]["clean_mode"] == "vacuum"     # outcome
+    assert parent["planned"]["total_minutes"] == 3.61        # the 3.61-vs-21 miss
+    assert parent["aggregate"]["cleaning_time_seconds"] == 60
+
+
+def test_no_plan_supplied_leaves_nulls_not_zeros(store):
+    """A missing estimate is unknown, not "0 minutes" -- same rule as an unreadable
+    battery being null."""
+    parent = _open(store)
+    assert parent["planned"]["total_minutes"] is None
+    assert parent["planned"]["clean_mode"] is None
+    assert parent["planned"]["room_count"] == 3   # structure IS known, from the phases
