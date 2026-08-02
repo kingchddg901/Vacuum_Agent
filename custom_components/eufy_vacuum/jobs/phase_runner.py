@@ -1013,7 +1013,13 @@ class PhaseRunner:
         timeout_min = _safe_int(phase.get("charge_wait_timeout_minutes"), 180)
 
         # Already charged enough -> skip the charge entirely, keep going.
-        if get_battery_level(self._manager.hass, vacuum_entity_id) >= target:
+        # RP-042 pre-guard: once get_battery_level can return None for a genuinely
+        # unreadable battery, an unguarded `None >= int` raises TypeError and wedges the
+        # job mid-charge. `is not None and` (NOT `is None or`) is the safe direction —
+        # unreadable must mean "keep waiting", never "charged enough, skip the charge".
+        # Waiting cannot hang: the poll loop below carries its own timeout.
+        _level = get_battery_level(self._manager.hass, vacuum_entity_id)
+        if _level is not None and _level >= target:
             _LOGGER.info(
                 "Charge-wait phase %s on %s: battery already >= %s%% — advancing without charging.",
                 phase_index, vacuum_entity_id, target,
@@ -1055,7 +1061,11 @@ class PhaseRunner:
                     phase_index, vacuum_entity_id,
                 )
                 return
-            if get_battery_level(self._manager.hass, vacuum_entity_id) >= target:
+            # RP-042 pre-guard, same direction as the skip check above: an unreadable
+            # battery keeps polling until the deadline below, rather than breaking out
+            # of the charge as though the target had been reached.
+            _poll_level = get_battery_level(self._manager.hass, vacuum_entity_id)
+            if _poll_level is not None and _poll_level >= target:
                 break
             if self._manager.hass.loop.time() >= deadline:
                 _LOGGER.warning(
