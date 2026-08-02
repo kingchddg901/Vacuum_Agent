@@ -496,10 +496,15 @@ class BatteryHealthManager:
         self,
         *,
         vacuum_entity_id: str,
-        battery_level: int,
+        battery_level: int | None,
         charging: bool,
         ts: datetime,
     ) -> None:
+        # RP-042/RF-36: None is a GAP, not a delta -- skip entirely rather than
+        # difference against it or carry the previous reading forward as if it
+        # had been observed (either would be the same lie the fabricated 0 told,
+        # just quieter). No anchor advance, no drain/rate update, no session
+        # sample -- this sample simply didn't happen as far as the record goes.
         if battery_level is None or battery_level < 0 or battery_level > 100:
             return
 

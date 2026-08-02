@@ -39,13 +39,18 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
-def get_battery_level(hass: HomeAssistant, vacuum_entity_id: str) -> int:
+def get_battery_level(hass: HomeAssistant, vacuum_entity_id: str) -> int | None:
     """Return current battery level from the adapter's battery entity, else the
     vacuum entity's ``battery_level`` attribute.
 
     Reads the entity declared in ``adapter_config.entities.battery``. Falls back
     to the standard HA ``battery_level`` attribute on the vacuum entity when the
     dedicated sensor is absent.
+
+    Returns ``None`` when the level cannot be read from EITHER source (RP-042/
+    RF-36) -- a dropout is not a flat pack, and every caller must decide
+    explicitly what an unreadable battery means for it rather than receiving a
+    fabricated 0 that looks like a real reading.
     """
     battery_entity = (
         (get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("battery")
@@ -59,9 +64,10 @@ def get_battery_level(hass: HomeAssistant, vacuum_entity_id: str) -> int:
 
     vacuum_state = hass.states.get(vacuum_entity_id)
     if vacuum_state is None:
-        return 0
+        return None
 
-    return _safe_int(vacuum_state.attributes.get("battery_level"), 0)
+    battery_level = _safe_int(vacuum_state.attributes.get("battery_level"), -1)
+    return battery_level if battery_level >= 0 else None
 
 
 def is_charging(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
@@ -88,7 +94,7 @@ def is_charging(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
 
 def is_low_battery_return_state(
     *,
-    current_battery: int,
+    current_battery: int | None,
     vacuum_state: str | None,
     task_status: str | None,
     low_battery_return_status: str = "",
@@ -106,10 +112,17 @@ def is_low_battery_return_state(
       ``0 < battery <= threshold_percent`` — the generic returning state plus a
       battery gate so a user-initiated return_to_base with a full battery isn't
       mis-classified.
+
+    RP-042/RF-36: ``current_battery`` is None when the battery is genuinely
+    unreadable. The battery gate can't be evaluated without a reading, so this
+    returns False rather than guessing -- the ``task_status`` signal above is
+    unaffected and still fires on its own when the adapter declares one.
     """
     want = str(low_battery_return_status or "").strip().lower()
     if want and str(task_status or "").strip().lower() == want:
         return True
     if str(vacuum_state or "").strip().lower() != "returning":
+        return False
+    if current_battery is None:
         return False
     return 0 < current_battery <= int(threshold_percent)

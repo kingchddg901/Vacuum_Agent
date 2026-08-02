@@ -27,6 +27,10 @@ Coverage targets
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
+[PR-18] an unreadable battery (get_battery_level -> None) doesn't crash the
+        snapshot and doesn't disable skip-detection (RP-042/RF-36).
+[PR-19] get_planned_job_estimate refuses with reason=battery_unavailable when
+        the battery is unreadable, instead of crashing or fabricating 0% (RP-042).
 """
 
 from __future__ import annotations
@@ -42,6 +46,8 @@ from custom_components.eufy_vacuum.const import (
     EVENT_STALL_DETECTED,
 )
 from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+from .conftest import setup_map
 
 
 _VAC = "vacuum.alfred"
@@ -93,6 +99,46 @@ def test_progress_started(manager, hass):
     assert len(snap["timeline"]) >= 1
     # current room derived from the unresolved set
     assert snap["current_room_id"] in (1, 2)
+
+
+def test_planned_job_estimate_battery_unavailable(manager, hass):
+    """[PR-19] RP-042/RF-36: get_planned_job_estimate refuses (available=False,
+    reason=battery_unavailable) rather than crash on float(None) or silently
+    estimate from a fabricated 0% -- mirrors the existing learning_unavailable
+    refusal shape."""
+    _wire(manager, hass)
+    setup_map(manager, _VAC, _MAP)
+    hass.states.async_set(_VAC, "docked")  # no battery_level attribute, no sensor
+    result = manager.get_planned_job_estimate(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert result["available"] is False
+    assert result["reason"] == "battery_unavailable"
+
+
+def test_progress_unreadable_battery_does_not_crash(manager, hass):
+    """[PR-18] RP-042/RF-36: no battery sensor registered and no vacuum
+    battery_level attribute -> _get_battery_level returns None. The snapshot
+    must not crash on float(None) and skip-detection (which rides the same
+    timeline call) must keep working -- this file's own fixture never sets a
+    battery reading at all, so this is really a regression guard for every
+    other test here, made explicit."""
+    _wire(manager, hass)
+    _seed_job(
+        manager,
+        queue_room_ids=[1, 2, 3],
+        resolved_rooms=[
+            {"room_id": 1, "name": "A", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 2, "name": "B", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 3, "name": "C", "minutes": 5, "clean_mode": "vacuum"},
+        ],
+        completed_room_ids=[2],  # room 2 done, room 1 NOT -- non-sequential advance
+        current_room_id=3,
+    )
+    hass.states.async_set(_VAC, "cleaning")  # deliberately no battery_level attr
+    events: list = []
+    hass.bus.async_listen(EVENT_ROOM_SKIPPED, lambda e: events.append(e.data))
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["status"] == "started"
+    assert 1 in snap["skipped_room_ids"]  # skip-detection unaffected by the unreadable battery
 
 
 def test_progress_reanchor(manager, hass):

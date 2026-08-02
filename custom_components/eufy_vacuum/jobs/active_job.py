@@ -395,7 +395,7 @@ class ActiveJobTracker:
         self,
         *,
         vacuum_entity_id: str,
-        current_battery: int,
+        current_battery: int | None,
         vacuum_state: str | None,
         task_status: str | None,
     ) -> bool:

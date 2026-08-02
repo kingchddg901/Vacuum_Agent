@@ -936,8 +936,12 @@ class EufyVacuumManager:
         """Return learning manager if loaded."""
         return self.hass.data.get(DOMAIN, {}).get(DATA_LEARNING)
 
-    def _get_battery_level(self, vacuum_entity_id: str) -> int:
-        """Return current battery level from sensor first, then vacuum entity."""
+    def _get_battery_level(self, vacuum_entity_id: str) -> int | None:
+        """Return current battery level from sensor first, then vacuum entity.
+
+        None when unreadable (RP-042/RF-36) -- callers must decide explicitly,
+        never treat it as 0.
+        """
         return _get_battery_level_impl(self.hass, vacuum_entity_id)
 
     # ------------------------------------------------------------------
@@ -3386,11 +3390,22 @@ class EufyVacuumManager:
         timeline_payload: dict[str, Any] = {}
         active_job_resolved_rooms = active_job.get("resolved_rooms") or None
         if learning is not None and active_job_resolved_rooms:
+            # RP-042/RF-36: current_battery can now be None (genuinely unreadable,
+            # not a fabricated 0). This estimate call also produces raw_timeline,
+            # which the skip/stall detection below depends on regardless of
+            # battery readability -- gating the whole block on a battery reading
+            # would silently disable anomaly detection too. Narrow fallback here
+            # instead: 0.0 feeds only this internal timing estimate, and (unlike
+            # the old get_battery_level bug) never reaches the user as a claimed
+            # battery reading -- it's purely an ETA input. A real decoupling of
+            # room-timeline from the battery-constrained estimate is a
+            # learning/estimate_from_manager change, out of RP-042's scope.
+            _estimate_battery = float(current_battery) if current_battery is not None else 0.0
             timeline_payload = learning.estimate_from_manager(
                 self,
                 vacuum_entity_id,
                 str(map_id),
-                float(current_battery),
+                _estimate_battery,
                 1.0,
                 5.0,
                 active_job.get("started_at"),
@@ -3402,7 +3417,7 @@ class EufyVacuumManager:
                     original_estimate=timeline_payload,
                     completed_rooms=completed_rooms,
                     reanchor_at=active_job.get("current_room_started_at") or _iso_now(),
-                    current_battery=float(current_battery),
+                    current_battery=_estimate_battery,
                     charge_percent_per_minute=1.0,
                     reserve_battery_percent=5.0,
                 )
@@ -4037,6 +4052,20 @@ class EufyVacuumManager:
                 "available": False,
                 "reason": "learning_unavailable",
                 "message": "Learning system is unavailable.",
+                "queue_room_ids": list(queue_state.get("queue_room_ids", [])),
+                "payload_room_count": int(payload_state.get("room_count", 0)),
+            }
+        if current_battery is None:
+            # RP-042/RF-36: an unreadable battery can no longer masquerade as 0
+            # -- estimating from a 0% reading would report a wildly pessimistic
+            # (or nonsensical) runway, so refuse the estimate the same way an
+            # unavailable learning system does rather than guess.
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "available": False,
+                "reason": "battery_unavailable",
+                "message": "Battery level is unavailable.",
                 "queue_room_ids": list(queue_state.get("queue_room_ids", [])),
                 "payload_room_count": int(payload_state.get("room_count", 0)),
             }

@@ -18,7 +18,8 @@ Coverage targets
 [CHG-2]  battery: dedicated sensor wins.
 [CHG-3]  battery: sensor missing/invalid -> vacuum battery_level attr.
 [CHG-4]  battery: no sensor entity declared -> vacuum attr.
-[CHG-5]  battery: nothing available -> 0.
+[CHG-5]  battery: nothing available -> None, not a fabricated 0 (RP-042/RF-36).
+[CHG-5b] battery: vacuum entity present but no battery_level attribute at all -> None.
 [CHG-6]  charging: binary sensor "on" -> True, "off" -> False.
 [CHG-7]  charging: no entity declared -> False (no fallback).
 [CHG-8]  charging: entity unavailable/unknown -> False.
@@ -26,6 +27,8 @@ Coverage targets
 [CHG-10] low-battery-return: returning + battery at/under threshold -> True.
 [CHG-11] low-battery-return: returning + healthy battery -> False.
 [CHG-12] low-battery-return: not returning -> False.
+[CHG-12b] low-battery-return: current_battery=None + returning -> False, no crash (RP-042).
+[CHG-12c] low-battery-return: current_battery=None doesn't suppress the task_status signal.
 """
 
 from __future__ import annotations
@@ -132,10 +135,20 @@ def test_battery_no_sensor_declared_uses_attr(hass):
     assert charging.get_battery_level(hass, _VAC) == 88
 
 
-def test_battery_nothing_available_is_zero(hass):
-    """[CHG-5] no sensor, no vacuum state -> 0."""
+def test_battery_nothing_available_is_none(hass):
+    """[CHG-5] RP-042/RF-36: no sensor, no vacuum state -> None, not a fabricated
+    0. A dropout is indistinguishable from a flat pack if callers can't tell
+    "unreadable" from "actually empty" -- every caller now decides explicitly."""
     _register({})
-    assert charging.get_battery_level(hass, _VAC) == 0
+    assert charging.get_battery_level(hass, _VAC) is None
+
+
+def test_battery_vacuum_state_present_attr_missing_is_none(hass):
+    """[CHG-5b] the vacuum entity exists but carries no battery_level attribute
+    at all (not just an unparseable one) -> None, same reasoning as CHG-5."""
+    _register({})
+    hass.states.async_set(_VAC, "cleaning", {})
+    assert charging.get_battery_level(hass, _VAC) is None
 
 
 # --- is_charging ------------------------------------------------------------
@@ -222,6 +235,31 @@ def test_low_battery_return_zero_battery_returning():
         task_status=None,
         low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
     ) is False
+
+
+def test_low_battery_return_unreadable_battery_returning():
+    """[CHG-12b] RP-042/RF-36: current_battery=None (unreadable, not 0) while
+    vacuum_state="returning" must not crash the 0 < battery <= threshold
+    comparison -- can't confirm a low-battery return without a reading, so
+    this returns False rather than guessing. The task_status signal is
+    unaffected (checked first, never reaches the battery gate)."""
+    assert charging.is_low_battery_return_state(
+        current_battery=None,
+        vacuum_state="returning",
+        task_status=None,
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
+    ) is False
+
+
+def test_low_battery_return_unreadable_battery_task_status_still_fires():
+    """[CHG-12c] the task_status signal doesn't need a battery reading at all --
+    an unreadable battery must not suppress it."""
+    assert charging.is_low_battery_return_state(
+        current_battery=None,
+        vacuum_state="cleaning",
+        task_status="Returning To Charge",
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
+    ) is True
 
 
 def test_low_battery_return_no_configured_status_uses_generic_path():
