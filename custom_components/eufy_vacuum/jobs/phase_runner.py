@@ -35,7 +35,7 @@ from homeassistant.exceptions import HomeAssistantError
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..queue.queue_engine import advance_active_job_phase
-from ..timestamp_utils import utc_now_iso
+from ..timestamp_utils import parse_timestamp, utc_now_iso
 from ..step_types import is_dock_polled_phase, is_dock_polled_phase_type
 
 if TYPE_CHECKING:
@@ -47,6 +47,29 @@ _LOGGER = logging.getLogger(__name__)
 def _iso_now() -> str:
     """Return current UTC timestamp in stable format."""
     return utc_now_iso()
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    """Return float value safely."""
+    try:
+        if value in (None, "", "unknown", "unavailable"):
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _elapsed_seconds(start_t: str, end_t: str) -> int:
+    """Whole seconds between two stamps, 0 when either is unreadable or out of order.
+
+    Clamped at zero: a clock skew must never hand the parent a NEGATIVE hold to
+    subtract from a boundary.
+    """
+    a = parse_timestamp(start_t or None)
+    b = parse_timestamp(end_t or None)
+    if a is None or b is None:
+        return 0
+    return int(max(0.0, (b - a).total_seconds()))
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -221,6 +244,12 @@ class PhaseRunner:
         # break the segmenter) and records one room with the whole run's battery/area. Captures
         # the final phase too — advance returns None just below, but this already ran.
         self._capture_finishing_phase_timing(vacuum_entity_id, str(map_id), active_job)
+        # Phased Jobs wave 1: attach the FINISHING phase to its parent, and give a break
+        # phase the record it never had. Must run after the capture (it reads the
+        # ``_timing_end_t`` the capture just stamped) and before the advance (it reads
+        # ``current_phase_index``, which the advance moves). Runs for the final phase too:
+        # the advance returns None just below, but this has already recorded it.
+        self._record_phase_to_parent(vacuum_entity_id, str(map_id), active_job)
         advanced = advance_active_job_phase(active_job)
         if advanced is None:
             return False
@@ -286,6 +315,122 @@ class PhaseRunner:
             if val > 0:
                 return val
         return None
+
+    def _record_phase_to_parent(
+        self, vacuum_entity_id: str, map_id: str, active_job: dict[str, Any]
+    ) -> None:
+        """Attach the finishing phase to its Phased Job parent.
+
+        A BREAK phase gets its own record here — the gap this whole design exists to
+        close. A wait is not a job and must never wear the completed_job schema: it
+        contributes wall-clock and nothing else, so the parent can subtract a planned
+        hold from a boundary instead of teaching it as travel time.
+
+        A CLEAN phase records ``record_id: None``, which is the truth today — the phased
+        run still finalizes as ONE merged record, so no per-phase child exists to point
+        at. Wave 2 splits the children and fills this in; nothing else here changes.
+
+        Best-effort by design: the parent is review telemetry, and failing to write it
+        must never stop the next phase from dispatching.
+        """
+        phased_job_id = str(active_job.get("phased_job_id") or "")
+        if not phased_job_id:
+            return
+        phases = active_job.get("phases")
+        if not isinstance(phases, list):
+            return
+        idx = _safe_int(active_job.get("current_phase_index"), 0)
+        if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
+            return
+        phase = phases[idx]
+        phase_type = str(phase.get("phase_type") or "")
+        try:
+            from ..learning.history_store import LearningHistoryStore
+
+            store = LearningHistoryStore(self._manager.hass)
+            record_id: str | None = None
+            if is_dock_polled_phase(phase):
+                record_id = f"{phased_job_id}.phase{idx}"
+                store.save_phase_record(
+                    vacuum_entity_id=vacuum_entity_id,
+                    record_id=record_id,
+                    payload=self._break_record_payload(
+                        phased_job_id=phased_job_id,
+                        map_id=map_id,
+                        active_job=active_job,
+                        phases=phases,
+                        idx=idx,
+                        phase=phase,
+                        phase_type=phase_type,
+                    ),
+                )
+            store.record_phase_outcome(
+                vacuum_entity_id=vacuum_entity_id,
+                phased_job_id=phased_job_id,
+                phase_index=idx,
+                phase_type=phase_type,
+                outcome="completed",
+                record_id=record_id,
+            )
+        except Exception:  # noqa: BLE001 - telemetry must not block the next phase
+            _LOGGER.exception(
+                "could not record phase %s of %s", idx, phased_job_id
+            )
+
+    def _break_record_payload(
+        self,
+        *,
+        phased_job_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        phases: list[Any],
+        idx: int,
+        phase: dict[str, Any],
+        phase_type: str,
+    ) -> dict[str, Any]:
+        """Build one break record: what was PLANNED beside what actually elapsed.
+
+        Both are kept. A charge to 80 % has no planned duration at all, and a two-minute
+        wait that actually ran 125 s is a different fact from the 120 s that was asked
+        for — collapsing them is what made a planned hold indistinguishable from travel.
+        """
+        # The break's start is the previous phase's recorded end; for phase 0 (a run that
+        # opens on a wait) it is the job's own start.
+        start_t = str(active_job.get("started_at") or "")
+        for j in range(idx - 1, -1, -1):
+            if isinstance(phases[j], dict) and phases[j].get("_timing_end_t"):
+                start_t = str(phases[j]["_timing_end_t"])
+                break
+        end_t = str(phase.get("_timing_end_t") or _iso_now())
+        seconds = _elapsed_seconds(start_t, end_t)
+        planned_seconds: int | None = None
+        if phase_type == "wait":
+            # A1/falsy-zero: a genuine 0-minute wait is a real plan, not "unplanned".
+            raw = phase.get("wait_minutes")
+            if raw is not None:
+                planned_seconds = int(_safe_float(raw, 0.0) * 60)
+        return {
+            "record_type": "phase_break",
+            "record_id": f"{phased_job_id}.phase{idx}",
+            "phased_job_id": phased_job_id,
+            "phase_index": idx,
+            "phase_type": phase_type,
+            "map_id": map_id,
+            "vacuum_entity_id": str(active_job.get("vacuum_entity_id") or ""),
+            "planned": {
+                "hold_seconds": planned_seconds,
+                "target_battery_percent": (
+                    _safe_int(phase.get("target_battery_percent"), 0)
+                    if phase_type == "charge_wait"
+                    else None
+                ),
+            },
+            "actual": {
+                "started_at": start_t,
+                "ended_at": end_t,
+                "seconds": seconds,
+            },
+        }
 
     def _capture_finishing_phase_timing(
         self, vacuum_entity_id: str, map_id: str, active_job: dict[str, Any]

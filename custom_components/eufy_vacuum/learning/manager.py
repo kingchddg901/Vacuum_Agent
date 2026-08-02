@@ -675,7 +675,47 @@ class LearningManager:
             )
         result["accuracy"] = accuracy_result
 
+        # Phased Jobs wave 1: the run is over, so close its parent. Presence is the
+        # signal -- an atomic job carries no phased_job_id and this is a no-op.
+        self._close_phased_job_parent(
+            manager=manager,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            ended_at=ended_at,
+            battery_end=battery_end,
+        )
+
         return result
+
+    def _close_phased_job_parent(
+        self, *, manager, vacuum_entity_id: str, map_id: str,
+        ended_at: str | None, battery_end: int | None,
+    ) -> None:
+        """Close the Phased Job parent, if this run had one.
+
+        Read from the ACTIVE JOB rather than from the finalized record: the child does
+        not carry a phase key yet (it is one merged record, so a phase key on it would
+        claim it is phase N when it is all of them), and the active job is the only
+        place the anchor lives.
+
+        Best-effort -- a parent that fails to close stays "running" and is reapable,
+        which is strictly better than a finalize that raises.
+        """
+        try:
+            active_job = manager.get_active_job(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+            ) or {}
+            phased_job_id = str(active_job.get("phased_job_id") or "")
+            if not phased_job_id:
+                return
+            self.store.close_phased_job(
+                vacuum_entity_id=vacuum_entity_id,
+                phased_job_id=phased_job_id,
+                ended_at=str(ended_at or _iso_now()),
+                battery_end=battery_end,
+            )
+        except Exception:  # noqa: BLE001 - must never break finalization
+            _LOGGER.exception("could not close phased-job parent")
 
     async def async_finalize_completed_job(
         self,

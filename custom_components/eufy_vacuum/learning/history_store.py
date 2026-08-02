@@ -786,10 +786,17 @@ class LearningHistoryStore:
 
         # DERIVED, not stored -- a child list beside the phase list is a second source
         # of truth for the same fact.
-        children, missing = [], []
+        children, missing, unsplit = [], [], []
         for ph in clean:
             rid = ph.get("record_id")
             if not rid:
+                # A clean phase that finished but produced NO record of its own. Distinct
+                # from `missing` (a record that was promised and will not load): here none
+                # was ever promised. Until wave 2 splits the children this is every clean
+                # phase, so it must be NAMED -- skipped silently, the parent below closes
+                # "completed" with 0 seconds and an empty missing list, which is the same
+                # lie A4 removed, entering through a different door.
+                unsplit.append(_safe_int(ph.get("index"), -1))
                 continue
             loaded = self.load_completed_job(vacuum_entity_id=vacuum_entity_id, job_id=rid)
             (children if isinstance(loaded, dict) else missing).append(loaded or rid)
@@ -826,7 +833,17 @@ class LearningHistoryStore:
             # this a parent read "completed" with 0 seconds and no rooms -- a record that
             # LIES, the exact class this design exists to remove. Empty is the normal case.
             "missing_children": missing,
+            # Phase indices that finished with no child record of their own. While this is
+            # non-empty the numbers above are NOT the run's totals, and a reader (card,
+            # rebuild, review row) must treat them as partial rather than as zero.
+            "unsplit_phases": unsplit,
         }
+        if unsplit:
+            _LOGGER.debug(
+                "phased job %s: %d clean phase(s) have no child record yet (%s) -- "
+                "its aggregate covers only the split phases",
+                phased_job_id, len(unsplit), unsplit,
+            )
         if missing:
             _LOGGER.warning(
                 "phased job %s: %d recorded child record(s) could not be loaded (%s) -- "

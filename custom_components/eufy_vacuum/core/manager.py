@@ -3910,6 +3910,45 @@ class EufyVacuumManager:
                     return mode
         return "vacuum"
 
+    def _open_phased_job_parent(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        phased_job_id: str,
+        started_at: str,
+        battery_start: int | None,
+        phases: list,
+        resolved_rooms: list,
+    ) -> None:
+        """Phased Jobs wave 1: write the parent at RUN START (never at close -- see
+        ``open_phased_job``; a parent written at close orphans its children on any
+        abnormal end).
+
+        Deliberately best-effort. The parent is an aggregate for review, not part of
+        dispatch: a failure to write it must never stop the vacuum from cleaning.
+        """
+        try:
+            from ..learning.history_store import LearningHistoryStore
+
+            estimate = self.get_planned_job_estimate(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                resolved_rooms=resolved_rooms,
+            )
+            LearningHistoryStore(self.hass).open_phased_job(
+                vacuum_entity_id=vacuum_entity_id,
+                phased_job_id=phased_job_id,
+                map_id=map_id,
+                started_at=started_at,
+                battery_start=battery_start,
+                planned_phases=phases,
+                planned_estimate=estimate,
+                planned_rooms=resolved_rooms,
+            )
+        except Exception:  # noqa: BLE001 - telemetry must not break a run start
+            _LOGGER.exception("could not open phased-job parent %s", phased_job_id)
+
     def get_planned_job_estimate(
         self,
         *,
@@ -5218,13 +5257,22 @@ class EufyVacuumManager:
         )
         active_job["job_metadata"] = build_job_metadata_from_payload(payload_state)
         active_job["job_id"] = job_id
-        # Phased Jobs wave 0: the DTG anchor, stamped ONLY on a phased run. Written and
-        # read by nothing until wave 1 -- see synthesis/DESIGN-phased-jobs.md. Deliberately
-        # NOT emitted into the finalized record yet: today a phased run produces ONE merged
-        # record, so stamping it with a phase key would claim it IS phase N when it is all
-        # of them, and a field that lies is the defect class this design repairs.
+        # Phased Jobs wave 0: the DTG anchor, stamped ONLY on a phased run.
+        # See synthesis/DESIGN-phased-jobs.md. The finalized child record does NOT
+        # carry a phase key yet: today a phased run still produces ONE merged record,
+        # so stamping it would claim it IS phase N when it is all of them, and a field
+        # that lies is the defect class this design repairs.
         if active_job.get("phases"):
             active_job["phased_job_id"] = phased_job_id_for(job_id)
+            self._open_phased_job_parent(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                phased_job_id=active_job["phased_job_id"],
+                started_at=started_at,
+                battery_start=battery_start,
+                phases=_phases,
+                resolved_rooms=list(payload_state.get("resolved_rooms", [])),
+            )
         active_job["started_at"] = started_at
         active_job["battery_start"] = battery_start
         active_job["current_room_started_at"] = started_at
