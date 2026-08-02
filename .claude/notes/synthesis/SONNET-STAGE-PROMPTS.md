@@ -509,6 +509,13 @@ Full gate: docker pytest tests --no-cov -p no:cacheprovider (bare pytest SKIPS
 tests/adapters -- use --no-cov). Frontend gates if src/ is touched.
 Commit per the rollback_plan with the Co-Authored-By line.
 Do NOT close ledger findings -- S0's mechanism does that from landed packets.
+
+PUSH, THEN CHECK THE ACTUAL CI CONCLUSION -- a green local gate is not the
+same claim as a green build. Every wave-7 CARD session had a green local
+suite; the break (committed-red frontend reproducers) was only visible in
+GitHub Actions. `gh run list --limit 5` after pushing; if the newest run for
+your commit isn't `success`, treat it the same as a failed local gate --
+stop and fix before moving on, don't just note it for later.
 ```
 
 Sequence execution by REVIEW-03's dependency edges. Known edges: RP-013a →
