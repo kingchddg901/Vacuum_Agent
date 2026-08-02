@@ -9,11 +9,11 @@ hardcode a reproducer count and it drifted badly enough to misscope a stage.
 |---|---|
 | Packets parsed | 60 across 9 docs |
 | Distinct proofs named by packets | 44 |
-| Proof files on disk | 54 (incl. `_proof_harness.py`, which is scaffolding, not a proof) |
-| Packets with every named proof present | 44 |
-| Packets missing a named proof | **5** |
+| Proof files on disk | 55 (incl. `_proof_harness.py`, which is scaffolding, not a proof) |
+| Packets with every named proof present | 45 |
+| Packets missing a named proof | **4** |
 | Packets naming no proof at all | 11 |
-| Distinct proof files still to write | **5** |
+| Distinct proof files still to write | **4** |
 
 **Every landed packet has its named reproducer present.** Nothing shipped
 without evidence; the outstanding files all belong to unexecuted packets.
@@ -28,7 +28,6 @@ without evidence; the outstanding files all belong to unexecuted packets.
 | RP-026 | SYNTH-09-packets-wave5.md | `_proof_map_identity.py` | no |
 | RP-030 | SYNTH-09-packets-wave5.md | `_proof_mapping_batch.py` | no |
 | RP-031 | SYNTH-10-packets-wave6.md | `_proof_service_contract.py` | no |
-| RP-035 | SYNTH-10-packets-wave6.md | `_proof_platform_batch.py` | no |
 
 ## Orphans -- on disk, named by no packet
 
