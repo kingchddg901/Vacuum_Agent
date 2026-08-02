@@ -3,10 +3,10 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **125 tests across 13 files**.
+timestamp utils, models, map manager). Covered by **122 tests across 12 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
-`number.py`, `switch.py`, `room_entities.py`, `config_flow.py`, `repairs.py`,
+`number.py`, `switch.py`, `room_entities.py`, `config_flow.py`,
 `entity_helpers.py`, `_frontend_url.py`, `timestamp_utils.py`, `models/`, `maps/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md), [docs/dev/17-map-manager.md](../../dev/17-map-manager.md)
 
@@ -32,7 +32,6 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `binary_sensor.py` | 67 | 92% | `test_platform_files.py` |
 | `room_entities.py` | 74 | 98% | `test_platform_files.py` |
 | `config_flow.py` | 38 | 94% | `test_config_flow.py` |
-| `repairs.py` | 15 | 100% | `test_platform_files.py` |
 | `timestamp_utils.py` | 37 | 98% | `test_timestamp_utils.py` (unit) |
 | `models/models.py` | 134 | 99% | `test_models.py` (unit) |
 | `maps/map_manager.py` | 44 | 100% | `test_maps_map_manager.py` (unit) |

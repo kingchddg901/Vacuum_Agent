@@ -31,12 +31,6 @@
       }
     }
   },
-  "issues": {
-    "onboarding_required": {
-      "title": "Room setup required — {vacuum_name} Map {map_id}",
-      "description": "Rooms on map **{map_id}** for **{vacuum_name}** have not been set up yet. Click **Fix** to select which rooms to create and set their floor types."
-    }
-  },
   "entity": {
     "sensor": {
       "onboarding_state": { "name": "Onboarding State" },

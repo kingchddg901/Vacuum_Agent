@@ -574,14 +574,13 @@ Records are exposed through `EufyVacuumDockEventSensor`.
 
 ## 10. Repairs
 
-`repairs.py` defines `EufyVacuumSetupRedirectFlow`. Any repair issue registered
-against the `eufy_vacuum` domain opens this flow when the user clicks "Fix". It
-presents a confirmation step and dismisses the issue. The description text
-directs the user to the sidebar panel.
-
-Currently raised by the setup workflow when state is inconsistent (vacuum not
-found, map not imported). The repair flow does not fix programmatically — it is
-a redirect.
+Removed (RP-040 closing batch, #10:INF-6). `repairs.py` defined
+`EufyVacuumSetupRedirectFlow`, a repair-issue redirect to the sidebar panel,
+but nothing in the codebase ever called `async_create_issue` /
+`ir.create_issue` for the `eufy_vacuum` domain — a repo-wide grep confirmed
+zero callers. The flow was reachable only by HA's own repairs UI, which never
+had an issue to show it. Deleted along with the `issues.onboarding_required`
+strings entries it existed to service.
 
 ---
 

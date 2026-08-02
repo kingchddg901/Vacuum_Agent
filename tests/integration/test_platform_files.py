@@ -1,12 +1,10 @@
-"""Tests for small platform files: binary_sensor, repairs, room_entities,
+"""Tests for small platform files: binary_sensor, room_entities,
 _frontend_url. Mock-source entity/flow tests.
 
 Coverage targets
 ----------------
 [BIN-1] ActiveRunHasErrorBinarySensor.is_on from latch error_count.
 [BIN-2] ActiveRunHasErrorBinarySensor attributes (latch present / absent).
-[REP-1] async_create_fix_flow returns the redirect flow.
-[REP-2] flow confirm step shows a form, then creates an entry on submit.
 [RE-1]  EufyVacuumRoomEntity._get_room_data reads the managed room.
 [RE-2]  available reflects room presence.
 [RE-3]  extra_state_attributes surfaces grants_access_to.
@@ -14,7 +12,6 @@ Coverage targets
 [RE-5]  _async_update_room: managed fields path calls update_room_fields.
 [RE-6]  _async_update_room: generic field path rebuilds summary + notifies.
 [RE-7]  available logs on the present→absent transition.
-[REP-3] flow init step routes to confirm (shows a form).
 [FU-1]  panel_js_url returns the base url with a cache-busting query.
 """
 
@@ -26,10 +23,6 @@ import pytest
 
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.binary_sensor import ActiveRunHasErrorBinarySensor
-from custom_components.eufy_vacuum.repairs import (
-    EufyVacuumSetupRedirectFlow,
-    async_create_fix_flow,
-)
 from custom_components.eufy_vacuum.room_entities import EufyVacuumRoomEntity
 from custom_components.eufy_vacuum._frontend_url import _BASE_URL, panel_js_url
 
@@ -63,32 +56,6 @@ def test_bin_attrs():
     assert attrs["error_count"] == 1 and attrs["current_message"] == "Stuck"
     absent = _bin(None).extra_state_attributes
     assert absent["error_count"] == 0 and absent["current_message"] is None
-
-
-# ---------------------------------------------------------------------------
-# repairs
-# ---------------------------------------------------------------------------
-
-async def test_create_fix_flow(hass):
-    """[REP-1]"""
-    flow = await async_create_fix_flow(hass, "stale_setup_issue", None)
-    assert isinstance(flow, EufyVacuumSetupRedirectFlow)
-
-
-async def test_repair_flow_steps():
-    """[REP-2]"""
-    flow = EufyVacuumSetupRedirectFlow(issue_id="x")
-    form = await flow.async_step_confirm(None)
-    assert form["type"] == "form" and form["step_id"] == "confirm"
-    created = await flow.async_step_confirm({})
-    assert created["type"] == "create_entry"
-
-
-async def test_repair_flow_init():
-    """[REP-3] init routes straight to the confirm form."""
-    flow = EufyVacuumSetupRedirectFlow(issue_id="x")
-    result = await flow.async_step_init()
-    assert result["type"] == "form" and result["step_id"] == "confirm"
 
 
 # ---------------------------------------------------------------------------
