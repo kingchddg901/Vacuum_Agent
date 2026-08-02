@@ -5,14 +5,19 @@
 > CARD; this is tranche 3.
 
 **Provenance is different from every other family in this campaign, and that is
-the point.** RF-01..RF-35 came from 17 hostile audits. These four came from
-watching one charge cycle on 2026-08-01 while Ivy sat on a `charge_wait` phase —
-because **`battery/` has ZERO findings across all twelve audit runs.** It was
-never audited. 2,100 lines, no coverage, and four defects surfaced in twenty
-minutes of looking.
+the point.** RF-01..RF-35 came from 17 hostile audits and their targeted
+siblings. These four came from **watching one charge cycle** on 2026-08-01 while
+Ivy sat on a `charge_wait` phase.
 
-That is the headline finding. The packets below are worth landing, but the
-coverage gap they expose is worth more: see the closing note.
+`battery/` was NOT unaudited — it was covered by the campaign's direct-read tier
+(`corpus/audit-findings-report.md`), the method deliberately chosen for small
+subsystems, which found 2 LOW items there. Twenty minutes of live observation
+then found four more, one of them a HIGH that had already corrupted a
+user-visible counter by ~285 %.
+
+So the headline is not a coverage gap. It is **calibration**: what a read of code
+at rest can see, versus what only shows up across time and accumulated state.
+See the closing section.
 
 Evidence throughout is the LIVE production store
 (`.storage/eufy_vacuum.storage`, both vacuums), not reasoning about the code.
@@ -245,117 +250,61 @@ escalation_target: main agent -> Chris
 
 ---
 
-## The finding behind the findings — `battery/` was never audited
+## The finding behind the findings — the direct-read tier under-detected
 
-`_open_findings.json` carries 421 open findings across twelve audit runs. The
-count from `battery/` is **zero**. Not "low" — zero. The runs were scoped
-dispatch+queue, profiles+planning, jobs execution, rooms identity, map-source
-lifecycle, listeners, services, core/manager, integration script, learning
-consumers, themes, mapping services. `battery/` is in none of them.
+**Read this section as WRITTEN 2026-08-01 after four wrong drafts.** Everything
+below replaces claims that `battery/` and `sensor/` were unaudited. They were
+not. The campaign's coverage record was right and I was re-litigating it from
+the wrong artifact each time; the drafts are gone rather than layered, because a
+correction stack is unreadable and the wrong version is what gets quoted.
 
-Counting findings by top-level directory puts it in company:
+### What the coverage record actually says
 
-| subsystem | lines | open findings |
-|---|---:|---:|
-| `battery/` | 2,100 | **0** |
-| `sensor/` | 1,595 | **0** |
-| `dock/` | 475 | 2 |
-| `adapters/` | 14,391 | 1 |
+`corpus/audit-findings-report.md` carries the coverage table, and the campaign
+used a DELIBERATE THREE-TIER strategy scaled to subsystem size:
 
-`adapters/` is the explainable one — Audit #4 covered the adapter seam but filed
-its findings against the CONSUMING call sites, which is consistent with its own
-verdict ("the seam is real but ~80 % applied").
+| tier | scope | cost |
+|---|---|---|
+| heavyweight hostile audit (8 agents) | #1–#18, the large / contract-dense subsystems | ~1.5–2.0M each |
+| 1-agent targeted pass | entity platforms (1,075 LOC) · **sensor leftovers (887)** · infrastructure (1,169) | ~0.17–0.19M each |
+| **direct read ×11** | live_refresh · maps · dock · maintenance · counter_segmentation · debug_capture · diagnostics · onboarding · **battery** · **sensor** · setup — **8,709 LOC** | ~0.55M total, ~50K each |
 
-### CORRECTION (Chris, 2026-08-01): `battery/` WAS reviewed — and that is worse
+`battery/` and `sensor/` are both named in the direct-read tier, by design,
+*because they are small*. `sensor/` additionally got the 1-agent leftovers pass.
+Neither was overlooked; both were covered by the method chosen for their size,
+and the tiering is the sort of proportionality the campaign should be judged
+well for.
 
-An earlier draft of this file said "nobody has looked". **Wrong.** `battery/` was
-reviewed on **2026-06-20**, against a real mid-job recharge run, producing
-`docs/dev/battery-subsystem-followups.md` — two tracked items, both resolved by
-2026-07-29 and folded into `docs/dev/12-battery-system.md` at `0ee1c38`. The
-learning audit's scope line even says **"Out of scope: battery (own doc)"** — it
-was deliberately excluded from the hostile corpus *because* it had been reviewed.
+### The actual finding, which survives and is more useful
 
-So the accurate statement is: `battery/` was reviewed but was never one of the
-twelve hostile audit runs, and the review was TARGETED — scoped to the per-job
-drain metric, driven by one recharge run.
+The direct-read tier **under-detected on `battery/`**, measurably:
 
-**The part that matters.** That review did not merely fail to find today's four
-defects; it affirmatively CLEARED the exact areas they live in:
+- ~50K tokens of direct read on `battery/` produced **2 LOW** findings
+  (DR-BAT-2/3) plus 2 DOC-ONLY corrections.
+- Watching **one** charge cycle produced **four** more, including a HIGH whose
+  0-on-unreadable default had already inflated a user-visible cycle counter by
+  ~285 % — permanently, through a monotonic accumulator with no rebuild path.
 
-> "Neither is a bug in the real-time session engine — cycle counting,
-> charge-session tracking, the CC/CV regime split, the per-install health proxy,
-> and the gold-standard `mid_job_recharge_stats` all handle a recharge
-> correctly."
+That is not an argument that nobody looked. It is calibration data about **what a
+direct read can and cannot see**, and the pattern is legible: a read inspects
+code at rest, so it catches local logic slips (an anchor rewound, a session left
+untracked — exactly what DR-BAT-2/3 are) and misses defects that only exist
+across TIME and ACCUMULATED STATE — a baseline that never re-anchors, a
+qualifying set that rotates out from under its own anchor, a counter poisoned by
+a dropout months ago. Those need either a long-horizon adversarial pass or, as
+here, live observation.
 
-Today: **cycle counting** is inflated ~285 % by phantom drain (RP-042); the
-**CC/CV regime split** feeds an ETA that can never re-anchor (RP-043); the
-**per-install health proxy** reads `None` on both vacuums (RP-045). Three for
-three.
+### So the recommendation changes shape
 
-That is a false-assurance record, which is more dangerous than a blank one — a
-blank subsystem invites suspicion, a cleared one deflects it, and this clearance
-is what the "out of scope (own doc)" exclusion was resting on. The
-recommendation below therefore stands and is STRONGER, not weaker: the argument
-was never "nobody looked", it is that **one targeted review driven by a single
-run cannot stand in for an audit**, and we now have four defects proving it.
+NOT "audit the unaudited subsystems" — that was wrong and would re-do work.
+Instead: **`battery/` is a demonstrated blind spot for the direct-read tier,
+so promote it a tier** before executing RF-36, and treat any other direct-read
+subsystem carrying long-lived accumulated state (`maintenance/`,
+`counter_segmentation/`) as suspect by the same argument.
 
-### SECOND CORRECTION (2026-08-01, same day) — I was counting ONE index
-
-The claim above rested on grouping `_open_findings.json` by directory. **There is
-a second index.** `_direct_reads.json` holds the 11 direct-read passes, and it is
-not merged into the first. Counting both:
-
-| subsystem | audit-run findings | direct-read findings |
-|---|---:|---:|
-| `battery/` | 0 | **2** (DR-BAT-2/3, LOW; plus DR-BAT-1/4 DOC-ONLY) |
-| `sensor/` | 0 | **14**, including **three HIGH** — SN-1 (a managed vacuum with no imported map gets ZERO per-vacuum sensors), SN-2 (the maintenance availability guard never fires), SN-3 (two of four sensor prefix sites are destructive) |
-
-So "nobody has looked" was wrong a second way, and `sensor/` is the opposite of
-unexamined — it is the most direct-read subsystem in the repo. Several of those
-findings are already flowing into packets (DR-SENS-1 is one of RP-014's;
-SN-2 and SN-8 are RP-040 members).
-
-**This is the exact error the coverage rule was written about, committed by the
-person writing the rule.** I computed coverage from a findings index — twice,
-after warning against it — instead of from scopes. The rule stands and the
-demonstration is now first-hand: *if you are counting findings, you are not
-measuring coverage, and you will not notice which index you failed to open.*
-
-**What survives all three corrections, and it is still the recommendation:**
-neither `battery/` nor `sensor/` has had a HOSTILE AUDIT. What they have had is
-one targeted review and a direct-read pass respectively — both real work, neither
-the adversarial fan-out the other twelve subsystems got. The four RF-36 defects
-are more severe than anything either pass found, which is the evidence that the
-lighter methods left depth on the table.
-
-**Checked 2026-08-01, and the record was wrong in BOTH directions.** `mapping/`
-is the subsystem the campaign listed as uncovered, and it is in fact the
-best-covered in the repo — audits #11 and #18 between them filed 90 findings
-across 6,936 of its 7,419 lines. The only untouched files are
-`segmenter_engines.py` (442, the deliberately-excluded empirical-CV segmentor)
-and `boundary.py` (40, dead by decision). So the campaign was carrying a
-false NEGATIVE on `mapping/` and a false POSITIVE on everything else — which is
-the coverage-from-findings trap running in both directions at once, and a second
-reason to compute coverage from scopes.
-
-Four defects fell out of twenty minutes of incidental observation, one of them
-a permanent-corruption accumulator bug that has already inflated a
-user-visible metric by ~285 %. That is not a good yield for careful auditing;
-it is the yield of looking at all. The right inference is that the density in
-`battery/` is unknown and probably comparable to the audited subsystems,
-and these four are the ones that happened to be visible from the outside.
-
-**Recommendation: a proper hostile audit of `battery/` + `sensor/` (+ `dock/`,
-which is small and adjacent) before RF-36 is executed**, so the packets are
-written against a complete picture rather than being spot-fixes that make the
-subsystem look covered — the worst outcome here is a green tick over an
-unexamined 3,700 lines. The measured cost of a heavyweight audit is
-1.5-2.0M tokens / 30-41 min / 8 agents; these three total ~4,200 lines, so one
-run of that size covers all of them.
-
-Executing RP-042 first is still defensible — the accumulator is taking fresh
-damage on every dropout, and the audit does not have to finish before the
-bleeding stops.
+If the budget for that does not exist, executing RP-042 alone is still
+defensible — the accumulator takes fresh damage on every dropout, and stopping
+the bleeding does not require the audit to finish first.
 
 ### Coverage claim to correct in the campaign record
 

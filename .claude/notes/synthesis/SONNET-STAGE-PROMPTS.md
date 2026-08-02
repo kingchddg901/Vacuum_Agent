@@ -208,11 +208,12 @@ RP-026 ("mirror _commit_result's map_id equality check") DELEGATE.
 RP-035 is sensor/-only and RP-032 is services/-only: single-subsystem does NOT
 mean cheap here, it means one file with twenty findings in it.
 
-NOTE on RP-035: sensor/ has ZERO audit-run findings but FOURTEEN direct-read
-findings (in _direct_reads.json, a SEPARATE index) including three HIGH -- SN-1,
-SN-2, SN-3. It has never had a hostile audit. So: check BOTH indices before
-concluding something is unknown, and treat a genuinely new observation as a
-finding to report rather than assuming it is already tracked.
+NOTE on RP-035: sensor/ WAS covered -- by the campaign's direct-read tier plus a
+1-agent "sensor leftovers" pass (see the coverage table in
+corpus/audit-findings-report.md). It carries 14 direct-read findings including
+three HIGH (SN-1, SN-2, SN-3), which live in _direct_reads.json -- a SEPARATE
+index from _open_findings.json, never merged. Check BOTH before concluding
+anything is untracked.
 ```
 
 ## Stage M5 — CARD reproducers (frontend gates differ)
@@ -330,6 +331,6 @@ depends on allocation preserving totals); RP-028 → RP-029.
 |---|---|
 | RP-013c | stepped Run B (cancel mid-phase-2 after the charge). Arm capture `size: 50000` -- the default 3000 evicted most of Run A. Include a `[room, room]` group phase so RP-013b gets hardware coverage the same session. |
 | RP-014 | its site table says 5 hand-inlined `{"started","paused"}` sites; there are 17. Widen before assigning. |
-| RP-042..045 (SYNTH-12) | `battery/` had one targeted 2026-06 review that CLEARED the exact areas all four defects live in. Audit `battery/` + `sensor/` first, or these become spot-fixes over an unexamined 3,700 lines. |
+| RP-042..045 (SYNTH-12) | `battery/` was covered by the direct-read tier, which found 2 LOW while live observation found 4 more incl. a HIGH. Promote it a tier before executing, so the packets are written against depth the read could not reach. RP-042 alone is defensible first — its accumulator takes fresh damage on every dropout. |
 | CARD-7 | design session with Chris. |
 | HC batches | hardware windows, not model work. |
