@@ -259,6 +259,121 @@ def test_build_payload_phased_job_unions_all_phases_not_just_last(tmp_path):
     assert jp["room_slugs"] == ["kitchen", "hallway"]   # union, in phase order
 
 
+def test_build_payload_queue_block_prefers_job_over_live_atomic(tmp_path):
+    """RP-013d/A4-STATE-6: an ATOMIC job's queue block follows the job's OWN
+    frozen queue snapshot, never the live queue_state — a room queued for
+    LATER while this run is still going must not make the record's queue
+    half name a room this run was never asked to clean."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jq1",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:40:00+00:00",
+        battery_start=90, battery_end=64,
+        queue_state={  # the Den, queued for LATER, re-hydrated live mid-run
+            "vacuum_entity_id": "vacuum.alfred", "map_id": "1",
+            "room_count": 1, "queue_room_ids": [7],
+            "queue_rooms": [{"room_id": 7, "name": "Den"}],
+        },
+        payload_state={},
+        active_job_state={
+            "queue_room_ids": [1, 2],  # the job's own launch snapshot: Kitchen + Hallway
+            "queue_rooms": [{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Hallway"}],
+            "room_count": 2,
+        },
+    )
+    queue = payload["queue"]
+    assert sorted(queue["queue_room_ids"]) == [1, 2]
+    assert queue["room_count"] == 2
+
+
+def test_build_payload_queue_block_phased_unions_all_phases(tmp_path):
+    """RP-013d, the LOAD-BEARING case (hardware: job_2026-08-01T13-49-21). A
+    phased job parked on its LAST phase has already had its top-level
+    queue_room_ids clobbered by advance_active_job_phase down to just that
+    phase's room -- preferring the job's own top-level snapshot over the live
+    queue (the packet's ORIGINAL, insufficient fix) would still only recover
+    the last phase. Only the union of ALL phases' rooms recovers the real set."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jq2",
+        started_at="2026-08-01T20:49:21+00:00", ended_at="2026-08-01T21:08:50+00:00",
+        battery_start=98, battery_end=95,
+        queue_state={},  # nothing live -- the job is the only source
+        payload_state={},
+        active_job_state={
+            "queue_room_ids": [25],  # clobbered by the advance to only the LAST phase
+            "queue_rooms": [{"room_id": 25, "name": "Hallway"}],
+            "room_count": 1,
+            "phases": [
+                {"resolved_rooms": [{"room_id": 27, "slug": "kitchen"}],
+                 "room_timing": [{"room_id": 27, "slug": "kitchen", "cleaning_seconds": 255}]},
+                {"phase_type": "charge_wait", "resolved_rooms": [], "room_timing": []},
+                {"resolved_rooms": [{"room_id": 25, "slug": "hallway"}],
+                 "room_timing": [{"room_id": 25, "slug": "hallway", "cleaning_seconds": 302}]},
+            ],
+        },
+    )
+    queue = payload["queue"]
+    assert sorted(queue["queue_room_ids"]) == [25, 27]
+    assert queue["room_count"] == 2
+
+
+def test_build_payload_queue_block_falls_back_to_live_when_job_carries_nothing(tmp_path):
+    """Rung 3/4: a job with no phases and no top-level queue_room_ids at all
+    (a cold-start edge case) correctly falls through to the live queue_state
+    -- the "live wins" behavior stays correct for the one case it's for."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="jq3",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:10:00+00:00",
+        battery_start=90, battery_end=88,
+        queue_state={
+            "vacuum_entity_id": "vacuum.alfred", "map_id": "1",
+            "room_count": 1, "queue_room_ids": [9],
+            "queue_rooms": [{"room_id": 9, "name": "Office"}],
+        },
+        payload_state={},
+        active_job_state={},  # nothing at all
+    )
+    queue = payload["queue"]
+    assert queue["queue_room_ids"] == [9]
+    assert queue["room_count"] == 1
+
+
+def test_build_payload_queue_and_resolved_rooms_name_the_same_rooms(tmp_path):
+    """Regression: the record's two halves must never disagree, for ANY job
+    shape -- the queue block and resolved_rooms are now derived from the same
+    ladder, so this parity holds by construction rather than by coincidence."""
+    store = _make_store(tmp_path)
+    for active_job_state in (
+        {  # atomic
+            "queue_room_ids": [1, 2],
+            "queue_rooms": [{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Hallway"}],
+            "resolved_rooms": [{"room_id": 1, "slug": "kitchen"}, {"room_id": 2, "slug": "hallway"}],
+        },
+        {  # phased, parked on the last phase
+            "queue_room_ids": [25],
+            "phases": [
+                {"resolved_rooms": [{"room_id": 27, "slug": "kitchen"}],
+                 "room_timing": [{"room_id": 27, "cleaning_seconds": 255}]},
+                {"resolved_rooms": [{"room_id": 25, "slug": "hallway"}],
+                 "room_timing": [{"room_id": 25, "cleaning_seconds": 302}]},
+            ],
+        },
+    ):
+        payload = store.build_completed_job_payload(
+            vacuum_entity_id="vacuum.alfred", job_id="jparity",
+            started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:20:00+00:00",
+            battery_start=90, battery_end=80,
+            queue_state={}, payload_state={}, active_job_state=active_job_state,
+        )
+        queue_ids = sorted(payload["queue"]["queue_room_ids"])
+        resolved_ids = sorted(
+            r.get("room_id") for r in payload["resolved_rooms"] if isinstance(r, dict)
+        )
+        assert queue_ids == resolved_ids, f"queue/resolved disagree for {active_job_state}"
+
+
 def test_build_payload_captures_zone_timings(tmp_path):
     """A run with a zone phase surfaces the zone into the record's zone_timings (+ zone_count),
     so the review can show which zones ran + their learned wall-clock — the room path drops

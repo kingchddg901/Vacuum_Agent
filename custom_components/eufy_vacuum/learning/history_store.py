@@ -843,6 +843,7 @@ class LearningHistoryStore:
         #   3. the LIVE payload only as a last resort (a job snapshot carrying nothing);
         #   4. the queue (below).
         resolved_rooms: list = []
+        _resolved_rooms_from_phases = False
         if isinstance(active_job_state, dict):
             _phases = active_job_state.get("phases")
             if isinstance(_phases, list) and _phases:
@@ -857,6 +858,7 @@ class LearningHistoryStore:
                         if _rid is not None and _rid not in _seen_rids:
                             _seen_rids.add(_rid)
                             resolved_rooms.append(_room)
+                _resolved_rooms_from_phases = bool(resolved_rooms)
             if not resolved_rooms:
                 _aj_rooms = active_job_state.get("resolved_rooms")
                 if isinstance(_aj_rooms, list):
@@ -867,6 +869,45 @@ class LearningHistoryStore:
             )
             if isinstance(_payload_rooms, list):
                 resolved_rooms = list(_payload_rooms)
+
+        # RP-013d/A4-STATE-6: the queue block mirrors this SAME ladder — derived
+        # alongside resolved_rooms rather than as a second hand-written walk,
+        # per the centralize-the-QUESTION rule. A phased job's queue_room_ids/
+        # queue_rooms ARE its unioned resolved_rooms (each room_group phase's
+        # queue_room_ids and resolved_rooms are built from the same members —
+        # confirmed against phase_runner/run_plan's phase construction), so
+        # rung 1 reuses resolved_rooms rather than re-deriving it from each
+        # phase's queue_room_ids ints (which advance_active_job_phase also
+        # clobbers at the top level, the exact bug the original fix missed).
+        # rung 2 (atomic) and rung 3 (live) mirror the ladder's own precedence:
+        # the job's own frozen snapshot outranks the live queue, which only
+        # wins when the job carries NEITHER phases NOR a top-level queue.
+        if _resolved_rooms_from_phases:
+            _queue_room_ids = [
+                _r.get("room_id", _r.get("id"))
+                for _r in resolved_rooms
+                if isinstance(_r, dict) and _r.get("room_id", _r.get("id")) is not None
+            ]
+            _queue_rooms = list(resolved_rooms)
+        elif isinstance(active_job_state, dict) and active_job_state.get("queue_room_ids"):
+            _queue_room_ids = list(active_job_state.get("queue_room_ids", []))
+            _queue_rooms = list(active_job_state.get("queue_rooms", []))
+        elif isinstance(queue_state, dict) and queue_state.get("queue_room_ids"):
+            _queue_room_ids = list(queue_state.get("queue_room_ids", []))
+            _queue_rooms = list(queue_state.get("queue_rooms", []))
+        else:
+            _queue_room_ids = []
+            _queue_rooms = []
+        _queue_block = {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": (
+                str(active_job_state.get("map_id", ""))
+                if isinstance(active_job_state, dict) else ""
+            ),
+            "room_count": len(_queue_room_ids),
+            "queue_room_ids": _queue_room_ids,
+            "queue_rooms": _queue_rooms,
+        }
 
         queue_rooms = queue_state.get("queue_rooms", []) if isinstance(queue_state, dict) else []
         if not isinstance(queue_rooms, list):
@@ -1169,17 +1210,7 @@ class LearningHistoryStore:
                 "recharge_seconds_accumulated": recharge_seconds_accumulated,
             },
             "water": water_estimate if isinstance(water_estimate, dict) else {},
-            "queue": (
-                queue_state
-                if isinstance(queue_state, dict) and queue_state.get("queue_room_ids")
-                else {
-                    "vacuum_entity_id": vacuum_entity_id,
-                    "map_id": str(active_job_state.get("map_id", "")) if isinstance(active_job_state, dict) else "",
-                    "room_count": _safe_int(active_job_state.get("room_count"), 0) if isinstance(active_job_state, dict) else 0,
-                    "queue_room_ids": list(active_job_state.get("queue_room_ids", [])) if isinstance(active_job_state, dict) else [],
-                    "queue_rooms": list(active_job_state.get("queue_rooms", [])) if isinstance(active_job_state, dict) else [],
-                }
-            ),
+            "queue": _queue_block,
             "payload": (
                 # Brand-agnostic "is this payload populated?" check — room_count
                 # is set by every dispatch engine, vs. the old literal "rooms"
