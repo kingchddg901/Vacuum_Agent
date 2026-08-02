@@ -5,7 +5,12 @@ Coverage targets
 [AC-1]  get_adapter_config returns config=None when no adapter is registered.
 [AC-2]  get_adapter_config returns the registered config after save_adapter_config.
 [AC-3]  save_adapter_config with valid config registers it (side-effect via get).
+[AC-3b] RP-031/Q9: save_adapter_config raises ServiceValidationError for a config
+        missing adapter_id or dispatch.template (was a silent early return).
+[AC-3c] RP-031/Q9: save/delete_adapter_config now supports_response on success too.
 [AC-4]  delete_adapter_config removes a registered adapter.
+[AC-4c] RP-031/Q9: delete_adapter_config on a never-saved vacuum returns a
+        structured {deleted:False, reason:"not_found"}, not a silent no-op.
 [AC-5]  observe_entity_states returns observations for known and unknown entities.
 [AC-6]  observe_entity_states returns state=None for absent entity.
 [AC-7]  discover_adapter_entities returns entity_count and by_domain.
@@ -13,6 +18,10 @@ Coverage targets
 """
 
 from __future__ import annotations
+
+import pytest
+
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
@@ -97,19 +106,23 @@ async def test_save_adapter_config_forces_source_config(hass, manager_with_servi
 # ---------------------------------------------------------------------------
 
 async def test_save_adapter_config_rejects_incomplete(hass, manager_with_services):
-    """[AC-3b] save_adapter_config rejects configs missing adapter_id or
-    dispatch.template (the early-return validation) and registers nothing."""
+    """[AC-3b] RP-031/Q9: save_adapter_config rejects configs missing adapter_id
+    or dispatch.template with ServiceValidationError (was a silently-logged
+    early return that registered nothing but told the caller nothing either --
+    Q9's "success-shaped no-op" class) and registers nothing either way."""
     from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
-    # missing adapter_id → early return
-    await hass.services.async_call(
-        DOMAIN, "save_adapter_config",
-        {"vacuum_entity_id": _VAC, "config": {"dispatch": {"template": "eufy_room_clean"}}},
-        blocking=True)
+    # missing adapter_id → ServiceValidationError
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, "save_adapter_config",
+            {"vacuum_entity_id": _VAC, "config": {"dispatch": {"template": "eufy_room_clean"}}},
+            blocking=True)
     assert get_adapter_config(_VAC) is None
-    # missing dispatch.template → early return
-    await hass.services.async_call(
-        DOMAIN, "save_adapter_config",
-        {"vacuum_entity_id": _VAC, "config": {"adapter_id": "a"}}, blocking=True)
+    # missing dispatch.template → ServiceValidationError
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, "save_adapter_config",
+            {"vacuum_entity_id": _VAC, "config": {"adapter_id": "a"}}, blocking=True)
     assert get_adapter_config(_VAC) is None
 
 
@@ -146,6 +159,41 @@ async def test_delete_adapter_config_removes_registration(hass, manager_with_ser
         return_response=True,
     )
     assert result_after["config"] is None
+
+
+async def test_save_and_delete_adapter_config_responses(hass, manager_with_services):
+    """[AC-3c]/[AC-4b] RP-031/Q9: save/delete_adapter_config now support_response
+    -- both were previously fire-and-forget (-> None) even on success, so a
+    caller had no way to confirm what happened without a separate get_ call."""
+    saved = await hass.services.async_call(
+        DOMAIN, "save_adapter_config",
+        {"vacuum_entity_id": _VAC, "config": dict(_VALID_CONFIG)},
+        blocking=True, return_response=True,
+    )
+    assert saved == {
+        "saved": True, "vacuum_entity_id": _VAC, "adapter_id": "test_adapter",
+    }
+
+    deleted = await hass.services.async_call(
+        DOMAIN, "delete_adapter_config", {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True,
+    )
+    assert deleted == {"deleted": True, "vacuum_entity_id": _VAC}
+
+
+async def test_delete_adapter_config_not_found(hass, manager_with_services):
+    """[AC-4c] RP-031/Q9: deleting a config that was never saved is a
+    structured no-op (not_found), not a silent, response-less success --
+    matches the established not-found convention (discard_external_run,
+    delete_saved_zone), not an exception (idempotent delete is not a caller
+    error)."""
+    result = await hass.services.async_call(
+        DOMAIN, "delete_adapter_config", {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True,
+    )
+    assert result == {
+        "deleted": False, "vacuum_entity_id": _VAC, "reason": "not_found",
+    }
 
 
 # ---------------------------------------------------------------------------

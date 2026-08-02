@@ -18,6 +18,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -54,28 +55,29 @@ _GET_VACUUM_CAPABILITIES_SCHEMA = vol.Schema(
 )
 
 
-async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save a UI-submitted adapter config for one vacuum."""
     vacuum_entity_id = call.data["vacuum_entity_id"]
     config = dict(call.data["config"])
 
+    # RP-031/Q9: runtime manager missing is an INTERNAL failure (unexpected system
+    # state), not something the caller did wrong -- HomeAssistantError, not SVE.
     manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
     if manager is None:
-        _LOGGER.error("save_adapter_config: runtime manager not available")
-        return
+        raise HomeAssistantError("save_adapter_config: runtime manager not available")
 
+    # RP-031/Q9: config's schema is `dict` only (no field-level schema -- adapter
+    # shapes vary too much for one), so these ARE the validation for a caller-
+    # supplied config missing required fields -- ServiceValidationError, not a
+    # logged-and-dropped no-op.
     if not config.get("adapter_id"):
-        _LOGGER.error(  # pragma: no cover
-            "save_adapter_config: missing adapter_id for %s",
-            vacuum_entity_id,
+        raise ServiceValidationError(
+            f"save_adapter_config: missing adapter_id for {vacuum_entity_id}"
         )
-        return
     if not config.get("dispatch", {}).get("template"):
-        _LOGGER.error(  # pragma: no cover
-            "save_adapter_config: missing dispatch.template for %s",
-            vacuum_entity_id,
+        raise ServiceValidationError(
+            f"save_adapter_config: missing dispatch.template for {vacuum_entity_id}"
         )
-        return
 
     # Source field is always set by the service — never trusted from caller.
     config["source"] = "config"
@@ -92,27 +94,44 @@ async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) ->
         config.get("adapter_id"),
         vacuum_entity_id,
     )
+    return {
+        "saved": True,
+        "vacuum_entity_id": vacuum_entity_id,
+        "adapter_id": config.get("adapter_id"),
+    }
 
 
-async def _handle_delete_adapter_config(hass: HomeAssistant, call: ServiceCall) -> None:
+async def _handle_delete_adapter_config(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Delete a stored adapter config for one vacuum."""
     vacuum_entity_id = call.data["vacuum_entity_id"]
 
     manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
     if manager is None:
-        return
+        raise HomeAssistantError("delete_adapter_config: runtime manager not available")
 
     from ..adapters.config_loader import delete_adapter_config as _delete_stored
     from ..adapters.registry import unregister_adapter_config as _unregister
 
     deleted = _delete_stored(manager.data, vacuum_entity_id)
-    if deleted:
-        _unregister(vacuum_entity_id)
-        await manager.async_save()
-        _LOGGER.debug(
-            "delete_adapter_config: deleted adapter config for %s",
-            vacuum_entity_id,
-        )
+    if not deleted:
+        # RP-031/Q9: matches the sibling not-found convention already used across
+        # this codebase for delete-type services (discard_external_run,
+        # delete_saved_zone) -- a structured refusal, not an exception, since
+        # deleting an already-absent config is a normal idempotent no-op a caller
+        # may not consider an error.
+        return {
+            "deleted": False,
+            "vacuum_entity_id": vacuum_entity_id,
+            "reason": "not_found",
+        }
+
+    _unregister(vacuum_entity_id)
+    await manager.async_save()
+    _LOGGER.debug(
+        "delete_adapter_config: deleted adapter config for %s",
+        vacuum_entity_id,
+    )
+    return {"deleted": True, "vacuum_entity_id": vacuum_entity_id}
 
 
 async def _handle_get_adapter_config(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -208,11 +227,11 @@ async def _handle_get_vacuum_capabilities(hass: HomeAssistant, call: ServiceCall
 def register(hass: HomeAssistant) -> None:
     """Register adapter-config + capability services."""
 
-    async def save_adapter_config(call: ServiceCall) -> None:
-        await _handle_save_adapter_config(hass, call)
+    async def save_adapter_config(call: ServiceCall) -> dict:
+        return await _handle_save_adapter_config(hass, call)
 
-    async def delete_adapter_config(call: ServiceCall) -> None:
-        await _handle_delete_adapter_config(hass, call)
+    async def delete_adapter_config(call: ServiceCall) -> dict:
+        return await _handle_delete_adapter_config(hass, call)
 
     async def get_adapter_config(call: ServiceCall) -> dict:
         return await _handle_get_adapter_config(hass, call)
@@ -232,12 +251,14 @@ def register(hass: HomeAssistant) -> None:
             vol.Required("vacuum_entity_id"): cv.entity_id,
             vol.Required("config"): dict,
         }),
+        supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_ADAPTER_CONFIG, delete_adapter_config,
         schema=vol.Schema({
             vol.Required("vacuum_entity_id"): cv.entity_id,
         }),
+        supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_GET_ADAPTER_CONFIG, get_adapter_config,
