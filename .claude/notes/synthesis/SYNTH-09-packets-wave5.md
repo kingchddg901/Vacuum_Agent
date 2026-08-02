@@ -37,6 +37,39 @@ required_behavior: >
   entity's device-registry entry yields a deterministic key to select it. If no
   deterministic linkage exists, the EUFY half returns to synthesis (fork-PR
   option); the Roborock half proceeds regardless.
+
+  >>> GATE CLEARED 2026-08-01 (main agent, against the live install). BOTH halves
+  >>> hold; the EUFY half PROCEEDS and no fork PR is needed.
+  >>>
+  >>> (1) device_id EXISTS. Fork `robovac_mqtt` **1.13.1**
+  >>>     (github.com/jeppesens/eufy-clean), `coordinator.py:73`
+  >>>     `class EufyCleanCoordinator(DataUpdateCoordinator[VacuumState])`,
+  >>>     `coordinator.py:85` `self.device_id = device_info["deviceId"]`. Set
+  >>>     unconditionally in __init__ from a REQUIRED key (a missing deviceId
+  >>>     raises KeyError at construction), so it is never absent on a live
+  >>>     coordinator. Used at 16+ sites including the store keys and dispatcher
+  >>>     signals.
+  >>>
+  >>> (2) THE LINKAGE IS DETERMINISTIC, and it is the device registry itself.
+  >>>     `coordinator.py:200` publishes `identifiers={(DOMAIN, self.device_id)}`
+  >>>     with DOMAIN="robovac_mqtt". Verified end to end on the live install:
+  >>>       vacuum.alfred (platform robovac_mqtt)
+  >>>         -> entity_registry.device_id
+  >>>         -> device_registry identifiers [("robovac_mqtt", "AFC96X0F33201054")]
+  >>>     and "AFC96X0F33201054" IS the coordinator's device_id. So the selection
+  >>>     key is: read the vacuum entity's device, take the identifier tuple whose
+  >>>     domain is the fork's, and match its value against coordinator.device_id.
+  >>>     No name matching, no ordering assumption, no prefix heuristic.
+  >>>
+  >>> (3) GENERALIZES TO ROBOROCK, which the packet did not assume. The same
+  >>>     shape holds: vacuum.ivy -> [("roborock", "57R4LhSyBB7y24BiKWWGiI")].
+  >>>     Prefer the one identity mechanism for both halves rather than a
+  >>>     Eufy-specific lookup plus a separate Roborock one — the question is
+  >>>     "which device is this entity?", and it has one answer.
+  >>>
+  >>> Consequence: the 4 sub-findings gated here are UNBLOCKED. The
+  >>> single-coordinator unconditional-select fallback in (1) below still stands
+  >>> as the degradation path, but it is now a fallback rather than the primary.
   (1) (AMENDED per REVIEW-07 T2-D3) eufy_inmem_candidates takes vacuum_entity_id;
   when a root holds exactly ONE coordinator, select it unconditionally (DEBUG
   note — preserves today's working single-device behaviour even if linkage

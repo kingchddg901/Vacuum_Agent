@@ -179,6 +179,16 @@ RP-029 (12) · RP-036 (12)
 EXTRA SCRUTINY -- RP-022 ("parity with the mm branch's existing refusal") and
 RP-028 ("mirror upload's contract") both DELEGATE. Read the referenced mechanism
 first; confirm in the docstring.
+
+RP-026's VERIFY-FIRST GATE IS ALREADY CLEARED -- do not re-run it and do not
+treat the packet as blocked. Resolution is recorded inline in the packet
+(2026-08-01, against the live install): fork robovac_mqtt 1.13.1 carries
+EufyCleanCoordinator.device_id (coordinator.py:85), and the device registry gives
+the deterministic key -- vacuum.alfred -> ("robovac_mqtt", "AFC96X0F33201054"),
+matching coordinator.device_id, published by the coordinator itself at
+coordinator.py:200. Roborock has the identical shape
+(vacuum.ivy -> ("roborock", "57R4...")), so use ONE identity mechanism for both
+halves rather than a Eufy lookup plus a separate Roborock one.
 ```
 
 ## Stage M4 — heavy tail (one or two per session, not six)
