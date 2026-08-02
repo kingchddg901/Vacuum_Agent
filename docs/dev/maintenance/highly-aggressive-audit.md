@@ -43,13 +43,13 @@ landed in between.
 
 ## Completed
 
-**95 changes shipped**, all with tests, all deployed.
+**126 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
 | Audits fully applied | #1 lifecycle · #2 learning · #3 external ingestion · #4 adapters · #5 error tracker |
 | Partly applied | #6 card (root cause + top of the repair order) |
-| #7 onward | **105** of 484 findings applied via 12 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012); rest open — see [Open](#open) |
+| #7 onward | **108** of 484 findings applied via 13 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b); rest open — see [Open](#open) |
 
 ### The recurring root cause
 
@@ -159,14 +159,45 @@ comments rather than by a shared helper.
 | `457331a` | audit: materialization handoff for the executing window (waves 3-7) |
 | `47a664f` | audit: staged Sonnet prompts to close out the campaign |
 | `56901ad` | audit: make S0 executable — verified packet map + four traps pre-cleared |
+| `b6b622f` | audit: derive ledger closure state from landed packets |
+| `94d3ae5` | audit: wave-3 reproducers RP-015/017/018/019/020 |
+| `267ce31` | audit: wave-3 reproducers batch 2 -- RP-038/016/021b/027/041 |
+| `e756457` | audit: wave-3 reproducers batch 3 (M3) -- RP-022/023/028/029/033/036 |
+| `d25af77` | audit: wave-3 reproducer (M4) -- RP-026 LC-3 only |
+| `4a21fc7` | audit: wave-7 reproducers batch 1 (M5) -- CARD-1/3/4/8 |
+| `b2e8edb` | audit: wave-7 reproducer (M5) -- CARD-5 missed-rooms retry map scope |
+| `9e35d13` | audit: wave-7 reproducer (M5) -- CARD-9 theme preset selection safety |
+| `ac7fd30` | audit: wave-6 reproducer (heavy tail) -- RP-031 RF-05a apply_run_profile |
+| `3b35145` | audit: wave-6 reproducer (heavy tail) -- RP-034 Q7 overwrite_theme source |
+| `95a070f` | audit: wave-4 reproducer (heavy tail) -- RP-021a clause 4 empty-phase crash |
+| `99af207` | audit: wave-4 reproducer (heavy tail) -- RP-024 Q2 water precedence |
+| `ea8bf6c` | audit: wave-4 reproducer (heavy tail) -- RP-025 clauses i+ii catalog vocab |
+| `e679d6b` | audit: wave-5 reproducer (heavy tail) -- RP-030 ROBORO-5 flip_y disagreement |
+| `b4dc2cc` | audit: wave-6 reproducer (heavy tail) -- RP-035 SN-9 overlays availability |
+| `c98eda6` | audit: wave-6 reproducer (heavy tail) -- RP-039 DIAG-2/4 diagnostics redaction |
+| `96e0047` | audit: wave-6 reproducer (heavy tail) -- RP-037 ensure_dirs memoization |
+| `baa1068` | audit: wave-6 reproducer (heavy tail) -- RP-040 Q10 reject_rooms map scope |
+| `67ceec2` | audit: RP-026 verify-first gate CLEARED — Eufy half proceeds, no fork PR |
+| `f4c93d0` | audit: wave-7 reproducer (CARD-2) -- clause 2 allocated-estimate qualifier |
+| `450e617` | audit: generate RP-040's per-file table; correct the sensor/battery coverage claim AGAIN |
+| `d0be882` | audit: wave-7 reproducer (CARD-6) -- clause 1 leading charge_wait unsupported |
+| `4486760` | audit: battery/ and sensor/ WERE covered — direct-read tier, by design |
+| `b1d0900` | audit: Stage X — the execution release (5 packets, reproducers in hand) |
+| `93888bc` | audit: pre-flight before releasing to Sonnet — paths made explicit, gate pinned |
+| `cb0fdb7` | audit: RP-014 site table widened 5 -> 17 (+1) and adjudicated |
+| `d5e8d44` | audit: RP-040 table was OVER-INCLUSIVE by 42 — cross-check added |
+| `9099d1a` | audit: RP-032 reclassified, CARD-6 clause 2 resolved |
+| `34a15b1` | audit: Stage G (RP-032) + Stage C (CARD clauses) handed off |
+| `c075b12` | audit: four ownership calls adjudicated + Chris's scope decisions recorded |
+| `f212c20` | RP-013b: allocated group timing — a multi-room group phase credits every room |
 
 ---
 
 ## Open
 
-**379 findings** — 338 across 12 audits plus 41 from direct reads. **105 more applied** via 12 landed packets (see [Applied](#applied)). 19 open clusters (10 fully applied) + 338 singles.
+**376 findings** — 335 across 12 audits plus 41 from direct reads. **108 more applied** via 13 landed packets (see [Applied](#applied)). 19 open clusters (10 fully applied) + 338 singles.
 
-CRITICAL 7 · HIGH 57 · MEDIUM 141 · LOW 174
+CRITICAL 7 · HIGH 54 · MEDIUM 141 · LOW 174
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -195,10 +226,10 @@ The same audits recorded **673 areas examined and found correct**.
 - **Defect:** There is no try/except anywhere in _run_advanced_phase or _dispatch_active_phase. Any raise leaves the guard set, and is_stranded_started returns False while it is set, so the reaper is DISABLED. The job sits status='started' permanently and blocks every future start.
 - **Fix:** try/finally so the guard always clears, plus a bounded age after which the reaper stops honouring it.
 
-#### C4. A multi-room phase is recorded as ONE room
+#### C4. A multi-room phase is recorded as ONE room — **3/4 applied**
 
 - **Seam:** `jobs/phase_runner.py:301`
-- **Closes:** A3-REC-1, A3-REC-2, A3-REC-3, DQ-PH-3
+- **Closes:** ~~A3-REC-1~~ ✅ RP-013b (`f212c20`), ~~A3-REC-2~~ ✅ RP-013b (`f212c20`), A3-REC-3, ~~DQ-PH-3~~ ✅ RP-013b (`f212c20`)
 - **Defect:** A room_group phase attributes the group's entire cleaning time, area and battery to queue_room_ids[0]. A phased job also never records a completed room, so live progress freezes on the group.
 - **Fix:** Attribute per-phase metrics across the phase's rooms, or record the phase as a phase rather than as room[0].
 
@@ -1415,7 +1446,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Applied
 
-**105 findings** closed by a landed packet. Not open work, but kept
+**108 findings** closed by a landed packet. Not open work, but kept
 here rather than removed — a disappeared finding is indistinguishable from one never
 found. `.claude/notes/_landed_packets.json` is the source of truth for what has
 landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
@@ -1630,6 +1661,12 @@ landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
   The last room of every job never fires room_completed — end_job resets state without flushing the held room
 - [x] **DQ-PH-6** `queue/queue_engine.py:466` · future_brand_only — **RP-012** (`7269020`, `47f9a25`, `a02fd19`, `6598b0c`, 2026-08-01)  
   advance_active_job_phase resets every per-phase pointer except _native_current_room_id, leaving a latent cross-phase carry-over that only the phases-gate currently hides
+- [x] **DQ-PH-3** `jobs/phase_runner.py:301` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
+  A multi-room room_group phase is recorded as ONE room — the group's whole cleaning time, area and battery are attributed to its first room and every other room in the group vanishes from the record
+- [x] **A3-REC-1** `jobs/phase_runner.py:301` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
+  A multi-room room_group phase records ONLY queue_room_ids[0] — the group's whole time/area lands on one room, the other N-1 rooms produce no timing at all, and the run is still flagged high-confidence
+- [x] **A3-REC-2** `jobs/phase_runner.py:297` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
+  Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
 
 ### Examined and deliberately not fixed
 

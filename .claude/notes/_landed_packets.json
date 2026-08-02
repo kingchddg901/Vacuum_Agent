@@ -70,5 +70,11 @@
   "commits": ["7269020", "47f9a25", "a02fd19", "6598b0c"],
   "landed_at": "2026-08-01",
   "note": "4 commits: (a)/(b)/(c) the original packet's rollback groups, (d) a follow-up single-commit fix (commanded-dock guard ported to resolve_mid_job_recharge_resumed) after the reproducer's 4th case (DQ-PH-6, already in this packet's finding_ids) exposed a regression the first 3 commits missed."
+ },
+ {
+  "packet_id": "RP-013b",
+  "commits": ["f212c20"],
+  "landed_at": "2026-08-02",
+  "note": "Stage X, packet 1/5. One clause of required_behavior ('stats_rebuilder... records them for ACC-6's quality flag... the flag exists, RP-036 consumes it') does not hold against current source -- no single_room/quality flag exists anywhere in stats_rebuilder.py. Left unimplemented and flagged in the commit message rather than invented; ACC-6 is one of RP-036's own not-yet-executed findings."
  }
 ]
