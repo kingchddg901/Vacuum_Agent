@@ -244,3 +244,58 @@ def test_advance_phase_resets_native_current_room_id():
     assert nxt is not None
     assert nxt["current_room_id"] == 5
     assert nxt["_native_current_room_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# RP-013c — job-cumulative completed evidence across phase advances
+# ---------------------------------------------------------------------------
+
+def _phased(completed, cumulative=None, idx=0):
+    phases = [
+        {"resolved_rooms": [{"room_id": 1}], "room_count": 1},
+        {"resolved_rooms": [{"room_id": 2}], "room_count": 1},
+        {"resolved_rooms": [{"room_id": 3}], "room_count": 1},
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "phases": phases, "current_phase_index": idx,
+        "completed_room_ids": list(completed), "status": "started",
+    }
+    if cumulative is not None:
+        job["completed_room_ids_cumulative"] = list(cumulative)
+    return job
+
+
+def test_advance_phase_accumulates_completed_evidence():
+    """[QE-13c] the finishing phase's completed rooms survive the per-phase reset."""
+    nxt = advance_active_job_phase(_phased([1]))
+    assert nxt["completed_room_ids"] == []           # per-phase reset UNCHANGED
+    assert nxt["completed_room_ids_cumulative"] == [1]
+
+
+def test_advance_phase_cumulative_grows_across_two_advances():
+    """[QE-13c] evidence from every finished phase, not just the last one."""
+    after1 = advance_active_job_phase(_phased([1]))
+    after1["completed_room_ids"] = [2]               # phase 2 then finishes room 2
+    after2 = advance_active_job_phase(after1)
+    assert after2["completed_room_ids_cumulative"] == [1, 2]
+
+
+def test_advance_phase_cumulative_dedupes_and_keeps_order():
+    """[QE-13c] a room re-listed by a later phase is not duplicated."""
+    nxt = advance_active_job_phase(_phased([2, 1], cumulative=[1]))
+    assert nxt["completed_room_ids_cumulative"] == [1, 2]
+
+
+@pytest.mark.parametrize("junk", [None, "x", -1, 0, {"room_id": 1}])
+def test_advance_phase_cumulative_ignores_unusable_ids(junk):
+    """[QE-13c] non-positive / non-integer entries are dropped, not crashed on."""
+    nxt = advance_active_job_phase(_phased([junk, 4]))
+    assert nxt["completed_room_ids_cumulative"] == [4]
+
+
+def test_advance_phase_cumulative_absent_key_is_safe():
+    """[QE-13c] a job written before this landed has no cumulative key."""
+    job = _phased([1])
+    job.pop("completed_room_ids_cumulative", None)
+    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]

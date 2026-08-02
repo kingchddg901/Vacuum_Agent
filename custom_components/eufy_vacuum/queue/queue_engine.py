@@ -467,6 +467,29 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     advanced["queue_room_ids"] = next_room_ids
     advanced["queue_stable_keys"] = [f"{vac}:{mid}:{rid}" for rid in next_room_ids]
     advanced["queue_rooms"] = list(next_phase.get("queue_rooms", []))
+    # RP-013c/RF-11: carry the FINISHING phase's completed evidence up to job level
+    # BEFORE the per-phase reset below wipes it. Per-phase reset semantics are
+    # deliberate and unchanged (each phase is a fresh atomic sub-job); the defect was
+    # that nothing accumulated across the resets, so _write_incomplete_run_log computed
+    # missed = queue - the CURRENT phase's freshly-emptied list. A 3-phase run cancelled
+    # in phase 2 reported phase 1's genuinely-cleaned rooms as missed, and retry
+    # automations re-cleaned them. Confirmed on hardware: alfred job_2026-08-02T00-08-10
+    # logged completed_room_ids [] / missed [5, 8] while its own room_timings carried
+    # kitchen at 120 s.
+    #
+    # Append-only and de-duplicated, order preserved: a room is evidence that it was
+    # cleaned during THIS job, and a later phase re-listing it must not duplicate it.
+    _cumulative: list[int] = []
+    for _key in ("completed_room_ids_cumulative", "completed_room_ids"):
+        _raw = active_job.get(_key)
+        for _v in _raw if isinstance(_raw, list) else []:
+            try:
+                _rid = int(_v)
+            except (TypeError, ValueError):
+                continue
+            if _rid > 0 and _rid not in _cumulative:
+                _cumulative.append(_rid)
+    advanced["completed_room_ids_cumulative"] = _cumulative
     # Reset per-phase progress — the next phase is a fresh atomic sub-job.
     advanced["completed_room_ids"] = []
     advanced["completed_rooms"] = []

@@ -1607,8 +1607,31 @@ class LearningJobFinalizer:
             outcome = completed_job.get("outcome", {})
             outcome_status = str(outcome.get("status", "")).lower()
             if outcome_status not in {"cancelled", "failed", "interrupted"}:
-                # Job completed normally — clear any stale incomplete run log so
-                # the card banner doesn't persist after a successful full clean.
+                # RP-013c/RF-11 (#16:A4-STATE-2): clear ONLY when this run actually
+                # covers what the log is complaining about. The old rule cleared on ANY
+                # normal completion, so a one-room Kitchen clean silently erased a log
+                # about a different run's stranded Bedroom and Den -- the user lost the
+                # record of rooms they still needed, and retry_missed_rooms had nothing
+                # left to retry. The prior docstring's "(full clean)" claim was never
+                # true: no fullness was ever checked.
+                #
+                # Overlap, not equality: finishing SOME of the missed rooms is real
+                # progress on that strand, and the recomputed log below is not reachable
+                # from this branch, so a partial-overlap clear is the honest outcome for
+                # a run that completed normally. Map must match -- the same room id on a
+                # different floor is a different room.
+                _log = self.store.load_incomplete_run(vacuum_entity_id=vacuum_entity_id)
+                if isinstance(_log, dict) and _log.get("missed_room_ids"):
+                    _logged_missed = {
+                        _safe_int(r, -1) for r in (_log.get("missed_room_ids") or [])
+                    }
+                    _this_run = {
+                        _safe_int(r, -1)
+                        for r in ((completed_job.get("queue") or {}).get("queue_room_ids") or [])
+                    }
+                    _same_map = str(_log.get("map_id", "")) == str(map_id)
+                    if not (_same_map and (_logged_missed & _this_run)):
+                        return None
                 self.store.clear_incomplete_run(vacuum_entity_id=vacuum_entity_id)
                 return None
 
@@ -1619,15 +1642,42 @@ class LearningJobFinalizer:
                 if _safe_int(r, -1) > 0
             ]
 
+            # RP-013c/RF-11: completed evidence is the UNION of three sources, because
+            # no single one survives a phased run.
+            #   - completed_room_ids        the CURRENT phase only; advance_active_job_phase
+            #                               empties it by design (fresh atomic sub-job)
+            #   - ..._cumulative            every earlier phase, carried across the resets
+            #   - room_timings              rooms whose phase finished but whose completion
+            #                               the rollover never rolled (clause 3)
+            # Reading only the first is what made a 3-phase run cancelled in phase 2 report
+            # phase 1's cleaned rooms as missed. Hardware: alfred job_2026-08-02T00-08-10
+            # logged completed [] / missed [5, 8] while its room_timings held kitchen at 120 s.
             active_completed: list[int] = []
             if isinstance(active_job_state, dict):
-                raw = active_job_state.get("completed_room_ids") or []
-                if isinstance(raw, list):
-                    active_completed = [
-                        _safe_int(r, -1)
-                        for r in raw
-                        if _safe_int(r, -1) > 0
-                    ]
+                for _key in ("completed_room_ids_cumulative", "completed_room_ids"):
+                    raw = active_job_state.get(_key) or []
+                    if isinstance(raw, list):
+                        for r in raw:
+                            rid = _safe_int(r, -1)
+                            if rid > 0 and rid not in active_completed:
+                                active_completed.append(rid)
+
+            # Clause 3 — final-room honesty. A captured room_timing means the phase FINISHED
+            # (_capture_finishing_phase_timing only runs on a finishing phase), so the room
+            # was cleaned even when the job was cancelled before the rollover recorded it.
+            # Deliberately strict per the packet's REVIEW pin -- NO SYNTHESIS OF COMPLETION:
+            # a positive cleaning_seconds is required, so an interrupted room that never
+            # accrued time stays missed. Erring toward "missed" only costs a redundant
+            # re-clean; erring toward "completed" silently drops a room the user asked for.
+            _job_block = completed_job.get("job")
+            for _t in (_job_block.get("room_timings") or []) if isinstance(_job_block, dict) else []:
+                if not isinstance(_t, dict):
+                    continue
+                rid = _safe_int(_t.get("room_id", -1), -1)
+                if rid > 0 and rid not in active_completed and _safe_float(
+                    _t.get("cleaning_seconds"), 0.0
+                ) > 0:
+                    active_completed.append(rid)
 
             missed_room_ids = sorted(set(queued_room_ids) - set(active_completed))
 

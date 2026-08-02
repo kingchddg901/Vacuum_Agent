@@ -804,3 +804,102 @@ def test_wall_clock_fallback_atomic_job_subtracts_commanded_breaks(finalizer):
     )
     # wall = 1200s; paused 60 + recharge 30 = 90; no phases -> no break subtraction.
     assert inputs["cleaning_time_seconds"] == 1200 - 90
+
+
+# ---------------------------------------------------------------------------
+# RP-013c — missed rooms, completed evidence, and the overlap-only clear
+# ---------------------------------------------------------------------------
+
+_VAC_13C = "vacuum.alfred"
+_MAP_13C = "12"
+
+
+def _cancelled(queued, timings=None):
+    return {
+        "job_id": "job_13c",
+        "outcome": {"status": "cancelled"},
+        "queue": {"queue_room_ids": list(queued)},
+        "resolved_rooms": [{"room_id": r, "name": f"Room {r}"} for r in queued],
+        "job": {"room_timings": list(timings or [])},
+    }
+
+
+def _write(fin, completed_job, active_job_state):
+    return fin._write_incomplete_run_log(
+        vacuum_entity_id=_VAC_13C, map_id=_MAP_13C,
+        completed_job=completed_job, active_job_state=active_job_state,
+        ended_at="2026-08-02T00:30:00Z",
+    )
+
+
+def test_missed_consumes_cumulative_evidence(finalizer):
+    """[JF-13c] phase 1's rooms are not missed just because the advance reset the list."""
+    written = _write(finalizer, _cancelled([1, 2, 3]),
+                     {"completed_room_ids_cumulative": [1], "completed_room_ids": []})
+    assert sorted(written["missed_room_ids"]) == [2, 3]
+    assert sorted(written["completed_room_ids"]) == [1]
+
+
+def test_missed_unions_cumulative_and_current_phase(finalizer):
+    """[JF-13c] the current phase's own progress still counts."""
+    written = _write(finalizer, _cancelled([1, 2, 3]),
+                     {"completed_room_ids_cumulative": [1], "completed_room_ids": [2]})
+    assert sorted(written["missed_room_ids"]) == [3]
+
+
+def test_timing_evidence_counts_a_room_as_completed(finalizer):
+    """[JF-13c] clause 3 — a finished phase's timing is completion evidence."""
+    written = _write(
+        finalizer,
+        _cancelled([1, 2], timings=[{"room_id": 1, "cleaning_seconds": 120}]),
+        {"completed_room_ids": []},
+    )
+    assert sorted(written["missed_room_ids"]) == [2]
+
+
+def test_zero_second_timing_is_not_completion_evidence(finalizer):
+    """[JF-13c] clause 3, the other direction — NO synthesis of completion."""
+    written = _write(
+        finalizer,
+        _cancelled([1, 2], timings=[{"room_id": 1, "cleaning_seconds": 0}]),
+        {"completed_room_ids": []},
+    )
+    assert sorted(written["missed_room_ids"]) == [1, 2]
+
+
+def test_normal_completion_does_not_clear_a_nonoverlapping_log(finalizer):
+    """[JF-13c] STATE-2 — a Kitchen run must not erase a Bedroom+Den strand."""
+    _write(finalizer, _cancelled([5, 6]), {"completed_room_ids": []})
+    _write(finalizer,
+           {"job_id": "j2", "outcome": {"status": "completed"},
+            "queue": {"queue_room_ids": [1]},
+            "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}]},
+           {"completed_room_ids": [1]})
+    log = finalizer.store.load_incomplete_run(vacuum_entity_id=_VAC_13C)
+    assert sorted(log["missed_room_ids"]) == [5, 6]
+
+
+def test_normal_completion_clears_an_overlapping_log(finalizer):
+    """[JF-13c] STATE-2 — a run covering a logged room DOES clear it."""
+    _write(finalizer, _cancelled([5, 6]), {"completed_room_ids": []})
+    _write(finalizer,
+           {"job_id": "j2", "outcome": {"status": "completed"},
+            "queue": {"queue_room_ids": [5, 6]},
+            "resolved_rooms": [{"room_id": 5}, {"room_id": 6}]},
+           {"completed_room_ids": [5, 6]})
+    assert finalizer.store.load_incomplete_run(vacuum_entity_id=_VAC_13C) is None
+
+
+def test_overlapping_rooms_on_a_different_map_do_not_clear(finalizer):
+    """[JF-13c] STATE-2 — same room id on another floor is a different room."""
+    _write(finalizer, _cancelled([5, 6]), {"completed_room_ids": []})
+    finalizer._write_incomplete_run_log(
+        vacuum_entity_id=_VAC_13C, map_id="99",
+        completed_job={"job_id": "j2", "outcome": {"status": "completed"},
+                       "queue": {"queue_room_ids": [5]},
+                       "resolved_rooms": [{"room_id": 5}]},
+        active_job_state={"completed_room_ids": [5]},
+        ended_at="2026-08-02T01:00:00Z",
+    )
+    log = finalizer.store.load_incomplete_run(vacuum_entity_id=_VAC_13C)
+    assert sorted(log["missed_room_ids"]) == [5, 6]

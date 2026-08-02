@@ -863,6 +863,15 @@ class LearningHistoryStore:
         else:
             _queue_room_ids = []
             _queue_rooms = []
+        _completed_room_ids: list[int] = []
+        if isinstance(active_job_state, dict):
+            for _key in ("completed_room_ids_cumulative", "completed_room_ids"):
+                _raw = active_job_state.get(_key)
+                for _v in _raw if isinstance(_raw, list) else []:
+                    _rid = _safe_int(_v, -1)
+                    if _rid > 0 and _rid not in _completed_room_ids:
+                        _completed_room_ids.append(_rid)
+
         _queue_block = {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": (
@@ -872,6 +881,14 @@ class LearningHistoryStore:
             "room_count": len(_queue_room_ids),
             "queue_room_ids": _queue_room_ids,
             "queue_rooms": _queue_rooms,
+            # RP-013c/RF-11: persist the completed evidence so the archived record is
+            # reconstructible. It lived only on the in-memory active job, which is torn
+            # down at finalize -- so after the fact there was no way to tell a room that
+            # was cleaned before a cancel from one that never ran, and the incomplete-run
+            # log (a separate, overwritten-per-run store) was the only witness. Union of
+            # every phase, same ladder the finalizer uses. Additive: readers tolerate
+            # absence on records written before this landed.
+            "completed_room_ids": _completed_room_ids,
         }
 
         queue_rooms = queue_state.get("queue_rooms", []) if isinstance(queue_state, dict) else []
