@@ -162,10 +162,10 @@ apparatus exists to prevent.
 
 ## 7. Held / out of scope for this phase
 
-- **RP-013c** — blocked on stepped Run B (cancel mid-phase-2 after the charge).
-  Arm the capture with `size: 50000`; the default 3000 evicted most of Run A.
-  Run B should also carry a `[room, room]` group phase so RP-013b gets hardware
-  coverage in the same session.
+- **RP-013c** — blocked on stepped Run B. CORRECTED profile:
+  `[room 1] -> charge_wait -> [room 2, room 3] -> [room 4]`, cancel during the
+  FINAL phase -- cancelling during the GROUP loses RP-013b's evidence, since a
+  phase only captures timing when it FINISHES. Arm `size: 50000`.
 - **RP-014** — assignable only after its site table is widened from 5 to 17.
 - **RP-042..045 (SYNTH-12, battery)** — hold. `battery/` had one targeted review
   in 2026-06 that CLEARED the exact areas all four defects live in; recommend a

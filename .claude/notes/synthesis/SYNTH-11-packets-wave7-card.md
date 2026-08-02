@@ -198,7 +198,17 @@ superseded_tests: steps-editor tests permitting leading breaks.
 ```yaml
 packet_id: CARD-7
 finding_ids: [#10:A2-REC-1 card half (the unreachable-review product gap)]
-files: [src/ (new pane), i18n en + 17, src/styles/, tests/frontend]
+files: [src/renderers/setup.js (EXTEND -- see below), i18n en + 17, src/styles/,
+  tests/frontend]
+
+  >>> NOT A NEW PANE (Chris, 2026-08-01). Rooms are already discovered and
+  >>> surfaced in setup; a parallel review pane is redundant, and two surfaces for
+  >>> the same objects is how they drift apart. The GAP is real --
+  >>> rooms/reconciliation.py:141 returns {"reviews": [...], "has_changes": bool}
+  >>> and there are ZERO card consumers -- but the fix is to surface the four
+  >>> review kinds in the EXISTING setup surface. This closes the first and
+  >>> largest of the design questions; entry point, per-kind rendering and the
+  >>> stale-plan_token recovery remain for the session.
 required_behavior: >
   SKELETON ONLY — the surface is a PRODUCT decision (REVIEW/catalogue pin:
   "card wiring is product work with Chris"). The packet fixes the CONTRACT:

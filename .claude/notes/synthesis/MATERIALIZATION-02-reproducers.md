@@ -255,7 +255,9 @@ run (one extra Alfred cancel mid-phase-2, same session).
 > below 90% so the charge step actually waits, arm
 > `eufy_vacuum.debug_capture_start` with `size: 50000, max_minutes: 120`.
 > **Run A** — let all three phases finish (HC-2b). **Run B** — same profile,
-> cancel from the card during phase 2, after the charge (RP-013c's exact shape).
+> cancel during the FINAL phase (see the corrected 4-phase profile in
+> OWNERSHIP-ADJUDICATION.md -- cancelling during the GROUP phase would lose
+> RP-013b's evidence, because a phase only captures timing when it FINISHES).
 > Expect in run A: `transit_capture_valid=False` despite both room phases
 > capturing cleanly. In run B: the incomplete-run log listing phase 1's finished
 > room as missed.

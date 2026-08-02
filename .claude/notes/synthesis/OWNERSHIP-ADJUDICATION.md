@@ -72,7 +72,7 @@ JOB-5 and JOB-6 land after RP-031 regardless.
 
 | # | question | decision |
 |---|---|---|
-| 1 | Battery: promote a tier before RF-36, or execute RP-042 alone? | **DEFER** — the whole RF-36 family stays parked, RP-042 included. |
+| 1 | Battery: promote a tier before RF-36? | **REVERSED 2026-08-01 — NO promotion, EXECUTE.** What live observation found is enough to run the fixes; the mechanism is known, not suspected. RF-36 is UNPARKED. |
 | 2 | Hardware Run B (unblocks RP-013c) | **DEFER** |
 | 3 | CARD-7 design session | **DEFER for now** |
 | 4 | CARD-2(1) — is the VISUAL=1 harness repin in scope? | **YES — REPIN.** Do it. |
@@ -91,3 +91,72 @@ CARD-6 clause (3) is now **dropped**, not deferred — remove it from the clause
 list when CARD-6 is executed, and note in the commit that `zone_bounds` remains
 a snapshot field with no consumer BY DECISION, so a future reader does not file
 it as an oversight.
+
+---
+
+## Three later decisions, same day
+
+### RP-042 — `unreadable` is **null**, not a tri-state
+
+The packet left one choice open: *"an explicit UNKNOWN result (None, or a tri-state
+mirroring RP-006 — pick one)"*. **Chris: null.**
+
+Right call, and the reason is worth keeping: RP-006 needed three states because
+`read_json` must distinguish ABSENT from CORRUPT from PRESENT — each drives a
+different recovery. A battery reading has only two states that matter, KNOWN and
+UNKNOWN, so a tri-state would add a branch nobody can act on differently.
+
+The consumer rule follows directly: **a `None` sample is a GAP, not a delta.** The
+drain accumulator and the session recorder SKIP it. They must not difference
+against it, and must not carry the previous reading forward as if it were
+observed.
+
+The RF-36 promotion question is also closed — no audit first. Execute the four
+packets from what the live evidence already proves.
+
+### Run B — the recipe was WRONG, and Chris caught it
+
+The held recipe said "cancel during phase 2 after the charge" and separately "add
+a `[room, room]` group so RP-013b gets hardware coverage". Chris read that as two
+merged runs, and he is right — worse, **as written it would have collected
+RP-013c's evidence and silently missed RP-013b's.**
+
+`_capture_finishing_phase_timing` runs when a phase FINISHES. Cancel during the
+group phase and the group never finishes, so no timing entry is written and
+RP-013b's whole point — one entry crediting only `room[0]` — is unobservable.
+
+**CORRECTED PROFILE — four phases, one run, both packets:**
+
+    [room 1] -> charge_wait -> [room 2, room 3] -> [room 4]
+                                ^ group COMPLETES   ^ cancel HERE
+
+The group finishes (RP-013b captured), then the cancel lands during the final
+single-room phase (RP-013c captured). Arm with `size: 50000`; the default 3000
+evicted most of Run A.
+
+If four phases is too long a sit, run them separately — RP-013b's needs no cancel
+at all and is short.
+
+### CARD-7 — NOT a new pane; extend the setup surface
+
+CARD-7's `files` says `src/ (new pane)`. **Chris: rooms are already discovered and
+surfaced in setup — a separate review pane is redundant.** Checked and he is
+right on both halves:
+
+- the gap is REAL: `rooms/reconciliation.py:141` returns
+  `{"reviews": [...], "has_changes": bool}` and there are ZERO card consumers
+  (the only "review" in `src/renderers/setup.js` is a docstring mention of drift
+  review, a different thing);
+- but setup ALREADY owns the room surface, so the fix is to surface the four
+  review kinds (renamed / id_changed / removed / new) THERE, not to build a
+  parallel place for rooms to live. Two surfaces for the same objects is how they
+  drift apart.
+
+That resolves the first and largest of CARD-7's design questions. Remaining for
+the design session: entry point / does a pending review announce itself, how the
+four review kinds render (removed and renamed are not symmetric decisions), and —
+not in the packet — **what happens to a partially-accepted set when `plan_token`
+goes stale mid-review.** The packet specifies the `plan_changed` refusal but not
+the recovery.
+
+CARD-7 stays `blocked_by RP-019` regardless.

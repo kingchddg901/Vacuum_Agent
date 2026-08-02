@@ -65,12 +65,17 @@ evidence_live: >
   visible. The numbers above are LOWER BOUNDS. This is the Audit-#2 lesson
   repeating — an accumulator outside the rebuild path takes permanent damage.
 required_behavior: >
-  (1) get_battery_level gains an explicit UNKNOWN result (None, or a tri-state
-  mirroring RP-006 — pick one and use it at every call site). It must never
-  return a number it did not read.
-  (2) Every consumer decides explicitly. The drain accumulator and the session
-  recorder SKIP an unknown sample rather than treating it as a reading; a
-  skipped sample is a gap, not a delta.
+  (1) get_battery_level gains an explicit UNKNOWN result. DECIDED BY CHRIS
+  2026-08-01: **None (null), NOT a tri-state.** RP-006 needed three states because
+  read_json must distinguish ABSENT / CORRUPT / PRESENT, each driving a different
+  recovery; a battery reading has only KNOWN and UNKNOWN, so a third would add a
+  branch nobody can act on. Use None at every call site. It must never return a
+  number it did not read.
+  (2) Every consumer decides explicitly. **A None sample is a GAP, not a delta**
+  (Chris, 2026-08-01): the drain accumulator and the session recorder SKIP it.
+  They must NOT difference against it, and must NOT carry the previous reading
+  forward as though it had been observed — a carried-forward reading is the same
+  lie as the 0, just quieter.
   (3) A one-shot repair pass for the existing corruption: recompute
   cumulative_drain_pct from the session ring, discarding rows whose end_battery
   is 0 with a start_battery above a plausible-drain threshold, and record that
@@ -81,7 +86,7 @@ prohibited_changes: >
   No substring/heuristic fallback for the battery reading (the sibling
   is_charging deliberately refuses one — charging.py:67-75 — and the same
   reasoning applies).
-rollback_plan: 3 commits (tri-state + call sites; consumer decisions; repair pass).
+rollback_plan: 3 commits (None + call sites; consumer decisions; repair pass).
 reproducer_script: NEW _proof_battery_unknown.py — battery sensor unavailable +
   vacuum attribute absent: reading (before 0 / after unknown); a dropout sample
   through the drain accumulator (before +98 pts / after skipped).

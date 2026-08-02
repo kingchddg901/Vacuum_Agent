@@ -528,9 +528,9 @@ depends on allocation preserving totals); RP-028 → RP-029.
 
 | item | blocked on |
 |---|---|
-| RP-013c | stepped Run B (cancel mid-phase-2 after the charge). Arm capture `size: 50000` -- the default 3000 evicted most of Run A. Include a `[room, room]` group phase so RP-013b gets hardware coverage the same session. |
+| RP-013c | stepped Run B, DEFERRED by Chris. CORRECTED profile when it happens: `[room 1] -> charge_wait -> [room 2, room 3] -> [room 4]`, cancel during the FINAL phase. Cancelling during the GROUP would lose RP-013b's evidence — a phase only captures timing when it FINISHES. Arm `size: 50000`. |
 | RP-014 | its site table says 5 hand-inlined `{"started","paused"}` sites; there are 17. Widen before assigning. |
-| RP-042..045 (SYNTH-12) | `battery/` was covered by the direct-read tier, which found 2 LOW while live observation found 4 more incl. a HIGH. Promote it a tier before executing, so the packets are written against depth the read could not reach. RP-042 alone is defensible first — its accumulator takes fresh damage on every dropout. |
+| RP-042..045 (SYNTH-12) | **UNPARKED 2026-08-01** — no audit promotion; execute from the live evidence. RP-042's open choice is DECIDED: unreadable is **None (null)**, not a tri-state, and a None sample is a GAP not a delta. See OWNERSHIP-ADJUDICATION.md. |
 | CARD-7 | design session with Chris. |
 | HC batches | hardware windows, not model work. |
 | RP-040 closing-batch member `#13:A4-SETUP-6` (services/setup.py `setup_reject_rooms`, table batch SMALL-CORRECTNESS) | ejected during Stage M6 (2026-08-02). `.claude/notes/_proof_reject_rooms_map_scope.py` (RP-040's own Q10 materialization) documents the real required_behavior: add a `map_id` field to the service schema, scope `setup/drift.py:reject_rooms`'s removal to that one map, AND add a new `setup_unreject_rooms` reversal service, routed through the same protection/confirmation standard as the other destructive setup actions (`_delete_map`'s `confirmation_token` pattern). That is a new service + schema + services.yaml + 18-lang strings.json surface, not a one-line correctness fix — the closing-batch table's SMALL-CORRECTNESS label undersells it. Needs its own named packet. |
