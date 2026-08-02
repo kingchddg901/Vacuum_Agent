@@ -23,6 +23,24 @@ def _normalize_enabled_room_ids(enabled_room_ids: list[int] | list[str] | None) 
     return normalized
 
 
+def _existing_by_slug(existing_rooms: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Slug -> existing room dict, for rooms whose slug is UNIQUE among
+    existing_rooms only. RP-018/D5: a store that still holds a pre-RP-015
+    duplicate slug (from before admission-time uniqueness existed) must not
+    let slug-led carry pick one of two candidates arbitrarily and collapse
+    their identities — an ambiguous slug is excluded here entirely, so that
+    room falls back to id-led carry (today's behaviour), never a guess.
+    """
+    by_slug: dict[str, list[dict[str, Any]]] = {}
+    for room in existing_rooms.values():
+        if not isinstance(room, dict):
+            continue
+        slug = str(room.get("slug") or "").strip()
+        if slug:
+            by_slug.setdefault(slug, []).append(room)
+    return {slug: rooms[0] for slug, rooms in by_slug.items() if len(rooms) == 1}
+
+
 def build_managed_rooms(
     *,
     discovered_rooms: list[dict[str, Any]],
@@ -30,6 +48,7 @@ def build_managed_rooms(
     existing_rooms: dict[str, Any] | None = None,
     enabled_room_ids: list[int] | list[str] | None = None,
     floor_types: dict[int, str] | None = None,
+    rejected_rooms: set[int] | list[int] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Build a managed room dict keyed by room_id string from discovered rooms.
 
@@ -52,14 +71,47 @@ def build_managed_rooms(
     callers that write the result into a persisted room store (``save_managed_rooms``,
     ``rebuild_map``) are responsible for guarding an empty result against a non-empty
     stored map via ``room_crud._refuse_destructive_replace`` before assigning it.
+
+    RP-018/RF-25b: carry-over is SLUG-LED with id fallback (REC-8/CRUD-2) — a
+    re-segment renumber must not transplant one physical room's settings onto
+    whichever room now happens to hold its OLD numeric id. Q5 (verbatim):
+    a room with NO existing match — the room this discovery pass has never
+    seen before — is enabled on a FIRST import (``existing_rooms`` was empty
+    before this call) and DISABLED+unconfirmed on incremental discovery
+    (DQ-Q-5/CRUD-6); it never silently joins an already-active queue.
+    ``floor_types`` gates ``is_configured`` (CRUD-3): a room reaching this
+    function via ``enabled_room_ids`` without a supplied floor_type entry is
+    NOT auto-confirmed — a previously-confirmed room stays confirmed across a
+    re-save regardless. ``rejected_rooms`` (CRUD-5) excludes ids the user
+    explicitly rejected (setup/drift.py) from resurrecting on rediscovery.
     """
     from ..profiles.room_profiles import DEFAULT_ROOM_PROFILE_NAME   # local: import cycle
 
     existing_rooms = existing_rooms or {}
     new_room_defaults = new_room_defaults or {}
     floor_types = floor_types or {}
+    rejected_ids = _normalize_enabled_room_ids(rejected_rooms) if rejected_rooms else set()
     explicit_enabled_ids = _normalize_enabled_room_ids(enabled_room_ids)
     has_explicit_enabled_ids = enabled_room_ids is not None
+    is_first_import = not existing_rooms
+    existing_by_slug = _existing_by_slug(existing_rooms)
+
+    # Old ids "consumed" by a slug match this pass: their freed numeric id must
+    # NOT be claimed by id-fallback for a DIFFERENT (brand-new) room that
+    # happens to reuse it (mirrors reconciliation.py's plan_migration
+    # consumed_old_ids guard — same shape, same reason). Without this, a
+    # renumber (Kitchen 16->21, a new Bedroom takes 16) would carry Kitchen via
+    # its slug AND transplant Kitchen's old settings onto Bedroom via id 16 —
+    # exactly the REC-8/CRUD-2 defect this packet closes.
+    consumed_ids: set[int] = set()
+    for room in discovered_rooms:
+        slug = str(room.get("slug") or "").strip()
+        matched = existing_by_slug.get(slug) if slug else None
+        if matched is not None:
+            try:
+                consumed_ids.add(int(matched.get("room_id")))
+            except (TypeError, ValueError):
+                pass
 
     managed: dict[str, dict[str, Any]] = {}
 
@@ -67,25 +119,44 @@ def build_managed_rooms(
         room_id = int(room["room_id"])
         room_id_key = str(room_id)
 
+        if room_id in rejected_ids:
+            continue
         if has_explicit_enabled_ids and room_id not in explicit_enabled_ids:
             continue
 
-        existing = existing_rooms.get(room_id_key, {})
+        slug = str(room.get("slug") or "").strip()
+        matched_by_slug = existing_by_slug.get(slug) if slug else None
+        if matched_by_slug is not None:
+            existing = matched_by_slug
+        elif room_id not in consumed_ids:
+            existing = existing_rooms.get(room_id_key, {})
+        else:
+            existing = {}
+        is_new_room = not existing
 
         # Wizard-supplied floor type takes priority over any stored value;
         # the value encodes carpet pile height (e.g. "carpet_low_pile").
-        floor_type = (
-            floor_types.get(room_id)
-            or floor_types.get(str(room_id))
-            or str(existing.get("floor_type", "hardwood"))
-        )
+        floor_type_entry = floor_types.get(room_id)
+        if floor_type_entry is None:
+            floor_type_entry = floor_types.get(str(room_id))
+        floor_type = floor_type_entry or str(existing.get("floor_type", "hardwood"))
 
-        # Calling build_managed_rooms with a room ID in enabled_room_ids
-        # is the user's explicit approval — stamp is_configured=True.
-        # Preserve a previous configured_at when present; otherwise set
-        # now so the response includes a defined timestamp.
+        # Calling build_managed_rooms with a room ID in enabled_room_ids is the
+        # user's explicit approval — but CRUD-3: is_configured also requires a
+        # supplied floor_type entry THIS call, unless the room was already
+        # confirmed on a prior save. Scoped to explicit-approval calls only
+        # (enabled_room_ids given): the wizard supplies both together from one
+        # form submission, so "approved but no floor type" is a real,
+        # meaningful gap there. A call with no enabled_room_ids at all is not
+        # asking an approval question in the first place (e.g. re-syncing an
+        # already-set-up map) — is_configured keeps its unconditional True,
+        # as before.
         from ..learning.utils import _iso_now
         existing_configured_at = existing.get("configured_at")
+        if has_explicit_enabled_ids:
+            is_configured = bool(existing.get("is_configured", False)) or floor_type_entry is not None
+        else:
+            is_configured = True
 
         # A field a room already carries wins; otherwise the BRAND's default profile
         # answers, via new_room_defaults. _default() keeps that precedence in one place so
@@ -102,7 +173,7 @@ def build_managed_rooms(
             map_id=str(room["map_id"]),
             name=str(room["name"]),
             slug=room.get("slug"),
-            enabled=bool(existing.get("enabled", True)),
+            enabled=bool(existing.get("enabled", is_first_import if is_new_room else True)),
             order=int(existing.get("order", index)),
             profile_name=str(_default("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
@@ -118,7 +189,7 @@ def build_managed_rooms(
             grants_access_to=list(existing.get("grants_access_to", [])),
             rules=list(existing.get("rules", [])),
             color=existing.get("color"),  # preserve per-room map fill override across a re-save
-            is_configured=True,
+            is_configured=is_configured,
             configured_at=existing_configured_at or _iso_now(),
         )
 

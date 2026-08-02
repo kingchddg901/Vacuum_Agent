@@ -130,6 +130,12 @@ def test_build_defaults_for_new_room():
     Sourcing from the profile is what makes the label true, and is the same move that lets
     a non-Eufy brand supply its own defaults at all. Existing rooms are untouched — they
     carry stored values and nothing rewrites them.
+
+    RP-018/CRUD-3 does not change this case: is_configured's floor_types gate
+    only applies to an explicit-approval call (enabled_room_ids given) — this
+    call passes neither, so it isn't asking an approval question at all and
+    is_configured keeps its unconditional True (see test_build_managed_rooms
+    _requires_floor_type_when_explicitly_approved for the gated case).
     """
     result = build_managed_rooms(
         new_room_defaults=_EUFY_DEFAULTS, discovered_rooms=[_disc(5, name="Hallway")])
@@ -291,6 +297,102 @@ def test_build_no_discovered_rooms():
     result = build_managed_rooms(
         new_room_defaults=_EUFY_DEFAULTS,discovered_rooms=[])
     assert result == {}
+
+
+# ---------------------------------------------------------------------------
+# RP-018/RF-25b: slug-led carry, Q5 enablement, CRUD-3/CRUD-5
+# ---------------------------------------------------------------------------
+
+def test_build_managed_rooms_slug_led_carry_on_renumber():
+    """Kitchen renumbers 16->21; a brand-new Bedroom takes over the freed id 16.
+    Settings follow the SLUG, not the numeric id — Bedroom must not inherit
+    Kitchen's dock/grants via id-fallback just because it now sits at 16."""
+    existing = {"16": {
+        "room_id": 16, "name": "Kitchen", "slug": "kitchen", "enabled": True,
+        "is_dock_room": True, "grants_access_to": ["hallway"],
+    }}
+    discovered = [
+        {"room_id": 21, "map_id": "1", "name": "Kitchen", "slug": "kitchen"},
+        {"room_id": 16, "map_id": "1", "name": "Bedroom", "slug": "bedroom"},
+    ]
+    managed = build_managed_rooms(
+        discovered_rooms=discovered, new_room_defaults=_EUFY_DEFAULTS, existing_rooms=existing,
+    )
+    assert managed["21"]["is_dock_room"] is True
+    assert managed["21"]["grants_access_to"] == ["hallway"]
+    assert managed["16"]["is_dock_room"] is False
+    assert managed["16"]["grants_access_to"] == []
+
+
+def test_build_managed_rooms_duplicate_stored_slug_falls_back_to_id():
+    """D5 safety: a store still holding a pre-RP-015 duplicate slug must not
+    let slug-led carry pick one of the two candidates arbitrarily — the
+    ambiguous slug is excluded, so matching falls back to id-led (unaffected
+    by the ambiguity)."""
+    existing = {
+        "3": {"room_id": 3, "name": "Bathroom A", "slug": "bathroom", "enabled": False},
+        "7": {"room_id": 7, "name": "Bathroom B", "slug": "bathroom", "enabled": True},
+    }
+    discovered = [{"room_id": 3, "map_id": "1", "name": "Bathroom A", "slug": "bathroom"}]
+    managed = build_managed_rooms(
+        discovered_rooms=discovered, new_room_defaults=_EUFY_DEFAULTS, existing_rooms=existing,
+    )
+    assert managed["3"]["enabled"] is False   # id-led (its own stored entry), not slug-ambiguous
+
+
+def test_build_managed_rooms_q5_first_import_enables_new_room():
+    """Q5: a genuinely new room reaching build_managed_rooms with NO existing
+    rooms at all for this map (first import) is enabled."""
+    managed = build_managed_rooms(
+        discovered_rooms=[_disc(1)], new_room_defaults=_EUFY_DEFAULTS, existing_rooms={},
+    )
+    assert managed["1"]["enabled"] is True
+
+
+def test_build_managed_rooms_q5_incremental_disables_new_room():
+    """Q5: a genuinely new room found on a map that ALREADY had rooms saved
+    (incremental discovery) is added disabled — never silently into an
+    already-active queue."""
+    existing = {"1": {"room_id": 1, "name": "Kitchen", "slug": "kitchen", "enabled": True}}
+    discovered = [
+        {"room_id": 1, "map_id": "1", "name": "Kitchen", "slug": "kitchen"},
+        {"room_id": 2, "map_id": "1", "name": "Office", "slug": "office"},
+    ]
+    managed = build_managed_rooms(
+        discovered_rooms=discovered, new_room_defaults=_EUFY_DEFAULTS, existing_rooms=existing,
+    )
+    assert managed["1"]["enabled"] is True    # unaffected existing room
+    assert managed["2"]["enabled"] is False   # genuinely new -> disabled
+
+
+def test_build_managed_rooms_requires_floor_type_when_explicitly_approved():
+    """CRUD-3: a room approved via enabled_room_ids but with no floor_types
+    entry supplied THIS call is NOT auto-confirmed."""
+    managed = build_managed_rooms(
+        discovered_rooms=[_disc(5)], new_room_defaults=_EUFY_DEFAULTS, existing_rooms={},
+        enabled_room_ids=[5], floor_types={},
+    )
+    assert managed["5"]["is_configured"] is False
+
+
+def test_build_managed_rooms_floor_type_supplied_confirms():
+    """CRUD-3 inverse: the same approval call, but floor_types DOES supply an
+    entry for this room — is_configured is True."""
+    managed = build_managed_rooms(
+        discovered_rooms=[_disc(5)], new_room_defaults=_EUFY_DEFAULTS, existing_rooms={},
+        enabled_room_ids=[5], floor_types={5: "tile"},
+    )
+    assert managed["5"]["is_configured"] is True
+
+
+def test_build_managed_rooms_excludes_rejected_rooms():
+    """CRUD-5: a room the user explicitly rejected (setup/drift.py's
+    rejected_rooms) does not resurrect on rediscovery."""
+    managed = build_managed_rooms(
+        discovered_rooms=[_disc(9)], new_room_defaults=_EUFY_DEFAULTS, existing_rooms={},
+        rejected_rooms={9},
+    )
+    assert "9" not in managed
 
 
 # ---------------------------------------------------------------------------

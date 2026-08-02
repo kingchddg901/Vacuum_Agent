@@ -69,7 +69,9 @@ def test_vacuum_maps_summary():
 
 
 def test_rebuild_map_bucket():
-    """[MAP-5]"""
+    """[MAP-5] RP-018/Q5: room 2 is genuinely new to this map, and the map already
+    had rooms before this rebuild (an incremental discovery, not a first import) —
+    it is added disabled, never silently joining an already-active queue."""
     data: dict = {}
     # seed an existing room with custom settings + a stale room
     b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="6")
@@ -84,9 +86,43 @@ def test_rebuild_map_bucket():
     assert set(rooms) == {"1", "2"}           # stale room 9 dropped
     assert rooms["1"]["enabled"] is False     # preserved
     assert rooms["1"]["clean_mode"] == "mop"  # preserved
-    assert rooms["2"]["enabled"] is True      # new room defaults
-    assert result["summary"]["enabled_count"] == 1
-    assert result["summary"]["disabled_count"] == 1
+    assert rooms["2"]["enabled"] is False     # incremental new room -> disabled (Q5)
+    assert result["summary"]["enabled_count"] == 0
+    assert result["summary"]["disabled_count"] == 2
+
+
+def test_rebuild_map_bucket_first_import_enables_new_room():
+    """[MAP-5d] RP-018/Q5: the SAME new-room shape, but the map had NO rooms
+    before this rebuild (a first import) — the new room is enabled."""
+    data: dict = {}
+    ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="6")
+    result = rebuild_map_bucket(
+        data=data, vacuum_entity_id=_VAC, map_id="6",
+        discovered_rooms=[{"room_id": 1, "name": "Kitchen"}])
+    assert result["rooms"]["1"]["enabled"] is True
+
+
+def test_rebuild_map_bucket_slug_led_carry_on_renumber():
+    """RP-018/RF-25b: same renumber shape as build_managed_rooms' own test —
+    the two writers share the bug and share the fix. Kitchen renumbers
+    16->21; a new Bedroom takes over 16; settings follow the slug."""
+    data: dict = {}
+    b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="6")
+    b["rooms"] = {"16": {
+        "room_id": 16, "name": "Kitchen", "slug": "kitchen",
+        "is_dock_room": True, "grants_access_to": ["hallway"],
+    }}
+    result = rebuild_map_bucket(
+        data=data, vacuum_entity_id=_VAC, map_id="6",
+        discovered_rooms=[
+            {"room_id": 21, "name": "Kitchen", "slug": "kitchen"},
+            {"room_id": 16, "name": "Bedroom", "slug": "bedroom"},
+        ])
+    rooms = result["rooms"]
+    assert rooms["21"]["is_dock_room"] is True
+    assert rooms["21"]["grants_access_to"] == ["hallway"]
+    assert rooms["16"]["is_dock_room"] is False
+    assert rooms["16"]["grants_access_to"] == []
 
 
 def test_rebuild_map_bucket_preserves_color():

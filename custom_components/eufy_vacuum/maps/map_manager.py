@@ -190,12 +190,50 @@ def rebuild_map_bucket(
 
     existing_rooms = map_bucket.get("rooms", {})
     rebuilt_rooms: dict[str, dict[str, Any]] = {}
+    is_first_import = not existing_rooms
+
+    # RP-018/RF-25b (REC-8/CRUD-2): slug-led carry, id fallback — mirrors
+    # build_managed_rooms' own consumed_ids guard exactly (same bug,
+    # independently written in both writers, same fix). A slug unique among
+    # existing_rooms is the primary match; its OLD numeric id is "consumed" so
+    # a DIFFERENT room that now happens to occupy that freed id via a renumber
+    # never inherits it through id fallback.
+    existing_by_slug: dict[str, dict[str, Any]] = {}
+    if preserve_existing_settings:
+        _by_slug: dict[str, list[dict[str, Any]]] = {}
+        for _room in existing_rooms.values():
+            if not isinstance(_room, dict):
+                continue
+            _slug = str(_room.get("slug") or "").strip()
+            if _slug:
+                _by_slug.setdefault(_slug, []).append(_room)
+        existing_by_slug = {s: r[0] for s, r in _by_slug.items() if len(r) == 1}
+    consumed_ids: set[int] = set()
+    for room in discovered_rooms:
+        slug = str(room.get("slug") or "").strip()
+        matched = existing_by_slug.get(slug) if slug else None
+        if matched is not None:
+            try:
+                consumed_ids.add(int(matched.get("room_id")))
+            except (TypeError, ValueError):
+                pass
 
     for index, room in enumerate(discovered_rooms, start=1):
         room_id = int(room["room_id"])
         room_id_key = str(room_id)
 
-        previous = existing_rooms.get(room_id_key, {}) if preserve_existing_settings else {}
+        if not preserve_existing_settings:
+            previous: dict[str, Any] = {}
+        else:
+            slug = str(room.get("slug") or "").strip()
+            matched_by_slug = existing_by_slug.get(slug) if slug else None
+            if matched_by_slug is not None:
+                previous = matched_by_slug
+            elif room_id not in consumed_ids:
+                previous = existing_rooms.get(room_id_key, {})
+            else:
+                previous = {}
+        is_new_room = not previous
 
         # floor_type encodes carpet pile height in the value itself
         # (e.g. "carpet_low_pile"); there is no separate carpet_type field.
@@ -228,7 +266,11 @@ def rebuild_map_bucket(
             map_id=str(map_id),
             name=str(room["name"]),
             slug=room.get("slug"),
-            enabled=bool(previous.get("enabled", True)),
+            # RP-018/Q5 (DQ-Q-5/CRUD-6): a room with no carried-forward settings
+            # — genuinely new to this map — is enabled on a FIRST import
+            # (existing_rooms was empty before this rebuild) and disabled on an
+            # incremental one; it never silently joins an already-active queue.
+            enabled=bool(previous.get("enabled", is_first_import if is_new_room else True)),
             order=int(previous.get("order", index)),
             profile_name=str(_prev_or_brand("profile_name", DEFAULT_ROOM_PROFILE_NAME)),
             floor_type=floor_type,
@@ -244,7 +286,14 @@ def rebuild_map_bucket(
             grants_access_to=list(_prev_grants) if isinstance(_prev_grants, list) else [],
             rules=list(_prev_rules) if isinstance(_prev_rules, list) else [],
             color=previous.get("color"),
-            is_configured=bool(previous.get("is_configured", True)),
+            # A room carried forward (previous non-empty) preserves whatever
+            # approval already existed, defaulting True for old stored data
+            # that predates this field. A GENUINELY NEW room (no carried
+            # settings at all) must not silently read as user-confirmed —
+            # the "must not silently auto-approve" contract this function
+            # already documents, which the unconditional True default
+            # contradicted for a brand-new room.
+            is_configured=bool(previous.get("is_configured", False if is_new_room else True)),
             configured_at=previous.get("configured_at"),
         ).as_dict()
 
