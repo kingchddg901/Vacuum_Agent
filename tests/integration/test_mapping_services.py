@@ -39,7 +39,8 @@ Coverage targets
 [ZONE-7]  create_saved_zone skips filing/area compute when the zone's map_id ≠ the active map,
         so no wrong-map data is filed (room_number/area_m2 stay None).
 [ZONE-8]  clean_saved_zone resolves a zone → its bbox rect → dispatch_zone_clean (active-map guarded);
-        unknown id → zone_not_found and map-mismatch → map_not_active both refuse WITHOUT dispatching.
+        unknown id → zone_not_found, map-mismatch → map_not_active, and (RP-029/ZONE-C-1) an
+        unreadable active-map signal → active_map_indeterminate all refuse WITHOUT dispatching.
 [ZONE-9]  clean_saved_zones resolves each id → its bbox → ONE dispatch carrying all rects (active-map
         guarded); a single missing id refuses the WHOLE batch atomically without dispatch.
 [ZONE-10] get_map_segments self-heals a zone's area_m2 (+ filing) when it was authored off the active
@@ -852,6 +853,15 @@ async def test_clean_saved_zone_dispatches_bbox(hass, mapping_services, monkeypa
     mm = await _call(hass, SERVICE_CLEAN_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
     assert mm["cleaned"] is False and mm["reason"] == "map_not_active"
+
+    captured.clear()
+    monkeypatch.setattr(   # RP-029/ZONE-C-1: unreadable active-map signal -> refuse
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: None)
+    ind = await _call(hass, SERVICE_CLEAN_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
+    assert ind["cleaned"] is False and ind["reason"] == "active_map_indeterminate"
+    assert captured == {}                                          # never dispatched
 
 
 async def test_clean_saved_zones_dispatches_combined_bboxes(hass, mapping_services, monkeypatch):

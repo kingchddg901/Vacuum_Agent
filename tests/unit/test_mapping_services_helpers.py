@@ -52,9 +52,14 @@ def _segment() -> dict:
 
 
 def test_apply_empty_adjustments():
-    """[MS-1]"""
+    """[MS-1] RP-029/POLYGO-3: equal content, but a COPY — never the caller's
+    own segment dicts (this feeds a service response; the caller's own
+    enrichment writes must never land in the persisted analysis)."""
     segs = [_segment()]
-    assert _apply_segment_adjustments(segs, {}) is segs
+    out = _apply_segment_adjustments(segs, {})
+    assert out == segs
+    assert out is not segs
+    assert out[0] is not segs[0]
 
 
 def test_apply_translation():
@@ -68,10 +73,12 @@ def test_apply_translation():
 
 
 def test_apply_zero_adjustment_noop():
-    """[MS-3]"""
+    """[MS-3] RP-029/POLYGO-3: content unchanged, but still a COPY, not the
+    caller's own segment dict."""
     seg = _segment()
     out = _apply_segment_adjustments([seg], {"s1": {"offset_x": 0, "offset_y": 0}})
-    assert out[0] is seg  # unchanged, same object
+    assert out[0] == seg
+    assert out[0] is not seg
 
 
 def test_apply_non_dict_segment():

@@ -612,9 +612,19 @@ def _apply_segment_adjustments(
     segments: list[dict[str, Any]],
     adjustments: dict[str, Any],
 ) -> list[dict[str, Any]]:
-    """Apply stored per-segment adjustments to a list of raw segments."""
+    """Apply stored per-segment adjustments to a list of raw segments.
+
+    RP-029/POLYGO-3: ALWAYS returns copies, never the stored segment dicts
+    themselves. This was a read helper feeding a service RESPONSE
+    (_handle_get_map_segments), but every segment with no adjustment (the
+    common case — no adjustments at all, or this specific segment's) passed
+    through as the SAME dict object; the caller's response-enrichment writes
+    (room_id, polygon_pct) then landed directly in the PERSISTED
+    map_bucket["image_segments"]["segments"] entries, a read endpoint
+    silently mutating stored analysis.
+    """
     if not adjustments:
-        return segments
+        return [dict(seg) if isinstance(seg, dict) else seg for seg in segments]
     result: list[dict[str, Any]] = []
     for seg in segments:
         if not isinstance(seg, dict):
@@ -623,7 +633,7 @@ def _apply_segment_adjustments(
         seg_id = str(seg.get("segment_id") or "").strip()
         adj = adjustments.get(seg_id)
         if not seg_id or not isinstance(adj, dict):
-            result.append(seg)
+            result.append(dict(seg))
             continue
 
         offset_x = _safe_int(adj.get("offset_x"))
@@ -635,7 +645,7 @@ def _apply_segment_adjustments(
         vertex_moves = adj.get("vertex_moves") if isinstance(adj.get("vertex_moves"), list) else []
 
         if not any((offset_x, offset_y, edge_left, edge_right, edge_top, edge_bottom)) and not vertex_moves:
-            result.append(seg)
+            result.append(dict(seg))
             continue
 
         updated = dict(seg)
@@ -2473,7 +2483,14 @@ async def _handle_clean_saved_zone(hass: HomeAssistant, call: ServiceCall) -> di
         active_map_id = get_active_map_id(hass, vacuum_entity_id)
     except Exception:  # noqa: BLE001
         active_map_id = None
-    if active_map_id is not None and str(active_map_id) != str(map_id):
+    # RP-029/ZONE-C-1: indeterminate != match (RF-13's rule, already applied to
+    # blocker rules by RP-008). An unreadable active_map signal used to fall
+    # through this guard's own "not None" condition — the zone dispatched with
+    # no evidence it was even on the right map. A saved zone's geometry is only
+    # valid on ITS map, so an unknown active map must refuse, not assume.
+    if active_map_id is None:
+        return {"cleaned": False, "reason": "active_map_indeterminate"}
+    if str(active_map_id) != str(map_id):
         return {
             "cleaned": False, "reason": "map_not_active",
             "active_map_id": str(active_map_id),
@@ -2528,7 +2545,11 @@ async def _handle_clean_saved_zones(hass: HomeAssistant, call: ServiceCall) -> d
         active_map_id = get_active_map_id(hass, vacuum_entity_id)
     except Exception:  # noqa: BLE001
         active_map_id = None
-    if active_map_id is not None and str(active_map_id) != str(map_id):
+    # RP-029/ZONE-C-1: same guard, same fix as the singular clean_saved_zone —
+    # indeterminate != match.
+    if active_map_id is None:
+        return {"cleaned": False, "reason": "active_map_indeterminate"}
+    if str(active_map_id) != str(map_id):
         return {
             "cleaned": False, "reason": "map_not_active",
             "active_map_id": str(active_map_id),
