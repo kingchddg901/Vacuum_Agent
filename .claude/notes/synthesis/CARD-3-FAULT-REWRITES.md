@@ -1,6 +1,13 @@
 # CARD-3 — plain-language rewrites for the 96 jargon fault strings
 
-**DRAFT. Owner-reviewed 2026-08-02; nothing has landed in the vocabulary.**
+**SIGNED OFF by Chris, 2026-08-02.** All 96 English strings approved after two review
+rounds. Nothing has landed in the vocabulary yet -- this is the approved SOURCE for
+CARD-3's English key set and the 17-locale pass that follows.
+
+Confirmed explicitly in the second round: 41 (airdryer = the base station's mop dryer
+heater, distinct from 6040/6041's dryer motor), 6110 (voltage generalized to "power
+fault"), 5017 (keeps the word "voltage" -- it is the only place the term survives), and
+5112 (the IR link is robot-to-dock).
 
 Source: robovac_mqtt `const.EUFY_CLEAN_ERROR_CODES` — 199 codes, of which **103 are
 already plain language** ("Wheel Stuck", "Mop Cloth Dislodged", "Station No Dust Bag
