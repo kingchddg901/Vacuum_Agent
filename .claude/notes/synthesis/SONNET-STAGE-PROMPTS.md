@@ -360,6 +360,106 @@ Expected at the END (all five landed, RP-013c still held):
 
 ---
 
+## Stage G — RP-032, the services gate (NOT a materialization stage)
+
+```
+Execute RP-032 for the eufy_vacuum audit campaign. Read the packet in
+.claude/notes/synthesis/SYNTH-10-packets-wave6.md.
+
+Repo: C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager (nothing deployed).
+
+DO NOT WRITE A REPRODUCER FIRST, and do not treat that as a missing step. This
+packet is the ONE exception in the campaign (checked: "the gate IS the proof"
+appears in exactly one packet). Its repair IS a verification mechanism -- an AST
+walker over every hass.services.async_register call, a services.yaml/schema
+field-parity diff, and an INTERNAL_SERVICES allowlist. Building the gate
+correctly means having already enumerated every violation, so there is no
+smaller artifact to prove first. The gate's initial failure list IS the
+before-state; the empty list is the after-state.
+
+Follow the packet's own 2-commit rollback_plan:
+  (a) build the gate + seed an EXPECTED-FAILURES allowlist with what it finds,
+      so the suite goes green while the debt is explicit and enumerated;
+  (b) empty the allowlist by fixing the content.
+Committing (a) alone is a valid stopping point if (b) runs long -- that is the
+whole point of the split.
+
+TWO CLAIMS ALREADY SPOT-CHECKED against source, do not redo them:
+  - hass.services.async_register( appears ~142 times recursively under
+    custom_components/eufy_vacuum/; services.yaml has 116 top-level entries. The
+    direction of that gap is consistent with the packet's "16+ registered
+    services have no descriptor". It is NOT proof of the exact number -- your
+    gate produces the real number, which is the point.
+  - carpet_types (services.yaml:76) and floor_types (:68) are genuinely
+    advertised, with carpet: blocks at 1179/1278. The yaml half is real. Whether
+    the SCHEMA side rejects them is what the parity diff exists to answer.
+
+THE ALLOWLIST NEEDS A HUMAN. The packet says Chris reviews INTERNAL_SERVICES at
+this packet's review. Produce the list, do NOT self-approve it, and surface it in
+your summary as a decision item.
+
+KNOWN CONFLICT, report it rather than resolving it: #13:A2-JOB-5 and
+#13:A2-JOB-6 are claimed by BOTH RP-031 and RP-032. Ownership is unadjudicated.
+If your gate work touches them, say so and stop rather than picking.
+
+Gate: docker pytest tests --no-cov -p no:cacheprovider
+(baseline 2026-08-01: 3096 passed, 1 skipped). Do NOT close ledger findings.
+```
+
+---
+
+## Stage C — CARD-2 / CARD-6, clause by clause
+
+```
+Work the unblocked CARD clauses. Packets in
+.claude/notes/synthesis/SYNTH-11-packets-wave7-card.md.
+
+Repo: C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager (nothing deployed).
+Frontend: edit src/, NEVER the built bundle. Gates: npm run test:units,
+npm run check:i18n, npm run build:deploy. Every user-facing string routes
+through i18n AT CREATION, all 18 locale packs.
+
+READY NOW:
+
+CARD-6 clause (2) — zone repeat capability gate. RESOLVED as a FILE-LIST MISS;
+the correction is written inline in the packet, read it. Summary: the control is
+src/cards/dashboard-card.js:151 / 557-558 / 952 (_cleanTimes -> clean_times),
+NOT src/renderers/. GATE _cleanTimes ONLY -- the ROOM passes control
+(clean_passes, lines 502-509 of the same file) is a DIFFERENT control and Q12
+explicitly warns against conflating them. dashboard-card.js is a Web Component
+and is not importable under `node --test`; DO NOT add a DOM shim. Extract the
+decision ("given the snapshot's declared caps, should this render?") into a pure
+helper with a sibling .test.mjs -- the pattern src/state/ already uses a dozen
+times -- and have the component call it. Capability-DECLARED only, no brand
+string checks.
+
+CARD-2 clause (3) — provenance/sample-count near confidence. The seam is already
+located: renderConfidenceChip(breakpoint, label, title) at
+src/renderers/learning.js:531 has an unused `title` slot, and its only caller
+renderRoomCard (src/renderers/rooms.js ~1100-1216) passes the same trustLabel as
+both label and title while roomEstimate.sample_count sits unused in scope.
+renderRoomCard is large and couples drag/drop, per-room chips and water planning
+-- budget for stubbing that, it is the reason this was deferred rather than any
+ambiguity.
+
+NEEDS A DECISION BEFORE STARTING, report and stop:
+
+CARD-2 clause (1) — map hold/stale badge needs a VISUAL=1 render-harness
+screenshot repin. That is a different gate from a unit test and nobody has run
+one this campaign. Ask before committing to it.
+
+CARD-6 clause (3) — zone_bounds live readout is NEW CODE, not a fix.
+zone_bounds ({min_side_m, max_side_m, min_area_m2, max_area_m2}) reaches
+_snapshot.zone_bounds on every dashboard fetch (core/manager.py:4263) with ZERO
+frontend consumers, and src/cards/zone-geometry.js is pure coordinate math with
+no concept of physical scale. There is no wrong function to fix; there is no
+function. Confirm it is in scope before building.
+
+CARD-7 is EXCLUDED entirely -- it needs a design session with Chris.
+```
+
+---
+
 ## Stage E — execution template (one packet, one session)
 
 ```
