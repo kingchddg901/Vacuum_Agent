@@ -44,6 +44,8 @@ Coverage targets
         guarded); a single missing id refuses the WHOLE batch atomically without dispatch.
 [ZONE-10] get_map_segments self-heals a zone's area_m2 (+ filing) when it was authored off the active
         map; the backfill persists and is a no-op once every zone is sized.
+[ZONE-11] RP-032/RF-28 (A6-ZONE-C-7): CREATE_SAVED_ZONE_SCHEMA's kind only accepts "clean" —
+        neither clean handler reads kind, so a wider value would silently dispatch as a clean anyway.
 """
 
 from __future__ import annotations
@@ -547,6 +549,26 @@ def test_saved_zone_geometry_coord_validation():
         {**base, "geometry": [[5.0, -3.0], [100.0, 0.5], [1.0, 1.0]]})
     assert out["geometry"] == [[1.0, 0.0], [1.0, 0.5], [1.0, 1.0]]
     assert all(math.isfinite(c) for pt in out["geometry"] for c in pt)
+
+
+def test_saved_zone_kind_only_accepts_clean():
+    """[ZONE-11] kind has no dispatch-side consumer for anything but "clean" --
+    the schema rejects other values instead of silently persisting a kind that
+    would still be dispatched as a clean."""
+    import voluptuous as vol
+
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        CREATE_SAVED_ZONE_SCHEMA,
+    )
+    base = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z",
+        "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]],
+    }
+    out = CREATE_SAVED_ZONE_SCHEMA({**base, "kind": "clean"})
+    assert out["kind"] == "clean"
+    assert "kind" not in CREATE_SAVED_ZONE_SCHEMA(base)  # omitted -> handler defaults it
+    with pytest.raises(vol.Invalid):
+        CREATE_SAVED_ZONE_SCHEMA({**base, "kind": "no_go"})
 
 
 def _synthetic_map_data(byte_list):

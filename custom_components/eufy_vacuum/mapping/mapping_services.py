@@ -261,7 +261,13 @@ CREATE_SAVED_ZONE_SCHEMA = vol.Schema(
         vol.Required("map_id"): cv.string,
         vol.Required("name"): cv.string,
         vol.Required("geometry"): vol.All([_SAVED_ZONE_POINT], vol.Length(min=3)),
-        vol.Optional("kind"): cv.string,
+        # RP-032/RF-28 (A6-ZONE-C-7): "clean" is the only kind either clean
+        # handler reads -- both dispatch on the geometry bbox alone regardless
+        # of kind, so an unconstrained string (e.g. "no_go") got persisted and
+        # was then dispatched as a clean anyway. Restrict to what dispatch
+        # actually honors; widen this allow-list only alongside a real
+        # dispatch-side consumer for the new kind.
+        vol.Optional("kind"): vol.In(["clean"]),
     }
 )
 

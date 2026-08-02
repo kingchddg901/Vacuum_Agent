@@ -84,7 +84,7 @@ Creates and stores a named saved zone from drawn geometry.
 | `map_id` | Yes | Required — not auto-resolved. |
 | `name` | Yes | Display name for the zone. |
 | `geometry` | Yes | List of at least three `[x, y]` points, each normalized `0–1` to the map image (top-left origin). |
-| `kind` | No | Optional zone kind tag. |
+| `kind` | No | Zone kind. Only `clean` is currently accepted — no dispatch path reads any other value, so the schema rejects anything else rather than accept a value that would silently be dispatched as a clean anyway. Defaults to `clean`. |
 
 Supports response.
 

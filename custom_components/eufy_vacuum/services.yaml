@@ -2897,9 +2897,15 @@ create_saved_zone:
         object: {}
     kind:
       name: Kind
+      description: >
+        Only "clean" is currently accepted — no dispatch path reads any
+        other value. Defaults to "clean" if omitted.
       required: false
+      default: clean
       selector:
-        text: {}
+        select:
+          options:
+            - clean
 
 rename_saved_zone:
   name: Rename saved zone

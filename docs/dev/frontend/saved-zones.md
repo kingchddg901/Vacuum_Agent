@@ -57,7 +57,10 @@ SavedZone = {
     "area_m2":       float,          # computed from map dims at author time (display + validation)
     "room_number":   int | None,     # FILING ONLY (§4): auto-set at author by ≥90% dominance, else
                                      #   None ("Unassigned"); user-editable; NEVER affects dispatch
-    "kind":          str,            # "clean" (default); reserved for future kinds
+    "kind":          str,            # "clean" (default, and the only value the schema
+                                     #   currently accepts -- neither clean handler reads
+                                     #   kind, so a wider value would silently dispatch as
+                                     #   a clean anyway; RP-032/A6-ZONE-C-7)
     "map_version":   ...,            # invalidation key (§6)
 }
 ```
