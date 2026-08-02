@@ -59,6 +59,17 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def _distribute_int(total: int, n: int) -> list[int]:
+    """Split ``total`` into ``n`` non-negative parts that sum EXACTLY to ``total``.
+
+    Used to apportion a group phase's measured totals across its members without
+    losing or fabricating a fraction — the base share plus one remainder unit each
+    to the first ``total % n`` members (RP-013b: total preservation is asserted,
+    not assumed)."""
+    base, rem = divmod(total, n)
+    return [base + 1 if i < rem else base for i in range(n)]
+
+
 class PhaseRunner:
     """Owns strict-order phase execution. Constructed with the core manager (the
     bundled-subsystem pattern); reads/writes ``manager.data['active_jobs']`` and uses
@@ -345,11 +356,15 @@ class PhaseRunner:
                 if rid > 0 and rid not in slug_by_id:
                     slug_by_id[rid] = str(r.get("slug") or "").strip().lower() or None
 
-        queue_ids = [
-            _safe_int(r, -1) for r in (active_job.get("queue_room_ids") or [])
-            if _safe_int(r, -1) > 0
-        ]
-        rid = queue_ids[0] if queue_ids else None
+        # Phase-scoped ids — THIS phase's own resolved_rooms, not the job's whole-run
+        # queue_room_ids (phase 0 would otherwise read the entire run's queue, so the
+        # credited room need not even belong to the phase being captured — RP-013b/REC-2).
+        group_ids: list[int] = []
+        for r in phases[idx].get("resolved_rooms") or []:
+            if isinstance(r, dict):
+                rid_val = _safe_int(r.get("room_id", r.get("id")), -1)
+                if rid_val > 0 and rid_val not in group_ids:
+                    group_ids.append(rid_val)
         # A phase that never cleaned (watchdog gave up / a stale completion signal) leaves no
         # usable counter samples — record an EMPTY timing so finalize reads the run as not-fully-
         # captured (transit_capture_valid=False, excluded from learning) instead of a phantom room
@@ -359,8 +374,8 @@ class PhaseRunner:
             if s.get("cleaning_time") is not None or s.get("cleaning_area") is not None
         ]
         room_timings = (
-            [self._phase_room_timing(rid, slug_by_id.get(rid), slice_samples)]
-            if rid is not None and len(usable) >= 2 else []
+            self._split_group_room_timing(group_ids, slug_by_id, slice_samples)
+            if group_ids and len(usable) >= 2 else []
         )
         # AREA fallback: a within-phase cleaning_area delta of ~0 (a stale/flat sensor through
         # the phase) is unusable → use the room's learned area instead.
@@ -513,7 +528,58 @@ class PhaseRunner:
             "area_m2": round(area, 3),
             "battery_delta": bat_delta,
             "boundary": "phase",
+            "allocated": False,
         }
+
+    def _split_group_room_timing(
+        self,
+        group_ids: list[int],
+        slug_by_id: dict[int, str | None],
+        slice_samples: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """One timing entry PER room in a group phase.
+
+        A single-room group is the exact, unapportioned case (RP-013b:
+        ``_phase_room_timing`` directly, ``allocated=False``). A multi-room group's
+        measured cleaning_seconds / area_m2 / battery_delta are the WHOLE group's —
+        no per-room boundary exists inside a strict-order-off batch dispatch, so
+        fabricating one is forbidden (killed-premise guard). They are instead split
+        evenly across members with ``allocated=True`` and ``allocation_group_size``
+        recorded, using an exact-sum-preserving distribution so the group's measured
+        totals are neither lost nor duplicated (RP-013f's phase-sum derivation
+        depends on this). cleaning_start/cleaning_end/cleaning_wall_seconds are
+        shared verbatim across members — the whole group was in progress for the
+        same wall-clock span; only the apportionable resource fields are split."""
+        n = len(group_ids)
+        if n == 1:
+            rid = group_ids[0]
+            return [self._phase_room_timing(rid, slug_by_id.get(rid), slice_samples)]
+
+        whole = self._phase_room_timing(None, None, slice_samples)
+        secs_parts = _distribute_int(int(whole["cleaning_seconds"]), n)
+        area_milli_total = round(float(whole["area_m2"]) * 1000)
+        area_parts = [p / 1000 for p in _distribute_int(area_milli_total, n)]
+        bat_total = whole.get("battery_delta")
+        bat_parts = (
+            _distribute_int(int(bat_total), n) if bat_total is not None else [None] * n
+        )
+
+        return [
+            {
+                "room_id": rid,
+                "slug": slug_by_id.get(rid),
+                "cleaning_start": whole["cleaning_start"],
+                "cleaning_end": whole["cleaning_end"],
+                "cleaning_seconds": secs_parts[i],
+                "cleaning_wall_seconds": whole["cleaning_wall_seconds"],
+                "area_m2": round(area_parts[i], 3),
+                "battery_delta": bat_parts[i],
+                "boundary": "phase",
+                "allocated": True,
+                "allocation_group_size": n,
+            }
+            for i, rid in enumerate(group_ids)
+        ]
 
     def _phase_target_is_dock_room(
         self, vacuum_entity_id: str, map_id: str, room_id: int | str | None

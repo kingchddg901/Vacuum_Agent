@@ -7,12 +7,24 @@ run's battery/area. The fix snapshots each finishing phase's room_timing from it
 slice (manager.phase_runner._capture_finishing_phase_timing) before advance resets the queue; finalization
 concatenates them.
 
+A room_group STEP phase can carry more than one room (a strict-order engine still emits one
+room per DISPATCH phase, but a step-plan's room_group step is captured as a single phase
+covering the whole group — RP-013b). _capture_finishing_phase_timing sources ids from the
+PHASE's OWN resolved_rooms (not the job's whole-run queue_room_ids, which for phase 0 is the
+entire run and need not even belong to the phase — REC-2) and emits ONE timing entry per
+member: a single-room phase stays exact (allocated=False); a multi-room group's measured
+totals have no per-room boundary inside the batch (fabricating one is forbidden), so they are
+split evenly with an exact-sum-preserving distribution, allocated=True, allocation_group_size=N.
+
 [SOPT-1] each phase captures its OWN room from its own slice (not the whole stream).
 [SOPT-2] capture is idempotent (a retry/double-completion can't double-record).
 [SOPT-3] AREA fallback: a flat cleaning_area through a phase falls back to the learned area.
 [SOPT-4] atomic jobs (no phases) are a no-op.
 [SOPT-6] _learned_room_area_m2 area source prefers learned_area_m2, then area_m2, and returns None when neither key is present, the room is missing, or the id is bad.
 [SOPT-7] _phase_room_timing computes within-slice cleaning_seconds/area deltas, battery_delta as first−last, and wall seconds from parsed ISO timestamps, degrading to 0 wall on unparseable timestamps without crashing.
+[SOPT-8] a multi-room group phase splits its measured totals evenly across members (allocated=True, allocation_group_size=N), preserving the exact sum even when it doesn't divide evenly.
+[SOPT-9] a single-room phase stays allocated=False (exact, not apportioned).
+[SOPT-10] phase-scoped ids: a phase's OWN resolved_rooms are credited even when the job's queue_room_ids (whole-run) disagrees.
 """
 
 from __future__ import annotations
@@ -32,6 +44,14 @@ def _phase(rid: int, slug: str) -> dict:
         "resolved_rooms": [{"room_id": rid, "slug": slug}],
         "queue_room_ids": [rid],
         "payload": {}, "room_count": 1,
+    }
+
+
+def _group_phase(rooms: list[tuple[int, str]]) -> dict:
+    return {
+        "resolved_rooms": [{"room_id": rid, "slug": slug} for rid, slug in rooms],
+        "queue_room_ids": [rid for rid, _ in rooms],
+        "payload": {}, "room_count": len(rooms),
     }
 
 
@@ -185,3 +205,119 @@ async def test_phase_room_timing_battery_delta_and_wall_parse(hass, manager):
     rt2 = manager.phase_runner._phase_room_timing(5, "kitchen", bad_ts)
     assert rt2["cleaning_seconds"] == 30 and rt2["battery_delta"] == 2
     assert rt2["cleaning_wall_seconds"] == 0  # _wall_seconds swallows the parse error
+
+
+async def test_group_phase_splits_evenly_with_exact_sum_preserved(hass, manager, monkeypatch):
+    """[SOPT-8] a 3-room group phase: one entry per room, allocated=True,
+    allocation_group_size=3, and the measured totals preserved EXACTLY across the split
+    (not merely 'approximately a third each') — RP-013b/REC-1."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+    samples = [
+        _cs(f"2026-01-01T00:0{m}:00Z", m * 60, m * (12.0 / 9))
+        for m in range(0, 10)
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": None,
+        "phases": [_group_phase([(4, "a"), (5, "b"), (6, "c")])],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": r, "slug": s} for r, s in [(4, "a"), (5, "b"), (6, "c")]],
+        "queue_room_ids": [4, 5, 6],
+        "counter_samples": samples,
+    }
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    rt = job["phases"][0]["room_timing"]
+
+    assert sorted(t["room_id"] for t in rt) == [4, 5, 6]
+    assert all(t["allocated"] is True and t["allocation_group_size"] == 3 for t in rt)
+    assert sum(t["cleaning_seconds"] for t in rt) == 540
+    assert round(sum(t["area_m2"] for t in rt), 3) == 12.0
+
+
+async def test_group_phase_uneven_split_still_preserves_exact_sum(hass, manager, monkeypatch):
+    """[SOPT-8] a total that does NOT divide evenly by the group size must still sum back
+    exactly — the largest-remainder distribution, not naive division + rounding drift."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+    # 100 seconds / 3 rooms = 33.33... ; 1.0 m2 / 3 rooms = 0.333...
+    samples = [
+        {"t": "2026-01-01T00:00:00Z", "cleaning_time": 0, "cleaning_area": 0.0, "battery": 90},
+        {"t": "2026-01-01T00:01:00Z", "cleaning_time": 100, "cleaning_area": 1.0, "battery": 88},
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": None,
+        "phases": [_group_phase([(1, "a"), (2, "b"), (3, "c")])],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": r, "slug": s} for r, s in [(1, "a"), (2, "b"), (3, "c")]],
+        "queue_room_ids": [1, 2, 3],
+        "counter_samples": samples,
+    }
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    rt = job["phases"][0]["room_timing"]
+
+    assert sum(t["cleaning_seconds"] for t in rt) == 100
+    assert round(sum(t["area_m2"] for t in rt), 3) == 1.0
+    # battery_delta (int, first-last) must also sum exactly
+    assert sum(t["battery_delta"] for t in rt) == 2
+
+
+async def test_single_room_phase_stays_exact_not_allocated(hass, manager, monkeypatch):
+    """[SOPT-9] a single-room phase is the exact case: allocated=False, no
+    allocation_group_size — unchanged by RP-013b's group-split logic."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+    samples = [
+        {"t": "2026-01-01T00:00:00Z", "cleaning_time": 0, "cleaning_area": 0.0, "battery": 90},
+        {"t": "2026-01-01T00:01:00Z", "cleaning_time": 60, "cleaning_area": 3.0, "battery": 88},
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": None,
+        "phases": [_phase(5, "kitchen")],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+        "queue_room_ids": [5],
+        "counter_samples": samples,
+    }
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    rt = job["phases"][0]["room_timing"]
+
+    assert len(rt) == 1
+    assert rt[0]["allocated"] is False
+    assert "allocation_group_size" not in rt[0]
+    assert rt[0]["cleaning_seconds"] == 60 and rt[0]["area_m2"] == 3.0
+
+
+async def test_phase_scoped_ids_win_over_job_whole_run_queue(hass, manager, monkeypatch):
+    """[SOPT-10] REC-2: phase 1's OWN resolved_rooms (room 9) is credited even though the
+    job's whole-run queue_room_ids still begins with room 4 (phase 0's room)."""
+    clock = iter(["2026-01-01T00:03:00Z", "2026-01-01T00:05:00Z"])
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: next(clock))
+    samples = [
+        {"t": "2026-01-01T00:03:10Z", "cleaning_time": 10, "cleaning_area": 0.5, "battery": 89},
+        {"t": "2026-01-01T00:04:00Z", "cleaning_time": 40, "cleaning_area": 2.0, "battery": 86},
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": None,
+        "phases": [
+            {**_phase(4, "hall"), "_timing_end_t": "2026-01-01T00:03:00Z", "room_timing": [{"room_id": 4}]},
+            _phase(9, "office"),
+        ],
+        "current_phase_index": 1,
+        "resolved_rooms": [{"room_id": r, "slug": s} for r, s in [(4, "hall"), (5, "mid"), (9, "office")]],
+        "queue_room_ids": [4, 5, 9],  # whole-run queue still starts with room 4
+        "counter_samples": samples,
+    }
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    rt1 = job["phases"][1]["room_timing"]
+
+    assert [t["room_id"] for t in rt1] == [9]
+    assert rt1[0]["allocated"] is False
