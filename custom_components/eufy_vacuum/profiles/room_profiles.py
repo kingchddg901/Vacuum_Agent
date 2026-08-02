@@ -153,6 +153,20 @@ FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
 }
 
 
+def _catalog_key(block: dict[str, Any], key: str, default: Any) -> Any:
+    """RP-025/RF-18 clause (ii): presence, not truthiness — ``key in block`` so a
+    brand's DECLARED-empty value (e.g. ``builtins: {}``, "this brand ships no
+    framework built-ins") is honored, not conflated with the key being absent
+    entirely. The old ``block.get(key) or default`` treated any falsy declared
+    value identically to "absent", silently injecting the Eufy in-code default
+    in its place — the brand's explicit "we have none" was unrepresentable.
+    An explicit ``None`` is still treated as absent (there is no meaningful
+    "declared None" for any of these dict/str-typed fields)."""
+    if key not in block or block[key] is None:
+        return default
+    return block[key]
+
+
 def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
     """Merge an adapter ``room_profiles`` block over the in-code defaults, per key.
 
@@ -163,13 +177,17 @@ def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
     the framework default + the _PROTECTED_ROOM_PROFILE_NAMES source regardless."""
     block = block if isinstance(block, dict) else {}
     return {
-        "builtins": block.get("builtins") or BUILT_IN_ROOM_PROFILES,
-        "custom_template": block.get("custom_template") or DEFAULT_CUSTOM_ROOM_PROFILE,
-        "legacy_aliases": block.get("legacy_aliases") or LEGACY_PROFILE_ALIASES,
-        "default_profile": block.get("default_profile") or DEFAULT_ROOM_PROFILE_NAME,
-        "floor_type_water_defaults": block.get("floor_type_water_defaults") or FLOOR_TYPE_WATER_DEFAULTS,
-        "floor_type_fan_defaults": block.get("floor_type_fan_defaults") or FLOOR_TYPE_FAN_DEFAULTS,
-        "normalize_defaults": block.get("normalize_defaults") or DEFAULT_CUSTOM_ROOM_PROFILE,
+        "builtins": _catalog_key(block, "builtins", BUILT_IN_ROOM_PROFILES),
+        "custom_template": _catalog_key(block, "custom_template", DEFAULT_CUSTOM_ROOM_PROFILE),
+        "legacy_aliases": _catalog_key(block, "legacy_aliases", LEGACY_PROFILE_ALIASES),
+        "default_profile": _catalog_key(block, "default_profile", DEFAULT_ROOM_PROFILE_NAME),
+        "floor_type_water_defaults": _catalog_key(
+            block, "floor_type_water_defaults", FLOOR_TYPE_WATER_DEFAULTS
+        ),
+        "floor_type_fan_defaults": _catalog_key(
+            block, "floor_type_fan_defaults", FLOOR_TYPE_FAN_DEFAULTS
+        ),
+        "normalize_defaults": _catalog_key(block, "normalize_defaults", DEFAULT_CUSTOM_ROOM_PROFILE),
     }
 
 
@@ -196,17 +214,33 @@ def normalize_room_profile(
 ) -> dict[str, Any]:
     """Return a fully normalized room profile dict with safe defaults for all keys.
 
-    Missing keys fall back to the catalog's ``normalize_defaults`` (the adapter's, or
-    the in-code ``DEFAULT_CUSTOM_ROOM_PROFILE`` when ``catalog`` is None — byte-identical)."""
+    Framework-canonical fields (label/clean_mode/path_type/clean_passes/
+    edge_mopping/mop_required) fall back to the catalog's ``normalize_defaults``
+    (the adapter's, or the in-code ``DEFAULT_CUSTOM_ROOM_PROFILE`` when ``catalog``
+    is None — byte-identical).
+
+    Q2/RP-025 clause (i): the DISPLAY-AXIS fields (fan_speed/water_level/
+    clean_intensity) do NOT fall through to that same in-code default — it is
+    Eufy's own vocabulary ("Max"/"Off"/"Quick"), and using it as a THIRD-level
+    fallback meant any brand (or bare utility call) that declares nothing for an
+    axis silently acquired Eufy's literals with no brand ever having said so.
+    They fall back only to the catalog's OWN explicitly-declared
+    ``normalize_defaults`` (Eufy's adapter declares one, so its real behaviour is
+    unchanged) — with no catalog at all, "" ("nobody said"), matching the same
+    doctrine resolve_room_profile_for_room already follows.
+    """
     source = profile or {}
     d = (catalog or {}).get("normalize_defaults") or DEFAULT_CUSTOM_ROOM_PROFILE
+    brand_defaults = (catalog or {}).get("normalize_defaults") or {}
 
     return {
         "label": str(source.get("label", d.get("label", "User Profile 1"))),
         "clean_mode": str(source.get("clean_mode", d.get("clean_mode", "vacuum"))),
-        "fan_speed": str(source.get("fan_speed", d.get("fan_speed", "Max"))),
-        "water_level": str(source.get("water_level", d.get("water_level", "Off"))),
-        "clean_intensity": normalize_clean_intensity(source.get("clean_intensity", d.get("clean_intensity", "Quick"))),
+        "fan_speed": str(source.get("fan_speed", brand_defaults.get("fan_speed", ""))),
+        "water_level": str(source.get("water_level", brand_defaults.get("water_level", ""))),
+        "clean_intensity": normalize_clean_intensity(
+            source.get("clean_intensity", brand_defaults.get("clean_intensity", ""))
+        ),
         "path_type": str(source.get("path_type", d.get("path_type", "wide"))),
         "clean_passes": int(source.get("clean_passes", d.get("clean_passes", 1))),
         "edge_mopping": bool(source.get("edge_mopping", d.get("edge_mopping", False))),

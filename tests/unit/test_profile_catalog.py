@@ -11,6 +11,8 @@ Coverage targets
 [PC-3] resolve_room_profile_for_room honours a catalog's floor-type water default.
 [PC-4] A catalog's default_profile drives the unknown-name fallback.
 [PC-5] A catalog with a custom builtins entry resolves that profile.
+[PC-6] RP-025/RF-18 clause (ii): a declared-empty block value is honored, not
+       conflated with the key being absent; an explicit None is absent.
 """
 
 from __future__ import annotations
@@ -90,3 +92,26 @@ def test_catalog_custom_builtins_entry_resolves():
     assert resolved["resolved_profile_name"] == "brand_turbo"
     assert resolved["fan_speed"] == "Turbo"
     assert resolved["clean_passes"] == 3
+
+
+def test_catalog_declared_empty_builtins_honored():
+    """[PC-6] RP-025/RF-18 clause (ii): builtins={} means "this brand ships zero
+    framework built-in profiles" — a declared-empty dict is not the same as the
+    key being absent, and must not silently resolve to Eufy's own catalog."""
+    cat = resolve_profile_catalog({"builtins": {}})
+    assert cat["builtins"] == {}
+
+
+def test_catalog_declared_empty_string_default_profile_honored():
+    """[PC-6b] the presence check applies to every key, not just builtins — an
+    empty string is a legitimate (if unusual) declared value too."""
+    cat = resolve_profile_catalog({"default_profile": ""})
+    assert cat["default_profile"] == ""
+
+
+def test_catalog_explicit_none_falls_back_to_in_code_default():
+    """[PC-6c] an explicit None is still treated as absent — there is no
+    meaningful "declared None" for these dict/str-typed catalog fields."""
+    cat = resolve_profile_catalog({"builtins": None, "default_profile": None})
+    assert cat["builtins"] is BUILT_IN_ROOM_PROFILES
+    assert cat["default_profile"] == "vacuum_quick"

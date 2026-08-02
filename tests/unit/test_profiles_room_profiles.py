@@ -111,11 +111,17 @@ def test_available_profiles_returns_normalized_dicts():
 # ---------------------------------------------------------------------------
 
 def test_normalize_room_profile_defaults_on_none():
-    """[RP-5] normalize_room_profile with None input returns safe defaults."""
+    """[RP-5] normalize_room_profile with None input returns safe defaults.
+
+    Q2/RP-025: with no catalog at all ("brand declares nothing"), the
+    DISPLAY-AXIS fields (fan_speed/water_level) fall back to "" ("nobody
+    said"), not Eufy's own "Max"/"Off" literals — framework canonicals are
+    unaffected. Eufy's own real resolution is unchanged because its adapter
+    explicitly declares normalize_defaults (see RP-18)."""
     p = normalize_room_profile(None)
     assert p["clean_mode"] == "vacuum"
-    assert p["fan_speed"] == "Max"
-    assert p["water_level"] == "Off"
+    assert p["fan_speed"] == ""
+    assert p["water_level"] == ""
     assert p["clean_passes"] == 1
     assert p["edge_mopping"] is False
 
@@ -129,9 +135,10 @@ def test_normalize_room_profile_preserves_values():
 
 
 def test_normalize_room_profile_empty_dict():
-    """[RP-5] Empty dict produces all defaults."""
+    """[RP-5] Empty dict produces all defaults. Q2/RP-025: clean_intensity is a
+    display-axis field too — "" with no catalog, not Eufy's "Quick"."""
     p = normalize_room_profile({})
-    assert p["clean_intensity"] == "Quick"
+    assert p["clean_intensity"] == ""
     assert p["path_type"] == "wide"
     assert p["mop_required"] is False
 
@@ -149,12 +156,15 @@ def test_apply_room_profile_threads_adapter_catalog_defaults():
     assert updated["fan_speed"] == "Balanced"  # adapter default, NOT Eufy "Max"
     assert updated["water_level"] == "Low"     # adapter default, NOT Eufy "Off"
 
-    # With no catalog it still falls back to the in-code Eufy defaults (unchanged).
-    eufy = apply_room_profile_to_config(
+    # Q2/RP-025: with genuinely no catalog it falls back to "" ("nobody said"),
+    # not the in-code Eufy defaults — Eufy's OWN adapter explicitly declares its
+    # normalize_defaults (the first half of this test, with an Eufy-equivalent
+    # catalog, is what stays byte-identical for the real Eufy production path).
+    no_catalog = apply_room_profile_to_config(
         room_config={}, profile_name="custom", profile=profile,
     )
-    assert eufy["fan_speed"] == "Max"
-    assert eufy["water_level"] == "Off"
+    assert no_catalog["fan_speed"] == ""
+    assert no_catalog["water_level"] == ""
 
 
 # ---------------------------------------------------------------------------
