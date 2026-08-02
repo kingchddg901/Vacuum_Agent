@@ -236,6 +236,13 @@ and say so in your summary.
 
 Frontend work edits src/, never the built bundle. Extra gates beyond the python
 suite: `npm run test:units`, `npm run check:i18n`, `npm run build:deploy`.
+
+CRITICAL — A FRONTEND REPRODUCER IS CI-GATED, unlike the Python proofs. Anything
+matching src/**/*.test.mjs runs in npm run test:units on every push. A red one
+turns the repo red for everyone. Mark each failing case
+`{ todo: "CARD-N clause (M) not yet executed - drop this flag as part of the fix" }`
+and leave passing controls unflagged. Removing the flag is part of the FIX
+commit. This is handoff §5b; it was missed once already and cost three red runs.
 Every user-facing string routes through i18n AT CREATION, all 18 locale packs --
 no exceptions, and check:i18n will fail the build otherwise.
 

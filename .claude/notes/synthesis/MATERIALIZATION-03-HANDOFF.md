@@ -118,6 +118,33 @@ tail. The full set is 5–6 sessions.
 - Frozen hardware records are **guards, not subjects** — assert the fixture still
   matches them, then drive production for the flip (`_proof_job_cleaning_total`).
 
+## 5b. FRONTEND REPRODUCERS ARE CI-GATED — the flip contract does NOT transfer
+
+**This gap cost three red CI runs on 2026-08-01 and it was a handoff omission,
+not an executor error.**
+
+The Python reproducers live in `.claude/notes/_proof_*.py`: outside the test
+suite, run by hand, gitignored, frozen only as evidence. That is WHY they may sit
+red until their fix lands — the flip contract depends on it.
+
+A frontend reproducer has none of that freedom. Anything matching
+`src/**/*.test.mjs` runs in `npm run test:units` and gates CI on every push.
+Committing one red turns the repo red for everyone until the fix ships.
+
+**So when a packet's reproducer is a frontend test, mark each failing case
+`todo`:**
+
+    test("[XX-1] the thing that should happen",
+      { todo: "CARD-N clause (M) not yet executed - drop this flag as part of the fix" },
+      () => { ... });
+
+Node reports a todo failure without failing the run. **Removing the flag is part
+of the fix commit**, so the flip appears in the same diff as the repair — which
+is stronger evidence than a separate proof file changing verdict.
+
+Leave passing CONTROL cases unflagged; they are what proves the reproducer is
+discriminating rather than simply broken.
+
 ## 6. Done, per artifact
 
 - Runs in the docker test image with `-e PYTHONPATH=/workspace`.

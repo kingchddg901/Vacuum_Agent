@@ -1,6 +1,6 @@
 {
- "frozen_at_sha": "f212c20a4c2385bee9596d81813913480dd23773",
- "frozen_at": "2026-08-01T19:16:08",
+ "frozen_at_sha": "3fcda23482c747713cafec50ba4826c6e2108650",
+ "frozen_at": "2026-08-01T19:32:17",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
@@ -44,6 +44,6 @@
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json.hc-results.md": "da6f3497ae5f29f5",
   ".claude/notes/_frozen/baseline/phase-c-answers.json": "64dac2705658a746",
   ".claude/notes/_frozen/baseline/README.md": "97bbdfca5d81bd3b",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "1cf87e46eda30fa5"
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "c61204536f12a565"
  }
 }
