@@ -1241,6 +1241,7 @@
     "trouble_note_title": "Esta habitación se omitió en el {pct}% de las limpiezas recientes. Considera revisar si hay obstáculos o la precisión del mapa.",
     "trust_learning": "Aprendiendo",
     "trust_reliable": "Fiable",
+    "trust_tooltip_with_samples": "{label} · {count} muestras",
     "trust_uncertain": "Incierta",
     "trust_unlearned": "Sin aprender",
     "warnings": "Advertencias",

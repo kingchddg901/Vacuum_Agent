@@ -1485,6 +1485,7 @@
     "trouble_note_title": "Tato místnost byla vynechána v {pct}% nedávných běhů. Zvažte kontrolu překážek nebo přesnosti mapy.",
     "trust_learning": "Učí se",
     "trust_reliable": "Spolehlivý",
+    "trust_tooltip_with_samples": "{label} · {count} vzorků",
     "trust_uncertain": "Nejistý",
     "trust_unlearned": "Nenaučeno",
     "warnings": "Varování",

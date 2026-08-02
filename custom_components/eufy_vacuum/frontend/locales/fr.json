@@ -1241,6 +1241,7 @@
     "trouble_note_title": "Cette pièce a été manquée dans {pct} % des exécutions récentes. Envisagez de vérifier les obstacles ou la précision de la carte.",
     "trust_learning": "Apprentissage",
     "trust_reliable": "Fiable",
+    "trust_tooltip_with_samples": "{label} · {count} échantillons",
     "trust_uncertain": "Incertaine",
     "trust_unlearned": "Non apprise",
     "warnings": "Avertissements",

@@ -1517,6 +1517,7 @@
     "trouble_note_title": "חדר זה פוספס ב-{pct}% מהריצות האחרונות. שקול לבדוק מכשולים או את דיוק המפה.",
     "trust_learning": "למידה",
     "trust_reliable": "מהימן",
+    "trust_tooltip_with_samples": "{label} · {count} דגימות",
     "trust_uncertain": "לא ודאי",
     "trust_unlearned": "לא נלמד",
     "warnings": "אזהרות",

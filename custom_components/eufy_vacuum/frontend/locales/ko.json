@@ -1502,6 +1502,7 @@
     "trouble_note_title": "이 방은 최근 실행의 {pct}%에서 청소되지 않았습니다. 장애물이나 지도 정확도를 확인해 보세요.",
     "trust_learning": "학습 중",
     "trust_reliable": "신뢰 가능",
+    "trust_tooltip_with_samples": "{label} · 샘플 {count}개",
     "trust_uncertain": "불확실",
     "trust_unlearned": "미학습",
     "warnings": "경고",

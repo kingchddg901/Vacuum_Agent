@@ -1311,6 +1311,7 @@
     "trouble_note_title": "Эта комната была пропущена в {pct}% недавних очисток. Проверьте препятствия или точность карты.",
     "trust_learning": "Обучается",
     "trust_reliable": "Надёжная",
+    "trust_tooltip_with_samples": "{label} · {count} образцов",
     "trust_uncertain": "Неопределённая",
     "trust_unlearned": "Не изучена",
     "warnings": "Предупреждения",

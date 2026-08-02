@@ -1502,6 +1502,7 @@
     "trouble_note_title": "此房間在最近 {pct}% 的清潔中被遺漏。建議檢查是否有障礙物或地圖是否準確。",
     "trust_learning": "學習中",
     "trust_reliable": "可靠",
+    "trust_tooltip_with_samples": "{label} · {count} 筆取樣",
     "trust_uncertain": "不確定",
     "trust_unlearned": "未學習",
     "warnings": "警告",

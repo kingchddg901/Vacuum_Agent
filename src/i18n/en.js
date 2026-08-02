@@ -1256,6 +1256,7 @@ export const en = {
   "rooms.trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
   "rooms.trust_learning": "Learning",  // estimate-confidence badge: still learning, not the Learning feature/tab
   "rooms.trust_reliable": "Reliable",  // estimate-confidence badge: time estimate is trustworthy
+  "rooms.trust_tooltip_with_samples": "{label} · {count} samples",  // confidence-chip tooltip: trust label plus how many learned runs it's based on
   "rooms.trust_uncertain": "Uncertain",  // estimate-confidence badge: estimate not yet trustworthy
   "rooms.trust_unlearned": "Unlearned",  // estimate-confidence badge: no learned data, using default estimate
   "rooms.warnings": "Warnings",

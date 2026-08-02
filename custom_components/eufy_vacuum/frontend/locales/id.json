@@ -1485,6 +1485,7 @@
     "trouble_note_title": "Ruangan ini terlewat pada {pct}% proses terakhir. Pertimbangkan untuk memeriksa halangan atau akurasi peta.",
     "trust_learning": "Mempelajari",
     "trust_reliable": "Andal",
+    "trust_tooltip_with_samples": "{label} · {count} sampel",
     "trust_uncertain": "Tidak pasti",
     "trust_unlearned": "Belum dipelajari",
     "warnings": "Peringatan",

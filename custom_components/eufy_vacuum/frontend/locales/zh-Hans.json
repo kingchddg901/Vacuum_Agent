@@ -1502,6 +1502,7 @@
     "trouble_note_title": "在最近 {pct}% 的运行中此房间被遗漏。请检查是否有障碍物或地图是否准确。",
     "trust_learning": "学习中",
     "trust_reliable": "可靠",
+    "trust_tooltip_with_samples": "{label} · {count} 次采样",
     "trust_uncertain": "不确定",
     "trust_unlearned": "未学习",
     "warnings": "警告",

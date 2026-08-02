@@ -1227,6 +1227,7 @@
     "trouble_note_title": "Deze kamer is in {pct}% van de recente runs gemist. Controleer op obstakels of kaartnauwkeurigheid.",
     "trust_learning": "Aan het leren",
     "trust_reliable": "Betrouwbaar",
+    "trust_tooltip_with_samples": "{label} · {count} samples",
     "trust_uncertain": "Onzeker",
     "trust_unlearned": "Niet geleerd",
     "warnings": "Waarschuwingen",

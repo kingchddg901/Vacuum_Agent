@@ -1229,6 +1229,7 @@
     "trouble_note_title": "Questa stanza è stata saltata nel {pct}% delle esecuzioni recenti. Considera di controllare la presenza di ostacoli o la precisione della mappa.",
     "trust_learning": "Apprendimento",
     "trust_reliable": "Affidabile",
+    "trust_tooltip_with_samples": "{label} · {count} campioni",
     "trust_uncertain": "Incerta",
     "trust_unlearned": "Non appresa",
     "warnings": "Avvisi",

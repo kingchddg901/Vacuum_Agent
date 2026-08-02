@@ -1485,6 +1485,7 @@
     "trouble_note_title": "Ten pokój został pominięty w {pct}% ostatnich przebiegów. Rozważ sprawdzenie przeszkód lub dokładności mapy.",
     "trust_learning": "Uczenie się",
     "trust_reliable": "Wiarygodny",
+    "trust_tooltip_with_samples": "{label} · {count} próbek",
     "trust_uncertain": "Niepewny",
     "trust_unlearned": "Nienauczony",
     "warnings": "Ostrzeżenia",

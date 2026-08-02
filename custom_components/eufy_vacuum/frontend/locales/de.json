@@ -1227,6 +1227,7 @@
     "trouble_note_title": "Dieser Raum wurde in {pct}% der letzten Läufe verpasst. Prüfe auf Hindernisse oder Kartengenauigkeit.",
     "trust_learning": "Lernt",
     "trust_reliable": "Zuverlässig",
+    "trust_tooltip_with_samples": "{label} · {count} Stichproben",
     "trust_uncertain": "Unsicher",
     "trust_unlearned": "Ungelernt",
     "warnings": "Warnungen",

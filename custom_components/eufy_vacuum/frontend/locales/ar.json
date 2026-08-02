@@ -1527,6 +1527,7 @@
     "trouble_note_title": "تم تفويت هذه الغرفة في {pct}٪ من الجولات الأخيرة. فكّر في التحقق من العوائق أو دقة الخريطة.",
     "trust_learning": "قيد التعلّم",
     "trust_reliable": "موثوق",
+    "trust_tooltip_with_samples": "{label} · {count} عيّنات",
     "trust_uncertain": "غير مؤكّد",
     "trust_unlearned": "غير مُتعلَّم",
     "warnings": "تحذيرات",

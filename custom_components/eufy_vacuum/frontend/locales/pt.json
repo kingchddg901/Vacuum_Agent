@@ -1241,6 +1241,7 @@
     "trouble_note_title": "Esta divisão foi ignorada em {pct}% das execuções recentes. Considere verificar obstáculos ou a precisão do mapa.",
     "trust_learning": "A aprender",
     "trust_reliable": "Fiável",
+    "trust_tooltip_with_samples": "{label} · {count} amostras",
     "trust_uncertain": "Incerta",
     "trust_unlearned": "Não aprendida",
     "warnings": "Avisos",

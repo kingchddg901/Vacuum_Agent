@@ -21,6 +21,29 @@ const BLOCK_REASON_CODES = new Set([
 ]);
 
 /**
+ * CARD-2 clause 3: the confidence chip's tooltip, with the sample count folded
+ * in when it's a finite number (learned estimates only — the unlearned/default
+ * path has no meaningful count and passes trustLabel straight through). Pure
+ * so it's testable without stubbing renderRoomCard's other dependencies
+ * (drag/drop, water planning) — see feedback_centralize_question_not_vocabulary
+ * for why the decision, not the DOM, is the unit under test.
+ *
+ * @param {string} trustLabel - already-translated confidence label.
+ * @param {unknown} sampleCount - roomEstimate.sample_count, possibly absent.
+ * @param {(key: string, vars?: object) => string} t - translate function.
+ * @returns {string} tooltip text.
+ */
+export function confidenceTooltip(trustLabel, sampleCount, t) {
+  // sampleCount != null also excludes undefined in one check; needed because
+  // Number(null) coerces to 0 (finite), which would otherwise misreport an
+  // absent count as "0 samples".
+  const n = Number(sampleCount);
+  return sampleCount != null && Number.isFinite(n)
+    ? t("rooms.trust_tooltip_with_samples", { label: trustLabel, count: n })
+    : trustLabel;
+}
+
+/**
  * Mix rooms renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
@@ -1203,7 +1226,7 @@ proto.renderRoomCard = function (room, state) {
         confidenceChip = this.renderConfidenceChip(
           roomEstimate.confidence_breakpoint,
           trustLabel,
-          trustLabel
+          confidenceTooltip(trustLabel, roomEstimate.sample_count, this.t.bind(this))
         );
 
         if (variant === "success") roomConfidenceClass = "evcc-room-card--confidence-high";

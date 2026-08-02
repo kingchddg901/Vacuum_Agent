@@ -1502,6 +1502,7 @@
     "trouble_note_title": "この部屋は最近の実行の{pct}%で清掃されませんでした。障害物やマップの精度を確認してください。",
     "trust_learning": "学習中",
     "trust_reliable": "信頼できる",
+    "trust_tooltip_with_samples": "{label} · {count} サンプル",
     "trust_uncertain": "不確実",
     "trust_unlearned": "未学習",
     "warnings": "警告",

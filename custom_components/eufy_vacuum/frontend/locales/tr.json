@@ -1485,6 +1485,7 @@
     "trouble_note_title": "Bu oda, son çalışmaların %{pct}'inde atlandı. Engelleri veya harita doğruluğunu kontrol etmeyi düşünün.",
     "trust_learning": "Öğreniyor",
     "trust_reliable": "Güvenilir",
+    "trust_tooltip_with_samples": "{label} · {count} örnek",
     "trust_uncertain": "Belirsiz",
     "trust_unlearned": "Öğrenilmemiş",
     "warnings": "Uyarılar",
