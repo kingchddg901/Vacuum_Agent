@@ -43,13 +43,13 @@ landed in between.
 
 ## Completed
 
-**126 changes shipped**, all with tests, all deployed.
+**131 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
 | Audits fully applied | #1 lifecycle · #2 learning · #3 external ingestion · #4 adapters · #5 error tracker |
 | Partly applied | #6 card (root cause + top of the repair order) |
-| #7 onward | **108** of 484 findings applied via 13 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b); rest open — see [Open](#open) |
+| #7 onward | **108** of 484 findings applied via 14 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f); rest open — see [Open](#open) |
 
 ### The recurring root cause
 
@@ -190,12 +190,17 @@ comments rather than by a shared helper.
 | `34a15b1` | audit: Stage G (RP-032) + Stage C (CARD clauses) handed off |
 | `c075b12` | audit: four ownership calls adjudicated + Chris's scope decisions recorded |
 | `f212c20` | RP-013b: allocated group timing — a multi-room group phase credits every room |
+| `581e940` | audit: RP-013b landed — ledger closure regenerated |
+| `ed1a953` | RP-013f (1/2): a stepped run's cleaning_time_seconds sums its phases (REC-A) |
+| `3fcda23` | fix(ci): wave-7 CARD reproducers were committed RED and broke node-tests |
+| `0ff1e9f` | RP-013f (2/2): wall-clock fallback subtracts commanded breaks (REC-B) |
+| `d9ce30c` | audit: handoff gap that caused the red CI — frontend reproducers are CI-gated |
 
 ---
 
 ## Open
 
-**376 findings** — 335 across 12 audits plus 41 from direct reads. **108 more applied** via 13 landed packets (see [Applied](#applied)). 19 open clusters (10 fully applied) + 338 singles.
+**376 findings** — 335 across 12 audits plus 41 from direct reads. **108 more applied** via 14 landed packets (see [Applied](#applied)). 19 open clusters (10 fully applied) + 338 singles.
 
 CRITICAL 7 · HIGH 54 · MEDIUM 141 · LOW 174
 

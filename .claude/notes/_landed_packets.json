@@ -76,5 +76,11 @@
   "commits": ["f212c20"],
   "landed_at": "2026-08-02",
   "note": "Stage X, packet 1/5. One clause of required_behavior ('stats_rebuilder... records them for ACC-6's quality flag... the flag exists, RP-036 consumes it') does not hold against current source -- no single_room/quality flag exists anywhere in stats_rebuilder.py. Left unimplemented and flagged in the commit message rather than invented; ACC-6 is one of RP-036's own not-yet-executed findings."
+ },
+ {
+  "packet_id": "RP-013f",
+  "commits": ["ed1a953", "0ff1e9f"],
+  "landed_at": "2026-08-02",
+  "note": "Stage X, packet 2/5. 2 commits per rollback_plan (REC-A phase-sum derivation; REC-B wall-clock fallback break-phase subtraction) -- different failure modes, independently revertable, split via git add -p plus manual test-file surgery to keep each commit self-consistent and green on its own."
  }
 ]
