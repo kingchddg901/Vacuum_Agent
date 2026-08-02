@@ -1,6 +1,6 @@
 {
- "frozen_at_sha": "9c42f037a2c0ec88dc8a0170761fd0100d1634b1",
- "frozen_at": "2026-08-01T21:52:10",
+ "frozen_at_sha": "d54c432d9b3d8f5eb07ba4465547f5f5c261a5e7",
+ "frozen_at": "2026-08-01T22:12:02",
  "counts": {
   "audits": 12,
   "audit_survivors": 421,
@@ -30,7 +30,7 @@
   ".claude/notes/_frozen/_calibration.json": "7eca993eda5668cf",
   ".claude/notes/_frozen/_stageB_result.json": "c31a98a810cae660",
   ".claude/notes/_frozen/_mapping_result.json": "ea4408261c4a9055",
-  ".claude/notes/_frozen/_carried.json": "7131e8623e6c7802",
+  ".claude/notes/_frozen/_carried.json": "1061b7adcac8c9a2",
   ".claude/notes/_frozen/journals/wf_56cc4abc-4b2-stageB.jsonl": "3b2fdac98de5b3bb",
   ".claude/notes/_frozen/journals/wf_6fbed40a-87e-audit18.jsonl": "170bf55e5ec3f6e8",
   ".claude/notes/_frozen/corpus/audit-findings-canonical.jsonl": "c4b3437dc124b347",
@@ -44,6 +44,6 @@
   ".claude/notes/_frozen/baseline/phase-b-ivy-coverage.json.hc-results.md": "da6f3497ae5f29f5",
   ".claude/notes/_frozen/baseline/phase-c-answers.json": "64dac2705658a746",
   ".claude/notes/_frozen/baseline/README.md": "97bbdfca5d81bd3b",
-  ".claude/notes/_frozen/highly-aggressive-audit.md": "aff8f7bb08eeee05"
+  ".claude/notes/_frozen/highly-aggressive-audit.md": "7698db2457e418a0"
  }
 }

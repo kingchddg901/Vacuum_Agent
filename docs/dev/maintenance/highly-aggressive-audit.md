@@ -43,7 +43,7 @@ landed in between.
 
 ## Completed
 
-**161 changes shipped**, all with tests, all deployed.
+**162 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
@@ -225,6 +225,7 @@ comments rather than by a shared helper.
 | `93b83be` | audit: RP-040 closing batch — onboarding sensor no longer vacuously "complete" on zero maps (DR-ONB-3) |
 | `41aedd6` | audit: RP-040 closing batch — setup/drift.py or-coercion + unguarded int(key) fixes (DR-SETUP-2, DR-SETUP-3) |
 | `9c42f03` | audit: RP-040 closing batch — setup/protection.py isinstance guards (DR-SETUP-4) |
+| `d54c432` | audit: RP-040 landed — ledger closure regenerated — STAGE M6 COMPLETE |
 
 ---
 
@@ -1689,7 +1690,7 @@ Recorded so it is not re-reported as a new finding, and documented where it live
 - **Card: the qualification gap (CC-5)** — Surface provenance, truncation and absent data honestly rather than as confident values.
 - **Card: surface captured run errors (`run_errors`)** — The backend now carries app-started-run error evidence end to end. Nothing displays it.
 - **OpenDyslexic font support** — Contract settled — English-only gate, one token override, glyph coverage proven per locale before offering another. No code written.
-- **Roborock edge-mopping control removal** — RECONSTRUCTED — the original note was lost when the orchestrator replaced the generators' hand-maintained CARRIED lists before verifying the replacement; only the title survived, from a diff printed earlier in the same session. Reconstructed from current source: the Roborock adapter declares supports_edge_mopping False (adapters/roborock/adapter.py:177 and :580, plus three edge_mopping:False entries in vocabulary.py), while the card still renders edge-mopping controls (src/renderers/external-jobs.js:287-289, src/renderers/metrics.js:537/551). The obligation is to gate or remove that control on a brand whose adapter declares it unsupported. VERIFY THE INTENT WITH CHRIS before acting — the reconstruction is grounded in source, but it is not the original wording.
+- **Roborock edge-mopping: the adapter contradicts itself (was: control removal)** — RE-SCOPED 2026-08-01 — the earlier framing ('the card renders a control the adapter declares unsupported, so gate or remove it') is BACKWARDS and must not be actioned as written. Two facts, both in the Roborock adapter: (1) supports_edge_mopping is a HARDCODED brand-wide False at adapter.py:177 and :580 — flat literals, NO model gating, unlike the Eufy adapter which asks `model_family in {...}` for its per-model capabilities. That is the brand-vs-model conflation pattern: a per-model fact frozen at brand level. (2) the adapter's OWN vocabulary already disagrees — vocabulary.py:148, the `vacuum_mop_deep` room profile, ships `edge_mopping: True`. So the adapter requests a capability it declares absent. Chris confirms his S6 cannot edge mop, but correctly notes that is a MODEL fact, not a brand fact — other Roborock models plausibly can. CONSEQUENCE: gating the card on supports_edge_mopping would hide the control on every Roborock including models that can do it, and would leave vacuum_mop_deep requesting an absent capability. RECOMMENDED (consistent with Q12's 'unsupported and unsurfaced until verified... add an independently validated declaration' precedent): leave the declaration False, FIX vacuum_mop_deep to stop requesting edge_mopping (the near-one-liner), and treat model-gating as a SEPARATE change requiring verified per-model device facts. Do not invent hardware capabilities. Deferred by Chris 2026-08-01: patch later, it is near a one-liner.
 
 ---
 
