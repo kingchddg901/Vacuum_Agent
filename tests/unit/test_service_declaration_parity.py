@@ -111,10 +111,9 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
 
     # --- field_mismatch: map_id required-vs-docs-optional (SVC-9 + the -----
     # --- mapping_services.py cohort RP-028's resolver adoption covers) -----
-    ("field_mismatch", "save_learning_snapshot.map_id:requiredness"): "SVC-9: schema should be vol.Optional, yaml already says optional.",
-    ("field_mismatch", "finalize_learning_job.map_id:requiredness"): "SVC-9: schema should be vol.Optional, yaml already says optional.",
-    ("field_mismatch", "run_learning_estimate.map_id:requiredness"): "SVC-9: schema should be vol.Optional, yaml already says optional.",
-    ("field_mismatch", "get_room_learning_estimates.map_id:requiredness"): "SVC-9-adjacent: same shape, same fix.",
+    # SVC-9's 4 (save_learning_snapshot, finalize_learning_job,
+    # run_learning_estimate, get_room_learning_estimates) fixed: schemas now
+    # vol.Optional("map_id"), handlers route through resolved_call_data.
     ("field_mismatch", "set_area_label_anchor.map_id:requiredness"): "RP-028-adjacent (mapping_services.py resolved_call_data adoption); RP-028 unlanded, fixing narrowly here instead.",
     ("field_mismatch", "set_companion_anchor.map_id:requiredness"): "RP-028-adjacent, same fix.",
     ("field_mismatch", "set_furnished_art_placement.map_id:requiredness"): "RP-028-adjacent, same fix.",

@@ -32,6 +32,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED, EVENT_RUN_INCOMPLETE
+from ..services._common import resolved_call_data
 from .external_ingest import strip_samples
 from .manager import LearningManager, finalize_result_succeeded
 
@@ -60,7 +61,7 @@ SERVICE_PROCESS_PENDING_RUNS = "process_pending_runs"
 SAVE_LEARNING_SNAPSHOT_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("started_at"): cv.string,
         vol.Required("battery_start"): vol.Coerce(int),
         vol.Optional("job_id"): cv.string,
@@ -70,7 +71,7 @@ SAVE_LEARNING_SNAPSHOT_SCHEMA = vol.Schema(
 FINALIZE_LEARNING_JOB_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("battery_start"): vol.Coerce(int),
         vol.Required("battery_end"): vol.Coerce(int),
         vol.Required("started_at"): cv.string,
@@ -96,7 +97,7 @@ PROCESS_PENDING_RUNS_SCHEMA = vol.Schema({})
 RUN_LEARNING_ESTIMATE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Optional("current_battery", default=0.0): vol.Coerce(float),
         vol.Optional("charge_percent_per_minute", default=1.0): vol.Coerce(float),
         vol.Optional("reserve_battery_percent", default=5.0): vol.Coerce(float),
@@ -135,7 +136,7 @@ GET_NEXT_ROOM_SCHEMA = vol.Schema(
 GET_ROOM_LEARNING_ESTIMATES_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Optional("current_battery"): vol.Any(None, vol.Coerce(float)),
     }
 )
@@ -374,32 +375,34 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
     async def handle_save_learning_snapshot(call: ServiceCall) -> None:
         core_manager = _get_core_manager(hass)
         learning = _get_learning_manager(hass)
+        data = resolved_call_data(hass, call)
         result = await hass.async_add_executor_job(
             learning.save_live_snapshot_from_manager,
             core_manager,
-            call.data["vacuum_entity_id"],
-            call.data["map_id"],
-            call.data["started_at"],
-            call.data["battery_start"],
-            call.data.get("job_id"),
+            data["vacuum_entity_id"],
+            data.get("map_id"),
+            data["started_at"],
+            data["battery_start"],
+            data.get("job_id"),
         )
         _LOGGER.debug("save_learning_snapshot complete: %s", result)
 
     async def handle_finalize_learning_job(call: ServiceCall) -> None:
         core_manager = _get_core_manager(hass)
         learning = _get_learning_manager(hass)
+        data = resolved_call_data(hass, call)
         result = await learning.async_finalize_completed_job(
             manager=core_manager,
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            battery_start=call.data["battery_start"],
-            battery_end=call.data["battery_end"],
-            started_at=call.data["started_at"],
-            ended_at=call.data.get("ended_at"),
-            used_for_learning=call.data["used_for_learning"],
-            rebuild_stats=call.data["rebuild_stats"],
-            rebuild_csv=call.data["rebuild_csv"],
-            forced_outcome_status=call.data.get("forced_outcome_status"),
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data.get("map_id"),
+            battery_start=data["battery_start"],
+            battery_end=data["battery_end"],
+            started_at=data["started_at"],
+            ended_at=data.get("ended_at"),
+            used_for_learning=data["used_for_learning"],
+            rebuild_stats=data["rebuild_stats"],
+            rebuild_csv=data["rebuild_csv"],
+            forced_outcome_status=data.get("forced_outcome_status"),
         )
 
         # RP-002/RF-01: a refusal ({"finalized": False, "reason": ...}) is not a
@@ -494,15 +497,16 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
     async def handle_run_learning_estimate(call: ServiceCall) -> dict:
         core_manager = _get_core_manager(hass)
         learning = _get_learning_manager(hass)
+        data = resolved_call_data(hass, call)
         result = await hass.async_add_executor_job(
             lambda: learning.estimate_from_manager(
                 core_manager,
-                call.data["vacuum_entity_id"],
-                call.data["map_id"],
-                call.data["current_battery"],
-                call.data["charge_percent_per_minute"],
-                call.data["reserve_battery_percent"],
-                call.data.get("started_at"),
+                data["vacuum_entity_id"],
+                data.get("map_id"),
+                data["current_battery"],
+                data["charge_percent_per_minute"],
+                data["reserve_battery_percent"],
+                data.get("started_at"),
             )
         )
         _LOGGER.debug("run_learning_estimate complete: %s", result)
@@ -564,12 +568,13 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         """
         core_manager = _get_core_manager(hass)
         learning = _get_learning_manager(hass)
+        data = resolved_call_data(hass, call)
         result = await hass.async_add_executor_job(
             lambda: learning.get_room_learning_estimates(
                 core_manager,
-                call.data["vacuum_entity_id"],
-                call.data["map_id"],
-                call.data.get("current_battery"),
+                data["vacuum_entity_id"],
+                data.get("map_id"),
+                data.get("current_battery"),
             )
         )
         _LOGGER.debug(
