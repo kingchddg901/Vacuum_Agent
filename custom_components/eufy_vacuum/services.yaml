@@ -44,8 +44,9 @@ save_managed_rooms:
   name: Save managed rooms
   description: >
     Create managed room configuration from selected discovery results.
-    This is the only path that creates room entities. Floor type and
-    carpet type must be supplied for each room at creation time.
+    This is the only path that creates room entities. Floor type may be
+    supplied per room at creation time; carpet pile is part of the same
+    compound floor_type value (e.g. carpet_low_pile), not a separate field.
   fields:
     vacuum_entity_id:
       name: Vacuum entity
@@ -61,23 +62,19 @@ save_managed_rooms:
         text: {}
     enabled_room_ids:
       name: Enabled room IDs
-      description: List of room IDs to create as managed rooms.
-      required: true
+      description: >
+        List of room IDs to create as managed rooms. Omit to keep the
+        current selection unchanged; an empty list is rejected (use
+        per-room enabled flags or remove_map to remove rooms).
+      required: false
       selector:
         object: {}
     floor_types:
       name: Floor types
       description: >
-        Dict mapping room_id to floor type.
-        Valid values: hardwood, laminate, tile, marble, granite, concrete, carpet.
-      required: false
-      selector:
-        object: {}
-    carpet_types:
-      name: Carpet types
-      description: >
-        Dict mapping room_id to carpet subtype for carpet rooms.
-        Valid values: low_pile, high_pile.
+        Dict mapping room_id to floor type. Valid values: hardwood,
+        laminate, tile, marble, granite, concrete, carpet_low_pile,
+        carpet_high_pile.
       required: false
       selector:
         object: {}
@@ -1176,11 +1173,6 @@ save_user_room_profile:
           max: 2
           step: 1
           mode: box
-    carpet:
-      name: Carpet
-      required: true
-      selector:
-        boolean: {}
     edge_mopping:
       name: Edge mopping
       required: true
@@ -1275,11 +1267,6 @@ overwrite_room_profile:
           max: 10
           step: 1
           mode: box
-    carpet:
-      name: Carpet
-      required: true
-      selector:
-        boolean: {}
     edge_mopping:
       name: Edge mopping
       required: true

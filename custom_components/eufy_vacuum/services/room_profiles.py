@@ -28,6 +28,9 @@ from ._common import get_manager, resolved_call_data
 _LOGGER = logging.getLogger(__name__)
 
 
+_GET_ROOM_PROFILES_SCHEMA = vol.Schema({})
+
+
 SERVICES = (
     SERVICE_GET_ROOM_PROFILES,
     SERVICE_SAVE_USER_ROOM_PROFILE,
@@ -201,7 +204,8 @@ def register(hass: HomeAssistant) -> None:
         return await _handle_apply_room_profile(hass, call)
 
     hass.services.async_register(
-        DOMAIN, SERVICE_GET_ROOM_PROFILES, get_room_profiles, supports_response=True,
+        DOMAIN, SERVICE_GET_ROOM_PROFILES, get_room_profiles,
+        schema=_GET_ROOM_PROFILES_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SAVE_USER_ROOM_PROFILE, save_user_room_profile,

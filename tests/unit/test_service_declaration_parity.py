@@ -75,8 +75,7 @@ INTERNAL_SERVICES: dict[str, str] = {}
 # see the per-category TODO comments below for the intended fix.
 # ---------------------------------------------------------------------------
 EXPECTED_FAILURES: dict[tuple[str, str], str] = {
-    # --- no_schema: WIRE-4, fix = add schema=vol.Schema({}) ----------------
-    ("no_schema", "get_room_profiles"): "WIRE-4: the only registration (of 142) with no schema at all.",
+    # WIRE-4 fixed: get_room_profiles now registers with schema=vol.Schema({}).
 
     # --- no_yaml_entry: 26 candidates for INTERNAL_SERVICES vs a real ------
     # --- services.yaml descriptor. THE ALLOWLIST NEEDS A HUMAN -- these ----
@@ -109,27 +108,33 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     ("no_yaml_entry", "get_trouble_rooms_log"): "learning/services.py: card diagnostics -- pending Chris review.",
     ("no_yaml_entry", "get_incomplete_run_log"): "learning/services.py: card diagnostics -- pending Chris review.",
 
-    # --- field_mismatch: map_id required-vs-docs-optional (SVC-9 + the -----
-    # --- mapping_services.py cohort RP-028's resolver adoption covers) -----
-    # SVC-9's 4 (save_learning_snapshot, finalize_learning_job,
-    # run_learning_estimate, get_room_learning_estimates) fixed: schemas now
-    # vol.Optional("map_id"), handlers route through resolved_call_data.
-    ("field_mismatch", "set_area_label_anchor.map_id:requiredness"): "RP-028-adjacent (mapping_services.py resolved_call_data adoption); RP-028 unlanded, fixing narrowly here instead.",
-    ("field_mismatch", "set_companion_anchor.map_id:requiredness"): "RP-028-adjacent, same fix.",
-    ("field_mismatch", "set_furnished_art_placement.map_id:requiredness"): "RP-028-adjacent, same fix.",
-    ("field_mismatch", "set_furnished_render_mode.map_id:requiredness"): "RP-028-adjacent, same fix.",
-    ("field_mismatch", "set_hidden_regions.map_id:requiredness"): "RP-028-adjacent, same fix.",
-    ("field_mismatch", "set_live_map_rotation.map_id:requiredness"): "RP-028-adjacent, same fix.",
-    ("field_mismatch", "set_room_viewport.map_id:requiredness"): "RP-028-adjacent, same fix.",
-    ("field_mismatch", "set_segment_room_link.map_id:requiredness"): "RP-028-adjacent, same fix.",
+    # --- field_mismatch: map_id required-vs-docs-optional, mapping_services -
+    # --- .py cohort. EJECTED, not fixed here: RP-032's own required_behavior
+    # --- ties this specific alignment to "RP-028's resolver adoption" -----
+    # --- (require_map_bucket "builder-with-inverse" + resolved_call_data ---
+    # --- across ALL mapping handlers, RP-028 sub-item 2). A narrow fix here
+    # --- (resolved_call_data + vol.Optional only) is unsafe on its own: ----
+    # --- ensure_map_bucket(map_id=None) would silently str()-coerce to the
+    # --- literal "None" bucket key instead of raising a clear error --
+    # --- exactly the failure mode RP-028's require_map_bucket exists to ---
+    # --- close. Fix WITH RP-028 when it lands, not narrowly ahead of it. ---
+    ("field_mismatch", "set_area_label_anchor.map_id:requiredness"): "blocked_by RP-028 (see comment above) -- do not narrow-fix.",
+    ("field_mismatch", "set_companion_anchor.map_id:requiredness"): "blocked_by RP-028.",
+    ("field_mismatch", "set_furnished_art_placement.map_id:requiredness"): "blocked_by RP-028.",
+    ("field_mismatch", "set_furnished_render_mode.map_id:requiredness"): "blocked_by RP-028.",
+    ("field_mismatch", "set_hidden_regions.map_id:requiredness"): "blocked_by RP-028.",
+    ("field_mismatch", "set_live_map_rotation.map_id:requiredness"): "blocked_by RP-028.",
+    ("field_mismatch", "set_room_viewport.map_id:requiredness"): "blocked_by RP-028.",
+    ("field_mismatch", "set_segment_room_link.map_id:requiredness"): "blocked_by RP-028.",
 
-    # --- field_mismatch: carpet/floor_type, verified against the manager ---
-    # --- (core/manager.py, profiles/manager.py, rooms/room_crud.py) --------
-    ("field_mismatch", "save_managed_rooms.floor_types:yaml_only"): "manager genuinely accepts floor_types (rooms/room_crud.py:save_managed_rooms) -- add to schema.",
-    ("field_mismatch", "save_managed_rooms.carpet_types:yaml_only"): "manager has no carpet_types concept (floor_type is compound, e.g. carpet_low_pile) -- stale yaml, remove from services.yaml.",
-    ("field_mismatch", "save_managed_rooms.enabled_room_ids:requiredness"): "RP-005 established omit-to-keep-selection contract -- yaml's required:true is what's wrong, fix the doc not the schema.",
-    ("field_mismatch", "save_user_room_profile.carpet:yaml_only"): "profiles carry no floor/carpet data (ProfileManager.save_user_room_profile has no such param) -- stale yaml, remove.",
-    ("field_mismatch", "overwrite_room_profile.carpet:yaml_only"): "same as save_user_room_profile -- stale yaml, remove.",
+    # carpet/floor_type group fixed: floor_types added to
+    # _SAVE_MANAGED_ROOMS_SCHEMA (manager genuinely accepts it);
+    # carpet_types removed from services.yaml (no manager equivalent --
+    # floor_type is a compound value, e.g. carpet_low_pile); carpet removed
+    # from save_user_room_profile/overwrite_room_profile's services.yaml
+    # entries (profiles carry no floor/carpet data); enabled_room_ids's
+    # services.yaml required:true corrected to false (RP-005's established
+    # omit-to-keep-selection contract).
 
     # --- field_mismatch: schema accepts a field yaml never documents -------
     # --- (each needs its own check: real accepted field -> add to yaml) ----

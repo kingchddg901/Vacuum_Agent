@@ -100,6 +100,10 @@ _SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
         vol.Optional("enabled_room_ids"): _enabled_room_ids_validator,
+        # RP-032/RF-28: the manager genuinely accepts this (rooms/room_crud.py
+        # save_managed_rooms(floor_types=...)); the schema was just missing
+        # the field services.yaml already documented.
+        vol.Optional("floor_types"): vol.Schema({cv.string: cv.string}),
     }
 )
 
