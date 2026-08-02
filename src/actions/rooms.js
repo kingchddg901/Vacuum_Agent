@@ -512,14 +512,37 @@ export function applyRoomsActions(proto) {
     });
   };
 
-  /** Send the vacuum back to base and clear any pending start/cancel confirmation state. */
+  /**
+   * Cancel the tracked run and clear any pending start/cancel confirmation state.
+   *
+   * WHY the integration service and not `vacuum.return_to_base`: this used to send the
+   * stock HA dock command directly. The robot obeyed, so a cancel LOOKED like it worked
+   * -- but the integration was never told the job ended early. The tracker kept believing
+   * the run was live, and when the robot reached the dock the finalizer saw "docked, no
+   * phases left" and wrote `status: completed`, `was_cancelled: false`,
+   * `used_for_learning: true`. Truncated room times were then learned as honest ones and
+   * no incomplete-run log entry was ever written.
+   *
+   * `cancel_active_job` performs the return-to-base ITSELF (see its docstring) and then
+   * finalizes, so this is a replacement -- not a second command. It is also the only way
+   * in through RP-010's cancel chokepoint: the single-flight latch, the watchdog stop that
+   * prevents app_segment_clean being re-dispatched mid-cancel, and the terminal-state
+   * confirm before the record is written. The card starts jobs through
+   * `start_selected_rooms`; opening the job through the seam and closing it around the
+   * seam is what produced the asymmetry.
+   *
+   * `map_id` is optional server-side (blank resolves to the active map) but is passed when
+   * known, matching how the dashboard card calls `start_selected_rooms`.
+   */
   proto.cancelActiveRun = async function () {
     const vacuumEntityId = this.state.vacuumEntityId();
     if (!vacuumEntityId) return;
 
-    await this.callService("vacuum", "return_to_base", {
-      entity_id: vacuumEntityId,
-    });
+    const data = { vacuum_entity_id: vacuumEntityId };
+    const mapId = this.state.activeMapId?.();
+    if (mapId != null) data.map_id = mapId;
+
+    await this.callService("eufy_vacuum", "cancel_active_job", data);
 
     this.state.clearCancelRunConfirmation?.();
     this.state.clearStartConfirmation?.();
