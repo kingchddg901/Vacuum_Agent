@@ -438,21 +438,34 @@ class DispatchManager:
             canonical_value = rank[best_index]
             # OFF fallback: chosen "off" but the target select has no "off" option ->
             # lower to the select's minimum available option (never leave a prior HIGH).
+            _off_fallback_wire_value: str | None = None
             if canonical_value == "off":
                 target_entity_for_opts = service.get("target_entity_id") or vacuum_entity_id
                 _sel_state = self._manager.hass.states.get(target_entity_for_opts)
-                _opts = (
-                    [str(o).strip().lower() for o in _sel_state.attributes.get("options") or []]
+                _opts_raw = (
+                    list(_sel_state.attributes.get("options") or [])
                     if _sel_state is not None else []
                 )
+                _opts = [str(o).strip().lower() for o in _opts_raw]
                 if _opts and "off" not in _opts:
                     # Walk the entry's rank ascending for the first option the select has.
                     for _cand in rank:
                         if _cand in _opts:
                             canonical_value = _cand
+                            # DQ-ACT-7: send the select's own reported option
+                            # string (original case/format) -- _opts is
+                            # lowercased only for the membership test above, so
+                            # a capitalized or numeric-option select would
+                            # otherwise be sent the lowercased rank word and
+                            # silently no-op.
+                            _off_fallback_wire_value = _opts_raw[_opts.index(_cand)]
                             break
             value_map = entry.get("value_map") or {}
-            wire_value = value_map.get(canonical_value, canonical_value)
+            wire_value = (
+                _off_fallback_wire_value
+                if _off_fallback_wire_value is not None
+                else value_map.get(canonical_value, canonical_value)
+            )
 
             target_entity = service.get("target_entity_id") or vacuum_entity_id
             try:

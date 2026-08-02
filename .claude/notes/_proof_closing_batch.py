@@ -221,12 +221,71 @@ async def _case_start_3(proof: H.Proof) -> None:
     )
 
 
+async def _case_dq_act_7(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry, register_adapter_config,
+    )
+    from custom_components.eufy_vacuum.dispatch.manager import DispatchManager
+
+    clear_registry()
+    try:
+        hass = H.make_hass()
+        # A capitalized-option select -- the "future brand" case the finding
+        # describes. No "off" among its options, so the OFF-fallback walk fires.
+        hass.states.async_set(
+            "select.alfred_mop_intensity", "Low",
+            {"options": ["Low", "Medium", "High"]},
+        )
+        register_adapter_config(H.VAC, {
+            "adapter_id": "test", "source": "code", "entities": {},
+            "dispatch": {
+                "template": "generic_room_ids", "service_domain": "vacuum",
+                "service_name": "send_command",
+                "global_pre_calls": [{
+                    "field": "water_level",
+                    "rank": ["off", "low", "medium", "high"],
+                    "service": {
+                        "domain": "select", "service": "select_option",
+                        "value_key": "option",
+                        "target_entity_id": "select.alfred_mop_intensity",
+                    },
+                }],
+            },
+        })
+
+        dispatch = DispatchManager(manager=SimpleNamespace(hass=hass))
+        resolved_rooms = [{"room_id": 1, "water_level": "off", "clean_mode": "mop"}]
+
+        await dispatch._run_global_pre_calls(
+            vacuum_entity_id=H.VAC, resolved_rooms=resolved_rooms
+        )
+        sent = hass.services.sent(domain="select", service="select_option")
+        sent_value = sent[0]["data"].get("option") if sent else None
+
+        proof.case(
+            "dispatch/manager.py DQ-ACT-7: the OFF-fallback must send the "
+            "select's own reported option string, not the lowercased rank "
+            "word used only for the membership test",
+            before=(sent_value == "low"),
+            before_msg="the lowercased rank candidate ('low') is sent verbatim "
+                       "-- the select's real option is 'Low', so the service "
+                       "call silently no-ops on a capitalized-option select",
+            after=(sent_value == "Low"),
+            after_msg="the select's own reported option string ('Low') is "
+                      "sent, matching what the entity actually exposes",
+            detail=f"sent={sent}",
+        )
+    finally:
+        clear_registry()
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
     _case_cb_3,
     _case_cb_4,
     _case_start_3,
+    _case_dq_act_7,
 ]
 
 
