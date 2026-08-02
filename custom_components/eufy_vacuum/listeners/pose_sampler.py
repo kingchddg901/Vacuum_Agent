@@ -7,7 +7,12 @@ adapter's room_attribution cadence it captures the live room via the adapter's d
 current-room NAME entity) and buffers one ``{current_room, anchor, cleaning_area}`` sample per
 tick into the external slot's ``pose_samples`` (via ``record_pose_sample``).
 
-**Capture-only / inert** — nothing consumes ``pose_samples`` yet (the engine wiring is W5c).
+**Consumed by the W5c engine wiring** (``learning/room_attribution_engines.py``) — the
+buffered ``pose_samples`` drive which rooms an external (app-started) run is recorded as
+having cleaned (``external_ingest.build_pending_record``), the per-room durations written
+to the learning record, and — via ``reconcile_dispatched_identity``'s "rescued" branch —
+the room identity stamped on a DISPATCHED run's timings. A defect in this file affects all
+of that, not an inert capture buffer.
 
 Gating:
   - Active runs only — an EXTERNAL (app-started) run OR a DISPATCHED (``started``) run. External

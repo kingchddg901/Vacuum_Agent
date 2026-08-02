@@ -373,6 +373,29 @@ async def _case_common_5(proof: H.Proof) -> None:
     )
 
 
+async def _case_pose_6(proof: H.Proof) -> None:
+    import importlib
+
+    from custom_components.eufy_vacuum.listeners import pose_sampler
+    importlib.reload(pose_sampler)
+    doc = pose_sampler.__doc__ or ""
+
+    stale_claim = "nothing consumes" in doc.lower() and "inert" in doc.lower()
+
+    proof.case(
+        "listeners/pose_sampler.py POSE-6: the module docstring must not "
+        "still claim pose_samples is an unconsumed, inert capture buffer",
+        before=stale_claim,
+        before_msg="the docstring says 'Capture-only / inert -- nothing "
+                   "consumes pose_samples yet', understating blast radius "
+                   "now that the W5c consumption wire has landed",
+        after=(not stale_claim),
+        after_msg="the docstring names the real W5c consumers instead of "
+                  "claiming the buffer is inert",
+        detail=f"doc_head={doc[:200]!r}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -383,6 +406,7 @@ CASES = [
     _case_io_5,
     _case_io_7,
     _case_common_5,
+    _case_pose_6,
 ]
 
 
