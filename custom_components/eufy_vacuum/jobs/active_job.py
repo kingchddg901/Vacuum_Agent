@@ -240,6 +240,10 @@ class ActiveJobTracker:
         # RP-002/RF-01: job_ids already WARNed about a stranded-finalize refusal —
         # dedups the reaper's per-tick log spam while a slot stays unfinalizable.
         self._stranded_finalize_warned: set[str] = set()
+        # RP-013e: (vacuum_entity_id, job_id) pairs already WARNed about more than
+        # one in-flight bucket (a stale slot, until RP-011 beds in) — dedups the
+        # per-sample log spam while the stale slot lingers.
+        self._multi_in_flight_warned: set[tuple[str, str]] = set()
 
     # -- state defaults & normalization ----------------------------------------
 
@@ -1710,6 +1714,53 @@ class ActiveJobTracker:
             )
         ))
 
+    def _select_in_flight_bucket(
+        self, *, vacuum_entity_id: str, per_map: dict[str, Any]
+    ) -> tuple[str, dict[str, Any]] | None:
+        """Return the ONE (map_id, job) bucket a sample recorder should write into.
+
+        RP-013e: ``started_at and not ended_at`` stays true FOREVER after a run —
+        nothing ever writes ``ended_at`` — so both sample recorders used to fan
+        every write into EVERY map bucket, including a finished/stranded job that
+        absorbs the next run's counters. ``run_is_in_flight`` is the correct
+        predicate here (dispatched OR external — capturing app-started runs is
+        the whole point of these recorders; ``dispatched_job_is_in_flight`` would
+        break external capture, per that function's own docstring).
+
+        Normally at most one bucket qualifies. When more than one does (a stale
+        slot, until RP-011's reaper beds in): the bucket matching
+        ``resolve_active_map_id`` wins; otherwise the one with the newest
+        ``started_at``. Never fan out to multiple — WARNs once per job.
+        """
+        candidates = [
+            (map_id, job)
+            for map_id, job in per_map.items()
+            if isinstance(job, dict) and run_is_in_flight(job)
+        ]
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+
+        active_map_id = str(self._manager.resolve_active_map_id(vacuum_entity_id) or "")
+        chosen = next(
+            (mj for mj in candidates if active_map_id and str(mj[0]) == active_map_id),
+            None,
+        )
+        if chosen is None:
+            chosen = max(candidates, key=lambda mj: str(mj[1].get("started_at") or ""))
+
+        job_id = str(chosen[1].get("job_id") or "")
+        warn_key = (vacuum_entity_id, job_id)
+        if warn_key not in self._multi_in_flight_warned:
+            self._multi_in_flight_warned.add(warn_key)
+            _LOGGER.warning(
+                "eufy_vacuum: %d in-flight buckets for %s (stale slot?) — writing "
+                "only map %s, never fanning out to the rest",
+                len(candidates), vacuum_entity_id, chosen[0],
+            )
+        return chosen
+
     def record_active_job_sensor_value(
         self,
         *,
@@ -1717,11 +1768,10 @@ class ActiveJobTracker:
         key: str,
         value: Any,
     ) -> bool:
-        """Write a sensor-derived value into all in-flight active jobs for a vacuum.
+        """Write a sensor-derived value into the ONE in-flight active job for a vacuum.
 
-        Writes to every map bucket that has a started_at and no ended_at —
-        normally only one bucket is active at a time, but the loop is
-        defensive. Returns True if at least one job was updated.
+        Scoped to run_is_in_flight (RP-013e) — never fans out to a finished job
+        still sitting in its map bucket. Returns True if the job was updated.
 
         Called from the job-metrics state listener in __init__.py whenever
         a tracked sensor (cleaning_time, cleaning_area, etc.) changes during
@@ -1731,19 +1781,18 @@ class ActiveJobTracker:
         per_map = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
         if not isinstance(per_map, dict):
             return False
-        updated = False
-        for job in per_map.values():
-            if not isinstance(job, dict):
-                continue
-            if job.get("started_at") and not job.get("ended_at"):
-                job[key] = value
-                updated = True
-        if updated:
-            try:
-                self._manager.hass.async_create_task(self._manager.async_save())
-            except Exception:
-                pass
-        return updated
+        chosen = self._select_in_flight_bucket(
+            vacuum_entity_id=vacuum_entity_id, per_map=per_map
+        )
+        if chosen is None:
+            return False
+        _map_id, job = chosen
+        job[key] = value
+        try:
+            self._manager.hass.async_create_task(self._manager.async_save())
+        except Exception:
+            pass
+        return True
 
     def record_counter_sample(
         self,
@@ -1751,57 +1800,59 @@ class ActiveJobTracker:
         vacuum_entity_id: str,
         observed_at: str | None = None,
     ) -> bool:
-        """Append a counter sample to each in-flight job's counter_samples buffer.
+        """Append a counter sample to the ONE in-flight job's counter_samples buffer.
+
+        Scoped to run_is_in_flight (RP-013e) — never fans out to a finished job
+        still sitting in its map bucket (which would absorb the NEXT run's
+        counters into an already-finalized record nothing ever re-reads).
 
         Called from the job-metrics listener whenever sensor.<vacuum>_cleaning_time
         or _cleaning_area changes. Snapshots the last-seen cleaning_time +
         cleaning_area (+ battery) — already pushed by record_active_job_sensor_value
         — as one time-stamped sample. counter_segmentation.segment_counters() turns
         the stream into per-room segments at finalization (frame-invariant — no
-        geometry). Returns True if at least one job was updated.
+        geometry). Returns True if the job was updated.
         """
         observed = observed_at or _iso_now()
         per_map = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
         if not isinstance(per_map, dict):
             return False
-        updated = False
-        for job in per_map.values():
-            if not isinstance(job, dict):
-                continue
-            if not (job.get("started_at") and not job.get("ended_at")):
-                continue
-            ct = job.get("last_cleaning_time_seconds")
-            ca = job.get("last_cleaning_area_m2")
-            if ct is None and ca is None:
-                continue
-            samples = job.setdefault("counter_samples", [])
-            samples.append(
-                {
-                    "t": observed,
-                    "cleaning_time": ct,
-                    "cleaning_area": ca,
-                    "battery": job.get("last_battery_percent"),
-                }
-            )
-            if len(samples) > _MAX_COUNTER_SAMPLES:
-                del samples[: len(samples) - _MAX_COUNTER_SAMPLES]
-            # External runs: also snapshot the per-room setting selects (deduped —
-            # one entry per flip), our only window into what the app set per room.
-            if job.get("status") == "external":
-                settings = self._snapshot_settings_selects(vacuum_entity_id)
-                if settings:
-                    ss = job.setdefault("settings_samples", [])
-                    if not ss or ss[-1].get("settings") != settings:
-                        ss.append({"t": observed, "settings": settings})
-                        if len(ss) > _MAX_COUNTER_SAMPLES:
-                            del ss[: len(ss) - _MAX_COUNTER_SAMPLES]
-            updated = True
-        if updated:
-            try:
-                self._manager.hass.async_create_task(self._manager.async_save())
-            except Exception:
-                pass
-        return updated
+        chosen = self._select_in_flight_bucket(
+            vacuum_entity_id=vacuum_entity_id, per_map=per_map
+        )
+        if chosen is None:
+            return False
+        _map_id, job = chosen
+        ct = job.get("last_cleaning_time_seconds")
+        ca = job.get("last_cleaning_area_m2")
+        if ct is None and ca is None:
+            return False
+        samples = job.setdefault("counter_samples", [])
+        samples.append(
+            {
+                "t": observed,
+                "cleaning_time": ct,
+                "cleaning_area": ca,
+                "battery": job.get("last_battery_percent"),
+            }
+        )
+        if len(samples) > _MAX_COUNTER_SAMPLES:
+            del samples[: len(samples) - _MAX_COUNTER_SAMPLES]
+        # External runs: also snapshot the per-room setting selects (deduped —
+        # one entry per flip), our only window into what the app set per room.
+        if job.get("status") == "external":
+            settings = self._snapshot_settings_selects(vacuum_entity_id)
+            if settings:
+                ss = job.setdefault("settings_samples", [])
+                if not ss or ss[-1].get("settings") != settings:
+                    ss.append({"t": observed, "settings": settings})
+                    if len(ss) > _MAX_COUNTER_SAMPLES:
+                        del ss[: len(ss) - _MAX_COUNTER_SAMPLES]
+        try:
+            self._manager.hass.async_create_task(self._manager.async_save())
+        except Exception:
+            pass
+        return True
 
     def record_pose_sample(
         self,

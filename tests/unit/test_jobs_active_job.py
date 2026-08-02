@@ -356,6 +356,7 @@ def test_record_counter_sample_buffers_last_seen():
     """record_counter_sample snapshots the last-seen cleaning_time / area / battery
     into the in-flight job's counter_samples (the input to segment_counters)."""
     job = {
+        "status": "started",
         "started_at": "2026-01-01T09:00:00+00:00",
         "last_cleaning_time_seconds": 30,
         "last_cleaning_area_m2": 1.0,
@@ -371,16 +372,126 @@ def test_record_counter_sample_buffers_last_seen():
 
 
 def test_record_counter_sample_skips_finalized_job():
-    """A job with ended_at is no longer in-flight -> no sample appended."""
+    """RP-013e: status is the authoritative in-flight signal, not started_at/
+    ended_at (nothing ever writes ended_at, so that predicate stayed true
+    forever after a run). A job left in the SHAPE mark_active_job_finalized
+    leaves it -- status "completed", started_at intact, ended_at absent --
+    is correctly excluded on status alone."""
     job = {
+        "status": "completed",
+        "finalized": True,
         "started_at": "2026-01-01T09:00:00+00:00",
-        "ended_at": "2026-01-01T09:30:00+00:00",
         "last_cleaning_time_seconds": 30,
         "last_cleaning_area_m2": 1.0,
     }
     tracker = _tracker_with_job(job)
     assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is False
     assert job.get("counter_samples", []) == []
+
+
+def test_record_counter_sample_external_status_is_in_flight():
+    """RP-013e: run_is_in_flight (not dispatched_job_is_in_flight) is the
+    correct predicate here specifically because it includes "external" --
+    an app-started run is exactly what these recorders must capture."""
+    job = {
+        "status": "external",
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "last_cleaning_time_seconds": 30,
+        "last_cleaning_area_m2": 1.0,
+    }
+    tracker = _tracker_with_job(job)
+    assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is True
+    assert len(job["counter_samples"]) == 1
+
+
+def test_record_counter_sample_scoped_not_fanned_out():
+    """RP-013e/REC-1+REC-4: a FINISHED job sitting in one map bucket must not
+    absorb a sample meant for the live run in a different bucket -- the old
+    started_at-and-not-ended_at guard fanned every write into every bucket."""
+    mgr = MagicMock()
+    finished = {
+        "status": "completed", "finalized": True,
+        "started_at": "2026-01-01T08:00:00+00:00",
+        "last_cleaning_time_seconds": 999, "last_cleaning_area_m2": 40.0,
+    }
+    live = {
+        "status": "started", "started_at": "2026-01-01T09:00:00+00:00",
+        "last_cleaning_time_seconds": 30, "last_cleaning_area_m2": 1.0,
+    }
+    mgr.data = {"active_jobs": {"vacuum.alfred": {"6": finished, "7": live}}}
+    tracker = ActiveJobTracker(mgr)
+
+    assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is True
+    assert finished.get("counter_samples", []) == []
+    assert len(live["counter_samples"]) == 1
+
+
+def test_record_active_job_sensor_value_scoped_not_fanned_out():
+    """RP-013e/REC-1+REC-4: the OTHER recorder gets the same scoping."""
+    mgr = MagicMock()
+    finished = {
+        "status": "completed", "finalized": True,
+        "started_at": "2026-01-01T08:00:00+00:00",
+        "last_cleaning_time_seconds": 999,
+    }
+    live = {"status": "started", "started_at": "2026-01-01T09:00:00+00:00"}
+    mgr.data = {"active_jobs": {"vacuum.alfred": {"6": finished, "7": live}}}
+    tracker = ActiveJobTracker(mgr)
+
+    assert tracker.record_active_job_sensor_value(
+        vacuum_entity_id="vacuum.alfred", key="last_cleaning_time_seconds", value=55
+    ) is True
+    assert finished["last_cleaning_time_seconds"] == 999
+    assert live["last_cleaning_time_seconds"] == 55
+
+
+def test_select_in_flight_bucket_multiple_prefers_resolve_active_map_id():
+    """RP-013e: when more than one bucket is (unusually) in flight, the one
+    matching resolve_active_map_id wins over the newest started_at -- a
+    stale slot must never win just by being newer."""
+    mgr = MagicMock()
+    mgr.resolve_active_map_id.return_value = "6"
+    older_but_active_map = {
+        "status": "started", "job_id": "job_a",
+        "started_at": "2026-01-01T08:00:00+00:00",
+    }
+    newer_but_stale_map = {
+        "status": "started", "job_id": "job_b",
+        "started_at": "2026-01-01T09:00:00+00:00",
+    }
+    mgr.data = {"active_jobs": {"vacuum.alfred": {
+        "6": older_but_active_map, "7": newer_but_stale_map,
+    }}}
+    tracker = ActiveJobTracker(mgr)
+
+    chosen = tracker._select_in_flight_bucket(
+        vacuum_entity_id="vacuum.alfred",
+        per_map=mgr.data["active_jobs"]["vacuum.alfred"],
+    )
+    assert chosen is not None
+    assert chosen[0] == "6"
+    assert chosen[1] is older_but_active_map
+
+
+def test_select_in_flight_bucket_multiple_falls_back_to_newest_started_at():
+    """No resolve_active_map_id match -> the newest started_at wins, and the
+    choice is WARNed once per job (not once per call)."""
+    mgr = MagicMock()
+    mgr.resolve_active_map_id.return_value = None
+    older = {"status": "started", "job_id": "job_a", "started_at": "2026-01-01T08:00:00+00:00"}
+    newer = {"status": "started", "job_id": "job_b", "started_at": "2026-01-01T09:00:00+00:00"}
+    mgr.data = {"active_jobs": {"vacuum.alfred": {"6": older, "7": newer}}}
+    tracker = ActiveJobTracker(mgr)
+    per_map = mgr.data["active_jobs"]["vacuum.alfred"]
+
+    chosen = tracker._select_in_flight_bucket(vacuum_entity_id="vacuum.alfred", per_map=per_map)
+    assert chosen[0] == "7" and chosen[1] is newer
+    assert ("vacuum.alfred", "job_b") in tracker._multi_in_flight_warned
+
+    # A second call for the SAME job must not re-warn (dedup already recorded).
+    warned_before = set(tracker._multi_in_flight_warned)
+    tracker._select_in_flight_bucket(vacuum_entity_id="vacuum.alfred", per_map=per_map)
+    assert tracker._multi_in_flight_warned == warned_before
 
 
 # ---------------------------------------------------------------------------
