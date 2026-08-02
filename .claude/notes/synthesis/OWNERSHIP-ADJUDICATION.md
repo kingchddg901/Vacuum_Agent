@@ -160,3 +160,43 @@ goes stale mid-review.** The packet specifies the `plan_changed` refusal but not
 the recovery.
 
 CARD-7 stays `blocked_by RP-019` regardless.
+
+---
+
+## RP-032 `no_yaml_entry` — 24 services adjudicated (Chris, 2026-08-02)
+
+Sonnet correctly refused to self-approve these (packet rule: the allowlist is
+Chris-reviewed). Ruled and written into the packet — full table in
+`SYNTH-10-packets-wave6.md`, section "RP-032 — `no_yaml_entry` ruling".
+
+**The rule:** a service earns a `services.yaml` entry if a human calling it by
+hand is coherent; it stays internal if it is a handshake (opaque payload the
+card/panel builds, or a response only the card consumes). **Destructive services
+get an entry regardless** — the yaml entry *is* the documentation.
+
+**Five get entries:** `delete_map_image` (destructive override),
+`set_dock_event_count`, `get_incomplete_run_log`, `get_trouble_rooms_log`
+(all three: forgotten-override-sibling — their siblings have entries),
+`resegment_external_run` (mutates learning data; the EXT-1 repair lever).
+
+**Nineteen internal:** the 10 `setup_*` wizard steps, 5 `adapter_config`
+handshakes, 4 `mapping_services` blob/geometry calls.
+
+Three of the five are the sibling-omission class already tracked in
+[[project_eufy_ism_core_sweep]] — closing them here is not scope expansion.
+
+The rule goes in the **gate's module docstring**, not only the packet: it is the
+question a future service author has to answer, and centralizing the question
+(not a hand-maintained name list) is the standing preference
+[[feedback_centralize_question_not_vocabulary]].
+
+**Count discrepancy flagged, not resolved:** Sonnet said 26 (setup 9 / learning 6),
+main-agent extraction says 24 (setup 10 / learning 3). Probable cause: nine
+`learning/services.py` constants live outside `const.py` and a `const.py`-only
+resolver misreports them as missing. Sonnet reconciles first; any name outside
+both tables = STOP and escalate.
+
+**The 8 `map_id` requiredness entries stay ejected** as `blocked_by RP-028`.
+Confirmed correct: a narrow requiredness fix that RP-028's `require_map_bucket`
+resolver then has to unpick is worse than the bug. RP-032 lands with those 8 still
+listed; emptying the allowlist is scoped to the `no_yaml_entry` class only.

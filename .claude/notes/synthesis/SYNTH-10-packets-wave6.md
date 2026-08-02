@@ -128,7 +128,66 @@ hardware_gate: none.
 stop_conditions: [a services.yaml field the schema SHOULD reject by design —
   document in the allowlist mechanism, don't silently widen schemas]
 escalation_target: main agent → Chris
+chris_ruling_2026_08_02: >
+  The no_yaml_entry set is ADJUDICATED — see the "no_yaml_entry ruling" section
+  below. Sonnet does NOT need another round-trip on it. The 8 map_id requiredness
+  entries stay ejected as blocked_by RP-028 (confirmed correct — a narrow fix the
+  resolver then has to unpick is worse than the bug). RP-032 may land with those
+  8 still listed; the allowlist emptying is scoped to the no_yaml_entry class only.
 ```
+
+### RP-032 — `no_yaml_entry` ruling (Chris, 2026-08-02)
+
+**The rule** (goes in the gate's module docstring, not just this packet — it is the
+question future service authors must answer, and centralizing the QUESTION is the
+point [[feedback_centralize_question_not_vocabulary]]):
+
+> A service earns a `services.yaml` entry if **a human calling it by hand is
+> coherent** — it takes arguments a person can type and does something a person
+> would want. It stays on `INTERNAL_SERVICES` if it is a **handshake**: an opaque
+> payload the panel/card constructs, or a response only the card consumes.
+>
+> **Override:** anything destructive gets an entry regardless of the above. The
+> yaml entry *is* the documentation and the Developer Tools field editor; a
+> service that deletes must never be the least-documented thing in the tree.
+
+**Five get real `services.yaml` entries** (name, description, and a field block per
+argument, matching the existing inline-English convention — `strings.json` has no
+`services` key in this integration, so there is NO translation path to add):
+
+| service | file | why it crosses the line |
+|---|---|---|
+| `delete_map_image` | mapping_services.py | deletes a file from disk; nameable target. Destructive override. |
+| `set_dock_event_count` | dock.py | siblings `reset_maintenance` + `set_maintenance_interval` both have entries — **forgotten-override-sibling**, not a design choice |
+| `resegment_external_run` | learning/services.py | mutates persisted learning data; it is the repair lever for the EXT-1 room-collapse finding |
+| `get_incomplete_run_log` | learning/services.py | siblings `get_learning_history_snapshot` + `get_metrics_snapshot` have entries; same sibling tell |
+| `get_trouble_rooms_log` | learning/services.py | same sibling tell |
+
+**Nineteen go to `INTERNAL_SERVICES`** (each still needs its per-entry comment as
+the packet already requires):
+
+- `setup.py` ×10 — `setup_get_status`, `setup_add_vacuum`, `setup_import_active_map`,
+  `setup_get_map_rooms`, `setup_save_rooms`, `setup_delete_map`, `setup_reject_rooms`,
+  `setup_force_remove_room`, `setup_set_panel_title`, `setup_set_map_camera`.
+  Wizard step sequence — each step is meaningless called out of order.
+- `adapter_config.py` ×5 — `save_adapter_config`, `delete_adapter_config`,
+  `get_adapter_config`, `discover_adapter_entities`, `observe_entity_states`.
+  Panel discovery/observe handshakes.
+- `mapping_services.py` ×4 — `upload_map_image`, `analyze_map_image`,
+  `get_map_segments`, `adjust_map_segment`. Base64 blobs and geometry payloads;
+  hand-calling is incoherent.
+
+**Count reconcile — do this first.** Sonnet reported 26 (setup 9, learning 6); the
+main-agent extraction found 24 (setup 10, learning 3). The likely cause: nine
+`learning/services.py` constants are defined OUTSIDE `const.py`, so a resolver
+reading only `const.py` reports them as missing when they **do** have yaml entries
+(`get_metrics_snapshot`, `restore_learning_job`, `retry_missed_rooms`,
+`record_estimate_accuracy`, `reanchor_learning_timeline`, `get_next_room`,
+`exclude_learning_job`, `get_room_learning_estimates`,
+`get_learning_history_snapshot`). Reconcile against the real registration walk
+before writing the allowlist. **If the reconcile turns up a name not in either
+table above, STOP and escalate** — do not classify it yourself; the licence to
+stop applies (MATERIALIZATION-03-HANDOFF §1).
 
 ---
 
