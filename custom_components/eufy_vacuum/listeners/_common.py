@@ -24,6 +24,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from ..adapters.registry import get_adapter_config
+from ..adapters.registry import get_adapter_value as _registry_get_adapter_value
 
 
 def get_adapter_vocab(
@@ -59,19 +60,15 @@ def get_adapter_value(
     ``path`` is a sequence of dict keys to traverse.
     Returns fallback if registry is absent, path is missing, or any
     error occurs.
+
+    COMMON-5: delegates to adapters/registry.py's own get_adapter_value
+    instead of a second, independent implementation of the identical
+    lookup -- a fix or semantic change there (e.g. distinguishing a
+    declared null from an absent key) now reaches every listener that
+    routes through this module.
     """
     try:
-        config = get_adapter_config(vacuum_entity_id)
-        if config is None:
-            return fallback
-        value: Any = config
-        for key in path:
-            if not isinstance(value, dict):
-                return fallback
-            value = value.get(key)
-            if value is None:
-                return fallback
-        return value
+        return _registry_get_adapter_value(vacuum_entity_id, *path, fallback=fallback)
     except Exception:
         return fallback
 

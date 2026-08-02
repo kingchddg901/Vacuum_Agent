@@ -345,6 +345,34 @@ async def _case_io_7(proof: H.Proof) -> None:
         )
 
 
+async def _case_common_5(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.adapters import registry as _registry_mod
+    from custom_components.eufy_vacuum.listeners import _common
+
+    # Structural, not behavioural -- the finding's own text says there is no
+    # behavioural difference today. What matters is whether _common holds a
+    # direct reference to the registry's own get_adapter_value (delegation)
+    # or re-implements the identical lookup independently (duplication).
+    delegate = getattr(_common, "_registry_get_adapter_value", None)
+    delegates = delegate is _registry_mod.get_adapter_value
+
+    proof.case(
+        "listeners/_common.py COMMON-5: get_adapter_value must delegate to "
+        "adapters/registry.py's own implementation, not reimplement the "
+        "identical lookup a second time",
+        before=(not delegates),
+        before_msg="_common.get_adapter_value re-walks config itself with "
+                   "no reference to the registry's own get_adapter_value -- "
+                   "a fix applied to the registry's implementation would "
+                   "silently miss every listener that routes through here",
+        after=delegates,
+        after_msg="_common.get_adapter_value holds a direct reference to "
+                  "the registry's own get_adapter_value and calls through "
+                  "to it",
+        detail=f"delegate={delegate!r}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -354,6 +382,7 @@ CASES = [
     _case_dq_act_7,
     _case_io_5,
     _case_io_7,
+    _case_common_5,
 ]
 
 
