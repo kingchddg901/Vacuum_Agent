@@ -7,13 +7,13 @@ hardcode a reproducer count and it drifted badly enough to misscope a stage.
 
 | | |
 |---|---|
-| Packets parsed | 60 across 9 docs |
-| Distinct proofs named by packets | 44 |
-| Proof files on disk | 59 (incl. `_proof_harness.py`, which is scaffolding, not a proof) |
-| Packets with every named proof present | 49 |
-| Packets missing a named proof | **0** |
+| Packets parsed | 62 across 9 docs |
+| Distinct proofs named by packets | 46 |
+| Proof files on disk | 60 (incl. `_proof_harness.py`, which is scaffolding, not a proof) |
+| Packets with every named proof present | 50 |
+| Packets missing a named proof | **1** |
 | Packets naming no proof at all | 11 |
-| Distinct proof files still to write | **0** |
+| Distinct proof files still to write | **1** |
 
 **Every landed packet has its named reproducer present.** Nothing shipped
 without evidence; the outstanding files all belong to unexecuted packets.
@@ -22,7 +22,9 @@ without evidence; the outstanding files all belong to unexecuted packets.
 
 ## Outstanding -- named by a packet, absent from disk
 
-None.
+| packet | doc | missing proof | packet landed? |
+|---|---|---|---|
+| RP-047 | SYNTH-12-packets-battery.md | `_proof_group_live_progress.py` | no |
 
 ## Orphans -- on disk, named by no packet
 
