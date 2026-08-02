@@ -656,6 +656,61 @@ required_behavior: >
   modules import it).
 prohibited_changes: CF-2 pose-sampler predicates; no set merging (the questions stay
   distinct — no ACTIVE_STATUSES constant).
+site_table: >
+  ADDED 2026-08-01 (main agent) — the packet named five sites; there are
+  SEVENTEEN copies of the literal set, plus an eighteenth that RP-012(b) added
+  during this very campaign. Sonnet correctly refused to execute against a table
+  covering five, since the other twelve would ship unadjudicated and look
+  blessed. Adjudication below; the question is always "is this asking about the
+  ROBOT (include external -> run_is_in_flight) or about OUR QUEUE (exclude it ->
+  dispatched_job_is_in_flight)?"
+
+  ROBOT — change to run_is_in_flight (7):
+    listeners/job_progress.py:74      the 5s tick (Lever B exists FOR external)
+    dock/manager.py:154               dock gate (its docstring already says so)
+    jobs/active_job.py:423            update_active_job_recharge_observation
+    jobs/active_job.py:584            update_active_job_mop_wash_observation
+    jobs/active_job.py:645            record_active_job_transition
+    jobs/active_job.py:525            resolve_mid_job_recharge_resumed (the 18th,
+                                      added by RP-012(b) — fix it in the same pass
+                                      or the campaign leaves its own copy behind)
+    listeners/lifecycle.py:138        the lifecycle listener's skip (COMMON-6)
+  All six of the active_job/listener entries are OBSERVATION, and the module
+  docstring already pins observation to run_is_in_flight in prose: "Observation
+  belongs here — sampling, recording, and error capture."
+
+  QUEUE — KEEP dispatched_job_is_in_flight, listed so nobody "completes the
+  sweep" (5):
+    core/manager.py:3417   is_current for a room — room identity IS queue
+                           identity; an external slot has no resolved_rooms
+    core/manager.py:3547   live_queue["active"] — literally the queue
+    core/manager.py:3959   can_cancel — cancel acts on the job WE dispatched
+    core/manager.py:3976   pause_timeout — applies to a job we manage
+    jobs/active_job.py:2264 async_cancel_active_job — same reason as can_cancel
+    learning/external_run.py:108 LOAD-BEARING, DO NOT TOUCH: it asks "did WE
+                           dispatch this?" to decide whether a run is external.
+                           Including external here is circular and breaks
+                           external detection outright.
+
+  NEEDS A READ BEFORE DECIDING (5) — do NOT guess, and do not let the count
+  pressure a decision:
+    core/manager.py:2758 + 2835  evaluate_job_lifecycle(active_job_exists=) and
+      its diagnostic twin. Lifecycle describes the ROBOT, which argues include —
+      but confirm evaluate_job_lifecycle does not consume queue-only fields
+      downstream. The two sites are the SAME predicate rendered twice and must
+      end up identical; splitting them is a new drift source.
+    jobs/active_job.py:2028  record_completed_room. External runs DO get room
+      attribution from the native signal, which argues include — but this feeds
+      RP-013c's cumulative evidence, so decide it WITH RP-013c, not before.
+    planning/run_plan.py:1529  get_runtime_path_block_report — blockers matter
+      whenever the robot is on the floor (include), unless the report reads the
+      planned route (exclude). Read it.
+    sensor/lifecycle.py native_value — additive, not a swap: reports 'external'
+      as a distinct state per the card_half below.
+
+  ~50% of the divergence here is DELIBERATE. That is the expected shape
+  (feedback_centralize_question_not_vocabulary) and is why this is a per-site
+  table rather than one constant. Do NOT introduce an ACTIVE_STATUSES set.
 card_half: sensor 'external' label — src enum + 18-locale i18n key (budgeted here,
   not discovered at escalation; lesson 3).
 rollback_plan: 4 commits by consumer (progress / dock / sensor+card / vocabulary).
