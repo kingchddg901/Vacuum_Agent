@@ -518,16 +518,34 @@ escalation_target: main agent → Chris
 ```yaml
 packet_id: RP-040
 family_id: batches (SMALL-CORRECTNESS + SMALL-CORRECTNESS-2 + DEAD-CODE + DOC-ONLY)
-finding_ids: >
-  the closure-matrix owner lists for the four batches (59 + 8 + 8 records),
-  EXCLUDING members already landed via cross-owned packets — the matrix is the
-  authoritative checklist; the executor works from a generated per-file table.
-  Headline members: A4-SETUP-6 (Q10), A3-IO-5 (path injection), A3-IO-7 (fsync),
-  DR-BAT-2/3, DR-MNT-1+SN-2 cluster (indeterminate maintenance source),
-  A3-SNAP-1 (mop_active tri-state), A3-COMMON-1 (job_active missing→active when
-  unavailable_is_active), A6-PRE-1 (busy-branch set logic), A3-COMMON-3/5,
-  A2-CB-3/4, DR-MAP-1/2, INF-3/6/7 (Q8: repairs.py DELETED), A1-ID-5, A3-EXT-5,
-  A3-IO-8, SN-8, DR-DIAG-5, DOC-ONLY corrections (DR-BAT-1/4, DR-ONB-6, etc.).
+finding_ids: ["#10:A1-ID-5", "direct read:DR-BAT-2", "direct read:DR-BAT-3",
+  "agent: infra (2-lens verified):INF-7", "#14:A2-CB-3", "#14:A2-CB-4",
+  "#14:A4-START-3", "#7:DQ-ACT-7", "direct read:DR-BAT-1", "direct read:DR-BAT-4",
+  "direct read:DR-ONB-6", "#16:A3-IO-5", "#16:A3-IO-7", "#16:A3-IO-8",
+  "#12:A3-COMMON-5", "#12:A4-POSE-6", "#11:A3-EXT-5", "direct read:DR-MAP-1",
+  "direct read:DR-MAP-2", "#10:A1-ID-6", "agent: infra (2-lens verified):INF-3",
+  "direct read:DR-ONB-4", "#8:A6-PP-EST-H2O-2", "#8:A6-PP-EST-GUESS-1",
+  "#8:A6-PP-EST-CLAMP-1", "#7:DQ-PAY-7", "agent: infra (2-lens verified):INF-6",
+  "#10:A3-CRUD-7", "direct read:DR-ONB-3", "direct read:DR-SETUP-2",
+  "direct read:DR-SETUP-3", "direct read:DR-SETUP-4"]
+# NOTE (Stage M6, 2026-08-02): the 32 members ABOVE are what actually LANDED from
+# the generated closing-batch table (.claude/notes/synthesis/RP-040-batch-table.md,
+# 33 members/22 files) -- this list replaces this block's original prose closure
+# so the ledger generators can resolve it automatically (previously null/null,
+# "needs hand curation" per _gen_packet_closure.py). "#13:A4-SETUP-6" (Q10) is
+# EXCLUDED: EJECTED per SONNET-STAGE-PROMPTS.md's Held table -- its
+# required_behavior below is a real 3-part design (map_id schema field + a new
+# setup_unreject_rooms service + protection/confirmation routing), not the
+# one-line fix the closing-batch table assumed.
+#
+# UNRESOLVED SCOPE GAP, flagged not silently dropped: this block's original prose
+# also named DR-MNT-1+SN-2 (cluster), A3-SNAP-1, A3-COMMON-1, A3-COMMON-3, SN-8,
+# and DR-DIAG-5 as RP-040 headline members. NONE of them appear in the generated
+# closing-batch table (which itself reports 0 unresolved / 0 ejected against its
+# own scope), and no fix for them landed in Stage M6. Unclear whether they are
+# owned by another packet, already closed by some other path, or a genuine gap in
+# _gen_batch_table.py's cross-referencing against closure-matrix.json. Needs
+# investigation before being treated as either covered or still open.
 required_behavior: >
   Q10 VERBATIM (the one product item): setup_reject_rooms requires map_id, routes
   through the protection/confirmation standard of the other destructive setup

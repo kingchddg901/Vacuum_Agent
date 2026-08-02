@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **116** findings via 17 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d) |
+| Fixes APPLIED (landed packets) | **148** findings via 18 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d, RP-040) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **368** -- 18 open clusters (11 fully applied) + 332 singles |
-| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 136 / LOW 173 |
+| Open findings | **336** -- 18 open clusters (11 fully applied) + 300 singles |
+| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 132 / LOW 145 |
 | Hardware validation | **none** -- nothing from this campaign has run on a real vacuum |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -383,7 +383,7 @@ audit is a snapshot, not a ledger.
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
-### MEDIUM (124)
+### MEDIUM (120)
 
 - [ ] **EP-1** `button.py:200` [both]  
   The maintenance reset button discards a documented failure result and reports success  
@@ -454,9 +454,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-STATE-5** `learning/history_store.py:306` [both]  
   trouble_rooms is a raw-counter store with no rebuilder, no clear service and a denominator that only advances when the room is queued — the "decays on its own" justification for excluding it from repair does not hold  
   -> A permanent, unclearable "chronically missed" warning on a room tile, with the only remedy being manual deletion of trouble_rooms.json from the config share — which is exactly the repair path the design note declared unn
-- [ ] **A3-IO-5** `learning/history_store.py:368` [both]  
-  get_completed_job_path interpolates an unvalidated job_id into a filesystem path, giving exclude/restore_learning_job an arbitrary *.json overwrite primitive — the exact hole the sibling module already hardened  
-  -> An authenticated HA user or any automation/script/dashboard that can call eufy_vacuum.exclude_learning_job can overwrite or create JSON files anywhere the HA process can write, corrupting unrelated integration data; the
 - [ ] **A5-SVC-4** `learning/services.py:486` [both]  
   record_estimate_accuracy's schema requires no keys at all; an entry missing map_id/slug writes a permanently unreadable durable record and returns a confident success payload  
   -> An automation written against the service (which the docs encourage: 03-services.md:1287 "Records estimated-vs-actual minutes per room after a job completes, feeding the estimator's accuracy tracking") but missing map_id
@@ -547,9 +544,6 @@ audit is a snapshot, not a ledger.
 - [ ] **EP-3** `number.py:22` [both]  
   Interval bounds are framework constants, and the ceiling is BELOW a shipped component's declared max  
   -> VERIFIED: MAINTENANCE_INTERVAL_MAX = 500.0 is applied to every component of every brand, while the adapter declares a per-component max_interval_hours that the schema marks REQUIRED -- and Eufy's `sensor` component decla
-- [ ] **DR-ONB-4** `onboarding/manager.py:66` [both]  
-  The five-key default record is hand-duplicated between _get_map_onboarding and reset_onboarding  
-  -> Lines 66-72 and 252-258 are two hand-maintained copies of one vocabulary -- the campaign's structural root cause, in a 263-line module. A sixth flag added to the lazy-create path silently produces reset records missing i
 - [ ] **DR-ONB-1** `onboarding/manager.py:182` [both]  
   remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap  
   -> PROVEN by execution. The loop pops str(old_id) and writes str(new_id) into the SAME dict it is iterating over, so a new_id that is also a later old_id consumes the entry just written. Measured: id_remap={1:2, 2:3, 3:4} w
@@ -655,9 +649,6 @@ audit is a snapshot, not a ledger.
 - [ ] **SN-5** `sensor/map_overlays.py:50` [both]  
   The overlays sensor serves a cache entry without checking its map_id or its stale flag  
   -> _result() reads cache[vac]['result'] and ignores cache[vac]['map_id'] -- a key the producer maintains precisely so consumers cannot mix maps: map_source_coordinator.py:117 guards the hold path with cached.get('map_id') =
-- [ ] **DR-ONB-3** `sensor/onboarding.py:62` [both]  
-  The 'empty means complete' guard exists in setup/status.py and was never mirrored onto the onboarding summary — forgotten override sibling  
-  -> UPGRADED from LOW after finding the sibling that HAS the guard. Both sites answer the same question with the same optimistic-accumulator shape: setup/status.py initialises all_steps_complete=True and all_in_sync=True and
 - [ ] **A1-WIRE-2** `services/_common.py:57` [both] _(finder said HIGH)_  
   resolved_call_data's docstring claims an unresolvable map_id always raises; discover_rooms is the one consumer that silently falls through and persists the payload under an empty-string map key  
   -> Pressing "Discover rooms" — exactly what a user does when the active_map sensor is stale/unavailable — returns a clean success (the service is registered without supports_response, and the handler's `except Exception ->
@@ -724,9 +715,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-SETUP-11** `services/setup.py:229` [both]  
   setup_delete_map auto-resolves an omitted map_id to whatever map happens to be active at call time  
   -> An automation written while the upstairs map was active later deletes the downstairs map, taking its rooms, queue, job records and learned history with it. docs/advanced/03-services.md:1498 flags the operation as irrever
-- [ ] **DR-SETUP-2** `setup/drift.py:117` [both]  
-  auto_refresh_on still uses the bare or-coercion that code-flag CS-2 fixed for its three siblings  
-  -> get_discovery_cadence reads list(disc.get(auto_refresh_on) or _DEFAULT_AUTO_REFRESH_TRIGGERS). The other three keys in the same dict literal were converted to an is-not-None guard precisely because or silently reverts a
 - [ ] **A1-ID-4** `setup/drift.py:540` [both]  
   Drift keys its history by bare device room_id across ALL maps but feeds it only the ACTIVE map's discovery, so a multi-map vacuum's inactive rooms decay toward 'removed' and colliding ids mask each other  
   -> A user with an upstairs and a downstairs map is repeatedly told that the rooms on whichever floor is not currently active have been removed from the vacuum, with the wrong floor's name attached; and a room genuinely dele
@@ -758,17 +746,8 @@ audit is a snapshot, not a ledger.
   _LOCAL_TZ is a FIXED offset captured at import, so naive legacy timestamps get the wrong offset half the year  
   -> VERIFIED BY EXECUTION. `_LOCAL_TZ = datetime.now().astimezone().tzinfo` does not return a DST-aware zone -- it returns a datetime.timezone with a frozen offset. Ran it: repr is datetime.timezone(timedelta(-1, 61200), 'Pa
 
-### LOW (170)
+### LOW (142)
 
-- [ ] **A1-ID-5** `adapters/eufy/discovery.py:47` [eufy]  
-  adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals  
-  -> No user impact today (dead code), but it is a green-tested Eufy-flavoured copy of the identity functions sitting in the adapter package a future brand port would read first — reviving it re-introduces the 'null' sentinel
-- [ ] **DR-BAT-2** `battery/manager.py:601` [both]  
-  An out-of-order sample is correctly skipped but still rewinds the last-sample anchor  
-  -> Line 522 guards the delta block with `if elapsed_sec > 0`, so a sample whose timestamp is not newer contributes no drain/rate -- correct. But lines 601-603 then commit last_battery_level / last_sample_ts unconditionally,
-- [ ] **DR-BAT-3** `battery/manager.py:653` [both]  
-  After a stale-session discard, charging stays untracked until the next charge cycle  
-  -> _update_session discards a session older than SESSION_MAX_HOURS and sets session=None. Control then reaches `if session is None: return` (line 680) on every later sample, because prev_charging is already True so the open
 - [ ] **EP-6** `binary_sensor.py:86` [both]  
   _attr_suggested_object_id is not a Home Assistant attribute - four sites rely on a dead assignment  
   -> VERIFIED BY EXECUTION against the installed HA: Entity has NO _attr_suggested_object_id (hasattr False); suggested_object_id exists only as a READ-ONLY property derived from the entity's resolved name, and _async_derive_
@@ -781,27 +760,15 @@ audit is a snapshot, not a ledger.
 - [ ] **A3-FLOW-2** `config_flow.py:103` [both] _(finder said MEDIUM)_  
   Changing the vacuum in the options flow ADDS a second managed vacuum instead of replacing the first — the old pick is never reconciled away  
   -> A user who picked the wrong entity at install (or renamed their vacuum entity and updated the option to match) ends up with TWO sidebar panels, both titled "Vacuum Agent" by default and therefore indistinguishable, two s
-- [ ] **INF-7** `const.py:27` [both]  
-  Four constants are defined and never read - including three service names for services that do not exist  
-  -> Scripted check across every .py excluding const.py, cross-checked against services.yaml and the frontend bundle: SERVICE_REFRESH_BACKEND ('refresh_backend'), SERVICE_REBUILD_ACTIVE_MAP ('rebuild_active_map') and SERVICE_
 - [ ] **A1-INIT-5** `core/manager.py:429` [future_brand_only]  
   The startup backfill and setup_progress migration hard-code Eufy vocabulary and structurally cannot consult the adapter  
   -> No divergence on the two shipped brands today. A third brand whose room_profiles.default_profile is not 'vacuum_quick' would have any legacy room missing profile_name stamped with another brand's profile key at startup (
-- [ ] **A2-CB-3** `core/manager.py:579` [both]  
-  The manager's four own callback registries append without a duplicate check while the theme registry they delegate to dedupes, and unregister removes only one copy  
-  -> Latent today. If any future caller registers a room-update callback twice — or if the path_blockers `remove()`/`register()` pairing is ever broken so its `remove` no-ops — that subscriber survives config-entry unload and
-- [ ] **A2-CB-4** `core/manager.py:1035` [both]  
-  remove_vacuum_record wipes every bucket the five callback registries exist to mirror and fires none of them, dropping the notification obligation its narrower sibling remove_map documents  
-  -> Contained today by HA's own device-deletion sweep, so no user-visible breakage on the shipped path. The residual is that the in-memory `entity_map` / `room_history_entities` / `room_rule_status_entities` dicts in switch.
 - [ ] **A6-VAC-5** `core/manager.py:1084` [both]  
   get_managed_vacuums reads data["capabilities"] raw and reports supports_* as None when no snapshot exists, unlike its sibling get_vacuum_capabilities which detects on demand  
   -> Latent today: the only consumer, setup/status.py:171, reads just `vacuum_entity_id` from the returned items. Any future consumer of the four supports_* fields (or a diagnostics dump) would read `null` and treat it as "un
 - [ ] **A5-FACADE-4** `core/manager.py:1239` [both] _(finder said MEDIUM)_  
   save_user_room_profile facade silently overwrites the existing 'user_1' profile when profile_name is omitted, while its sibling mints a unique id  
   -> A user (or automation) that saves two custom room profiles without supplying profile_name ends up with one: the second silently replaces the first, and both calls report saved=True. Every room whose stored `profile_name`
-- [ ] **A4-START-3** `core/manager.py:2943` [both] _(finder said MEDIUM)_  
-  get_start_status can never surface a non-blocking lifecycle warning message — preflight's "ready" text shadows it, making dock-drying starts show warning=True with the message "Ready to start cleaning."  
-  -> Every start attempt during the post-mop dock-drying window — which follows every mop run on both brands — returns a warning flag whose explanatory text says "Ready to start cleaning." and whose reason is "ready". The car
 - [ ] **A3-SNAP-4** `core/manager.py:4017` [future_brand_only]  
   zone_max invents Eufy's device limit (10) for any brand that declares none, while the dispatch gate enforces no cap at all when the key is absent  
   -> A future adapter that declares no `zone_max` gets a card that silently stops the zone draw at 10 boxes with no explanation, while the backend would happily have dispatched more — a limit the user is shown but that the de
@@ -814,21 +781,9 @@ audit is a snapshot, not a ledger.
 - [ ] **DR-DIAG-5** `diagnostics.py:53` [both]  
   Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork  
   -> _SENTINELS = BLANK_STATE_VALUES is assigned and never read; the live use is _ACTIVE_MAP_SENTINELS, which IS BLANK_STATE_VALUES (same object, correctly centralized). So the file carries a second, unused name for the same
-- [ ] **DQ-ACT-7** `dispatch/manager.py:421` [future_brand_only]  
-  The OFF-fallback lowercases the select's options for the membership test but then sends the lowercased string as the option value  
-  -> On a future brand whose select uses capitalized or numeric options, the mop-intensity pre-call silently no-ops and the run uses whatever water the device was last left on — the same physical outcome as DQ-ACT-5, reached
 - [ ] **DR-DOCK-3** `dock/manager.py:446` [both]  
   A manual counter reset leaves the debounce marker, suppressing the next genuine event  
   -> set_dock_event_count zeroes the counter but never clears {event_type}_last_counted_at. Reset inside the debounce window and the next real wash is silently not counted -- reset and debounce state are not kept coherent.
-- [ ] **DR-BAT-1** `docs/dev/12-battery-system.md:88` [both]  
-  Doc §3 states the MAX_DELTA_PCT boundary one step off from the code and from its own §5.2  
-  -> The tunable-constants table says 'Reject single-sample deltas this large OR LARGER' (>= 3.0). manager.py:524 is `if abs(raw_delta) <= MAX_DELTA_PCT`, so exactly 3.0 is ACCEPTED and only >3.0 is rejected -- which is what
-- [ ] **DR-BAT-4** `docs/dev/12-battery-system.md:338` [both]  
-  Doc omits two live conditions present in the code  
-  -> §6.4/§8 give the mid-job rate-stat gate as `kind == 'mid_job' and avg > 0`; manager.py:771 also requires `delta_pct > 0`. §5.2's _process_sample snippet omits the `elapsed_sec > 0` guard at line 522 entirely. Both are co
-- [ ] **DR-ONB-6** `docs/dev/18-onboarding-manager.md:228` [both]  
-  Doc cites the start gate at core/manager.py:2776; it is at 2805  
-  -> The CLAIM is correct -- the gate really does block on floor_types_complete alone and never consults rooms_discovered. Only the line reference drifted. Recorded because this doc's stated scope is that 'a developer should
 - [ ] **INF-9** `entity_helpers.py:109` [both]  
   get_floor_type_label emits hardcoded English into an 18-language product  
   -> Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
@@ -853,15 +808,9 @@ audit is a snapshot, not a ledger.
 - [ ] **A2-ACC-5** `learning/estimator.py:1130` [both] _(finder said MEDIUM)_  
   Completed-room slug matching is keyed on the literal string "none" — the documented slug fallback is dead, and a room with a null slug is marked complete before it is cleaned  
   -> Concrete: 3-room queue where R2's stored slug is null. R1 completes with actual 9.0, so completed_by_slug = {"none": 9.0}. On the next reanchor R2 is not in completed_by_id, but its slug normalizes to "none" and hits the
-- [ ] **A3-IO-7** `learning/history_store.py:196` [both]  
-  write_json is rename-atomic but not durable — no fsync before os.replace, so a power loss can leave a zero-length learned file that read_json then reports as "no data"  
-  -> A power cut during a stats write can leave the learned file empty; on the next run the integration reports no learned history rather than an error, and the trouble-rooms accumulator then overwrites what remains (IO-2).
 - [ ] **A4-STATE-7** `learning/history_store.py:232` [both] _(finder said MEDIUM)_  
   load_live_snapshot performs 4 mkdir syscalls plus an open()/read() on the Home Assistant event loop at every cold finalize  
   -> The event loop stalls for the duration of a network filesystem mkdir×4 + read at the moment a job finishes, delaying every other entity update in Home Assistant, and HA logs a blocking-call warning.
-- [ ] **A3-IO-8** `learning/history_store.py:599` [both]  
-  append_job_csv_row / append_room_csv_rows are dead, and each CSV header is a hand-copied literal duplicated between the dead append writer and the live rebuild writer  
-  -> None today (the append path never runs). Latent: a future schema column added to one copy of a header and not the other, or a re-enabled append writer, silently produces a misaligned exports CSV that a user opens in a sp
 - [ ] **A5-SVC-9** `learning/services.py:72` [both]  
   Schemas mark map_id Required on three services the documentation marks optional, so an automation written from the docs fails validation  
   -> An automation authored from the published service reference fails at call time with a schema error on three services, two of which the docs specifically position for manual/edge-case use ("historical corrections").
@@ -871,9 +820,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-STATE-9** `learning/services.py:892` [both]  
   Dismissing the incomplete-run banner is client-only and no clear service is exposed, so the banner returns on every card load  
   -> "Dismiss" does not dismiss — the missed-rooms alert reappears on every dashboard reload until the user either accepts the retry (which rewrites their room selection) or happens to complete another run.
-- [ ] **A3-COMMON-5** `listeners/_common.py:52` [both]  
-  get_adapter_value() is a second, independent implementation of the identical lookup already shipped in adapters/registry.py  
-  -> No behavioural difference today. A fix or semantic change applied to one implementation (e.g. distinguishing a declared null from an absent key, or adding a diagnostic when a declared block is the wrong type) would silen
 - [ ] **A3-COMMON-4** `listeners/_common.py:178` [both]  
   _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules  
   -> No wrong result today (the two literal sets are identical). Latent divergence: changing the generic completion fallback in one place silently leaves the completion gate and the stranded reaper judging the same run agains
@@ -892,9 +838,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-METRICS-5** `listeners/job_metrics.py:165` [both]  
   watch_map's type annotation and the `int` value_type branch are both stale — the annotation declares 3-tuples while all three writers store 4-tuples, and no entry ever uses `int`  
   -> None today — purely a maintenance hazard. The annotation actively misdescribes the structure a future contributor must match, and the dead branch implies an int-valued metric channel that does not exist.
-- [ ] **A4-POSE-6** `listeners/pose_sampler.py:10` [both]  
-  Module docstring still declares the sampler 'Capture-only / inert — nothing consumes pose_samples yet', but the W5c consumption wire has landed  
-  -> No runtime effect on its own, but it materially understates blast radius: every defect in this file is currently read by maintainers as affecting an inert capture buffer, when in fact the samples drive which rooms an ext
 - [ ] **A4-POSE-4** `listeners/pose_sampler.py:242` [future_brand_only]  
   A zero or negative interval_s survives adapter registration (warn-only) and then splits the sampler in two: register() drops it, _sample_vacuum_once does not  
   -> Single-vacuum case: room-attribution pose sampling is silently disabled for the whole install — external runs finalize with no pose_samples and fall back to counter-only attribution, with no error surfaced anywhere. Mult
@@ -919,9 +862,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A3-EXT-3** `mapping/map_source.py:686` [eufy] _(finder said MEDIUM)_  
   A dropped/renamed upstream geometry field degrades to a confidently WRONG map, not a loud absent one  
   -> After an upstream fork schema change, room regions, current-room and the robot anchor are all displaced by a large fixed offset with no warning in the log and no `unavailable` state — the card looks live and is wrong. In
-- [ ] **A3-EXT-5** `mapping/map_source.py:808` [future_brand_only]  
-  Two room extractors disagree on the input coordinate frame and the dead one is the one under test  
-  -> No user impact today (dead code). The trap is for the next brand adapter: the extractor that LOOKS canonical (it lives in the pure module, it has the descriptive name, it is the one with unit tests) divides raw device co
 - [ ] **A1-LC-5** `mapping/map_source_coordinator.py:136` [both]  
   `_commit_result` is blind last-writer-wins across the storage path's two executor awaits — a refresh started before a map switch can commit after a newer one  
   -> Until the next tick (up to 60s, sooner if the card is polling), the snapshot and the map_overlays sensor serve the previous map's rooms/anchors under the new map — and since neither consumer compares `entry['map_id']` to
@@ -1027,21 +967,9 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-TRK-7** `mapping/tracker.py:286` [both]  
   start_job/end_job are dispatched to an executor thread on the strength of a comment describing disk I/O that start_job does not perform  
   -> No user-visible failure proven: the individual dict operations are GIL-atomic and the interleaving window is a handful of bytecodes, so at worst one position sample is misrouted at job start. The real cost is that a fals
-- [ ] **DR-MAP-1** `maps/map_manager.py:62` [both]  
-  get_map_bucket returns a DETACHED dict on a miss and live storage on a hit  
-  -> Mutation through the getter persists or silently vanishes depending on whether the map already exists -- the shape audit #1 found (a claim written to a copy). Sibling ensure_map_bucket uses setdefault and always returns
-- [ ] **DR-MAP-2** `maps/map_manager.py:95` [both]  
-  get_vacuum_maps_summary mixes a live room_count with CACHED enabled/disabled counts  
-  -> room_count is live len(rooms); enabled_room_count/disabled_room_count come from the stored summary block. Anything writing rooms without recomputing summary makes them disagree in one payload.
 - [ ] **A3-CRUD-6** `maps/map_manager.py:181` [both] _(finder said MEDIUM)_  
   Both room writers auto-enable and auto-approve rooms the user has never seen (DQ-Q-5 extension: the live instance is save_managed_rooms, not rebuild_map)  
   -> A segment that appeared since the last save — a re-segment splitting one room in two, or a stray CV artefact — is added to the map already enabled, already approved and already floor-type-confirmed by the next `save_mana
-- [ ] **A1-ID-6** `models/models.py:162` [both]  
-  RoomRecord documents grants_access_to as 'list[str] — room slugs' but every producer and consumer stores integer room ids  
-  -> No current runtime defect; it is a loaded trap on the only place a developer looks up the field's namespace, in the exact subsystem where mixing the id and slug namespaces produces wrong-room behaviour.
-- [ ] **INF-3** `models/models.py:257` [both]  
-  VacuumCapabilities is a never-constructed dataclass whose field names do not exist in the real capability payload  
-  -> The live capability map is built by core/capabilities.py:353-400. Five of VacuumCapabilities' fields do not exist in it: supports_map_selection (real key supports_active_map), supports_dock_empty (real key supports_empty
 - [ ] **EP-4** `number.py:7` [both]  
   Module comment asserts 'no polling'; the one class that polls is the one relying on it  
   -> The comment `# All number entities write directly to manager storage; no polling.` sits above PARALLEL_UPDATES = 0. Verified as a claim: NumberEntity, unlike ButtonEntity, does NOT set _attr_should_poll = False, and Eufy
@@ -1051,18 +979,9 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-PP-RP-8** `planning/run_plan.py:142` [future_brand_only]  
   The water-off suppression in _settings_profile_display compares against the literal "off" instead of the brand's no-water value  
   -> A brand whose no-water label is "None", "Closed" or a localized string gets "Water: None" appended to every vacuum-only room's profile subtitle in the pre-run plan — cosmetic, but it is the same hand-copied-literal famil
-- [ ] **A6-PP-EST-H2O-2** `planning/run_plan.py:237` [future_brand_only] _(finder said MEDIUM)_  
-  A declared water_rates table REPLACES the core table wholesale, so an adapter that omits "off" bills 4.0 ml/min for water-off mop rooms — contradicting the comment that asserts the invariant  
-  -> For the next adapter that declares measured rates, every mop-mode room with water turned off is billed as if it were mopping at a mid-range flow rate, inflating the job total and firing spurious "Not enough clean water"
-- [ ] **A6-PP-EST-GUESS-1** `planning/run_plan.py:378` [eufy] _(finder said MEDIUM)_  
-  estimate_job_water_usage drops the timeline's source/sample_count provenance, so default-guess room timings are presented as a measured "Job will use N ml"  
-  -> On a fresh map, or any room whose settings combination has never been run (the learned key includes clean_mode, passes, carpet, intensity and edge_mopping), the entire water figure is derived from a constant guess yet is
 - [ ] **A6-PP-EST-LBL-1** `planning/run_plan.py:436` [both]  
   _room_surface_labels is fed a key that resolved_rooms never carries, so floor_type_label is always None at both display sites  
   -> Every consumer that reads `floor_type_label` off a resolved-room row gets null (src/renderers/rooms.js:1607, src/state/rooms.js:696). The room list happens to survive because it reads the label from the room ENTITY attri
-- [ ] **A6-PP-EST-CLAMP-1** `planning/run_plan.py:476` [eufy]  
-  Tank-remaining ml is unclamped while its own percent is clamped to [0,100], and robot_internal_tank_ml is reported but never used in any calculation  
-  -> A shortfall renders as a self-contradictory "-450 ml (0%)". And an adapter author is required by the schema to measure `robot_internal_tank_ml` on real hardware for a value the estimator never consults.
 - [ ] **A5-PP-RP-4** `planning/run_plan.py:902` [both] _(finder said MEDIUM)_  
   The collapse fallback's `all_ids` is provably always [] — and the unit test manufactures the very key the real engines never emit  
   -> A stepped plan whose breaks are all trimmed (leading and/or trailing) runs as one flat clean using each room's GLOBAL stored settings instead of the per-group settings the card wrote into the step — e.g. `[room_group(kit
@@ -1117,12 +1036,6 @@ audit is a snapshot, not a ledger.
 - [ ] **DQ-Q-7** `queue/queue_engine.py:242` [both]  
   build_room_clean_payload treats an empty queue_room_ids as "no filter" rather than "no rooms", so a cleared queue yields a payload containing every enabled room  
   -> No physical wrong action today: the DISPATCHED payload comes from `_build_effective_start_plan` -> `_build_dispatch_phases`, whose `queue_room_ids` is derived fresh from `effective_rooms` in the same call (run_plan.py:13
-- [ ] **DQ-PAY-7** `queue/queue_engine.py:294` [future_brand_only]  
-  clean_passes_field: null omits passes in two engines but produces a None dict key in build_room_clean_payload  
-  -> A brand whose room-clean command carries no per-room pass count cannot express that on the `eufy_room_clean` template: instead of omitting the field it gets a `{None: 1}` entry, which fails JSON serialisation or reaches
-- [ ] **INF-6** `repairs.py:1` [both]  
-  The repair flow is unreachable - nothing ever raises an issue - and the doc asserts the opposite  
-  -> VERIFIED: a repo-wide grep for async_create_issue / ir.create_issue across custom_components returns ZERO hits, so async_create_fix_flow is never invoked. doc 02 §10 states 'Currently raised by the setup workflow when st
 - [ ] **EP-7** `room_entities.py:87` [both]  
   _async_update_room silently drops non-managed keys from a mixed update  
   -> Branch 2 filters `updates` to a hand-maintained managed_field_names set and, if ANY managed key is present, routes only that subset to update_room_fields and RETURNS -- so every non-managed key in the same call is discar
@@ -1138,9 +1051,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A2-REC-7** `rooms/room_crud.py:118` [both]  
   action='ignore' writes reconciliation_dismissed_at that no code ever reads — dismissed reviews resurface on every discovery  
   -> Dismissal is a no-op: identical reviews are recomputed on every discovery forever, including the permanent phantom review from REC-2. A maintainer reading the docstring believes suppression exists.
-- [ ] **A3-CRUD-7** `rooms/room_crud.py:318` [both]  
-  get_managed_rooms returns the live stored rule dicts and metadata sub-objects by reference despite copying the outer containers  
-  -> Any consumer that treats this response as a detached snapshot and mutates a rule entry writes straight through into persisted storage, so a change that was never meant to be saved is persisted by the next async_save. Lat
 - [ ] **A3-CRUD-5** `rooms/room_manager.py:57` [both] _(finder said MEDIUM)_  
   A re-save resurrects a room the user explicitly rejected as a phantom — build_managed_rooms never consults rejected_rooms  
   -> A phantom segment the user deliberately banished comes back as a fully approved, enabled room with entities and a place in the clean queue, and the robot is sent to clean it on the next run. The user is never told; drift
@@ -1234,12 +1144,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-RUNPROF-8** `services/snapshots.py:78` [both]  
   No service here checks that vacuum_entity_id is a vacuum this integration manages; unknown ids create durable storage buckets, and a read service writes  
   -> A typo'd entity id in an automation gets a plausible-looking response (`{"vacuum_entity_id": "vacuum.typo", "pause_timeout_minutes_default": 0}`) instead of an error, so the user's real setting change appears to have wor
-- [ ] **DR-SETUP-3** `setup/drift.py:336` [both]  
-  Two unguarded int(key) coercions on drift-history keys, in a module that guards every other one  
-  -> The stale-entry prune and the history-only new-room branch both coerce a storage key with no try/except, while _room_lookup and _list_configured_room_ids in the same file wrap identical coercions in except (TypeError, Va
-- [ ] **DR-SETUP-4** `setup/protection.py:44` [both]  
-  Protection evaluation calls .get() on map buckets and room records without isinstance guards  
-  -> The imported-map comprehension and the has_rules / has_access_graph scans assume dicts, where drift.py consistently checks isinstance(bucket, dict) first. A malformed record raises AttributeError out of evaluate_map_prot
 - [ ] **A3-PORT-7** `themes/manager.py:42` [both]  
   _clean_theme_tags coerces non-string items with str(), reachable only through the unvalidated import payload, and silently drops rather than truncates over-long and over-count tags  
   -> An imported theme arrives with junk tags like `{'a': 1}` or `none` shown in the card's tag/filter UI, which the user then has to notice and clean up by hand. Separately, a theme legitimately tagged with a 40-character ph
@@ -1273,7 +1177,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 116 findings closed by a landed packet
+## APPLIED -- 148 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1512,6 +1416,70 @@ a disappeared finding is indistinguishable from one never found.
   The two sample recorders still use the repudiated `started_at and not ended_at` predicate and write into EVERY map bucket, so a finished or stranded job silently absorbs another run's counters
 - [x] **A5-METRICS-2** `listeners/job_metrics.py:172` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
   `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths
+- [x] **A1-ID-5** `adapters/eufy/discovery.py:47` [eufy] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals
+- [x] **DR-BAT-2** `battery/manager.py:601` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  An out-of-order sample is correctly skipped but still rewinds the last-sample anchor
+- [x] **DR-BAT-3** `battery/manager.py:653` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  After a stale-session discard, charging stays untracked until the next charge cycle
+- [x] **INF-7** `const.py:27` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Four constants are defined and never read - including three service names for services that do not exist
+- [x] **A2-CB-3** `core/manager.py:579` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  The manager's four own callback registries append without a duplicate check while the theme registry they delegate to dedupes, and unregister removes only one copy
+- [x] **A2-CB-4** `core/manager.py:1035` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  remove_vacuum_record wipes every bucket the five callback registries exist to mirror and fires none of them, dropping the notification obligation its narrower sibling remove_map documents
+- [x] **A4-START-3** `core/manager.py:2943` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  get_start_status can never surface a non-blocking lifecycle warning message — preflight's "ready" text shadows it, making dock-drying starts show warning=True with the message "Ready to start cleaning."
+- [x] **DQ-ACT-7** `dispatch/manager.py:421` [future_brand_only] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  The OFF-fallback lowercases the select's options for the membership test but then sends the lowercased string as the option value
+- [x] **DR-BAT-1** `docs/dev/12-battery-system.md:88` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Doc §3 states the MAX_DELTA_PCT boundary one step off from the code and from its own §5.2
+- [x] **DR-BAT-4** `docs/dev/12-battery-system.md:338` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Doc omits two live conditions present in the code
+- [x] **DR-ONB-6** `docs/dev/18-onboarding-manager.md:228` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Doc cites the start gate at core/manager.py:2776; it is at 2805
+- [x] **A3-IO-5** `learning/history_store.py:368` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  get_completed_job_path interpolates an unvalidated job_id into a filesystem path, giving exclude/restore_learning_job an arbitrary *.json overwrite primitive — the exact hole the sibling module already hardened
+- [x] **A3-IO-7** `learning/history_store.py:196` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  write_json is rename-atomic but not durable — no fsync before os.replace, so a power loss can leave a zero-length learned file that read_json then reports as "no data"
+- [x] **A3-IO-8** `learning/history_store.py:599` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  append_job_csv_row / append_room_csv_rows are dead, and each CSV header is a hand-copied literal duplicated between the dead append writer and the live rebuild writer
+- [x] **A3-COMMON-5** `listeners/_common.py:52` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  get_adapter_value() is a second, independent implementation of the identical lookup already shipped in adapters/registry.py
+- [x] **A4-POSE-6** `listeners/pose_sampler.py:10` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Module docstring still declares the sampler 'Capture-only / inert — nothing consumes pose_samples yet', but the W5c consumption wire has landed
+- [x] **A3-EXT-5** `mapping/map_source.py:808` [future_brand_only] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Two room extractors disagree on the input coordinate frame and the dead one is the one under test
+- [x] **DR-MAP-1** `maps/map_manager.py:62` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  get_map_bucket returns a DETACHED dict on a miss and live storage on a hit
+- [x] **DR-MAP-2** `maps/map_manager.py:95` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  get_vacuum_maps_summary mixes a live room_count with CACHED enabled/disabled counts
+- [x] **A1-ID-6** `models/models.py:162` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  RoomRecord documents grants_access_to as 'list[str] — room slugs' but every producer and consumer stores integer room ids
+- [x] **INF-3** `models/models.py:257` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  VacuumCapabilities is a never-constructed dataclass whose field names do not exist in the real capability payload
+- [x] **DR-ONB-4** `onboarding/manager.py:66` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  The five-key default record is hand-duplicated between _get_map_onboarding and reset_onboarding
+- [x] **A6-PP-EST-H2O-2** `planning/run_plan.py:237` [future_brand_only] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  A declared water_rates table REPLACES the core table wholesale, so an adapter that omits "off" bills 4.0 ml/min for water-off mop rooms — contradicting the comment that asserts the invariant
+- [x] **A6-PP-EST-GUESS-1** `planning/run_plan.py:378` [eufy] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  estimate_job_water_usage drops the timeline's source/sample_count provenance, so default-guess room timings are presented as a measured "Job will use N ml"
+- [x] **A6-PP-EST-CLAMP-1** `planning/run_plan.py:476` [eufy] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Tank-remaining ml is unclamped while its own percent is clamped to [0,100], and robot_internal_tank_ml is reported but never used in any calculation
+- [x] **DQ-PAY-7** `queue/queue_engine.py:294` [future_brand_only] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  clean_passes_field: null omits passes in two engines but produces a None dict key in build_room_clean_payload
+- [x] **INF-6** `repairs.py:1` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  The repair flow is unreachable - nothing ever raises an issue - and the doc asserts the opposite
+- [x] **A3-CRUD-7** `rooms/room_crud.py:318` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  get_managed_rooms returns the live stored rule dicts and metadata sub-objects by reference despite copying the outer containers
+- [x] **DR-ONB-3** `sensor/onboarding.py:62` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  The 'empty means complete' guard exists in setup/status.py and was never mirrored onto the onboarding summary — forgotten override sibling
+- [x] **DR-SETUP-2** `setup/drift.py:117` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  auto_refresh_on still uses the bare or-coercion that code-flag CS-2 fixed for its three siblings
+- [x] **DR-SETUP-3** `setup/drift.py:336` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Two unguarded int(key) coercions on drift-history keys, in a module that guards every other one
+- [x] **DR-SETUP-4** `setup/protection.py:44` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
+  Protection evaluation calls .get() on map buckets and room records without isinstance guards
 
 ---
 

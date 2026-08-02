@@ -100,5 +100,16 @@
   "commits": ["8f4c5a8"],
   "landed_at": "2026-08-02",
   "note": "Stage X, packet 5/5 -- Stage X COMPLETE. Single commit, rebased on RP-013a's history_store.py edits. Reproducer file is shared with held RP-013c (_proof_completed_evidence.py): cases 1-2 stay BEFORE (RP-013c, hardware-held, untouched), cases 3-4 (RP-013d) now AFTER -- matches Stage X's own documented end-state exactly."
+ },
+ {
+  "packet_id": "RP-040",
+  "commits": [
+   "7714931", "d37e501", "d86e18e", "59cdf66", "f3387e3", "cc9baba",
+   "0e6b1e0", "faf2e89", "aa413d7", "4405267", "ecb47ef", "d242c51",
+   "f7eae2d", "0db5e11", "c2bff98", "bea97f9", "21dce08", "74a6ac6",
+   "93b83be", "41aedd6", "9c42f03"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Stage M6, the RP-040 closing batch -- executed from the generated per-file table (.claude/notes/synthesis/RP-040-batch-table.md), not the packet's own finding_ids, per Stage M6's own instruction. 21 commits across 22 file groups covering all 33 table members (12 SMALL-CORRECTNESS + 10 SMALL-CORRECTNESS- behaviour-bearing, table-driven proof cases in _proof_closing_batch.py; 5 DOC-ONLY gated by mkdocs --strict; 6 DEAD-CODE gated by the full suite after deletion). rooms/room_crud.py's CRUD-7 required no code change -- verified (not assumed) that maps/map_manager.py's DR-MAP-1 fix (get_map_bucket now deep-copies) closed it as a side effect, same batch, earlier commit. One member ejected to the Held table in SONNET-STAGE-PROMPTS.md rather than force-fit: #13:A4-SETUP-6 (services/setup.py setup_reject_rooms) -- its required_behavior per RP-040's own Q10 materialization (.claude/notes/_proof_reject_rooms_map_scope.py) is a real 3-part design (map_id schema field + a new setup_unreject_rooms service + protection/confirmation routing), not a one-line fix; needs its own named packet. Stage M6 is otherwise COMPLETE."
  }
 ]
