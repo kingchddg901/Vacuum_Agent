@@ -43,13 +43,13 @@ landed in between.
 
 ## Completed
 
-**137 changes shipped**, all with tests, all deployed.
+**139 changes shipped**, all with tests, all deployed.
 
 | | |
 |---|---|
 | Audits fully applied | #1 lifecycle · #2 learning · #3 external ingestion · #4 adapters · #5 error tracker |
 | Partly applied | #6 card (root cause + top of the repair order) |
-| #7 onward | **115** of 484 findings applied via 16 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a); rest open — see [Open](#open) |
+| #7 onward | **116** of 484 findings applied via 17 landed packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d); rest open — see [Open](#open) |
 
 ### The recurring root cause
 
@@ -201,14 +201,16 @@ comments rather than by a shared helper.
 | `dbbb348` | RP-013e (2/2): job_metrics watches the adapter-declared battery entity |
 | `cc22c4a` | audit: RP-013e landed — ledger closure regenerated |
 | `205ef7b` | RP-013a: phase-type-aware capture validity — break/zone empty timing is valid |
+| `8b489c8` | audit: RP-013a landed — ledger closure regenerated |
+| `8f4c5a8` | RP-013d: the queue block mirrors the resolved_rooms ladder (A4-STATE-6) |
 
 ---
 
 ## Open
 
-**369 findings** — 329 across 12 audits plus 40 from direct reads. **115 more applied** via 16 landed packets (see [Applied](#applied)). 18 open clusters (11 fully applied) + 333 singles.
+**368 findings** — 328 across 12 audits plus 40 from direct reads. **116 more applied** via 17 landed packets (see [Applied](#applied)). 18 open clusters (11 fully applied) + 332 singles.
 
-CRITICAL 7 · HIGH 52 · MEDIUM 137 · LOW 173
+CRITICAL 7 · HIGH 52 · MEDIUM 136 · LOW 173
 
 The same audits recorded **673 areas examined and found correct**.
 
@@ -545,7 +547,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 </details>
 
-<details><summary><strong>MEDIUM</strong> (125)</summary>
+<details><summary><strong>MEDIUM</strong> (124)</summary>
 
 - **EP-1** `button.py:200` · both · `direct read`  
   The maintenance reset button discards a documented failure result and reports success  
@@ -619,9 +621,6 @@ The same audits recorded **673 areas examined and found correct**.
 - **A3-IO-5** `learning/history_store.py:368` · both  
   get_completed_job_path interpolates an unvalidated job_id into a filesystem path, giving exclude/restore_learning_job an arbitrary *.json overwrite primitive — the exact hole the sibling module already hardened  
   An authenticated HA user or any automation/script/dashboard that can call eufy_vacuum.exclude_learning_job can overwrite or create JSON files anywhere the HA process can write, corrupting unrelated integration data; the
-- **A4-STATE-6** `learning/history_store.py:1092` · both  
-  build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run  
-  The missed-rooms banner names a room that was never cleaned in that job — often as an unnamed "Room N" — and omits the room that actually was missed; the phantom room then accrues a permanent chronic-trouble badge.
 - **A5-SVC-4** `learning/services.py:486` · both  
   record_estimate_accuracy's schema requires no keys at all; an entry missing map_id/slug writes a permanently unreadable durable record and returns a confident success payload  
   An automation written against the service (which the docs encourage: 03-services.md:1287 "Records estimated-vs-actual minutes per room after a job completes, feeding the estimator's accuracy tracking") but missing map_id
@@ -1442,7 +1441,7 @@ The same audits recorded **673 areas examined and found correct**.
 
 ### Applied
 
-**115 findings** closed by a landed packet. Not open work, but kept
+**116 findings** closed by a landed packet. Not open work, but kept
 here rather than removed — a disappeared finding is indistinguishable from one never
 found. `.claude/notes/_landed_packets.json` is the source of truth for what has
 landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
@@ -1669,6 +1668,8 @@ landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
   A multi-room room_group phase records ONLY queue_room_ids[0] — the group's whole time/area lands on one room, the other N-1 rooms produce no timing at all, and the run is still flagged high-confidence
 - [x] **A3-REC-2** `jobs/phase_runner.py:297` · eufy — **RP-013b** (`f212c20`, 2026-08-02)  
   Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
+- [x] **A4-STATE-6** `learning/history_store.py:1092` · both — **RP-013d** (`8f4c5a8`, 2026-08-02)  
+  build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run
 - [x] **A3-REC-4** `jobs/active_job.py:1709` · both — **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
   Both sample recorders still use the `started_at and not ended_at` predicate the module itself documents as permanently true after finalize, and fan the write out to every map bucket
 - [x] **A3-REC-5** `jobs/active_job.py:1721` · both — **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  

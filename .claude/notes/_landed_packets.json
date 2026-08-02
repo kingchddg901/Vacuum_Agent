@@ -94,5 +94,11 @@
   "commits": ["205ef7b"],
   "landed_at": "2026-08-02",
   "note": "Stage X, packet 4/5. Single commit per rollback_plan. Also closed INF-8 (run_plan.py's hand-copied _BREAKS literal, now imported from step_types.DOCK_POLLED_PHASE_TYPES). Hardware precondition satisfied by stepped Run A per Stage X's own text."
+ },
+ {
+  "packet_id": "RP-013d",
+  "commits": ["8f4c5a8"],
+  "landed_at": "2026-08-02",
+  "note": "Stage X, packet 5/5 -- Stage X COMPLETE. Single commit, rebased on RP-013a's history_store.py edits. Reproducer file is shared with held RP-013c (_proof_completed_evidence.py): cases 1-2 stay BEFORE (RP-013c, hardware-held, untouched), cases 3-4 (RP-013d) now AFTER -- matches Stage X's own documented end-state exactly."
  }
 ]

@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **115** findings via 16 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a) |
+| Fixes APPLIED (landed packets) | **116** findings via 17 packets (RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013b, RP-013f, RP-013e, RP-013a, RP-013d) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **369** -- 18 open clusters (11 fully applied) + 333 singles |
-| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 137 / LOW 173 |
+| Open findings | **368** -- 18 open clusters (11 fully applied) + 332 singles |
+| By severity | CRITICAL 7 / HIGH 52 / MEDIUM 136 / LOW 173 |
 | Hardware validation | **none** -- nothing from this campaign has run on a real vacuum |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -383,7 +383,7 @@ audit is a snapshot, not a ledger.
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
-### MEDIUM (125)
+### MEDIUM (124)
 
 - [ ] **EP-1** `button.py:200` [both]  
   The maintenance reset button discards a documented failure result and reports success  
@@ -457,9 +457,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A3-IO-5** `learning/history_store.py:368` [both]  
   get_completed_job_path interpolates an unvalidated job_id into a filesystem path, giving exclude/restore_learning_job an arbitrary *.json overwrite primitive — the exact hole the sibling module already hardened  
   -> An authenticated HA user or any automation/script/dashboard that can call eufy_vacuum.exclude_learning_job can overwrite or create JSON files anywhere the HA process can write, corrupting unrelated integration data; the
-- [ ] **A4-STATE-6** `learning/history_store.py:1092` [both]  
-  build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run  
-  -> The missed-rooms banner names a room that was never cleaned in that job — often as an unnamed "Room N" — and omits the room that actually was missed; the phantom room then accrues a permanent chronic-trouble badge.
 - [ ] **A5-SVC-4** `learning/services.py:486` [both]  
   record_estimate_accuracy's schema requires no keys at all; an entry missing map_id/slug writes a permanently unreadable durable record and returns a confident success payload  
   -> An automation written against the service (which the docs encourage: 03-services.md:1287 "Records estimated-vs-actual minutes per room after a job completes, feeding the estimator's accuracy tracking") but missing map_id
@@ -1276,7 +1273,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 115 findings closed by a landed packet
+## APPLIED -- 116 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1505,6 +1502,8 @@ a disappeared finding is indistinguishable from one never found.
   A multi-room room_group phase records ONLY queue_room_ids[0] — the group's whole time/area lands on one room, the other N-1 rooms produce no timing at all, and the run is still flagged high-confidence
 - [x] **A3-REC-2** `jobs/phase_runner.py:297` [eufy] -- **RP-013b** (`f212c20`, 2026-08-02)  
   Phase 0's timing is attributed to the whole-run queue's first room, which need not be a room of phase 0 at all
+- [x] **A4-STATE-6** `learning/history_store.py:1092` [both] -- **RP-013d** (`8f4c5a8`, 2026-08-02)  
+  build_completed_job_payload's `queue` block prefers the LIVE queue over the job's own — a room switch flipped mid-run makes both the missed-rooms banner and trouble_rooms name a room that was never in the run
 - [x] **A3-REC-4** `jobs/active_job.py:1709` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
   Both sample recorders still use the `started_at and not ended_at` predicate the module itself documents as permanently true after finalize, and fan the write out to every map bucket
 - [x] **A3-REC-5** `jobs/active_job.py:1721` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
