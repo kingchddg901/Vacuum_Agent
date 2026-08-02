@@ -18,6 +18,7 @@ from __future__ import annotations
 import pytest
 
 from custom_components.eufy_vacuum.queue.queue_engine import (
+    phased_job_id_for,
     _cast_map_id,
     _write_room_field,
     advance_active_job_phase,
@@ -328,3 +329,42 @@ def test_advance_phase_cumulative_ignores_a_break_phases_empty_room_set():
     job["phases"][1] = {"resolved_rooms": [], "room_count": 0,
                         "phase_type": "charge_wait"}
     assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
+
+
+# ---------------------------------------------------------------------------
+# Phased Jobs wave 0 — the DTG anchor (written, read by nothing yet)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("job_id,expected", [
+    ("job_2026-08-02T11-15-51", "pj_2026-08-02T11-15-51"),  # phase 0 shares the run's DTG
+    ("2026-08-02T11-15-51", "pj_2026-08-02T11-15-51"),      # tolerate a bare DTG
+    ("", ""),                                                # nothing to anchor to
+    (None, ""),
+])
+def test_phased_job_anchor_derivation(job_id, expected):
+    """[QE-PJ] The anchor is the RUN's start, so the parent and phase 0 share a timestamp
+    and the relationship is visible from a directory listing with no lookup."""
+    assert phased_job_id_for(job_id) == expected
+
+
+def test_phased_job_anchor_survives_the_advance():
+    """[QE-PJ] The anchor identifies the RUN, so every phase of it must carry the same
+    one. If an advance dropped or rewrote it, siblings could not be reassembled."""
+    job = _phased([1])
+    job["phased_job_id"] = "pj_2026-08-02T11-15-51"
+    nxt = advance_active_job_phase(job)
+    assert nxt["phased_job_id"] == "pj_2026-08-02T11-15-51"
+
+
+def test_atomic_job_state_carries_no_phase_keys():
+    """[QE-PJ] PRESENCE IS THE SIGNAL — an atomic run must stay byte-identical, so an
+    absent anchor is how 'not phased' is expressed. A boolean would be a second source of
+    truth that could disagree with the key."""
+    state = build_active_job_state(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        queue_state={"queue_room_ids": [1], "queue_rooms": []},
+        payload_state={"payload": {}, "room_count": 1, "resolved_rooms": [{"room_id": 1}]},
+        phases=None,
+    )
+    assert "phases" not in state
+    assert "phased_job_id" not in state

@@ -431,6 +431,27 @@ def build_active_job_state(
     return state
 
 
+def phased_job_id_for(job_id: Any) -> str:
+    """Derive the Phased Job's DTG anchor from the run's job id.
+
+    WAVE 0 of the Phased Jobs design (synthesis/DESIGN-phased-jobs.md). Written here,
+    read by nothing yet -- Wave 1 gives it consumers.
+
+    The anchor is the RUN's start, so phase 0's child shares its timestamp with the
+    parent. That is intended: the relationship is visible from a directory listing with
+    no lookup. `job_2026-08-02T11-15-51` -> `pj_2026-08-02T11-15-51`.
+
+    Only a PHASED job carries one. Presence is the signal -- there is deliberately no
+    `is_phased` boolean, because a boolean is a second source of truth that can disagree
+    with the key, and this codebase has spent a campaign on fields that disagree with
+    each other.
+    """
+    raw = str(job_id or "").strip()
+    if not raw:
+        return ""
+    return "pj_" + (raw[4:] if raw.startswith("job_") else raw)
+
+
 def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | None:
     """Advance a sequenced job to its next phase, or return None if it was the last.
 

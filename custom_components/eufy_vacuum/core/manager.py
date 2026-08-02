@@ -38,6 +38,7 @@ from ..queue.queue_engine import (
     build_active_job_state,
     build_queue_from_managed_rooms,
     build_room_clean_payload,
+    phased_job_id_for,
 )
 from ..queue.dispatch_engines import get_dispatch_engine
 from ..rooms.room_discovery import discover_rooms_payload
@@ -5217,6 +5218,13 @@ class EufyVacuumManager:
         )
         active_job["job_metadata"] = build_job_metadata_from_payload(payload_state)
         active_job["job_id"] = job_id
+        # Phased Jobs wave 0: the DTG anchor, stamped ONLY on a phased run. Written and
+        # read by nothing until wave 1 -- see synthesis/DESIGN-phased-jobs.md. Deliberately
+        # NOT emitted into the finalized record yet: today a phased run produces ONE merged
+        # record, so stamping it with a phase key would claim it IS phase N when it is all
+        # of them, and a field that lies is the defect class this design repairs.
+        if active_job.get("phases"):
+            active_job["phased_job_id"] = phased_job_id_for(job_id)
         active_job["started_at"] = started_at
         active_job["battery_start"] = battery_start
         active_job["current_room_started_at"] = started_at
