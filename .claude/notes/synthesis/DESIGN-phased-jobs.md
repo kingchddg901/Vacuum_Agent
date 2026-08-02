@@ -6,6 +6,23 @@ Supersedes the wave sketch in `PLAN-phased-jobs-option-b.md` (that file becomes 
 sequencing appendix once this is agreed). Rationale lives in
 `ARCH-phased-jobs-concept-vs-execution.md` and is not re-argued here.
 
+> ## The principle
+>
+> **We stop losing good rooms because we stop treating each phase as a special thing.**
+> (Chris, 2026-08-02.)
+>
+> Every defect this design repairs came from a phase being special-cased: evidence that a
+> phase reset, a queue block scoped to one phase, a group's timings apportioned because a
+> phase could not be segmented, a wait invisible because a phase was not a record. A phase
+> that is just a job needs no special handling, and there is nothing left to lose it in.
+>
+> Applied as a test: **any rule in this document that exists ONLY for phased runs is
+> suspect.** The model is right in proportion to how little it special-cases.
+
+**Hostile audit applied 2026-08-02** — eight findings, fixes folded in below and marked
+`[H#]`. Two of the eight (H3, H5) were partly wrong on inspection and are recorded as such
+rather than quietly dropped.
+
 ---
 
 ## 1. Vocabulary
@@ -85,8 +102,13 @@ record may carry and only a phased one populates:
 phase_key       "pj_2026-08-02T11-15-51_p0"     THE field. Absent on an atomic run.
   phased_job_id "pj_2026-08-02T11-15-51"        the DTG anchor — the run's start
   phase_index   0                               ordinal within the run
-phase_count     3                               so a truncated run is detectable
 ```
+
+**[H3] `phase_count` lives on the PARENT only.** A child carries `phase_key` and nothing
+else. An earlier draft put `phase_count` on children too and claimed "one field cannot
+contradict itself" — false, since a child with `phase_count: 3` and no `phase_key` is
+exactly that contradiction. The claim is true now because the child really does carry one
+field.
 
 **PRESENCE IS THE SIGNAL.** There is deliberately no `is_phased` boolean. A boolean is a
 second source of truth that can disagree with the key, and this codebase has spent a
@@ -204,15 +226,27 @@ cleaning time, never to learned cleaning overhead.
 
 ### 5.1 Normal progression
 
+**[H2] The parent is written at START, not at close.**
+
 ```
+run starts        →  parent record, outcome.status = "running"
 dispatch phase N
   ↓ completion hook
 finalize phase N  →  child job record (clean) or phase record (break)
+                     appended to the parent's child list AS IT HAPPENS
   ↓
 advance to N+1, dispatch
   ↓ … last phase finalizes …
-close the Phased Job  →  parent record
+close the parent  →  final outcome
 ```
+
+Written at close, any abnormal end — HA restart, stranded job, power loss mid-phase —
+leaves children carrying a `phase_key` that points at a parent which never existed. Written
+at start, an abnormal end leaves a parent stuck in `running`, which the stranded-job reaper
+can find and close as `interrupted`. Orphans become impossible by construction.
+
+Second benefit: the card has a real parent to render DURING the run instead of assembling
+one from the active job.
 
 Finalizing the outgoing phase happens **at the advance point**, where manager state is
 already that phase's queue/payload/resolved_rooms.
@@ -269,6 +303,11 @@ completed) · `failed`.
 
 An aggregate. **It sums its children; it never re-derives from raw counters.** Re-deriving
 is how double-counting gets in.
+
+**[H4] Children are the SOURCE OF TRUTH; the parent's aggregate is a cache.** Stored for
+cheap reads, but excluding or restoring a child makes it stale — so `rebuild_learning_stats`
+recomputes parents exactly as it already recomputes stats. No new mechanism, and no stored
+number that can silently drift from the records it summarises.
 
 ```json
 {
@@ -353,6 +392,12 @@ the parent must land with the children (§10).
 
 - **Review** groups by `phased_job_id`. One run = one entry, expandable to its phases. A
   single-phase run renders exactly as today.
+- **[H6] Missed rooms are PARENT-scoped.** Missed = every room in the Phased Job that no
+  child cleaned, INCLUDING never-dispatched phases. The incomplete-run log is written
+  against the parent, not the last child. This matches what a user means by "missed" — a
+  cancel at phase 2 of 4 leaves phases 2, 3 and 4's rooms outstanding, not just phase 2's.
+  **Changes `retry_missed_rooms` behaviour**: it re-runs the rest of the sequence rather
+  than one phase's remainder.
 - **Live progress** shows the current phase. For a group, all its rooms
   ("Entryway + Hallway") joined with `Intl.ListFormat` — locale grammar, not a `" + "`
   literal.
@@ -394,10 +439,24 @@ Rationale: an ad-hoc shape key is stable but arbitrary. A user who never repeats
 structure would otherwise accumulate one-sample orchestration buckets forever, and a
 one-sample bucket presented as learned is the same overconfidence as the 50/50 allocation.
 
-**This restriction is on the PARENT only.** A child of an ad-hoc run is an ordinary job
-with an ordinary room key and teaches normally — the concern is orchestration shape, not
-room duration. A profile-launched Phased Job's parent learns by default, because it
-repeats by construction.
+**[H1] The rule cuts along KEY SCOPE, not parent-vs-child.** An earlier draft said
+"the parent is excluded, children learn", which contradicted §7.3 — a group phase's
+composite key IS phased-job-scoped, so a group child of an ad-hoc run would have taught
+against an excluded identity. One rule replaces two:
+
+> **Anything keyed on the phased-job identity is excluded for an ad-hoc run. Anything
+> keyed on a room is not.**
+
+| what teaches | keyed on | ad-hoc |
+|---|---|---|
+| single-room phase → its room | the ROOM | learns |
+| group phase → its composite | phased job + ordinal | excluded |
+| zone phase → its zone | the ZONE | learns |
+| parent → boundary transit | phased job | excluded |
+
+Consistent with "the parent stays out, the children are used": a group composite was never
+child-scoped learning in the sense that mattered. A profile-launched parent learns by
+default, because it repeats by construction.
 
 **4. Zone phases teach ZONES ONLY.** A zone has no room identity; it must never contribute
 to a room's stats. Folded into §3.3.
@@ -431,3 +490,25 @@ Binding, from the gpt review. Implementations may be replaced; these may not.
 Six become structural. **That is the argument for the design and the reason to be
 sceptical of it** — structural claims still need reproducers, and every existing reproducer
 gets redirected here rather than retired.
+
+### [H7] Invariant 6 gets its own reproducer — it is the design's central claim
+
+"Earlier phases are immutable" is currently a sentence. Nothing enforces it, and
+`rebuild_learning_stats` recomputes from archives, so a future consumer reading the parent's
+outcome could downgrade a completed child. Required proof:
+
+> Finalize child 0. Cancel phase 2. Assert child 0's record AND its learning eligibility
+> are byte-identical before and after.
+
+If that ever fails, the largest benefit of the model has silently gone.
+
+## 13. [H5] Scaling — corrected
+
+An earlier audit note claimed this shortens battery-health history. **Wrong**:
+`session_history_recent` rings CHARGE SESSIONS, not jobs, and a phased run produces no more
+charges than an unphased one. RP-045's ring-rotation problem is untouched by this design.
+
+What is true, and smaller: a 5-phase run writes ~6 files where it wrote 1. File count,
+`jobs_index.json` size, and rebuild cost all scale with phases rather than runs. No cap
+exists on the job side today, so nothing rotates away — this is a cost note, not a defect.
+Worth measuring after Wave 1 rather than pre-optimising.
