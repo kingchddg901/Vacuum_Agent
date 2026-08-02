@@ -141,8 +141,37 @@ packet_id: CARD-6
 finding_ids: [Q17 card half (A5-PP-RP-5 display), Q12 card half (zone repeat
   control), #7:DQ-ZONE-5 (zone_bounds consumer)]
 files: [src/state/run-profiles.js, src/state/steps-order.js, src/renderers/
-  (steps editor + zone UI), src/cards/zone-geometry.js, i18n en + 17,
-  src/styles/, tests/frontend]
+  (steps editor + zone UI), src/cards/zone-geometry.js,
+  src/cards/dashboard-card.js, i18n en + 17, src/styles/, tests/frontend]
+
+  >>> CLAUSE (2) FILE-LIST CORRECTED 2026-08-01 (main agent), after the executing
+  >>> window correctly refused to guess between "file-list miss" and "build new".
+  >>> It is a FILE-LIST MISS. The control EXISTS; the packet pointed at the wrong
+  >>> tree. It lives in src/cards/dashboard-card.js, NOT src/renderers/:
+  >>>     line 151      this._cleanTimes = 1;  // start_zone_clean repeat count
+  >>>     lines 557-8   the 1x / 2x chips that set it
+  >>>     line 952      clean_times: this._cleanTimes  -> the service call
+  >>>
+  >>> IT IS THE RIGHT CONTROL, and that needed checking rather than assuming,
+  >>> because Q12 warns in its own words: "Do not infer a Eufy zone-repeat ceiling
+  >>> from room passes." The ROOM passes control is a DIFFERENT control in the SAME
+  >>> file (lines 502-509, clean_passes / max_clean_passes) and must NOT be gated
+  >>> by this clause. Gate _cleanTimes ONLY.
+  >>>
+  >>> Q12 decided "unsupported and UNSURFACED until verified... the backend/card
+  >>> must not expose a repeat control" — that is suppression of something that
+  >>> exists, which is what this is. Nothing new is being built.
+  >>>
+  >>> THE TESTABILITY BLOCKER IS REAL AND HAS AN IDIOMATIC ANSWER. dashboard-card.js
+  >>> extends HTMLElement and is not importable under plain `node --test` (no
+  >>> customElements/window; this repo has no DOM shim). DO NOT add one. Follow the
+  >>> pattern already used throughout src/state/ — affordance-and-warning,
+  >>> hidden-regions, zone-draft and a dozen more are each a pure module with a
+  >>> sibling .test.mjs: EXTRACT the decision ("given the snapshot's declared caps,
+  >>> should the zone repeat control render?") into a pure helper, unit-test that,
+  >>> and have the component call it. The component keeps the DOM; the decision
+  >>> becomes testable. Capability-DECLARED only — no brand string checks, per the
+  >>> clause's own wording.
 required_behavior: >
   (1) Q17: the steps editor REFUSES adding a leading/trailing charge_wait/wait
   (disabled drop position + tooltip with the validation message, same i18n key
