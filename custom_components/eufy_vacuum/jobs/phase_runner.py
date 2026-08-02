@@ -359,6 +359,22 @@ class PhaseRunner:
                     "parent should have been opened at run start", idx, phased_job_id,
                 )
                 return
+            # Per-phase battery bounds (invariant 3: one child must not inherit
+            # another's counters). Stamped here because this runs once per finishing
+            # phase; a phase starts where the previous one ended, and phase 0 at the
+            # run's own start. Unreadable stays None — never 0, which would read as a
+            # flat battery and teach a phase that drained nothing as draining everything.
+            from ..core.charging import get_battery_level
+
+            _b_end = get_battery_level(self._manager.hass, vacuum_entity_id)
+            phase["_battery_end"] = _b_end
+            _b_start = active_job.get("battery_start")
+            for j in range(idx - 1, -1, -1):
+                if isinstance(phases[j], dict) and "_battery_end" in phases[j]:
+                    _b_start = phases[j]["_battery_end"]
+                    break
+            phase["_battery_start"] = _b_start
+
             record_id: str | None = None
             if is_dock_polled_phase(phase):
                 record_id = f"{phased_job_id}.phase{idx}"
@@ -375,6 +391,15 @@ class PhaseRunner:
                         phase_type=phase_type,
                     ),
                 )
+            else:
+                record_id = self._finalize_phase_as_child(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id,
+                    active_job=active_job,
+                    phases=phases,
+                    idx=idx,
+                    phase=phase,
+                )
             store.record_phase_outcome(
                 vacuum_entity_id=vacuum_entity_id,
                 phased_job_id=phased_job_id,
@@ -387,6 +412,117 @@ class PhaseRunner:
             _LOGGER.exception(
                 "could not record phase %s of %s", idx, phased_job_id
             )
+
+    def _finalize_phase_as_child(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        phases: list[Any],
+        idx: int,
+        phase: dict[str, Any],
+    ) -> str | None:
+        """Option B: finalize ONE clean phase as its own completed_job record.
+
+        Returns the child's record id, or None if nothing was written.
+
+        **Not through the chokepoint.** ``async_finalize_completed_job`` sets
+        ``finalized: True`` on the stored active job under its exactly-once claim; a
+        per-phase call through it would mark the whole RUN finalized at phase 0 and every
+        later phase — including the real final one — would return ``already_finalized``
+        and write nothing. The run-level claim keeps guarding the run; this carries its
+        own per-phase idempotency (``_child_record_id``).
+
+        **The metric scope is the hard part.** ``job_finalizer`` derives
+        ``cleaning_time_seconds`` by summing ``room_timing`` across EVERY phase on the
+        active job (RP-013f: a stepped run resets the device counter per phase, so for a
+        MERGED record the sum is the only correct total). Split the children and that
+        same code hands each one its predecessors' seconds too. Rather than teach the
+        finalizer a new parameter, this narrows a COPY of the active-job state to the one
+        finishing phase — the sum then scopes itself. ``last_cleaning_area_m2`` is
+        overridden on the same copy, because area ACCUMULATES across phases while time
+        resets (the finalizer's own comment records this), so the raw counter is the whole
+        run's no matter which phase is being written.
+
+        The copy is essential: mutating the live active job would corrupt the run.
+        """
+        record_id = str(phase.get("_child_record_id") or "")
+        if record_id:
+            return record_id  # idempotent — a re-arm must not write a second child
+        try:
+            finalizer = self._manager.learning.finalizer
+            ended_at = str(phase.get("_timing_end_t") or _iso_now())
+            started_at = str(active_job.get("started_at") or "")
+            for j in range(idx - 1, -1, -1):
+                if isinstance(phases[j], dict) and phases[j].get("_timing_end_t"):
+                    started_at = str(phases[j]["_timing_end_t"])
+                    break
+
+            inputs = finalizer._collect_finalization_inputs(
+                manager=self._manager,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                battery_start=_safe_int(phase.get("_battery_start"), 0),
+                started_at=started_at,
+                ended_at=ended_at,
+            )
+            scoped = dict(inputs.get("active_job_state") or {})
+            scoped["phases"] = [phase]
+            scoped["job_id"] = f"{active_job.get('job_id') or 'job'}.phase{idx}"
+            # Area for THIS phase only: the within-phase per-room deltas the capture
+            # already computed. Falls back to the run counter only when the phase
+            # captured nothing, which is the same "we don't know" path an atomic job
+            # takes rather than a fabricated zero.
+            _areas = [
+                _safe_float(rt.get("cleaning_area_m2"), 0.0)
+                for rt in (phase.get("room_timing") or [])
+                if isinstance(rt, dict)
+            ]
+            if _areas:
+                scoped["last_cleaning_area_m2"] = round(sum(_areas), 3)
+            # The phase identity the rebuilder gates on. Presence is the signal: a child
+            # carries it, an atomic run does not.
+            scoped["phased_job_id"] = str(active_job.get("phased_job_id") or "")
+            scoped["phase_index"] = idx
+            inputs["active_job_state"] = scoped
+
+            result = finalizer.finalize_from_inputs(
+                inputs=inputs,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                battery_start=_safe_int(phase.get("_battery_start"), 0),
+                battery_end=_safe_int(phase.get("_battery_end"), 0),
+                started_at=started_at,
+                ended_at=ended_at,
+                used_for_learning=True,
+                # A stats rebuild per phase would run N times per run for identical
+                # output; the run's own finalize rebuilds once at the end.
+                rebuild_stats=False,
+            )
+            if not isinstance(result, dict) or not result.get("completed_job"):
+                return None
+            # Stamp the phase identity ONTO THE SAVED RECORD. Setting it on the input
+            # state is not enough — the record payload is built from named fields, so an
+            # unrecognised key on active_job_state is silently dropped, and the rebuilder
+            # gate below would then see an ordinary job. Re-saved rather than inferred:
+            # a child that cannot be told apart from a standalone run is the whole defect.
+            child = result["completed_job"]
+            child["phase_key"] = {
+                "phased_job_id": str(active_job.get("phased_job_id") or ""),
+                "phase_index": idx,
+                "phase_type": str(phase.get("phase_type") or ""),
+            }
+            self._manager.learning.store.save_completed_job(
+                vacuum_entity_id=vacuum_entity_id,
+                job_id=scoped["job_id"],
+                payload=child,
+            )
+            phase["_child_record_id"] = scoped["job_id"]
+            return scoped["job_id"]
+        except Exception:  # noqa: BLE001 - a child that fails must not stop the next phase
+            _LOGGER.exception("could not finalize phase %s as a child", idx)
+            return None
 
     def _break_record_payload(
         self,

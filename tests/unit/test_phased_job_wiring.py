@@ -21,6 +21,9 @@ from custom_components.eufy_vacuum.learning.history_store import LearningHistory
 _VAC = "vacuum.alfred"
 _MAP = "12"
 _PJ = "pj_2026-08-02T18-00-00"
+# Children are named off the RUN's job_id, not the finalizer's placeholder.
+_CHILD0 = "job_2026-08-02T18-00-00.phase0"
+_CHILD2 = "job_2026-08-02T18-00-00.phase2"
 
 
 @pytest.fixture
@@ -37,6 +40,42 @@ def store(tmp_path):
 def runner(store):
     mgr = MagicMock()
     mgr.hass = store.hass
+    # A BARE MagicMock silently disables the wave-2 child split: finalize_from_inputs
+    # returns a mock, `isinstance(result, dict)` is False, and _finalize_phase_as_child
+    # bails returning None — so every "a clean phase has no child" assertion passes for
+    # the wrong reason and wave 2 goes completely unexercised. Stub the finalizer with
+    # real dicts so the child path actually runs.
+    def _collect(**kw):
+        return {"active_job_state": {"job_id": "job_x", "phases": []}}
+
+    def _finalize(*, inputs, **kw):
+        state = inputs["active_job_state"]
+        scoped = state.get("phases") or []
+        seconds = sum(
+            int(rt.get("cleaning_seconds") or 0)
+            for p in scoped for rt in (p.get("room_timing") or [])
+        )
+        return {
+            "completed_job": {
+                "record_type": "completed_job",
+                "job_id": state["job_id"],
+                "job": {
+                    "cleaning_time_seconds": seconds,
+                    "cleaning_area_m2": state.get("last_cleaning_area_m2"),
+                    "started_at": kw.get("started_at"),
+                    "ended_at": kw.get("ended_at"),
+                },
+                "outcome": {"status": "completed", "used_for_learning": True},
+                "queue": {"queue_room_ids": [
+                    rt.get("room_id") for p in scoped
+                    for rt in (p.get("room_timing") or [])
+                ]},
+            }
+        }
+
+    mgr.learning.finalizer._collect_finalization_inputs = _collect
+    mgr.learning.finalizer.finalize_from_inputs = _finalize
+    mgr.learning.store = store
     return PhaseRunner(manager=mgr)
 
 
@@ -105,16 +144,61 @@ def test_every_phase_attaches_to_the_parent(store, runner):
     assert sorted(_slots(store)) == [0, 1, 2]
 
 
-def test_a_break_gets_a_record_a_clean_phase_does_not_yet(store, runner):
-    """Wave 1's whole point. The wait is recorded; a clean phase truthfully reports no
-    child, because the phased run still finalizes as ONE merged record."""
+def test_every_phase_gets_its_own_record(store, runner):
+    """Wave 2: the break gets a phase_break record and each CLEAN phase gets its own
+    completed_job child. In wave 1 the clean phases correctly reported no child (the run
+    still finalized as one merged record); that contract is what this wave reverses."""
     job = _job()
     _open(store, job)
     _run_all_phases(runner, job)
     slots = _slots(store)
-    assert slots[1]["record_id"]
-    assert slots[0]["record_id"] is None
-    assert slots[2]["record_id"] is None
+    assert slots[0]["record_id"] == _CHILD0
+    assert slots[1]["record_id"]                    # the break
+    assert slots[2]["record_id"] == _CHILD2
+
+
+def test_children_partition_the_run_instead_of_repeating_it(store, runner):
+    """The defect this wave had to avoid. job_finalizer sums room_timing across EVERY
+    phase on the active job, so an unscoped child would inherit its predecessors — the
+    last one carrying the whole run's 1140 s while the others also claim theirs."""
+    job = _job()
+    job["phases"][0]["room_timing"] = [
+        {"room_id": 5, "cleaning_seconds": 570, "cleaning_area_m2": 8.0}]
+    job["phases"][2]["room_timing"] = [
+        {"room_id": 8, "cleaning_seconds": 300, "cleaning_area_m2": 5.0},
+        {"room_id": 4, "cleaning_seconds": 270, "cleaning_area_m2": 4.0}]
+    _open(store, job)
+    _run_all_phases(runner, job)
+    kids = [
+        store.load_completed_job(vacuum_entity_id=_VAC, job_id=f"job_2026-08-02T18-00-00.phase{i}")
+        for i in (0, 2)
+    ]
+    secs = [k["job"]["cleaning_time_seconds"] for k in kids]
+    assert secs == [570, 570], "a child inherited another phase's seconds"
+    assert sum(secs) == 1140                        # the run, counted exactly once
+    assert [k["job"]["cleaning_area_m2"] for k in kids] == [8.0, 9.0]
+
+
+def test_child_is_distinguishable_from_a_standalone_run(store, runner):
+    """A child that reads as an ordinary job lands in job-level averages as its own run.
+    The stamp goes on the SAVED record — an unrecognised key on the input state is
+    dropped when the payload is built."""
+    job = _job()
+    _open(store, job)
+    _run_all_phases(runner, job)
+    child = store.load_completed_job(vacuum_entity_id=_VAC, job_id=_CHILD0)
+    assert child["phase_key"]["phased_job_id"] == _PJ
+    assert child["phase_key"]["phase_index"] == 0
+
+
+def test_child_finalize_is_idempotent(store, runner):
+    """A pause+resume or an HA-restart re-arm must not write a second child."""
+    job = _job()
+    _open(store, job)
+    _run_all_phases(runner, job)
+    _run_all_phases(runner, job)
+    jobs_dir = store.get_paths(vacuum_entity_id=_VAC).jobs_dir
+    assert len(list(jobs_dir.glob("job_2026-08-02T18-00-00.phase*.json"))) == 2
 
 
 def test_break_record_keeps_planned_and_actual_apart(store, runner, tmp_path):
@@ -171,15 +255,17 @@ def test_closed_parent_names_the_phases_it_cannot_account_for(store, runner):
         ended_at="2026-08-02T18:20:00+00:00", battery_end=62,
     )
     agg = closed["aggregate"]
-    assert agg["unsplit_phases"] == [0, 2]
-    assert agg["cleaning_time_seconds"] == 0
+    # Wave 2 fills these in: every clean phase now has a child, so nothing is unsplit
+    # and the aggregate is real rather than a truthful zero.
+    assert agg["unsplit_phases"] == []
     assert agg["missing_children"] == []
     assert closed["battery"]["used"] == 38
 
 
 def test_no_boundary_invented_without_two_real_children(store, runner):
-    """A boundary needs two adjacent clean children. Until the split lands there are
-    none, and inventing one would hand the estimator a fabricated transit."""
+    """A boundary needs two adjacent clean children WITH timestamps. The stub child
+    carries them, so this now exercises the real boundary maths: the 125 s hold is
+    subtracted from the gap so only travel is learnable."""
     job = _job()
     _open(store, job)
     _run_all_phases(runner, job)
@@ -187,7 +273,10 @@ def test_no_boundary_invented_without_two_real_children(store, runner):
         vacuum_entity_id=_VAC, phased_job_id=_PJ,
         ended_at="2026-08-02T18:20:00+00:00", battery_end=62,
     )
-    assert closed["boundaries"] == []
+    assert len(closed["boundaries"]) == 1
+    b = closed["boundaries"][0]
+    assert b["planned_hold_seconds"] == 125          # the wait's ACTUAL elapsed
+    assert b["transit_seconds"] == b["seconds"] - 125
 
 
 def test_atomic_run_writes_nothing(store, runner, tmp_path):

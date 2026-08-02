@@ -1229,9 +1229,18 @@ class LearningStatsRebuilder:
         all_jobs = self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id)
         learning_jobs = [job for job in all_jobs if self.store.is_learning_job(job)]
 
+        # ONE GATE, TWO CONSUMERS — and they need different answers now that a phased run
+        # writes one child per phase. Room-level learning WANTS the children: attributing
+        # each room to its own phase instead of to a merged whole-run record is the fix
+        # this rebuild exists for. Job-level learning must NOT see them, or a three-phase
+        # run lands as THREE jobs in the averages and the shape key, which is both wrong
+        # and exactly what Chris ruled out — a phased run "populates in the Phased job
+        # list but [is] not learned unless directly called". The parent is the job-level
+        # unit for a phased run; the children are room-level sources.
+        job_level_jobs = [j for j in learning_jobs if not j.get("phase_key")]
         job_stats_payload = self.build_job_stats_payload(
             vacuum_entity_id=vacuum_entity_id,
-            jobs=learning_jobs,
+            jobs=job_level_jobs,
         )
         room_stats_payload = self.build_room_stats_payload(
             vacuum_entity_id=vacuum_entity_id,
