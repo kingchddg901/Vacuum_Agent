@@ -606,6 +606,39 @@ async def _case_pay_7(proof: H.Proof) -> None:
     )
 
 
+async def _case_crud_7(proof: H.Proof) -> None:
+    from custom_components.eufy_vacuum.rooms.room_crud import RoomMapManager
+
+    data = {"maps": {H.VAC: {H.MAP: {
+        "map_id": H.MAP,
+        "metadata": {},
+        "rooms": {"1": {"room_id": 1, "name": "Kitchen", "rules": [{"condition": "orig"}]}},
+        "summary": {},
+    }}}}
+    rc = RoomMapManager(SimpleNamespace(data=data))
+
+    out = rc.get_managed_rooms(vacuum_entity_id=H.VAC, map_id=H.MAP)
+    out["rooms"]["1"]["rules"][0]["condition"] = "MUTATED"
+
+    persisted = (
+        data["maps"][H.VAC][H.MAP]["rooms"]["1"]["rules"][0]["condition"] == "MUTATED"
+    )
+
+    proof.case(
+        "rooms/room_crud.py CRUD-7: get_managed_rooms's rule dicts/metadata "
+        "sub-objects must not be live references into storage",
+        before=persisted,
+        before_msg="get_managed_rooms copies the outer containers but the "
+                   "room rule dicts/metadata sub-objects inside them are "
+                   "the SAME objects as storage -- mutating a returned "
+                   "rule writes straight through to the persisted record",
+        after=(not persisted),
+        after_msg="mutating a returned room's rule dict never touches "
+                  "storage",
+        detail=f"persisted={persisted}",
+    )
+
+
 CASES = [
     _case_dr_bat_2,
     _case_dr_bat_3,
@@ -623,6 +656,7 @@ CASES = [
     _case_est_h2o_2,
     _case_est_clamp_1,
     _case_pay_7,
+    _case_crud_7,
 ]
 
 
