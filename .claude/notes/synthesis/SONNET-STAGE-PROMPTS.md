@@ -284,6 +284,81 @@ Commit BY FILE. Do NOT close ledger findings.
 
 ---
 
+## Stage X — EXECUTION RELEASE: the five packets whose reproducers already exist
+
+**This is the ready-to-run execution work. Everything here has a materialized,
+reviewed reproducer in hand — no materialization needed first.** Run the packets
+in the order below; the order is chosen to respect file contention and the one
+hardware block, not the packet numbering.
+
+| # | packet | reproducer | files it edits | why here |
+|---|---|---|---|---|
+| 1 | **RP-013b** | `_proof_group_allocation.py` | `jobs/phase_runner.py` | no contention with anything; unblocks #2 |
+| 2 | **RP-013f** | `_proof_job_cleaning_total.py` | `learning/job_finalizer.py`, `learning/utils.py` | its phase-sum DEPENDS on RP-013b preserving group totals — must follow it |
+| 3 | **RP-013e** | `_proof_recorder_scope.py` | `jobs/active_job.py`, `listeners/job_metrics.py` | no contention |
+| 4 | **RP-013a** | `_proof_phase_validity.py` | `step_types.py`, `planning/run_plan.py`, `learning/history_store.py` | hardware precondition SATISFIED by stepped Run A; first of the history_store ladder |
+| 5 | **RP-013d** | `_proof_completed_evidence.py` (cases 3–4) | `learning/history_store.py` | rebases on #4's edits |
+
+**RP-013c is NOT in this list** — it needs stepped Run B and stays held. When
+Run B lands it rebases on #4 and #5's `history_store` edits.
+
+**RP-014 is NOT in this list** — its reproducer exists and passes, but its
+per-site adjudication table names 5 hand-inlined `{"started","paused"}` sites
+when there are 17. Widen the table before executing, or 12 sites ship
+unadjudicated and look blessed.
+
+### The gotcha that will otherwise look like a failure
+
+**RP-013c and RP-013d SHARE one proof file.** `_proof_completed_evidence.py`
+carries four cases: 1–2 belong to RP-013c, 3–4 to RP-013d. So after you land
+RP-013d correctly the file reports **2 BEFORE · 2 AFTER**, not 4 AFTER. That is
+the CORRECT outcome. Do not "fix" the two BEFORE cases — they are RP-013c's, and
+RP-013c is blocked on hardware. Read each case's name before concluding anything
+failed.
+
+Case 4 is also the load-bearing one for RP-013d: case 3 (atomic job) would have
+been satisfied by the packet's ORIGINAL — and wrong — required_behavior. Case 4
+(phased, post-advance) is the one that only passes with the union-of-all-phases
+ladder the packet now specifies. If case 4 does not flip, the fix is the old
+no-op and you should stop.
+
+### Per-packet, use the Stage E template below
+
+...with one addition specific to this batch: after EACH packet lands, re-run the
+OTHER four proofs. They touch overlapping subsystems and a repair that quietly
+breaks a sibling's reproducer is exactly what the batch ordering exists to
+surface. All five must remain in a declared shape (BEFORE or AFTER); any
+UNEXPECTED anywhere means stop.
+
+Run all five at once with the committed batch runner (do NOT hand-write a bash
+-c one-liner — PowerShell mangles the quoting):
+
+  docker run --rm -v "C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager:/workspace"
+    -w /workspace -e PYTHONPATH=/workspace eufy-vacuum-test
+    bash .claude/notes/_proof_run_batch.sh
+
+It prints one verdict line per proof and exits non-zero if any proof crashed or
+reported UNEXPECTED. Pass proof names as arguments to run a different set.
+
+VERIFIED BASELINE, 2026-08-01 at master (nothing in this batch landed yet) —
+this is the exact output, so any difference before you start means something
+moved and you should find out what:
+
+  [rc=0] === RP-013b: 2 BEFORE (2 cases) ===
+  [rc=0] === RP-013f: 3 BEFORE (3 cases) ===
+  [rc=0] === RP-013e: 3 BEFORE (3 cases) ===
+  [rc=0] === RP-013a: 2 BEFORE (2 cases) ===
+  [rc=0] === RP-013c/d: 4 BEFORE (4 cases) ===
+
+Expected at the START of this batch (nothing landed yet):
+  RP-013b 2 BEFORE · RP-013f 3 BEFORE · RP-013e 3 BEFORE
+  RP-013a 2 BEFORE · RP-013c/d 4 BEFORE
+Expected at the END (all five landed, RP-013c still held):
+  RP-013b 2 AFTER · RP-013f 3 AFTER · RP-013e 3 AFTER
+  RP-013a 2 AFTER · RP-013c/d 2 BEFORE · 2 AFTER
+
+---
+
 ## Stage E — execution template (one packet, one session)
 
 ```
