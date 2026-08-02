@@ -51,7 +51,8 @@ function makeCard({ activeMapId, activeMapRooms }) {
   return card;
 }
 
-test("[RMS-1] a missed-room id collides with an unrelated room on a DIFFERENT now-active map", async () => {
+test("[RMS-1] a missed-room id collides with an unrelated room on a DIFFERENT now-active map", 
+  { todo: "wave-7 CARD fix not yet executed - drop this flag as part of the fix" }, async () => {
   // The incomplete run happened on map "A"; room id 3 there was missed.
   // The user has since switched to map "B", which also happens to have a
   // room id 3 -- an entirely different physical room.

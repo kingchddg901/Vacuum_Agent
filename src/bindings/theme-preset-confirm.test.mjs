@@ -74,7 +74,8 @@ function makeBinder({ draftDirty, activeThemeId, clickedThemeId }) {
   return { binder, fire, setActiveThemeCalls };
 }
 
-test("[CARD9-1] a DIRTY draft discards silently when a different theme is picked", async () => {
+test("[CARD9-1] a DIRTY draft discards silently when a different theme is picked", 
+  { todo: "wave-7 CARD fix not yet executed - drop this flag as part of the fix" }, async () => {
   const { fire, setActiveThemeCalls } = makeBinder({
     draftDirty: true,
     activeThemeId: "midnight",
@@ -90,7 +91,8 @@ test("[CARD9-1] a DIRTY draft discards silently when a different theme is picked
   );
 });
 
-test("[CARD9-2] re-selecting the theme that is ALREADY active is not a no-op", async () => {
+test("[CARD9-2] re-selecting the theme that is ALREADY active is not a no-op", 
+  { todo: "wave-7 CARD fix not yet executed - drop this flag as part of the fix" }, async () => {
   const { fire, setActiveThemeCalls } = makeBinder({
     draftDirty: false,
     activeThemeId: "midnight",

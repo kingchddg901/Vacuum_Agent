@@ -16,7 +16,26 @@
 //
 // Run: node --test src/state/steps-order-leading-break.test.mjs
 //
-// FLIP CONVENTION (mirrors core-service-failure.test.mjs): LB-1 and LB-2
+// ⚠ CI CONVENTION — READ BEFORE COPYING THIS FILE'S SHAPE.
+// The Python reproducers live in .claude/notes/_proof_*.py: outside the test
+// suite, run by hand, and therefore FREE to sit red until their fix lands. A
+// frontend reproducer is NOT: anything matching *.test.mjs under src/ is run by
+// `npm run test:units` and gates CI on every push. Committing one red turns the
+// repo red for everyone until the fix ships, which is what happened here
+// (d0be882 -> three failed CI runs).
+//
+// So LB-1 and LB-2 are marked `todo`. Node reports a todo test's failure without
+// failing the run, which is exactly the semantic wanted: a known-failing
+// reproducer awaiting its fix. REMOVING THE `todo` FLAG IS PART OF THE CARD-6
+// CLAUSE (1) FIX — the flip is visible in that commit's diff, which is better
+// evidence than a proof file changing verdict.
+//
+// The other six fail-until-fixed tests in this repo (core-refusal-shape,
+// room-estimate-allocated, card4-untranslated-strings, ...) are green because
+// each was committed WITH its fix. That is the frontend convention; this file is
+// the exception that proves it needs stating.
+//
+// FLIP CONVENTION (mirrors src/actions/core-service-failure.test.mjs): LB-1 and LB-2
 // FAIL against current steps-order.js (a leading break inserts/saves with
 // no refusal or marking) and are expected to PASS once insertChargeStep/
 // insertWaitStep refuse a leading/trailing position and sanitizeStepsForSave
@@ -32,7 +51,8 @@ import { insertChargeStep, insertWaitStep, sanitizeStepsForSave } from "./steps-
 const rg = (...ids) => ({ type: "room_group", rooms: ids.map((room_id) => ({ room_id })) });
 const types = (arr) => arr.map((s) => s.type);
 
-test("[LB-1] inserting a charge_wait at the LEADING position (index 0) is refused", () => {
+test("[LB-1] inserting a charge_wait at the LEADING position (index 0) is refused",
+  { todo: "CARD-6 clause (1) not yet executed — drop this flag as part of the fix" }, () => {
   const before = [rg(1), rg(2)];
   const next = insertChargeStep(before, 0);
 
@@ -44,7 +64,8 @@ test("[LB-1] inserting a charge_wait at the LEADING position (index 0) is refuse
   );
 });
 
-test("[LB-2] a legacy profile whose FIRST step is already charge_wait is not marked in any way", () => {
+test("[LB-2] a legacy profile whose FIRST step is already charge_wait is not marked in any way",
+  { todo: "CARD-6 clause (1) not yet executed — drop this flag as part of the fix" }, () => {
   const legacySteps = [{ type: "charge_wait", target_battery_percent: 80 }, rg(1)];
   const saved = sanitizeStepsForSave(legacySteps);
 

@@ -61,7 +61,8 @@ function makeCtx(card, { entryExtra = {}, roomEstimateExtra = {} } = {}) {
   };
 }
 
-test("[RE-1] an allocated (multi-room-split) estimate renders a 'shared across N rooms' qualifier", () => {
+test("[RE-1] an allocated (multi-room-split) estimate renders a 'shared across N rooms' qualifier", 
+  { todo: "wave-7 CARD fix not yet executed - drop this flag as part of the fix" }, () => {
   const card = makeCard();
   const ctx = makeCtx(card, { entryExtra: { allocated: true, allocation_group_size: 3 } });
 

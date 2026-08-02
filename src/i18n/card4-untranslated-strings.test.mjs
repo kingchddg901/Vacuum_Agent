@@ -36,7 +36,8 @@ const TARGET_KEYS = [
   "learning.run_incomplete_toast",
 ];
 
-test("[CARD4-1] the three carried-CF-4 strings are translated in every shipped locale", () => {
+test("[CARD4-1] the three carried-CF-4 strings are translated in every shipped locale", 
+  { todo: "wave-7 CARD fix not yet executed - drop this flag as part of the fix" }, () => {
   const files = readdirSync(LOCALES_DIR).filter((f) => f.endsWith(".json") && f !== "index.json");
   assert.ok(files.length > 0, "no shipped locale files found -- check LOCALES_DIR");
 
