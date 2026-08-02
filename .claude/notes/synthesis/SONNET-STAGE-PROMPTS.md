@@ -8,7 +8,7 @@ calendar.
 Every prompt assumes: repo `C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager`,
 docker test image `eufy-vacuum-test`, nothing deployed unless the prompt says so.
 
-**Read `MATERIALIZATION-03-HANDOFF.md` first in every session.** The prompts
+**Read `.claude/notes/synthesis/MATERIALIZATION-03-HANDOFF.md` first in every session.** The prompts
 below deliberately repeat its §1 licence, because that is the one instruction
 that must not be skimmed.
 
@@ -88,8 +88,8 @@ WHAT TO BUILD.
    the commit sha -- rather than removing them. The ledger's value is the audit
    trail, and a disappeared finding is indistinguishable from one never found.
 3. THE SAFETY GATE, do not skip it: copy the CURRENT generated
-   docs/dev/maintenance/highly-aggressive-audit.md and OPEN-FIX-CHECKLIST.md
-   aside BEFORE touching the generators. After regenerating, diff against the
+   docs/dev/maintenance/highly-aggressive-audit.md and
+   .claude/notes/OPEN-FIX-CHECKLIST.md aside BEFORE touching the generators. After regenerating, diff against the
    copies and confirm the ONLY changes are applied-markings. Any other diff means
    you changed the generator's behaviour by accident -- stop and investigate.
    Report the before/after open counts.
@@ -100,7 +100,7 @@ live source silently emits the OLD corpus with VALIDATION PASS. Run
 `python .claude/notes/_freeze.py` on the HOST (it shells out to git; it fails
 inside the container).
 
-Gate: docker pytest tests --no-cov -p no:cacheprovider (expect 3094+).
+Gate: docker pytest tests --no-cov -p no:cacheprovider (baseline 2026-08-01: 3096 passed, 1 skipped — a LOWER count means you deleted a test).
 Commit as "audit: derive ledger closure state from landed packets".
 Do NOT hand-edit the generated ledger. Do NOT mark anything landed that you
 cannot point at a commit for.
@@ -116,7 +116,8 @@ Materialize five reproducers for the eufy_vacuum audit campaign.
 Repo: C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager (nothing deployed).
 
 FIRST: read .claude/notes/synthesis/MATERIALIZATION-03-HANDOFF.md in full, then
-MATERIALIZATION-02 (worked examples) and TRANCHE2-AUTHORING-INPUTS (7 lessons).
+.claude/notes/synthesis/MATERIALIZATION-02-reproducers.md (worked examples) and
+.claude/notes/synthesis/TRANCHE2-AUTHORING-INPUTS.md (7 execution lessons).
 Do NOT read the audit corpus -- the packets are the spec.
 
 YOUR PACKETS (in .claude/notes/synthesis/SYNTH-07-packets-wave3.md):
