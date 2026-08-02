@@ -299,7 +299,34 @@ recommendation below therefore stands and is STRONGER, not weaker: the argument
 was never "nobody looked", it is that **one targeted review driven by a single
 run cannot stand in for an audit**, and we now have four defects proving it.
 
-`sensor/` (1,595 lines) has no findings and no equivalent review doc.
+### SECOND CORRECTION (2026-08-01, same day) — I was counting ONE index
+
+The claim above rested on grouping `_open_findings.json` by directory. **There is
+a second index.** `_direct_reads.json` holds the 11 direct-read passes, and it is
+not merged into the first. Counting both:
+
+| subsystem | audit-run findings | direct-read findings |
+|---|---:|---:|
+| `battery/` | 0 | **2** (DR-BAT-2/3, LOW; plus DR-BAT-1/4 DOC-ONLY) |
+| `sensor/` | 0 | **14**, including **three HIGH** — SN-1 (a managed vacuum with no imported map gets ZERO per-vacuum sensors), SN-2 (the maintenance availability guard never fires), SN-3 (two of four sensor prefix sites are destructive) |
+
+So "nobody has looked" was wrong a second way, and `sensor/` is the opposite of
+unexamined — it is the most direct-read subsystem in the repo. Several of those
+findings are already flowing into packets (DR-SENS-1 is one of RP-014's;
+SN-2 and SN-8 are RP-040 members).
+
+**This is the exact error the coverage rule was written about, committed by the
+person writing the rule.** I computed coverage from a findings index — twice,
+after warning against it — instead of from scopes. The rule stands and the
+demonstration is now first-hand: *if you are counting findings, you are not
+measuring coverage, and you will not notice which index you failed to open.*
+
+**What survives all three corrections, and it is still the recommendation:**
+neither `battery/` nor `sensor/` has had a HOSTILE AUDIT. What they have had is
+one targeted review and a direct-read pass respectively — both real work, neither
+the adversarial fan-out the other twelve subsystems got. The four RF-36 defects
+are more severe than anything either pass found, which is the evidence that the
+lighter methods left depth on the table.
 
 **Checked 2026-08-01, and the record was wrong in BOTH directions.** `mapping/`
 is the subsystem the campaign listed as uncovered, and it is in fact the

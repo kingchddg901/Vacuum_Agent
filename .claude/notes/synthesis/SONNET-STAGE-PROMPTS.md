@@ -208,9 +208,11 @@ RP-026 ("mirror _commit_result's map_id equality check") DELEGATE.
 RP-035 is sensor/-only and RP-032 is services/-only: single-subsystem does NOT
 mean cheap here, it means one file with twenty findings in it.
 
-NOTE on RP-035: sensor/ (1,595 lines) has ZERO audit findings and no review doc
--- it is genuinely uncovered. Treat anything you notice there as a potential new
-finding and report it rather than assuming it is known.
+NOTE on RP-035: sensor/ has ZERO audit-run findings but FOURTEEN direct-read
+findings (in _direct_reads.json, a SEPARATE index) including three HIGH -- SN-1,
+SN-2, SN-3. It has never had a hostile audit. So: check BOTH indices before
+concluding something is unknown, and treat a genuinely new observation as a
+finding to report rather than assuming it is already tracked.
 ```
 
 ## Stage M5 — CARD reproducers (frontend gates differ)
@@ -229,6 +231,54 @@ no exceptions, and check:i18n will fail the build otherwise.
 
 EXTRA SCRUTINY -- CARD-6 DELEGATES ("matching the backend's explicit
 normalization note"). Read the backend note first.
+```
+
+---
+
+## Stage M6 — RP-040, the closing batches (75 members, 37 files)
+
+```
+Execute RP-040 for the eufy_vacuum audit campaign -- the closing batches.
+
+Repo: C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager (nothing deployed).
+
+WORK FROM THE GENERATED TABLE, NOT THE PACKET'S finding_ids:
+  .claude/notes/synthesis/RP-040-batch-table.md
+It carries the mechanism, file, line and impact for all 75 members, grouped by
+file -- which IS the commit grouping the packet's rollback_plan calls for. The
+packet's own finding_ids field is prose pointing at this table; it was generated
+2026-08-01 precisely so you never open the audit corpus. Read the packet in
+SYNTH-10 for required_behavior and stop_conditions, then work the table.
+
+Regenerate it if you suspect drift: python .claude/notes/_gen_batch_table.py
+
+NOT EVERY MEMBER GETS A PROOF. The table's gate column is authoritative:
+  BATCH:SMALL-CORRECTNESS (48) + -2 (11) -> behaviour-bearing; these are the
+    ones that belong in a table-driven _proof_closing_batch.py
+  BATCH:DOC-ONLY (8)   -> mkdocs --strict, NO proof case
+  BATCH:DEAD-CODE (8)  -> the evidence is the full suite still passing after
+    the deletion, NO proof case
+Adding a proof case for a doc correction is noise that makes the real cases
+harder to read.
+
+THE PACKET'S OWN STOP CONDITION, which matters more here than anywhere else:
+"any batch member's one-line fix turns out to need design -- eject it to a named
+follow-up, do NOT improvise." A6-PRE-1 was already ejected this way (to RP-041,
+per Q20) and is deliberately absent from the table. Expect one or two more; a
+batch of 75 one-liners that all stay one-liners would be surprising. Ejecting is
+success, not failure.
+
+Q10 is the one PRODUCT item in here and is spelled out verbatim in the packet:
+setup_reject_rooms requires map_id and routes through the same protection/
+confirmation standard as the other destructive setup actions, plus a
+setup_unreject_rooms service that reverses it, registered and unregistered
+symmetrically. Any user-facing string is i18n AT CREATION, all 18 locale packs.
+
+Q8 is a deletion: repairs.py and its references go.
+
+Gates: docker pytest tests --no-cov -p no:cacheprovider, mkdocs --strict for the
+doc members, frontend gates only if you touch src/.
+Commit BY FILE. Do NOT close ledger findings.
 ```
 
 ---
