@@ -590,3 +590,82 @@ def test_child_is_written_under_the_inputs_job_id(store, runner):
     assert runner._manager.seen["job_id"] == _CHILD2
     assert store.load_completed_job(vacuum_entity_id=_VAC, job_id=_CHILD0) is not None
     assert store.load_completed_job(vacuum_entity_id=_VAC, job_id="job_2026-08-02T18-00-00") is None
+
+
+def test_the_merged_run_record_of_a_phased_run_stops_teaching(store):
+    """Wave 2 split the children but left the run-level finalize writing its merged
+    record unchanged, so a phased run produced BOTH and every room counted twice. Live:
+    job_...20-20-35 rooms 5,8,9 at 510s alongside phase0 (120s) and phase2 (390s) —
+    120+390 == 510, on five consecutive runs, invisible because each record is
+    individually correct."""
+    from unittest.mock import MagicMock
+
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    lm = LearningManager.__new__(LearningManager)
+    lm.store = store
+    lm.rebuilder = MagicMock()
+    mgr = MagicMock()
+    mgr.get_active_job = lambda **kw: {
+        "phased_job_id": _PJ,
+        "phases": [{"_child_record_id": "job_x.phase0"}, {}, {"_child_record_id": "job_x.phase2"}],
+    }
+    record = {
+        "record_type": "completed_job", "job_id": "job_x",
+        "queue": {"queue_room_ids": [5, 8, 9]},
+        "job": {"cleaning_time_seconds": 510},
+        "outcome": {"status": "completed", "used_for_learning": True},
+    }
+    lm._mark_merged_record_superseded(
+        manager=mgr, vacuum_entity_id=_VAC, map_id=_MAP,
+        result={"completed_job": record},
+    )
+    assert record["outcome"]["used_for_learning"] is False
+    assert "superseded_by_phase_children" in record["outcome"]["learning_blockers"]
+    assert record["phased_job_id"] == _PJ
+    assert not store.is_learning_job(record), "the merged twin still teaches"
+    # It must still EXIST — history, exports and the card's job list all read jobs/.
+    assert store.load_completed_job(vacuum_entity_id=_VAC, job_id="job_x") is not None
+    lm.rebuilder.rebuild_all.assert_called_once()
+
+
+def test_an_atomic_run_is_untouched_by_the_supersede_marker(store):
+    """Presence is the signal: no phased_job_id, no stamp, no rebuild."""
+    from unittest.mock import MagicMock
+
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    lm = LearningManager.__new__(LearningManager)
+    lm.store = store
+    lm.rebuilder = MagicMock()
+    mgr = MagicMock()
+    mgr.get_active_job = lambda **kw: {"phases": None}
+    record = {"record_type": "completed_job", "job_id": "job_a",
+              "outcome": {"status": "completed", "used_for_learning": True}}
+    lm._mark_merged_record_superseded(
+        manager=mgr, vacuum_entity_id=_VAC, map_id=_MAP,
+        result={"completed_job": record},
+    )
+    assert record["outcome"]["used_for_learning"] is True
+    lm.rebuilder.rebuild_all.assert_not_called()
+
+
+def test_a_phased_run_whose_children_all_failed_keeps_its_merged_record(store):
+    """If no child was written, the merged record is the ONLY record of the run —
+    suppressing it would make the run teach nothing at all."""
+    from unittest.mock import MagicMock
+
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    lm = LearningManager.__new__(LearningManager)
+    lm.store = store
+    lm.rebuilder = MagicMock()
+    mgr = MagicMock()
+    mgr.get_active_job = lambda **kw: {"phased_job_id": _PJ, "phases": [{}, {}, {}]}
+    record = {"record_type": "completed_job", "job_id": "job_y",
+              "outcome": {"status": "completed", "used_for_learning": True}}
+    lm._mark_merged_record_superseded(
+        manager=mgr, vacuum_entity_id=_VAC, map_id=_MAP,
+        result={"completed_job": record},
+    )
+    assert record["outcome"]["used_for_learning"] is True

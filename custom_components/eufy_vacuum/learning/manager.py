@@ -675,6 +675,12 @@ class LearningManager:
             )
         result["accuracy"] = accuracy_result
 
+        # A phased run's merged run-level record duplicates its own children — stamp it
+        # and stop it teaching, BEFORE the parent close.
+        self._mark_merged_record_superseded(
+            manager=manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+            result=result,
+        )
         # Phased Jobs wave 1: the run is over, so close its parent. Presence is the
         # signal -- an atomic job carries no phased_job_id and this is a no-op.
         self._close_phased_job_parent(
@@ -686,6 +692,75 @@ class LearningManager:
         )
 
         return result
+
+    def _mark_merged_record_superseded(
+        self, *, manager, vacuum_entity_id: str, map_id: str, result: Any
+    ) -> None:
+        """A phased run's RUN-LEVEL record duplicates its own children — stop it teaching.
+
+        Wave 2 split the children but left the run-level finalize writing its merged
+        record exactly as before, so a phased run produced BOTH. Live archive:
+
+            job_...20-20-35.json          rooms 5,8,9  510s  learn=True   <- merged
+            job_...20-20-35.phase0.json   room  5      120s  learn=True
+            job_...20-20-35.phase2.json   rooms 8,9    390s  learn=True
+
+        120 + 390 == 510: every room counted TWICE, on five consecutive runs, and
+        invisible because each record is individually correct. Kitchen reached 23 samples
+        where 18 runs had happened.
+
+        The record is KEPT, not suppressed — history, exports and the card's job list all
+        read jobs/, and a phased run would otherwise vanish from them until the card
+        learns to read parents. It is stamped and excluded from learning instead: the
+        parent is the run-level truth now, and the children are the room-level truth.
+
+        Stamped rather than derived, deliberately. The alternative — having
+        is_learning_job stat the filesystem for a `.phase0` sibling — would fix history
+        for free but couples a pure dict predicate to disk on every job of every rebuild.
+        The trade is that the FIVE records already written stay wrong until excluded by
+        hand; they are named in the commit message.
+        """
+        try:
+            active_job = manager.get_active_job(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+            ) or {}
+            phased_job_id = str(active_job.get("phased_job_id") or "")
+            if not phased_job_id or not isinstance(result, dict):
+                return
+            record = result.get("completed_job")
+            if not isinstance(record, dict):
+                return
+            # Only when children actually exist — a phased run whose child finalizes all
+            # failed still needs its merged record to carry the run, or the run teaches
+            # nothing at all.
+            phases = active_job.get("phases") or []
+            if not any(
+                isinstance(p, dict) and p.get("_child_record_id") for p in phases
+            ):
+                return
+
+            record["phased_job_id"] = phased_job_id
+            outcome = record.get("outcome")
+            outcome = outcome if isinstance(outcome, dict) else {}
+            outcome["used_for_learning"] = False
+            blockers = outcome.get("learning_blockers")
+            blockers = blockers if isinstance(blockers, list) else []
+            outcome["learning_blockers"] = sorted(
+                set(str(b) for b in blockers if str(b).strip())
+                | {"superseded_by_phase_children"}
+            )
+            record["outcome"] = outcome
+            self.store.save_completed_job(
+                vacuum_entity_id=vacuum_entity_id,
+                job_id=str(record.get("job_id") or ""),
+                payload=record,
+            )
+            # The finalize that produced this record ALREADY rebuilt stats with it
+            # counted, so without a second pass the double-count survives until the next
+            # run. Only phased runs reach here, so the extra rebuild is rare.
+            self.rebuilder.rebuild_all(vacuum_entity_id=vacuum_entity_id)
+        except Exception:  # noqa: BLE001 - must never break finalization
+            _LOGGER.exception("could not mark the merged phased record superseded")
 
     def _close_phased_job_parent(
         self, *, manager, vacuum_entity_id: str, map_id: str,
@@ -923,6 +998,12 @@ class LearningManager:
         # reached only by tests — the same two-path hazard the accuracy gate above warns
         # about, and a hostile probe caught this landing in exactly it: the parent would
         # have stayed "running" on every real run.
+        await self.hass.async_add_executor_job(
+            lambda: self._mark_merged_record_superseded(
+                manager=manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+                result=result,
+            )
+        )
         await self.hass.async_add_executor_job(
             lambda: self._close_phased_job_parent(
                 manager=manager,
