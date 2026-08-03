@@ -356,6 +356,36 @@ async def test_switch_turn_off_cancels_a_service_armed_autostop(global_capture, 
 
 
 @pytest.mark.asyncio
+async def test_autostop_joins_entry_unload_ledger(global_capture, hass):
+    """[RP-039/RF-16] Direct template: MS-1's own shape (monkeypatch/arm a
+    long-running timer, assert it's ledgered, simulate teardown, assert the
+    ledger is empty and the cancel fired) applied to the auto-stop timer's
+    entry.async_on_unload join -- so a mid-capture entry reload/unload cancels
+    it instead of leaving it armed against a torn-down hass."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain="eufy_vacuum")
+    entry.add_to_hass(hass)
+
+    register_debug_services(hass, domain="eufy_vacuum")
+    await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_start", {"max_minutes": 30}, blocking=True,
+    )
+    assert global_capture._autostop_cancel is not None, "auto-stop was not armed"
+    assert entry._on_unload, "auto-stop cancel was not joined to the entry's ledger"
+
+    # Simulate HA's own ConfigEntry._async_process_on_unload: pop + call LIFO.
+    undo = entry._on_unload.pop()
+    result = undo()
+    if asyncio.iscoroutine(result):
+        await result
+
+    assert global_capture._autostop_cancel is None, (
+        "the entry-unload ledger did not cancel the auto-stop timer"
+    )
+
+
+@pytest.mark.asyncio
 async def test_concurrent_unrelated_log_not_captured(global_capture):
     """Headline fix: a concurrent unrelated log (its own context) during a traced op is
     NOT captured — only the operation's own async-context tree is."""
