@@ -1252,18 +1252,30 @@ class LearningStatsRebuilder:
         all_jobs = self.store.load_all_completed_jobs(vacuum_entity_id=vacuum_entity_id)
         learning_jobs = [job for job in all_jobs if self.store.is_learning_job(job)]
 
-        # ONE GATE, TWO CONSUMERS — and they need different answers now that a phased run
-        # writes one child per phase. Room-level learning WANTS the children: attributing
-        # each room to its own phase instead of to a merged whole-run record is the fix
-        # this rebuild exists for. Job-level learning must NOT see them, or a three-phase
-        # run lands as THREE jobs in the averages and the shape key, which is both wrong
-        # and exactly what Chris ruled out — a phased run "populates in the Phased job
-        # list but [is] not learned unless directly called". The parent is the job-level
-        # unit for a phased run; the children are room-level sources.
-        job_level_jobs = [j for j in learning_jobs if not j.get("phase_key")]
+        # CHILDREN STAY IN THE GENERAL POOL — room-level AND job-level (Chris, 2026-08-02:
+        # "the children stay in the general pool. the parents are a new pool for phased
+        # jobs", and earlier "the parent stays out, the children are used for adhoc").
+        #
+        # b49818d filtered children out of job-level stats on the reasoning that a
+        # three-phase run would land as THREE jobs. That reasoning was the mistake: each
+        # child IS a real job — a real dispatch of a real room group with a real measured
+        # duration. A phase that cleans [entryway, office] costs what an AD-HOC run of
+        # those two rooms costs, which is exactly the data an ad-hoc run wants to learn
+        # from. Excluding them threw away the best source of it.
+        #
+        # Invariant 8 (a flat 3-room run must not pool with
+        # [kitchen] -> wait -> [entryway+office]) is satisfied STRUCTURALLY by the split,
+        # with no shape-key change at all: the phased run no longer produces a 3-room
+        # record to collide with. It produces a 1-room record and a 2-room record, each
+        # pooling with its own true shape. The collision was an artifact of the merged
+        # record, and the merged record is gone.
+        #
+        # The PARENT is what stays out of this pool — it belongs to the separate phased-job
+        # pool, and it is not in `all_jobs` at all (different directory, different
+        # record_type), so no filter is needed to keep it out.
         job_stats_payload = self.build_job_stats_payload(
             vacuum_entity_id=vacuum_entity_id,
-            jobs=job_level_jobs,
+            jobs=learning_jobs,
         )
         room_stats_payload = self.build_room_stats_payload(
             vacuum_entity_id=vacuum_entity_id,
