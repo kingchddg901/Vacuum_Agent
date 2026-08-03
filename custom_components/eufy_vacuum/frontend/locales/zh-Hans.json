@@ -1344,6 +1344,7 @@
     "upload_title": "上传主题 .json 文件"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "使用未保存的更改覆盖 {target}？{target} 的其他设置将保持不变。",
     "copied": "已复制！",
     "copy": "复制",
     "delete_theme_confirm": "删除主题 “{themeId}”？",
@@ -1352,6 +1353,9 @@
     "failed_export_theme": "导出主题失败：{error}",
     "failed_import_file": "导入 “{fileName}” 失败：{error}",
     "import_failed": "导入失败：{reason}。",
+    "import_rejected_keys": {
+      "other": "已导入，但有 {count} 项设置未被识别并已跳过：{keys}"
+    },
     "invalid_json": "这不是有效的 JSON——请检查粘贴的文本。",
     "no_active_theme_download": "没有可下载的当前主题。",
     "no_active_theme_export": "没有可导出的当前主题。",
@@ -1372,9 +1376,6 @@
     "sent_to_ha": "已发送到 HA ✓",
     "skipped_suffix": " 已跳过：{unknown}。",
     "theme_imported_from": "已从 {fileName} 导入主题。",
-    "unable_to_apply_everyone": "无法为所有人应用。",
-    "unable_to_select_theme": "无法选择主题。",
-    "unable_to_update_tags": "无法更新标签。",
     "unsupported_suffix": " （不支持：{unknown}）。",
     "values_clamped_suffix": " {corrected} 个值已被限制到范围内。"
   },
@@ -2330,6 +2331,17 @@
     "all_selected_rooms_blocked": "所有选定的房间当前均被阻止。",
     "vacuum_missing": "扫地机器人实体不可用。",
     "map_mismatch": "此次清扫记录在另一张地图上。请切换到该地图后重试。",
+    "theme_not_found": "找不到该主题——它可能已被删除。",
+    "empty_draft": "没有可保存的未保存更改。",
+    "invalid_payload": "该导入文件的格式无法被此卡片识别。",
+    "missing_theme": "该导入文件不包含主题数据。",
+    "missing_name": "导入的主题需要一个名称。",
+    "invalid_tokens": "导入主题的令牌（token）值格式不正确。",
+    "invalid_colors": "导入主题的颜色值格式不正确。",
+    "invalid_alpha": "导入主题的透明度（alpha）值格式不正确。",
+    "missing_vacuum": "此卡片未选择任何扫地机器人。",
+    "empty_scope": "未选择要替换的地板类型。",
+    "no_active_theme": "此扫地机器人没有可更新的当前主题。",
     "unknown": "此操作被拒绝（{reason}）。"
   },
   "card_editor": {

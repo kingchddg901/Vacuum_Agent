@@ -1347,6 +1347,7 @@
     "upload_title": "העלה קובץ .json של ערכת נושא"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "לדרוס את {target} בשינויים הלא שמורים שלך? שאר ההגדרות של {target} יישארו כפי שהן.",
     "copied": "הועתק!",
     "copy": "העתק",
     "delete_theme_confirm": "למחוק את ערכת הנושא \"{themeId}\"?",
@@ -1355,6 +1356,12 @@
     "failed_export_theme": "ייצוא ערכת הנושא נכשל: {error}",
     "failed_import_file": "ייבוא \"{fileName}\" נכשל: {error}",
     "import_failed": "הייבוא נכשל: {reason}.",
+    "import_rejected_keys": {
+      "one": "יובא, אך הגדרה אחת לא זוהתה ודולגה: {keys}",
+      "two": "יובא, אך שתי הגדרות לא זוהו ודולגו: {keys}",
+      "many": "יובא, אך {count} הגדרות לא זוהו ודולגו: {keys}",
+      "other": "יובא, אך {count} הגדרות לא זוהו ודולגו: {keys}"
+    },
     "invalid_json": "זה אינו JSON תקין — בדוק את הטקסט שהודבק.",
     "no_active_theme_download": "אין ערכת נושא פעילה להורדה.",
     "no_active_theme_export": "אין ערכת נושא פעילה לייצוא.",
@@ -1375,9 +1382,6 @@
     "sent_to_ha": "נשלח ל-HA ✓",
     "skipped_suffix": " דולגו: {unknown}.",
     "theme_imported_from": "ערכת הנושא יובאה מ-{fileName}.",
-    "unable_to_apply_everyone": "לא ניתן להחיל עבור כולם.",
-    "unable_to_select_theme": "לא ניתן לבחור ערכת נושא.",
-    "unable_to_update_tags": "לא ניתן לעדכן תגיות.",
     "unsupported_suffix": " (לא נתמך: {unknown}).",
     "values_clamped_suffix": " {corrected} ערכים הוגבלו לטווח."
   },
@@ -2447,6 +2451,17 @@
     "all_selected_rooms_blocked": "כל החדרים שנבחרו חסומים כרגע.",
     "vacuum_missing": "ישות השואב אינה זמינה.",
     "map_mismatch": "ניקוי זה נרשם במפה אחרת. עברו לאותה מפה ונסו שוב.",
+    "theme_not_found": "לא ניתן למצוא את ערכת העיצוב הזו — ייתכן שנמחקה.",
+    "empty_draft": "אין שינויים לא שמורים לשמירה.",
+    "invalid_payload": "קובץ הייבוא הזה אינו בפורמט שכרטיס זה מבין.",
+    "missing_theme": "קובץ הייבוא הזה אינו מכיל נתוני ערכת עיצוב.",
+    "missing_name": "ערכת העיצוב המיובאת זקוקה לשם.",
+    "invalid_tokens": "ערכי הטוקן של ערכת העיצוב המיובאת אינם מפורמטים כראוי.",
+    "invalid_colors": "ערכי הצבע של ערכת העיצוב המיובאת אינם מפורמטים כראוי.",
+    "invalid_alpha": "ערכי האלפא של ערכת העיצוב המיובאת אינם מפורמטים כראוי.",
+    "missing_vacuum": "לא נבחר שואב אבק עבור כרטיס זה.",
+    "empty_scope": "לא נבחר סוג רצפה להחלפה.",
+    "no_active_theme": "לשואב אבק זה אין ערכת עיצוב פעילה לעדכון.",
     "unknown": "הפעולה נדחתה ({reason})."
   },
   "card_editor": {

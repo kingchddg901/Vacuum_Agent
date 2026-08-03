@@ -66,6 +66,20 @@ export const en = {
   "service_reasons.all_selected_rooms_blocked": "All selected rooms are currently blocked.",
   "service_reasons.vacuum_missing": "The vacuum entity is unavailable.",
   "service_reasons.map_mismatch": "This run was recorded on a different map. Switch to that map, then retry.",
+  // --- theme service reason codes (CARD-9(2)/(3), RP-034's manager.py) — every {ok:false, reason}
+  // code the theme library/draft/import services can return, resolved through the SAME
+  // showServiceRefusalToast() path above (now centralized in _callThemeService, actions/theme.js). ---
+  "service_reasons.theme_not_found": "That theme could not be found — it may have been deleted.",
+  "service_reasons.empty_draft": "There are no unsaved changes to save.",
+  "service_reasons.invalid_payload": "That import file isn't in a format this card understands.",
+  "service_reasons.missing_theme": "That import file doesn't contain theme data.",
+  "service_reasons.missing_name": "The imported theme needs a name.",
+  "service_reasons.invalid_tokens": "The imported theme's token values aren't formatted correctly.",
+  "service_reasons.invalid_colors": "The imported theme's color values aren't formatted correctly.",
+  "service_reasons.invalid_alpha": "The imported theme's alpha values aren't formatted correctly.",
+  "service_reasons.missing_vacuum": "No vacuum is selected for this card.",
+  "service_reasons.empty_scope": "No floor types were selected to replace.",
+  "service_reasons.no_active_theme": "This vacuum has no active theme to update.",
   "service_reasons.unknown": "This action was refused ({reason}).",  // {reason} is the RAW backend code — do NOT translate it (there is no sentence to translate; it's a forward-compat identifier, same convention as common.service_failed's {service}).
 
   // --- card_editor (Lovelace visual config editor: vacuum entity + per-card language override) ---
@@ -235,6 +249,7 @@ export const en = {
   "bind_setup.map_delete_failed": "Map delete failed",
   "bind_setup.map_deleted": "Map deleted",
   "bind_setup.panel_renamed": "Panel renamed — refresh to update the sidebar",
+  "bind_theme.confirm_overwrite_theme": "Overwrite {target} with your unsaved changes? {target}'s other settings will stay as they are.",  // CARD-9(2)/Q7 (RP-034): overwrite merges the draft onto the TARGET's own stored palette — the target is state.activeThemeId itself, so this direction is correct even though target===active in the only call site (bindings/theme.js's save-theme handler).
   "bind_theme.copied": "Copied!",
   "bind_theme.copy": "Copy",
   "bind_theme.delete_theme_confirm": "Delete theme \"{themeId}\"?",
@@ -243,6 +258,7 @@ export const en = {
   "bind_theme.failed_export_theme": "Failed to export theme: {error}",
   "bind_theme.failed_import_file": "Failed to import \"{fileName}\": {error}",
   "bind_theme.import_failed": "Import failed: {reason}.",
+  "bind_theme.import_rejected_keys": { one: "Imported, but {count} setting wasn't recognised and was skipped: {keys}", other: "Imported, but {count} settings weren't recognised and were skipped: {keys}" },  // plural; {keys}=joined, escaped list of rejected non-"--evcc-"-prefixed key names dropped from a partial import (both the paste-JSON and Upload full-import paths, RP-034's import_theme "rejected" field)
   "bind_theme.invalid_json": "That isn't valid JSON — check the pasted text.",
   "bind_theme.no_active_theme_download": "No active theme to download.",
   "bind_theme.no_active_theme_export": "No active theme to export.",
@@ -263,9 +279,6 @@ export const en = {
   "bind_theme.sent_to_ha": "Sent to HA ✓",  // 'HA' = Home Assistant; keep verbatim. ✓ = success checkmark, keep
   "bind_theme.skipped_suffix": " Skipped: {unknown}.",  // appended fragment; {unknown}=skipped floor-material scope names; leading space intentional
   "bind_theme.theme_imported_from": "Theme imported from {fileName}.",
-  "bind_theme.unable_to_apply_everyone": "Unable to apply for everyone.",
-  "bind_theme.unable_to_select_theme": "Unable to select theme.",
-  "bind_theme.unable_to_update_tags": "Unable to update tags.",
   "bind_theme.unsupported_suffix": " (unsupported: {unknown}).",  // appended fragment; {unknown}=unsupported floor-material scope names; leading space intentional
   "bind_theme.values_clamped_suffix": " {corrected} value(s) clamped to range.",  // appended fragment; {corrected}=count of out-of-range theme values forced into range; leading space intentional
 

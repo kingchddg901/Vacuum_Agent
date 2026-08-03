@@ -1344,6 +1344,7 @@
     "upload_title": "테마 .json 파일 업로드"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "저장하지 않은 변경 사항으로 {target}을(를) 덮어쓰시겠습니까? {target}의 다른 설정은 그대로 유지됩니다.",
     "copied": "복사됨!",
     "copy": "복사",
     "delete_theme_confirm": "\"{themeId}\" 테마를 삭제하시겠습니까?",
@@ -1352,6 +1353,9 @@
     "failed_export_theme": "테마 내보내기 실패: {error}",
     "failed_import_file": "\"{fileName}\" 가져오기 실패: {error}",
     "import_failed": "가져오기 실패: {reason}.",
+    "import_rejected_keys": {
+      "other": "가져왔지만 인식되지 않아 건너뛴 설정이 {count}개 있습니다: {keys}"
+    },
     "invalid_json": "유효한 JSON이 아닙니다 — 붙여넣은 텍스트를 확인하세요.",
     "no_active_theme_download": "다운로드할 활성 테마가 없습니다.",
     "no_active_theme_export": "내보낼 활성 테마가 없습니다.",
@@ -1372,9 +1376,6 @@
     "sent_to_ha": "HA로 보냄 ✓",
     "skipped_suffix": " 건너뜀: {unknown}.",
     "theme_imported_from": "{fileName}에서 테마를 가져왔습니다.",
-    "unable_to_apply_everyone": "모두에게 적용할 수 없습니다.",
-    "unable_to_select_theme": "테마를 선택할 수 없습니다.",
-    "unable_to_update_tags": "태그를 업데이트할 수 없습니다.",
     "unsupported_suffix": " (지원되지 않음: {unknown}).",
     "values_clamped_suffix": " {corrected}개 값이 범위로 제한되었습니다."
   },
@@ -2330,6 +2331,17 @@
     "all_selected_rooms_blocked": "선택한 모든 방이 현재 차단되어 있습니다.",
     "vacuum_missing": "로봇청소기 엔티티를 사용할 수 없습니다.",
     "map_mismatch": "이 청소는 다른 지도에서 기록되었습니다. 해당 지도로 전환한 후 다시 시도하세요.",
+    "theme_not_found": "해당 테마를 찾을 수 없습니다. 삭제되었을 수 있습니다.",
+    "empty_draft": "저장할 저장되지 않은 변경 사항이 없습니다.",
+    "invalid_payload": "가져오기 파일이 이 카드가 이해할 수 있는 형식이 아닙니다.",
+    "missing_theme": "가져오기 파일에 테마 데이터가 없습니다.",
+    "missing_name": "가져온 테마에는 이름이 필요합니다.",
+    "invalid_tokens": "가져온 테마의 토큰 값 형식이 올바르지 않습니다.",
+    "invalid_colors": "가져온 테마의 색상 값 형식이 올바르지 않습니다.",
+    "invalid_alpha": "가져온 테마의 알파 값 형식이 올바르지 않습니다.",
+    "missing_vacuum": "이 카드에 선택된 진공청소기가 없습니다.",
+    "empty_scope": "교체할 바닥 유형이 선택되지 않았습니다.",
+    "no_active_theme": "이 진공청소기에는 업데이트할 활성 테마가 없습니다.",
     "unknown": "이 작업이 거부되었습니다 ({reason})."
   },
   "card_editor": {

@@ -2051,6 +2051,7 @@
     "water_title": "Woda"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "Nadpisać {target} niezapisanymi zmianami? Pozostałe ustawienia {target} pozostaną bez zmian.",
     "copied": "Skopiowano!",
     "copy": "Kopiuj",
     "delete_theme_confirm": "Usunąć motyw \"{themeId}\"?",
@@ -2059,6 +2060,10 @@
     "failed_export_theme": "Nie udało się wyeksportować motywu: {error}",
     "failed_import_file": "Nie udało się zaimportować \"{fileName}\": {error}",
     "import_failed": "Import nie powiódł się: {reason}.",
+    "import_rejected_keys": {
+      "one": "Zaimportowano, ale {count} ustawienie nie zostało rozpoznane i zostało pominięte: {keys}",
+      "other": "Zaimportowano, ale {count} ustawień nie zostało rozpoznanych i zostało pominiętych: {keys}"
+    },
     "invalid_json": "To nie jest prawidłowy JSON — sprawdź wklejony tekst.",
     "no_active_theme_download": "Brak aktywnego motywu do pobrania.",
     "no_active_theme_export": "Brak aktywnego motywu do wyeksportowania.",
@@ -2079,9 +2084,6 @@
     "sent_to_ha": "Wysłano do HA ✓",
     "skipped_suffix": " Pominięto: {unknown}.",
     "theme_imported_from": "Zaimportowano motyw z {fileName}.",
-    "unable_to_apply_everyone": "Nie można zastosować dla wszystkich.",
-    "unable_to_select_theme": "Nie można wybrać motywu.",
-    "unable_to_update_tags": "Nie można zaktualizować tagów.",
     "unsupported_suffix": " (nieobsługiwane: {unknown}).",
     "values_clamped_suffix": " {corrected} wartości ograniczono do zakresu."
   },
@@ -2358,6 +2360,17 @@
     "all_selected_rooms_blocked": "Wszystkie wybrane pomieszczenia są obecnie zablokowane.",
     "vacuum_missing": "Encja odkurzacza jest niedostępna.",
     "map_mismatch": "To sprzątanie zostało zarejestrowane na innej mapie. Przełącz się na tę mapę, a następnie spróbuj ponownie.",
+    "theme_not_found": "Nie można znaleźć tego motywu — mógł zostać usunięty.",
+    "empty_draft": "Nie ma żadnych niezapisanych zmian do zapisania.",
+    "invalid_payload": "Ten plik importu nie ma formatu rozpoznawanego przez tę kartę.",
+    "missing_theme": "Ten plik importu nie zawiera danych motywu.",
+    "missing_name": "Importowany motyw wymaga nazwy.",
+    "invalid_tokens": "Wartości tokenów importowanego motywu mają nieprawidłowy format.",
+    "invalid_colors": "Wartości kolorów importowanego motywu mają nieprawidłowy format.",
+    "invalid_alpha": "Wartości alfa importowanego motywu mają nieprawidłowy format.",
+    "missing_vacuum": "Dla tej karty nie wybrano odkurzacza.",
+    "empty_scope": "Nie wybrano żadnego typu podłogi do zastąpienia.",
+    "no_active_theme": "Ten odkurzacz nie ma aktywnego motywu do aktualizacji.",
     "unknown": "Ta czynność została odrzucona ({reason})."
   },
   "bind_room_editor": {

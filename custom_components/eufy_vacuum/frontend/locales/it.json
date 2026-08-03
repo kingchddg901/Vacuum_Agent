@@ -24,6 +24,17 @@
     "all_selected_rooms_blocked": "Tutte le stanze selezionate sono attualmente bloccate.",
     "vacuum_missing": "L'entità dell'aspirapolvere non è disponibile.",
     "map_mismatch": "Questo ciclo è stato registrato su una mappa diversa. Passa a quella mappa, poi riprova.",
+    "theme_not_found": "Impossibile trovare quel tema — potrebbe essere stato eliminato.",
+    "empty_draft": "Non ci sono modifiche non salvate da salvare.",
+    "invalid_payload": "Quel file di importazione non è in un formato riconosciuto da questa scheda.",
+    "missing_theme": "Quel file di importazione non contiene dati del tema.",
+    "missing_name": "Il tema importato richiede un nome.",
+    "invalid_tokens": "I valori dei token del tema importato non sono formattati correttamente.",
+    "invalid_colors": "I valori dei colori del tema importato non sono formattati correttamente.",
+    "invalid_alpha": "I valori alpha del tema importato non sono formattati correttamente.",
+    "missing_vacuum": "Nessun aspirapolvere è selezionato per questa scheda.",
+    "empty_scope": "Non è stato selezionato alcun tipo di pavimento da sostituire.",
+    "no_active_theme": "Questo aspirapolvere non ha un tema attivo da aggiornare.",
     "unknown": "Questa azione è stata rifiutata ({reason})."
   },
   "base_station": {
@@ -169,6 +180,7 @@
     "panel_renamed": "Pannello rinominato — aggiorna per aggiornare la barra laterale"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "Sovrascrivere {target} con le modifiche non salvate? Le altre impostazioni di {target} rimarranno invariate.",
     "copied": "Copiato!",
     "copy": "Copia",
     "delete_theme_confirm": "Eliminare il tema \"{themeId}\"?",
@@ -177,6 +189,10 @@
     "failed_export_theme": "Esportazione del tema non riuscita: {error}",
     "failed_import_file": "Importazione di \"{fileName}\" non riuscita: {error}",
     "import_failed": "Importazione non riuscita: {reason}.",
+    "import_rejected_keys": {
+      "one": "Importato, ma {count} impostazione non è stata riconosciuta ed è stata ignorata: {keys}",
+      "other": "Importato, ma {count} impostazioni non sono state riconosciute e sono state ignorate: {keys}"
+    },
     "invalid_json": "Questo non è JSON valido — controlla il testo incollato.",
     "no_active_theme_download": "Nessun tema attivo da scaricare.",
     "no_active_theme_export": "Nessun tema attivo da esportare.",
@@ -197,9 +213,6 @@
     "sent_to_ha": "Inviato a HA ✓",
     "skipped_suffix": " Saltati: {unknown}.",
     "theme_imported_from": "Tema importato da {fileName}.",
-    "unable_to_apply_everyone": "Impossibile applicare per tutti.",
-    "unable_to_select_theme": "Impossibile selezionare il tema.",
-    "unable_to_update_tags": "Impossibile aggiornare i tag.",
     "unsupported_suffix": " (non supportati: {unknown}).",
     "values_clamped_suffix": " {corrected} valore/i limitato/i all'intervallo."
   },

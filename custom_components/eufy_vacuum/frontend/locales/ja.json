@@ -1344,6 +1344,7 @@
     "upload_title": "テーマの .json ファイルをアップロードします"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "未保存の変更で{target}を上書きしますか？ {target}のその他の設定はそのまま残ります。",
     "copied": "コピーしました！",
     "copy": "コピー",
     "delete_theme_confirm": "テーマ「{themeId}」を削除しますか？",
@@ -1352,6 +1353,9 @@
     "failed_export_theme": "テーマのエクスポートに失敗しました: {error}",
     "failed_import_file": "「{fileName}」のインポートに失敗しました: {error}",
     "import_failed": "インポートに失敗しました: {reason}。",
+    "import_rejected_keys": {
+      "other": "インポートしましたが、認識されずスキップされた設定が{count}件あります: {keys}"
+    },
     "invalid_json": "有効な JSON ではありません — 貼り付けたテキストを確認してください。",
     "no_active_theme_download": "ダウンロードするアクティブなテーマがありません。",
     "no_active_theme_export": "エクスポートするアクティブなテーマがありません。",
@@ -1372,9 +1376,6 @@
     "sent_to_ha": "HA に送信しました ✓",
     "skipped_suffix": " スキップ: {unknown}。",
     "theme_imported_from": "{fileName} からテーマをインポートしました。",
-    "unable_to_apply_everyone": "全員に適用できませんでした。",
-    "unable_to_select_theme": "テーマを選択できませんでした。",
-    "unable_to_update_tags": "タグを更新できませんでした。",
     "unsupported_suffix": " （サポート対象外: {unknown}）。",
     "values_clamped_suffix": " {corrected} 個の値が範囲内に制限されました。"
   },
@@ -2330,6 +2331,17 @@
     "all_selected_rooms_blocked": "選択したすべての部屋が現在ブロックされています。",
     "vacuum_missing": "ロボット掃除機のエンティティが利用できません。",
     "map_mismatch": "この清掃は別のマップで記録されました。そのマップに切り替えてから再試行してください。",
+    "theme_not_found": "そのテーマが見つかりませんでした。削除された可能性があります。",
+    "empty_draft": "保存する未保存の変更はありません。",
+    "invalid_payload": "そのインポートファイルは、このカードが理解できる形式ではありません。",
+    "missing_theme": "そのインポートファイルにはテーマデータが含まれていません。",
+    "missing_name": "インポートするテーマには名前が必要です。",
+    "invalid_tokens": "インポートするテーマのトークンの値の形式が正しくありません。",
+    "invalid_colors": "インポートするテーマの色の値の形式が正しくありません。",
+    "invalid_alpha": "インポートするテーマのアルファ値の形式が正しくありません。",
+    "missing_vacuum": "このカードに選択されたロボット掃除機がありません。",
+    "empty_scope": "置き換える床タイプが選択されていません。",
+    "no_active_theme": "このロボット掃除機には更新するアクティブなテーマがありません。",
     "unknown": "この操作は拒否されました（{reason}）。"
   },
   "card_editor": {

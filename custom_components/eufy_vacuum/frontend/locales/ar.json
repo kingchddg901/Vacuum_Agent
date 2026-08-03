@@ -1349,6 +1349,7 @@
     "upload_title": "رفع ملف سمة بصيغة .json"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "استبدال {target} بتغييراتك غير المحفوظة؟ ستبقى بقية إعدادات {target} كما هي.",
     "copied": "تم النسخ!",
     "copy": "نسخ",
     "delete_theme_confirm": "حذف السمة \"{themeId}\"؟",
@@ -1357,6 +1358,14 @@
     "failed_export_theme": "فشل تصدير السمة: {error}",
     "failed_import_file": "فشل استيراد \"{fileName}\": {error}",
     "import_failed": "فشل الاستيراد: {reason}.",
+    "import_rejected_keys": {
+      "zero": "تم الاستيراد، لكن {count} إعداد لم يُتعرَّف عليه وتم تخطيه: {keys}",
+      "one": "تم الاستيراد، لكن إعدادًا واحدًا لم يُتعرَّف عليه وتم تخطيه: {keys}",
+      "two": "تم الاستيراد، لكن إعدادين لم يُتعرَّف عليهما وتم تخطيهما: {keys}",
+      "few": "تم الاستيراد، لكن {count} إعدادات لم يُتعرَّف عليها وتم تخطيها: {keys}",
+      "many": "تم الاستيراد، لكن {count} إعدادًا لم يُتعرَّف عليه وتم تخطيه: {keys}",
+      "other": "تم الاستيراد، لكن {count} إعداد لم يُتعرَّف عليه وتم تخطيه: {keys}"
+    },
     "invalid_json": "هذا ليس JSON صالحًا — تحقّق من النص الملصوق.",
     "no_active_theme_download": "لا توجد سمة نشطة لتنزيلها.",
     "no_active_theme_export": "لا توجد سمة نشطة لتصديرها.",
@@ -1377,9 +1386,6 @@
     "sent_to_ha": "تم الإرسال إلى HA ✓",
     "skipped_suffix": " تم التخطّي: {unknown}.",
     "theme_imported_from": "تم استيراد السمة من {fileName}.",
-    "unable_to_apply_everyone": "تعذّر التطبيق للجميع.",
-    "unable_to_select_theme": "تعذّر تحديد السمة.",
-    "unable_to_update_tags": "تعذّر تحديث الوسوم.",
     "unsupported_suffix": " (غير مدعوم: {unknown}).",
     "values_clamped_suffix": " تم تقييد {corrected} من القيم ضمن النطاق."
   },
@@ -2525,6 +2531,17 @@
     "all_selected_rooms_blocked": "جميع الغرف المحددة محظورة حاليًا.",
     "vacuum_missing": "كيان المكنسة غير متاح.",
     "map_mismatch": "تم تسجيل هذا التنظيف على خريطة مختلفة. بدّل إلى تلك الخريطة، ثم أعد المحاولة.",
+    "theme_not_found": "تعذّر العثور على هذا الثيم — ربما تم حذفه.",
+    "empty_draft": "لا توجد تغييرات غير محفوظة لحفظها.",
+    "invalid_payload": "ملف الاستيراد هذا ليس بتنسيق تفهمه هذه البطاقة.",
+    "missing_theme": "ملف الاستيراد هذا لا يحتوي على بيانات ثيم.",
+    "missing_name": "الثيم المستورد يحتاج إلى اسم.",
+    "invalid_tokens": "قيم الرموز (tokens) في الثيم المستورد غير منسّقة بشكل صحيح.",
+    "invalid_colors": "قيم الألوان في الثيم المستورد غير منسّقة بشكل صحيح.",
+    "invalid_alpha": "قيم الشفافية (alpha) في الثيم المستورد غير منسّقة بشكل صحيح.",
+    "missing_vacuum": "لا يوجد مكنسة محددة لهذه البطاقة.",
+    "empty_scope": "لم يتم تحديد أي نوع أرضية لاستبداله.",
+    "no_active_theme": "لا يوجد لدى هذه المكنسة ثيم نشط لتحديثه.",
     "unknown": "تم رفض هذا الإجراء ({reason})."
   },
   "card_editor": {

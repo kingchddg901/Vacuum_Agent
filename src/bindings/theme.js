@@ -155,6 +155,55 @@ export function applyThemeBindings(proto) {
     return true;
   };
 
+  /**
+   * Surface a FULL (unscoped) import's dropped, non-namespaced keys — the
+   * "rejected" field import_theme returns on an otherwise-successful import
+   * (RP-034: every tokens/colors/alpha key that didn't start with --evcc- was
+   * silently filtered out and never made it into the new library theme). A
+   * toast naming the count and the skipped key names, shared by BOTH import
+   * entry points (paste-JSON modal + file Upload) so a partial import never
+   * surfaces differently depending on which one the user used. No-ops when
+   * there's nothing rejected.
+   */
+  proto._surfaceRejectedImportKeys = function (result) {
+    const rejected = Array.isArray(result?.rejected) ? result.rejected : [];
+    if (!rejected.length) return;
+    this.card.showToast(
+      this.t("bind_theme.import_rejected_keys", {
+        count: rejected.length,
+        keys: this.esc(rejected.join(", ")),
+      }),
+      { kind: "info" }
+    );
+  };
+
+  /**
+   * Shared outcome handler for a FULL (unscoped) importTheme() result — the
+   * "adds a new library theme" path, as opposed to the scoped floor-type
+   * import (_applyScopedThemeImport above). Both import entry points
+   * (paste-JSON modal + file Upload) funnel their result through here so
+   * they behave identically: a refusal (ok:false) skips the refresh/success
+   * toast entirely (the caller's `onRefusal` handles any entry-point-specific
+   * feedback — the refusal TOAST itself is already shown centrally by
+   * _callThemeService, actions/theme.js); a success refreshes the library and
+   * always surfaces any partially-rejected keys, with an optional success
+   * toast for entry points that want one (the paste modal doesn't; Upload
+   * does).
+   * @returns {Promise<boolean>} true if the import succeeded (ok !== false).
+   */
+  proto._handleFullImportResult = async function (result, { onRefusal, successToastKey, successVars } = {}) {
+    if (result?.ok === false) {
+      onRefusal?.(result);
+      return false;
+    }
+    await this._refreshThemeFromBackend();
+    if (successToastKey) {
+      this.card.showToast(this.t(successToastKey, successVars), { kind: "success" });
+    }
+    this._surfaceRejectedImportKeys(result);
+    return true;
+  };
+
   proto._bindThemeEditor = function () {
     this._bindThemeTabs();
     this._bindThemePresets();
@@ -224,7 +273,7 @@ export function applyThemeBindings(proto) {
       );
 
       if (result?.ok === false) {
-        this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_theme.unable_to_select_theme")), { kind: "error" });
+        // Refusal toast already shown centrally by _callThemeService (actions/theme.js).
         return;
       }
 
@@ -263,10 +312,10 @@ export function applyThemeBindings(proto) {
       const themeId = this.card._state.getDeviceThemeId() || this.card._state.effectiveActiveThemeId();
       if (!themeId) return;
       const result = await this.card._actions.setActiveTheme(this.card._config.vacuum_entity_id, themeId);
-      // null = failure (callService never returns {ok:false}). Bail BEFORE we
-      // clear the device pin, so a failed promote doesn't destroy the override.
+      // null = failure, {ok:false} = refusal (its toast is already shown centrally
+      // by _callThemeService). Bail BEFORE we clear the device pin, so a failed
+      // promote doesn't destroy the override.
       if (!result?.ok) {
-        this.card.showToast((result?.reason ? this.esc(result.reason) : this.t("bind_theme.unable_to_apply_everyone")), { kind: "error" });
         return;
       }
       const activeThemeId = result?.active_theme_id ?? result?.theme_id ?? themeId;
@@ -368,11 +417,12 @@ export function applyThemeBindings(proto) {
     this.card._scheduleRender();
 
     const result = await this.card._actions.setThemeTags(id, tags);
-    // callService returns null on failure (never {ok:false}), so !ok catches both.
+    // callService returns null on failure, {ok:false} on refusal — either way
+    // !ok catches it, and the refusal toast is already shown centrally by
+    // _callThemeService (actions/theme.js).
     if (!result?.ok) {
       this.card._state.applyThemeTagsLocal(id, prior); // revert the optimistic change
       this.card._scheduleRender();
-      this.card.showToast((result?.reason ? this.esc(result.reason) : this.t("bind_theme.unable_to_update_tags")), { kind: "error" });
     }
   };
 
@@ -468,14 +518,13 @@ export function applyThemeBindings(proto) {
         }
 
         const result = await this.card._actions.importTheme(payload);
-        if (result?.ok === false) {
-          showError(this.t("bind_theme.import_failed", { reason: result.reason || "unknown error" }));
-          return;
-        }
+        const imported = await this._handleFullImportResult(result, {
+          onRefusal: (r) => showError(this.t("bind_theme.import_failed", { reason: r.reason || "unknown error" })),
+        });
+        if (!imported) return;
 
         this.card._state.closeThemeJsonModal();
         this.card._scheduleRender();
-        await this._refreshThemeFromBackend();
       });
     });
   };
@@ -1190,6 +1239,19 @@ export function applyThemeBindings(proto) {
 
       let result;
       if (state.activeThemeId) {
+        // Overwrite direction (Q7/RP-034, confirmed against overwrite_theme +
+        // _resolved_theme_payload in themes/manager.py): the TARGET theme's own
+        // stored tokens/colors/alpha are the base, and only the keys your
+        // unsaved draft actually touched get layered on top — anything on the
+        // target your draft never touched survives unchanged. Confirm first;
+        // the dialog copy states that direction explicitly.
+        const targetName = state.library?.[state.activeThemeId]?.name || state.activeThemeId;
+        const proceed = await this.card._confirm(
+          this.t("bind_theme.confirm_overwrite_theme", { target: this.esc(targetName) }),
+          { danger: true }
+        );
+        if (!proceed) return;
+
         result = await this.card._actions.overwriteTheme(
           this.card._config.vacuum_entity_id,
           state.activeThemeId
@@ -1207,6 +1269,9 @@ export function applyThemeBindings(proto) {
 
       // Apply the service response directly — don't read the sensor here,
       // it may lag. The response carries the authoritative post-save state.
+      // A refusal (ok:false) skips activation; its toast is already shown
+      // centrally by _callThemeService (actions/theme.js) — previously this
+      // silently no-op'd with no feedback at all.
       if (result?.ok !== false) {
         const savedThemeId =
           result?.active_theme_id ?? result?.theme_id ?? state.activeThemeId;
@@ -1347,10 +1412,16 @@ export function applyThemeBindings(proto) {
             // theme (confirm + clamp + skip-unknown live in the shared helper).
             await this._applyScopedThemeImport(payload, `"${file.name}"`);
           } else {
-            // Full import — adds a new library theme (legacy behavior).
-            await this.card._actions.importTheme(payload);
-            await this._refreshThemeFromBackend();
-            this.card.showToast(this.t("bind_theme.theme_imported_from", { fileName: this.esc(file.name) }), { kind: "success" });
+            // Full import — adds a new library theme (legacy behavior). A
+            // refusal (ok:false) skips the success toast + refresh entirely —
+            // its own toast is already shown centrally by _callThemeService
+            // (actions/theme.js); previously this branch didn't even capture
+            // the result, so it showed "imported" unconditionally.
+            const result = await this.card._actions.importTheme(payload);
+            await this._handleFullImportResult(result, {
+              successToastKey: "bind_theme.theme_imported_from",
+              successVars: { fileName: this.esc(file.name) },
+            });
           }
         } catch (err) {
           this.card.showToast(

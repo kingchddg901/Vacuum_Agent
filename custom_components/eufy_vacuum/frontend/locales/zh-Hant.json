@@ -1344,6 +1344,7 @@
     "upload_title": "上傳佈景主題 .json 檔"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "以未儲存的變更覆寫 {target}？{target} 的其他設定將保持不變。",
     "copied": "已複製！",
     "copy": "複製",
     "delete_theme_confirm": "要刪除佈景主題「{themeId}」嗎？",
@@ -1352,6 +1353,9 @@
     "failed_export_theme": "匯出佈景主題失敗：{error}",
     "failed_import_file": "匯入「{fileName}」失敗：{error}",
     "import_failed": "匯入失敗：{reason}。",
+    "import_rejected_keys": {
+      "other": "已匯入，但有 {count} 項設定未被識別並已跳過：{keys}"
+    },
     "invalid_json": "這不是有效的 JSON——請檢查貼上的文字。",
     "no_active_theme_download": "沒有可下載的使用中佈景主題。",
     "no_active_theme_export": "沒有可匯出的使用中佈景主題。",
@@ -1372,9 +1376,6 @@
     "sent_to_ha": "已傳送至 HA ✓",
     "skipped_suffix": " 已略過：{unknown}。",
     "theme_imported_from": "已從 {fileName} 匯入佈景主題。",
-    "unable_to_apply_everyone": "無法套用至所有人。",
-    "unable_to_select_theme": "無法選取佈景主題。",
-    "unable_to_update_tags": "無法更新標籤。",
     "unsupported_suffix": " （不支援：{unknown}）。",
     "values_clamped_suffix": " 已將 {corrected} 個值限制在範圍內。"
   },
@@ -2330,6 +2331,17 @@
     "all_selected_rooms_blocked": "所有選取的房間目前均被封鎖。",
     "vacuum_missing": "掃地機器人實體無法使用。",
     "map_mismatch": "此次清掃記錄在另一張地圖上。請切換到該地圖後再重試。",
+    "theme_not_found": "找不到該主題——它可能已被刪除。",
+    "empty_draft": "沒有可儲存的未儲存變更。",
+    "invalid_payload": "該匯入檔案的格式無法被此卡片識別。",
+    "missing_theme": "該匯入檔案不包含主題資料。",
+    "missing_name": "匯入的主題需要一個名稱。",
+    "invalid_tokens": "匯入主題的權杖（token）值格式不正確。",
+    "invalid_colors": "匯入主題的顏色值格式不正確。",
+    "invalid_alpha": "匯入主題的透明度（alpha）值格式不正確。",
+    "missing_vacuum": "此卡片未選擇任何掃地機器人。",
+    "empty_scope": "未選擇要取代的地板類型。",
+    "no_active_theme": "此掃地機器人沒有可更新的目前主題。",
     "unknown": "此操作已被拒絕（{reason}）。"
   },
   "card_editor": {

@@ -17,6 +17,22 @@ const SERVICE_REASON_KEYS = {
   all_selected_rooms_blocked: "service_reasons.all_selected_rooms_blocked",
   vacuum_missing: "service_reasons.vacuum_missing",
   map_mismatch: "service_reasons.map_mismatch",
+  // Theme library/draft/import refusal codes (CARD-9(2)/(3), RP-034's
+  // themes/manager.py — {ok:false, reason} shape, distinct from this file's
+  // {success:false, reason} shape but resolved through the same lookup).
+  // Reached via actions/theme.js's _callThemeService, which now inspects
+  // {ok:false} centrally instead of at each of the ~11 theme action methods.
+  theme_not_found: "service_reasons.theme_not_found",
+  empty_draft: "service_reasons.empty_draft",
+  invalid_payload: "service_reasons.invalid_payload",
+  missing_theme: "service_reasons.missing_theme",
+  missing_name: "service_reasons.missing_name",
+  invalid_tokens: "service_reasons.invalid_tokens",
+  invalid_colors: "service_reasons.invalid_colors",
+  invalid_alpha: "service_reasons.invalid_alpha",
+  missing_vacuum: "service_reasons.missing_vacuum",
+  empty_scope: "service_reasons.empty_scope",
+  no_active_theme: "service_reasons.no_active_theme",
 };
 
 export function applyCoreActions(proto) {

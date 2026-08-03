@@ -24,6 +24,17 @@
     "all_selected_rooms_blocked": "Toutes les pièces sélectionnées sont actuellement bloquées.",
     "vacuum_missing": "L'entité de l'aspirateur n'est pas disponible.",
     "map_mismatch": "Ce cycle a été enregistré sur une autre carte. Passez à cette carte, puis réessayez.",
+    "theme_not_found": "Ce thème est introuvable — il a peut-être été supprimé.",
+    "empty_draft": "Il n'y a aucune modification non enregistrée à sauvegarder.",
+    "invalid_payload": "Ce fichier d'importation n'est pas dans un format reconnu par cette carte.",
+    "missing_theme": "Ce fichier d'importation ne contient pas de données de thème.",
+    "missing_name": "Le thème importé a besoin d'un nom.",
+    "invalid_tokens": "Les valeurs de jetons du thème importé ne sont pas correctement formatées.",
+    "invalid_colors": "Les valeurs de couleur du thème importé ne sont pas correctement formatées.",
+    "invalid_alpha": "Les valeurs alpha du thème importé ne sont pas correctement formatées.",
+    "missing_vacuum": "Aucun aspirateur n'est sélectionné pour cette carte.",
+    "empty_scope": "Aucun type de sol n'a été sélectionné à remplacer.",
+    "no_active_theme": "Cet aspirateur n'a pas de thème actif à mettre à jour.",
     "unknown": "Cette action a été refusée ({reason})."
   },
   "base_station": {
@@ -170,6 +181,7 @@
     "panel_renamed": "Panneau renommé — actualisez pour mettre à jour la barre latérale"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "Remplacer {target} par vos modifications non enregistrées ? Les autres réglages de {target} resteront inchangés.",
     "copied": "Copié !",
     "copy": "Copier",
     "delete_theme_confirm": "Supprimer le thème « {themeId} » ?",
@@ -178,6 +190,10 @@
     "failed_export_theme": "Échec de l'export du thème : {error}",
     "failed_import_file": "Échec de l'import de « {fileName} » : {error}",
     "import_failed": "Échec de l'import : {reason}.",
+    "import_rejected_keys": {
+      "one": "Importé, mais {count} paramètre n'a pas été reconnu et a été ignoré : {keys}",
+      "other": "Importé, mais {count} paramètres n'ont pas été reconnus et ont été ignorés : {keys}"
+    },
     "invalid_json": "Ce n'est pas du JSON valide — vérifiez le texte collé.",
     "no_active_theme_download": "Aucun thème actif à télécharger.",
     "no_active_theme_export": "Aucun thème actif à exporter.",
@@ -198,9 +214,6 @@
     "sent_to_ha": "Envoyé vers HA ✓",
     "skipped_suffix": " Ignorés : {unknown}.",
     "theme_imported_from": "Thème importé depuis {fileName}.",
-    "unable_to_apply_everyone": "Impossible d'appliquer pour tout le monde.",
-    "unable_to_select_theme": "Impossible de sélectionner le thème.",
-    "unable_to_update_tags": "Impossible de mettre à jour les étiquettes.",
     "unsupported_suffix": " (non pris en charge : {unknown}).",
     "values_clamped_suffix": " {corrected} valeur(s) ramenée(s) dans la plage."
   },

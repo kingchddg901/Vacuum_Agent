@@ -24,6 +24,17 @@
     "all_selected_rooms_blocked": "Alle geselecteerde kamers zijn momenteel geblokkeerd.",
     "vacuum_missing": "De stofzuigerentiteit is niet beschikbaar.",
     "map_mismatch": "Deze reiniging is vastgelegd op een andere kaart. Wissel naar die kaart en probeer het opnieuw.",
+    "theme_not_found": "Dat thema kon niet worden gevonden — het is mogelijk verwijderd.",
+    "empty_draft": "Er zijn geen niet-opgeslagen wijzigingen om op te slaan.",
+    "invalid_payload": "Dat importbestand heeft geen formaat dat deze kaart begrijpt.",
+    "missing_theme": "Dat importbestand bevat geen themagegevens.",
+    "missing_name": "Het geïmporteerde thema heeft een naam nodig.",
+    "invalid_tokens": "De tokenwaarden van het geïmporteerde thema zijn niet correct opgemaakt.",
+    "invalid_colors": "De kleurwaarden van het geïmporteerde thema zijn niet correct opgemaakt.",
+    "invalid_alpha": "De alfawaarden van het geïmporteerde thema zijn niet correct opgemaakt.",
+    "missing_vacuum": "Er is geen stofzuiger geselecteerd voor deze kaart.",
+    "empty_scope": "Er zijn geen vloertypen geselecteerd om te vervangen.",
+    "no_active_theme": "Deze stofzuiger heeft geen actief thema om bij te werken.",
     "unknown": "Deze actie is geweigerd ({reason})."
   },
   "base_station": {
@@ -169,6 +180,7 @@
     "panel_renamed": "Paneel hernoemd — ververs om de zijbalk bij te werken"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "{target} overschrijven met je niet-opgeslagen wijzigingen? De overige instellingen van {target} blijven ongewijzigd.",
     "copied": "Gekopieerd!",
     "copy": "Kopiëren",
     "delete_theme_confirm": "Thema \"{themeId}\" verwijderen?",
@@ -177,6 +189,10 @@
     "failed_export_theme": "Thema exporteren mislukt: {error}",
     "failed_import_file": "Importeren van \"{fileName}\" mislukt: {error}",
     "import_failed": "Importeren mislukt: {reason}.",
+    "import_rejected_keys": {
+      "one": "Geïmporteerd, maar {count} instelling werd niet herkend en overgeslagen: {keys}",
+      "other": "Geïmporteerd, maar {count} instellingen werden niet herkend en overgeslagen: {keys}"
+    },
     "invalid_json": "Dat is geen geldige JSON — controleer de geplakte tekst.",
     "no_active_theme_download": "Geen actief thema om te downloaden.",
     "no_active_theme_export": "Geen actief thema om te exporteren.",
@@ -197,9 +213,6 @@
     "sent_to_ha": "Verzonden naar HA ✓",
     "skipped_suffix": " Overgeslagen: {unknown}.",
     "theme_imported_from": "Thema geïmporteerd uit {fileName}.",
-    "unable_to_apply_everyone": "Kan niet voor iedereen toepassen.",
-    "unable_to_select_theme": "Kan thema niet selecteren.",
-    "unable_to_update_tags": "Kan tags niet bijwerken.",
     "unsupported_suffix": " (niet ondersteund: {unknown}).",
     "values_clamped_suffix": " {corrected} waarde(n) tot binnen het bereik begrensd."
   },

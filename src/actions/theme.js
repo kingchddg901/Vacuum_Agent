@@ -16,8 +16,22 @@ import {
 } from "../constants.js";
 
 export function applyThemeActions(proto) {
+  // Single funnel every theme action method below routes through. Every
+  // theme service's refusal rides {ok: false, reason: "<code>"} — a DIFFERENT
+  // shape from callService's own {success: false} inspection (core.js), so
+  // that generic check never fires for a theme call. Centralizing the {ok:
+  // false} check HERE — once, at the shared funnel — means none of the ~11
+  // action methods below (or their ~11 call sites) needs to repeat it; a
+  // reason code always resolves through showServiceRefusalToast's
+  // SERVICE_REASON_KEYS lookup (core.js) the same way an operational
+  // job_control refusal does. Callers still get the full `result` back
+  // unchanged — this only adds the missing toast.
   proto._callThemeService = async function (service, data = {}) {
-    return this.callService(DOMAIN, service, data, true);
+    const result = await this.callService(DOMAIN, service, data, true);
+    if (result && typeof result === "object" && result.ok === false) {
+      this.showServiceRefusalToast(result.reason);
+    }
+    return result;
   };
 
   /* =========================================================

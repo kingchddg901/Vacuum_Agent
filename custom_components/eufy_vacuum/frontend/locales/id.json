@@ -2051,6 +2051,7 @@
     "water_title": "Air"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "Timpa {target} dengan perubahan yang belum disimpan? Pengaturan {target} lainnya akan tetap seperti semula.",
     "copied": "Disalin!",
     "copy": "Salin",
     "delete_theme_confirm": "Hapus tema \"{themeId}\"?",
@@ -2059,6 +2060,10 @@
     "failed_export_theme": "Gagal mengekspor tema: {error}",
     "failed_import_file": "Gagal mengimpor \"{fileName}\": {error}",
     "import_failed": "Impor gagal: {reason}.",
+    "import_rejected_keys": {
+      "one": "Diimpor, tetapi {count} pengaturan tidak dikenali dan dilewati: {keys}",
+      "other": "Diimpor, tetapi {count} pengaturan tidak dikenali dan dilewati: {keys}"
+    },
     "invalid_json": "Itu bukan JSON yang valid — periksa teks yang ditempel.",
     "no_active_theme_download": "Tidak ada tema aktif untuk diunduh.",
     "no_active_theme_export": "Tidak ada tema aktif untuk diekspor.",
@@ -2079,9 +2084,6 @@
     "sent_to_ha": "Terkirim ke HA ✓",
     "skipped_suffix": " Dilewati: {unknown}.",
     "theme_imported_from": "Tema diimpor dari {fileName}.",
-    "unable_to_apply_everyone": "Tidak dapat menerapkan untuk semua orang.",
-    "unable_to_select_theme": "Tidak dapat memilih tema.",
-    "unable_to_update_tags": "Tidak dapat memperbarui tag.",
     "unsupported_suffix": " (tidak didukung: {unknown}).",
     "values_clamped_suffix": " {corrected} nilai dibatasi ke rentang."
   },
@@ -2358,6 +2360,17 @@
     "all_selected_rooms_blocked": "Semua ruangan yang dipilih sedang diblokir.",
     "vacuum_missing": "Entitas penyedot debu tidak tersedia.",
     "map_mismatch": "Pembersihan ini tercatat di peta yang berbeda. Beralihlah ke peta tersebut, lalu coba lagi.",
+    "theme_not_found": "Tema tersebut tidak ditemukan — mungkin telah dihapus.",
+    "empty_draft": "Tidak ada perubahan yang belum disimpan untuk disimpan.",
+    "invalid_payload": "File impor tersebut tidak dalam format yang dipahami kartu ini.",
+    "missing_theme": "File impor tersebut tidak berisi data tema.",
+    "missing_name": "Tema yang diimpor memerlukan nama.",
+    "invalid_tokens": "Nilai token tema yang diimpor tidak diformat dengan benar.",
+    "invalid_colors": "Nilai warna tema yang diimpor tidak diformat dengan benar.",
+    "invalid_alpha": "Nilai alfa tema yang diimpor tidak diformat dengan benar.",
+    "missing_vacuum": "Tidak ada penyedot debu yang dipilih untuk kartu ini.",
+    "empty_scope": "Tidak ada jenis lantai yang dipilih untuk diganti.",
+    "no_active_theme": "Penyedot debu ini tidak memiliki tema aktif untuk diperbarui.",
     "unknown": "Tindakan ini ditolak ({reason})."
   },
   "bind_room_editor": {

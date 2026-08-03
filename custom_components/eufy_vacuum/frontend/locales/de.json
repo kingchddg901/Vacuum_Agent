@@ -24,6 +24,17 @@
     "all_selected_rooms_blocked": "Alle ausgewählten Räume sind derzeit blockiert.",
     "vacuum_missing": "Die Saugroboter-Entität ist nicht verfügbar.",
     "map_mismatch": "Dieser Lauf wurde auf einer anderen Karte aufgezeichnet. Wechseln Sie zu dieser Karte und versuchen Sie es erneut.",
+    "theme_not_found": "Dieses Theme konnte nicht gefunden werden — es wurde möglicherweise gelöscht.",
+    "empty_draft": "Es gibt keine ungespeicherten Änderungen zum Speichern.",
+    "invalid_payload": "Diese Importdatei liegt nicht in einem Format vor, das diese Karte versteht.",
+    "missing_theme": "Diese Importdatei enthält keine Theme-Daten.",
+    "missing_name": "Das importierte Theme benötigt einen Namen.",
+    "invalid_tokens": "Die Token-Werte des importierten Themes sind nicht korrekt formatiert.",
+    "invalid_colors": "Die Farbwerte des importierten Themes sind nicht korrekt formatiert.",
+    "invalid_alpha": "Die Alpha-Werte des importierten Themes sind nicht korrekt formatiert.",
+    "missing_vacuum": "Für diese Karte ist kein Saugroboter ausgewählt.",
+    "empty_scope": "Es wurden keine Bodentypen zum Ersetzen ausgewählt.",
+    "no_active_theme": "Dieser Saugroboter hat kein aktives Theme zum Aktualisieren.",
     "unknown": "Diese Aktion wurde abgelehnt ({reason})."
   },
   "base_station": {
@@ -169,6 +180,7 @@
     "panel_renamed": "Panel umbenannt — aktualisiere zur Übernahme in der Seitenleiste"
   },
   "bind_theme": {
+    "confirm_overwrite_theme": "{target} mit den ungespeicherten Änderungen überschreiben? Die übrigen Einstellungen von {target} bleiben unverändert.",
     "copied": "Kopiert!",
     "copy": "Kopieren",
     "delete_theme_confirm": "Theme \"{themeId}\" löschen?",
@@ -177,6 +189,10 @@
     "failed_export_theme": "Theme konnte nicht exportiert werden: {error}",
     "failed_import_file": "Import von \"{fileName}\" fehlgeschlagen: {error}",
     "import_failed": "Import fehlgeschlagen: {reason}.",
+    "import_rejected_keys": {
+      "one": "Importiert, aber {count} Einstellung wurde nicht erkannt und übersprungen: {keys}",
+      "other": "Importiert, aber {count} Einstellungen wurden nicht erkannt und übersprungen: {keys}"
+    },
     "invalid_json": "Das ist kein gültiges JSON — prüfe den eingefügten Text.",
     "no_active_theme_download": "Kein aktives Theme zum Herunterladen.",
     "no_active_theme_export": "Kein aktives Theme zum Exportieren.",
@@ -197,9 +213,6 @@
     "sent_to_ha": "An HA gesendet ✓",
     "skipped_suffix": " Übersprungen: {unknown}.",
     "theme_imported_from": "Theme aus {fileName} importiert.",
-    "unable_to_apply_everyone": "Konnte nicht für alle angewendet werden.",
-    "unable_to_select_theme": "Theme konnte nicht ausgewählt werden.",
-    "unable_to_update_tags": "Tags konnten nicht aktualisiert werden.",
     "unsupported_suffix": " (nicht unterstützt: {unknown}).",
     "values_clamped_suffix": " {corrected} Wert(e) auf den Bereich begrenzt."
   },
