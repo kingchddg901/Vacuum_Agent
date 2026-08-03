@@ -516,7 +516,9 @@ async def test_room_rename_swaps_entity_keeping_unique_id(
     must swap the sensor entity object (its cached display name is set once,
     at construction, from the room's name) while keeping the SAME unique_id —
     so the registry entry (and any user name override) is not disturbed and
-    no duplicate/orphan entity_id is created."""
+    no duplicate/orphan entity_id is created. Also asserts the swap actually
+    happened (new object, new `room_name`) rather than just a state
+    re-write on the stale object, which would leave the OLD name cached."""
     hass.states.async_set(_VAC, "docked", {"supported_features": 0})
     hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
     ok = await _setup(hass, mock_config_entry)
@@ -529,6 +531,10 @@ async def test_room_rename_swaps_entity_keeping_unique_id(
     )
     assert history_entity_id is not None
     assert hass.states.get(history_entity_id) is not None
+    sensor_component = hass.data["entity_components"]["sensor"]
+    before_entity = sensor_component.get_entity(history_entity_id)
+    assert before_entity is not None
+    assert before_entity.room_name == "Kitchen"
 
     rt = hass.data[DOMAIN][DATA_RUNTIME]
     rt.data["maps"][_VAC]["6"]["rooms"]["1"]["name"] = "Great Room"
@@ -542,6 +548,14 @@ async def test_room_rename_swaps_entity_keeping_unique_id(
     # The swapped-in entity is alive and reporting state (round-tripped
     # through async_remove + async_add_entities, not left removed).
     assert hass.states.get(history_entity_id) is not None
+    # The registered entity is genuinely the NEW object (not the stale one
+    # with state re-written), and it carries the room's CURRENT name --
+    # `room_name` is set once at construction, so this only holds if the
+    # swap actually happened rather than a no-op state write on `before_entity`.
+    after_entity = sensor_component.get_entity(history_entity_id)
+    assert after_entity is not None
+    assert after_entity is not before_entity
+    assert after_entity.room_name == "Great Room"
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
