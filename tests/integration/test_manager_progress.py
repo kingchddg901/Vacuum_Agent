@@ -15,7 +15,8 @@ Coverage targets
 [PR-6]  finalize_learning_for_active_job: missing started_at → not finalized.
 [PR-7]  finalize_learning_for_active_job: full job → completed_job result.
 [PR-8]  jobs-index → room-history merge with newer-wins + bad-row skips.
-[PR-9]  single-room stall fires EVENT_STALL_DETECTED exactly once (no re-fire).
+[PR-9]  single-room stall: a pure snapshot read fires nothing; apply_job_progress_tick
+        fires EVENT_STALL_DETECTED exactly once (no re-fire) — SNAP-2.
 [PR-10] running_long suppressed for an unlearned room at ~1.7x threshold (issue #40).
 [PR-13] a current charge_wait phase surfaces charge_phase_active + target + ETA.
 [PR-14] a current zone phase surfaces zone_phase_active + names + ETA (live view not blank).
@@ -24,7 +25,8 @@ Coverage targets
 [PR-16] the live_queue flattens the whole running phase sequence into ordered done/current/
         upcoming chips (room + charge + wait + zone), from the active_job clone.
 [PR-17] a corrupt (non-dict) saved-zone entry doesn't crash the snapshot — name falls back to id.
-[PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
+[PR-11] non-sequential advance → room flagged skipped in a pure read; apply_job_progress_tick
+        fires EVENT_ROOM_SKIPPED once (SNAP-2).
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
 [PR-18] an unreadable battery (get_battery_level -> None) doesn't crash the
@@ -186,8 +188,11 @@ def test_progress_stall(manager, hass):
 
 
 def test_progress_stall_fires_once(manager, hass):
-    """[PR-9] a single-room job stuck >= 2x its estimate fires EVENT_STALL_DETECTED
-    exactly once — a second snapshot does not re-fire for the same room.
+    """[PR-9] SNAP-2: a plain get_job_progress_snapshot() poll is a pure read — it
+    computes stall_detected but fires nothing. EVENT_STALL_DETECTED only fires from
+    the explicit apply_job_progress_tick() (what the 5s ticker in
+    listeners/job_progress.py calls), exactly once for a single-room job stuck >= 2x
+    its estimate; a second tick does not re-fire for the same room.
 
     Single-room so the timing engine has nowhere to roll the current room to;
     elapsed (60m) >> 2x the 5m estimate → bounds-exit + stall.
@@ -203,15 +208,21 @@ def test_progress_stall_fires_once(manager, hass):
     events = []
     hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: events.append(e))
 
+    # a pure read reports the anomaly field but fires + persists nothing
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert snap["stall_detected"] is True
     assert snap["stall_ratio"] >= 2.0
     assert snap["running_long"] is False  # disjoint bands: >=2x is stall, not running_long
+    assert events == []
 
-    # a second poll must NOT re-fire (dedup via _stall_notified_room_ids)
-    manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    # the explicit tick is what actually fires it
+    manager.apply_job_progress_tick(vacuum_entity_id=_VAC, map_id=_MAP)
     assert len(events) == 1
     assert events[0].data["room_id"] == 1
+
+    # a second tick must NOT re-fire (dedup via _stall_notified_room_ids)
+    manager.apply_job_progress_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert len(events) == 1
 
 
 def test_progress_running_long_suppressed_when_unlearned(manager, hass):
@@ -387,10 +398,12 @@ def test_progress_zone_snapshot_survives_corrupt_saved_zone(manager, hass):
 
 
 def test_progress_skipped_conservative(manager, hass):
-    """[PR-11] when current_room is ahead of an uncompleted queued room (a non-
-    sequential advance), that room is flagged skipped + fires EVENT_ROOM_SKIPPED once.
-    Eufy's sequential counter rollover keeps this empty in normal runs (the reliable
-    missed-rooms signal is the post-run incomplete_run_log)."""
+    """[PR-11] SNAP-2: a plain get_job_progress_snapshot() poll is a pure read — when
+    current_room is ahead of an uncompleted queued room (a non-sequential advance),
+    that room is flagged skipped in the payload, but nothing fires. Only the explicit
+    apply_job_progress_tick() (what the 5s ticker calls) fires EVENT_ROOM_SKIPPED,
+    once. Eufy's sequential counter rollover keeps this empty in normal runs (the
+    reliable missed-rooms signal is the post-run incomplete_run_log)."""
     _wire(manager, hass)
     _seed_job(
         manager,
@@ -406,14 +419,19 @@ def test_progress_skipped_conservative(manager, hass):
     hass.states.async_set(_VAC, "cleaning")
     events: list = []
     hass.bus.async_listen(EVENT_ROOM_SKIPPED, lambda e: events.append(e.data))
+
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert 1 in snap["skipped_room_ids"]
     assert 1 not in snap["remaining_room_ids"]
     room1 = next((r for r in snap["timeline"] if r.get("room_id") == 1), None)
     assert room1 is not None and room1["skipped"] is True
-    # a second poll must NOT re-fire (dedup via _skipped_notified_room_ids)
-    manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert events == []  # a pure read fires nothing
+
+    manager.apply_job_progress_tick(vacuum_entity_id=_VAC, map_id=_MAP)
     assert len(events) == 1 and events[0]["room_id"] == 1
+    # a second tick must NOT re-fire (dedup via _skipped_notified_room_ids)
+    manager.apply_job_progress_tick(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert len(events) == 1
 
 
 def test_progress_sequential_no_false_skip(manager, hass):

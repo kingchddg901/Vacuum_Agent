@@ -3422,8 +3422,20 @@ class EufyVacuumManager:
         *,
         vacuum_entity_id: str,
         map_id: str,
+        apply_side_effects: bool = False,
     ) -> dict[str, Any]:
-        """Return a canonical room-job progress snapshot for the card."""
+        """Return a canonical room-job progress snapshot for the card.
+
+        SNAP-2: a card poll (and get_dashboard_snapshot / get_job_control_state, which
+        compose this once and share it) must be a PURE read — by default this neither
+        rolls the current room nor persists/fires the anomaly dedup state, so calling it
+        any number of times returns identical output. ``apply_side_effects=True`` is the
+        one path that actually advances state; only ``apply_job_progress_tick`` (below),
+        called from listeners/job_progress.py's 5s ticker, passes it. The anomaly FIELDS
+        (stall_detected/running_long/skipped_room_ids) are computed fresh either way so
+        the card can still display them — only the one-shot event + dedup bookkeeping is
+        gated.
+        """
         active_job = self._normalize_active_job(
             self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         )
@@ -3501,35 +3513,40 @@ class EufyVacuumManager:
 
         current_room_elapsed_minutes = self._compute_current_room_elapsed_minutes(active_job=active_job)
         pre_roll_room_id = current_room_id
-        active_job = self._maybe_roll_current_room_by_timing(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            active_job=active_job,
-            raw_timeline=raw_timeline,
-            current_room_id=current_room_id,
-            current_room_elapsed_minutes=current_room_elapsed_minutes,
-            completed_room_ids=completed_room_ids,
-        )
-        if active_job is not None:
-            completed_room_ids = [
-                _safe_int(room_id, -1)
-                for room_id in active_job.get("completed_room_ids", [])
-                if _safe_int(room_id, -1) >= 0
-            ]
-            completed_rooms = [
-                dict(entry)
-                for entry in active_job.get("completed_rooms", [])
-                if isinstance(entry, dict)
-            ]
-            unresolved_room_ids = [
-                _safe_int(room.get("room_id", -1), -1)
-                for room in raw_timeline
-                if _safe_int(room.get("room_id", -1), -1) not in completed_room_ids
-            ]
-            current_room_id = _safe_int(active_job.get("current_room_id"), -1)
-            if current_room_id < 0 or current_room_id not in unresolved_room_ids:
-                current_room_id = unresolved_room_ids[0] if unresolved_room_ids else None
-            current_room_elapsed_minutes = self._compute_current_room_elapsed_minutes(active_job=active_job)
+        # SNAP-2: the rollover MUTATES + PERSISTS active_job (advances current_room_id,
+        # fires EVENT_ROOM_FINISHED) — a card-poll read must not trigger that as a side
+        # effect of being called. Only the explicit tick (apply_side_effects=True) performs
+        # it; a plain read reflects whatever the last tick already persisted.
+        if apply_side_effects:
+            active_job = self._maybe_roll_current_room_by_timing(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                active_job=active_job,
+                raw_timeline=raw_timeline,
+                current_room_id=current_room_id,
+                current_room_elapsed_minutes=current_room_elapsed_minutes,
+                completed_room_ids=completed_room_ids,
+            )
+            if active_job is not None:
+                completed_room_ids = [
+                    _safe_int(room_id, -1)
+                    for room_id in active_job.get("completed_room_ids", [])
+                    if _safe_int(room_id, -1) >= 0
+                ]
+                completed_rooms = [
+                    dict(entry)
+                    for entry in active_job.get("completed_rooms", [])
+                    if isinstance(entry, dict)
+                ]
+                unresolved_room_ids = [
+                    _safe_int(room.get("room_id", -1), -1)
+                    for room in raw_timeline
+                    if _safe_int(room.get("room_id", -1), -1) not in completed_room_ids
+                ]
+                current_room_id = _safe_int(active_job.get("current_room_id"), -1)
+                if current_room_id < 0 or current_room_id not in unresolved_room_ids:
+                    current_room_id = unresolved_room_ids[0] if unresolved_room_ids else None
+                current_room_elapsed_minutes = self._compute_current_room_elapsed_minutes(active_job=active_job)
 
         # ------------------------------------------------------------------
         # Bounds-exit polling signal
@@ -3636,6 +3653,7 @@ class EufyVacuumManager:
             completed_room_ids=completed_room_ids,
             awaiting_bounds_exit=awaiting_bounds_exit,
             current_room_ids=current_room_ids,
+            emit=apply_side_effects,
         )
         stall_detected = _anomalies["stall_detected"]
         stall_elapsed_minutes = _anomalies["stall_elapsed_minutes"]
@@ -3892,6 +3910,28 @@ class EufyVacuumManager:
             "stall_ratio": stall_ratio,
             "updated_at": _iso_now(),
         }
+
+    def apply_job_progress_tick(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """SNAP-2: the explicit per-tick compose that actually advances state.
+
+        get_job_progress_snapshot is a pure read by default (see its docstring); this is
+        the ONE call that passes apply_side_effects=True, so the room-rollover mutation and
+        the anomaly one-shot event + dedup bookkeeping actually happen here. The only
+        production caller is listeners/job_progress.py's 5s ticker — its own independent
+        cadence, not however often a card happens to be polling. Returns the same snapshot
+        shape as get_job_progress_snapshot (the ticker discards it; the return value exists
+        for callers/tests that want to see the state right after it changed).
+        """
+        return self.get_job_progress_snapshot(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            apply_side_effects=True,
+        )
 
     def _zone_is_actively_cleaning(self, vacuum_entity_id: str) -> bool:
         """True while a zone phase is REALLY being cleaned — gates the live "Cleaning zone" banner.
@@ -4325,12 +4365,21 @@ class EufyVacuumManager:
         *,
         vacuum_entity_id: str,
         map_id: str,
+        progress: dict[str, Any],
     ) -> dict[str, Any]:
-        """Return card-facing action state for one job."""
+        """Return card-facing action state for one job.
+
+        SNAP-2: ``progress`` is the caller's OWN get_job_progress_snapshot() result —
+        composing it again here doubled the compose (and, before the anomaly-emission
+        hoist, doubled the bus-fire side effects) on every get_dashboard_snapshot() call,
+        since that method calls both this and get_job_progress_snapshot directly. Callers
+        compute it once and pass it in; the two production callers are
+        get_dashboard_snapshot (below) and the get_job_control_state service handler
+        (services/job_control.py), which composes its own progress snapshot first.
+        """
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         start_status = self.get_start_status(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         lifecycle = self.get_lifecycle_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-        progress = self.get_job_progress_snapshot(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         status = str(active_job.get("status", "idle")).strip().lower()
         finalized = bool(active_job.get("finalized"))
 
@@ -4401,8 +4450,14 @@ class EufyVacuumManager:
         """Return one card-friendly dashboard snapshot."""
         lifecycle = self.get_lifecycle_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         start_status = self.get_start_status(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        # SNAP-2: compose the progress payload ONCE and hand the SAME dict to
+        # get_job_control_state — it used to recompute its own copy, doubling the compose
+        # (and, before the anomaly-emission hoist, doubling the bus-fire side effects) on
+        # every get_dashboard_snapshot() call.
         job_progress = self.get_job_progress_snapshot(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-        job_control = self.get_job_control_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        job_control = self.get_job_control_state(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, progress=job_progress,
+        )
         upkeep = self.get_upkeep_snapshot(vacuum_entity_id=vacuum_entity_id)
         planned_job_estimate = self._planned_estimate_for_dashboard(
             vacuum_entity_id=vacuum_entity_id,

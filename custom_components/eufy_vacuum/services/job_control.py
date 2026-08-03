@@ -304,8 +304,16 @@ async def _handle_get_job_progress_snapshot(hass: HomeAssistant, call: ServiceCa
 
 
 async def _handle_get_job_control_state(hass: HomeAssistant, call: ServiceCall) -> dict:
-    """Return card-facing action state for one vacuum/map."""
-    payload = get_manager(hass).get_job_control_state(**resolved_call_data(hass, call))
+    """Return card-facing action state for one vacuum/map.
+
+    SNAP-2: get_job_control_state takes its progress snapshot as a caller-supplied
+    argument (no more internal recompute) — this is the standalone-service caller, so it
+    composes that snapshot itself, once, same as get_dashboard_snapshot does.
+    """
+    manager = get_manager(hass)
+    data = resolved_call_data(hass, call)
+    progress = manager.get_job_progress_snapshot(**data)
+    payload = manager.get_job_control_state(**data, progress=progress)
     _LOGGER.debug("get_job_control_state complete: %s", payload)
     return payload
 

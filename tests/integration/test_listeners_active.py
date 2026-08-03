@@ -250,17 +250,19 @@ async def test_stranded_reaper_fires_run_incomplete(hass):
 # ---------------------------------------------------------------------------
 
 async def test_job_progress_ticks(hass):
-    """[JP-1]"""
+    """[JP-1] SNAP-2: the ticker calls apply_job_progress_tick (the explicit,
+    side-effecting compose) — get_job_progress_snapshot itself is a pure read now,
+    so it is no longer what the ticker drives."""
     m = _mgr(hass)
     m.get_active_job.return_value = {"status": "started"}
-    m.get_job_progress_snapshot.return_value = {}
+    m.apply_job_progress_tick.return_value = {}
     ticks = _collect(hass, EVENT_JOB_PROGRESS_TICK)
     job_progress.register(hass)
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
     await hass.async_block_till_done()
     job_progress.remove(hass)
     assert len(ticks) == 1
-    m.get_job_progress_snapshot.assert_called_once()
+    m.apply_job_progress_tick.assert_called_once()
 
 
 async def test_job_progress_skips_inactive(hass):
@@ -273,14 +275,14 @@ async def test_job_progress_skips_inactive(hass):
     await hass.async_block_till_done()
     job_progress.remove(hass)
     assert ticks == []
-    m.get_job_progress_snapshot.assert_not_called()
+    m.apply_job_progress_tick.assert_not_called()
 
 
 async def test_job_progress_snapshot_raises(hass):
     """[JP-3] snapshot exception is swallowed; no tick event."""
     m = _mgr(hass)
     m.get_active_job.return_value = {"status": "started"}
-    m.get_job_progress_snapshot.side_effect = RuntimeError("boom")
+    m.apply_job_progress_tick.side_effect = RuntimeError("boom")
     ticks = _collect(hass, EVENT_JOB_PROGRESS_TICK)
     job_progress.register(hass)
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))

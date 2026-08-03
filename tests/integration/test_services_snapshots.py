@@ -6,9 +6,12 @@ Coverage targets
 [SNP-2]  set_pause_timeout_settings persists and returns updated value.
 [SNP-3]  get_upkeep_snapshot returns a response dict.
 
-Note: get_dashboard_snapshot is excluded — it calls hass.bus.async_fire
-internally (via _maybe_roll_current_room_by_timing) and requires live
-entity state that is not available in isolated tests.
+Note: get_dashboard_snapshot is excluded — it requires live entity state that
+is not available in isolated tests. (Pre-SNAP-2 this docstring also noted it
+fires hass.bus.async_fire via _maybe_roll_current_room_by_timing as a snapshot
+side effect; that is no longer true — get_job_progress_snapshot is a pure
+read, and only the explicit apply_job_progress_tick() call, made by
+listeners/job_progress.py's ticker, fires anything.)
 """
 
 from __future__ import annotations

@@ -1,17 +1,22 @@
 """Job-progress ticker — 5-second snapshot refresh during active jobs.
 
-Ticks ``get_job_progress_snapshot`` for every vacuum/map with an active
-job. This keeps stall detection and bounds-exit derivation firing during
-cleaning periods that have no vacuum-state transitions — e.g. a
-bounds-exit wait where the vacuum reports "cleaning" continuously and
-the entity-state lifecycle listener never fires.
+Ticks ``apply_job_progress_tick`` for every vacuum/map with an active job. This
+keeps stall detection and bounds-exit derivation firing during cleaning periods
+that have no vacuum-state transitions — e.g. a bounds-exit wait where the
+vacuum reports "cleaning" continuously and the entity-state lifecycle listener
+never fires.
 
-Without this, ``get_job_progress_snapshot`` would only run when the
-dashboard polled it, which meant ``EVENT_STALL_DETECTED`` (fired as a
-side effect from inside the snapshot) silently failed for users who
-weren't actively looking at the panel. Moving the cadence to the
-backend makes stall-driven automations reliable regardless of UI state,
+Without this, the rollover + anomaly-detection work would only run when the
+dashboard polled the snapshot, which meant ``EVENT_STALL_DETECTED`` silently
+failed for users who weren't actively looking at the panel. Moving the cadence
+to the backend makes stall-driven automations reliable regardless of UI state,
 and lets the card drop its bounds-exit polling.
+
+SNAP-2: ``get_job_progress_snapshot`` itself is a pure read (no rollover, no
+event fire, no dedup persistence) — this ticker is the ONE place that calls
+``apply_job_progress_tick``, the explicit method that actually advances state.
+A card poll (get_dashboard_snapshot / get_job_control_state) only ever reads
+whatever this tick last persisted.
 
 After each tick we fire ``EVENT_JOB_PROGRESS_TICK`` so the dashboard
 can refresh its snapshot if it's open. Cost per tick: one method call
@@ -91,7 +96,7 @@ def register(hass: HomeAssistant) -> None:
                         )
 
                 try:
-                    manager.get_job_progress_snapshot(
+                    manager.apply_job_progress_tick(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id_str,
                     )

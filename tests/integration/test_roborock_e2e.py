@@ -133,10 +133,15 @@ def _job(manager):
 
 
 async def _tick_rollover(manager, hass, current_room_name):
-    """Simulate the device reporting a room + the 5s progress tick driving rollover."""
+    """Simulate the device reporting a room + the 5s progress tick driving rollover.
+
+    SNAP-2: get_job_progress_snapshot is a pure read now (no rollover mutation) —
+    apply_job_progress_tick is the explicit call that actually rolls the room, exactly
+    what listeners/job_progress.py's real 5s ticker calls in production.
+    """
     hass.states.async_set("sensor.ivy_current_room", current_room_name)
     await hass.async_block_till_done()
-    manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    manager.apply_job_progress_tick(vacuum_entity_id=_VAC, map_id=_MAP)
     await hass.async_block_till_done()
 
 

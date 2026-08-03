@@ -921,8 +921,9 @@ class ActiveJobTracker:
         completed_room_ids: list[int],
         awaiting_bounds_exit: bool,
         current_room_ids: list[int] | None = None,
+        emit: bool = False,
     ) -> dict[str, Any]:
-        """Detect + emit the three live run anomalies for the progress snapshot:
+        """Detect (and, opt-in, emit) the three live run anomalies for the progress snapshot:
 
         - **stall** (hard): the bounds gate is already blocking rollover AND the robot has
           been in the room >= ``stall_ratio`` x its timing estimate. Fires
@@ -936,6 +937,15 @@ class ActiveJobTracker:
           for Eufy; it fires on a non-sequential advance (position-reliable brands) and
           future-proofs the hook — no false-positive heuristic. Fires EVENT_ROOM_SKIPPED once
           per room per job.
+
+        SNAP-2: ``emit`` (default False) gates the ONLY side effects this function has —
+        firing EVENT_STALL_DETECTED/EVENT_ROOM_SKIPPED and persisting the per-room dedup sets
+        (``_stall_notified_room_ids``/``_skipped_notified_room_ids``) back onto active_job. The
+        anomaly FIELDS below are always computed fresh regardless — a pure read (the card's
+        progress snapshot) can call this any number of times with identical output and zero
+        side effects. Only ``EufyVacuumManager.apply_job_progress_tick`` (the 5s ticker's
+        explicit per-tick call) passes ``emit=True``; it owns the cadence the one-shot-event /
+        dedup contract was written against, not however often a card happens to be polling.
 
         Lives here (not in the snapshot composer) because this tracker owns the active-job
         dict + the per-job dedup state the one-shot emission is keyed on. Pure read of the
@@ -998,32 +1008,35 @@ class ActiveJobTracker:
                     stall_expected_minutes = round(_stall_threshold, 1)
                     stall_ratio = round(current_room_elapsed_minutes / _stall_threshold, 2)
 
-                    # Fire event exactly once per room per job.
-                    # The set is bounded to one entry per unique room ID; cap
-                    # mirrors the job's own room count as a safety valve.
-                    _notified = set(active_job.get("_stall_notified_room_ids") or [])
-                    if current_room_id not in _notified:
-                        _notified.add(current_room_id)
-                        _stall_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
-                        active_job["_stall_notified_room_ids"] = list(_notified)[-_stall_cap:]
-                        self._manager.data.setdefault("active_jobs", {}) \
-                            .setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
-                        _stall_room_name = (
-                            self._room_name_from_active_job(active_job, current_room_id)
-                            or f"Room {current_room_id}"
-                        )
-                        self._manager.hass.bus.async_fire(
-                            EVENT_STALL_DETECTED,
-                            {
-                                "vacuum_entity_id": vacuum_entity_id,
-                                "map_id": str(map_id),
-                                "room_id": current_room_id,
-                                "room_name": _stall_room_name,
-                                "elapsed_minutes": stall_elapsed_minutes,
-                                "expected_minutes": stall_expected_minutes,
-                                "stall_ratio": stall_ratio,
-                            },
-                        )
+                    # SNAP-2: fields above are always computed; the one-shot event + dedup
+                    # bookkeeping below only runs for the explicit tick caller (emit=True).
+                    if emit:
+                        # Fire event exactly once per room per job.
+                        # The set is bounded to one entry per unique room ID; cap
+                        # mirrors the job's own room count as a safety valve.
+                        _notified = set(active_job.get("_stall_notified_room_ids") or [])
+                        if current_room_id not in _notified:
+                            _notified.add(current_room_id)
+                            _stall_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
+                            active_job["_stall_notified_room_ids"] = list(_notified)[-_stall_cap:]
+                            self._manager.data.setdefault("active_jobs", {}) \
+                                .setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
+                            _stall_room_name = (
+                                self._room_name_from_active_job(active_job, current_room_id)
+                                or f"Room {current_room_id}"
+                            )
+                            self._manager.hass.bus.async_fire(
+                                EVENT_STALL_DETECTED,
+                                {
+                                    "vacuum_entity_id": vacuum_entity_id,
+                                    "map_id": str(map_id),
+                                    "room_id": current_room_id,
+                                    "room_name": _stall_room_name,
+                                    "elapsed_minutes": stall_elapsed_minutes,
+                                    "expected_minutes": stall_expected_minutes,
+                                    "stall_ratio": stall_ratio,
+                                },
+                            )
 
         # running_long is the soft tier BELOW the 2x stall: the current room has run
         # _RUNNING_LONG_RATIO..stall x its estimate with no pending counter transition
@@ -1078,7 +1091,9 @@ class ActiveJobTracker:
                     rid for rid in _queue_order[:_cur_idx]
                     if rid >= 0 and rid not in completed_room_ids
                 ]
-        if skipped_room_ids:
+        # SNAP-2: skipped_room_ids itself is always computed above (pure); only the
+        # one-shot event + dedup bookkeeping below is gated on the explicit tick.
+        if emit and skipped_room_ids:
             _skip_notified = set(active_job.get("_skipped_notified_room_ids") or [])
             _new_skips = [rid for rid in skipped_room_ids if rid not in _skip_notified]
             if _new_skips:
