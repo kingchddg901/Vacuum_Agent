@@ -138,16 +138,28 @@ overrides are set at spawn time:
 | role | tier | why |
 |---|---|---|
 | Orchestrator + inline synthesis | Fable (the session itself) | wide-read/whole-corpus shape; synthesis inline bought a 2nd verifier in #1 — repeat |
-| Discovery agents | Sonnet (bump a slot to Opus if its scope is contract-dense) | narrow explicit file lists against a pre-built inventory = per-artifact shape; does NOT need the whole corpus |
+| Discovery agents | Sonnet (promote a slot to Opus when its scope's *decisions* are consequential or conceptually dense) | collection work — reading a subsystem, gathering call sites, comparing schemas, producing candidates — is well inside Sonnet's reasoning AND its ~967k window; promotion buys judgment, not memory |
 | Verifiers | top tier available, HIGH effort — never economized | 22% of #1 spend, killed 17 over-reaches, moved 7 severities; discovery-only output was confidently wrong in both directions |
 | Orchestrator spot-checks | inline (orchestrator's own tokens) | ~2% of spend, always worth it |
 
-Caveats baked in: the tier override does NOT select a context-window variant (the calibration
-run's 1M window came from the session default — discovery agents with narrow file lists don't
-need it, but don't assume a subagent has 1M); and the single-tier calibration numbers do not
-transfer to a mixed fleet — **the first heavyweight session (S1) doubles as the mixed-fleet
-calibration**: it reports actuals in the #1-style cost report and the envelope below re-scales
-before S2 fires.
+**The tier premium is a REASONING premium, not a memory premium (Chris, 2026-08-02).** Sonnet's
+~967k window is essentially the same working-memory scale as the calibration run's 1M for this
+job — context capacity is never the reason to promote a slot. The expensive tier earns its place
+where raw observations become repository truth, i.e. wherever someone must decide:
+
+- whether six findings are one root cause or six separate defects;
+- whether a reproducer actually proves the stated claim;
+- whether a contradiction is code drift, stale documentation, or a deliberate exception;
+- whether a proposed repair preserves the old invariants;
+- whether two agents agreeing is corroboration or the same seductive mistake.
+
+Those decisions concentrate in the verifiers and the orchestrator's synthesis — which is exactly
+why those two roles never economize while discovery does. Promote a discovery slot only when its
+scope forces that kind of judgment *during* collection, and say so in the assignment.
+
+Second caveat: the single-tier calibration numbers do not transfer to a mixed fleet — **the first
+heavyweight session (S1) doubles as the mixed-fleet calibration**: it reports actuals in the
+#1-style cost report and the envelope below re-scales before S2 fires.
 
 Differential re-siege should run cheaper per heavyweight than #1 (~1–1.5M est. pre-recalibration,
 likely lower with Sonnet discovery) because the inventory, docs, and prior synthesis are pre-built
