@@ -10,9 +10,11 @@ Coverage targets
 [RRD-2]  resolve_rid: room / inside-catch-all / scan / wall / outside / obstacle-bit collision.
 [RRD-3]  decode: a blob with no IMAGE block -> None.
 [RRD-4]  decode: empty / truncated / garbage bytes -> None (never raises).
-[RRD-5]  decode: IMAGE dims larger than the pixel data -> None.
+[RRD-5]  decode: IMAGE dims larger than the pixel data -> None; (5b) ROBORO-7: header_len
+         below the real 24-byte v1 layout -> None (no bogus dims read out of overlapping fields).
 [RRD-6]  render_data: a decoded raster -> the generic eufy_room_pixels_v1 render-data shape.
-[RRD-7]  render_data: empty / None decoded input -> None.
+[RRD-7]  render_data: empty / None decoded input -> None; (7b) ROBORO-1: zero-room decode
+         (room_ids empty) -> present:False, reason:no_rooms, not a false present:True.
 [RRD-8]  render_data_from_candidates: BFS to a MapContent -> decode its raw_api_response.
 [RRD-9]  raster_room_bboxes: per-room normalized bbox from the resolved raster.
 [RRD-10] geometry_drift: overlay parser vs raster bboxes -> aligned / flip / set-mismatch.
@@ -163,6 +165,38 @@ def test_render_data_none_input():
     assert roborock_render_data(None) is None
     assert roborock_render_data({}) is None
     assert roborock_render_data({"width": 0, "height": 0, "room_pixels": b""}) is None
+
+
+def test_render_data_zero_rooms_reports_absent():
+    """[RRD-7b] ROBORO-1: a full-size raster whose decode found ZERO rooms (room_ids
+    empty) reports present:False, reason:no_rooms -- not present:True off pixel
+    dims/bytes alone. Driven both via a hand-built decoded dict and via the REAL
+    decoder on an all-MAP_SCAN blob (every pixel mid-scan, no room ever assigned)."""
+    decoded = {"width": 4, "height": 3, "room_pixels": bytes(12), "room_ids": []}
+    rd = roborock_render_data(decoded, {5: "Kitchen"})
+    assert rd == {"present": False, "reason": "no_rooms"}
+
+    scan_blob = _blob(_image_block(4, 3, bytes([0x07] * 12)))   # MAP_SCAN everywhere
+    scan_decoded = decode_roborock_v1_segments(scan_blob)
+    assert scan_decoded["room_ids"] == []
+    rd2 = roborock_render_data(scan_decoded, {})
+    assert rd2 == {"present": False, "reason": "no_rooms"}
+
+
+def test_decode_header_len_below_24_no_dims_read():
+    """[RRD-5b] ROBORO-7: the v1 layout is 8 fixed prefix bytes + 16 dims bytes == 24
+    (per this module's own docstring); a header_len of 20 (below that) has no real
+    dims quad -- decode must refuse (None), not read a bogus 'dims' out of overlapping
+    header fields."""
+    hdr = bytearray(20)
+    hdr[0:2] = _u16(2)      # block type = IMAGE
+    hdr[2:4] = _u16(20)     # header_len = 20 (< the real 24-byte v1 layout)
+    hdr[4:8] = _u32(12)     # data_len
+    hdr[8:12] = _u32(0)
+    hdr[12:16] = _u32(3)
+    hdr[16:20] = _u32(4)
+    data = bytes([0x0F] * 12)
+    assert decode_roborock_v1_segments(_blob(bytes(hdr) + data)) is None
 
 
 # ---------------------------------------------------------------------------

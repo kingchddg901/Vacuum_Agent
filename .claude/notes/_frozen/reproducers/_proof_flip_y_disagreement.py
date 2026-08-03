@@ -46,11 +46,16 @@ def main() -> int:
 
     # 4x4 raster; room rid=1 occupies ONLY raw row 0 (indices 0-3). Deliberately
     # NO "flip_y" key -- the disagreement case both functions' docstrings warn
-    # against but neither function guards against on its own.
+    # against but neither function guards against on its own. "room_ids" IS
+    # included (decode_roborock_v1_segments always sets it on real output) so
+    # this fixture isn't ALSO tripping the sibling ROBORO-1 fix (a decode with no
+    # rooms now reports present:False before flip_y is even considered) --
+    # that's a different, unrelated finding this proof doesn't drive.
     decoded = {
         "width": 4,
         "height": 4,
         "room_pixels": bytes([1, 1, 1, 1] + [0] * 12),
+        "room_ids": [1],
     }
 
     render_data = roborock_render_data(decoded, room_names={1: "Kitchen"})

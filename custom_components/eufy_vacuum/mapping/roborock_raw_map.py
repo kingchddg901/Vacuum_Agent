@@ -41,6 +41,12 @@ _MAP_INSIDE = 0xFF   # scanned floor, unassigned to a room
 CATCH_ALL_RID = 31   # 0xFF >> 3 — the catch-all "inside, no room" floor
 MAX_ROOM_RID = 30    # (30 << 3) | 7 == 0xF7; 0xFF (31) is the catch-all, not a room
 
+# ROBORO-5: the ONE default for an absent `flip_y` key (raw row 0 is the image
+# bottom — see the module docstring). roborock_render_data and raster_room_bboxes
+# both read this same key off a `decoded` dict and used to each hard-code their own
+# default (True vs False respectively) — a single shared constant closes that gap.
+DEFAULT_FLIP_Y = True
+
 
 def _u16(b: bytes, i: int) -> int:
     return b[i] | (b[i + 1] << 8)
@@ -93,7 +99,11 @@ def decode_roborock_v1_segments(raw: Any) -> dict[str, Any] | None:
             block_type = _u16(raw, pos)
             data_len = _u32(raw, pos + 0x04)
             data_start = pos + header_len
-            if block_type == _BLOCK_TYPE_IMAGE and header_len >= 16:
+            # ROBORO-7: the v1 layout is 8 fixed prefix bytes + 16 dims bytes == 24 (per
+            # this module's own docstring); a header_len between 16 and 23 has the block's
+            # OTHER fields but not yet the dims quad, so reading them at header_len-16..-4
+            # would slide backwards over those other fields instead of the real dims.
+            if block_type == _BLOCK_TYPE_IMAGE and header_len >= 24:
                 top = _u32(raw, pos + header_len - 16)
                 left = _u32(raw, pos + header_len - 12)
                 height = _u32(raw, pos + header_len - 8)
@@ -157,6 +167,12 @@ def roborock_render_data(
     height = decoded.get("height")
     if not rp or not width or not height:
         return None
+    # ROBORO-1: a full-size raster whose decode found ZERO rooms is not a usable
+    # segmentation — decode_roborock_v1_segments already computed room_ids; consume
+    # that signal instead of reporting present:True off pixel dims alone (the card
+    # would otherwise render a map with size and no rooms as if it were real).
+    if not decoded.get("room_ids"):
+        return {"present": False, "reason": "no_rooms"}
     names = room_names if isinstance(room_names, dict) else {}
     raw = bytes(rp)
     if version is None:
@@ -171,7 +187,7 @@ def roborock_render_data(
         "ro_dx": 0,
         "ro_dy": 0,
         "res": int(decoded.get("res", 50)),  # roborock map/50 -> 50 mm/px; pose-only, calibrate on device
-        "flip_y": bool(decoded.get("flip_y", True)),
+        "flip_y": bool(decoded.get("flip_y", DEFAULT_FLIP_Y)),
         "rid_shift": int(decoded.get("rid_shift", 0)),
         "catch_all_rid": int(decoded.get("catch_all_rid", CATCH_ALL_RID)),
         "room_pixels": base64.b64encode(raw).decode("ascii"),
@@ -195,7 +211,7 @@ def raster_room_bboxes(decoded: dict[str, Any] | None) -> dict[int, list[float]]
     if not rp or not width or not height:
         return {}
     w, h = int(width), int(height)
-    flip = bool(decoded.get("flip_y"))
+    flip = bool(decoded.get("flip_y", DEFAULT_FLIP_Y))
     acc: dict[int, list[int]] = {}  # rid -> [min_x, min_y, max_x, max_y] in pixels
     for i, rid in enumerate(rp):
         if not (1 <= rid <= MAX_ROOM_RID):
@@ -281,7 +297,11 @@ def geometry_drift(parser_rooms: Any, decoded: dict[str, Any] | None) -> dict[st
         "common": common,
         "only_parser": sorted(set(parser) - set(raster)),
         "only_raster": sorted(set(raster) - set(parser)),
-        "max_center_delta": round(max_center, 4),
+        # ROBORO-6: same empty-common guard as min_iou below -- max_center is seeded
+        # 0.0 and the loop above never runs when there's nothing to compare, so an
+        # unguarded round(max_center, 4) silently reported "perfectly aligned" (0.0)
+        # for a comparison that never happened, instead of an explicit "no data".
+        "max_center_delta": round(max_center, 4) if common else 0.0,
         "min_iou": round(min_iou, 3) if common else 0.0,
         "aligned": bool(common)
         and not (set(parser) ^ set(raster))
