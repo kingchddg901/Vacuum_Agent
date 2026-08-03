@@ -18,6 +18,8 @@ Coverage targets
         unmanaged vacuum errors.
 [SVS-10] setup_set_map_camera stores/clears the per-vacuum live-map image/camera
         entity override + surfaces it in setup status; an unmanaged vacuum errors.
+[SVS-9b] RP-039/RF-16: setup_set_panel_title appends its registered panel url to
+        the entry's teardown ledger instead of discarding the return value.
 """
 
 from __future__ import annotations
@@ -327,6 +329,24 @@ async def test_setup_set_panel_title_not_managed(hass, manager_with_services, _n
     result = await _call(hass, SERVICE_SETUP_SET_PANEL_TITLE,
                          {"vacuum_entity_id": "vacuum.ghost", "title": "X"})
     assert result["status"] == "error"
+
+
+async def test_setup_set_panel_title_appends_panel_to_entry_ledger(
+    hass, manager_with_services, mock_config_entry, _no_panel
+):
+    """[SVS-9b] RP-039/RF-16: same orphan bug as add_vacuum -- setup_set_panel_title
+    discarded async_register_vacuum_panel's return value and never touched the
+    entry's panel-teardown ledger, so a panel registered/renamed through THIS path
+    was never tracked and never cleanly removed on unload."""
+    mock_config_entry.add_to_hass(hass)
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+
+    result = await _call(hass, SERVICE_SETUP_SET_PANEL_TITLE,
+                         {"vacuum_entity_id": _VAC, "title": "Ivy"})
+    assert result["status"] == "success"
+
+    ledger = hass.data[DOMAIN].get(f"_panels_{mock_config_entry.entry_id}", [])
+    assert "eufy-vacuum-alfred" in ledger
     assert "vacuum.ghost" not in manager_with_services.data.get("vacuums", {})
 
 

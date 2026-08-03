@@ -53,13 +53,16 @@ async def async_register_vacuum_panel(
     *,
     title: str,
     replace: bool = False,
-) -> str | None:
+) -> str:
     """Register (or live re-register) one vacuum's sidebar panel.
 
     With ``replace=True`` an existing panel at the same url is removed first so the
     ``sidebar_title`` can change without a restart (``async_register_panel`` raises
-    ``ValueError`` on a duplicate url). Returns the registered url path, or ``None``
-    when it was already registered (``replace=False`` + duplicate).
+    ``ValueError`` on a duplicate url). Returns the registered url path — including
+    on a ``replace=False`` + duplicate ValueError, where the panel is already live
+    at that url, so callers building a teardown ledger from the return value (see
+    ``append_to_panel_ledger``) still learn the url instead of getting ``None`` for
+    a panel that in fact needs cleaning up on unload.
     """
     panel_url = panel_url_for(vacuum_entity_id)
     if replace:
@@ -88,4 +91,21 @@ async def async_register_vacuum_panel(
         return panel_url
     except ValueError:
         _LOGGER.debug("eufy_vacuum: panel /%s already registered", panel_url)
-        return None
+        return panel_url
+
+
+def append_to_panel_ledger(hass: HomeAssistant, entry_id: str, panel_url: str) -> None:
+    """Add a registered panel url to ``entry_id``'s teardown ledger (idempotent).
+
+    ``__init__.async_setup_entry``'s own startup loop builds this same
+    ``hass.data[DOMAIN][f"_panels_{entry_id}"]`` list inline; this helper gives the
+    two OTHER call sites that register a panel after startup — ``setup/workflow.py``'s
+    ``add_vacuum`` and ``services/setup.py``'s ``setup_set_panel_title`` — the same
+    tracking, so a panel registered through either path is still found and cleanly
+    removed by ``async_unload_entry`` instead of being orphaned.
+    """
+    from .const import DOMAIN
+
+    ledger = hass.data.setdefault(DOMAIN, {}).setdefault(f"_panels_{entry_id}", [])
+    if panel_url not in ledger:
+        ledger.append(panel_url)

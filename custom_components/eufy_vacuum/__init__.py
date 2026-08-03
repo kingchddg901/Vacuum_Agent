@@ -16,10 +16,13 @@ and the job-finished event payload builder.
 
 from __future__ import annotations
 
+import asyncio
 import functools
 import json
 import logging
 import os
+from collections.abc import Callable
+from typing import Any
 
 import voluptuous as vol
 
@@ -300,172 +303,274 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except Exception:
         _LOGGER.debug("eufy_vacuum: icon-select cleanup pass failed", exc_info=True)
 
-    # Load stored adapter configs (UI-configured brands) before code
-    # adapter registration. Code adapters registered below will overwrite
-    # stored configs for the same vacuum — code adapters always win.
-    _stored_count = load_stored_adapter_configs(hass, manager.data)
-    if _stored_count > 0:
-        _LOGGER.debug(  # pragma: no cover
-            "eufy_vacuum: loaded %d stored adapter config(s)",
-            _stored_count,
-        )
+    # RP-039/RF-16: everything from here to `return True` registers a resource
+    # that must be undone if a LATER step in this same setup fails. The only
+    # existing safety net for this stretch is manager.async_shutdown (ledgered
+    # above via entry.async_on_unload — HA itself calls every entry.async_on_unload
+    # callback, in LIFO order, when async_setup_entry raises; see
+    # ConfigEntry.__async_setup_with_context's finally block); nothing else here
+    # was covered.
+    #
+    # _unwind_stack is a LOCAL, mid-setup-only ledger — deliberately NOT
+    # entry.async_on_unload for these steps. That ledger fires again on every
+    # NORMAL unload too (via ConfigEntry.async_unload's own finally), which
+    # already has its own explicit, hand-ordered teardown below in
+    # async_unload_entry; joining the same undo actions to entry.async_on_unload
+    # as well would run each one twice per real unload. Each undo is pushed
+    # BEFORE the step that could partially fail (not after) — a step that starts
+    # a loop (register_vacuum per vacuum, panel registration per vacuum) reads
+    # the SAME mutable object the step itself is populating, so it is undone
+    # correctly however far that step actually got before raising. Walked in
+    # reverse (LIFO, same discipline as HA's own on_unload processing) on any
+    # exception, then the exception is re-raised untouched.
+    _unwind_stack: list[Callable[[], Any]] = []
 
-    # Register the brand code adapter for each managed vacuum. This overwrites any
-    # stored config for the same vacuum. Which brand runs is decided by the registrar
-    # table in adapters/brands.py — an explicit per-vacuum override, else positive
-    # detection, else the declared default arm. Adding a brand is a row in that table,
-    # not an edit here.
-    for _vacuum_entity_id in manager.get_known_vacuum_ids():
-        try:
-            register_brand_adapter(hass, _vacuum_entity_id, data=manager.data)
-        except Exception:
-            _LOGGER.exception(  # pragma: no cover
-                "eufy_vacuum: failed to register adapter config for %s",
-                _vacuum_entity_id,
+    try:
+        # Load stored adapter configs (UI-configured brands) before code
+        # adapter registration. Code adapters registered below will overwrite
+        # stored configs for the same vacuum — code adapters always win.
+        _stored_count = load_stored_adapter_configs(hass, manager.data)
+        if _stored_count > 0:
+            _LOGGER.debug(  # pragma: no cover
+                "eufy_vacuum: loaded %d stored adapter config(s)",
+                _stored_count,
             )
 
-    hass.data[DOMAIN][DATA_RUNTIME] = manager
-    entry.runtime_data = manager  # Bronze: store runtime object in ConfigEntry.runtime_data
-    hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
-
-    # Warm the learning read caches off-loop, so the (loop-bound) dashboard-snapshot
-    # estimate never blocks on disk reading room_stats.json / accuracy_stats.json /
-    # job_stats.json — not even on the first snapshot after a restart. See
-    # LearningHistoryStore.warm_estimate_caches.
-    _learning_store = LearningHistoryStore(hass)
-    for _vac in manager.get_known_vacuum_ids():
-        try:
-            await hass.async_add_executor_job(
-                functools.partial(_learning_store.warm_estimate_caches, vacuum_entity_id=_vac)
-            )
-        except Exception:  # pragma: no cover - never block setup on a cache warm
-            _LOGGER.debug(
-                "eufy_vacuum: learning cache warm failed for %s", _vac, exc_info=True
-            )
-
-    battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
-    battery_manager.start(manager.get_known_vacuum_ids())
-    hass.data[DOMAIN][DATA_BATTERY] = battery_manager
-
-    # Active-run error tracker. Wires state-change listeners on each
-    # vacuum's error_message + vacuum entity, latches errors, persists
-    # them across restarts. The two error sensors and the
-    # active_run_has_error binary sensor read from this tracker.
-    error_tracker = ErrorTracker(hass, runtime_manager=manager)
-    error_tracker.start(manager.get_known_vacuum_ids())
-    hass.data[DOMAIN][DATA_ERROR_TRACKER] = error_tracker
-
-    async def _handle_rebaseline(call: ServiceCall) -> None:
-        vacuum_entity_id = call.data["vacuum_entity_id"]
-        bm = hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
-        if bm is None:
-            _LOGGER.warning(  # pragma: no cover
-                "battery: rebaseline service called but battery manager is not loaded"
-            )
-            return
-        ok = bm.rebaseline(vacuum_entity_id)
-        if not ok:
-            _LOGGER.warning(  # pragma: no cover
-                "battery: rebaseline service called for %s but no record was found",
-                vacuum_entity_id,
-            )
-
-    hass.services.async_register(
-        DOMAIN,
-        "battery_rebaseline",
-        _handle_rebaseline,
-        schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
-    )
-
-    mapping_tracker = MappingTracker(hass)
-    hass.data[DOMAIN]["mapping_tracker"] = mapping_tracker
-    for _vac in manager.get_known_vacuum_ids():
-        try:
-            _caps = manager.get_vacuum_capabilities(vacuum_entity_id=_vac, refresh=False)
-            _x_entity = _caps.get("entities", {}).get("robot_position_x")
-            _y_entity = _caps.get("entities", {}).get("robot_position_y")
-            if _x_entity and _y_entity:
-                mapping_tracker.register_vacuum(
-                    vacuum_entity_id=_vac,
-                    position_x_entity_id=_x_entity,
-                    position_y_entity_id=_y_entity,
+        # Register the brand code adapter for each managed vacuum. This overwrites any
+        # stored config for the same vacuum. Which brand runs is decided by the registrar
+        # table in adapters/brands.py — an explicit per-vacuum override, else positive
+        # detection, else the declared default arm. Adding a brand is a row in that table,
+        # not an edit here. (No unwind: this writes into the AdapterCoordinator
+        # constructed just above async_initialize, outside this stretch — a failed
+        # attempt's coordinator is simply replaced by a fresh one on the next
+        # attempt, never referenced again.)
+        for _vacuum_entity_id in manager.get_known_vacuum_ids():
+            try:
+                register_brand_adapter(hass, _vacuum_entity_id, data=manager.data)
+            except Exception:
+                _LOGGER.exception(  # pragma: no cover
+                    "eufy_vacuum: failed to register adapter config for %s",
+                    _vacuum_entity_id,
                 )
-        except Exception:
-            _LOGGER.warning(  # pragma: no cover
-                "eufy_vacuum: failed to register position tracker for %s — "
-                "map position tracking will be unavailable for this vacuum",
-                _vac,
-                exc_info=True,
-            )
 
-    await async_register_services(hass)
-    await async_register_learning_services(hass)
-    await async_register_theme_services(hass)
-    await async_register_mapping_services(hass)
-
-    # Listener registration — each module owns its own state/constants
-    # and exposes register(hass)/remove(hass). See listeners/ for the
-    # per-group implementations.
-    lifecycle.register(hass)
-    job_metrics.register(hass)
-    dock_events.register(hass)
-    path_blockers.register(hass)
-    pause_timeout.register(hass)
-    job_progress.register(hass)
-    pose_sampler.register(hass)
-    discovery.register(hass)
-
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Register one sidebar panel per managed vacuum. The sidebar title is the
-    # user-set per-vacuum panel_title (or "Vacuum Agent" default), read from the
-    # stored record so a rename survives restart/reload. See panels.py.
-    registered_panels: list[str] = []
-    _vacuum_records = manager.data.get("vacuums", {}) or {}
-    for vacuum_entity_id in manager.get_known_vacuum_ids():
-        panel_url = await async_register_vacuum_panel(
-            hass,
-            vacuum_entity_id,
-            title=effective_panel_title(_vacuum_records.get(vacuum_entity_id)),
+        hass.data[DOMAIN][DATA_RUNTIME] = manager
+        _unwind_stack.append(lambda: hass.data.get(DOMAIN, {}).pop(DATA_RUNTIME, None))
+        entry.runtime_data = manager  # Bronze: store runtime object in ConfigEntry.runtime_data
+        _unwind_stack.append(
+            lambda: object.__delattr__(entry, "runtime_data")
+            if hasattr(entry, "runtime_data") else None
         )
-        if panel_url:
-            registered_panels.append(panel_url)
+        hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
+        _unwind_stack.append(lambda: hass.data.get(DOMAIN, {}).pop(DATA_LEARNING, None))
 
-    # Fallback panel for fresh installs that haven't pointed at a vacuum
-    # yet. Without this, users see no sidebar entry at all and have no
-    # in-UI affordance to add their vacuum. The card detects an empty
-    # `vacuum_entity_id` config and renders a setup placeholder that
-    # points back at Settings → Devices & Services → Configure.
-    if not registered_panels:
-        fallback_panel_url = "eufy-vacuum"
-        try:
-            await panel_custom.async_register_panel(
+        # Warm the learning read caches off-loop, so the (loop-bound) dashboard-snapshot
+        # estimate never blocks on disk reading room_stats.json / accuracy_stats.json /
+        # job_stats.json — not even on the first snapshot after a restart. See
+        # LearningHistoryStore.warm_estimate_caches. (No unwind: a pure read-cache
+        # warm with its own swallowing try/except — never leaves anything to undo.)
+        _learning_store = LearningHistoryStore(hass)
+        for _vac in manager.get_known_vacuum_ids():
+            try:
+                await hass.async_add_executor_job(
+                    functools.partial(_learning_store.warm_estimate_caches, vacuum_entity_id=_vac)
+                )
+            except Exception:  # pragma: no cover - never block setup on a cache warm
+                _LOGGER.debug(
+                    "eufy_vacuum: learning cache warm failed for %s", _vac, exc_info=True
+                )
+
+        battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
+
+        def _undo_battery_manager() -> None:
+            hass.data.get(DOMAIN, {}).pop(DATA_BATTERY, None)
+            battery_manager.stop()
+
+        # Pushed BEFORE start() (not after): start() has no per-vacuum try/except
+        # of its own, so a failure partway through must still unwind whichever
+        # vacuums it already wired — stop() reads the manager's own live internal
+        # state at call time, so it does the right thing however far start() got.
+        _unwind_stack.append(_undo_battery_manager)
+        battery_manager.start(manager.get_known_vacuum_ids())
+        hass.data[DOMAIN][DATA_BATTERY] = battery_manager
+
+        # Active-run error tracker. Wires state-change listeners on each
+        # vacuum's error_message + vacuum entity, latches errors, persists
+        # them across restarts. The two error sensors and the
+        # active_run_has_error binary sensor read from this tracker.
+        error_tracker = ErrorTracker(hass, runtime_manager=manager)
+
+        def _undo_error_tracker() -> None:
+            hass.data.get(DOMAIN, {}).pop(DATA_ERROR_TRACKER, None)
+            error_tracker.stop()
+
+        _unwind_stack.append(_undo_error_tracker)
+        error_tracker.start(manager.get_known_vacuum_ids())
+        hass.data[DOMAIN][DATA_ERROR_TRACKER] = error_tracker
+
+        async def _handle_rebaseline(call: ServiceCall) -> None:
+            vacuum_entity_id = call.data["vacuum_entity_id"]
+            bm = hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
+            if bm is None:
+                _LOGGER.warning(  # pragma: no cover
+                    "battery: rebaseline service called but battery manager is not loaded"
+                )
+                return
+            ok = bm.rebaseline(vacuum_entity_id)
+            if not ok:
+                _LOGGER.warning(  # pragma: no cover
+                    "battery: rebaseline service called for %s but no record was found",
+                    vacuum_entity_id,
+                )
+
+        hass.services.async_register(
+            DOMAIN,
+            "battery_rebaseline",
+            _handle_rebaseline,
+            schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
+        )
+        _unwind_stack.append(lambda: hass.services.async_remove(DOMAIN, "battery_rebaseline"))
+
+        mapping_tracker = MappingTracker(hass)
+
+        def _undo_mapping_tracker() -> None:
+            hass.data.get(DOMAIN, {}).pop("mapping_tracker", None)
+            mapping_tracker.unregister_all()
+
+        _unwind_stack.append(_undo_mapping_tracker)
+        hass.data[DOMAIN]["mapping_tracker"] = mapping_tracker
+        for _vac in manager.get_known_vacuum_ids():
+            try:
+                _caps = manager.get_vacuum_capabilities(vacuum_entity_id=_vac, refresh=False)
+                _x_entity = _caps.get("entities", {}).get("robot_position_x")
+                _y_entity = _caps.get("entities", {}).get("robot_position_y")
+                if _x_entity and _y_entity:
+                    mapping_tracker.register_vacuum(
+                        vacuum_entity_id=_vac,
+                        position_x_entity_id=_x_entity,
+                        position_y_entity_id=_y_entity,
+                    )
+            except Exception:
+                _LOGGER.warning(  # pragma: no cover
+                    "eufy_vacuum: failed to register position tracker for %s — "
+                    "map position tracking will be unavailable for this vacuum",
+                    _vac,
+                    exc_info=True,
+                )
+
+        await async_register_services(hass)
+        _unwind_stack.append(lambda: async_unregister_services(hass))
+        await async_register_learning_services(hass)
+        _unwind_stack.append(lambda: async_unregister_learning_services(hass))
+        await async_register_theme_services(hass)
+        _unwind_stack.append(lambda: async_unregister_theme_services(hass))
+        await async_register_mapping_services(hass)
+        _unwind_stack.append(lambda: async_unregister_mapping_services(hass))
+
+        # Listener registration — each module owns its own state/constants
+        # and exposes register(hass)/remove(hass). See listeners/ for the
+        # per-group implementations.
+        lifecycle.register(hass)
+        _unwind_stack.append(lambda: lifecycle.remove(hass))
+        job_metrics.register(hass)
+        _unwind_stack.append(lambda: job_metrics.remove(hass))
+        dock_events.register(hass)
+        _unwind_stack.append(lambda: dock_events.remove(hass))
+        path_blockers.register(hass)
+        _unwind_stack.append(lambda: path_blockers.remove(hass))
+        pause_timeout.register(hass)
+        _unwind_stack.append(lambda: pause_timeout.remove(hass))
+        job_progress.register(hass)
+        _unwind_stack.append(lambda: job_progress.remove(hass))
+        pose_sampler.register(hass)
+        _unwind_stack.append(lambda: pose_sampler.remove(hass))
+        discovery.register(hass)
+        _unwind_stack.append(lambda: discovery.remove(hass))
+
+        # STOP-CONDITION check (RP-039): verified against the installed HA source
+        # (ConfigEntries.async_forward_entry_setups / async_unload_platforms,
+        # ConfigEntry.async_unload) that forwarded-platform unload does NOT gate on
+        # the parent entry's own state — a platform's async_unload_entry only cares
+        # about ITS OWN (domain, config_entry) registration, so calling
+        # async_unload_platforms here (entry.state is still SETUP_IN_PROGRESS, not
+        # LOADED) is exactly the same call our own async_unload_entry already makes
+        # unconditionally on every normal unload. Safe to un-forward mid-setup —
+        # this is not the infeasible step.
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        _unwind_stack.append(
+            lambda: hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+        )
+
+        # Register one sidebar panel per managed vacuum. The sidebar title is the
+        # user-set per-vacuum panel_title (or "Vacuum Agent" default), read from the
+        # stored record so a rename survives restart/reload. See panels.py.
+        registered_panels: list[str] = []
+
+        def _undo_panels() -> None:
+            for _url in registered_panels:
+                try:
+                    frontend.async_remove_panel(hass, _url)
+                except Exception:  # pragma: no cover - defensive (panel may not exist)
+                    _LOGGER.debug(
+                        "eufy_vacuum: failed to remove panel /%s during mid-setup unwind",
+                        _url, exc_info=True,
+                    )
+            hass.data.get(DOMAIN, {}).pop(f"_panels_{entry.entry_id}", None)
+
+        _unwind_stack.append(_undo_panels)
+        _vacuum_records = manager.data.get("vacuums", {}) or {}
+        for vacuum_entity_id in manager.get_known_vacuum_ids():
+            panel_url = await async_register_vacuum_panel(
                 hass,
-                frontend_url_path=fallback_panel_url,
-                # INF-1: the three literals below are DEFAULT_PANEL_TITLE /
-                # PANEL_ICON / WEBCOMPONENT_NAME from panels.py — that module's
-                # own docstring claims this is the single source of truth for
-                # all panel-registration call sites; this fallback path used
-                # to hand-retype them instead of importing the constants.
-                webcomponent_name=WEBCOMPONENT_NAME,
-                js_url=panel_js_url(),
-                sidebar_title=DEFAULT_PANEL_TITLE,
-                sidebar_icon=PANEL_ICON,
-                config={},  # no vacuum_entity_id — card renders setup placeholder
-                require_admin=False,
-                embed_iframe=False,
+                vacuum_entity_id,
+                title=effective_panel_title(_vacuum_records.get(vacuum_entity_id)),
             )
-            registered_panels.append(fallback_panel_url)
-            _LOGGER.debug(
-                "eufy_vacuum: no managed vacuums yet — registered fallback /%s panel",
-                fallback_panel_url,
-            )
-        except ValueError:
-            _LOGGER.debug("eufy_vacuum: fallback panel /%s already registered", fallback_panel_url)
+            if panel_url:
+                registered_panels.append(panel_url)
 
-    hass.data[DOMAIN][f"_panels_{entry.entry_id}"] = registered_panels
+        # Fallback panel for fresh installs that haven't pointed at a vacuum
+        # yet. Without this, users see no sidebar entry at all and have no
+        # in-UI affordance to add their vacuum. The card detects an empty
+        # `vacuum_entity_id` config and renders a setup placeholder that
+        # points back at Settings → Devices & Services → Configure.
+        if not registered_panels:
+            fallback_panel_url = "eufy-vacuum"
+            try:
+                await panel_custom.async_register_panel(
+                    hass,
+                    frontend_url_path=fallback_panel_url,
+                    # INF-1: the three literals below are DEFAULT_PANEL_TITLE /
+                    # PANEL_ICON / WEBCOMPONENT_NAME from panels.py — that module's
+                    # own docstring claims this is the single source of truth for
+                    # all panel-registration call sites; this fallback path used
+                    # to hand-retype them instead of importing the constants.
+                    webcomponent_name=WEBCOMPONENT_NAME,
+                    js_url=panel_js_url(),
+                    sidebar_title=DEFAULT_PANEL_TITLE,
+                    sidebar_icon=PANEL_ICON,
+                    config={},  # no vacuum_entity_id — card renders setup placeholder
+                    require_admin=False,
+                    embed_iframe=False,
+                )
+                registered_panels.append(fallback_panel_url)
+                _LOGGER.debug(
+                    "eufy_vacuum: no managed vacuums yet — registered fallback /%s panel",
+                    fallback_panel_url,
+                )
+            except ValueError:
+                _LOGGER.debug("eufy_vacuum: fallback panel /%s already registered", fallback_panel_url)
 
-    return True
+        hass.data[DOMAIN][f"_panels_{entry.entry_id}"] = registered_panels
+
+        return True
+    except Exception:
+        for _undo in reversed(_unwind_stack):
+            try:
+                _result = _undo()
+                if asyncio.iscoroutine(_result):
+                    await _result
+            except Exception:  # pragma: no cover - defensive; unwind must not mask the original error
+                _LOGGER.exception("eufy_vacuum: mid-setup unwind step failed")
+        raise
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

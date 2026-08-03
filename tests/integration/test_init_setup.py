@@ -41,6 +41,9 @@ Coverage targets
 [INIT-13] SN-4: renaming a room and firing the room-update notification swaps the
           sensor entity object under the SAME unique_id (registry entry — and any
           user name override — survives; no duplicate/orphan entity_id created).
+[INIT-14] RP-039/RF-16: a LATE mid-setup failure (panel registration) unwinds
+          every step that registered before it — services, listeners, trackers,
+          forwarded platforms, hass.data/runtime_data pointers.
 """
 
 from __future__ import annotations
@@ -63,6 +66,7 @@ from custom_components.eufy_vacuum.const import (
     CONF_VACUUM_ENTITY_ID,
     DATA_BATTERY,
     DATA_ERROR_TRACKER,
+    DATA_LEARNING,
     DATA_RUNTIME,
     DOMAIN,
     EVENT_JOB_FINISHED,
@@ -122,6 +126,55 @@ async def test_setup_and_unload(hass, mock_config_entry):
     await hass.async_block_till_done()
     assert mock_config_entry.state is ConfigEntryState.NOT_LOADED
     assert DATA_RUNTIME not in hass.data.get(DOMAIN, {})
+
+
+async def test_mid_setup_failure_unwinds_prior_registrations(hass, mock_config_entry):
+    """[INIT-14] RP-039/RF-16: a failure LATE in async_setup_entry — panel
+    registration, after every other step already succeeded — must unwind
+    everything that registered before it: all 4 service groups +
+    battery_rebaseline, all 8 listeners, mapping_tracker/battery_manager/
+    error_tracker, the forwarded platforms, and the hass.data/runtime_data
+    pointers. Before this packet the ONLY thing torn down on a mid-setup
+    failure was the manager (RP-003's own entry.async_on_unload ledger,
+    already correct) — everything else dangled.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+
+    with patch(
+        "custom_components.eufy_vacuum.async_register_vacuum_panel",
+        AsyncMock(side_effect=RuntimeError("boom")),
+    ):
+        ok = await _setup(hass, mock_config_entry)
+
+    assert ok is False
+    assert mock_config_entry.state is ConfigEntryState.SETUP_ERROR
+
+    dd = hass.data.get(DOMAIN, {})
+    assert DATA_RUNTIME not in dd
+    assert DATA_LEARNING not in dd
+    assert DATA_BATTERY not in dd
+    assert DATA_ERROR_TRACKER not in dd
+    assert "mapping_tracker" not in dd
+    assert not hasattr(mock_config_entry, "runtime_data")
+
+    # One service from each of the 4 register_*_services groups, plus the
+    # standalone battery_rebaseline registration — all unregistered.
+    assert not hass.services.has_service(DOMAIN, "battery_rebaseline")
+    assert not hass.services.has_service(DOMAIN, "setup_get_status")        # services/setup.py
+    assert not hass.services.has_service(DOMAIN, "save_learning_snapshot")  # learning/services.py
+    assert not hass.services.has_service(DOMAIN, "get_theme_library")       # themes/services.py
+    assert not hass.services.has_service(DOMAIN, "upload_map_image")        # mapping/mapping_services.py
+
+    # All 8 listener groups removed their state.
+    assert "_job_lifecycle_unsubs" not in dd
+    assert "_discovery_unsubs" not in dd
+
+    # The forwarded platforms were unforwarded too: the platform-created entity
+    # goes "unavailable" (HA's standard unload behaviour for any integration —
+    # the state/registry entries persisting is the point of a clean unload, not
+    # a full delete) rather than staying live and functioning.
+    state = hass.states.get("binary_sensor.alfred_active_run_has_error")
+    assert state is not None and state.state == "unavailable"
 
 
 async def test_global_cards_module_registered(hass, mock_config_entry):

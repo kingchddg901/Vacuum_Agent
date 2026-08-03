@@ -327,12 +327,23 @@ def register(hass: HomeAssistant) -> None:
             record.pop("panel_title", None)  # blank -> revert to the default
         await manager.async_save()
 
-        from ..panels import async_register_vacuum_panel, effective_panel_title
+        from ..panels import (
+            append_to_panel_ledger,
+            async_register_vacuum_panel,
+            effective_panel_title,
+        )
 
         title = effective_panel_title(record)
-        await async_register_vacuum_panel(
+        panel_url = await async_register_vacuum_panel(
             hass, vacuum_entity_id, title=title, replace=True
         )
+        # RP-039/RF-16: same orphan bug as setup/workflow.py's add_vacuum — this
+        # rename service discarded the return value and never touched the entry's
+        # panel-teardown ledger, so a vacuum whose panel title was ever renamed
+        # never had its panel cleanly removed on unload.
+        _entries = hass.config_entries.async_entries(DOMAIN)
+        if _entries:
+            append_to_panel_ledger(hass, _entries[0].entry_id, panel_url)
         return {
             "status": "success",
             "message": f"Panel renamed to '{title}'. Refresh the page to update the sidebar.",

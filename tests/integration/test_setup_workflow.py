@@ -24,6 +24,8 @@ Coverage targets
 [SD-3]  force_remove_room bumps missing_passes to threshold.
 [SD-4]  compute_room_drift surfaces a removed room after threshold misses.
 [SD-5]  run_discovery_pass reads the adapter room list + updates drift.
+[SW-13] RP-039/RF-16: add_vacuum appends its registered panel url to the entry's
+        teardown ledger instead of discarding the return value.
 """
 
 from __future__ import annotations
@@ -109,6 +111,30 @@ async def test_add_vacuum_no_manager_returns_error(hass):
     # DATA_RUNTIME deliberately not set
     result = await add_vacuum(hass, _VAC)
     assert result["status"] == "error"
+
+
+async def test_add_vacuum_appends_panel_to_entry_ledger(
+    hass, manager, mock_config_entry, monkeypatch
+):
+    """[SW-13] RP-039/RF-16: add_vacuum's panel registration now appends the
+    registered url to the entry's teardown ledger
+    (hass.data[DOMAIN][f"_panels_{entry_id}"]) -- previously the return value was
+    discarded, so a panel registered through THIS path was never tracked and
+    never cleanly removed on unload."""
+    from unittest.mock import AsyncMock
+
+    mock_config_entry.add_to_hass(hass)
+    hass.states.async_set(_VAC, "docked")
+    await hass.async_block_till_done()
+    monkeypatch.setattr(
+        "homeassistant.components.panel_custom.async_register_panel", AsyncMock()
+    )
+
+    result = await add_vacuum(hass, _VAC)
+    assert result["status"] == "success"
+
+    ledger = hass.data[DOMAIN].get(f"_panels_{mock_config_entry.entry_id}", [])
+    assert "eufy-vacuum-alfred" in ledger
 
 
 # ---------------------------------------------------------------------------

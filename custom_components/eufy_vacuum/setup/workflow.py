@@ -101,13 +101,25 @@ async def add_vacuum(
 
     # Register a per-vacuum sidebar panel so the user can reach the command center
     # immediately. Title = the vacuum's panel_title (or "Vacuum Agent" default).
-    from ..panels import async_register_vacuum_panel, effective_panel_title
+    from ..panels import (
+        append_to_panel_ledger,
+        async_register_vacuum_panel,
+        effective_panel_title,
+    )
 
-    await async_register_vacuum_panel(
+    panel_url = await async_register_vacuum_panel(
         hass,
         vacuum_entity_id,
         title=effective_panel_title(record),
     )
+    # RP-039/RF-16: this is a singleton domain (one config entry manages every
+    # vacuum), so the first (only) entry IS the owning entry — same lookup
+    # services/setup.py's setup_add_vacuum already uses to find it for a reload.
+    # Without this the panel registered above was untracked and never cleanly
+    # removed on unload.
+    _entries = hass.config_entries.async_entries(DOMAIN)
+    if _entries:
+        append_to_panel_ledger(hass, _entries[0].entry_id, panel_url)
 
     _LOGGER.debug("eufy_vacuum: added vacuum %s", vacuum_entity_id)
     return _result(
