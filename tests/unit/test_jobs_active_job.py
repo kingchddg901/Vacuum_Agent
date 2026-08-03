@@ -1055,3 +1055,64 @@ def test_first_phase_and_atomic_jobs_keep_the_whole_buffer():
 
     assert len(tracker._current_phase_samples({**job, "current_phase_index": 0})) == len(samples)
     assert len(tracker._current_phase_samples({"counter_samples": samples, "phases": None})) == len(samples)
+
+
+# --------------------------------------------------------------------------
+# A cancel MARKS the job; it must also stop the phase machine. Suspected after
+# a live cancel appeared to re-fire (2026-08-02).
+# --------------------------------------------------------------------------
+
+
+def _live_phased_job():
+    return {
+        "vacuum_entity_id": "vacuum.alfred",
+        "map_id": "12",
+        "job_id": "job_x",
+        "status": "started",
+        "current_phase_index": 1,
+        "phases": [
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 5}]},
+            {"phase_type": "wait", "wait_minutes": 2, "resolved_rooms": []},
+            {"phase_type": "room_group", "resolved_rooms": [{"room_id": 8}]},
+        ],
+    }
+
+
+def _runner_over(job):
+    from unittest.mock import MagicMock
+
+    from custom_components.eufy_vacuum.jobs.phase_runner import PhaseRunner
+
+    mgr = MagicMock()
+    mgr.get_active_job = lambda **kw: job
+    mgr.data = {"active_jobs": {"vacuum.alfred": {"12": job}}}
+    return PhaseRunner(manager=mgr)
+
+
+@pytest.mark.asyncio
+async def test_a_finalized_job_cannot_advance_a_phase():
+    """`_cancel_in_flight` only covers the cancel WHILE IT RUNS — finalizing clears it.
+    Without a finalized/status check a late caller (a wait poller passing its deadline,
+    the completion event from the cancel's own dock) advances the job and dispatches the
+    next phase: the robot cleans again after you cancelled it."""
+    job = _live_phased_job()
+    job["status"] = "completed"
+    job["finalized"] = True
+    job["_cancel_in_flight"] = False          # cleared by mark_active_job_finalized
+    runner = _runner_over(job)
+
+    advanced = await runner.maybe_advance_phase(vacuum_entity_id="vacuum.alfred", map_id="12")
+
+    assert advanced is False
+    assert job["current_phase_index"] == 1, "a finalized job advanced a phase"
+
+
+@pytest.mark.asyncio
+async def test_a_paused_job_cannot_advance_a_phase():
+    """Resume re-arms the phase; advancing underneath a pause would double-drive it."""
+    job = _live_phased_job()
+    job["status"] = "paused"
+    runner = _runner_over(job)
+
+    assert await runner.maybe_advance_phase(vacuum_entity_id="vacuum.alfred", map_id="12") is False
+    assert job["current_phase_index"] == 1

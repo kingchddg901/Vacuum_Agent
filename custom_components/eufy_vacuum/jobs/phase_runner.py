@@ -238,6 +238,27 @@ class PhaseRunner:
         # timing for a phase the cancel is about to tear down.
         if active_job.get("_cancel_in_flight"):
             return False
+        # ...and refuse once the cancel has FINISHED. `_cancel_in_flight` above only covers
+        # the window while it runs: mark_active_job_finalized deliberately clears that latch,
+        # so after a cancel completes the flag is False again while `status` is "completed"
+        # and `finalized` is True — neither of which this function used to read.
+        #
+        # A cancel therefore MARKED the job without stopping the phase machine. Any late
+        # caller could still advance it and DISPATCH THE NEXT PHASE: a wait poller that
+        # passes its deadline in the same tick the cancel lands, or the completion event
+        # from the cancel's own return_to_base dock. The robot starts cleaning again after
+        # you cancelled it, and the run writes phases past its own finalize.
+        #
+        # Mirrors the pollers' `_still_ours` predicate — a job is advanceable only while it
+        # is genuinely live. A paused job is excluded too: resume re-arms the phase.
+        if active_job.get("finalized") or str(active_job.get("status") or "") != "started":
+            _LOGGER.debug(
+                "maybe_advance_phase: refusing to advance %s map %s — job is %s"
+                "%s; a finished run must not dispatch another phase.",
+                vacuum_entity_id, map_id, active_job.get("status"),
+                " (finalized)" if active_job.get("finalized") else "",
+            )
+            return False
         # Snapshot the FINISHING phase's room_timing from its OWN counter slice BEFORE advance
         # resets the queue/timing. Without this, strict-order finalization segments the whole
         # accumulated counter stream against only the LAST phase's queue (the per-room dock trips
