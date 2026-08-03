@@ -59,6 +59,9 @@
       "room_count": "Liczba pokoi",
       "none": "Brak"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Żadne zakończone ładowanie nie rozpoczęło się przy 50% lub mniej i nie osiągnęło 90% lub więcej, więc nie ma jeszcze punktu odniesienia do porównania. Odkurzacz, który często dokuje i rzadko mocno się rozładowuje, może nigdy sam takiego nie wygenerować."
+    },
     "status": {
       "completed": "Ukończono",
       "canceled": "Anulowano",
@@ -1768,7 +1771,27 @@
     "unmanaged_vacuums_hint": "Te odkurzacze są dostępne w Home Assistant, ale nie są jeszcze zarządzane. Dodanie odkurzacza rejestruje jego adapter oraz panel na pasku bocznym (integracja zostaje przeładowana).",
     "vacuum_registered": "Odkurzacz zarejestrowany.",
     "working": "Przetwarzanie…",
-    "panel_name_placeholder": "Agent odkurzacza"
+    "panel_name_placeholder": "Agent odkurzacza",
+    "reconcile_dismiss_button": "Odrzuć",
+    "reconcile_dismissing": "Odrzucanie…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> został usunięty z tej mapy, a jego ustawienia zostały odrzucone.",
+      "other": "<strong>{names}</strong> zostały usunięte z tej mapy, a ich ustawienia zostały odrzucone."
+    },
+    "reconcile_formerly": "Wcześniej {name}",
+    "reconcile_rediscover_button": "Wykryj pokoje ponownie",
+    "reconcile_refresh_failed": "Mapa się zmieniła, ale automatyczne odświeżenie nie powiodło się.",
+    "reconcile_renamed_hint": "Ten sam numer pokoju, inna nazwa — albo zmieniono jej nazwę w aplikacji, albo ponowne mapowanie wykorzystało ten numer dla innej przestrzeni. Nie da się tego rozróżnić automatycznie; sprawdź przed aktualizacją.",
+    "reconcile_renamed_title": "Zmienione nazwy pokoi ({count})",
+    "reconcile_renumbered_hint": "Odkurzacz przypisał tym pokojom nowe numery po ponownym mapowaniu. Zapisane ustawienia podążą za nimi automatycznie — nie jest wymagane żadne działanie.",
+    "reconcile_renumbered_title": "Ponumerowane na nowo pokoje ({count})",
+    "reconcile_stale_note": "Mapa zmieniła się podczas przeglądania — to jest aktualny stan.",
+    "reconcile_update_button": "Zaktualizuj zapisane pokoje",
+    "reconcile_updated_count": {
+      "one": "Zaktualizowano {count} pokój.",
+      "other": "Zaktualizowano {count} pokoi."
+    },
+    "reconcile_updating": "Aktualizowanie…"
   },
   "theme": {
     "alpha_aria_label": "Krycie {label}",
@@ -2317,7 +2340,10 @@
     "map_camera_set": "Ustawiono kamerę mapy na żywo",
     "map_delete_failed": "Usuwanie mapy nie powiodło się",
     "map_deleted": "Usunięto mapę",
-    "panel_renamed": "Zmieniono nazwę panelu — odśwież, aby zaktualizować panel boczny"
+    "panel_renamed": "Zmieniono nazwę panelu — odśwież, aby zaktualizować panel boczny",
+    "failed_reconcile_dismiss": "Nie udało się odrzucić uzgodnienia: {error}",
+    "failed_reconcile_update": "Nie udało się zaktualizować zapisanych pokoi: {error}",
+    "reconciliation_dismissed": "Odrzucono — ten sam przegląd może pojawić się ponownie, jeśli mapa znowu się zmieni"
   },
   "mobile": {
     "dock_status_label": "Stan stacji dokującej:",

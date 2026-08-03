@@ -59,6 +59,9 @@
       "room_count": "房間數",
       "none": "無"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "目前尚未有一次完整充電是從 50% 或更低開始、並達到 90% 或以上結束，因此還沒有可供比較的基準值。經常回充且很少大幅放電的掃地機器人，可能永遠無法自行產生這樣的充電紀錄。"
+    },
     "status": {
       "completed": "已完成",
       "canceled": "已取消",
@@ -2058,7 +2061,25 @@
     "unmanaged_vacuums_hint": "這些掃地機在 Home Assistant 中可用，但尚未納入管理。新增其中一台會註冊其轉接器與側邊欄面板（整合會重新載入）。",
     "vacuum_registered": "掃地機已註冊。",
     "working": "處理中…",
-    "panel_name_placeholder": "掃地機代理"
+    "panel_name_placeholder": "掃地機代理",
+    "reconcile_dismiss_button": "略過",
+    "reconcile_dismissing": "略過中…",
+    "reconcile_dropped_sentence": {
+      "other": "<strong>{names}</strong> 已從此地圖中移除，其設定已被捨棄。"
+    },
+    "reconcile_formerly": "曾用名：{name}",
+    "reconcile_rediscover_button": "重新偵測房間",
+    "reconcile_refresh_failed": "地圖已變更，但自動重新整理未成功。",
+    "reconcile_renamed_hint": "房間編號相同，名稱不同——可能是您在應用程式中重新命名了它，也可能是重新建圖時該編號被重複使用於另一個空間。系統無法自動分辨；更新前請先查看。",
+    "reconcile_renamed_title": "已重新命名的房間（{count}）",
+    "reconcile_renumbered_hint": "掃地機在重新建圖後重新分配了這些房間編號。已儲存的設定會自動跟隨——無需任何操作。",
+    "reconcile_renumbered_title": "已重新編號的房間（{count}）",
+    "reconcile_stale_note": "在您查看時地圖發生了變化——這是目前的狀態。",
+    "reconcile_update_button": "更新已儲存的房間",
+    "reconcile_updated_count": {
+      "other": "已更新 {count} 個房間。"
+    },
+    "reconcile_updating": "更新中…"
   },
   "external_jobs": {
     "back": "返回",
@@ -2233,7 +2254,10 @@
     "map_camera_set": "已設定即時地圖攝影機",
     "map_delete_failed": "地圖刪除失敗",
     "map_deleted": "已刪除地圖",
-    "panel_renamed": "面板已重新命名 — 請重新整理以更新側邊欄"
+    "panel_renamed": "面板已重新命名 — 請重新整理以更新側邊欄",
+    "failed_reconcile_dismiss": "略過核對失敗：{error}",
+    "failed_reconcile_update": "更新已儲存的房間失敗：{error}",
+    "reconciliation_dismissed": "已略過——如果地圖再次變化，相同的核對項可能會重新出現"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "確認失敗：{detail}",

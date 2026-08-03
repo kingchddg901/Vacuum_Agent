@@ -240,6 +240,8 @@ export const en = {
   "bind_setup.failed_force_remove_room": "Failed to force-remove room: {error}",
   "bind_setup.failed_import_map": "Failed to import map: {error}",
   "bind_setup.failed_load_rooms": "Failed to load rooms: {error}",
+  "bind_setup.failed_reconcile_dismiss": "Failed to dismiss reconciliation: {error}",
+  "bind_setup.failed_reconcile_update": "Failed to update saved rooms: {error}",
   "bind_setup.failed_reject_room": "Failed to reject room: {error}",
   "bind_setup.failed_rename_panel": "Failed to rename panel: {error}",
   "bind_setup.failed_save_rooms": "Failed to save rooms: {error}",
@@ -249,6 +251,7 @@ export const en = {
   "bind_setup.map_delete_failed": "Map delete failed",
   "bind_setup.map_deleted": "Map deleted",
   "bind_setup.panel_renamed": "Panel renamed — refresh to update the sidebar",
+  "bind_setup.reconciliation_dismissed": "Dismissed — the same review can resurface if the map changes again",
   "bind_theme.confirm_overwrite_theme": "Overwrite {target} with your unsaved changes? {target}'s other settings will stay as they are.",  // CARD-9(2)/Q7 (RP-034): overwrite merges the draft onto the TARGET's own stored palette — the target is state.activeThemeId itself, so this direction is correct even though target===active in the only call site (bindings/theme.js's save-theme handler).
   "bind_theme.copied": "Copied!",
   "bind_theme.copy": "Copy",
@@ -1424,6 +1427,20 @@ export const en = {
   "setup.panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
   "setup.panel_name_title": "Panel name",  // Heading for renaming this vacuum's Home Assistant sidebar entry ('Panel'=HA sidebar item)
   "setup.ready_banner": "✓ Setup complete — switch to the Rooms tab to start cleaning.",
+  "setup.reconcile_dismiss_button": "Dismiss",  // CARD-7/RP-019 reconciliation banner: reconcile_room(action=ignore) — NOT permanent, an identical review can resurface later (design: never say "Ignore forever")
+  "setup.reconcile_dismissing": "Dismissing…",
+  "setup.reconcile_dropped_sentence": { one: "<strong>{names}</strong> was removed from this map and its settings were discarded.", other: "<strong>{names}</strong> were removed from this map and their settings were discarded." },  // plural; State C (after Update) — rendered via tRaw, raw HTML bold (mirrors setup.delete_warning's pattern); {names}=comma-joined, already-escaped display names (prettified from the backend's slugs); {count}=names.length drives the form. Omitted entirely when dropped is empty.
+  "setup.reconcile_formerly": "Formerly {name}",  // Secondary caption under a renamed room's NEW name in the reconciliation banner's "Renamed" group; {name}=the room's previous name (escaped by the caller). A separate translated unit from the name itself — never concatenated into one sentence.
+  "setup.reconcile_rediscover_button": "Re-discover rooms",  // Manual retry button shown only when the silent plan_changed recovery itself failed
+  "setup.reconcile_refresh_failed": "The map changed, but the refresh didn't go through automatically.",  // CARD-7/RP-019: shown when the silent plan_changed recovery (re-running discover_rooms) itself fails — design's literal fallback ("the map changed — re-discover" + a button)
+  "setup.reconcile_renamed_hint": "Same room number, different name — either you renamed it in the app, or re-mapping reused this number for a different space. It can't be told apart automatically; review before updating.",
+  "setup.reconcile_renamed_title": "Renamed rooms ({count})",
+  "setup.reconcile_renumbered_hint": "The vacuum reassigned these room numbers after re-mapping. Saved settings will follow automatically — no action needed.",
+  "setup.reconcile_renumbered_title": "Rooms renumbered ({count})",
+  "setup.reconcile_stale_note": "The map changed while you were reviewing — this is the current state.",
+  "setup.reconcile_update_button": "Update saved rooms",  // CARD-7/RP-019 reconciliation banner: reconcile_room(action=migrate) — the ONE whole-map decision (no per-row accept; reconcile_room has no per-room granularity)
+  "setup.reconcile_updated_count": { one: "Updated {count} room.", other: "Updated {count} rooms." },  // plural; State C (after a successful Update) — reconcile_room's migrated_room_count
+  "setup.reconcile_updating": "Updating…",
   "setup.reconfigure": "Reconfigure",
   "setup.refresh": "Refresh",
   "setup.register_vacuum_prompt": "Register this vacuum with the integration so it can be managed.",
@@ -1684,6 +1701,10 @@ export const en = {
   "vocab.battery_weighted_by.actual_minutes": "Actual minutes",   // weighting basis: the actual measured minutes
   "vocab.battery_weighted_by.room_count": "Room count",
   "vocab.battery_weighted_by.none": "None",
+  // RP-045: battery-health "unavailable" reason code -> sentence (tVocabRaw,
+  // falls back to the backend's health_unavailable_reason_text for any code
+  // not keyed here yet — see src/renderers/metrics.js).
+  "vocab.health_unavailable_reason.insufficient_discharge_data": "No completed charge has started at 50% or lower and reached 90% or higher, so there's no baseline to compare against yet. A vacuum that docks frequently and rarely runs low may never produce one on its own.",
   "vocab.status.completed": "Completed",
   "vocab.status.canceled": "Canceled",
   "vocab.status.cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits

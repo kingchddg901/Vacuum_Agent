@@ -59,6 +59,9 @@
       "room_count": "عدد الغرف",
       "none": "بلا"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "لم تبدأ أي عملية شحن مكتملة عند 50% أو أقل وتصل إلى 90% أو أكثر، لذا لا يوجد بعد خط أساس للمقارنة. قد لا تنتج المكنسة الآلية التي ترسو كثيرًا ونادرًا ما ينخفض شحنها كثيرًا هذا النوع من الشحن من تلقاء نفسها أبدًا."
+    },
     "status": {
       "completed": "مكتمل",
       "canceled": "ملغى",
@@ -2208,7 +2211,31 @@
     "unmanaged_vacuums_hint": "هذه المكانس متاحة في Home Assistant لكنها غير مُدارة بعد. تؤدي إضافة إحداها إلى تسجيل مُحوّلها ولوحة في الشريط الجانبي (يُعاد تحميل التكامل).",
     "vacuum_registered": "تم تسجيل المكنسة.",
     "working": "جارٍ العمل…",
-    "panel_name_placeholder": "وكيل المكنسة"
+    "panel_name_placeholder": "وكيل المكنسة",
+    "reconcile_dismiss_button": "تجاهل",
+    "reconcile_dismissing": "جارٍ التجاهل…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> أُزيلت من هذه الخريطة، وتم التخلص من إعداداتها.",
+      "other": "<strong>{names}</strong> أُزيلت من هذه الخريطة، وتم التخلص من إعداداتها."
+    },
+    "reconcile_formerly": "سابقًا: {name}",
+    "reconcile_rediscover_button": "إعادة اكتشاف الغرف",
+    "reconcile_refresh_failed": "تغيّرت الخريطة، لكن التحديث التلقائي لم يكتمل.",
+    "reconcile_renamed_hint": "نفس رقم الغرفة، اسم مختلف — إمّا أنك أعدت تسميتها في التطبيق، أو أن إعادة رسم الخريطة أعادت استخدام هذا الرقم لمساحة مختلفة. لا يمكن التمييز بين الحالتين تلقائيًا؛ راجع ذلك قبل التحديث.",
+    "reconcile_renamed_title": "الغرف المُعاد تسميتها ({count})",
+    "reconcile_renumbered_hint": "أعادت المكنسة تعيين أرقام هذه الغرف بعد إعادة رسم الخريطة. ستتبعها الإعدادات المحفوظة تلقائيًا — لا حاجة لأي إجراء.",
+    "reconcile_renumbered_title": "الغرف المُعاد ترقيمها ({count})",
+    "reconcile_stale_note": "تغيّرت الخريطة أثناء مراجعتك لها — هذه هي الحالة الحالية.",
+    "reconcile_update_button": "تحديث الغرف المحفوظة",
+    "reconcile_updated_count": {
+      "zero": "تم تحديث {count} غرفة.",
+      "one": "تم تحديث {count} غرفة.",
+      "two": "تم تحديث {count} غرفة.",
+      "few": "تم تحديث {count} غرف.",
+      "many": "تم تحديث {count} غرفة.",
+      "other": "تم تحديث {count} غرفة."
+    },
+    "reconcile_updating": "جارٍ التحديث…"
   },
   "external_jobs": {
     "back": "رجوع",
@@ -2428,7 +2455,10 @@
     "map_camera_set": "تم تعيين كاميرا الخريطة المباشرة",
     "map_delete_failed": "فشل حذف الخريطة",
     "map_deleted": "تم حذف الخريطة",
-    "panel_renamed": "تمت إعادة تسمية اللوحة — حدّث لتحديث الشريط الجانبي"
+    "panel_renamed": "تمت إعادة تسمية اللوحة — حدّث لتحديث الشريط الجانبي",
+    "failed_reconcile_dismiss": "فشل تجاهل المطابقة: {error}",
+    "failed_reconcile_update": "فشل تحديث الغرف المحفوظة: {error}",
+    "reconciliation_dismissed": "تم التجاهل — يمكن أن تظهر نفس المراجعة مرة أخرى إذا تغيّرت الخريطة مجددًا"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "فشل التأكيد: {detail}",

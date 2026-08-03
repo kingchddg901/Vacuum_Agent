@@ -177,7 +177,10 @@
     "map_camera_set": "Live-kaartcamera ingesteld",
     "map_delete_failed": "Kaart verwijderen mislukt",
     "map_deleted": "Kaart verwijderd",
-    "panel_renamed": "Paneel hernoemd — ververs om de zijbalk bij te werken"
+    "panel_renamed": "Paneel hernoemd — ververs om de zijbalk bij te werken",
+    "failed_reconcile_dismiss": "Reconciliatie negeren mislukt: {error}",
+    "failed_reconcile_update": "Opgeslagen kamers bijwerken mislukt: {error}",
+    "reconciliation_dismissed": "Genegeerd — dezelfde controle kan opnieuw verschijnen als de kaart weer verandert"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "{target} overschrijven met je niet-opgeslagen wijzigingen? De overige instellingen van {target} blijven ongewijzigd.",
@@ -1419,7 +1422,27 @@
     "floor_concrete": "Beton",
     "floor_carpet_low_pile": "Laagpolig tapijt",
     "floor_carpet_high_pile": "Hoogpolig tapijt",
-    "panel_name_placeholder": "Stofzuigeragent"
+    "panel_name_placeholder": "Stofzuigeragent",
+    "reconcile_dismiss_button": "Negeren",
+    "reconcile_dismissing": "Negeren…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> is van deze kaart verwijderd en de instellingen zijn verwijderd.",
+      "other": "<strong>{names}</strong> zijn van deze kaart verwijderd en hun instellingen zijn verwijderd."
+    },
+    "reconcile_formerly": "Voorheen {name}",
+    "reconcile_rediscover_button": "Kamers opnieuw detecteren",
+    "reconcile_refresh_failed": "De kaart is gewijzigd, maar de automatische vernieuwing is niet gelukt.",
+    "reconcile_renamed_hint": "Hetzelfde kamernummer, andere naam — óf je hebt de kamer in de app hernoemd, óf het opnieuw in kaart brengen heeft dit nummer hergebruikt voor een andere ruimte. Dit kan niet automatisch worden onderscheiden; controleer het voordat je bijwerkt.",
+    "reconcile_renamed_title": "Hernoemde kamers ({count})",
+    "reconcile_renumbered_hint": "De stofzuiger heeft deze kamernummers na het opnieuw in kaart brengen opnieuw toegewezen. Opgeslagen instellingen volgen automatisch — geen actie nodig.",
+    "reconcile_renumbered_title": "Kamers hernummerd ({count})",
+    "reconcile_stale_note": "De kaart is gewijzigd terwijl je aan het controleren was — dit is de huidige status.",
+    "reconcile_update_button": "Opgeslagen kamers bijwerken",
+    "reconcile_updated_count": {
+      "one": "{count} kamer bijgewerkt.",
+      "other": "{count} kamers bijgewerkt."
+    },
+    "reconcile_updating": "Bijwerken…"
   },
   "shell": {
     "setup_add_title": "Voeg je stofzuiger toe",
@@ -1769,6 +1792,9 @@
       "none": "Geen",
       "estimated_minutes": "Gesch. minuten",
       "actual_minutes": "Werkelijke minuten"
+    },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Er is nog geen volledige laadsessie geweest die begon op 50% of lager en eindigde op 90% of hoger, dus er is nog geen basislijn om mee te vergelijken. Een robotstofzuiger die vaak oplaadt en zelden ver leegloopt, produceert er misschien nooit uit zichzelf een."
     },
     "status": {
       "completed": "Voltooid",

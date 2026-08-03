@@ -177,7 +177,10 @@
     "map_camera_set": "Live-Karten-Kamera gesetzt",
     "map_delete_failed": "Löschen der Karte fehlgeschlagen",
     "map_deleted": "Karte gelöscht",
-    "panel_renamed": "Panel umbenannt — aktualisiere zur Übernahme in der Seitenleiste"
+    "panel_renamed": "Panel umbenannt — aktualisiere zur Übernahme in der Seitenleiste",
+    "failed_reconcile_dismiss": "Abgleich konnte nicht verworfen werden: {error}",
+    "failed_reconcile_update": "Gespeicherte Räume konnten nicht aktualisiert werden: {error}",
+    "reconciliation_dismissed": "Verworfen — dieselbe Prüfung kann erneut erscheinen, wenn sich die Karte wieder ändert"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "{target} mit den ungespeicherten Änderungen überschreiben? Die übrigen Einstellungen von {target} bleiben unverändert.",
@@ -1419,7 +1422,27 @@
     "floor_concrete": "Beton",
     "floor_carpet_low_pile": "Niedrigflor-Teppich",
     "floor_carpet_high_pile": "Hochflor-Teppich",
-    "panel_name_placeholder": "Saug-Agent"
+    "panel_name_placeholder": "Saug-Agent",
+    "reconcile_dismiss_button": "Verwerfen",
+    "reconcile_dismissing": "Wird verworfen…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> wurde von dieser Karte entfernt, und die Einstellungen wurden verworfen.",
+      "other": "<strong>{names}</strong> wurden von dieser Karte entfernt, und ihre Einstellungen wurden verworfen."
+    },
+    "reconcile_formerly": "Vormals {name}",
+    "reconcile_rediscover_button": "Räume neu erkennen",
+    "reconcile_refresh_failed": "Die Karte hat sich geändert, aber die automatische Aktualisierung ist fehlgeschlagen.",
+    "reconcile_renamed_hint": "Gleiche Raumnummer, anderer Name — entweder hast du ihn in der App umbenannt, oder die Neukartierung hat diese Nummer für einen anderen Bereich wiederverwendet. Das lässt sich nicht automatisch unterscheiden; prüfe es vor der Aktualisierung.",
+    "reconcile_renamed_title": "Umbenannte Räume ({count})",
+    "reconcile_renumbered_hint": "Der Saugroboter hat diese Raumnummern nach der Neukartierung neu zugewiesen. Gespeicherte Einstellungen folgen automatisch — keine Aktion erforderlich.",
+    "reconcile_renumbered_title": "Räume neu nummeriert ({count})",
+    "reconcile_stale_note": "Die Karte hat sich während der Überprüfung geändert — dies ist der aktuelle Stand.",
+    "reconcile_update_button": "Gespeicherte Räume aktualisieren",
+    "reconcile_updated_count": {
+      "one": "{count} Raum aktualisiert.",
+      "other": "{count} Räume aktualisiert."
+    },
+    "reconcile_updating": "Wird aktualisiert…"
   },
   "shell": {
     "setup_add_title": "Füge deinen Saugroboter hinzu",
@@ -1769,6 +1792,9 @@
       "none": "Keine",
       "estimated_minutes": "Gesch. Minuten",
       "actual_minutes": "Tatsächliche Minuten"
+    },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Bisher hat keine abgeschlossene Ladung bei 50 % oder weniger begonnen und 90 % oder mehr erreicht, sodass noch keine Ausgangsbasis zum Vergleich vorhanden ist. Ein Staubsauger, der häufig andockt und selten stark entladen wird, erzeugt möglicherweise nie von selbst eine."
     },
     "status": {
       "completed": "Abgeschlossen",

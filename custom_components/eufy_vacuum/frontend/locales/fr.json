@@ -178,7 +178,10 @@
     "map_camera_set": "Caméra de carte en direct définie",
     "map_delete_failed": "Échec de la suppression de la carte",
     "map_deleted": "Carte supprimée",
-    "panel_renamed": "Panneau renommé — actualisez pour mettre à jour la barre latérale"
+    "panel_renamed": "Panneau renommé — actualisez pour mettre à jour la barre latérale",
+    "failed_reconcile_dismiss": "Échec du rejet de la réconciliation : {error}",
+    "failed_reconcile_update": "Échec de la mise à jour des pièces enregistrées : {error}",
+    "reconciliation_dismissed": "Ignoré — la même vérification peut réapparaître si la carte change à nouveau"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "Remplacer {target} par vos modifications non enregistrées ? Les autres réglages de {target} resteront inchangés.",
@@ -1435,7 +1438,27 @@
     "floor_concrete": "Béton",
     "floor_carpet_low_pile": "Moquette rase",
     "floor_carpet_high_pile": "Moquette épaisse",
-    "panel_name_placeholder": "Agent aspirateur"
+    "panel_name_placeholder": "Agent aspirateur",
+    "reconcile_dismiss_button": "Ignorer",
+    "reconcile_dismissing": "Rejet…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> a été retirée de cette carte et ses paramètres ont été abandonnés.",
+      "other": "<strong>{names}</strong> ont été retirées de cette carte et leurs paramètres ont été abandonnés."
+    },
+    "reconcile_formerly": "Anciennement {name}",
+    "reconcile_rediscover_button": "Redétecter les pièces",
+    "reconcile_refresh_failed": "La carte a changé, mais l'actualisation automatique a échoué.",
+    "reconcile_renamed_hint": "Même numéro de pièce, nom différent — soit vous l'avez renommée dans l'application, soit la recartographie a réutilisé ce numéro pour un autre espace. Impossible de le distinguer automatiquement ; vérifiez avant de mettre à jour.",
+    "reconcile_renamed_title": "Pièces renommées ({count})",
+    "reconcile_renumbered_hint": "L'aspirateur a réattribué ces numéros de pièce après la nouvelle cartographie. Les paramètres enregistrés suivront automatiquement — aucune action requise.",
+    "reconcile_renumbered_title": "Pièces renumérotées ({count})",
+    "reconcile_stale_note": "La carte a changé pendant que vous consultiez — voici l'état actuel.",
+    "reconcile_update_button": "Mettre à jour les pièces enregistrées",
+    "reconcile_updated_count": {
+      "one": "{count} pièce mise à jour.",
+      "other": "{count} pièces mises à jour."
+    },
+    "reconcile_updating": "Mise à jour…"
   },
   "shell": {
     "setup_add_title": "Ajoutez votre aspirateur",
@@ -1785,6 +1808,9 @@
       "none": "Aucune",
       "estimated_minutes": "Minutes est.",
       "actual_minutes": "Minutes réelles"
+    },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Aucune charge complète n'a commencé à 50 % ou moins et atteint 90 % ou plus, il n'y a donc pas encore de référence à laquelle se comparer. Un aspirateur qui se recharge souvent et descend rarement bas peut ne jamais en produire une de lui-même."
     },
     "status": {
       "completed": "Terminé",

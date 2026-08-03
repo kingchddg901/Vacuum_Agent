@@ -59,6 +59,9 @@
       "room_count": "部屋数",
       "none": "なし"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "50%以下で開始して90%以上に達した完了済みの充電がまだないため、比較できる基準値がありません。頻繁にドックに戻り、バッテリー残量があまり低下しないロボット掃除機では、この条件を満たす充電が自然には発生しない場合があります。"
+    },
     "status": {
       "completed": "完了",
       "canceled": "キャンセル",
@@ -2058,7 +2061,25 @@
     "unmanaged_vacuums_hint": "これらのロボット掃除機は Home Assistant で利用可能ですが、まだ管理されていません。追加すると、そのアダプターとサイドバーパネルが登録されます（統合が再読み込みされます）。",
     "vacuum_registered": "ロボット掃除機を登録しました。",
     "working": "処理中…",
-    "panel_name_placeholder": "掃除機エージェント"
+    "panel_name_placeholder": "掃除機エージェント",
+    "reconcile_dismiss_button": "却下",
+    "reconcile_dismissing": "却下中…",
+    "reconcile_dropped_sentence": {
+      "other": "<strong>{names}</strong> はこの地図から削除され、設定は破棄されました。"
+    },
+    "reconcile_formerly": "旧名: {name}",
+    "reconcile_rediscover_button": "部屋を再検出",
+    "reconcile_refresh_failed": "マップが変更されましたが、自動更新が完了しませんでした。",
+    "reconcile_renamed_hint": "同じ部屋番号で名前が異なります — アプリで名前を変更したか、再マッピングでこの番号が別の空間に再利用された可能性があります。自動では判別できません。更新前に確認してください。",
+    "reconcile_renamed_title": "名前が変更された部屋（{count}）",
+    "reconcile_renumbered_hint": "ロボット掃除機は再マッピング後にこれらの部屋番号を再割り当てしました。保存済みの設定は自動的に引き継がれます — 操作は不要です。",
+    "reconcile_renumbered_title": "番号が変更された部屋（{count}）",
+    "reconcile_stale_note": "確認している間にマップが変更されました — これが現在の状態です。",
+    "reconcile_update_button": "保存済みの部屋を更新",
+    "reconcile_updated_count": {
+      "other": "{count} 個の部屋を更新しました。"
+    },
+    "reconcile_updating": "更新中…"
   },
   "external_jobs": {
     "back": "戻る",
@@ -2233,7 +2254,10 @@
     "map_camera_set": "ライブマップカメラを設定しました",
     "map_delete_failed": "マップの削除に失敗しました",
     "map_deleted": "マップを削除しました",
-    "panel_renamed": "パネル名を変更しました — サイドバーを更新するにはページを更新してください"
+    "panel_renamed": "パネル名を変更しました — サイドバーを更新するにはページを更新してください",
+    "failed_reconcile_dismiss": "照合の却下に失敗しました: {error}",
+    "failed_reconcile_update": "保存済みの部屋の更新に失敗しました: {error}",
+    "reconciliation_dismissed": "却下しました — マップが再び変更されると同じ確認が再表示されることがあります"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "確認に失敗しました: {detail}",

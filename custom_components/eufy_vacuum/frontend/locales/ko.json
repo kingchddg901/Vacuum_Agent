@@ -59,6 +59,9 @@
       "room_count": "방 수",
       "none": "없음"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "50% 이하에서 시작해 90% 이상에 도달한 완료된 충전이 아직 없어 비교할 기준선이 없습니다. 자주 도킹하고 배터리가 많이 낮아지지 않는 로봇청소기는 이 조건을 스스로 충족하지 못할 수도 있습니다."
+    },
     "status": {
       "completed": "완료",
       "canceled": "취소됨",
@@ -2058,7 +2061,25 @@
     "unmanaged_vacuums_hint": "이 로봇청소기들은 Home Assistant에서 사용할 수 있지만 아직 관리되지 않습니다. 하나를 추가하면 해당 어댑터와 사이드바 패널이 등록됩니다(통합이 다시 로드됩니다).",
     "vacuum_registered": "로봇청소기가 등록되었습니다.",
     "working": "처리 중…",
-    "panel_name_placeholder": "로봇청소기 에이전트"
+    "panel_name_placeholder": "로봇청소기 에이전트",
+    "reconcile_dismiss_button": "무시",
+    "reconcile_dismissing": "무시 중…",
+    "reconcile_dropped_sentence": {
+      "other": "<strong>{names}</strong>이(가) 이 지도에서 제거되었고 설정이 삭제되었습니다."
+    },
+    "reconcile_formerly": "이전 이름: {name}",
+    "reconcile_rediscover_button": "방 다시 검색",
+    "reconcile_refresh_failed": "지도가 변경되었지만 자동 새로고침이 완료되지 않았습니다.",
+    "reconcile_renamed_hint": "같은 방 번호, 다른 이름 — 앱에서 이름을 변경했거나, 재매핑 시 이 번호가 다른 공간에 재사용된 것입니다. 자동으로는 구분할 수 없으니 업데이트 전에 확인하세요.",
+    "reconcile_renamed_title": "이름이 변경된 방 ({count})",
+    "reconcile_renumbered_hint": "로봇청소기가 재매핑 후 이 방 번호를 다시 지정했습니다. 저장된 설정이 자동으로 따라가므로 별도 조치가 필요하지 않습니다.",
+    "reconcile_renumbered_title": "번호가 변경된 방 ({count})",
+    "reconcile_stale_note": "검토하는 동안 지도가 변경되었습니다 — 이것이 현재 상태입니다.",
+    "reconcile_update_button": "저장된 방 업데이트",
+    "reconcile_updated_count": {
+      "other": "{count}개 방을 업데이트했습니다."
+    },
+    "reconcile_updating": "업데이트 중…"
   },
   "external_jobs": {
     "back": "뒤로",
@@ -2233,7 +2254,10 @@
     "map_camera_set": "실시간 지도 카메라가 설정되었습니다",
     "map_delete_failed": "지도 삭제 실패",
     "map_deleted": "지도가 삭제되었습니다",
-    "panel_renamed": "패널 이름이 변경되었습니다 — 새로고침하여 사이드바를 업데이트하세요"
+    "panel_renamed": "패널 이름이 변경되었습니다 — 새로고침하여 사이드바를 업데이트하세요",
+    "failed_reconcile_dismiss": "조정 무시 실패: {error}",
+    "failed_reconcile_update": "저장된 방 업데이트 실패: {error}",
+    "reconciliation_dismissed": "무시됨 — 지도가 다시 변경되면 동일한 검토가 다시 나타날 수 있습니다"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "확인 실패: {detail}",

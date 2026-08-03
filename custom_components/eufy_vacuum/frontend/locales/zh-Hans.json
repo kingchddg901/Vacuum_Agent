@@ -59,6 +59,9 @@
       "room_count": "房间数",
       "none": "无"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "目前还没有一次完整充电是从 50% 或更低开始、并达到 90% 或更高结束的，因此暂时没有可比较的基准值。经常回充且很少大幅放电的扫地机器人可能永远无法自行产生这样的充电记录。"
+    },
     "status": {
       "completed": "已完成",
       "canceled": "已取消",
@@ -2058,7 +2061,25 @@
     "unmanaged_vacuums_hint": "这些扫地机器人在 Home Assistant 中可用，但尚未纳入管理。添加后将注册其适配器和侧边栏面板（集成会重新加载）。",
     "vacuum_registered": "扫地机器人已注册。",
     "working": "处理中…",
-    "panel_name_placeholder": "扫地机器人助手"
+    "panel_name_placeholder": "扫地机器人助手",
+    "reconcile_dismiss_button": "忽略",
+    "reconcile_dismissing": "忽略中…",
+    "reconcile_dropped_sentence": {
+      "other": "<strong>{names}</strong> 已从此地图中移除，其设置已被丢弃。"
+    },
+    "reconcile_formerly": "曾用名：{name}",
+    "reconcile_rediscover_button": "重新检测房间",
+    "reconcile_refresh_failed": "地图已变更，但自动刷新未成功。",
+    "reconcile_renamed_hint": "房间编号相同，名称不同——可能是您在应用中重命名了它，也可能是重新建图时该编号被复用给了另一个空间。系统无法自动分辨；更新前请先查看。",
+    "reconcile_renamed_title": "已重命名的房间（{count}）",
+    "reconcile_renumbered_hint": "扫地机器人在重新建图后重新分配了这些房间编号。已保存的设置会自动跟随——无需任何操作。",
+    "reconcile_renumbered_title": "已重新编号的房间（{count}）",
+    "reconcile_stale_note": "在您查看时地图发生了变化——这是当前的状态。",
+    "reconcile_update_button": "更新已保存的房间",
+    "reconcile_updated_count": {
+      "other": "已更新 {count} 个房间。"
+    },
+    "reconcile_updating": "更新中…"
   },
   "external_jobs": {
     "back": "返回",
@@ -2233,7 +2254,10 @@
     "map_camera_set": "实时地图相机已设置",
     "map_delete_failed": "地图删除失败",
     "map_deleted": "地图已删除",
-    "panel_renamed": "面板已重命名——刷新以更新侧边栏"
+    "panel_renamed": "面板已重命名——刷新以更新侧边栏",
+    "failed_reconcile_dismiss": "忽略核对失败：{error}",
+    "failed_reconcile_update": "更新已保存的房间失败：{error}",
+    "reconciliation_dismissed": "已忽略——如果地图再次变化，相同的核对项可能会重新出现"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "确认失败：{detail}",

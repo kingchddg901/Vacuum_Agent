@@ -59,6 +59,9 @@
       "room_count": "Počet místností",
       "none": "Žádné"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Žádné dokončené nabíjení nezačalo na 50 % nebo méně a nedosáhlo 90 % nebo více, takže zatím není k dispozici žádný základní stav pro porovnání. Vysavač, který se často dokuje a zřídka výrazně vybije, ho možná sám o sobě nikdy nevytvoří."
+    },
     "status": {
       "completed": "Dokončeno",
       "canceled": "Zrušeno",
@@ -1768,7 +1771,27 @@
     "unmanaged_vacuums_hint": "Tyto vysavače jsou dostupné v Home Assistant, ale dosud nejsou spravovány. Přidáním jednoho se zaregistruje jeho adaptér a panel v postranním panelu (integrace se znovu načte).",
     "vacuum_registered": "Vysavač zaregistrován.",
     "working": "Pracuje se…",
-    "panel_name_placeholder": "Agent vysavače"
+    "panel_name_placeholder": "Agent vysavače",
+    "reconcile_dismiss_button": "Zamítnout",
+    "reconcile_dismissing": "Zamítá se…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> byla z této mapy odstraněna a její nastavení bylo zahozeno.",
+      "other": "<strong>{names}</strong> byly z této mapy odstraněny a jejich nastavení bylo zahozeno."
+    },
+    "reconcile_formerly": "Dříve {name}",
+    "reconcile_rediscover_button": "Znovu zjistit místnosti",
+    "reconcile_refresh_failed": "Mapa se změnila, ale automatická aktualizace se nezdařila.",
+    "reconcile_renamed_hint": "Stejné číslo místnosti, jiný název — buď jste ji přejmenovali v aplikaci, nebo nové mapování použilo toto číslo pro jiný prostor. Nelze to automaticky rozlišit; před aktualizací zkontrolujte.",
+    "reconcile_renamed_title": "Přejmenované místnosti ({count})",
+    "reconcile_renumbered_hint": "Vysavač po novém mapování těmto místnostem přiřadil nová čísla. Uložená nastavení je automaticky budou následovat — není třeba nic dělat.",
+    "reconcile_renumbered_title": "Přečíslované místnosti ({count})",
+    "reconcile_stale_note": "Mapa se během kontroly změnila — toto je aktuální stav.",
+    "reconcile_update_button": "Aktualizovat uložené místnosti",
+    "reconcile_updated_count": {
+      "one": "Aktualizována {count} místnost.",
+      "other": "Aktualizováno {count} místností."
+    },
+    "reconcile_updating": "Aktualizuje se…"
   },
   "theme": {
     "alpha_aria_label": "Krytí {label}",
@@ -2317,7 +2340,10 @@
     "map_camera_set": "Kamera živé mapy nastavena",
     "map_delete_failed": "Odstranění mapy se nezdařilo",
     "map_deleted": "Mapa odstraněna",
-    "panel_renamed": "Panel přejmenován — obnovte stránku pro aktualizaci postranního panelu"
+    "panel_renamed": "Panel přejmenován — obnovte stránku pro aktualizaci postranního panelu",
+    "failed_reconcile_dismiss": "Nepodařilo se zamítnout sesouhlasení: {error}",
+    "failed_reconcile_update": "Nepodařilo se aktualizovat uložené místnosti: {error}",
+    "reconciliation_dismissed": "Zamítnuto — stejná kontrola se může znovu objevit, pokud se mapa znovu změní"
   },
   "mobile": {
     "dock_status_label": "Stav doku:",

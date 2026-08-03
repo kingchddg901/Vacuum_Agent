@@ -177,7 +177,10 @@
     "map_camera_set": "Camera mappa live impostata",
     "map_delete_failed": "Eliminazione della mappa non riuscita",
     "map_deleted": "Mappa eliminata",
-    "panel_renamed": "Pannello rinominato — aggiorna per aggiornare la barra laterale"
+    "panel_renamed": "Pannello rinominato — aggiorna per aggiornare la barra laterale",
+    "failed_reconcile_dismiss": "Impossibile ignorare la riconciliazione: {error}",
+    "failed_reconcile_update": "Aggiornamento delle stanze salvate non riuscito: {error}",
+    "reconciliation_dismissed": "Ignorato — la stessa verifica può ripresentarsi se la mappa cambia di nuovo"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "Sovrascrivere {target} con le modifiche non salvate? Le altre impostazioni di {target} rimarranno invariate.",
@@ -1422,7 +1425,27 @@
     "floor_concrete": "Cemento",
     "floor_carpet_low_pile": "Moquette basso pelo",
     "floor_carpet_high_pile": "Moquette alto pelo",
-    "panel_name_placeholder": "Agente aspirapolvere"
+    "panel_name_placeholder": "Agente aspirapolvere",
+    "reconcile_dismiss_button": "Ignora",
+    "reconcile_dismissing": "Ignorando…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> è stata rimossa da questa mappa e le sue impostazioni sono state scartate.",
+      "other": "<strong>{names}</strong> sono state rimosse da questa mappa e le loro impostazioni sono state scartate."
+    },
+    "reconcile_formerly": "Precedentemente {name}",
+    "reconcile_rediscover_button": "Rileva di nuovo le stanze",
+    "reconcile_refresh_failed": "La mappa è cambiata, ma l'aggiornamento automatico non è andato a buon fine.",
+    "reconcile_renamed_hint": "Stesso numero di stanza, nome diverso: o l'hai rinominata nell'app, oppure la nuova mappatura ha riutilizzato questo numero per uno spazio diverso. Non è possibile distinguerlo automaticamente; verifica prima di aggiornare.",
+    "reconcile_renamed_title": "Stanze rinominate ({count})",
+    "reconcile_renumbered_hint": "L'aspirapolvere ha riassegnato questi numeri di stanza dopo la nuova mappatura. Le impostazioni salvate li seguiranno automaticamente — nessuna azione necessaria.",
+    "reconcile_renumbered_title": "Stanze rinumerate ({count})",
+    "reconcile_stale_note": "La mappa è cambiata mentre la stavi esaminando — questo è lo stato attuale.",
+    "reconcile_update_button": "Aggiorna le stanze salvate",
+    "reconcile_updated_count": {
+      "one": "Aggiornata {count} stanza.",
+      "other": "Aggiornate {count} stanze."
+    },
+    "reconcile_updating": "Aggiornamento…"
   },
   "shell": {
     "setup_add_title": "Aggiungi il tuo aspirapolvere",
@@ -1772,6 +1795,9 @@
       "none": "Nessuno",
       "estimated_minutes": "Minuti stimati",
       "actual_minutes": "Minuti effettivi"
+    },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Nessuna carica completata è iniziata al 50% o meno e ha raggiunto il 90% o più, quindi non c'è ancora una base di riferimento con cui confrontarsi. Un aspirapolvere che si aggancia spesso alla base e raramente scende di molto potrebbe non produrne mai una da solo."
     },
     "status": {
       "completed": "Completato",

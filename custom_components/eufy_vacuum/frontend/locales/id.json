@@ -59,6 +59,9 @@
       "room_count": "Jumlah ruangan",
       "none": "Tidak ada"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Belum ada sesi pengisian daya yang selesai dimulai pada 50% atau lebih rendah dan mencapai 90% atau lebih tinggi, jadi belum ada baseline untuk dibandingkan. Vacuum yang sering kembali ke dok dan jarang kehabisan daya secara signifikan mungkin tidak akan pernah menghasilkan sesi seperti itu dengan sendirinya."
+    },
     "status": {
       "completed": "Selesai",
       "canceled": "Dibatalkan",
@@ -1768,7 +1771,27 @@
     "unmanaged_vacuums_hint": "Penyedot debu ini tersedia di Home Assistant tetapi belum dikelola. Menambahkan satu akan mendaftarkan adapter dan panel bilah sisinya (integrasi dimuat ulang).",
     "vacuum_registered": "Penyedot debu terdaftar.",
     "working": "Memproses…",
-    "panel_name_placeholder": "Agen Penyedot Debu"
+    "panel_name_placeholder": "Agen Penyedot Debu",
+    "reconcile_dismiss_button": "Abaikan",
+    "reconcile_dismissing": "Mengabaikan…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> telah dihapus dari peta ini dan pengaturannya dibuang.",
+      "other": "<strong>{names}</strong> telah dihapus dari peta ini dan pengaturannya dibuang."
+    },
+    "reconcile_formerly": "Sebelumnya: {name}",
+    "reconcile_rediscover_button": "Deteksi ulang ruangan",
+    "reconcile_refresh_failed": "Peta berubah, tetapi penyegaran otomatis tidak berhasil.",
+    "reconcile_renamed_hint": "Nomor ruangan sama, nama berbeda — Anda mengganti namanya di aplikasi, atau pemetaan ulang menggunakan kembali nomor ini untuk ruang yang berbeda. Ini tidak dapat dibedakan secara otomatis; tinjau sebelum memperbarui.",
+    "reconcile_renamed_title": "Ruangan yang diganti namanya ({count})",
+    "reconcile_renumbered_hint": "Penyedot debu menetapkan ulang nomor ruangan ini setelah pemetaan ulang. Pengaturan yang tersimpan akan mengikuti secara otomatis — tidak perlu tindakan apa pun.",
+    "reconcile_renumbered_title": "Ruangan yang dinomori ulang ({count})",
+    "reconcile_stale_note": "Peta berubah saat Anda meninjaunya — ini adalah kondisi terkini.",
+    "reconcile_update_button": "Perbarui ruangan tersimpan",
+    "reconcile_updated_count": {
+      "one": "{count} ruangan diperbarui.",
+      "other": "{count} ruangan diperbarui."
+    },
+    "reconcile_updating": "Memperbarui…"
   },
   "theme": {
     "alpha_aria_label": "Opasitas {label}",
@@ -2317,7 +2340,10 @@
     "map_camera_set": "Kamera peta langsung diatur",
     "map_delete_failed": "Penghapusan peta gagal",
     "map_deleted": "Peta dihapus",
-    "panel_renamed": "Panel diganti nama — segarkan untuk memperbarui bilah sisi"
+    "panel_renamed": "Panel diganti nama — segarkan untuk memperbarui bilah sisi",
+    "failed_reconcile_dismiss": "Gagal mengabaikan rekonsiliasi: {error}",
+    "failed_reconcile_update": "Gagal memperbarui ruangan tersimpan: {error}",
+    "reconciliation_dismissed": "Diabaikan — tinjauan yang sama dapat muncul kembali jika peta berubah lagi"
   },
   "mobile": {
     "dock_status_label": "Status Dok:",

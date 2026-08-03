@@ -399,6 +399,17 @@ export function applySetupRenderers(proto) {
         return reconcileResult?.action === "migrate" ? renderReconcileResult(reconcileResult) : "";
       }
 
+      // State A: has_changes:false -> render nothing. No empty state, no badge.
+      // Checked BEFORE reconcileRefreshFail: a fresh status poll (e.g. the
+      // card's periodic _scheduleSetupStatusRefresh, independent of the
+      // stuck recovery attempt) can report has_changes:false after a prior
+      // silent-recovery failure left refreshFailed=true. That fresh "no
+      // changes" read is authoritative and must win — otherwise the manual
+      // re-discover prompt keeps showing a stale ask the backend already
+      // resolved, violating State A's "no changes -> render nothing"
+      // contract for as long as refreshFailed stays set.
+      if (!reconciliation.has_changes) return "";
+
       // Design's literal fallback: the silent plan_changed recovery itself
       // failed — prompt a manual re-discover rather than render stale/guessed data.
       if (reconcileRefreshFail) {
@@ -413,9 +424,6 @@ export function applySetupRenderers(proto) {
           </div>
         `;
       }
-
-      // State A: has_changes:false -> render nothing. No empty state, no badge.
-      if (!reconciliation.has_changes) return "";
 
       const reviews     = Array.isArray(reconciliation.reviews) ? reconciliation.reviews : [];
       const renumbered  = reviews.filter((r) => r.kind === "id_changed");

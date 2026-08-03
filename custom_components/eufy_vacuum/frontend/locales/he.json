@@ -59,6 +59,9 @@
       "room_count": "מספר חדרים",
       "none": "ללא"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "אף טעינה שהושלמה לא התחילה ב-50% או פחות והגיעה ל-90% או יותר, כך שעדיין אין קו בסיס להשוואה. שואב אבק שחוזר לתחנת העגינה לעיתים קרובות ולעיתים רחוקות יורד לרמת סוללה נמוכה עשוי לעולם לא לייצר טעינה כזו בעצמו."
+    },
     "status": {
       "completed": "הושלמה",
       "canceled": "בוטלה",
@@ -2148,7 +2151,29 @@
     "unmanaged_vacuums_hint": "שואבים אלה זמינים ב-Home Assistant אך עדיין אינם מנוהלים. הוספת שואב רושמת את המתאם שלו ופאנל בסרגל הצד (האינטגרציה נטענת מחדש).",
     "vacuum_registered": "השואב נרשם.",
     "working": "עובד…",
-    "panel_name_placeholder": "סוכן השואב"
+    "panel_name_placeholder": "סוכן השואב",
+    "reconcile_dismiss_button": "התעלמות",
+    "reconcile_dismissing": "מתעלם…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> הוסרה ממפה זו וההגדרות שלה נמחקו.",
+      "other": "<strong>{names}</strong> הוסרו ממפה זו וההגדרות שלהם נמחקו."
+    },
+    "reconcile_formerly": "לשעבר: {name}",
+    "reconcile_rediscover_button": "גילוי חדרים מחדש",
+    "reconcile_refresh_failed": "המפה השתנתה, אך הרענון האוטומטי לא הושלם.",
+    "reconcile_renamed_hint": "אותו מספר חדר, שם שונה — או ששיניתם לו שם באפליקציה, או שמיפוי מחדש ניצל את המספר הזה עבור מרחב אחר. אי אפשר להבחין בכך אוטומטית; בדקו לפני העדכון.",
+    "reconcile_renamed_title": "חדרים ששונה שמם ({count})",
+    "reconcile_renumbered_hint": "השואב הקצה מחדש את מספרי החדרים הללו לאחר מיפוי מחדש. ההגדרות השמורות יעקבו אחריהם אוטומטית — אין צורך בפעולה.",
+    "reconcile_renumbered_title": "חדרים שמוספרו מחדש ({count})",
+    "reconcile_stale_note": "המפה השתנתה בזמן שבדקתם אותה — זהו המצב הנוכחי.",
+    "reconcile_update_button": "עדכון חדרים שמורים",
+    "reconcile_updated_count": {
+      "one": "עודכן {count} חדר.",
+      "two": "עודכנו {count} חדרים.",
+      "many": "עודכנו {count} חדרים.",
+      "other": "עודכנו {count} חדרים."
+    },
+    "reconcile_updating": "מעדכן…"
   },
   "external_jobs": {
     "back": "חזרה",
@@ -2350,7 +2375,10 @@
     "map_camera_set": "מצלמת המפה החיה הוגדרה",
     "map_delete_failed": "מחיקת המפה נכשלה",
     "map_deleted": "המפה נמחקה",
-    "panel_renamed": "שם הפאנל שונה — רעננו כדי לעדכן את סרגל הצד"
+    "panel_renamed": "שם הפאנל שונה — רעננו כדי לעדכן את סרגל הצד",
+    "failed_reconcile_dismiss": "התעלמות מהתאמת הנתונים נכשלה: {error}",
+    "failed_reconcile_update": "עדכון החדרים השמורים נכשל: {error}",
+    "reconciliation_dismissed": "נדחה — אותה בדיקה עשויה להופיע שוב אם המפה תשתנה שוב"
   },
   "bind_external_jobs": {
     "confirm_failed_detail": "האישור נכשל: {detail}",

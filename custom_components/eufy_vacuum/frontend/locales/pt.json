@@ -178,7 +178,10 @@
     "map_camera_set": "Câmara do mapa em direto definida",
     "map_delete_failed": "Falha ao eliminar o mapa",
     "map_deleted": "Mapa eliminado",
-    "panel_renamed": "Painel renomeado — atualize para refrescar a barra lateral"
+    "panel_renamed": "Painel renomeado — atualize para refrescar a barra lateral",
+    "failed_reconcile_dismiss": "Falha ao dispensar a reconciliação: {error}",
+    "failed_reconcile_update": "Falha ao atualizar as divisões guardadas: {error}",
+    "reconciliation_dismissed": "Dispensado — a mesma revisão pode voltar a aparecer se o mapa mudar novamente"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "Substituir {target} pelas suas alterações não guardadas? As restantes definições de {target} permanecerão inalteradas.",
@@ -1434,7 +1437,27 @@
     "floor_concrete": "Betão",
     "floor_carpet_low_pile": "Alcatifa de pelo baixo",
     "floor_carpet_high_pile": "Alcatifa de pelo alto",
-    "panel_name_placeholder": "Agente do aspirador"
+    "panel_name_placeholder": "Agente do aspirador",
+    "reconcile_dismiss_button": "Dispensar",
+    "reconcile_dismissing": "A dispensar…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> foi removida deste mapa e as suas definições foram descartadas.",
+      "other": "<strong>{names}</strong> foram removidas deste mapa e as suas definições foram descartadas."
+    },
+    "reconcile_formerly": "Anteriormente {name}",
+    "reconcile_rediscover_button": "Redetetar divisões",
+    "reconcile_refresh_failed": "O mapa mudou, mas a atualização automática não foi concluída.",
+    "reconcile_renamed_hint": "Mesmo número de divisão, nome diferente — ou mudou o nome na app, ou o novo mapeamento reutilizou este número para outro espaço. Não é possível distinguir automaticamente; reveja antes de atualizar.",
+    "reconcile_renamed_title": "Divisões renomeadas ({count})",
+    "reconcile_renumbered_hint": "O aspirador reatribuiu estes números de divisão após o novo mapeamento. As definições guardadas vão segui-los automaticamente — não é necessária qualquer ação.",
+    "reconcile_renumbered_title": "Divisões renumeradas ({count})",
+    "reconcile_stale_note": "O mapa mudou enquanto estava a rever — este é o estado atual.",
+    "reconcile_update_button": "Atualizar divisões guardadas",
+    "reconcile_updated_count": {
+      "one": "Foi atualizada {count} divisão.",
+      "other": "Foram atualizadas {count} divisões."
+    },
+    "reconcile_updating": "A atualizar…"
   },
   "shell": {
     "setup_add_title": "Adicione o seu aspirador",
@@ -1784,6 +1807,9 @@
       "none": "Nenhum",
       "estimated_minutes": "Minutos est.",
       "actual_minutes": "Minutos reais"
+    },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Nenhuma carga concluída começou em 50% ou menos e atingiu 90% ou mais, então ainda não há uma linha de base para comparação. Um aspirador que se conecta com frequência e raramente fica com pouca bateria pode nunca produzir uma por conta própria."
     },
     "status": {
       "completed": "Concluído",

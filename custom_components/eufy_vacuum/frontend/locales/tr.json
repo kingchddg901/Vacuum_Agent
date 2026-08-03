@@ -59,6 +59,9 @@
       "room_count": "Oda sayısı",
       "none": "Yok"
     },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Hiçbir tamamlanmış şarj %50 veya altında başlayıp %90 veya üzerine ulaşmadı, bu yüzden henüz karşılaştırılacak bir temel değer yok. Sık sık üsse dönen ve nadiren düşük seviyeye inen bir robot süpürge kendi başına hiçbir zaman bu koşulu sağlayamayabilir."
+    },
     "status": {
       "completed": "Tamamlandı",
       "canceled": "İptal edildi",
@@ -1768,7 +1771,27 @@
     "unmanaged_vacuums_hint": "Bu robot süpürgeler Home Assistant'ta mevcut ancak henüz yönetilmiyor. Birini eklemek, bağdaştırıcısını ve bir kenar çubuğu panelini kaydeder (entegrasyon yeniden yüklenir).",
     "vacuum_registered": "Robot süpürge kaydedildi.",
     "working": "Çalışıyor…",
-    "panel_name_placeholder": "Robot Süpürge Aracısı"
+    "panel_name_placeholder": "Robot Süpürge Aracısı",
+    "reconcile_dismiss_button": "Yoksay",
+    "reconcile_dismissing": "Yoksayılıyor…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> bu haritadan kaldırıldı ve ayarları atıldı.",
+      "other": "<strong>{names}</strong> bu haritadan kaldırıldı ve ayarları atıldı."
+    },
+    "reconcile_formerly": "Önceki adı: {name}",
+    "reconcile_rediscover_button": "Odaları yeniden algıla",
+    "reconcile_refresh_failed": "Harita değişti, ancak otomatik yenileme tamamlanamadı.",
+    "reconcile_renamed_hint": "Aynı oda numarası, farklı ad — ya uygulamada yeniden adlandırdınız ya da yeniden haritalama bu numarayı farklı bir alan için yeniden kullandı. Bu otomatik olarak ayırt edilemez; güncellemeden önce inceleyin.",
+    "reconcile_renamed_title": "Yeniden adlandırılan odalar ({count})",
+    "reconcile_renumbered_hint": "Robot süpürge, yeniden haritalamadan sonra bu oda numaralarını yeniden atadı. Kayıtlı ayarlar otomatik olarak onları takip edecek — herhangi bir işlem gerekmez.",
+    "reconcile_renumbered_title": "Yeniden numaralandırılan odalar ({count})",
+    "reconcile_stale_note": "Siz incelerken harita değişti — bu güncel durumdur.",
+    "reconcile_update_button": "Kayıtlı odaları güncelle",
+    "reconcile_updated_count": {
+      "one": "{count} oda güncellendi.",
+      "other": "{count} oda güncellendi."
+    },
+    "reconcile_updating": "Güncelleniyor…"
   },
   "theme": {
     "alpha_aria_label": "{label} opaklığı",
@@ -2317,7 +2340,10 @@
     "map_camera_set": "Canlı harita kamerası ayarlandı",
     "map_delete_failed": "Harita silme başarısız",
     "map_deleted": "Harita silindi",
-    "panel_renamed": "Panel yeniden adlandırıldı — kenar çubuğunu güncellemek için yenileyin"
+    "panel_renamed": "Panel yeniden adlandırıldı — kenar çubuğunu güncellemek için yenileyin",
+    "failed_reconcile_dismiss": "Uzlaştırma yoksayılamadı: {error}",
+    "failed_reconcile_update": "Kayıtlı odalar güncellenemedi: {error}",
+    "reconciliation_dismissed": "Yoksayıldı — harita tekrar değişirse aynı inceleme yeniden ortaya çıkabilir"
   },
   "mobile": {
     "dock_status_label": "Şarj İstasyonu Durumu:",

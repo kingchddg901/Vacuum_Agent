@@ -178,7 +178,10 @@
     "map_camera_set": "Cámara del mapa en vivo establecida",
     "map_delete_failed": "Falló la eliminación del mapa",
     "map_deleted": "Mapa eliminado",
-    "panel_renamed": "Panel renombrado; actualiza para refrescar la barra lateral"
+    "panel_renamed": "Panel renombrado; actualiza para refrescar la barra lateral",
+    "failed_reconcile_dismiss": "No se pudo descartar la conciliación: {error}",
+    "failed_reconcile_update": "No se pudieron actualizar las habitaciones guardadas: {error}",
+    "reconciliation_dismissed": "Descartado: la misma revisión puede volver a aparecer si el mapa cambia de nuevo"
   },
   "bind_theme": {
     "confirm_overwrite_theme": "¿Sobrescribir {target} con tus cambios sin guardar? El resto de la configuración de {target} permanecerá igual.",
@@ -1435,7 +1438,27 @@
     "floor_concrete": "Hormigón",
     "floor_carpet_low_pile": "Alfombra de pelo corto",
     "floor_carpet_high_pile": "Alfombra de pelo largo",
-    "panel_name_placeholder": "Agente de aspiradora"
+    "panel_name_placeholder": "Agente de aspiradora",
+    "reconcile_dismiss_button": "Descartar",
+    "reconcile_dismissing": "Descartando…",
+    "reconcile_dropped_sentence": {
+      "one": "<strong>{names}</strong> se eliminó de este mapa y se descartó su configuración.",
+      "other": "<strong>{names}</strong> se eliminaron de este mapa y se descartó su configuración."
+    },
+    "reconcile_formerly": "Anteriormente {name}",
+    "reconcile_rediscover_button": "Redetectar habitaciones",
+    "reconcile_refresh_failed": "El mapa cambió, pero la actualización automática no se completó.",
+    "reconcile_renamed_hint": "Mismo número de habitación, nombre diferente: o bien la renombraste en la app, o el nuevo mapeo reutilizó este número para otro espacio. No se puede distinguir automáticamente; revísalo antes de actualizar.",
+    "reconcile_renamed_title": "Habitaciones renombradas ({count})",
+    "reconcile_renumbered_hint": "El aspirador reasignó estos números de habitación tras el nuevo mapeo. La configuración guardada los seguirá automáticamente; no se requiere ninguna acción.",
+    "reconcile_renumbered_title": "Habitaciones renumeradas ({count})",
+    "reconcile_stale_note": "El mapa cambió mientras lo revisabas; este es el estado actual.",
+    "reconcile_update_button": "Actualizar habitaciones guardadas",
+    "reconcile_updated_count": {
+      "one": "Se actualizó {count} habitación.",
+      "other": "Se actualizaron {count} habitaciones."
+    },
+    "reconcile_updating": "Actualizando…"
   },
   "shell": {
     "setup_add_title": "Añade tu aspirador",
@@ -1785,6 +1808,9 @@
       "none": "Ninguno",
       "estimated_minutes": "Minutos est.",
       "actual_minutes": "Minutos reales"
+    },
+    "health_unavailable_reason": {
+      "insufficient_discharge_data": "Ninguna carga completada ha comenzado con un 50 % o menos y alcanzado un 90 % o más, así que todavía no hay una línea base con la que comparar. Un aspirador que se acopla con frecuencia y rara vez baja mucho puede no llegar a generar una por sí solo."
     },
     "status": {
       "completed": "Completado",
