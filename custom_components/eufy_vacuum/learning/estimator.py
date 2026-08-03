@@ -870,8 +870,22 @@ class LearningEstimator:
                 edge_mopping=edge_mopping,
             )
 
+            # A matched entry can have NO timing samples: wave 3 drops allocated timings,
+            # and a room that has only ever run inside a group keeps its area/battery/water
+            # samples while its minutes list empties. avg_minutes is then 0.0 — and
+            # `_safe_float(0.0, default)` returns 0.0, not the default, so the room would
+            # estimate as taking NO TIME. That is worse than the arithmetic figure it
+            # replaced: 0 is a confident wrong answer where "unknown" is the truth.
             if match:
-                minutes = _safe_float(match.get("avg_minutes"), _DEFAULT_ROOM_MINUTES)
+                _timing_n = _safe_int(
+                    match.get("timing_sample_count", match.get("sample_count")), 0
+                )
+                # Duration only — area/battery/water stay learned below, because those
+                # samples are real even when every timing was an allocation.
+                minutes = (
+                    _safe_float(match.get("avg_minutes"), _DEFAULT_ROOM_MINUTES)
+                    if _timing_n > 0 else _DEFAULT_ROOM_MINUTES
+                )
                 battery = _safe_float(match.get("avg_battery_used"), _DEFAULT_BATTERY_PER_ROOM)
                 # avg_minutes is from the area-gated (partial-excluded) samples, so
                 # timing confidence reflects timing_sample_count when it is present.
@@ -880,7 +894,11 @@ class LearningEstimator:
                 )
                 minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
                 area_m2 = _safe_float(match.get("avg_area_m2"), 0.0)
-                source = "learned"
+                # `source` describes where the DURATION came from — it is what the
+                # confidence score keys off. A room whose every timing was an allocation
+                # has a defaulted duration, so calling it "learned" would earn confidence
+                # the number has not got. Its area stays learned above regardless.
+                source = "learned" if _timing_n > 0 else "default"
                 # Same room key (shared _room_key) for accuracy lookup.
                 room_key = _room_key(
                     map_id_int, slug, clean_mode, clean_passes, is_carpet, clean_intensity, edge_mopping

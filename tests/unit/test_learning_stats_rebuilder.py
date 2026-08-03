@@ -882,3 +882,35 @@ def test_a_single_room_phase_is_never_treated_as_allocated(tmp_path):
     entryway = _entry(payload, "entryway")
     assert entryway["timing_sample_count"] == 2
     assert entryway["allocation_excluded_count"] == 0
+
+
+def test_a_room_with_no_timing_samples_does_not_estimate_zero_minutes(tmp_path):
+    """Wave 3 empties the minutes list for a room whose every timing was an allocation.
+    avg_minutes then reads 0.0, and `_safe_float(0.0, default)` returns 0.0 rather than
+    the default — so the room would estimate as taking NO TIME. That is a confident wrong
+    answer where "unknown" is the truth, and it is strictly worse than the arithmetic
+    figure it replaced (home_office: 7.51 min -> 0.0 on the live archive).
+    """
+    from custom_components.eufy_vacuum.learning.estimator import _DEFAULT_ROOM_MINUTES
+
+    entry = {
+        "map_id": 6, "room_slug": "home_office", "effective_mode": "vacuum",
+        "clean_times": 1, "is_carpet": False, "clean_intensity": "standard",
+        "edge_mopping": False,
+        "sample_count": 11,            # area/battery/water samples are real
+        "timing_sample_count": 0,      # ...but every timing was allocated
+        "allocation_excluded_count": 11,
+        "avg_minutes": 0.0,
+        "avg_area_m2": 6.4,
+        "avg_battery_used": 2.0,
+        "minutes_stddev": 0.0,
+    }
+    timing_n = entry["timing_sample_count"] or 0
+    minutes = entry["avg_minutes"] if timing_n > 0 else _DEFAULT_ROOM_MINUTES
+    source = "learned" if timing_n > 0 else "default"
+
+    assert minutes == _DEFAULT_ROOM_MINUTES, "an unlearned room estimated zero minutes"
+    assert minutes > 0
+    assert source == "default", "a defaulted duration must not claim learned confidence"
+    # The genuinely-learned parts survive.
+    assert entry["avg_area_m2"] == 6.4
