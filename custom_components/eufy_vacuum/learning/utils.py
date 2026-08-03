@@ -297,12 +297,41 @@ def known_completed_room_ids(
     """
     out: list[int] = []
     if isinstance(active_job_state, dict):
-        for key in ("completed_room_ids_cumulative", "completed_room_ids"):
-            raw = active_job_state.get(key)
-            for value in raw if isinstance(raw, list) else []:
-                rid = _safe_int(value, -1)
-                if rid > 0 and rid not in out:
-                    out.append(rid)
+        # Earlier phases, DERIVED rather than accumulated. A phase whose index is below
+        # the current one necessarily finished: advance_active_job_phase is only reached
+        # from the completion hook, so reaching phase N is itself the evidence that
+        # phases 0..N-1 completed.
+        #
+        # This replaces RP-013c's `completed_room_ids_cumulative`, which carried the same
+        # facts in a stored list. Storing them was right while ONE merged record had to
+        # describe a whole run; with a child per phase it became a second source of truth
+        # that a child would union into itself, crediting itself with earlier phases'
+        # rooms. Deriving is also strictly more robust: the accumulator was written at the
+        # advance, so a failed write lost a phase's rooms permanently, whereas the phase
+        # index cannot disagree with itself.
+        #
+        # Break phases carry no resolved_rooms and contribute nothing. A child's state is
+        # narrowed to its OWN phase before it reaches here, so it sees no earlier phases
+        # and credits only itself.
+        phases = active_job_state.get("phases")
+        if isinstance(phases, list):
+            current = _safe_int(active_job_state.get("current_phase_index"), 0)
+            for phase in phases[:current] if current > 0 else []:
+                if not isinstance(phase, dict):
+                    continue
+                for room in phase.get("resolved_rooms") or []:
+                    if not isinstance(room, dict):
+                        continue
+                    rid = _safe_int(room.get("room_id", room.get("id", -1)), -1)
+                    if rid > 0 and rid not in out:
+                        out.append(rid)
+        # ...then the CURRENT phase's own rollovers. Earlier phases first so the list
+        # reads chronologically, which is also the order the stored accumulator produced.
+        raw = active_job_state.get("completed_room_ids")
+        for value in raw if isinstance(raw, list) else []:
+            rid = _safe_int(value, -1)
+            if rid > 0 and rid not in out:
+                out.append(rid)
 
     for timing in room_timings if isinstance(room_timings, list) else []:
         if not isinstance(timing, dict):

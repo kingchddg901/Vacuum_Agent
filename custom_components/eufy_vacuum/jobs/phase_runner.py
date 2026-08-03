@@ -500,14 +500,10 @@ class PhaseRunner:
             )
             scoped = dict(inputs.get("active_job_state") or {})
             scoped["phases"] = [phase]
-            # Drop the JOB-CUMULATIVE completed list. RP-013c added it so a merged record
-            # could still see rooms the per-phase resets had wiped — correct while ONE
-            # record had to describe the whole run. A child describes one phase, and
-            # known_completed_room_ids unions that list, so phase 2's child was crediting
-            # itself with the kitchen phase 0 already recorded ([5, 8, 4] instead of
-            # [8, 4]): the same double-count the metric scope removes, on the ROOM axis.
-            # The parent unions its children, so the run-level answer is unchanged.
-            scoped["completed_room_ids_cumulative"] = []
+            # Narrowing `phases` above is what scopes the child's ROOM credit too: with
+            # no earlier phases visible, known_completed_room_ids derives none and the
+            # child credits only itself. The explicit cumulative-list clear that used to
+            # sit here went away with the accumulator it was compensating for.
             scoped["job_id"] = f"{active_job.get('job_id') or 'job'}.phase{idx}"
             # Area for THIS phase only: the within-phase per-room deltas the capture
             # already computed. Falls back to the run counter only when the phase

@@ -488,50 +488,13 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     advanced["queue_room_ids"] = next_room_ids
     advanced["queue_stable_keys"] = [f"{vac}:{mid}:{rid}" for rid in next_room_ids]
     advanced["queue_rooms"] = list(next_phase.get("queue_rooms", []))
-    # RP-013c/RF-11: carry the FINISHING phase's completed evidence up to job level
-    # BEFORE the per-phase reset below wipes it. Per-phase reset semantics are
-    # deliberate and unchanged (each phase is a fresh atomic sub-job); the defect was
-    # that nothing accumulated across the resets, so _write_incomplete_run_log computed
-    # missed = queue - the CURRENT phase's freshly-emptied list. A 3-phase run cancelled
-    # in phase 2 reported phase 1's genuinely-cleaned rooms as missed, and retry
-    # automations re-cleaned them. Confirmed on hardware: alfred job_2026-08-02T00-08-10
-    # logged completed_room_ids [] / missed [5, 8] while its own room_timings carried
-    # kitchen at 120 s.
-    #
-    # Append-only and de-duplicated, order preserved: a room is evidence that it was
-    # cleaned during THIS job, and a later phase re-listing it must not duplicate it.
-    _cumulative: list[int] = []
-
-    def _add(values) -> None:
-        for _v in values if isinstance(values, list) else []:
-            try:
-                _rid = int(_v)
-            except (TypeError, ValueError):
-                continue
-            if _rid > 0 and _rid not in _cumulative:
-                _cumulative.append(_rid)
-
-    _add(active_job.get("completed_room_ids_cumulative"))
-    _add(active_job.get("completed_room_ids"))
-    # The FINISHING PHASE'S OWN resolved rooms. This function is only reached from the
-    # completion hook — a phase that did not finish is finalized, never advanced — so
-    # reaching this line means these rooms were cleaned. Without it a single-room phase
-    # contributes nothing: it ends by phase advance rather than by a rollover, so
-    # record_completed_room never fires and completed_room_ids is still empty here
-    # (alfred job_2026-08-02T01-31-46: cumulative stayed [] through a completed kitchen).
-    #
-    # Read from phases[idx], NOT the job's top-level queue_room_ids. That top-level list
-    # is the whole job's queue until the first advance rewrites it, so crediting it would
-    # mark every room in the job completed the moment phase 1 finished — including rooms
-    # that never ran. _proof_completed_evidence caught exactly that as UNEXPECTED while
-    # the full suite stayed green. A break phase has no resolved_rooms, so it adds
-    # nothing.
-    _finishing = phases[idx] if isinstance(phases[idx], dict) else {}
-    _add([
-        r.get("room_id") for r in _finishing.get("resolved_rooms", [])
-        if isinstance(r, dict)
-    ])
-    advanced["completed_room_ids_cumulative"] = _cumulative
+    # RP-013c's `completed_room_ids_cumulative` used to be built here, carrying each
+    # finishing phase's rooms up to job level so the per-phase reset below could not lose
+    # them. It is gone: known_completed_room_ids now DERIVES the same facts from the phase
+    # index (reaching phase N is itself the evidence that 0..N-1 completed), which cannot
+    # go stale and cannot be unioned into a child that should only credit itself. The
+    # per-phase reset below is unchanged and still deliberate — each phase is a fresh
+    # atomic sub-job.
     # Reset per-phase progress — the next phase is a fresh atomic sub-job.
     advanced["completed_room_ids"] = []
     advanced["completed_rooms"] = []

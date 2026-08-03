@@ -51,7 +51,7 @@ def runner(store):
         # A real active job in a later phase carries RP-013c's job-cumulative list.
         return {"active_job_state": {
             "job_id": "job_x", "phases": [],
-            "completed_room_ids_cumulative": [5],
+            "completed_room_ids": [],
         }}
 
     def _finalize(*, inputs, **kw):
@@ -533,17 +533,21 @@ def test_cancel_in_a_later_phase_leaves_finished_work_alone(store, runner):
     assert closed["status"] == "partial"                # some work survived
 
 
-def test_a_child_does_not_inherit_earlier_phases_completed_rooms(store, runner):
-    """RP-013c's job-cumulative list exists so a MERGED record could see rooms the
-    per-phase resets wiped. A child describes ONE phase, and known_completed_room_ids
-    unions that list — so phase 2's child credited itself with the kitchen phase 0 had
-    already recorded ([5, 8, 4] instead of [8, 4]). Same double-count as the metric
-    scope, on the room axis. The parent unions its children, so the run-level answer is
-    unchanged."""
+def test_a_child_credits_only_its_own_phase(store, runner):
+    """A child describes ONE phase. known_completed_room_ids derives earlier phases'
+    rooms from the phase index, so a state carrying all three phases would credit a
+    phase-2 child with the kitchen phase 0 already recorded ([5, 8, 4] vs [8, 4]) — the
+    metric scope's double-count on the ROOM axis. Narrowing `phases` to the finishing
+    one is what prevents it."""
+    from custom_components.eufy_vacuum.learning.utils import known_completed_room_ids
+
     job = _job()
     _open(store, job)
     _run_all_phases(runner, job)
     scoped = runner._manager.seen["active_job_state"]
-    assert scoped["completed_room_ids_cumulative"] == [], (
-        "the child was handed every earlier phase's rooms"
-    )
+    assert len(scoped["phases"]) == 1, "the child saw more than its own phase"
+
+    # The unnarrowed state is what it would have been handed without the scope.
+    unnarrowed = dict(scoped, phases=job["phases"], current_phase_index=2)
+    assert 5 in known_completed_room_ids(unnarrowed, None), "probe is not exercising the bug"
+    assert known_completed_room_ids(scoped, None) == [], "the child inherited earlier rooms"

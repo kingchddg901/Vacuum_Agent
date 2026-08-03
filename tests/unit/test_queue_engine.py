@@ -267,60 +267,22 @@ def _phased(completed, cumulative=None, idx=0):
     return job
 
 
-def test_advance_phase_accumulates_completed_evidence():
-    """[QE-13c] the finishing phase's completed rooms survive the per-phase reset."""
+def test_advance_phase_still_resets_per_phase_progress():
+    """The per-phase reset is deliberate and UNCHANGED — each phase is a fresh atomic
+    sub-job. What changed is that nothing accumulates alongside it any more."""
     nxt = advance_active_job_phase(_phased([1]))
-    assert nxt["completed_room_ids"] == []           # per-phase reset UNCHANGED
-    assert nxt["completed_room_ids_cumulative"] == [1]
+    assert nxt["completed_room_ids"] == []
+    assert nxt["completed_rooms"] == []
 
 
-def test_advance_phase_cumulative_grows_across_two_advances():
-    """[QE-13c] evidence from every finished phase, not just the last one."""
-    after1 = advance_active_job_phase(_phased([1]))
-    after1["completed_room_ids"] = [2]               # phase 2 then finishes room 2
-    after2 = advance_active_job_phase(after1)
-    assert after2["completed_room_ids_cumulative"] == [1, 2]
-
-
-def test_advance_phase_cumulative_dedupes_and_keeps_order():
-    """[QE-13c] a room re-listed by a later phase is not duplicated."""
-    nxt = advance_active_job_phase(_phased([2, 1], cumulative=[1]))
-    assert nxt["completed_room_ids_cumulative"] == [1, 2]
-
-
-@pytest.mark.parametrize("junk", [None, "x", -1, 0, {"room_id": 1}])
-def test_advance_phase_cumulative_ignores_unusable_ids(junk):
-    """[QE-13c] non-positive / non-integer entries are dropped, not crashed on.
-
-    Order pins the ladder: rolled-over rooms first, then the finishing phase's own
-    resolved rooms (room 1 from _phased's phase 0)."""
-    nxt = advance_active_job_phase(_phased([junk, 4]))
-    assert nxt["completed_room_ids_cumulative"] == [4, 1]
-
-
-def test_advance_phase_cumulative_absent_key_is_safe():
-    """[QE-13c] a job written before this landed has no cumulative key."""
-    job = _phased([1])
-    job.pop("completed_room_ids_cumulative", None)
-    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
-
-
-def test_advance_phase_cumulative_includes_the_finished_phases_own_rooms():
-    """[QE-13c] a single-room phase ends by ADVANCE, not by a rollover, so
-    record_completed_room never fires and completed_room_ids is empty here. Without the
-    phase's own queue_room_ids it would contribute nothing at all (alfred
-    job_2026-08-02T01-31-46: cumulative stayed [] through a completed kitchen phase)."""
-    job = _phased([])                      # nothing rolled over
-    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
-
-
-def test_advance_phase_cumulative_credits_only_the_finished_phase():
-    """[QE-13c] the job's top-level queue_room_ids is the WHOLE queue until the first
-    advance rewrites it. Crediting that would mark rooms 2 and 3 completed the moment
-    phase 1 finished. Only phases[idx]'s own resolved rooms count."""
-    job = _phased([])
-    job["queue_room_ids"] = [1, 2, 3]      # the whole job, as built pre-advance
-    assert advance_active_job_phase(job)["completed_room_ids_cumulative"] == [1]
+def test_advance_phase_writes_no_cumulative_key():
+    """RP-013c's `completed_room_ids_cumulative` was retired once every phase got its own
+    child record: a stored second source of truth that a child would union into itself.
+    known_completed_room_ids DERIVES the same facts from the phase index instead — the
+    guarantee now lives in tests/unit/test_learning_utils.py, not here. A lingering key
+    would be read by that ladder's old callers and silently re-credit rooms."""
+    nxt = advance_active_job_phase(_phased([1]))
+    assert "completed_room_ids_cumulative" not in nxt
 
 
 def test_advance_phase_cumulative_ignores_a_break_phases_empty_room_set():

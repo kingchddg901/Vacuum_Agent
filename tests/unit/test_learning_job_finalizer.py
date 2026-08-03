@@ -832,18 +832,23 @@ def _write(fin, completed_job, active_job_state):
     )
 
 
-def test_missed_consumes_cumulative_evidence(finalizer):
-    """[JF-13c] phase 1's rooms are not missed just because the advance reset the list."""
+def test_missed_consumes_earlier_phase_evidence(finalizer):
+    """[JF-13c] phase 1's rooms are not missed just because the advance reset the list.
+    Derived from the phase index now, not from a stored accumulator."""
     written = _write(finalizer, _cancelled([1, 2, 3]),
-                     {"completed_room_ids_cumulative": [1], "completed_room_ids": []})
+                     {"phases": [{"resolved_rooms": [{"room_id": 1}]},
+                                 {"resolved_rooms": [{"room_id": 2}]}],
+                      "current_phase_index": 1, "completed_room_ids": []})
     assert sorted(written["missed_room_ids"]) == [2, 3]
     assert sorted(written["completed_room_ids"]) == [1]
 
 
-def test_missed_unions_cumulative_and_current_phase(finalizer):
+def test_missed_unions_earlier_phases_and_current_phase(finalizer):
     """[JF-13c] the current phase's own progress still counts."""
     written = _write(finalizer, _cancelled([1, 2, 3]),
-                     {"completed_room_ids_cumulative": [1], "completed_room_ids": [2]})
+                     {"phases": [{"resolved_rooms": [{"room_id": 1}]},
+                                 {"resolved_rooms": [{"room_id": 2}]}],
+                      "current_phase_index": 1, "completed_room_ids": [2]})
     assert sorted(written["missed_room_ids"]) == [3]
 
 

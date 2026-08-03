@@ -1152,7 +1152,9 @@ def test_payload_persists_completed_room_ids(tmp_path):
     store = _make_store(tmp_path)
     args = _make_build_args()
     args["active_job_state"] = dict(args["active_job_state"],
-                                    completed_room_ids_cumulative=[1],
+                                    phases=[{"resolved_rooms": [{"room_id": 1}]},
+                                            {"resolved_rooms": [{"room_id": 2}]}],
+                                    current_phase_index=1,
                                     completed_room_ids=[2])
     payload = store.build_completed_job_payload(**args)
     assert payload["queue"]["completed_room_ids"] == [1, 2]
@@ -1163,7 +1165,10 @@ def test_payload_completed_room_ids_dedupes(tmp_path):
     store = _make_store(tmp_path)
     args = _make_build_args()
     args["active_job_state"] = dict(args["active_job_state"],
-                                    completed_room_ids_cumulative=[1, 2],
+                                    phases=[{"resolved_rooms": [{"room_id": 1},
+                                                                {"room_id": 2}]},
+                                            {"resolved_rooms": [{"room_id": 2}]}],
+                                    current_phase_index=1,
                                     completed_room_ids=[2])
     payload = store.build_completed_job_payload(**args)
     assert payload["queue"]["completed_room_ids"] == [1, 2]
@@ -1174,6 +1179,6 @@ def test_payload_completed_room_ids_empty_when_nothing_finished(tmp_path):
     store = _make_store(tmp_path)
     args = _make_build_args()
     args["active_job_state"] = dict(args["active_job_state"], completed_room_ids=[])
-    args["active_job_state"].pop("completed_room_ids_cumulative", None)
+    args["active_job_state"].pop("phases", None)
     payload = store.build_completed_job_payload(**args)
     assert payload["queue"]["completed_room_ids"] == []
