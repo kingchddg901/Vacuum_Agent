@@ -490,6 +490,9 @@ class PhaseRunner:
                     started_at = str(phases[j]["_timing_end_t"])
                     break
 
+            # The three forced_* arguments are REQUIRED — keyword-only with no defaults.
+            # Omitting them raised TypeError straight into the handler below, so the first
+            # two live runs wrote no children at all.
             inputs = finalizer._collect_finalization_inputs(
                 manager=self._manager,
                 vacuum_entity_id=vacuum_entity_id,
@@ -497,6 +500,9 @@ class PhaseRunner:
                 battery_start=_safe_int(phase.get("_battery_start"), 0),
                 started_at=started_at,
                 ended_at=ended_at,
+                forced_outcome_status=None,
+                forced_lifecycle_state=None,
+                forced_lifecycle_message=None,
             )
             scoped = dict(inputs.get("active_job_state") or {})
             scoped["phases"] = [phase]
@@ -504,7 +510,12 @@ class PhaseRunner:
             # no earlier phases visible, known_completed_room_ids derives none and the
             # child credits only itself. The explicit cumulative-list clear that used to
             # sit here went away with the accumulator it was compensating for.
-            scoped["job_id"] = f"{active_job.get('job_id') or 'job'}.phase{idx}"
+            child_id = f"{active_job.get('job_id') or 'job'}.phase{idx}"
+            scoped["job_id"] = child_id
+            # THE id the record is written under. finalize_from_inputs reads
+            # inputs["job_id"], not active_job_state["job_id"] — setting only the latter
+            # saves every child over the RUN's own record instead of beside it.
+            inputs["job_id"] = child_id
             # Area for THIS phase only: the within-phase per-room deltas the capture
             # already computed. Falls back to the run counter only when the phase
             # captured nothing, which is the same "we don't know" path an atomic job
@@ -550,11 +561,11 @@ class PhaseRunner:
             }
             learning.store.save_completed_job(
                 vacuum_entity_id=vacuum_entity_id,
-                job_id=scoped["job_id"],
+                job_id=child_id,
                 payload=child,
             )
-            phase["_child_record_id"] = scoped["job_id"]
-            return scoped["job_id"]
+            phase["_child_record_id"] = child_id
+            return child_id
         except Exception:  # noqa: BLE001 - a child that fails must not stop the next phase
             _LOGGER.exception("could not finalize phase %s as a child", idx)
             return None

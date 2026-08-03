@@ -47,16 +47,29 @@ def runner(store):
     # real dicts so the child path actually runs.
     seen: dict = {}
 
+    # BOUND TO THE REAL SIGNATURES. `def _collect(**kw)` accepts anything, so it hid a
+    # TypeError for three required keyword-only args and the first two live runs wrote no
+    # children at all. inspect.signature().bind() makes the stub reject exactly what
+    # production rejects — the third time this session a permissive mock concealed a
+    # mismatch, so the stub is now derived from the function it stands in for.
+    import inspect
+
+    from custom_components.eufy_vacuum.learning.job_finalizer import LearningJobFinalizer
+
+    _collect_sig = inspect.signature(LearningJobFinalizer._collect_finalization_inputs)
+    _finalize_sig = inspect.signature(LearningJobFinalizer.finalize_from_inputs)
+
     def _collect(**kw):
-        # A real active job in a later phase carries RP-013c's job-cumulative list.
-        return {"active_job_state": {
-            "job_id": "job_x", "phases": [],
-            "completed_room_ids": [],
-        }}
+        _collect_sig.bind(None, **kw)          # raises exactly as production would
+        return {"active_job_state": {"job_id": "job_x", "phases": [],
+                                     "completed_room_ids": []},
+                "job_id": "job_x"}
 
     def _finalize(*, inputs, **kw):
+        _finalize_sig.bind(None, inputs=inputs, **kw)
         state = inputs["active_job_state"]
         seen["active_job_state"] = state
+        seen["job_id"] = inputs["job_id"]
         scoped = state.get("phases") or []
         seconds = sum(
             int(rt.get("cleaning_seconds") or 0)
@@ -65,7 +78,7 @@ def runner(store):
         return {
             "completed_job": {
                 "record_type": "completed_job",
-                "job_id": state["job_id"],
+                "job_id": inputs["job_id"],
                 "job": {
                     "cleaning_time_seconds": seconds,
                     "cleaning_area_m2": state.get("last_cleaning_area_m2"),
@@ -551,3 +564,15 @@ def test_a_child_credits_only_its_own_phase(store, runner):
     unnarrowed = dict(scoped, phases=job["phases"], current_phase_index=2)
     assert 5 in known_completed_room_ids(unnarrowed, None), "probe is not exercising the bug"
     assert known_completed_room_ids(scoped, None) == [], "the child inherited earlier rooms"
+
+
+def test_child_is_written_under_the_inputs_job_id(store, runner):
+    """finalize_from_inputs reads inputs["job_id"], NOT active_job_state["job_id"].
+    Setting only the latter saves every child over the RUN's own record instead of
+    beside it — silent, because the write succeeds."""
+    job = _job()
+    _open(store, job)
+    _run_all_phases(runner, job)
+    assert runner._manager.seen["job_id"] == _CHILD2
+    assert store.load_completed_job(vacuum_entity_id=_VAC, job_id=_CHILD0) is not None
+    assert store.load_completed_job(vacuum_entity_id=_VAC, job_id="job_2026-08-02T18-00-00") is None
