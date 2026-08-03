@@ -2483,6 +2483,7 @@ class LearningManager:
             _learning_velocity,
             _DEFAULT_ROOM_MINUTES,
             _DEFAULT_BATTERY_PER_ROOM,
+            _SAMPLE_BONUS_SATURATE,
         )
 
         map_id_str = str(map_id)
@@ -2584,7 +2585,22 @@ class LearningManager:
                     accuracy_drift_ratio=drift_ratio,
                 )
                 confidence = _confidence_result(confidence_score)
-                velocity = _learning_velocity(sample_count, confidence_score)
+                # RP-036/EST-5: same ceiling projection as estimate()'s own
+                # per-room loop — the best score reachable with the sample
+                # bonus maxed out, holding this room's current variance/
+                # intensity/drift penalties fixed. None for a "default" room,
+                # which has no variance data yet to judge reachability by.
+                velocity_ceiling = None
+                if source == "learned":
+                    velocity_ceiling = _score_room_confidence(
+                        source=source,
+                        sample_count=_SAMPLE_BONUS_SATURATE,
+                        avg_minutes=minutes,
+                        minutes_stddev=minutes_stddev,
+                        intensity_mismatch=intensity_mismatch,
+                        accuracy_drift_ratio=drift_ratio,
+                    )
+                velocity = _learning_velocity(sample_count, confidence_score, velocity_ceiling)
 
                 room_entries.append({
                     "room_id": room_id,

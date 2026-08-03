@@ -129,6 +129,23 @@ def _canonical_clean_mode(value: Any) -> str:
     return s
 
 
+def _canonical_clean_intensity(value: Any) -> str:
+    """Normalize a clean_intensity value to its canonical lowercase form.
+
+    Defaults to "standard" for an ABSENT key *or* an explicitly falsy value
+    ("", None). `dict.get(key, "standard")` only substitutes its default on
+    an absent key — an explicit ``{"clean_intensity": ""}`` slips through as
+    "" instead of "standard", silently diverging from the identical inline
+    logic _room_key already used below (`str(clean_intensity or "standard")`).
+    RP-036 (EST-3): four call sites across estimator.py and stats_rebuilder.py
+    each re-implemented this normalization slightly differently — two of them
+    with the `dict.get(key, "standard")` gap — so a room could match under one
+    code path and miss under another for the exact same settings. Single
+    shared home so every room-lookup site agrees.
+    """
+    return str(value or "standard").strip().lower()
+
+
 def _room_profile_key(room: dict[str, Any]) -> str:
     """Return a stable per-room settings signature used for stats matching."""
     return "::".join(
@@ -168,7 +185,7 @@ def _room_key(
         f"{_canonical_clean_mode(effective_mode)}::"
         f"{_safe_int(clean_times, 1)}::"
         f"{'1' if _safe_bool(is_carpet, False) else '0'}::"
-        f"{str(clean_intensity or 'standard').strip().lower()}::"
+        f"{_canonical_clean_intensity(clean_intensity)}::"
         f"{'1' if _safe_bool(edge_mopping, False) else '0'}"
     )
 

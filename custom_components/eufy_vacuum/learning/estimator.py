@@ -55,6 +55,13 @@ BREAKPOINTS
   MEDIUM: 0.50–0.79  ui_rank=2  ui_variant="warning"
   LOW:    0.00–0.49  ui_rank=1  ui_variant="error"
 
+  Matched half-open by MIN threshold (RP-036/EST-1): the band with the
+  largest min_score <= score wins, so every score in [0.0, 1.0] matches
+  exactly one band with no gap at a boundary (e.g. 0.795, strictly between
+  medium's labeled 0.79 max and high's 0.80 min, resolves to MEDIUM). The
+  labeled max_score values above stay as display-only documentation of each
+  band's nominal top.
+
 LEARNING VELOCITY
 -----------------
 Exposes how many more runs are needed per room to reach MEDIUM and HIGH
@@ -80,7 +87,14 @@ from homeassistant.core import HomeAssistant
 from .history_store import LearningHistoryStore
 from .brand_facts import brand_facts_for
 from ..timestamp_utils import datetime_to_utc_iso, parse_timestamp, utc_now
-from .utils import _canonical_clean_mode, _iso_now, _room_key, _safe_float, _safe_int
+from .utils import (
+    _canonical_clean_intensity,
+    _canonical_clean_mode,
+    _iso_now,
+    _room_key,
+    _safe_float,
+    _safe_int,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -169,12 +183,43 @@ def _eta_at(base_dt: datetime, offset_minutes: float) -> str:
     return datetime_to_utc_iso(base_dt + timedelta(minutes=offset_minutes))
 
 
+def _nearest_breakpoint(score: float) -> dict[str, Any]:
+    """Return the breakpoint whose band is numerically closest to score.
+
+    Defensive fallback only — see _breakpoint_for_score, whose half-open
+    min-threshold scan already matches every score in [0.0, 1.0]. Only
+    reachable for a score outside that range (neither scoring path should
+    ever produce one; both clamp to [0.0, 1.0] before calling this). Picks
+    the band minimizing distance to its own [min_score, max_score] interval
+    rather than hardcoding LOW, per RP-036/EST-1.
+    """
+    def _distance(bp: dict[str, Any]) -> float:
+        if score < bp["min_score"]:
+            return bp["min_score"] - score
+        if score > bp["max_score"]:
+            return score - bp["max_score"]
+        return 0.0
+
+    return dict(min(_BREAKPOINTS, key=_distance))
+
+
 def _breakpoint_for_score(score: float) -> dict[str, Any]:
-    """Return the confidence breakpoint dict for a given score."""
+    """Return the confidence breakpoint dict for a given score.
+
+    _BREAKPOINTS is ordered HIGH -> MEDIUM -> LOW (descending min_score).
+    The band with the largest min_score <= score wins — equivalent to
+    half-open [min_score, next_band's min_score) bands, contiguous with no
+    gap at any boundary, so every score in [0.0, 1.0] matches exactly one
+    band regardless of how max_score is labeled for display (RP-036/EST-1;
+    previously a score like 0.795 matched neither the medium [_, 0.79] nor
+    the high [0.80, _] closed interval and fell through to a hardcoded LOW).
+    """
     for bp in _BREAKPOINTS:
-        if bp["min_score"] <= score <= bp["max_score"]:
+        if score >= bp["min_score"]:
             return dict(bp)
-    return dict(_BREAKPOINTS[-1])
+    # Unreachable for any real caller (both clamp to [0.0, 1.0] first) —
+    # only a negative score gets here, since low.min_score == 0.0.
+    return _nearest_breakpoint(score)
 
 
 def _confidence_result(score: float) -> dict[str, Any]:
@@ -265,21 +310,48 @@ def _parse_iso(value: str | None) -> datetime | None:
 # Learning velocity
 # ---------------------------------------------------------------------------
 
-def _learning_velocity(sample_count: int, current_score: float) -> dict[str, Any]:
+def _learning_velocity(
+    sample_count: int,
+    current_score: float,
+    ceiling_score: float | None = None,
+) -> dict[str, Any]:
     """Return how many more runs are needed to reach MEDIUM and HIGH.
 
     Uses the analytical sample targets computed from the scoring formula.
     If already at or above a tier, returns 0 for that tier.
+
+    ceiling_score (RP-036/EST-5) — the best score this room could reach with
+    an unlimited sample count, HOLDING its current variance/intensity/drift
+    penalties fixed (see estimate()'s caller: same _score_room_confidence
+    call with sample_count forced to saturation). _SAMPLES_FOR_HIGH assumes
+    ZERO variance and zero penalties (its own comment says so) — a room with
+    real, nonzero variance can structurally never clear HIGH no matter how
+    many more runs it gets, and runs_to_high must not keep promising it will.
+    Pass None (the default) when no ceiling is known — e.g. a cold-start
+    "default" room, which has no variance data yet to judge reachability by,
+    and for which accumulating samples IS the real path to HIGH (unaffected).
     """
     runs_to_medium = max(_SAMPLES_FOR_MEDIUM - sample_count, 0)
     runs_to_high = max(_SAMPLES_FOR_HIGH - sample_count, 0)
 
     current_bp = _breakpoint_for_score(current_score)
 
+    high_min = _BREAKPOINTS[0]["min_score"]
+    high_reachable = ceiling_score is None or ceiling_score >= high_min
+    achievable_ceiling_tier = (
+        _breakpoint_for_score(ceiling_score)["key"] if ceiling_score is not None else None
+    )
+    if not high_reachable:
+        # Don't promise arrival — report against the achievable ceiling
+        # instead of a runs count that can never be satisfied.
+        runs_to_high = None
+
     return {
         "runs_to_medium": runs_to_medium,
         "runs_to_high": runs_to_high,
         "current_tier": current_bp["key"],
+        "high_reachable": high_reachable,
+        "achievable_ceiling_tier": achievable_ceiling_tier,
     }
 
 
@@ -483,32 +555,44 @@ def _find_room_match(
         return bool(item.get("edge_mopping", False)) == edge_mopping
 
     def _intensity(item: dict[str, Any]) -> bool:
-        return str(item.get("clean_intensity", "standard")).strip().lower() == clean_intensity
+        # RP-036/EST-3: routed through the shared canonical helper so this
+        # matcher's normalization can never silently diverge from the
+        # query-side projection that computed `clean_intensity` above, or
+        # from record_estimate_accuracy's own room-key normalization.
+        return _canonical_clean_intensity(item.get("clean_intensity")) == clean_intensity
 
-    # Pass 1 — exact
+    def _best_by_sample_count(matches: list[dict[str, Any]]) -> dict[str, Any]:
+        """RP-036/EST-6: deterministic tiebreak for a relaxed pass with more
+        than one structural match — prefer the one with the highest
+        sample_count (more observations = more trustworthy) instead of
+        whichever happened to iterate first."""
+        return max(matches, key=lambda item: _safe_int(item.get("sample_count"), 0))
+
+    # Pass 1 — exact. Deduped by construction (stats_rebuilder emits at most
+    # one room_stats entry per exact key), so no tiebreak is needed here.
     for item in room_stats:
         if _base(item) and _passes(item) and _carpet(item) and _edge(item) and _intensity(item):
             return item, False
 
     # Pass 2 — ignore intensity (keep passes, carpet, edge)
-    for item in room_stats:
-        if _base(item) and _passes(item) and _carpet(item) and _edge(item):
-            return item, True
+    matches = [item for item in room_stats if _base(item) and _passes(item) and _carpet(item) and _edge(item)]
+    if matches:
+        return _best_by_sample_count(matches), True
 
     # Pass 3 — ignore carpet (keep passes, edge)
-    for item in room_stats:
-        if _base(item) and _passes(item) and _edge(item):
-            return item, True
+    matches = [item for item in room_stats if _base(item) and _passes(item) and _edge(item)]
+    if matches:
+        return _best_by_sample_count(matches), True
 
     # Pass 4 — ignore edge_mopping (keep passes)
-    for item in room_stats:
-        if _base(item) and _passes(item):
-            return item, True
+    matches = [item for item in room_stats if _base(item) and _passes(item)]
+    if matches:
+        return _best_by_sample_count(matches), True
 
     # Pass 5 — ignore passes
-    for item in room_stats:
-        if _base(item):
-            return item, True
+    matches = [item for item in room_stats if _base(item)]
+    if matches:
+        return _best_by_sample_count(matches), True
 
     return None, False
 
@@ -868,7 +952,11 @@ class LearningEstimator:
             clean_mode = str(room.get("clean_mode", "")).strip().lower()
             clean_passes = _safe_int(room.get("clean_passes", 1), 1)
             is_carpet = bool(room.get("carpet", False))
-            clean_intensity = str(room.get("clean_intensity", "standard")).strip().lower()
+            # RP-036/EST-3: routed through the shared canonical helper (see
+            # utils._canonical_clean_intensity) alongside _find_room_match's
+            # matcher and record_estimate_accuracy, so this query-side
+            # projection can never silently diverge from either.
+            clean_intensity = _canonical_clean_intensity(room.get("clean_intensity"))
             edge_mopping = bool(room.get("edge_mopping", False))
             room_name = str(room.get("name", slug))
             room_id = _safe_int(room.get("room_id", 0))
@@ -923,6 +1011,26 @@ class LearningEstimator:
                     accuracy_stats=accuracy_stats,
                     room_key=room_key,
                 )
+                # RP-036/EST-4: match.get("minutes_min")/("minutes_max") are
+                # written by stats_rebuilder (the room's own historical band)
+                # but were never read back here. Only checked with real timing
+                # samples (_timing_n > 0) — an all-allocated match's band is a
+                # degenerate 0.0/0.0 placeholder (see the comment above this
+                # `if match:`), not a real observed range, so it must not
+                # clamp the DEFAULT fallback minutes computed below it.
+                band_capped = False
+                if _timing_n > 0:
+                    _band_min_raw = match.get("minutes_min")
+                    _band_max_raw = match.get("minutes_max")
+                    if _band_min_raw is not None and _band_max_raw is not None:
+                        _band_min = _safe_float(_band_min_raw, minutes)
+                        _band_max = _safe_float(_band_max_raw, minutes)
+                        if minutes < _band_min:
+                            minutes = _band_min
+                            band_capped = True
+                        elif minutes > _band_max:
+                            minutes = _band_max
+                            band_capped = True
             else:
                 minutes = _DEFAULT_ROOM_MINUTES
                 battery = _DEFAULT_BATTERY_PER_ROOM
@@ -932,6 +1040,7 @@ class LearningEstimator:
                 intensity_mismatch = False
                 drift_ratio = 0.0
                 source = "default"
+                band_capped = False
 
             confidence_score = _score_room_confidence(
                 source=source,
@@ -941,9 +1050,35 @@ class LearningEstimator:
                 intensity_mismatch=intensity_mismatch,
                 accuracy_drift_ratio=drift_ratio,
             )
+            if band_capped:
+                # The displayed estimate was clamped to the room's own
+                # historical band edge — never show HIGH confidence for a
+                # number the room's history didn't actually produce as its
+                # mean. Reuses the existing MEDIUM breakpoint's own max_score
+                # as the cap (no new constant).
+                confidence_score = min(confidence_score, _BREAKPOINTS[1]["max_score"])
             room_confidence_scores.append(confidence_score)
             confidence = _confidence_result(confidence_score)
-            velocity = _learning_velocity(sample_count, confidence_score)
+
+            # RP-036/EST-5: _SAMPLES_FOR_HIGH assumes zero variance/penalties
+            # (see its own comment). A "learned" room's ceiling — the best
+            # score it could reach with the sample bonus maxed out, holding
+            # its CURRENT variance/intensity/drift penalties fixed — tells
+            # _learning_velocity whether HIGH is even structurally reachable.
+            # Left None for a "default" (no match) room: it has no variance
+            # data yet to judge reachability by, and accumulating samples IS
+            # the real path to HIGH for it (unaffected by this).
+            velocity_ceiling: float | None = None
+            if source == "learned":
+                velocity_ceiling = _score_room_confidence(
+                    source=source,
+                    sample_count=_SAMPLE_BONUS_SATURATE,
+                    avg_minutes=minutes,
+                    minutes_stddev=minutes_stddev,
+                    intensity_mismatch=intensity_mismatch,
+                    accuracy_drift_ratio=drift_ratio,
+                )
+            velocity = _learning_velocity(sample_count, confidence_score, velocity_ceiling)
 
             # Transit BEFORE this room (inter-room leg); folded into the offsets
             # so the timeline positions travel time between rooms. position 0's
@@ -985,6 +1120,7 @@ class LearningEstimator:
                     "is_carpet": is_carpet,
                     "source": source,
                     "intensity_mismatch": intensity_mismatch,
+                    "band_capped": band_capped,
                     "sample_count": sample_count,
                     "accuracy_drift_ratio": round(drift_ratio, 4),
                     "minutes": round(minutes, 2),

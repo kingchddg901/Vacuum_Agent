@@ -58,6 +58,12 @@ from custom_components.eufy_vacuum.learning.estimator import (
     (0.50, "medium"),
     (0.65, "medium"),
     (0.79, "medium"),
+    # RP-036/EST-1: the dead band between medium's labeled 0.79 max and
+    # high's 0.80 min — previously matched NEITHER closed interval and fell
+    # through to a hardcoded LOW. Every other case above/below is unchanged
+    # by the fix (see test_breakpoint_for_score_out_of_range_returns_nearest
+    # for the fallthrough itself).
+    (0.795, "medium"),
     (0.80, "high"),
     (1.00, "high"),
 ])
@@ -65,6 +71,13 @@ def test_breakpoint_for_score(score, expected_key):
     """[LE-1] Scores map to the correct breakpoint key."""
     bp = _breakpoint_for_score(score)
     assert bp["key"] == expected_key
+
+
+def test_breakpoint_for_score_out_of_range_returns_nearest():
+    """RP-036/EST-1: the fallthrough (only reachable for a score outside
+    [0.0, 1.0] — both real scoring paths clamp before calling this) computes
+    a genuine nearest-bucket-by-distance result, not a hardcoded LOW."""
+    assert _breakpoint_for_score(-5.0)["key"] == "low"
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +201,39 @@ def test_learning_velocity_positive_for_new_vacuum():
     # _SAMPLES_FOR_MEDIUM = ceil((0.50-0.55)/0.25*10) = ceil(-2) = -2 → max(-2-0,0) = 0
     assert velocity["runs_to_medium"] == 0
     # _SAMPLES_FOR_HIGH = ceil((0.80-0.55)/0.25*10) = ceil(10) = 10 → max(10-0,0) = 10
+    assert velocity["runs_to_high"] > 0
+    # No ceiling supplied (the default) — reachability is assumed True,
+    # exactly the pre-RP-036 behavior this call site relied on.
+    assert velocity["high_reachable"] is True
+
+
+def test_learning_velocity_no_ceiling_defaults_reachable():
+    """RP-036/EST-5: omitting ceiling_score (2-arg call, the pre-fix call
+    shape) preserves the old unconditional-promise behavior exactly —
+    backward compatible for any caller that hasn't been updated to supply one."""
+    velocity = _learning_velocity(10, 0.85)
+    assert velocity["high_reachable"] is True
+    assert velocity["runs_to_high"] == 0
+
+
+def test_learning_velocity_unreachable_ceiling_nulls_runs_to_high():
+    """RP-036/EST-5: a realistic variance profile — sample bonus saturated
+    (10 samples) but a ceiling capped below HIGH by nonzero variance — must
+    not promise runs_to_high will ever arrive. _SAMPLES_FOR_HIGH (10) says
+    "0 more runs" here; that promise is exactly what this guards against."""
+    velocity = _learning_velocity(10, 0.55, ceiling_score=0.55)
+    assert velocity["high_reachable"] is False
+    assert velocity["runs_to_high"] is None
+    assert velocity["achievable_ceiling_tier"] == "medium"
+
+
+def test_learning_velocity_reachable_ceiling_keeps_runs_to_high():
+    """RP-036/EST-5: a ceiling AT or ABOVE the HIGH threshold reports
+    reachable and leaves runs_to_high as the normal countdown — the fix
+    only withholds the promise when it is actually false."""
+    velocity = _learning_velocity(0, 0.55, ceiling_score=0.80)
+    assert velocity["high_reachable"] is True
+    assert velocity["runs_to_high"] is not None
     assert velocity["runs_to_high"] > 0
 
 
@@ -360,6 +406,37 @@ def test_find_room_match_edge_split():
     )
     assert on["avg_minutes"] == 12.0 and on_mm is False
     assert off["avg_minutes"] == 8.0 and off_mm is False
+
+
+def test_find_room_match_relaxed_pass_prefers_highest_sample_count():
+    """RP-036/EST-6: a relaxed pass (here, ignore-intensity) with more than
+    one structural match deterministically prefers the highest sample_count,
+    not whichever happened to iterate first."""
+    stats = [
+        _make_stat(clean_intensity="deep", sample_count=2, avg_minutes=9.0),
+        _make_stat(clean_intensity="quiet", sample_count=40, avg_minutes=7.5),
+    ]
+    match, mismatch = _find_room_match(
+        room_stats=stats, map_id=1, slug="kitchen", clean_mode="vacuum",
+        clean_passes=1, is_carpet=False, clean_intensity="standard",
+    )
+    assert mismatch is True
+    assert match["sample_count"] == 40
+    assert match["avg_minutes"] == 7.5
+
+
+def test_find_room_match_intensity_helper_handles_none():
+    """RP-036/EST-3: the matcher's intensity comparison is routed through
+    the shared canonical helper, so an explicit clean_intensity=None on a
+    room_stats entry normalizes to "standard" like an absent key would,
+    rather than a literal "none" string that could never match a real query."""
+    stats = [_make_stat(clean_intensity=None)]
+    match, mismatch = _find_room_match(
+        room_stats=stats, map_id=1, slug="kitchen", clean_mode="vacuum",
+        clean_passes=1, is_carpet=False, clean_intensity="standard",
+    )
+    assert match is not None
+    assert mismatch is False
 
 
 # ---------------------------------------------------------------------------
@@ -641,3 +718,76 @@ def test_estimate_surfaces_area_and_uses_timing_sample_count(tmp_path, monkeypat
     assert entry["source"] == "learned"
     assert entry["estimated_area_m2"] == 6.0
     assert entry["sample_count"] == 6   # timing_sample_count, not the raw 10
+
+
+def test_estimate_clamps_to_own_historical_band(tmp_path, monkeypatch):
+    """RP-036/EST-4: a matched room's avg_minutes outside its own
+    minutes_min/minutes_max band gets clamped to the nearest edge, and
+    confidence is capped — never shows a number the room's own history
+    didn't actually produce."""
+    from custom_components.eufy_vacuum.learning import estimator as _est
+    estimator = _est.LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(_est, "_find_room_match", lambda **kw: (
+        {"avg_minutes": 50.0, "minutes_min": 5.0, "minutes_max": 10.0,
+         "avg_battery_used": 2.0, "sample_count": 5, "timing_sample_count": 5,
+         "minutes_stddev": 1.0, "avg_area_m2": 5.0}, False))
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    entry = result["room_timeline"][0]
+    assert entry["minutes"] == 10.0
+    assert entry["band_capped"] is True
+    assert entry["confidence_score"] <= 0.79
+
+
+def test_estimate_within_band_not_capped(tmp_path, monkeypatch):
+    """RP-036/EST-4: a room whose avg_minutes is within its own band is left
+    untouched — band_capped only fires on an actual out-of-band mean."""
+    from custom_components.eufy_vacuum.learning import estimator as _est
+    estimator = _est.LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(_est, "_find_room_match", lambda **kw: (
+        {"avg_minutes": 8.0, "minutes_min": 5.0, "minutes_max": 10.0,
+         "avg_battery_used": 2.0, "sample_count": 5, "timing_sample_count": 5,
+         "minutes_stddev": 1.0, "avg_area_m2": 5.0}, False))
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    entry = result["room_timeline"][0]
+    assert entry["minutes"] == 8.0
+    assert entry["band_capped"] is False
+
+
+def test_estimate_high_reachable_false_for_capped_variance(tmp_path, monkeypatch):
+    """RP-036/EST-5: a learned match whose sample bonus is already saturated
+    but whose variance alone caps confidence below HIGH must not promise
+    runs_to_high — the estimate() call site actually wires the ceiling
+    projection into learning_velocity."""
+    from custom_components.eufy_vacuum.learning import estimator as _est
+    estimator = _est.LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(_est, "_find_room_match", lambda **kw: (
+        {"avg_minutes": 10.0, "minutes_min": 2.0, "minutes_max": 18.0,
+         "avg_battery_used": 2.0, "sample_count": 10, "timing_sample_count": 10,
+         "minutes_stddev": 5.0, "avg_area_m2": 5.0}, False))
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    velocity = result["room_timeline"][0]["learning_velocity"]
+    assert velocity["high_reachable"] is False
+    assert velocity["runs_to_high"] is None
+
+
+def test_estimate_default_room_velocity_ceiling_unaffected(tmp_path):
+    """RP-036/EST-5: a "default" (no match at all) room has no variance data
+    to judge reachability by — accumulating samples IS its real path to
+    HIGH, so the ceiling gate must not apply to it (unaffected by this fix)."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    velocity = result["room_timeline"][0]["learning_velocity"]
+    assert velocity["high_reachable"] is True
+    assert velocity["runs_to_high"] > 0
