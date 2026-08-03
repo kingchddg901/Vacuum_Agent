@@ -35,6 +35,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.rooms.reconciliation import (
     compute_plan_token,
@@ -49,7 +51,7 @@ _MAP = "Main floor"
 
 @pytest.fixture
 def rmm():
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {}
     mgr.ensure_runtime.return_value = MagicMock()
     return RoomMapManager(mgr), mgr

@@ -8,6 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.learning.job_finalizer import (
     LearningJobFinalizer,
     _apply_water_actuals,
@@ -311,7 +313,7 @@ def test_detect_cancel_short_run_is_likely(finalizer):
     state, started, ended = _cancel_state(returning_offset_min=2)
     learning = MagicMock()
     learning.estimate_from_manager.return_value = {"room_timeline": [{"minutes": 10.0}]}
-    manager = MagicMock()
+    manager = spec_manager()
     finalizer._estimate_fn = learning.estimate_from_manager
 
     out = finalizer._detect_cancel_likely_run(
@@ -344,7 +346,7 @@ def _run_cancel(finalizer, vocab, from_state, to_state):
     }
     learning = MagicMock()
     learning.estimate_from_manager.return_value = {"room_timeline": [{"minutes": 10.0}]}
-    manager = MagicMock()
+    manager = spec_manager()
     finalizer._estimate_fn = learning.estimate_from_manager
     return finalizer._detect_cancel_likely_run(
         manager=manager, vacuum_entity_id=_VAC, map_id="6",
@@ -389,7 +391,7 @@ def test_detect_cancel_estimate_error_then_long_enough(finalizer):
     state, started, ended = _cancel_state(returning_offset_min=2)
     learning = MagicMock()
     learning.estimate_from_manager.side_effect = RuntimeError("boom")
-    manager = MagicMock()
+    manager = spec_manager()
     finalizer._estimate_fn = learning.estimate_from_manager
 
     out = finalizer._detect_cancel_likely_run(

@@ -57,6 +57,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.adapters.registry import clear_registry, register_adapter_config
 from custom_components.eufy_vacuum.jobs.active_job import (
     ActiveJobTracker,
@@ -70,7 +72,7 @@ from custom_components.eufy_vacuum.jobs.active_job import (
 @pytest.fixture
 def tracker() -> ActiveJobTracker:
     """An ActiveJobTracker whose manager is a mock — pure methods never touch it."""
-    return ActiveJobTracker(MagicMock())
+    return ActiveJobTracker(spec_manager())
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +236,7 @@ def _live_tracker(vacuum_state: str | None) -> ActiveJobTracker:
     truthy MagicMock that stringifies to something no vocabulary contains — so
     every 'is it docked?' assertion would pass for the wrong reason.
     """
-    manager = MagicMock()
+    manager = spec_manager()
     manager.hass.states.get.return_value = (
         None if vacuum_state is None else SimpleNamespace(state=vacuum_state)
     )
@@ -466,7 +468,7 @@ def test_detect_run_anomalies_disabled_for_path_optimized_order():
         "source": "test",
         "capabilities": {"honors_clean_order": False},
     })
-    manager = MagicMock()
+    manager = spec_manager()
     manager.data = {"active_jobs": {}}
     tracker = ActiveJobTracker(manager)
     active_job = {
@@ -502,7 +504,7 @@ def _order_honoring_tracker() -> ActiveJobTracker:
         "adapter_id": "eufy", "source": "test",
         "capabilities": {"honors_clean_order": True},
     })
-    manager = MagicMock()
+    manager = spec_manager()
     manager.data = {"active_jobs": {}}
     return ActiveJobTracker(manager)
 
@@ -552,7 +554,7 @@ def test_running_long_fires_for_learned_room():
 # ---------------------------------------------------------------------------
 
 def _tracker_with_job(job: dict) -> ActiveJobTracker:
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {"active_jobs": {"vacuum.alfred": {"6": job}}}
     return ActiveJobTracker(mgr)
 
@@ -613,7 +615,7 @@ def test_record_counter_sample_scoped_not_fanned_out():
     """RP-013e/REC-1+REC-4: a FINISHED job sitting in one map bucket must not
     absorb a sample meant for the live run in a different bucket -- the old
     started_at-and-not-ended_at guard fanned every write into every bucket."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     finished = {
         "status": "completed", "finalized": True,
         "started_at": "2026-01-01T08:00:00+00:00",
@@ -633,7 +635,7 @@ def test_record_counter_sample_scoped_not_fanned_out():
 
 def test_record_active_job_sensor_value_scoped_not_fanned_out():
     """RP-013e/REC-1+REC-4: the OTHER recorder gets the same scoping."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     finished = {
         "status": "completed", "finalized": True,
         "started_at": "2026-01-01T08:00:00+00:00",
@@ -654,7 +656,7 @@ def test_select_in_flight_bucket_multiple_prefers_resolve_active_map_id():
     """RP-013e: when more than one bucket is (unusually) in flight, the one
     matching resolve_active_map_id wins over the newest started_at -- a
     stale slot must never win just by being newer."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.resolve_active_map_id.return_value = "6"
     older_but_active_map = {
         "status": "started", "job_id": "job_a",
@@ -681,7 +683,7 @@ def test_select_in_flight_bucket_multiple_prefers_resolve_active_map_id():
 def test_select_in_flight_bucket_multiple_falls_back_to_newest_started_at():
     """No resolve_active_map_id match -> the newest started_at wins, and the
     choice is WARNed once per job (not once per call)."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.resolve_active_map_id.return_value = None
     older = {"status": "started", "job_id": "job_a", "started_at": "2026-01-01T08:00:00+00:00"}
     newer = {"status": "started", "job_id": "job_b", "started_at": "2026-01-01T09:00:00+00:00"}
@@ -856,7 +858,7 @@ def test_record_pose_sample_cleaning_area_progress_not_coalesced():
 
 def test_start_external_capture_opens_external_slot():
     """start_external_capture seeds an in-flight slot with status='external'."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {}
     tracker = ActiveJobTracker(mgr)
     slot = tracker.start_external_capture(vacuum_entity_id="vacuum.alfred", map_id="6")
@@ -883,7 +885,7 @@ def test_snapshot_settings_selects_maps_and_skips(monkeypatch):
         "select.alfred_cleaning_mode": MagicMock(state="Vacuum and mop"),
         "select.alfred_suction_level": MagicMock(state="Turbo"),
     }
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.hass.states.get = lambda eid: states.get(eid)
     out = ActiveJobTracker(mgr)._snapshot_settings_selects("vacuum.alfred")
     assert out == {"clean_mode": "vacuum_mop", "fan_speed": "Turbo"}
@@ -905,7 +907,7 @@ def test_record_counter_sample_captures_settings_for_external(monkeypatch):
         "last_cleaning_area_m2": 1.0,
         "last_battery_percent": 99,
     }
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {"active_jobs": {"vacuum.alfred": {"6": job}}}
     mgr.hass.states.get = lambda eid: MagicMock(state="Vacuum")
     tracker = ActiveJobTracker(mgr)
@@ -1095,7 +1097,7 @@ _ROBO_CFG = {
 def _poll_tracker(cfg, vac, states, active_job) -> ActiveJobTracker:
     clear_registry()
     register_adapter_config(vac, cfg)
-    manager = MagicMock()
+    manager = spec_manager()
     manager.data = {"active_jobs": {vac: {"main": active_job}}}
     manager.hass.states.get.side_effect = (
         lambda eid: SimpleNamespace(state=states[eid]) if eid in states else None
@@ -1288,7 +1290,7 @@ def _runner_over(job):
 
     from custom_components.eufy_vacuum.jobs.phase_runner import PhaseRunner
 
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.get_active_job = lambda **kw: job
     mgr.data = {"active_jobs": {"vacuum.alfred": {"12": job}}}
     return PhaseRunner(manager=mgr)

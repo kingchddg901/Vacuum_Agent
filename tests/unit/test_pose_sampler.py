@@ -9,6 +9,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.listeners import pose_sampler
 
 
@@ -77,7 +79,7 @@ def test_can_sample_native_current_room(monkeypatch):
 
 
 def _mock_manager(pose, *, status="external"):
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.get_known_map_ids.return_value = ["6"]
     mgr.get_active_job.return_value = {"status": status}
 
@@ -266,7 +268,7 @@ def _cfg_native(_vid):
 
 
 def _mock_manager_native(managed_rooms: dict, *, status="external"):
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.get_known_map_ids.return_value = ["6"]
     mgr.get_active_job.return_value = {"status": status}
     mgr.get_managed_rooms.return_value = {"rooms": managed_rooms}

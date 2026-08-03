@@ -15,6 +15,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.jobs.phase_runner import PhaseRunner
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
 
@@ -38,7 +40,7 @@ def store(tmp_path):
 
 @pytest.fixture
 def runner(store):
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.hass = store.hass
     # A BARE MagicMock silently disables the wave-2 child split: finalize_from_inputs
     # returns a mock, `isinstance(result, dict)` is False, and _finalize_phase_as_child
@@ -112,9 +114,9 @@ def runner(store):
     learning.store = store
     mgr._get_learning_manager = lambda: learning
     mgr.seen = seen
-    # Prove the accessor is the real one: a manager WITHOUT it must not be silently
-    # tolerated by a mock inventing the attribute.
-    del mgr.learning
+    # Prove the accessor is the real one. This used to need `del mgr.learning` to
+    # stop a bare MagicMock inventing the attribute; spec_manager cannot invent it,
+    # because the real EufyVacuumManager has no `learning` attribute to spec.
     return PhaseRunner(manager=mgr)
 
 
@@ -486,10 +488,9 @@ def test_reaper_closes_a_stranded_parent_and_spares_a_live_one():
 def test_missing_learning_manager_is_survived_not_crashed(store):
     """The learning manager comes from hass.data and can legitimately be absent
     (early startup, a failed setup). That must skip the child, not raise."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.hass = store.hass
     mgr._get_learning_manager = lambda: None
-    del mgr.learning
     runner = PhaseRunner(manager=mgr)
     job = _job()
     _open(store, job)
@@ -605,7 +606,7 @@ def test_the_merged_run_record_of_a_phased_run_stops_teaching(store):
     lm = LearningManager.__new__(LearningManager)
     lm.store = store
     lm.rebuilder = MagicMock()
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.get_active_job = lambda **kw: {
         "phased_job_id": _PJ,
         "phases": [{"_child_record_id": "job_x.phase0"}, {}, {"_child_record_id": "job_x.phase2"}],
@@ -638,7 +639,7 @@ def test_an_atomic_run_is_untouched_by_the_supersede_marker(store):
     lm = LearningManager.__new__(LearningManager)
     lm.store = store
     lm.rebuilder = MagicMock()
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.get_active_job = lambda **kw: {"phases": None}
     record = {"record_type": "completed_job", "job_id": "job_a",
               "outcome": {"status": "completed", "used_for_learning": True}}
@@ -660,7 +661,7 @@ def test_a_phased_run_whose_children_all_failed_keeps_its_merged_record(store):
     lm = LearningManager.__new__(LearningManager)
     lm.store = store
     lm.rebuilder = MagicMock()
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.get_active_job = lambda **kw: {"phased_job_id": _PJ, "phases": [{}, {}, {}]}
     record = {"record_type": "completed_job", "job_id": "job_y",
               "outcome": {"status": "completed", "used_for_learning": True}}

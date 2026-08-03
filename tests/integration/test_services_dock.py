@@ -29,6 +29,8 @@ import pytest
 
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.services.dock import (
     _check_dock_action,
@@ -157,7 +159,7 @@ class _Call:
 @pytest.fixture
 def dock(hass):
     """(hass, mock_manager) with the manager wired at DATA_RUNTIME."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.async_save = AsyncMock()
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = mgr
     return hass, mgr

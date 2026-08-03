@@ -21,6 +21,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.binary_sensor import ActiveRunHasErrorBinarySensor
 from custom_components.eufy_vacuum.room_entities import EufyVacuumRoomEntity
@@ -65,7 +67,7 @@ def test_bin_attrs():
 def _room_entity(*, rooms=None, room_id=3):
     rooms = rooms if rooms is not None else {
         "3": {"name": "Kitchen", "slug": "kitchen", "grants_access_to": [4]}}
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {"maps": {_VAC: {_MAP: {"rooms": rooms}}}}
     mgr.async_save = AsyncMock()
     mgr.apply_room_profile = MagicMock()

@@ -26,6 +26,8 @@ import pytest
 
 from homeassistant.exceptions import HomeAssistantError
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
     DATA_RUNTIME,
@@ -136,7 +138,7 @@ class _Call:
 @pytest.fixture
 def jc(hass):
     """(hass, mock_manager) with the manager wired at DATA_RUNTIME."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.async_save = AsyncMock()
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = mgr
     return hass, mgr

@@ -103,3 +103,96 @@ def make_manager_mock(*, run_profiles: dict | None = None, **attrs: Any) -> Magi
     for name, value in attrs.items():
         setattr(manager, name, value)
     return manager
+
+
+# ---------------------------------------------------------------------------
+# Spec'd stand-ins for classes WE own
+# ---------------------------------------------------------------------------
+# A bare MagicMock agrees with the CALLER, not the callee: it answers to any
+# attribute the test asks for and accepts any argument list. That concealed four
+# defects in one session, every one of which reached hardware green — the worst
+# being `_collect_finalization_inputs` being called without three REQUIRED
+# keyword-only args, where a permissive stub swallowed the TypeError and the run
+# silently wrote no child records.
+#
+# `create_autospec` fixes the half that matters most: CALL SIGNATURES are checked
+# against the real function, so a call production would reject is rejected here.
+# It also refuses attribute names the class does not carry.
+#
+# What it does NOT know about is instance state — attributes assigned in
+# `__init__` / `async_initialize` / lazily in a method are invisible on the class.
+# Those are read straight out of the real module's source rather than listed by
+# hand: a hand list is a second source of truth that goes stale silently, and the
+# first draft of this helper proved it by omitting `_room_history_cache_ready`
+# and 15 others, failing 17 tests that had nothing wrong with them.
+#
+# Scraping keeps the stand-in's surface EXACTLY the set of names production
+# assigns — which is still a real guard, because a name production never assigns
+# (`learning`, verified absent) is still refused.
+
+
+def _scraped_instance_attrs(module_relpath: str) -> tuple[str, ...]:
+    """Every ``self.<name> =`` assigned anywhere in one of our modules."""
+    import re
+    from pathlib import Path
+
+    src = (
+        Path(__file__).resolve().parents[1] / "custom_components" / "eufy_vacuum"
+        / module_relpath
+    ).read_text(encoding="utf-8")
+    return tuple(sorted(set(
+        re.findall(r"^\s+self\.([A-Za-z_][A-Za-z0-9_]*)\s*[:=][^=]", src, re.MULTILINE)
+    )))
+
+
+_MANAGER_INSTANCE_ATTRS: tuple[str, ...] = _scraped_instance_attrs("core/manager.py")
+
+
+def spec_manager(**attrs: Any) -> Any:
+    """A manager stand-in that rejects wrong call signatures and unknown names.
+
+    Prefer this over ``MagicMock()`` wherever the mock is handed to production
+    code as a manager — that is where a signature mismatch does damage. Use
+    ``make_manager_mock`` instead when the subject is a platform ENTITY being
+    driven against a deliberately partial stub.
+
+    Note ``learning`` is absent from the scraped surface because the real manager
+    genuinely never assigns it (it is ``_get_learning_manager()``), and a bare
+    MagicMock manufacturing it is one of the four defects above. Reading
+    ``mgr.learning`` off this stand-in raises, as it should.
+    """
+    from unittest.mock import create_autospec
+
+    from custom_components.eufy_vacuum.core.manager import EufyVacuumManager
+
+    manager = create_autospec(EufyVacuumManager, instance=True)
+    for name in _MANAGER_INSTANCE_ATTRS:
+        if name not in attrs:
+            setattr(manager, name, MagicMock())
+    if "hass" not in attrs:
+        manager.hass.async_create_task.side_effect = _consume_coroutine
+    for name, value in attrs.items():
+        setattr(manager, name, value)
+    return manager
+
+
+def _consume_coroutine(target: Any, *_args: Any, **_kwargs: Any) -> Any:
+    """Close a coroutine handed to a mocked ``hass.async_create_task``.
+
+    autospec makes the manager's ``async def`` methods AsyncMocks, so
+    ``hass.async_create_task(self._manager._async_save_logged())`` now builds a
+    REAL coroutine object. A MagicMock ``async_create_task`` only records the
+    call, so nothing ever consumes it and Python emits "coroutine ... was never
+    awaited" at garbage-collection time — attributed to whichever test happened
+    to be running when the GC fired, not the one that caused it.
+
+    Closing it here matches what production does (it really is scheduled) and
+    keeps the suite's warning output empty, so the NEXT un-awaited coroutine is
+    visible instead of lost in known noise.
+
+    Deliberately does not run the coroutine: these are fire-and-forget saves, and
+    executing them would give a stand-in side effects the test never asked for.
+    """
+    if hasattr(target, "close"):
+        target.close()
+    return MagicMock()

@@ -26,6 +26,8 @@ import voluptuous as vol
 
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.rooms.reconciliation import (
     compute_plan_token,
@@ -209,7 +211,7 @@ class _Call:
 
 @pytest.fixture
 def rmock(hass):
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {}
     mgr.async_save = AsyncMock()
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = mgr

@@ -27,6 +27,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.planning.run_plan import RunPlanManager
 
@@ -37,7 +39,7 @@ _VAC = "vacuum.alfred"
 @pytest.fixture
 def rpm(hass):
     """Return (RunPlanManager, mock_manager) with a real hass for states."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.hass = hass
     mgr.data = {}
     return RunPlanManager(mgr), mgr

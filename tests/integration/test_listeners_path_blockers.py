@@ -40,6 +40,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.const import (
     DATA_RUNTIME,
     DOMAIN,
@@ -67,7 +69,7 @@ def _make_manager(rooms: dict) -> MagicMock:
     it forces ``register`` to defend itself rather than relying on the real
     manager's rule normalizer.
     """
-    manager = MagicMock()
+    manager = spec_manager()
     manager.get_known_vacuum_ids.return_value = [_VAC]
     manager.get_known_map_ids.return_value = [_MAP]
     manager._normalized_managed_rooms_with_automation.return_value = rooms
@@ -320,7 +322,7 @@ async def test_event_no_changes_no_save(hass, monkeypatch):
     stays False -> no save and no path-blocked event, even though a real,
     changed, watched event arrived."""
     # Two targets for the same entity, both returning junk reports.
-    manager = MagicMock()
+    manager = spec_manager()
     manager.get_known_vacuum_ids.return_value = [_VAC]
     manager.get_known_map_ids.return_value = [_MAP, "7"]
 

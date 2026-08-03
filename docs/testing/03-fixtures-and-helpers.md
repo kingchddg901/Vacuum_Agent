@@ -105,6 +105,7 @@ produced — so a refactored test asserts the identical thing. Import from anywh
 | `get_room_data` | `(manager, room_id, *, vac=VAC, map_id=MAP) -> dict` | the copy-pasted `manager.data.get("maps",{})…get(str(room_id),{})` lookup chain in `_make_*` entity builders (returns `{}` when absent) |
 | `set_room_field` | `(manager, room_id, *, vac=VAC, map_id=MAP, **fields) -> dict` | inline writes like `manager.data["maps"][VAC][MAP]["rooms"]["1"]["enabled"] = False` (mutates an **existing** room; does not create rooms or pop keys) |
 | `make_manager_mock` | `(*, run_profiles=None, **attrs) -> MagicMock` | the stub-manager builder (`async_save` as an `AsyncMock`, `reset_maintenance` / `start_run_profile`, a preloaded saved-run-profile library) used by button/platform tests |
+| `spec_manager` | `(**attrs) -> NonCallableMagicMock` | an **autospec'd** `EufyVacuumManager` stand-in — checks call signatures, refuses unknown attribute names, attaches the runtime instance attributes scraped from `core/manager.py`. Use whenever the mock is passed *into* our own code as a manager; use `make_manager_mock` when driving a platform entity against a partial stub. See [04-patterns](04-patterns-and-conventions.md#but-use-spec_manager-when-the-mock-is-handed-to-our-code). |
 
 Two conventions keep refactored tests readable:
 

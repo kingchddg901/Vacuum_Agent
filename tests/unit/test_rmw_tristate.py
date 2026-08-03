@@ -14,6 +14,8 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
 from custom_components.eufy_vacuum.learning.job_finalizer import LearningJobFinalizer
 from custom_components.eufy_vacuum.learning.estimator import LearningEstimator
@@ -287,11 +289,13 @@ def test_collect_inputs_prefers_active_job_id_on_mismatch(tmp_path):
     fin = _finalizer(tmp_path)
     fin._live_snapshot_cache[VAC] = {"job_id": "job_STALE", "estimate": {}}
 
-    manager = MagicMock()
+    # spec_manager, not MagicMock: this hands a stand-in straight to
+    # _collect_finalization_inputs, the exact function whose three required
+    # keyword-only args a permissive stub once swallowed.
+    manager = spec_manager()
     manager.get_queue_state.return_value = {}
     manager.get_payload_state.return_value = {}
     manager.get_active_job.return_value = {"job_id": "job_LIVE"}
-    manager.get_room_learning_estimates.return_value = {}
 
     inputs = fin._collect_finalization_inputs(
         manager=manager, vacuum_entity_id=VAC, map_id="12",

@@ -50,6 +50,8 @@ from unittest.mock import MagicMock
 import pytest
 from homeassistant.exceptions import ServiceValidationError
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.profiles.manager import ProfileManager
 from custom_components.eufy_vacuum.profiles.room_profiles import (
     resolve_room_profile_for_room,
@@ -62,7 +64,7 @@ _MAP = "6"
 
 @pytest.fixture
 def pm() -> ProfileManager:
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {}
     return ProfileManager(mgr)
 

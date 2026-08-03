@@ -33,6 +33,8 @@ import pytest
 import homeassistant.util.dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
+from tests._factories import spec_manager
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.core import error_tracker as et
 from custom_components.eufy_vacuum.core.error_tracker import ErrorTracker
@@ -44,7 +46,7 @@ _VAC = "vacuum.alfred"
 @pytest.fixture
 def tracker(hass):
     """Return (ErrorTracker, mock_manager) with a real hass + AsyncMock save."""
-    mgr = MagicMock()
+    mgr = spec_manager()
     mgr.data = {}
     mgr.async_save = AsyncMock()
     return ErrorTracker(hass, runtime_manager=mgr), mgr

@@ -136,6 +136,48 @@ Use this for anything whose logic is "translate an HA call into a manager call"
 — buttons, switches, numbers, sensors. It is faster and more precise than
 standing up the full manager.
 
+### …but use `spec_manager()` when the mock is handed to OUR code
+
+The pattern above is right for driving a platform **entity** against a
+deliberately partial stub. It is the wrong tool when the mock is passed *into*
+our own code as a manager — `PhaseRunner(manager=mgr)`, `RoomMapManager(mgr)`,
+`finalizer._collect_finalization_inputs(manager=mgr, …)` — because a bare
+`MagicMock` **agrees with the caller, not the callee**:
+
+- it answers to any attribute name, whether or not the real class has one.
+  `mgr.learning` does not exist on `EufyVacuumManager` (it is
+  `_get_learning_manager()`), and a mock inventing it made a dead path look
+  exercised;
+- it accepts any argument list. `_collect_finalization_inputs` was called
+  without three **required** keyword-only args; the permissive stub swallowed
+  the `TypeError` and two live runs wrote no child records while the suite
+  stayed green.
+
+```python
+from tests._factories import spec_manager
+
+mgr = spec_manager()                       # autospec'd against EufyVacuumManager
+mgr.get_active_job.return_value = {...}    # stub what the test needs
+runner = PhaseRunner(manager=mgr)
+```
+
+`spec_manager` builds `create_autospec(EufyVacuumManager, instance=True)`, so
+call signatures are checked against the real functions and unknown names raise.
+Instance attributes (`data`, `hass`, `active_job`, …) are invisible to autospec
+because they are assigned at runtime, so they are **scraped from
+`core/manager.py`** and attached — not hand-listed, because a hand list is a
+second source of truth that goes stale silently (the first draft of the helper
+proved it, failing 17 tests that had nothing wrong with them).
+
+One consequence worth knowing: autospec makes the manager's `async def` methods
+`AsyncMock`s, so `hass.async_create_task(mgr._async_save_logged())` now builds a
+real coroutine. `spec_manager` closes it, or Python reports "coroutine … was
+never awaited" against whichever test the GC happened to interrupt.
+
+`tests/unit/test_factories_spec_surface.py` is the guard on the guard — it pins
+that unknown attributes raise, that bad signatures raise, and (as a control) that
+a bare `MagicMock` accepts both.
+
 ## Assertions: prefer presence over exact equality
 
 Because the integration `hass` shares its `config_dir` across tests in a run
