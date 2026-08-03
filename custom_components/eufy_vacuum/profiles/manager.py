@@ -825,14 +825,44 @@ class ProfileManager:
         list of non-empty string ids; existence + brand caps are enforced at dispatch
         (where the saved-zone store and the adapter's zone limit are known), so normalize
         stays brand-agnostic and shape-only — the same discipline room_id gets."""
+        out, _dropped = ProfileManager._normalize_steps_reporting(steps)
+        return ProfileManager._reject_unbracketed_break(out)
+
+    @staticmethod
+    def _normalize_steps_reporting(
+        steps: Any,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """Normalize, and REPORT what was discarded. Returns ``(kept, dropped)``.
+
+        RP-021b / #13:A5-RUNPROF-4. The tolerant behaviour below is correct for
+        READS and wrong for WRITES, and until now there was only one path for
+        both. A read must never fail to start a legacy profile, so unknown or
+        malformed steps are skipped. A WRITE that silently skips them tells a
+        YAML author `saved: True` for a profile that quietly lost its charge
+        stop — the robot then runs the whole sequence in one go and can strand
+        mid-run instead of docking to charge.
+
+        So the drop list is now returned rather than thrown away.
+        ``normalize_run_profile_steps`` ignores it (reads stay tolerant);
+        ``set_run_profile_steps`` refuses on it (writes are strict). One
+        implementation, two policies — rather than a second normalizer that can
+        disagree with this one.
+        """
         out: list[dict[str, Any]] = []
-        for step in steps if isinstance(steps, list) else []:
+        dropped: list[dict[str, Any]] = []
+
+        def _drop(index: int, reason: str, step: Any) -> None:
+            dropped.append({"index": index, "reason": reason, "step": step})
+
+        for index, step in enumerate(steps if isinstance(steps, list) else []):
             if not isinstance(step, dict):
+                _drop(index, "not_an_object", step)
                 continue
             stype = str(step.get("type") or "").strip().lower()
             if stype == "room_group":
                 rooms = step.get("rooms")
                 if not isinstance(rooms, list):
+                    _drop(index, "rooms_not_a_list", step)
                     continue
                 clean_rooms: list[dict[str, Any]] = []
                 for r in rooms:
@@ -846,21 +876,36 @@ class ProfileManager:
                             clean_rooms.append({"room_id": room_id})
                 if clean_rooms:
                     out.append({"type": "room_group", "rooms": clean_rooms})
+                    if len(clean_rooms) != len(rooms):
+                        _drop(index, "some_room_ids_invalid", step)
+                else:
+                    _drop(index, "no_valid_room_ids", step)
             elif stype == "charge_wait":
                 try:
                     tgt = int(step.get("target_battery_percent"))
                 except (TypeError, ValueError):
+                    _drop(index, "target_battery_percent_missing_or_unparseable", step)
                     continue
-                out.append({"type": "charge_wait", "target_battery_percent": max(1, min(tgt, 100))})
+                clamped = max(1, min(tgt, 100))
+                out.append({"type": "charge_wait", "target_battery_percent": clamped})
+                if clamped != tgt:
+                    # A silently clamped 250 -> 100 is a caller error too: the
+                    # author asked for something impossible and got something else.
+                    _drop(index, f"target_battery_percent_out_of_range_{tgt}", step)
             elif stype == "wait":
                 try:
                     mins = int(step.get("wait_minutes"))
                 except (TypeError, ValueError):
+                    _drop(index, "wait_minutes_missing_or_unparseable", step)
                     continue
-                out.append({"type": "wait", "wait_minutes": max(1, min(mins, 1440))})
+                clamped = max(1, min(mins, 1440))
+                out.append({"type": "wait", "wait_minutes": clamped})
+                if clamped != mins:
+                    _drop(index, f"wait_minutes_out_of_range_{mins}", step)
             elif stype == "zone":
                 raw_ids = step.get("zone_ids")
                 if not isinstance(raw_ids, list):
+                    _drop(index, "zone_ids_not_a_list", step)
                     continue
                 clean_ids: list[str] = []
                 for z in raw_ids:
@@ -869,6 +914,14 @@ class ProfileManager:
                         clean_ids.append(zid)
                 if clean_ids:
                     out.append({"type": "zone", "zone_ids": clean_ids})
+                else:
+                    _drop(index, "no_valid_zone_ids", step)
+            else:
+                _drop(index, f"unknown_step_type_{stype or '<missing>'}", step)
+        return out, dropped
+
+    @staticmethod
+    def _reject_unbracketed_break(out: list[dict[str, Any]]) -> list[dict[str, Any]]:
         # Q17: a leading/trailing charge_wait or wait has nothing to bracket, so it can
         # never run — it is unsupported, not silently droppable (RP-021a clause 1). A
         # single-entry list (every ``queue_breaks`` call site normalizes one already-
@@ -1116,10 +1169,22 @@ class ProfileManager:
             return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
                     "saved": False, "reason": "profile_not_found", "profile_id": profile_id}
         try:
-            normalized = self.normalize_run_profile_steps(steps)
+            # RP-021b / #13:A5-RUNPROF-4: the WRITE path is strict. Reads stay
+            # tolerant (a legacy profile must never fail to start), but a save
+            # that silently discards a step returns `saved: True` for a profile
+            # that has quietly lost its charge stop — and the robot then runs the
+            # whole sequence in one go and can strand mid-run. Refuse instead,
+            # naming every rejected step so a YAML author can see WHICH line was
+            # wrong rather than diffing the saved profile against what they wrote.
+            normalized, rejected = self._normalize_steps_reporting(steps)
+            normalized = self._reject_unbracketed_break(normalized)
         except ServiceValidationError as err:
             return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
                     "saved": False, "reason": err.translation_key, "profile_id": profile_id}
+        if rejected:
+            return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
+                    "saved": False, "reason": "invalid_steps", "profile_id": profile_id,
+                    "rejected_steps": rejected}
         if not any(s.get("type") == "room_group" for s in normalized):
             return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
                     "saved": False, "reason": "no_room_group", "profile_id": profile_id}

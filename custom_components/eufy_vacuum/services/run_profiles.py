@@ -77,12 +77,48 @@ _RUN_PROFILE_RENAME_SCHEMA = vol.Schema(
     }
 )
 
+# RP-021b / #13:A5-RUNPROF-4. `steps` used to be a bare `list` — any list of
+# anything passed the schema, and the manager's normalizer then silently dropped
+# whatever it could not read. A YAML author who mistyped a step type or a percent
+# got `saved: True` and a profile that had quietly lost its charge stop.
+#
+# Per-step shapes below reject the malformed call at the service boundary, where
+# the error still points at the caller's own YAML. The manager ALSO reports what
+# it rejected (set_run_profile_steps -> reason=invalid_steps) — deliberately two
+# layers, because the manager is reachable from the card and the websocket API
+# too, not only from this schema.
+#
+# Ranges are NOT enforced here: voluptuous would raise before the manager could
+# name the offending step, and an out-of-range value is a better error than a
+# schema traceback. The manager clamps and reports it.
+_STEP_SCHEMA = vol.Any(
+    vol.Schema(
+        {
+            vol.Required("type"): "room_group",
+            vol.Required("rooms"): [vol.Any(int, str, dict)],
+        },
+        extra=vol.ALLOW_EXTRA,
+    ),
+    vol.Schema({
+        vol.Required("type"): "charge_wait",
+        vol.Required("target_battery_percent"): vol.Coerce(int),
+    }),
+    vol.Schema({
+        vol.Required("type"): "wait",
+        vol.Required("wait_minutes"): vol.Coerce(int),
+    }),
+    vol.Schema({
+        vol.Required("type"): "zone",
+        vol.Required("zone_ids"): [cv.string],
+    }),
+)
+
 _RUN_PROFILE_STEPS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
         vol.Required("profile_id"): cv.string,
-        vol.Required("steps"): list,
+        vol.Required("steps"): [_STEP_SCHEMA],
     }
 )
 

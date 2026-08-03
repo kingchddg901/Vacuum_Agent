@@ -847,3 +847,91 @@ def test_stepped_apply_reports_rooms_with_no_saved_snapshot(pm):
     assert 1 in out["unsnapshotted_room_ids"]
     # and it kept the live setting rather than fabricating one
     assert pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["clean_mode"] == "vacuum"
+
+
+# ---------------------------------------------------------------------------
+# RP-021b #13:A5-RUNPROF-4 — the WRITE path refuses; READS stay tolerant
+# ---------------------------------------------------------------------------
+
+def _profile_for_steps(pm):
+    _seed_enabled_rooms(pm)
+    return pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP,
+                               name="Stepped")["profile_id"]
+
+
+@pytest.mark.parametrize("bad_step,reason_fragment", [
+    ({"type": "mystery"},                                    "unknown_step_type"),
+    ({"type": "charge_wait", "target_battery_percent": "x"}, "unparseable"),
+    ({"type": "charge_wait", "target_battery_percent": 250}, "out_of_range"),
+    ({"type": "room_group", "rooms": "not-a-list"},          "rooms_not_a_list"),
+    ({"type": "zone", "zone_ids": []},                       "no_valid_zone_ids"),
+    ("junk",                                                 "not_an_object"),
+])
+def test_set_steps_refuses_a_malformed_step(pm, bad_step, reason_fragment):
+    """[PM-31] RP-021b / #13:A5-RUNPROF-4.
+
+    The write path used to save whatever survived normalization and report
+    saved: True. A YAML author who mistyped a step type or a percent got a
+    success back and a profile that had quietly lost its charge stop — the robot
+    then runs the whole sequence in one go and can strand mid-run instead of
+    docking to charge.
+
+    Note the 250 case: a SILENT CLAMP is a caller error too. The author asked for
+    something impossible and would otherwise have been told it worked.
+    """
+    pid = _profile_for_steps(pm)
+    out = pm.set_run_profile_steps(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid,
+        steps=[{"type": "room_group", "rooms": [{"room_id": 1}]},
+               bad_step,
+               {"type": "room_group", "rooms": [{"room_id": 2}]}])
+
+    assert out["saved"] is False
+    assert out["reason"] == "invalid_steps"
+    # the refusal must NAME the offending step, not just say "something was wrong"
+    reasons = " ".join(r["reason"] for r in out["rejected_steps"])
+    assert reason_fragment in reasons, f"unhelpful refusal: {out['rejected_steps']}"
+    assert out["rejected_steps"][0]["index"] == 1
+
+    # ...and nothing was written
+    stored = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)[pid]
+    assert not stored.get("steps")
+
+
+def test_set_steps_still_saves_a_valid_sequence(pm):
+    """[PM-31] The control: strictness must not refuse a legitimate sequence."""
+    pid = _profile_for_steps(pm)
+    steps = [{"type": "room_group", "rooms": [{"room_id": 1}]},
+             {"type": "charge_wait", "target_battery_percent": 90},
+             {"type": "room_group", "rooms": [{"room_id": 2}]}]
+    out = pm.set_run_profile_steps(vacuum_entity_id=_VAC, map_id=_MAP,
+                                   profile_id=pid, steps=steps)
+    assert out["saved"] is True
+    assert "rejected_steps" not in out
+    assert pm._get_saved_run_profile_store(
+        vacuum_entity_id=_VAC, map_id=_MAP)[pid]["steps"] == steps
+
+
+def test_reads_stay_tolerant_of_a_legacy_profile(pm):
+    """[PM-31] THE CONSTRAINT THIS FIX HAD TO RESPECT. Reads must never fail to
+    start a profile already on disk.
+
+    Strictness belongs only on the write path. A profile saved before validation
+    existed may hold a step this build cannot parse, and refusing to READ it would
+    turn a cosmetic data problem into "your saved run no longer starts". So
+    run_profile_steps still drops silently — same normalizer, opposite policy.
+    """
+    legacy = {
+        "rooms": [{"room_id": 1}],
+        "steps": [
+            {"type": "room_group", "rooms": [{"room_id": 1}]},
+            {"type": "mystery"},                                  # unreadable
+            {"type": "charge_wait", "target_battery_percent": "?"},  # unparseable
+            {"type": "room_group", "rooms": [{"room_id": 2}]},
+        ],
+    }
+    steps = ProfileManager.run_profile_steps(legacy)
+    assert [s["type"] for s in steps] == ["room_group", "room_group"]
+
+    # and the shared normalizer's public arm is unchanged for the same reason
+    assert ProfileManager.normalize_run_profile_steps(legacy["steps"]) == steps
