@@ -47,6 +47,7 @@ from homeassistant.core import HomeAssistant
 from ..timestamp_utils import parse_timestamp
 from .history_store import LearningHistoryStore
 from .utils import (
+    _canonical_clean_intensity,
     _canonical_clean_mode,
     _iso_now,
     _room_key,
@@ -278,7 +279,13 @@ class LearningStatsRebuilder:
 
         for job in jobs:
             job_info = job.get("job", {}) if isinstance(job.get("job"), dict) else {}
-            battery = job.get("battery", {}) if isinstance(job.get("battery"), dict) else {}
+            # RP-036/EST-2: keep the RAW value so presence can be told apart
+            # from absence — an external/app-started run never records a
+            # battery block at all, which is different from a dispatched run
+            # that recorded battery.used == 0.
+            _raw_battery = job.get("battery")
+            battery = _raw_battery if isinstance(_raw_battery, dict) else {}
+            has_battery_sample = isinstance(_raw_battery, dict) and _raw_battery.get("used") is not None
             water = job.get("water", {}) if isinstance(job.get("water"), dict) else {}
 
             room_count = _safe_int(job_info.get("room_count"), 0)
@@ -299,7 +306,15 @@ class LearningStatsRebuilder:
             drift = self._job_drift_minutes(job)
 
             durations.append(duration)
-            battery_used_values.append(battery_used)
+            # RP-036/EST-2: only a job that actually recorded a battery value
+            # contributes a sample — mirrors the area_sample_count pattern
+            # (only a real per-room area measurement increments that count).
+            # Appending an absent job's implicit 0.0 here diluted the mean:
+            # a real 20% sample beside one battery-absent job averaged to
+            # 10%, understating every vacuum's actual draw whenever external
+            # runs are common.
+            if has_battery_sample:
+                battery_used_values.append(battery_used)
             robot_water_values.append(robot_water)
             water_overhead_values.append(water_overhead)
             total_water_values.append(robot_water + water_overhead)
@@ -328,6 +343,9 @@ class LearningStatsRebuilder:
                     latest_job_at = ended_at
 
         count = len(jobs)
+        # RP-036/EST-2: denominator for the battery aggregates — only jobs
+        # that actually recorded a battery value, never the total job count.
+        battery_sample_count = len(battery_used_values)
 
         return {
             "schema_version": 4,
@@ -336,7 +354,11 @@ class LearningStatsRebuilder:
             "job_stats": {
                 "total_jobs": count,
                 "avg_duration_minutes": round(sum(durations) / count, 2) if count else 0.0,
-                "avg_battery_used": round(sum(battery_used_values) / count, 2) if count else 0.0,
+                "avg_battery_used": (
+                    round(sum(battery_used_values) / battery_sample_count, 2)
+                    if battery_sample_count else 0.0
+                ),
+                "battery_sample_count": battery_sample_count,
                 "avg_robot_water_used_ml": round(sum(robot_water_values) / count, 2) if count else 0.0,
                 "avg_water_overhead_ml": round(sum(water_overhead_values) / count, 2) if count else 0.0,
                 "avg_total_water_used_ml": round(sum(total_water_values) / count, 2) if count else 0.0,
@@ -345,8 +367,12 @@ class LearningStatsRebuilder:
                 "avg_abs_drift_minutes": round(sum(abs_drift_values) / count, 2) if count else 0.0,
                 "min_duration_minutes": round(min(durations), 2) if count else 0.0,
                 "max_duration_minutes": round(max(durations), 2) if count else 0.0,
-                "min_battery_used": round(min(battery_used_values), 2) if count else 0.0,
-                "max_battery_used": round(max(battery_used_values), 2) if count else 0.0,
+                "min_battery_used": (
+                    round(min(battery_used_values), 2) if battery_sample_count else 0.0
+                ),
+                "max_battery_used": (
+                    round(max(battery_used_values), 2) if battery_sample_count else 0.0
+                ),
                 "min_total_water_used_ml": round(min(total_water_values), 2) if count else 0.0,
                 "max_total_water_used_ml": round(max(total_water_values), 2) if count else 0.0,
                 "avg_overhead_minutes": round(sum(overhead_values) / count, 2) if count else 0.0,
@@ -488,9 +514,11 @@ class LearningStatsRebuilder:
                     room.get("is_carpet", room.get("carpet", False)),
                     False,
                 )
-                clean_intensity = str(
-                    room.get("clean_intensity", "standard")
-                ).strip().lower() or "standard"
+                # RP-036/EST-3: routed through the shared canonical helper
+                # (utils._canonical_clean_intensity) alongside estimator.py's
+                # matching sites and this file's own build_jobs_index_payload,
+                # so all room-identity-key sites agree on the normalization.
+                clean_intensity = _canonical_clean_intensity(room.get("clean_intensity"))
                 edge_mopping = _safe_bool(room.get("edge_mopping", False), False)
 
                 rid = _safe_int(room.get("room_id", room.get("id")), -1)
@@ -1017,7 +1045,12 @@ class LearningStatsRebuilder:
                         ).strip().lower(),
                         "resolved_profile_name": str(room.get("resolved_profile_name", "")).strip().lower(),
                         "clean_mode": str(room.get("clean_mode", "")).strip().lower(),
-                        "clean_intensity": str(room.get("clean_intensity", "")).strip().lower(),
+                        # RP-036/EST-3: was a bare `.get(key, "")` with no
+                        # "standard" fallback at all — diverged from
+                        # build_room_stats_payload's normalization for the
+                        # exact same setting. Routed through the shared
+                        # canonical helper so both agree.
+                        "clean_intensity": _canonical_clean_intensity(room.get("clean_intensity")),
                         "fan_speed": str(room.get("fan_speed", "")).strip().lower(),
                         "water_level": str(room.get("water_level", "")).strip().lower(),
                         "clean_passes": _safe_int(room.get("clean_passes", room.get("clean_times", 1)), 1),

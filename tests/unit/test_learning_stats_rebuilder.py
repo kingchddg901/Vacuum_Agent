@@ -250,6 +250,37 @@ def test_build_job_stats_multiple_jobs_averages(tmp_path):
     assert stats["max_duration_minutes"] == 40.0
 
 
+def test_build_job_stats_battery_absent_job_excluded_from_average(tmp_path):
+    """RP-036/EST-2: a job with no "battery" block (an external/app-started
+    run) must not dilute avg_battery_used as an implicit 0 — it is excluded
+    from the average entirely, tracked via battery_sample_count."""
+    rebuilder = _make_rebuilder(tmp_path)
+    with_battery = _job(job_id="j1", battery_used=20.0)
+    no_battery = _job(job_id="j2", battery_used=0.0)
+    del no_battery["battery"]  # simulate a record with no battery block at all
+    payload = rebuilder.build_job_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[with_battery, no_battery]
+    )
+    stats = payload["job_stats"]
+    assert stats["avg_battery_used"] == 20.0
+    assert stats["battery_sample_count"] == 1
+    assert stats["total_jobs"] == 2
+
+
+def test_build_job_stats_no_battery_samples_defaults_zero(tmp_path):
+    """RP-036/EST-2: with zero real battery samples, the aggregates default
+    to 0.0 rather than raising on an empty min()/max()."""
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(job_id="j1")
+    del job["battery"]
+    payload = rebuilder.build_job_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=[job])
+    stats = payload["job_stats"]
+    assert stats["avg_battery_used"] == 0.0
+    assert stats["min_battery_used"] == 0.0
+    assert stats["max_battery_used"] == 0.0
+    assert stats["battery_sample_count"] == 0
+
+
 def test_build_job_stats_latest_job_at(tmp_path):
     rebuilder = _make_rebuilder(tmp_path)
     j1 = _job(job_id="j1", ended_at="2026-01-01T09:30:00+00:00")
@@ -487,6 +518,27 @@ def test_jobs_index_area_none_when_no_area_anywhere(tmp_path):
     rebuilder = _make_rebuilder(tmp_path)
     job = _job(job_id="noarea", room_slugs=["kitchen"])
     assert _index_entry(rebuilder, job)["cleaning_area_m2"] is None
+
+
+def test_room_stats_and_jobs_index_agree_on_empty_clean_intensity(tmp_path):
+    """RP-036/EST-3: build_room_stats_payload and build_jobs_index_payload's
+    room_profile_index must normalize an explicit clean_intensity="" the
+    same way (both "standard"), not diverge — they previously used two
+    different fallback patterns for the identical setting."""
+    rebuilder = _make_rebuilder(tmp_path)
+    job = _job(job_id="j-empty-intensity", room_slugs=["kitchen"])
+    job["job_profile"]["rooms"][0]["clean_intensity"] = ""
+    room_stats_payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[job]
+    )
+    jobs_index_payload = rebuilder.build_jobs_index_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[job]
+    )
+    room_stat_intensity = room_stats_payload["room_stats"][0]["clean_intensity"]
+    profile_intensity = jobs_index_payload["room_profiles"][0]["clean_intensity"]
+    assert room_stat_intensity == "standard"
+    assert profile_intensity == "standard"
+    assert room_stat_intensity == profile_intensity
 
 
 def test_jobs_index_area_sanity_fields(tmp_path):
