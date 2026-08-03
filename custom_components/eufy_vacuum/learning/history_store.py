@@ -200,6 +200,31 @@ def _phased_clean_mode(children: list[dict[str, Any]]) -> str | None:
     return next(iter(modes)) if len(modes) == 1 else "mixed"
 
 
+def phase_room_ids(phase: Any) -> list[int]:
+    """Room ids a phase plans to clean.
+
+    ``resolved_rooms`` is the authoritative per-phase source — it is what
+    ``advance_active_job_phase`` derives the live queue from. ``queue_room_ids`` is only
+    reliably present on the BREAK phases, which set it to ``[]`` defensively; reading it
+    alone made the first live parent report ``room_count: 0`` and empty
+    ``planned_room_ids`` on a run that cleaned three rooms. Both are read, resolved_rooms
+    first, so neither shape is missed.
+    """
+    if not isinstance(phase, dict):
+        return []
+    out: list[int] = []
+    for entry in phase.get("resolved_rooms") or []:
+        if isinstance(entry, dict) and "room_id" in entry:
+            rid = _safe_int(entry.get("room_id"), -1)
+            if rid > 0 and rid not in out:
+                out.append(rid)
+    for raw in phase.get("queue_room_ids") or []:
+        rid = _safe_int(raw, -1)
+        if rid > 0 and rid not in out:
+            out.append(rid)
+    return out
+
+
 def _planned_snapshot(
     estimate: dict[str, Any] | None,
     rooms: list[dict[str, Any]] | None,
@@ -210,9 +235,8 @@ def _planned_snapshot(
     water = est.get("water_estimate") if isinstance(est.get("water_estimate"), dict) else {}
     room_ids: list[int] = []
     for ph in phases or []:
-        for rid in (ph or {}).get("queue_room_ids") or []:
-            r = _safe_int(rid, -1)
-            if r > 0 and r not in room_ids:
+        for r in phase_room_ids(ph):
+            if r not in room_ids:
                 room_ids.append(r)
     def _num(value: Any) -> float | None:
         """A1: `x or None` turns a genuine 0 into "unknown". A zero-minute estimate is a
@@ -662,7 +686,7 @@ class LearningHistoryStore:
                 {
                     "index": i,
                     "type": str((ph or {}).get("phase_type") or "room_group"),
-                    "planned_room_ids": list((ph or {}).get("queue_room_ids") or []),
+                    "planned_room_ids": phase_room_ids(ph),
                     "outcome": None,
                     "record_id": None,
                 }

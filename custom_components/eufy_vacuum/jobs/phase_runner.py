@@ -451,7 +451,17 @@ class PhaseRunner:
         if record_id:
             return record_id  # idempotent — a re-arm must not write a second child
         try:
-            finalizer = self._manager.learning.finalizer
+            # NOT `self._manager.learning` — the core manager has no such attribute; the
+            # learning manager is fetched from hass.data and can legitimately be absent.
+            # The first live run proved the cost: AttributeError, swallowed by the handler
+            # below, both clean phases silently recording record_id: null while every test
+            # passed. The tests passed because their MagicMock manufactured `.learning`
+            # on demand — a mock invents whatever accessor you ask it for, including a
+            # wrong one.
+            learning = self._manager._get_learning_manager()
+            if learning is None:
+                return None
+            finalizer = learning.finalizer
             ended_at = str(phase.get("_timing_end_t") or _iso_now())
             started_at = str(active_job.get("started_at") or "")
             for j in range(idx - 1, -1, -1):
@@ -513,7 +523,7 @@ class PhaseRunner:
                 "phase_index": idx,
                 "phase_type": str(phase.get("phase_type") or ""),
             }
-            self._manager.learning.store.save_completed_job(
+            learning.store.save_completed_job(
                 vacuum_entity_id=vacuum_entity_id,
                 job_id=scoped["job_id"],
                 payload=child,

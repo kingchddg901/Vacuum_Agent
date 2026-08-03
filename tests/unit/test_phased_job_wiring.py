@@ -73,9 +73,18 @@ def runner(store):
             }
         }
 
-    mgr.learning.finalizer._collect_finalization_inputs = _collect
-    mgr.learning.finalizer.finalize_from_inputs = _finalize
-    mgr.learning.store = store
+    # Wire through the REAL accessor. `mgr.learning` was the original shape here and it
+    # is not something the core manager has — a MagicMock manufactures any attribute you
+    # ask for, so the tests passed while the live run silently wrote no children at all.
+    # Attach to what production actually calls: _get_learning_manager().
+    learning = MagicMock()
+    learning.finalizer._collect_finalization_inputs = _collect
+    learning.finalizer.finalize_from_inputs = _finalize
+    learning.store = store
+    mgr._get_learning_manager = lambda: learning
+    # Prove the accessor is the real one: a manager WITHOUT it must not be silently
+    # tolerated by a mock inventing the attribute.
+    del mgr.learning
     return PhaseRunner(manager=mgr)
 
 
@@ -430,3 +439,51 @@ def test_reaper_closes_a_stranded_parent_and_spares_a_live_one():
     assert dead["status"] == "interrupted"
     assert all(p.get("outcome") for p in dead["phases"])
     assert live["status"] == "running", "the reaper killed a live run"
+
+
+# --------------------------------------------------------------------------
+# Live-run repairs. The FIRST real phased run wrote a correct parent and break
+# record but no children at all, and a parent that knew none of its own rooms.
+# Both passed every test beforehand. See _verify_phased_run.py.
+# --------------------------------------------------------------------------
+
+
+def test_missing_learning_manager_is_survived_not_crashed(store):
+    """The learning manager comes from hass.data and can legitimately be absent
+    (early startup, a failed setup). That must skip the child, not raise."""
+    mgr = MagicMock()
+    mgr.hass = store.hass
+    mgr._get_learning_manager = lambda: None
+    del mgr.learning
+    runner = PhaseRunner(manager=mgr)
+    job = _job()
+    _open(store, job)
+    job["current_phase_index"] = 0
+    job["phases"][0]["_timing_end_t"] = "2026-08-02T18:09:35+00:00"
+    runner._record_phase_to_parent(_VAC, _MAP, job)   # must not raise
+    assert _slots(store)[0]["outcome"] == "completed"
+    assert _slots(store)[0]["record_id"] is None
+
+
+def test_parent_knows_the_rooms_it_planned(store):
+    """The first live parent reported room_count 0 and empty planned_room_ids on a run
+    that cleaned three rooms: the phases carry `resolved_rooms`, and only the BREAK
+    phases carry `queue_room_ids` (set to [] defensively), so reading that key alone
+    found nothing."""
+    parent = store.open_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id="pj_rooms", map_id=_MAP,
+        started_at="2026-08-02T18:00:00+00:00", battery_start=100,
+        planned_phases=[
+            # resolved_rooms only — the shape a real dispatch phase actually has
+            {"phase_type": "room_group",
+             "resolved_rooms": [{"room_id": 5, "clean_mode": "vacuum"}]},
+            {"phase_type": "wait", "queue_room_ids": [], "resolved_rooms": []},
+            {"phase_type": "room_group",
+             "resolved_rooms": [{"room_id": 8}, {"room_id": 4}]},
+        ],
+        planned_estimate={}, planned_rooms=[],
+    )
+    assert parent["planned"]["room_count"] == 3
+    assert parent["phases"][0]["planned_room_ids"] == [5]
+    assert parent["phases"][2]["planned_room_ids"] == [8, 4]
+    assert parent["phases"][1]["planned_room_ids"] == []
