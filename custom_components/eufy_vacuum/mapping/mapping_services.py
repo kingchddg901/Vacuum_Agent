@@ -220,8 +220,11 @@ CREATE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Optional("name"): cv.string,
-        # "live" pins the layout to the brand's live-map image as its backdrop.
-        vol.Optional("backdrop_source"): cv.string,
+        # "live" pins the layout to the brand's live-map image as its backdrop;
+        # "upload" (or omitted) is the default uploaded-custom-image backdrop.
+        # SERVIC-6: constrained (was a plain string) -- the handler/card only ever
+        # compare/send these two values.
+        vol.Optional("backdrop_source"): vol.In(["live", "upload"]),
     }
 )
 
@@ -393,7 +396,9 @@ ADJUST_MAP_SEGMENT_SCHEMA = vol.Schema(
 SET_SEGMENT_ROOM_LINK_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        # Optional — blank/absent auto-resolves to the active map (then the first
+        # stored map), matching services.yaml's documented contract (RP-032).
+        vol.Optional("map_id"): cv.string,
         vol.Required("segment_id"): cv.string,
         # Pass null / omit to clear the link.
         vol.Optional("room_id"): vol.Any(None, cv.string, vol.Coerce(int)),
@@ -403,7 +408,7 @@ SET_SEGMENT_ROOM_LINK_SCHEMA = vol.Schema(
 SET_COMPANION_ANCHOR_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
         # Pass null / omit pct_x AND pct_y to clear the anchor.
         vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
@@ -416,7 +421,7 @@ SET_COMPANION_ANCHOR_SCHEMA = vol.Schema(
 SET_HIDDEN_REGIONS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Optional("regions", default=list): list,
     }
 )
@@ -426,7 +431,7 @@ SET_HIDDEN_REGIONS_SCHEMA = vol.Schema(
 SET_AREA_LABEL_ANCHOR_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
         vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
         vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
@@ -442,7 +447,7 @@ SET_AREA_LABEL_ANCHOR_SCHEMA = vol.Schema(
 SET_FURNISHED_ART_PLACEMENT_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("scope"): vol.In(["home", "room"]),
         vol.Optional("room_id"): vol.Any(None, cv.string, vol.Coerce(int)),
         vol.Optional("tx"): vol.Any(None, vol.Coerce(float)),
@@ -457,7 +462,7 @@ SET_FURNISHED_ART_PLACEMENT_SCHEMA = vol.Schema(
 SET_FURNISHED_RENDER_MODE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("mode"): vol.In(["live", "art", "blend"]),
         vol.Optional("room_id"): vol.Any(None, cv.string, vol.Coerce(int)),
     }
@@ -468,7 +473,7 @@ SET_FURNISHED_RENDER_MODE_SCHEMA = vol.Schema(
 SET_ROOM_VIEWPORT_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
         vol.Optional("cx"): vol.Any(None, vol.Coerce(float)),
         vol.Optional("cy"): vol.Any(None, vol.Coerce(float)),
@@ -480,7 +485,7 @@ SET_ROOM_VIEWPORT_SCHEMA = vol.Schema(
 SET_LIVE_MAP_ROTATION_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("rotation"): vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270])),
     }
 )
@@ -518,6 +523,69 @@ GET_MAP_RENDER_DATA_SCHEMA = vol.Schema(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+class _ResolvedMapWrite:
+    """Outcome of ``_resolve_write_map_bucket``: either a resolved (map_id, map_bucket)
+    pair, or a ready-to-merge ``refusal`` dict (the caller adds only its own outer
+    ``"saved": False``)."""
+
+    __slots__ = ("map_id", "map_bucket", "refusal")
+
+    def __init__(
+        self, *, map_id: str | None = None, map_bucket: dict | None = None,
+        refusal: dict | None = None,
+    ) -> None:
+        self.map_id = map_id
+        self.map_bucket = map_bucket
+        self.refusal = refusal
+
+
+async def _resolve_write_map_bucket(
+    hass: HomeAssistant, manager, *, vacuum_entity_id: str, map_id: str | None,
+) -> _ResolvedMapWrite:
+    """RP-032: the shared map_id-optional resolution + require_map_bucket refusal
+    pattern for the (now 8) handlers whose schema makes ``map_id`` Optional, matching
+    services.yaml's long-documented "Leave blank to use the current active map."
+
+    1. An explicit ``map_id`` is used as-is.
+    2. Omitted -> the vacuum's active map (``get_active_map_id``).
+    3. Still unresolved -> the first stored map for this vacuum.
+    4. Still unresolved -> refusal (``reason: "no_map"`` — nothing exists yet at all).
+    5. A concrete ``map_id`` -> ``require_map_bucket`` (NEVER ``ensure_map_bucket``:
+       these are WRITES against a caller-addressed map, so an unknown/typo'd map_id
+       must refuse rather than silently mint a phantom bucket for it —
+       RP-028/SERVIC-1). A miss -> refusal naming ``known_map_ids``
+       (``reason: "map_not_found"``), mirroring ``_handle_create_saved_zone``.
+
+    Mirrors ``_handle_set_map_overlay_visibility``'s resolution (steps 1-3) and
+    ``_handle_create_saved_zone``'s ``require_map_bucket`` refusal (step 5), unified
+    here so the RP-032 call sites share one resolver instead of separate copies.
+    """
+    if not map_id:
+        from ..rooms.room_discovery import get_active_map_id
+        try:
+            map_id = get_active_map_id(hass, vacuum_entity_id)
+        except Exception:  # noqa: BLE001
+            map_id = None
+    if not map_id:
+        vac_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
+        map_id = next(iter(vac_maps), None)
+    if not map_id:
+        return _ResolvedMapWrite(refusal={
+            "reason": "no_map",
+            "message": f"No map found for '{vacuum_entity_id}'; pass map_id explicitly.",
+        })
+    map_id = str(map_id)
+    map_bucket = require_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    if map_bucket is None:
+        return _ResolvedMapWrite(refusal={
+            "reason": "map_not_found",
+            "known_maps": known_map_ids(data=manager.data, vacuum_entity_id=vacuum_entity_id),
+        })
+    return _ResolvedMapWrite(map_id=map_id, map_bucket=map_bucket)
 
 
 # ---------------------------------------------------------------------------
@@ -816,11 +884,20 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
                 else:
                     layout.setdefault("home_art", {})["art_variant"] = variant
                 layout["updated_at"] = utc_now_iso()
+            else:
+                # IMAGE--9: the pre-check above confirmed the layout existed, but a
+                # concurrent delete_custom_layout could have removed it while the
+                # (blocking) file write was in flight -- the PNG landed on disk but the
+                # linkage this call promised can no longer be written. Report the truth
+                # instead of a silent "saved" with the linkage quietly dropped.
+                return {"saved": False, "reason": "layout_not_found"}
         elif layout_id is not None:
             layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
             if isinstance(layout, dict):
                 layout["backdrop_variant"] = variant
                 layout["updated_at"] = utc_now_iso()
+            else:
+                return {"saved": False, "reason": "layout_not_found"}
         await manager.async_save()
 
     _LOGGER.debug("upload_map_image: %s", result)
@@ -993,7 +1070,12 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
     map_id: str = call.data["map_id"]
     expected_room_count = call.data.get("expected_room_count")
     max_segments = call.data.get("max_segments")
-    min_area_pixels: int = call.data.get("min_area_pixels", 1200)
+    # IMAGE--11: NO default here — a default of 1200 made the `is not None` guard
+    # below dead code, so every call (even one that omitted the field) clobbered the
+    # adapter's own configured segmenter_tuning.min_area_pixels. Omitting the field
+    # must let the adapter's tuning apply (the engine itself still defaults to 1200
+    # when NEITHER the caller NOR the adapter config specify anything).
+    min_area_pixels = call.data.get("min_area_pixels")
     simplify_epsilon = call.data.get("simplify_epsilon")
     force_reanalyze: bool = call.data.get("force_reanalyze", False)
 
@@ -1202,6 +1284,34 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         if isinstance(z, dict)
     ]
 
+    # FURNIS-5: a hidden-region mask stamped against a PRIOR map content-version can
+    # silently mask the wrong content after a re-map (the room_pixels shape changed
+    # under it). Compare the save-time stamp (_handle_set_hidden_regions) against the
+    # CURRENT frame's version; on a CONFIRMED mismatch, serve no masks rather than a
+    # stale one — hiding the wrong content is worse than showing everything. No signal
+    # either way (unstamped, or the current version is unavailable) -> best-effort,
+    # serve the stored regions unchanged.
+    hidden_regions_out = (
+        list(map_bucket.get("hidden_regions") or [])
+        if isinstance(map_bucket.get("hidden_regions"), list) else []
+    )
+    if hidden_regions_out:
+        stamped_version = map_bucket.get("hidden_regions_version")
+        try:
+            render_data = await manager.async_get_map_render_data(
+                vacuum_entity_id=vacuum_entity_id
+            )
+            current_version = render_data.get("version") if isinstance(render_data, dict) else None
+        except Exception:  # noqa: BLE001 - the gate is best-effort, never blocks the read
+            current_version = None
+        if stamped_version and current_version and stamped_version != current_version:
+            _LOGGER.warning(
+                "get_map_segments: hidden_regions stamp %s != current map version %s for "
+                "%s/%s -- map was re-mapped since these masks were drawn; suppressing them",
+                stamped_version, current_version, vacuum_entity_id, map_id,
+            )
+            hidden_regions_out = []
+
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": map_id,
@@ -1228,8 +1338,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         "adjustments": adjustments,
         "companion_anchors": dict(anchors) if isinstance(anchors, dict) else {},
         # Hidden regions are MAP-LEVEL (mode-independent physical masks), not scope-resolved.
-        "hidden_regions": list(map_bucket.get("hidden_regions") or [])
-        if isinstance(map_bucket.get("hidden_regions"), list) else [],
+        "hidden_regions": hidden_regions_out,
         # Area-label positions are MAP-LEVEL too (the device rooms are mode-independent).
         "area_label_anchors": dict(map_bucket.get("area_label_anchors") or {})
         if isinstance(map_bucket.get("area_label_anchors"), dict) else {},
@@ -1744,7 +1853,7 @@ async def _handle_set_segment_room_link(
     can refresh its in-memory state without a separate fetch.
     """
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     segment_id: str = str(call.data["segment_id"]).strip()
     room_id_raw = call.data.get("room_id")
 
@@ -1752,11 +1861,12 @@ async def _handle_set_segment_room_link(
         return {"saved": False, "reason": "missing_segment_id"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
     links: dict = _resolve_active_scope(map_bucket)["links"]
 
@@ -1799,7 +1909,7 @@ async def _handle_set_companion_anchor(
     refreshes in-memory state without a second fetch.
     """
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     room_id: str = str(call.data["room_id"]).strip()
     pct_x = call.data.get("pct_x")
     pct_y = call.data.get("pct_y")
@@ -1808,11 +1918,12 @@ async def _handle_set_companion_anchor(
         return {"saved": False, "reason": "missing_room_id"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
     anchors: dict = _resolve_active_scope(map_bucket)["anchors"]
 
@@ -1867,7 +1978,7 @@ async def _handle_set_furnished_art_placement(
     override (room_id required). Pass all of tx/ty/scale/rotation null (or omit them) to
     clear the placement. Returns the resolved furnished_render so the card refreshes."""
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     scope: str = call.data["scope"]
     room_id = call.data.get("room_id")
     tx = call.data.get("tx")
@@ -1881,22 +1992,37 @@ async def _handle_set_furnished_art_placement(
             return {"saved": False, "reason": "missing_room_id"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
     layout = _active_custom_layout(map_bucket)
     if layout is None:
         return {"saved": False, "reason": "no_active_layout"}
 
     # The target dict the transform lives on: the home art, or the per-room override.
+    # FURNIS-6: for scope="home", DON'T mint an empty home_art dict just to clear a
+    # transform that was never set — resolve_furnished_render treats a present-but-
+    # empty home_art as "has furnished data" (only `is None` triggers its absent
+    # check), so a no-op clear used to leave a phantom home_art behind. Room-scope
+    # doesn't share this bug (resolve_furnished_render checks per-FIELD presence
+    # there, not dict existence), so its setdefault stays unconditional.
+    is_clear = tx is None and ty is None and scale is None and rotation is None
     if scope == "room":
         target = layout.setdefault("rooms", {}).setdefault(room_id, {})
+    elif is_clear:
+        target = layout.get("home_art")
+        if not isinstance(target, dict):
+            target = None
     else:
         target = layout.setdefault("home_art", {})
 
-    if tx is None and ty is None and scale is None and rotation is None:
-        target.pop("art_placement_transform", None)
+    if is_clear:
+        if target is not None:
+            target.pop("art_placement_transform", None)
         action = "cleared"
     else:
         target["art_placement_transform"] = {
@@ -1934,14 +2060,17 @@ async def _handle_set_furnished_render_mode(
     """Set the furnished render mode (live | art | blend) at the layout level (room_id
     omitted) or as a per-room override (room_id set) on the active custom layout."""
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     mode: str = call.data["mode"]
     room_id = call.data.get("room_id")
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
     layout = _active_custom_layout(map_bucket)
     if layout is None:
@@ -1977,7 +2106,7 @@ async def _handle_set_room_viewport(
     """Persist or clear a saved per-room viewport {cx,cy,zoom} (pct floats) on the
     active custom layout. Pass all of cx/cy/zoom null (or omit them) to clear it."""
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     room_id = str(call.data["room_id"]).strip()
     cx = call.data.get("cx")
     cy = call.data.get("cy")
@@ -1987,9 +2116,12 @@ async def _handle_set_room_viewport(
         return {"saved": False, "reason": "missing_room_id"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
     layout = _active_custom_layout(map_bucket)
     if layout is None:
@@ -2000,10 +2132,19 @@ async def _handle_set_room_viewport(
         target.pop("viewport", None)
         action = "cleared"
     else:
+        # FURNIS-3: clamp zoom to the same [0.05, 20] range set_furnished_art_
+        # placement's `scale` already enforces (a degenerate/absurd zoom is the same
+        # class of bug there). cx/cy are documented "pct" (services.yaml: "Center X
+        # (pct)"), matching the 0-100 clamp set_companion_anchor/set_area_label_anchor
+        # already apply to their own pct_x/pct_y — NOT a 0-1 fraction (this field is
+        # never normalized 0-1; existing stored viewports commonly exceed 1, e.g. a
+        # room centred at pct 20 or 50).
         target["viewport"] = {
-            "cx": _round4(cx, 0.0),
-            "cy": _round4(cy, 0.0),
-            "zoom": _round4(zoom, 1.0),
+            "cx": _round4(None if cx is None else min(max(float(cx), 0.0), 100.0), 0.0),
+            "cy": _round4(None if cy is None else min(max(float(cy), 0.0), 100.0), 0.0),
+            "zoom": _round4(
+                None if zoom is None else min(max(float(zoom), 0.05), 20.0), 1.0,
+            ),
         }
         action = "set"
 
@@ -2032,7 +2173,7 @@ async def _handle_set_hidden_regions(
     Each entry is sanitized (4 FINITE numbers, clamped 0-1, ordered min<max, degenerate dropped).
     Returns the updated list."""
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     raw = call.data.get("regions") or []
 
     cleaned: list[list[float]] = []
@@ -2051,12 +2192,32 @@ async def _handle_set_hidden_regions(
             cleaned.append([round(lo_x, 5), round(lo_y, 5), round(hi_x, 5), round(hi_y, 5)])
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     regions: list = map_bucket.setdefault("hidden_regions", [])
     regions.clear()
     regions.extend(cleaned)
+
+    # FURNIS-5: stamp the authoring frame's content-version alongside the regions, so
+    # a later read (_handle_get_map_segments) can tell whether the map has been
+    # RE-MAPPED since these were drawn (the room_pixels raster is a different shape
+    # after a re-map, so the same normalized rects would mask the wrong content).
+    # Reuses the SAME version get_map_render_data already emits (render_data_from_
+    # storage / roborock_render_data's content hash) — there is no other map-geometry-
+    # version mechanism in this codebase to mirror (RP-029 explicitly deferred this
+    # exact piece). Best-effort: an unavailable render (no live map yet) stamps None,
+    # which the read side treats as "no signal" rather than a hard mismatch.
+    try:
+        render_data = await manager.async_get_map_render_data(vacuum_entity_id=vacuum_entity_id)
+        map_bucket["hidden_regions_version"] = (
+            render_data.get("version") if isinstance(render_data, dict) else None
+        )
+    except Exception:  # noqa: BLE001 - stamping is best-effort; must not block the save
+        map_bucket["hidden_regions_version"] = None
 
     await manager.async_save()
     _LOGGER.debug(
@@ -2074,7 +2235,7 @@ async def _handle_set_area_label_anchor(
     mascot anchor uses). Null both pct_x and pct_y to reset to the default (room centre).
     Returns the updated map."""
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     room_id: str = str(call.data["room_id"]).strip()
     pct_x = call.data.get("pct_x")
     pct_y = call.data.get("pct_y")
@@ -2083,9 +2244,12 @@ async def _handle_set_area_label_anchor(
         return {"saved": False, "reason": "missing_room_id"}
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     anchors: dict = map_bucket.setdefault("area_label_anchors", {})
 
     if pct_x is None and pct_y is None:
@@ -2119,15 +2283,16 @@ async def _handle_set_live_map_rotation(
     the dashboard snapshot as ``live_map_rotation``.
     """
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id: str = call.data["map_id"]
+    map_id = call.data.get("map_id")
     rotation = int(call.data["rotation"]) % 360
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    map_bucket = ensure_map_bucket(
-        data=manager.data,
-        vacuum_entity_id=vacuum_entity_id,
-        map_id=map_id,
+    resolved = await _resolve_write_map_bucket(
+        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
+    if resolved.refusal is not None:
+        return {"saved": False, **resolved.refusal}
+    map_id, map_bucket = resolved.map_id, resolved.map_bucket
     map_bucket["live_map_rotation"] = rotation
     await manager.async_save()
     _LOGGER.debug(

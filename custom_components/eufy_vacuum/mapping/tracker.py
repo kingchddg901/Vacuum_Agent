@@ -148,8 +148,21 @@ class MappingTracker:
             / "eufy_vacuum" / "mapping" / slug / "_dock_drift.jsonl"
         )
 
+    # TRK-6: a compaction pass (full read + rewrite, capped to DOCK_DRIFT_MAX_LINES)
+    # only runs once the file has grown past this many bytes -- normal appends are a
+    # cheap O(1) `open(..., "a")` write, not a full read+rewrite every single event.
+    # ~80 bytes/line * DOCK_DRIFT_MAX_LINES * ~1.5 headroom.
+    DOCK_DRIFT_COMPACT_BYTES = 600_000
+
     def _maybe_log_dock_drift(self, vacuum_entity_id: str, vx: float, vy: float) -> None:
-        """Log a docked-position reading when it changes (each change = a drift event)."""
+        """Log a docked-position reading when it changes (each change = a drift event).
+
+        TRK-6: the new last-position is committed to ``_last_dock_pos`` only AFTER the
+        write actually succeeds (``_log_dock_drift_and_commit`` below) -- a failed
+        write must not silently advance the baseline, or the drift event is lost: the
+        NEXT real position change would compute its delta against the wrong (stale)
+        baseline instead of re-detecting the same drift.
+        """
         state = self.hass.states.get(vacuum_entity_id)
         s = str(state.state).strip().lower() if state else ""
         if s not in ("docked", "charging"):
@@ -157,13 +170,32 @@ class MappingTracker:
         last = self._last_dock_pos.get(vacuum_entity_id)
         if last == (vx, vy):
             return  # unchanged -> nothing drifted
-        self._last_dock_pos[vacuum_entity_id] = (vx, vy)
         dx = round(vx - last[0], 4) if last is not None else None
         dy = round(vy - last[1], 4) if last is not None else None
-        self.hass.async_add_executor_job(
-            self._append_dock_drift,
-            vacuum_entity_id, round(vx, 4), round(vy, 4), s, dx, dy,
+        self.hass.async_create_task(
+            self._log_dock_drift_and_commit(
+                vacuum_entity_id, round(vx, 4), round(vy, 4), s, dx, dy,
+            )
         )
+
+    async def _log_dock_drift_and_commit(
+        self,
+        vacuum_entity_id: str,
+        vx: float,
+        vy: float,
+        state: str,
+        dx: float | None,
+        dy: float | None,
+    ) -> None:
+        """Append the drift event off-loop, committing the new last-position ONLY on a
+        successful write (TRK-6's re-queue-on-failure: not committing means the next
+        real position change re-triggers the same drift detection against the old
+        baseline, rather than silently losing the event)."""
+        ok = await self.hass.async_add_executor_job(
+            self._append_dock_drift, vacuum_entity_id, vx, vy, state, dx, dy,
+        )
+        if ok:
+            self._last_dock_pos[vacuum_entity_id] = (vx, vy)
 
     def _append_dock_drift(
         self,
@@ -173,8 +205,10 @@ class MappingTracker:
         state: str,
         dx: float | None,
         dy: float | None,
-    ) -> None:
-        """Append one dock-drift reading as a JSONL line, rolling off beyond DOCK_DRIFT_MAX_LINES."""
+    ) -> bool:
+        """Append one dock-drift reading as a genuine JSONL append (TRK-6 — not a full
+        read+rewrite every event); returns True on success, False on any failure so the
+        caller can decide whether to commit the new last-position."""
         path = self._dock_drift_path(vacuum_entity_id)
         with self._dock_drift_lock:
             try:
@@ -188,34 +222,46 @@ class MappingTracker:
                 if dx is not None:
                     record["dx"] = dx
                     record["dy"] = dy
-                existing: list[str] = []
-                if path.exists():
-                    existing = path.read_text(encoding="utf-8").splitlines()
-                else:
-                    existing = [json.dumps({
-                        "_meta": "eufy_vacuum dock-coordinate drift log",
-                        "vacuum": vacuum_entity_id,
-                        "description": (
-                            "One line per distinct docked position. The dock is a fixed "
-                            "point, so any change is coordinate-frame drift. dx/dy = delta "
-                            "from the previous logged reading."
-                        ),
-                    })]
-                existing.append(json.dumps(record))
-                if existing and '"_meta"' in existing[0]:
-                    body = existing[1:]
-                    if len(body) > self.DOCK_DRIFT_MAX_LINES:
-                        body = body[-self.DOCK_DRIFT_MAX_LINES:]
-                    existing = [existing[0]] + body
-                elif len(existing) > self.DOCK_DRIFT_MAX_LINES:
-                    existing = existing[-self.DOCK_DRIFT_MAX_LINES:]
-                tmp = path.with_suffix(".tmp")
-                tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
-                tmp.replace(path)
+                is_new = not path.exists()
+                with path.open("a", encoding="utf-8") as fh:
+                    if is_new:
+                        fh.write(json.dumps({
+                            "_meta": "eufy_vacuum dock-coordinate drift log",
+                            "vacuum": vacuum_entity_id,
+                            "description": (
+                                "One line per distinct docked position. The dock is a fixed "
+                                "point, so any change is coordinate-frame drift. dx/dy = delta "
+                                "from the previous logged reading."
+                            ),
+                        }) + "\n")
+                    fh.write(json.dumps(record) + "\n")
+                try:
+                    if path.stat().st_size > self.DOCK_DRIFT_COMPACT_BYTES:
+                        self._compact_dock_drift(path)
+                except OSError:
+                    pass  # compaction is housekeeping; a failed stat/compact must not undo the append above
+                return True
             except Exception:
                 _LOGGER.exception(  # pragma: no cover
                     "MappingTracker: failed to append dock-drift for %s", vacuum_entity_id,
                 )
+                return False
+
+    def _compact_dock_drift(self, path: Path) -> None:
+        """Roll a grown dock-drift JSONL to its last DOCK_DRIFT_MAX_LINES entries
+        (keeping the ``_meta`` header line first, if present). TRK-6: called only once
+        the file has passed DOCK_DRIFT_COMPACT_BYTES, not on every append."""
+        existing = path.read_text(encoding="utf-8").splitlines()
+        if existing and '"_meta"' in existing[0]:
+            body = existing[1:]
+            if len(body) > self.DOCK_DRIFT_MAX_LINES:
+                body = body[-self.DOCK_DRIFT_MAX_LINES:]
+            existing = [existing[0]] + body
+        elif len(existing) > self.DOCK_DRIFT_MAX_LINES:
+            existing = existing[-self.DOCK_DRIFT_MAX_LINES:]
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
+        tmp.replace(path)
 
     # ------------------------------------------------------------------
     # Listener registration

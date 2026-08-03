@@ -53,6 +53,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_SET_ROOM_VIEWPORT,
     SERVICE_SET_SEGMENTATION_MODE,
 )
+from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.map_source import resolve_furnished_render
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_GET_MAP_SEGMENTS,
@@ -179,6 +180,20 @@ async def test_clear_home_art_placement(hass, mapping_services):
     assert "art_placement_transform" not in (lay["home_art"] or {})
 
 
+async def test_clear_home_art_placement_never_set_leaves_no_phantom(hass, mapping_services):
+    """[FURN-18] FURNIS-6: clearing scope="home" when NOTHING was ever set must not mint
+    an empty home_art dict -- resolve_furnished_render's `home_art_raw is None` check
+    would otherwise treat the phantom empty dict as furnished data."""
+    map_id = "furn_clear_phantom"
+    lid = await _create_layout(hass, map_id)
+    res = await _svc(hass, SERVICE_SET_FURNISHED_ART_PLACEMENT, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "scope": "home"})
+    assert res["action"] == "cleared"
+    assert res["furnished_render"] is None       # no phantom furnished data
+    lay = _layout_summary(await _segments(hass, map_id), lid)
+    assert lay["home_art"] is None
+
+
 async def test_set_render_mode_layout_and_room(hass, mapping_services):
     """[FURN-6] render mode at the layout level (room_id omitted) and per-room."""
     map_id = "furn_mode"
@@ -240,10 +255,35 @@ async def test_set_room_viewport_roundtrip_and_clear(hass, mapping_services):
     assert "viewport" not in lay["rooms"]["7"]
 
 
+async def test_set_room_viewport_clamped(hass, mapping_services):
+    """[FURN-17] FURNIS-3: zoom is clamped to the same [0.05, 20] range
+    set_furnished_art_placement's scale already enforces; cx/cy are "pct" fields
+    (services.yaml: "Center X (pct)", matching pct_x/pct_y elsewhere in this module)
+    clamped to [0, 100] -- NOT a 0-1 fraction, so an ordinary in-range pct value
+    (e.g. 65.0) must round-trip unchanged."""
+    map_id = "furn_vp_clamp"
+    lid = await _create_layout(hass, map_id)
+    await _svc(hass, SERVICE_SET_ROOM_VIEWPORT, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "room_id": "3",
+        "cx": -10.0, "cy": 150.0, "zoom": 0})
+    lay = _layout_summary(await _segments(hass, map_id), lid)
+    assert lay["rooms"]["3"]["viewport"] == {"cx": 0.0, "cy": 100.0, "zoom": 0.05}
+
+    await _svc(hass, SERVICE_SET_ROOM_VIEWPORT, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "room_id": "3",
+        "cx": 65.0, "cy": 40.0, "zoom": 100})
+    lay = _layout_summary(await _segments(hass, map_id), lid)
+    # An ordinary pct value (65.0) is unaffected -- confirms the clamp is 0-100, not 0-1.
+    assert lay["rooms"]["3"]["viewport"] == {"cx": 65.0, "cy": 40.0, "zoom": 20.0}
+
+
 async def test_no_active_layout_guard(hass, mapping_services):
-    """[FURN-8] the furnished services refuse when there's no active custom layout."""
+    """[FURN-8] the furnished services refuse when the map bucket EXISTS but has no
+    active custom layout (distinct from RP-032's map_not_found: require_map_bucket
+    needs a real bucket first, seeded here, so this isolates the no_active_layout path)."""
     map_id = "furn_nolayout"
     # No create_custom_layout call → no active layout for this fresh map.
+    ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=map_id)
     for service, data in (
         (SERVICE_SET_FURNISHED_ART_PLACEMENT,
          {"scope": "home", "tx": 1.0}),
@@ -254,6 +294,24 @@ async def test_no_active_layout_guard(hass, mapping_services):
                          {"vacuum_entity_id": _VAC, "map_id": map_id, **data})
         assert res["saved"] is False
         assert res["reason"] == "no_active_layout"
+
+
+async def test_furnished_services_refuse_unknown_map(hass, mapping_services):
+    """[FURN-8b] RP-032: an address that was NEVER discovered/created (no map bucket
+    at all) refuses map_not_found -- require_map_bucket never mints a phantom bucket
+    for a caller-supplied map_id, matching create_saved_zone's established contract."""
+    map_id = "furn_never_seeded"
+    for service, data in (
+        (SERVICE_SET_FURNISHED_ART_PLACEMENT,
+         {"scope": "home", "tx": 1.0}),
+        (SERVICE_SET_FURNISHED_RENDER_MODE, {"mode": "art"}),
+        (SERVICE_SET_ROOM_VIEWPORT, {"room_id": "1", "cx": 1.0}),
+    ):
+        res = await _svc(hass, service,
+                         {"vacuum_entity_id": _VAC, "map_id": map_id, **data})
+        assert res["saved"] is False
+        assert res["reason"] == "map_not_found"
+        assert res["known_maps"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +368,62 @@ async def test_upload_art_scope_guards(hass, mapping_services, pil):
         "art_scope": "room", "image_base64": _tiny_png_b64()})
     assert no_room["saved"] is False
     assert no_room["reason"] == "missing_room_id"
+
+
+async def test_upload_layout_deleted_mid_write_reports_failure(
+    hass, mapping_services, pil, monkeypatch,
+):
+    """[FURN-19] IMAGE--9: a layout deleted (concurrent delete_custom_layout) WHILE the
+    blocking file write is in flight must report saved:False, not a misleading success
+    -- the PNG lands on disk but the linkage this call promised can no longer be
+    written. Drives BOTH the art_scope and the plain layout_id backdrop branch."""
+    map_id = "furn_up_race"
+    lid = await _create_layout(hass, map_id, name="Solar")
+
+    real_executor = hass.async_add_executor_job
+
+    async def _racing_executor(func, *args):
+        result = await real_executor(func, *args)
+        # Simulate delete_custom_layout completing WHILE the write above was in flight.
+        bucket = ensure_map_bucket(
+            data=mapping_services.data, vacuum_entity_id=_VAC, map_id=map_id,
+        )
+        (bucket.get("custom_layouts") or {}).pop(lid, None)
+        return result
+
+    monkeypatch.setattr(hass, "async_add_executor_job", _racing_executor)
+
+    up = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "layout_id": lid,
+        "art_scope": "home", "image_base64": _tiny_png_b64()})
+    assert up["saved"] is False
+    assert up["reason"] == "layout_not_found"
+
+
+async def test_upload_backdrop_layout_deleted_mid_write_reports_failure(
+    hass, mapping_services, pil, monkeypatch,
+):
+    """[FURN-19b] IMAGE--9, the plain (non-art_scope) layout_id backdrop branch."""
+    map_id = "furn_up_race_backdrop"
+    lid = await _create_layout(hass, map_id, name="Solar")
+
+    real_executor = hass.async_add_executor_job
+
+    async def _racing_executor(func, *args):
+        result = await real_executor(func, *args)
+        bucket = ensure_map_bucket(
+            data=mapping_services.data, vacuum_entity_id=_VAC, map_id=map_id,
+        )
+        (bucket.get("custom_layouts") or {}).pop(lid, None)
+        return result
+
+    monkeypatch.setattr(hass, "async_add_executor_job", _racing_executor)
+
+    up = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "layout_id": lid,
+        "image_base64": _tiny_png_b64()})
+    assert up["saved"] is False
+    assert up["reason"] == "layout_not_found"
 
 
 # ---------------------------------------------------------------------------

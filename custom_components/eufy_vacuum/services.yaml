@@ -3348,7 +3348,10 @@ create_custom_layout:
         backdrop instead of an uploaded custom image.
       required: false
       selector:
-        text: {}
+        select:
+          options:
+            - live
+            - upload
 
 rename_custom_layout:
   name: Rename custom layout

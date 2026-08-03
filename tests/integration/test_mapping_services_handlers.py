@@ -46,8 +46,11 @@ async def _call(hass, service, data):
 
 async def test_set_live_map_rotation(hass, mapping_services):
     """[MSV-15] set_live_map_rotation persists the live-map DISPLAY rotation on the
-    map bucket (display only; schema validates 0/90/180/270)."""
+    map bucket (display only; schema validates 0/90/180/270). RP-032: map_id is now
+    Optional and resolved against an EXISTING bucket (require_map_bucket, never a
+    phantom create), so the bucket is seeded here first."""
     manager = mapping_services
+    ensure_map_bucket(data=manager.data, vacuum_entity_id=_VAC, map_id=_MAP)
     result = await _call(hass, ms.SERVICE_SET_LIVE_MAP_ROTATION,
                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "rotation": 90})
     assert result["saved"] is True
@@ -62,6 +65,15 @@ async def test_set_live_map_rotation(hass, mapping_services):
         await _call(hass, ms.SERVICE_SET_LIVE_MAP_ROTATION,
                     {"vacuum_entity_id": _VAC, "map_id": _MAP, "rotation": 45})
     assert manager.data["maps"][_VAC][_MAP]["live_map_rotation"] == 270
+
+
+async def test_set_live_map_rotation_unknown_map_refuses(hass, mapping_services):
+    """[MSV-15b] RP-032: an address that was never discovered/created refuses
+    map_not_found instead of minting a phantom bucket for it."""
+    result = await _call(hass, ms.SERVICE_SET_LIVE_MAP_ROTATION,
+                         {"vacuum_entity_id": _VAC, "map_id": "never_seeded", "rotation": 90})
+    assert result["saved"] is False
+    assert result["reason"] == "map_not_found"
 
 
 async def test_set_map_overlay_visibility(hass, mapping_services):

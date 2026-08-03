@@ -153,24 +153,13 @@ EXPECTED_FAILURES: dict[tuple[str, str], str] = {
     # run). Documenting only part of a flow was itself flagged as the defect
     # class this campaign keeps finding.
 
-    # --- field_mismatch: map_id required-vs-docs-optional, mapping_services -
-    # --- .py cohort. EJECTED, not fixed here: RP-032's own required_behavior
-    # --- ties this specific alignment to "RP-028's resolver adoption" -----
-    # --- (require_map_bucket "builder-with-inverse" + resolved_call_data ---
-    # --- across ALL mapping handlers, RP-028 sub-item 2). A narrow fix here
-    # --- (resolved_call_data + vol.Optional only) is unsafe on its own: ----
-    # --- ensure_map_bucket(map_id=None) would silently str()-coerce to the
-    # --- literal "None" bucket key instead of raising a clear error --
-    # --- exactly the failure mode RP-028's require_map_bucket exists to ---
-    # --- close. Fix WITH RP-028 when it lands, not narrowly ahead of it. ---
-    ("field_mismatch", "set_area_label_anchor.map_id:requiredness"): "blocked_by RP-028 (see comment above) -- do not narrow-fix.",
-    ("field_mismatch", "set_companion_anchor.map_id:requiredness"): "blocked_by RP-028.",
-    ("field_mismatch", "set_furnished_art_placement.map_id:requiredness"): "blocked_by RP-028.",
-    ("field_mismatch", "set_furnished_render_mode.map_id:requiredness"): "blocked_by RP-028.",
-    ("field_mismatch", "set_hidden_regions.map_id:requiredness"): "blocked_by RP-028.",
-    ("field_mismatch", "set_live_map_rotation.map_id:requiredness"): "blocked_by RP-028.",
-    ("field_mismatch", "set_room_viewport.map_id:requiredness"): "blocked_by RP-028.",
-    ("field_mismatch", "set_segment_room_link.map_id:requiredness"): "blocked_by RP-028.",
+    # field_mismatch: map_id required-vs-docs-optional, mapping_services.py cohort --
+    # FIXED (RP-032): all 8 schemas switched vol.Required(map_id) -> vol.Optional,
+    # with a shared _resolve_write_map_bucket() resolver (active map, then the first
+    # stored map, else refuse) + require_map_bucket (never a phantom bucket for an
+    # unknown map_id) landed alongside, matching the already-shipped
+    # _handle_set_map_overlay_visibility / _handle_create_saved_zone precedent this
+    # allowlist used to say was still pending.
 
     # carpet/floor_type group fixed: floor_types added to
     # _SAVE_MANAGED_ROOMS_SCHEMA (manager genuinely accepts it);

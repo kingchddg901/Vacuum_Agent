@@ -12,6 +12,8 @@ Coverage targets
 [MTE-8]  a native-target room change past the confidence threshold fires eufy_vacuum_room_completed.
 [MTE-9]  _get_raw_position reads capability/state; all None branches + numeric success.
 [MTE-11] dock-drift log: docked+no-job readings logged with deltas; dup/non-docked skipped.
+[MTE-12] TRK-6: a failed dock-drift write does not commit the new last-position, so
+         the SAME position is retried as drift on the next call instead of being lost.
 """
 
 from __future__ import annotations
@@ -154,6 +156,42 @@ async def test_dock_drift_log(tracker, hass):
     assert (recs[0]["vx"], recs[0]["vy"]) == (15000.0, 4000.0)
     assert "dx" not in recs[0]                 # no delta on the first reading
     assert recs[1]["dy"] == 237.0              # drift delta captured
+
+
+async def test_dock_drift_failed_write_does_not_commit_position(tracker, hass):
+    """[MTE-12] TRK-6: a FAILED append must not advance _last_dock_pos -- a commit on
+    failure would silently lose the drift event (the next real position change would
+    compute its delta from the wrong baseline). Not committing means the SAME new
+    position is naturally re-detected as drift on the next call, instead of being
+    skipped as "unchanged"."""
+    _register(tracker)
+    hass.states.async_set(_VAC, "docked")
+
+    tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4000.0)
+    tracker._handle_position_update(_VAC)              # first reading -> baseline commits
+    await hass.async_block_till_done()
+    assert tracker._last_dock_pos[_VAC] == (15000.0, 4000.0)
+
+    # Force the next append to fail (simulates a write error inside _append_dock_drift).
+    tracker._append_dock_drift = lambda *a, **kw: False
+    tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4500.0)
+    tracker._handle_position_update(_VAC)               # drift, but the write fails
+    await hass.async_block_till_done()
+    # NOT committed -- baseline stays at the OLD position.
+    assert tracker._last_dock_pos[_VAC] == (15000.0, 4000.0)
+
+    # A later call with the SAME new position is retried as drift again (re-detected
+    # against the un-advanced baseline), instead of silently vanishing.
+    calls = []
+
+    def _ok(vacuum_entity_id, vx, vy, state, dx, dy):
+        calls.append((vx, vy, dx, dy))
+        return True
+    tracker._append_dock_drift = _ok
+    tracker._handle_position_update(_VAC)
+    await hass.async_block_till_done()
+    assert tracker._last_dock_pos[_VAC] == (15000.0, 4500.0)
+    assert calls == [(15000.0, 4500.0, 0.0, 500.0)]
 
 
 # ---------------------------------------------------------------------------

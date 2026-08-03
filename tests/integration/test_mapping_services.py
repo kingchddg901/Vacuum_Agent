@@ -136,6 +136,46 @@ async def test_get_map_segments(hass, mapping_services):
     assert "polygon_pct" in seg
 
 
+async def test_analyze_map_image_omitted_min_area_pixels_keeps_adapter_tuning(
+    hass, mapping_services, monkeypatch, tmp_path,
+):
+    """IMAGE--11: call.data.get("min_area_pixels", 1200) made the schema's `is not
+    None` guard dead code -- every call (even one that omitted the field) clobbered
+    the adapter's own configured segmenter_tuning.min_area_pixels with 1200. Omitting
+    the field from the call must let the adapter's tuning apply."""
+    from types import SimpleNamespace
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        _handle_analyze_map_image,
+    )
+
+    map_id = "analyze_tuning"
+    dark_path = tmp_path / "dark.png"
+    dark_path.write_bytes(b"\x89PNG\r\n\x1a\n")   # only existence is checked here
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=map_id)
+    bucket["image_variants"] = {"dark": {"path": str(dark_path), "width": 10, "height": 10}}
+
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.adapters.registry.get_adapter_config",
+        lambda vacuum_entity_id: {"mapping": {"segmenter_tuning": {"min_area_pixels": 900}}},
+    )
+    captured: dict = {}
+
+    class _StubEngine:
+        def segment_map_image(self, *, image_path, tuning, context):
+            captured["tuning"] = dict(tuning)
+            return {"available": True, "segments": [], "summary": {}}
+
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.mapping.segmenter_engines.get_segmenter_engine",
+        lambda name: _StubEngine(),
+    )
+
+    call = SimpleNamespace(data={"vacuum_entity_id": _VAC, "map_id": map_id})
+    res = await _handle_analyze_map_image(hass, call)
+    assert res["available"] is True
+    assert captured["tuning"]["min_area_pixels"] == 900   # NOT clobbered to 1200
+
+
 # ---------------------------------------------------------------------------
 # adjust_map_segment
 # ---------------------------------------------------------------------------
@@ -345,6 +385,36 @@ async def test_hidden_regions_persist_map_level_in_custom_mode(hass, mapping_ser
     assert bucket.get("hidden_regions") == [[0.2, 0.2, 0.4, 0.4]]   # actually persisted on the bucket
     seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
     assert seg["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
+
+
+async def test_hidden_regions_suppressed_on_version_mismatch(hass, mapping_services, monkeypatch):
+    """[MSH-7f] FURNIS-5: a hidden-region mask stamped against an OLDER map content-
+    version is suppressed (not served) once the map's version has moved on -- masking
+    the wrong content is worse than showing nothing. A version that MATCHES (or is
+    unavailable on either side) still serves the stored regions unchanged."""
+    _seed_segments(mapping_services)
+    versions = iter(["v1", "v1", "v2"])   # save-time stamp, then two later reads
+
+    async def _fake_render_data(*, vacuum_entity_id):
+        return {"present": True, "version": next(versions)}
+    monkeypatch.setattr(mapping_services, "async_get_map_render_data", _fake_render_data)
+
+    res = await _call(hass, SERVICE_SET_HIDDEN_REGIONS,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                       "regions": [[0.2, 0.2, 0.4, 0.4]]})
+    assert res["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    assert bucket["hidden_regions_version"] == "v1"
+
+    # same version on read -> served unchanged
+    seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert seg["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
+
+    # map re-mapped (version moved on) -> suppressed, not the stale mask
+    seg2 = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert seg2["hidden_regions"] == []
+    # the raw store is untouched (not deleted -- just not served stale)
+    assert bucket["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
 
 
 async def test_area_label_anchor_set_and_clear(hass, mapping_services):
@@ -734,6 +804,30 @@ def test_zone_membership_area_is_offset_independent():
     md_off = {**md0, "room_outline_origin_x": 40, "room_outline_origin_y": 40}  # big offset
     assert zone_membership(md0, box)["area_m2"] == expect
     assert zone_membership(md_off, box)["area_m2"] == expect       # offset changes nothing
+
+
+def test_zone_membership_samples_cell_center_not_corner():
+    """[ZONE-4c] GEO-6: the floor-dominance walk samples the cell CENTER (the
+    function's own docstring claim), not its raster corner. A single-cell room whose
+    CORNER falls just outside a tight zone polygon, but whose CENTER falls inside, is
+    only counted under the center convention."""
+    from custom_components.eufy_vacuum.mapping.map_source import zone_membership
+    import base64
+
+    w = h = 10
+    buf = bytearray(w * h)
+    buf[5 * w + 5] = (1 << 2)     # one room-1 cell at (px=5, py=5)
+    md = {
+        "width": w, "height": h, "resolution": 10,
+        "room_outline_width": w, "room_outline_height": h,
+        "origin_x": 0, "origin_y": 0,
+        "room_outline_origin_x": 0, "room_outline_origin_y": 0,
+        "room_pixels": base64.b64encode(bytes(buf)).decode(),
+    }
+    # normalize_rendered(5,5,10,10) (the CORNER) == (0.5, 0.4); the cell CENTER is
+    # (0.55, 0.45). This tight box contains the center but excludes the corner.
+    tight = [[0.51, 0.41], [0.60, 0.41], [0.60, 0.50], [0.51, 0.50]]
+    assert zone_membership(md, tight)["room_number"] == 1
 
 
 async def test_create_saved_zone_computes_filing_when_map_present(hass, mapping_services, monkeypatch):
