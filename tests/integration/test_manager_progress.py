@@ -619,3 +619,87 @@ def test_progress_charge_phase_clears_once_the_job_is_finalized(manager, hass):
     )
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert snap["charge_phase_active"] is False
+
+
+# --------------------------------------------------------------------------
+# RP-047 — a group phase is ONE dispatch, so the snapshot must present the
+# PHASE rather than pinning to room[0] for its whole duration.
+# --------------------------------------------------------------------------
+
+
+_PHASES = [
+    {"phase_type": "room_group", "queue_room_ids": [1],
+     "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}], "payload": {}, "room_count": 1},
+    {"phase_type": "wait", "wait_minutes": 2, "queue_room_ids": [],
+     "resolved_rooms": [], "payload": {}, "room_count": 0},
+    {"phase_type": "room_group", "queue_room_ids": [2, 3],
+     "resolved_rooms": [{"room_id": 2, "name": "Entryway"},
+                        {"room_id": 3, "name": "Hallway"}], "payload": {}, "room_count": 2},
+]
+
+
+def _group_phase_job(manager, *, phase_index: int = 2, **extra):
+    """A phased job sitting ON a given phase.
+
+    advance_active_job_phase rewrites the job's TOP-LEVEL queue/resolved_rooms to the
+    phase it moved to, so a faithful seed must too — otherwise current_room_id derives
+    from a queue the run has already left behind.
+    """
+    phase = _PHASES[phase_index]
+    _seed_job(
+        manager, minutes_ago=0,
+        current_phase_index=phase_index,
+        queue_room_ids=list(phase["queue_room_ids"]),
+        resolved_rooms=[dict(r) for r in phase["resolved_rooms"]],
+        phases=[dict(p) for p in _PHASES],
+        **extra,
+    )
+
+
+def test_progress_group_phase_names_every_room_it_dispatched(manager, hass):
+    """record_completed_room never fires inside a group — the group is one command — so
+    current_room_id pinned to room[0] for the phase's whole duration and the card looked
+    frozen. Live: Entryway held for 13m40s of an [entryway + hallway] phase."""
+    _wire(manager, hass)
+    _group_phase_job(manager)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert snap["current_room_ids"] == [2, 3]
+    assert snap["current_phase"]["is_group"] is True
+    assert snap["current_phase"]["room_ids"] == [2, 3]
+    assert snap["current_phase"]["phase_type"] == "room_group"
+
+
+def test_progress_group_phase_leaves_the_anchor_alone(manager, hass):
+    """The anchor must NOT advance partway through a group: the split was never observed
+    (that is what a timing row's allocated:true records), so moving it would synthesize a
+    boundary. The fix is that the card stops treating it as the whole answer."""
+    _wire(manager, hass)
+    _group_phase_job(manager)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert snap["current_room_id"] == 2, "the map anchor moved"
+    assert snap["current_room_id"] == snap["current_room_ids"][0]
+
+
+def test_progress_single_room_phase_is_unchanged(manager, hass):
+    """Additive: a single-room phase yields one id identical to the anchor, so every
+    existing consumer keeps working."""
+    _wire(manager, hass)
+    _group_phase_job(manager, phase_index=0)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert snap["current_room_ids"] == [1]
+    assert snap["current_phase"]["is_group"] is False
+    assert snap["current_room_id"] == 1
+
+
+def test_progress_atomic_run_still_reports_a_room_list(manager, hass):
+    """An atomic run has no phases at all; the list falls back to the anchor so a
+    consumer never has to special-case its absence."""
+    _wire(manager, hass)
+    _seed_job(manager, minutes_ago=0)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert snap["current_phase"] is None
+    assert snap["current_room_ids"] == [snap["current_room_id"]]
