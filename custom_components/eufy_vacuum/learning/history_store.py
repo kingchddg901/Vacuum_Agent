@@ -35,7 +35,7 @@ _CACHE_MISS = object()
 _LOGGER = logging.getLogger(__name__)
 
 from homeassistant.core import HomeAssistant
-from ..step_types import phase_capture_is_valid
+from ..step_types import phase_capture_is_valid, is_dock_polled_phase_type
 from ..timestamp_utils import parse_timestamp
 from .utils import (
     _iso_now,
@@ -1075,6 +1075,63 @@ class LearningHistoryStore:
             return False
 
         return bool(outcome.get("used_for_learning"))
+
+    def is_learning_phased_job(
+        self, *, vacuum_entity_id: str, parent: dict[str, Any]
+    ) -> bool:
+        """Whether a phased-job PARENT may teach the phased pool.
+
+        Chris's rule (2026-08-02): *"if any run that is keyed to a phased run, that
+        phased run should be excluded by default — it lost part of its identity."* The
+        parent's whole value is that it describes a COMPLETE orchestration: this shape,
+        end to end, cost this much. Excluding one child leaves the total describing a run
+        that never happened, so the parent stops being a sample of anything.
+
+        DERIVED, never stored. A stored `used_for_learning` on the parent would be a
+        second source of truth that goes stale the moment a child is excluded or
+        restored, and `exclude_learning_job` would have to remember to update its parent —
+        the partial-closure defect this codebase keeps producing. Deriving also makes
+        RESTORE free: put the child back and its parent becomes eligible again with no
+        second action, because nothing was written down to undo.
+
+        Ineligible when ANY of:
+          - the run did not complete (cancelled / interrupted / partial)
+          - a clean phase produced no child (`unsplit_phases`) — the total is short by
+            however long that phase took, which is invisible in the number itself
+          - a promised child will not load (`missing_children`)
+          - any child is not itself a learning job (manually excluded, held, anomalous)
+        """
+        if not isinstance(parent, dict) or parent.get("record_type") != "phased_job":
+            return False
+        if str(parent.get("status", "")).strip().lower() != "completed":
+            return False
+
+        aggregate = parent.get("aggregate")
+        aggregate = aggregate if isinstance(aggregate, dict) else {}
+        if aggregate.get("unsplit_phases") or aggregate.get("missing_children"):
+            return False
+
+        clean = [
+            p for p in (parent.get("phases") or [])
+            # The parent's slots key the type as `type`, not `phase_type`, so the
+            # dict-level helper does not fit — the TYPE-level one is the same
+            # vocabulary without the shape mismatch (step_types.py warns that the
+            # neighbouring vocabularies are deliberately NOT this question).
+            if isinstance(p, dict) and not is_dock_polled_phase_type(p.get("type"))
+        ]
+        if not clean:
+            return False
+
+        for phase in clean:
+            record_id = str(phase.get("record_id") or "")
+            if not record_id:
+                return False
+            child = self.load_completed_job(
+                vacuum_entity_id=vacuum_entity_id, job_id=record_id
+            )
+            if not isinstance(child, dict) or not self.is_learning_job(child):
+                return False
+        return True
 
     def get_job_stats_path(self, *, vacuum_entity_id: str) -> Path:
         """Return learned job stats path."""

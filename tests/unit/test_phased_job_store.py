@@ -426,3 +426,94 @@ def test_A7_reopening_with_a_different_plan_keeps_the_original(store):
     again = _open(store, [{"phase_type": "room_group", "queue_room_ids": [9]},
                           {"phase_type": "room_group", "queue_room_ids": [7]}])
     assert [p["planned_room_ids"] for p in again["phases"]] == [[5]]
+
+
+# --------------------------------------------------------------------------
+# Parent eligibility — "if any run keyed to a phased run is excluded, that
+# phased run is excluded by default: it lost part of its identity" (Chris).
+# --------------------------------------------------------------------------
+
+
+def _parent_with_children(store, *, child_ok=(True, True), status="completed",
+                          unsplit=None, missing=None):
+    """A closed 3-phase parent whose two clean phases point at real child records."""
+    for i, ok in zip((0, 2), child_ok):
+        store.save_completed_job(
+            vacuum_entity_id=_VAC, job_id=f"job_p.phase{i}",
+            payload={
+                "record_type": "completed_job",
+                "job_id": f"job_p.phase{i}",
+                "outcome": {"status": "completed", "used_for_learning": bool(ok)},
+                "job": {"cleaning_time_seconds": 100},
+                "queue": {},
+                "phase_key": {"phased_job_id": "pj_elig", "phase_index": i},
+            },
+        )
+    return {
+        "record_type": "phased_job",
+        "phased_job_id": "pj_elig",
+        "status": status,
+        "phases": [
+            {"index": 0, "type": "room_group", "record_id": "job_p.phase0",
+             "outcome": "completed"},
+            {"index": 1, "type": "wait", "record_id": "pj_elig.phase1",
+             "outcome": "completed"},
+            {"index": 2, "type": "room_group", "record_id": "job_p.phase2",
+             "outcome": "completed"},
+        ],
+        "aggregate": {"unsplit_phases": unsplit or [], "missing_children": missing or []},
+    }
+
+
+def _eligible(store, parent):
+    return store.is_learning_phased_job(vacuum_entity_id=_VAC, parent=parent)
+
+
+def test_a_complete_phased_run_teaches_the_phased_pool(store):
+    assert _eligible(store, _parent_with_children(store)) is True
+
+
+def test_excluding_ONE_child_excludes_its_parent(store):
+    """The parent's value is that it describes a COMPLETE orchestration. Drop a child and
+    the total describes a run that never happened."""
+    parent = _parent_with_children(store, child_ok=(True, False))
+    assert _eligible(store, parent) is False
+
+
+def test_restoring_the_child_makes_the_parent_eligible_again(store):
+    """Derived, not stored — restore needs no second action to undo, because nothing was
+    written down. A stored flag would need exclude_learning_job to remember its parent."""
+    parent = _parent_with_children(store, child_ok=(True, False))
+    assert _eligible(store, parent) is False
+    store.save_completed_job(
+        vacuum_entity_id=_VAC, job_id="job_p.phase2",
+        payload={
+            "record_type": "completed_job", "job_id": "job_p.phase2",
+            "outcome": {"status": "completed", "used_for_learning": True},
+            "job": {"cleaning_time_seconds": 100}, "queue": {},
+        },
+    )
+    assert _eligible(store, parent) is True
+
+
+def test_an_unsplit_phase_makes_the_parent_ineligible(store):
+    """The total is short by however long that phase took — invisible in the number."""
+    parent = _parent_with_children(store, unsplit=[2])
+    assert _eligible(store, parent) is False
+
+
+def test_a_missing_child_makes_the_parent_ineligible(store):
+    parent = _parent_with_children(store, missing=["job_p.phase2"])
+    assert _eligible(store, parent) is False
+
+
+def test_a_cancelled_phased_run_never_teaches(store):
+    for bad in ("cancelled", "interrupted", "partial", "running"):
+        assert _eligible(store, _parent_with_children(store, status=bad)) is False
+
+
+def test_a_break_only_parent_is_not_a_sample(store):
+    """No clean phase means nothing was cleaned — not a zero-cost orchestration."""
+    parent = _parent_with_children(store)
+    parent["phases"] = [{"index": 0, "type": "wait", "record_id": "x", "outcome": "completed"}]
+    assert _eligible(store, parent) is False
