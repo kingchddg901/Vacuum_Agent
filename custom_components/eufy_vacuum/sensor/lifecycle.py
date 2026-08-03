@@ -193,6 +193,15 @@ class EufyVacuumActiveJobSensor(SensorEntity):
             return "started"
         if status == "paused":
             return "paused"
+        # RP-014 / DR-SENS-1: an app-started run holds the slot at "external"
+        # and fell through every branch to the terminal "none" below. During
+        # such a run the integration is actively capturing — run_is_in_flight is
+        # True, the pose sampler is buffering, external_run.py is holding a
+        # grace window open — while this sensor reported idle. Recorder history
+        # and any automation templating off this entity saw nothing happening
+        # for the whole run.
+        if status == "external":
+            return "external"
         if status == "completed":
             finalize_status = str(
                 (job.get("finalize_summary") or {}).get("status", "")

@@ -38,6 +38,8 @@ from homeassistant.helpers.event import async_track_time_interval
 
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_PROGRESS_TICK
 from ..core.manager import EufyVacuumManager
+# RP-014: the owned in-flight predicate covering dispatched AND app-started runs.
+from ..jobs.active_job import run_is_in_flight
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,7 +78,25 @@ def register(hass: HomeAssistant) -> None:
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=map_id_str,
                 )
-                if active_job.get("status") not in {"started", "paused"}:
+                # RP-014 / #12:A5-METRICS-1. This asked the DISPATCHED question
+                # about a ticker that must cover ANY run on the floor, so an
+                # app-started run (status="external") never reached the body:
+                # no snapshot, no EVENT_JOB_PROGRESS_TICK, and — worst — no
+                # Lever B pulse, whose only caller in the package is right below.
+                #
+                # Lever B exists BECAUSE an external run has no dispatched phases
+                # to refresh on, so the single case it was built for was the one
+                # case excluded. On Roborock the pose sampler buffers external
+                # runs at ~2s while current_room only advances at the device's
+                # slow native cadence, so consecutive rooms collapse into one —
+                # the EXT-1 room-collapse shape already proven card-side.
+                #
+                # Safe to gate at the loop entry rather than inside: the tick
+                # delegates to get_job_progress_snapshot, which reads
+                # resolved_rooms via `.get(...) or None` and skips the timeline
+                # when empty, and the room rollover self-guards on
+                # `status != "started"` — so an external slot cannot move a phase.
+                if not run_is_in_flight(active_job):
                     continue
 
                 # Lever B: during a CONTIGUOUS run, keep the brand's live current-room/map

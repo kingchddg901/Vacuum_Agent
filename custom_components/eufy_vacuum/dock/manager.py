@@ -23,6 +23,11 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers import entity_registry as er
 
+# RP-014: the owned in-flight predicates. `run_is_in_flight` covers dispatched
+# AND app-started runs; its docstring explains why that distinction is
+# load-bearing and must not collapse into one helper.
+from ..jobs.active_job import run_is_in_flight
+
 if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
 
@@ -151,7 +156,24 @@ class DockManager:
             vacuum_state.state if vacuum_state is not None else ""
         ).strip().lower()
         docked = vacuum_state_value == "docked"
-        active_job_running = active_job.get("status") in {"started", "paused"}
+        # RP-014 / #14:A6-VAC-1. This asked the DISPATCHED question ({started,
+        # paused}) about a gate that must cover ANY run on the floor. An
+        # app-started run holds the slot at status="external" for its whole
+        # capture, so it was invisible here.
+        #
+        # `docked` does not save it either: a mid-run dock (recharge, mop
+        # prewash) is the documented normal case that external_run.py
+        # deliberately holds the slot open through. So every dock action
+        # returned allowed=True/"ready", the card offered Wash Mop / Dry Mop /
+        # Empty Dust, and _async_run_dock_action pressed the button on a robot
+        # about to resume. The resulting dock event also bumps mop_wash_count,
+        # which water_amendment consumes as mop_wash_count_at_finalization —
+        # so it poisoned the captured run's water actuals on the way past.
+        #
+        # run_is_in_flight is the owned answer to "is ANY run going"; its
+        # docstring names this exact distinction against
+        # dispatched_job_is_in_flight.
+        active_job_running = run_is_in_flight(active_job)
 
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         _dock_triggers = _adapter_cfg.get("dock_events", {}).get("triggers", {})
