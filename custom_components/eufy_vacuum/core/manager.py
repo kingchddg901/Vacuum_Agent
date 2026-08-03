@@ -1266,11 +1266,27 @@ class EufyVacuumManager:
         # refresh uses the same entity candidates and model hints as startup.
         # Falls back gracefully (empty candidates, no hints) if the adapter
         # is not registered — detect_capabilities returns a minimal result.
+        #
+        # RP-033/VAC-3: prefer the adapter's own stashed `_entity_candidates`
+        # (the FULL dict it built at registration — multiple id guesses per key,
+        # including probe-only keys that never make it into `entities` at all,
+        # e.g. Eufy's wash_mop_button/dry_mop_button/empty_dust_button). Only a
+        # CODE adapter stashes this (adapters/eufy/adapter.py,
+        # adapters/roborock/adapter.py); a stored/config adapter has no such
+        # internal key, so this falls back to the reduced one-candidate-per-
+        # persisted-entity dict for that case, same as before.
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
-        _adapter_entities = _adapter_cfg.get("entities", {})
-        _entity_candidates: dict[str, list[str]] = {
-            k: [v] for k, v in _adapter_entities.items() if v
-        }
+        _full_candidates = _adapter_cfg.get("_entity_candidates")
+        if isinstance(_full_candidates, dict) and _full_candidates:
+            _entity_candidates: dict[str, list[str]] = {
+                k: (list(v) if isinstance(v, list) else [v])
+                for k, v in _full_candidates.items() if v
+            }
+        else:
+            _adapter_entities = _adapter_cfg.get("entities", {})
+            _entity_candidates = {
+                k: [v] for k, v in _adapter_entities.items() if v
+            }
         # Prefer the adapter's stored model_family + original capability_hints so a
         # refresh reproduces the SAME detect_capabilities inputs as startup. Without
         # this, a refresh reverts model_family to "generic" (detect_capabilities'

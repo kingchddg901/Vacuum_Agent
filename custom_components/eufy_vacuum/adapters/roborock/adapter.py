@@ -687,6 +687,14 @@ def register_roborock_adapter_for_vacuum(
             # (vacuum_standard -> vacuum_quick) are harmless key renames, not vocabulary,
             # and Roborock has no legacy of its own to map.
         },
+
+        # RP-033/VAC-3: the FULL probe-candidate dict built above — a later
+        # capabilities REFRESH (core/manager.refresh_vacuum_capabilities) reads
+        # this back instead of rebuilding a reduced one-candidate-per-key dict
+        # from `entities` alone. See the matching comment in
+        # adapters/eufy/adapter.py for the full rationale. Leading underscore:
+        # adapter-internal, not part of the user-facing schema surface.
+        "_entity_candidates": entity_candidates,
     }
 
     register_adapter_config(vacuum_entity_id, config)

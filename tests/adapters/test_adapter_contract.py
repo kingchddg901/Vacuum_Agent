@@ -31,6 +31,9 @@ import pytest
 
 from custom_components.eufy_vacuum.adapters.config_schema import (
     ADAPTER_CONFIG_SCHEMA,
+    _type_ok,
+    validate_adapter_config,
+    validate_against_schema as _validate,
 )
 from custom_components.eufy_vacuum.adapters import registry
 
@@ -41,138 +44,14 @@ _ENTITY_ID_RE = re.compile(r"^[a-z_]+\.[a-z0-9_]+$")
 
 
 # ---------------------------------------------------------------------------
-# Schema-string -> Python type-family mapping.
-#
-# Schema "type" strings describe a family, not an exact class. We map the
-# outer container only — "list[str]" checks list-ness, not element types,
-# since the schema's own entry_fields / nested rules cover element shape
-# where it matters. A trailing "| null" (or "| None") permits None.
-# Unrecognised type strings (e.g. "dict[str, Any]") fall back to the outer
-# container so the walker never spuriously fails on an exotic annotation.
+# RP-033/RF-32: the schema walker (type-family mapping, ``_type_ok``,
+# ``_validate``) used to live here as pytest-only code -- ADAPTER_CONFIG_SCHEMA
+# was a documented contract nothing at runtime actually enforced. It is now
+# extracted to config_schema.py (``validate_against_schema`` / aliased ``_validate``
+# above, plus ``validate_adapter_config``) so this test suite and the real
+# save-path (services/adapter_config.py) share ONE implementation of the walk
+# instead of two that can drift apart. Imported, not redefined.
 # ---------------------------------------------------------------------------
-
-_TYPE_FAMILIES: dict[str, tuple[type, ...]] = {
-    "str": (str,),
-    "bool": (bool,),
-    # bool is a subclass of int in Python; the schema's "int" fields are
-    # never meant to accept True/False, so exclude bool explicitly below.
-    "int": (int,),
-    "float": (int, float),  # ints are acceptable where a float is declared
-    "dict": (dict,),
-    "list": (list,),
-}
-
-
-def _type_ok(value: Any, type_str: str) -> bool:
-    """Return True if ``value`` matches the schema ``type_str`` family.
-
-    Only the outer container is checked. "| null" / "| None" permits None.
-    """
-    allow_none = False
-    spec = type_str.strip()
-    for suffix in ("| null", "| none", "|null", "|none"):
-        if spec.lower().endswith(suffix):
-            allow_none = True
-            spec = spec[: -len(suffix)].strip()
-            break
-
-    if value is None:
-        return allow_none
-
-    # Outer container family: take the text before any "[" generic args.
-    outer = spec.split("[", 1)[0].strip()
-
-    if outer == "int":
-        # bool is a subclass of int — reject it for genuine int fields.
-        return isinstance(value, int) and not isinstance(value, bool)
-    if outer == "float":
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-
-    families = _TYPE_FAMILIES.get(outer)
-    if families is None:
-        # Unknown family ("Any", etc.) — don't fail the walk on it.
-        return True
-    return isinstance(value, families)
-
-
-def _validate(config: Any, schema: dict[str, dict], path: str = "") -> list[str]:
-    """Recursively validate ``config`` against a schema node.
-
-    Returns a list of human-readable violation strings; empty == conformant.
-    Walks: required keys, type families, enum ``values`` membership, nested
-    ``fields`` (fixed sub-schema), and ``entry_fields`` (per-entry required
-    sub-keys for catalog dicts/lists).
-    """
-    issues: list[str] = []
-
-    if not isinstance(config, dict):
-        return [f"{path or '<root>'}: expected dict, got {type(config).__name__}"]
-
-    # UNKNOWN KEYS (RC-1). The loop below iterates the SCHEMA, so without this a key the
-    # schema does not declare is never looked at — the walker reported an identical (empty)
-    # result for a clean config and for one carrying a typo'd top-level block plus a made-up
-    # entity key. That is the whole reason the "contract, as data" artifact could sit ~10
-    # blocks behind what shipped without a single test going red.
-    #
-    # Only applied where the schema actually enumerates the shape. Nine blocks are declared
-    # as bare `dict` with no `fields` (settings_selects, mapping, map_render, room_profiles,
-    # …) and are legitimately open-ended; asserting there would be noise, not a contract.
-    unknown = sorted(set(config) - set(schema))
-    if unknown:
-        issues.append(
-            f"{path or '<root>'}: key(s) not declared in the schema: {unknown}"
-        )
-
-    for key, spec in schema.items():
-        loc = f"{path}.{key}" if path else key
-        present = key in config
-
-        if spec.get("required", False) and not present:
-            issues.append(f"{loc}: required key missing")
-            continue
-        if not present:
-            continue
-
-        value = config[key]
-        type_str = spec.get("type", "")
-
-        if type_str and not _type_ok(value, type_str):
-            issues.append(
-                f"{loc}: expected type {type_str!r}, got {type(value).__name__}"
-            )
-            # Type is wrong — deeper checks would be noise.
-            continue
-
-        # Enum membership. For scalar fields value is the member; for list
-        # fields every element must be a member.
-        allowed = spec.get("values")
-        if allowed is not None and value is not None:
-            members = value if isinstance(value, list) else [value]
-            for m in members:
-                if m not in allowed:
-                    issues.append(
-                        f"{loc}: value {m!r} not in allowed {allowed}"
-                    )
-
-        # Nested fixed sub-schema.
-        fields = spec.get("fields")
-        if fields and isinstance(value, dict):
-            issues.extend(_validate(value, fields, loc))
-
-        # Catalog entry_fields: applies to each entry of a dict-of-dicts or
-        # each element of a list-of-dicts.
-        entry_fields = spec.get("entry_fields")
-        if entry_fields:
-            if isinstance(value, dict):
-                entries = [(f"{loc}[{k!r}]", v) for k, v in value.items()]
-            elif isinstance(value, list):
-                entries = [(f"{loc}[{i}]", v) for i, v in enumerate(value)]
-            else:
-                entries = []
-            for entry_loc, entry in entries:
-                issues.extend(_validate(entry, entry_fields, entry_loc))
-
-    return issues
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +172,10 @@ class TestAdapterContract:
 
     def test_schema_conformance(self, adapter):
         name, config = adapter
-        issues = _validate(config, ADAPTER_CONFIG_SCHEMA)
+        # Uses the production entry point directly (not the generic _validate
+        # alias) — this is the exact function services/adapter_config.py calls
+        # before persisting/registering a stored config.
+        issues = validate_adapter_config(config)
         assert not issues, (
             f"{name}: adapter config violates ADAPTER_CONFIG_SCHEMA:\n"
             + "\n".join(f"  - {i}" for i in issues)
@@ -423,9 +305,17 @@ def test_no_undeclared_top_level_keys(adapter):
     a config key the schema does not declare: a whole block can ship, be load-bearing at
     runtime, and never be validated or documented. This assertion is the inverse direction
     and is what makes a future schema-absent block a RED test instead of a silent gap.
+
+    A leading-underscore key is exempt: RP-033/VAC-3 stashes adapter-internal bookkeeping
+    (the code adapters' full entity_candidates, read back by
+    core/manager.refresh_vacuum_capabilities) under such a key -- deliberately NOT part of
+    the user-facing schema surface a stored/config adapter would ever declare.
     """
     name, config = adapter
-    undeclared = sorted(set(config) - set(ADAPTER_CONFIG_SCHEMA))
+    undeclared = sorted(
+        k for k in (set(config) - set(ADAPTER_CONFIG_SCHEMA))
+        if not (isinstance(k, str) and k.startswith("_"))
+    )
     assert not undeclared, (
         f"{name}: top-level keys shipped but NOT declared in ADAPTER_CONFIG_SCHEMA: "
         f"{undeclared}. Declare them in config_schema.py (the schema is the contract) "
@@ -454,7 +344,10 @@ def _undeclared_nested(config: Any, schema: dict[str, Any], path: str = "") -> l
         if not isinstance(value, dict):
             continue
         loc = f"{path}.{key}" if path else key
-        out.extend(f"{loc}.{k}" for k in sorted(set(value) - set(fields)))
+        out.extend(
+            f"{loc}.{k}" for k in sorted(set(value) - set(fields))
+            if not (isinstance(k, str) and k.startswith("_"))
+        )
         out.extend(_undeclared_nested(value, fields, loc))
     return out
 

@@ -66,6 +66,22 @@ class DispatchManager:
         cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
         domain = cfg.get("service_domain", "vacuum")
         name = cfg.get("service_name", "send_command")
+        # RP-033/DE-3: an EXPLICIT null already mechanically produces the direct-
+        # merge envelope below (dict.get only returns the "room_clean" default
+        # when the key is ABSENT, not when it's declared null) — that behaviour
+        # is correct and unchanged. What used to be silent: an adapter that
+        # never declares 'command' at all (the legacy/back-compat shape) also
+        # resolves to "room_clean" with no signal that the omission was never
+        # actually decided one way or the other.
+        if "command" not in cfg:
+            _LOGGER.warning(
+                "_dispatch_clean_payload: %s's adapter does not declare "
+                "dispatch.command — defaulting to the wrapped {command, params} "
+                "envelope with command='room_clean'. Declare it explicitly: a "
+                "string for the wrapped envelope, or null for the direct-merge "
+                "envelope, so the intended shape is never ambiguous.",
+                vacuum_entity_id,
+            )
         command = command_override or cfg.get("command", "room_clean")
         # Some brands wrap the params payload in a single-element list on the wire
         # (Roborock app_segment_clean: params=[{segments:[...],repeat:n}]); others

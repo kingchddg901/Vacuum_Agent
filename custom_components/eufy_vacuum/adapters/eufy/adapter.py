@@ -893,6 +893,20 @@ def register_eufy_adapter_for_vacuum(
         # here so the planning core carries no Eufy-specific range (planning/run_plan.py
         # _derive_wash_frequency_config reads this and otherwise stays generic).
         "wash_frequency_bounds": {"default": 20.0, "min": 15.0, "max": 25.0},
+
+        # RP-033/VAC-3: the FULL probe-candidate dict built above (multiple
+        # entity-id guesses per key, e.g. wash_mop_button's two firmware-version
+        # naming variants) never survives into `entities` above — that block only
+        # keeps the single id detect_capabilities actually resolved (entity.py:303
+        # drops every key whose resolved value is None, and probe-only keys like
+        # the three dock action buttons are never even written there). A later
+        # capabilities REFRESH (core/manager.refresh_vacuum_capabilities) used to
+        # rebuild a candidates dict from `entities` alone -- one item per key --
+        # silently losing every probe-only, multi-candidate key on refresh.
+        # Leading underscore: adapter-internal bookkeeping, deliberately not part
+        # of the user-facing ADAPTER_CONFIG_SCHEMA surface a stored/config adapter
+        # would ever declare.
+        "_entity_candidates": entity_candidates,
     }
 
     register_adapter_config(vacuum_entity_id, config)

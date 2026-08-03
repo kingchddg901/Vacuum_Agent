@@ -231,7 +231,31 @@ def test_completion_secondary_default_target_not_cleared(manager):
 def test_completion_secondary_require_job_active_clear_bypasses(manager):
     """require_job_active_clear (Roborock): bypasses the sentinel check entirely
     (the is_job_active guard supplies the real signal), so a current_room that
-    reverted to the dock-room name still satisfies the secondary."""
+    reverted to the dock-room name still satisfies the secondary. RP-033/COMMON-2:
+    only bypasses when entities.job_active is actually declared -- this is the
+    real Roborock shape (both set together)."""
+    register_adapter_config(_VAC, {
+        **_MINIMAL_ADAPTER,
+        "entities": {
+            **_MINIMAL_ADAPTER["entities"],
+            "job_active": "binary_sensor.alfred_cleaning",
+        },
+        "completion": {
+            "task_status_value": "charging",
+            "require_job_active_clear": True,
+        },
+    })
+    assert completion_secondary_satisfied(
+        _VAC, {"active_target": "Dining Room"}, _SENTINELS
+    ) is True
+
+
+def test_completion_secondary_require_job_active_clear_without_entity_falls_back(manager):
+    """RP-033/COMMON-2: require_job_active_clear set True WITHOUT entities.job_active
+    declared used to bypass the sentinel check unconditionally with nothing backing
+    it. It now has no effect -- falls through to the default sentinel check, i.e.
+    behaves as if the flag were never set. (Registration separately warns on this
+    combination; see adapters/registry.py._warn_completion_gate_orphan.)"""
     register_adapter_config(_VAC, {
         **_MINIMAL_ADAPTER,
         "completion": {
@@ -241,6 +265,9 @@ def test_completion_secondary_require_job_active_clear_bypasses(manager):
     })
     assert completion_secondary_satisfied(
         _VAC, {"active_target": "Dining Room"}, _SENTINELS
+    ) is False
+    assert completion_secondary_satisfied(
+        _VAC, {"active_target": ""}, _SENTINELS
     ) is True
 
 

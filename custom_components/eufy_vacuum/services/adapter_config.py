@@ -66,21 +66,27 @@ async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) ->
     if manager is None:
         raise HomeAssistantError("save_adapter_config: runtime manager not available")
 
-    # RP-031/Q9: config's schema is `dict` only (no field-level schema -- adapter
-    # shapes vary too much for one), so these ARE the validation for a caller-
-    # supplied config missing required fields -- ServiceValidationError, not a
-    # logged-and-dropped no-op.
-    if not config.get("adapter_id"):
-        raise ServiceValidationError(
-            f"save_adapter_config: missing adapter_id for {vacuum_entity_id}"
-        )
-    if not config.get("dispatch", {}).get("template"):
-        raise ServiceValidationError(
-            f"save_adapter_config: missing dispatch.template for {vacuum_entity_id}"
-        )
-
     # Source field is always set by the service — never trusted from caller.
+    # Forced BEFORE validation so a caller who (correctly) never supplies it
+    # doesn't fail the schema's required-key check on a field it never owns.
     config["source"] = "config"
+
+    # RP-033/RF-32: the config's schema used to be `dict` only, checked by hand for
+    # exactly two keys (adapter_id, dispatch.template) here -- every OTHER required
+    # block (entities, dispatch.service_domain, dispatch.service_name, ...) was
+    # silently absent-safe, registering OVER the live adapter with each omitted
+    # block falling through to that block's own absent-default (Eufy-shaped)
+    # behaviour. ADAPTER_CONFIG_SCHEMA is now applied in full -- the SAME walk the
+    # adapter contract test suite runs against the shipped brands -- and this runs
+    # strictly BEFORE _save_stored/_register below: validate, then persist.
+    from ..adapters.config_schema import validate_adapter_config
+
+    issues = validate_adapter_config(config)
+    if issues:
+        raise ServiceValidationError(
+            f"save_adapter_config: invalid config for {vacuum_entity_id}: "
+            + "; ".join(issues)
+        )
 
     from ..adapters.config_loader import save_adapter_config as _save_stored
     from ..adapters.registry import register_adapter_config as _register
@@ -126,9 +132,21 @@ async def _handle_delete_adapter_config(hass: HomeAssistant, call: ServiceCall) 
         }
 
     _unregister(vacuum_entity_id)
+
+    # RP-033/SETUP-3: unregistering alone left the vacuum with NO adapter at all
+    # until the next full HA restart -- every dispatch/lifecycle/capability read
+    # depending on the registry got nothing back in the meantime. Restore the live
+    # CODE adapter the same way a restart already would: register_brand_adapter is
+    # the exact function __init__.py calls per managed vacuum during
+    # async_setup_entry, so this makes delete's restore byte-identical to that.
+    from ..adapters.brands import register_brand_adapter
+
+    register_brand_adapter(hass, vacuum_entity_id, data=manager.data)
+
     await manager.async_save()
     _LOGGER.debug(
-        "delete_adapter_config: deleted adapter config for %s",
+        "delete_adapter_config: deleted stored adapter config for %s and "
+        "restored the code adapter",
         vacuum_entity_id,
     )
     return {"deleted": True, "vacuum_entity_id": vacuum_entity_id}

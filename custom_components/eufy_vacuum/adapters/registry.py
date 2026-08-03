@@ -32,6 +32,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,9 +148,17 @@ class AdapterCoordinator:
         """Register an adapter config for one vacuum.
 
         Idempotent — re-registering the same vacuum overwrites the previous
-        config. Runs ``_validate_adapter`` and logs every issue. Hard-fails
-        only on structurally unusable configs (non-dict); other issues are
-        warnings.
+        config. Runs ``_validate_adapter`` and logs every issue.
+
+        RP-033/RF-32: a STORED config (``source == "config"``, UI/service-authored)
+        now HARD-RAISES when issues are found — a broken stored config used to
+        register cleanly and shadow the live adapter, with every block it omitted
+        silently resolving to that block's own absent-default (Eufy-shaped)
+        behaviour. A CODE-sourced config (the two shipped brand adapters,
+        registered at startup) stays warn-only: both pass validation cleanly
+        today, but a future code-adapter regression must degrade to a warning,
+        not take every install's startup down with it. Non-dict configs still
+        hard-fail regardless of source — always were structurally unusable.
         """
         issues = _validate_adapter(config)
         if issues:
@@ -167,8 +176,14 @@ class AdapterCoordinator:
                     f"adapter config for {vacuum_entity_id} is not a dict; "
                     f"refusing to register"
                 )
+            if config.get("source") == "config":
+                raise ServiceValidationError(
+                    f"adapter config '{adapter_id}' for {vacuum_entity_id} failed "
+                    f"registration validation: " + "; ".join(issues)
+                )
 
         _warn_eufy_fallbacks(vacuum_entity_id, config)
+        _warn_completion_gate_orphan(vacuum_entity_id, config)
 
         self._registry[vacuum_entity_id] = config
         _LOGGER.debug(
@@ -440,7 +455,87 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 f"valid names: {sorted(known_dispatch_templates())}"
             )
 
+        # RP-033/WD-5 (registration half): a nonsensical phase_timing override
+        # (a 0 poll interval busy-loops; 0 max_attempts means the watchdog never
+        # even tries) used to only surface downstream as a silent runtime clamp
+        # (core/manager.py._phase_timing's own _minimums table, which STAYS as a
+        # defense-in-depth safety net — this is a separate, earlier check on the
+        # same values). Caught here so a bad stored config refuses outright.
+        phase_timing = dispatch_block.get("phase_timing")
+        if phase_timing is not None:
+            if not isinstance(phase_timing, dict):
+                issues.append("'dispatch.phase_timing' must be a dict if present")
+            else:
+                for key, value in phase_timing.items():
+                    if (
+                        isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                        and value <= 0
+                    ):
+                        issues.append(
+                            f"dispatch.phase_timing.{key}={value!r} must be a "
+                            f"positive number"
+                        )
+
+    # Setup-steps check — RP-033/SETUP-9. Three places in this codebase already
+    # claim an unknown step id is "rejected at registration"
+    # (config_schema.py's own setup.steps description, setup/drift.py:52-53 and
+    # :102-104's docstring) while nothing here actually did that. The allowed set
+    # is read from ADAPTER_CONFIG_SCHEMA itself (not re-declared here) so the two
+    # never drift apart.
+    setup_block = config.get("setup")
+    if setup_block is not None:
+        if not isinstance(setup_block, dict):
+            issues.append("'setup' must be a dict if present")
+        else:
+            steps = setup_block.get("steps")
+            if steps is not None and isinstance(steps, list):
+                from .config_schema import ADAPTER_CONFIG_SCHEMA
+
+                known_steps = set(
+                    ADAPTER_CONFIG_SCHEMA.get("setup", {})
+                    .get("fields", {})
+                    .get("steps", {})
+                    .get("values", [])
+                )
+                unknown_steps = sorted(s for s in steps if s not in known_steps)
+                if unknown_steps:
+                    issues.append(
+                        f"setup.steps contains unknown step id(s) {unknown_steps}; "
+                        f"valid ids: {sorted(known_steps)}"
+                    )
+
     return issues
+
+
+def _warn_completion_gate_orphan(vacuum_entity_id: str, config: dict[str, Any]) -> None:
+    """RP-033/COMMON-2: warn (never raise) when completion.require_job_active_clear
+    is set without entities.job_active being declared.
+
+    Unlike ``_validate_adapter``'s issues list (hard-raised for a stored config by
+    the caller), this is a standalone advisory for BOTH source types — the runtime
+    already degrades gracefully in this case (listeners/_common.py's
+    completion_secondary_satisfied now falls through to the sentinel check instead
+    of unconditionally returning True), so refusing registration over it would be
+    stricter than the actual failure mode warrants.
+    """
+    if not isinstance(config, dict):
+        return
+    completion_block = config.get("completion")
+    if not isinstance(completion_block, dict):
+        return
+    if not completion_block.get("require_job_active_clear"):
+        return
+    entities = config.get("entities")
+    job_active = entities.get("job_active") if isinstance(entities, dict) else None
+    if job_active:
+        return
+    _LOGGER.warning(
+        "adapter '%s' for %s sets completion.require_job_active_clear without "
+        "declaring entities.job_active — the flag has no effect at runtime and "
+        "completion falls back to the default active_cleaning_target sentinel check",
+        config.get("adapter_id", "unknown"), vacuum_entity_id,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -488,8 +583,16 @@ def register_adapter_config(
                 f"adapter config for {vacuum_entity_id} is not a dict; "
                 f"refusing to register"
             )
+        # RP-033/RF-32: same source-based hard-raise as the coordinator method —
+        # see its docstring for the rationale.
+        if config.get("source") == "config":
+            raise ServiceValidationError(
+                f"adapter config '{adapter_id}' for {vacuum_entity_id} failed "
+                f"registration validation: " + "; ".join(issues)
+            )
 
     _warn_eufy_fallbacks(vacuum_entity_id, config)
+    _warn_completion_gate_orphan(vacuum_entity_id, config)
 
     _REGISTRY[vacuum_entity_id] = config
     _LOGGER.debug(

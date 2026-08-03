@@ -32,7 +32,15 @@ _VAC = "vacuum.alfred"
 _VALID_CONFIG = {
     "adapter_id": "test_adapter",
     "source": "config",
-    "dispatch": {"template": "eufy_robovac"},
+    # RP-033/RF-32: save_adapter_config now runs the config through the full
+    # ADAPTER_CONFIG_SCHEMA (validate_adapter_config) before persisting/
+    # registering it — template must be a recognized enum value and
+    # service_domain/service_name are both required, not just template.
+    "dispatch": {
+        "template": "eufy_room_clean",
+        "service_domain": "vacuum",
+        "service_name": "send_command",
+    },
     "entities": {
         "task_status": "sensor.alfred_task_status",
     },
@@ -127,7 +135,13 @@ async def test_save_adapter_config_rejects_incomplete(hass, manager_with_service
 
 
 async def test_delete_adapter_config_removes_registration(hass, manager_with_services):
-    """[AC-4] delete_adapter_config clears the adapter registration."""
+    """[AC-4] RP-033/SETUP-3: delete_adapter_config clears the STORED registration
+    and restores the live CODE adapter -- previously left the vacuum with NO
+    adapter at all until the next full HA restart (register_brand_adapter is the
+    exact function async_setup_entry calls per managed vacuum, so this makes
+    delete's restore byte-identical to what a restart would already produce).
+    _VAC ("vacuum.alfred") has no device-registry entry, so brand resolution
+    falls through to the declared default arm (Eufy)."""
     # Save via the service so the config is persisted in manager.data (not
     # just in-memory), which is what delete_adapter_config checks.
     await hass.services.async_call(
@@ -143,7 +157,8 @@ async def test_delete_adapter_config_removes_registration(hass, manager_with_ser
         blocking=True,
         return_response=True,
     )
-    assert result_before["adapter_id"] is not None
+    assert result_before["adapter_id"] == "test_adapter"
+    assert result_before["source"] == "config"
 
     await hass.services.async_call(
         DOMAIN,
@@ -158,7 +173,9 @@ async def test_delete_adapter_config_removes_registration(hass, manager_with_ser
         blocking=True,
         return_response=True,
     )
-    assert result_after["config"] is None
+    assert result_after["config"] is not None
+    assert result_after["source"] == "code"
+    assert result_after["adapter_id"] != "test_adapter"
 
 
 async def test_save_and_delete_adapter_config_responses(hass, manager_with_services):
