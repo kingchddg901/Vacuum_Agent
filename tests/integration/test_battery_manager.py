@@ -31,6 +31,13 @@ Coverage targets
 [BM-23] compute_time_to_target_pct: cold-start (no baseline/rates) → None (wall-clock).
 [BM-24] compute_time_to_target_pct: zone-rate fallback (%/min) when no baseline.
 [BM-25] compute_time_to_target_pct: CV-only span needs only the CV baseline.
+[BM-26] RP-043: THIS session's own zone rate outranks the never-re-anchored baseline.
+[BM-27] RP-044: an open session with no sample of its own SKIPS the cross-session
+        stats tier (they are the previous charge's leftovers) — with the no-session
+        control that proves the stats tier is otherwise legitimate, and the partial
+        case proving the two spans resolve independently.
+[BM-28] RP-042: an unreadable (None) battery is a GAP — no anchor advance, no drain,
+        and nothing reaches the session ring that feeds health_pct.
 """
 
 from __future__ import annotations
@@ -111,6 +118,101 @@ def test_charge_eta_cv_only_span_needs_only_cv_baseline(bm):
     _seed_charge(bm, cc=None, cv=3.0)
     assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=85, target_pct=95) \
         == {"minutes": 30.0, "source": "baseline"}
+
+
+def _open_session(bm, *, low_sum=None, low_n=0, high_sum=None, high_n=0) -> dict:
+    """Open a charging session, optionally with its OWN zone-rate samples already
+    accumulated (what _process_sample fills in during a live charge)."""
+    rec = bm.ensure_record(_VAC)
+    session: dict = {"started_at": _T0.isoformat(), "start_battery": 60}
+    if low_n:
+        session["low_zone_rate_sum"] = low_sum
+        session["low_zone_rate_samples"] = low_n
+    if high_n:
+        session["high_zone_rate_sum"] = high_sum
+        session["high_zone_rate_samples"] = high_n
+    rec["current_session"] = session
+    return session
+
+
+def test_charge_eta_prefers_this_sessions_own_rate_over_the_baseline(bm):
+    """[BM-26] RP-043's inversion, which is the whole point of the packet.
+
+    The learned baseline is anchored ONCE and never re-anchors — Alfred's is from
+    2026-06-08 — so preferring it meant every ETA since divided by a two-month-old
+    rate. A rate this session actually observed wins, even though a baseline exists.
+    """
+    _seed_charge(bm, cc=1.0, cv=3.0)
+    _open_session(bm, low_sum=4.0, low_n=2, high_sum=1.0, high_n=2)  # 2.0 and 0.5 %/min
+    # 20pp / 2.0 + 15pp / 0.5 = 10 + 30 — the baseline's 65.0 must NOT win.
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=60, target_pct=95) \
+        == {"minutes": 40.0, "source": "zone_rate"}
+
+
+def test_charge_eta_open_session_without_its_own_sample_skips_stale_stats(bm):
+    """[BM-27] RP-044's cold-start contract — the subtlest branch in the precedence.
+
+    A session is open but has not yet produced a sample for this zone. The
+    cross-session `stats.rate_*_zone_per_min` still holds the PREVIOUS charge's
+    number, and quietly dividing by it is what made the first paint of a charge
+    "well off" on live hardware. That tier must be skipped entirely, falling to the
+    baseline rather than a leftover.
+    """
+    _seed_charge(bm, cc=1.0, cv=3.0, low=2.0, high=0.5)
+    _open_session(bm)  # open, but no zone samples of its own yet
+
+    out = bm.compute_time_to_target_pct(
+        vacuum_entity_id=_VAC, current_pct=60, target_pct=95)
+    assert out == {"minutes": 65.0, "source": "baseline"}, (
+        "the ETA divided by the previous session's carried-over zone rate "
+        "(40.0/zone_rate) instead of skipping that tier"
+    )
+
+
+def test_charge_eta_no_open_session_may_use_cross_session_stats(bm):
+    """[BM-27] The control for the test above: with NO session open there is no
+    'this charge' to be stale against, so the cross-session rate is legitimate and
+    still outranks the frozen baseline."""
+    _seed_charge(bm, cc=1.0, cv=3.0, low=2.0, high=0.5)
+    assert bm.get_record(_VAC).get("current_session") is None
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=60, target_pct=95) \
+        == {"minutes": 40.0, "source": "zone_rate"}
+
+
+def test_charge_eta_partial_session_samples_skip_only_the_unsampled_zone(bm):
+    """[BM-27] The two spans resolve INDEPENDENTLY. A session that has sampled the
+    low zone but not yet the high zone must use its own low rate and the baseline
+    for the high — not one policy for the whole span."""
+    _seed_charge(bm, cc=1.0, cv=3.0, low=99.0, high=99.0)  # stats deliberately absurd
+    _open_session(bm, low_sum=4.0, low_n=2)                # own low rate = 2.0 %/min
+    # low: 20pp / 2.0 = 10 (own sample) ; high: 15pp * 3.0 = 45 (baseline, stats skipped)
+    out = bm.compute_time_to_target_pct(
+        vacuum_entity_id=_VAC, current_pct=60, target_pct=95)
+    assert out["minutes"] == 55.0, out
+
+
+async def test_unreadable_battery_is_a_gap_not_a_sample(bm):
+    """[BM-28] RP-042. `None` means the sensor dropped out, and a dropout is not a
+    flat pack. It must not advance the anchor, accumulate drain, or reach the
+    session ring — the ring feeds health_pct, and an unguarded raw value there is
+    the shared cause behind RP-042 and RP-045.
+    """
+    _feed(bm, [(80, True, 0), (82, True, 60)])
+    rec = bm.get_record(_VAC)
+    before_level = rec.get("last_battery_level")
+    before_drain = rec.get("cumulative_drain_pct")
+    before_session = dict(rec.get("current_session") or {})
+
+    bm._process_sample(
+        vacuum_entity_id=_VAC, battery_level=None, charging=True,
+        ts=_T0 + timedelta(seconds=120))
+
+    rec = bm.get_record(_VAC)
+    assert rec.get("last_battery_level") == before_level, "the anchor moved on a gap"
+    assert rec.get("cumulative_drain_pct") == before_drain
+    assert dict(rec.get("current_session") or {}) == before_session, (
+        "an unreadable reading reached the session ring"
+    )
 
 
 # ---------------------------------------------------------------------------
