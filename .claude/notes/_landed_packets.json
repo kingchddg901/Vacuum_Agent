@@ -488,12 +488,34 @@
   "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
  },
  {
+  "packet_id": "RP-037",
+  "commits": [
+   "a00ee36",
+   "7b53ed4",
+   "4d7912d"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
   "packet_id": "RP-038",
   "commits": [
    "1c8da5a",
    "b474581"
   ],
   "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-039",
+  "commits": [
+   "4a0afb9",
+   "1981640",
+   "56fb7be",
+   "498a285",
+   "4b07de2"
+  ],
+  "landed_at": "2026-08-03",
   "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
  },
  {

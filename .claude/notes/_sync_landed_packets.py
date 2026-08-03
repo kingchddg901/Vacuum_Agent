@@ -36,6 +36,25 @@ CLOSURE_MAP = ROOT / ".claude" / "notes" / "synthesis" / "packet-closure-map.jso
 
 PACKET = re.compile(r"\b(RP-\d+[a-f]?|CARD-\d+)\b")
 
+#: PARTIALLY landed packets — code exists for SOME of their findings, not all.
+#: Held out of the manifest entirely, because a packet_id in _landed_packets.json
+#: closes every finding_id in its closure-map entry, WHOLE. There is no partial
+#: state, so recording one of these would mark unwritten fixes as applied — the
+#: exact fabricated closure this script exists to prevent, just from the other
+#: direction (the manifest being too GENEROUS rather than too stale).
+#:
+#: Remove the entry once the packet is complete and the next sync picks it up.
+_PARTIAL: dict[str, str] = {
+    "RP-021b": (
+        "3 of 5 findings landed (f208788 A4-PP-RP-2 CRITICAL, 4c93fb5 A4-PP-RP-6, "
+        "0fa6cd9 A4-PP-RP-1). STILL OPEN: #8:A4-PP-RP-4 (applied-profile stamp + "
+        "third step source in _build_effective_start_plan — deliberately parked, "
+        "it changes step-source precedence and wants a hardware baseline first) "
+        "and #13:A5-RUNPROF-4 (per-step service schema + structured refusal). "
+        "_proof_profile_roundtrip.py correctly still reports 1 BEFORE."
+    ),
+}
+
 #: Packets whose CODE landed under a commit subject that never named them, so no
 #: amount of git-subject scanning can find them. Curated by hand, each with the
 #: source evidence that it really is implemented — because the whole point of this
@@ -125,10 +144,13 @@ def main() -> int:
         CLOSURE_MAP.read_text(encoding="utf-8"))}
     landings = git_landings()
 
-    added, unknown, already, doc_only = [], [], [], []
+    added, unknown, already, doc_only, partial = [], [], [], [], []
     for pid, info in sorted(landings.items()):
         if pid in existing:
             already.append(pid)
+            continue
+        if pid in _PARTIAL:
+            partial.append(pid)
             continue
         if not info["commits"]:
             curated = _LANDED_OFF_SUBJECT.get(pid)
@@ -155,6 +177,10 @@ def main() -> int:
 
     print(f"already recorded : {len(already)}")
     print(f"to back-fill     : {len(added)}")
+    if partial:
+        print(f"PARTIAL — held out so unwritten fixes are not marked applied: {len(partial)}")
+        for pid in partial:
+            print(f"  ~ {pid}: {_PARTIAL[pid]}")
     print(f"MENTIONED but DOC-ONLY — not landed, correctly skipped: {len(doc_only)}"
           + (f" -> {[p for p, _ in doc_only]}" if doc_only else ""))
     print(f"git-only, not in closure map (SKIPPED): {len(unknown)}"

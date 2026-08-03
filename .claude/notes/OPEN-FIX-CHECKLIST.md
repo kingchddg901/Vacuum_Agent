@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **432** findings via 53 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-038, RP-040, RP-042, RP-043, RP-044, RP-045) |
+| Fixes APPLIED (landed packets) | **442** findings via 55 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **52** -- 3 open clusters (26 fully applied) + 48 singles |
-| By severity | CRITICAL 1 / HIGH 9 / MEDIUM 21 / LOW 21 |
+| Open findings | **42** -- 3 open clusters (26 fully applied) + 38 singles |
+| By severity | CRITICAL 1 / HIGH 9 / MEDIUM 18 / LOW 14 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -302,20 +302,14 @@ audit is a snapshot, not a ledger.
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
-### MEDIUM (20)
+### MEDIUM (17)
 
 - [ ] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
   -> After a Roborock re-segment + migrate, the user can no longer change ANY room setting on that map — changing a room's fan speed or disabling a room fails with an error claiming they requested illegal access links, which
-- [ ] **A3-SNAP-2** `core/manager.py:3914` [both]  
-  get_dashboard_snapshot composes get_job_progress_snapshot TWICE, so job_progress and job_control in the same payload can describe different rooms — and every side effect in the progress composer fires twice per card poll  
-  -> During a multi-room run the card can render a timeline that highlights room B as in-progress while the status line above it reads "Cleaning C" and C is also drawn as an upcoming room — a self-contradicting view with no e
 - [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   -> A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
-- [ ] **A3-IO-4** `learning/history_store.py:148` [both]  
-  ensure_dirs runs inside every path getter, so the caches that exist to keep the loop-bound estimate off disk still issue ~32 blocking filesystem syscalls per dashboard snapshot  
-  -> Sustained blocking filesystem I/O on the HA event loop whenever a card is open — measurable UI latency and HA's "Detected blocking call ... by custom integration 'eufy_vacuum'" warnings on a network-mounted config dir, d
 - [ ] **A2-POLYGO-5** `mapping/mapping_services.py:769` [Eufy only (adjust_map_segment writes against `image_segments`, populated only by the `eufy_cv_v1` engine; Roborock declares segmenter_engine='noop_fallback' at adapters/roborock/adapter.py:482 so it has no CV store to adjust)]  
   Stale `image_segment_adjustments` survive a CV re-analysis and are re-applied by segment_id to whatever polygon now carries that id - moving a room the user never edited  
   -> Silently wrong overlay geometry after a re-analysis, attributed to a manual edit the user never made on that room. Reversible only by calling `adjust_map_segment` with the exact inverse deltas (the values ARE surfaced in
@@ -361,33 +355,18 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-AGX-6** `src/state/room-access.js:85` [both]  
   The card's access modal renders an existing edge into the dock room as "Missing Room N" — an edge that exists is displayed as a stale reference to a room that does not  
   -> The editor misrepresents the stored graph: a live room is labelled missing/stale, inviting the user to delete a valid edge. Conversely they cannot re-create it, because the dock room is filtered out of the selectable lis
-- [ ] **A2-DRAFT-5** `themes/services.py:230` [both]  
-  Every update_working_draft triggers an immediate full Store.async_save of the entire integration data dict, and the card fires it on `input` — once per keystroke in text and number token fields  
-  -> Typing a 25-character font stack into a theme token field issues 25 full-store writes back to back. On an HA Green / Raspberry Pi with SD or eMMC storage this is visible editor lag and real flash wear, and it scales with
 
-### LOW (20)
+### LOW (13)
 
 - [ ] **EP-5** `button.py:256` [both]  
   The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
   -> Every other entity class in scope declares _attr_translation_key and lets HA resolve the name from strings.json. EufyVacuumSavedRunProfileButton sets _attr_has_entity_name = True, declares NO translation key, and overrid
-- [ ] **DR-DIAG-5** `diagnostics.py:53` [both]  
-  Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork  
-  -> _SENTINELS = BLANK_STATE_VALUES is assigned and never read; the live use is _ACTIVE_MAP_SENTINELS, which IS BLANK_STATE_VALUES (same object, correctly centralized). So the file carries a second, unused name for the same
 - [ ] **INF-9** `entity_helpers.py:109` [both]  
   get_floor_type_label emits hardcoded English into an 18-language product  
   -> Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
-- [ ] **A1-EST-9** `learning/estimator.py:766` [both]  
-  estimate() runs ensure_dirs (four mkdir syscalls) three times per call on the event loop, even on full cache hits  
-  -> Recurring blocking filesystem I/O on the HA event loop on every dashboard snapshot. On a network-mounted config directory this can surface as HA's "blocking call inside the event loop" warning or as UI stutter, without a
-- [ ] **A4-STATE-7** `learning/history_store.py:232` [both] _(finder said MEDIUM)_  
-  load_live_snapshot performs 4 mkdir syscalls plus an open()/read() on the Home Assistant event loop at every cold finalize  
-  -> The event loop stalls for the duration of a network filesystem mkdir×4 + read at the moment a job finishes, delaying every other entity update in Home Assistant, and HA logs a blocking-call warning.
 - [ ] **A3-COMMON-4** `listeners/_common.py:178` [both]  
   _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules  
   -> No wrong result today (the two literal sets are identical). Latent divergence: changing the generic completion fallback in one place silently leaves the completion gate and the stranded reaper judging the same run agains
-- [ ] **A2-GEO-2** `mapping/map_source.py:381` [eufy] _(finder said MEDIUM)_  
-  zone_membership scans the entire room_outline raster with a per-cell normalize_rendered before the bbox reject, synchronously on the event loop — measured ~0.10 s per zone, ~1.0 s per dashboard read  
-  -> On the first card load after zones exist without a stored area_m2, the whole Home Assistant event loop stalls for roughly a second — every other integration's updates, websocket pushes and service calls freeze with it. D
 - [ ] **A3-IMAGE--8** `mapping/mapping_services.py:910` [Both; depends on whether Pillow is importable on the host.]  
   Upload persists width/height as None when Pillow is unavailable and still reports saved:True  
   -> On a Pillow-less install a successful upload is recorded in a state that makes custom-segment authoring report a missing backdrop, and the variant row displays null dimensions. Confined to installs without Pillow, and th
@@ -397,18 +376,12 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-FURNIS-4** `mapping/mapping_services.py:2162` [both] _(finder said MEDIUM)_  
   area_label_anchors are keyed by device room id and nothing prunes them on a room rebuild, so a re-import silently re-aims one room's dragged label onto a different room  
   -> This is the direct answer to 'does the edit survive a re-import?': the bytes survive, their meaning does not, and nothing detects it. Cosmetic in consequence (a mis-placed m² chip, not a mis-cleaned room) but silently wr
-- [ ] **A7-ROBORO-2** `mapping/roborock_raw_map.py:200` [roborock] _(finder said MEDIUM)_  
-  raster_room_bboxes runs an O(width*height) pure-Python per-pixel loop directly on the Home Assistant event loop  
-  -> Downloading diagnostics stalls the entire HA event loop — every integration, every automation trigger, the frontend websocket — for the duration of the scan. On x86 that is roughly 0.1-0.3 s for a mid-size map; on a Pi-c
 - [ ] **A2-POLYGO-6** `mapping/segment_primitives.py:342` [Neither at runtime (Eufy CV thresholds are empirically tuned); affects future adapter authors, which is exactly this module's advertised audience]  
   `compactness` docstring claims 'Range 0-1; 1 = circle' - the attainable maximum is pi/4 and a circle scores LOWER than a square  
   -> No runtime defect - segmentor.py's thresholds (e.g. `compactness < 0.08` for `fragmented_candidate`) were tuned empirically against the actual function. The harm is to the stated purpose of this module: its header calls
 - [ ] **A2-POLYGO-7** `mapping/segment_primitives.py:526` [Neither at runtime (Eufy CV only, thresholds empirically tuned); affects future adapter authors]  
   `normalized_color_features`' luminance normalisation provably cancels out - the Rec.709 weights are dead arithmetic and tuning them changes nothing  
   -> No behavioural defect - the output is correct chromaticity and segmentor.py's hue clustering is tuned against it. The trap is for maintenance: the docstring says 'illumination-normalized chromaticity features' and the co
-- [ ] **A6-TRK-7** `mapping/tracker.py:286` [both]  
-  start_job/end_job are dispatched to an executor thread on the strength of a comment describing disk I/O that start_job does not perform  
-  -> No user-visible failure proven: the individual dict operations are GIL-atomic and the interleaving window is a handful of bytecodes, so at worst one position sample is misrouted at job start. The real cost is that a fals
 - [ ] **EP-4** `number.py:7` [both]  
   Module comment asserts 'no polling'; the one class that polls is the one relying on it  
   -> The comment `# All number entities write directly to manager storage; no polling.` sits above PARALLEL_UPDATES = 0. Verified as a claim: NumberEntity, unlike ButtonEntity, does NOT set _attr_should_poll = False, and Eufy
@@ -424,13 +397,10 @@ audit is a snapshot, not a ledger.
 - [ ] **SN-9** `sensor/map_overlays.py:76` [both]  
   native_value returns the literal string 'unavailable', colliding with HA's reserved state  
   -> VERIFIED AT SOURCE: `if not res.get('present'): return 'unavailable'`. That is indistinguishable in hass.states, templates, is_state() and the frontend from an entity that is genuinely unavailable, while the real diagnos
-- [ ] **DR-ONB-5** `sensor/onboarding.py:55` [both]  
-  The sensor recomputes the entire onboarding summary twice per update  
-  -> native_value and extra_state_attributes each call _get_summary() independently, and each call iterates every map building a full get_onboarding_state dict. A polling diagnostic entity does the whole aggregation twice per
 
 ---
 
-## APPLIED -- 432 findings closed by a landed packet
+## APPLIED -- 442 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1225,6 +1195,24 @@ a disappeared finding is indistinguishable from one never found.
   The "exact vs allocated" quality flag is recorded and never used — job-average actuals are blended into the same drift mean, permanently capping affected rooms below HIGH confidence while the card promises they will get there
 - [x] **A2-ACC-7** `learning/estimator.py:592` [both] -- **RP-036** (`97689a6`, `ebcea69`, `715f841`, 2026-08-03)  
   A non-dict `rooms` block crashes both accuracy readers — including estimate() on the event loop — while the sibling reader in the same subsystem explicitly tolerates it
+- [x] **A3-SNAP-2** `core/manager.py:3914` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  get_dashboard_snapshot composes get_job_progress_snapshot TWICE, so job_progress and job_control in the same payload can describe different rooms — and every side effect in the progress composer fires twice per card poll
+- [x] **A1-EST-9** `learning/estimator.py:766` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  estimate() runs ensure_dirs (four mkdir syscalls) three times per call on the event loop, even on full cache hits
+- [x] **A3-IO-4** `learning/history_store.py:148` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  ensure_dirs runs inside every path getter, so the caches that exist to keep the loop-bound estimate off disk still issue ~32 blocking filesystem syscalls per dashboard snapshot
+- [x] **A4-STATE-7** `learning/history_store.py:232` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  load_live_snapshot performs 4 mkdir syscalls plus an open()/read() on the Home Assistant event loop at every cold finalize
+- [x] **A2-GEO-2** `mapping/map_source.py:381` [eufy] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  zone_membership scans the entire room_outline raster with a per-cell normalize_rendered before the bbox reject, synchronously on the event loop — measured ~0.10 s per zone, ~1.0 s per dashboard read
+- [x] **A7-ROBORO-2** `mapping/roborock_raw_map.py:200` [roborock] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  raster_room_bboxes runs an O(width*height) pure-Python per-pixel loop directly on the Home Assistant event loop
+- [x] **A6-TRK-7** `mapping/tracker.py:286` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  start_job/end_job are dispatched to an executor thread on the strength of a comment describing disk I/O that start_job does not perform
+- [x] **DR-ONB-5** `sensor/onboarding.py:55` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  The sensor recomputes the entire onboarding summary twice per update
+- [x] **A2-DRAFT-5** `themes/services.py:230` [both] -- **RP-037** (`a00ee36`, `7b53ed4`, `4d7912d`, 2026-08-03)  
+  Every update_working_draft triggers an immediate full Store.async_save of the entire integration data dict, and the card fires it on `input` — once per keystroke in text and number token fields
 - [x] **DR-DOCK-1** `dock/manager.py:383` [eufy] -- **RP-038** (`1c8da5a`, `b474581`, 2026-08-02)  
   The dock-event timestamp is written BEFORE the debounce, so a debounced event still corrupts last_*
 - [x] **DR-DOCK-2** `dock/manager.py:383` [both] -- **RP-038** (`1c8da5a`, `b474581`, 2026-08-02)  
@@ -1237,6 +1225,8 @@ a disappeared finding is indistinguishable from one never found.
   dock_events.register() never reads the adapter's `dock_events.enabled` flag — a brand that declares enabled:False but inherits triggers still records dock events
 - [x] **A6-GUARD-3** `listeners/dock_events.py:72` [eufy] -- **RP-038** (`1c8da5a`, `b474581`, 2026-08-02)  
   dock_events treats a first-sighting (old_state=None) and an unavailable-recovery as a fresh dock cycle, inflating maintenance counters and resetting last_dry_start
+- [x] **DR-DIAG-5** `diagnostics.py:53` [both] -- **RP-039** (`4a0afb9`, `1981640`, `56fb7be`, `498a285`, `4b07de2`, 2026-08-03)  
+  Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork
 - [x] **A1-ID-5** `adapters/eufy/discovery.py:47` [eufy] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
   adapters/eufy/discovery.py is a dead, divergent second implementation of get_active_map_id / discover_rooms_for_vacuum with hand-copied sentinel and key literals
 - [x] **DR-BAT-2** `battery/manager.py:601` [both] -- **RP-040** (`7714931`, `d37e501`, `d86e18e`, `59cdf66`, `f3387e3`, `cc9baba`, `0e6b1e0`, `faf2e89`, `aa413d7`, `4405267`, `ecb47ef`, `d242c51`, `f7eae2d`, `0db5e11`, `c2bff98`, `bea97f9`, `21dce08`, `74a6ac6`, `93b83be`, `41aedd6`, `9c42f03`, 2026-08-02)  
@@ -1337,7 +1327,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 53 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 48 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 55 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 50 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 
