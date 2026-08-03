@@ -41,6 +41,11 @@ from ._common import (
 _LOGGER = logging.getLogger(__name__)
 
 _JOB_LIFECYCLE_UNSUBS = "_job_lifecycle_unsubs"
+# RP-039/RF-16: mirrors core/manager.py's _background_tasks pattern — every
+# spawned _process() task is tracked here and cancelled in remove(hass), which
+# previously only cancelled the state-change-event unsub, never the in-flight
+# task itself.
+_JOB_LIFECYCLE_TASKS = "_job_lifecycle_tasks"
 
 # Lifecycle states that confirm the job has genuinely started moving.
 # A job is not eligible for auto-finalization until at least one of these
@@ -70,6 +75,11 @@ def remove(hass: HomeAssistant) -> None:
             unsub()
         except Exception:  # pragma: no cover - best-effort teardown
             _LOGGER.exception("Failed to remove lifecycle listener")
+
+    tasks: set = domain_data.pop(_JOB_LIFECYCLE_TASKS, set())
+    for task in tasks:
+        if not task.done():
+            task.cancel()
 
 
 def register(hass: HomeAssistant) -> None:
@@ -458,7 +468,14 @@ def register(hass: HomeAssistant) -> None:
             if any_changes:
                 await manager_local.async_save()
 
-        hass.async_create_task(_process())
+        # RP-039/RF-16: track the spawned task so remove(hass) can cancel an
+        # in-flight _process() on unload — previously only the state-change-event
+        # unsub below was cancelled, leaving this task to keep running (and
+        # possibly finalize a job / write manager state) against a torn-down hass.
+        _task = hass.async_create_task(_process())
+        _tasks: set = hass.data.setdefault(DOMAIN, {}).setdefault(_JOB_LIFECYCLE_TASKS, set())
+        _tasks.add(_task)
+        _task.add_done_callback(_tasks.discard)
 
     unsub = async_track_state_change_event(
         hass,

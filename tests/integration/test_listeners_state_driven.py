@@ -20,9 +20,13 @@ Coverage targets
 [LS-13] lifecycle skips finalize when maybe_advance_phase advances a sequenced job.
 [LS-14] a just-advanced sequenced phase (_phase_dispatch_pending=True) suppresses
         finalize until the watchdog confirms the device started THIS room.
+[LS-15] RP-039/RF-16: the spawned _process() task is tracked and CANCELLED by
+        remove(hass), not just the state-change-event unsub.
 """
 
 from __future__ import annotations
+
+import asyncio
 
 import pytest
 
@@ -398,6 +402,45 @@ async def test_lifecycle_state_change_no_active_job_no_error(hass, manager):
     await hass.async_block_till_done()
     # No active job — lifecycle processes and exits early; no assertion needed
     # Verifying the full callback path runs without raising.
+
+
+async def test_lifecycle_process_task_tracked_and_cancelled_on_remove(
+    hass, manager, monkeypatch
+):
+    """[LS-15] The async_create_task(_process()) spawned per lifecycle state change
+    is tracked in hass.data[DOMAIN]["_job_lifecycle_tasks"] and CANCELLED by
+    remove(hass) -- previously remove(hass) only cancelled the state-change-event
+    unsub, never the in-flight task itself, so a slow/hung _process() (mid
+    maybe_handle_external_run, mid finalize, ...) kept running -- and could still
+    write manager state -- after the listener was torn down."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_LIFECYCLE)
+    hass.states.async_set(_VAC, "cleaning")
+    await hass.async_block_till_done()
+
+    started = asyncio.Event()
+
+    async def _hang(*, vacuum_entity_id):
+        started.set()
+        await asyncio.sleep(100)
+
+    monkeypatch.setattr(manager, "maybe_handle_external_run", _hang)
+
+    lifecycle.register(hass)
+
+    hass.states.async_set(_VAC, "docked")
+    await started.wait()
+
+    tasks = hass.data[DOMAIN].get("_job_lifecycle_tasks", set())
+    assert len(tasks) == 1, "the spawned _process() task was not ledgered"
+    task = next(iter(tasks))
+    assert not task.done()
+
+    lifecycle.remove(hass)
+    await hass.async_block_till_done()
+
+    assert task.cancelled()
+    assert hass.data[DOMAIN].get("_job_lifecycle_tasks", set()) == set()
 
 
 async def test_lifecycle_task_status_change_no_active_job_no_error(hass, manager):

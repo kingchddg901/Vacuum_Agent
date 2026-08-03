@@ -169,10 +169,14 @@ async def test_discovery_no_vacuums_empty_unsubs(hass, manager):
 
     The default cadence activates whenever a vacuum IS registered (vacuum_docked
     trigger + 6h periodic), so this test deliberately uses a fresh manager with
-    no vacuums to get an empty unsub list.
+    no vacuums to get an empty unsub map.
+
+    RP-039/RF-16: the ledger is keyed per vacuum_entity_id (dict), not a flat
+    list, so remove_vacuum() can tear down one vacuum without disturbing the
+    others — still empty here since no vacuum is registered.
     """
     # No vacuum registered → get_known_vacuum_ids() returns [] → no listeners
     discovery.register(hass)
-    unsubs = hass.data[DOMAIN].get("_discovery_unsubs", [])
-    assert unsubs == []
+    unsubs = hass.data[DOMAIN].get("_discovery_unsubs", {})
+    assert unsubs == {}
     # No timer registered → no remove() needed.

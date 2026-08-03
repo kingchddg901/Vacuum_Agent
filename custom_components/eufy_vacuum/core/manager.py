@@ -1275,6 +1275,22 @@ class EufyVacuumManager:
 
         return {"vacuum_entity_id": vacuum_entity_id, "removed_buckets": removed}
 
+    def clear_vacuum_runtime_caches(self, *, vacuum_entity_id: str) -> None:
+        """Drop every IN-MEMORY per-vacuum cache remove_vacuum_record doesn't touch.
+
+        RP-039/RF-16: remove_vacuum_record is deliberately STORAGE-ONLY (see its own
+        docstring — "the CALLER owns the in-memory per-vacuum teardown"); this is
+        that in-memory half, called from __init__._teardown_vacuum alongside the
+        mapping/battery/error-tracker unregisters. Without it, a vacuum REMOVED
+        then RE-ADDED with the same entity_id would short-circuit on a stale-true
+        _room_history_cache_ready flag (see _ensure_room_history_cache) and never
+        reload its room-history cache from the fresh storage bucket.
+        """
+        self.runtime.pop(vacuum_entity_id, None)
+        self._room_history_cache_ready.discard(vacuum_entity_id)
+        self._room_history_cache_loading.discard(vacuum_entity_id)
+        self._map_state_source_cache.pop(vacuum_entity_id, None)
+
     def get_managed_vacuums(self) -> dict[str, Any]:
         """Return summary of managed vacuums."""
         self.data.setdefault("vacuums", {})

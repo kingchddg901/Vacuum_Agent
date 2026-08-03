@@ -11,6 +11,9 @@ Coverage targets
 [WA-2]  idempotent on job_id — second registration is a no-op.
 [WA-3]  wash trigger increments + commit-state writes corrected actuals.
 [WA-4]  timeout with no observed wash → no write.
+[WA-5]  RP-039/RF-16: the watch joins the entry's async_on_unload ledger — firing
+        that callback (as HA's own teardown would on a mid-watch unload) cancels
+        the listener + timeout, so a later wash+commit sequence writes nothing.
 """
 
 from __future__ import annotations
@@ -138,3 +141,40 @@ async def test_timeout_no_wash_no_write(hass, tmp_path):
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=200))
     await hass.async_block_till_done()
     assert path.read_text(encoding="utf-8") == before
+
+
+async def test_ledger_join_cancels_watch_on_entry_unload(hass, tmp_path, mock_config_entry):
+    """[WA-5] The watch joins onto the entry's async_on_unload ledger (RP-003's
+    pattern), so a mid-watch entry unload cancels it cleanly instead of leaving it
+    running against a torn-down hass. Simulates HA's own teardown by popping and
+    invoking the LIFO tail of the entry's on_unload list, then proves the watch is
+    genuinely dead: a wash+commit sequence that would otherwise write actuals
+    writes nothing."""
+    mock_config_entry.add_to_hass(hass)
+    _amendment_adapter()
+    path = _write_job(tmp_path)
+    before_count = len(mock_config_entry._on_unload or [])
+    register_post_job_water_amendment(
+        hass, vacuum_entity_id=_VAC, job_id="j5", job_path=str(path),
+        water_start_percent=80.0, mop_wash_count_at_finalization=0,
+        debounce_seconds=0.0,
+    )
+    assert len(mock_config_entry._on_unload or []) == before_count + 1, (
+        "register_post_job_water_amendment did not join the entry's on_unload ledger"
+    )
+
+    # Simulate HA's own ConfigEntry._async_process_on_unload: pop + call LIFO.
+    undo = mock_config_entry._on_unload.pop()
+    result = undo()
+    if result is not None:
+        await result
+
+    before_write = path.read_text(encoding="utf-8")
+    hass.states.async_set("sensor.alfred_dock", "washing")
+    await hass.async_block_till_done()
+    hass.states.async_set("sensor.alfred_water", "75")
+    hass.states.async_set("sensor.alfred_dock", "drying")
+    await hass.async_block_till_done()
+    assert path.read_text(encoding="utf-8") == before_write, (
+        "watch fired after its entry-unload cancel — the ledger join is not working"
+    )

@@ -27,7 +27,11 @@ Coverage targets
 [INIT-8] the hourly safety-net tick refreshes room-history sensors without crash.
 [INIT-9] remove_config_entry_device on the config-flow vacuum tears it down in place
          (trackers/adapter/panel/storage) + defers clearing it from the entry so
-         async_setup_entry can't resurrect it; no inline reload.
+         async_setup_entry can't resurrect it; no inline reload. RP-039/RF-16: also
+         tears down discovery's per-vacuum listeners + the four in-memory manager
+         caches (runtime/room-history-cache-ready/-loading/map-state-source).
+[INIT-9b] RP-039/RF-16: discovery.remove_vacuum's per-vacuum isolation — removing
+          one vacuum's auto-discovery triggers leaves another vacuum's untouched.
 [INIT-10] remove_config_entry_device on a stale/unrelated device is a safe no-op
           (no teardown, no entry clear) but still returns True so HA can drop the orphan.
 [INIT-2b] INF-1: the fallback panel (no vacuum configured yet) registers using
@@ -638,6 +642,13 @@ async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry
     No inline reload (that would bounce the other vacuums + race HA's own device
     removal): the trackers + adapter + panel + storage are unwound directly, and
     the entry-clear is deferred.
+
+    RP-039/RF-16: also asserts the two teardown gaps this packet closed —
+    discovery's per-vacuum listeners (previously entry-wide only, so a removed
+    vacuum's state-change listeners kept firing) and the four in-memory manager
+    caches remove_vacuum_record never touched (runtime, room-history-cache-ready/
+    -loading, map-state-source) — a vacuum removed then re-added with the same
+    entity_id would otherwise short-circuit on a stale-true cache marker.
     """
     from homeassistant.helpers import device_registry as dr
 
@@ -649,6 +660,20 @@ async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry
     assert _VAC in rt.data["vacuums"]
     assert _VAC in dd[DATA_BATTERY]._vacuum_unsubs
     assert _VAC in dd[DATA_ERROR_TRACKER]._vacuum_unsubs
+    # discovery.register() ran during setup — the default cadence (vacuum_docked
+    # trigger + periodic) activates for any registered vacuum, so it's already
+    # keyed for _VAC.
+    assert _VAC in dd.get("_discovery_unsubs", {})
+    assert dd["_discovery_unsubs"][_VAC], "discovery registered no listeners for _VAC"
+
+    # Seed the four in-memory caches remove_vacuum_record deliberately does NOT
+    # touch (storage-only — see its own docstring) — nothing in a bare _setup()
+    # populates these (no job ever ran), so seed them directly to prove
+    # clear_vacuum_runtime_caches actually clears them.
+    rt.ensure_runtime(_VAC)
+    rt._room_history_cache_ready.add(_VAC)
+    rt._room_history_cache_loading.add(_VAC)
+    rt._map_state_source_cache[_VAC] = {"mtime": None, "map_id": "9", "result": {}}
 
     device = dr.async_get(hass).async_get_device(
         identifiers={(DOMAIN, _VAC.replace(".", "_"))}
@@ -668,6 +693,11 @@ async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry
     assert _VAC not in rt.data["vacuums"]                     # storage dropped
     assert _VAC not in dd[DATA_BATTERY]._vacuum_unsubs        # battery torn down
     assert _VAC not in dd[DATA_ERROR_TRACKER]._vacuum_unsubs  # error torn down
+    assert _VAC not in dd.get("_discovery_unsubs", {})        # discovery torn down
+    assert _VAC not in rt.runtime                             # in-memory runtime cache dropped
+    assert _VAC not in rt._room_history_cache_ready           # stale-ready marker cleared
+    assert _VAC not in rt._room_history_cache_loading         # stale-loading marker cleared
+    assert _VAC not in rt._map_state_source_cache             # map-state-source cache dropped
     mock_panel.assert_called_once_with(hass, "eufy-vacuum-alfred")  # panel removed
 
     # _VAC was the configured vacuum → a deferred entry-clear was scheduled;
@@ -688,7 +718,12 @@ async def test_remove_non_configured_vacuum_keeps_entry(
 ):
     """[INIT-9b] Deleting a NON-configured vacuum tears it down but does NOT clear
     the entry or schedule a reload — the configured vacuum + the others are left
-    exactly as they were."""
+    exactly as they were.
+
+    RP-039/RF-16: also proves discovery.remove_vacuum's per-vacuum ISOLATION —
+    removing _VAC2's auto-discovery triggers must not touch _VAC's (the whole
+    point of keying the ledger per vacuum instead of one flat entry-wide list).
+    """
     from homeassistant.helpers import device_registry as dr
 
     _VAC2 = "vacuum.bertie"
@@ -700,8 +735,12 @@ async def test_remove_non_configured_vacuum_keeps_entry(
     }}
     ok = await _setup(hass, mock_config_entry)
     assert ok is True
-    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    dd = hass.data[DOMAIN]
+    rt = dd[DATA_RUNTIME]
     assert _VAC2 in rt.data["vacuums"]
+    assert _VAC in dd.get("_discovery_unsubs", {})
+    assert _VAC2 in dd.get("_discovery_unsubs", {})
+    rt._map_state_source_cache[_VAC2] = {"mtime": None, "map_id": "1", "result": {}}
 
     device2 = dr.async_get(hass).async_get_device(
         identifiers={(DOMAIN, _VAC2.replace(".", "_"))}
@@ -719,6 +758,9 @@ async def test_remove_non_configured_vacuum_keeps_entry(
     assert _VAC in rt.data["vacuums"]        # the configured one is untouched
     mock_panel.assert_called_once_with(hass, "eufy-vacuum-bertie")
     assert scheduled == []                   # NOT the configured vacuum → no entry clear
+    assert _VAC2 not in dd.get("_discovery_unsubs", {})  # bertie's triggers torn down
+    assert _VAC in dd.get("_discovery_unsubs", {})       # alfred's triggers UNTOUCHED
+    assert _VAC2 not in rt._map_state_source_cache       # bertie's cache dropped
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()

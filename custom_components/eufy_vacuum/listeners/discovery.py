@@ -41,8 +41,26 @@ _DISCOVERY_UNSUBS = "_discovery_unsubs"
 def remove(hass: HomeAssistant) -> None:
     """Tear down all auto-discovery triggers registered for the entry."""
     domain_data = hass.data.get(DOMAIN, {})
-    unsubs: list[Callable[[], None]] = domain_data.pop(_DISCOVERY_UNSUBS, [])
-    for unsub in unsubs:
+    by_vacuum: dict[str, list[Callable[[], None]]] = domain_data.pop(_DISCOVERY_UNSUBS, {})
+    for unsubs in by_vacuum.values():
+        for unsub in unsubs:
+            try:
+                unsub()
+            except Exception:  # pragma: no cover
+                pass
+
+
+def remove_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
+    """Tear down ONE vacuum's auto-discovery triggers, leaving the others intact.
+
+    RP-039/RF-16: the per-vacuum analogue of remove() — used when a single
+    managed vacuum is removed (device deleted) so its state-change listeners stop
+    firing against a now-nonexistent manager record immediately, instead of
+    lingering (inertly) until the next reload/restart.
+    """
+    domain_data = hass.data.get(DOMAIN, {})
+    by_vacuum: dict[str, list[Callable[[], None]]] = domain_data.get(_DISCOVERY_UNSUBS, {})
+    for unsub in by_vacuum.pop(vacuum_entity_id, []):
         try:
             unsub()
         except Exception:  # pragma: no cover
@@ -66,9 +84,12 @@ def register(hass: HomeAssistant) -> None:
     if manager is None:
         return
 
-    unsubs: list[Callable[[], None]] = []
+    # RP-039/RF-16: keyed per vacuum_entity_id (not a flat list) so remove_vacuum()
+    # can tear down exactly one vacuum's triggers without disturbing the others.
+    by_vacuum: dict[str, list[Callable[[], None]]] = {}
 
     for vacuum_entity_id in manager.get_known_vacuum_ids():
+        unsubs: list[Callable[[], None]] = []
         cadence = get_discovery_cadence(vacuum_entity_id)
         triggers = set(cadence.get("auto_refresh_on") or [])
         interval_seconds = int(cadence.get("auto_refresh_interval_seconds") or 0)
@@ -174,9 +195,11 @@ def register(hass: HomeAssistant) -> None:
                 )
             )
 
-    domain_data[_DISCOVERY_UNSUBS] = unsubs
+        by_vacuum[vacuum_entity_id] = unsubs
+
+    domain_data[_DISCOVERY_UNSUBS] = by_vacuum
     _LOGGER.debug(
         "discovery: registered %d auto-discovery trigger(s) across %d vacuum(s)",
-        len(unsubs),
+        sum(len(v) for v in by_vacuum.values()),
         len(manager.get_known_vacuum_ids()),
     )

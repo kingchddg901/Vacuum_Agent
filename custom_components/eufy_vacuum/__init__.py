@@ -711,8 +711,14 @@ async def _teardown_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
     unload eagerly) would also race HA's own post-hook device+entity removal.
     Instead we unwind exactly this vacuum's in-memory subsystem wiring + sidebar
     panel, then drop its storage; HA removes the device + its entities itself
-    (the caller returns True). The global listeners are left to self-correct on
-    the next reload/restart — a subscription to a now-deleted entity is inert.
+    (the caller returns True). RP-039/RF-16: discovery's auto-refresh triggers now
+    get the same per-vacuum teardown (discovery.remove_vacuum) — previously the
+    ONLY listener group with no per-vacuum unregister API, so a removed vacuum's
+    state-change listeners kept firing against a now-nonexistent manager record
+    until the next reload/restart. lifecycle.py's watched-entities set has no
+    per-vacuum path either, and is NOT in scope here (a distinct, larger
+    subsystem — see lifecycle.py's own register()/remove() docstring); a
+    subscription to a now-deleted entity there is inert until the next reload.
     """
     domain_data = hass.data.get(DOMAIN, {})
 
@@ -743,6 +749,12 @@ async def _teardown_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
                 "eufy_vacuum: error-tracker teardown failed for %s", vacuum_entity_id
             )
     try:
+        discovery.remove_vacuum(hass, vacuum_entity_id)
+    except Exception:  # pragma: no cover
+        _LOGGER.exception(
+            "eufy_vacuum: discovery-listener teardown failed for %s", vacuum_entity_id
+        )
+    try:
         unregister_adapter_config(vacuum_entity_id)
     except Exception:  # pragma: no cover
         _LOGGER.exception(
@@ -756,6 +768,9 @@ async def _teardown_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
     # the removal survives a restart and can't resurrect on a later reload.
     manager = domain_data.get(DATA_RUNTIME)
     if manager is not None:
+        # In-memory caches remove_vacuum_record deliberately doesn't touch (it's
+        # storage-only) — see clear_vacuum_runtime_caches' own docstring.
+        manager.clear_vacuum_runtime_caches(vacuum_entity_id=vacuum_entity_id)
         manager.remove_vacuum_record(vacuum_entity_id=vacuum_entity_id)
         await manager.async_save()
 

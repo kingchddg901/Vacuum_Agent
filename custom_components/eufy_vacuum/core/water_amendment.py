@@ -244,3 +244,18 @@ def register_post_job_water_amendment(
         async_track_state_change_event(hass, [dock_status_entity], _on_dock_change)
     )
     unsub_timeout.append(async_call_later(hass, timeout_seconds, _on_timeout))
+
+    # RP-039/RF-16: join onto the entry's teardown ledger (RP-003's pattern) so a
+    # mid-watch entry reload/unload cancels this watcher too instead of leaving it
+    # running against a torn-down hass. This function has no `entry` parameter —
+    # resolve it the same way services/setup.py's setup_add_vacuum already does
+    # (this is a singleton domain: one config entry manages every vacuum, so the
+    # first entry IS the owning entry). entry.async_on_unload has no per-callback
+    # removal API, so a watch that completes normally (via _commit, well before
+    # the entry unloads) leaves its now-inert _cancel_all sitting in the entry's
+    # on_unload list until the entry itself unloads — harmless (calling it again
+    # is a no-op) and bounded by "mop jobs finalized this entry lifetime", not
+    # unbounded growth.
+    _entries = hass.config_entries.async_entries(DOMAIN)
+    if _entries:
+        _entries[0].async_on_unload(_cancel_all)

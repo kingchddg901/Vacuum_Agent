@@ -251,6 +251,37 @@ RESEGMENT_EXTERNAL_RUN_SCHEMA = vol.Schema(
 )
 
 
+# RP-039/RF-16: consumed by async_unregister_learning_services below so
+# registration and unregistration derive from the SAME list and can never drift
+# apart again (5 of 21 services had silently gone hand-list-only, per-name, and
+# leaked on every unload/reload). Mirrors the pattern services/__init__.py and
+# services/debug.py already use (a submodule's own SERVICES tuple, walked by the
+# shared unregister loop).
+SERVICES = (
+    SERVICE_SAVE_LEARNING_SNAPSHOT,
+    SERVICE_FINALIZE_LEARNING_JOB,
+    SERVICE_REBUILD_LEARNING_STATS,
+    SERVICE_SET_LEARNING_PROCESSING,
+    SERVICE_PROCESS_PENDING_RUNS,
+    SERVICE_CONFIRM_EXTERNAL_RUN,
+    SERVICE_GET_EXTERNAL_PENDING_RUNS,
+    SERVICE_DISCARD_EXTERNAL_RUN,
+    SERVICE_RESEGMENT_EXTERNAL_RUN,
+    SERVICE_RUN_LEARNING_ESTIMATE,
+    SERVICE_RECORD_ESTIMATE_ACCURACY,
+    SERVICE_REANCHOR_LEARNING_TIMELINE,
+    SERVICE_GET_NEXT_ROOM,
+    SERVICE_GET_ROOM_LEARNING_ESTIMATES,
+    SERVICE_EXCLUDE_LEARNING_JOB,
+    SERVICE_RESTORE_LEARNING_JOB,
+    SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+    SERVICE_GET_METRICS_SNAPSHOT,
+    SERVICE_GET_TROUBLE_ROOMS_LOG,
+    SERVICE_GET_INCOMPLETE_RUN_LOG,
+    SERVICE_RETRY_MISSED_ROOMS,
+)
+
+
 def _get_core_manager(hass: HomeAssistant):
     """Return core integration manager."""
     return hass.data[DOMAIN]["runtime"]
@@ -953,20 +984,14 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
 
 
 async def async_unregister_learning_services(hass: HomeAssistant) -> None:
-    """Unregister optional learning-system services."""
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_SAVE_LEARNING_SNAPSHOT)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_FINALIZE_LEARNING_JOB)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_REBUILD_LEARNING_STATS)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RUN_LEARNING_ESTIMATE)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RECORD_ESTIMATE_ACCURACY)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_REANCHOR_LEARNING_TIMELINE)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_NEXT_ROOM)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_ROOM_LEARNING_ESTIMATES)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_EXCLUDE_LEARNING_JOB)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RESTORE_LEARNING_JOB)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_METRICS_SNAPSHOT)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_TROUBLE_ROOMS_LOG)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_INCOMPLETE_RUN_LOG)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RETRY_MISSED_ROOMS)
-    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RESEGMENT_EXTERNAL_RUN)
+    """Unregister optional learning-system services.
+
+    RP-039/RF-16: derived from SERVICES (the same list async_register_learning_services'
+    registration order was cross-checked against) instead of a hand-maintained
+    duplicate — the two had already drifted 5 services out of 21 (SET_LEARNING_PROCESSING,
+    PROCESS_PENDING_RUNS, CONFIRM_EXTERNAL_RUN, GET_EXTERNAL_PENDING_RUNS,
+    DISCARD_EXTERNAL_RUN silently missing from this hand-list), each leaking on every
+    unload/reload.
+    """
+    for service_name in SERVICES:
+        hass.services.async_remove(LEARNING_DOMAIN, service_name)

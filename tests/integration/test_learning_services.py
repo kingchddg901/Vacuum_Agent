@@ -69,6 +69,8 @@ Coverage targets
 [LS-69] cancel-likely job (per stored cancel_detection) → exclude_suggested with the detector's reason (manager 1262-1264).
 [LS-70] excluded_from_learning job carries a +1.0 outlier_score contribution (manager 1243).
 [LS-71] discard_external_run SERVICE handler resolves the manager + delegates verbatim (services.py 358-364).
+[LS-72] RP-039/RF-16: register/unregister walk the SAME SERVICES tuple (all 21) —
+        register→unregister leaves none behind (was: 5 of 21 silently leaked).
 """
 
 from __future__ import annotations
@@ -685,6 +687,35 @@ async def test_services_removed_after_unregister(hass, manager):
     assert not hass.services.has_service(DOMAIN, SERVICE_GET_INCOMPLETE_RUN_LOG)
     assert not hass.services.has_service(DOMAIN, SERVICE_REBUILD_LEARNING_STATS)
     assert not hass.services.has_service(DOMAIN, SERVICE_RUN_LEARNING_ESTIMATE)
+
+
+# ---------------------------------------------------------------------------
+# [LS-72] RP-039/RF-16 — the full SERVICES tuple registers AND unregisters
+# ---------------------------------------------------------------------------
+
+async def test_all_21_learning_services_register_and_unregister(hass, manager):
+    """[LS-72] RP-039/RF-16: register/unregister walk the SAME SERVICES tuple, so
+    they can never silently drift apart again.
+
+    [LS-1]/[LS-14] above hand-list a SUBSET (12 and 3 of 21 respectively) — that
+    shallow spot-check is exactly what let 5 services (SET_LEARNING_PROCESSING,
+    PROCESS_PENDING_RUNS, CONFIRM_EXTERNAL_RUN, GET_EXTERNAL_PENDING_RUNS,
+    DISCARD_EXTERNAL_RUN) drift out of the old hand-maintained unregister list
+    without any test catching it. This iterates the module's own SERVICES tuple
+    (currently 21 entries) so a future addition is covered automatically.
+    """
+    from custom_components.eufy_vacuum.learning import services as learning_services_module
+
+    assert len(learning_services_module.SERVICES) == 21
+    assert len(set(learning_services_module.SERVICES)) == 21, "duplicate service name in SERVICES"
+
+    await async_register_learning_services(hass)
+    missing = [s for s in learning_services_module.SERVICES if not hass.services.has_service(DOMAIN, s)]
+    assert missing == [], f"registered but not found: {missing}"
+
+    await async_unregister_learning_services(hass)
+    leaked = [s for s in learning_services_module.SERVICES if hass.services.has_service(DOMAIN, s)]
+    assert leaked == [], f"leaked on unregister (the RP-039 bug): {leaked}"
 
 
 # ---------------------------------------------------------------------------
