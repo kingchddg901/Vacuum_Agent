@@ -3476,6 +3476,15 @@ class EufyVacuumManager:
                     current_battery=_estimate_battery,
                     charge_percent_per_minute=1.0,
                     reserve_battery_percent=5.0,
+                    # RP-036/ACC-4: detect_run_anomalies (below) computes
+                    # skipped_room_ids fresh every snapshot from THIS call's
+                    # own raw_timeline/current_room_id, so it can only run
+                    # after this reanchor call — feed in the ALREADY-COMPUTED
+                    # value it persisted on active_job (the notified-skip
+                    # dedup set) from the previous poll instead, so a room
+                    # detected skipped on an earlier poll stops reading as
+                    # perpetually "remaining" here.
+                    skipped_room_ids=list(active_job.get("_skipped_notified_room_ids") or []),
                 )
                 timeline_source = "reanchored"
 

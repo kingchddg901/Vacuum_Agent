@@ -586,6 +586,204 @@ def test_reanchor_first_unresolved_marked_current(tmp_path):
     assert timeline[1]["remaining"] is True
 
 
+def test_reanchor_remaining_eta_anchored_to_now_across_a_pause(tmp_path):
+    """RP-036/ACC-2: room A finished on schedule, then the job sat paused for
+    10 real minutes before this reanchor call. job_eta_at must land in the
+    future relative to "now" (reanchor_at), not silently slide into the past
+    by staying anchored to job_start_dt + the naive total."""
+    from custom_components.eufy_vacuum.timestamp_utils import parse_timestamp
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    original = {
+        "room_timeline": [
+            {"room_id": 1, "slug": "a", "minutes": 5.0, "battery": 1.0,
+             "estimated_transit_minutes_before": 0.0,
+             "completed": False, "current": False, "remaining": True},
+            {"room_id": 2, "slug": "b", "minutes": 5.0, "battery": 1.0,
+             "estimated_transit_minutes_before": 0.0,
+             "completed": False, "current": False, "remaining": True},
+        ],
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "overhead_minutes": 0.0,
+        "vacuum_entity_id": "vacuum.alfred",
+    }
+    result = estimator.reanchor_timeline(
+        original_estimate=original,
+        completed_rooms=[{"room_id": 1, "actual_duration_minutes": 5.0}],
+        reanchor_at="2026-01-01T09:15:00+00:00",
+    )
+    now_dt = parse_timestamp("2026-01-01T09:15:00+00:00")
+    eta_dt = parse_timestamp(result["job_eta_at"])
+    assert eta_dt > now_dt
+
+
+def test_reanchor_remaining_room_readds_own_transit_leg(tmp_path):
+    """RP-036/ACC-3: a remaining room's own transit-before leg is re-added
+    to its ETA contribution, not dropped."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    original = {
+        "room_timeline": [
+            {"room_id": 1, "slug": "a", "minutes": 5.0, "battery": 1.0,
+             "estimated_transit_minutes_before": 0.0,
+             "completed": False, "current": False, "remaining": True},
+            {"room_id": 2, "slug": "b", "minutes": 5.0, "battery": 1.0,
+             "estimated_transit_minutes_before": 2.0,
+             "completed": False, "current": False, "remaining": True},
+        ],
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "overhead_minutes": 2.0,
+        "vacuum_entity_id": "vacuum.alfred",
+    }
+    result = estimator.reanchor_timeline(
+        original_estimate=original,
+        completed_rooms=[{"room_id": 1, "actual_duration_minutes": 5.0}],
+        reanchor_at="2026-01-01T09:00:00+00:00",
+    )
+    room_b = next(r for r in result["room_timeline"] if r["room_id"] == 2)
+    assert room_b["eta_minutes_from_start"] == 12.0   # 5 actual + 2 transit + 5 minutes
+
+
+def test_reanchor_skipped_room_resolves_all_completed(tmp_path):
+    """RP-036/ACC-4: a skipped room is resolved, not perpetually remaining —
+    all_completed can become True on a run with a skipped room."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    original = {
+        "room_timeline": [
+            {"room_id": 1, "slug": "a", "minutes": 5.0, "battery": 1.0,
+             "completed": False, "current": False, "remaining": True},
+            {"room_id": 2, "slug": "b", "minutes": 5.0, "battery": 1.0,
+             "completed": False, "current": False, "remaining": True},
+        ],
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "overhead_minutes": 0.0,
+        "vacuum_entity_id": "vacuum.alfred",
+    }
+    result = estimator.reanchor_timeline(
+        original_estimate=original,
+        completed_rooms=[{"room_id": 1, "actual_duration_minutes": 5.0}],
+        reanchor_at="2026-01-01T09:05:00+00:00",
+        skipped_room_ids=[2],
+    )
+    room_b = next(r for r in result["room_timeline"] if r["room_id"] == 2)
+    assert room_b["skipped"] is True
+    assert room_b["remaining"] is False
+    assert room_b["current"] is False
+    assert result["rooms_skipped"] == 1
+    assert result["all_completed"] is True
+
+
+def test_reanchor_null_slug_rooms_do_not_collide(tmp_path):
+    """RP-036/ACC-5: an explicit {"slug": None} must not fall through to the
+    literal string "none" — two unrelated null-slug rooms must not both
+    match a single completion event keyed on a None slug."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    original = {
+        "room_timeline": [
+            {"room_id": -1, "slug": None, "minutes": 5.0, "battery": 1.0,
+             "completed": False, "current": False, "remaining": True},
+            {"room_id": -1, "slug": None, "minutes": 5.0, "battery": 1.0,
+             "completed": False, "current": False, "remaining": True},
+        ],
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "overhead_minutes": 0.0,
+        "vacuum_entity_id": "vacuum.alfred",
+    }
+    result = estimator.reanchor_timeline(
+        original_estimate=original,
+        completed_rooms=[{"slug": None, "actual_duration_minutes": 5.0}],
+        reanchor_at="2026-01-01T09:05:00+00:00",
+    )
+    assert result["rooms_completed"] == 0
+
+
+# ---------------------------------------------------------------------------
+# RP-036/ACC-6 / ACC-7 — record_estimate_accuracy / _drift_ratio_for_room
+# ---------------------------------------------------------------------------
+
+def test_record_estimate_accuracy_prefers_exact_over_allocated(tmp_path):
+    """RP-036/ACC-6: once at least one exact (single-room) sample exists for
+    a room, the drift mean is computed from exact samples only — an
+    allocated (multi-room split) sample must not dilute it."""
+    from custom_components.eufy_vacuum.learning.utils import _room_key
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    sink: dict = {}
+    estimator.record_estimate_accuracy(
+        vacuum_entity_id="vacuum.alfred",
+        room_actuals=[{
+            "slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+            "is_carpet": False, "clean_intensity": "standard", "map_id": 1,
+            "estimated_minutes": 10.0, "actual_minutes": 20.0,
+            "single_room": False,
+        }],
+        stats_sink=sink,
+    )
+    estimator.record_estimate_accuracy(
+        vacuum_entity_id="vacuum.alfred",
+        room_actuals=[{
+            "slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+            "is_carpet": False, "clean_intensity": "standard", "map_id": 1,
+            "estimated_minutes": 10.0, "actual_minutes": 11.0,
+            "single_room": True,
+        }],
+        stats_sink=sink,
+    )
+    room_key = _room_key(1, "kitchen", "vacuum", 1, False, "standard", False)
+    assert sink["rooms"][room_key]["mean_abs_pct_error"] == pytest.approx(0.10)
+
+
+def test_record_estimate_accuracy_falls_back_to_flat_mean_without_exact(tmp_path):
+    """RP-036/ACC-6: with no exact sample yet, the mean stays the flat
+    unweighted average over all (allocated) samples — unchanged behavior."""
+    from custom_components.eufy_vacuum.learning.utils import _room_key
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    sink: dict = {}
+    estimator.record_estimate_accuracy(
+        vacuum_entity_id="vacuum.alfred",
+        room_actuals=[{
+            "slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+            "is_carpet": False, "clean_intensity": "standard", "map_id": 1,
+            "estimated_minutes": 10.0, "actual_minutes": 20.0,
+            "single_room": False,
+        }],
+        stats_sink=sink,
+    )
+    room_key = _room_key(1, "kitchen", "vacuum", 1, False, "standard", False)
+    assert sink["rooms"][room_key]["mean_abs_pct_error"] == pytest.approx(1.0)
+
+
+def test_drift_ratio_for_room_tolerates_list_shaped_rooms(tmp_path):
+    """RP-036/ACC-7: an older/external payload with "rooms" stored as a list
+    (not a dict keyed by room_key) must not crash — mirrors manager.py's own
+    isinstance-branch tolerance for the same shape."""
+    from custom_components.eufy_vacuum.learning.utils import _room_key
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    accuracy_stats = {"rooms": [{"slug": "kitchen", "mean_abs_pct_error": 0.5}]}
+    room_key = _room_key(1, "kitchen", "vacuum", 1, False, "standard", False)
+    drift = estimator._drift_ratio_for_room(
+        accuracy_stats=accuracy_stats, room_key=room_key,
+    )
+    assert drift == 0.0
+
+
+def test_record_estimate_accuracy_tolerates_list_shaped_rooms(tmp_path):
+    """RP-036/ACC-7: record_estimate_accuracy's own read of an existing
+    list-shaped "rooms" must normalize to a fresh dict rather than crashing
+    on the by-key write below it."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    sink: dict = {"rooms": [{"slug": "stale"}]}
+    result = estimator.record_estimate_accuracy(
+        vacuum_entity_id="vacuum.alfred",
+        room_actuals=[{
+            "slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+            "is_carpet": False, "clean_intensity": "standard", "map_id": 1,
+            "estimated_minutes": 10.0, "actual_minutes": 11.0,
+            "single_room": True,
+        }],
+        stats_sink=sink,
+    )
+    assert result["rooms_recorded"] == 1
+    assert isinstance(sink["rooms"], dict)
+
+
 # ---------------------------------------------------------------------------
 # _lookup_transit_minutes — fallback chain
 # ---------------------------------------------------------------------------

@@ -2674,12 +2674,16 @@ class LearningManager:
         current_battery: float | None = None,
         charge_percent_per_minute: float = 1.0,
         reserve_battery_percent: float = 5.0,
+        skipped_room_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """Reanchor room ETAs using actual completed room durations.
 
         Called each time eufy_vacuum_room_completed fires mid-job.
         If current_battery is supplied, also updates battery readiness
-        for the remaining rooms.
+        for the remaining rooms. skipped_room_ids (RP-036/ACC-4) — rooms the
+        live run has provably advanced past without cleaning; passed through
+        to the estimator so they resolve out of "remaining" instead of
+        blocking all_completed forever.
         Delegates entirely to the estimator — no math here.
         """
         return self.estimator.reanchor_timeline(
@@ -2689,4 +2693,5 @@ class LearningManager:
             current_battery=current_battery,
             charge_percent_per_minute=charge_percent_per_minute,
             reserve_battery_percent=reserve_battery_percent,
+            skipped_room_ids=skipped_room_ids,
         )

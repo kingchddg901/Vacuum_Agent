@@ -655,7 +655,19 @@ class LearningEstimator:
 
         Returns 0.0 if no accuracy data exists for this room.
         """
-        room_accuracy = accuracy_stats.get("rooms", {}).get(room_key, {})
+        # RP-036/ACC-7: a bare `.get("rooms", {})` only substitutes its default
+        # on an ABSENT key — an older/external payload that stored "rooms" as
+        # a list (rather than the canonical dict keyed by room_key) would pass
+        # that default check and then raise AttributeError on `.get(room_key,
+        # {})`. Mirrors manager.py's isinstance-branch tolerance
+        # (build_trust_metrics, ~1397-1413): a list carries no room_key to
+        # index by, so it normalizes the same as "no accuracy data" rather
+        # than crashing.
+        rooms_raw = accuracy_stats.get("rooms")
+        accuracy_rooms: dict[str, Any] = rooms_raw if isinstance(rooms_raw, dict) else {}
+        room_accuracy = accuracy_rooms.get(room_key, {})
+        if not isinstance(room_accuracy, dict):
+            room_accuracy = {}
         return _safe_float(room_accuracy.get("mean_abs_pct_error"), 0.0)
 
     def record_estimate_accuracy(
@@ -706,7 +718,13 @@ class LearningEstimator:
             # hiccup) can't leave the cache out of sync with disk, and the loop-bound
             # estimate never reads a half-updated record.
             existing = copy.deepcopy(_stats or {})
-        rooms_data: dict[str, Any] = existing.get("rooms", {})
+        # RP-036/ACC-7: tolerate a non-dict "rooms" (see _drift_ratio_for_room
+        # above for the read-side twin of this guard). rooms_data is mutated
+        # by key below (`rooms_data[room_key] = {...}`), which raises on a
+        # list — normalize to a fresh dict rather than crashing; there is no
+        # room_key to preserve from a list-shaped legacy/external payload.
+        _rooms_raw = existing.get("rooms")
+        rooms_data: dict[str, Any] = _rooms_raw if isinstance(_rooms_raw, dict) else {}
 
         recorded: list[dict[str, Any]] = []
 
@@ -715,7 +733,7 @@ class LearningEstimator:
             clean_mode = str(entry.get("clean_mode", "")).strip().lower()
             clean_passes = _safe_int(entry.get("clean_passes", 1), 1)
             is_carpet = bool(entry.get("is_carpet", False))
-            clean_intensity = str(entry.get("clean_intensity", "standard")).strip().lower()
+            clean_intensity = _canonical_clean_intensity(entry.get("clean_intensity"))
             edge_mopping = bool(entry.get("edge_mopping", False))
             map_id = _safe_int(entry.get("map_id", 0))
             estimated = _safe_float(entry.get("estimated_minutes"), 0.0)
@@ -744,6 +762,14 @@ class LearningEstimator:
                     "single_room_sample_count": 0,
                     "total_abs_pct_error": 0.0,
                     "total_signed_error_minutes": 0.0,
+                    # RP-036/ACC-6: EXACT-only twins of the totals above. A
+                    # single-room sample's actual_minutes is the room's real
+                    # measured duration; a multi-room sample's is the job
+                    # total divided evenly across rooms — an allocation with
+                    # no room-specific signal. Tracked separately so the mean
+                    # can prefer exact observations once at least one exists.
+                    "total_abs_pct_error_exact": 0.0,
+                    "total_signed_error_minutes_exact": 0.0,
                     "mean_abs_pct_error": 0.0,
                     "mean_signed_error_minutes": 0.0,
                     "last_updated": _iso_now(),
@@ -753,11 +779,29 @@ class LearningEstimator:
             rec["sample_count"] += 1
             if is_single_room:
                 rec["single_room_sample_count"] = rec.get("single_room_sample_count", 0) + 1
+                rec["total_abs_pct_error_exact"] = (
+                    rec.get("total_abs_pct_error_exact", 0.0) + pct_error
+                )
+                rec["total_signed_error_minutes_exact"] = (
+                    rec.get("total_signed_error_minutes_exact", 0.0) + (actual - estimated)
+                )
             rec["total_abs_pct_error"] += pct_error
             rec["total_signed_error_minutes"] += (actual - estimated)
             n = rec["sample_count"]
-            rec["mean_abs_pct_error"] = round(rec["total_abs_pct_error"] / n, 4)
-            rec["mean_signed_error_minutes"] = round(rec["total_signed_error_minutes"] / n, 2)
+            exact_n = rec.get("single_room_sample_count", 0)
+            # RP-036/ACC-6: prefer exact (single-room) samples over allocated
+            # (multi-room) ones once at least one exact sample exists — an
+            # allocated duration must never outweigh a real per-room
+            # observation. Falls back to the all-samples mean only while no
+            # exact sample has ever been recorded for this room.
+            if exact_n > 0:
+                rec["mean_abs_pct_error"] = round(rec["total_abs_pct_error_exact"] / exact_n, 4)
+                rec["mean_signed_error_minutes"] = round(
+                    rec["total_signed_error_minutes_exact"] / exact_n, 2
+                )
+            else:
+                rec["mean_abs_pct_error"] = round(rec["total_abs_pct_error"] / n, 4)
+                rec["mean_signed_error_minutes"] = round(rec["total_signed_error_minutes"] / n, 2)
             rec["last_updated"] = _iso_now()
 
             recorded.append({
@@ -1273,7 +1317,11 @@ class LearningEstimator:
         timeline: list[dict[str, Any]] = reanchored_estimate.get("room_timeline", [])
 
         for room in timeline:
-            if not room.get("completed", False):
+            # RP-036/ACC-4 (consistency): a skipped room is resolved, not
+            # "next" — same guard as reanchor_timeline's own current-room
+            # marking, so this card shortcut doesn't announce "cleaning" a
+            # room the robot has provably moved past.
+            if not room.get("completed", False) and not room.get("skipped", False):
                 return {
                     "room_id": room.get("room_id"),
                     "room_name": room.get("room_name"),
@@ -1303,6 +1351,7 @@ class LearningEstimator:
         current_battery: float | None = None,
         charge_percent_per_minute: float = 1.0,
         reserve_battery_percent: float = 5.0,
+        skipped_room_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """Recompute ETAs for remaining rooms using actual completed durations.
 
@@ -1319,6 +1368,12 @@ class LearningEstimator:
             ISO timestamp to anchor remaining ETAs from. Defaults to now.
         current_battery:
             If supplied, updates battery readiness for remaining rooms.
+        skipped_room_ids:
+            RP-036/ACC-4 — room ids the live run has provably advanced past
+            without cleaning (jobs/active_job.py detect_run_anomalies). A
+            skipped room is RESOLVED here, not perpetually "remaining" —
+            without this, all_completed can never become True on a run with
+            a skipped room.
         """
         anchor_dt = _parse_iso(reanchor_at) or utc_now()
 
@@ -1328,16 +1383,47 @@ class LearningEstimator:
         for entry in completed_rooms:
             actual = _safe_float(entry.get("actual_duration_minutes"), 0.0)
             room_id = _safe_int(entry.get("room_id", -1), -1)
-            slug = str(entry.get("slug", "")).strip().lower()
+            # RP-036/ACC-5: `.get(key, default)` only substitutes on an
+            # ABSENT key — an explicit {"slug": None} passes str(None) =
+            # "none" through unnoticed, colliding two different null-slug
+            # rooms on that literal string. Skip slug-matching entirely for
+            # a falsy slug rather than let it fall through as "none".
+            _slug_raw = entry.get("slug")
+            slug = str(_slug_raw).strip().lower() if _slug_raw else ""
             if room_id >= 0:
                 completed_by_id[room_id] = actual
             if slug:
                 completed_by_slug[slug] = actual
 
+        # RP-036/ACC-4: normalize the skip list once, ignoring negative/unset ids.
+        skipped_ids: set[int] = {
+            rid for rid in (_safe_int(r, -1) for r in (skipped_room_ids or [])) if rid >= 0
+        }
+
         original_timeline: list[dict[str, Any]] = original_estimate.get("room_timeline", [])
 
         started_at_str = original_estimate.get("started_at")
         job_start_dt = _parse_iso(started_at_str) or anchor_dt
+
+        # RP-036/ACC-3: every room's transit-before leg was folded into
+        # overhead_minutes as ONE upfront lump at estimate() time
+        # (learned_transition_minutes = sum of every room's
+        # estimated_transit_minutes_before). That lump is now stale in two
+        # directions at once: a completed room's leg already happened, so
+        # charging it again out of a "time still ahead" total double-counts
+        # it; a remaining room's leg hasn't happened yet and needs to be
+        # counted against THAT room's own ETA below, not left anonymous in
+        # the job-level lump (which would ALSO double-count it once it's
+        # re-added per room). Strip the whole transit component out here —
+        # the only way to avoid double-counting one direction while dropping
+        # the other — and re-home each remaining room's leg explicitly below.
+        total_transit_minutes = sum(
+            _safe_float(r.get("estimated_transit_minutes_before"), 0.0) for r in original_timeline
+        )
+        overhead_minutes = max(
+            _safe_float(original_estimate.get("overhead_minutes"), 0.0) - total_transit_minutes,
+            0.0,
+        )
 
         updated_timeline: list[dict[str, Any]] = []
         actual_elapsed = 0.0
@@ -1345,7 +1431,8 @@ class LearningEstimator:
 
         for room in original_timeline:
             room_id = _safe_int(room.get("room_id", -1), -1)
-            slug = str(room.get("slug", "")).strip().lower()
+            _slug_raw = room.get("slug")
+            slug = str(_slug_raw).strip().lower() if _slug_raw else ""
 
             actual_duration: float | None = None
             if room_id in completed_by_id:
@@ -1354,6 +1441,7 @@ class LearningEstimator:
                 actual_duration = completed_by_slug[slug]
 
             entry = dict(room)
+            is_skipped = actual_duration is None and room_id in skipped_ids
 
             if actual_duration is not None:
                 start_offset = actual_elapsed
@@ -1364,6 +1452,11 @@ class LearningEstimator:
                 entry["start_offset_minutes"] = round(start_offset, 2)
                 entry["end_offset_minutes"] = round(end_offset, 2)
                 entry["eta_minutes_from_start"] = round(end_offset, 2)
+                # A completed room's eta_at is a historical fact — when it
+                # actually finished — derived purely from summed actual
+                # durations, so it stays anchored to job start regardless of
+                # any later pause (ACC-2 only changes the FORECAST anchor
+                # for rooms that haven't happened yet, below).
                 entry["eta_at"] = _eta_at(job_start_dt, end_offset)
                 entry["reanchored"] = False
                 entry["completed"] = True
@@ -1373,16 +1466,42 @@ class LearningEstimator:
                 entry["progress_percent"] = 100
                 entry["elapsed_minutes"] = round(actual_duration, 2)
                 entry["remaining_minutes"] = 0.0
+            elif is_skipped:
+                # RP-036/ACC-4: resolved, not remaining — it contributes no
+                # further transit or cleaning time since it will not be
+                # visited. Cursor position is left unchanged (frozen at
+                # "wherever we are"), so it doesn't push later rooms' ETAs.
+                entry["start_offset_minutes"] = round(actual_elapsed + remaining_cursor, 2)
+                entry["end_offset_minutes"] = round(actual_elapsed + remaining_cursor, 2)
+                entry["eta_minutes_from_start"] = round(actual_elapsed + remaining_cursor, 2)
+                entry["eta_at"] = _eta_at(anchor_dt, remaining_cursor)
+                entry["reanchored"] = True
+                entry["completed"] = False
+                entry["current"] = False
+                entry["remaining"] = False
+                entry["skipped"] = True
+                entry["progress_percent"] = 0
+                entry["elapsed_minutes"] = 0.0
+                entry["remaining_minutes"] = 0.0
             else:
+                # RP-036/ACC-3: re-add this room's OWN transit-before leg —
+                # previously dropped entirely, only room.get("minutes") was
+                # counted here.
+                transit_before = _safe_float(room.get("estimated_transit_minutes_before"), 0.0)
                 estimated_minutes = _safe_float(room.get("minutes"), _DEFAULT_ROOM_MINUTES)
                 start_offset = actual_elapsed + remaining_cursor
-                remaining_cursor += estimated_minutes
+                remaining_cursor += transit_before + estimated_minutes
                 end_offset = actual_elapsed + remaining_cursor
 
                 entry["start_offset_minutes"] = round(start_offset, 2)
                 entry["end_offset_minutes"] = round(end_offset, 2)
                 entry["eta_minutes_from_start"] = round(end_offset, 2)
-                entry["eta_at"] = _eta_at(job_start_dt, end_offset)
+                # RP-036/ACC-2: a remaining room's forecast is time-from-NOW
+                # (reanchor_at / anchor_dt), not job_start_dt + cumulative —
+                # job_start_dt ignores any dead wall-clock gap (a pause)
+                # between the last real completion and this reanchor call,
+                # silently sliding "Done at" into the past.
+                entry["eta_at"] = _eta_at(anchor_dt, remaining_cursor)
                 entry["reanchored"] = True
                 entry["completed"] = False
                 entry["current"] = False
@@ -1396,7 +1515,7 @@ class LearningEstimator:
 
         first_unresolved_marked = False
         for entry in updated_timeline:
-            if entry.get("completed", False):
+            if entry.get("completed", False) or entry.get("skipped", False):
                 continue
             if not first_unresolved_marked:
                 entry["current"] = True
@@ -1406,13 +1525,17 @@ class LearningEstimator:
                 entry["current"] = False
                 entry["remaining"] = True
 
-        overhead_minutes = _safe_float(original_estimate.get("overhead_minutes"), 0.0)
+        # RP-036/ACC-2: the job-level forecast is also anchored to NOW —
+        # "now" plus whatever cleaning/transit/overhead is still ahead —
+        # rather than job_start_dt + the naive full-job total, which is what
+        # silently slid "Done at" into the past across a pause.
         total_actual_and_estimated = actual_elapsed + remaining_cursor
         total_minutes = total_actual_and_estimated + overhead_minutes
-        job_eta_at = _eta_at(job_start_dt, total_minutes)
+        job_eta_at = _eta_at(anchor_dt, remaining_cursor + overhead_minutes)
 
         completed_count = sum(1 for r in updated_timeline if r.get("completed"))
-        remaining_count = len(updated_timeline) - completed_count
+        skipped_count = sum(1 for r in updated_timeline if r.get("skipped"))
+        remaining_count = len(updated_timeline) - completed_count - skipped_count
 
         result = {
             **original_estimate,
@@ -1423,6 +1546,7 @@ class LearningEstimator:
             "job_eta_at": job_eta_at,
             "reanchored_at": datetime_to_utc_iso(anchor_dt),
             "rooms_completed": completed_count,
+            "rooms_skipped": skipped_count,
             "rooms_remaining": remaining_count,
             "actual_elapsed_minutes": round(actual_elapsed, 2),
             "all_completed": remaining_count == 0,
@@ -1433,7 +1557,10 @@ class LearningEstimator:
             remaining_battery_estimate = sum(
                 _safe_float(r.get("battery"), _DEFAULT_BATTERY_PER_ROOM)
                 for r in updated_timeline
-                if not r.get("completed", False)
+                # RP-036/ACC-4 (consistency): a skipped room consumes no
+                # battery either — same "resolved, not remaining" treatment
+                # as the completion check above.
+                if not r.get("completed", False) and not r.get("skipped", False)
             )
             required = remaining_battery_estimate + reserve_battery_percent
             shortfall = max(required - current_battery, 0.0)
