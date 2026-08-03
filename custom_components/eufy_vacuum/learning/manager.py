@@ -2450,15 +2450,24 @@ class LearningManager:
                 )
 
                 if match:
-                    minutes = _safe_float(
-                        match.get("avg_minutes"), _DEFAULT_ROOM_MINUTES
+                    # SIBLING of the estimator's guard — same falsy-zero read, same fix.
+                    # A room whose every timing was an allocation stores avg_minutes 0.0,
+                    # and `_safe_float(0.0, default)` returns 0.0, not the default, so the
+                    # room would estimate as taking no time. Fixing only the estimator
+                    # would have left this path reporting zero for the same rooms.
+                    _timing_n = _safe_int(
+                        match.get("timing_sample_count", match.get("sample_count")), 0
+                    )
+                    minutes = (
+                        _safe_float(match.get("avg_minutes"), _DEFAULT_ROOM_MINUTES)
+                        if _timing_n > 0 else _DEFAULT_ROOM_MINUTES
                     )
                     battery = _safe_float(
                         match.get("avg_battery_used"), _DEFAULT_BATTERY_PER_ROOM
                     )
                     sample_count = _safe_int(match.get("sample_count"), 0)
                     minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
-                    source = "learned"
+                    source = "learned" if _timing_n > 0 else "default"
                     room_key = _room_key(
                         map_id_int, slug, clean_mode, clean_passes, is_carpet, clean_intensity, edge_mopping
                     )
