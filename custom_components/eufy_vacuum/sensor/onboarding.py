@@ -42,17 +42,30 @@ class EufyVacuumOnboardingSensor(SensorEntity):
             f"{vacuum_entity_id.replace('.', '_')}_onboarding_state"
         )
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
+        # ONB-5: native_value AND extra_state_attributes each independently called
+        # get_rooms_onboarding_summary — HA reads both properties per state-write cycle,
+        # so it ran twice for no reason. Cache once per poll (mirrors
+        # sensor/maintenance.py's EufyVacuumMaintenanceRemainingSensor).
+        self._cached_summary: dict[str, Any] = {}
 
-    def _get_summary(self) -> dict[str, Any]:
-        """Return the onboarding summary dict from the manager."""
-        return self._manager.get_rooms_onboarding_summary(
+    async def async_added_to_hass(self) -> None:
+        """Warm the summary cache before the first state write."""
+        self._refresh_summary()
+
+    def _refresh_summary(self) -> None:
+        """Fetch the onboarding summary once and cache it for this update cycle."""
+        self._cached_summary = self._manager.get_rooms_onboarding_summary(
             vacuum_entity_id=self._vacuum_entity_id,
         )
+
+    async def async_update(self) -> None:
+        """Poll: refresh the cached summary."""
+        self._refresh_summary()
 
     @property
     def native_value(self) -> str:
         """Return the worst-case status across all maps (rooms_needed > floor_type_needed > complete)."""
-        summary = self._get_summary()
+        summary = self._cached_summary
         maps = summary.get("maps", [])
         # DR-ONB-3: an empty maps collection is not vacuously complete --
         # both scan loops below fall through on an empty list. Mirrors
@@ -71,7 +84,7 @@ class EufyVacuumOnboardingSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return per-map onboarding detail."""
-        summary = self._get_summary()
+        summary = self._cached_summary
         return {
             "all_complete": summary.get("all_complete", False),
             "vacuum_entity_id": self._vacuum_entity_id,

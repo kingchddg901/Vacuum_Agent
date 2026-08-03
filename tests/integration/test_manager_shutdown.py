@@ -58,14 +58,25 @@ async def test_shutdown_cancels_ledgered_dock_poller_and_grace_timer(manager, mo
 async def test_save_after_shutdown_is_a_noop(manager, caplog):
     """[MS-2] async_save is a no-op after async_shutdown -- belt-and-braces
     against a stale, unloaded manager clobbering a store a newer manager (from
-    a reload) already owns."""
+    a reload) already owns.
+
+    DRAFT-5: async_shutdown() now does one deliberate final flush of its OWN
+    (so a debounced draft save via async_save_delayed is never silently dropped
+    by an unload) before it marks itself closed -- that is the CURRENT manager,
+    still the authoritative owner, doing its own last write, not a stray late
+    write from an already-superseded manager, so it isn't what this test's
+    "no-op after shutdown" contract is about. Assert on the call AFTER shutdown
+    instead (the one _closed actually gates).
+    """
     stub = AsyncMock()
     manager.storage.async_save = stub
 
     await manager.async_shutdown()
+    assert stub.await_count == 1, "shutdown's own final flush"
+
     await manager.async_save()
 
-    stub.assert_not_awaited()
+    assert stub.await_count == 1, "the post-shutdown call must be suppressed, not a 2nd write"
     assert "save after shutdown suppressed" in caplog.text
 
 

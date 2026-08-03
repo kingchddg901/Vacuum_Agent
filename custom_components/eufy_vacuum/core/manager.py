@@ -321,6 +321,12 @@ class EufyVacuumManager:
         """
         if self._closed:
             return {"timers_cancelled": 0, "tasks_cancelled": 0}
+        # DRAFT-5: async_save_delayed() may have a debounced write still pending on
+        # HA's Store — Store's own final-write listener only guards a FULL HASS
+        # shutdown (EVENT_HOMEASSISTANT_FINAL_WRITE), not an integration unload/reload.
+        # Flush directly via storage (not self.async_save(), which is gated on
+        # _closed) so an in-flight debounce window is never silently dropped here.
+        await self.storage.async_save(self.data)
         self._closed = True
 
         cancelled_tasks: list[asyncio.Task] = []
@@ -949,6 +955,20 @@ class EufyVacuumManager:
             _LOGGER.warning("async_save: save after shutdown suppressed")
             return
         await self.storage.async_save(self.data)
+
+    def async_save_delayed(self) -> None:
+        """DRAFT-5: schedule a coalesced write (~2s) instead of writing immediately —
+        for high-frequency, low-stakes updates (theme draft edits) where losing the
+        last couple of seconds of in-flight edits on a crash is an acceptable trade
+        for not doing one full-integration-data disk write per edit. A callback, not a
+        coroutine (mirrors HA's own Store.async_delay_save). No-op after async_shutdown,
+        same guard as async_save — async_shutdown itself flushes any already-pending
+        delayed write before it closes, so a debounce window is never silently dropped
+        by a reload."""
+        if self._closed:
+            _LOGGER.warning("async_save_delayed: save after shutdown suppressed")
+            return
+        self.storage.async_save_delayed(lambda: self.data)
 
     async def _async_save_logged(self) -> None:
         """Save persistent data, logging any storage failure."""

@@ -32,13 +32,19 @@ _MAP = "1"
 # ---------------------------------------------------------------------------
 
 def test_onboarding_sensor_complete_when_all_rooms_configured(manager):
-    """[SE-1] native_value='complete' after rooms are imported and configured."""
+    """[SE-1] native_value='complete' after rooms are imported and configured.
+
+    ONB-5: native_value/extra_state_attributes read a cache now (mirrors
+    EufyVacuumMaintenanceRemainingSensor) — _refresh_summary() primes it, same as
+    those tests call _refresh_cache() directly.
+    """
     setup_map(manager, _VAC, _MAP, count=2)
     # Mark rooms as configured.
     for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
         room["is_configured"] = True
 
     sensor = EufyVacuumOnboardingSensor(manager=manager, vacuum_entity_id=_VAC)
+    sensor._refresh_summary()
     assert sensor.native_value == "complete"
 
 
@@ -49,6 +55,7 @@ def test_onboarding_sensor_rooms_needed_when_no_rooms(manager):
     manager.data.setdefault("maps", {}).setdefault(_VAC, {}).setdefault(_MAP, {"rooms": {}})
 
     sensor = EufyVacuumOnboardingSensor(manager=manager, vacuum_entity_id=_VAC)
+    sensor._refresh_summary()
     # No rooms → rooms_needed state.
     assert sensor.native_value == "rooms_needed"
 
@@ -57,6 +64,7 @@ def test_onboarding_sensor_extra_attributes_include_vacuum_entity_id(manager):
     """[SE-3] extra_state_attributes contains vacuum_entity_id."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     sensor = EufyVacuumOnboardingSensor(manager=manager, vacuum_entity_id=_VAC)
+    sensor._refresh_summary()
     attrs = sensor.extra_state_attributes
     assert attrs["vacuum_entity_id"] == _VAC
     assert "maps" in attrs

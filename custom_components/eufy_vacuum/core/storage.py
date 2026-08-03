@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -10,6 +11,12 @@ from homeassistant.helpers.storage import Store
 from ..adapters.eufy.const import STORAGE_KEY as STORAGE_KEY  # noqa: F401
 
 STORAGE_VERSION = 1
+
+# DRAFT-5: a burst of rapid successive draft edits (a card slider being dragged)
+# used to trigger one full-integration-data disk write PER edit — async_save_delayed
+# coalesces them into one write after this much quiet. Long enough to absorb a drag
+# gesture, short enough that a crash mid-drag loses at most this much.
+DRAFT_SAVE_DELAY_SECONDS = 2.0
 
 
 class EufyVacuumStorage:
@@ -46,5 +53,21 @@ class EufyVacuumStorage:
         return data
 
     async def async_save(self, data: dict[str, Any]) -> None:
-        """Save stored data."""
+        """Save stored data immediately."""
         await self._store.async_save(data)
+
+    def async_save_delayed(
+        self,
+        data_func: Callable[[], dict[str, Any]],
+        *,
+        delay: float = DRAFT_SAVE_DELAY_SECONDS,
+    ) -> None:
+        """Schedule a coalesced write via HA's own Store.async_delay_save.
+
+        DRAFT-5: a callback, not a coroutine (mirrors Store.async_delay_save's own
+        signature) — rapid successive callers collapse into ONE write `delay` seconds
+        after the last call, instead of one write per call. ``data_func`` is invoked
+        at WRITE time, not now, so it must keep returning the current data (a bound
+        method / closure over the live dict), never a snapshot captured at call time.
+        """
+        self._store.async_delay_save(data_func, delay)

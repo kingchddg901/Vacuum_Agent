@@ -227,7 +227,11 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
             alpha=call.data.get("alpha"),
         )
         _LOGGER.debug("update_working_draft complete: %s", result)
-        await manager.async_save()
+        # DRAFT-5: a slider being dragged fires this repeatedly in quick succession --
+        # debounce the disk write (coalesced ~2s after the last edit) instead of doing
+        # one full-integration-data Store.async_save() per edit. The in-memory mutation
+        # above is unconditional and immediate either way; only the WRITE is delayed.
+        manager.async_save_delayed()
         return result
 
     async def handle_revert_draft(call: ServiceCall) -> dict:
