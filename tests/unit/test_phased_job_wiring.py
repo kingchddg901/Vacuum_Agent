@@ -45,11 +45,18 @@ def runner(store):
     # bails returning None — so every "a clean phase has no child" assertion passes for
     # the wrong reason and wave 2 goes completely unexercised. Stub the finalizer with
     # real dicts so the child path actually runs.
+    seen: dict = {}
+
     def _collect(**kw):
-        return {"active_job_state": {"job_id": "job_x", "phases": []}}
+        # A real active job in a later phase carries RP-013c's job-cumulative list.
+        return {"active_job_state": {
+            "job_id": "job_x", "phases": [],
+            "completed_room_ids_cumulative": [5],
+        }}
 
     def _finalize(*, inputs, **kw):
         state = inputs["active_job_state"]
+        seen["active_job_state"] = state
         scoped = state.get("phases") or []
         seconds = sum(
             int(rt.get("cleaning_seconds") or 0)
@@ -82,6 +89,7 @@ def runner(store):
     learning.finalizer.finalize_from_inputs = _finalize
     learning.store = store
     mgr._get_learning_manager = lambda: learning
+    mgr.seen = seen
     # Prove the accessor is the real one: a manager WITHOUT it must not be silently
     # tolerated by a mock inventing the attribute.
     del mgr.learning
@@ -523,3 +531,19 @@ def test_cancel_in_a_later_phase_leaves_finished_work_alone(store, runner):
     assert slots[1]["outcome"] == "cancelled_upstream"
     assert slots[2]["outcome"] == "cancelled"
     assert closed["status"] == "partial"                # some work survived
+
+
+def test_a_child_does_not_inherit_earlier_phases_completed_rooms(store, runner):
+    """RP-013c's job-cumulative list exists so a MERGED record could see rooms the
+    per-phase resets wiped. A child describes ONE phase, and known_completed_room_ids
+    unions that list — so phase 2's child credited itself with the kitchen phase 0 had
+    already recorded ([5, 8, 4] instead of [8, 4]). Same double-count as the metric
+    scope, on the room axis. The parent unions its children, so the run-level answer is
+    unchanged."""
+    job = _job()
+    _open(store, job)
+    _run_all_phases(runner, job)
+    scoped = runner._manager.seen["active_job_state"]
+    assert scoped["completed_room_ids_cumulative"] == [], (
+        "the child was handed every earlier phase's rooms"
+    )
