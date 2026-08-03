@@ -1346,6 +1346,28 @@ class ProfileManager:
             r for step in self.run_profile_steps(profile) if step.get("type") == "room_group"
             for r in step.get("rooms", [])
         ]
+        # RP-021b / #8:A4-PP-RP-1: a STEPPED profile's room_group entries are
+        # id-only -- bare {"room_id": N}, by design (the save-side comment above
+        # says so: apply restores the saved rooms' SETTINGS, steps carry only the
+        # sequence). But the reads below fell straight through to current_room,
+        # so every saved setting was silently replaced by the room's live state.
+        #
+        # Save 'Nightly' = Kitchen+Bath on mop/High water, charge to 90%, then
+        # Bedrooms. Later switch the Kitchen to vacuum-only for a quick pass.
+        # Pressing Run Nightly restored the right rooms in the right order with
+        # the charge break -- and ran the Kitchen dry. The settings were on disk
+        # the whole time, at profile["rooms"], simply never read.
+        #
+        # Flat/legacy profiles were never affected: run_profile_steps back-fills
+        # their group FROM profile["rooms"], which already carries full settings.
+        _saved_by_id: dict[int, dict] = {}
+        for _saved in profile.get("rooms") or []:
+            if isinstance(_saved, dict):
+                _sid = _safe_int(_saved.get("room_id"), -1)
+                if _sid >= 0:
+                    _saved_by_id.setdefault(_sid, _saved)
+        _unsnapshotted: list[int] = []
+
         for index, room_snapshot in enumerate(_profile_rooms, start=1):
             if not isinstance(room_snapshot, dict):
                 continue
@@ -1358,22 +1380,53 @@ class ProfileManager:
                 missing_room_ids.append(room_id)
                 continue
 
+            # Three layers, most specific first: the STEP's own field (a per-group
+            # override, e.g. vacuum this pass then mop the next) beats the
+            # profile's saved snapshot, which beats the room's CURRENT live
+            # state. Only the last of those is "whatever the room happens to be
+            # set to today", and it must be the last resort, not the first.
+            _saved_room = _saved_by_id.get(room_id) or {}
+            if not _saved_room:
+                _unsnapshotted.append(room_id)
+
+            def _field(name: str, fallback, _step=room_snapshot,
+                       _saved=_saved_room, _live=current_room):
+                if name in _step:
+                    return _step[name]
+                if name in _saved:
+                    return _saved[name]
+                return _live.get(name, fallback)
+
             updated_room = self._finalize_room_update(
                 {
                     **current_room,
                     "enabled": True,
                     "order": index,
-                    "profile_name": str(room_snapshot.get("profile_name", current_room.get("profile_name", "vacuum_quick"))),
-                    "clean_mode": str(room_snapshot.get("clean_mode", current_room.get("clean_mode", "vacuum"))),
-                    "fan_speed": str(room_snapshot.get("fan_speed", current_room.get("fan_speed", "Max"))),
-                    "water_level": str(room_snapshot.get("water_level", current_room.get("water_level", "Off"))),
-                    "clean_intensity": normalize_clean_intensity(room_snapshot.get("clean_intensity", current_room.get("clean_intensity", "Quick"))),
-                    "clean_passes": int(room_snapshot.get("clean_passes", current_room.get("clean_passes", 1))),
-                    "edge_mopping": bool(room_snapshot.get("edge_mopping", current_room.get("edge_mopping", False))),
+                    "profile_name": str(_field("profile_name", "vacuum_quick")),
+                    "clean_mode": str(_field("clean_mode", "vacuum")),
+                    "fan_speed": str(_field("fan_speed", "Max")),
+                    "water_level": str(_field("water_level", "Off")),
+                    "clean_intensity": normalize_clean_intensity(_field("clean_intensity", "Quick")),
+                    "clean_passes": int(_field("clean_passes", 1)),
+                    "edge_mopping": bool(_field("edge_mopping", False)),
                 }
             )
             updates[room_key] = updated_room
             applied_room_ids.append(room_id)
+
+        if _unsnapshotted:
+            # The packet's stop_condition: a profile saved before settings were
+            # snapshotted has nothing to restore for these rooms, so they keep
+            # their CURRENT settings. Say so rather than inventing values -- the
+            # user gets the right rooms in the right order with today's settings,
+            # which is recoverable; a fabricated "saved" setting is not.
+            _LOGGER.info(
+                "apply_run_profile %s: %d room(s) have no saved settings snapshot "
+                "(%s) -- applying their CURRENT settings. Re-save the profile to "
+                "capture them.",
+                profile_id, len(_unsnapshotted),
+                ", ".join(str(r) for r in _unsnapshotted),
+            )
 
         if not applied_room_ids:
             return {
@@ -1417,6 +1470,13 @@ class ProfileManager:
             "profile": profile,
             "applied_room_ids": applied_room_ids,
             "missing_room_ids": missing_room_ids,
+            # RP-021b / #8:A4-PP-RP-1: rooms the profile had no saved settings
+            # snapshot for, so they kept their CURRENT settings. Empty for any
+            # profile saved since settings were snapshotted, and for every
+            # legacy rooms-only profile (whose group IS profile["rooms"]).
+            # Reported rather than silent: "the right rooms ran with the wrong
+            # settings" is otherwise indistinguishable from a clean apply.
+            "unsnapshotted_room_ids": _unsnapshotted,
         }
 
     async def start_run_profile(

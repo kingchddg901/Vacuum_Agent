@@ -758,3 +758,92 @@ def test_enrichment_derives_rooms_from_effective_steps(pm):
     assert legacy["room_ids"] == [4, 5]
     assert legacy["room_names"] == ["Den", "Hall"]
     assert legacy["room_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# RP-021b #8:A4-PP-RP-1 — a stepped apply restores the profile's SAVED settings
+# ---------------------------------------------------------------------------
+
+def _seed_profile_room(pm, rid, **fields):
+    room = {"room_id": rid, "name": f"Room {rid}", "enabled": True, "order": rid}
+    room.update(fields)
+    pm._data.setdefault("maps", {}).setdefault(_VAC, {}).setdefault(_MAP, {}) \
+        .setdefault("rooms", {})[str(rid)] = room
+
+
+def test_stepped_apply_restores_saved_settings_not_live_ones(pm):
+    """[PM-30] RP-021b / #8:A4-PP-RP-1 (HIGH).
+
+    A stepped profile's room_group entries are id-only by design — bare
+    {"room_id": N} — because apply is supposed to restore the SETTINGS from
+    profile["rooms"] and take only the sequence from steps. It didn't: every
+    field read fell through to the room's CURRENT live state, so the saved
+    settings (on disk the whole time, simply unread) were silently discarded.
+
+    Save "Nightly" with the Kitchen on mop/High. Later switch the Kitchen to
+    vacuum for a quick pass. Press Run Nightly: right rooms, right order, right
+    charge break — and the Kitchen runs dry.
+    """
+    _seed_profile_room(pm, 1, clean_mode="mop", water_level="High", fan_speed="Quiet")
+    _seed_profile_room(pm, 2)
+    pid = pm.save_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, name="Nightly")["profile_id"]
+    # a stepped sequence whose group entries are id-only, as the save side writes them
+    pm.set_run_profile_steps(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid,
+        steps=[{"type": "room_group", "rooms": [{"room_id": 1}]},
+               {"type": "charge_wait", "target_battery_percent": 90},
+               {"type": "room_group", "rooms": [{"room_id": 2}]}])
+
+    # the user later changes the room to a dry quick pass
+    pm._data["maps"][_VAC][_MAP]["rooms"]["1"].update(
+        {"clean_mode": "vacuum", "water_level": "Off", "fan_speed": "Max"})
+
+    out = pm.apply_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+    assert out["applied"] is True
+    room1 = pm._data["maps"][_VAC][_MAP]["rooms"]["1"]
+    assert room1["clean_mode"] == "mop", "the saved mop setting was replaced by the live one"
+    assert room1["water_level"] == "High"
+    assert room1["fan_speed"] == "Quiet"
+    assert out["unsnapshotted_room_ids"] == []
+
+
+def test_stepped_apply_lets_a_per_group_override_win(pm):
+    """[PM-30] The precedence has three layers and the STEP is the most specific.
+    A group that carries its own clean_mode is an explicit per-phase override
+    (vacuum this pass, mop the next) and must beat the profile-level snapshot —
+    otherwise this fix would quietly disable the per-group settings CW-12 pins."""
+    _seed_profile_room(pm, 1, clean_mode="mop", water_level="High")
+    pid = pm.save_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, name="Mixed")["profile_id"]
+    pm.set_run_profile_steps(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid,
+        steps=[{"type": "room_group", "rooms": [{"room_id": 1, "clean_mode": "vacuum"}]},
+               {"type": "charge_wait", "target_battery_percent": 90},
+               {"type": "room_group", "rooms": [{"room_id": 1}]}])
+
+    pm.apply_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+    # the LAST group wins the final write (order matters); it has no override,
+    # so it falls to the saved snapshot — mop.
+    assert pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["clean_mode"] == "mop"
+
+
+def test_stepped_apply_reports_rooms_with_no_saved_snapshot(pm):
+    """[PM-30] The packet's stop_condition: a profile saved before settings were
+    snapshotted has nothing to restore, so those rooms keep their CURRENT
+    settings — reported, never invented. 'Right rooms, wrong settings' is
+    otherwise indistinguishable from a clean apply."""
+    _seed_profile_room(pm, 1, clean_mode="vacuum")
+    pid = pm.save_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, name="Legacy")["profile_id"]
+    store = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)
+    store[pid]["rooms"] = []                       # legacy: no settings snapshot
+    store[pid]["steps"] = [{"type": "room_group", "rooms": [{"room_id": 1}]},
+                           {"type": "charge_wait", "target_battery_percent": 90},
+                           {"type": "room_group", "rooms": [{"room_id": 1}]}]
+
+    out = pm.apply_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+    assert out["applied"] is True
+    assert 1 in out["unsnapshotted_room_ids"]
+    # and it kept the live setting rather than fabricating one
+    assert pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["clean_mode"] == "vacuum"
