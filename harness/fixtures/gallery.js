@@ -615,6 +615,83 @@ const ROOM_RULES = {
 };
 
 /* =========================================================
+   RUN PROFILES — steps editor, unsupported-position break struck through
+   =========================================================
+   CARD-6 clause (1): a legacy profile already carrying a charge_wait/wait
+   at index 0 or the last index has nothing to bracket and will never run.
+   isUnsupportedBreakPosition (state/steps-order.js) flags it; the renderer
+   (run-profiles.js's _renderRunProfileStepsEditor) shows it struck-through
+   with a "will be skipped" note instead of an ordinary editable row. Draft
+   carries BOTH a leading charge_wait (struck) and a trailing wait (struck)
+   around two normal room_group steps (not struck) — the "honest instrument"
+   pattern: unsupported and supported rows co-present for direct contrast,
+   not a single state in isolation.
+   ========================================================= */
+
+const RUN_PROFILES_UNSUPPORTED_BREAK = {
+  id: "run-profiles-unsupported-break",
+  view: "rooms",
+  label: "Rooms — run profile steps editor, unsupported-position break struck through (CARD-6)",
+  tokens: ["--evcc-sem-warning"],
+  state: {
+    getRoomsForActiveMap: () => [
+      room("1", "Kitchen"),
+      room("2", "Living Room"),
+    ],
+    savedRunProfiles: () => [],
+    selectedRunProfile: () => null,
+    isRunProfileEditorOpen: () => true,
+    runProfileEditorMode: () => "edit",
+    runProfileDraft: () => ({ name: "Weeknight Deep Clean", expose_as_button: false }),
+    isDraftStepsExpanded: () => true,
+    runProfileDraftSteps: () => [
+      // Leading -- struck through, "will be skipped".
+      { type: "charge_wait", target_battery_percent: 80 },
+      // Two ordinary, supported room_group steps -- NOT struck, for contrast.
+      { type: "room_group", rooms: [{ room_id: 1, clean_mode: "vacuum" }] },
+      { type: "room_group", rooms: [{ room_id: 2, clean_mode: "vacuum_mop" }] },
+      // Trailing -- struck through, "will be skipped".
+      { type: "wait", wait_minutes: 15 },
+    ],
+    // This fixture exhibits an idle editor, not an active job -- without an explicit
+    // false here the null-object's truthy default paints the entire job-control /
+    // cancel-confirmation / learning-progress stack over the steps editor (mirrors
+    // the same suppression ROOMS_ACTIVE needs, just inverted for the idle case).
+    hasActiveRun: () => false,
+    canStartCleaning: () => true,
+    hasStartWarning: () => false,
+    roomEstimateForRoom: () => null,
+    troubleRoomForRoom: () => null,
+    startMopCarpetWarning: () => null,
+    startOrderAdvisory: () => null,
+    startRequiresConfirmation: () => false,
+    startConfirmation: () => null,
+    startPreflight: () => null,
+    cancelRunRequiresConfirmation: () => false,
+    clearQueueRequiresConfirmation: () => false,
+    hasLearningSummary: () => false,
+    learningAllCompleted: () => false,
+    learningBatteryWarning: () => false,
+    hasIncompleteRunLog: () => false,
+    // These learning-panel pieces are each independently gated on their OWN accessor
+    // (not on hasActiveRun), so the null-object's truthy default still paints the
+    // processing toggle, pre-job estimate, live queue banner, and charge/wait banners
+    // over the steps editor unless each is suppressed here individually.
+    shouldShowLiveQueue: () => false,
+    liveChargeStatus: () => null,
+    liveWaitStatus: () => null,
+    dashboardLearningProcessing: () => null,
+    dashboardPlannedJobEstimate: () => null,
+    learningEstimate: () => null,
+    // Suppress the null-object's truthy default so the saved-zone-step picker modal
+    // doesn't render over the steps editor (this fixture isn't exhibiting that flow).
+    queueZonePickerOpen: () => false,
+    // Likewise suppress the live zone-phase banner -- not relevant to a paused editor draft.
+    liveZoneStatus: () => null,
+  },
+};
+
+/* =========================================================
    EXPORT
    ========================================================= */
 
@@ -663,5 +740,6 @@ export const GALLERY = [
   METRICS_OVERVIEW,
   MAINTENANCE,
   ROOM_RULES,
+  RUN_PROFILES_UNSUPPORTED_BREAK,
   ...STATUS_DOTS,
 ];

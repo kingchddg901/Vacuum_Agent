@@ -34,6 +34,7 @@ const GALLERY_IDS = [
   "metrics-overview",
   "maintenance",
   "room-rules",
+  "run-profiles-unsupported-break",
   "dot-cleaning",
   "dot-returning",
   "dot-paused",
