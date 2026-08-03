@@ -3578,7 +3578,16 @@ class EufyVacuumManager:
         charge_eta_source = None
         charge_from_battery = None
         charge_started_at = None
-        _cw_phases = active_job.get("phases")
+        # A phase is only "active" while the JOB is. charge/wait/zone were derived purely
+        # from current_phase_index + phase_type, so a run cancelled during a wait left the
+        # index pointing at that wait forever and the card kept counting down a hold that
+        # had already been torn down. Same shape as the advance-after-cancel defect: phase
+        # structure read without asking whether the run still exists.
+        _phase_state_live = (
+            str(active_job.get("status") or "") == "started"
+            and not active_job.get("finalized")
+        )
+        _cw_phases = active_job.get("phases") if _phase_state_live else None
         if isinstance(_cw_phases, list):
             _cw_idx = _safe_int(active_job.get("current_phase_index"), -1)
             if (

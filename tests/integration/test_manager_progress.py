@@ -559,3 +559,63 @@ def test_payload_state_enrichment_skips_non_dict_rooms(manager):
     # nothing in the output is a non-dict (the skip held)
     assert all(isinstance(r, dict) for r in resolved)
 
+
+
+# --------------------------------------------------------------------------
+# A run cancelled during a wait stranded the countdown on the card
+# (observed 2026-08-02).
+# --------------------------------------------------------------------------
+
+
+def _wait_phase_job(manager, **extra):
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[1], resolved_rooms=[], current_phase_index=1,
+        phases=[
+            {"resolved_rooms": [{"room_id": 1, "name": "K"}], "queue_room_ids": [1],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "wait", "wait_minutes": 2,
+             "wait_started_at": "2026-01-01T00:00:00Z",
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+        **extra,
+    )
+
+
+def test_progress_wait_phase_surfaces_while_running(manager, hass):
+    """Baseline — a live wait must still drive the countdown banner."""
+    _wire(manager, hass)
+    _wait_phase_job(manager)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["wait_phase_active"] is True
+    assert snap["wait_minutes"] == 2
+
+
+def test_progress_wait_phase_clears_once_the_job_is_finalized(manager, hass):
+    """charge/wait/zone "active" was derived purely from current_phase_index +
+    phase_type. A cancel during a wait leaves that index pointing at the wait forever, so
+    the card kept counting down a hold that had already been torn down. Same shape as the
+    advance-after-cancel defect: phase structure read without asking if the run exists."""
+    _wire(manager, hass)
+    _wait_phase_job(manager, status="completed", finalized=True)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["wait_phase_active"] is False
+    assert snap["wait_started_at"] is None
+
+
+def test_progress_charge_phase_clears_once_the_job_is_finalized(manager, hass):
+    """The charge banner shares the same derivation, so it stranded the same way."""
+    _wire(manager, hass)
+    hass.states.async_set(_VAC, "docked", {"battery_level": 80})
+    _seed_job(
+        manager, minutes_ago=0, status="completed", finalized=True,
+        queue_room_ids=[1], resolved_rooms=[], current_phase_index=1,
+        phases=[
+            {"resolved_rooms": [{"room_id": 1, "name": "K"}], "queue_room_ids": [1],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "charge_wait", "target_battery_percent": 95,
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+    )
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["charge_phase_active"] is False
