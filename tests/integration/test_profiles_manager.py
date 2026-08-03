@@ -62,10 +62,33 @@ _VAC = "vacuum.alfred"
 _MAP = "6"
 
 
+def _queue_steps(*, steps=None, breaks=None) -> dict:
+    """The real shape of manager.get_queue_steps — a FLAT queue by default.
+
+    Both save_run_profile and (since RP-021b) overwrite_run_profile snapshot the
+    current queue through this call. It was never stubbed, so the autospec'd
+    manager returned a MagicMock whose `.get("has_breaks")` is truthy, and
+    save_run_profile has quietly been writing a MagicMock into `steps` for as long
+    as these tests have existed. Nothing asserted on it, so nothing failed.
+    `has_breaks` is DERIVED here rather than passed, for the same reason production
+    derives it — a stub that lets the flag disagree with the steps can assert a
+    combination the real function cannot produce.
+    """
+    steps = list(steps or [])
+    return {
+        "vacuum_entity_id": _VAC,
+        "map_id": _MAP,
+        "steps": steps,
+        "breaks": list(breaks or []),
+        "has_breaks": any(s.get("type") != "room_group" for s in steps),
+    }
+
+
 @pytest.fixture
 def pm() -> ProfileManager:
     mgr = spec_manager()
     mgr.data = {}
+    mgr.get_queue_steps.return_value = _queue_steps()
     return ProfileManager(mgr)
 
 
@@ -564,6 +587,11 @@ def test_overwrite_run_profile_clears_stale_steps(pm):
     overwritten from a NEW enabled-room set, must not keep the stale steps — the
     overwrite's rooms are what run/apply should clean. run_profile_steps prefers a
     non-empty steps list, so a carried-forward one would silently clean the OLD rooms.
+
+    Still [] here, but note WHY it is [] since RP-021b: overwrite re-snapshots the
+    CURRENT queue, and this test's queue is flat. Blanking and re-snapshotting agree
+    on a flat queue and disagree on a stepped one — see
+    test_overwrite_run_profile_resnapshots_a_stepped_queue.
     """
     _seed_enabled_rooms(pm)  # rooms 1, 2 enabled
     pid = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")["profile_id"]
@@ -590,7 +618,72 @@ def test_overwrite_run_profile_clears_stale_steps(pm):
     # and the enriched view reports the NEW room, not the old 1/2
     assert ok["profile"]["room_ids"] == [7]
     assert ok["profile"]["has_charge_steps"] is False
-    assert ok["profile"]["has_stops"] is False
+
+
+def test_overwrite_run_profile_resnapshots_a_stepped_queue(pm):
+    """[PM-24b] RP-021b / #8:A4-PP-RP-2 (CRITICAL). Overwrite means "this profile now
+    IS the current queue" — so when the CURRENT queue is stepped, its sequence must
+    survive the save.
+
+    It used to blank `steps` unconditionally. Overwrite is reachable from the card's
+    ONLY Save button, so a save whose whole intent was a rename flattened
+    "Downstairs, wait 30 min, then Upstairs" into a single pass: no wait, no charge
+    stop, zone steps never cleaned — and async_save committed it. The editor opens
+    such a profile COLLAPSED, so the user never saw what they lost.
+    """
+    _seed_enabled_rooms(pm)
+    pid = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Nightly")["profile_id"]
+
+    stepped = [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 90},
+        {"type": "room_group", "rooms": [{"room_id": 2}]},
+    ]
+    pm._manager.get_queue_steps.return_value = _queue_steps(steps=stepped)
+
+    ok = pm.overwrite_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid,
+                                  name="Nightly (renamed)")
+    assert ok["overwritten"] is True
+
+    stored = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)[pid]
+    assert stored["steps"] == stepped, "the stepped sequence was flattened by a rename"
+    assert stored["name"] == "Nightly (renamed)"
+    # The charge stop is what a flattened run silently drops, so assert it survived
+    # the full read path, not just the stored blob.
+    assert ok["profile"]["has_charge_steps"] is True
+    assert any(s["type"] == "charge_wait" for s in ProfileManager.run_profile_steps(stored))
+
+
+def test_overwrite_run_profile_takes_the_current_queue_not_the_old_steps(pm):
+    """[PM-24b] The half the old blanking got RIGHT must not regress: overwrite takes
+    the CURRENT queue's sequence, never the profile's previous one. A carried-forward
+    stale list would clean the OLD rooms, because run_profile_steps prefers a
+    non-empty steps list."""
+    _seed_enabled_rooms(pm)
+    pid = pm.save_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")["profile_id"]
+    pm.set_run_profile_steps(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid,
+        steps=[{"type": "room_group", "rooms": [{"room_id": 1}]},
+               {"type": "charge_wait", "target_battery_percent": 90},
+               {"type": "room_group", "rooms": [{"room_id": 2}]}])
+
+    # the CURRENT queue is a different stepped plan over room 7
+    pm._data["maps"][_VAC][_MAP]["rooms"] = {
+        "7": {"room_id": 7, "name": "Office", "enabled": True, "order": 1}}
+    # A break must sit BETWEEN groups — Q17/RP-021a drops a trailing one on read, so a
+    # queue ending in `wait` would fail this test for an unrelated, correct reason.
+    current = [
+        {"type": "room_group", "rooms": [{"room_id": 7}]},
+        {"type": "wait", "wait_minutes": 15},
+        {"type": "room_group", "rooms": [{"room_id": 7}]},
+    ]
+    pm._manager.get_queue_steps.return_value = _queue_steps(steps=current)
+
+    pm.overwrite_run_profile(vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+    stored = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)[pid]
+    assert stored["steps"] == current
+    assert not any(s.get("target_battery_percent") == 90 for s in stored["steps"]), \
+        "the profile's OLD charge_wait survived — overwrite carried stale steps forward"
 
 
 def test_has_stops_flags_sequenced_runs(pm):

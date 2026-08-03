@@ -1171,6 +1171,16 @@ class ProfileManager:
 
         clean_name = str(name if name is not None else existing.get("name", "Untitled")).strip() or "Untitled"
         summary = self._run_profile_summary(enabled_rooms)
+        # Same snapshot save_run_profile takes -- see the "steps" key below for why an
+        # overwrite re-snapshots rather than blanking.
+        _overwrite_queue = self._manager.get_queue_steps(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        _overwrite_steps = (
+            (_overwrite_queue.get("steps") or [])
+            if _overwrite_queue.get("has_breaks")
+            else []
+        )
         updated_profile = {
             **existing,
             "id": profile_id,
@@ -1185,13 +1195,26 @@ class ProfileManager:
                 existing.get("expose_as_button", False) if expose_as_button is None else expose_as_button
             ),
             "rooms": enabled_rooms,
-            # Overwrite replaces the whole run with the current enabled-room queue, so
-            # any prior sequencing is intentionally discarded. The {**existing} spread
-            # would otherwise carry the STALE steps list forward — and run_profile_steps
-            # prefers a non-empty steps list, so apply/start would clean the old rooms
-            # and ignore the new ones. Reset steps so run_profile_steps back-fills a
-            # single room_group of the NEW rooms, matching the overwrite's intent.
-            "steps": [],
+            # RE-SNAPSHOT, don't blank. Overwrite means "this profile now IS the current
+            # queue", so its steps must become the CURRENT queue's steps -- exactly what
+            # save_run_profile captures above.
+            #
+            # This used to be a bare `"steps": []`. The reasoning was half right: the
+            # {**existing} spread would indeed carry the STALE steps forward, and
+            # run_profile_steps prefers a non-empty steps list, so the old rooms would be
+            # cleaned and the new ones ignored. But blanking fixes that by destroying the
+            # sequence outright -- and overwrite is reachable from the card's ONLY Save
+            # button, so a save whose whole intent was a rename or an expose_as_button
+            # toggle silently flattened "Downstairs, wait 30 min, then Upstairs" into one
+            # pass. No charge stop, no wait, zone steps never cleaned, async_save commits
+            # it, and the editor opens such a profile COLLAPSED
+            # (src/state/run-profiles.js gates on has_charge_steps, not has_stops), so the
+            # user never saw the steps they lost.
+            #
+            # The queue's own sequence is the right answer for both cases: stepped queue ->
+            # its breaks are preserved; flat queue -> [] and run_profile_steps back-fills a
+            # single room_group of the NEW rooms, which is what the old comment wanted.
+            "steps": _overwrite_steps,
             "updated_at": utc_now_iso(),
         }
         library[profile_id] = updated_profile
