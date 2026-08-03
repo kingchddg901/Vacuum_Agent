@@ -34,6 +34,20 @@ Coverage targets
 [AJ-29] poll_stranded_started_job: Roborock strand (docked, not 'charging', job_active off) reaps.
 [AJ-30] poll_stranded_started_job: Roborock recharge (job_active ON) → no stamp, None.
 [AJ-31] poll_stranded_started_job: a paused job is left to the pause-timeout reaper.
+[AJ-32] _compute_current_room_elapsed_minutes: subtracts a CLOSED non-cleaning span.
+[AJ-33] _compute_current_room_elapsed_minutes: subtracts the OPEN non-cleaning interval live.
+[AJ-34] _compute_current_room_elapsed_minutes: pause + non-cleaning are additive, floored at 0.
+[AJ-35] _compute_current_room_elapsed_minutes: absent fields → pre-accumulator behaviour.
+[AJ-36] _accumulate_current_room_noncleaning: opens an interval on a non-cleaning state.
+[AJ-37] _accumulate_current_room_noncleaning: returning→docked keeps the ORIGINAL start.
+[AJ-38] _accumulate_current_room_noncleaning: closing folds the span into the total.
+[AJ-39] _accumulate_current_room_noncleaning: FAILS OPEN — a dropout closes the interval.
+[AJ-40] _accumulate_current_room_noncleaning: no-op (no persist) while cleaning.
+[AJ-41] _accumulate_current_room_noncleaning: an unmeasurable interval still closes.
+[AJ-42] reopen_current_room_noncleaning: docked at the stamp → interval opens (dispatch window).
+[AJ-43] reopen_current_room_noncleaning: cleaning at the stamp → nothing opened.
+[AJ-44] reopen_current_room_noncleaning: unreadable live state opens nothing.
+[AJ-45] reopen_current_room_noncleaning: no start stamp → nothing opened.
 """
 
 from __future__ import annotations
@@ -206,6 +220,197 @@ def test_compute_elapsed_bad_timestamps(tracker):
     job = {"current_room_started_at": "", "status": "cleaning"}
     assert tracker._compute_current_room_elapsed_minutes(
         active_job=job, now="not-a-date") == 0.0
+
+
+# ---------------------------------------------------------------------------
+# current-room non-cleaning accumulator
+# ---------------------------------------------------------------------------
+
+def _live_tracker(vacuum_state: str | None) -> ActiveJobTracker:
+    """A tracker whose hass reports one fixed vacuum state.
+
+    Deliberately NOT a bare MagicMock for the state read: a MagicMock would
+    answer whatever the caller asked, and `getattr(mock, "state")` returns a
+    truthy MagicMock that stringifies to something no vocabulary contains — so
+    every 'is it docked?' assertion would pass for the wrong reason.
+    """
+    manager = MagicMock()
+    manager.hass.states.get.return_value = (
+        None if vacuum_state is None else SimpleNamespace(state=vacuum_state)
+    )
+    return ActiveJobTracker(manager)
+
+
+def test_compute_elapsed_subtracts_closed_noncleaning(tracker):
+    """[AJ-32] a finished non-cleaning span is removed from the room's clock."""
+    job = {
+        "current_room_started_at": "2026-01-01T10:00:00+00:00",
+        "status": "started",
+        "current_room_noncleaning_seconds": 180,
+    }
+    assert tracker._compute_current_room_elapsed_minutes(
+        active_job=job, now="2026-01-01T10:10:00+00:00") == pytest.approx(7.0)
+
+
+def test_compute_elapsed_subtracts_open_noncleaning(tracker):
+    """[AJ-33] an interval still OPEN is subtracted live, exactly like a live pause.
+
+    Without this the room's clock would keep running for the whole mop-wash trip
+    and only stop being wrong once the robot came back.
+    """
+    job = {
+        "current_room_started_at": "2026-01-01T10:00:00+00:00",
+        "status": "started",
+        "current_room_noncleaning_since": "2026-01-01T10:06:00+00:00",
+    }
+    assert tracker._compute_current_room_elapsed_minutes(
+        active_job=job, now="2026-01-01T10:10:00+00:00") == pytest.approx(6.0)
+
+
+def test_compute_elapsed_pause_and_noncleaning_both_subtract(tracker):
+    """[AJ-34] the two exclusions are additive, and the result floors at 0 rather
+    than going negative when they exceed the window."""
+    job = {
+        "current_room_started_at": "2026-01-01T10:00:00+00:00",
+        "status": "started",
+        "current_room_paused_seconds": 120,
+        "current_room_noncleaning_seconds": 120,
+    }
+    assert tracker._compute_current_room_elapsed_minutes(
+        active_job=job, now="2026-01-01T10:10:00+00:00") == pytest.approx(6.0)
+
+    job["current_room_noncleaning_seconds"] = 100_000
+    assert tracker._compute_current_room_elapsed_minutes(
+        active_job=job, now="2026-01-01T10:10:00+00:00") == 0.0
+
+
+def test_compute_elapsed_unchanged_when_fields_absent(tracker):
+    """[AJ-35] a job dict predating these fields reads exactly as it did before."""
+    job = {"current_room_started_at": "2026-01-01T10:00:00+00:00", "status": "started"}
+    assert tracker._compute_current_room_elapsed_minutes(
+        active_job=job, now="2026-01-01T10:10:00+00:00") == pytest.approx(10.0)
+
+
+def test_accumulator_opens_on_non_cleaning(tracker):
+    """[AJ-36]"""
+    job = {}
+    changed = tracker._accumulate_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        to_state="returning", changed_at="2026-01-01T10:05:00+00:00")
+    assert changed is True
+    assert job["current_room_noncleaning_since"] == "2026-01-01T10:05:00+00:00"
+
+
+def test_accumulator_does_not_restamp_within_a_span(tracker):
+    """[AJ-37] returning -> docked is ONE absence from the floor.
+
+    Re-stamping on the second transition would silently discard the drive back
+    to the dock — the longest part of the span.
+    """
+    job = {"current_room_noncleaning_since": "2026-01-01T10:05:00+00:00"}
+    changed = tracker._accumulate_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        to_state="docked", changed_at="2026-01-01T10:06:00+00:00")
+    assert changed is False
+    assert job["current_room_noncleaning_since"] == "2026-01-01T10:05:00+00:00"
+
+
+def test_accumulator_closes_and_totals(tracker):
+    """[AJ-38] back to cleaning → the span lands in the total and the interval closes."""
+    job = {
+        "current_room_noncleaning_since": "2026-01-01T10:05:00+00:00",
+        "current_room_noncleaning_seconds": 60,
+    }
+    changed = tracker._accumulate_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        to_state="cleaning", changed_at="2026-01-01T10:08:00+00:00")
+    assert changed is True
+    assert job["current_room_noncleaning_seconds"] == 240  # 60 + 180
+    assert job["current_room_noncleaning_since"] is None
+
+
+@pytest.mark.parametrize("dropout", ["unavailable", "unknown", ""])
+def test_accumulator_closes_on_dropout(tracker, dropout):
+    """[AJ-39] FAIL OPEN. A dropout must CLOSE the interval, not leave it running.
+
+    An interval left open through an unresolved dropout subtracts unboundedly:
+    elapsed never reaches the threshold and the room never advances. Losing the
+    dropout's own seconds is the bounded, correct trade.
+    """
+    job = {"current_room_noncleaning_since": "2026-01-01T10:05:00+00:00"}
+    changed = tracker._accumulate_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        to_state=dropout, changed_at="2026-01-01T10:06:00+00:00")
+    assert changed is True
+    assert job["current_room_noncleaning_since"] is None
+    assert job["current_room_noncleaning_seconds"] == 60
+
+
+def test_accumulator_noop_while_cleaning(tracker):
+    """[AJ-40] cleaning -> cleaning with nothing open changes nothing (so the
+    caller does not persist on every unrelated tick)."""
+    job = {}
+    assert tracker._accumulate_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        to_state="cleaning", changed_at="2026-01-01T10:06:00+00:00") is False
+    assert job == {}
+
+
+def test_accumulator_unparseable_timestamp_still_closes(tracker):
+    """[AJ-41] an interval we cannot measure must not stay open and keep
+    subtracting live time."""
+    job = {"current_room_noncleaning_since": "not-a-date"}
+    assert tracker._accumulate_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        to_state="cleaning", changed_at="2026-01-01T10:06:00+00:00") is True
+    assert job["current_room_noncleaning_since"] is None
+
+
+def test_reopen_seeds_open_interval_when_docked():
+    """[AJ-42] THE dispatch-window fix: the stamp is made while the robot is on
+    the dock, so the interval opens at the stamp and undock + transit is not
+    charged to room one."""
+    tracker = _live_tracker("docked")
+    job = {"current_room_noncleaning_seconds": 900}
+    tracker.reopen_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        started_at="2026-01-01T10:00:00+00:00")
+    assert job["current_room_noncleaning_seconds"] == 0
+    assert job["current_room_noncleaning_since"] == "2026-01-01T10:00:00+00:00"
+
+
+def test_reopen_leaves_closed_when_already_cleaning():
+    """[AJ-43] a rollover mid-run must not invent a non-cleaning span."""
+    tracker = _live_tracker("cleaning")
+    job = {"current_room_noncleaning_seconds": 900,
+           "current_room_noncleaning_since": "2026-01-01T09:00:00+00:00"}
+    tracker.reopen_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        started_at="2026-01-01T10:00:00+00:00")
+    assert job["current_room_noncleaning_seconds"] == 0
+    assert job["current_room_noncleaning_since"] is None
+
+
+@pytest.mark.parametrize("live", [None, "unknown", "unavailable"])
+def test_reopen_fails_open_on_unreadable_state(live):
+    """[AJ-44] an unreadable live state opens nothing — same direction as the
+    predicate itself."""
+    tracker = _live_tracker(live)
+    job = {}
+    tracker.reopen_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job,
+        started_at="2026-01-01T10:00:00+00:00")
+    assert job["current_room_noncleaning_since"] is None
+
+
+def test_reopen_without_a_start_stamp_opens_nothing():
+    """[AJ-45] the final room's completion clears current_room_started_at; an
+    interval anchored to None would be unmeasurable."""
+    tracker = _live_tracker("docked")
+    job = {}
+    tracker.reopen_current_room_noncleaning(
+        vacuum_entity_id="vacuum.alfred", active_job=job, started_at=None)
+    assert job["current_room_noncleaning_since"] is None
 
 
 # ---------------------------------------------------------------------------

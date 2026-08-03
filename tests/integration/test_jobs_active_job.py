@@ -42,6 +42,12 @@ Coverage targets
 [AJI-38] async_cancel_active_job: a sequenced job gets _cancel_in_flight set before return_to_base (stops the watchdog re-dispatching during cancel).
 [AJI-35] _job_status_summary: status string covers each lifecycle/outcome branch.
 [AJI-36] _job_status_summary: a started job names the current room from resolved_rooms.
+[AJI-40] non-cleaning accumulator: the VACUUM entity's transitions open/close it.
+[AJI-41] non-cleaning accumulator: other watched entities do not drive it.
+[AJI-42] non-cleaning accumulator: a dropout closes it despite the history filter.
+[AJI-43] record_completed_room: reopens the non-cleaning window for the next room.
+[AJI-44] a phased job on a NON-native adapter reaches timing rollover (40cbaac, behavioural).
+[AJI-45] a mid-room service trip no longer completes a room on docked wall time.
 """
 
 from __future__ import annotations
@@ -160,6 +166,178 @@ def test_record_transition_caps_at_12(tracker, manager):
             from_state=f"s{i}", to_state=f"s{i + 1}")
     job = tracker.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
     assert len(job["state_transitions"]) == 12
+
+
+# ---------------------------------------------------------------------------
+# current-room non-cleaning accumulator (wiring)
+# ---------------------------------------------------------------------------
+
+def _eufy_like_adapter() -> None:
+    """Register a NON-native adapter for _VAC — native_transition_source stays
+    False, as on Eufy, so the rollover under test takes the timing/counter path."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {"adapter_id": "eufy_test", "source": "code"})
+
+
+def test_accumulator_driven_by_the_vacuum_entity(tracker, manager):
+    """[AJI-40] the vacuum's own transitions open and close the interval."""
+    _seed(manager, current_room_started_at="2026-01-01T10:00:00+00:00")
+    tracker.record_active_job_transition(
+        vacuum_entity_id=_VAC, map_id=_MAP, entity_id=_VAC,
+        from_state="cleaning", to_state="returning",
+        changed_at="2026-01-01T10:01:00+00:00")
+    job = tracker.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert job["current_room_noncleaning_since"] == "2026-01-01T10:01:00+00:00"
+
+    tracker.record_active_job_transition(
+        vacuum_entity_id=_VAC, map_id=_MAP, entity_id=_VAC,
+        from_state="docked", to_state="cleaning",
+        changed_at="2026-01-01T10:04:00+00:00")
+    job = tracker.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert job["current_room_noncleaning_seconds"] == 180
+    assert job["current_room_noncleaning_since"] is None
+
+
+def test_accumulator_ignores_other_watched_entities(tracker, manager):
+    """[AJI-41] the lifecycle listener fires for dock_status/task_status too, and
+    those carry their own vocabularies — 'returning to wash' on task_status is not
+    the vacuum entity's HA-standard state and must not drive this."""
+    _seed(manager, current_room_started_at="2026-01-01T10:00:00+00:00")
+    tracker.record_active_job_transition(
+        vacuum_entity_id=_VAC, map_id=_MAP, entity_id="sensor.alfred_task_status",
+        from_state="cleaning", to_state="returning",
+        changed_at="2026-01-01T10:01:00+00:00")
+    job = tracker.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert job.get("current_room_noncleaning_since") is None
+
+
+def test_accumulator_closes_on_unavailable_despite_the_history_filter(tracker, manager):
+    """[AJI-42] a transition into 'unavailable' is dropped from the history list
+    (empty/duplicate filter), but it must still close the interval — which is why
+    the accumulator runs BEFORE that filter and persists on its own.
+    """
+    _seed(manager, current_room_started_at="2026-01-01T10:00:00+00:00",
+          current_room_noncleaning_since="2026-01-01T10:01:00+00:00")
+    tracker.record_active_job_transition(
+        vacuum_entity_id=_VAC, map_id=_MAP, entity_id=_VAC,
+        from_state="returning", to_state="",
+        changed_at="2026-01-01T10:02:00+00:00")
+    job = manager.data["active_jobs"][_VAC][_MAP]
+    assert job["current_room_noncleaning_since"] is None, (
+        "the interval stayed open behind the history filter — it would subtract "
+        "for as long as the dropout lasts and stall the room"
+    )
+    assert job["current_room_noncleaning_seconds"] == 60
+
+
+def test_record_completed_room_reopens_the_window(tracker, manager):
+    """[AJI-43] the accumulated total belongs to the room that just ended."""
+    _seed(manager,
+          resolved_rooms=[{"room_id": 1}, {"room_id": 2}],
+          queue_room_ids=[1, 2],
+          current_room_id=1,
+          current_room_started_at="2026-01-01T10:00:00+00:00",
+          current_room_noncleaning_seconds=240,
+          current_room_noncleaning_since="2026-01-01T10:03:00+00:00")
+    job = tracker.record_completed_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1,
+        completed_at="2026-01-01T10:05:00+00:00")
+    assert job["current_room_id"] == 2
+    assert job["current_room_noncleaning_seconds"] == 0
+    # hass has no state for _VAC in this test, so the live read fails open.
+    assert job["current_room_noncleaning_since"] is None
+
+
+# ---------------------------------------------------------------------------
+# The re-enabled Eufy phased rollover (40cbaac) — behaviour, not source shape
+# ---------------------------------------------------------------------------
+
+def _two_room_timeline() -> list[dict]:
+    """Two unlearned rooms → timing threshold 2.75 min each."""
+    return [{"room_id": 1, "minutes": 1.0}, {"room_id": 2, "minutes": 1.0}]
+
+
+def test_phased_job_on_a_non_native_adapter_does_roll(tracker, manager):
+    """[AJI-44] A phased job DOES reach timing rollover now.
+
+    This is the behavioural half of 40cbaac's structural tests: an Eufy room_group
+    phase holds both rooms in ONE dispatch, so without this the queue would sit on
+    room 1 for the whole phase. Non-native adapter → timing path, not native.
+    """
+    _eufy_like_adapter()
+    _seed(manager,
+          phases=[{"phase_type": "room_group",
+                   "resolved_rooms": [{"room_id": 1}, {"room_id": 2}]}],
+          current_phase_index=0,
+          resolved_rooms=[{"room_id": 1, "name": "Entryway"},
+                          {"room_id": 2, "name": "Home Office"}],
+          queue_room_ids=[1, 2],
+          current_room_id=1,
+          current_room_started_at="2026-01-01T10:00:00+00:00")
+    job = manager.data["active_jobs"][_VAC][_MAP]
+
+    out = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_two_room_timeline(),
+        current_room_id=1,
+        current_room_elapsed_minutes=3.0,   # > the 2.75 unlearned threshold
+        completed_room_ids=[])
+    assert out["completed_room_ids"] == [1]
+    assert out["current_room_id"] == 2
+    assert out["completed_rooms"][0]["source"] == "timing_rollover"
+
+
+def test_a_mid_room_service_trip_does_not_produce_a_phantom(tracker, manager):
+    """[AJI-45] The accumulator's reason to exist, end to end.
+
+    Room 1 starts at 10:00. At 10:01 the robot leaves the floor for a mop wash and
+    is back cleaning at 10:04. At 10:05 the wall clock reads 5.0 min — past the
+    2.75 threshold — but only 2.0 of those minutes were cleaning, so the room must
+    NOT be completed. The control below is the same instant with the accumulator
+    fields absent, which is what shipped before this change.
+    """
+    _eufy_like_adapter()
+    _seed(manager,
+          phases=[{"phase_type": "room_group",
+                   "resolved_rooms": [{"room_id": 1}, {"room_id": 2}]}],
+          current_phase_index=0,
+          resolved_rooms=[{"room_id": 1}, {"room_id": 2}],
+          queue_room_ids=[1, 2],
+          current_room_id=1,
+          current_room_started_at="2026-01-01T10:00:00+00:00")
+
+    for entity, frm, to, when in (
+        (_VAC, "cleaning", "returning", "2026-01-01T10:01:00+00:00"),
+        (_VAC, "returning", "docked", "2026-01-01T10:02:00+00:00"),
+        (_VAC, "docked", "cleaning", "2026-01-01T10:04:00+00:00"),
+    ):
+        tracker.record_active_job_transition(
+            vacuum_entity_id=_VAC, map_id=_MAP, entity_id=entity,
+            from_state=frm, to_state=to, changed_at=when)
+
+    job = tracker.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert job["current_room_noncleaning_seconds"] == 180
+
+    elapsed = tracker._compute_current_room_elapsed_minutes(
+        active_job=job, now="2026-01-01T10:05:00+00:00")
+    assert elapsed == pytest.approx(2.0)
+
+    out = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_two_room_timeline(),
+        current_room_id=1,
+        current_room_elapsed_minutes=elapsed,
+        completed_room_ids=[])
+    assert out["completed_room_ids"] == [], (
+        "room 1 was completed on wall time it spent at the dock"
+    )
+
+    # CONTROL: the identical moment measured the pre-accumulator way.
+    naive = dict(job)
+    naive.pop("current_room_noncleaning_seconds", None)
+    naive.pop("current_room_noncleaning_since", None)
+    assert tracker._compute_current_room_elapsed_minutes(
+        active_job=naive, now="2026-01-01T10:05:00+00:00") == pytest.approx(5.0)
 
 
 # ---------------------------------------------------------------------------

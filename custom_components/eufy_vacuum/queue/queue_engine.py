@@ -419,6 +419,12 @@ def build_active_job_state(
         "current_room_id": current_room_id,
         "current_room_started_at": None,
         "current_room_paused_seconds": 0,
+        # Sibling of the pause counter, zeroed with it. The OPEN interval is
+        # seeded by reopen_current_room_noncleaning at the site that actually
+        # stamps current_room_started_at (manager.async_start_room_job), because
+        # only there is the live vacuum state readable.
+        "current_room_noncleaning_seconds": 0,
+        "current_room_noncleaning_since": None,
     }
 
     # Sequenced job model only — atomic_batch (the default, every current
@@ -508,6 +514,12 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     advanced["_native_current_room_id"] = None
     advanced["current_room_started_at"] = None
     advanced["current_room_paused_seconds"] = 0
+    # Sibling of the pause counter (see the start-state builder above). Dropped
+    # rather than carried: the next phase's window has no start yet, so an
+    # interval inherited here would predate it. phase_runner re-seeds both from
+    # live state at the moment it stamps current_room_started_at.
+    advanced["current_room_noncleaning_seconds"] = 0
+    advanced["current_room_noncleaning_since"] = None
     advanced["status"] = "started"
     # Each phase is a fresh atomic sub-job: the next phase must be observed
     # active again before it can finalize, so the stale completion signal from

@@ -768,6 +768,8 @@ exists for the vacuum/map pair.
   "current_room_id":                       None
   "current_room_started_at":               None
   "current_room_paused_seconds":           int             # 0
+  "current_room_noncleaning_seconds":      int             # 0
+  "current_room_noncleaning_since":        None
   "observed_mid_job_recharge":             bool            # False
   "observed_mid_job_recharge_started_at":  None
   "observed_mid_job_recharge_count":       int             # 0

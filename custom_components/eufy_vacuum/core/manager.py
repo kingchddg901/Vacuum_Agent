@@ -5453,6 +5453,14 @@ class EufyVacuumManager:
         active_job["started_at"] = started_at
         active_job["battery_start"] = battery_start
         active_job["current_room_started_at"] = started_at
+        # The robot is on the dock right now: open room one's non-cleaning
+        # interval here so undock + transit is subtracted rather than charged to
+        # it. Closes on the first cleaning transition.
+        self.active_job.reopen_current_room_noncleaning(
+            vacuum_entity_id=vacuum_entity_id,
+            active_job=active_job,
+            started_at=started_at,
+        )
         active_job["path_block_action"] = _normalize_path_block_action(
             path_block_action
         )

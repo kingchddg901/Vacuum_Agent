@@ -45,10 +45,15 @@ The whole module is pure, so coverage is near-total:
   `_normalize_path_block_action`, …) and the pure tracker methods:
   `_default_active_job_state`, `_derive_active_job_current_room_id`,
   `_normalize_active_job`, `_compute_current_room_elapsed_minutes`,
-  `_room_name_from_active_job`, `_timing_completion_threshold_minutes`.
+  `_room_name_from_active_job`, `_timing_completion_threshold_minutes`, and the
+  current-room non-cleaning accumulator (`_accumulate_current_room_noncleaning`,
+  `reopen_current_room_noncleaning` — the latter needs a hass whose vacuum state
+  is *fixed*, not a bare `MagicMock`, or every "is it docked?" assertion passes
+  for the wrong reason).
 - **`AJI` (integration, real `manager` fixture + seeded active job)** —
   `get_active_job`, the mop-wash observation (count + 60s debounce),
-  `record_active_job_transition` (append/ignore-noise/cap-12),
+  `record_active_job_transition` (append/ignore-noise/cap-12, plus driving the
+  non-cleaning accumulator off the vacuum entity only),
   `record_active_lifecycle_observed`, `record_active_job_sensor_value`,
   `add_update_listener`/`_notify`, and `update_active_job_recharge_observation`.
 

@@ -28,6 +28,7 @@ from ..core.charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
+from ..core.run_state import is_non_cleaning_vacuum_state
 from ..const import (
     DOMAIN,
     EVENT_ROOM_FINISHED,
@@ -275,6 +276,11 @@ class ActiveJobTracker:
             "current_room_id": None,
             "current_room_started_at": None,
             "current_room_paused_seconds": 0,
+            # Non-cleaning wall time charged to the CURRENT room, and the open
+            # interval's start (None while cleaning). Siblings of the pause pair
+            # above and reset wherever it is — see _accumulate_current_room_noncleaning.
+            "current_room_noncleaning_seconds": 0,
+            "current_room_noncleaning_since": None,
             "observed_mid_job_recharge": False,
             "observed_mid_job_recharge_started_at": None,
             "observed_mid_job_recharge_count": 0,
@@ -334,6 +340,8 @@ class ActiveJobTracker:
         normalized.setdefault("completed_room_ids", [])
         normalized.setdefault("completed_rooms", [])
         normalized.setdefault("current_room_paused_seconds", 0)
+        normalized.setdefault("current_room_noncleaning_seconds", 0)
+        normalized.setdefault("current_room_noncleaning_since", None)
         normalized.setdefault("observed_mid_job_recharge", False)
         normalized.setdefault("observed_mid_job_recharge_started_at", None)
         normalized.setdefault("observed_mid_job_recharge_count", 0)
@@ -371,7 +379,23 @@ class ActiveJobTracker:
         active_job: dict[str, Any],
         now: str | None = None,
     ) -> float:
-        """Return elapsed active minutes for the current room, excluding pauses."""
+        """Return elapsed CLEANING minutes for the current room.
+
+        Wall time since ``current_room_started_at``, minus two spans that were
+        wall time but not cleaning time:
+
+        - **pauses** — accumulated ``current_room_paused_seconds`` plus the
+          in-flight pause when the job is currently paused.
+        - **non-cleaning states** — accumulated
+          ``current_room_noncleaning_seconds`` plus the in-flight span when the
+          robot is currently docked/returning. See
+          ``_accumulate_current_room_noncleaning`` for why this must be an
+          accumulator rather than a "don't tick while docked" gate.
+
+        Both are computed the same way (a closed total plus one open interval)
+        because they are the same shape of fact, and both are subtracted from the
+        same elapsed window, which is floored at 0.
+        """
         current_started_at = str(active_job.get("current_room_started_at", "")).strip()
         started_dt = self._parse_job_timestamp(current_started_at)
         now_dt = self._parse_job_timestamp(now or _iso_now())
@@ -385,7 +409,18 @@ class ActiveJobTracker:
         if paused_dt is not None and active_job.get("status") == "paused":
             paused_seconds += max(int((now_dt - paused_dt).total_seconds()), 0)
 
-        return round(max((elapsed_seconds - paused_seconds) / 60.0, 0.0), 2)
+        noncleaning_seconds = max(
+            _safe_int(active_job.get("current_room_noncleaning_seconds"), 0), 0
+        )
+        noncleaning_since = str(active_job.get("current_room_noncleaning_since") or "").strip()
+        noncleaning_since_dt = self._parse_job_timestamp(noncleaning_since)
+        if noncleaning_since_dt is not None:
+            noncleaning_seconds += max(
+                int((now_dt - noncleaning_since_dt).total_seconds()), 0
+            )
+
+        excluded_seconds = paused_seconds + noncleaning_seconds
+        return round(max((elapsed_seconds - excluded_seconds) / 60.0, 0.0), 2)
 
     def _is_charging(self, vacuum_entity_id: str) -> bool:
         """Definitive "is the vacuum charging right now" check."""
@@ -644,14 +679,36 @@ class ActiveJobTracker:
         to_state: str | None,
         changed_at: str | None = None,
     ) -> dict[str, Any]:
-        """Append one relevant state transition to the tracked active job."""
+        """Append one relevant state transition to the tracked active job.
+
+        Also drives the current room's non-cleaning accumulator off the VACUUM
+        entity's own transitions — this listener already fires on exactly the
+        edges the accumulator needs, so it needs no poll of its own.
+        """
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
+        changed_at_ts = changed_at or _iso_now()
+
+        # Runs BEFORE the filters below, and only for the vacuum entity itself.
+        # A transition INTO "unavailable" is a no-op for the history list but it
+        # must still close an open non-cleaning interval, so it cannot sit behind
+        # the empty-state guard.
+        accumulator_changed = False
+        if entity_id == vacuum_entity_id:
+            accumulator_changed = self._accumulate_current_room_noncleaning(
+                vacuum_entity_id=vacuum_entity_id,
+                active_job=active_job,
+                to_state=to_state,
+                changed_at=changed_at_ts,
+            )
+
         from_state_n = str(from_state or "").strip()
         to_state_n = str(to_state or "").strip()
         if not to_state_n or from_state_n == to_state_n:
+            if accumulator_changed:
+                self._persist_active_job(vacuum_entity_id, str(map_id), active_job)
             return active_job
 
         transitions = [
@@ -664,7 +721,7 @@ class ActiveJobTracker:
                 "entity_id": entity_id,
                 "from_state": from_state_n,
                 "to_state": to_state_n,
-                "changed_at": changed_at or _iso_now(),
+                "changed_at": changed_at_ts,
             }
         )
         active_job["state_transitions"] = transitions[-12:]
@@ -673,6 +730,105 @@ class ActiveJobTracker:
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
         return active_job
+
+    def _accumulate_current_room_noncleaning(
+        self,
+        *,
+        vacuum_entity_id: str,
+        active_job: dict[str, Any],
+        to_state: str | None,
+        changed_at: str,
+    ) -> bool:
+        """Open or close the current room's non-cleaning interval. Returns whether
+        anything changed (so the caller knows to persist).
+
+        WHY AN ACCUMULATOR AND NOT A GATE. The obvious shape — "skip the rollover
+        check while the robot is docked" — does not work, because suppressing the
+        CHECK does not stop the CLOCK. ``current_room_started_at`` is stamped at
+        dispatch and elapsed is derived from wall time, so a gate merely defers
+        the phantom to the instant the gate lifts: the robot returns from a mop
+        wash, the gate opens, and elapsed has already sailed past the threshold
+        while it was away. Only subtracting the span fixes it, and only an
+        accumulator can subtract a span that happened in the past.
+
+        Two fields, same shape as the pause pair: a closed total plus one open
+        interval. Both live on the CURRENT ROOM's window and are reset wherever
+        that window is reopened (job start, phase advance, room rollover, native
+        room set) — the reader that consumes them is
+        ``_compute_current_room_elapsed_minutes``.
+
+        ``is_non_cleaning_vacuum_state`` fails open (see its docstring): an
+        unreadable state closes the interval rather than leaving it running, so a
+        dropout can never subtract unboundedly and stall the room.
+        """
+        is_noncleaning = is_non_cleaning_vacuum_state(
+            to_state, vacuum_entity_id=vacuum_entity_id
+        )
+        open_since = str(active_job.get("current_room_noncleaning_since") or "").strip()
+
+        if is_noncleaning:
+            if open_since:
+                # Already inside a non-cleaning span (e.g. returning -> docked).
+                # Keep the ORIGINAL start — the span is one continuous absence
+                # from the floor, and re-stamping it here would silently discard
+                # everything before the second transition.
+                return False
+            active_job["current_room_noncleaning_since"] = changed_at
+            return True
+
+        if not open_since:
+            return False
+
+        since_dt = self._parse_job_timestamp(open_since)
+        changed_dt = self._parse_job_timestamp(changed_at)
+        if since_dt is not None and changed_dt is not None:
+            active_job["current_room_noncleaning_seconds"] = max(
+                _safe_int(active_job.get("current_room_noncleaning_seconds"), 0)
+                + max(int((changed_dt - since_dt).total_seconds()), 0),
+                0,
+            )
+        # Cleared even when either timestamp failed to parse: an interval we
+        # cannot measure must not stay open and keep subtracting live time.
+        active_job["current_room_noncleaning_since"] = None
+        return True
+
+    def reopen_current_room_noncleaning(
+        self,
+        *,
+        vacuum_entity_id: str,
+        active_job: dict[str, Any],
+        started_at: str | None,
+    ) -> None:
+        """Reopen the non-cleaning window for a NEW current room.
+
+        Called wherever ``current_room_started_at`` is stamped — job start, phase
+        advance, room rollover, native room set — the same set of sites that
+        zero ``current_room_paused_seconds``.
+
+        The accumulated total belongs to the room that just ended, so it zeroes.
+        The open interval is then re-derived from the vacuum's LIVE state rather
+        than carried across, which is what makes the dispatch window work: at job
+        start and at every phase advance the robot IS docked, so an interval
+        opens at the stamp and closes when it actually starts cleaning. That span
+        — stamp to first cleaning — is precisely the wall time this whole
+        accumulator exists to stop charging to room one.
+
+        Reading live state (instead of carrying the previous room's flag over)
+        also makes this self-healing: a transition the listener never saw cannot
+        leave an interval wrongly open or wrongly closed past a room boundary.
+        """
+        active_job["current_room_noncleaning_seconds"] = 0
+        live_state = getattr(
+            self._manager.hass.states.get(vacuum_entity_id), "state", None
+        )
+        active_job["current_room_noncleaning_since"] = (
+            started_at
+            if started_at
+            and is_non_cleaning_vacuum_state(
+                live_state, vacuum_entity_id=vacuum_entity_id
+            )
+            else None
+        )
 
     def _room_name_from_active_job(self, active_job: dict[str, Any], room_id: int | None) -> str | None:
         """Return room name for one room id from active-job state."""
@@ -1448,6 +1604,9 @@ class ActiveJobTracker:
         job["current_room_id"] = new_room_id
         job["current_room_started_at"] = completed_at
         job["current_room_paused_seconds"] = 0
+        self.reopen_current_room_noncleaning(
+            vacuum_entity_id=vacuum_entity_id, active_job=job, started_at=completed_at
+        )
         job["_native_current_room_id"] = new_room_id
         self._persist_active_job(vacuum_entity_id, map_id, job)
 
@@ -2207,6 +2366,11 @@ class ActiveJobTracker:
         active_job["current_room_id"] = next_room_id
         active_job["current_room_started_at"] = (completed_at or _iso_now()) if next_room_id is not None else None
         active_job["current_room_paused_seconds"] = 0
+        self.reopen_current_room_noncleaning(
+            vacuum_entity_id=vacuum_entity_id,
+            active_job=active_job,
+            started_at=active_job["current_room_started_at"],
+        )
         active_job["paused_at"] = None if active_job.get("status") != "paused" else active_job.get("paused_at")
 
         self._manager.data.setdefault("active_jobs", {})

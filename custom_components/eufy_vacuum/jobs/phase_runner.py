@@ -276,6 +276,15 @@ class PhaseRunner:
             return False
 
         advanced["current_room_started_at"] = _iso_now()
+        # Between phases the robot is docked/returning, and this stamp is made
+        # BEFORE the next phase is dispatched — so without this the whole
+        # settle + dispatch + undock window is charged to the phase's first
+        # room. Opens the interval now; the first cleaning transition closes it.
+        self._manager.active_job.reopen_current_room_noncleaning(
+            vacuum_entity_id=vacuum_entity_id,
+            active_job=advanced,
+            started_at=advanced["current_room_started_at"],
+        )
         self._manager.data.setdefault("active_jobs", {})
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced

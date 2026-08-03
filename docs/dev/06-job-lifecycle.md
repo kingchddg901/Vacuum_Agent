@@ -221,6 +221,8 @@ frozen into the learning snapshot at finalize. `_default_active_job_state`
   "paused_at": null, "paused_duration_seconds": 0,
   "completed_room_ids": [], "completed_rooms": [],
   "current_room_id": null, "current_room_started_at": null, "current_room_paused_seconds": 0,
+  "current_room_noncleaning_seconds": 0,     // wall time the robot spent off the floor
+  "current_room_noncleaning_since": null,    // open interval start, null while cleaning
   "observed_mid_job_recharge": false, "observed_mid_job_recharge_started_at": null,
   "observed_mid_job_recharge_count": 0, "recharge_seconds_accumulated": 0,
   "pending_mid_job_recharge_return": false, "pending_mid_job_recharge_return_at": null,
@@ -272,7 +274,22 @@ rollover occurs. Each call:
    `unresolved_room_ids`.
 6. **Elapsed time** — calls `_compute_current_room_elapsed_minutes` on
    `ActiveJobTracker`: wall-clock elapsed since `current_room_started_at` minus
-   accumulated `current_room_paused_seconds` and any ongoing pause.
+   two spans that were wall time but not cleaning time —
+
+   - accumulated `current_room_paused_seconds` plus any ongoing pause, and
+   - accumulated `current_room_noncleaning_seconds` plus any open
+     `current_room_noncleaning_since` interval.
+
+   The second matters because `current_room_started_at` is stamped at
+   **dispatch**: without it the undock, the drive out, and any mid-room mop wash
+   or recharge trip are all charged to the room, inflating elapsed against the
+   timing-rollover threshold until a room that was never finished gets completed.
+   The interval is opened and closed by `record_active_job_transition` off the
+   vacuum entity's own state, and reopened at every site that stamps a new
+   `current_room_started_at` (`reopen_current_room_noncleaning`). The predicate
+   is `core/run_state.is_non_cleaning_vacuum_state`, which **fails open**: an
+   unreadable state subtracts nothing rather than subtracting unboundedly and
+   stalling the room.
 7. **Timing rollover** — delegates to
    `active_job._maybe_roll_current_room_by_timing` (the manager's `active_job`
    attribute is the `ActiveJobTracker`; method defined at
