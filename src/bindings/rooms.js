@@ -403,26 +403,40 @@ export function applyRoomsBindings(proto) {
     this.card.$("[data-action='queue-missed-rooms']"),
     "click",
     async () => {
+      const log = this.card._state.incompleteRunLog?.() ?? null;
       const missedRoomIds = this.card._state.incompleteRunMissedRoomIds?.() ?? [];
       const count = missedRoomIds.length;
 
-      // Always clear the banner first so it doesn't re-show on re-render.
-      this.card._state.clearIncompleteRunLog?.();
-      this.card._state.clearStartConfirmation?.();
-      this.card._state.clearCancelRunConfirmation?.();
-
       if (count === 0) {
+        // Nothing reachable anyway — clear the log/confirmations as today.
+        this.card._state.clearIncompleteRunLog?.();
+        this.card._state.clearStartConfirmation?.();
+        this.card._state.clearCancelRunConfirmation?.();
         this.card._scheduleRender();
         return;
       }
 
       let result;
       try {
-        result = await this.card._actions.retryMissedRooms(missedRoomIds);
-        await this.card.refreshDashboardSnapshot?.();
+        result = await this.card._actions.retryMissedRooms(missedRoomIds, log?.map_id ?? null);
       } catch (err) {
         console.error("[eufy-vacuum-command-center] retryMissedRooms failed", err);
       }
+
+      // CARD-5: a map_mismatch refusal already fired its own toast (via
+      // showServiceRefusalToast inside retryMissedRooms) -- leave the
+      // incomplete-run log and confirmations intact so the banner stays up
+      // and the user can switch to the recorded map and retry.
+      if (result && result.queued === false && result.reason === "map_mismatch") {
+        this.card._scheduleRender();
+        return;
+      }
+
+      this.card._state.clearIncompleteRunLog?.();
+      this.card._state.clearStartConfirmation?.();
+      this.card._state.clearCancelRunConfirmation?.();
+
+      await this.card.refreshDashboardSnapshot?.();
 
       const ok = result !== null && result !== undefined;
       this.card.showToast?.(

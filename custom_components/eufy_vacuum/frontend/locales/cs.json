@@ -2357,6 +2357,7 @@
     "onboarding_required": "U některých zapnutých místností je stále třeba potvrdit typ podlahy, než bude možné zahájit úklid.",
     "all_selected_rooms_blocked": "Všechny vybrané místnosti jsou momentálně blokovány.",
     "vacuum_missing": "Entita vysavače není dostupná.",
+    "map_mismatch": "Tento úklid byl zaznamenán na jiné mapě. Přepněte na tuto mapu a zkuste to znovu.",
     "unknown": "Tato akce byla odmítnuta ({reason})."
   },
   "bind_room_editor": {

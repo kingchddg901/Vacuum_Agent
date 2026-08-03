@@ -23,6 +23,7 @@
     "onboarding_required": "Alguns cômodos ativados ainda precisam ter o tipo de piso confirmado antes que a limpeza possa começar.",
     "all_selected_rooms_blocked": "Todos os cômodos selecionados estão bloqueados no momento.",
     "vacuum_missing": "A entidade do aspirador não está disponível.",
+    "map_mismatch": "Esta limpeza foi registada noutro mapa. Mude para esse mapa e tente novamente.",
     "unknown": "Esta ação foi recusada ({reason})."
   },
   "base_station": {

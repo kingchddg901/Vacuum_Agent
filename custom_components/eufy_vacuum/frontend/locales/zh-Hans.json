@@ -2329,6 +2329,7 @@
     "onboarding_required": "部分已启用的房间仍需确认地板类型才能开始清扫。",
     "all_selected_rooms_blocked": "所有选定的房间当前均被阻止。",
     "vacuum_missing": "扫地机器人实体不可用。",
+    "map_mismatch": "此次清扫记录在另一张地图上。请切换到该地图后重试。",
     "unknown": "此操作被拒绝（{reason}）。"
   },
   "card_editor": {

@@ -16,6 +16,7 @@ const SERVICE_REASON_KEYS = {
   onboarding_required: "service_reasons.onboarding_required",
   all_selected_rooms_blocked: "service_reasons.all_selected_rooms_blocked",
   vacuum_missing: "service_reasons.vacuum_missing",
+  map_mismatch: "service_reasons.map_mismatch",
 };
 
 export function applyCoreActions(proto) {

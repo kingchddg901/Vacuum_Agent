@@ -23,6 +23,7 @@
     "onboarding_required": "Algunas habitaciones activadas todavía necesitan confirmar el tipo de suelo antes de poder iniciar la limpieza.",
     "all_selected_rooms_blocked": "Todas las habitaciones seleccionadas están bloqueadas actualmente.",
     "vacuum_missing": "La entidad del aspirador no está disponible.",
+    "map_mismatch": "Esta limpieza se registró en otro mapa. Cambia a ese mapa y vuelve a intentarlo.",
     "unknown": "Esta acción fue rechazada ({reason})."
   },
   "base_station": {

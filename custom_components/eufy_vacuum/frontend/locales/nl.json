@@ -23,6 +23,7 @@
     "onboarding_required": "Voor sommige ingeschakelde kamers moet nog een vloertype worden bevestigd voordat het schoonmaken kan beginnen.",
     "all_selected_rooms_blocked": "Alle geselecteerde kamers zijn momenteel geblokkeerd.",
     "vacuum_missing": "De stofzuigerentiteit is niet beschikbaar.",
+    "map_mismatch": "Deze reiniging is vastgelegd op een andere kaart. Wissel naar die kaart en probeer het opnieuw.",
     "unknown": "Deze actie is geweigerd ({reason})."
   },
   "base_station": {

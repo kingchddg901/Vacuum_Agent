@@ -2329,6 +2329,7 @@
     "onboarding_required": "一部の有効な部屋では、清掃を開始する前に床の種類を確認する必要があります。",
     "all_selected_rooms_blocked": "選択したすべての部屋が現在ブロックされています。",
     "vacuum_missing": "ロボット掃除機のエンティティが利用できません。",
+    "map_mismatch": "この清掃は別のマップで記録されました。そのマップに切り替えてから再試行してください。",
     "unknown": "この操作は拒否されました（{reason}）。"
   },
   "card_editor": {

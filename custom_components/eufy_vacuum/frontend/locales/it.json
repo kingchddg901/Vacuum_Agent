@@ -23,6 +23,7 @@
     "onboarding_required": "Alcune stanze abilitate necessitano ancora della conferma del tipo di pavimento prima che la pulizia possa iniziare.",
     "all_selected_rooms_blocked": "Tutte le stanze selezionate sono attualmente bloccate.",
     "vacuum_missing": "L'entità dell'aspirapolvere non è disponibile.",
+    "map_mismatch": "Questo ciclo è stato registrato su una mappa diversa. Passa a quella mappa, poi riprova.",
     "unknown": "Questa azione è stata rifiutata ({reason})."
   },
   "base_station": {

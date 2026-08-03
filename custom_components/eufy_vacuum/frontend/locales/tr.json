@@ -2357,6 +2357,7 @@
     "onboarding_required": "Bazı etkin odalar için temizlik başlayabilmeden önce zemin türünün onaylanması gerekiyor.",
     "all_selected_rooms_blocked": "Seçilen tüm odalar şu anda engelli.",
     "vacuum_missing": "Süpürge varlığı kullanılamıyor.",
+    "map_mismatch": "Bu temizlik farklı bir haritada kaydedildi. O haritaya geçin, ardından yeniden deneyin.",
     "unknown": "Bu işlem reddedildi ({reason})."
   },
   "bind_room_editor": {

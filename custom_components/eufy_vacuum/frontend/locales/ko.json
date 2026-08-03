@@ -2329,6 +2329,7 @@
     "onboarding_required": "일부 활성화된 방은 청소를 시작하기 전에 바닥 유형을 확인해야 합니다.",
     "all_selected_rooms_blocked": "선택한 모든 방이 현재 차단되어 있습니다.",
     "vacuum_missing": "로봇청소기 엔티티를 사용할 수 없습니다.",
+    "map_mismatch": "이 청소는 다른 지도에서 기록되었습니다. 해당 지도로 전환한 후 다시 시도하세요.",
     "unknown": "이 작업이 거부되었습니다 ({reason})."
   },
   "card_editor": {

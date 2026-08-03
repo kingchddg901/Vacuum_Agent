@@ -23,6 +23,7 @@
     "onboarding_required": "Für einige aktivierte Räume muss noch ein Bodentyp bestätigt werden, bevor die Reinigung starten kann.",
     "all_selected_rooms_blocked": "Alle ausgewählten Räume sind derzeit blockiert.",
     "vacuum_missing": "Die Saugroboter-Entität ist nicht verfügbar.",
+    "map_mismatch": "Dieser Lauf wurde auf einer anderen Karte aufgezeichnet. Wechseln Sie zu dieser Karte und versuchen Sie es erneut.",
     "unknown": "Diese Aktion wurde abgelehnt ({reason})."
   },
   "base_station": {

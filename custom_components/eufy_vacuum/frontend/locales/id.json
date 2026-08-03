@@ -2357,6 +2357,7 @@
     "onboarding_required": "Beberapa ruangan yang diaktifkan masih memerlukan konfirmasi jenis lantai sebelum pembersihan dapat dimulai.",
     "all_selected_rooms_blocked": "Semua ruangan yang dipilih sedang diblokir.",
     "vacuum_missing": "Entitas penyedot debu tidak tersedia.",
+    "map_mismatch": "Pembersihan ini tercatat di peta yang berbeda. Beralihlah ke peta tersebut, lalu coba lagi.",
     "unknown": "Tindakan ini ditolak ({reason})."
   },
   "bind_room_editor": {

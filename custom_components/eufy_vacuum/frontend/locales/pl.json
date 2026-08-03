@@ -2357,6 +2357,7 @@
     "onboarding_required": "Niektóre włączone pomieszczenia nadal wymagają potwierdzenia typu podłogi, zanim sprzątanie będzie mogło się rozpocząć.",
     "all_selected_rooms_blocked": "Wszystkie wybrane pomieszczenia są obecnie zablokowane.",
     "vacuum_missing": "Encja odkurzacza jest niedostępna.",
+    "map_mismatch": "To sprzątanie zostało zarejestrowane na innej mapie. Przełącz się na tę mapę, a następnie spróbuj ponownie.",
     "unknown": "Ta czynność została odrzucona ({reason})."
   },
   "bind_room_editor": {

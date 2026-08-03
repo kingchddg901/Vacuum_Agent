@@ -34,6 +34,7 @@
     "onboarding_required": "Some enabled rooms still need a floor type confirmed before cleaning can start.",
     "all_selected_rooms_blocked": "All selected rooms are currently blocked.",
     "vacuum_missing": "The vacuum entity is unavailable.",
+    "map_mismatch": "This run was recorded on a different map. Switch to that map, then retry.",
     "unknown": "This action was refused ({reason})."  // {reason} is the RAW backend code — do NOT translate it (there is no sentence to translate; it's a forward-compat identifier, same convention as common.service_failed's {service}).
   },
   "card_editor": {
@@ -1994,6 +1995,7 @@
     "step_move_down": "Move down",  // step reorder control (title/aria)
     "step_move_up": "Move up",  // step reorder control (title/aria)
     "step_remove": "Remove step",  // step delete control (title/aria)
+    "step_unsupported_position": "Will be skipped (unsupported position)",  // struck-through note on a legacy leading/trailing charge_wait/wait step (CARD-6 clause 1) -- it has nothing to bracket and will never actually run; sanitizeStepsForSave strips it on save
     "step_wait": "Wait",  // wait-step row label, precedes a minutes input
     "step_zone": "Zone",  // zone-step row label in the profile editor, precedes the saved-zone names
     "minutes_unit": "min",  // short unit after a minutes number (wait step)

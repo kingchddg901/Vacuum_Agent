@@ -23,6 +23,7 @@
     "onboarding_required": "Certaines pièces activées doivent encore avoir un type de sol confirmé avant que le nettoyage puisse démarrer.",
     "all_selected_rooms_blocked": "Toutes les pièces sélectionnées sont actuellement bloquées.",
     "vacuum_missing": "L'entité de l'aspirateur n'est pas disponible.",
+    "map_mismatch": "Ce cycle a été enregistré sur une autre carte. Passez à cette carte, puis réessayez.",
     "unknown": "Cette action a été refusée ({reason})."
   },
   "base_station": {

@@ -194,9 +194,24 @@ export function applyRoomsActions(proto) {
    * Enable only the missed rooms and disable all others so the user can start a retry.
    * Does not start the job — leaves that to the user via the normal start button.
    * @param {number[]} missedRoomIds - from the incomplete run log
+   * @param {string} [recordedMapId] - the map_id the incomplete-run log was recorded
+   *        against. Optional for legacy logs / direct callers without one.
    */
-  proto.retryMissedRooms = async function (missedRoomIds) {
+  proto.retryMissedRooms = async function (missedRoomIds, recordedMapId) {
     if (!Array.isArray(missedRoomIds) || missedRoomIds.length === 0) return;
+
+    // CARD-5 (#16:A4-STATE-4 card half): the incomplete-run log's own map_id is
+    // the ONLY reliable signal for which physical rooms these ids name -- the
+    // user may have switched maps between the incomplete run and clicking
+    // retry, and small per-map integer ids collide across maps. recordedMapId
+    // is optional (legacy logs / direct callers without one) -- omitting it
+    // trusts the active map, matching pre-fix behavior; providing one that
+    // DISAGREES with the active map refuses outright rather than silently
+    // retargeting a different physical room.
+    if (recordedMapId != null && String(recordedMapId) !== String(this.state.activeMapId())) {
+      this.showServiceRefusalToast?.("map_mismatch");
+      return { queued: false, reason: "map_mismatch" };
+    }
 
     const rooms = this.state.getRoomsForActiveMap();
     const missedSet = new Set(missedRoomIds.map(String));

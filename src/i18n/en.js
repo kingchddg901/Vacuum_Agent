@@ -65,6 +65,7 @@ export const en = {
   "service_reasons.onboarding_required": "Some enabled rooms still need a floor type confirmed before cleaning can start.",
   "service_reasons.all_selected_rooms_blocked": "All selected rooms are currently blocked.",
   "service_reasons.vacuum_missing": "The vacuum entity is unavailable.",
+  "service_reasons.map_mismatch": "This run was recorded on a different map. Switch to that map, then retry.",
   "service_reasons.unknown": "This action was refused ({reason}).",  // {reason} is the RAW backend code — do NOT translate it (there is no sentence to translate; it's a forward-compat identifier, same convention as common.service_failed's {service}).
 
   // --- card_editor (Lovelace visual config editor: vacuum entity + per-card language override) ---
