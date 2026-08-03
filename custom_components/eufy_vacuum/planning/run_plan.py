@@ -875,6 +875,19 @@ class RunPlanManager:
                 # global effective-room view, so the SAME room can run a different
                 # mode/fan in different phases (e.g. vacuum this group, mop the next).
                 # The group's fields win; queue_room_ids stays authoritative for order.
+                # RP-021b / #8:A4-PP-RP-6: the overlay must be RE-PROTECTED.
+                # protected_room_config already ran over effective_rooms at
+                # :1380 — but that was BEFORE this function, and the loop below
+                # then re-injects the step's own raw clean_mode / water_level /
+                # fan_speed on top, AFTER protection, straight into
+                # engine.build_phases. This was the one dispatch path that
+                # skipped the carpet/mop downgrade: capture a group while a room
+                # is hardwood and set to mop, later mark that room carpet (a rug
+                # moved in), and every other path refuses to mop it and the card
+                # shows Vacuum — while the stepped run still dispatched
+                # clean_mode=mop and dragged a wet plate across the carpet.
+                # Same call the start-plan path makes; it is idempotent, so
+                # re-running it over an already-protected room is a no-op.
                 group_managed = dict(effective_rooms)
                 for rid, r in group_rooms:
                     key = str(rid)
@@ -882,7 +895,7 @@ class RunPlanManager:
                     for field, value in r.items():
                         if field != "room_id":
                             merged[field] = value
-                    group_managed[key] = merged
+                    group_managed[key] = self._manager.protected_room_config(merged)
                 phases.extend(self._build_dispatch_phases(
                     vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
                     managed_rooms=group_managed, queue_room_ids=group_ids,

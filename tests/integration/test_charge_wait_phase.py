@@ -313,6 +313,80 @@ async def test_steps_phases_per_group_settings(hass, manager, monkeypatch):
     assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "room"]
 
 
+async def test_steps_phases_reprotects_the_group_overlay(hass, manager, monkeypatch):
+    """[CW-12b] RP-021b / #8:A4-PP-RP-6 (HIGH): the per-group overlay must be
+    RE-PROTECTED before dispatch.
+
+    protected_room_config runs over effective_rooms in the start-plan path, which is
+    BEFORE _build_steps_phases. The overlay then re-injects the step's own raw
+    clean_mode on top — AFTER protection — and hands it straight to
+    engine.build_phases. That made this the one dispatch path that skipped the
+    carpet/mop downgrade.
+
+    The lived failure: capture a group while a room is hardwood and set to mop, then
+    later mark that room carpet (a rug moved in). Every other path refuses to mop it
+    and the card shows Vacuum — while the stepped run still dispatched clean_mode=mop
+    and dragged a wet plate across the carpet.
+    """
+    seen = []
+
+    def _capture(**kw):
+        seen.append(dict(kw["managed_rooms"].get("1", {})))
+        return [{"ids": list(kw["queue_room_ids"]), "queue_room_ids": list(kw["queue_room_ids"])}]
+
+    monkeypatch.setattr(manager.run_plan, "_build_dispatch_phases", _capture)
+    # Two groups + a charge, mirroring CW-12: a LONE group collapses to an atomic
+    # phase built from effective_rooms, which would pass this test for the wrong
+    # reason (the atomic path never sees the overlay at all).
+    # The step still carries the mop setting captured when the room was hardwood.
+    steps = [
+        {"type": "room_group", "rooms": [{"room_id": 1, "clean_mode": "mop",
+                                          "water_level": "High"}]},
+        _cw(95),
+        {"type": "room_group", "rooms": [{"room_id": 2, "clean_mode": "vacuum"}]},
+    ]
+    manager.run_plan._build_steps_phases(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        # ...but the room is carpet NOW.
+        effective_rooms={"1": {"clean_mode": "vacuum", "enabled": True,
+                               "floor_type": "carpet"},
+                         "2": {"clean_mode": "vacuum", "enabled": True}},
+        included_room_ids={1, 2}, run_steps=steps, strict_order=False,
+    )
+    assert seen, "the dispatch was never reached"
+    assert seen[0]["clean_mode"] != "mop", (
+        "a carpet room was dispatched to MOP — the group overlay re-injected the "
+        "stale mop setting after protected_room_config had already downgraded it"
+    )
+
+
+async def test_steps_phases_reprotection_leaves_a_legal_group_alone(hass, manager, monkeypatch):
+    """[CW-12b] The control. Re-protection must not become a second, quieter way to
+    lose per-group settings — CW-12's whole point is that the same room can run
+    vacuum in one phase and mop in the next. On a NON-carpet room the mop overlay
+    must survive untouched."""
+    seen = []
+
+    def _capture(**kw):
+        seen.append(kw["managed_rooms"].get("1", {}).get("clean_mode"))
+        return [{"ids": list(kw["queue_room_ids"]), "queue_room_ids": list(kw["queue_room_ids"])}]
+
+    monkeypatch.setattr(manager.run_plan, "_build_dispatch_phases", _capture)
+    steps = [
+        {"type": "room_group", "rooms": [{"room_id": 1, "clean_mode": "mop"}]},
+        _cw(95),
+        {"type": "room_group", "rooms": [{"room_id": 1, "clean_mode": "vacuum"}]},
+    ]
+    manager.run_plan._build_steps_phases(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        effective_rooms={"1": {"clean_mode": "vacuum", "enabled": True,
+                               "floor_type": "hardwood"}},
+        included_room_ids={1}, run_steps=steps, strict_order=False,
+    )
+    # Exactly CW-12's assertion — re-protection must leave it untouched.
+    assert seen == ["mop", "vacuum"],         f"protection ate a legal per-group mop override: {seen}"
+
+
 async def test_steps_phases_multiple_charges(hass, manager, monkeypatch):
     """[CW-13] two NON-consecutive charges become two separate charge phases — a run can
     charge more than once (clean -> charge -> clean -> charge -> clean)."""
