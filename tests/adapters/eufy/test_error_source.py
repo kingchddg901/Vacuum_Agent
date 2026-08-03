@@ -12,6 +12,8 @@ import pytest
 
 from custom_components.eufy_vacuum.adapters.eufy.vocabulary import (
     EUFY_DOCK_SOURCED_ERROR_CODES,
+    EUFY_EVIDENCE_INVALIDATING_ERROR_CODES,
+    EUFY_EVIDENCE_SAFE_ERROR_CODES,
     EUFY_EVIDENCE_SAFE_ROBOT_CODES,
     EUFY_ROBOT_SOURCED_ERROR_CODES,
     eufy_error_invalidates_cleaning,
@@ -45,12 +47,38 @@ def test_representative_codes(code, expected):
     assert eufy_error_source(code) == expected
 
 
-@pytest.mark.parametrize("code", [41, 70, 73, 74, 79, 81, 82, 83, 5014])
+@pytest.mark.parametrize("code", [41, 70, 73, 74, 79, 81, 82, 83])
 def test_unprefixed_station_faults_are_dock(code):
     """Eufy prefixes MOST station faults 'STATION' — these carry no prefix and are still
-    the dock's (airdryer, dust collector, tanks, tray, sewage, station power). Matching on
-    the prefix alone would count every one of them against the robot's cleaning time."""
+    the dock's (airdryer, dust collector, tanks, tray, sewage). Matching on the prefix
+    alone would count every one of them against the robot's cleaning time.
+
+    5014 used to be in this list. It is not the station's — see
+    test_5014_is_a_robot_battery_shutdown_not_station_power.
+    """
     assert eufy_error_source(code) == "dock"
+
+
+def test_5014_is_a_robot_battery_shutdown_not_station_power():
+    """Upstream robovac_mqtt labels 5014 "DOCKING STATION POWER OFF"; we mirrored it,
+    and that put a ROBOT battery shutdown into the dock set — hence into
+    EVIDENCE_SAFE, whose contract is "the robot can be cleaning normally throughout".
+
+    It cannot be: the run ended because the pack died, so the cleaning evidence is
+    truncated. Learning was accepting a battery-death run as a complete observation.
+
+    Eufy's own protos settle it — error_code_list_standard.proto AND
+    error_code_list_t2080.proto both declare
+        E5014_LOW_BATTERY_SHUTDOWN = 5014;  // 电量低关机
+    with every neighbour 5010-5018 a battery code, and the genuine
+    station-not-powered concept living at 7035.
+    """
+    assert eufy_error_source(5014) == "robot"
+    assert 5014 in EUFY_EVIDENCE_INVALIDATING_ERROR_CODES
+    assert 5014 not in EUFY_EVIDENCE_SAFE_ERROR_CODES
+    # 5015 is the near-miss that must stay SAFE: also low battery, but it means the
+    # scheduled run never began, so there is no floor work to invalidate.
+    assert 5015 in EUFY_EVIDENCE_SAFE_ERROR_CODES
 
 
 @pytest.mark.parametrize("code", [21, 52, 55, 7031, 7033, 7055])

@@ -272,7 +272,8 @@ EUFY_DOCK_SOURCED_ERROR_CODES: frozenset[int] = frozenset({
     81,      # SEWAGE TANK LEAK -- station sewage tank
     82,      # CLEAN TRAY NEEDS CLEAN -- station cleaning tray
     83,      # POOR CHARGING CONTACT -- charging contacts -- only reachable while docked
-    5014,    # DOCKING STATION POWER OFF -- the station's power, not the robot's
+    # 5014 was HERE, on upstream's "DOCKING STATION POWER OFF". Eufy's own protos
+    # say otherwise -- it is a ROBOT battery shutdown. Moved; see the 501x block.
     6010,    # STATION CLEAN WATER TANK NOT CONNECTED
     6011,    # STATION LOW CLEAN WATER
     6012,    # STATION CLEAN WATER PUMP OPEN
@@ -434,6 +435,19 @@ EUFY_ROBOT_SOURCED_ERROR_CODES: frozenset[int] = frozenset({
     5011,    # BATTERY SHORT CIRCUIT
     5012,    # CHARGING CURRENT TOO LOW
     5013,    # DISCHARGE CURRENT TOO HIGH
+    # 5014 -- upstream robovac_mqtt calls this "DOCKING STATION POWER OFF" and we
+    # mirrored it, which put a ROBOT battery shutdown in the dock set and therefore
+    # in EVIDENCE_SAFE ("the robot can be cleaning normally throughout"). It cannot:
+    # the run ended because the pack died, so its cleaning evidence is truncated by
+    # definition. Corrected against Eufy's OWN error protos (robovac_mqtt/proto/
+    # cloud/error_code_list_{standard,t2080}.proto), which BOTH declare
+    #   E5014_LOW_BATTERY_SHUTDOWN = 5014;  // 电量低关机
+    # Three further confirmations: every neighbour 5010-5018 is a battery code;
+    # 5015 ("low battery, cannot schedule") upstream got RIGHT, so the block is
+    # unambiguous; and the real station-has-no-power concept lives at 7035
+    # (E7035_RIDING_FAILURE_BASE_STATION_NOT_POWERED_ON), which we already map.
+    # NOT evidence-safe -- unlike 5015, this one interrupts a run in progress.
+    5014,    # LOW BATTERY SHUTDOWN (upstream mislabels it; see above)
     5015,    # LOW BATTERY (NO SCHEDULED CLEAN)
     5016,    # CHARGING CURRENT TOO HIGH
     5017,    # CHARGING VOLTAGE ABNORMAL
@@ -717,7 +731,13 @@ EUFY_ERROR_LABEL_KEYS: dict[int, str] = {
     5011: "fault.eufy.battery_electrical_fault",
     5012: "fault.eufy.charging_current_too_low",
     5013: "fault.eufy.discharge_current_too_high",
-    5014: "fault.eufy.base_station_power_off",
+    # Was fault.eufy.base_station_power_off — it is the ROBOT's battery, not the
+    # station's power (see the 501x block above). Points at the key code 8 already
+    # uses: both are a low-battery shutdown, one per code generation, so this reuses
+    # a string already translated in all 18 locales rather than inventing a
+    # nineteenth. `fault.eufy.base_station_power_off` is left defined but is now
+    # mapped by no code.
+    5014: "fault.eufy.power_low_shutdown",
     5015: "fault.eufy.low_battery_no_scheduled",
     5016: "fault.eufy.charging_current_too_high",
     5017: "fault.eufy.charging_voltage_fault",
