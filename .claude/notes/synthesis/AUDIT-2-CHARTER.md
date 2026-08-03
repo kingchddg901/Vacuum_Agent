@@ -29,8 +29,12 @@ a ledger):
    RP-042 of the RF-36 family has landed; `623372a` is the *authoring* commit, not a fix).
    Check with `git log --oneline --all -E --grep="^RP-XXX[ :(]"` — the colon-only anchor misses
    titles like `RP-042 (RF-36 part 1): …`, and an `audit:` prefix means authoring, not landing.
-2. **RP-047's named proof written** (`_proof_group_live_progress.py`) — the fix landed (`a193eae`)
-   but `_gen_repro_status.py` confirms the proof is the one missing file in the whole campaign.
+2. **RP-047 executed AND its named proof written** (`_proof_group_live_progress.py`).
+   CORRECTION 2026-08-02: `a193eae` is SPEC-ONLY (only SYNTH-12 changed; `current_room_ids`
+   exists nowhere in code) — the packet is fully open, proven live by the Alfred group-phase
+   run pj_2026-08-02T23-04-45 still pinning the card to room[0]. A `RP-XXX:`-prefixed subject
+   can still be authoring — verify landings with `git show --stat` (code files changed), never
+   by subject alone.
 3. **RP-016 follow-ups closed or visibly deferred:** ZONE-C-2 (delete_saved_zone referrer pruning)
    and IO-6 (get_paths rename-detection). Same for every landed packet's documented partial-slice
    remainders — read each packet's own landing commit message.
