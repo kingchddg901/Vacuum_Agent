@@ -914,3 +914,63 @@ def test_a_room_with_no_timing_samples_does_not_estimate_zero_minutes(tmp_path):
     assert source == "default", "a defaulted duration must not claim learned confidence"
     # The genuinely-learned parts survive.
     assert entry["avg_area_m2"] == 6.4
+
+
+def _baseline(payload, slug):
+    return next((b for b in payload["room_baselines"] if b["room_slug"] == slug), None)
+
+
+def test_room_BASELINES_also_exclude_allocated_timings(tmp_path):
+    """The sibling wave 3 missed. The allocation guard gated room_stats only; every
+    baseline accumulator sat after it, unconditional — so the allocated group wall time
+    kept teaching there, and room_baselines is what the CARD is served. Live before this
+    fix: home_office baselines avg 7.51 / timing_sample_count 11 beside room_stats
+    0.0 / 0; entryway 7.18 beside 2.18.
+
+    The three existing allocation tests all go through _entry(), which reads only
+    payload["room_stats"] — which is exactly why this survived them."""
+    rebuilder = _make_rebuilder(tmp_path)
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred",
+        jobs=[_grouped(job_id="g1"), _solo(67, job_id="s1")],
+    )
+    office = _baseline(payload, "home_office")
+    assert office is not None
+    assert office["timing_sample_count"] == 0, "the baseline learned an allocation"
+    assert office["allocation_excluded_count"] == 1
+
+    entry = _baseline(payload, "entryway")
+    assert entry["timing_sample_count"] == 1, "the allocated split leaked into the baseline"
+    assert entry["avg_minutes"] == pytest.approx(1.12, abs=0.05)
+
+
+def test_baseline_pass_and_edge_buckets_exclude_allocated_timings(tmp_path):
+    """pass_buckets / edge_buckets are a THIRD and FOURTH accumulator of the same
+    minutes, and they feed the by-setting bands the estimator matches within."""
+    rebuilder = _make_rebuilder(tmp_path)
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[_grouped(job_id="g1")],
+    )
+    office = _baseline(payload, "home_office")
+    for bucket in list(office.get("by_clean_times", {}).values()) + list(
+        office.get("by_edge_mopping", {}).values()
+    ):
+        assert bucket["sample_count"] == 0, "an allocated split reached a setting bucket"
+
+
+def test_global_inter_room_refuses_a_degenerate_divisor():
+    """`avg_rooms > 1` is a float comparison, not a guard: at 1.001 the divisor is 0.001
+    and a modest per-job overhead becomes a per-boundary figure hundreds of times too
+    large, applied to every atomic run. Phased children are 1- and 2-room records and
+    enter job stats since 8a3bada, so avg_room_count is actively being pulled toward 1.0
+    (live 1.77 before children were admitted)."""
+    from custom_components.eufy_vacuum.learning.estimator import _MIN_BOUNDARIES_PER_JOB
+
+    def would_divide(avg_rooms: float) -> bool:
+        return (avg_rooms - 1.0) >= _MIN_BOUNDARIES_PER_JOB
+
+    assert not would_divide(1.001), "a degenerate divisor was accepted"
+    assert not would_divide(1.0)
+    assert not would_divide(1.2)
+    assert would_divide(1.77)      # the live value before children were admitted
+    assert would_divide(3.0)

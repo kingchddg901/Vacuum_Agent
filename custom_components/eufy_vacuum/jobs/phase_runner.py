@@ -549,8 +549,12 @@ class PhaseRunner:
                 inputs["cleaning_time_seconds"] = _phase_secs
             if _areas:
                 inputs["cleaning_area_m2"] = round(sum(_areas), 3)
-            # The phase identity the rebuilder gates on. Presence is the signal: a child
-            # carries it, an atomic run does not.
+            # The phase identity: which parent this child belongs to, and where in it.
+            # NOTE: nothing in production reads this yet. It briefly gated job-level
+            # stats (b49818d) until that filter was reverted in 8a3bada — children
+            # belong in the general pool. It is kept as the child->parent link for the
+            # review surface (wave 4), NOT as a learning gate; do not re-add one here
+            # without checking that ruling.
             scoped["phased_job_id"] = str(active_job.get("phased_job_id") or "")
             scoped["phase_index"] = idx
             inputs["active_job_state"] = scoped
@@ -572,9 +576,9 @@ class PhaseRunner:
                 return None
             # Stamp the phase identity ONTO THE SAVED RECORD. Setting it on the input
             # state is not enough — the record payload is built from named fields, so an
-            # unrecognised key on active_job_state is silently dropped, and the rebuilder
-            # gate below would then see an ordinary job. Re-saved rather than inferred:
-            # a child that cannot be told apart from a standalone run is the whole defect.
+            # unrecognised key on active_job_state is silently dropped. Re-saved rather
+            # than inferred: a child that cannot be told apart from a standalone run is
+            # the whole defect.
             child = result["completed_job"]
             child["phase_key"] = {
                 "phased_job_id": str(active_job.get("phased_job_id") or ""),

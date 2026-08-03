@@ -394,6 +394,8 @@ class LearningStatsRebuilder:
         #: per-key count of rooms whose timing was ALLOCATED, so the drop is
         #: reported rather than silently shrinking timing_sample_count.
         allocation_excluded: dict[str, int] = {}
+        #: same, per BASELINE key (map::slug) — the sibling accumulator.
+        baseline_allocation_excluded: dict[str, int] = {}
         baseline_area_samples: dict[str, list[float]] = {}
         # baseline-level minutes samples + paired area (baseline area gate).
         baseline_samples: dict[str, list[float]] = {}
@@ -549,8 +551,20 @@ class LearningStatsRebuilder:
                 baseline_key = _room_baseline_key(map_id, slug)
                 if room_area is not None:
                     baseline_area_samples.setdefault(baseline_key, []).append(room_area)
-                baseline_samples.setdefault(baseline_key, []).append(room_minutes)
-                baseline_sample_areas.setdefault(baseline_key, []).append(room_area)
+                # SIBLING OF THE EXACT-KEY GUARD at the top of this loop. Wave 3 gated
+                # room_stats and left every baseline accumulator below unconditional, so
+                # the allocated group wall time kept teaching here — and room_baselines is
+                # what the card is served (learning/manager.py:1523 -> :2078). Live proof
+                # before this fix: baselines home_office avg 7.51 / timing_sample_count 11
+                # beside room_stats 0.0 / 0, and entryway 7.18 beside 2.18. The tests
+                # missed it because every allocation test inspects payload["room_stats"].
+                if rid not in allocated_rids:
+                    baseline_samples.setdefault(baseline_key, []).append(room_minutes)
+                    baseline_sample_areas.setdefault(baseline_key, []).append(room_area)
+                else:
+                    baseline_allocation_excluded[baseline_key] = (
+                        baseline_allocation_excluded.get(baseline_key, 0) + 1
+                    )
                 if baseline_key not in room_baselines:
                     room_baselines[baseline_key] = {
                         "map_id": map_id,
@@ -572,7 +586,8 @@ class LearningStatsRebuilder:
                     }
 
                 room_baselines[baseline_key]["sample_count"] += 1
-                room_baselines[baseline_key]["total_estimated_minutes"] += room_minutes
+                if rid not in allocated_rids:
+                    room_baselines[baseline_key]["total_estimated_minutes"] += room_minutes
                 room_baselines[baseline_key]["total_estimated_battery_used"] += per_room_battery
                 room_baselines[baseline_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_baselines[baseline_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
@@ -594,13 +609,15 @@ class LearningStatsRebuilder:
                 pass_bucket = room_baselines[baseline_key]["pass_buckets"].setdefault(
                     str(clean_times), {"minutes": [], "battery": []},
                 )
-                pass_bucket["minutes"].append(room_minutes)
+                if rid not in allocated_rids:
+                    pass_bucket["minutes"].append(room_minutes)
                 pass_bucket["battery"].append(per_room_battery)
 
                 edge_bucket = room_baselines[baseline_key]["edge_buckets"].setdefault(
                     "on" if edge_mopping else "off", {"minutes": [], "battery": []},
                 )
-                edge_bucket["minutes"].append(room_minutes)
+                if rid not in allocated_rids:
+                    edge_bucket["minutes"].append(room_minutes)
                 edge_bucket["battery"].append(per_room_battery)
 
             # --- transit accumulation (job level, after the per-room loop) -----
@@ -712,6 +729,7 @@ class LearningStatsRebuilder:
                     "minutes_stddev": _stddev(b_gated),
                     "timing_sample_count": len(b_gated),
                     "partial_excluded_count": b_partial,
+                    "allocation_excluded_count": baseline_allocation_excluded.get(key, 0),
                     "avg_battery_used": round(item["total_estimated_battery_used"] / sample_count, 2),
                     "avg_robot_water_used_ml": round(item["total_robot_water_used_ml"] / sample_count, 2),
                     "avg_water_overhead_ml": round(item["total_water_overhead_ml"] / sample_count, 2),

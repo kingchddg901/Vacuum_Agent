@@ -111,6 +111,13 @@ _RETURN_MINUTES = 1.0
 
 # Fallback defaults
 _DEFAULT_ROOM_MINUTES = 6.0
+
+#: Minimum average boundaries-per-job before the global inter-room overhead may be
+#: divided down to a per-boundary figure. Guards a degenerate divisor: at
+#: avg_room_count 1.001 the divisor is 0.001 and the result is meaningless. 0.25 means
+#: "at least a quarter of runs had a second room" — below that the archive is dominated
+#: by single-room jobs and there is no boundary population to average over.
+_MIN_BOUNDARIES_PER_JOB = 0.25
 _DEFAULT_BATTERY_PER_ROOM = 0.8
 
 # Stale detection
@@ -756,7 +763,16 @@ class LearningEstimator:
             gi = _safe_float(js.get("avg_overhead_inter_room_minutes"), 0.0)
             gi_count = _safe_int(js.get("overhead_inter_room_sample_count"), 0)
             avg_rooms = _safe_float(js.get("avg_room_count"), 0.0)
-            if gi > 0 and gi_count >= 1 and avg_rooms > 1:
+            # `avg_rooms > 1` alone is not a guard, it is a float comparison: at 1.001 the
+            # divisor is 0.001 and a modest per-job overhead becomes a per-boundary
+            # estimate hundreds of times too large, applied to EVERY atomic run.
+            #
+            # That is no longer hypothetical. Phased-run children are single- and two-room
+            # records, and since 8a3bada they enter job stats, so avg_room_count is being
+            # pulled toward 1.0 (live: 1.77 before children were admitted). Require a real
+            # margin and refuse otherwise — an absent global fallback is handled downstream,
+            # a wildly inflated one is not.
+            if gi > 0 and gi_count >= 1 and (avg_rooms - 1.0) >= _MIN_BOUNDARIES_PER_JOB:
                 # avg_overhead_inter_room_minutes is a per-JOB total across all
                 # gaps; divide by avg boundaries/job for a per-boundary estimate.
                 global_inter_room = gi / (avg_rooms - 1.0)
