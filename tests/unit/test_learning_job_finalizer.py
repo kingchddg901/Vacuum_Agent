@@ -922,3 +922,50 @@ def test_log_and_archive_agree_on_completed_rooms(finalizer):
 
     assert sorted(written["completed_room_ids"]) == [5]
     assert known_completed_room_ids(state, timings) == [5]
+
+
+# ---------------------------------------------------------------------------
+# Trouble rooms — a day of cancel-testing flagged two healthy rooms as chronic
+# (Entryway 5/9, Home Office 3/4, observed live 2026-08-02).
+# ---------------------------------------------------------------------------
+
+
+def _trouble(fin, completed_job, active_job_state):
+    fin._update_trouble_rooms_log(
+        vacuum_entity_id=_VAC_13C, completed_job=completed_job,
+        active_job_state=active_job_state, ended_at="2026-08-02T00:30:00Z",
+    )
+    return fin.store.load_trouble_rooms(vacuum_entity_id=_VAC_13C) or {}
+
+
+def test_a_user_cancel_does_not_mark_rooms_as_missed(finalizer):
+    """The badge exists to surface a room the robot keeps failing to REACH. A run the
+    user stopped says nothing about the rooms it had not got to — counting it inverted
+    the badge's meaning and flagged healthy rooms as chronic trouble."""
+    log = _trouble(finalizer, _cancelled([1, 2, 3]), {"completed_room_ids": [1]})
+    assert log.get("rooms", {}) == {}, "a cancel moved the trouble counter"
+
+
+def test_a_cancel_does_not_count_as_a_success_either(finalizer):
+    """Not evidence in EITHER direction — it must not improve the ratio to hide a real
+    problem, so the run is skipped rather than recorded as clean."""
+    log = _trouble(finalizer, _cancelled([1, 2, 3]), {"completed_room_ids": [1, 2, 3]})
+    assert log.get("rooms", {}) == {}
+
+
+def test_trouble_uses_the_shared_completed_rooms_helper(finalizer):
+    """This read active_job_state["completed_room_ids"] directly — the CURRENT phase's
+    list, emptied by the advance — so on a phased run every room cleaned in an earlier
+    phase counted as missed. The exact defect RP-013c fixed one consumer over; this
+    sibling was never switched."""
+    job = dict(_cancelled([1, 2, 3]), outcome={"status": "interrupted"})
+    log = _trouble(finalizer, job, {
+        "phases": [{"resolved_rooms": [{"room_id": 1}]},
+                   {"resolved_rooms": [{"room_id": 2}]}],
+        "current_phase_index": 1,
+        "completed_room_ids": [2],
+    })
+    rooms = log.get("rooms", {})
+    assert rooms.get("1", {}).get("miss_count") == 0, "an earlier phase's room read as missed"
+    assert rooms.get("2", {}).get("miss_count") == 0
+    assert rooms.get("3", {}).get("miss_count") == 1, "the genuinely unreached room"

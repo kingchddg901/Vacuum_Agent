@@ -936,7 +936,13 @@ async def test_finalize_cancelled_fires_run_incomplete(hass, learning_services):
 # ---------------------------------------------------------------------------
 
 async def test_trouble_rooms_accumulate_across_finalize_calls(hass, learning_services):
-    """[LS-20] Two cancelled finalize calls with the same rooms flag them is_trouble=True."""
+    """[LS-20] Two INTERRUPTED finalize calls with the same rooms flag them is_trouble=True.
+
+    Was "cancelled" until 2026-08-02. A user cancel is no longer evidence about a room —
+    it says nothing about rooms the run had not reached, and counting it flagged healthy
+    rooms as chronic (Entryway 5/9 live). An interrupted run is still evidence: there the
+    robot genuinely failed to finish, which is what this counter exists to surface.
+    """
     from tests.integration.conftest import setup_map
     from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
 
@@ -952,9 +958,9 @@ async def test_trouble_rooms_accumulate_across_finalize_calls(hass, learning_ser
         "ended_at": "2026-01-01T09:02:00+00:00",
         "used_for_learning": False,
         "rebuild_stats": False,
-        "forced_outcome_status": "cancelled",
+        "forced_outcome_status": "interrupted",
     }
-    # Two cancelled jobs — both rooms missed each time → miss_count reaches 2. RP-001/
+    # Two interrupted jobs — both rooms missed each time → miss_count reaches 2. RP-001/
     # GATE4 Q1: finalize requires a stored active-job record, and a successful finalize
     # marks that slot `finalized`. Re-seed before each call to model two SEPARATE
     # dispatched job runs on the same map (a fresh dispatch overwrites the slot in
@@ -974,6 +980,39 @@ async def test_trouble_rooms_accumulate_across_finalize_calls(hass, learning_ser
         room = rooms.get(rid, {})
         assert room.get("miss_count", 0) >= 2, f"room {rid} miss_count too low: {room}"
         assert room.get("is_trouble") is True, f"room {rid} not flagged trouble"
+
+
+async def test_cancelled_runs_never_reach_the_trouble_counter(hass, learning_services):
+    """[LS-20] The companion to the above: the SAME two runs, cancelled instead of
+    interrupted, must leave the counter untouched. A day of cancel-testing flagged two
+    healthy rooms as chronic trouble because this was not true."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+    learning_services.build_queue(vacuum_entity_id=_VAC, map_id=_MAP)
+    _finalize = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "battery_start": 85, "battery_end": 75,
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "ended_at": "2026-01-01T09:02:00+00:00",
+        "used_for_learning": False, "rebuild_stats": False,
+        "forced_outcome_status": "cancelled",
+    }
+    async def _counter():
+        r = await hass.services.async_call(
+            DOMAIN, SERVICE_GET_TROUBLE_ROOMS_LOG, {"vacuum_entity_id": _VAC},
+            blocking=True, return_response=True,
+        )
+        return {k: (v or {}).get("miss_count", 0) for k, v in (r.get("rooms") or {}).items()}
+
+    # Asserted as a DELTA, not an absolute: the suite shares a store, so a sibling test's
+    # counter is legitimately already there. What must hold is that a cancel moves nothing.
+    before = await _counter()
+    for _ in range(2):
+        _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
+        await hass.services.async_call(DOMAIN, SERVICE_FINALIZE_LEARNING_JOB, _finalize, blocking=True)
+    assert await _counter() == before, "a cancelled run moved the trouble counter"
 
 
 # ---------------------------------------------------------------------------

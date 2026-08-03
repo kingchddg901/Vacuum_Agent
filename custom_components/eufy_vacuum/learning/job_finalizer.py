@@ -1764,6 +1764,18 @@ class LearningJobFinalizer:
             outcome = completed_job.get("outcome", {})
             outcome_status = str(outcome.get("status", "")).lower()
 
+            # A USER CANCEL IS NOT EVIDENCE ABOUT A ROOM. This counter exists to surface
+            # a room the robot keeps failing to reach; a run the user stopped says nothing
+            # about the rooms it had not got to yet. Counting it inverted the meaning of
+            # the badge — a day of cancel-testing flagged Entryway (5/9) and Home Office
+            # (3/4) as chronic trouble rooms when nothing had ever gone wrong in either.
+            #
+            # Skipped entirely rather than counted as a success: a cancelled run is not
+            # evidence in EITHER direction, so it must not move the ratio at all.
+            # interrupted/failed still count — there the robot did fail to finish.
+            if outcome_status == "cancelled":
+                return
+
             resolved_rooms = completed_job.get("resolved_rooms", [])
             name_by_id: dict[int, str] = {}
             for room in (resolved_rooms if isinstance(resolved_rooms, list) else []):
@@ -1785,14 +1797,16 @@ class LearningJobFinalizer:
             if outcome_status == "completed":
                 active_completed = queued_room_ids[:]
             else:
-                raw = (
-                    active_job_state.get("completed_room_ids")
-                    if isinstance(active_job_state, dict)
-                    else []
-                ) or []
-                active_completed = [
-                    _safe_int(r, -1) for r in raw if _safe_int(r, -1) > 0
-                ]
+                # THE SAME HELPER the incomplete-run log uses. This read
+                # active_job_state["completed_room_ids"] directly — the CURRENT phase's
+                # list, which the advance empties by design — so on a phased run every
+                # room cleaned in an earlier phase counted as missed here. That is the
+                # exact defect RP-013c repaired one consumer over; this sibling was never
+                # switched, so the packet closed while half the bug lived on.
+                active_completed = known_completed_room_ids(
+                    active_job_state,
+                    (completed_job.get("job") or {}).get("room_timings"),
+                )
 
             missed_ids = set(queued_room_ids) - set(active_completed)
 
