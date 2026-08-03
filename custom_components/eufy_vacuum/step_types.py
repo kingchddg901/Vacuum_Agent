@@ -85,7 +85,13 @@ def is_dock_polled_phase(phase: Any) -> bool:
 #: match DOCK_POLLED_PHASE_TYPES + {"zone"} today; that is a coincidence of
 #: what exists, not a reason to derive one set from another — a future phase
 #: type could answer these two questions differently.
-CLEANING_PHASE_TYPES: frozenset[str] = frozenset({"room_group"})
+#: The phase type a plain dispatch phase is stamped with. Named so the stamp in
+#: run_plan._build_dispatch_phases and the membership set below cannot drift apart —
+#: they were silently inconsistent until 2026-08-02, when no dispatch phase carried a
+#: type at all.
+CLEANING_PHASE_TYPE = "room_group"
+
+CLEANING_PHASE_TYPES: frozenset[str] = frozenset({CLEANING_PHASE_TYPE})
 
 #: Phase types where an EMPTY room_timing is VALID-EMPTY, not a capture
 #: failure — the deliberate complement of CLEANING_PHASE_TYPES over today's
@@ -110,6 +116,15 @@ def phase_capture_is_valid(phase: Any) -> bool:
     """
     if not isinstance(phase, dict):
         return False
-    if not is_cleaning_phase_type(phase.get("phase_type")):
+    raw = phase.get("phase_type")
+    if raw in (None, ""):
+        # ABSENT means "a plain dispatch phase" — only breaks and zones declare a type.
+        # Treating absent as non-cleaning made this gate FAIL OPEN: a cleaning phase whose
+        # segmenter found nothing was judged valid-empty and transit_capture_valid stayed
+        # True, so a total capture failure taught as a clean run. Absent now falls to the
+        # cleaning branch, which is also the safe direction for a future phase type that
+        # forgets to stamp one: it gets scrutinised rather than waved through.
+        return bool(phase.get("room_timing"))
+    if not is_cleaning_phase_type(raw):
         return True
     return bool(phase.get("room_timing"))

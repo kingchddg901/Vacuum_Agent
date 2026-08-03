@@ -974,3 +974,30 @@ def test_global_inter_room_refuses_a_degenerate_divisor():
     assert not would_divide(1.2)
     assert would_divide(1.77)      # the live value before children were admitted
     assert would_divide(3.0)
+
+
+def test_a_cleaning_phase_with_no_timing_is_a_capture_FAILURE():
+    """The gate failed open. A dispatch phase carried no phase_type at all (verified live
+    on the active job and on every child's phase_key, which read ""), so
+    is_cleaning_phase_type() said False, the phase was classified NON-cleaning, and its
+    EMPTY room_timing was judged valid-empty. A segmenter that found nothing for a phase
+    that definitely cleaned something passed silently and transit_capture_valid stayed
+    True — the run then taught as if fully captured."""
+    from custom_components.eufy_vacuum.step_types import (
+        CLEANING_PHASE_TYPE,
+        phase_capture_is_valid,
+    )
+
+    # Absent type == a plain dispatch phase. Empty timing must NOT be waved through.
+    assert phase_capture_is_valid({"room_timing": []}) is False
+    assert phase_capture_is_valid({"phase_type": "", "room_timing": []}) is False
+    assert phase_capture_is_valid({"room_timing": [{"room_id": 5}]}) is True
+
+    # An explicitly-stamped cleaning phase behaves the same.
+    assert phase_capture_is_valid(
+        {"phase_type": CLEANING_PHASE_TYPE, "room_timing": []}
+    ) is False
+
+    # Breaks and zones are genuinely valid-empty — unchanged.
+    for break_type in ("wait", "charge_wait", "zone"):
+        assert phase_capture_is_valid({"phase_type": break_type, "room_timing": []}) is True

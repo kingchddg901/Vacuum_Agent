@@ -16,7 +16,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
-from ..step_types import DOCK_POLLED_PHASE_TYPES
+from ..step_types import CLEANING_PHASE_TYPE, DOCK_POLLED_PHASE_TYPES
 from ..entity_helpers import get_floor_type_label
 from ..queue.queue_engine import build_queue_from_managed_rooms
 from ..queue.dispatch_engines import get_dispatch_engine
@@ -802,7 +802,20 @@ class RunPlanManager:
         )
         effective_strict = bool(strict_order) and not honors_order
         engine = get_dispatch_engine(dispatch_cfg.get("template"))
-        return engine.build_phases(
+        # STAMP THE PHASE TYPE. Break and zone steps declare their own type below, but a
+        # dispatch phase never did — every engine's build_payload returns an envelope
+        # without one, so `phase_type` was ABSENT on every cleaning phase (live-verified
+        # on the active job and on every child's phase_key, which read "").
+        #
+        # That is not cosmetic: phase_capture_is_valid asks is_cleaning_phase_type(), an
+        # absent type is not in CLEANING_PHASE_TYPES, so a cleaning phase was classified
+        # NON-cleaning and its EMPTY room_timing judged valid-empty. A segmenter that
+        # found nothing for a phase that definitely cleaned something passed the capture
+        # gate silently, and transit_capture_valid stayed True.
+        #
+        # Stamped here rather than in each engine: this is the one wrapper every dispatch
+        # phase passes through, so a new brand engine cannot forget it.
+        phases = engine.build_phases(
             strict_order=effective_strict,
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
@@ -815,6 +828,10 @@ class RunPlanManager:
             ),
             dispatch=dispatch_cfg,
         )
+        for _ph in phases:
+            if isinstance(_ph, dict):
+                _ph.setdefault("phase_type", CLEANING_PHASE_TYPE)
+        return phases
 
     def _build_steps_phases(
         self,

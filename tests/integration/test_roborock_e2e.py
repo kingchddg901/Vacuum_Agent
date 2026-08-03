@@ -271,7 +271,9 @@ async def test_roborock_stepped_dispatch_builds_charge_phase(hass, manager, monk
     assert result["started"] is True, (result.get("reason"), result.get("message"))
 
     job = _job(manager)
-    assert [p.get("phase_type", "room") for p in job["phases"]] == ["room", "charge_wait", "room"]
+    assert [p.get("phase_type") for p in job["phases"]] == [
+        "room_group", "charge_wait", "room_group",
+    ]
     assert job["phases"][1]["target_battery_percent"] == 90
     assert job["current_phase_index"] == 0
 
@@ -372,7 +374,9 @@ async def test_roborock_stepped_forces_strict_order(hass, manager, monkeypatch):
     job = _job(manager)
     # The 2-room first group SPLIT into two per-room phases (strict) before the wait —
     # non-strict would have been a single [room, wait, room] with both rooms in phase 0.
-    assert [p.get("phase_type", "room") for p in job["phases"]] == ["room", "room", "wait", "room"]
+    assert [p.get("phase_type") for p in job["phases"]] == [
+        "room_group", "room_group", "wait", "room_group",
+    ]
     # Phase 0 dispatched Kitchen ALONE (queue order 1), not [Kitchen, Office].
     assert len(calls["send"]) == 1
     assert calls["send"][0]["params"] == [{"segments": [_KITCHEN], "repeat": 1}]
