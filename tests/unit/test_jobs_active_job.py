@@ -1003,3 +1003,55 @@ def test_poll_ignores_paused_job():
     assert tracker.poll_stranded_started_job(vacuum_entity_id=vac, map_id="main",
                                              now="2026-07-11T10:00:00Z") is None
     assert _stamp(tracker, vac) is None
+
+
+# --------------------------------------------------------------------------
+# The live queue froze inside a multi-room phase (observed on hardware
+# 2026-08-02: the card sat on Entryway at 99% while the robot was already
+# cleaning Home Office).
+# --------------------------------------------------------------------------
+
+
+def _phased_job_with_samples():
+    samples = (
+        [{"t": f"2026-08-02T18:0{i}:00Z", "cleaning_area": i} for i in range(1, 9)]
+        + [{"t": f"2026-08-02T18:1{i}:00Z", "cleaning_area": 8} for i in range(0, 2)]
+        + [{"t": f"2026-08-02T18:2{i}:00Z", "cleaning_area": 8 + i} for i in range(0, 6)]
+    )
+    return samples, {
+        "counter_samples": samples,
+        "current_phase_index": 2,
+        "phases": [
+            {"phase_type": "room_group", "_timing_end_t": "2026-08-02T18:09:35Z"},
+            {"phase_type": "wait", "_timing_end_t": "2026-08-02T18:11:40Z"},
+            {"phase_type": "room_group"},
+        ],
+    }
+
+
+def test_boundary_count_sees_only_the_current_phase_samples():
+    """counter_samples accumulate across the whole run; completed_room_ids is RESET each
+    phase. Comparing boundaries found in the whole-run stream against a per-phase
+    completed count compares two different windows — and it fails in the direction that
+    freezes the queue, because the whole-run stream cannot be segmented across a phase
+    boundary (the dock trips break the segmenter's transit capture)."""
+    from custom_components.eufy_vacuum.jobs.active_job import ActiveJobTracker
+
+    tracker = ActiveJobTracker.__new__(ActiveJobTracker)
+    samples, job = _phased_job_with_samples()
+    sliced = tracker._current_phase_samples(job)
+
+    assert len(sliced) == 6, "phase 2 must not see the run's 16 samples"
+    assert all(s["t"] > "2026-08-02T18:11:40Z" for s in sliced)
+
+
+def test_first_phase_and_atomic_jobs_keep_the_whole_buffer():
+    """Phase 0's slice IS the buffer so far, and an atomic job has no phases at all —
+    neither may change behaviour."""
+    from custom_components.eufy_vacuum.jobs.active_job import ActiveJobTracker
+
+    tracker = ActiveJobTracker.__new__(ActiveJobTracker)
+    samples, job = _phased_job_with_samples()
+
+    assert len(tracker._current_phase_samples({**job, "current_phase_index": 0})) == len(samples)
+    assert len(tracker._current_phase_samples({"counter_samples": samples, "phases": None})) == len(samples)

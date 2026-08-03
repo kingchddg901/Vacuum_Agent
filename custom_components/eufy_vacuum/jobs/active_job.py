@@ -927,6 +927,46 @@ class ActiveJobTracker:
             "skipped_room_ids": skipped_room_ids,
         }
 
+    def _current_phase_samples(
+        self, active_job: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """The counter samples belonging to the CURRENT phase only.
+
+        ``counter_samples`` accumulate across the whole run — nothing resets them at a
+        phase advance — while ``completed_room_ids`` IS reset per phase (deliberately;
+        each phase is a fresh atomic sub-job). So ``_live_boundary_count`` was comparing
+        boundaries found in the WHOLE run's stream against a count scoped to one phase:
+        two different windows.
+
+        It fails in the direction that freezes the queue. The whole-run stream cannot be
+        segmented across a phase boundary — the per-room dock trips break the segmenter's
+        transit capture, which is precisely why ``_capture_finishing_phase_timing``
+        segments each phase ALONE. The resulting count comes back too low, never exceeds
+        the completed count, and the counter-plateau rollover never fires: inside a
+        two-room phase the card sat on the first room at 99 % while the robot was already
+        cleaning the second.
+
+        Sliced the same way the capture does — samples after the previous phase's
+        recorded end, compared lexically on ``_iso_now()`` stamps. Atomic jobs (no
+        ``phases``) get the whole buffer, exactly as before.
+        """
+        samples = active_job.get("counter_samples", []) or []
+        phases = active_job.get("phases")
+        if not isinstance(phases, list) or not phases:
+            return samples
+        idx = _safe_int(active_job.get("current_phase_index"), 0)
+        start_t = ""
+        for j in range(idx - 1, -1, -1):
+            if isinstance(phases[j], dict) and phases[j].get("_timing_end_t"):
+                start_t = str(phases[j]["_timing_end_t"])
+                break
+        if not start_t:
+            return samples  # first phase — its slice IS the buffer so far
+        return [
+            s for s in samples
+            if isinstance(s, dict) and str(s.get("t") or "") > start_t
+        ]
+
     def _live_boundary_count(self, vacuum_entity_id: str, active_job: dict[str, Any], raw_timeline: list[dict[str, Any]]) -> int:
         """Number of completed room transitions the live counter signal currently shows
         (the in-progress room is never counted — expected_rooms caps boundaries at N-1).
@@ -938,7 +978,7 @@ class ActiveJobTracker:
         brand-agnostic framework selection."""
         from ..learning.job_segmenter_engines import get_job_segmenter_engine
 
-        samples = active_job.get("counter_samples", []) or []
+        samples = self._current_phase_samples(active_job)
         cfg = self._live_transition_config(vacuum_entity_id)
         # Engine + thresholds both come from the adapter's job_segmenter block (the
         # single source); absent → the Eufy counter engine + its DEFAULT_TUNING. The
