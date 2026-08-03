@@ -784,6 +784,7 @@ class LearningHistoryStore:
         ended_at: str,
         battery_end: int | None,
         ended_reason: str | None = None,
+        active_phase_index: int | None = None,
     ) -> dict[str, Any] | None:
         """Close the parent: final status, aggregate, boundaries.
 
@@ -811,14 +812,24 @@ class LearningHistoryStore:
         # lands here rather than in the cancel path: the cancel path returns early by
         # design (it owns finalization and must not advance), so it never visits the
         # phases it cancelled. Close is the one place that sees them all.
-        _sealed = (
-            "cancelled_upstream"
-            if str(ended_reason or "").strip().lower() in _CANCEL_REASONS
-            else "not_run"
-        )
+        _cancelled = str(ended_reason or "").strip().lower() in _CANCEL_REASONS
+        _active = _safe_int(active_phase_index, -1)
         for _ph in phases:
-            if _ph.get("outcome") in (None, ""):
-                _ph["outcome"] = _sealed
+            if _ph.get("outcome") not in (None, ""):
+                continue
+            if not _cancelled:
+                _ph["outcome"] = "not_run"
+            elif _active >= 0 and _safe_int(_ph.get("index"), -1) == _active:
+                # The phase that was IN FLIGHT when the cancel landed. It is NOT
+                # "cancelled_upstream" — nothing upstream cancelled it, the user did, and
+                # it may have cleaned for minutes before it stopped. Labelling it the same
+                # as a phase that never started loses the only thing a reader wants from a
+                # cancelled run: how far it got. Observed on hardware
+                # (pj_2026-08-02T17-38-07): a kitchen that ran 92 s read identically to a
+                # phase that never dispatched.
+                _ph["outcome"] = "cancelled"
+            else:
+                _ph["outcome"] = "cancelled_upstream"
 
         clean = [p for p in phases
                  if str(p.get("type")) not in ("charge_wait", "wait")]

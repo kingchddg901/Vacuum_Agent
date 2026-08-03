@@ -487,3 +487,39 @@ def test_parent_knows_the_rooms_it_planned(store):
     assert parent["phases"][0]["planned_room_ids"] == [5]
     assert parent["phases"][2]["planned_room_ids"] == [8, 4]
     assert parent["phases"][1]["planned_room_ids"] == []
+
+
+def test_cancel_distinguishes_the_phase_that_was_running(store, runner):
+    """Hardware, pj_2026-08-02T17-38-07: a cancel during the kitchen sealed ALL THREE
+    phases `cancelled_upstream`, so a kitchen that had run 92 s read identically to a
+    phase that never dispatched. A cancelled run's one useful fact is how far it got."""
+    job = _job()
+    _open(store, job)
+    closed = store.close_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ,
+        ended_at="2026-08-02T18:01:32+00:00", battery_end=99,
+        ended_reason="cancelled", active_phase_index=0,
+    )
+    slots = {p["index"]: p for p in closed["phases"]}
+    assert slots[0]["outcome"] == "cancelled"           # the user stopped THIS one
+    assert slots[1]["outcome"] == "cancelled_upstream"  # never reached
+    assert slots[2]["outcome"] == "cancelled_upstream"
+
+
+def test_cancel_in_a_later_phase_leaves_finished_work_alone(store, runner):
+    """A completed phase keeps its outcome — sealing must never overwrite real evidence."""
+    job = _job()
+    _open(store, job)
+    job["current_phase_index"] = 0
+    job["phases"][0]["_timing_end_t"] = "2026-08-02T18:09:35+00:00"
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+    closed = store.close_phased_job(
+        vacuum_entity_id=_VAC, phased_job_id=_PJ,
+        ended_at="2026-08-02T18:15:00+00:00", battery_end=90,
+        ended_reason="cancelled", active_phase_index=2,
+    )
+    slots = {p["index"]: p for p in closed["phases"]}
+    assert slots[0]["outcome"] == "completed"           # untouched
+    assert slots[1]["outcome"] == "cancelled_upstream"
+    assert slots[2]["outcome"] == "cancelled"
+    assert closed["status"] == "partial"                # some work survived

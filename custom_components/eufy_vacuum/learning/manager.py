@@ -717,6 +717,10 @@ class LearningManager:
                 # Carries Chris's directive 1: on a cancel, the phases that never ran are
                 # sealed `cancelled_upstream` rather than left blank.
                 ended_reason=outcome_status,
+                # Which phase was IN FLIGHT when it stopped. Without it the phase the
+                # user actually cancelled reads the same as one that never dispatched,
+                # and a cancelled run cannot say how far it got.
+                active_phase_index=active_job.get("current_phase_index"),
             )
         except Exception:  # noqa: BLE001 - must never break finalization
             _LOGGER.exception("could not close phased-job parent")
