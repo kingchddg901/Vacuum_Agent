@@ -81,6 +81,7 @@ reads/writes the same `manager.data["active_jobs"]` store.
 | Release the dispatch-pending guard | **PhaseRunner** | `_clear_phase_dispatch_pending` |
 | Coarse "is it cleaning at all" fallback | **PhaseRunner** | `_vacuum_started_cleaning` |
 | Per-phase timing/area snapshot | **PhaseRunner** | `_capture_finishing_phase_timing` → `_phase_room_timing` / `_wall_seconds` / `_learned_room_area_m2` |
+| Per-ROOM timing inside a multi-room group phase | **PhaseRunner** | `_split_group_room_timing` → `_segment_group_room_timing` (observed) else even apportioning (§5.2a) |
 | Build the per-room phase list | queue engine | `GenericRoomIdsEngine.build_phases` |
 | Materialize a run profile's `steps` into a phase list (clean groups + stops) | run plan | `RunPlanManager._build_steps_phases` |
 | Advance the stored job to the next phase | queue engine | `advance_active_job_phase` |
@@ -291,6 +292,46 @@ phase's cumulative total, not its own area.) The returned shape:
 
 `_wall_seconds(t0, t1)` is a static helper: whole seconds between two ISO
 timestamps, best-effort `0` on parse failure.
+
+### 5.2a Multi-room group phases — `_split_group_room_timing`
+
+A `room_group` phase can hold **several** rooms in one dispatch (Eufy's
+`EufyRoomCleanEngine` ignores `strict_order`, so this is the normal case there).
+One phase is then several rooms, and the phase's slice is tried two ways in order.
+
+**1. Observed — `_segment_group_room_timing`.** The dispatch batched the rooms;
+the robot still cleaned them one at a time and still plateaued between them, and
+that plateau is in the counter stream — the same signal that drives live
+`counter_plateau` rollover. Segmenting the slice gives each member its own
+`cleaning_wall_seconds` / `area_m2`, written with `allocated: false` and the
+segment's real `boundary` kind. Three gates, each of which only falls back:
+
+| Gate | Test | Why |
+|---|---|---|
+| Order | `capabilities.honors_clean_order` is not `False` | Mapping segment *i* to `group_ids[i]` is only sound if the brand cleans in the order it was given (Eufy True, Roborock False). |
+| Count | the segmenter returns exactly *n* bouts | Fewer or more and we cannot say which room is which. |
+| Reconciliation | the rebased parts sum back to the group's measured totals | Proves the rebase below described the same span. |
+
+**The rebase.** `build_segments` counts from zero (`prev_ct` / `prev_area` start
+at `0.0`) while the counters are cumulative across the run, and `_prepare_window`
+only re-bases at a counter **reset** — once per run, not once per phase. Fed a
+phase slice it therefore reports the whole run's cumulative totals as the first
+member's work (measured: a slice opening at `cleaning_time` 600 yields
+`time_active_s` 660 and `area_delta_m2` 46.5 for a room that did 60 s / 4.5 m²).
+So each part is recomputed from the segment's cumulative *end* against the
+slice's own first reading, which telescopes back to the group's whole.
+
+**2. Apportioned.** When any gate fails, the measured totals are split evenly
+across members with `allocated: true` and `allocation_group_size: n`, using
+`_distribute_int` so the sum is preserved exactly. `cleaning_start` /
+`cleaning_end` / `cleaning_wall_seconds` are then shared verbatim by every
+member — which is why `stats_rebuilder` excludes allocated rows from
+`room_stats` and `room_baselines`.
+
+`allocated` therefore means **"this row is arithmetic, not an observation"** — not
+"this row came from a group". A segmented group row is an observation and is
+admitted to learning exactly as an atomic multi-room job's rows are, which take
+the same counter-plateau signal at the same reliability.
 
 ### 5.3 Area fallback — `_learned_room_area_m2`
 

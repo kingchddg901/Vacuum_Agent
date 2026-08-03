@@ -747,7 +747,9 @@ class PhaseRunner:
             if s.get("cleaning_time") is not None or s.get("cleaning_area") is not None
         ]
         room_timings = (
-            self._split_group_room_timing(group_ids, slug_by_id, slice_samples)
+            self._split_group_room_timing(
+                group_ids, slug_by_id, slice_samples, vacuum_entity_id
+            )
             if group_ids and len(usable) >= 2 else []
         )
         # AREA fallback: a within-phase cleaning_area delta of ~0 (a stale/flat sensor through
@@ -904,31 +906,171 @@ class PhaseRunner:
             "allocated": False,
         }
 
+    def _segment_group_room_timing(
+        self,
+        vacuum_entity_id: str,
+        group_ids: list[int],
+        slug_by_id: dict[int, str | None],
+        slice_samples: list[dict[str, Any]],
+        whole: dict[str, Any],
+    ) -> list[dict[str, Any]] | None:
+        """Per-room rows SEGMENTED from the group's own counter slice, or ``None``
+        when the split could not be observed (the caller then apportions).
+
+        The group's members were dispatched together, but they were not cleaned
+        simultaneously — the robot works them one after another, and the counter
+        stream carries the plateaus between them. Segmenting the slice recovers
+        each member's OWN cleaning_wall_seconds and area, which is what learning
+        actually consumes; the even split cannot, and its
+        ``cleaning_wall_seconds`` is the whole phase's wall repeated identically
+        for every member (the defect stats_rebuilder's allocated gate exists to
+        contain).
+
+        THREE GATES, each of which can only send us back to apportioning:
+
+        1. **Order.** Mapping segment *i* to ``group_ids[i]`` is only sound when
+           the brand cleans in the order it was given. That is exactly what
+           ``capabilities.honors_clean_order`` declares (Eufy True, Roborock
+           False), and it is the same declaration the dispatch planner already
+           relies on — not a new assumption invented here.
+        2. **Count.** The segmenter must find exactly ``n`` bouts. Fewer or more
+           and we cannot say which room is which, so we do not guess.
+        3. **Reconciliation.** The rebased parts must sum back to the group's
+           measured totals. This one is not defensive paranoia — see the rebase
+           below.
+
+        THE REBASE. ``build_segments`` counts from zero (``prev_ct``/``prev_area``
+        start at 0.0) while ``cleaning_time``/``cleaning_area`` are CUMULATIVE
+        across the run, and ``_prepare_window`` only re-bases at a counter reset,
+        which happens once per RUN and not once per phase. Fed a phase slice, its
+        first segment would therefore report the whole run's cumulative totals as
+        that room's — the exact trap ``_phase_room_timing``'s docstring names as
+        its reason for not using the segmenter. So the parts are recomputed here
+        from each segment's cumulative *end* against the slice's own baseline,
+        which telescopes back to the group's measured whole. Gate 3 proves it did.
+        """
+        n = len(group_ids)
+        caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        if isinstance(caps, dict) and caps.get("honors_clean_order") is False:
+            return None
+
+        from ..learning.job_segmenter_engines import get_job_segmenter_engine
+
+        _js = (_get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
+        engine = get_job_segmenter_engine(_js.get("engine") if isinstance(_js, dict) else None)
+        tuning = _js.get("tuning") if isinstance(_js, dict) else None
+        try:
+            segments = engine.segment_legacy(
+                slice_samples, expected_rooms=n, tuning=tuning
+            )
+        except Exception:  # pragma: no cover - a segmenter fault must not lose the phase
+            _LOGGER.exception("phase timing: segmentation failed; apportioning instead")
+            return None
+        if len(segments) != n:
+            return None
+
+        # Baseline = the slice's own first readings, the same two values
+        # _phase_room_timing subtracts to produce `whole`.
+        def _first(key: str) -> float | None:
+            for s in slice_samples:
+                if isinstance(s, dict) and s.get(key) is not None:
+                    try:
+                        return float(s[key])
+                    except (TypeError, ValueError):
+                        continue
+            return None
+
+        base_ct = _first("cleaning_time")
+        base_area = _first("cleaning_area")
+        if base_ct is None or base_area is None:
+            return None
+
+        rows: list[dict[str, Any]] = []
+        prev_ct, prev_area = base_ct, base_area
+        for i, seg in enumerate(segments):
+            end_ct = _safe_float(seg.get("ct_end"), prev_ct)
+            end_area = _safe_float(seg.get("area_end_m2"), prev_area)
+            rid = group_ids[i]
+            rows.append({
+                "room_id": rid,
+                "slug": slug_by_id.get(rid),
+                "cleaning_start": seg.get("t_start"),
+                "cleaning_end": seg.get("t_end"),
+                "cleaning_seconds": int(max(end_ct - prev_ct, 0.0)),
+                "cleaning_wall_seconds": int(_safe_float(seg.get("time_wall_s"), 0.0)),
+                "area_m2": round(max(end_area - prev_area, 0.0), 3),
+                # int, matching the exact and apportioned paths — the segmenter
+                # returns a rounded float, and a field whose type depends on which
+                # branch produced it is a trap for the next consumer.
+                "battery_delta": (
+                    None if seg.get("battery_delta") is None
+                    else int(_safe_float(seg.get("battery_delta"), 0.0))
+                ),
+                # The segment's own boundary kind, not the literal "phase": a
+                # segmented row HAS a real boundary, and naming which one it was
+                # is the difference between a measurement and a placeholder.
+                "boundary": seg.get("boundary") or "phase",
+                "allocated": False,
+            })
+            prev_ct, prev_area = end_ct, end_area
+
+        # Gate 3. Off-by-a-second/centimetre is rounding; anything larger means the
+        # rebase did not describe the same span the group measured, and a wrong
+        # per-room number admitted to learning is worse than an honest even split.
+        if abs(sum(r["cleaning_seconds"] for r in rows) - int(whole["cleaning_seconds"])) > n:
+            return None
+        if abs(sum(r["area_m2"] for r in rows) - float(whole["area_m2"])) > 0.05 * n:
+            return None
+        return rows
+
     def _split_group_room_timing(
         self,
         group_ids: list[int],
         slug_by_id: dict[int, str | None],
         slice_samples: list[dict[str, Any]],
+        vacuum_entity_id: str = "",
     ) -> list[dict[str, Any]]:
         """One timing entry PER room in a group phase.
 
         A single-room group is the exact, unapportioned case (RP-013b:
-        ``_phase_room_timing`` directly, ``allocated=False``). A multi-room group's
-        measured cleaning_seconds / area_m2 / battery_delta are the WHOLE group's —
-        no per-room boundary exists inside a strict-order-off batch dispatch, so
-        fabricating one is forbidden (killed-premise guard). They are instead split
-        evenly across members with ``allocated=True`` and ``allocation_group_size``
-        recorded, using an exact-sum-preserving distribution so the group's measured
-        totals are neither lost nor duplicated (RP-013f's phase-sum derivation
-        depends on this). cleaning_start/cleaning_end/cleaning_wall_seconds are
-        shared verbatim across members — the whole group was in progress for the
-        same wall-clock span; only the apportionable resource fields are split."""
+        ``_phase_room_timing`` directly, ``allocated=False``).
+
+        A multi-room group is tried two ways, in order:
+
+        1. **Observed** — segment the phase's own counter slice into one bout per
+           member (``_segment_group_room_timing``), giving each room its real
+           cleaning_wall_seconds / area with ``allocated=False``. The original
+           premise here — "no per-room boundary exists inside a batch dispatch" —
+           was true of the *dispatch*, never of the *counter stream*: the robot
+           still cleans the members one at a time and still plateaus between them.
+           The same signal already drives live counter_plateau rollover.
+        2. **Apportioned** — when any of that method's three gates fails, the
+           measured cleaning_seconds / area_m2 / battery_delta are split evenly
+           across members with ``allocated=True`` and ``allocation_group_size``
+           recorded, using an exact-sum-preserving distribution so the group's
+           measured totals are neither lost nor duplicated (RP-013f's phase-sum
+           derivation depends on this). cleaning_start/cleaning_end/
+           cleaning_wall_seconds are shared verbatim across members — the whole
+           group was in progress for the same wall-clock span; only the
+           apportionable resource fields are split.
+
+        ``allocated`` therefore keeps its exact meaning: it is not "this row came
+        from a group", it is "this row is arithmetic, not an observation". Rows
+        that ARE observations now say so, and stats_rebuilder admits them.
+        """
         n = len(group_ids)
         if n == 1:
             rid = group_ids[0]
             return [self._phase_room_timing(rid, slug_by_id.get(rid), slice_samples)]
 
         whole = self._phase_room_timing(None, None, slice_samples)
+        if vacuum_entity_id:
+            observed = self._segment_group_room_timing(
+                vacuum_entity_id, group_ids, slug_by_id, slice_samples, whole
+            )
+            if observed is not None:
+                return observed
+
         secs_parts = _distribute_int(int(whole["cleaning_seconds"]), n)
         area_milli_total = round(float(whole["area_m2"]) * 1000)
         area_parts = [p / 1000 for p in _distribute_int(area_milli_total, n)]

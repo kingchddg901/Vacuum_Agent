@@ -25,6 +25,10 @@ split evenly with an exact-sum-preserving distribution, allocated=True, allocati
 [SOPT-8] a multi-room group phase splits its measured totals evenly across members (allocated=True, allocation_group_size=N), preserving the exact sum even when it doesn't divide evenly.
 [SOPT-9] a single-room phase stays allocated=False (exact, not apportioned).
 [SOPT-10] phase-scoped ids: a phase's OWN resolved_rooms are credited even when the job's queue_room_ids (whole-run) disagrees.
+[SOPT-11] a group phase whose slice SHOWS the split is segmented per member (allocated=False, distinct walls, totals reconcile).
+[SOPT-12] segmented rows are rebased off the slice's own baseline, not the segmenter's count-from-zero.
+[SOPT-13] gate 1 — a brand declaring honors_clean_order=False is apportioned, never segmented.
+[SOPT-14] gate 2 — an unbroken stream (no observable boundary) falls back to apportioning.
 """
 
 from __future__ import annotations
@@ -205,6 +209,160 @@ async def test_phase_room_timing_battery_delta_and_wall_parse(hass, manager):
     rt2 = manager.phase_runner._phase_room_timing(5, "kitchen", bad_ts)
     assert rt2["cleaning_seconds"] == 30 and rt2["battery_delta"] == 2
     assert rt2["cleaning_wall_seconds"] == 0  # _wall_seconds swallows the parse error
+
+
+# ---------------------------------------------------------------------------
+# A group phase is SEGMENTED when its own counter slice shows the split
+# ---------------------------------------------------------------------------
+
+def _two_room_slice(base_ct: int = 30, base_area: float = 1.5) -> list[dict]:
+    """A realistic two-room group slice: room A ticks, a >90 s plateau while the
+    robot transits, then room B ticks. The plateau is what the segmenter sees.
+
+    ``base_ct`` / ``base_area`` are the CUMULATIVE readings the slice opens at —
+    non-zero on every phase after the first, which is what makes the rebase load-
+    bearing.
+    """
+    return [
+        _cs("2026-01-01T00:00:30Z", base_ct, base_area),
+        _cs("2026-01-01T00:01:00Z", base_ct + 30, base_area + 1.5),
+        _cs("2026-01-01T00:01:30Z", base_ct + 60, base_area + 3.0),
+        # --- >90 s gap: the inter-room plateau ---
+        _cs("2026-01-01T00:03:30Z", base_ct + 90, base_area + 4.5),
+        _cs("2026-01-01T00:04:00Z", base_ct + 120, base_area + 6.0),
+        _cs("2026-01-01T00:04:30Z", base_ct + 150, base_area + 7.5),
+    ]
+
+
+def _group_job(samples: list[dict], rooms=((4, "a"), (5, "b"))) -> dict:
+    return {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "started_at": "2026-01-01T00:00:00Z", "ended_at": None,
+        "phases": [_group_phase(list(rooms))],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": r, "slug": s} for r, s in rooms],
+        "queue_room_ids": [r for r, _ in rooms],
+        "counter_samples": samples,
+    }
+
+
+async def test_group_phase_is_segmented_when_the_slice_shows_the_split(
+    hass, manager, monkeypatch
+):
+    """[SOPT-11] The dispatch batched them; the robot still cleaned them one at a
+    time, and the counter stream carries the plateau between. Each member gets its
+    OWN measurement — allocated=False, so stats_rebuilder admits it."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+    job = _group_job(_two_room_slice())
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    rt = job["phases"][0]["room_timing"]
+
+    assert [t["room_id"] for t in rt] == [4, 5]
+    assert all(t["allocated"] is False for t in rt)
+    assert all("allocation_group_size" not in t for t in rt)
+
+    # The point of the exercise: the two rooms get DIFFERENT wall times. The even
+    # split gives both the whole phase's wall, which is what taught a one-minute
+    # room a six-minute baseline. Exact values, so this cannot pass by falling
+    # back (which would be 75/75 s and 3.75/3.75 m², both walls identical).
+    assert [t["cleaning_seconds"] for t in rt] == [60, 90]
+    assert [t["area_m2"] for t in rt] == [4.5, 3.0]
+    assert [t["cleaning_wall_seconds"] for t in rt] == [30, 60]
+    # Each row names the boundary that actually split it.
+    assert [t["boundary"] for t in rt] == ["job_start", "wash_plateau"]
+    # battery_delta stays an int here as it is on the other two paths.
+    assert all(t["battery_delta"] is None or isinstance(t["battery_delta"], int)
+               for t in rt)
+
+    # ...and the measured totals still reconcile to the group's own.
+    whole = manager.phase_runner._phase_room_timing(None, None, job["counter_samples"])
+    assert sum(t["cleaning_seconds"] for t in rt) == whole["cleaning_seconds"]
+    assert round(sum(t["area_m2"] for t in rt), 3) == round(whole["area_m2"], 3)
+
+
+async def test_segmented_rows_are_rebased_off_the_slice_not_zero(
+    hass, manager, monkeypatch
+):
+    """[SOPT-12] THE trap this had to avoid.
+
+    ``build_segments`` counts from zero while cleaning_time/cleaning_area are
+    CUMULATIVE across the run, and the window only re-bases at a counter reset —
+    once per run, not once per phase. Unrebased, the first member of a later
+    phase's group would be credited with the whole run's totals.
+
+    Same slice shape as [SOPT-11] but opening at a high cumulative reading, as any
+    phase after the first does. The numbers must be identical to the low-baseline
+    case; if the rebase were missing, room 4 would carry ~600 s instead of 60 s.
+    """
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+
+    low = _group_job(_two_room_slice(base_ct=30, base_area=1.5))
+    _seed_job(manager, low)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, low)
+    low_rt = low["phases"][0]["room_timing"]
+
+    high = _group_job(_two_room_slice(base_ct=600, base_area=42.0))
+    _seed_job(manager, high)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, high)
+    high_rt = high["phases"][0]["room_timing"]
+
+    assert all(t["allocated"] is False for t in high_rt), "fell back — nothing proved"
+    assert [t["cleaning_seconds"] for t in high_rt] == [t["cleaning_seconds"] for t in low_rt]
+    assert [t["area_m2"] for t in high_rt] == [t["area_m2"] for t in low_rt]
+
+    # Measured (probe: .claude/notes/_probe_phase_slice_seg.py). Unrebased, the raw
+    # segment for room 4 reports time_active_s 660.0 and area_delta_m2 46.5 — the
+    # whole run's cumulative counters booked as one room's work.
+    assert [t["cleaning_seconds"] for t in high_rt] == [60, 90]
+    assert [t["area_m2"] for t in high_rt] == [4.5, 3.0]
+
+
+async def test_a_brand_that_reorders_is_not_segmented(hass, manager, monkeypatch):
+    """[SOPT-13] Gate 1. Mapping segment i to group_ids[i] is only sound when the
+    brand cleans in the order it was given. Roborock declares
+    capabilities.honors_clean_order False — it re-routes — so the same slice that
+    segments cleanly above must fall back to apportioning."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        clear_registry,
+        register_adapter_config,
+    )
+
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+    register_adapter_config(_VAC, {
+        "adapter_id": "reorders_test", "source": "code",
+        "capabilities": {"honors_clean_order": False},
+    })
+    try:
+        job = _group_job(_two_room_slice())
+        _seed_job(manager, job)
+
+        manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+        rt = job["phases"][0]["room_timing"]
+        # The differential: [SOPT-11] segments this EXACT slice. Only the
+        # capability declaration differs, so this asserts the gate and nothing else.
+        assert all(t["allocated"] is True and t["allocation_group_size"] == 2 for t in rt)
+    finally:
+        # No autouse fixture clears the registry — leaving this registered would
+        # silently apply "this brand reorders" to every later test in the module.
+        clear_registry()
+
+
+async def test_no_observable_split_falls_back_to_apportioning(hass, manager, monkeypatch):
+    """[SOPT-14] Gate 2. An unbroken stream (no plateau) yields one bout, not two —
+    we cannot say where one room ended, so we do not guess."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:09:00Z")
+    steady = [
+        _cs(f"2026-01-01T00:0{m // 2}:{(m % 2) * 30:02d}Z", 30 + m * 30, 1.5 + m * 1.5)
+        for m in range(0, 8)
+    ]
+    job = _group_job(steady)
+    _seed_job(manager, job)
+
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
+    rt = job["phases"][0]["room_timing"]
+    assert all(t["allocated"] is True and t["allocation_group_size"] == 2 for t in rt)
 
 
 async def test_group_phase_splits_evenly_with_exact_sum_preserved(hass, manager, monkeypatch):
