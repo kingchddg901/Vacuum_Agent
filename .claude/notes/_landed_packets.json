@@ -1,5 +1,91 @@
 [
  {
+  "packet_id": "CARD-1",
+  "commits": [
+   "4a21fc7",
+   "47488b5"
+  ],
+  "landed_at": "2026-08-01",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-2",
+  "commits": [
+   "f4c93d0",
+   "a3298f1",
+   "3f0dce3",
+   "50d8583",
+   "47488b5"
+  ],
+  "landed_at": "2026-08-01",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-3",
+  "commits": [
+   "065e389"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-4",
+  "commits": [
+   "1f8c1c2",
+   "2650671"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-5",
+  "commits": [
+   "b2e8edb",
+   "1eb1d86"
+  ],
+  "landed_at": "2026-08-01",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-6",
+  "commits": [
+   "d0be882",
+   "b555d2c",
+   "50d8583",
+   "47488b5",
+   "393e0f7"
+  ],
+  "landed_at": "2026-08-01",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-7",
+  "commits": [
+   "42a51f0"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-8",
+  "commits": [
+   "f859a56"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "CARD-9",
+  "commits": [
+   "9e35d13",
+   "47488b5",
+   "322a49d",
+   "a27c03b"
+  ],
+  "landed_at": "2026-08-01",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
   "packet_id": "RP-001",
   "commits": [
    "3ddcc1c"
@@ -220,6 +306,135 @@
   }
  },
  {
+  "packet_id": "RP-015",
+  "commits": [
+   "6726b19",
+   "5af0fa2"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-016",
+  "commits": [
+   "2feb9e0"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-018",
+  "commits": [
+   "5af0fa2"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-019",
+  "commits": [
+   "0e0369f"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-020",
+  "commits": [
+   "f48dee2"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-021a",
+  "commits": [
+   "8f9d5db"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-022",
+  "commits": [
+   "1288b65"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-024",
+  "commits": [
+   "9abcb69",
+   "71cc479"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-025",
+  "commits": [
+   "71cc479"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-026",
+  "commits": [
+   "e434813",
+   "382d3d5"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-027",
+  "commits": [
+   "382d3d5"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-028",
+  "commits": [
+   "b8d6ca2",
+   "63b7e3b"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-029",
+  "commits": [
+   "63b7e3b"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-030",
+  "commits": [
+   "05e75b3",
+   "466f8f3",
+   "83bfa91"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-031",
+  "commits": [
+   "6a8c965",
+   "87220b4",
+   "4f5fa7a",
+   "d677cc9"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
   "packet_id": "RP-032",
   "commits": [
    "4fe48ab",
@@ -236,6 +451,50 @@
   ],
   "landed_at": "2026-08-02",
   "note": "Stage G. 2-commit rollback_plan expanded to 11 in practice -- (a) 4fe48ab built the AST-walking services.yaml<->registration parity gate with an EXPECTED_FAILURES allowlist seeded from its first real run (40+ violations); (b) the remaining 10 commits emptied it by coherent group: SVC-9 map_id requiredness (3 learning services), WIRE-4 + carpet/floor_type schema gaps, SERVIC-7 (19 dead schema constants deleted), 11 schema-accepted-but-undocumented fields (incl. a services.yaml copy-paste bug found along the way -- pause_timeout_minutes_override was documented under the wrong service), JOB-5 (break_type cross-field validation) + JOB-6 (read/write shape round trip) in queue.py, ZONE-C-7 (saved-zone kind restricted to what dispatch actually honors), SERVIC-4 (degenerate saved-zone geometry rejected at create time, matching dispatch's own guard), and the no_yaml_entry class across two rounds -- Chris's ruling in .claude/notes/synthesis/SYNTH-10-packets-wave6.md ('RP-032 -- no_yaml_entry ruling') plus its addendum. Final no_yaml_entry tally, verified by the gate itself: 27 names, 8 real services.yaml entries, 19 INTERNAL_SERVICES, 0 left in EXPECTED_FAILURES. THE INTERNAL_SERVICES RULE is now in the gate's module docstring, not just allowlist comments. The 8 map_id-requiredness field_mismatch entries (mapping_services.py) stay in EXPECTED_FAILURES as blocked_by RP-028 -- confirmed correct by Chris; RP-032 lands with those still listed, since RP-028 hasn't landed yet. Full suite: 3123 passed, 1 skipped."
+ },
+ {
+  "packet_id": "RP-033",
+  "commits": [
+   "06ffc73"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-034",
+  "commits": [
+   "c005ad6"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-035",
+  "commits": [
+   "1c2d8b1",
+   "45aa65f"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-036",
+  "commits": [
+   "97689a6",
+   "ebcea69",
+   "715f841"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-038",
+  "commits": [
+   "1c8da5a",
+   "b474581"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
  },
  {
   "packet_id": "RP-040",
@@ -264,5 +523,38 @@
   ],
   "landed_at": "2026-08-02",
   "note": "Stage M6, the RP-040 closing batch -- executed from the generated per-file table (.claude/notes/synthesis/RP-040-batch-table.md), not the packet's own finding_ids, per Stage M6's own instruction. 21 commits across 22 file groups covering all 33 table members (12 SMALL-CORRECTNESS + 10 SMALL-CORRECTNESS- behaviour-bearing, table-driven proof cases in _proof_closing_batch.py; 5 DOC-ONLY gated by mkdocs --strict; 6 DEAD-CODE gated by the full suite after deletion). rooms/room_crud.py's CRUD-7 required no code change -- verified (not assumed) that maps/map_manager.py's DR-MAP-1 fix (get_map_bucket now deep-copies) closed it as a side effect, same batch, earlier commit. One member ejected to the Held table in SONNET-STAGE-PROMPTS.md rather than force-fit: #13:A4-SETUP-6 (services/setup.py setup_reject_rooms) -- its required_behavior per RP-040's own Q10 materialization (.claude/notes/_proof_reject_rooms_map_scope.py) is a real 3-part design (map_id schema field + a new setup_unreject_rooms service + protection/confirmation routing), not a one-line fix; needs its own named packet. Stage M6 is otherwise COMPLETE."
+ },
+ {
+  "packet_id": "RP-042",
+  "commits": [
+   "66f32c9",
+   "0089613"
+  ],
+  "landed_at": "2026-08-02",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
+  "packet_id": "RP-043",
+  "commits": [
+   "40cbaac"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Code landed inside 40cbaac (a phased-jobs commit that swept in a concurrent session's battery/manager.py). Verified in source: the zone-rate-over-baseline precedence in compute_time_to_target_pct."
+ },
+ {
+  "packet_id": "RP-044",
+  "commits": [
+   "40cbaac"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Code landed inside 40cbaac. Verified in source: the session_open_without_own_sample branch that skips a previous charge's carried-over stats. Tests 075e6cf."
+ },
+ {
+  "packet_id": "RP-045",
+  "commits": [
+   "40cbaac"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Code landed inside 40cbaac. Verified in source: health_qualifying_sessions plus decoupled _session_cc_qualifies / _session_cv_qualifies in battery/manager.py."
  }
 ]
