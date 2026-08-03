@@ -3490,6 +3490,45 @@ class EufyVacuumManager:
         # card so it can start a short-interval poll (~5 s) instead of
         # waiting for the next room event — which won't come until the
         # robot actually leaves.
+        # RP-047: what the CURRENT phase actually covers. A single-room phase yields one
+        # id (identical to current_room_id, so nothing changes for it); a group yields
+        # every room in the dispatch. Derived from the phase's own resolved_rooms — the
+        # same source advance_active_job_phase uses — and NEVER from a synthesized
+        # boundary: the split was never observed, which is precisely what a timing row's
+        # `allocated: true` records. If a brand ever emits a real per-room signal inside a
+        # group, THAT signal earns the advance.
+        _cur_phases = active_job.get("phases")
+        _cur_idx = _safe_int(active_job.get("current_phase_index"), -1)
+        _cur_phase = (
+            _cur_phases[_cur_idx]
+            if isinstance(_cur_phases, list)
+            and 0 <= _cur_idx < len(_cur_phases)
+            and isinstance(_cur_phases[_cur_idx], dict)
+            else None
+        )
+        current_room_ids: list[int] = []
+        if _cur_phase is not None:
+            for _room in _cur_phase.get("resolved_rooms") or []:
+                if not isinstance(_room, dict):
+                    continue
+                _rid = _safe_int(_room.get("room_id", _room.get("id", -1)), -1)
+                if _rid > 0 and _rid not in current_room_ids:
+                    current_room_ids.append(_rid)
+        if not current_room_ids:
+            # Atomic run, or a phase with no resolved rooms (a break). Fall back to the
+            # anchor so a consumer can always read this list rather than special-casing.
+            _anchor = _safe_int(current_room_id, -1)
+            current_room_ids = [_anchor] if _anchor > 0 else []
+        current_phase_block = (
+            {
+                "index": _cur_idx,
+                "phase_type": str(_cur_phase.get("phase_type") or ""),
+                "room_ids": list(current_room_ids),
+                "is_group": len(current_room_ids) > 1,
+            }
+            if _cur_phase is not None else None
+        )
+
         awaiting_bounds_exit = False
         if (
             active_job.get("status") == "started"
@@ -3504,8 +3543,25 @@ class EufyVacuumManager:
                 None,
             )
             if current_room_entry is not None:
-                threshold = self._timing_completion_threshold_minutes(current_room_entry)
-                if current_room_elapsed_minutes >= threshold:
+                # RP-047 clause 5, same reasoning as the stall bar: on a group phase the
+                # room never rolls BY DESIGN, so a single-room threshold engages this gate
+                # almost immediately and holds it for the rest of the phase. Scope it to
+                # the whole dispatch.
+                _bounds_ids = [r for r in current_room_ids if _safe_int(r, -1) > 0] or [
+                    current_room_id
+                ]
+                threshold = 0.0
+                for _bid in _bounds_ids:
+                    _b_entry = next(
+                        (
+                            r for r in raw_timeline
+                            if _safe_int(r.get("room_id", -1), -1) == _safe_int(_bid, -1)
+                        ),
+                        None,
+                    )
+                    if _b_entry is not None:
+                        threshold += self._timing_completion_threshold_minutes(_b_entry)
+                if threshold > 0 and current_room_elapsed_minutes >= threshold:
                     awaiting_bounds_exit = True
         _adapter_capabilities = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
         if (
@@ -3530,6 +3586,7 @@ class EufyVacuumManager:
             current_room_elapsed_minutes=current_room_elapsed_minutes,
             completed_room_ids=completed_room_ids,
             awaiting_bounds_exit=awaiting_bounds_exit,
+            current_room_ids=current_room_ids,
         )
         stall_detected = _anomalies["stall_detected"]
         stall_elapsed_minutes = _anomalies["stall_elapsed_minutes"]
@@ -3594,45 +3651,6 @@ class EufyVacuumManager:
         charge_eta_source = None
         charge_from_battery = None
         charge_started_at = None
-        # RP-047: what the CURRENT phase actually covers. A single-room phase yields one
-        # id (identical to current_room_id, so nothing changes for it); a group yields
-        # every room in the dispatch. Derived from the phase's own resolved_rooms — the
-        # same source advance_active_job_phase uses — and NEVER from a synthesized
-        # boundary: the split was never observed, which is precisely what a timing row's
-        # `allocated: true` records. If a brand ever emits a real per-room signal inside a
-        # group, THAT signal earns the advance.
-        _cur_phases = active_job.get("phases")
-        _cur_idx = _safe_int(active_job.get("current_phase_index"), -1)
-        _cur_phase = (
-            _cur_phases[_cur_idx]
-            if isinstance(_cur_phases, list)
-            and 0 <= _cur_idx < len(_cur_phases)
-            and isinstance(_cur_phases[_cur_idx], dict)
-            else None
-        )
-        current_room_ids: list[int] = []
-        if _cur_phase is not None:
-            for _room in _cur_phase.get("resolved_rooms") or []:
-                if not isinstance(_room, dict):
-                    continue
-                _rid = _safe_int(_room.get("room_id", _room.get("id", -1)), -1)
-                if _rid > 0 and _rid not in current_room_ids:
-                    current_room_ids.append(_rid)
-        if not current_room_ids:
-            # Atomic run, or a phase with no resolved rooms (a break). Fall back to the
-            # anchor so a consumer can always read this list rather than special-casing.
-            _anchor = _safe_int(current_room_id, -1)
-            current_room_ids = [_anchor] if _anchor > 0 else []
-        current_phase_block = (
-            {
-                "index": _cur_idx,
-                "phase_type": str(_cur_phase.get("phase_type") or ""),
-                "room_ids": list(current_room_ids),
-                "is_group": len(current_room_ids) > 1,
-            }
-            if _cur_phase is not None else None
-        )
-
         # A phase is only "active" while the JOB is. charge/wait/zone were derived purely
         # from current_phase_index + phase_type, so a run cancelled during a wait left the
         # index pointing at that wait forever and the card kept counting down a hold that

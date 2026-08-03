@@ -764,6 +764,7 @@ class ActiveJobTracker:
         current_room_elapsed_minutes: float,
         completed_room_ids: list[int],
         awaiting_bounds_exit: bool,
+        current_room_ids: list[int] | None = None,
     ) -> dict[str, Any]:
         """Detect + emit the three live run anomalies for the progress snapshot:
 
@@ -808,7 +809,33 @@ class ActiveJobTracker:
                 None,
             )
             if _stall_entry is not None:
-                _stall_threshold = self._timing_completion_threshold_minutes(_stall_entry)
+                # RP-047 clause 5: WHEN MEMBER ATTRIBUTION IS UNAVAILABLE THE ANOMALY UNIT
+                # IS THE PHASE. A room_group is one dispatch with no per-room rollover, so
+                # its first room stays `current` for the phase's WHOLE duration and clears
+                # a single-room threshold by an order of magnitude — Entryway sat 13m40s
+                # against a ~1 minute estimate, 13x, where the stall bar is 2x. Every
+                # grouped phase would have fired a false stall.
+                #
+                # Threshold from the group's COMBINED estimate, so the bar reflects the
+                # work actually dispatched. Members with no timing entry contribute
+                # nothing rather than a default, which keeps this conservative: an
+                # under-counted group threshold can still stall, an invented one cannot be
+                # reasoned about.
+                _group_ids = [
+                    r for r in (current_room_ids or [])
+                    if _safe_int(r, -1) > 0
+                ] or [current_room_id]
+                _stall_threshold = 0.0
+                for _gid in _group_ids:
+                    _entry = next(
+                        (
+                            r for r in raw_timeline
+                            if _safe_int(r.get("room_id", -1), -1) == _safe_int(_gid, -1)
+                        ),
+                        None,
+                    )
+                    if _entry is not None:
+                        _stall_threshold += self._timing_completion_threshold_minutes(_entry)
                 if _stall_threshold > 0 and current_room_elapsed_minutes >= _stall_threshold * _STALL_RATIO:
                     stall_detected = True
                     stall_elapsed_minutes = round(current_room_elapsed_minutes, 1)
