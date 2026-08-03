@@ -204,6 +204,20 @@ export function applyThemeBindings(proto) {
         return;
       }
 
+      // Re-clicking the theme that's already active is a no-op — nothing
+      // would actually change, so there's nothing to confirm either.
+      if (themeId === this.card._state.effectiveActiveThemeId()) return;
+
+      // A dirty draft's unsaved edits are silently discarded once
+      // applyThemeActivation() lands below — confirm first.
+      if (this.card._state.draftDirty) {
+        const proceed = await this.card._confirm?.(
+          this.t("bind_theme.discard_draft_confirm"),
+          { danger: true }
+        );
+        if (!proceed) return;
+      }
+
       const result = await this.card._actions.setActiveTheme(
         this.card._config.vacuum_entity_id,
         themeId

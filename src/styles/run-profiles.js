@@ -158,6 +158,22 @@ export const runProfileStyles = `
     background: color-mix(in srgb, var(--evcc-sem-success, #3ba55d) 10%, transparent);
   }
 
+  /* A legacy leading/trailing charge_wait/wait has nothing to bracket and will never
+     actually run (CARD-6 clause (1)) -- struck-through + dashed, mirrors the queue's
+     own --skipped chip treatment elsewhere in this card. */
+  .evcc-run-profiles-step--unsupported {
+    border-style: dashed;
+    opacity: 0.7;
+  }
+  .evcc-run-profiles-step--unsupported .evcc-run-profiles-step-kind {
+    text-decoration: line-through;
+  }
+  .evcc-run-profiles-step-warning {
+    flex-basis: 100%;
+    font-size: 0.7rem;
+    color: var(--evcc-sem-warning, #d99a2b);
+  }
+
   .evcc-run-profiles-step-num {
     flex: 0 0 auto;
     width: 20px;

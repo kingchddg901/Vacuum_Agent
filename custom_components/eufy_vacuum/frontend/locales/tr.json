@@ -2054,6 +2054,7 @@
     "copied": "Kopyalandı!",
     "copy": "Kopyala",
     "delete_theme_confirm": "\"{themeId}\" teması silinsin mi?",
+    "discard_draft_confirm": "Kaydedilmemiş tema değişiklikleri silinsin mi?",
     "enter_new_theme_name": "Yeni temanız için bir ad girin:",
     "failed_export_theme": "Tema dışa aktarılamadı: {error}",
     "failed_import_file": "\"{fileName}\" içe aktarılamadı: {error}",
@@ -2111,6 +2112,7 @@
     "step_move_down": "Aşağı taşı",
     "step_move_up": "Yukarı taşı",
     "step_remove": "Adımı kaldır",
+    "step_unsupported_position": "Atlanacak (desteklenmeyen konum)",
     "step_wait": "Bekle",
     "step_zone": "Bölge",
     "minutes_unit": "dk",
@@ -2196,6 +2198,10 @@
     "label_source": "Kaynak",
     "label_water_level": "Su seviyesi",
     "modal_title": "{name} Tahmini",
+    "note_allocated_estimate": {
+      "one": "Birlikte temizlenen {count} oda arasında paylaşılıyor",
+      "other": "Birlikte temizlenen {count} oda arasında paylaşılıyor"
+    },
     "note_intensity_mismatch": "Farklı yoğunluktan tahmin edildi",
     "note_no_learned_data": "Henüz öğrenilmiş veri yok",
     "note_runs_to_reliable": {
@@ -2342,7 +2348,16 @@
     "save": "Kaydet",
     "saving": "Kaydediliyor…",
     "yes": "Evet",
-    "service_failed": "{service} tamamlanamadı — robot süpürge komutu almamış olabilir"
+    "service_failed": "{service} tamamlanamadı — robot süpürge komutu almamış olabilir",
+    "service_refused": "Bu işlem tamamlanamadı — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Zaten devam eden bir temizlik görevi var.",
+    "job_paused": "İzlenen bir görev şu anda duraklatıldı. Yeni bir görev başlatmadan önce devam ettirin veya iptal edin.",
+    "onboarding_required": "Bazı etkin odalar için temizlik başlayabilmeden önce zemin türünün onaylanması gerekiyor.",
+    "all_selected_rooms_blocked": "Seçilen tüm odalar şu anda engelli.",
+    "vacuum_missing": "Süpürge varlığı kullanılamıyor.",
+    "unknown": "Bu işlem reddedildi ({reason})."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Özel bir profil anahtarı seçin:\n\n{choiceText}",
@@ -2401,6 +2416,7 @@
     "editor_no_profiles": "Bu harita için kayıtlı profil yok."
   },
   "bind_run_profiles": {
+    "break_needs_group": "Önce bir oda grubu ekleyin — şarj veya bekleme adımının öncesinde ve sonrasında bir grup olması gerekir.",
     "capture_no_rooms": "Önce bazı odaları etkinleştirin, sonra bunları grup olarak ekleyin.",
     "confirm_delete": "\"{name}\" çalıştırma profili silinsin mi?",
     "enter_name": "Çalıştırma profili için bir ad girin.",

@@ -14,7 +14,16 @@
     "yes": "Sim",
     "confirm": "Confirmar",
     "ok": "OK",
-    "service_failed": "Não foi possível concluir {service} — o aspirador pode não ter recebido"
+    "service_failed": "Não foi possível concluir {service} — o aspirador pode não ter recebido",
+    "service_refused": "Não foi possível concluir esta ação — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Já há uma tarefa de limpeza em andamento.",
+    "job_paused": "Uma tarefa monitorada está atualmente pausada. Retome-a ou cancele-a antes de iniciar uma nova.",
+    "onboarding_required": "Alguns cômodos ativados ainda precisam ter o tipo de piso confirmado antes que a limpeza possa começar.",
+    "all_selected_rooms_blocked": "Todos os cômodos selecionados estão bloqueados no momento.",
+    "vacuum_missing": "A entidade do aspirador não está disponível.",
+    "unknown": "Esta ação foi recusada ({reason})."
   },
   "base_station": {
     "action_available": "Ação disponível",
@@ -137,6 +146,7 @@
     "unable_delete": "Não foi possível eliminar o perfil de execução.",
     "unable_overwrite": "Não foi possível substituir o perfil de execução.",
     "unable_save": "Não foi possível guardar o perfil de execução.",
+    "break_needs_group": "Adicione primeiro um grupo de divisões — uma carga ou espera precisa de um grupo antes e depois.",
     "capture_no_rooms": "Ative primeiro algumas divisões e depois adicione-as como grupo.",
     "steps_need_group": "Uma execução precisa de pelo menos um grupo de divisões para limpar.",
     "unable_run": "Não foi possível executar o perfil de execução."
@@ -162,6 +172,7 @@
     "copied": "Copiado!",
     "copy": "Copiar",
     "delete_theme_confirm": "Eliminar o tema \"{themeId}\"?",
+    "discard_draft_confirm": "Descartar as alterações não guardadas do tema?",
     "enter_new_theme_name": "Introduza um nome para o seu novo tema:",
     "failed_export_theme": "Falha ao exportar o tema: {error}",
     "failed_import_file": "Falha ao importar \"{fileName}\": {error}",
@@ -1078,6 +1089,10 @@
     "label_source": "Origem",
     "label_water_level": "Nível de água",
     "modal_title": "Estimativa de {name}",
+    "note_allocated_estimate": {
+      "one": "Tempo partilhado entre {count} divisão limpa em conjunto",
+      "other": "Tempo partilhado entre {count} divisões limpas em conjunto"
+    },
     "note_intensity_mismatch": "Estimado a partir de intensidade diferente",
     "note_no_learned_data": "Ainda sem dados aprendidos",
     "note_runs_to_reliable": {
@@ -1333,6 +1348,7 @@
     "step_move_down": "Mover para baixo",
     "step_move_up": "Mover para cima",
     "step_remove": "Remover passo",
+    "step_unsupported_position": "Será ignorado (posição não suportada)",
     "step_wait": "Aguardar",
     "steps_capture_hint": "Prepare as divisões que quer a seguir na vista de Divisões e depois adicione-as como grupo.",
     "steps_hint": "Aspirar, voltar à base para recarregar e continuar a limpar — tudo numa só execução.",

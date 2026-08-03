@@ -14,7 +14,16 @@
     "yes": "Ja",
     "confirm": "Bestätigen",
     "ok": "OK",
-    "service_failed": "{service} konnte nicht abgeschlossen werden — der Saugroboter hat den Befehl möglicherweise nicht erhalten"
+    "service_failed": "{service} konnte nicht abgeschlossen werden — der Saugroboter hat den Befehl möglicherweise nicht erhalten",
+    "service_refused": "Vorgang konnte nicht abgeschlossen werden — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Es läuft bereits ein Reinigungsauftrag.",
+    "job_paused": "Ein erfasster Auftrag ist derzeit pausiert. Setzen Sie ihn fort oder brechen Sie ihn ab, bevor Sie einen neuen starten.",
+    "onboarding_required": "Für einige aktivierte Räume muss noch ein Bodentyp bestätigt werden, bevor die Reinigung starten kann.",
+    "all_selected_rooms_blocked": "Alle ausgewählten Räume sind derzeit blockiert.",
+    "vacuum_missing": "Die Saugroboter-Entität ist nicht verfügbar.",
+    "unknown": "Diese Aktion wurde abgelehnt ({reason})."
   },
   "base_station": {
     "action_available": "Aktion verfügbar",
@@ -136,6 +145,7 @@
     "unable_delete": "Laufprofil konnte nicht gelöscht werden.",
     "unable_overwrite": "Laufprofil konnte nicht überschrieben werden.",
     "unable_save": "Laufprofil konnte nicht gespeichert werden.",
+    "break_needs_group": "Füge zuerst eine Raumgruppe hinzu — ein Laden oder Warten braucht eine Gruppe davor und danach.",
     "capture_no_rooms": "Beziehe zuerst einige Räume ein und füge sie dann als Gruppe hinzu.",
     "steps_need_group": "Ein Lauf benötigt mindestens eine Gruppe von zu reinigenden Räumen.",
     "unable_run": "Laufprofil konnte nicht ausgeführt werden."
@@ -161,6 +171,7 @@
     "copied": "Kopiert!",
     "copy": "Kopieren",
     "delete_theme_confirm": "Theme \"{themeId}\" löschen?",
+    "discard_draft_confirm": "Ungespeicherte Theme-Änderungen verwerfen?",
     "enter_new_theme_name": "Gib einen Namen für dein neues Theme ein:",
     "failed_export_theme": "Theme konnte nicht exportiert werden: {error}",
     "failed_import_file": "Import von \"{fileName}\" fehlgeschlagen: {error}",
@@ -1066,6 +1077,10 @@
     "label_source": "Quelle",
     "label_water_level": "Wasserstand",
     "modal_title": "Schätzung für {name}",
+    "note_allocated_estimate": {
+      "one": "Aufgeteilt auf {count} gemeinsam gereinigten Raum",
+      "other": "Aufgeteilt auf {count} gemeinsam gereinigte Räume"
+    },
     "note_intensity_mismatch": "Aus anderer Intensität geschätzt",
     "note_no_learned_data": "Noch keine gelernten Daten",
     "note_runs_to_reliable": {
@@ -1318,6 +1333,7 @@
     "step_move_down": "Nach unten verschieben",
     "step_move_up": "Nach oben verschieben",
     "step_remove": "Schritt entfernen",
+    "step_unsupported_position": "Wird übersprungen (nicht unterstützte Position)",
     "step_wait": "Warten",
     "steps_capture_hint": "Richte die als Nächstes gewünschten Räume in der Räume-Ansicht ein und füge sie dann als Gruppe hinzu.",
     "steps_hint": "Saugen, zum Aufladen andocken und dann weiterreinigen — alles in einem Lauf.",

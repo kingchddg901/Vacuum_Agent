@@ -35,6 +35,12 @@ export const en = {
   "common.service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
   // service, or a backend error). {service} is a raw "domain.service" identifier — do NOT
   // translate it. The second clause matters: the user must not assume the robot acted.
+  "common.service_refused": "Could not complete this — {reason}",  // Error toast when a service call reaches Home Assistant and returns NORMALLY but
+  // with a structured refusal ({success:false}/{started:false} + reason) — the backend understood
+  // the request and declined it (e.g. a job already in progress). {reason} is the ALREADY-
+  // TRANSLATED phrase from the service_reasons.* namespace below (showServiceRefusalToast
+  // resolves the raw backend code to it before interpolating here) — a full sentence, not a
+  // raw code. Distinct from common.service_failed (the call itself couldn't complete).
   "common.confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
   "common.delete": "Delete",
   "common.edit": "Edit",
@@ -47,6 +53,19 @@ export const en = {
   "common.save": "Save",
   "common.saving": "Saving…",
   "common.yes": "Yes",
+
+  // --- service_reasons (Q9 operational refusal codes — see core.js's showServiceRefusalToast,
+  // which resolves a raw backend `reason` code to one of these before interpolating it into
+  // common.service_refused above). One key per reason code job_control's start_selected_rooms /
+  // start_zone_clean can actually return today; `unknown` is the forward-compat fallback for any
+  // OTHER code the backend adds later without a matching frontend release — it still names the
+  // raw code, in parens, so a refusal is never blank and never silently renders as success. ---
+  "service_reasons.job_in_progress": "A cleaning job is already in progress.",
+  "service_reasons.job_paused": "A tracked job is currently paused. Resume or cancel it before starting a new one.",
+  "service_reasons.onboarding_required": "Some enabled rooms still need a floor type confirmed before cleaning can start.",
+  "service_reasons.all_selected_rooms_blocked": "All selected rooms are currently blocked.",
+  "service_reasons.vacuum_missing": "The vacuum entity is unavailable.",
+  "service_reasons.unknown": "This action was refused ({reason}).",  // {reason} is the RAW backend code — do NOT translate it (there is no sentence to translate; it's a forward-compat identifier, same convention as common.service_failed's {service}).
 
   // --- card_editor (Lovelace visual config editor: vacuum entity + per-card language override) ---
   "card_editor.vacuum_label": "Vacuum",  // editor field label: which vacuum entity this card controls
@@ -174,6 +193,7 @@ export const en = {
   "bind_rooms.locate_sent": "Locate sent — listen for the chirp",
   "bind_rooms.queue_cleared": "Queue cleared",
   "bind_rooms.requeued_missed": { one: "Re-queued {count} missed room", other: "Re-queued {count} missed rooms" },  // plural
+  "bind_run_profiles.break_needs_group": "Add a room group first — a charge or wait needs one before and after it.",
   "bind_run_profiles.capture_no_rooms": "Enable some rooms first, then add them as a group.",
   "bind_run_profiles.confirm_delete": "Delete run profile \"{name}\"?",
   "bind_run_profiles.enter_name": "Enter a name for the run profile.",
@@ -217,6 +237,7 @@ export const en = {
   "bind_theme.copied": "Copied!",
   "bind_theme.copy": "Copy",
   "bind_theme.delete_theme_confirm": "Delete theme \"{themeId}\"?",
+  "bind_theme.discard_draft_confirm": "Discard your unsaved theme edits?",
   "bind_theme.enter_new_theme_name": "Enter a name for your new theme:",
   "bind_theme.failed_export_theme": "Failed to export theme: {error}",
   "bind_theme.failed_import_file": "Failed to import \"{fileName}\": {error}",
@@ -1080,6 +1101,7 @@ export const en = {
   "room_estimate.label_source": "Source",  // where this estimate came from: learned data vs default fallback
   "room_estimate.label_water_level": "Water level",  // per-room water-level setting value (Low/Medium/High), not a measured amount
   "room_estimate.modal_title": "{name} Estimate",  // modal title: '{room name} Estimate'
+  "room_estimate.note_allocated_estimate": { one: "Shared across {count} room cleaned together", other: "Shared across {count} rooms cleaned together" },  // plural; caveat: this room's time is a multi-room total split evenly across the allocation group, not a standalone measurement
   "room_estimate.note_intensity_mismatch": "Estimated from different intensity",  // caveat: estimate derived from runs at a different suction/intensity
   "room_estimate.note_no_learned_data": "No learned data yet",  // caveat: no learned history yet, estimate is a default
   "room_estimate.note_runs_to_reliable": { one: "{count} run to reliable", other: "{count} runs to reliable" },  // plural; caveat: N more runs needed before estimate is reliable
@@ -1289,6 +1311,7 @@ export const en = {
   "run_profiles.step_move_down": "Move down",  // step reorder control (title/aria)
   "run_profiles.step_move_up": "Move up",  // step reorder control (title/aria)
   "run_profiles.step_remove": "Remove step",  // step delete control (title/aria)
+  "run_profiles.step_unsupported_position": "Will be skipped (unsupported position)",  // struck-through note on a legacy leading/trailing charge_wait/wait step (CARD-6 clause 1) -- it has nothing to bracket and will never actually run; sanitizeStepsForSave strips it on save
   "run_profiles.step_wait": "Wait",  // wait-step row label, precedes a minutes input
   "run_profiles.step_zone": "Zone",  // zone-step row label in the profile editor, precedes the saved-zone names
   "run_profiles.minutes_unit": "min",  // short unit after a minutes number (wait step)

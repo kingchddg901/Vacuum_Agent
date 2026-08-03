@@ -2054,6 +2054,7 @@
     "copied": "Zkopírováno!",
     "copy": "Kopírovat",
     "delete_theme_confirm": "Odstranit motiv „{themeId}“?",
+    "discard_draft_confirm": "Zahodit neuložené úpravy motivu?",
     "enter_new_theme_name": "Zadejte název nového motivu:",
     "failed_export_theme": "Export motivu se nezdařil: {error}",
     "failed_import_file": "Import „{fileName}“ se nezdařil: {error}",
@@ -2111,6 +2112,7 @@
     "step_move_down": "Posunout dolů",
     "step_move_up": "Posunout nahoru",
     "step_remove": "Odebrat krok",
+    "step_unsupported_position": "Bude přeskočeno (nepodporovaná pozice)",
     "step_wait": "Čekat",
     "step_zone": "Zóna",
     "minutes_unit": "min",
@@ -2196,6 +2198,10 @@
     "label_source": "Zdroj",
     "label_water_level": "Množství vody",
     "modal_title": "Odhad pro {name}",
+    "note_allocated_estimate": {
+      "one": "Sdíleno mezi {count} místností uklízenou společně",
+      "other": "Sdíleno mezi {count} místnostmi uklízenými společně"
+    },
     "note_intensity_mismatch": "Odhadnuto z jiné intenzity",
     "note_no_learned_data": "Zatím žádná naučená data",
     "note_runs_to_reliable": {
@@ -2342,7 +2348,16 @@
     "save": "Uložit",
     "saving": "Ukládání…",
     "yes": "Ano",
-    "service_failed": "Nepodařilo se dokončit {service} — vysavač jej možná neobdržel"
+    "service_failed": "Nepodařilo se dokončit {service} — vysavač jej možná neobdržel",
+    "service_refused": "Nepodařilo se to dokončit — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Úklidová úloha již probíhá.",
+    "job_paused": "Sledovaná úloha je nyní pozastavena. Před spuštěním nové ji obnovte nebo zrušte.",
+    "onboarding_required": "U některých zapnutých místností je stále třeba potvrdit typ podlahy, než bude možné zahájit úklid.",
+    "all_selected_rooms_blocked": "Všechny vybrané místnosti jsou momentálně blokovány.",
+    "vacuum_missing": "Entita vysavače není dostupná.",
+    "unknown": "Tato akce byla odmítnuta ({reason})."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Vyberte vlastní klíč profilu:\n\n{choiceText}",
@@ -2401,6 +2416,7 @@
     "editor_no_profiles": "Pro tuto mapu nejsou žádné uložené profily."
   },
   "bind_run_profiles": {
+    "break_needs_group": "Nejprve přidejte skupinu místností — nabíjení nebo čekání potřebuje skupinu před sebou i za sebou.",
     "capture_no_rooms": "Nejprve povolte nějaké místnosti, poté je přidejte jako skupinu.",
     "confirm_delete": "Odstranit spouštěcí profil „{name}“?",
     "enter_name": "Zadejte název spouštěcího profilu.",

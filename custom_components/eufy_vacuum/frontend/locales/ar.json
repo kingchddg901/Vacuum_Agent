@@ -1352,6 +1352,7 @@
     "copied": "تم النسخ!",
     "copy": "نسخ",
     "delete_theme_confirm": "حذف السمة \"{themeId}\"؟",
+    "discard_draft_confirm": "تجاهل التعديلات غير المحفوظة على السمة؟",
     "enter_new_theme_name": "أدخل اسمًا لسمتك الجديدة:",
     "failed_export_theme": "فشل تصدير السمة: {error}",
     "failed_import_file": "فشل استيراد \"{fileName}\": {error}",
@@ -1624,6 +1625,14 @@
     "label_source": "المصدر",
     "label_water_level": "مستوى المياه",
     "modal_title": "تقدير {name}",
+    "note_allocated_estimate": {
+      "zero": "مشتركة بين {count} غرفة تُنظَّف معًا",
+      "one": "مشتركة مع غرفة واحدة تُنظَّف معًا",
+      "two": "مشتركة مع غرفتين تُنظَّفان معًا",
+      "few": "مشتركة بين {count} غرف تُنظَّف معًا",
+      "many": "مشتركة بين {count} غرفة تُنظَّف معًا",
+      "other": "مشتركة بين {count} غرفة تُنظَّف معًا"
+    },
     "note_intensity_mismatch": "مُقدَّر من شدة مختلفة",
     "note_no_learned_data": "لا توجد بيانات مُتعلَّمة بعد",
     "note_runs_to_reliable": {
@@ -2311,6 +2320,7 @@
     "step_move_down": "تحريك لأسفل",
     "step_move_up": "تحريك لأعلى",
     "step_remove": "إزالة الخطوة",
+    "step_unsupported_position": "سيتم تخطيه (موضع غير مدعوم)",
     "step_wait": "انتظار",
     "step_zone": "منطقة",
     "minutes_unit": "دقيقة",
@@ -2422,6 +2432,7 @@
     "resegment_failed_retry": "فشلت إعادة التقسيم — يُرجى المحاولة مرة أخرى."
   },
   "bind_run_profiles": {
+    "break_needs_group": "أضف مجموعة غرف أولًا — يحتاج الشحن أو الانتظار إلى مجموعة قبله وبعده.",
     "capture_no_rooms": "فعّل بعض الغرف أولًا، ثم أضفها كمجموعة.",
     "confirm_delete": "حذف ملف التشغيل \"{name}\"؟",
     "enter_name": "أدخل اسمًا لملف التشغيل.",
@@ -2504,7 +2515,16 @@
     "save": "حفظ",
     "saving": "جارٍ الحفظ…",
     "yes": "نعم",
-    "service_failed": "تعذّر إكمال {service} — قد لا تكون المكنسة قد استلمت الأمر"
+    "service_failed": "تعذّر إكمال {service} — قد لا تكون المكنسة قد استلمت الأمر",
+    "service_refused": "تعذّر إكمال هذا الإجراء — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "هناك مهمة تنظيف قيد التنفيذ بالفعل.",
+    "job_paused": "توجد مهمة متتبَّعة متوقفة مؤقتًا حاليًا. استأنفها أو ألغِها قبل بدء مهمة جديدة.",
+    "onboarding_required": "لا تزال بعض الغرف المُفعّلة بحاجة إلى تأكيد نوع الأرضية قبل أن يتسنى بدء التنظيف.",
+    "all_selected_rooms_blocked": "جميع الغرف المحددة محظورة حاليًا.",
+    "vacuum_missing": "كيان المكنسة غير متاح.",
+    "unknown": "تم رفض هذا الإجراء ({reason})."
   },
   "card_editor": {
     "vacuum_label": "المكنسة",

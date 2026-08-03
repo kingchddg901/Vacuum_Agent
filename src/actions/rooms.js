@@ -52,7 +52,10 @@ export function applyRoomsActions(proto) {
    * run learning estimate, and enter active job mode.
    * RULES:
    * - run_learning_estimate is called after start succeeds
-   * - start_selected_rooms must NOT use returnResponse=true (HA rejects it for non-response-capable actions)
+   * - start_selected_rooms uses returnResponse=true (job_control.py registers it
+   *   supports_response=True — CARD-1/FE-ERR-1) so a refusal at the ACTUAL
+   *   dispatch is distinguishable from a genuine start, not just the earlier
+   *   get_start_status pre-check.
    * @param {object} [options]
    * @param {boolean} [options.confirmReducedRun]
    * @param {string}  [options.confirmToken]
@@ -118,7 +121,7 @@ export function applyRoomsActions(proto) {
       DOMAIN,
       SERVICE_START_SELECTED_ROOMS,
       startRequest,
-      false,
+      true,
     );
 
     const startResponse = startResult?.response ?? startResult ?? {};
@@ -136,6 +139,14 @@ export function applyRoomsActions(proto) {
 
     if (startResponse?.started === false) {
       this.state.clearStartConfirmation();
+      // confirmation_required (above) already has its own dedicated dialog.
+      // Every OTHER blocked reason (job_paused, onboarding_required, a TOCTOU
+      // race against get_start_status's earlier pre-check, ...) had NO
+      // user-visible signal at all until now (CARD-1/FE-ERR-1) — core.js's
+      // generic callService inspection can't fire it itself: this is the
+      // {started:false} shape job_control returns, not the {success:false}
+      // contract that check inspects.
+      this.showServiceRefusalToast?.(startResponse?.reason);
       return startResponse;
     }
 

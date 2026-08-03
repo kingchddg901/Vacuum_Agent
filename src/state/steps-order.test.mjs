@@ -6,7 +6,7 @@
 // Coverage (src/state/steps-order.js):
 //   [STP-clamp]  clampChargeTarget — round, [1,100] clamp, non-finite -> fallback
 //   [STP-move]   moveStep — reorder, index clamp, empty
-//   [STP-ins]    insertChargeStep — insert at index/end, default + clamped target
+//   [STP-ins]    insertChargeStep — insert at index, refuses leading/trailing (CARD-6 clause 1), clamped target
 //   [STP-rm]     removeStep — remove, out-of-range no-op, empty
 //   [STP-tgt]    setChargeTarget — update charge target, room_group no-op, clamp
 //   [STP-has]    stepsHaveRoomGroup / stepsHaveChargeStep
@@ -75,10 +75,13 @@ test("[STP-ins-1] inserts a charge step at the given index", () => {
   assert.equal(next[1].target_battery_percent, 95); // default
 });
 
-test("[STP-ins-2] inserts at end when index >= length, with a clamped target", () => {
-  const next = insertChargeStep([rg(1)], 9, 250);
-  assert.deepEqual(types(next), ["room_group", "charge_wait"]);
-  assert.equal(next[1].target_battery_percent, 100);
+// CARD-6 clause (1): a trailing break has nothing to bracket and would be silently
+// skipped, never run -- refused as a no-op (mirrors LB-1's leading case).
+test("[STP-ins-2] refuses insert at end when index >= length (trailing break unsupported)", () => {
+  const before = [rg(1)];
+  const next = insertChargeStep(before, 9, 250);
+  assert.deepEqual(types(next), ["room_group"]);
+  assert.deepEqual(next, before);
 });
 
 /* ============================ removeStep ============================ */
@@ -119,18 +122,23 @@ test("[STP-has-1] stepsHaveRoomGroup / stepsHaveChargeStep", () => {
 /* ============================ sanitizeStepsForSave ============================ */
 
 test("[STP-san-1] drops empty room_groups and non-step junk", () => {
-  const dirty = [rg(1), { type: "room_group", rooms: [] }, cw(95), { type: "bogus" }, 42, null];
-  assert.deepEqual(types(sanitizeStepsForSave(dirty)), ["room_group", "charge_wait"]);
+  // Trailing rg(2) keeps the charge_wait mid-sequence so this stays a pure junk-drop
+  // test -- a trailing break is refused separately (CARD-6 clause 1, see STP-ins-2).
+  const dirty = [rg(1), { type: "room_group", rooms: [] }, cw(95), { type: "bogus" }, 42, null, rg(2)];
+  assert.deepEqual(types(sanitizeStepsForSave(dirty)), ["room_group", "charge_wait", "room_group"]);
 });
 
 test("[STP-san-2] clamps charge targets and strips client-only fields", () => {
+  // Trailing room_group keeps the charge_wait mid-sequence -- see STP-san-1 comment.
   const dirty = [
     { type: "room_group", rooms: [{ room_id: 1 }], _uid: "x", extra: 1 },
     { type: "charge_wait", target_battery_percent: 250, _uid: "y" },
+    { type: "room_group", rooms: [{ room_id: 2 }] },
   ];
   const clean = sanitizeStepsForSave(dirty);
   assert.deepEqual(clean[0], { type: "room_group", rooms: [{ room_id: 1 }] });
   assert.deepEqual(clean[1], { type: "charge_wait", target_battery_percent: 100 });
+  assert.deepEqual(clean[2], { type: "room_group", rooms: [{ room_id: 2 }] });
 });
 
 /* ============================ roomsToGroupStep ============================ */
@@ -175,7 +183,9 @@ test("[STP-wait-2] insertWaitStep / setWaitMinutes", () => {
 });
 
 test("[STP-wait-3] sanitizeStepsForSave keeps wait steps (clamped, stripped)", () => {
-  const clean = sanitizeStepsForSave([rg(1), { type: "wait", wait_minutes: 5000, _uid: "x" }]);
+  // Trailing rg(2) keeps the wait mid-sequence -- a trailing wait is refused
+  // separately (CARD-6 clause 1, see STP-ins-2).
+  const clean = sanitizeStepsForSave([rg(1), { type: "wait", wait_minutes: 5000, _uid: "x" }, rg(2)]);
   assert.deepEqual(clean[1], { type: "wait", wait_minutes: 1440 });
 });
 

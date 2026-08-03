@@ -2054,6 +2054,7 @@
     "copied": "Disalin!",
     "copy": "Salin",
     "delete_theme_confirm": "Hapus tema \"{themeId}\"?",
+    "discard_draft_confirm": "Buang perubahan tema yang belum disimpan?",
     "enter_new_theme_name": "Masukkan nama untuk tema baru Anda:",
     "failed_export_theme": "Gagal mengekspor tema: {error}",
     "failed_import_file": "Gagal mengimpor \"{fileName}\": {error}",
@@ -2111,6 +2112,7 @@
     "step_move_down": "Pindah ke bawah",
     "step_move_up": "Pindah ke atas",
     "step_remove": "Hapus langkah",
+    "step_unsupported_position": "Akan dilewati (posisi tidak didukung)",
     "step_wait": "Tunggu",
     "step_zone": "Zona",
     "minutes_unit": "min",
@@ -2196,6 +2198,10 @@
     "label_source": "Sumber",
     "label_water_level": "Tingkat air",
     "modal_title": "Perkiraan {name}",
+    "note_allocated_estimate": {
+      "one": "Dibagi rata dengan {count} ruangan yang dibersihkan bersama",
+      "other": "Dibagi rata dengan {count} ruangan yang dibersihkan bersama"
+    },
     "note_intensity_mismatch": "Diperkirakan dari intensitas berbeda",
     "note_no_learned_data": "Belum ada data pembelajaran",
     "note_runs_to_reliable": {
@@ -2342,7 +2348,16 @@
     "save": "Simpan",
     "saving": "Menyimpan…",
     "yes": "Ya",
-    "service_failed": "Tidak dapat menyelesaikan {service} — penyedot debu mungkin tidak menerimanya"
+    "service_failed": "Tidak dapat menyelesaikan {service} — penyedot debu mungkin tidak menerimanya",
+    "service_refused": "Tidak dapat menyelesaikan tindakan ini — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Tugas pembersihan sudah berlangsung.",
+    "job_paused": "Tugas yang dilacak sedang dijeda. Lanjutkan atau batalkan sebelum memulai tugas baru.",
+    "onboarding_required": "Beberapa ruangan yang diaktifkan masih memerlukan konfirmasi jenis lantai sebelum pembersihan dapat dimulai.",
+    "all_selected_rooms_blocked": "Semua ruangan yang dipilih sedang diblokir.",
+    "vacuum_missing": "Entitas penyedot debu tidak tersedia.",
+    "unknown": "Tindakan ini ditolak ({reason})."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Pilih kunci profil kustom:\n\n{choiceText}",
@@ -2401,6 +2416,7 @@
     "editor_no_profiles": "Tidak ada profil tersimpan untuk peta ini."
   },
   "bind_run_profiles": {
+    "break_needs_group": "Tambahkan grup ruangan dahulu — pengisian daya atau jeda memerlukan grup sebelum dan sesudahnya.",
     "capture_no_rooms": "Aktifkan beberapa ruangan dahulu, lalu tambahkan sebagai grup.",
     "confirm_delete": "Hapus profil jalankan \"{name}\"?",
     "enter_name": "Masukkan nama untuk profil jalankan.",

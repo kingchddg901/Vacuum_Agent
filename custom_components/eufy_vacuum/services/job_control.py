@@ -146,14 +146,25 @@ async def _handle_get_start_status(hass: HomeAssistant, call: ServiceCall) -> di
     return payload
 
 
-async def _handle_start_selected_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Start cleaning selected rooms."""
+async def _handle_start_selected_rooms(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Start cleaning selected rooms.
+
+    RP-031/CARD-1 (FE-ERR-1): the manager already returns a structured
+    {started: False, reason, message, ...} payload on every blocked path (a
+    TOCTOU refusal at the ACTUAL dispatch can differ from get_start_status's
+    earlier pre-check) — this handler used to discard it and return None, so
+    the service carried no supports_response and a refused start rendered
+    identically to a started one to any caller, card or automation. Returning
+    the payload (and registering supports_response=True below) makes that
+    distinguishable; success continues to raise nothing, same as before.
+    """
     try:
         payload = await get_manager(hass).start_selected_rooms(**resolved_call_data(hass, call))
     except Exception as err:
         raise HomeAssistantError(f"Failed to start cleaning: {err}") from err
     _LOGGER.debug("start_selected_rooms complete: %s", payload)
     await get_manager(hass).async_save()
+    return payload
 
 
 async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -313,8 +324,8 @@ def register(hass: HomeAssistant) -> None:
         return await _handle_get_start_status(hass, call)
 
     @debug_traceable(SERVICE_START_SELECTED_ROOMS)
-    async def start_selected_rooms(call: ServiceCall) -> None:
-        await _handle_start_selected_rooms(hass, call)
+    async def start_selected_rooms(call: ServiceCall) -> dict:
+        return await _handle_start_selected_rooms(hass, call)
 
     async def start_run_profile(call: ServiceCall) -> dict:
         return await _handle_start_run_profile(hass, call)
@@ -353,7 +364,7 @@ def register(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_START_SELECTED_ROOMS, start_selected_rooms,
-        schema=_START_SELECTED_ROOMS_SCHEMA,
+        schema=_START_SELECTED_ROOMS_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_START_RUN_PROFILE, start_run_profile,

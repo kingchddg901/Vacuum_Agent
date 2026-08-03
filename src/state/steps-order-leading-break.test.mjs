@@ -51,8 +51,7 @@ import { insertChargeStep, insertWaitStep, sanitizeStepsForSave } from "./steps-
 const rg = (...ids) => ({ type: "room_group", rooms: ids.map((room_id) => ({ room_id })) });
 const types = (arr) => arr.map((s) => s.type);
 
-test("[LB-1] inserting a charge_wait at the LEADING position (index 0) is refused",
-  { todo: "CARD-6 clause (1) not yet executed — drop this flag as part of the fix" }, () => {
+test("[LB-1] inserting a charge_wait at the LEADING position (index 0) is refused", () => {
   const before = [rg(1), rg(2)];
   const next = insertChargeStep(before, 0);
 
@@ -64,8 +63,7 @@ test("[LB-1] inserting a charge_wait at the LEADING position (index 0) is refuse
   );
 });
 
-test("[LB-2] a legacy profile whose FIRST step is already charge_wait is not marked in any way",
-  { todo: "CARD-6 clause (1) not yet executed — drop this flag as part of the fix" }, () => {
+test("[LB-2] a legacy profile whose FIRST step is already charge_wait is not marked in any way", () => {
   const legacySteps = [{ type: "charge_wait", target_battery_percent: 80 }, rg(1)];
   const saved = sanitizeStepsForSave(legacySteps);
 

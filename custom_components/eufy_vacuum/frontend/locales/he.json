@@ -1350,6 +1350,7 @@
     "copied": "הועתק!",
     "copy": "העתק",
     "delete_theme_confirm": "למחוק את ערכת הנושא \"{themeId}\"?",
+    "discard_draft_confirm": "לבטל את השינויים שלא נשמרו בערכת הנושא?",
     "enter_new_theme_name": "הזן שם לערכת הנושא החדשה:",
     "failed_export_theme": "ייצוא ערכת הנושא נכשל: {error}",
     "failed_import_file": "ייבוא \"{fileName}\" נכשל: {error}",
@@ -1610,6 +1611,12 @@
     "label_source": "מקור",
     "label_water_level": "כמות מים",
     "modal_title": "הערכת {name}",
+    "note_allocated_estimate": {
+      "one": "משותף בין {count} חדר שנוקה יחד",
+      "two": "משותף בין {count} חדרים שנוקו יחד",
+      "many": "משותף בין {count} חדרים שנוקו יחד",
+      "other": "משותף בין {count} חדרים שנוקו יחד"
+    },
     "note_intensity_mismatch": "מוערך מעוצמה שונה",
     "note_no_learned_data": "אין נתונים נלמדים עדיין",
     "note_runs_to_reliable": {
@@ -2243,6 +2250,7 @@
     "step_move_down": "הזזה למטה",
     "step_move_up": "הזזה למעלה",
     "step_remove": "הסרת שלב",
+    "step_unsupported_position": "יידלג (מיקום לא נתמך)",
     "step_wait": "המתנה",
     "step_zone": "אזור",
     "minutes_unit": "דק׳",
@@ -2348,6 +2356,7 @@
     "resegment_failed_retry": "החלוקה מחדש נכשלה — נא לנסות שוב."
   },
   "bind_run_profiles": {
+    "break_needs_group": "הוסיפו קודם קבוצת חדרים — טעינה או המתנה זקוקות לקבוצה לפני ואחרי.",
     "capture_no_rooms": "הפעילו תחילה כמה חדרים, ואז הוסיפו אותם כקבוצה.",
     "confirm_delete": "למחוק את פרופיל הריצה \"{name}\"?",
     "enter_name": "הזינו שם לפרופיל הריצה.",
@@ -2428,7 +2437,16 @@
     "save": "שמירה",
     "saving": "שומר…",
     "yes": "כן",
-    "service_failed": "לא ניתן היה להשלים את {service} — ייתכן שהשואב לא קיבל את הפקודה"
+    "service_failed": "לא ניתן היה להשלים את {service} — ייתכן שהשואב לא קיבל את הפקודה",
+    "service_refused": "לא ניתן היה להשלים את הפעולה — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "משימת ניקוי כבר פועלת.",
+    "job_paused": "משימה במעקב מושהית כעת. יש לחדש אותה או לבטל אותה לפני התחלת משימה חדשה.",
+    "onboarding_required": "בחלק מהחדרים המופעלים עדיין יש לאשר את סוג הריצפה לפני שניתן להתחיל בניקוי.",
+    "all_selected_rooms_blocked": "כל החדרים שנבחרו חסומים כרגע.",
+    "vacuum_missing": "ישות השואב אינה זמינה.",
+    "unknown": "הפעולה נדחתה ({reason})."
   },
   "card_editor": {
     "vacuum_label": "שואב",

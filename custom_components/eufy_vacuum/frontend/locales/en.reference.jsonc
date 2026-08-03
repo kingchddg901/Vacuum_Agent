@@ -14,6 +14,7 @@
     "cancel": "Cancel",
     "close": "Close",
     "service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
+    "service_refused": "Could not complete this — {reason}",  // Error toast when a service call reaches Home Assistant and returns NORMALLY but
     "confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
     "delete": "Delete",
     "edit": "Edit",
@@ -26,6 +27,14 @@
     "save": "Save",
     "saving": "Saving…",
     "yes": "Yes"
+  },
+  "service_reasons": {
+    "job_in_progress": "A cleaning job is already in progress.",
+    "job_paused": "A tracked job is currently paused. Resume or cancel it before starting a new one.",
+    "onboarding_required": "Some enabled rooms still need a floor type confirmed before cleaning can start.",
+    "all_selected_rooms_blocked": "All selected rooms are currently blocked.",
+    "vacuum_missing": "The vacuum entity is unavailable.",
+    "unknown": "This action was refused ({reason})."  // {reason} is the RAW backend code — do NOT translate it (there is no sentence to translate; it's a forward-compat identifier, same convention as common.service_failed's {service}).
   },
   "card_editor": {
     "vacuum_label": "Vacuum",  // editor field label: which vacuum entity this card controls
@@ -854,6 +863,7 @@
     "requeued_missed": {"one":"Re-queued {count} missed room","other":"Re-queued {count} missed rooms"}  // plural
   },
   "bind_run_profiles": {
+    "break_needs_group": "Add a room group first — a charge or wait needs one before and after it.",
     "capture_no_rooms": "Enable some rooms first, then add them as a group.",
     "confirm_delete": "Delete run profile \"{name}\"?",
     "enter_name": "Enter a name for the run profile.",
@@ -903,6 +913,7 @@
     "copied": "Copied!",
     "copy": "Copy",
     "delete_theme_confirm": "Delete theme \"{themeId}\"?",
+    "discard_draft_confirm": "Discard your unsaved theme edits?",
     "enter_new_theme_name": "Enter a name for your new theme:",
     "failed_export_theme": "Failed to export theme: {error}",
     "failed_import_file": "Failed to import \"{fileName}\": {error}",
@@ -1767,6 +1778,7 @@
     "label_source": "Source",  // where this estimate came from: learned data vs default fallback
     "label_water_level": "Water level",  // per-room water-level setting value (Low/Medium/High), not a measured amount
     "modal_title": "{name} Estimate",  // modal title: '{room name} Estimate'
+    "note_allocated_estimate": {"one":"Shared across {count} room cleaned together","other":"Shared across {count} rooms cleaned together"},  // plural; caveat: this room's time is a multi-room total split evenly across the allocation group, not a standalone measurement
     "note_intensity_mismatch": "Estimated from different intensity",  // caveat: estimate derived from runs at a different suction/intensity
     "note_no_learned_data": "No learned data yet",  // caveat: no learned history yet, estimate is a default
     "note_runs_to_reliable": {"one":"{count} run to reliable","other":"{count} runs to reliable"},  // plural; caveat: N more runs needed before estimate is reliable

@@ -66,10 +66,38 @@ export function moveStep(steps, fromIndex, toIndex) {
   return arr;
 }
 
+// A break (charge_wait/wait) has nothing to bracket at the very start or end of the
+// sequence -- it would be silently skipped, never run (CARD-6 clause (1), Q17). Refuse
+// leading/trailing insert positions, evaluated against the array's length BEFORE
+// insertion. Pure functions with no card state -- no toast here, that's a UI concern.
+function isLeadingOrTrailing(at, length) {
+  return at === 0 || at === length;
+}
+
+// Whether the step ALREADY OCCUPYING `index` in `steps` is a charge_wait/wait sitting
+// at the very start or end of the sequence -- a legacy position the insert refusal
+// above cannot have produced (it only guards NEW inserts) but an older/hand-edited
+// profile can still carry, since it predates that refusal or was never round-tripped
+// through it. Distinct from isLeadingOrTrailing: that one checks a fencepost INSERTION
+// index (0..length); this one checks an OCCUPIED array index (0..length-1). The
+// renderer uses this to flag such a step struck-through ("will be skipped, unsupported
+// position") instead of showing it as an ordinary, editable, about-to-run step (CARD-6
+// clause (1) display half) -- sanitizeStepsForSave strips exactly these on save.
+export function isUnsupportedBreakPosition(steps, index) {
+  const arr = Array.isArray(steps) ? steps : [];
+  if (!arr.length) return false;
+  const step = arr[index];
+  if (!isChargeStep(step) && !isWaitStep(step)) return false;
+  return index === 0 || index === arr.length - 1;
+}
+
 // Insert a charge_wait step at atIndex (0..length). Returns a fresh array.
+// Refuses a leading (index 0) or trailing (index >= length) position -- a break
+// there has nothing to bracket and would be silently skipped (CARD-6 clause (1)).
 export function insertChargeStep(steps, atIndex, target = DEFAULT_CHARGE_TARGET) {
   const arr = Array.isArray(steps) ? [...steps] : [];
   const at = clampIndex(atIndex, arr.length);
+  if (isLeadingOrTrailing(at, arr.length)) return arr;
   arr.splice(at, 0, {
     type: "charge_wait",
     target_battery_percent: clampChargeTarget(target),
@@ -101,9 +129,12 @@ export function setChargeTarget(steps, index, target) {
 }
 
 // Insert a wait step at atIndex (0..length). Returns a fresh array.
+// Refuses a leading (index 0) or trailing (index >= length) position -- see
+// insertChargeStep / isLeadingOrTrailing above (CARD-6 clause (1)).
 export function insertWaitStep(steps, atIndex, minutes = DEFAULT_WAIT_MINUTES) {
   const arr = Array.isArray(steps) ? [...steps] : [];
   const at = clampIndex(atIndex, arr.length);
+  if (isLeadingOrTrailing(at, arr.length)) return arr;
   arr.splice(at, 0, { type: "wait", wait_minutes: clampWaitMinutes(minutes) });
   return arr;
 }
@@ -176,5 +207,10 @@ export function sanitizeStepsForSave(steps) {
       if (ids.length) out.push({ type: "zone", zone_ids: ids });
     }
   }
+  // A leading/trailing charge_wait/wait has nothing to bracket and is silently
+  // skipped, never run (CARD-6 clause (1), Q17) -- mirrors the backend's own
+  // legacy-profile normalization (profiles/manager.py run_profile_steps).
+  while (out.length && (isChargeStep(out[0]) || isWaitStep(out[0]))) out.shift();
+  while (out.length && (isChargeStep(out[out.length - 1]) || isWaitStep(out[out.length - 1]))) out.pop();
   return out;
 }

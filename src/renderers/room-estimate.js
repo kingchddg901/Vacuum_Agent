@@ -48,6 +48,7 @@ export function applyRoomEstimateRenderers(proto) {
     if (Number(roomEstimate?.learning_velocity?.runs_to_high ?? 0) > 0) {
       notes.push(this.t("room_estimate.note_runs_to_reliable", { count: roomEstimate.learning_velocity.runs_to_high }));
     }
+    if (entry?.allocated) notes.push(this.t("room_estimate.note_allocated_estimate", { count: entry.allocation_group_size }));
 
     const summaryRows = [
       Number.isFinite(minutes)

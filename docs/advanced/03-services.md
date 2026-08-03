@@ -28,6 +28,8 @@ Sends the resolved cleaning payload to the vacuum and starts the job. Honors roo
 
 If blockers or access rules would reduce the room list, the service returns `confirmation_required: true` with a `confirm_token` unless you pass `confirm_reduced_run: true` or a valid token.
 
+Supports response — pass `response_variable` in an automation to read `started`, `reason`, and `message` (and `confirmation_required`/`confirm_token`/`preflight` when a confirmation is needed). A refusal at this actual dispatch — distinct from `get_start_status`'s earlier readiness check above, which a concurrent job can race — is `started: false` with a `reason`, never an exception.
+
 ### `pause_active_job`
 
 Pauses the vacuum and marks the integration-owned active job as paused.

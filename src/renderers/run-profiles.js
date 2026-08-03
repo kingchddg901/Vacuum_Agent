@@ -10,6 +10,7 @@
  */
 
 import { renderStepsManifest } from "../state/steps-manifest.js";
+import { isUnsupportedBreakPosition } from "../state/steps-order.js";
 
 /**
  * Mix run profiles renderer methods onto the given prototype.
@@ -210,11 +211,24 @@ export function applyRunProfilesRenderers(proto) {
       if (z && z.id != null) zoneNameById[String(z.id)] = z.name;
     });
 
+    // A legacy (pre-refusal or hand-edited) profile can still carry a charge_wait/wait
+    // already sitting at index 0 or the very end -- nothing to bracket, so it would
+    // never actually run. Flag it struck-through with an explanatory note rather than
+    // showing it as an ordinary, about-to-run step (CARD-6 clause (1) display half);
+    // sanitizeStepsForSave silently strips exactly these on save, so the note is the
+    // only place this ever becomes visible to the user before that happens.
+    const unsupportedNote = (i) => isUnsupportedBreakPosition(steps, i)
+      ? `<span class="evcc-run-profiles-step-warning">${this.t("run_profiles.step_unsupported_position")}</span>`
+      : "";
+    const unsupportedClass = (i) => isUnsupportedBreakPosition(steps, i)
+      ? " evcc-run-profiles-step--unsupported"
+      : "";
+
     const rowsHtml = steps.map((step, i) => {
       if (step.type === "charge_wait") {
         const target = Number(step.target_battery_percent ?? 95);
         return `
-          <li class="evcc-run-profiles-step evcc-run-profiles-step--charge">
+          <li class="evcc-run-profiles-step evcc-run-profiles-step--charge${unsupportedClass(i)}">
             <span class="evcc-run-profiles-step-num">${i + 1}</span>
             <span class="evcc-run-profiles-step-body">
               <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_charge_to")}</span>
@@ -223,6 +237,7 @@ export function applyRunProfilesRenderers(proto) {
                 class="evcc-run-profiles-charge-input"
                 data-run-profile-charge-index="${i}" />
               <span class="evcc-run-profiles-step-pct">%</span>
+              ${unsupportedNote(i)}
             </span>
             ${controls(i)}
           </li>`;
@@ -231,7 +246,7 @@ export function applyRunProfilesRenderers(proto) {
       if (step.type === "wait") {
         const mins = Number(step.wait_minutes ?? 30);
         return `
-          <li class="evcc-run-profiles-step evcc-run-profiles-step--wait">
+          <li class="evcc-run-profiles-step evcc-run-profiles-step--wait${unsupportedClass(i)}">
             <span class="evcc-run-profiles-step-num">${i + 1}</span>
             <span class="evcc-run-profiles-step-body">
               <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_wait")}</span>
@@ -240,6 +255,7 @@ export function applyRunProfilesRenderers(proto) {
                 class="evcc-run-profiles-charge-input"
                 data-run-profile-wait-index="${i}" />
               <span class="evcc-run-profiles-step-pct">${this.t("run_profiles.minutes_unit")}</span>
+              ${unsupportedNote(i)}
             </span>
             ${controls(i)}
           </li>`;

@@ -6,7 +6,8 @@
 //
 // Coverage:
 //   [RPS-1] fresh draft — empty, collapsed steps
-//   [RPS-2] addDraftChargeStep — appends charge (default 95) + expands
+//   [RPS-2] addDraftChargeStep — inserts charge (default 95) between the last two steps + expands
+//   [RPS-2b] addDraftChargeStep / addDraftWaitStep — refused as a no-op with 0 or 1 steps (nothing to bracket)
 //   [RPS-3] captureCurrentRoomsAsDraftGroup — snapshots ENABLED rooms (snake_case) + expands
 //   [RPS-4] capture is a no-op when nothing enabled
 //   [RPS-5] remove / move / setChargeTarget mutate the draft
@@ -36,12 +37,43 @@ test("[RPS-1] a fresh draft has empty, collapsed steps", () => {
   assert.equal(s.isDraftStepsExpanded(), false);
 });
 
-test("[RPS-2] addDraftChargeStep appends a charge (default 95) and expands", () => {
+test("[RPS-2] addDraftChargeStep inserts a charge (default 95) between the last two steps and expands", () => {
   const s = makeState();
-  s._setDraftSteps([rg(1)]);
-  s.addDraftChargeStep();
-  assert.deepEqual(types(s.runProfileDraftSteps()), ["room_group", "charge_wait"]);
+  s._setDraftSteps([rg(1), rg(2)]);
+  assert.equal(s.addDraftChargeStep(), true);
+  assert.deepEqual(types(s.runProfileDraftSteps()), ["room_group", "charge_wait", "room_group"]);
   assert.equal(s.runProfileDraftSteps()[1].target_battery_percent, 95);
+  assert.equal(s.isDraftStepsExpanded(), true);
+});
+
+// A charge_wait/wait break has nothing to bracket at the very start or end of the
+// sequence, so insertChargeStep/insertWaitStep refuse a leading/trailing position
+// (CARD-6 clause (1), Q17). With 0 or 1 steps in the draft, "before the last step"
+// IS the leading position, so no step is inserted -- the returned false tells the
+// bindings layer to surface a toast (see src/bindings/run-profiles.js). Expansion
+// still fires unconditionally: in the collapsed progressive-disclosure view, this
+// button is the ONLY way to reveal the room-group editor (capture-group / add-wait
+// live there), so a brand-new draft must still open it even with nothing to
+// bracket a break with yet -- otherwise refusing silently strands the user with no
+// path to build a stepped profile from scratch.
+test("[RPS-2b] addDraftChargeStep / addDraftWaitStep insert nothing with 0 or 1 steps, but still expand", () => {
+  const empty = makeState();
+  assert.equal(empty.addDraftChargeStep(), false);
+  assert.deepEqual(empty.runProfileDraftSteps(), []);
+  assert.equal(empty.isDraftStepsExpanded(), true);
+
+  const single = makeState();
+  single._setDraftSteps([rg(1)]);
+  assert.equal(single.addDraftWaitStep(), false);
+  assert.deepEqual(types(single.runProfileDraftSteps()), ["room_group"]);
+  assert.equal(single.isDraftStepsExpanded(), true);
+});
+
+test("[RPS-2c] addDraftWaitStep inserts a wait (default minutes) between the last two steps and expands", () => {
+  const s = makeState();
+  s._setDraftSteps([rg(1), rg(2)]);
+  assert.equal(s.addDraftWaitStep(), true);
+  assert.deepEqual(types(s.runProfileDraftSteps()), ["room_group", "wait", "room_group"]);
   assert.equal(s.isDraftStepsExpanded(), true);
 });
 

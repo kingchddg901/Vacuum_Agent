@@ -14,7 +14,16 @@
     "yes": "Sì",
     "confirm": "Conferma",
     "ok": "OK",
-    "service_failed": "Impossibile completare {service}: l'aspirapolvere potrebbe non averlo ricevuto"
+    "service_failed": "Impossibile completare {service}: l'aspirapolvere potrebbe non averlo ricevuto",
+    "service_refused": "Impossibile completare l'operazione: {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "È già in corso un lavoro di pulizia.",
+    "job_paused": "Un lavoro monitorato è attualmente in pausa. Riprendilo o annullalo prima di avviarne uno nuovo.",
+    "onboarding_required": "Alcune stanze abilitate necessitano ancora della conferma del tipo di pavimento prima che la pulizia possa iniziare.",
+    "all_selected_rooms_blocked": "Tutte le stanze selezionate sono attualmente bloccate.",
+    "vacuum_missing": "L'entità dell'aspirapolvere non è disponibile.",
+    "unknown": "Questa azione è stata rifiutata ({reason})."
   },
   "base_station": {
     "action_available": "Azione disponibile",
@@ -136,6 +145,7 @@
     "unable_delete": "Impossibile eliminare il profilo di esecuzione.",
     "unable_overwrite": "Impossibile sovrascrivere il profilo di esecuzione.",
     "unable_save": "Impossibile salvare il profilo di esecuzione.",
+    "break_needs_group": "Aggiungi prima un gruppo di stanze — una ricarica o un'attesa ne richiede uno prima e uno dopo.",
     "capture_no_rooms": "Attiva prima alcune stanze, poi aggiungile come gruppo.",
     "steps_need_group": "Un'esecuzione richiede almeno un gruppo di stanze da pulire.",
     "unable_run": "Impossibile eseguire il profilo di esecuzione."
@@ -161,6 +171,7 @@
     "copied": "Copiato!",
     "copy": "Copia",
     "delete_theme_confirm": "Eliminare il tema \"{themeId}\"?",
+    "discard_draft_confirm": "Scartare le modifiche al tema non salvate?",
     "enter_new_theme_name": "Inserisci un nome per il tuo nuovo tema:",
     "failed_export_theme": "Esportazione del tema non riuscita: {error}",
     "failed_import_file": "Importazione di \"{fileName}\" non riuscita: {error}",
@@ -1068,6 +1079,10 @@
     "label_source": "Origine",
     "label_water_level": "Livello acqua",
     "modal_title": "Stima di {name}",
+    "note_allocated_estimate": {
+      "one": "Condiviso tra {count} stanza pulita insieme",
+      "other": "Condiviso tra {count} stanze pulite insieme"
+    },
     "note_intensity_mismatch": "Stimato da un'intensità diversa",
     "note_no_learned_data": "Ancora nessun dato appreso",
     "note_runs_to_reliable": {
@@ -1321,6 +1336,7 @@
     "step_move_down": "Sposta giù",
     "step_move_up": "Sposta su",
     "step_remove": "Rimuovi passaggio",
+    "step_unsupported_position": "Verrà saltato (posizione non supportata)",
     "step_wait": "Attendi",
     "steps_capture_hint": "Imposta le stanze che vuoi pulire dopo nella vista Stanze, poi aggiungile come gruppo.",
     "steps_hint": "Aspira, torna alla base per ricaricare, poi continua a pulire — tutto in un'unica esecuzione.",

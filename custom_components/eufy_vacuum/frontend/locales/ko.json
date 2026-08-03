@@ -1347,6 +1347,7 @@
     "copied": "복사됨!",
     "copy": "복사",
     "delete_theme_confirm": "\"{themeId}\" 테마를 삭제하시겠습니까?",
+    "discard_draft_confirm": "저장하지 않은 테마 편집 내용을 폐기하시겠습니까?",
     "enter_new_theme_name": "새 테마의 이름을 입력하세요:",
     "failed_export_theme": "테마 내보내기 실패: {error}",
     "failed_import_file": "\"{fileName}\" 가져오기 실패: {error}",
@@ -1589,6 +1590,9 @@
     "label_source": "출처",
     "label_water_level": "물 양",
     "modal_title": "{name} 예상",
+    "note_allocated_estimate": {
+      "other": "함께 청소된 {count}개 방과 공유됨"
+    },
     "note_intensity_mismatch": "다른 강도에서 추정됨",
     "note_no_learned_data": "아직 학습된 데이터 없음",
     "note_runs_to_reliable": {
@@ -2141,6 +2145,7 @@
     "step_move_down": "아래로 이동",
     "step_move_up": "위로 이동",
     "step_remove": "단계 제거",
+    "step_unsupported_position": "건너뜁니다 (지원되지 않는 위치)",
     "step_wait": "대기",
     "step_zone": "구역",
     "minutes_unit": "분",
@@ -2237,6 +2242,7 @@
     "resegment_failed_retry": "재분할 실패 — 다시 시도하세요."
   },
   "bind_run_profiles": {
+    "break_needs_group": "먼저 방 그룹을 추가하세요 — 충전 또는 대기 단계는 앞뒤로 그룹이 필요합니다.",
     "capture_no_rooms": "먼저 일부 방을 활성화한 다음 그룹으로 추가하세요.",
     "confirm_delete": "실행 프로파일 \"{name}\"을(를) 삭제하시겠습니까?",
     "enter_name": "실행 프로파일 이름을 입력하세요.",
@@ -2314,7 +2320,16 @@
     "save": "저장",
     "saving": "저장 중…",
     "yes": "예",
-    "service_failed": "{service}을(를) 완료하지 못했습니다. 로봇청소기가 명령을 받지 못했을 수 있습니다"
+    "service_failed": "{service}을(를) 완료하지 못했습니다. 로봇청소기가 명령을 받지 못했을 수 있습니다",
+    "service_refused": "이 작업을 완료하지 못했습니다 — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "이미 청소 작업이 진행 중입니다.",
+    "job_paused": "추적 중인 작업이 현재 일시 중지되어 있습니다. 새 작업을 시작하기 전에 재개하거나 취소하세요.",
+    "onboarding_required": "일부 활성화된 방은 청소를 시작하기 전에 바닥 유형을 확인해야 합니다.",
+    "all_selected_rooms_blocked": "선택한 모든 방이 현재 차단되어 있습니다.",
+    "vacuum_missing": "로봇청소기 엔티티를 사용할 수 없습니다.",
+    "unknown": "이 작업이 거부되었습니다 ({reason})."
   },
   "card_editor": {
     "vacuum_label": "로봇청소기",

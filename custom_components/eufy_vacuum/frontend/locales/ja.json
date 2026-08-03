@@ -1347,6 +1347,7 @@
     "copied": "コピーしました！",
     "copy": "コピー",
     "delete_theme_confirm": "テーマ「{themeId}」を削除しますか？",
+    "discard_draft_confirm": "保存されていないテーマの変更を破棄しますか？",
     "enter_new_theme_name": "新しいテーマの名前を入力してください:",
     "failed_export_theme": "テーマのエクスポートに失敗しました: {error}",
     "failed_import_file": "「{fileName}」のインポートに失敗しました: {error}",
@@ -1589,6 +1590,9 @@
     "label_source": "ソース",
     "label_water_level": "給水量",
     "modal_title": "{name}の予測",
+    "note_allocated_estimate": {
+      "other": "一緒に清掃された{count}部屋で共有"
+    },
     "note_intensity_mismatch": "異なる清掃パスから予測",
     "note_no_learned_data": "学習データなし",
     "note_runs_to_reliable": {
@@ -2141,6 +2145,7 @@
     "step_move_down": "下へ移動",
     "step_move_up": "上へ移動",
     "step_remove": "ステップを削除",
+    "step_unsupported_position": "スキップされます（サポートされていない位置）",
     "step_wait": "待機",
     "step_zone": "ゾーン",
     "minutes_unit": "分",
@@ -2237,6 +2242,7 @@
     "resegment_failed_retry": "再セグメント化に失敗しました — もう一度お試しください。"
   },
   "bind_run_profiles": {
+    "break_needs_group": "先に部屋グループを追加してください — 充電または待機の前後にはグループが必要です。",
     "capture_no_rooms": "先にいくつかの部屋を有効にしてから、グループとして追加してください。",
     "confirm_delete": "実行プロファイル「{name}」を削除しますか？",
     "enter_name": "実行プロファイルの名前を入力してください。",
@@ -2314,7 +2320,16 @@
     "save": "保存",
     "saving": "保存中…",
     "yes": "はい",
-    "service_failed": "{service} を完了できませんでした。ロボット掠除機に届いていない可能性があります"
+    "service_failed": "{service} を完了できませんでした。ロボット掠除機に届いていない可能性があります",
+    "service_refused": "この操作を完了できませんでした — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "すでに清掃ジョブが実行中です。",
+    "job_paused": "追跡中のジョブは現在一時停止しています。新しいジョブを開始する前に再開するかキャンセルしてください。",
+    "onboarding_required": "一部の有効な部屋では、清掃を開始する前に床の種類を確認する必要があります。",
+    "all_selected_rooms_blocked": "選択したすべての部屋が現在ブロックされています。",
+    "vacuum_missing": "ロボット掃除機のエンティティが利用できません。",
+    "unknown": "この操作は拒否されました（{reason}）。"
   },
   "card_editor": {
     "vacuum_label": "ロボット掃除機",

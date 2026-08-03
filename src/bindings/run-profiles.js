@@ -231,12 +231,20 @@ export function applyRunProfilesBindings(proto) {
     /* ---- steps editor (charge steps + room groups) ---- */
 
     this.card._onAll("[data-action='add-run-profile-charge']", "click", () => {
-      this.card._state.addDraftChargeStep?.();
+      const ok = this.card._state.addDraftChargeStep?.();
+      // Draft state changes either way (the collapsed view still expands even
+      // when nothing was inserted -- see addDraftChargeStep), so always re-render.
+      if (ok === false) {
+        this.card.showToast(this.t("bind_run_profiles.break_needs_group"), { kind: "error" });
+      }
       this.card._scheduleRender();
     });
 
     this.card._onAll("[data-action='add-run-profile-wait']", "click", () => {
-      this.card._state.addDraftWaitStep?.();
+      const ok = this.card._state.addDraftWaitStep?.();
+      if (ok === false) {
+        this.card.showToast(this.t("bind_run_profiles.break_needs_group"), { kind: "error" });
+      }
       this.card._scheduleRender();
     });
 

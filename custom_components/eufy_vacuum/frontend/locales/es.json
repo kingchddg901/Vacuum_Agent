@@ -14,7 +14,16 @@
     "yes": "Sí",
     "confirm": "Confirmar",
     "ok": "Aceptar",
-    "service_failed": "No se pudo completar {service}: es posible que el robot no lo haya recibido"
+    "service_failed": "No se pudo completar {service}: es posible que el robot no lo haya recibido",
+    "service_refused": "No se pudo completar esta acción: {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Ya hay un trabajo de limpieza en curso.",
+    "job_paused": "Un trabajo registrado está actualmente en pausa. Reanúdalo o cancélalo antes de iniciar uno nuevo.",
+    "onboarding_required": "Algunas habitaciones activadas todavía necesitan confirmar el tipo de suelo antes de poder iniciar la limpieza.",
+    "all_selected_rooms_blocked": "Todas las habitaciones seleccionadas están bloqueadas actualmente.",
+    "vacuum_missing": "La entidad del aspirador no está disponible.",
+    "unknown": "Esta acción fue rechazada ({reason})."
   },
   "base_station": {
     "action_available": "Acción disponible",
@@ -137,6 +146,7 @@
     "unable_delete": "No se pudo eliminar el perfil de limpieza.",
     "unable_overwrite": "No se pudo sobrescribir el perfil de limpieza.",
     "unable_save": "No se pudo guardar el perfil de limpieza.",
+    "break_needs_group": "Añade primero un grupo de habitaciones — una carga o espera necesita uno antes y otro después.",
     "capture_no_rooms": "Activa primero algunas habitaciones y luego añádelas como grupo.",
     "steps_need_group": "Una limpieza necesita al menos un grupo de habitaciones que limpiar.",
     "unable_run": "No se pudo ejecutar el perfil de limpieza."
@@ -162,6 +172,7 @@
     "copied": "¡Copiado!",
     "copy": "Copiar",
     "delete_theme_confirm": "¿Eliminar el tema \"{themeId}\"?",
+    "discard_draft_confirm": "¿Descartar los cambios sin guardar del tema?",
     "enter_new_theme_name": "Introduce un nombre para tu nuevo tema:",
     "failed_export_theme": "No se pudo exportar el tema: {error}",
     "failed_import_file": "No se pudo importar \"{fileName}\": {error}",
@@ -1078,6 +1089,10 @@
     "label_source": "Origen",
     "label_water_level": "Nivel de agua",
     "modal_title": "Estimación de {name}",
+    "note_allocated_estimate": {
+      "one": "Tiempo compartido entre {count} habitación limpiada en conjunto",
+      "other": "Tiempo compartido entre {count} habitaciones limpiadas en conjunto"
+    },
     "note_intensity_mismatch": "Estimado a partir de otra intensidad",
     "note_no_learned_data": "Aún sin datos aprendidos",
     "note_runs_to_reliable": {
@@ -1334,6 +1349,7 @@
     "step_move_down": "Mover abajo",
     "step_move_up": "Mover arriba",
     "step_remove": "Quitar paso",
+    "step_unsupported_position": "Se omitirá (posición no compatible)",
     "step_wait": "Esperar",
     "steps_capture_hint": "Configura las habitaciones que quieras a continuación en la vista Habitaciones y luego añádelas como grupo.",
     "steps_hint": "Aspira, vuelve a la base para recargar y sigue limpiando, todo en una sola limpieza.",

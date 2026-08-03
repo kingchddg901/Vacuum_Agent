@@ -317,16 +317,30 @@ export function applyRunProfilesState(proto) {
     state.draft = { ...state.draft, stepsExpanded: true };
   };
 
+  // Insert just before the last existing step, never at the very end -- a
+  // trailing break has nothing to bracket and is refused as a no-op (CARD-6
+  // clause (1)). Returns false when there aren't at least two steps to insert
+  // between (nothing was added). expandDraftSteps() always fires regardless --
+  // in the collapsed (progressive-disclosure) view, this is the ONLY control
+  // that reveals the room-group editor (capture-group / add-wait live there),
+  // so a brand-new draft must still open it even when it has nothing to
+  // bracket a break with yet.
   proto.addDraftChargeStep = function (target = DEFAULT_CHARGE_TARGET) {
     const steps = this.runProfileDraftSteps();
-    this._setDraftSteps(insertChargeStep(steps, steps.length, target));
+    const next = insertChargeStep(steps, Math.max(0, steps.length - 1), target);
     this.expandDraftSteps();
+    if (next.length === steps.length) return false;
+    this._setDraftSteps(next);
+    return true;
   };
 
   proto.addDraftWaitStep = function (minutes = DEFAULT_WAIT_MINUTES) {
     const steps = this.runProfileDraftSteps();
-    this._setDraftSteps(insertWaitStep(steps, steps.length, minutes));
+    const next = insertWaitStep(steps, Math.max(0, steps.length - 1), minutes);
     this.expandDraftSteps();
+    if (next.length === steps.length) return false;
+    this._setDraftSteps(next);
+    return true;
   };
 
   proto.setDraftWaitMinutes = function (index, value) {

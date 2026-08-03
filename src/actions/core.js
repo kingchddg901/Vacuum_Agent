@@ -1,5 +1,23 @@
 // Base HA service call helpers shared by all action domain modules.
 
+// Q9 operational reason codes (job_control's start_selected_rooms /
+// start_zone_clean blocked paths) that carry their own translated phrase in
+// the `service_reasons.*` i18n namespace — reason -> full i18n key, a DATA
+// VALUE the check-i18n key-cross-check finds via the "quoted string anywhere
+// in src" reachability path (case 2 in scripts/check-i18n.mjs), same pattern
+// as this codebase's other code->key registries (e.g. map.js's variant
+// labels). A code NOT in this map falls back to service_reasons.unknown,
+// which still names the raw code (never blank, never fake success) —
+// forward-compat with reasons the backend adds later without a matching
+// frontend release (RP-031/CARD-1, SYNTH-11-packets-wave7-card.md).
+const SERVICE_REASON_KEYS = {
+  job_in_progress: "service_reasons.job_in_progress",
+  job_paused: "service_reasons.job_paused",
+  onboarding_required: "service_reasons.onboarding_required",
+  all_selected_rooms_blocked: "service_reasons.all_selected_rooms_blocked",
+  vacuum_missing: "service_reasons.vacuum_missing",
+};
+
 export function applyCoreActions(proto) {
 
   /**
@@ -29,6 +47,14 @@ export function applyCoreActions(proto) {
         false,       // notifyOnError
         returnResponse
       );
+      // A NON-throwing response can still be an operational refusal (RP-031):
+      // {success: false, reason: "..."}. Without this check that shape is
+      // handed back to the caller identically to a genuine success — no toast,
+      // nothing. showServiceRefusalToast never swallows `result` — callers
+      // still get the full payload back below.
+      if (returnResponse && result && typeof result === "object" && result.success === false) {
+        this.showServiceRefusalToast(result.reason);
+      }
       return returnResponse ? result : undefined;
     } catch (err) {
       console.error(
@@ -55,6 +81,44 @@ export function applyCoreActions(proto) {
         console.error("[eufy-vacuum-command-center] toast failed", toastErr);
       }
       return null;
+    }
+  };
+
+  /**
+   * Translate a Q9 operational refusal reason CODE (e.g. "job_in_progress")
+   * into a user-facing phrase and show it as an error toast, wrapped in the
+   * shared "Could not complete this" template (common.service_refused).
+   * Known codes (SERVICE_REASON_KEYS) get their own translated sentence via
+   * service_reasons.*; anything else falls back to service_reasons.unknown,
+   * which still names the raw code in parens — forward-compat with reasons
+   * added on the backend later (RP-031/CARD-1 contract).
+   *
+   * Shared by callService's own {success:false} inspection above AND by call
+   * sites that consume the OTHER established backend refusal shape,
+   * {started:false, reason} (job_control's start_selected_rooms /
+   * start_run_profile — see rooms.js's startCleaning, FE-ERR-1), so both
+   * shapes render through one translation path instead of two hand-copied
+   * ones.
+   *
+   * Best-effort: wrapped in its own try/catch so a broken toast host can
+   * never break the call it's reporting on — same defensive pattern as the
+   * catch block above.
+   * @param {string} reason - the raw backend reason code.
+   */
+  proto.showServiceRefusalToast = function (reason) {
+    const code = String(reason ?? "");
+    const reasonKey = SERVICE_REASON_KEYS[code];
+    const reasonText = reasonKey
+      ? (this.t?.(reasonKey) ?? code)
+      : (this.t?.("service_reasons.unknown", { reason: code }) ?? `(${code})`);
+    try {
+      this.showToast?.(
+        this.t?.("common.service_refused", { reason: reasonText }) ||
+          `Refused: ${reasonText}`,
+        { kind: "error", ttl: 6000 }
+      );
+    } catch (toastErr) {
+      console.error("[eufy-vacuum-command-center] toast failed", toastErr);
     }
   };
 

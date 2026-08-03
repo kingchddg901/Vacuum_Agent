@@ -1347,6 +1347,7 @@
     "copied": "已复制！",
     "copy": "复制",
     "delete_theme_confirm": "删除主题 “{themeId}”？",
+    "discard_draft_confirm": "放弃未保存的主题更改吗？",
     "enter_new_theme_name": "请输入新主题的名称：",
     "failed_export_theme": "导出主题失败：{error}",
     "failed_import_file": "导入 “{fileName}” 失败：{error}",
@@ -1589,6 +1590,9 @@
     "label_source": "来源",
     "label_water_level": "水量",
     "modal_title": "{name} 预估",
+    "note_allocated_estimate": {
+      "other": "与一起清扫的 {count} 个房间共享"
+    },
     "note_intensity_mismatch": "根据不同清扫路径预估",
     "note_no_learned_data": "尚无学习数据",
     "note_runs_to_reliable": {
@@ -2141,6 +2145,7 @@
     "step_move_down": "下移",
     "step_move_up": "上移",
     "step_remove": "移除步骤",
+    "step_unsupported_position": "将被跳过(不支持的位置)",
     "step_wait": "等待",
     "step_zone": "区域",
     "minutes_unit": "分钟",
@@ -2237,6 +2242,7 @@
     "resegment_failed_retry": "重新分段失败——请重试。"
   },
   "bind_run_profiles": {
+    "break_needs_group": "请先添加一个房间组——充电或等待前后都需要有房间组。",
     "capture_no_rooms": "请先启用一些房间，然后将它们添加为一组。",
     "confirm_delete": "删除运行方案“{name}”？",
     "enter_name": "请为运行方案输入一个名称。",
@@ -2314,7 +2320,16 @@
     "save": "保存",
     "saving": "保存中…",
     "yes": "是",
-    "service_failed": "无法完成{service}，扫地机器人可能未收到该指令"
+    "service_failed": "无法完成{service}，扫地机器人可能未收到该指令",
+    "service_refused": "无法完成此操作 — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "已有清扫任务正在进行。",
+    "job_paused": "有一个正在跟踪的任务当前已暂停。请先继续或取消它，然后再开始新任务。",
+    "onboarding_required": "部分已启用的房间仍需确认地板类型才能开始清扫。",
+    "all_selected_rooms_blocked": "所有选定的房间当前均被阻止。",
+    "vacuum_missing": "扫地机器人实体不可用。",
+    "unknown": "此操作被拒绝（{reason}）。"
   },
   "card_editor": {
     "vacuum_label": "扫地机器人",

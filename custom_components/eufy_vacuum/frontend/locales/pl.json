@@ -2054,6 +2054,7 @@
     "copied": "Skopiowano!",
     "copy": "Kopiuj",
     "delete_theme_confirm": "Usunąć motyw \"{themeId}\"?",
+    "discard_draft_confirm": "Odrzucić niezapisane zmiany motywu?",
     "enter_new_theme_name": "Wprowadź nazwę nowego motywu:",
     "failed_export_theme": "Nie udało się wyeksportować motywu: {error}",
     "failed_import_file": "Nie udało się zaimportować \"{fileName}\": {error}",
@@ -2111,6 +2112,7 @@
     "step_move_down": "Przesuń w dół",
     "step_move_up": "Przesuń w górę",
     "step_remove": "Usuń krok",
+    "step_unsupported_position": "Zostanie pominięte (nieobsługiwana pozycja)",
     "step_wait": "Czekaj",
     "step_zone": "Strefa",
     "minutes_unit": "min",
@@ -2196,6 +2198,10 @@
     "label_source": "Źródło",
     "label_water_level": "Poziom wody",
     "modal_title": "Szacunek: {name}",
+    "note_allocated_estimate": {
+      "one": "Współdzielony z {count} pokojem sprzątanym razem",
+      "other": "Współdzielony z {count} pokojami sprzątanymi razem"
+    },
     "note_intensity_mismatch": "Oszacowano na podstawie innej intensywności",
     "note_no_learned_data": "Brak wyuczonych danych",
     "note_runs_to_reliable": {
@@ -2342,7 +2348,16 @@
     "save": "Zapisz",
     "saving": "Zapisywanie…",
     "yes": "Tak",
-    "service_failed": "Nie udało się ukończyć {service} — odkurzacz mógł go nie otrzymać"
+    "service_failed": "Nie udało się ukończyć {service} — odkurzacz mógł go nie otrzymać",
+    "service_refused": "Nie udało się tego wykonać — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Zadanie sprzątania jest już w toku.",
+    "job_paused": "Śledzone zadanie jest obecnie wstrzymane. Wznów je lub anuluj przed rozpoczęciem nowego.",
+    "onboarding_required": "Niektóre włączone pomieszczenia nadal wymagają potwierdzenia typu podłogi, zanim sprzątanie będzie mogło się rozpocząć.",
+    "all_selected_rooms_blocked": "Wszystkie wybrane pomieszczenia są obecnie zablokowane.",
+    "vacuum_missing": "Encja odkurzacza jest niedostępna.",
+    "unknown": "Ta czynność została odrzucona ({reason})."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Wybierz niestandardowy klucz profilu:\n\n{choiceText}",
@@ -2401,6 +2416,7 @@
     "editor_no_profiles": "Brak zapisanych profili dla tej mapy."
   },
   "bind_run_profiles": {
+    "break_needs_group": "Najpierw dodaj grupę pokoi — ładowanie lub oczekiwanie wymaga grupy przed i po.",
     "capture_no_rooms": "Najpierw włącz kilka pokoi, a następnie dodaj je jako grupę.",
     "confirm_delete": "Usunąć profil uruchomienia „{name}”?",
     "enter_name": "Wprowadź nazwę profilu uruchomienia.",

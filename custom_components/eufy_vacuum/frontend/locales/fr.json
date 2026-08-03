@@ -14,7 +14,16 @@
     "yes": "Oui",
     "confirm": "Confirmer",
     "ok": "OK",
-    "service_failed": "Impossible de terminer {service} — l'aspirateur ne l'a peut-être pas reçu"
+    "service_failed": "Impossible de terminer {service} — l'aspirateur ne l'a peut-être pas reçu",
+    "service_refused": "Impossible de terminer cette action — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Un cycle de nettoyage est déjà en cours.",
+    "job_paused": "Une tâche suivie est actuellement en pause. Reprenez-la ou annulez-la avant d'en démarrer une nouvelle.",
+    "onboarding_required": "Certaines pièces activées doivent encore avoir un type de sol confirmé avant que le nettoyage puisse démarrer.",
+    "all_selected_rooms_blocked": "Toutes les pièces sélectionnées sont actuellement bloquées.",
+    "vacuum_missing": "L'entité de l'aspirateur n'est pas disponible.",
+    "unknown": "Cette action a été refusée ({reason})."
   },
   "base_station": {
     "action_available": "Action disponible",
@@ -137,6 +146,7 @@
     "unable_delete": "Impossible de supprimer le profil de tâche.",
     "unable_overwrite": "Impossible de remplacer le profil de tâche.",
     "unable_save": "Impossible d'enregistrer le profil de tâche.",
+    "break_needs_group": "Ajoutez d'abord un groupe de pièces — une charge ou une attente doit avoir un groupe avant et après elle.",
     "capture_no_rooms": "Activez d'abord des pièces, puis ajoutez-les comme groupe.",
     "steps_need_group": "Une tâche nécessite au moins un groupe de pièces à nettoyer.",
     "unable_run": "Impossible de lancer le profil de tâche."
@@ -162,6 +172,7 @@
     "copied": "Copié !",
     "copy": "Copier",
     "delete_theme_confirm": "Supprimer le thème « {themeId} » ?",
+    "discard_draft_confirm": "Abandonner les modifications de thème non enregistrées ?",
     "enter_new_theme_name": "Saisissez un nom pour votre nouveau thème :",
     "failed_export_theme": "Échec de l'export du thème : {error}",
     "failed_import_file": "Échec de l'import de « {fileName} » : {error}",
@@ -1078,6 +1089,10 @@
     "label_source": "Source",
     "label_water_level": "Niveau d'eau",
     "modal_title": "Estimation de {name}",
+    "note_allocated_estimate": {
+      "one": "Partagé entre {count} pièce nettoyée ensemble",
+      "other": "Partagé entre {count} pièces nettoyées ensemble"
+    },
     "note_intensity_mismatch": "Estimé à partir d'une intensité différente",
     "note_no_learned_data": "Pas encore de données apprises",
     "note_runs_to_reliable": {
@@ -1334,6 +1349,7 @@
     "step_move_down": "Descendre",
     "step_move_up": "Monter",
     "step_remove": "Retirer l'étape",
+    "step_unsupported_position": "Sera ignoré (position non prise en charge)",
     "step_wait": "Attendre",
     "steps_capture_hint": "Préparez les pièces souhaitées dans la vue Pièces, puis ajoutez-les comme groupe.",
     "steps_hint": "Aspirez, retournez à la station pour recharger, puis continuez le nettoyage — le tout en une seule tâche.",

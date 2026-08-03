@@ -14,7 +14,16 @@
     "yes": "Ja",
     "confirm": "Bevestigen",
     "ok": "OK",
-    "service_failed": "Kan {service} niet voltooien — de stofzuiger heeft dit mogelijk niet ontvangen"
+    "service_failed": "Kan {service} niet voltooien — de stofzuiger heeft dit mogelijk niet ontvangen",
+    "service_refused": "Kan dit niet voltooien — {reason}"
+  },
+  "service_reasons": {
+    "job_in_progress": "Er is al een schoonmaaktaak bezig.",
+    "job_paused": "Een gevolgde taak staat momenteel gepauzeerd. Hervat of annuleer deze voordat je een nieuwe start.",
+    "onboarding_required": "Voor sommige ingeschakelde kamers moet nog een vloertype worden bevestigd voordat het schoonmaken kan beginnen.",
+    "all_selected_rooms_blocked": "Alle geselecteerde kamers zijn momenteel geblokkeerd.",
+    "vacuum_missing": "De stofzuigerentiteit is niet beschikbaar.",
+    "unknown": "Deze actie is geweigerd ({reason})."
   },
   "base_station": {
     "action_available": "Actie beschikbaar",
@@ -136,6 +145,7 @@
     "unable_delete": "Kan runprofiel niet verwijderen.",
     "unable_overwrite": "Kan runprofiel niet overschrijven.",
     "unable_save": "Kan runprofiel niet opslaan.",
+    "break_needs_group": "Voeg eerst een kamergroep toe — een oplaad- of wachtstap heeft er één nodig ervoor en erna.",
     "capture_no_rooms": "Schakel eerst enkele kamers in en voeg ze dan als groep toe.",
     "steps_need_group": "Een run heeft minstens één groep kamers nodig om schoon te maken.",
     "unable_run": "Kan runprofiel niet uitvoeren."
@@ -161,6 +171,7 @@
     "copied": "Gekopieerd!",
     "copy": "Kopiëren",
     "delete_theme_confirm": "Thema \"{themeId}\" verwijderen?",
+    "discard_draft_confirm": "Niet-opgeslagen themawijzigingen verwerpen?",
     "enter_new_theme_name": "Voer een naam in voor je nieuwe thema:",
     "failed_export_theme": "Thema exporteren mislukt: {error}",
     "failed_import_file": "Importeren van \"{fileName}\" mislukt: {error}",
@@ -1066,6 +1077,10 @@
     "label_source": "Bron",
     "label_water_level": "Waterniveau",
     "modal_title": "Schatting {name}",
+    "note_allocated_estimate": {
+      "one": "Gedeeld over {count} kamer die samen wordt schoongemaakt",
+      "other": "Gedeeld over {count} kamers die samen worden schoongemaakt"
+    },
     "note_intensity_mismatch": "Geschat op basis van een andere intensiteit",
     "note_no_learned_data": "Nog geen geleerde gegevens",
     "note_runs_to_reliable": {
@@ -1318,6 +1333,7 @@
     "step_move_down": "Omlaag verplaatsen",
     "step_move_up": "Omhoog verplaatsen",
     "step_remove": "Stap verwijderen",
+    "step_unsupported_position": "Wordt overgeslagen (positie niet ondersteund)",
     "step_wait": "Wachten",
     "steps_capture_hint": "Stel in de Kamers-weergave de kamers in die je hierna wilt, en voeg ze dan als groep toe.",
     "steps_hint": "Stofzuigen, dockken om op te laden en dan verder schoonmaken — alles in één run.",
