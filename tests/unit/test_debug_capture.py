@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from homeassistant.exceptions import ServiceValidationError
+
 from custom_components.eufy_vacuum.debug_capture import (
     TARGET_ALL_FLAGGED,
     TARGET_EVERYTHING,
@@ -22,6 +24,7 @@ from custom_components.eufy_vacuum.debug_capture import (
     configure,
     debug_traceable,
     get_capture,
+    register_debug_services,
     render_text,
     traceable_services,
 )
@@ -169,6 +172,31 @@ def test_stop_is_idempotent(capture):
     assert (logger.level, logger.propagate) == before
 
 
+def test_stop_clears_run_metadata_so_a_later_status_is_honest(capture):
+    """[RP-039/RF-33] stop() used to reset _ring/_passthrough/_prior_level/
+    _prior_propagate/_logger_name but NOT _started_at/_areas/_targets, so a
+    status() call made AFTER stop (the switch's extra_state_attributes, the
+    debug_capture_status service) unconditionally reported the PREVIOUS run's
+    start_at/areas/services alongside active:False."""
+    capture.start(areas=["map"], services=["svc_demo"])
+    capture.stop()
+    later = capture.status()  # a call made well after stop, not stop()'s own return
+    assert later["active"] is False
+    assert later["started_at"] is None
+    assert later["areas"] == []
+    assert later["services"] == []
+
+
+def test_resolve_areas_rejects_unknown_area(capture):
+    """[RP-039/RF-33] An unrecognized area name must refuse loudly (listing the
+    valid keys) instead of silently falling through to a near-certainly-wrong
+    `.{area}` logger substring guess."""
+    with pytest.raises(ServiceValidationError, match="learning|map"):
+        capture.start(areas=["not_a_real_area"])
+    # The failed start must not have left the capture half-armed.
+    assert capture.active is False
+
+
 @pytest.fixture
 def global_capture():
     """Reset + yield the process singleton (the decorator wraps against get_capture())."""
@@ -286,6 +314,45 @@ async def test_switch_start_stop_and_autodump(global_capture):
     assert sw.is_on is False
     hass.async_add_executor_job.assert_awaited_once()  # auto-dump on off
     assert global_capture.last_dump_file == "/config/eufy_vacuum/debug/debug-x.log"
+
+
+def test_write_dump_filenames_are_unique_within_the_same_second(tmp_path):
+    """[RP-039/RF-33] _write_dump used second-precision timestamps only, so two
+    dumps within the same second silently overwrote each other. A millisecond
+    component + a monotonic counter must guarantee a unique path every call."""
+    from unittest.mock import MagicMock
+
+    from custom_components.eufy_vacuum.debug_capture import _write_dump
+
+    hass = MagicMock()
+    hass.config.path.return_value = str(tmp_path)
+    records = [{"seq": 1, "t": 0.0, "level": "DEBUG", "logger": "x", "message": "hi"}]
+
+    paths = {_write_dump(hass, "eufy_vacuum", records) for _ in range(20)}
+    assert len(paths) == 20, f"filename collision(s): {paths}"
+
+
+@pytest.mark.asyncio
+async def test_switch_turn_off_cancels_a_service_armed_autostop(global_capture, hass):
+    """[RP-039/RF-16] A debug_capture_start service call with max_minutes arms an
+    auto-stop timer; flipping the DebugCaptureSwitch off directly (not via the
+    service layer) must cancel that SAME timer -- previously the switch had no
+    access to the service handler's own (closure-local) cancel handle, so a
+    service-armed auto-stop kept running (and could force-stop a LATER session
+    the user started after manually stopping the first one)."""
+    register_debug_services(hass, domain="eufy_vacuum")
+    await hass.services.async_call(
+        "eufy_vacuum", "debug_capture_start", {"max_minutes": 30}, blocking=True,
+    )
+    assert global_capture._autostop_cancel is not None, "auto-stop was not armed"
+
+    sw = build_debug_switch(hass, domain="eufy_vacuum")
+    sw.async_write_ha_state = MagicMock()
+    await sw.async_turn_off()
+
+    assert global_capture._autostop_cancel is None, (
+        "switch turn_off did not cancel the service-armed auto-stop timer"
+    )
 
 
 @pytest.mark.asyncio

@@ -33,6 +33,7 @@ from __future__ import annotations
 import asyncio
 import collections
 import functools
+import itertools
 import logging
 import os
 import re
@@ -47,6 +48,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.event import async_call_later
@@ -216,10 +218,37 @@ class DebugCapture:
         self._target: str = TARGET_ALL_FLAGGED  # the UI target-select's current option
         self._last_dump_file: str | None = None
         self._last: collections.deque[dict[str, Any]] = collections.deque()
+        # RP-039/RF-16+RF-33: the auto-stop timer's cancel handle lives HERE (on
+        # the shared singleton) rather than in a service-handler closure, so it's
+        # reachable from BOTH the debug_capture_start service AND
+        # DebugCaptureSwitch.async_turn_on/off -- previously a service-armed
+        # auto-stop kept running even if the user flipped the switch off, because
+        # the switch had no access to the service layer's own cancel handle.
+        self._autostop_cancel: Callable[[], None] | None = None
 
     @property
     def active(self) -> bool:
         return self._ring is not None
+
+    # -- auto-stop ledger (shared by the service layer + the switch entity) ----
+
+    def arm_autostop(self, cancel: Callable[[], None]) -> None:
+        """Record the auto-stop timer's cancel handle, replacing any prior one."""
+        self.cancel_autostop()
+        self._autostop_cancel = cancel
+
+    def cancel_autostop(self) -> None:
+        """Cancel any pending auto-stop timer. Idempotent — safe to call from the
+        service layer, the switch entity, a fresh start() (via stop() below), or
+        entry teardown, in any order."""
+        if self._autostop_cancel is not None:
+            self._autostop_cancel()
+            self._autostop_cancel = None
+
+    def note_autostop_fired(self) -> None:
+        """The armed auto-stop timer just fired on its own — forget the (now
+        spent) cancel handle without re-invoking it."""
+        self._autostop_cancel = None
 
     def start(
         self,
@@ -259,6 +288,12 @@ class DebugCapture:
     def stop(self) -> dict[str, Any]:
         """Restore the isolated logger and detach handlers. Records survive for a final
         dump. Idempotent — a no-op when not active."""
+        # RP-039/RF-16: cancel any pending auto-stop timer HERE, not just in the
+        # service handler — the single chokepoint every stop path (service stop,
+        # a fresh start() restarting, the auto-stop timer firing itself, and the
+        # switch's async_turn_off, which previously had no way to reach the
+        # service layer's own cancel) already goes through.
+        self.cancel_autostop()
         if self._logger_name is not None:
             logger = logging.getLogger(self._logger_name)
             if self._ring is not None:
@@ -279,12 +314,19 @@ class DebugCapture:
                 logger.propagate = self._prior_propagate
             if self._prior_level is not None and logger.level == logging.DEBUG:
                 logger.setLevel(self._prior_level)
-        status = self.status()  # reads _last (now inactive)
+        status = self.status()  # reads _last (now inactive) — reflects the run that
+        # just ended, not the clear below; a LATER status() call (the switch's
+        # extra_state_attributes, the debug_capture_status service) must not go
+        # on reporting a previous run's start_at/areas/services alongside
+        # active:False, so those three are reset too (RP-039/RF-33).
         self._ring = None
         self._passthrough = None
         self._prior_level = None
         self._prior_propagate = None
         self._logger_name = None
+        self._started_at = None
+        self._areas = []
+        self._targets = set()
         return status
 
     def records(self) -> list[dict[str, Any]]:
@@ -384,11 +426,25 @@ class DebugCapture:
 
     @staticmethod
     def _resolve_areas(areas: list[str]) -> tuple[str, ...] | None:
+        """Resolve UI-facing area names to logger-substring scopes.
+
+        RP-039/RF-33: an unrecognized area name used to fall through to a
+        near-certainly-wrong `.{a}` logger substring, guessed silently — a
+        service-supplied free-form ``areas`` list (the switch/select combo can
+        only ever offer valid names from ``_AREAS.keys()``, so this only bites a
+        direct service call) now refuses loudly instead, listing the valid keys.
+        """
         if not areas:
             return None
         subs: list[str] = []
         for a in areas:
-            subs.extend(_AREAS.get(str(a).lower(), (f".{a}",)))
+            key = str(a).lower()
+            if key not in _AREAS:
+                valid = ", ".join(sorted(_AREAS)) or "(no areas configured)"
+                raise ServiceValidationError(
+                    f"debug capture: unknown area {a!r} — valid areas are: {valid}"
+                )
+            subs.extend(_AREAS[key])
         return tuple(subs) or None
 
 
@@ -470,13 +526,31 @@ _DUMP_SCHEMA = vol.Schema(
 _EMPTY_SCHEMA = vol.Schema({})
 
 
+#: RP-039/RF-33: a monotonically increasing suffix appended to every dump
+#: filename. next() on an itertools.count() is a single C-implemented op —
+#: atomic w.r.t. the GIL — so it stays correct even if two dumps race across
+#: concurrent executor threads (_write_dump is always called via
+#: hass.async_add_executor_job). Paired with a millisecond component so
+#: filenames stay human-sortable-by-time even across a restart (the counter
+#: itself resets to 1 then).
+_dump_seq = itertools.count(1)
+
+
 def _write_dump(hass: HomeAssistant, domain: str, records: list[dict[str, Any]]) -> str:
     """Write the rendered ring to ``config/<domain>/debug/debug-<ts>.log``. Blocking —
-    call via the executor. Returns the path."""
+    call via the executor. Returns the path.
+
+    RP-039/RF-33: the filename used to be second-precision only
+    (``time.strftime`` has no finer granularity), so two dumps within the same
+    second silently overwrote each other. A millisecond component plus the
+    monotonic ``_dump_seq`` counter guarantees a unique name every call.
+    """
     dir_path = hass.config.path(domain, _DUMP_SUBDIR)
     os.makedirs(dir_path, exist_ok=True)
-    ts = time.strftime("%Y%m%d-%H%M%S", time.localtime())
-    path = os.path.join(dir_path, f"debug-{ts}.log")
+    now = time.time()
+    ts = time.strftime("%Y%m%d-%H%M%S", time.localtime(now))
+    ms = int((now % 1) * 1000)
+    path = os.path.join(dir_path, f"debug-{ts}-{ms:03d}-{next(_dump_seq)}.log")
     tmp = f"{path}.tmp"
     # Write-then-rename so a reader that grabs the file the instant the service returns
     # can't catch a half-written dump.
@@ -501,16 +575,18 @@ def register_debug_services(
     """
     configure(package_logger or f"custom_components.{domain}", areas)
     _LOGGER = logging.getLogger(f"{_PACKAGE_LOGGER}.debug")
-    autostop: dict[str, Any] = {"cancel": None}
-
-    def _cancel_autostop() -> None:
-        if autostop["cancel"] is not None:
-            autostop["cancel"]()
-            autostop["cancel"] = None
 
     async def start(call: ServiceCall) -> dict[str, Any]:
-        _cancel_autostop()
-        status = get_capture().start(
+        capture = get_capture()
+        # RP-039/RF-16: the auto-stop cancel handle now lives on the shared
+        # DebugCapture singleton (arm_autostop/cancel_autostop) instead of a
+        # closure-local dict here, so the SWITCH entity's stop path can cancel a
+        # service-armed timer too (see DebugCapture.stop()). capture.start()
+        # below already calls stop() internally when restarting an active
+        # capture (which cancels autostop); this call is belt-and-braces for the
+        # not-currently-active case.
+        capture.cancel_autostop()
+        status = capture.start(
             areas=call.data.get("areas"),
             capacity=call.data.get("size"),
             services=call.data.get("services"),
@@ -520,7 +596,7 @@ def register_debug_services(
         if minutes:
             @callback
             def _auto_stop(_now: Any) -> None:
-                autostop["cancel"] = None
+                get_capture().note_autostop_fired()
                 stopped = get_capture().stop()
                 _LOGGER.info(
                     "debug capture auto-stopped after %s min (captured=%s)",
@@ -528,14 +604,21 @@ def register_debug_services(
                     stopped.get("captured"),
                 )
 
-            autostop["cancel"] = async_call_later(hass, minutes * 60, _auto_stop)
+            capture.arm_autostop(async_call_later(hass, minutes * 60, _auto_stop))
+            # Join onto the entry's teardown ledger (RP-003's pattern) so a
+            # mid-capture entry reload/unload cancels the timer instead of
+            # leaving it armed against a torn-down hass. Singleton-domain lookup
+            # (one entry manages everything), same idiom used elsewhere in this
+            # integration for call sites without a direct `entry` reference.
+            _entries = hass.config_entries.async_entries(domain)
+            if _entries:
+                _entries[0].async_on_unload(capture.cancel_autostop)
             status["auto_stop_minutes"] = minutes
         # INFO so the breadcrumb reaches home-assistant.log (via the passthrough).
         _LOGGER.info("debug capture STARTED: %s", status)
         return status
 
     async def stop(call: ServiceCall) -> dict[str, Any]:
-        _cancel_autostop()
         status = get_capture().stop()
         _LOGGER.info("debug capture STOPPED (captured=%s)", status.get("captured"))
         return status
