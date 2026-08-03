@@ -21,7 +21,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN
 from ..core.manager import EufyVacuumManager
-from ._common import get_adapter_value
+from ._common import get_adapter_value, is_dock_trigger_edge
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +50,14 @@ def register(hass: HomeAssistant) -> None:
 
     watched: dict[str, str] = {}
     for vacuum_entity_id in manager.get_known_vacuum_ids():
+        # REG-4: dock_events.enabled (config_schema.py, default False) gates
+        # whether this vacuum's dock_status gets watched at all -- an adapter
+        # that declares dock_status but explicitly opts out must get no
+        # dock-event listener, not a silently-enabled one.
+        if not get_adapter_value(
+            vacuum_entity_id, "dock_events", "enabled", fallback=False
+        ):
+            continue
         dock_entity = (get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("dock_status")
         if dock_entity:
             watched[dock_entity] = vacuum_entity_id
@@ -68,22 +76,6 @@ def register(hass: HomeAssistant) -> None:
         if new_state is None:
             return
 
-        new_val = str(new_state.state).strip().lower()
-        old_val = str(old_state.state).strip().lower() if old_state else ""
-
-        if new_val == old_val:
-            return
-
-        # REG-1/GUARD-3: old_state=None (HA restart, or genuinely the first-
-        # ever sighting) resolves old_val to "", and a currently unavailable/
-        # unknown prior reading resolves to that literal string -- neither is
-        # a real, previously-known dock state. Treating either as a genuine
-        # transition INTO a trigger state would record a brand-new dock cycle
-        # on every restart/reconnect, even mid-cycle. Additional guard,
-        # alongside (not replacing) the old==new dedup above.
-        if old_val in ("", "unavailable", "unknown"):
-            return
-
         vacuum_entity_id = watched.get(entity_id)
         if vacuum_entity_id is None:
             return
@@ -98,11 +90,23 @@ def register(hass: HomeAssistant) -> None:
             fallback={},
         )
 
+        # Raw (un-normalized) values for the shared edge test -- it does its
+        # own strip/lower normalization, matching both callers' prior
+        # behaviour. old_state may be None (HA restart / first sighting).
+        old_val_raw = old_state.state if old_state is not None else None
+        new_val_raw = new_state.state
+        new_val = str(new_val_raw).strip().lower()
+
         for event_type, trigger_states in _triggers.items():
             trigger_set = frozenset(
                 str(s).strip().lower() for s in trigger_states
             )
-            if new_val not in trigger_set:
+            # REG-1/GUARD-3 + old==new dedup, all via the shared edge test
+            # (also used by lifecycle.py's inline mop-wash detector) -- not
+            # an edge if old_state isn't a known real prior value (missing/
+            # unavailable/unknown), not an edge if old==new, otherwise an
+            # edge iff new_val is in this event_type's trigger vocabulary.
+            if not is_dock_trigger_edge(old_val_raw, new_val_raw, trigger_set):
                 continue
 
             dry_duration: str | None = None

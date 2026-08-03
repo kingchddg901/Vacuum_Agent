@@ -6,6 +6,9 @@ Coverage targets
 [LS-2]  dock_events records an event when dock_status transitions to a trigger value.
 [LS-3]  dock_events ignores state changes that don't match any trigger.
 [LS-4]  dock_events ignores same-value transitions (old == new guard).
+[REG-1/GUARD-3] dock_events ignores old_state=None (restart/first sighting)
+        and old_state unavailable/unknown -- not a known prior state, so no
+        edge is recorded even when new_state is a trigger value.
 [LS-5]  job_metrics listener registers unsub when cleaning_time entity is declared.
 [LS-6]  job_metrics fires without error when no active job exists.
 [LS-7]  lifecycle listener registers unsub for the vacuum entity.
@@ -50,10 +53,15 @@ _ADAPTER_WITH_DOCK = {
         "task_status": _TASK_STATUS_ENTITY,
     },
     "dock_events": {
+        # REG-4: register() now gates on this per-adapter flag (default
+        # False) -- explicit True here so LS-1..LS-4 keep exercising a
+        # wired listener. See test_listeners_registration.py for the
+        # enabled=False -> not-watched case.
+        "enabled": True,
         "triggers": {
             "last_mop_wash": ["washing", "washing mop"],
             "last_dust_empty": ["emptying"],
-        }
+        },
     },
 }
 
@@ -174,6 +182,59 @@ async def test_dock_events_ignores_same_value_transition(hass, manager):
     assert "last_mop_wash" not in dock_data
 
 
+async def test_dock_events_first_sighting_after_restart_not_recorded(hass, manager):
+    """[REG-1/GUARD-3] old_state=None (HA restart while the dock is already
+    mid-cycle, or genuinely the first-ever reading) must not be treated as a
+    transition INTO the trigger state -- we don't know what the device was
+    actually doing before, so recording it would fabricate a brand-new dock
+    cycle on every restart/reconnect."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_DOCK)
+    # Deliberately no initial state — the dock entity does not exist yet, so
+    # its very first async_set below fires with old_state=None.
+    dock_events.register(hass)
+
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "washing")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert "last_mop_wash" not in dock_data
+
+
+async def test_dock_events_unavailable_prior_state_not_recorded(hass, manager):
+    """[GUARD-3] a currently-unavailable prior dock_status reading is
+    likewise not a known real state — recovery from an unavailable blip must
+    not be recorded as a fresh dock cycle either."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_DOCK)
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "unavailable")
+    await hass.async_block_till_done()
+
+    dock_events.register(hass)
+
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "washing")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert "last_mop_wash" not in dock_data
+
+
+async def test_dock_events_unknown_prior_state_not_recorded(hass, manager):
+    """[GUARD-3] same as above for the 'unknown' HA sentinel state."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_DOCK)
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "unknown")
+    await hass.async_block_till_done()
+
+    dock_events.register(hass)
+
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "washing")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert "last_mop_wash" not in dock_data
+
+
 async def test_dock_events_records_emptying_trigger(hass, manager):
     """[LS-2] last_dust_empty is recorded when dock_status transitions to 'emptying'."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
@@ -200,9 +261,10 @@ _ADAPTER_WITH_DRY = {
         "dry_duration": _DRY_DURATION_ENTITY,
     },
     "dock_events": {
+        "enabled": True,
         "triggers": {
             "last_dry_start": ["drying"],
-        }
+        },
     },
 }
 

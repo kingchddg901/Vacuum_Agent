@@ -34,6 +34,7 @@ from ._common import (
     get_adapter_value,
     get_adapter_vocab,
     get_lifecycle_watch_entities,
+    is_dock_trigger_edge,
     is_job_active,
     job_finished_event_data,
 )
@@ -166,17 +167,31 @@ def register(hass: HomeAssistant) -> None:
                         map_id=map_id,
                     )
 
+                    # LIFE-3 (RP-038/RF-30): delegates edge detection to the
+                    # SAME is_dock_trigger_edge helper dock_events.py's own
+                    # _handle_dock_event uses, instead of hand-rolling a
+                    # weaker inline check here. old_state/new_state above are
+                    # already raw HA state strings (or None) via getattr on
+                    # the event's state objects -- exactly what the helper
+                    # expects. No hardcoded Eufy-literal vocabulary fallback
+                    # either: dock_events.triggers.last_mop_wash is
+                    # adapter-driven only (matches dock/manager.py's own
+                    # get_dock_action_status doctrine) -- an adapter that
+                    # declares no vocabulary gets no wash detection, rather
+                    # than silently inheriting Eufy's "washing"/"washing
+                    # mop". Eufy's own adapter DOES declare this trigger set
+                    # (adapters/eufy/adapter.py), so live Eufy detection is
+                    # unaffected.
                     _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
                     _dock_status_entity = _adapter_cfg.get("entities", {}).get("dock_status")
                     if _dock_status_entity and entity_id == _dock_status_entity:
-                        _new_state_n = str(new_state or "").strip().lower()
                         _wash_triggers = frozenset(
                             str(s).strip().lower()
                             for s in _adapter_cfg.get("dock_events", {})
                                                   .get("triggers", {})
                                                   .get("last_mop_wash", [])
-                        ) or frozenset({"washing", "washing mop"})
-                        if _new_state_n in _wash_triggers:
+                        )
+                        if is_dock_trigger_edge(old_state, new_state, _wash_triggers):
                             manager_local.update_active_job_mop_wash_observation(
                                 vacuum_entity_id=vacuum_entity_id,
                                 map_id=map_id,

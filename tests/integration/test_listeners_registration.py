@@ -6,6 +6,9 @@ Coverage targets
 [LR-2]  remove() returns safely when no unsubs are stored.
 [LR-3]  register() with a manager that has no vacuums stores an unsub key.
 [LR-4]  remove() after register() clears the unsub key from domain_data.
+[REG-4] dock_events.register() honors dock_events.enabled=False -- a vacuum
+        whose adapter declares dock_status but explicitly opts out gets no
+        dock-status watcher at all.
 
 Tests cover all seven listener modules:
   lifecycle, pause_timeout, discovery, dock_events, job_metrics,
@@ -16,6 +19,7 @@ from __future__ import annotations
 
 import pytest
 
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.listeners import (
     discovery,
@@ -108,6 +112,41 @@ async def test_register_path_blockers_with_manager_no_vacuums(hass, manager):
     """[LR-3] path_blockers.register() stores its unsub key even with no vacuums."""
     path_blockers.register(hass)
     assert "_path_blocker_unsubs" in hass.data[DOMAIN]
+
+
+# ---------------------------------------------------------------------------
+# [REG-4] register() honors dock_events.enabled=False
+# ---------------------------------------------------------------------------
+
+async def test_register_dock_events_disabled_adapter_not_watched(hass, manager):
+    """[REG-4] register() honors dock_events.enabled=False -- a vacuum whose
+    adapter explicitly opts out gets no dock-status watcher wired at all,
+    even though it declares entities.dock_status."""
+    vacuum_entity_id = "vacuum.reg4_disabled"
+    manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
+    register_adapter_config(vacuum_entity_id, {
+        "adapter_id": "test_reg4",
+        "source": "test",
+        "entities": {"dock_status": "sensor.reg4_dock_status"},
+        "dock_events": {
+            "enabled": False,
+            "triggers": {"last_mop_wash": ["washing"]},
+        },
+    })
+    hass.states.async_set("sensor.reg4_dock_status", "idle")
+    await hass.async_block_till_done()
+
+    dock_events.register(hass)
+
+    unsubs = hass.data[DOMAIN].get("_dock_event_unsubs", [])
+    assert unsubs == []
+
+    # No listener means the entity is genuinely not watched — a subsequent
+    # trigger-value transition records nothing.
+    hass.states.async_set("sensor.reg4_dock_status", "washing")
+    await hass.async_block_till_done()
+    dock_data = manager.data.get("dock_events", {}).get(vacuum_entity_id, {})
+    assert "last_mop_wash" not in dock_data
 
 
 # ---------------------------------------------------------------------------

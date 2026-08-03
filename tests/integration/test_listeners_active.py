@@ -39,6 +39,10 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
         the executor (tracker.end_job) so in-job position samples reach room bounds.
 [LC-8]  lifecycle: dock_status entering a mop-wash trigger state during an active job
         routes a mid-job mop-wash observation to the manager.
+[LIFE-3] lifecycle: wash detector delegates to the shared edge helper -- old_state=None
+        (first sighting / HA restart) is not an edge; an adapter declaring no
+        dock_events.triggers.last_mop_wash gets no detection at all (no hardcoded
+        Eufy-literal fallback).
 [LC-9]  lifecycle: recharge guard treats an 'unavailable' job-active binary as still
         active — a cloud blip mid-recharge does NOT finalize (avoids a truncated sample).
 [LC-10] lifecycle: PARITY — recharge-end driven through the real listener + real
@@ -436,6 +440,13 @@ _LC_ADAPTER = {
         "active_cleaning_target": "sensor.alfred_target",
         "active_map": "sensor.alfred_map",
     },
+    # LIFE-3 (RP-038): the inline wash detector is adapter-driven only, no
+    # hardcoded vocabulary fallback -- declared explicitly here (mirrors
+    # Eufy's real adapter.py) so [LC-8] keeps validating real routing
+    # behavior via declaration instead of an implicit brand fallback.
+    "dock_events": {
+        "triggers": {"last_mop_wash": ["washing", "washing mop"]},
+    },
 }
 
 
@@ -770,10 +781,11 @@ async def test_lifecycle_finalize_calls_mark_active_job_finalized(hass):
 
 
 async def test_lifecycle_records_mop_wash_on_dock_wash_state(hass):
-    """[LC-8] when the dock_status sensor transitions to a mop-wash trigger state (default
-    'washing' / 'washing mop') during an active job, the listener routes a mid-job
-    mop-wash observation to the manager — the hook that feeds post-job water amendment.
-    A regression in the entity guard or trigger set would silently stop counting washes."""
+    """[LC-8] when the dock_status sensor transitions to an adapter-declared mop-wash
+    trigger state ('washing' / 'washing mop' here, per _LC_ADAPTER) during an active
+    job, the listener routes a mid-job mop-wash observation to the manager — the hook
+    that feeds post-job water amendment. A regression in the entity guard or trigger
+    set would silently stop counting washes."""
     m = _wire_lifecycle(hass)
     hass.states.async_set(_VAC, "cleaning")
     hass.states.async_set("sensor.alfred_task", "cleaning")
@@ -786,6 +798,70 @@ async def test_lifecycle_records_mop_wash_on_dock_wash_state(hass):
         await hass.async_block_till_done()
         m.update_active_job_mop_wash_observation.assert_called_once_with(
             vacuum_entity_id=_VAC, map_id=_MAP)
+    finally:
+        lifecycle.remove(hass)
+
+
+async def test_lifecycle_wash_observation_ignores_first_sighting_after_restart(hass):
+    """[LIFE-3] the inline wash detector delegates its edge test to the SAME
+    is_dock_trigger_edge helper dock_events.py's own _handle_dock_event uses
+    (listeners/_common.py): a dock_status entity with no prior known state
+    (old_state=None — HA restart mid-wash, or genuinely the first-ever
+    reading) must not be treated as a fresh transition INTO the wash
+    trigger. Pre-fix, the bare new-state check had no old_state guard at
+    all (not even an old==new dedup) and would have fired here."""
+    m = _wire_lifecycle(hass)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "kitchen")
+    # sensor.alfred_dock deliberately left unset — its first-ever reading
+    # arrives AFTER registration, so old_state=None on that transition.
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    try:
+        hass.states.async_set("sensor.alfred_dock", "washing")
+        await hass.async_block_till_done()
+        m.update_active_job_mop_wash_observation.assert_not_called()
+    finally:
+        lifecycle.remove(hass)
+
+
+async def test_lifecycle_wash_observation_no_adapter_vocab_no_fallback(hass):
+    """[LIFE-3 vocab] RP-025's deferred half, closed here: an adapter that
+    declares no dock_events.triggers.last_mop_wash gets NO wash-observation
+    detection at all — no silent inheritance of Eufy's own hardcoded
+    'washing'/'washing mop' vocabulary (matches dock/manager.py's own
+    get_dock_action_status doctrine: adapter-driven only, no brand
+    fallback). Eufy's real adapter.py DOES declare this trigger set, so
+    live Eufy detection is unaffected — this proves an adapter that omits
+    it no longer silently borrows Eufy's vocabulary."""
+    _adapter_no_vocab = {
+        "adapter_id": "t_no_vocab", "source": "t",
+        "entities": {
+            "task_status": "sensor.alfred_task",
+            "dock_status": "sensor.alfred_dock",
+            "active_cleaning_target": "sensor.alfred_target",
+            "active_map": "sensor.alfred_map",
+        },
+        # Deliberately no "dock_events" block at all.
+    }
+    register_adapter_config(_VAC, _adapter_no_vocab)
+    m = _mgr(hass)
+    m.get_active_job.return_value = {
+        "status": "started", "has_observed_active_lifecycle": True,
+        "queue_room_ids": []}
+    m.get_lifecycle_state.return_value = {"lifecycle_state": "active_job_running"}
+    m.get_managed_rooms.return_value = {"rooms": {}}
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "kitchen")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    try:
+        hass.states.async_set("sensor.alfred_dock", "washing")
+        await hass.async_block_till_done()
+        m.update_active_job_mop_wash_observation.assert_not_called()
     finally:
         lifecycle.remove(hass)
 

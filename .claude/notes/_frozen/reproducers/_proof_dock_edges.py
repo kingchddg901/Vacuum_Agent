@@ -1,11 +1,20 @@
 """Proof RP-038 (RF-30) — dock events are edges.
 
-Five cases (of seven finding_ids -- LIFE-3, the lifecycle inline wash
-detector's edge half, is NOT driven here: it delegates to dock_events'
-OWN edge logic once fixed, so it can only be proven once that logic
-exists in its post-repair form; left for the executor's own test pass,
-per required_behavior's own phrasing "vocabulary half landed in RP-025,
-edge half here").
+Six cases, covering all seven finding_ids (REG-1+GUARD-3 share one case,
+same underlying check).
+
+Case 6 (LIFE-3) exercises listeners/lifecycle.py's inline mop-wash detector
+directly -- it now delegates its edge test to the SAME
+is_dock_trigger_edge helper dock_events.py's own _handle_dock_event uses
+(listeners/_common.py), instead of hand-rolling a weaker inline check (no
+old_state guard at all, not even an old==new dedup) with a hardcoded
+Eufy-literal vocabulary fallback ("washing"/"washing mop") for adapters
+that declare none. NOTE: the packet text's claim that the vocabulary half
+already landed in RP-025 is WRONG -- verified via `git show 71cc479
+--stat --name-only`: that commit only touched profiles/room_profiles.py
+and its two test files; its own message says the lifecycle/dock-vocab
+half was "left for follow-up". Both halves (edge + vocabulary-fallback
+removal) are fixed together here.
 
   REG-1 + GUARD-3 -- listeners/dock_events.py:72 `old_val = str(old_state.
     state)... if old_state else ""`. old_state=None (HA restart while the
@@ -52,6 +61,11 @@ _ADAPTER = {
     "adapter_id": "eufy", "source": "code",
     "entities": {"dock_status": "sensor.alfred_dock"},
     "dock_events": {
+        # REG-4: register() now gates on this per-adapter flag (default
+        # False) -- cases 1 and 5 both go through dock_events.register(),
+        # so the "enabled" baseline must be explicit True here for case 1
+        # to still exercise a wired listener. Case 5 overrides it False.
+        "enabled": True,
         "triggers": {"last_dry_start": ["drying"], "last_mop_wash": ["washing"]},
         "debounce_seconds": {"last_mop_wash": 300},
     },
@@ -236,6 +250,84 @@ def main() -> int:
         after_msg="register() honors dock_events.enabled -- an opted-out "
                   "adapter gets no dock-event listener at all",
         detail=f"listener registered despite enabled=False: {registered_listener}",
+    )
+
+    # -------------------------------------------------------------------
+    # Case 6 (LIFE-3): lifecycle.py's inline wash detector, driven directly.
+    # Pre-fix: a bare new-state-in-vocab check with NO old_state guard at
+    # all (not even old==new dedup) -- fires on a first sighting exactly
+    # like dock_events' own pre-fix REG-1/GUARD-3 bug. Post-fix: delegates
+    # to the same is_dock_trigger_edge helper, so old_state=None correctly
+    # refuses.
+    # -------------------------------------------------------------------
+    from custom_components.eufy_vacuum.listeners import lifecycle
+
+    hass6 = H.make_hass()
+    _LIFECYCLE_ADAPTER = {
+        "adapter_id": "eufy", "source": "code",
+        "entities": {
+            "task_status": "sensor.alfred_task",
+            "dock_status": "sensor.alfred_dock",
+            "active_cleaning_target": "sensor.alfred_target",
+            "active_map": "sensor.alfred_map",
+        },
+        # Explicitly declared (matches Eufy's real adapter.py) so this case
+        # isolates the OLD-STATE guard specifically, independent of the
+        # separate vocabulary-fallback-removal question.
+        "dock_events": {
+            "triggers": {"last_mop_wash": ["washing", "washing mop"]},
+        },
+    }
+    register_adapter_config(VAC, _LIFECYCLE_ADAPTER)
+    mgr6 = H.ManagerStub(hass=hass6)
+    mgr6.get_known_vacuum_ids = lambda: [VAC]
+    mgr6.get_known_map_ids = lambda vacuum_entity_id: [H.MAP]
+    mgr6.get_lifecycle_state = lambda **kw: {
+        "lifecycle_state": "active_job_running", "dock_status": "",
+    }
+    mgr6.maybe_handle_external_run = H.async_noop(return_value=False)
+    mgr6.data.setdefault("active_jobs", {}).setdefault(VAC, {})[H.MAP] = H.active_job(
+        vacuum_entity_id=VAC, map_id=H.MAP, status="started",
+    )
+    wash_calls: list[dict] = []
+    mgr6.update_active_job_mop_wash_observation = (
+        lambda **kw: wash_calls.append(kw)
+    )
+    hass6.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = mgr6
+
+    _orig_track6 = lifecycle.async_track_state_change_event
+    captured6 = {}
+    lifecycle.async_track_state_change_event = (
+        lambda hass_arg, entity_ids, cb: captured6.setdefault("cb", cb)
+    )
+    try:
+        lifecycle.register(hass6)
+    finally:
+        lifecycle.async_track_state_change_event = _orig_track6
+
+    # First-ever reading on the dock entity already lands on the wash
+    # trigger -- old_state=None (HA restart mid-wash, or genuinely the
+    # first sighting).
+    new_state6 = SimpleNamespace(state="washing")
+    captured6["cb"](Event("state_changed", {
+        "entity_id": "sensor.alfred_dock", "old_state": None, "new_state": new_state6,
+    }))
+    # _handle_lifecycle_change schedules its real work via
+    # hass.async_create_task -- run it to completion before asserting.
+    H.drain_idle_loop()
+
+    proof.case(
+        "lifecycle's inline wash detector: old_state=None during an active job",
+        before=len(wash_calls) == 1,
+        before_msg="the pre-fix bare new-state check has no old_state guard "
+                   "at all (worse than dock_events' own pre-fix bug -- it "
+                   "doesn't even dedup old==new) -- a first sighting after "
+                   "restart routes a mid-job mop-wash observation",
+        after=wash_calls == [],
+        after_msg="delegates to the same is_dock_trigger_edge helper -- "
+                  "old_state=None is not a known prior state, so no "
+                  "observation is routed",
+        detail=f"wash observation calls={wash_calls}",
     )
 
     return proof.finish()

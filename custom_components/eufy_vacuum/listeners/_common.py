@@ -9,6 +9,7 @@ Public surface:
 
 - get_adapter_vocab(vacuum_entity_id, section, key, fallback) -> frozenset[str]
 - get_adapter_value(vacuum_entity_id, *path, fallback) -> Any
+- is_dock_trigger_edge(old_state_value, new_state_value, trigger_vocabulary) -> bool
 - get_lifecycle_watch_entities(vacuum_entity_id) -> list[str]
 - is_job_active(hass, vacuum_entity_id, *, unavailable_is_active=False) -> bool
 - completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, str]
@@ -71,6 +72,47 @@ def get_adapter_value(
         return _registry_get_adapter_value(vacuum_entity_id, *path, fallback=fallback)
     except Exception:
         return fallback
+
+
+def is_dock_trigger_edge(
+    old_state_value: str | None,
+    new_state_value: str | None,
+    trigger_vocabulary: frozenset[str] | set[str],
+) -> bool:
+    """Whether a dock_status transition is a genuine edge INTO a trigger state.
+
+    RP-038 (RF-30) / LIFE-3: the shared edge test both dock_events.py's
+    _handle_dock_event and lifecycle.py's inline mop-wash detector delegate
+    to, so there is exactly one definition of "is this actually a dock event"
+    instead of two independently-drifting ones.
+
+    Three refusals, checked in order — any one of them means "not an edge":
+
+      1. ``new_state_value`` is ``None`` (no current reading at all).
+      2. ``old_state_value`` is not a real, previously-known value: missing
+         entirely (``None`` — e.g. HA restart, or genuinely the first-ever
+         sighting) or currently ``unavailable``/``unknown``. We don't know
+         what the device was actually doing before, so a fresh sighting
+         after a restart or a reconnect must not be recorded as a brand-new
+         dock cycle (REG-1/GUARD-3).
+      3. ``old_state_value`` normalizes to the same value as
+         ``new_state_value`` (plain dedup) — not a transition at all.
+
+    Otherwise: an edge if and only if the normalized ``new_state_value`` is
+    in ``trigger_vocabulary``. Values are compared case-insensitively after
+    stripping, matching both callers' existing normalization.
+    """
+    if new_state_value is None:
+        return False
+    new_val = str(new_state_value).strip().lower()
+    old_val = (
+        str(old_state_value).strip().lower() if old_state_value is not None else ""
+    )
+    if old_val in ("", "unavailable", "unknown"):
+        return False
+    if new_val == old_val:
+        return False
+    return new_val in trigger_vocabulary
 
 
 def get_lifecycle_watch_entities(vacuum_entity_id: str) -> list[str]:
@@ -189,13 +231,21 @@ def completion_secondary_satisfied(
         because Roborock's active_cleaning_target (``current_room``) reverts to
         the DOCK room's name at the end of a run, never a sentinel, so the
         default check below would never pass and the job would never finalize.
+        RP-033/COMMON-2: only honored when ``entities.job_active`` is actually
+        declared — the flag names the entity that supplies the real signal, so a
+        config that sets it without declaring the entity used to short-circuit
+        to True unconditionally with nothing backing it. Registration now warns
+        on this combination (adapters/registry.py._warn_completion_gate_orphan);
+        at runtime it falls through to the default sentinel check below instead,
+        i.e. behaves as if the flag were never set.
 
       - default (Eufy): the active_cleaning_target must read a clear sentinel.
     """
     if bool(get_adapter_value(
         vacuum_entity_id, "completion", "require_job_active_clear", fallback=False
     )):
-        return True
+        if get_adapter_value(vacuum_entity_id, "entities", "job_active", fallback=None):
+            return True
     return (
         str(completion_signals.get("active_target", "")).strip().lower()
         in clear_sentinels
