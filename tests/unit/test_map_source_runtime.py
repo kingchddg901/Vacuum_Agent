@@ -529,6 +529,42 @@ def test_walk_node_cap_terminates():
     assert hit is None
 
 
+def test_walk_descends_into_slots_object():
+    """[MSR-3e] RB-7: a __slots__ object has no __dict__ — the walk must fall back to
+    its declared slot names instead of dead-ending as an opaque leaf."""
+    class _SlottedRoom:
+        __slots__ = ("x0", "y0", "x1", "y1")
+
+        def __init__(self):
+            self.x0, self.y0, self.x1, self.y1 = 0, 0, 1, 1
+
+    class _SlottedHolder:
+        __slots__ = ("rooms",)
+
+        def __init__(self, rooms):
+            self.rooms = rooms
+
+    root = _SlottedHolder({"1": _SlottedRoom()})
+    hit, path = _walk(root, lambda o: isinstance(o, _SlottedRoom))
+    assert hit is not None and isinstance(hit, _SlottedRoom)
+    assert "rooms" in path
+
+
+def test_walk_slots_denylist_still_applies():
+    """[MSR-3f] the __slots__ fallback still honors the attribute denylist (same as the
+    __dict__ path, test_walk_skips_denylisted_attrs above) — a Room-like collection
+    reachable ONLY through a denylisted slot (e.g. 'hass') must not be found."""
+    class _SlottedBox:
+        __slots__ = ("hass",)
+
+        def __init__(self, hass):
+            self.hass = hass
+
+    box = _SlottedBox(_Coordinator(maps={0: _Coordinator(rooms={1: _Room(0, 0, 1, 1, 1)})}))
+    coll, _ = find_roomlike_collection(box)
+    assert coll is None
+
+
 # --- defensive-introspector hardening (blind-agent flagged; this module's JOB
 # --- is surviving unknown/malformed runtime shapes, so these are behavior, not padding) ---
 

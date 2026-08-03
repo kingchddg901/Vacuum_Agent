@@ -233,6 +233,27 @@ def _is_roomlike(obj: Any) -> bool:
     return all(hasattr(obj, a) for a in _ROOM_ATTRS)
 
 
+def _slot_names(obj: Any) -> list[str]:
+    """RB-7: instance attribute names for a ``__slots__`` object (no ``__dict__``),
+    walking the MRO so inherited slots are included too. [] for anything without
+    ``__slots__``. Bounded to the NAMES the class actually declares — not a blanket
+    ``dir()``, which would also pull in methods/dunders/class attrs and blow past the
+    "attribute data only" contract the ``__dict__`` path already has."""
+    names: list[str] = []
+    seen_names: set[str] = set()
+    for klass in type(obj).__mro__:
+        slots = getattr(klass, "__slots__", None)
+        if slots is None:
+            continue
+        if isinstance(slots, str):
+            slots = (slots,)
+        for name in slots:
+            if name not in seen_names:
+                seen_names.add(name)
+                names.append(name)
+    return names
+
+
 def _walk(root: Any, predicate, *, max_depth: int = 5, max_nodes: int = 4000):
     """Bounded BFS over dicts/lists/objects; return (hit, breadcrumb) or (None, None).
 
@@ -264,6 +285,20 @@ def _walk(root: Any, predicate, *, max_depth: int = 5, max_nodes: int = 4000):
                     for k, v in attrs.items()
                     if k not in _WALK_SKIP_ATTRS and not k.startswith("__")
                 ]
+            else:
+                # RB-7: a __slots__ object has no __dict__ and used to dead-end here,
+                # silently hiding its data from the BFS. Walk its declared slot names
+                # instead — bounded to what the class actually declares (same depth/
+                # cycle/denylist guards below apply uniformly to whatever `children`
+                # ends up holding).
+                for name in _slot_names(obj):
+                    if name in _WALK_SKIP_ATTRS or name.startswith("__"):
+                        continue
+                    try:
+                        v = getattr(obj, name)
+                    except AttributeError:
+                        continue  # slot declared but unset
+                    children.append((v, f"{path}.{name}"))
         for child, cpath in children:
             if child is None or isinstance(child, (str, bytes, int, float, bool)):
                 continue
@@ -315,10 +350,23 @@ def _structure_tree(obj: Any, *, depth: int = 0, max_depth: int = 3,
             obj[0], depth=depth + 1, max_depth=max_depth,
             max_children=max_children, show_skipped=show_skipped)}
     attrs = getattr(obj, "__dict__", None)
-    if isinstance(attrs, dict):
+    # RB-7: a __slots__ object has no __dict__ — fall back to its declared slot names
+    # (bounded, not a blanket dir()) so it doesn't dead-end as an opaque leaf.
+    items_source: Any = attrs.items() if isinstance(attrs, dict) else None
+    if items_source is None:
+        slot_names = _slot_names(obj)
+        if slot_names:
+            def _slot_items():
+                for name in slot_names:
+                    try:
+                        yield name, getattr(obj, name)
+                    except AttributeError:
+                        continue  # slot declared but unset
+            items_source = _slot_items()
+    if items_source is not None:
         out: dict[str, Any] = {}
         n = 0
-        for k, v in attrs.items():
+        for k, v in items_source:
             if k.startswith("__"):
                 continue
             if n >= max_children:
@@ -458,12 +506,20 @@ def _mapdata_projector(map_data: Any):
         return None
     rotation = getattr(dims, "rotation", 0)
 
-    def proj(x: Any, y: Any):
+    def proj(x: Any, y: Any, *, reject_out_of_grid: bool = False):
+        """GEO-4/RB-8: ``reject_out_of_grid`` (default False — every existing caller
+        keeps today's unconditional clamp) makes a point whose RAW (pre-clamp)
+        projected pixel falls outside the image return None instead of a clamped
+        edge point, so a caller that wants to DETECT a bad/out-of-frame correspondence
+        (rather than draw it) can opt in."""
         try:
             p = dims.to_img(_XY(x, y))
             if rotation:
                 p = p.rotated(dims)
-            return [_clamp01(p.x / img_w), _clamp01(p.y / img_h)]
+            raw_x, raw_y = p.x / img_w, p.y / img_h
+            if reject_out_of_grid and not (0.0 <= raw_x <= 1.0 and 0.0 <= raw_y <= 1.0):
+                return None
+            return [_clamp01(raw_x), _clamp01(raw_y)]
         except Exception:  # pragma: no cover - defensive over library internals
             return None
 
@@ -532,7 +588,11 @@ def correspondences_from_mapdata(map_data: Any) -> list[tuple[float, float, floa
     contributes its four axis-aligned corners, projected device-mm -> normalized via the
     shared ``_mapdata_projector`` (the parser's OWN transform — same source of truth as
     ``rooms_from_mapdata``). Returns ``[]`` when geometry is unavailable; bad/clamped
-    corners are simply skipped (the converter's round-trip check guards the rest).
+    corners are ACTUALLY skipped (GEO-4/RB-8: ``proj`` is called with
+    ``reject_out_of_grid=True`` here, so a corner that projects outside the image is
+    dropped rather than silently accepted as a clamped edge point — a clamped-but-wrong
+    correspondence would otherwise feed the affine fit a corrupted data point instead of
+    being excluded from it).
     """
     rooms_attr = getattr(map_data, "rooms", None)
     if rooms_attr is None:
@@ -549,7 +609,7 @@ def correspondences_from_mapdata(map_data: Any) -> list[tuple[float, float, floa
         if None in (x0, y0, x1, y1):
             continue
         for mx, my in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
-            p = proj(mx, my)
+            p = proj(mx, my, reject_out_of_grid=True)
             if p:
                 try:
                     out.append((p[0], p[1], float(mx), float(my)))

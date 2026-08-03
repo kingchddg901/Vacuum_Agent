@@ -143,3 +143,24 @@ def test_zdm8_correspondences_empty_when_no_rooms():
         image = _FakeImage()
         rooms = None
     assert msr.correspondences_from_mapdata(_NoRooms()) == []
+
+
+def test_zdm9_correspondences_skip_out_of_grid_corner():
+    """[ZDM-9] GEO-4/RB-8: a room corner that projects OUTSIDE the image is skipped
+    (not accepted as a clamped edge point) — correspondences_from_mapdata's own
+    docstring claims clamped corners are simply skipped; prove it's actually true."""
+    class _FarRoom:
+        number, name = 3, None
+        # x1=200000 is WAY outside the fixture's forward-affine domain (mmx in
+        # [20000,50000] maps to nx in [0,1]) -- both x1 corners project past nx=1.0.
+        x0, y0, x1, y1 = 20000, 15000, 200000, 30000
+
+    class _WithFarRoom:
+        image = _FakeImage()
+        rooms = {1: _FakeRoom(1, 20000, 15000, 35000, 30000), 3: _FarRoom()}
+
+    corr = msr.correspondences_from_mapdata(_WithFarRoom())
+    # room 1 still contributes its 4 (in-grid) corners; room 3's two OUT-OF-GRID
+    # corners (x1=200000) are skipped, its two in-grid corners (x0=20000) survive.
+    assert len(corr) == 4 + 2
+    assert not any(mmx == 200000.0 for _, _, mmx, _ in corr)

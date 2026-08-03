@@ -80,11 +80,18 @@ def test_rooms_from_room_pixels():
     assert by_id[1]["name"] == "Kitchen"
     assert by_id[2]["name"] == "Office"
     assert by_id[1]["pixel_count"] == 9
-    # rid 1 covers px 0-2, py 0-2; Y-flip -> image y in [0.7, 0.9]
-    assert by_id[1]["bbox"] == [0.0, 0.7, 0.2, 0.9]
-    assert by_id[2]["bbox"] == [0.5, 0.2, 0.7, 0.4]
+    # rid 1 covers px 0-2, py 0-2; Y-flip -> image y in [0.7, 1.0]. GEO-5: the bbox
+    # extends to the FAR edge of the max-index cell on each axis (3 cells -> 0.3 of a
+    # 10-wide/tall grid), matching width_m/height_m's own (max-min+1)-cell convention
+    # below instead of undercounting the last row/column by one cell.
+    assert by_id[1]["bbox"] == [0.0, 0.7, 0.3, 1.0]
+    assert by_id[2]["bbox"] == [0.5, 0.2, 0.8, 0.5]
     # Real-world box dims from the pixel extent x resolution (res=5cm): 3 cells -> 0.15 m.
     assert by_id[1]["width_m"] == 0.15 and by_id[1]["height_m"] == 0.15
+    # GEO-5 parity: the bbox's own extent (in metres) now agrees with width_m/height_m
+    # exactly -- pinning the chosen convention so the two can't drift apart again.
+    assert round((by_id[1]["bbox"][2] - by_id[1]["bbox"][0]) * 10 * 5 / 100.0, 2) == by_id[1]["width_m"]
+    assert round((by_id[1]["bbox"][3] - by_id[1]["bbox"][1]) * 10 * 5 / 100.0, 2) == by_id[1]["height_m"]
 
 
 def test_rooms_from_room_pixels_empty():
@@ -146,8 +153,10 @@ def test_rooms_from_room_pixels_outline_offset():
     }
     rooms = rooms_from_room_pixels(md)
     assert len(rooms) == 1
-    # outline px (0,0)-(2,2) -> main grid (2,2)-(4,4) -> normalized (Y-flip)
-    assert rooms[0]["bbox"] == [0.2, 0.5, 0.4, 0.7]
+    # outline px (0,0)-(2,2) -> main grid (2,2)-(4,4) -> normalized (Y-flip). GEO-5:
+    # extended to the far edge of the max cell on each axis (+0.1 per axis on a
+    # 10-wide/tall grid) -- see test_rooms_from_room_pixels for the full rationale.
+    assert rooms[0]["bbox"] == [0.2, 0.5, 0.5, 0.8]
 
 
 def test_rooms_from_room_pixels_bad_base64():
@@ -355,6 +364,19 @@ def test_mapdata_dict_from_obj():
     # not a usable MapData (no bytes raster) -> None (caller falls back to .storage)
     assert mapdata_dict_from_obj(SimpleNamespace(width=10)) is None
     assert mapdata_dict_from_obj(SimpleNamespace(room_pixels=rp_b64)) is None  # str, not bytes
+
+
+def test_mapdata_dict_from_obj_requires_geometry():
+    """[MS-16b] EXT-3: a room_pixels raster with a REQUIRED geometry field missing
+    (room_outline_width/height here) refuses (None) instead of returning a partial
+    dict that looks usable but can never feed _outline_geometry."""
+    rp_bytes = base64.b64decode(_raster(10, 10, [(5, 2, 2, 2, 2)]))
+    obj = SimpleNamespace(
+        room_pixels=rp_bytes, width=10, height=10, resolution=5,
+        origin_x=0, origin_y=0, room_names={},
+        # room_outline_width / room_outline_height DELIBERATELY absent.
+    )
+    assert mapdata_dict_from_obj(obj) is None
 
 
 def test_compare_map_data():

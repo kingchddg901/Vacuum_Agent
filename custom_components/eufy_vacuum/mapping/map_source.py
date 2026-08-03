@@ -97,7 +97,15 @@ def resolve_furnished_render(map_bucket: Any) -> dict | None:
 
     Read locally (no import from mapping_services) to keep this a pure, cycle-free fn:
     the active layout is map_bucket['custom_layouts'][map_bucket['active_custom_layout_id']],
-    exactly as ``_active_custom_layout`` resolves it."""
+    exactly as ``_active_custom_layout`` resolves it.
+
+    LIMITATION (POSE-6, doc-only — adjudicated no behavior change): the returned
+    ``transform``/``viewport`` values carry NO map-geometry version stamp. They are
+    resolution-independent (pct floats) placed against whatever floor plan was active
+    when they were authored; if the map is later RE-MAPPED (a new segmentation with a
+    different room layout/aspect under the same map_id), the same pct transform can
+    silently misalign the art against the new floor plan. There is no existing
+    map-geometry-version stamping mechanism in this codebase to compare against here."""
     if not isinstance(map_bucket, dict):
         return None
     if (map_bucket.get("segmentation_mode") or "cv") != "custom":
@@ -180,17 +188,31 @@ def _numeric_pair(p: Any) -> bool:
     )
 
 
-def normalize_rendered(px: float, py: float, width: int, height: int) -> list[float]:
+def normalize_rendered(
+    px: float, py: float, width: int, height: int, *, reject_out_of_grid: bool = False,
+) -> list[float] | None:
     """Map a MAIN-grid pixel to normalized 0–1 of the rendered image.
 
     The render flips top-bottom, so image-Y = (height-1-py)/height. Result is
     [nx, ny] with a top-left origin, matching the card's overlay space.
+
+    GEO-3/POSE-7: ``reject_out_of_grid`` (default False — preserves every existing
+    caller's behavior unless it explicitly opts in) makes a coordinate whose RAW
+    (pre-clamp) nx/ny falls outside [0, 1] on either axis return None instead of a
+    clamped edge point. The card's own decoder REJECTS an off-grid point (it never
+    renders it) rather than folding it onto the border — for POSE/ROOM resolution
+    callers, a clamped point is indistinguishable from a legitimate point AT the
+    edge, which silently misrepresents "off the map" as "at the wall". Pure
+    rendering/display callers (where a clamped edge pixel is the correct behavior)
+    keep the default.
     """
     if width <= 0 or height <= 0:
         return [0.0, 0.0]
-    nx = _clamp01(px / width)
-    ny = _clamp01((height - 1 - py) / height)
-    return [round(nx, 5), round(ny, 5)]
+    raw_nx = px / width
+    raw_ny = (height - 1 - py) / height
+    if reject_out_of_grid and not (0.0 <= raw_nx <= 1.0 and 0.0 <= raw_ny <= 1.0):
+        return None
+    return [round(_clamp01(raw_nx), 5), round(_clamp01(raw_ny), 5)]
 
 
 def vacuum_to_normalized(vx: Any, vy: Any, map_data: dict[str, Any]) -> list[float] | None:
@@ -299,8 +321,15 @@ def rooms_from_room_pixels(map_data: dict[str, Any]) -> list[dict[str, Any]]:
     rooms: list[dict[str, Any]] = []
     for rid in sorted(acc):
         min_px, max_px, min_py, max_py, cnt = acc[rid]
-        c0 = normalize_rendered(min_px, min_py, width, height)
-        c1 = normalize_rendered(max_px, max_py, width, height)
+        # GEO-5: extend to the FAR edge of the max-index pixel on each axis (a pixel
+        # index occupies a full res-cm CELL, not a point), so the bbox's own extent
+        # agrees with width_m/height_m's (max-min+1)-cell convention below instead of
+        # undercounting the room's last row/column by one cell. Y is flipped, so the
+        # "+1 cell" is reached by passing (min_py - 1), not (max_py + 1): normalize_
+        # rendered's ny = (height-1-py)/height, and (height-1-(min_py-1))/height ==
+        # (height-min_py)/height, the true bottom edge of the min_py row.
+        c0 = normalize_rendered(min_px, min_py - 1, width, height)
+        c1 = normalize_rendered(max_px + 1, max_py, width, height)
         bbox = [min(c0[0], c1[0]), min(c0[1], c1[1]), max(c0[0], c1[0]), max(c0[1], c1[1])]
         rooms.append({
             "number": rid,
@@ -384,7 +413,14 @@ def zone_membership(map_data: dict[str, Any], geometry: list[list[float]]) -> di
                     idx = row + rx
                     if idx >= len(room_px):
                         break
-                    nx, ny = normalize_rendered(rx + ro_dx, ry + ro_dy, _w, _h)
+                    # GEO-6: sample the cell CENTER (this docstring's own claim), not its
+                    # raster corner. +0.5 on X lands at the cell midpoint; Y is flipped, so
+                    # the midpoint shift is -0.5 there (normalize_rendered's ny formula is
+                    # (height-1-py)/height, and py-0.5 is the value whose ny sits exactly
+                    # half a cell past py's own top edge).
+                    nx, ny = normalize_rendered(
+                        rx + ro_dx + 0.5, ry + ro_dy - 0.5, _w, _h,
+                    )
                     if nx < bx0 or nx > bx1 or ny < by0 or ny > by1:
                         continue
                     if not point_in_polygon((nx, ny), geometry):
@@ -579,14 +615,26 @@ def live_pose_overlay(
     robot_active = _numeric_pair(robot_pixel)
     anchor = robot_pixel if robot_active else (dock_pixel if _numeric_pair(dock_pixel) else None)
     if anchor is not None:
-        out["robot_anchor"] = normalize_rendered(anchor[0], anchor[1], width, height)
+        # POSE-7: an off-grid anchor is REJECTED (omitted), not pinned to the map edge —
+        # the companion current_room lookup already refuses off-raster pixels (returns
+        # None), so a clamped anchor used to assert a confident position while current_room
+        # simultaneously reported nothing; the two now agree.
+        robot_anchor = normalize_rendered(
+            anchor[0], anchor[1], width, height, reject_out_of_grid=True,
+        )
+        if robot_anchor is not None:
+            out["robot_anchor"] = robot_anchor
         cr = current_room_for_pixel(map_data, anchor[0], anchor[1])
         if cr is not None:
             out["current_room"] = cr
         if not robot_active:
             out["robot_docked"] = True
     if _numeric_pair(dock_pixel):
-        out["dock_anchor"] = normalize_rendered(dock_pixel[0], dock_pixel[1], width, height)
+        dock_anchor = normalize_rendered(
+            dock_pixel[0], dock_pixel[1], width, height, reject_out_of_grid=True,
+        )
+        if dock_anchor is not None:
+            out["dock_anchor"] = dock_anchor
     if isinstance(heading, (int, float)) and not isinstance(heading, bool):
         out["robot_heading"] = heading
     if trail is not None:
@@ -682,14 +730,26 @@ _MAPDATA_PLAIN_FIELDS = (
     "room_names", "virtual_walls", "forbidden_zones", "ban_mop_zones",
 )
 
+# EXT-3: the geometry fields _outline_geometry HARD-requires (returns None without
+# them) — resolution/origin fields have safe defaults there, but these four don't. A
+# MapData object missing any of them can never feed the decoders at all, so copying a
+# partial dict for it would produce a payload that LOOKS usable (carries room_pixels)
+# but silently degrades to "no rooms" everywhere downstream instead of being recognized
+# up front as not-a-usable-MapData, same as the room_pixels check below.
+_MAPDATA_REQUIRED_GEOMETRY_FIELDS = (
+    "width", "height", "room_outline_width", "room_outline_height",
+)
+
 
 def mapdata_dict_from_obj(obj: Any, *, field_attrs: Any = None) -> dict[str, Any] | None:
     """Convert the fork's in-memory ``MapData`` OBJECT into the same map_data DICT the
     storage decoders consume (base64 for the byte rasters), so a repointed in-memory source
     reuses every existing decoder unchanged. ``field_attrs`` optionally remaps a logical
     field to a different object attr (drift insurance). Returns None when there's no
-    ``room_pixels`` raster (not a usable MapData) — the caller then falls back to .storage.
-    Pure + never raises."""
+    ``room_pixels`` raster, or when a REQUIRED geometry field (width/height/room_outline_
+    width/room_outline_height — see ``_MAPDATA_REQUIRED_GEOMETRY_FIELDS``) is missing/None
+    (not a usable MapData either way) — the caller then falls back to .storage. Pure +
+    never raises."""
     fa = field_attrs if isinstance(field_attrs, dict) else {}
 
     def _attr(name: str) -> Any:
@@ -708,6 +768,8 @@ def mapdata_dict_from_obj(obj: Any, *, field_attrs: Any = None) -> dict[str, Any
             v = _attr(name)
             if v is not None:
                 out[name] = v
+        if any(out.get(name) is None for name in _MAPDATA_REQUIRED_GEOMETRY_FIELDS):
+            return None
         return out
     except Exception:  # noqa: BLE001 - a provider object must never crash the reader
         return None
@@ -789,7 +851,13 @@ def compare_map_data(memory: dict[str, Any], storage: dict[str, Any]) -> dict[st
 
 
 def anchors_from_storage(data: dict[str, Any]) -> dict[str, list[float]]:
-    """Normalized dock + robot anchors from the Eufy storage (`dock_pixel`/`robot_trail`)."""
+    """Normalized dock + robot anchors from the Eufy storage (`dock_pixel`/`robot_trail`).
+
+    GEO-3/POSE-7: an off-grid pixel is REJECTED (the key is omitted) rather than
+    clamped to a map-edge point that would misrepresent an unknown/out-of-frame
+    position as a confident anchor. Consumers already treat these anchors as
+    optional and hide them when absent.
+    """
     md = data.get("map_data") or {}
     width = _as_int(md.get("width"))
     height = _as_int(md.get("height"))
@@ -798,10 +866,16 @@ def anchors_from_storage(data: dict[str, Any]) -> dict[str, list[float]]:
         return out
     dock = data.get("dock_pixel")
     if _numeric_pair(dock):
-        out["dock_anchor"] = normalize_rendered(dock[0], dock[1], width, height)
+        dock_anchor = normalize_rendered(dock[0], dock[1], width, height, reject_out_of_grid=True)
+        if dock_anchor is not None:
+            out["dock_anchor"] = dock_anchor
     trail = data.get("robot_trail") or []
     if trail and _numeric_pair(trail[-1]):
-        out["robot_anchor"] = normalize_rendered(trail[-1][0], trail[-1][1], width, height)
+        robot_anchor = normalize_rendered(
+            trail[-1][0], trail[-1][1], width, height, reject_out_of_grid=True,
+        )
+        if robot_anchor is not None:
+            out["robot_anchor"] = robot_anchor
     return out
 
 
