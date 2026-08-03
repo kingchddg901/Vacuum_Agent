@@ -474,6 +474,42 @@ class LearningJobFinalizer:
             "snapshot": snapshot,
         }
 
+    def get_dispatch_planned_estimate(
+        self, *, vacuum_entity_id: str, job_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """The planned estimate exactly as it stood AT DISPATCH, or ``None``.
+
+        Read by the dashboard so the estimate panel can show what was PLANNED for
+        the run in flight. It cannot be recomputed live: ``get_planned_job_estimate``
+        works from the payload state, and job start CLEARS the payload, so a live
+        recompute during a run finds no rooms and reports ``available: False`` —
+        which is why the panel emptied itself the moment a job started.
+
+        ``job_id`` guards against showing the PREVIOUS run's plan: the snapshot
+        outlives its job on disk, so a caller that knows which job is in flight
+        passes it and gets ``None`` on a mismatch rather than a stale plan
+        presented as the current one. Callers that only want "the last plan
+        written" omit it.
+
+        Cache first, disk second — same order (and same cache) as finalization,
+        so a running job costs no I/O per dashboard poll.
+        """
+        snapshot = self._live_snapshot_cache.get(vacuum_entity_id)
+        if not isinstance(snapshot, dict):
+            snapshot = self.store.load_live_snapshot(vacuum_entity_id=vacuum_entity_id)
+            if isinstance(snapshot, dict):
+                self._live_snapshot_cache[vacuum_entity_id] = snapshot
+        if not isinstance(snapshot, dict):
+            return None
+
+        if job_id and str(snapshot.get("job_id") or "") != str(job_id):
+            return None
+
+        estimate = snapshot.get("planned_job_estimate")
+        if not isinstance(estimate, dict) or not estimate:
+            return None
+        return estimate
+
     def _collect_finalization_inputs(
         self,
         *,

@@ -509,6 +509,16 @@ class LearningManager:
             job_id=job_id,
         )
 
+    def get_dispatch_planned_estimate(
+        self, *, vacuum_entity_id: str, job_id: str | None = None
+    ) -> dict[str, Any] | None:
+        """The planned estimate frozen at dispatch — delegates to the finalizer,
+        which owns the live-snapshot cache. See its docstring for why a live
+        recompute cannot answer this during a run."""
+        return self.finalizer.get_dispatch_planned_estimate(
+            vacuum_entity_id=vacuum_entity_id, job_id=job_id
+        )
+
     def _build_access_graph_context(
         self,
         *,

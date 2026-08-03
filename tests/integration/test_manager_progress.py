@@ -31,6 +31,14 @@ Coverage targets
         snapshot and doesn't disable skip-detection (RP-042/RF-36).
 [PR-19] get_planned_job_estimate refuses with reason=battery_unavailable when
         the battery is unreadable, instead of crashing or fabricating 0% (RP-042).
+[PR-20] the estimate panel RECOMPUTES while planning (a frozen plan would stop
+        responding to queue edits).
+[PR-21] ...and serves the plan frozen AT DISPATCH while a job runs, because job
+        start clears the payload the live recompute needs.
+[PR-22] a snapshot whose job_id doesn't match the running job is refused — the
+        previous run's plan shown as this one's is worse than an empty panel.
+[PR-23] no snapshot at all degrades to the pre-existing empty panel, not a raise.
+[PR-24] the freeze THAWS once the job is terminal.
 """
 
 from __future__ import annotations
@@ -703,3 +711,91 @@ def test_progress_atomic_run_still_reports_a_room_list(manager, hass):
 
     assert snap["current_phase"] is None
     assert snap["current_room_ids"] == [snap["current_room_id"]]
+
+
+# ---------------------------------------------------------------------------
+# The estimate panel: PLANNING recomputes live, RUNNING shows the dispatch plan
+# ---------------------------------------------------------------------------
+
+def _freeze_snapshot(manager, hass, *, job_id="j1", total=42.0):
+    """Write a live job snapshot carrying a planned estimate, as dispatch does."""
+    learning = hass.data[DOMAIN][DATA_LEARNING]
+    learning.finalizer._live_snapshot_cache[_VAC] = {
+        "schema_version": 1,
+        "snapshot_type": "job_start",
+        "job_id": job_id,
+        "planned_job_estimate": {
+            "available": True,
+            "total_minutes": total,
+            "job_eta_minutes": total,
+        },
+    }
+
+
+def test_estimate_panel_is_live_while_planning(manager, hass):
+    """[PR-20] With no job running the panel must still RECOMPUTE — a frozen plan
+    would stop responding to the user editing the queue."""
+    _wire(manager, hass)
+    setup_map(manager, _VAC, _MAP)
+    _freeze_snapshot(manager, hass, total=999.0)
+
+    out = manager._planned_estimate_for_dashboard(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out.get("frozen_at_dispatch") is not True
+    assert out.get("total_minutes") != 999.0
+
+
+def test_estimate_panel_freezes_at_dispatch_while_running(manager, hass):
+    """[PR-21] The panel emptied itself the moment a run started: job start clears
+    the payload state that get_planned_job_estimate computes from, so the live
+    recompute reports available=False. Serve the plan captured AT DISPATCH."""
+    _wire(manager, hass)
+    setup_map(manager, _VAC, _MAP)
+    _seed_job(manager, payload={}, resolved_rooms=[])   # payload cleared, as at start
+    _freeze_snapshot(manager, hass, job_id="j1", total=42.0)
+
+    live = manager.get_planned_job_estimate(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert live["available"] is False, "precondition: the live recompute is empty mid-run"
+
+    out = manager._planned_estimate_for_dashboard(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["available"] is True
+    assert out["total_minutes"] == 42.0
+    assert out["frozen_at_dispatch"] is True
+    assert out["source"] == "dispatch_snapshot"
+
+
+def test_estimate_panel_refuses_a_previous_runs_plan(manager, hass):
+    """[PR-22] The snapshot outlives its job on disk. Showing the LAST run's plan
+    as this one's would be a new and worse failure than the empty panel, so the
+    job id is matched and a mismatch falls back to live."""
+    _wire(manager, hass)
+    setup_map(manager, _VAC, _MAP)
+    _seed_job(manager, job_id="j2", payload={}, resolved_rooms=[])
+    _freeze_snapshot(manager, hass, job_id="j1", total=42.0)   # the PREVIOUS run
+
+    out = manager._planned_estimate_for_dashboard(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out.get("frozen_at_dispatch") is not True
+    assert out.get("total_minutes") != 42.0
+
+
+def test_estimate_panel_falls_back_when_no_snapshot_exists(manager, hass):
+    """[PR-23] A run predating the snapshot degrades to the pre-existing empty
+    panel rather than raising."""
+    _wire(manager, hass)
+    setup_map(manager, _VAC, _MAP)
+    _seed_job(manager, payload={}, resolved_rooms=[])
+
+    out = manager._planned_estimate_for_dashboard(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["available"] is False
+    assert out.get("frozen_at_dispatch") is not True
+
+
+def test_estimate_panel_thaws_once_the_job_is_terminal(manager, hass):
+    """[PR-24] Once a run ends the panel is planning the NEXT one — a frozen plan
+    that never thaws is the same bug in the other direction."""
+    _wire(manager, hass)
+    setup_map(manager, _VAC, _MAP)
+    _seed_job(manager, status="completed", payload={}, resolved_rooms=[])
+    _freeze_snapshot(manager, hass, job_id="j1", total=42.0)
+
+    out = manager._planned_estimate_for_dashboard(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out.get("frozen_at_dispatch") is not True

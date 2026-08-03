@@ -4208,6 +4208,69 @@ class EufyVacuumManager:
             "water_estimate": water_estimate,
         }
 
+    #: Job states during which the estimate panel shows the plan FROZEN at dispatch
+    #: rather than a live recompute. Deliberately excludes the terminal states —
+    #: once a run ends the panel is planning the NEXT one again.
+    _FROZEN_ESTIMATE_STATUSES = frozenset({"started", "paused"})
+
+    def _planned_estimate_for_dashboard(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """The estimate the dashboard should show: PLANNING live, RUNNING frozen.
+
+        While a job is in flight the panel must answer "what was planned for this
+        run", not "what would I plan right now". Those are different questions and
+        only the first one is answerable: job start CLEARS the payload state that
+        ``get_planned_job_estimate`` computes from, so a live recompute mid-run
+        finds no rooms and returns ``available: False`` — which is exactly why the
+        panel emptied itself the moment a run started.
+
+        The frozen answer is written at dispatch into the live job snapshot, so
+        this is a source swap, not a second computation — there is no way for the
+        two to disagree.
+
+        Falls through to the live estimate whenever the frozen one is missing
+        (an older run predating the snapshot, a job whose id does not match the
+        snapshot's, learning unavailable). A degraded panel is the pre-existing
+        behaviour; showing the PREVIOUS run's plan as this one's would be new and
+        worse, which is why the job id is matched rather than assumed.
+        """
+        live = self.get_planned_job_estimate(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if str(active_job.get("status") or "") not in self._FROZEN_ESTIMATE_STATUSES:
+            return live
+
+        learning = self._get_learning_manager()
+        if learning is None:
+            return live
+        try:
+            frozen = learning.get_dispatch_planned_estimate(
+                vacuum_entity_id=vacuum_entity_id,
+                job_id=active_job.get("job_id"),
+            )
+        except Exception:  # pragma: no cover - a snapshot read must not break the card
+            _LOGGER.exception(
+                "Frozen planned estimate lookup failed for %s", vacuum_entity_id
+            )
+            return live
+        if not isinstance(frozen, dict) or not frozen:
+            return live
+
+        # Marked so the card can label it — "planned at dispatch" is a different
+        # claim from "planned right now", and an unlabelled frozen number would be
+        # indistinguishable from a live one that simply stopped moving.
+        out = dict(frozen)
+        out["source"] = "dispatch_snapshot"
+        out["frozen_at_dispatch"] = True
+        return out
+
     def get_job_control_state(
         self,
         *,
@@ -4292,7 +4355,7 @@ class EufyVacuumManager:
         job_progress = self.get_job_progress_snapshot(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         job_control = self.get_job_control_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         upkeep = self.get_upkeep_snapshot(vacuum_entity_id=vacuum_entity_id)
-        planned_job_estimate = self.get_planned_job_estimate(
+        planned_job_estimate = self._planned_estimate_for_dashboard(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
         )
