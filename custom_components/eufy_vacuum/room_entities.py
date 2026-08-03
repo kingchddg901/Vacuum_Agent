@@ -75,6 +75,17 @@ class EufyVacuumRoomEntity(Entity):
         """The owning map id (ownership attribute)."""
         return self._map_id
 
+    @property
+    def room_name(self) -> str:
+        """This entity's room display name, as of its last (re)build.
+
+        SN-4: a freshly-built entity's name comes from room storage via
+        __init__ / _attr_translation_placeholders; a rename sync compares
+        this against a freshly built sibling to detect a rename rather than
+        reaching for the underscore attribute directly.
+        """
+        return self._room_name
+
     def _get_room_data(self) -> dict[str, Any]:
         """Return current room data from manager storage."""
         map_bucket = (
@@ -113,6 +124,11 @@ class EufyVacuumRoomEntity(Entity):
             for key, value in updates.items()
             if key in managed_field_names
         }
+        remaining_updates = {
+            key: value
+            for key, value in updates.items()
+            if key not in managed_field_names
+        }
         if managed_updates:
             self.manager.update_room_fields(
                 vacuum_entity_id=self._vacuum_entity_id,
@@ -120,9 +136,14 @@ class EufyVacuumRoomEntity(Entity):
                 room_id=self._room_id,
                 **managed_updates,
             )
-            await self.manager.async_save()
-            self.async_write_ha_state()
-            return
+            if not remaining_updates:
+                await self.manager.async_save()
+                self.async_write_ha_state()
+                return
+            # EP-7: the call carried BOTH managed and unmanaged fields (e.g. an
+            # "enabled"+"color" batch) -- update_room_fields only understands the
+            # managed subset above, so anything else must still reach the generic
+            # merge below instead of being silently dropped by an early return.
 
         map_bucket = (
             self.manager.data.setdefault("maps", {})
@@ -133,7 +154,7 @@ class EufyVacuumRoomEntity(Entity):
         room_key = str(self._room_id)
 
         current = dict(rooms.get(room_key, {}))
-        current.update(updates)
+        current.update(remaining_updates if managed_updates else updates)
 
         rooms[room_key] = current
 

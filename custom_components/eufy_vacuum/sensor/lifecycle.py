@@ -62,12 +62,10 @@ class EufyVacuumActiveJobSensor(SensorEntity):
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
         self._map_id = str(map_id)
-        object_id = vacuum_entity_id.split(".", 1)[-1]
         unique_suffix = f"active_job_{self._map_id}"
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{unique_suffix}"
         )
-        self._attr_suggested_object_id = f"{object_id}_{unique_suffix}"
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._unsub_tracker: Any = None
         self._unsub_room_started: Any = None

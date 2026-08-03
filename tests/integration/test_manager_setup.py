@@ -17,6 +17,8 @@ Coverage targets
 [MS-13] remove_vacuum_record clears every per-vacuum bucket (incl. nested theme.vacuums and battery.vacuums) for the removed vacuum only, reports them in removed_buckets, and leaves the other vacuum untouched.
 [MS-14] remove_vacuum_record on a never-added vacuum is a safe no-op (removed_buckets empty).
 [MS-15] After remove_vacuum_record the vacuum drops out of get_known_vacuum_ids and get_managed_vacuums.
+[MS-16] VAC-5: get_managed_vacuums reports real supports_* values (not None)
+        for a vacuum whose capabilities were never manually refreshed.
 """
 
 from __future__ import annotations
@@ -102,6 +104,29 @@ async def test_get_managed_vacuums_two_vacuums(manager):
     assert result["vacuum_count"] == 2
     ids = {v["vacuum_entity_id"] for v in result["vacuums"]}
     assert ids == {"vacuum.alfred", "vacuum.bertie"}
+
+
+async def test_get_managed_vacuums_capabilities_populated_without_manual_refresh(manager):
+    """[MS-16] VAC-5: a vacuum that exists but has never had capabilities
+    manually refreshed still reports real (non-None) supports_* fields --
+    get_managed_vacuums must guarantee a snapshot exists (like its sibling
+    get_vacuum_capabilities does), not read data["capabilities"] raw."""
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    # No refresh_vacuum_capabilities / get_vacuum_capabilities call at all --
+    # a genuinely cold read, same as remove_vacuum_record leaves for a
+    # re-added vacuum, or setup_workflow.add_vacuum before the first
+    # capability-consuming call.
+    assert "vacuum.alfred" not in manager.data.get("capabilities", {})
+
+    result = manager.get_managed_vacuums()
+    entry = result["vacuums"][0]
+
+    assert entry["supports_rooms"] is not None
+    assert entry["supports_mop_features"] is not None
+    assert entry["supports_active_map"] is not None
+    assert entry["supports_robot_position"] is not None
+    # The cold read also warmed the snapshot for later callers.
+    assert "vacuum.alfred" in manager.data["capabilities"]
 
 
 # ---------------------------------------------------------------------------

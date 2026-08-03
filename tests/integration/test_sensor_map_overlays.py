@@ -182,8 +182,10 @@ async def test_absent_result_minimal_attrs_with_reason(hass, manager):
     # Visibility is still computed (a complete defaults map).
     assert set(attrs["visibility"]) == set(OVERLAY_VISIBILITY_DEFAULTS)
 
-    # native_value reports the coarse availability marker.
-    assert sensor.native_value == "unavailable"
+    # SN-9: not-present is reported via the REAL HA availability mechanism
+    # (available=False), not a literal "unavailable" string impersonating it.
+    assert sensor.native_value is None
+    assert sensor.available is False
 
 
 async def test_visibility_defaults_when_no_active_map(hass, manager):

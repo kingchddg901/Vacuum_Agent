@@ -23,6 +23,15 @@ auto-clears recovered error latches), and an hourly safety-net tick.
 The battery sensors are built externally by
 battery/sensors.py:build_battery_sensors and added to the same
 collection.
+
+SN-1 creation hooks: the per-vacuum sensor set and the per-(vacuum, map)
+active-job sensor are each built once, in ``_build_vacuum_sensors`` /
+the map loop below, at initial platform setup. Two additional callbacks
+(``_ensure_vacuum_sensors`` on manager's vacuum-added notification,
+``_ensure_map_sensors`` on its room-update notification) build the same
+sensors for a vacuum added, or a map imported, AFTER setup has already
+run -- without either requiring a reload. Both are idempotent against
+``built_vacuum_ids`` / ``built_active_job_map_ids``.
 """
 
 from __future__ import annotations
@@ -88,14 +97,22 @@ async def async_setup_entry(
     room_history_entities: dict[str, SensorEntity] = {}
     room_rule_status_entities: dict[str, SensorEntity] = {}
     theme_sensor_by_vacuum: dict[str, EufyVacuumThemeStateSensor] = {}
-    # active_job_entities keyed by (vacuum_entity_id, map_id) so the
-    # job-finished handler can refresh the right sensor directly.
-    active_job_entities: dict[tuple[str, str], EufyVacuumActiveJobSensor] = {}
     # map_overlays sensor per vacuum — refreshed on a timer (below).
     map_overlays_by_vacuum: dict[str, EufyVacuumMapOverlaysSensor] = {}
+    # SN-1: dedup guards for the creation hooks (below) — a vacuum/map that
+    # already got its sensors, whether at initial setup or from a prior hook
+    # fire, is never rebuilt.
+    built_vacuum_ids: set[str] = set()
+    built_active_job_map_ids: set[tuple[str, str]] = set()
 
-    maps = manager.data.get("maps", {})
-    for vacuum_entity_id in maps.keys():
+    def _build_vacuum_sensors(vacuum_entity_id: str) -> list[SensorEntity]:
+        """Build every per-vacuum-only sensor.
+
+        Called once per managed vacuum at initial platform setup, and again
+        (idempotently, via built_vacuum_ids) from the creation hooks below for
+        a vacuum that becomes managed AFTER setup has already run.
+        """
+        built: list[SensorEntity] = []
         capabilities = manager.get_vacuum_capabilities(
             vacuum_entity_id=vacuum_entity_id,
             refresh=False,
@@ -105,7 +122,7 @@ async def async_setup_entry(
         _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
         maintenance_components = _adapter_cfg.get("maintenance_components") or {}
 
-        entities.append(
+        built.append(
             EufyVacuumProfileSensor(
                 manager=manager,
                 vacuum_entity_id=vacuum_entity_id,
@@ -116,7 +133,7 @@ async def async_setup_entry(
         for component, meta in maintenance_components.items():
             if sources.get(component) is None:
                 continue
-            entities.append(
+            built.append(
                 EufyVacuumMaintenanceRemainingSensor(
                     manager=manager,
                     vacuum_entity_id=vacuum_entity_id,
@@ -127,7 +144,7 @@ async def async_setup_entry(
                 )
             )
 
-        entities.append(
+        built.append(
             EufyVacuumDockEventSensor(
                 manager=manager,
                 vacuum_entity_id=vacuum_entity_id,
@@ -138,10 +155,10 @@ async def async_setup_entry(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
         )
-        entities.append(_theme_sensor)
+        built.append(_theme_sensor)
         theme_sensor_by_vacuum[vacuum_entity_id] = _theme_sensor
 
-        entities.append(
+        built.append(
             EufyVacuumOnboardingSensor(
                 manager=manager,
                 vacuum_entity_id=vacuum_entity_id,
@@ -153,14 +170,14 @@ async def async_setup_entry(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
         )
-        entities.append(_map_overlays_sensor)
+        built.append(_map_overlays_sensor)
         map_overlays_by_vacuum[vacuum_entity_id] = _map_overlays_sensor
 
         # Battery health sensors — six per vacuum (cycles + 3 rates +
         # last-charge duration + health %). Backed by BatteryHealthManager.
         battery_manager = hass.data[DOMAIN].get(DATA_BATTERY)
         if battery_manager is not None:
-            entities.extend(
+            built.extend(
                 build_battery_sensors(
                     manager=battery_manager,
                     vacuum_entity_id=vacuum_entity_id,
@@ -174,29 +191,41 @@ async def async_setup_entry(
             DATA_ERROR_TRACKER
         )
         if error_tracker is not None:
-            entities.append(
+            built.append(
                 EufyVacuumActiveRunErrorSensor(
                     tracker=error_tracker,
                     vacuum_entity_id=vacuum_entity_id,
                 )
             )
-            entities.append(
+            built.append(
                 EufyVacuumLastDeviceErrorSensor(
                     tracker=error_tracker,
                     vacuum_entity_id=vacuum_entity_id,
                 )
             )
 
+        return built
+
+    # SN-1: the ROSTER of managed vacuums (button.py's sibling pattern), not
+    # `maps` — `maps` records only what has been imported, so a vacuum added
+    # but not yet mapped used to be silently skipped entirely.
+    vacuums = manager.data.get("vacuums", {})
+    maps = manager.data.get("maps", {})
+    for vacuum_entity_id in vacuums:
+        entities.extend(_build_vacuum_sensors(vacuum_entity_id))
+        built_vacuum_ids.add(vacuum_entity_id)
+
         vacuum_maps = maps.get(vacuum_entity_id, {})
         for map_id, map_bucket in vacuum_maps.items():
             # One active-job sensor per (vacuum, map).
-            _active_job_sensor = EufyVacuumActiveJobSensor(
-                manager=manager,
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
+            entities.append(
+                EufyVacuumActiveJobSensor(
+                    manager=manager,
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                )
             )
-            entities.append(_active_job_sensor)
-            active_job_entities[(vacuum_entity_id, str(map_id))] = _active_job_sensor
+            built_active_job_map_ids.add((vacuum_entity_id, str(map_id)))
 
             rooms = map_bucket.get("rooms", {})
             if not isinstance(rooms, dict):
@@ -223,12 +252,57 @@ async def async_setup_entry(
 
     async_add_entities(entities)
 
-    for vacuum_entity_id in maps.keys():
+    for vacuum_entity_id in vacuums:
         hass.async_create_task(
             manager.async_preload_room_history_cache(
                 vacuum_entity_id=vacuum_entity_id,
             )
         )
+
+    def _ensure_vacuum_sensors(*, vacuum_entity_id: str) -> None:
+        """SN-1 creation hook: a vacuum added after initial setup (e.g. via
+        the Setup panel's add_vacuum, which does not reload the config
+        entry) gets its per-vacuum sensors immediately, not on the next
+        restart."""
+        if vacuum_entity_id in built_vacuum_ids:
+            return
+        new_entities = _build_vacuum_sensors(vacuum_entity_id)
+        built_vacuum_ids.add(vacuum_entity_id)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    manager.register_vacuum_added_callback(_ensure_vacuum_sensors)
+    entry.async_on_unload(
+        lambda: manager.unregister_vacuum_added_callback(_ensure_vacuum_sensors)
+    )
+
+    def _ensure_map_sensors(*, vacuum_entity_id: str, map_id: str) -> None:
+        """SN-1 creation hook: importing a map (save_managed_rooms /
+        rebuild_map / reconcile_room all fire the room-update notification)
+        gets its active-job sensor immediately. Also covers the per-vacuum
+        sensors defensively, in case a vacuum somehow got a map without ever
+        going through the vacuum-added hook above."""
+        new_entities: list[SensorEntity] = []
+        if vacuum_entity_id not in built_vacuum_ids:
+            new_entities.extend(_build_vacuum_sensors(vacuum_entity_id))
+            built_vacuum_ids.add(vacuum_entity_id)
+        map_key = (vacuum_entity_id, str(map_id))
+        if map_key not in built_active_job_map_ids:
+            new_entities.append(
+                EufyVacuumActiveJobSensor(
+                    manager=manager,
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                )
+            )
+            built_active_job_map_ids.add(map_key)
+        if new_entities:
+            async_add_entities(new_entities)
+
+    manager.register_room_update_callback(_ensure_map_sensors)
+    entry.async_on_unload(
+        lambda: manager.unregister_room_update_callback(_ensure_map_sensors)
+    )
 
     def _sync_dynamic_entities(
         *,
@@ -292,6 +366,25 @@ async def async_setup_entry(
         for unique_id, entity in desired_entities.items():
             existing = entity_dict.get(unique_id)
             if existing is not None:
+                if existing.room_name != entity.room_name:
+                    # SN-4: the freshly built `entity` carries the room's CURRENT
+                    # name via _attr_translation_placeholders (set once in
+                    # __init__, never refreshed otherwise) -- writing state onto
+                    # the STALE `existing` object would never update the
+                    # friendly name. Swap the entity object instead. Same
+                    # unique_id on both, so the registry entry — and any user
+                    # name override — survives the swap; deliberately NOT
+                    # calling registry.async_update_entity(name=...), which
+                    # would stomp a user override and freeze future
+                    # translation updates.
+                    entity_dict[unique_id] = entity
+
+                    async def _swap_renamed(_old=existing, _new=entity) -> None:
+                        await _old.async_remove()
+                        async_add_entities([_new])
+
+                    hass.async_create_task(_swap_renamed())
+                    continue
                 _request_entity_state_write(existing)
                 continue
             entity_dict[unique_id] = entity

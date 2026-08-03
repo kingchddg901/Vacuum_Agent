@@ -243,17 +243,14 @@ def test_pass_count_estimated_for_multipass_room():
     assert rec["segments"][0]["settings"]["clean_mode"] == "vacuum"
 
 
-def test_utc_samples_naive_segment_no_cross_contamination(monkeypatch):
+async def test_utc_samples_naive_segment_no_cross_contamination(hass):
     """Regression (live, W6): segment t_start/t_end are naive UTC (segment_counters
     strips the "Z"), while captured samples keep "...Z". If naive is parsed as LOCAL,
     a non-final segment's window shifts past every sample, so it inherits the LAST
     segment's settings AND _estimate_passes can't see its own samples (defaults to 1
-    pass). Force a non-UTC server tz so the bug bites unless naive is parsed as UTC."""
-    from datetime import timezone
-
-    import custom_components.eufy_vacuum.timestamp_utils as tsu
-
-    monkeypatch.setattr(tsu, "_LOCAL_TZ", timezone(timedelta(hours=-4)))
+    pass). Force a non-UTC server tz (via HA's own config API, INF-2's real source of
+    the local zone post-fix) so the bug bites unless naive is parsed as UTC."""
+    await hass.config.async_set_time_zone("America/New_York")
 
     def _cz(sec, ct, ca):
         return {

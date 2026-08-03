@@ -30,6 +30,11 @@ _LOGGER = logging.getLogger(__name__)
 
 _JOB_METRICS_UNSUBS = "_job_metrics_unsubs"
 
+_SECOND_UNIT_ALIASES = frozenset({"s", "sec", "secs", "second", "seconds"})
+# METRICS-3: warn once per distinct unrecognized unit, not once per event —
+# a plateau-sampling counter can fire this path many times a minute.
+_WARNED_UNKNOWN_DURATION_UNITS: set[str] = set()
+
 
 def _duration_state_to_seconds(raw: Any, unit: Any) -> int:
     """Convert a Home Assistant duration state to seconds."""
@@ -41,6 +46,17 @@ def _duration_state_to_seconds(raw: Any, unit: Any) -> int:
         return int(round(value * 60.0))
     if normalized_unit in {"h", "hr", "hrs", "hour", "hours"}:
         return int(round(value * 3600.0))
+    if normalized_unit and normalized_unit not in _SECOND_UNIT_ALIASES:
+        # No d/w/µs handling — an unrecognized unit silently fell through to
+        # "assume seconds" with no signal at all. A firmware reporting e.g.
+        # days or microseconds would be silently off by up to ~6 orders of
+        # magnitude; log it once so that's discoverable.
+        if normalized_unit not in _WARNED_UNKNOWN_DURATION_UNITS:
+            _WARNED_UNKNOWN_DURATION_UNITS.add(normalized_unit)
+            _LOGGER.warning(
+                "job_metrics: unrecognized duration unit %r — assuming seconds",
+                unit,
+            )
     return int(round(value))
 
 
@@ -72,9 +88,12 @@ def register(hass: HomeAssistant) -> None:
     if manager is None:
         return
 
-    # Build a map of entity_id → (vacuum_entity_id, active_job_state_key, type)
-    # for every vacuum whose adapter config exposes these entities.
-    watch_map: dict[str, tuple[str, str, str]] = {}
+    # Build a map of entity_id → (vacuum_entity_id, active_job_state_key, type,
+    # unit_hint) for every vacuum whose adapter config exposes these entities.
+    # METRICS-5: every writer below stores a 4-tuple (unit_hint trails, None
+    # when the value type carries no unit ambiguity) and the unpack at
+    # _handle_metrics_change matches — the annotation was a stale 3-tuple.
+    watch_map: dict[str, tuple[str, str, str, str | None]] = {}
     for vacuum_entity_id in manager.get_known_vacuum_ids():
         config = get_adapter_config(vacuum_entity_id)
         entities = (config or {}).get("entities", {})
@@ -116,21 +135,31 @@ def register(hass: HomeAssistant) -> None:
             watch_map[battery_entity] = (vacuum_entity_id, "last_battery_percent", "int", None)
 
         # Station water level — lives in capabilities entities, not the main
-        # entities dict. Only added when the capability is exposed.
+        # entities dict. METRICS-4: only wired when the vacuum's capability
+        # snapshot explicitly declares support (previously wired on an entity
+        # KEY GUESS alone, with no supports_station_water check, and any
+        # lookup failure was silently swallowed with no log).
         try:
             caps = manager.get_vacuum_capabilities(
                 vacuum_entity_id=vacuum_entity_id, refresh=False
             )
-            water_entity = (
-                caps.get("entities", {}).get("water_level")
-                or caps.get("entities", {}).get("station_water")
-            )
-            if water_entity:
-                watch_map[water_entity] = (
-                    vacuum_entity_id, "last_station_water_percent", "float", None
-                )
         except Exception:
-            pass
+            _LOGGER.warning(
+                "job_metrics: capability lookup failed for %s — station-water "
+                "watcher not wired for this vacuum",
+                vacuum_entity_id,
+                exc_info=True,
+            )
+        else:
+            if caps.get("supports_station_water"):
+                water_entity = (
+                    caps.get("entities", {}).get("water_level")
+                    or caps.get("entities", {}).get("station_water")
+                )
+                if water_entity:
+                    watch_map[water_entity] = (
+                        vacuum_entity_id, "last_station_water_percent", "float", None
+                    )
 
     if not watch_map:
         domain_data[_JOB_METRICS_UNSUBS] = []

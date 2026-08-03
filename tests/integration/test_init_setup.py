@@ -30,6 +30,17 @@ Coverage targets
          async_setup_entry can't resurrect it; no inline reload.
 [INIT-10] remove_config_entry_device on a stale/unrelated device is a safe no-op
           (no teardown, no entry clear) but still returns True so HA can drop the orphan.
+[INIT-2b] INF-1: the fallback panel (no vacuum configured yet) registers using
+          panels.py's DEFAULT_PANEL_TITLE / PANEL_ICON / WEBCOMPONENT_NAME
+          constants, not hand-retyped literals.
+[INIT-11] SN-1: a vacuum added AFTER initial platform setup (ensure_vacuum_record,
+          e.g. via the Setup panel's add_vacuum) gets its per-vacuum sensors
+          immediately through the vacuum-added creation hook — no reload needed.
+[INIT-12] SN-1: a map imported for an already-managed-but-still-mapless vacuum gets
+          its active-job sensor immediately through the room-update creation hook.
+[INIT-13] SN-4: renaming a room and firing the room-update notification swaps the
+          sensor entity object under the SAME unique_id (registry entry — and any
+          user name override — survives; no duplicate/orphan entity_id created).
 """
 
 from __future__ import annotations
@@ -137,6 +148,38 @@ async def test_setup_no_vacuum(hass, mock_entry_no_vacuum):
     ok = await _setup(hass, mock_entry_no_vacuum)
     assert ok is True
     assert mock_entry_no_vacuum.state is ConfigEntryState.LOADED
+    assert await hass.config_entries.async_unload(mock_entry_no_vacuum.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_setup_no_vacuum_fallback_panel_uses_shared_constants(
+    hass, mock_entry_no_vacuum
+):
+    """[INIT-2b] INF-1: the fallback panel (registered when no vacuum is
+    configured yet) uses panels.py's DEFAULT_PANEL_TITLE / PANEL_ICON /
+    WEBCOMPONENT_NAME constants — the single source of truth its own
+    docstring claims — instead of hand-retyped literals."""
+    from custom_components.eufy_vacuum import panels
+
+    await async_setup_component(hass, "http", {})
+    mock_entry_no_vacuum.add_to_hass(hass)
+    with patch(
+        "homeassistant.components.panel_custom.async_register_panel", AsyncMock()
+    ) as mock_register, patch("homeassistant.components.frontend.async_remove_panel"):
+        ok = await hass.config_entries.async_setup(mock_entry_no_vacuum.entry_id)
+        await hass.async_block_till_done()
+    assert ok is True
+
+    fallback_calls = [
+        call for call in mock_register.await_args_list
+        if call.kwargs.get("frontend_url_path") == "eufy-vacuum"
+    ]
+    assert len(fallback_calls) == 1
+    kwargs = fallback_calls[0].kwargs
+    assert kwargs["webcomponent_name"] == panels.WEBCOMPONENT_NAME
+    assert kwargs["sidebar_title"] == panels.DEFAULT_PANEL_TITLE
+    assert kwargs["sidebar_icon"] == panels.PANEL_ICON
+
     assert await hass.config_entries.async_unload(mock_entry_no_vacuum.entry_id)
     await hass.async_block_till_done()
 
@@ -376,6 +419,128 @@ async def test_hourly_refresh_tick(hass, hass_storage, mock_config_entry):
     await hass.async_block_till_done()
 
     # Sensor survived the tick and still reports a state (no exception thrown).
+    assert hass.states.get(history_entity_id) is not None
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_vacuum_added_after_setup_gets_sensors(hass, mock_config_entry):
+    """[INIT-11] SN-1: a second vacuum added AFTER the sensor platform has
+    already run its initial setup loop (no map, no prior storage entry) gets
+    its per-vacuum sensors immediately via the vacuum-added creation hook —
+    the bug was these staying absent until a restart/reload."""
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+
+    ivy = "vacuum.ivy"
+    assert reg.async_get_entity_id("sensor", DOMAIN, "vacuum_ivy_theme_state") is None
+
+    # Mirrors setup/workflow.add_vacuum's precondition + call, without going
+    # through the service layer: the entity must exist, then ensure_vacuum_record
+    # creates the managed-vacuum record and fires the vacuum-added notification.
+    hass.states.async_set(ivy, "docked", {"supported_features": 0})
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    rt.ensure_vacuum_record(vacuum_entity_id=ivy)
+    await hass.async_block_till_done()
+
+    theme_entity_id = reg.async_get_entity_id("sensor", DOMAIN, "vacuum_ivy_theme_state")
+    assert theme_entity_id is not None
+    assert hass.states.get(theme_entity_id) is not None
+
+    # Idempotent: ensure_vacuum_record is called from many places (capability
+    # refresh, discover_rooms, ...) — a repeat call for the SAME vacuum must
+    # not re-fire the hook into a duplicate registry entry.
+    rt.ensure_vacuum_record(vacuum_entity_id=ivy)
+    await hass.async_block_till_done()
+    assert reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_ivy_theme_state"
+    ) == theme_entity_id
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_map_imported_for_mapless_vacuum_gets_active_job_sensor(
+    hass, mock_config_entry
+):
+    """[INIT-12] SN-1: the configured vacuum boots with NO map at all (so the
+    per-map loop in sensor.async_setup_entry never runs for it). Importing a
+    map afterwards (save_managed_rooms' own notification path) must build the
+    active-job sensor for that (vacuum, map) immediately, not on next reload."""
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    assert reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_active_job_9"
+    ) is None
+
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    # ensure_map_bucket + a room-update notification is the same shape
+    # save_managed_rooms leaves behind after a real map import.
+    rt.data.setdefault("maps", {}).setdefault(_VAC, {})["9"] = {
+        "map_id": "9", "metadata": {}, "summary": {}, "rooms": {},
+    }
+    rt._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="9")
+    await hass.async_block_till_done()
+
+    active_job_entity_id = reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_active_job_9"
+    )
+    assert active_job_entity_id is not None
+    assert hass.states.get(active_job_entity_id) is not None
+
+    # Idempotent: a second notification for the same (vacuum, map) must not
+    # create a duplicate registry entry.
+    rt._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="9")
+    await hass.async_block_till_done()
+    assert reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_active_job_9"
+    ) == active_job_entity_id
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_room_rename_swaps_entity_keeping_unique_id(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-13] SN-4: renaming a room and firing the room-update notification
+    must swap the sensor entity object (its cached display name is set once,
+    at construction, from the room's name) while keeping the SAME unique_id —
+    so the registry entry (and any user name override) is not disturbed and
+    no duplicate/orphan entity_id is created."""
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    history_entity_id = reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_6_1_cleaning_history"
+    )
+    assert history_entity_id is not None
+    assert hass.states.get(history_entity_id) is not None
+
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    rt.data["maps"][_VAC]["6"]["rooms"]["1"]["name"] = "Great Room"
+    rt._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="6")
+    await hass.async_block_till_done()
+
+    # Same unique_id → same entity_id after the rename; no duplicate/orphan.
+    assert reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_6_1_cleaning_history"
+    ) == history_entity_id
+    # The swapped-in entity is alive and reporting state (round-tripped
+    # through async_remove + async_add_entities, not left removed).
     assert hass.states.get(history_entity_id) is not None
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)

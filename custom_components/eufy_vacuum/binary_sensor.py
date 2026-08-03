@@ -82,8 +82,6 @@ class ActiveRunHasErrorBinarySensor(BinarySensorEntity):
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{suffix}"
         )
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        self._attr_suggested_object_id = f"{object_id}_{suffix}"
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._unsub: Any = None
 

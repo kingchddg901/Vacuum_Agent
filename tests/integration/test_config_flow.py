@@ -14,6 +14,11 @@ Options flow:
   [OF-2]  Submitting new vacuum_entity_id → stored in options.
   [OF-3]  Clearing vacuum_entity_id (empty string) → key absent from options.
   [OF-4]  Opening options when vacuum was set via initial data (not options).
+  [OF-5]  FLOW-3: submitting a vacuum_entity_id that no longer exists in HA's
+          state machine (e.g. a stale form outliving a device delete) is
+          refused with a form + vacuum_not_found error, not written to options.
+  [OF-6]  FLOW-2: switching to a different (existing) vacuum logs a warning
+          naming the old vacuum_entity_id, and does not touch its stored data.
 """
 
 from __future__ import annotations
@@ -143,6 +148,8 @@ async def test_options_flow_updates_vacuum_entity(
 ):
     """[OF-2] Submitting a new vacuum_entity_id stores it in options."""
     mock_config_entry.add_to_hass(hass)
+    # FLOW-3: submit now re-validates the vacuum against HA's live state.
+    hass.states.async_set("vacuum.new_robot", "docked")
 
     init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
@@ -169,6 +176,10 @@ async def test_options_flow_vacuum_default_preserved(
     flow has no "clear" affordance for a vacuum that is already set.
     """
     mock_config_entry.add_to_hass(hass)
+    # FLOW-3: the schema default ("vacuum.alfred") is what actually gets
+    # submitted (voluptuous fills it in before async_step_init runs), so it
+    # must exist in HA's state for the re-validation to accept it.
+    hass.states.async_set("vacuum.alfred", "docked")
 
     init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
     result = await hass.config_entries.options.async_configure(
@@ -182,6 +193,81 @@ async def test_options_flow_vacuum_default_preserved(
     assert result["type"] == FlowResultType.CREATE_ENTRY
     # Default kicks in — original vacuum entity is preserved, not cleared.
     assert result["data"][CONF_VACUUM_ENTITY_ID] == "vacuum.alfred"
+
+
+async def test_options_flow_refuses_deleted_vacuum(
+    hass: HomeAssistant, mock_config_entry
+):
+    """[OF-5] FLOW-3: submitting a vacuum_entity_id that no longer exists in
+    HA's state machine (e.g. a stale dialog outliving a device delete) is
+    refused with a form + vacuum_not_found error, not written to options."""
+    mock_config_entry.add_to_hass(hass)
+    # Deliberately NOT registering vacuum.gone in hass.states.
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        init["flow_id"],
+        user_input={
+            CONF_VACUUM_ENTITY_ID: "vacuum.gone",
+            CONF_NOTES: "should not save",
+        },
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+    assert result["errors"] == {CONF_VACUUM_ENTITY_ID: "vacuum_not_found"}
+    # The entry itself was never updated.
+    assert mock_config_entry.options.get(CONF_VACUUM_ENTITY_ID) is None
+
+
+async def test_options_flow_switch_logs_warning_for_old_vacuum(
+    hass: HomeAssistant, mock_config_entry, caplog
+):
+    """[OF-6] FLOW-2: switching to a different (existing) vacuum logs a
+    warning naming the OLD vacuum_entity_id — its stored data is deliberately
+    KEPT, not auto-removed, since this flow never calls remove_vacuum_record."""
+    mock_config_entry.add_to_hass(hass)
+    hass.states.async_set("vacuum.alfred", "docked")
+    hass.states.async_set("vacuum.new_robot", "docked")
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    with caplog.at_level("WARNING"):
+        result = await hass.config_entries.options.async_configure(
+            init["flow_id"],
+            user_input={
+                CONF_VACUUM_ENTITY_ID: "vacuum.new_robot",
+                CONF_NOTES: "switched",
+            },
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_VACUUM_ENTITY_ID] == "vacuum.new_robot"
+    assert any(
+        "vacuum.alfred" in rec.message and "vacuum.new_robot" in rec.message
+        for rec in caplog.records
+    )
+
+
+async def test_options_flow_no_warning_when_vacuum_unchanged(
+    hass: HomeAssistant, mock_config_entry, caplog
+):
+    """[OF-6] Control: resubmitting the SAME vacuum_entity_id does not log the
+    switch warning — it only fires on an actual change."""
+    mock_config_entry.add_to_hass(hass)
+    hass.states.async_set("vacuum.alfred", "docked")
+
+    init = await hass.config_entries.options.async_init(mock_config_entry.entry_id)
+    with caplog.at_level("WARNING"):
+        result = await hass.config_entries.options.async_configure(
+            init["flow_id"],
+            user_input={
+                CONF_VACUUM_ENTITY_ID: "vacuum.alfred",
+                CONF_NOTES: "unchanged",
+            },
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert not any("stored data" in rec.message for rec in caplog.records)
 
 
 async def test_options_flow_reads_vacuum_from_data(

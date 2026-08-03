@@ -29,6 +29,13 @@ Coverage targets
 [JMN-6] manager (DATA_RUNTIME) gone -> guard 4        -> no-op
 [JMN-7] non-numeric raw       -> float() ValueError   -> no-op
 [JMN-8] sanity: a real numeric value DOES record      -> positive control
+[JMN-9]  METRICS-3: an unrecognized duration unit still records (falls
+         through to seconds) but logs a warning once per distinct unit.
+[JMN-10] METRICS-4: an entities.water_level key alone is not enough --
+         supports_station_water must also be True, or no watcher is wired.
+[JMN-11] METRICS-4: a capability lookup failure during registration is
+         logged, not silently swallowed, and does not break the rest of
+         registration for that vacuum.
 """
 
 from __future__ import annotations
@@ -365,3 +372,146 @@ async def test_entity_unit_wins_over_adapter_fallback(hass, manager, monkeypatch
     ))
 
     assert calls["sensor"][0]["value"] == 300  # seconds, not 300*60
+
+
+# ---------------------------------------------------------------------------
+# [JMN-9] METRICS-3 — unrecognized duration unit logs a warning (once)
+# ---------------------------------------------------------------------------
+
+async def test_unrecognized_duration_unit_logs_warning_once(
+    hass, manager, monkeypatch, caplog
+):
+    """[JMN-9] An unrecognized unit still records (falls through to "assume
+    seconds") but must log a warning — once per distinct unit value, not once
+    per event."""
+    from custom_components.eufy_vacuum.listeners import job_metrics as jm
+
+    monkeypatch.setattr(jm, "_WARNED_UNKNOWN_DURATION_UNITS", set())
+    handler = _capture_handler(hass, manager, monkeypatch)
+    _seed_active_job(manager)
+    calls = _spy_recorders(manager, monkeypatch)
+
+    with caplog.at_level("WARNING"):
+        handler(_event(
+            _CLEANING_TIME_ENTITY,
+            _state(_CLEANING_TIME_ENTITY, "300", {"unit_of_measurement": "fortnight"}),
+        ))
+        handler(_event(
+            _CLEANING_TIME_ENTITY,
+            _state(_CLEANING_TIME_ENTITY, "301", {"unit_of_measurement": "fortnight"}),
+        ))
+
+    # Still recorded as seconds -- the warning doesn't block the fallback.
+    assert calls["sensor"][-1]["value"] == 301
+    warnings = [r for r in caplog.records if "fortnight" in r.message]
+    assert len(warnings) == 1, "must warn once per distinct unit, not once per event"
+
+
+async def test_recognized_seconds_alias_does_not_warn(hass, manager, monkeypatch, caplog):
+    """[JMN-9] Control: a recognized "seconds" alias unit falls through to the
+    same bare-value read WITHOUT logging — the warning is for genuinely
+    unrecognized units only."""
+    from custom_components.eufy_vacuum.listeners import job_metrics as jm
+
+    monkeypatch.setattr(jm, "_WARNED_UNKNOWN_DURATION_UNITS", set())
+    handler = _capture_handler(hass, manager, monkeypatch)
+    _seed_active_job(manager)
+    _spy_recorders(manager, monkeypatch)
+
+    with caplog.at_level("WARNING"):
+        handler(_event(
+            _CLEANING_TIME_ENTITY,
+            _state(_CLEANING_TIME_ENTITY, "300", {"unit_of_measurement": "seconds"}),
+        ))
+
+    # Only asserting on job_metrics's OWN warning -- adapter registration logs
+    # its own (unrelated) warnings for undeclared mapping/job_segmenter/
+    # room_attribution blocks on this minimal test adapter.
+    assert not [r for r in caplog.records if r.name.endswith("listeners.job_metrics")]
+
+
+# ---------------------------------------------------------------------------
+# [JMN-10] / [JMN-11] METRICS-4 — station-water capability gating
+# ---------------------------------------------------------------------------
+
+async def test_station_water_not_watched_without_capability(hass, manager, monkeypatch):
+    """[JMN-10] An entities.water_level key present in the capability
+    snapshot is not enough on its own — supports_station_water must also be
+    True, or no watcher is wired (previously wired on the entity-key guess
+    alone, with no capability check at all)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_METRICS)
+    manager.data.setdefault("capabilities", {})[_VAC] = {
+        "supports_station_water": False,
+        "entities": {"water_level": "sensor.alfred_water"},
+    }
+    hass.states.async_set(_CLEANING_TIME_ENTITY, "0")
+    hass.states.async_set("sensor.alfred_water", "50")
+    await hass.async_block_till_done()
+
+    captured: dict = {}
+
+    def _fake_track(hass_arg, entity_ids, action):
+        captured["entities"] = list(entity_ids)
+        return lambda: None
+
+    monkeypatch.setattr(job_metrics, "async_track_state_change_event", _fake_track)
+    job_metrics.register(hass)
+
+    assert "sensor.alfred_water" not in captured.get("entities", [])
+
+
+async def test_station_water_watched_when_capability_declared(hass, manager, monkeypatch):
+    """[JMN-10] With supports_station_water explicitly True in the stored
+    capability snapshot, the declared water entity IS wired."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_METRICS)
+    manager.data.setdefault("capabilities", {})[_VAC] = {
+        "supports_station_water": True,
+        "entities": {"water_level": "sensor.alfred_water"},
+    }
+    hass.states.async_set(_CLEANING_TIME_ENTITY, "0")
+    hass.states.async_set("sensor.alfred_water", "50")
+    await hass.async_block_till_done()
+
+    captured: dict = {}
+
+    def _fake_track(hass_arg, entity_ids, action):
+        captured["entities"] = list(entity_ids)
+        return lambda: None
+
+    monkeypatch.setattr(job_metrics, "async_track_state_change_event", _fake_track)
+    job_metrics.register(hass)
+
+    assert "sensor.alfred_water" in captured.get("entities", [])
+
+
+async def test_station_water_lookup_failure_logs_warning(
+    hass, manager, monkeypatch, caplog
+):
+    """[JMN-11] A capability lookup failure during registration is logged,
+    not silently swallowed — and does not break the rest of registration for
+    that vacuum (cleaning_time is still watched)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_METRICS)
+    hass.states.async_set(_CLEANING_TIME_ENTITY, "0")
+    await hass.async_block_till_done()
+
+    def _boom(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(manager, "get_vacuum_capabilities", _boom)
+
+    captured: dict = {}
+
+    def _fake_track(hass_arg, entity_ids, action):
+        captured["entities"] = list(entity_ids)
+        return lambda: None
+
+    monkeypatch.setattr(job_metrics, "async_track_state_change_event", _fake_track)
+
+    with caplog.at_level("WARNING"):
+        job_metrics.register(hass)
+
+    assert any("station-water" in r.message for r in caplog.records)
+    assert _CLEANING_TIME_ENTITY in captured.get("entities", [])

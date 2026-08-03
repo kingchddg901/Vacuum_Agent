@@ -31,6 +31,15 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
         dispatch (consume_pending_steps=True) — the shipped bug where get_start_status'
         preflight popped the stash, so a stepped profile ran an atomic (flat) job.
 [RPS-16] regression (B2): a stored room whose value dict lacks room_id survives normalization with room_id recovered from its dict KEY.
+[RPS-17] PRE-3: the graph-block branch (structurally invalid access graph)
+         reports available=False.
+[RPS-18] PRE-3: the access_graph_required_for_rules branch reports available=False.
+[RPS-19] PRE-3: the access_graph_required branch reports available=False.
+[RPS-20] PRE-3: every selected room ending up blocked (included_room_count==0)
+         reports available=False, even though the top-level 'blocked' flag
+         (reserved for a structurally invalid graph) stays False there.
+[RPS-21] PRE-3 control: a PARTIAL block (some rooms still includable) keeps
+         available=True.
 """
 
 from __future__ import annotations
@@ -135,6 +144,68 @@ def test_complete_graph_blocker_without_grants_blocks(rp):
     assert pf["reason"] == "access_graph_required"
 
 
+def test_partial_graph_block_is_unavailable(rp):
+    """[RPS-17] PRE-3: same seed as [RPS-2] -- the structurally invalid
+    access graph means nothing is includable, so available must be False."""
+    rp_, mgr = rp
+    _seed(mgr, "spm17", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [99]},
+        {"enabled": True},
+    ])
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm17")
+    pf = out["preflight"]
+    assert pf["blocked"] is True
+    assert pf["available"] is False
+
+
+def test_rules_without_graph_block_is_unavailable(rp):
+    """[RPS-18] PRE-3: same seed as [RPS-3]."""
+    rp_, mgr = rp
+    _seed(mgr, "spm18", [
+        {"enabled": True, "rules": [_blocker("binary_sensor.win")]},
+        {"enabled": True},
+    ])
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm18")
+    pf = out["preflight"]
+    assert pf["blocked"] is True
+    assert pf["available"] is False
+
+
+def test_blocker_without_grants_is_unavailable(rp):
+    """[RPS-19] PRE-3: same seed as [RPS-4]."""
+    rp_, mgr = rp
+    _seed(mgr, "spm19", [
+        {"enabled": True, "is_dock_room": True,
+         "rules": [_blocker("binary_sensor.win")]},
+    ])
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm19")
+    pf = out["preflight"]
+    assert pf["blocked"] is True
+    assert pf["available"] is False
+
+
+def test_all_selected_rooms_blocked_is_unavailable(rp, hass):
+    """[RPS-20] PRE-3: a VALID access graph where every selected room ends up
+    individually blocked (included_room_count == 0) must still report
+    available=False, even though the top-level 'blocked' key (reserved for a
+    structurally invalid graph) is False here — the earlier bug left
+    available stuck at True in exactly this shape."""
+    rp_, mgr = rp
+    _seed(mgr, "spm20", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2],
+         "rules": [_blocker("binary_sensor.win1")]},
+        {"enabled": True, "rules": [_blocker("binary_sensor.win2")]},
+    ])
+    hass.states.async_set("binary_sensor.win1", "on")
+    hass.states.async_set("binary_sensor.win2", "on")
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm20")
+    pf = out["preflight"]
+    assert pf["blocked"] is False
+    assert pf["included_room_count"] == 0
+    assert set(pf["blocked_room_ids"]) == {1, 2}
+    assert pf["available"] is False
+
+
 def test_direct_blocker_fires(rp, hass):
     """[RPS-5] valid graph, blocker on a selected room whose entity is on."""
     rp_, mgr = rp
@@ -153,6 +224,10 @@ def test_direct_blocker_fires(rp, hass):
     assert pf["requires_confirmation"] is True
     assert pf["confirm_token"] is not None
     assert pf["reason"] == "confirmation_required"
+    # [RPS-21] PRE-3 control: a PARTIAL block (room 1 is still includable)
+    # must keep available=True.
+    assert pf["included_room_count"] == 1
+    assert pf["available"] is True
 
 
 def test_modifier_applies_changes(rp, hass):

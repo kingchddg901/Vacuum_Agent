@@ -8,8 +8,12 @@ Coverage targets
 [NE-4]  EufyVacuumRoomOrderNumber.async_set_native_value persists order to manager.data.
 [NE-5]  EufyVacuumMaintenanceIntervalNumber.native_value returns default_interval when nothing stored.
 [NE-6]  EufyVacuumMaintenanceIntervalNumber.native_value returns stored interval.
-[NE-7]  EufyVacuumMaintenanceIntervalNumber.async_set_native_value writes to manager.data.
+[NE-7]  EufyVacuumMaintenanceIntervalNumber.async_set_native_value writes to manager.data
+        AND calls async_write_ha_state (EP-4).
 [NE-8]  EufyVacuumMaintenanceIntervalNumber.unique_id encodes vacuum, component, and suffix.
+[NE-9]  EufyVacuumMaintenanceIntervalNumber._attr_should_poll is False (EP-4).
+[NE-10] EufyVacuumMaintenanceIntervalNumber._attr_native_max_value derives from the
+        component's own declared max_interval, not the flat constant (EP-3).
 """
 
 from __future__ import annotations
@@ -43,7 +47,7 @@ def _make_order_number(manager, hass, *, room_id: int = 1) -> EufyVacuumRoomOrde
     return entity
 
 
-def _make_interval_number(manager) -> EufyVacuumMaintenanceIntervalNumber:
+def _make_interval_number(manager, **kwargs) -> EufyVacuumMaintenanceIntervalNumber:
     """Build an EufyVacuumMaintenanceIntervalNumber."""
     return EufyVacuumMaintenanceIntervalNumber(
         manager=manager,
@@ -52,6 +56,7 @@ def _make_interval_number(manager) -> EufyVacuumMaintenanceIntervalNumber:
         label="Main Brush",
         icon="mdi:brush",
         default_interval=_DEFAULT_INTERVAL,
+        **kwargs,
     )
 
 
@@ -130,10 +135,15 @@ def test_maintenance_interval_number_returns_stored_interval(manager):
 # [NE-7] EufyVacuumMaintenanceIntervalNumber.async_set_native_value
 # ---------------------------------------------------------------------------
 
-async def test_maintenance_interval_number_set_native_value_writes_to_data(manager):
-    """[NE-7] async_set_native_value persists the new interval to manager.data."""
+async def test_maintenance_interval_number_set_native_value_writes_to_data(hass, manager):
+    """[NE-7] async_set_native_value persists the new interval to manager.data AND
+    writes HA state (EP-4: async_write_ha_state must be called explicitly — the
+    entity no longer relies on HA's default polling to stay fresh)."""
     entity = _make_interval_number(manager)
-    await entity.async_set_native_value(300.0)
+    entity.hass = hass
+
+    with patch.object(entity, "async_write_ha_state") as mock_write:
+        await entity.async_set_native_value(300.0)
 
     stored = (
         manager.data.get("maintenance", {})
@@ -142,6 +152,25 @@ async def test_maintenance_interval_number_set_native_value_writes_to_data(manag
         .get("interval_hours")
     )
     assert stored == 300.0
+    mock_write.assert_called_once()
+
+
+def test_maintenance_interval_number_should_poll_false(manager):
+    """[NE-9] EP-4: _attr_should_poll is explicitly False (previously unset, so HA's
+    default 30s SCAN_INTERVAL polling was the only thing keeping this fresh)."""
+    entity = _make_interval_number(manager)
+    assert entity._attr_should_poll is False
+
+
+def test_maintenance_interval_number_native_max_value_from_component(manager):
+    """[NE-10] EP-3: native_max_value comes from the component's OWN declared
+    max_interval, not the flat MAINTENANCE_INTERVAL_MAX constant, when the
+    component declares a higher ceiling (e.g. Eufy's "sensor": 720)."""
+    entity = _make_interval_number(manager, max_interval=720.0)
+    assert entity._attr_native_max_value == 720.0
+
+    default_entity = _make_interval_number(manager)
+    assert default_entity._attr_native_max_value == 500.0
 
 
 # ---------------------------------------------------------------------------

@@ -32,7 +32,14 @@ from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_call_later
 
 from ._frontend_url import cards_module_url, panel_js_url
-from .panels import async_register_vacuum_panel, effective_panel_title, panel_url_for
+from .panels import (
+    DEFAULT_PANEL_TITLE,
+    PANEL_ICON,
+    WEBCOMPONENT_NAME,
+    async_register_vacuum_panel,
+    effective_panel_title,
+    panel_url_for,
+)
 from .const import (
     CONF_VACUUM_ENTITY_ID,
     DATA_BATTERY,
@@ -435,10 +442,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await panel_custom.async_register_panel(
                 hass,
                 frontend_url_path=fallback_panel_url,
-                webcomponent_name="eufy-vacuum-command-center",
+                # INF-1: the three literals below are DEFAULT_PANEL_TITLE /
+                # PANEL_ICON / WEBCOMPONENT_NAME from panels.py — that module's
+                # own docstring claims this is the single source of truth for
+                # all panel-registration call sites; this fallback path used
+                # to hand-retype them instead of importing the constants.
+                webcomponent_name=WEBCOMPONENT_NAME,
                 js_url=panel_js_url(),
-                sidebar_title="Vacuum Agent",
-                sidebar_icon="mdi:robot-vacuum",
+                sidebar_title=DEFAULT_PANEL_TITLE,
+                sidebar_icon=PANEL_ICON,
                 config={},  # no vacuum_entity_id — card renders setup placeholder
                 require_admin=False,
                 embed_iframe=False,

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from homeassistant.util import dt as dt_util
+
 UTC = timezone.utc
-_LOCAL_TZ = datetime.now().astimezone().tzinfo or UTC
 
 
 def utc_now() -> datetime:
@@ -62,6 +63,14 @@ def parse_timestamp(value: str | None, *, assume_local_naive: bool = True) -> da
         return None
 
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=_LOCAL_TZ if assume_local_naive else UTC)
+        # INF-2: resolved fresh on every call via Home Assistant's own
+        # dt_util, never cached at import — dt_util.DEFAULT_TIME_ZONE is a
+        # real (DST-aware) named zone HA keeps current with the user's
+        # configured time_zone, unlike a module-level constant captured once
+        # at import (which froze whatever fixed UTC offset happened to be in
+        # force at that moment, so a naive timestamp from the opposite side
+        # of a DST transition was stamped an hour off).
+        local_zone = dt_util.DEFAULT_TIME_ZONE if assume_local_naive else UTC
+        dt = dt.replace(tzinfo=local_zone)
 
     return dt.astimezone(UTC)

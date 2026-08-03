@@ -70,11 +70,23 @@ class EufyVacuumMapOverlaysSensor(SensorEntity):
         return resolve_overlay_visibility(bucket.get("overlay_visibility"))
 
     @property
-    def native_value(self) -> str:
-        """Current room name, or a coarse availability marker."""
+    def available(self) -> bool:
+        """Unavailable when the map-overlays cache has no live result yet.
+
+        SN-9: the real reason is exposed via extra_state_attributes["reason"]
+        (which HA still writes even while unavailable) rather than encoded
+        into the state string — "unavailable" is HA-reserved, and returning
+        it as a literal native_value confuses it with the platform's own
+        availability mechanism.
+        """
+        return bool(self._result().get("present"))
+
+    @property
+    def native_value(self) -> str | None:
+        """Current room name, or None while unavailable (see `available`)."""
         res = self._result()
         if not res.get("present"):
-            return "unavailable"
+            return None
         cur = res.get("current_room")
         if cur is None:
             return "available"

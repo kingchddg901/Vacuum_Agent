@@ -1061,6 +1061,9 @@ class RunPlanManager:
             preflight.update(
                 {
                     "blocked": True,
+                    # PRE-3: the access graph itself is structurally invalid here —
+                    # nothing is includable regardless of what got selected.
+                    "available": False,
                     "reason": _graph_block_reason,
                     "message": _graph_block_message,
                     "warnings": [_graph_block_reason],
@@ -1125,6 +1128,10 @@ class RunPlanManager:
             preflight.update(
                 {
                     "blocked": True,
+                    # PRE-3: blocker rules exist with no access graph to evaluate
+                    # them against — nothing is includable, same as the graph-
+                    # block branch above.
+                    "available": False,
                     "reason": "access_graph_required",
                     "message": "Room blockers require a manual room access graph before they can be used.",
                     "warnings": ["access_graph_required"],
@@ -1527,8 +1534,14 @@ class RunPlanManager:
             )
         )
 
+        # PRE-3: available=False when the plan is genuinely blocked with zero
+        # includable rooms — some rooms were selected, every one of them ended
+        # up blocked, and nothing is left to run. Selecting zero rooms in the
+        # first place is a different ("nothing to do") state, not a block.
+        _genuinely_blocked_empty = bool(blocked_room_ids) and not included_room_ids
         preflight.update(
             {
+                "available": not _genuinely_blocked_empty,
                 "requires_confirmation": requires_confirmation,
                 "confirm_token": confirm_token,
                 "reason": "confirmation_required" if requires_confirmation else ("rooms_blocked" if blocked_room_ids else "ready"),

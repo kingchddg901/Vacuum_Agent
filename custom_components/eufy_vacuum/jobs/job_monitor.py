@@ -24,12 +24,16 @@ class BlockedRoomEntry(TypedDict, total=False):
     """One entry in ``PreflightResult["blocked_rooms"]``.
 
     ``source`` is ``"direct_rule"`` for rule-triggered blocks and
-    ``"access_graph"`` for graph-propagated ones.
+    ``"access_dependency"`` for access-graph-propagated ones (PRE-4: this
+    comment used to name the never-actually-written literal
+    ``"access_graph"`` — the real value planning/run_plan.py writes is
+    ``"access_dependency"``; documentation-truth fix only, the code's
+    literal is unchanged).
     """
 
     room_id: int
     name: Optional[str]
-    source: str            # "direct_rule" | "access_graph"
+    source: str            # "direct_rule" | "access_dependency"
     reason: str
     triggered_rule_id: Optional[str]
     trigger_entity_id: Optional[str]

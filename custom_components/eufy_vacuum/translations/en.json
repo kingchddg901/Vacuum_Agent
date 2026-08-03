@@ -29,6 +29,9 @@
           "notes": "Notes"
         }
       }
+    },
+    "error": {
+      "vacuum_not_found": "That vacuum entity no longer exists — it may have been removed while this dialog was open. Pick a vacuum that is currently available."
     }
   },
   "entity": {

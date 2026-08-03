@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-# All number entities write directly to manager storage; no polling.
+# All number entities write directly to manager storage; each explicitly sets
+# _attr_should_poll=False (inherited via EufyVacuumRoomEntity, or set directly
+# on EufyVacuumMaintenanceIntervalNumber) rather than relying on HA's default
+# polling to paper over a missed async_write_ha_state() call (EP-4).
 PARALLEL_UPDATES = 0
 
 from homeassistant.components.number import NumberEntity
@@ -56,6 +59,10 @@ async def async_setup_entry(
                 label=meta["label"],
                 icon=meta["icon"],
                 default_interval=meta["default_interval_hours"],
+                # EP-3: a component's OWN declared ceiling wins over the flat
+                # constant, so a component whose max exceeds 500 (e.g. Eufy's
+                # "sensor": 720) can be RESTORED via set_value, not just read.
+                max_interval=meta.get("max_interval_hours", MAINTENANCE_INTERVAL_MAX),
             )
             entities.append(entity)
             entity_map[entity.unique_id] = entity
@@ -123,6 +130,25 @@ async def async_setup_entry(
         for uid, entity in desired.items():
             existing = entity_map.get(uid)
             if existing is not None:
+                if (
+                    isinstance(existing, EufyVacuumRoomEntity)
+                    and isinstance(entity, EufyVacuumRoomEntity)
+                    and existing.room_name != entity.room_name
+                ):
+                    # SN-4: same shape as sensor/__init__.py's room-history/rule-
+                    # status sync — the freshly built `entity` carries the room's
+                    # CURRENT name; writing state onto the STALE `existing`
+                    # object would never update the friendly name. Same
+                    # unique_id on both, so the registry entry (and any user
+                    # name override) survives the swap.
+                    entity_map[uid] = entity
+
+                    async def _swap_renamed(_old=existing, _new=entity) -> None:
+                        await _old.async_remove()
+                        async_add_entities([_new])
+
+                    hass.async_create_task(_swap_renamed())
+                    continue
                 existing.async_write_ha_state()
             else:
                 entity_map[uid] = entity
@@ -186,6 +212,9 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
 
     _attr_has_entity_name = True
     _attr_translation_key = "maintenance_interval"
+    # EP-4: honest about it — async_set_native_value below writes state itself,
+    # so this must not depend on HA's default polling to stay fresh.
+    _attr_should_poll = False
 
     def __init__(
         self,
@@ -196,6 +225,7 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
         label: str,
         icon: str,
         default_interval: float,
+        max_interval: float = MAINTENANCE_INTERVAL_MAX,
     ) -> None:
         """Initialize maintenance interval number."""
         self._manager = manager
@@ -209,7 +239,7 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
         self._attr_icon = icon
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._attr_native_min_value = MAINTENANCE_INTERVAL_MIN
-        self._attr_native_max_value = MAINTENANCE_INTERVAL_MAX
+        self._attr_native_max_value = max_interval
         self._attr_native_step = MAINTENANCE_INTERVAL_STEP
         self._attr_native_unit_of_measurement = "h"
         self._attr_mode = "box"
@@ -245,3 +275,4 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
             "interval_hours"
         ] = round(value, 1)
         await self._manager.async_save()
+        self.async_write_ha_state()

@@ -130,13 +130,6 @@ class _BatteryBase(SensorEntity):
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{unique_suffix}"
         )
-        # Pin the entity_id to match the unique_suffix so the card's state
-        # lookup never drifts when a label is changed. Without this, HA
-        # slugifies _attr_name to derive entity_id, which can diverge from
-        # the suffix (e.g. label "Last Job Drain Rate" + suffix
-        # "last_job_drain_per_min" produced two different ids).
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        self._attr_suggested_object_id = f"{object_id}_{unique_suffix}"
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._unsub = None
 

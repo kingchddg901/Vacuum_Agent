@@ -10,6 +10,8 @@ Coverage targets
 [SE-6]  EufyVacuumThemeStateSensor.native_value = 'none' when no active theme.
 [SE-7]  EufyVacuumThemeStateSensor.native_value = theme name when active theme set.
 [SE-8]  EufyVacuumThemeStateSensor.extra_state_attributes includes library_count.
+[SE-9]  SN-10b: a stored library entry with name=None renders 'none', not the
+        literal string 'None'.
 """
 
 from __future__ import annotations
@@ -107,6 +109,18 @@ def test_theme_sensor_native_value_returns_theme_name(manager):
     manager.themes.save_theme_as_new(vacuum_entity_id=_VAC, name="Cool Theme")
     sensor = EufyVacuumThemeStateSensor(manager=manager, vacuum_entity_id=_VAC)
     assert sensor.native_value == "Cool Theme"
+
+
+def test_theme_sensor_native_value_stored_none_name_renders_none(manager):
+    """[SE-9] SN-10b: entry.get("name", "none") only fires its default on an
+    ABSENT key — a stored {"name": None} entry rendered the literal string
+    "None" instead of "none". The fix is entry.get("name") or "none"."""
+    result = manager.themes.save_theme_as_new(vacuum_entity_id=_VAC, name="Temp")
+    theme_id = result["theme_id"]
+    manager.data["theme"]["library"][theme_id]["name"] = None
+
+    sensor = EufyVacuumThemeStateSensor(manager=manager, vacuum_entity_id=_VAC)
+    assert sensor.native_value == "none"
 
 
 def test_theme_sensor_extra_attributes_include_library_count(manager):

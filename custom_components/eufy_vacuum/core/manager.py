@@ -514,6 +514,11 @@ class EufyVacuumManager:
         self._run_profile_update_callbacks: list = []
         self._room_history_update_callbacks: list = []
         self._room_rule_status_update_callbacks: list = []
+        # SN-1: fires the first time ensure_vacuum_record creates a NEW managed-
+        # vacuum record, so the sensor platform can build that vacuum's sensors
+        # immediately (add_vacuum / discover_rooms / config-entry setup all route
+        # through ensure_vacuum_record) instead of waiting for a reload.
+        self._vacuum_added_callbacks: list = []
         self._room_history_cache_loading: set[str] = set()
 
         # Per-vacuum post-map-switch coordinate-frame gate. After a map_load the frame
@@ -734,6 +739,26 @@ class EufyVacuumManager:
         """Unregister a theme update callback - delegates to ThemeManager."""
         self.themes.unregister_update_callback(callback)
 
+    def register_vacuum_added_callback(self, callback) -> None:
+        """Register a callback to fire when a NEW managed vacuum is created."""
+        if callback not in self._vacuum_added_callbacks:
+            self._vacuum_added_callbacks.append(callback)
+
+    def unregister_vacuum_added_callback(self, callback) -> None:
+        """Unregister a vacuum-added callback."""
+        if callback in self._vacuum_added_callbacks:
+            self._vacuum_added_callbacks.remove(callback)
+
+    def _notify_vacuum_added(self, *, vacuum_entity_id: str) -> None:
+        """Fire all registered vacuum-added callbacks."""
+        for cb in list(self._vacuum_added_callbacks):
+            try:
+                cb(vacuum_entity_id=vacuum_entity_id)
+            except Exception:
+                import logging
+                logging.getLogger(__name__).exception(
+                    "Vacuum added callback failed for %s", vacuum_entity_id,
+                )
 
     def _notify_rooms_updated(
         self,
@@ -1145,6 +1170,7 @@ class EufyVacuumManager:
         self.data.setdefault("vacuums", {})
         registry_model = self._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
         effective_model = detected_model or registry_model
+        _is_new = vacuum_entity_id not in self.data["vacuums"]
         record = self.data["vacuums"].setdefault(
             vacuum_entity_id,
             {
@@ -1158,6 +1184,13 @@ class EufyVacuumManager:
             record["detected_model"] = detected_model
         elif not record.get("detected_model") and registry_model:
             record["detected_model"] = registry_model
+
+        if _is_new:
+            # SN-1: the single choke point every "a vacuum now exists" caller
+            # (add_vacuum, discover_rooms, config-entry setup, capability
+            # refresh) routes through -- so the sensor platform's creation
+            # hook fires regardless of which of those triggered it.
+            self._notify_vacuum_added(vacuum_entity_id=vacuum_entity_id)
 
         return record
 
@@ -1228,7 +1261,14 @@ class EufyVacuumManager:
 
         items: list[dict[str, Any]] = []
         for vacuum_entity_id, record in sorted(self.data["vacuums"].items()):
-            capabilities = self.data.get("capabilities", {}).get(vacuum_entity_id, {})
+            # VAC-5: get_vacuum_capabilities(refresh=False) guarantees a
+            # snapshot exists (detecting on a cold read) instead of trusting
+            # the raw dict, which reports None for every supports_* field on
+            # a vacuum that exists but has no capability detection yet.
+            capabilities = self.get_vacuum_capabilities(
+                vacuum_entity_id=vacuum_entity_id,
+                refresh=False,
+            )
             items.append(
                 {
                     "vacuum_entity_id": vacuum_entity_id,

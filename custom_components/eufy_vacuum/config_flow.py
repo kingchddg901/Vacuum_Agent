@@ -9,6 +9,7 @@ Configure → Options.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -26,6 +27,7 @@ from .const import (
     SUPPORTED_TESTED_MODEL,
 )
 
+_LOGGER = logging.getLogger(__name__)
 
 _VACUUM_SELECTOR = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="vacuum"),
@@ -95,21 +97,67 @@ class EufyVacuumOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Show the options edit form and persist changes on submit."""
-        if user_input is not None:
-            data = {CONF_NOTES: user_input.get(CONF_NOTES, "")}
-            vacuum_entity_id = user_input.get(CONF_VACUUM_ENTITY_ID)
-            if vacuum_entity_id:
-                data[CONF_VACUUM_ENTITY_ID] = vacuum_entity_id
-            return self.async_create_entry(title="", data=data)
-
-        current_vacuum = self.config_entry.options.get(
+        previous_vacuum = self.config_entry.options.get(
             CONF_VACUUM_ENTITY_ID,
             self.config_entry.data.get(CONF_VACUUM_ENTITY_ID, ""),
         )
+
+        if user_input is not None:
+            notes = user_input.get(CONF_NOTES, "")
+            vacuum_entity_id = user_input.get(CONF_VACUUM_ENTITY_ID)
+            if vacuum_entity_id:
+                # FLOW-3: the form's default was baked in at RENDER time
+                # (below) from self.config_entry as it stood THEN. If the
+                # device behind that default was deleted while this dialog
+                # sat open (__init__._teardown_vacuum /
+                # _schedule_clear_configured_vacuum already stripped it from
+                # entry.data/options), submitting the untouched default would
+                # resurrect it. Re-validate against HA's live state now,
+                # rather than trusting what the stale form remembers.
+                if self.hass.states.get(vacuum_entity_id) is None:
+                    return self.async_show_form(
+                        step_id="init",
+                        data_schema=self._options_schema(
+                            current_vacuum=previous_vacuum, current_notes=notes,
+                        ),
+                        errors={CONF_VACUUM_ENTITY_ID: "vacuum_not_found"},
+                    )
+                # FLOW-2: switching to a different vacuum here does NOT
+                # reconcile the vacuum being replaced -- remove_vacuum_record
+                # is never called from this flow (its one caller is the
+                # device-delete path). Decision (pre-resolved, not
+                # relitigated here): KEEP the old vacuum's stored data by
+                # default; just make the change visible in the log so the
+                # operator knows which vacuum_entity_id is now orphaned from
+                # this entry.
+                if previous_vacuum and previous_vacuum != vacuum_entity_id:
+                    _LOGGER.warning(
+                        "eufy_vacuum: options flow switched the configured "
+                        "vacuum from %s to %s — %s's stored data (rooms, "
+                        "maps, history, etc.) is KEPT, not removed; delete "
+                        "its device from the device page if you want it "
+                        "cleared",
+                        previous_vacuum, vacuum_entity_id, previous_vacuum,
+                    )
+                data = {CONF_NOTES: notes, CONF_VACUUM_ENTITY_ID: vacuum_entity_id}
+            else:
+                data = {CONF_NOTES: notes}
+            return self.async_create_entry(title="", data=data)
+
         current_notes = self.config_entry.options.get(
             CONF_NOTES, self.config_entry.data.get(CONF_NOTES, ""),
         )
 
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self._options_schema(
+                current_vacuum=previous_vacuum, current_notes=current_notes,
+            ),
+        )
+
+    @staticmethod
+    def _options_schema(*, current_vacuum: str, current_notes: str) -> vol.Schema:
+        """Build the options form schema for a given current vacuum/notes pair."""
         schema: dict[Any, Any] = {}
         if current_vacuum:
             schema[vol.Optional(CONF_VACUUM_ENTITY_ID, default=current_vacuum)] = (
@@ -118,8 +166,4 @@ class EufyVacuumOptionsFlow(OptionsFlow):
         else:
             schema[vol.Optional(CONF_VACUUM_ENTITY_ID)] = _VACUUM_SELECTOR
         schema[vol.Optional(CONF_NOTES, default=current_notes)] = str
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(schema),
-        )
+        return vol.Schema(schema)

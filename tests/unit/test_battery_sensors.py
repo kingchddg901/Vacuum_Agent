@@ -204,10 +204,15 @@ def test_bucket_means():
 
 
 def test_unique_and_object_id():
-    """[BS-11]"""
+    """[BS-11] EP-6: _attr_suggested_object_id is no longer set (matches every
+    other has_entity_name entity in this codebase) — unique_id alone drives
+    entity_id assignment."""
     s = ChargeCyclesSensor(manager=_mgr(), vacuum_entity_id=_VAC)
     assert s.unique_id == "vacuum_alfred_charge_cycles"
-    assert s._attr_suggested_object_id == "alfred_charge_cycles"
+    # HA's Entity base class only defines _attr_suggested_object_id when a
+    # subclass actually assigns it -- unset here means the attribute is
+    # absent entirely, not merely None.
+    assert getattr(s, "_attr_suggested_object_id", None) is None
 
 
 async def test_on_manager_update_dispatches_state_write(hass):

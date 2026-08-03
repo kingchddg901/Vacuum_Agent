@@ -12,6 +12,9 @@ Coverage targets
 [RE-5]  _async_update_room: managed fields path calls update_room_fields.
 [RE-6]  _async_update_room: generic field path rebuilds summary + notifies.
 [RE-7]  available logs on the present→absent transition.
+[RE-8]  EP-7: _async_update_room applies a mixed managed+unmanaged batch via
+        BOTH update_room_fields and the generic merge, instead of the managed
+        branch's old unconditional early return silently dropping the rest.
 [FU-1]  panel_js_url returns the base url with a cache-busting query.
 """
 
@@ -117,6 +120,31 @@ async def test_room_update_fields():
     await ent._async_update_room({"enabled": False, "fan_speed": "max"})
     mgr.update_room_fields.assert_called_once()
     mgr.async_save.assert_awaited_once()
+
+
+async def test_room_update_mixed_managed_and_unmanaged_fields():
+    """[RE-8] EP-7: a single call mixing a MANAGED field (enabled) with an
+    UNMANAGED one (color) must apply the managed subset via
+    update_room_fields AND still route the unmanaged field to the generic
+    merge — not silently drop it via the managed branch's old unconditional
+    early return."""
+    ent, mgr = _room_entity()
+    mgr._refresh_room_derived_state = MagicMock()
+    mgr._notify_rooms_updated = MagicMock()
+
+    await ent._async_update_room({"enabled": False, "color": "#ff0000"})
+
+    mgr.update_room_fields.assert_called_once()
+    _, kwargs = mgr.update_room_fields.call_args
+    assert kwargs["enabled"] is False
+    assert "color" not in kwargs  # color is not a managed_field_names key
+
+    # The unmanaged field still reached the generic merge.
+    assert mgr.data["maps"][_VAC][_MAP]["rooms"]["3"]["color"] == "#ff0000"
+    mgr._refresh_room_derived_state.assert_called_once()
+    mgr._notify_rooms_updated.assert_called_once()
+    mgr.async_save.assert_awaited_once()
+    ent.async_write_ha_state.assert_called_once()
 
 
 async def test_room_update_generic():

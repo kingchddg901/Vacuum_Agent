@@ -66,7 +66,7 @@ class LiveRuleState(TypedDict, total=False):
     last_selected: bool
     last_included: bool
     last_block_reason: Optional[str]
-    last_block_source: Optional[str]    # "direct_rule" | "access_graph"
+    last_block_source: Optional[str]    # "direct_rule" | "access_dependency" (PRE-4)
     last_blocked_by_room_id: Optional[str]
     last_blocked_by_room_name: Optional[str]
     last_triggered_rule_ids: list       # list[str]

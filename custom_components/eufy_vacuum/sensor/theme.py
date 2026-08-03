@@ -72,7 +72,9 @@ class EufyVacuumThemeStateSensor(SensorEntity):
         entry = library.get(active_id)
         if entry is None:
             return "none"
-        return str(entry.get("name", "none"))
+        # SN-10b: .get's default only fires on an ABSENT key -- a stored
+        # {"name": None} entry would render the literal string "None".
+        return str(entry.get("name") or "none")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

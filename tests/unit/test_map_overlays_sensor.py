@@ -5,6 +5,9 @@ manager (no HA). The attribute assembly + visibility lookup need hass and are co
 the pure resolve_overlay_visibility tests + the live deploy.
 
 [MOS-1] native_value: room-name lookup / availability markers / absent.
+[MOS-1d] SN-9: absent map_state_source -> available=False, native_value=None
+         (no longer the literal string "unavailable" impersonating HA's own
+         availability mechanism).
 """
 
 from custom_components.eufy_vacuum.sensor.map_overlays import (
@@ -47,6 +50,9 @@ def test_native_value_available_when_no_current_room():
 
 
 def test_native_value_unavailable():
-    """[MOS-1d] absent map_state_source / empty cache -> 'unavailable'."""
-    assert _sensor({"present": False, "reason": "x"}).native_value == "unavailable"
-    assert _sensor(None).native_value == "unavailable"
+    """[MOS-1d] SN-9: absent map_state_source / empty cache -> native_value is
+    None and available is False (HA's real unavailable mechanism), not the
+    literal string "unavailable" impersonating it as an ordinary value."""
+    for s in (_sensor({"present": False, "reason": "x"}), _sensor(None)):
+        assert s.native_value is None
+        assert s.available is False
