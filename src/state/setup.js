@@ -195,6 +195,80 @@ export function applySetupState(proto) {
     s.deleting     = false;
   };
 
+  /* =========================================================
+     RECONCILIATION REVIEW STATE (CARD-7/RP-019)
+     =========================================================
+     Transient UI state for the reconciliation banner rendered inside
+     the save_rooms step. The REVIEW DATA itself (reviews, has_changes,
+     plan_token, map_id) comes straight from setupStatus()'s per-vacuum
+     "reconciliation" field (Gap 2) — this only tracks what the user has
+     done with it locally:
+       - resolvedToken: the plan_token of the last review this card
+         successfully applied (migrate) or dismissed (ignore). Comparing
+         it against the CURRENT reconciliation.plan_token lets the
+         renderer stop showing a group banner for a plan the user already
+         acted on, even though the backend's cached reconciliation block
+         only refreshes on the next real discover_rooms pass (same
+         "reflects the last pass" contract room_drift already has) — see
+         renderers/setup.js's renderReconciliationPanel.
+       - result: the raw reconcile_room response for the resolvedToken
+         above, rendered as State C (report id_remap/dropped) when its
+         action is "migrate". Cleared implicitly whenever a fresh
+         plan_token supersedes it — no explicit reset needed.
+       - staleNote: one-line "the map changed" note shown after a
+         successful silent recovery from a plan_changed refusal.
+       - refreshFailed: the silent recovery itself failed to complete —
+         render the design's literal fallback ("re-discover" button)
+         instead of guessing at stale data.
+     ========================================================= */
+
+  proto._ensureSetupReconcileState = function () {
+    if (!this._setupReconcileState) {
+      this._setupReconcileState = {
+        loading:        false,
+        resolvedToken:  null,
+        result:         null,
+        staleNote:      false,
+        refreshFailed:  false,
+      };
+    }
+    return this._setupReconcileState;
+  };
+
+  proto.setupReconcileLoading = function () {
+    return this._ensureSetupReconcileState().loading;
+  };
+  proto.setSetupReconcileLoading = function (loading) {
+    this._ensureSetupReconcileState().loading = Boolean(loading);
+  };
+
+  proto.setupReconcileResolvedToken = function () {
+    return this._ensureSetupReconcileState().resolvedToken ?? null;
+  };
+  proto.setupReconcileResult = function () {
+    return this._ensureSetupReconcileState().result ?? null;
+  };
+  /** Record a locally-resolved (migrated or dismissed) plan_token + its response. */
+  proto.setSetupReconcileResolved = function (planToken, result) {
+    const s = this._ensureSetupReconcileState();
+    s.resolvedToken = planToken ?? null;
+    s.result        = result ?? null;
+  };
+
+  proto.setupReconcileStaleNote = function () {
+    return this._ensureSetupReconcileState().staleNote;
+  };
+  proto.setSetupReconcileStaleNote = function (shown) {
+    this._ensureSetupReconcileState().staleNote = Boolean(shown);
+  };
+
+  proto.setupReconcileRefreshFailed = function () {
+    return this._ensureSetupReconcileState().refreshFailed;
+  };
+  proto.setSetupReconcileRefreshFailed = function (failed) {
+    this._ensureSetupReconcileState().refreshFailed = Boolean(failed);
+  };
+
   /* Collect enabled room IDs as integers for the service call. */
   proto.setupRoomEditorEnabledIds = function () {
     const ed    = this._ensureSetupRoomEditor();

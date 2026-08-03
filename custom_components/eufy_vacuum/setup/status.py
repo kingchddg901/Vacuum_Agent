@@ -34,6 +34,15 @@ compatibility with the current card while it is refactored):
                     "transiently_missing": [{room_id, name, map_id}, ...],
                     "rejected_rooms":      [room_id, ...],
                 },
+                "reconciliation": {          # CARD-7/RP-019 — last-cached identity-shift
+                    "reviews":      [ ... ], # review dicts (rooms/reconciliation.py); see
+                                             # its docstring for the id_changed / renamed /
+                                             # renamed_and_renumbered shapes
+                    "has_changes":  bool,
+                    "plan_token":   str,     # opaque; round-trip to reconcile_room, never parse
+                    "map_id":       str,     # the vacuum's active map this review was cached for
+                    "dismissed":    bool,    # optional, present only when a dismissal suppressed it
+                } | None,                    # None when no discovery has ever cached one
                 "maps": [ ... ],             # same as before, when relevant
                 # LEGACY (backward-compat for current card; will be removed):
                 "has_imported_map": bool,
@@ -54,6 +63,7 @@ from homeassistant.core import HomeAssistant
 
 from ..const import DATA_RUNTIME, DOMAIN
 from ..panels import effective_panel_title
+from ..rooms.room_discovery import get_active_map_id
 from .drift import (
     SETUP_STEP_LABELS,
     SETUP_STEP_SERVICES,
@@ -148,6 +158,48 @@ def _build_maps_list(
     return maps_out, has_imported_map
 
 
+def _build_reconciliation_for_vacuum(
+    manager: Any, vacuum_entity_id: str
+) -> dict[str, Any] | None:
+    """Return the LAST-CACHED identity-shift reconciliation for one vacuum, or None.
+
+    Passive read only (CARD-7/RP-019 gap 2) — mirrors compute_room_drift's own
+    contract just above: this NEVER calls ``RoomMapManager.discover_rooms`` and
+    never recomputes ``compute_reconciliation`` itself. It reads whatever
+    ``RoomMapManager.discover_rooms`` (rooms/room_crud.py) already cached at
+    ``manager.data["discovery"][vacuum_entity_id][map_id]["reconciliation"]`` the
+    last time discovery actually ran for that map — same "as of the last pass"
+    contract room_drift already has. Opening or polling Setup must never itself
+    trigger a new discovery pass.
+
+    ``map_id`` is resolved with ``get_active_map_id`` — the SAME resolution
+    ``discover_rooms_payload`` uses to pick the cache key it writes
+    (``rooms/room_discovery.py``), so this reads the exact bucket the vacuum's
+    current active map would have written. The returned dict is the cached
+    ``reconciliation`` payload (``reviews``, ``has_changes``, ``plan_token``,
+    optionally ``dismissed``) with ``map_id`` stamped onto it — the card needs
+    that id to send back on ``reconcile_room`` (its schema requires ``map_id``)
+    and the cached payload itself doesn't carry it (it's the dict's own outer key).
+    """
+    active_map_id = get_active_map_id(manager.hass, vacuum_entity_id)
+    if not active_map_id:
+        return None
+
+    cached = (
+        manager.data.get("discovery", {})
+        .get(vacuum_entity_id, {})
+        .get(str(active_map_id))
+    )
+    if not isinstance(cached, dict):
+        return None
+
+    reconciliation = cached.get("reconciliation")
+    if not isinstance(reconciliation, dict):
+        return None
+
+    return {**reconciliation, "map_id": str(active_map_id)}
+
+
 def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
     """Return the current setup state for panel rendering.
 
@@ -188,6 +240,11 @@ def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
         # and update history out-of-band.
         drift = compute_room_drift(manager, vacuum_entity_id)
 
+        # Identity-shift reconciliation reviews (CARD-7/RP-019): same passive,
+        # last-cached-pass contract as drift immediately above — see
+        # _build_reconciliation_for_vacuum's docstring.
+        reconciliation = _build_reconciliation_for_vacuum(manager, vacuum_entity_id)
+
         if next_step is not None:
             all_steps_complete = False
         if not drift["in_sync"]:
@@ -210,6 +267,7 @@ def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
             "setup_steps": steps,
             "next_step": next_step,
             "room_drift": drift,
+            "reconciliation": reconciliation,
             "maps": maps_out,
             # Legacy field — current card consumers.
             "has_imported_map": has_imported_map,

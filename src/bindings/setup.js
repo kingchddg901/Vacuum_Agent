@@ -18,6 +18,12 @@
  *   [data-action="setup-set-floor-type"]  data-room-id  data-floor-type
  *   [data-action="setup-save-rooms"]      data-map-id
  *
+ * Reconciliation review actions (CARD-7/RP-019):
+ *   [data-action="setup-reconcile-update"]      reconcile_room(action=migrate)
+ *   [data-action="setup-reconcile-dismiss"]     reconcile_room(action=ignore)
+ *   [data-action="setup-reconcile-rediscover"]  manual retry after a failed
+ *                                                stale-plan_token recovery
+ *
  * ============================================================
  */
 
@@ -462,5 +468,162 @@ export function applySetupBindings(proto) {
         card._scheduleRender();
       }
     });
+
+    /* -------------------------------------------------------
+       RECONCILIATION REVIEW (CARD-7/RP-019) — the ONE whole-map
+       decision on a re-segment's identity-shift reviews. Both
+       buttons go through card._actions.reconcileRoom, which
+       DELIBERATELY bypasses the shared callService wrapper (Gap 3)
+       so a stale plan_token refusal reaches this catch as a raw
+       thrown error to inspect — see actions/setup.js's
+       reconcileRoom doc comment.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-reconcile-update']", "click", async () => {
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      const reconciliation = _currentReconciliation(card, vacuumEntityId);
+      if (!vacuumEntityId || !reconciliation?.map_id || !reconciliation?.plan_token) return;
+
+      const mapId     = reconciliation.map_id;
+      const planToken = reconciliation.plan_token;
+
+      card._state.setSetupReconcileLoading?.(true);
+      card._state.setSetupReconcileStaleNote?.(false);
+      card._state.setSetupReconcileRefreshFailed?.(false);
+      card._state.setSetupError?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.reconcileRoom?.(vacuumEntityId, mapId, "migrate", planToken);
+        card._state.setSetupReconcileResolved?.(planToken, result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+      } catch (err) {
+        if (_reconcileErrorReason(err) === "plan_changed") {
+          // Safe: a refused migrate applied nothing. Silently refresh and
+          // re-render State B from the fresh reviews — NEVER auto-confirm.
+          await _recoverFromStalePlanToken(card, vacuumEntityId, mapId);
+        } else {
+          card._state.setSetupError?.(
+            this.tRaw("bind_setup.failed_reconcile_update", { error: err?.message ?? String(err) }),
+          );
+        }
+      } finally {
+        card._state.setSetupReconcileLoading?.(false);
+        card._scheduleRender();
+      }
+    });
+
+    card._onAll("[data-action='setup-reconcile-dismiss']", "click", async () => {
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      const reconciliation = _currentReconciliation(card, vacuumEntityId);
+      if (!vacuumEntityId || !reconciliation?.map_id) return;
+
+      const mapId     = reconciliation.map_id;
+      const planToken = reconciliation.plan_token ?? null;
+
+      card._state.setSetupReconcileLoading?.(true);
+      card._state.setSetupReconcileStaleNote?.(false);
+      card._state.setSetupReconcileRefreshFailed?.(false);
+      card._state.setSetupError?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.reconcileRoom?.(vacuumEntityId, mapId, "ignore", planToken);
+        card._state.setSetupReconcileResolved?.(planToken, result);
+        card.showToast?.(this.t("bind_setup.reconciliation_dismissed"), { kind: "success" });
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+      } catch (err) {
+        if (_reconcileErrorReason(err) === "plan_changed") {
+          await _recoverFromStalePlanToken(card, vacuumEntityId, mapId);
+        } else {
+          card._state.setSetupError?.(
+            this.tRaw("bind_setup.failed_reconcile_dismiss", { error: err?.message ?? String(err) }),
+          );
+        }
+      } finally {
+        card._state.setSetupReconcileLoading?.(false);
+        card._scheduleRender();
+      }
+    });
+
+    /* -------------------------------------------------------
+       RECONCILIATION — manual re-discover fallback. Only shown
+       when the automatic silent recovery above itself failed
+       (design's literal fallback: "the map changed — re-discover").
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-reconcile-rediscover']", "click", async () => {
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      const reconciliation = _currentReconciliation(card, vacuumEntityId);
+      // The stale cached map_id is still the right target — only the SAVED
+      // room state or discovery moved on, not which map is active.
+      const mapId = reconciliation?.map_id ?? null;
+      if (!vacuumEntityId || !mapId) return;
+
+      card._state.setSetupReconcileLoading?.(true);
+      card._scheduleRender();
+
+      await _recoverFromStalePlanToken(card, vacuumEntityId, mapId);
+
+      card._state.setSetupReconcileLoading?.(false);
+      card._scheduleRender();
+    });
   };
+}
+
+/* -----------------------------------------------------------
+   Helpers (module-private) — reconciliation review (CARD-7/RP-019)
+   ----------------------------------------------------------- */
+
+/**
+ * Read the current reconciliation block for one vacuum out of the last
+ * fetched setup status — the review data (reviews, has_changes, plan_token,
+ * map_id) lives there (Gap 2's passive get_setup_status embed), never
+ * re-fetched here.
+ */
+function _currentReconciliation(card, vacuumEntityId) {
+  const status = card._state?.setupStatus?.() ?? null;
+  const vacuums = Array.isArray(status?.vacuums) ? status.vacuums : [];
+  const entry = vacuums.find((v) => v.vacuum_entity_id === vacuumEntityId);
+  return entry?.reconciliation ?? null;
+}
+
+/**
+ * Map a reconcile_room rejection to the backend reason CODE it names, by
+ * inspecting the caught error's message string — mirrors
+ * bindings/map.js's _uploadErrorMessage pattern (direct hass call, own
+ * catch, message inspection) adapted to this service's two refusal reasons
+ * (services/rooms.py's _handle_reconcile_room raises
+ * `ServiceValidationError(f"Could not reconcile room: {result['skipped']}")`
+ * for both). Returns null for any other failure (network error, etc.).
+ */
+function _reconcileErrorReason(err) {
+  const message = err && typeof err.message === "string" ? err.message : String(err ?? "");
+  if (/plan_token_required/i.test(message)) return "plan_token_required";
+  if (/plan_changed/i.test(message)) return "plan_changed";
+  return null;
+}
+
+/**
+ * Stale plan_token recovery (design doc's "Stale plan_token" section): fire
+ * a fresh discover_rooms pass, then re-poll getSetupStatus so Gap 2's passive
+ * embed picks up the newly-cached reviews + a plan_token that matches them.
+ * Safe to run silently — the migrate it recovers from applied NOTHING (the
+ * refusal happens before any mutation), so there is no partial state.
+ * NEVER auto-confirms the refreshed plan; only re-renders State B for the
+ * user to decide on again. Falls back to a manual retry prompt (the
+ * "refreshFailed" flag; see renderers/setup.js) if the refresh itself throws.
+ */
+async function _recoverFromStalePlanToken(card, vacuumEntityId, mapId) {
+  card._state.setSetupReconcileRefreshFailed?.(false);
+  try {
+    await card._actions.discoverRooms?.(vacuumEntityId, mapId);
+    const statusResult = await card._actions.getSetupStatus?.();
+    card._state.setSetupStatus?.(statusResult);
+    card._state.setSetupReconcileStaleNote?.(true);
+  } catch (refreshErr) {
+    console.error("[eufy-vacuum-command-center] reconciliation refresh failed:", refreshErr);
+    card._state.setSetupReconcileStaleNote?.(false);
+    card._state.setSetupReconcileRefreshFailed?.(true);
+  }
 }

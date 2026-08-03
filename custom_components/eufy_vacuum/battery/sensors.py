@@ -321,12 +321,13 @@ class BatteryHealthSensor(_BatteryBase):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         rec = self._record()
+        stats = rec.get("stats", {})
         baseline = rec.get("baseline", {})
         history = rec.get("session_history_recent", [])
         return {
             # The headline state is capped at 100%; expose the raw (possibly
             # >100) value here so the underlying signal isn't hidden.
-            "uncapped_pct": rec.get("stats", {}).get("health_pct"),
+            "uncapped_pct": stats.get("health_pct"),
             # The headline tracks the CV regime, so surface that anchor by
             # default. cc_min_per_pct is also exposed for visibility.
             "baseline_cv_min_per_pct": baseline.get("cv_min_per_pct"),
@@ -334,6 +335,12 @@ class BatteryHealthSensor(_BatteryBase):
             "baseline_session_count": baseline.get("session_count"),
             "baseline_anchored_at": baseline.get("anchored_at"),
             "completed_sessions": len(history),
+            # RP-045(iii): set only when health_pct is genuinely unavailable
+            # (None here whenever health_pct is present). Paired stable code
+            # + plain-English fallback, matching the learning manager's
+            # trust_reason/trust_reason_text convention.
+            "health_unavailable_reason": stats.get("health_unavailable_reason"),
+            "health_unavailable_reason_text": stats.get("health_unavailable_reason_text"),
         }
 
 

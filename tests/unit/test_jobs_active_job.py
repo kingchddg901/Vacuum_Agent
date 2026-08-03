@@ -1116,3 +1116,51 @@ async def test_a_paused_job_cannot_advance_a_phase():
 
     assert await runner.maybe_advance_phase(vacuum_entity_id="vacuum.alfred", map_id="12") is False
     assert job["current_phase_index"] == 1
+
+
+# --------------------------------------------------------------------------
+# The phases-guard belongs on the NATIVE branch, not the whole function.
+# A phased run's clean phase is an ATOMIC JOB and must roll its rooms.
+# --------------------------------------------------------------------------
+
+
+def _rollover_src():
+    from pathlib import Path
+
+    import custom_components.eufy_vacuum.jobs.active_job as aj
+
+    src = Path(aj.__file__).read_text(encoding="utf-8")
+    start = src.index("def _maybe_roll_current_room_by_timing")
+    end = src.index("def _maybe_roll_current_room_by_native_signal")
+    return src[start:end]
+
+
+def test_the_phases_guard_no_longer_blocks_the_whole_rollover():
+    """It used to sit at the top of _maybe_roll_current_room_by_timing and return for ANY
+    job with phases. On Eufy that suppressed paths which could never carry the failure it
+    was written for — an Eufy room_group phase holds N rooms in ONE dispatch
+    (EufyRoomCleanEngine ignores strict_order), so this was the sole reason rooms never
+    advanced inside a group."""
+    body = _rollover_src()
+    guard = 'if active_job.get("phases"):'
+    assert guard in body, "the guard vanished entirely — it must move, not disappear"
+
+    native = body.index("native_transition_source")
+    assert body.index(guard) > native, (
+        "the phases guard is still ahead of the native branch, so it still blocks "
+        "counter_plateau and timing_rollover for every phased job"
+    )
+
+
+def test_the_guard_still_protects_the_native_path():
+    """108fe97's failure — a 0.55-min phantom completion at job start, source
+    native_signal, on a Roborock S6 — lives entirely in the native branch. Roborock
+    registers native_transition_source=True, so that path must stay guarded."""
+    body = _rollover_src()
+    native_idx = body.index("native_transition_source")
+    tail = body[native_idx:]
+    guard_idx = tail.index('if active_job.get("phases"):')
+    call_idx = tail.index("_maybe_roll_current_room_by_native_signal")
+    assert guard_idx < call_idx, (
+        "the guard must precede the native rollover call, or the phantom returns"
+    )

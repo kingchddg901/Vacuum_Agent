@@ -119,6 +119,16 @@ SESSION_MAX_HOURS = 12.0
 #: Sessions kept in the storage ring buffer for recent-trend computation.
 HISTORY_LIMIT = 50
 
+#: RP-045: sessions that qualify for the health/charge-speed computation are
+#: ALSO retained here, separately from the HISTORY_LIMIT display ring above.
+#: The ring rotates on every session close regardless of whether a session
+#: qualified; a baseline anchored from a qualifying session can easily
+#: outlive that session's place in a 50-item ring (it did, for real, after
+#: ~50 ordinary top-ups). This store is not meant to rotate away within a
+#: baseline's working life, so it gets a much higher ceiling -- still capped
+#: so a very old, very active install doesn't grow this unboundedly.
+HEALTH_QUALIFYING_RETENTION_LIMIT = 500
+
 #: Qualifying sessions used to anchor the baseline. The baseline is
 #: per-install ("your battery as it was when you set this up"), not an
 #: estimate of factory-fresh performance, so the first valid session
@@ -178,6 +188,14 @@ def _new_record() -> dict[str, Any]:
             "health_pct": None,
             "cc_charge_speed_pct": None,
             "cv_charge_speed_pct": None,
+            # RP-045(iii): set only when health_pct is None AND we have
+            # enough session history to say WHY -- not on a genuinely fresh
+            # install with no charges yet, which is just "still building"
+            # rather than stuck. Paired code + plain-English fallback text,
+            # mirroring the learning manager's trust_reason/trust_reason_text
+            # convention (src/renderers/metrics.js's tVocabRaw).
+            "health_unavailable_reason": None,
+            "health_unavailable_reason_text": None,
         },
         "baseline": {
             # Split into per-regime anchors. CC = capacity proxy (50→80),
@@ -191,6 +209,12 @@ def _new_record() -> dict[str, Any]:
             "anchored_at": None,
         },
         "session_history_recent": [],
+        # RP-045: sessions that qualify for cc- and/or cv-side health
+        # computation, retained apart from session_history_recent above so
+        # the comparison set used by _update_health cannot rotate away from
+        # its own baseline anchor. Populated (and capped at
+        # HEALTH_QUALIFYING_RETENTION_LIMIT) by _update_health itself.
+        "health_qualifying_sessions": [],
         # Job-level battery metrics — populated by record_job_metrics().
         "last_job": None,
         "job_aggregates": {
@@ -312,14 +336,33 @@ class BatteryHealthManager:
         """Estimate minutes to charge from ``current_pct`` to ``target_pct``.
 
         Splits the span at the CC/CV boundary (``HIGH_ZONE_MIN`` = 80): the sub-80
-        constant-current phase uses the learned ``cc_min_per_pct`` baseline, the
-        >=80 CV taper (which dominates a 95% target) uses ``cv_min_per_pct``. Falls
-        back to the instantaneous zone RATES (``rate_*_zone_per_min``), then to
-        ``minutes=None`` when there is no data yet — a cold-start install, where the
-        caller shows a live wall-clock "charging..." instead of a fabricated ETA
-        (the charge-rate baseline fills passively from every dock, so this self-heals).
+        constant-current phase pairs with the "low" zone rate, the >=80 CV taper
+        (which dominates a 95% target) pairs with the "high" zone rate.
+
+        RP-043/RP-044: per span, the precedence is:
+          1. A rate observed by THIS charging session for the needed zone (freshest —
+             see the low/high_zone_rate_* accumulators opened in _update_session and
+             filled in _process_sample). Source ``"zone_rate"``.
+          2. The cross-session ``stats.rate_*_zone_per_min`` — but ONLY when there
+             ISN'T a currently open session that could have produced its own sample
+             for this zone and simply hasn't yet. When a session IS open without its
+             own sample, that stats value belongs to a previous, unrelated charge and
+             must not be quietly reused (RP-044's cold-start contract) — this tier is
+             skipped entirely rather than divide by a stale carry-over. Source
+             ``"zone_rate"``.
+          3. The learned per-install ``cc_min_per_pct``/``cv_min_per_pct`` baseline —
+             a fixed, potentially weeks-old anchor, so it is the last resort rather
+             than (as before) the first. Source ``"baseline"``.
+          4. None of the above -> ``minutes=None`` — a cold-start install, where the
+             caller shows a live wall-clock "charging..." instead of a fabricated ETA
+             (the charge-rate baseline fills passively from every dock, so this
+             self-heals within a sample or two of the session opening).
 
         Returns ``{minutes: float|None, source: 'baseline'|'zone_rate'|'already_charged'|None}``.
+        ``source`` is ``"baseline"`` only when EVERY needed span used the baseline;
+        any live-measured contribution (tier 1 or 2) marks the whole estimate
+        ``"zone_rate"``, since that's the more informative half of the answer for
+        the card (is this number still anchored to a frozen reading, or not).
         """
         cur = max(0, min(int(current_pct), 100))
         tgt = max(0, min(int(target_pct), 100))
@@ -329,27 +372,80 @@ class BatteryHealthManager:
         record = self.get_record(vacuum_entity_id)
         baseline = record.get("baseline", {}) if isinstance(record, dict) else {}
         stats = record.get("stats", {}) if isinstance(record, dict) else {}
+        session = record.get("current_session") if isinstance(record, dict) else None
 
         cc_span = max(0, min(tgt, HIGH_ZONE_MIN) - cur)   # % points below 80 (CC)
         cv_span = max(0, tgt - max(cur, HIGH_ZONE_MIN))    # % points at/above 80 (CV taper)
 
-        cc_mpp = baseline.get("cc_min_per_pct")
-        cv_mpp = baseline.get("cv_min_per_pct")
-        if (cc_span == 0 or cc_mpp) and (cv_span == 0 or cv_mpp):
-            minutes = (cc_span * float(cc_mpp) if cc_span else 0.0) + (
-                cv_span * float(cv_mpp) if cv_span else 0.0
-            )
-            return {"minutes": round(minutes, 1), "source": "baseline"}
-
-        # No anchored baseline for a needed regime -> fall back to zone rates (%/min).
-        low_rate = stats.get("rate_low_zone_per_min") or stats.get("rate_overall_per_min")
-        high_rate = stats.get("rate_high_zone_per_min") or stats.get("rate_overall_per_min")
-        if (cc_span and not low_rate) or (cv_span and not high_rate):
-            return {"minutes": None, "source": None}  # cold-start -> wall-clock display
-        minutes = (cc_span / float(low_rate) if cc_span else 0.0) + (
-            cv_span / float(high_rate) if cv_span else 0.0
+        cc_minutes, cc_tier = self._span_minutes(
+            span=cc_span,
+            session=session,
+            session_sum_key="low_zone_rate_sum",
+            session_samples_key="low_zone_rate_samples",
+            stats=stats,
+            stats_rate_key="rate_low_zone_per_min",
+            baseline_mpp=baseline.get("cc_min_per_pct"),
         )
-        return {"minutes": round(minutes, 1), "source": "zone_rate"}
+        cv_minutes, cv_tier = self._span_minutes(
+            span=cv_span,
+            session=session,
+            session_sum_key="high_zone_rate_sum",
+            session_samples_key="high_zone_rate_samples",
+            stats=stats,
+            stats_rate_key="rate_high_zone_per_min",
+            baseline_mpp=baseline.get("cv_min_per_pct"),
+        )
+
+        if cc_minutes is None or cv_minutes is None:
+            return {"minutes": None, "source": None}  # cold-start -> wall-clock display
+
+        tiers = {t for t, span in ((cc_tier, cc_span), (cv_tier, cv_span)) if span > 0}
+        source = "baseline" if tiers == {"baseline"} else "zone_rate"
+        return {"minutes": round(cc_minutes + cv_minutes, 1), "source": source}
+
+    def _span_minutes(
+        self,
+        *,
+        span: float,
+        session: dict[str, Any] | None,
+        session_sum_key: str,
+        session_samples_key: str,
+        stats: dict[str, Any],
+        stats_rate_key: str,
+        baseline_mpp: float | None,
+    ) -> tuple[float | None, str | None]:
+        """Minutes contributed by one regime span, and the tier that supplied it.
+
+        See ``compute_time_to_target_pct``'s docstring for the full precedence.
+        A span of 0 (this regime isn't needed for the requested range) always
+        returns ``(0.0, None)`` regardless of data availability — mirrors the
+        original "cc_span == 0 or cc_mpp" short-circuit.
+        """
+        if span <= 0:
+            return 0.0, None
+
+        session_open_without_own_sample = False
+        if session is not None:
+            samples = int(session.get(session_samples_key) or 0)
+            if samples > 0:
+                rate_sum = float(session.get(session_sum_key) or 0.0)
+                avg_rate = rate_sum / samples
+                if avg_rate > 0:
+                    return span / avg_rate, "zone_rate"
+            # Session open but hasn't produced its own sample for this zone —
+            # RP-044: don't fall through to the cross-session stats value below,
+            # it would be a previous session's leftover.
+            session_open_without_own_sample = True
+
+        if not session_open_without_own_sample:
+            rate = stats.get(stats_rate_key) or stats.get("rate_overall_per_min")
+            if rate:
+                return span / float(rate), "zone_rate"
+
+        if baseline_mpp:
+            return span * float(baseline_mpp), "baseline"
+
+        return None, None
 
     # -- HA wiring -------------------------------------------------------------
 
@@ -567,6 +663,31 @@ class BatteryHealthManager:
                         # of unknown duration, so attributing the full
                         # elapsed_sec to charging would be misleading.
                         if record.get("current_session") is not None:
+                            sess = record["current_session"]
+
+                            # RP-043/RP-044: session-scoped zone-rate accumulation
+                            # (running sum + count) -- mirrors the record-level
+                            # rate_low_zone_per_min/rate_high_zone_per_min stats
+                            # just above, but scoped to THIS session so a fresh
+                            # charge's ETA doesn't lean on a previous session's
+                            # leftover value. Fires on every interval-valid
+                            # charging sample the same as the record-level
+                            # write, independent of the CC/CV window gates below.
+                            if zone == "low":
+                                sess["low_zone_rate_sum"] = (
+                                    float(sess.get("low_zone_rate_sum") or 0.0) + rate_per_min
+                                )
+                                sess["low_zone_rate_samples"] = (
+                                    int(sess.get("low_zone_rate_samples") or 0) + 1
+                                )
+                            elif zone == "high":
+                                sess["high_zone_rate_sum"] = (
+                                    float(sess.get("high_zone_rate_sum") or 0.0) + rate_per_min
+                                )
+                                sess["high_zone_rate_samples"] = (
+                                    int(sess.get("high_zone_rate_samples") or 0) + 1
+                                )
+
                             lo, hi = prev_level, battery_level
                             win_lo = max(lo, CC_ZONE_MIN)
                             win_hi = min(hi, CV_ZONE_MAX)
@@ -580,7 +701,6 @@ class BatteryHealthManager:
                                 full_span = float(hi - lo)
                                 if full_span > 0:
                                     elapsed_min = elapsed_sec / 60.0
-                                    sess = record["current_session"]
                                     if cc_span > 0:
                                         sess["cc_duration_min"] = float(
                                             sess.get("cc_duration_min") or 0.0
@@ -692,6 +812,16 @@ class BatteryHealthManager:
                 "cc_delta_pct": 0.0,
                 "cv_duration_min": 0.0,
                 "cv_delta_pct": 0.0,
+                # RP-043/RP-044: session-scoped low/high-zone rate accumulators
+                # (running sum + count, mirrors the record-level
+                # rate_low_zone_per_min/rate_high_zone_per_min stats but
+                # private to THIS charge) -- so the ETA can prefer a rate
+                # this session has actually measured over a carried-over
+                # value left by a previous, unrelated charge.
+                "low_zone_rate_sum": 0.0,
+                "low_zone_rate_samples": 0,
+                "high_zone_rate_sum": 0.0,
+                "high_zone_rate_samples": 0,
             }
             return
 
@@ -879,27 +1009,58 @@ class BatteryHealthManager:
           framing while CC is exposed separately for the capacity story.
           Stored uncapped here (== cv_charge_speed_pct); the _battery_health
           SENSOR caps it at 100% for display (never "healthier than new").
+
+        RP-045 (i): the comparison set used below is ``health_qualifying_sessions``,
+        retained separately from the HISTORY_LIMIT-capped ``session_history_recent``
+        display ring, so a baseline's own qualifying session can't rotate out from
+        under it. Promoted here (idempotent, de-duped by start/end timestamp) rather
+        than only at session close, so a record whose retained set hasn't caught up
+        yet — an older on-disk record, or a test driving this method directly —
+        still computes from whatever is currently in the ring.
+
+        RP-045 (ii): cc- and cv-side qualification are decoupled — a session is
+        eligible to contribute a cc-side sample if it starts at/below
+        HEALTH_QUALIFY_START_MAX (regardless of where it ends), and a cv-side
+        sample if it ends at/above HEALTH_QUALIFY_END_MIN (regardless of where it
+        starts). The baseline ANCHOR keeps the original, stricter requirement (one
+        session satisfying both, with both regimes populated) — it is a single
+        coherent reference point, not a per-regime one, so decoupling it would
+        change what it means, not just how it's found.
         """
-        history = record.get("session_history_recent", [])
         baseline = record.get("baseline", {})
 
-        qualifying = [
-            s for s in history
-            if (s.get("start_battery") is not None and s.get("end_battery") is not None
-                and s["start_battery"] <= HEALTH_QUALIFY_START_MAX
-                and s["end_battery"] >= HEALTH_QUALIFY_END_MIN
-                and s.get("delta_pct") and s.get("duration_min"))
-        ]
+        retained = record.setdefault("health_qualifying_sessions", [])
+        retained_keys = {
+            (s.get("start_ts"), s.get("end_ts")) for s in retained if isinstance(s, dict)
+        }
+        for s in record.get("session_history_recent", []) or []:
+            if not isinstance(s, dict):
+                continue
+            key = (s.get("start_ts"), s.get("end_ts"))
+            if key in retained_keys:
+                continue
+            if _session_cc_qualifies(s) or _session_cv_qualifies(s):
+                retained.append(s)
+                retained_keys.add(key)
+        if len(retained) > HEALTH_QUALIFYING_RETENTION_LIMIT:
+            del retained[: len(retained) - HEALTH_QUALIFYING_RETENTION_LIMIT]
 
-        # Anchor on the first qualifying session that has BOTH regimes
-        # populated. A 51→89 session qualifies session-wide but only fills
-        # cc_min_per_pct (CV span = 0). Requiring both populated keeps the
-        # baseline coherent — we want one anchor point for both regimes,
-        # not different sessions for each.
+        cc_qualifying = [s for s in retained if _session_cc_qualifies(s)]
+        cv_qualifying = [s for s in retained if _session_cv_qualifies(s)]
+
+        # Anchor on the first FULLY qualifying session (both the original
+        # start<=50/end>=90 window AND both regimes populated) — unchanged
+        # criteria and unchanged "never re-anchor" timing, just sourced from
+        # the retained set instead of the rotating display ring.
         if baseline.get("cc_min_per_pct") is None or baseline.get("cv_min_per_pct") is None:
-            for seed in qualifying:
+            for seed in retained:
+                start = seed.get("start_battery")
+                end = seed.get("end_battery")
                 if (
-                    seed.get("cc_min_per_pct") is not None
+                    start is not None and end is not None
+                    and start <= HEALTH_QUALIFY_START_MAX
+                    and end >= HEALTH_QUALIFY_END_MIN
+                    and seed.get("cc_min_per_pct") is not None
                     and seed.get("cv_min_per_pct") is not None
                 ):
                     baseline["cc_min_per_pct"] = seed["cc_min_per_pct"]
@@ -909,15 +1070,31 @@ class BatteryHealthManager:
                     break
 
         record["stats"]["cc_charge_speed_pct"] = self._compute_regime_pct(
-            qualifying, baseline.get("cc_min_per_pct"), "cc_min_per_pct"
+            cc_qualifying, baseline.get("cc_min_per_pct"), "cc_min_per_pct"
         )
         record["stats"]["cv_charge_speed_pct"] = self._compute_regime_pct(
-            qualifying, baseline.get("cv_min_per_pct"), "cv_min_per_pct"
+            cv_qualifying, baseline.get("cv_min_per_pct"), "cv_min_per_pct"
         )
         # Headline alias — the entity_id stays "_battery_health" for
         # continuity, but the value is now explicitly the CV (resistance)
         # signal, which is what "battery health" conventionally means.
         record["stats"]["health_pct"] = record["stats"]["cv_charge_speed_pct"]
+
+        # RP-045 (iii): a device that (i)+(ii) still can't produce a value for
+        # must say so rather than read None forever — but only once there's
+        # enough session history to say WHY; a brand-new install with zero
+        # charges yet is genuinely "still building", not stuck.
+        if record["stats"]["health_pct"] is None and record.get("session_history_recent"):
+            record["stats"]["health_unavailable_reason"] = "insufficient_discharge_data"
+            record["stats"]["health_unavailable_reason_text"] = (
+                f"No completed charge has started at {HEALTH_QUALIFY_START_MAX}% or "
+                f"lower and reached {HEALTH_QUALIFY_END_MIN}% or higher, so there is "
+                "no baseline to compare against yet. A vacuum that docks frequently "
+                "and rarely runs low may never produce one on its own."
+            )
+        else:
+            record["stats"]["health_unavailable_reason"] = None
+            record["stats"]["health_unavailable_reason_text"] = None
 
     def _compute_regime_pct(
         self,
@@ -961,9 +1138,10 @@ class BatteryHealthManager:
 
         Intended for use after a battery replacement. Does not touch cycles,
         aggregates, session history, mid-job stats, or job metrics — only the
-        health proxy's anchor point. The next qualifying recharge (start
-        <= HEALTH_QUALIFY_START_MAX, end >= HEALTH_QUALIFY_END_MIN) will
-        seed a fresh baseline.
+        health proxy's anchor point (and, per RP-045, the separately-retained
+        qualifying-session set it's compared against — see below). The next
+        qualifying recharge (start <= HEALTH_QUALIFY_START_MAX, end >=
+        HEALTH_QUALIFY_END_MIN) will seed a fresh baseline.
 
         Returns True if a record existed for the vacuum and was cleared,
         False if no record was found.
@@ -986,6 +1164,14 @@ class BatteryHealthManager:
         stats["cc_charge_speed_pct"] = None
         stats["cv_charge_speed_pct"] = None
         stats["health_pct"] = None
+        stats["health_unavailable_reason"] = None
+        stats["health_unavailable_reason_text"] = None
+        # RP-045: the retained qualifying-session set exists precisely so a
+        # baseline's anchor session can't rotate out from under it — but
+        # that means it must be cleared here too, or the very next
+        # _update_health call would re-anchor off an OLD (pre-swap) session
+        # still sitting in the retained store instead of a fresh one.
+        record["health_qualifying_sessions"] = []
         self._schedule_save()
         self._notify(vacuum_entity_id)
         return True
@@ -1247,6 +1433,44 @@ class BatteryHealthManager:
 
 
 # === HELPERS =================================================================
+
+def _session_cc_qualifies(session: dict[str, Any]) -> bool:
+    """RP-045(ii): is this session usable as a CC-side (50→80) sample on its
+    own, independent of whether it also reached the CV window?
+
+    Requires both the threshold (a genuinely low start — a session that
+    starts higher skips the slowest part of the CC curve and would bias the
+    rate) AND real attributed data (``cc_min_per_pct``): a session whose
+    start is <= the threshold but never actually crosses into the 50-80
+    window (e.g. 45→48) produces no CC attribution at all and must not be
+    treated as a sample just because the start looks low enough.
+    """
+    start = session.get("start_battery")
+    return (
+        start is not None
+        and start <= HEALTH_QUALIFY_START_MAX
+        and session.get("cc_min_per_pct") is not None
+    )
+
+
+def _session_cv_qualifies(session: dict[str, Any]) -> bool:
+    """RP-045(ii): CV-side (80→90) counterpart of ``_session_cc_qualifies``.
+
+    A session that starts above CV_ZONE_MAX (e.g. 96→100) can satisfy
+    ``end >= HEALTH_QUALIFY_END_MIN`` by threshold alone without ever
+    traversing the 80-90 window — the regime-attribution pass in
+    ``_process_sample`` correctly leaves ``cv_min_per_pct`` unset for such a
+    session, so the ``is not None`` check here is what actually excludes it
+    (a 96→100 charge "says nothing about pack capacity" per RP-045's
+    prohibited_changes and must not silently feed this regime).
+    """
+    end = session.get("end_battery")
+    return (
+        end is not None
+        and end >= HEALTH_QUALIFY_END_MIN
+        and session.get("cv_min_per_pct") is not None
+    )
+
 
 def _zone_for(level: int) -> str:
     if level <= LOW_ZONE_MAX:

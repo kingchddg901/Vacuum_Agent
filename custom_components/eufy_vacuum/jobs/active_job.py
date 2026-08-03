@@ -1059,16 +1059,12 @@ class ActiveJobTracker:
         if active_job.get("status") != "started":
             return active_job
 
-        # Sequenced (strict-order) jobs advance one room per PHASE via the dispatch
-        # watchdog (manager._await_phase_started) + the completion gate, never by
-        # live-room or timing rollover across the queue. Running rollover here
-        # misreads the device's dock-PARKING as cleaning — when the dock sits in a
-        # target room it gets falsely "completed" at job start (current_room reads as
-        # that room while charging, then changes as the robot leaves to clean phase
-        # 0, so the rollover concludes the dock room finished). No-op for sequenced
-        # jobs; grouped/atomic jobs (no phases) are unaffected.
-        if active_job.get("phases"):
-            return active_job
+        # NOTE: the blanket "if active_job.get('phases'): return" that used to sit here
+        # moved DOWN onto the native-signal branch, where the failure it was written for
+        # actually lives. See that branch for the full reasoning. A phased job's clean
+        # phase is an ATOMIC JOB (Chris, 2026-08-03: "batched atomic jobs that get grouped
+        # at the beginning for dispatch/queue planning and at the end"), so it must roll
+        # its rooms exactly as an atomic run does.
 
         # Native current-room signal path (e.g. Roborock current_room): the device
         # reports the live room directly, so rollover FOLLOWS that signal (filtered
@@ -1082,6 +1078,29 @@ class ActiveJobTracker:
         # learning timeline, which is empty before any learning data exists, but the
         # native signal is independent of the timeline.
         if self._live_transition_config(vacuum_entity_id).get("native_transition_source"):
+            # THE PHASES GUARD LIVES HERE, not at the top of the function.
+            #
+            # Its commit (108fe97) names the failure it was written for: "a 0.55-min
+            # phantom completion at job start (seen live on a Roborock S6: Dining Room
+            # marked done, source native_signal, before it was ever cleaned)" — the dock
+            # sits in a target room, the native signal reports that room while parked, the
+            # branch ADOPTS it as current, and the next transition completes a room that
+            # was never cleaned.
+            #
+            # That is a NATIVE-BRANCH failure. It could never occur on the timing or
+            # counter paths: counter_plateau needs counter samples, which a parked robot
+            # does not produce; timing_rollover needs >= 1.75 min (>= 2.75 unlearned) and
+            # the misread was 0.55 min. Applying the guard to the whole function therefore
+            # suppressed, on Eufy, paths that never carried the defect — and Eufy cannot
+            # even reach this branch (native_transition_source is False for it).
+            #
+            # The cost of over-applying it: an Eufy room_group phase holds N rooms in ONE
+            # dispatch (EufyRoomCleanEngine ignores strict_order), so this guard was the
+            # only reason rooms never advanced inside a group. It also made 3610b09's
+            # phase-scoped sample slice dead code — computed for anomaly gating, never
+            # reached by the rollover it was written for.
+            if active_job.get("phases"):
+                return active_job
             return self._maybe_roll_current_room_by_native_signal(
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=map_id,

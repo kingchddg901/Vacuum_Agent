@@ -852,7 +852,19 @@ export function applyMetricsRenderers(proto) {
           sensorVal(m.health, 0, "%"),
           m.health?.attrs?.baseline_session_count
             ? this.t("metrics.battery_health_vs_first", { count: m.health.attrs.baseline_session_count })
-            : this.t("metrics.battery_health_building")
+            // RP-045: health_unavailable_reason means this device has genuinely
+            // never produced a qualifying session (not just "hasn't yet") —
+            // "Building baseline" would misleadingly imply it's just a matter of
+            // time. Localize from the stable CODE; the backend's English
+            // health_unavailable_reason_text is the fallback for any code we
+            // haven't keyed (tVocabRaw; the sink escapeHtmls it).
+            : m.health?.attrs?.health_unavailable_reason
+              ? this.tVocabRaw(
+                  "health_unavailable_reason",
+                  m.health.attrs.health_unavailable_reason,
+                  m.health?.attrs?.health_unavailable_reason_text || ""
+                )
+              : this.t("metrics.battery_health_building")
         )}
         ${this._renderMetricsMiniCard(
           this.t("metrics.battery_charge_rate"),

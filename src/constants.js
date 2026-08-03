@@ -57,6 +57,7 @@ export const DOMAIN = "eufy_vacuum";
 
 // --- Room / map management ---
 export const SERVICE_DISCOVER_ROOMS         = "discover_rooms";
+export const SERVICE_RECONCILE_ROOM         = "reconcile_room";
 export const SERVICE_SAVE_MANAGED_ROOMS     = "save_managed_rooms";
 export const SERVICE_GET_VACUUM_MAPS        = "get_vacuum_maps";
 

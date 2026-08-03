@@ -94,6 +94,15 @@ export function applySetupRenderers(proto) {
     const rooms        = state.setupRoomEditorRooms?.()        ?? [];
     const saving       = state.setupRoomEditorSaving?.()       ?? false;
 
+    /* Reconciliation review state (CARD-7/RP-019) — see state/setup.js's
+       block comment for what's local UI state vs. backend-sourced. */
+    const reconciliation       = vacuumEntry?.reconciliation ?? null;
+    const reconcileLoading     = state.setupReconcileLoading?.()       ?? false;
+    const reconcileResolvedTok = state.setupReconcileResolvedToken?.() ?? null;
+    const reconcileResult      = state.setupReconcileResult?.()        ?? null;
+    const reconcileStaleNote   = state.setupReconcileStaleNote?.()     ?? false;
+    const reconcileRefreshFail = state.setupReconcileRefreshFailed?.() ?? false;
+
     const deletePendingMapId = state.setupDeletePendingMapId?.() ?? null;
     const deleteStage        = state.setupDeleteStage?.()        ?? null;
     const deleteTypedToken   = state.setupDeleteTypedToken?.()   ?? "";
@@ -205,7 +214,8 @@ export function applySetupRenderers(proto) {
         `;
       }
 
-      const driftHtml = renderDriftPanel(drift, vacuumEntry);
+      const driftHtml      = renderDriftPanel(drift, vacuumEntry);
+      const reconcileHtml  = renderReconciliationPanel(reconciliation);
       const mapRowsHtml = importedMaps.map((m) =>
         renderMapRow(m, /* showConfigureControls */ true)
       ).join("");
@@ -217,6 +227,7 @@ export function applySetupRenderers(proto) {
       return `
         ${intro}
         ${driftHtml}
+        ${reconcileHtml}
         <div class="evcc-setup-mapconfig-list">${mapRowsHtml}</div>
       `;
     };
@@ -316,6 +327,161 @@ export function applySetupRenderers(proto) {
           ${newSection}
           ${removedSection}
           ${transientSection}
+        </div>
+      `;
+    };
+
+    /* -------------------------------------------------------
+       Reconciliation review panel (CARD-7/RP-019) — shown inside
+       save_rooms when a re-segment produced identity-shift reviews
+       the user hasn't acted on. Structurally mirrors renderDriftPanel
+       just above (same evcc-setup-drift-* naming pattern, adapted to
+       evcc-setup-reconcile-*), but with only TWO groups (the design's
+       "two review kinds, not four" correction) and ONE whole-map
+       decision (Update/Dismiss) instead of per-row buttons — the
+       backend (reconcile_room) has no per-room granularity.
+
+       Three kinds fold into two groups:
+         - id_changed              -> "Renumbered" (informational)
+         - renamed                 -> "Renamed" (the real ambiguity)
+         - renamed_and_renumbered  -> ALSO "Renamed" (same core question
+           as a pure rename — did the user rename it, or is this a
+           different room in disguise — just with an id-bookkeeping
+           detail folded into the same row template).
+       ------------------------------------------------------- */
+
+    const renderReconcileIdChange = (oldId, newId) => `
+      <span class="evcc-setup-reconcile-id-change">
+        <span class="evcc-setup-reconcile-id-old">${this.escapeHtml(String(oldId ?? ""))}</span>
+        <span class="evcc-setup-reconcile-id-arrow" aria-hidden="true">→</span>
+        <span class="evcc-setup-reconcile-id-new">${this.escapeHtml(String(newId ?? ""))}</span>
+      </span>
+    `;
+
+    const renderReconcileResult = (result) => {
+      const count   = Number(result?.migrated_room_count ?? 0);
+      const dropped = Array.isArray(result?.dropped) ? result.dropped : [];
+
+      const updatedHtml = `
+        <div class="evcc-setup-result success">${this.t("setup.reconcile_updated_count", { count })}</div>
+      `;
+      const droppedHtml = dropped.length === 0 ? "" : `
+        <div class="evcc-setup-result info">
+          ${this.tRaw("setup.reconcile_dropped_sentence", {
+            count: dropped.length,
+            names: dropped.map((slug) => this.escapeHtml(_prettifySlug(slug))).join(", "),
+          })}
+        </div>
+      `;
+
+      return `
+        <div class="evcc-setup-reconcile-panel resolved">
+          ${updatedHtml}
+          ${droppedHtml}
+        </div>
+      `;
+    };
+
+    const renderReconciliationPanel = (reconciliation) => {
+      if (!reconciliation) return "";
+
+      // A review this card already resolved (Update or Dismiss) round-trips its
+      // exact plan_token here — comparing against the CURRENT token (rather than
+      // trusting has_changes, which only refreshes on the NEXT real discover_rooms
+      // pass, same "last cached pass" contract room_drift already has) is what
+      // stops the group banner from reappearing for a plan already acted on.
+      const isResolved = Boolean(
+        reconcileResolvedTok
+        && reconciliation.plan_token
+        && reconciliation.plan_token === reconcileResolvedTok
+      );
+      if (isResolved) {
+        return reconcileResult?.action === "migrate" ? renderReconcileResult(reconcileResult) : "";
+      }
+
+      // Design's literal fallback: the silent plan_changed recovery itself
+      // failed — prompt a manual re-discover rather than render stale/guessed data.
+      if (reconcileRefreshFail) {
+        return `
+          <div class="evcc-setup-reconcile-panel">
+            <div class="evcc-setup-reconcile-note">${this.t("setup.reconcile_refresh_failed")}</div>
+            <button class="evcc-setup-btn secondary small"
+                    data-action="setup-reconcile-rediscover"
+                    ${reconcileLoading ? "disabled" : ""}>
+              ${this.t("setup.reconcile_rediscover_button")}
+            </button>
+          </div>
+        `;
+      }
+
+      // State A: has_changes:false -> render nothing. No empty state, no badge.
+      if (!reconciliation.has_changes) return "";
+
+      const reviews     = Array.isArray(reconciliation.reviews) ? reconciliation.reviews : [];
+      const renumbered  = reviews.filter((r) => r.kind === "id_changed");
+      const renamed     = reviews.filter((r) => r.kind === "renamed" || r.kind === "renamed_and_renumbered");
+      if (renumbered.length === 0 && renamed.length === 0) return "";
+
+      const renumberedSection = renumbered.length === 0 ? "" : `
+        <div class="evcc-setup-reconcile-section renumbered">
+          <div class="evcc-setup-reconcile-title">
+            ${this.t("setup.reconcile_renumbered_title", { count: renumbered.length })}
+          </div>
+          <div class="evcc-setup-reconcile-hint">
+            ${this.t("setup.reconcile_renumbered_hint")}
+          </div>
+          <div class="evcc-setup-reconcile-list">
+            ${renumbered.map((r) => `
+              <div class="evcc-setup-reconcile-row">
+                <span class="evcc-setup-reconcile-room-name">${this.escapeHtml(r.name || this.t("setup.room_n", { id: r.new_id }))}</span>
+                ${renderReconcileIdChange(r.old_id, r.new_id)}
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+
+      const renamedSection = renamed.length === 0 ? "" : `
+        <div class="evcc-setup-reconcile-section renamed">
+          <div class="evcc-setup-reconcile-title">
+            ${this.t("setup.reconcile_renamed_title", { count: renamed.length })}
+          </div>
+          <div class="evcc-setup-reconcile-hint">
+            ${this.t("setup.reconcile_renamed_hint")}
+          </div>
+          <div class="evcc-setup-reconcile-list">
+            ${renamed.map((r) => `
+              <div class="evcc-setup-reconcile-row ${r.kind === "renamed_and_renumbered" ? "renamed-and-renumbered" : ""}">
+                <span class="evcc-setup-reconcile-room-name">${this.escapeHtml(r.new_name || this.t("setup.room_n", { id: r.room_id ?? r.new_id }))}</span>
+                <span class="evcc-setup-reconcile-was">${this.t("setup.reconcile_formerly", { name: this.escapeHtml(r.old_name || "") })}</span>
+                ${r.kind === "renamed_and_renumbered" ? renderReconcileIdChange(r.old_id, r.new_id) : ""}
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+
+      const staleNoteHtml = reconcileStaleNote
+        ? `<div class="evcc-setup-reconcile-note">${this.t("setup.reconcile_stale_note")}</div>`
+        : "";
+
+      return `
+        <div class="evcc-setup-reconcile-panel">
+          ${staleNoteHtml}
+          ${renumberedSection}
+          ${renamedSection}
+          <div class="evcc-setup-reconcile-actions">
+            <button class="evcc-setup-btn secondary small"
+                    data-action="setup-reconcile-dismiss"
+                    ${reconcileLoading ? "disabled" : ""}>
+              ${reconcileLoading ? this.t("setup.reconcile_dismissing") : this.t("setup.reconcile_dismiss_button")}
+            </button>
+            <button class="evcc-setup-btn small"
+                    data-action="setup-reconcile-update"
+                    ${reconcileLoading ? "disabled" : ""}>
+              ${reconcileLoading ? this.t("setup.reconcile_updating") : this.t("setup.reconcile_update_button")}
+            </button>
+          </div>
         </div>
       `;
     };
@@ -689,6 +855,24 @@ export function applySetupRenderers(proto) {
 /* -----------------------------------------------------------
    Helpers (module-private)
    ----------------------------------------------------------- */
+
+/**
+ * Reformat a room SLUG (e.g. "guest-bedroom") into a display-friendly label
+ * ("Guest Bedroom") for State C's dropped-rooms report. `plan_migration`
+ * (rooms/reconciliation.py) reports `dropped` as slugs, not display names —
+ * the original room's name is gone along with the rest of its durable data,
+ * so the slug is genuinely the best label left. Pure formatting, not i18n:
+ * the slug itself is derived from whatever name the user gave the room.
+ */
+function _prettifySlug(slug) {
+  const s = String(slug ?? "").trim();
+  if (!s) return s;
+  return s
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
 
 /**
  * Check whether the named step is marked completed in a steps array.

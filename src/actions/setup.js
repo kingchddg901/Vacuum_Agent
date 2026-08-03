@@ -12,6 +12,8 @@ import {
   SERVICE_SETUP_FORCE_REMOVE_ROOM,
   SERVICE_SETUP_SET_PANEL_TITLE,
   SERVICE_SETUP_SET_MAP_CAMERA,
+  SERVICE_DISCOVER_ROOMS,
+  SERVICE_RECONCILE_ROOM,
 } from "../constants.js";
 
 export function applySetupActions(proto) {
@@ -167,5 +169,60 @@ export function applySetupActions(proto) {
       true,
     );
     return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Apply (migrate) or dismiss (ignore) the identity-shift reconciliation
+   * reviews for one map (CARD-7/RP-019, Gap 3).
+   *
+   * DIRECT hass.callService — deliberately bypasses this file's usual
+   * `this.callService` wrapper. The backend refuses a stale/missing
+   * plan_token by RAISING a ServiceValidationError (plan_changed /
+   * plan_token_required) rather than returning a {success:false} shape, so
+   * the shared wrapper's generic catch-and-toast (core.js) would swallow the
+   * one detail the caller needs to distinguish. Same reasoning as
+   * analyzeMapImage/uploadMapImage's own direct-call pattern (actions/map.js).
+   * Throws on failure — bindings/setup.js owns the try/catch + the
+   * plan_changed/plan_token_required message inspection (mirroring
+   * bindings/map.js's _uploadErrorMessage pattern).
+   *
+   * @param {string} action - "migrate" | "ignore"
+   * @param {string|null} planToken - opaque; round-tripped from the reviews
+   *   payload, never parsed. Design doc sends it on BOTH migrate and ignore.
+   */
+  proto.reconcileRoom = async function (vacuumEntityId, mapId, action, planToken) {
+    const result = await this.hass.callService(
+      DOMAIN,
+      SERVICE_RECONCILE_ROOM,
+      {
+        vacuum_entity_id: vacuumEntityId,
+        map_id:           String(mapId),
+        action,
+        plan_token:       planToken,
+      },
+      undefined, // target
+      false,     // notifyOnError — the binding owns user-facing messaging
+      true,      // returnResponse — service is registered supports_response=True
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Fire a discover_rooms pass for one vacuum/map. NOT response-capable on
+   * the backend by design (Gap 2/CARD-7 — see setup/status.py's passive
+   * reconciliation read, which deliberately does not make discover_rooms
+   * response-capable). This only needs the call to COMPLETE so the backend's
+   * discovery cache (and its reconciliation block + plan_token) is fresh
+   * before the caller re-polls getSetupStatus. Used by the reconcile-room
+   * stale-plan_token silent recovery and its manual "re-discover" fallback —
+   * never called from a render/poll path.
+   */
+  proto.discoverRooms = async function (vacuumEntityId, mapId) {
+    await this.callService(
+      DOMAIN,
+      SERVICE_DISCOVER_ROOMS,
+      { vacuum_entity_id: vacuumEntityId, map_id: String(mapId) },
+      false,
+    );
   };
 }

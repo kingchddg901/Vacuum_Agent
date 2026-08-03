@@ -607,6 +607,125 @@ export const setupStyles = `
   }
 
   /* =========================================================
+     RECONCILIATION REVIEW PANEL (CARD-7/RP-019) — identity-shift
+     reviews (renumbered / renamed) surfaced inside save_rooms after
+     a re-segment. Mirrors the drift panel's structure and semantic-
+     token-with-fallback convention immediately above; two groups
+     instead of three, plus a shared whole-map decision row instead
+     of per-row buttons (reconcile_room has no per-room granularity).
+     ========================================================= */
+
+  .evcc-setup-reconcile-panel {
+    display:        flex;
+    flex-direction: column;
+    gap:            12px;
+    margin-top:     12px;
+    margin-bottom:  8px;
+  }
+
+  .evcc-setup-reconcile-panel.resolved {
+    gap: 8px;
+  }
+
+  .evcc-setup-reconcile-section {
+    border-radius:  8px;
+    border:         1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.08));
+    background:     var(--evcc-surface-subtle, rgba(255, 255, 255, 0.03));
+    padding:        12px 14px;
+    display:        flex;
+    flex-direction: column;
+    gap:            8px;
+  }
+
+  /* Renumbered is informational (the system is confident — slug matched);
+     renamed is the real ambiguity the user must resolve. Colour-coding
+     mirrors that distinction the same way the drift panel's new/removed
+     sections do. */
+  .evcc-setup-reconcile-section.renumbered {
+    border-color: color-mix(in srgb, var(--evcc-text-muted, #94a3b8) 30%, transparent);
+    opacity:      0.92;
+  }
+  .evcc-setup-reconcile-section.renamed {
+    border-color: color-mix(in srgb, var(--evcc-sem-info, #38bdf8) 35%, transparent);
+  }
+
+  .evcc-setup-reconcile-title {
+    font-size:   0.92rem;
+    font-weight: 600;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-setup-reconcile-hint {
+    font-size:   0.8rem;
+    color:       var(--evcc-text-muted, #94a3b8);
+    line-height: 1.4;
+  }
+
+  .evcc-setup-reconcile-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            6px;
+    margin-top:     4px;
+  }
+
+  .evcc-setup-reconcile-row {
+    display:         flex;
+    flex-wrap:       wrap;
+    align-items:     center;
+    gap:             4px 10px;
+    padding:         6px 10px;
+    border-radius:   6px;
+    background:      var(--evcc-surface-subtle, rgba(255, 255, 255, 0.04));
+  }
+
+  .evcc-setup-reconcile-room-name {
+    flex:        1 1 auto;
+    font-size:   0.88rem;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  /* The room's previous name — a secondary caption, never concatenated
+     into the same translated string as the room name itself. */
+  .evcc-setup-reconcile-was {
+    font-size: 0.78rem;
+    color:     var(--evcc-text-muted, #94a3b8);
+  }
+
+  .evcc-setup-reconcile-id-change {
+    display:     flex;
+    align-items: center;
+    gap:         4px;
+    font-size:   0.82rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .evcc-setup-reconcile-id-old {
+    color:            var(--evcc-text-muted, #94a3b8);
+    text-decoration:  line-through;
+  }
+
+  .evcc-setup-reconcile-id-arrow {
+    color: var(--evcc-text-muted, #94a3b8);
+  }
+
+  .evcc-setup-reconcile-id-new {
+    color:       var(--evcc-sem-info, #38bdf8);
+    font-weight: 600;
+  }
+
+  .evcc-setup-reconcile-actions {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+  }
+
+  .evcc-setup-reconcile-note {
+    font-size: 0.8rem;
+    color:     var(--evcc-text-muted, #94a3b8);
+    font-style: italic;
+  }
+
+  /* =========================================================
      PANEL RENAME
      ========================================================= */
 

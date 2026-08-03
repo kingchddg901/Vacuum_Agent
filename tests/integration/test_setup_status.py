@@ -12,6 +12,11 @@ Coverage targets
 [STS-8]  next_actions is empty when state=ready.
 [STS-9]  after the active map changes to one with no configured rooms, save_rooms re-opens despite its sticky flag.
 [STS-10] with the active map pointing at the configured map, save_rooms stays complete — no spurious re-open.
+[STS-11] reconciliation is None when discover_rooms has never cached one (CARD-7/RP-019 gap 2).
+[STS-12] reconciliation embeds the LAST-CACHED discover_rooms review, with map_id stamped on.
+[STS-13] reconciliation is a PASSIVE read — get_setup_status never triggers a new discovery
+         pass, so a live segment change after discover_rooms ran does not change the response
+         until discover_rooms runs again.
 """
 
 from __future__ import annotations
@@ -184,3 +189,95 @@ def test_get_setup_status_save_rooms_stays_complete_on_configured_active_map(has
     vac = result["vacuums"][0]
     save_rooms = next(s for s in vac["setup_steps"] if s["id"] == "save_rooms")
     assert save_rooms["completed"] is True
+
+
+# ---------------------------------------------------------------------------
+# [STS-11 / STS-12 / STS-13] reconciliation embed (CARD-7/RP-019 gap 2)
+# ---------------------------------------------------------------------------
+
+def _register_reconciliation_adapter(hass, vacuum_entity_id, am_entity):
+    """Register an adapter config with a discovery block, so discover_rooms
+    (rooms/room_crud.py) can read a live room list off the vacuum entity's
+    'segments' attribute — mirrors test_rooms_reconcile.py's RR-1 setup."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(vacuum_entity_id, {
+        "adapter_id": "test", "source": "code",
+        "entities": {"active_map": am_entity},
+        "discovery": {
+            "room_list_entity": "vacuum_entity",
+            "room_list_attribute": "segments",
+            "room_id_key": "id",
+            "room_name_key": "name",
+        },
+    })
+
+
+def test_get_setup_status_reconciliation_none_when_never_discovered(hass, manager):
+    """[STS-11] reconciliation is None for a vacuum with no cached discovery
+    (discover_rooms never ran for it)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    result = get_setup_status(hass)
+    vac = result["vacuums"][0]
+    assert vac["reconciliation"] is None
+
+
+def test_get_setup_status_embeds_last_cached_reconciliation(hass, manager):
+    """[STS-12] After discover_rooms caches reviews for the active map,
+    get_setup_status surfaces the SAME reviews/has_changes/plan_token —
+    read from the cache (rooms/room_crud.py's discover_rooms writes it),
+    never recomputed — plus the map_id they were cached against, which the
+    cached payload itself doesn't carry (see _build_reconciliation_for_vacuum's
+    docstring)."""
+    from custom_components.eufy_vacuum.rooms.room_crud import RoomMapManager
+
+    _register_reconciliation_adapter(hass, _VAC, "sensor.alfred_map")
+    # Saved: KITCHEN at old id 16 (mirrors test_rooms_reconcile.py's RR-1).
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "map_id": _MAP, "metadata": {}, "summary": {},
+        "rooms": {"16": {"room_id": 16, "name": "KITCHEN", "slug": "kitchen"}},
+    }
+    hass.states.async_set("sensor.alfred_map", _MAP)
+    # Discovery reports KITCHEN at a new id (27) -- the re-segment case.
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 27, "name": "KITCHEN"}]})
+
+    payload = RoomMapManager(manager).discover_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    result = get_setup_status(hass)
+    vac = result["vacuums"][0]
+    reconciliation = vac["reconciliation"]
+    assert reconciliation is not None
+    assert reconciliation["reviews"] == payload["reconciliation"]["reviews"]
+    assert reconciliation["reviews"] == [
+        {"kind": "id_changed", "slug": "kitchen", "name": "KITCHEN", "old_id": 16, "new_id": 27}
+    ]
+    assert reconciliation["has_changes"] is True
+    assert reconciliation["plan_token"] == payload["reconciliation"]["plan_token"]
+    assert reconciliation["map_id"] == _MAP
+
+
+def test_get_setup_status_reconciliation_is_passive_never_reprobes(hass, manager):
+    """[STS-13] get_setup_status must NEVER trigger a new discovery pass --
+    opening/polling Setup must not itself mutate state. A live segment change
+    AFTER discover_rooms ran (which would produce a DIFFERENT review if
+    re-probed) must not change what get_setup_status reports until
+    discover_rooms actually runs again."""
+    from custom_components.eufy_vacuum.rooms.room_crud import RoomMapManager
+
+    _register_reconciliation_adapter(hass, _VAC, "sensor.alfred_map")
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "map_id": _MAP, "metadata": {}, "summary": {},
+        "rooms": {"16": {"room_id": 16, "name": "KITCHEN", "slug": "kitchen"}},
+    }
+    hass.states.async_set("sensor.alfred_map", _MAP)
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 27, "name": "KITCHEN"}]})
+    RoomMapManager(manager).discover_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    first = get_setup_status(hass)["vacuums"][0]["reconciliation"]
+    assert first is not None
+
+    # Segments change AGAIN -- a re-probe would report a different new_id.
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 99, "name": "KITCHEN"}]})
+
+    second = get_setup_status(hass)["vacuums"][0]["reconciliation"]
+    assert second == first, "get_setup_status re-probed discovery instead of reading the cache"
