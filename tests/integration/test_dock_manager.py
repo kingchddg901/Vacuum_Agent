@@ -11,6 +11,12 @@ Coverage targets
 [DK-3]  record_dock_event: dry_start stores last_dry_duration.
 [DK-4]  set_dock_event_count: overwrites; unknown event_type → error.
 [DK-5]  get_dock_events: stored events; {} for unknown vacuum.
+[DOCK-1] record_dock_event: a debounced event leaves the raw timestamp untouched too
+        (not just the counter) -- the whole record is a no-op.
+[DOCK-2] record_dock_event: an unknown event_type is refused outright, mirroring
+        set_dock_event_count's own validation -- no write at all.
+[DOCK-3] set_dock_event_count: resetting a counter also clears its debounce marker
+        so a legitimate post-reset event isn't suppressed by a stale window.
 [DK-6]  get_dock_action_status: ready (docked, idle, supported, entity present).
 [DK-7]  gating: unsupported_feature.
 [DK-8]  gating: missing_action_entity.
@@ -146,6 +152,58 @@ def test_set_event_count(dock):
 def test_get_events_unknown(dock):
     """[DK-5]"""
     assert dock.get_dock_events(vacuum_entity_id="vacuum.ghost") == {}
+
+
+def test_record_event_unknown_type_no_write(dock):
+    """[DOCK-2] record_dock_event validates event_type against the same
+    counter_map its sibling set_dock_event_count already validates against
+    -- an unknown type is refused outright: no timestamp write at all."""
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="not_a_real_type")
+    assert dock.get_dock_events(vacuum_entity_id=_VAC) == {}
+
+
+def test_record_event_debounced_leaves_timestamp_untouched(dock, manager):
+    """[DOCK-1] a debounced (should_count=False) event is a complete no-op --
+    the raw last-seen timestamp must not move either, or the timestamp and
+    counter fields end up disagreeing about whether a wash actually
+    happened."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"debounce_seconds": {"last_mop_wash": 300}},
+    })
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
+    first = dock.get_dock_events(vacuum_entity_id=_VAC)
+    first_ts = first["last_mop_wash"]
+    assert first["mop_wash_count"] == 1
+
+    # immediate second event -- well inside the 300s debounce window.
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
+    events = dock.get_dock_events(vacuum_entity_id=_VAC)
+    assert events["last_mop_wash"] == first_ts
+    assert events["mop_wash_count"] == 1
+
+
+def test_reset_clears_debounce_marker(dock, manager):
+    """[DOCK-3] set_dock_event_count's reset also clears the debounce
+    marker (f"{event_type}_last_counted_at") -- otherwise a legitimate
+    event right after the reset can still be suppressed by a debounce
+    window measured from BEFORE the reset."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"debounce_seconds": {"last_mop_wash": 300}},
+    })
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
+    assert dock.get_dock_events(vacuum_entity_id=_VAC)["mop_wash_count"] == 1
+
+    dock.set_dock_event_count(vacuum_entity_id=_VAC, event_type="last_mop_wash", count=0)
+    assert "last_mop_wash_last_counted_at" not in dock.get_dock_events(vacuum_entity_id=_VAC)
+
+    # a legitimate wash immediately after the reset -- inside what WOULD
+    # have been the old (pre-reset) debounce window -- must still count.
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
+    assert dock.get_dock_events(vacuum_entity_id=_VAC)["mop_wash_count"] == 1
 
 
 # ---------------------------------------------------------------------------

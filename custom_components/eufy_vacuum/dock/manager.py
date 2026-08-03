@@ -374,13 +374,27 @@ class DockManager:
         event_type: str,
         dry_duration: str | None = None,
     ) -> None:
-        """Record a dock event timestamp into storage."""
+        """Record a dock event timestamp into storage.
+
+        DOCK-2: event_type is validated against the same counter_map its
+        sibling set_dock_event_count already validates against -- an unknown
+        event_type is refused outright (mirrors that sibling's exact
+        refusal shape/pattern): no timestamp write, no counter mutation.
+
+        DOCK-1: the raw timestamp only commits once the debounce decision
+        confirms should_count. A debounced (spurious/duplicate) event is a
+        complete no-op -- it must not advance the "last seen at" timestamp
+        with no corresponding counter increment, or the two fields disagree
+        about whether the event actually happened.
+        """
         from ..timestamp_utils import utc_now_iso
 
+        # Ensure the per-vacuum bucket exists (matches the sibling's shape)
+        # even when the event_type below turns out to be invalid -- callers
+        # of get_dock_events() should never see a missing bucket just because
+        # a bogus event_type was rejected.
         self._data.setdefault("dock_events", {})
         vacuum_events = self._data["dock_events"].setdefault(vacuum_entity_id, {})
-        now = utc_now_iso()
-        vacuum_events[event_type] = now
 
         counter_map = {
             "last_mop_wash": "mop_wash_count",
@@ -388,40 +402,50 @@ class DockManager:
             "last_dry_start": "dry_start_count",
         }
         counter_key = counter_map.get(event_type)
-        if counter_key:
-            from ..adapters.registry import get_adapter_config as _get_adapter_config
-
-            _debounce_cfg = (
-                (_get_adapter_config(vacuum_entity_id) or {})
-                .get("dock_events", {})
-                .get("debounce_seconds", {})
+        if not counter_key:
+            _LOGGER.debug(
+                "record_dock_event: unknown event_type %r for %s, ignoring",
+                event_type, vacuum_entity_id,
             )
-            debounce = float(_debounce_cfg.get(event_type, 0) or 0)
-            should_count = True
-            if debounce > 0:
-                last_counted = vacuum_events.get(f"{event_type}_last_counted_at")
-                if last_counted:
-                    try:
-                        last_dt = datetime.fromisoformat(
-                            last_counted.replace("Z", "+00:00")
-                        )
-                        now_dt = datetime.fromisoformat(now.replace("Z", "+00:00"))
-                        if (now_dt - last_dt).total_seconds() < debounce:
-                            should_count = False
-                    except Exception:
-                        # Unparseable timestamp → fall through and count the
-                        # event. Log so a silent debounce break from a
-                        # timestamp-format drift is detectable, not invisible.
-                        _LOGGER.debug(  # pragma: no cover
-                            "dock-event debounce: could not parse timestamps "
-                            "(last=%r now=%r) for %s",
-                            last_counted, now, event_type, exc_info=True,
-                        )
-            if should_count:
-                vacuum_events[counter_key] = (
-                    _safe_int(vacuum_events.get(counter_key), 0) + 1
-                )
-                vacuum_events[f"{event_type}_last_counted_at"] = now
+            return
+
+        now = utc_now_iso()
+
+        from ..adapters.registry import get_adapter_config as _get_adapter_config
+
+        _debounce_cfg = (
+            (_get_adapter_config(vacuum_entity_id) or {})
+            .get("dock_events", {})
+            .get("debounce_seconds", {})
+        )
+        debounce = float(_debounce_cfg.get(event_type, 0) or 0)
+        should_count = True
+        if debounce > 0:
+            last_counted = vacuum_events.get(f"{event_type}_last_counted_at")
+            if last_counted:
+                try:
+                    last_dt = datetime.fromisoformat(
+                        last_counted.replace("Z", "+00:00")
+                    )
+                    now_dt = datetime.fromisoformat(now.replace("Z", "+00:00"))
+                    if (now_dt - last_dt).total_seconds() < debounce:
+                        should_count = False
+                except Exception:
+                    # Unparseable timestamp → fall through and count the
+                    # event. Log so a silent debounce break from a
+                    # timestamp-format drift is detectable, not invisible.
+                    _LOGGER.debug(  # pragma: no cover
+                        "dock-event debounce: could not parse timestamps "
+                        "(last=%r now=%r) for %s",
+                        last_counted, now, event_type, exc_info=True,
+                    )
+
+        if not should_count:
+            return
+
+        vacuum_events[event_type] = now
+        vacuum_events[counter_key] = _safe_int(vacuum_events.get(counter_key), 0) + 1
+        vacuum_events[f"{event_type}_last_counted_at"] = now
 
         if event_type == "last_dry_start" and dry_duration is not None:
             vacuum_events["last_dry_duration"] = dry_duration
@@ -433,7 +457,13 @@ class DockManager:
         event_type: str,
         count: int,
     ) -> dict[str, Any]:
-        """Overwrite a dock event counter to a specific value."""
+        """Overwrite a dock event counter to a specific value.
+
+        DOCK-3: also clears the corresponding debounce marker
+        (f"{event_type}_last_counted_at") -- otherwise a legitimate event
+        right after this reset can still be suppressed by a stale debounce
+        window measured from BEFORE the reset.
+        """
         counter_map = {
             "last_mop_wash": "mop_wash_count",
             "last_dust_empty": "dust_empty_count",
@@ -446,6 +476,7 @@ class DockManager:
         vacuum_events = self._data["dock_events"].setdefault(vacuum_entity_id, {})
         old_count = _safe_int(vacuum_events.get(counter_key), 0)
         vacuum_events[counter_key] = max(int(count), 0)
+        vacuum_events.pop(f"{event_type}_last_counted_at", None)
         return {
             "updated": True,
             "event_type": event_type,

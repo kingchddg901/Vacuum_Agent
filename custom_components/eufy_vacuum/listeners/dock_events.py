@@ -74,6 +74,16 @@ def register(hass: HomeAssistant) -> None:
         if new_val == old_val:
             return
 
+        # REG-1/GUARD-3: old_state=None (HA restart, or genuinely the first-
+        # ever sighting) resolves old_val to "", and a currently unavailable/
+        # unknown prior reading resolves to that literal string -- neither is
+        # a real, previously-known dock state. Treating either as a genuine
+        # transition INTO a trigger state would record a brand-new dock cycle
+        # on every restart/reconnect, even mid-cycle. Additional guard,
+        # alongside (not replacing) the old==new dedup above.
+        if old_val in ("", "unavailable", "unknown"):
+            return
+
         vacuum_entity_id = watched.get(entity_id)
         if vacuum_entity_id is None:
             return
