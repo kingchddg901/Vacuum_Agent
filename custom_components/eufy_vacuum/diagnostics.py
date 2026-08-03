@@ -27,19 +27,23 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import DATA_RUNTIME, DOMAIN
+from .debug_capture import _redact
 
 # Shared with the IMPORT path on purpose. rooms.room_discovery.get_active_map_id
 # rejects these states and returns None (no map id -> nothing to import), so the
 # self-check has to reject exactly the same set or it reports "everything works"
 # for a device the importer will refuse. See _self_check.
 from .rooms.room_discovery import _ACTIVE_MAP_SENTINELS
-from .entity_helpers import BLANK_STATE_VALUES, is_blank_state
+from .entity_helpers import is_blank_state
 
 # Keys whose values may carry secrets. entity_ids and map_ids are NOT secret and
 # are needed for support, so they are deliberately NOT redacted.
 TO_REDACT = {
     # Free-text Setup field — a classic place users paste account passwords.
     "notes",
+    # Free-text config-entry NAME — same class as "notes": user-editable, and
+    # diagnostics is exactly where a pasted secret would otherwise leak.
+    "title",
     "password",
     "username",
     "email",
@@ -49,9 +53,6 @@ TO_REDACT = {
     "api_key",
     "openudid",
 }
-
-# HA sentinel values that mean "no real value".
-_SENTINELS = BLANK_STATE_VALUES  # derived; see entity_helpers
 
 
 def _entity_snapshot(hass: HomeAssistant, entity_id: Any) -> dict[str, Any]:
@@ -300,6 +301,22 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "providing a current map id, so rooms cannot be imported."
         )
 
+    # RP-039/RF-33: every OTHER collector's failure surfaces here too, not just
+    # the two hand-picked warning keys above. Two failure shapes: a bare
+    # "<name>_error" top-level string (a collector's own try/except caught
+    # something) and a nested {"error": ...} dict (a sub-block that failed
+    # internally — completion_health/area_units land here too when THEY throw,
+    # on top of their own "warning" key handled above). managed_rooms_by_map
+    # holds one such dict PER map, so it gets its own pass.
+    for _key, _value in out.items():
+        if _key.endswith("_error") and _value:
+            warnings.append(f"{_key}: {_value}")
+        elif isinstance(_value, dict) and _value.get("error"):
+            warnings.append(f"{_key}: {_value['error']}")
+    for _map_id, _room_block in (out.get("managed_rooms_by_map") or {}).items():
+        if isinstance(_room_block, dict) and _room_block.get("error"):
+            warnings.append(f"managed_rooms_by_map[{_map_id}]: {_room_block['error']}")
+
     return {
         "transport": transport,
         "room_control": room_control,
@@ -318,13 +335,17 @@ def _vacuum_diagnostics(
     out: dict[str, Any] = {"vacuum_entity_id": vacuum_entity_id}
 
     # Capabilities + the adapter entity-resolution table (the headline signal).
+    # RP-039/RF-33: get_vacuum_capabilities_snapshot is genuinely read-only
+    # (unlike get_vacuum_capabilities(refresh=False), which still triggers a
+    # full detection + a WRITE in three cases — see its own docstring) so a
+    # diagnostics download stays inert as this module's docstring claims.
     try:
-        caps = manager.get_vacuum_capabilities(
-            vacuum_entity_id=vacuum_entity_id, refresh=False
+        caps = manager.get_vacuum_capabilities_snapshot(
+            vacuum_entity_id=vacuum_entity_id
         )
     except Exception as err:  # pragma: no cover - defensive
         caps = {}
-        out["capabilities_error"] = repr(err)
+        out["capabilities_error"] = _redact(repr(err))
 
     entities_map = (caps.get("entities") or {}) if isinstance(caps, dict) else {}
     entity_resolution = {
@@ -363,22 +384,37 @@ def _vacuum_diagnostics(
             (_cfg2.get("completion") or {}).get("require_job_active_clear")
         )
         _job_active_entity = (_cfg2.get("entities") or {}).get("job_active")
-        _job_active_present = bool((entity_resolution.get("job_active") or {}).get("exists"))
+        # RP-039/RF-33 (HW-DIAG-1 fix 2): resolve presence via a LIVE hass.states
+        # lookup, matching what _job_active_entity itself already does (reads the
+        # live adapter config). The old check read entity_resolution, built from
+        # get_vacuum_capabilities(refresh=False) -- a STORED, possibly-stale
+        # snapshot whose entities map can lack job_active even when the entity
+        # currently exists live.
+        _job_active_present = bool(
+            _job_active_entity and hass.states.get(_job_active_entity) is not None
+        )
         _health: dict[str, Any] = {
             "requires_job_active_clear": _requires_job_active,
             "job_active_entity": _job_active_entity,
             "job_active_present": _job_active_present,
         }
         if _requires_job_active and not _job_active_present:
+            # RP-039/RF-33 (HW-DIAG-1 fix 1): reworded away from "EVERY run will
+            # strand" -- the state that trips this condition is one from which NO
+            # run can even be DISPATCHED, so "will strand" (a run-time failure
+            # mode) mischaracterizes it as a permanent upstream regression rather
+            # than "this device looks disconnected right now."
             _health["warning"] = (
                 f"Completion requires the job-active binary "
-                f"({_job_active_entity or 'not declared'}) but it is missing — EVERY run "
-                "will strand (never finalize). Check the upstream integration didn't drop "
-                "this entity."
+                f"({_job_active_entity or 'not declared'}) but it is missing — the "
+                "device appears disconnected from Home Assistant right now (no run "
+                "can even be dispatched in this state). Check it's online and wake "
+                "it (e.g. a state refresh); if this persists, the upstream "
+                "integration may have dropped the entity."
             )
         out["completion_health"] = _health
     except Exception as err:  # pragma: no cover - defensive
-        out["completion_health"] = {"error": repr(err)}
+        out["completion_health"] = {"error": _redact(repr(err))}
 
     # cleaning_area unit — a USER-TOGGLEABLE flag (the HA unit system AND the Eufy app), so we
     # normalize to m² LIVE on every read (learning/utils.cleaning_area_to_m2) rather than caching
@@ -415,7 +451,7 @@ def _vacuum_diagnostics(
                 )
             out["area_units"] = _area_units
     except Exception as err:  # pragma: no cover - defensive
-        out["area_units"] = {"error": repr(err)}
+        out["area_units"] = {"error": _redact(repr(err))}
 
     # Dock-control entities — resolved INDEPENDENT of the capability gate so the
     # dump shows whether the device physically exposes wash/dry/empty controls
@@ -466,7 +502,7 @@ def _vacuum_diagnostics(
             if isinstance(m, dict) and m.get("map_id") is not None
         ]
     except Exception as err:  # pragma: no cover - defensive
-        out["maps_error"] = repr(err)
+        out["maps_error"] = _redact(repr(err))
 
     managed_rooms_by_map: dict[str, Any] = {}
     for map_id in map_ids:
@@ -479,7 +515,7 @@ def _vacuum_diagnostics(
                 rooms = {k: v for k, v in rooms.items() if k != "summary"}
             managed_rooms_by_map[map_id] = rooms
         except Exception as err:  # pragma: no cover - defensive
-            managed_rooms_by_map[map_id] = {"error": repr(err)}
+            managed_rooms_by_map[map_id] = {"error": _redact(repr(err))}
     out["managed_rooms_by_map"] = managed_rooms_by_map
 
     if not map_ids:
@@ -503,7 +539,7 @@ def _vacuum_diagnostics(
             _cands = _msr.roborock_candidates(hass, _src)
             out["roborock_geometry_drift"] = _msr.roborock_geometry_drift_from_candidates(_cands)
     except Exception as err:  # pragma: no cover - defensive
-        out["roborock_geometry_drift_error"] = repr(err)
+        out["roborock_geometry_drift_error"] = _redact(repr(err))
 
     # Upkeep (maintenance / dock) — side-effect-free. The per-item care guides
     # (static how-to-clean steps) are stripped: model boilerplate with no
@@ -513,14 +549,14 @@ def _vacuum_diagnostics(
             manager.get_upkeep_snapshot(vacuum_entity_id=vacuum_entity_id)
         )
     except Exception as err:  # pragma: no cover - defensive
-        out["upkeep_snapshot_error"] = repr(err)
+        out["upkeep_snapshot_error"] = _redact(repr(err))
 
     # Interpreted, human-readable summary of everything above. Computed last
     # (needs all signals) but surfaced right after the id so it reads first.
     try:
         summary = _self_check(out)
     except Exception as err:  # pragma: no cover - defensive
-        summary = {"error": repr(err)}
+        summary = {"error": _redact(repr(err))}
     ordered: dict[str, Any] = {
         "vacuum_entity_id": vacuum_entity_id,
         "self_check": summary,
@@ -537,7 +573,11 @@ async def async_get_config_entry_diagnostics(
     """Return diagnostics for a Vacuum Agent config entry."""
     diag: dict[str, Any] = {
         "entry": {
-            "title": entry.title,
+            # RP-039/RF-33: entry.title is the same class as "notes" -- free-text,
+            # user-editable, and diagnostics is exactly where a pasted secret
+            # would otherwise leak -- so route it through the SAME redaction
+            # mechanism as entry.data/entry.options rather than emitting it raw.
+            "title": async_redact_data({"title": entry.title}, TO_REDACT)["title"],
             "version": entry.version,
             "data": async_redact_data(dict(entry.data), TO_REDACT),
             "options": async_redact_data(dict(entry.options), TO_REDACT),
@@ -558,12 +598,12 @@ async def async_get_config_entry_diagnostics(
         integration = await async_get_integration(hass, DOMAIN)
         diag["integration_version"] = str(integration.version)
     except Exception as err:  # pragma: no cover - defensive
-        diag["integration_version_error"] = repr(err)
+        diag["integration_version_error"] = _redact(repr(err))
 
     try:
         vacuum_ids = list(manager.get_known_vacuum_ids())
     except Exception as err:  # pragma: no cover - defensive
-        diag["vacuums_error"] = repr(err)
+        diag["vacuums_error"] = _redact(repr(err))
         return diag
 
     # Read-only: the dashboard snapshot is deliberately NOT collected here (see

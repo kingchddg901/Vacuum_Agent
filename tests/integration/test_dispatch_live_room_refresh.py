@@ -21,12 +21,20 @@ Coverage targets
 [LRR-10] ServiceNotFound (pulse service not registered on this install, e.g. wrong
          domain vacuum.* vs roborock.*) -> sticky-disabled after the first call,
          not retried every interval (deploy regression).
+[LRR-11] RP-039/RF-33: ServiceValidationError (a HomeAssistantError subclass) is
+         classified PERMANENT (sticky-disable + one WARNING) like ServiceNotFound/
+         ServiceNotSupported, not swallowed by the generic transient branch below
+         it (which would retry forever, every pulse interval, silently).
 """
 
 from __future__ import annotations
 
 from homeassistant.core import SupportsResponse
-from homeassistant.exceptions import HomeAssistantError, ServiceNotSupported
+from homeassistant.exceptions import (
+    HomeAssistantError,
+    ServiceNotSupported,
+    ServiceValidationError,
+)
 from homeassistant.helpers import (
     device_registry as dr,
     entity_registry as er,
@@ -259,6 +267,41 @@ async def test_service_not_found_sticky_disables(hass, manager, mock_config_entr
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
     assert vid in manager.live_room_refresh._disabled  # disabled after the first ServiceNotFound
+
+
+async def test_service_validation_error_sticky_disables(
+    hass, manager, mock_config_entry, caplog
+):
+    """[LRR-11] ServiceValidationError -- a HomeAssistantError subclass -- must be
+    caught by its OWN branch (ordered before the generic HomeAssistantError catch)
+    and classified PERMANENT, exactly like ServiceNotFound/ServiceNotSupported:
+    sticky-disable + one WARNING. Before the fix Python's in-order except
+    matching meant this landed in the generic branch, which just logs at DEBUG
+    and retries every interval forever."""
+    vid = _link_device(hass, mock_config_entry)
+    _register(hass)
+    calls: list[int] = []
+
+    async def _raise(call):
+        calls.append(1)
+        raise ServiceValidationError("bad target")
+
+    hass.services.async_register(
+        "roborock", "get_vacuum_current_position", _raise,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.states.async_set(vid, "cleaning")
+
+    with caplog.at_level("WARNING"):
+        manager.maybe_pulse_live_room_refresh(vid)
+        await hass.async_block_till_done()
+    assert len(calls) == 1 and vid in manager.live_room_refresh._disabled
+    assert "rejected the call" in caplog.text
+
+    manager.live_room_refresh._pulse_at[vid] -= 999  # even past the interval...
+    manager.maybe_pulse_live_room_refresh(vid)
+    await hass.async_block_till_done()
+    assert len(calls) == 1  # ...sticky-off, never called again
 
 
 async def test_gate_failsafe_no_device(hass, manager, mock_config_entry):

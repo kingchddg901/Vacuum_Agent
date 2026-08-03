@@ -36,6 +36,22 @@ Coverage targets
           explains it, instead of the old "maps, rooms and the live map all work".
 [DIAG-15] active_map entity exists WITH a real map id -> still reads fully working
           (guards against over-correcting DIAG-14 into a false negative).
+[DIAG-16] RP-039/RF-33: entry.title is redacted like entry.data/entry.options.
+[DIAG-17] RP-039/RF-33: a collector's repr(err) is masked (_redact) before it
+          lands in the dump.
+[DIAG-18] RP-039/RF-33: _self_check's generic scan surfaces every collector's
+          "<name>_error" / nested {"error": ...} failure, not just the two
+          hand-picked warning keys.
+[DIAG-19] RP-039/RF-33 (HW-DIAG-1 fix 2): job_active_present resolves via a LIVE
+          hass.states lookup, not the stored (possibly-stale) capabilities
+          snapshot's entity_resolution.
+[DIAG-20] RP-039/RF-33 (HW-DIAG-1 fix 1): the job-active warning no longer claims
+          "EVERY run will strand" for a state where no run can even dispatch.
+[DIAG-21] RP-039/RF-33: get_vacuum_capabilities_snapshot never writes, even with
+          no stored snapshot yet. [DIAG-21b] the diagnostics capabilities
+          collector itself is inert end-to-end (isolated from the SEPARATE,
+          pre-existing get_upkeep_snapshot non-inertness, out of this packet's
+          scope — see the spawned follow-up).
 """
 
 from __future__ import annotations
@@ -75,6 +91,12 @@ class _FakeManager:
         return [VACUUM]
 
     def get_vacuum_capabilities(self, *, vacuum_entity_id, refresh=False):
+        return self._caps
+
+    def get_vacuum_capabilities_snapshot(self, *, vacuum_entity_id):
+        """RP-039/RF-33: diagnostics now calls this (genuinely read-only) instead
+        of get_vacuum_capabilities(refresh=False) -- the fake returns the same
+        canned caps either way, since it never actually detects/writes."""
         return self._caps
 
     def get_vacuum_maps(self, *, vacuum_entity_id):
@@ -411,7 +433,13 @@ def test_self_check_native_brand_map_pending():
 def test_self_check_surfaces_missing_job_active_warning():
     """[DIAG-11] a require_job_active_clear brand whose job_active binary is missing
     (completion_health.warning) surfaces as a loud warnings entry — the tripwire for
-    an upstream capability-gating that would silently strand every run."""
+    an upstream capability-gating that would silently strand every run.
+
+    RP-039/RF-33 (HW-DIAG-1 fix 1): the warning text itself was reworded away from
+    "EVERY run will strand" (a run-time-failure framing for a state where no run
+    can even be DISPATCHED) toward "device appears disconnected" — this fixture
+    mirrors what _vacuum_diagnostics now actually builds.
+    """
     out = {
         "capabilities": {"supports_room_clean": True},
         "entity_resolution": {"active_map": {"exists": False}},
@@ -424,16 +452,19 @@ def test_self_check_surfaces_missing_job_active_warning():
             "job_active_entity": "binary_sensor.ivy_job_active",
             "job_active_present": False,
             "warning": "Completion requires the job-active binary "
-                       "(binary_sensor.ivy_job_active) but it is missing — EVERY run "
-                       "will strand (never finalize). Check the upstream integration "
-                       "didn't drop this entity.",
+                       "(binary_sensor.ivy_job_active) but it is missing — the "
+                       "device appears disconnected from Home Assistant right now "
+                       "(no run can even be dispatched in this state). Check it's "
+                       "online and wake it (e.g. a state refresh); if this persists, "
+                       "the upstream integration may have dropped the entity.",
         },
     }
 
     sc = _self_check(out)
 
     assert len(sc["warnings"]) == 1
-    assert "EVERY run will strand" in sc["warnings"][0]
+    assert "device appears disconnected" in sc["warnings"][0]
+    assert "EVERY run will strand" not in sc["warnings"][0]
 
 
 def test_self_check_no_warning_when_healthy():
@@ -553,3 +584,175 @@ async def test_diagnostics_area_units_unknown_warns(hass):
     hass.states.async_set("sensor.alfred_cleaning_area", "12.0", {"unit_of_measurement": "widgets"})
     au = _vacuum_diagnostics(hass, manager, VACUUM)["area_units"]
     assert au["recognized"] is False and "unrecognized" in au["warning"]
+
+
+# ---------------------------------------------------------------------------
+# RP-039/RF-33 additions
+# ---------------------------------------------------------------------------
+
+async def test_diagnostics_entry_title_redacted(hass):
+    """[DIAG-16] entry.title is free-text + user-editable (same class as "notes")
+    and must be redacted like entry.data/entry.options -- it never was before."""
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=DOMAIN,
+        title="hunter2 is my vacuum's wifi password",
+        data={CONF_VACUUM_ENTITY_ID: VACUUM}, options={}, version=1,
+    )
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["entry"]["title"] == "**REDACTED**"
+
+
+async def test_diagnostics_repr_err_sites_are_redacted(hass):
+    """[DIAG-17] a collector that raises must have its repr(err) masked before it
+    lands in the dump -- async_redact_data only matches by DICT KEY name, so none
+    of the nine (now ten, counting entry.title separately) repr(err) sinks were
+    ever covered by it; a token embedded in an exception's own message/args would
+    otherwise reach the dump verbatim."""
+    class _BoomManager(_FakeManager):
+        def get_vacuum_maps(self, *, vacuum_entity_id):
+            raise RuntimeError("upstream call failed: token=abc123secret")
+
+    manager = _BoomManager(caps=_caps(), maps={}, rooms={}, upkeep={}, dashboard={})
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    vac = diag["vacuums"][0]
+    assert "maps_error" in vac
+    assert "abc123secret" not in vac["maps_error"]
+    assert "«redacted»" in vac["maps_error"]
+
+
+def test_self_check_generic_scan_surfaces_uncaught_collector_errors():
+    """[DIAG-18] _self_check used to build its warnings list from ONLY
+    completion_health.warning and area_units.warning -- every OTHER collector's
+    {"error": repr(err)} failure shape (capabilities_error, maps_error,
+    upkeep_snapshot_error, roborock_geometry_drift_error, plus a per-map entry
+    inside managed_rooms_by_map) was silently dropped. The generic scan must
+    surface all of them."""
+    out = {
+        "capabilities": {"supports_room_clean": True},
+        "entity_resolution": {"active_map": {"exists": False}},
+        "vacuum_state": {"segment_count": None},
+        "capabilities_error": "RuntimeError('boom-caps')",
+        "maps_error": "RuntimeError('boom-maps')",
+        "upkeep_snapshot_error": "RuntimeError('boom-upkeep')",
+        "roborock_geometry_drift_error": "RuntimeError('boom-drift')",
+        "managed_rooms_by_map": {
+            "6": {"error": "RuntimeError('boom-room-6')"},
+            "7": {"room_count": 3},  # healthy map — must NOT appear as a warning
+        },
+    }
+    warnings = _self_check(out)["warnings"]
+    assert any("boom-caps" in w for w in warnings)
+    assert any("boom-maps" in w for w in warnings)
+    assert any("boom-upkeep" in w for w in warnings)
+    assert any("boom-drift" in w for w in warnings)
+    assert any("boom-room-6" in w for w in warnings)
+    assert not any("boom-room-7" in w for w in warnings)
+
+
+async def test_diagnostics_job_active_present_uses_live_state(hass):
+    """[DIAG-19] HW-DIAG-1 fix 2: job_active_present must resolve via a LIVE
+    hass.states lookup, not the STORED (possibly-stale) capabilities snapshot's
+    entity_resolution -- a snapshot taken before job_active existed would
+    otherwise report "missing" (and warn) even though the entity is live right
+    now."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.diagnostics import _vacuum_diagnostics
+
+    register_adapter_config(VACUUM, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"job_active": "binary_sensor.alfred_job_active"},
+        "completion": {"require_job_active_clear": True},
+    })
+    # The STORED snapshot's entities map lacks job_active entirely (as if
+    # detected before the adapter declared it) — the old bug's exact shape.
+    manager = _FakeManager(
+        caps={"entities": {"vacuum": VACUUM}}, maps={}, rooms={}, upkeep={}, dashboard={},
+    )
+    # But the entity genuinely exists live right now.
+    hass.states.async_set("binary_sensor.alfred_job_active", "off")
+
+    out = _vacuum_diagnostics(hass, manager, VACUUM)
+    health = out["completion_health"]
+    assert health["job_active_present"] is True
+    assert "warning" not in health
+
+
+def test_self_check_job_active_warning_reworded():
+    """[DIAG-20] HW-DIAG-1 fix 1: the warning no longer claims "EVERY run will
+    strand" (a run-time-failure framing) for a state where no run can even be
+    dispatched -- it reads as a disconnected-device tell instead."""
+    out = {
+        "capabilities": {"supports_room_clean": True},
+        "entity_resolution": {"active_map": {"exists": False}},
+        "vacuum_state": {"segment_count": None},
+        "completion_health": {
+            "requires_job_active_clear": True,
+            "job_active_entity": "binary_sensor.ivy_job_active",
+            "job_active_present": False,
+            "warning": "Completion requires the job-active binary "
+                       "(binary_sensor.ivy_job_active) but it is missing — the "
+                       "device appears disconnected from Home Assistant right now "
+                       "(no run can even be dispatched in this state). Check it's "
+                       "online and wake it (e.g. a state refresh); if this persists, "
+                       "the upstream integration may have dropped the entity.",
+        },
+    }
+    warnings = _self_check(out)["warnings"]
+    assert any("disconnected" in w for w in warnings)
+    assert not any("EVERY run will strand" in w for w in warnings)
+
+
+async def test_get_vacuum_capabilities_snapshot_never_writes(manager):
+    """[DIAG-21] The new read-only accessor itself: no stored snapshot exists yet
+    for this vacuum (the exact case get_vacuum_capabilities(refresh=False) used
+    to force a first-detect + WRITE for, despite refresh=False) -- the snapshot
+    accessor must return {} without touching manager.data at all."""
+    manager.ensure_vacuum_record(vacuum_entity_id=VACUUM)
+    assert VACUUM not in manager.data.get("capabilities", {})
+
+    caps = manager.get_vacuum_capabilities_snapshot(vacuum_entity_id=VACUUM)
+
+    assert caps == {}
+    assert VACUUM not in manager.data.get("capabilities", {})  # still no write
+
+
+async def test_diagnostics_capabilities_collector_is_genuinely_inert(
+    hass, manager, monkeypatch
+):
+    """[DIAG-21b] End-to-end through _vacuum_diagnostics's OWN capabilities
+    collector (the exact call site RP-039 targets): NOTHING has ever been
+    detected for this vacuum, and the dump must not trigger a write. Stubs out
+    get_upkeep_snapshot (a SEPARATE collector diagnostics.py also calls, which
+    internally has its own independent get_vacuum_capabilities(refresh=False)
+    call in maintenance/manager.py -- a distinct, pre-existing gap outside
+    RP-039's named scope) so this test isolates the ONE call path the packet
+    actually fixed."""
+    manager.ensure_vacuum_record(vacuum_entity_id=VACUUM)
+    monkeypatch.setattr(manager, "get_upkeep_snapshot", lambda **kw: {})
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    assert VACUUM not in manager.data.get("capabilities", {})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+
+    # No detection ever ran -- the snapshot stays genuinely empty rather than
+    # forcing a first-detect (accepted tradeoff: "read whatever exists, even if
+    # incomplete/stale", per the fix).
+    assert diag["vacuums"][0]["capabilities"] == {}
+    # The real proof: no write landed in manager.data via diagnostics' own path.
+    assert VACUUM not in manager.data.get("capabilities", {})

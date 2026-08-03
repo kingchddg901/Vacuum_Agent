@@ -148,6 +148,7 @@ class LiveRoomRefreshManager:
             HomeAssistantError,
             ServiceNotFound,
             ServiceNotSupported,
+            ServiceValidationError,
         )
 
         domain = service.get("domain")
@@ -164,6 +165,21 @@ class LiveRoomRefreshManager:
             _LOGGER.info(
                 "eufy_vacuum: live-room refresh %s.%s unavailable for %s (%s); disabling "
                 "the pulse for this session",
+                domain, name, vacuum_entity_id, err,
+            )
+            return
+        except ServiceValidationError as err:
+            # RP-039/RF-33: a subclass of HomeAssistantError, so it MUST be caught
+            # here, before the generic branch below -- Python matches except
+            # clauses in order, and the generic branch would otherwise swallow
+            # this at DEBUG and retry forever, every pulse interval, silently.
+            # Same PERMANENT classification as ServiceNotFound/ServiceNotSupported
+            # (a bad call shape that will never succeed on its own) -- sticky-
+            # disable + one WARNING (not the transient branch's DEBUG-and-retry).
+            self._disabled.add(vacuum_entity_id)
+            _LOGGER.warning(
+                "eufy_vacuum: live-room refresh %s.%s rejected the call for %s (%s); "
+                "disabling the pulse for this session",
                 domain, name, vacuum_entity_id, err,
             )
             return

@@ -1453,6 +1453,23 @@ class EufyVacuumManager:
 
         return stored
 
+    def get_vacuum_capabilities_snapshot(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """Return the STORED capabilities snapshot for one vacuum — genuinely
+        read-only, never triggers detection or a write.
+
+        RP-039/RF-33: diagnostics.py used to call
+        get_vacuum_capabilities(refresh=False), but that method still calls
+        refresh_vacuum_capabilities (full detection + a WRITE to self.data) in
+        three cases despite refresh=False: no stored snapshot yet, a stored
+        snapshot missing detected_model, or an adapter model-family self-heal
+        mismatch — exactly the scenario where a user pulls diagnostics WHILE
+        something is wrong. This accessor reads whatever is in
+        self.data["capabilities"] as-is (``{}`` if nothing has been detected
+        yet) and never calls refresh_vacuum_capabilities, so a diagnostics
+        download is actually inert as its own module docstring claims.
+        """
+        return dict(self.data.get("capabilities", {}).get(vacuum_entity_id) or {})
+
     def ensure_runtime(self, vacuum_entity_id: str) -> VacuumRuntimeState:
         """Ensure runtime state exists for one vacuum."""
         if vacuum_entity_id not in self.runtime:
