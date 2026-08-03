@@ -127,13 +127,31 @@ New, learned since — these become explicit attack instructions in every discov
 
 ## 5. Cost, model, and session plan
 
-Calibration (measured on `claude-opus-5[1m]`): one heavyweight ≈ 1.9M subagent tokens / ~41 min /
-8 agents (6 discovery + 2 verifiers, verifiers non-negotiable — if forced to cut, cut discovery to
-4–5, never the verifiers). Root-cause fan-in 4.5:1 — assign a cluster to ONE agent and tell the
-others it's covered.
+Calibration (measured on `claude-opus-5[1m]`, single-tier): one heavyweight ≈ 1.9M subagent
+tokens / ~41 min / 8 agents (6 discovery + 2 verifiers, verifiers non-negotiable — if forced to
+cut, cut discovery to 4–5, never the verifiers). Root-cause fan-in 4.5:1 — assign a cluster to
+ONE agent and tell the others it's covered.
 
-Differential re-siege should run cheaper per heavyweight (~1–1.5M est.) because the inventory,
-docs, and prior synthesis are pre-built inputs. Planning envelope:
+**Fleet is MIXED-TIER (decided, Chris 2026-08-02 — this resolves Q2).** Per-agent model/effort
+overrides are set at spawn time:
+
+| role | tier | why |
+|---|---|---|
+| Orchestrator + inline synthesis | Fable (the session itself) | wide-read/whole-corpus shape; synthesis inline bought a 2nd verifier in #1 — repeat |
+| Discovery agents | Sonnet (bump a slot to Opus if its scope is contract-dense) | narrow explicit file lists against a pre-built inventory = per-artifact shape; does NOT need the whole corpus |
+| Verifiers | top tier available, HIGH effort — never economized | 22% of #1 spend, killed 17 over-reaches, moved 7 severities; discovery-only output was confidently wrong in both directions |
+| Orchestrator spot-checks | inline (orchestrator's own tokens) | ~2% of spend, always worth it |
+
+Caveats baked in: the tier override does NOT select a context-window variant (the calibration
+run's 1M window came from the session default — discovery agents with narrow file lists don't
+need it, but don't assume a subagent has 1M); and the single-tier calibration numbers do not
+transfer to a mixed fleet — **the first heavyweight session (S1) doubles as the mixed-fleet
+calibration**: it reports actuals in the #1-style cost report and the envelope below re-scales
+before S2 fires.
+
+Differential re-siege should run cheaper per heavyweight than #1 (~1–1.5M est. pre-recalibration,
+likely lower with Sonnet discovery) because the inventory, docs, and prior synthesis are pre-built
+inputs. Planning envelope (treat as ceiling until S1 recalibrates):
 
 - S1, S2, S3 heavyweights: ~3.5–5M total
 - S4 (if in scope): ~1.5–2M (newest code, least prior synthesis to lean on)
@@ -147,10 +165,9 @@ Each session ends with the #1-style cost report so the estimate self-corrects.
 - **Q1 — Phased Jobs / `learning/`:** in scope or out? *Recommendation: IN as session S4, but only
   once you declare the rebuild complete; until then hard-excluded and named.* It will be the
   newest least-aged critical-path code at release time — exactly what a pre-Phoenix siege is for.
-- **Q2 — Model:** *Recommendation: keep `claude-opus-5[1m]` as the session default* — the
-  calibration numbers were measured on it, the 1M window fits the corpus inputs, and session
-  sizing stays predictable. Fable-tier discovery is the "spend capability on discovery" play if
-  budget allows, but re-scale the envelope and expect faster burn.
+- **Q2 — Model: DECIDED (Chris, 2026-08-02) — mixed-tier fleet per the §5 table.** Fable
+  orchestrator + inline synthesis, Sonnet/Opus discovery, top-tier high-effort verifiers; S1 is
+  the mixed-fleet calibration session and the envelope re-scales from its actuals.
 - **Q3 — Doc update ordering:** the doc reconciliation pass is a *precondition* here (gate 7), not
   part of the audit. *Recommendation: run it as its own cheap pass first* so audit #2's
   doc-vs-source dimension tests the reconciliation instead of rediscovering known drift.
