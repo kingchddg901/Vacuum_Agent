@@ -654,8 +654,17 @@ class MapSourceCoordinator:
         # Roborock: re-decode the raw map blob (the v1 MapContent.raw_api_response, cached in
         # HA memory) to a room-id raster and shape it as the card's GENERIC render-data — the
         # parser only keeps bboxes. No map_id / image entity needed: roborock_candidates scans
-        # the roborock runtime_data roots. In-memory + pure -> loop-safe; degrades to an absent
-        # marker (roborock_render_data_from_candidates never raises).
+        # the roborock runtime_data roots.
+        #
+        # ROBORO-2: "pure" does NOT by itself mean loop-safe on the event loop — a pure
+        # function can still burn real CPU (see raster_room_bboxes, a width*height Python
+        # for-loop dispatched via executor at the diagnostics call site). This path is
+        # loop-safe for a DIFFERENT, checked reason: decode_roborock_v1_segments resolves
+        # every pixel through a 256-entry bytes.translate() LUT (C-level, no Python
+        # per-pixel loop) and roborock_render_data only base64-encodes the resulting bytes —
+        # neither step calls raster_room_bboxes. Sub-millisecond even at the ~1M-pixel upper
+        # bound the raw-map decoder documents. Degrades to an absent marker
+        # (roborock_render_data_from_candidates never raises).
         if (
             fmt == "roborock_raw_map_v1"
             and isinstance(source_cfg, dict)

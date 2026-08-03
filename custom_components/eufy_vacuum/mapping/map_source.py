@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import math
 from typing import Any
 
 # Room IDs at-or-above this are catch-all/background (e.g. the full-grid sentinel
@@ -363,7 +364,10 @@ def zone_membership(map_data: dict[str, Any], geometry: list[list[float]]) -> di
       excluded from the denominator (the same ``0 < rid < _CATCH_ALL_RID`` filter
       ``rooms_from_room_pixels`` applies), so a big-furniture zone isn't wrongly split.
       ``None`` when no room dominates or the zone covers no floor (Unassigned). FILING
-      ONLY — never affects dispatch.
+      ONLY — never affects dispatch. GEO-2: the zone's own bbox is inverted into raster
+      (rx, ry) index bounds ONCE before the ray-cast loop, so the loop only visits cells
+      that can possibly land inside the bbox — a saved zone is typically a small fraction
+      of the map, so this is normally a small sub-rectangle, not the whole raster.
 
     Pure + defensive: fields are ``None`` when the map/geometry is missing or malformed;
     never raises. Roborock has no per-pixel raster, so ``room_number`` stays ``None`` there
@@ -392,9 +396,11 @@ def zone_membership(map_data: dict[str, Any], geometry: list[list[float]]) -> di
         area_m2 = round(abs(dx_cm) * abs(dy_cm) / 10_000.0, 1)
 
     # ROOM FILING — floor-dominance from the room_pixels raster (the offset now overlays the
-    # rendered floor; see _outline_geometry). A cheap bbox reject precedes the per-cell
-    # ray-cast. Best-effort: any missing/bad piece leaves room_number None (Unassigned)
-    # without disturbing area.
+    # rendered floor; see _outline_geometry). GEO-2: the bbox reject is inverted into raster
+    # index bounds BEFORE the ray-cast loop, so it only visits cells that could land in the
+    # bbox — not (as the loop bounds alone would suggest) the whole raster with a per-cell
+    # reject after normalize_rendered already ran. Best-effort: any missing/bad piece leaves
+    # room_number None (Unassigned) without disturbing area.
     room_number: int | None = None
     geom = _outline_geometry(map_data)
     rp_b64 = map_data.get("room_pixels")
@@ -405,11 +411,39 @@ def zone_membership(map_data: dict[str, Any], geometry: list[list[float]]) -> di
             room_px = b""
         if room_px:
             ro_w, ro_h, ro_dx, ro_dy, _res, _w, _h = geom
+
+            # Invert normalize_rendered's forward map (px=rx+ro_dx+0.5 -> nx=px/_w;
+            # py=ry+ro_dy-0.5 -> ny=(_h-1-py)/_h) to bracket the (rx, ry) range that can
+            # possibly fall in [bx0,bx1]x[by0,by1]. normalize_rendered CLAMPS its raw nx/ny
+            # to [0, 1] before this loop's bbox check ever sees them, so a bound that
+            # touches/exceeds that range on a side folds an unbounded span of raw values
+            # onto the clamped edge (0 or 1) — narrowing that side would silently drop real
+            # cells, so it falls back to the FULL raster range on that side instead. A ±1
+            # cell margin absorbs the same rounding normalize_rendered itself applies
+            # (round(..., 5)). A superset of the original full-scan's matches is always
+            # safe; a subset is not.
+            if _w <= 0 or bx0 <= 0.0:
+                rx_lo = 0
+            else:
+                rx_lo = max(0, math.floor(bx0 * _w - ro_dx - 0.5) - 1)
+            if _w <= 0 or bx1 >= 1.0:
+                rx_hi = ro_w - 1
+            else:
+                rx_hi = min(ro_w - 1, math.ceil(bx1 * _w - ro_dx - 0.5) + 1)
+            if _h <= 0 or by1 >= 1.0:
+                ry_lo = 0
+            else:
+                ry_lo = max(0, math.floor(_h - 0.5 - ro_dy - by1 * _h) - 1)
+            if _h <= 0 or by0 <= 0.0:
+                ry_hi = ro_h - 1
+            else:
+                ry_hi = min(ro_h - 1, math.ceil(_h - 0.5 - ro_dy - by0 * _h) + 1)
+
             floor_total = 0              # in-zone SEGMENTED-floor cells -> filing denominator
             per_rid: dict[int, int] = {}
-            for ry in range(ro_h):
+            for ry in range(ry_lo, ry_hi + 1):
                 row = ry * ro_w
-                for rx in range(ro_w):
+                for rx in range(rx_lo, rx_hi + 1):
                     idx = row + rx
                     if idx >= len(room_px):
                         break

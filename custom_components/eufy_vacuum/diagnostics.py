@@ -19,6 +19,7 @@ because support needs them.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -568,7 +569,19 @@ async def async_get_config_entry_diagnostics(
     # Read-only: the dashboard snapshot is deliberately NOT collected here (see
     # the module docstring) — computing it can fire room-transition events and
     # persist during a live clean. Everything in _vacuum_diagnostics is read-only.
-    vacuums = [_vacuum_diagnostics(hass, manager, vac) for vac in vacuum_ids]
+    #
+    # ROBORO-2: _vacuum_diagnostics is plain sync (no `await` anywhere in it) and, on a
+    # Roborock memory-backend device, its geometry-drift check walks
+    # roborock_geometry_drift_from_candidates -> geometry_drift -> raster_room_bboxes, a
+    # full width*height Python for-loop over the decoded raster (up to ~1M pixels) — real
+    # blocking CPU work with no executor dispatch anywhere in that chain. Dispatching each
+    # vacuum's block to the executor here (rather than deeper in the call chain) covers the
+    # whole synchronous function in one place instead of hunting every CPU-heavy branch
+    # inside it individually.
+    vacuums = list(await asyncio.gather(
+        *(hass.async_add_executor_job(_vacuum_diagnostics, hass, manager, vac)
+          for vac in vacuum_ids)
+    ))
 
     diag["vacuums"] = async_redact_data(vacuums, TO_REDACT)
     return diag

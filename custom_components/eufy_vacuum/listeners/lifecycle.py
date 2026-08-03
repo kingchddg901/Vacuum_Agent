@@ -14,7 +14,6 @@ Public surface:
 
 from __future__ import annotations
 
-import functools
 import logging
 from collections.abc import Callable
 
@@ -247,17 +246,18 @@ def register(hass: HomeAssistant) -> None:
                                 {k: v for k, v in all_rooms.items() if k in active_ids}
                                 if active_ids else all_rooms
                             )
-                            # WHY: start_job is sync and performs disk I/O
-                                # (`_load_samples_from_disk` / `_delete_samples_tmp_file`).
-                                # Run it on the executor to avoid both the
-                                # not-awaitable TypeError and the blocking-I/O warning.
-                            await hass.async_add_executor_job(
-                                functools.partial(
-                                    tracker.start_job,
-                                    vacuum_entity_id=vacuum_entity_id,
-                                    map_id=str(map_id),
-                                    rooms=job_rooms,
-                                )
+                            # TRK-7: start_job is plain in-memory dict bookkeeping today
+                            # (confidence-state reset + an _active_job entry) — no disk
+                            # I/O. The comment this replaces named
+                            # _load_samples_from_disk/_delete_samples_tmp_file as the
+                            # reason for executor dispatch; neither exists anywhere in
+                            # this codebase (grep-confirmed), and start_job's own body
+                            # never touches the filesystem, so a plain synchronous call
+                            # is correct — the executor hop was pure overhead.
+                            tracker.start_job(
+                                vacuum_entity_id=vacuum_entity_id,
+                                map_id=str(map_id),
+                                rooms=job_rooms,
                             )
 
                     _completion_task_status = get_adapter_value(

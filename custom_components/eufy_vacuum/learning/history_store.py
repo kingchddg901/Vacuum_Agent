@@ -276,6 +276,13 @@ class LearningHistoryStore:
         """Initialize history store."""
         self.hass = hass
         self._base_dir = Path(hass.config.config_dir) / LEARNING_ROOT
+        # RF-29: ensure_dirs is reached from 13 path-getter call sites in this file, one
+        # per warm-path operation -- memoize per (process, vacuum slug) so only the FIRST
+        # call for a given vacuum does the mkdir pass; every later call for that same
+        # vacuum this process's lifetime is a no-op. Keyed on the slug (not the raw
+        # vacuum_entity_id) so "vacuum.alfred" and any differently-cased caller collapse
+        # onto the same entry -- get_paths already does the same normalization.
+        self._ensured_vacuum_dirs: set[str] = set()
 
     def get_paths(self, *, vacuum_entity_id: str) -> LearningPaths:
         """Return all learning paths for one vacuum."""
@@ -292,14 +299,22 @@ class LearningHistoryStore:
         )
 
     def ensure_dirs(self, *, vacuum_entity_id: str) -> LearningPaths:
-        """Ensure per-vacuum learning directories exist."""
+        """Ensure per-vacuum learning directories exist.
+
+        RF-29: memoized per (process, vacuum) -- see __init__. The mkdir pass runs once
+        per vacuum per process; every repeat call just resolves the paths.
+        """
         paths = self.get_paths(vacuum_entity_id=vacuum_entity_id)
+        vacuum = _vacuum_slug(vacuum_entity_id)
+        if vacuum in self._ensured_vacuum_dirs:
+            return paths
         paths.jobs_dir.mkdir(parents=True, exist_ok=True)
         paths.learned_dir.mkdir(parents=True, exist_ok=True)
         paths.exports_dir.mkdir(parents=True, exist_ok=True)
         paths.live_dir.mkdir(parents=True, exist_ok=True)
         paths.phases_dir.mkdir(parents=True, exist_ok=True)
         paths.phased_jobs_dir.mkdir(parents=True, exist_ok=True)
+        self._ensured_vacuum_dirs.add(vacuum)
         return paths
 
     # RP-006/RF-03 read tri-state. ABSENT and UNREADABLE are different facts:
