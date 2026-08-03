@@ -162,7 +162,7 @@ audit is a snapshot, not a ledger.
 - **Closes:** A1-REG-1, A6-GUARD-3
 - **What breaks:** The only dedupe is new_val == old_val, with old_val = '' when old_state is None. So an entity first appearing (HA restart mid-cycle), unknown->drying, and unavailable->washing all read as a new cycle. record_dock_event overwrites the last-* timestamp BEFORE the debounce check, and the Eufy adapter declares debounce_seconds for last_mop_wash ONLY -- so dry-start and dust-empty have no suppression at all. An X10 dry cycle runs 2-4 hours, so the window is large and daily. The sibling listener discovery.py:127 DOES filter exactly this class; dock_events is the one of eight that writes durable counters from a raw state arrival and has no such filter.
 - **Fix:** Require the previous value to be a real non-trigger dock state before recording a cycle. Move the timestamp write inside the debounce guard.
-- [ ] applied  [ ] tested  [ ] hardware-checked
+- [x] applied (RP-038, `1c8da5a`/`b474581`)  [x] tested (reproducer + LS state-driven cases)  [ ] hardware-checked
 
 ### C17. Reactive listeners spawn unbounded concurrent work with no in-flight guard *(not independently verified)* — **3/4 applied**
 
@@ -421,10 +421,10 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-VAC-2** `dock/manager.py:93` [eufy]  
   Dock action returns performed=True / "Dock action sent." when the resolved button entity exists only in the registry (disabled or not loaded) — a silent no-op reported as success  
   -> A user who has disabled the upstream wash/dry/empty button entity (or whose upstream integration is reloading) sees the dock control offered as Ready, taps it, gets a success response, and the dock does nothing. There is
-- [ ] **DR-DOCK-1** `dock/manager.py:383` [eufy]  
+- [x] **DR-DOCK-1** `dock/manager.py:383` [eufy] — applied+tested RP-038 (`1c8da5a`)  
   The dock-event timestamp is written BEFORE the debounce, so a debounced event still corrupts last_*  
   -> CONFIRMS audit #12's A1-REG-1 from the receiving side. vacuum_events[event_type] = now runs unconditionally at :383; the debounce block at :388-424 gates only the COUNTER. So even where debounce is configured (Eufy decla
-- [ ] **DR-DOCK-2** `dock/manager.py:383` [both]  
+- [x] **DR-DOCK-2** `dock/manager.py:383` [both] — applied+tested RP-038 (`1c8da5a`)  
   record_dock_event validates nothing; its sibling set_dock_event_count validates the same vocabulary  
   -> set_dock_event_count checks event_type against counter_map and returns {'updated': False, 'error': ...} for anything unknown. record_dock_event writes vacuum_events[event_type] = now for ANY string. Since event_type come
 - [ ] **A6-PRE-2** `jobs/job_monitor.py:268` [both] _(finder said HIGH)_  
@@ -466,7 +466,7 @@ audit is a snapshot, not a ledger.
 - [ ] **A6-GUARD-5** `listeners/discovery.py:140` [both]  
   A discovery pass on the active map is scored against configured rooms across ALL maps, so switching maps makes the other map's rooms accrue "removed" strikes  
   -> On a multi-floor/multi-map setup, switching maps makes the setup tab report rooms as removed from the vacuum and flips setup_complete out of sync (setup/status.py:193-218), prompting the user to delete room configuration
-- [ ] **A2-LIFE-3** `listeners/lifecycle.py:169` [eufy]  
+- [x] **A2-LIFE-3** `listeners/lifecycle.py:169` [eufy] — applied+tested RP-038 (`b474581`); vocabulary half NOT already landed in RP-025 as the packet claimed (verified `git show 71cc479`) -- both halves closed together here  
   The inline mop-wash detector diverges from the dedicated dock_events listener: hard-coded Eufy wash vocabulary as a fallback, and no same-state guard against attribute-only re-triggers  
   -> `observed_mop_wash_count` on the active job is inflated. That value is written into the completed-job record as `actual_mop_wash_count` and is handed to register_post_job_water_amendment at lifecycle.py:398 as `mop_wash_
 - [ ] **A3-EXT-4** `mapping/map_source.py:243` [eufy]  
@@ -775,7 +775,7 @@ audit is a snapshot, not a ledger.
 - [ ] **DR-DIAG-5** `diagnostics.py:53` [both]  
   Dead `_SENTINELS` alias sits in the one file whose header explains why that set must not fork  
   -> _SENTINELS = BLANK_STATE_VALUES is assigned and never read; the live use is _ACTIVE_MAP_SENTINELS, which IS BLANK_STATE_VALUES (same object, correctly centralized). So the file carries a second, unused name for the same
-- [ ] **DR-DOCK-3** `dock/manager.py:446` [both]  
+- [x] **DR-DOCK-3** `dock/manager.py:446` [both] — applied+tested RP-038 (`1c8da5a`)  
   A manual counter reset leaves the debounce marker, suppressing the next genuine event  
   -> set_dock_event_count zeroes the counter but never clears {event_type}_last_counted_at. Reset inside the debounce window and the next real wash is silently not counted -- reset and debounce state are not kept coherent.
 - [ ] **INF-9** `entity_helpers.py:109` [both]  
@@ -814,10 +814,10 @@ audit is a snapshot, not a ledger.
 - [ ] **A3-COMMON-4** `listeners/_common.py:178` [both]  
   _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules  
   -> No wrong result today (the two literal sets are identical). Latent divergence: changing the generic completion fallback in one place silently leaves the completion gate and the stranded reaper judging the same run agains
-- [ ] **A3-COMMON-2** `listeners/_common.py:198` [future_brand_only] _(finder said MEDIUM)_  
+- [x] **A3-COMMON-2** `listeners/_common.py:198` [future_brand_only] — applied+tested RP-038 (`b474581`); bundled into that commit alongside its own REG-4/LIFE-3 work, NOT RP-033 (`06ffc73`) as RP-033's own commit message describes -- see RP-033 verification 2026-08-02 (git-attribution discrepancy, not a functional defect)  
   completion_secondary_satisfied() returns True from a config FLAG without verifying the entity it delegates to exists; the "Invariant" asserted in the caller is never validated  
   -> For a brand-3 adapter written against Roborock's pattern, the completion gate silently degrades to "task_status equals one string" with no secondary confirmation at all — while has_observed_active_lifecycle never arms, s
-- [ ] **A1-REG-4** `listeners/dock_events.py:91` [future_brand_only]  
+- [x] **A1-REG-4** `listeners/dock_events.py:91` [future_brand_only] — applied+tested RP-038 (`b474581`)  
   dock_events.register() never reads the adapter's `dock_events.enabled` flag — a brand that declares enabled:False but inherits triggers still records dock events  
   -> A future adapter that copies the Eufy dock_events block and flips `enabled: False` to opt out gets the opposite of what it declared: dock events are recorded and counters incremented, while the Base Station UI tab is hid
 - [ ] **A5-METRICS-3** `listeners/job_metrics.py:44` [future_brand_only]  
