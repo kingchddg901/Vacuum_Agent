@@ -66,6 +66,15 @@ a ledger):
 12. **Hardware baselines banked post-fix:** at least one fresh captured run per brand (Alfred,
     Ivy) at the pinned build, stored under `_frozen/`, so "holds on hardware" claims have
     evidence and the release gate is fed. This is the only gate that decays — do it last.
+13. **Reproducer corpus swept and harness v2 in place** (see §4 delta 6). Audit #2 reads
+    reproducers as evidence that a repair holds; a stale proof therefore injects a FALSE
+    "this is fixed" straight into the siege. Run `.claude/notes/_sweep_proofs.py` at the pin
+    and adjudicate every non-`AFTER`/`BEFORE` bucket. Measured 2026-08-03 on 61 proofs:
+    3 `UNEXPECTED` (stale), 12 `NO_TALLY`, 0 `ERROR`. Read `NO_TALLY` correctly — it means
+    "printed no verdict line", NOT "broken": 8 of those 12 self-verify via `rc = 1` plus a
+    literal `UNEXPECTED SHAPE` print and merely predate the `Proof` class, 1 is
+    `_proof_harness.py` caught by the glob, and only 3 are genuinely unverifiable
+    (`battery`, `onboarding`, `debug` — the last self-declared throwaway).
 
 ## 3. Scope — enumerated, tiered, diffed against the tree
 
@@ -112,9 +121,9 @@ New, learned since — these become explicit attack instructions in every discov
 
 1. **Fix-diff as first-class attack surface.** For every landed packet in scope: (a) does the fix
    hold at its seam, (b) did it mint an adjacent defect, (c) does its proof actually exercise the
-   mechanism (a proof case can be structurally unable to flip — RP-016 case 3), (d) is the packet
-   only HALF the finding (#9:A3-REC-3 had two halves; RP-013c closed one and the ledger credited
-   the whole).
+   mechanism (a proof case can be structurally unable to flip — RP-016 case 3; the four ways this
+   happens are enumerated in delta 6), (d) is the packet only HALF the finding (#9:A3-REC-3 had
+   two halves; RP-013c closed one and the ledger credited the whole).
 2. **Call-site reachability.** A correct service with zero callers passes every textual audit.
    Grep registered-services-vs-call-sites; hunt enter-through-the-seam / exit-outside-it
    asymmetry (card Cancel bypassed `cancel_active_job` entirely).
@@ -128,6 +137,51 @@ New, learned since — these become explicit attack instructions in every discov
 5. **Re-verify staleness at the start of every session.** Fixes land between audit sessions; #1's
    RC-3/RC-7 were substantially stale by the time they were worked. Each session re-pins and
    re-diffs its scope before spending.
+6. **Reproducers go stale silently — the HARNESS must derive the check, never the author.**
+   Audit #1's rule was "run the reproducer, not just pytest". #2 needs the other half: *is the
+   reproducer still measuring production?* A 61-proof sweep on 2026-08-03 found four that were
+   not, in four distinct ways — and three of the four broke because something ELSE was fixed
+   correctly. Batch-landing several findings against shared code is exactly when this happens,
+   and #2 will do a lot of that.
+
+   **The four staleness classes — hunt these by name:**
+   - **Moved call site.** The proof stubs a symbol production no longer calls
+     (`_proof_inflight_askers.py`: SNAP-2 moved the ticker to `apply_job_progress_tick`, so a
+     CORRECT repair reported `UNEXPECTED`).
+   - **Sibling-fix precondition.** A *different* finding in the same batch added an early return,
+     so the fixture no longer reaches the subject (`_proof_flip_y_disagreement.py`: ROBORO-1's
+     `if not decoded.get("room_ids")` guard; ROBORO-5 itself is correctly fixed).
+   - **Retired mechanism.** The proof asserts a mechanism deliberately replaced, with IDENTICAL
+     output structure (`_proof_completed_evidence.py`: accumulated field → derived index; both
+     yield a set of completed room ids). The hardest class — **design changed without structure
+     changing**, so nothing textual fails.
+   - **Earlier refusal.** A later change made a branch refuse sooner, so the case never reaches
+     the check it asserts (`_proof_zone_caps.py`).
+
+   **Build the v2 harness BEFORE firing (gate 13). Requirements:**
+   - **Stub-invocation tracking.** Make `H.patch()` the only sanctioned stub path and fail any
+     proof where a registered stub was never invoked. Catches the moved-call-site class for
+     free, with zero author declaration.
+   - **No proof without a verdict.** The sweep hard-fails any `_proof_*.py` that emits no tally,
+     and the glob excludes `_proof_harness.py`. Audit #1's 12 `NO_TALLY` files exist only
+     because the harness postdated them; with the harness first, the class cannot recur.
+   - **Quarantine rendering in `finish()`.** Never print a bankable `3 AFTER · 1 UNEXPECTED` —
+     render `0 of N admissible` so no case in a compromised file counts as evidence. Fire on
+     `UNEXPECTED`/`ERROR` ONLY, **never on `BEFORE`**: healthy partially-landed packets
+     legitimately report mixed `BEFORE · AFTER` (three do today), and quarantining those would
+     make the signal read as noise on day one.
+   - **Contract version, mechanism-sensitive proofs only.** A proof asserting a *mechanism*
+     rather than an outcome declares the contract it was written against; production holds the
+     constant; bumping it makes the stale proof recuse itself loudly. Narrow by design — this is
+     the one place a declared premise earns its cost, and it is the only handle on the
+     retired-mechanism class.
+
+   **Why harness-derived and not author-declared:** a declared premise that can invalidate a
+   whole file is a liability, so under deadline the rational move is to declare fewer — which
+   returns the corpus to exactly today's state while *looking* rigorous. Derive it and there is
+   nothing to under-declare. Already correct and worth preserving: `proof.case()` exposes only
+   `before=`/`after=` with no third accepting arm, so tolerant "correct either way" branches
+   (which the pre-harness proofs do contain) cannot be written.
 
 ## 5. Cost, model, and session plan
 
@@ -203,3 +257,19 @@ Each session ends with the #1-style cost report so the estimate self-corrects.
   `learning/` stands until Chris lifts it.
 - **Skipping re-audit of "clean" #1 areas entirely:** rejected in favor of *targeted* re-reads of
   any clean area a fix diff touched — a fix can mint a defect in a previously-clean file.
+- **Retrofitting audit #1's 61-proof corpus with premises:** rejected (Chris, 2026-08-03) —
+  "we're deep enough in that we build better harnesses. Next time for the second audit, which is
+  gonna run anyway." The 3 stale + 3 unverifiable proofs stay as-is: known, documented, packets
+  mostly landed. The learning goes into §4 delta 6 instead.
+- **Author-declared premises as the admissibility mechanism:** rejected — it creates a perverse
+  incentive to declare fewer premises (every one becomes a liability that can void a file; a
+  21-case proof exists in this repo). Superseded by harness-derived checks. Note the measured
+  fact that decided it: the EXISTING sweep detected 4/4 of the observed stale proofs, so premises
+  were never the *detection* mechanism, only a diagnosis accelerator. Counter-argument on the
+  record — this corpus's `after=` expressions are unusually tight, so 4/4 is partly a property of
+  authoring discipline rather than of the sweep; if #2's proofs are written looser, revisit.
+- **Per-case (rather than per-file) invalidation:** rejected as the *default*, but the reasoning
+  matters — a file is a packaging boundary, not an epistemic one. Quarantining the whole
+  executable is a conservative default under unproven locality, NOT proof that its cases share
+  fate. Where dependency is genuinely encoded, narrowing is legitimate. Suppressed results are
+  never retroactively banked: repair, re-run, and count only the fresh results.
