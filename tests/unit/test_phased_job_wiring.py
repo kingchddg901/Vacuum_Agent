@@ -61,9 +61,19 @@ def runner(store):
 
     def _collect(**kw):
         _collect_sig.bind(None, **kw)          # raises exactly as production would
+        # Production PRECOMPUTES the metrics here, from the UNSCOPED active job — the
+        # narrowing happens after this returns. The stub must do the same or the caller
+        # never has to override them, which is exactly how the scope shipped inert.
+        whole_run = sum(
+            int(rt.get("cleaning_seconds") or 0)
+            for ph in (kw.get("manager").get_active_job() or {}).get("phases") or []
+            for rt in (ph.get("room_timing") or [])
+        )
         return {"active_job_state": {"job_id": "job_x", "phases": [],
                                      "completed_room_ids": []},
-                "job_id": "job_x"}
+                "job_id": "job_x",
+                "cleaning_time_seconds": whole_run,
+                "cleaning_area_m2": None}
 
     def _finalize(*, inputs, **kw):
         _finalize_sig.bind(None, inputs=inputs, **kw)
@@ -71,17 +81,16 @@ def runner(store):
         seen["active_job_state"] = state
         seen["job_id"] = inputs["job_id"]
         scoped = state.get("phases") or []
-        seconds = sum(
-            int(rt.get("cleaning_seconds") or 0)
-            for p in scoped for rt in (p.get("room_timing") or [])
-        )
+        # From INPUTS, not recomputed from the scoped phases — recomputing here made the
+        # stub agree with what the caller intended instead of with production.
+        seconds = inputs["cleaning_time_seconds"]
         return {
             "completed_job": {
                 "record_type": "completed_job",
                 "job_id": inputs["job_id"],
                 "job": {
                     "cleaning_time_seconds": seconds,
-                    "cleaning_area_m2": state.get("last_cleaning_area_m2"),
+                    "cleaning_area_m2": inputs.get("cleaning_area_m2"),
                     "started_at": kw.get("started_at"),
                     "ended_at": kw.get("ended_at"),
                 },
@@ -144,7 +153,12 @@ def _open(store, job):
 
 
 def _run_all_phases(runner, job):
-    """Advance through every phase the way the completion hook does."""
+    """Advance through every phase the way the completion hook does.
+
+    Points the stubbed collector at the REAL job so it precomputes a whole-run metric
+    exactly as production does — otherwise it returns 0 and the child-inherits-its-
+    predecessors defect cannot be modelled at all."""
+    runner._manager.get_active_job = lambda **kw: job
     ends = {
         0: "2026-08-02T18:09:35+00:00",
         1: "2026-08-02T18:11:40+00:00",  # 125 s actual against a 120 s plan

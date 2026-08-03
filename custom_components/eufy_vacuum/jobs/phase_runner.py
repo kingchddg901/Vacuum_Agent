@@ -527,6 +527,28 @@ class PhaseRunner:
             ]
             if _areas:
                 scoped["last_cleaning_area_m2"] = round(sum(_areas), 3)
+            # OVERRIDE THE PRECOMPUTED METRICS. _collect_finalization_inputs already
+            # derived cleaning_time_seconds / cleaning_area_m2 above — from the UNSCOPED
+            # active job, because it ran before `scoped` narrowed the phase list. Narrowing
+            # `phases` therefore scopes the record's queue block but NOT its numbers, so
+            # each child inherited every earlier phase's seconds: three live runs showed
+            # phase 2 recording exactly its own timings PLUS phase 0's (90 -> gap 90,
+            # 120 -> gap 120). Recompute here, where the finishing phase is known.
+            _phase_secs = sum(
+                _safe_int(rt.get("cleaning_seconds"), 0)
+                for rt in (phase.get("room_timing") or [])
+                if isinstance(rt, dict)
+            )
+            _zt = phase.get("zone_timing")
+            if isinstance(_zt, dict):
+                _phase_secs += _safe_int(_zt.get("wall_seconds"), 0)
+            # Only when the phase actually captured something. A phase that captured
+            # NOTHING is "we don't know", not "zero seconds" — leave the collected
+            # fallback (device counter / wall clock) in place exactly as an atomic job does.
+            if _phase_secs > 0:
+                inputs["cleaning_time_seconds"] = _phase_secs
+            if _areas:
+                inputs["cleaning_area_m2"] = round(sum(_areas), 3)
             # The phase identity the rebuilder gates on. Presence is the signal: a child
             # carries it, an atomic run does not.
             scoped["phased_job_id"] = str(active_job.get("phased_job_id") or "")
