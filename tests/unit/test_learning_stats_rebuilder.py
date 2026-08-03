@@ -800,3 +800,85 @@ def test_build_room_stats_area_gate_excludes_partial(tmp_path):
     assert entry["partial_excluded_count"] == 1  # the 2 m² partial is gated
     assert entry["timing_sample_count"] == 4
     assert entry["avg_minutes"] == 4.0           # 240 s; the partial's 60 s excluded
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 / invariant 4 — an ALLOCATED timing is arithmetic, never an observation
+# ---------------------------------------------------------------------------
+
+
+def _grouped(**kw):
+    """A two-room group phase: both rooms carry the SAME whole-phase wall time and
+    allocated=True, which is exactly how phase_runner splits a group."""
+    return _job(
+        room_slugs=["entryway", "home_office"],
+        duration_minutes=10.0,
+        transit_capture_valid=True,
+        room_timings=[
+            {"room_id": 1, "slug": "entryway", "area_m2": 3.0,
+             "cleaning_wall_seconds": 390, "allocated": True, "allocation_group_size": 2},
+            {"room_id": 2, "slug": "home_office", "area_m2": 3.0,
+             "cleaning_wall_seconds": 390, "allocated": True, "allocation_group_size": 2},
+        ],
+        **kw,
+    )
+
+
+def _solo(minutes_wall: int, **kw):
+    """A single-room phase — the exact, unapportioned case (allocated=False)."""
+    return _job(
+        room_slugs=["entryway"], duration_minutes=2.0, transit_capture_valid=True,
+        room_timings=[{"room_id": 1, "slug": "entryway", "area_m2": 3.0,
+                       "cleaning_wall_seconds": minutes_wall, "allocated": False}],
+        **kw,
+    )
+
+
+def _entry(payload, slug):
+    return next((r for r in payload["room_stats"] if r["room_slug"] == slug), None)
+
+
+def test_allocated_timings_do_not_teach_room_duration(tmp_path):
+    """`cleaning_wall_seconds` on an allocated row is the WHOLE group phase's wall time,
+    repeated for every member — so a 390 s two-room phase taught 6.5 min to BOTH rooms.
+    Live archive: entryway avg 7.49 min over 13 samples, 12 of them allocated; the one
+    real observation was 1.12."""
+    rebuilder = _make_rebuilder(tmp_path)
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred",
+        jobs=[_grouped(job_id="g1"), _solo(67, job_id="s1")],
+    )
+    entryway = _entry(payload, "entryway")
+    assert entryway["timing_sample_count"] == 1, "an allocated split taught a duration"
+    assert entryway["avg_minutes"] == pytest.approx(1.12, abs=0.05)
+    assert entryway["allocation_excluded_count"] == 1
+
+
+def test_an_allocated_only_room_becomes_unlearned_not_wrong(tmp_path):
+    """home_office has ONLY ever run inside a group, so after the gate it has no timing
+    at all. Unlearned is the correct answer — the 7.51 min it used to report was pure
+    arithmetic. Area/battery/water are genuinely split and are still kept, which is why
+    sample_count and timing_sample_count are separate numbers."""
+    rebuilder = _make_rebuilder(tmp_path)
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[_grouped(job_id="g1")],
+    )
+    office = _entry(payload, "home_office")
+    assert office is not None, "the room vanished entirely"
+    assert office["timing_sample_count"] == 0
+    assert office["allocation_excluded_count"] == 1
+    assert office["sample_count"] >= 1, "area/battery/water samples must survive"
+
+
+def test_a_single_room_phase_is_never_treated_as_allocated(tmp_path):
+    """A group of ONE is the exact case and phase_runner marks it allocated=False.
+    Gating it would throw away the only measurements the system actually has —
+    kitchen is unchanged on the live archive precisely because it always runs alone."""
+    rebuilder = _make_rebuilder(tmp_path)
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred",
+        jobs=[_solo(120, job_id="s1"), _solo(126, job_id="s2")],
+    )
+    entryway = _entry(payload, "entryway")
+    assert entryway["timing_sample_count"] == 2
+    assert entryway["allocation_excluded_count"] == 0

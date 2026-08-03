@@ -391,6 +391,9 @@ class LearningStatsRebuilder:
         # from transit_capture_valid jobs (room_timings[].area_m2 — single AND
         # multi-room) or a single-room job's cleaning_area_m2 total.
         room_area_samples: dict[str, list[float]] = {}
+        #: per-key count of rooms whose timing was ALLOCATED, so the drop is
+        #: reported rather than silently shrinking timing_sample_count.
+        allocation_excluded: dict[str, int] = {}
         baseline_area_samples: dict[str, list[float]] = {}
         # baseline-level minutes samples + paired area (baseline area gate).
         baseline_samples: dict[str, list[float]] = {}
@@ -437,12 +440,21 @@ class LearningStatsRebuilder:
             # single AND multi-room jobs; room_minutes/room_area fall back to the
             # job level when a room has no captured segment.
             captured: dict[int, tuple[float, float]] = {}
+            # Invariant 4: an ALLOCATED timing is arithmetic, never an observation.
+            # `cleaning_wall_seconds` on an allocated row is not even the room's share —
+            # it is the WHOLE group phase's wall time, repeated identically for every
+            # member (jobs/phase_runner.py builds it that way). So a 390 s two-room phase
+            # taught 6.5 minutes to BOTH rooms, which is how Entryway reached a 6.9 min
+            # estimate for a room that takes about one.
+            allocated_rids: set[int] = set()
             if _safe_bool(job_info.get("transit_capture_valid"), False):
                 for _rt in (job_info.get("room_timings") or []):
                     if not isinstance(_rt, dict):
                         continue
                     _rid = _safe_int(_rt.get("room_id"), -1)
                     if _rid > 0:
+                        if _safe_bool(_rt.get("allocated"), False):
+                            allocated_rids.add(_rid)
                         captured[_rid] = (
                             _safe_float(_rt.get("area_m2"), 0.0),
                             _safe_float(_rt.get("cleaning_wall_seconds"), 0.0) / 60.0,
@@ -490,8 +502,18 @@ class LearningStatsRebuilder:
 
                 exact_key = _room_key(map_id, slug, effective_mode, clean_times, is_carpet, clean_intensity, edge_mopping)
 
-                room_samples.setdefault(exact_key, []).append(room_minutes)
-                room_sample_areas.setdefault(exact_key, []).append(room_area)
+                # An allocated room contributes NO timing sample — not a fallback one
+                # either. Falling back to `per_room_duration` would just swap one
+                # allocation for another (the job's duration / room count), so the room
+                # would still learn arithmetic dressed as a measurement. Better unlearned
+                # than confidently wrong: area / battery / water are genuinely split and
+                # are kept, which is why `sample_count` and `timing_sample_count` are
+                # already separate numbers here.
+                if rid in allocated_rids:
+                    allocation_excluded[exact_key] = allocation_excluded.get(exact_key, 0) + 1
+                else:
+                    room_samples.setdefault(exact_key, []).append(room_minutes)
+                    room_sample_areas.setdefault(exact_key, []).append(room_area)
                 if room_area is not None:
                     room_area_samples.setdefault(exact_key, []).append(room_area)
 
@@ -659,6 +681,7 @@ class LearningStatsRebuilder:
                     "minutes_stddev": _stddev(gated),
                     "timing_sample_count": len(gated),
                     "partial_excluded_count": partial_excluded,
+                    "allocation_excluded_count": allocation_excluded.get(key, 0),
                     "area_sample_count": area_count,
                     "avg_area_m2": round(sum(area_samples) / area_count, 2) if area_count else 0.0,
                     "area_m2_min": round(min(area_samples), 2) if area_count else 0.0,
