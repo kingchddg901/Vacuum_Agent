@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **447** findings via 56 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
+| Fixes APPLIED (landed packets) | **451** findings via 57 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **36** -- 2 open clusters (27 fully applied) + 34 singles |
-| By severity | CRITICAL 1 / HIGH 6 / MEDIUM 16 / LOW 13 |
+| Open findings | **32** -- 2 open clusters (27 fully applied) + 30 singles |
+| By severity | CRITICAL 0 / HIGH 5 / MEDIUM 14 / LOW 13 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -272,13 +272,7 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### CRITICAL (1)
-
-- [ ] **A4-PP-RP-2** `profiles/manager.py:1086` [both]  
-  overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
-  -> A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
-
-### HIGH (4)
+### HIGH (3)
 
 - [ ] **A6-PP-EST-BLK-1** `planning/run_plan.py:1615` [both] _(finder said CRITICAL)_  
   Mid-job path-block report walks reachability over the QUEUE only, so any queued room whose access parent is not in the queue is reported blocked — and can cancel the job  
@@ -286,14 +280,11 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-AG-1** `planning/run_plan.py:1615` [both]  
   Mid-run reachability is queue-scoped while preflight is graph-scoped — a run that omits the dock room reports EVERY remaining room as access_blocked and can cancel the job  
   -> A perfectly valid access graph plus a normal partial run (user cleans the bedroom, not the entryway the dock sits in) turns any watched blocker entity's state change into a spurious 'path blocked' verdict on every unfini
-- [ ] **A4-PP-RP-1** `profiles/manager.py:1232` [both]  
-  A stepped run profile silently discards the per-room settings it was saved with; apply falls back to whatever the rooms happen to be set to now  
-  -> User composes "Nightly": Kitchen + Bath on mop/High water, charge to 90%, then Bedrooms on vacuum — and saves it. Days later they switch the Kitchen to vacuum-only for a quick pass. Pressing the "Run Nightly" button (or
 - [ ] **A4-PP-RP-4** `profiles/manager.py:1244` [both]  
   apply_run_profile leaves no backend record that the applied profile is stepped, so a plain Start runs it flat — or inherits the map's unrelated leftover breaks  
   -> User presses "Apply" on a stepped profile, walks away, comes back to a reloaded dashboard (or starts it from a second tab / a phone), presses Start — and the run silently loses its structure: the charge-to-90% break neve
 
-### MEDIUM (16)
+### MEDIUM (14)
 
 - [ ] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
@@ -322,9 +313,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-PP-RP-2** `planning/run_plan.py:1379` [both] _(finder said HIGH)_  
   Any plan whose FIRST surviving phase is a zone is refused with "Room-clean payload is missing or invalid" — and a live blocker rule can push a plan into that state  
   -> A saved run that worked yesterday becomes unstartable the moment a door/occupancy sensor blocks the rooms in its first group — with an error that blames a corrupt payload rather than naming the blocked room. The rest of
-- [ ] **A4-PP-RP-6** `profiles/manager.py:779` [both]  
-  normalize_run_profile_steps passes arbitrary per-room fields through untouched, and the run-plan overlay treats them as authoritative settings — the one dispatch path that skips _protected_room_config  
-  -> A user captures a room group while a room is hardwood and set to mop, then later marks that room as carpet (rug moved in). Every other path in the system now refuses to mop it — the card shows Vacuum, and apply_run_profi
 - [ ] **A6-AGX-4** `rooms/access_graph.py:364` [both]  
   Every access-graph issue message is a hard-coded English literal and is rendered verbatim in the card on all 18 shipped locales  
   -> On any non-English install the room-access modal's issue list and its save-error banner are English, including for AR/HE where they are injected into an RTL layout. This is the one place in the access feature where the u
@@ -337,9 +325,6 @@ audit is a snapshot, not a ledger.
 - [ ] **SN-4** `sensor/__init__.py:272` [both]  
   Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
   -> VERIFIED: async_update_entity has ZERO occurrences anywhere in the integration. Both sync blocks construct a fresh entity per desired room and then discard it when the unique_id is already known, pushing only a state wri
-- [ ] **A5-RUNPROF-4** `services/run_profiles.py:85` [both]  
-  set_run_profile_steps accepts a bare `list` and silently drops or clamps every malformed step; only 'at least one room_group survived' is enforced  
-  -> A YAML author who mistypes a step type or a percent field gets `saved: True` and a profile that has lost its charge stop — the robot then runs the whole sequence in one go and can strand mid-run instead of docking to cha
 - [ ] **A6-AGX-6** `src/state/room-access.js:85` [both]  
   The card's access modal renders an existing edge into the dock room as "Missing Room N" — an edge that exists is displayed as a stale reference to a room that does not  
   -> The editor misrepresents the stored graph: a live room is labelled missing/stale, inviting the user to delete a valid edge. Conversely they cannot re-create it, because the dock room is filtered out of the selectable lis
@@ -389,7 +374,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 447 findings closed by a landed packet
+## APPLIED -- 451 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -740,6 +725,14 @@ a disappeared finding is indistinguishable from one never found.
   Engine phase envelopes omit queue_room_ids/queue_rooms, making the run-plan group-union computation dead code and emptying queue_rooms on every phase advance
 - [x] **DQ-Q-7** `queue/queue_engine.py:242` [both] -- **RP-021a** (`8f9d5db`, 2026-08-02)  
   build_room_clean_payload treats an empty queue_room_ids as "no filter" rather than "no rooms", so a cleared queue yields a payload containing every enabled room
+- [x] **A4-PP-RP-2** `profiles/manager.py:1086` [both] -- **RP-021b** (`f208788`, `0fa6cd9`, `4c93fb5`, `e2a424c`, 2026-08-03)  
+  overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour
+- [x] **A4-PP-RP-1** `profiles/manager.py:1232` [both] -- **RP-021b** (`f208788`, `0fa6cd9`, `4c93fb5`, `e2a424c`, 2026-08-03)  
+  A stepped run profile silently discards the per-room settings it was saved with; apply falls back to whatever the rooms happen to be set to now
+- [x] **A4-PP-RP-6** `profiles/manager.py:779` [both] -- **RP-021b** (`f208788`, `0fa6cd9`, `4c93fb5`, `e2a424c`, 2026-08-03)  
+  normalize_run_profile_steps passes arbitrary per-room fields through untouched, and the run-plan overlay treats them as authoritative settings — the one dispatch path that skips _protected_room_config
+- [x] **A5-RUNPROF-4** `services/run_profiles.py:85` [both] -- **RP-021b** (`f208788`, `0fa6cd9`, `4c93fb5`, `e2a424c`, 2026-08-03)  
+  set_run_profile_steps accepts a bare `list` and silently drops or clamps every malformed step; only 'at least one room_group survived' is enforced
 - [x] **DQ-ZONE-5** `core/manager.py:4030` [both] -- **RP-022** (`1288b65`, 2026-08-02)  
   zone_bounds is computed and shipped in the dashboard snapshot but has no consumer anywhere — and the card replaces the precise refusal message with a generic toast
 - [x] **A3-SNAP-4** `core/manager.py:4017` [future_brand_only] -- **RP-022** (`1288b65`, 2026-08-02)  
@@ -1326,7 +1319,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 56 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 51 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 57 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 52 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 

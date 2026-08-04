@@ -284,11 +284,20 @@
   "finding_ids": [
    "#8:A4-PP-RP-2",
    "#8:A4-PP-RP-1",
-   "#8:A4-PP-RP-4",
    "#8:A4-PP-RP-6",
    "#13:A5-RUNPROF-4"
   ],
-  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md",
+  "note": "Split 2026-08-04: #8:A4-PP-RP-4 moved to RP-021c, parked by Chris. The four findings left here all landed 2026-08-03."
+ },
+ {
+  "packet_id": "RP-021c",
+  "repair_family": "RF-35",
+  "finding_ids": [
+   "#8:A4-PP-RP-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md",
+  "note": "Split out of RP-021b 2026-08-04. PARKED by Chris ('hold off on rp4') -- deliberately deferred, NOT unfinished work. apply_run_profile leaves no backend record that the applied profile is stepped, so a plain Start runs it flat. Do not fold back into RP-021b: that packet is closed and the split is what keeps this visible."
  },
  {
   "packet_id": "RP-022",

@@ -364,6 +364,17 @@
   "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
  },
  {
+  "packet_id": "RP-021b",
+  "commits": [
+   "f208788",
+   "0fa6cd9",
+   "4c93fb5",
+   "e2a424c"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed for 4 of its 5 scoped findings; the 5th (#8:A4-PP-RP-4) was split to RP-021c because it is parked, not unfinished. Verified at source before closing, not taken from the commit subjects: overwrite_run_profile re-snapshots steps (profiles/manager.py) and a stepped apply restores saved settings."
+ },
+ {
   "packet_id": "RP-022",
   "commits": [
    "1288b65"
