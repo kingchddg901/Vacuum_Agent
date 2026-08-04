@@ -53,54 +53,35 @@
 
 import { ENTITY, INVALID_STATES } from "../constants.js";
 
+import {
+  claimedTargets,
+  graphFromRooms,
+  hasCycle,
+  normalizeRefs,
+  unplacedRooms,
+  validateEdit,
+} from "./access-graph-model.js";
+
 export function applyRoomsState(proto) {
 
   /* =========================================================
      ACCESS GRAPH HELPERS
      ========================================================= */
 
+  // The access-graph questions all live in state/access-graph-model.js now, as
+  // pure functions over an explicit graph snapshot. These methods keep their
+  // names and contracts — callers, bindings and their pins do not move — and
+  // supply the snapshot the model needs.
   proto._normalizeRoomReferenceList = function (value) {
-    if (value == null) return [];
-
-    const list = Array.isArray(value) ? value : [value];
-
-    return list
-      .map((entry) => String(entry ?? "").trim())
-      .filter((entry) => entry !== "");
+    return normalizeRefs(value);
   };
 
   proto._buildRoomAccessAdjacency = function (rooms = []) {
-    const adjacency = {};
-
-    rooms.forEach((room) => {
-      adjacency[String(room.id)] = this._normalizeRoomReferenceList(room.grantsAccessTo);
-    });
-
-    return adjacency;
+    return graphFromRooms(rooms).grants;
   };
 
   proto._roomAccessGraphHasCycle = function (adjacency = {}) {
-    const visited = new Set();
-    const active = new Set();
-
-    const visit = (roomId) => {
-      if (active.has(roomId)) return true;
-      if (visited.has(roomId)) return false;
-
-      visited.add(roomId);
-      active.add(roomId);
-
-      const neighbors = adjacency[roomId] ?? [];
-      for (const nextRoomId of neighbors) {
-        if (!(nextRoomId in adjacency)) continue;
-        if (visit(nextRoomId)) return true;
-      }
-
-      active.delete(roomId);
-      return false;
-    };
-
-    return Object.keys(adjacency).some((roomId) => visit(roomId));
+    return hasCycle({ grants: adjacency });
   };
 
   proto.roomAccessGraph = function (mapId = null) {
@@ -130,102 +111,7 @@ export function applyRoomsState(proto) {
 
   proto.validateRoomAccessUpdate = function (mapId, roomId, proposedGrantsAccessTo = []) {
     const rooms = this.getRoomsForMap(mapId);
-    const targetRoomId = String(roomId ?? "").trim();
-    const knownRoomIds = new Set(rooms.map((room) => String(room.id)));
-    const rawRefs = this._normalizeRoomReferenceList(proposedGrantsAccessTo);
-    const duplicateRefs = rawRefs.filter((ref, index) => rawRefs.indexOf(ref) !== index);
-    const uniqueRefs = Array.from(new Set(rawRefs));
-    const missingRefs = uniqueRefs.filter((ref) => !knownRoomIds.has(ref));
-    const selfReference = uniqueRefs.includes(targetRoomId);
-
-    const issues = [];
-
-    if (!knownRoomIds.has(targetRoomId)) {
-      issues.push({
-        // A6-AGX-4: `scope` marks this as CARD-raised. The backend uses the same
-        // code for a different fault ("references a room that is gone"), so the
-        // resolver looks up room_access.issue.card.missing_room first.
-        code: "missing_room",
-        scope: "card",
-        params: {},
-        message: "This room no longer exists on the active map.",
-      });
-    }
-
-    if (selfReference) {
-      issues.push({
-        code: "self_reference",
-        scope: "card",
-        params: {},
-        message: "A room cannot grant access to itself.",
-      });
-    }
-
-    if (duplicateRefs.length) {
-      issues.push({
-        code: "duplicate_edges",
-        scope: "card",
-        params: {},
-        message: "Each access link can only appear once.",
-        roomIds: Array.from(new Set(duplicateRefs)),
-      });
-    }
-
-    if (missingRefs.length) {
-      issues.push({
-        code: "missing_room_references",
-        scope: "card",
-        params: {},
-        message: "All access links must point to rooms on the current map.",
-        roomIds: missingRefs,
-      });
-    }
-
-    // Single-inbound constraint: a room that is already claimed as a target
-    // by another room cannot be added as a target by this room too.
-    const adjacency = this._buildRoomAccessAdjacency(rooms);
-    const claimedByOther = this._buildClaimedTargetMap(rooms, targetRoomId);
-
-    const multipleInboundRefs = uniqueRefs.filter(
-      (ref) => claimedByOther.has(ref) && knownRoomIds.has(ref)
-    );
-
-    if (multipleInboundRefs.length) {
-      const roomNamesById = Object.fromEntries(
-        rooms.map((room) => [String(room.id), room.name])
-      );
-      multipleInboundRefs.forEach((ref) => {
-        const claimedBy = claimedByOther.get(ref);
-        const claimantName = roomNamesById[claimedBy] ?? `Room ${claimedBy}`;
-        const targetName = roomNamesById[ref] ?? `Room ${ref}`;
-        issues.push({
-          code: "multiple_inbound",
-          scope: "card",
-          params: { target: targetName, claimant: claimantName },
-          // Kept as the fallback AND because it is the only rung that works
-          // before a locale pack ships the key.
-          message: `${targetName} already has an inbound link from ${claimantName}. Each room can only be reached from one room.`,
-          roomIds: [ref, claimedBy].filter(Boolean),
-        });
-      });
-    }
-
-    adjacency[targetRoomId] = uniqueRefs.filter((ref) => knownRoomIds.has(ref));
-
-    if (!issues.length && this._roomAccessGraphHasCycle(adjacency)) {
-      issues.push({
-        code: "cycle",
-        scope: "card",
-        params: {},
-        message: "This access setup would create a loop in the room graph.",
-      });
-    }
-
-    return {
-      valid: issues.length === 0,
-      issues,
-      normalizedGrantsAccessTo: adjacency[targetRoomId] ?? [],
-    };
+    return validateEdit(rooms, graphFromRooms(rooms), roomId, proposedGrantsAccessTo);
   };
 
   /**
@@ -238,28 +124,7 @@ export function applyRoomsState(proto) {
       ? this.getRoomsForMap(mapId)
       : this.getRoomsForActiveMap();
 
-    // Only show the panel once a dock room has been declared.
-    // If no dock room exists yet the whole graph is unset — not useful to list.
-    const hasDockRoom = rooms.some((room) => room.isDockRoom);
-    if (!hasDockRoom) return [];
-
-    // Build the set of rooms that appear as a target in any other room's
-    // grantsAccessTo. These rooms have been placed in the access tree.
-    // requiresAccessFrom is a derived field never stored on entities — we
-    // must derive it here from grantsAccessTo which IS in entity attributes.
-    const placed = new Set();
-    rooms.forEach((room) => {
-      this._normalizeRoomReferenceList(room.grantsAccessTo).forEach((targetId) => {
-        placed.add(targetId);
-      });
-    });
-
-    // A room is unconfigured if it is not the dock room and no other room
-    // grants access to it — i.e. it has not been placed in the tree yet.
-    return rooms.filter((room) => {
-      if (room.isDockRoom) return false;
-      return !placed.has(String(room.id));
-    });
+    return unplacedRooms(rooms, graphFromRooms(rooms));
   };
 
   /**
@@ -268,20 +133,7 @@ export function applyRoomsState(proto) {
    * single-inbound constraint during validation and chip rendering.
    */
   proto._buildClaimedTargetMap = function (rooms = [], excludeRoomId = "") {
-    const claimed = new Map();
-
-    rooms.forEach((room) => {
-      if (String(room.id) === String(excludeRoomId)) return;
-
-      this._normalizeRoomReferenceList(room.grantsAccessTo).forEach((targetId) => {
-        // First claimant wins — duplicates are caught elsewhere.
-        if (!claimed.has(targetId)) {
-          claimed.set(targetId, String(room.id));
-        }
-      });
-    });
-
-    return claimed;
+    return claimedTargets(graphFromRooms(rooms), excludeRoomId);
   };
 
   /* =========================================================

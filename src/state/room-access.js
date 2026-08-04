@@ -14,6 +14,12 @@
  * ============================================================
  */
 
+import {
+  graphFromRooms,
+  offerableTargets,
+  withEdges,
+} from "./access-graph-model.js";
+
 export function applyRoomAccessState(proto) {
 
   proto.openRoomAccess = function (roomId, mapId) {
@@ -71,64 +77,20 @@ export function applyRoomAccessState(proto) {
     const room = this.activeAccessRoom();
     if (!room) return [];
 
-    const allRooms = this.getRoomsForMap(room.mapId);
-    const selectedIds = new Set(
-      this._normalizeRoomReferenceList(this.roomAccessFields().grants_access_to)
+    const rooms = this.getRoomsForMap(room.mapId);
+
+    // The modal edits ONE room against stored state, so the snapshot it asks
+    // about is "the graph on disk, with this room's unsaved draft overlaid".
+    // The builder (Wave C) will pass its whole-map draft to the same function —
+    // that difference is the entire reason the question moved out of here and
+    // into a pure model over an explicit snapshot.
+    const graph = withEdges(
+      graphFromRooms(rooms),
+      room.id,
+      this.roomAccessFields().grants_access_to
     );
 
-    // Build map of target -> claimant for all OTHER rooms (excluding this one).
-    const claimedByOther = this._buildClaimedTargetMap(allRooms, String(room.id));
-
-    const rooms = allRooms
-      .filter((entry) => {
-        if (String(entry.id) === String(room.id)) return false;
-
-        const id = String(entry.id);
-        // A6-AGX-6: the dock room is not OFFERED as a new target, but an edge
-        // into it that ALREADY EXISTS must stay visible and removable. This was
-        // an unconditional exclusion sitting two lines above the claimed-by-
-        // another rule, which already grants exactly this escape hatch — the
-        // asymmetry IS the bug, and the shorter predicate was the wrong one.
-        //
-        // Hidden, the stored edge fell through to missingSelections below and
-        // rendered as a "Missing Room N" chip: a live room shown as missing, and
-        // unrecoverable, because the same filter kept the dock room out of the
-        // selectable list so it could never be re-added once removed.
-        if (entry.isDockRoom && !selectedIds.has(id)) return false;
-
-        const claimedBy = claimedByOther.get(id);
-        // Hide rooms claimed by another room unless already selected by this room.
-        return selectedIds.has(id) || !claimedBy;
-      })
-      .map((entry) => ({
-        id: String(entry.id),
-        name: entry.name,
-        missing: false,
-        available: true,
-        claimedBy: null,
-        // Carried so the renderer can mark a surviving edge into the dock room
-        // as what it is, rather than as an ordinary target.
-        isDockRoom: Boolean(entry.isDockRoom),
-      }));
-
-    const knownRoomIds = new Set(rooms.map((entry) => entry.id));
-    const missingSelections = Array.from(selectedIds)
-      .filter((entry) => !knownRoomIds.has(String(entry)))
-      .map((entry) => ({
-        id: String(entry),
-        // A6-AGX-6: no English authored here. State modules hold no `t`, so the
-        // label travels as a code + params and the RENDERER resolves it — the
-        // same shape A6-AGX-4 established for access-graph issues.
-        name: null,
-        nameCode: "room_access.missing_room",
-        nameParams: { id: String(entry) },
-        missing: true,
-        available: true,
-        claimedBy: null,
-        isDockRoom: false,
-      }));
-
-    return [...rooms, ...missingSelections];
+    return offerableTargets(rooms, graph, room.id);
   };
 
   proto.accessInboundRooms = function () {
