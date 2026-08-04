@@ -43,7 +43,18 @@ if _ADJ.exists():
                   f"findings -- already closed by a packet, or a stale entry in "
                   f"_adjudicated_findings.json")
             continue
-        _row["wontfix"] = f"{_a['verdict'].upper()} ({_a['adjudicated_at']}) -- {_a['reason']}"
+        _note = f"{_a['verdict'].upper()} ({_a['adjudicated_at']}) -- {_a['reason']}"
+        # Two verdict shapes, because "this is not a defect" and "this is a real
+        # defect ranked wrong" are different judgements and only one of them
+        # removes work from the board. A severity correction keeps the finding
+        # OPEN and re-ranks it; collapsing both into wontfix would quietly retire
+        # findings that still need fixing, which is the over-close failure this
+        # campaign guards against.
+        if _a.get("severity"):
+            _row["sev"] = _a["severity"].upper()
+            _row["adjudication"] = _note
+        else:
+            _row["wontfix"] = _note
 
 # Deliberately-not-fixing entries are tracked, but they are NOT open findings and must
 # not reappear in the fix list — an unmarked wontfix just gets re-litigated.
@@ -233,6 +244,12 @@ for s in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
         A(f"- [ ] **{r['id']}** `{r['file']}:{r['line']}` [{r['brands']}]{was}  ")
         A(f"  {r['title']}  ")
         A(f"  -> {r['impact'][:220].strip()}")
+        # An adjudicated finding keeps its ORIGINAL title and impact -- the audit
+        # text is evidence and is never rewritten -- so without this line the
+        # entry still asserts the harm that was disproved, with nothing to say so.
+        # Same failure as the WONTFIX list being collected and never rendered.
+        if r.get("adjudication"):
+            A(f"  -> **ADJUDICATED:** {r['adjudication']}")
     A("")
 A("---")
 A("")

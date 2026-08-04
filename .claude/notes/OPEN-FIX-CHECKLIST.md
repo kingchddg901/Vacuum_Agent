@@ -12,7 +12,7 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Fixes APPLIED (landed packets) | **447** findings via 56 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
 | Open findings | **36** -- 2 open clusters (27 fully applied) + 34 singles |
-| By severity | CRITICAL 1 / HIGH 7 / MEDIUM 16 / LOW 12 |
+| By severity | CRITICAL 1 / HIGH 6 / MEDIUM 16 / LOW 13 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -278,7 +278,7 @@ audit is a snapshot, not a ledger.
   overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
   -> A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
 
-### HIGH (5)
+### HIGH (4)
 
 - [ ] **A6-PP-EST-BLK-1** `planning/run_plan.py:1615` [both] _(finder said CRITICAL)_  
   Mid-job path-block report walks reachability over the QUEUE only, so any queued room whose access parent is not in the queue is reported blocked — and can cancel the job  
@@ -292,9 +292,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A4-PP-RP-4** `profiles/manager.py:1244` [both]  
   apply_run_profile leaves no backend record that the applied profile is stepped, so a plain Start runs it flat — or inherits the map's unrelated leftover breaks  
   -> User presses "Apply" on a stepped profile, walks away, comes back to a reloaded dashboard (or starts it from a second tab / a phone), presses Start — and the run silently loses its structure: the charge-to-90% break neve
-- [ ] **A4-SETUP-6** `services/setup.py:243` [both]  
-  setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
-  -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
 ### MEDIUM (16)
 
@@ -347,7 +344,7 @@ audit is a snapshot, not a ledger.
   The card's access modal renders an existing edge into the dock room as "Missing Room N" — an edge that exists is displayed as a stale reference to a room that does not  
   -> The editor misrepresents the stored graph: a live room is labelled missing/stale, inviting the user to delete a valid edge. Conversely they cannot re-create it, because the dock room is filtered out of the selectable lis
 
-### LOW (12)
+### LOW (13)
 
 - [ ] **EP-5** `button.py:256` [both]  
   The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
@@ -385,6 +382,10 @@ audit is a snapshot, not a ledger.
 - [ ] **SN-9** `sensor/map_overlays.py:76` [both]  
   native_value returns the literal string 'unavailable', colliding with HA's reserved state  
   -> VERIFIED AT SOURCE: `if not res.get('present'): return 'unavailable'`. That is indistinguishable in hass.states, templates, is_state() and the frontend from an entity that is genuinely unavailable, while the real diagnos
+- [ ] **A4-SETUP-6** `services/setup.py:243` [both] _(finder said HIGH)_  
+  setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
+  -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
+  -> **ADJUDICATED:** SEVERITY CORRECTED HIGH -> LOW (LATENT) (2026-08-03) -- MECHANISM CONFIRMED, HARM MISDESCRIBED. The scoping claim is correct and worth keeping: rejection is NOT map-scoped. `rejected_rooms` is a flat list[int] on setup_progress[vacuum_entity_id] with no map dimension, _get_progress_record is keyed by vacuum only, the suppression is a flat set subtraction applied identically to every map, and reject_rooms iterates manager.data['maps'][veid] with no filter -- while discovery IS map-capable (discover_rooms_for_vacuum takes map_id), each drift row carries a map_id, and the card renders it beside the button. The UI presents a per-map decision that the backend applies per-vacuum. But the finding's HARM -- 'silently loses that room's configuration on maps they were not looking at' -- is unreachable. new_candidate_ids = discovered - configured_ids - rejected, and _list_configured_room_ids collects across ALL maps for the vacuum, so a room configured anywhere is never offered for rejection anywhere. The rooms.pop therefore removes a discovery-created stub, not user data. And the user guide (docs/user-guide/11-setup.md, applying charter delta 9) shows the other two 'harms' are the FEATURE: phantom rooms 'need to be rejected here so they don't become managed entities', and Reject as phantom 'permanently suppresses the room... never appears in this list again... Use this for ghost rooms the firmware occasionally invents.' Permanence is the point, and a typed-token gate on dismissing a firmware ghost would be absurd friction. Chris: it refuses the room's CREATION, it does not delete a room. The card offers it only inside Setup; anything else needs a hand-written service call. WHAT SURVIVES, and why it stays OPEN at LOW rather than being retired: rejection is vacuum-scoped while phantoms are per-map, and Eufy reuses ids 1-11 per map. A genuine phantom id on one floor therefore permanently blocks configuring a REAL room with the same id on another, and there is no un-reject path (grep: the only writers are drift.py and core/manager.py:559 record-init). That is the inverse of the finding's harm -- not losing existing configuration, but losing the ABILITY to configure. Latent today because only one map per vacuum carries rooms in this fleet; that is current state, NOT a limit (Chris), so it becomes live the day a second floor is configured. Minor second residual: reject_rooms never checks is_configured, so a direct service call can pop a configured room. Not reachable from the card. FIX SHAPE when it is worth doing: carry the map the rejection was made on rather than adding a confirmation gate or a protection level -- neither of those addresses the actual defect. Reads stay tolerant of the legacy flat list (treat as all-maps, preserving today's behaviour for existing records); writes become map-keyed; the service takes an optional map_id and the card passes the map_id it already renders.
 
 ---
 
