@@ -48,6 +48,11 @@ const SRC = join(REPO, "src");
 let failures = 0;
 const fail = (msg) => { failures += 1; console.error(`  ✗ ${msg}`); };
 
+// --strict-coverage: release-gate mode. Untranslated keys and NON-ACCEPTED
+// English-identical values become failures instead of information. Dev runs
+// stay permissive (an en-first mid-wave tree is a legitimate state).
+const STRICT = process.argv.includes("--strict-coverage");
+
 /* =========================================================
    A. translate() CONTRACT
    ========================================================= */
@@ -592,6 +597,7 @@ let shippedFiles = [];
 try {
   shippedFiles = readdirSync(shippedDir).filter((f) => f.endsWith(".json") && f !== "index.json");
 } catch { /* dir absent — no-op */ }
+const shippedClean = []; // { code, clean, untranslated } per validated locale — feeds section D
 if (shippedFiles.length === 0) {
   console.log("  ✓ no shipped locales (nothing to validate)");
 } else {
@@ -602,7 +608,55 @@ if (shippedFiles.length === 0) {
     const { flat, coverage } = flattenLocale(nested, enCatalog);
     const { clean, warnings, errors } = validateLocale(flat);
     if (errors.length) { for (const e of errors) fail(`locale ${f}: ${e}`); continue; }
+    shippedClean.push({ code: f.replace(/\.json$/, ""), clean, untranslated: coverage.untranslated });
     console.log(`  ✓ ${f}: ${Object.keys(clean).length} keys valid (${coverage.untranslated.length} → en)${warnings.length ? ` (${warnings.length} warning(s))` : ""}`);
+  }
+}
+
+/* =========================================================
+   D. ENGLISH-IDENTICAL RATCHET (accepted-list, language-blind)
+   ========================================================= */
+// A locale value IDENTICAL to the English value is either legitimately universal
+// (cognate, unit, symbol, product term) or untranslated leakage — and telling the
+// two apart needs a human exactly once. scripts/i18n-accepted-english.json is the
+// reviewed snapshot (Chris, 2026-08-04): every accepted key -> locale list.
+// This section flags only NEW English-identical values that are not in the
+// snapshot — the ratchet: each future wave gets the same adjudication, one diff
+// at a time. "pending" entries are provisionally tolerated but listed so they
+// cannot rot invisibly. Comparison is language-blind by design — no dictionaries.
+console.log("\nD. English-identical ratchet");
+let ratchet = { accepted: {}, pending: {} };
+try { ratchet = JSON.parse(readFileSync(join(HERE, "i18n-accepted-english.json"), "utf8")); }
+catch { console.log("  (no accepted-list — every English-identical value reports)"); }
+const inList = (m, k, lc) => !!(m && m[k] && (m[k] === "*" || m[k].includes(lc)));
+// Plural entries are objects on both sides — compare via key-sorted serialization.
+const stable = (v) => (typeof v === "string" ? v : JSON.stringify(Object.fromEntries(Object.entries(v).sort())));
+const newIdentical = [];
+let pendingSeen = 0;
+for (const { code, clean } of shippedClean) {
+  for (const [k, v] of Object.entries(clean)) {
+    const ev = enCatalog[k];
+    if (ev === undefined || stable(v) !== stable(ev)) continue;
+    if (inList(ratchet.accepted, k, code)) continue;
+    if (inList(ratchet.pending, k, code)) { pendingSeen += 1; continue; }
+    newIdentical.push(`${code}: ${k} = ${JSON.stringify(ev).slice(0, 60)}`);
+  }
+}
+if (newIdentical.length === 0) {
+  console.log(`  ✓ no NEW English-identical values (pending tolerated: ${pendingSeen})`);
+} else if (STRICT) {
+  for (const h of newIdentical) fail(`NEW English-identical value — translate it or add it to the accepted list: ${h}`);
+} else {
+  console.log(`  ⚠ ${newIdentical.length} NEW English-identical value(s) — adjudicate (accept or translate):`);
+  for (const h of newIdentical) console.log(`      - ${h}`);
+}
+// Strict coverage: with the wave landed, "@100%" is an enforced invariant at
+// release time — any untranslated key fails the strict run.
+if (STRICT) {
+  for (const { code, untranslated } of shippedClean) {
+    if (untranslated.length > 0) {
+      fail(`coverage: ${code} has ${untranslated.length} untranslated key(s): ${untranslated.slice(0, 6).join(", ")}${untranslated.length > 6 ? ", …" : ""}`);
+    }
   }
 }
 
