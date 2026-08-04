@@ -1,5 +1,5 @@
 {
- "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated, awaiting a Chris ruling; move to accepted or fix, do not let entries rot here.",
+ "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.)",
  "accepted": {
   "base_station.minutes_short": [
    "cs",
@@ -839,12 +839,5 @@
    "id"
   ]
  },
- "pending": {
-  "rooms.trust_tooltip_with_samples": [
-   "nl"
-  ],
-  "room_estimate.label_samples": [
-   "nl"
-  ]
- }
+ "pending": {}
 }
