@@ -2295,6 +2295,13 @@ class EufyVacuumManager:
         _rooms = managed_rooms if managed_rooms is not None else kwargs.get("managed_rooms")
         return self.access_graph._any_rooms_have_rules(_rooms)
 
+    def access_graph_block_code(self, managed_rooms=None, validation=None, **kwargs):
+        """Delegate to AccessGraphManager. A6-AGX-1 — the ONE owner of 'do runs
+        block on the access graph?', shared by the start gate and the health
+        diagnostic so the two cannot answer differently."""
+        _rooms = managed_rooms if managed_rooms is not None else kwargs.get("managed_rooms")
+        return self.access_graph.access_graph_block_code(_rooms, validation)
+
     def _room_rule_matches(self, rule):
         """Delegate to AccessGraphManager."""
         return self.access_graph._room_rule_matches(rule)

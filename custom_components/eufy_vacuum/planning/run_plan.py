@@ -1044,22 +1044,25 @@ class RunPlanManager:
             },
         }
 
-        graph_state = self._manager._access_graph_state(
-            managed_rooms=managed_rooms, validation=validation
+        # A6-AGX-1: the DECISION lives in one place now
+        # (AccessGraphManager.access_graph_block_code), so the documented
+        # get_access_graph_health diagnostic can answer the same question this
+        # gate answers. It could not before — a blank graph and a partial one
+        # produce byte-identical health payloads while one allows every run and
+        # the other refuses every run. Only the decision moved; the
+        # reason -> message copy stays here, where the user-facing wording for
+        # the start path belongs.
+        _graph_block_reason = self._manager.access_graph_block_code(
+            managed_rooms, validation
         )
-        any_rules = self._manager._any_rooms_have_rules(managed_rooms=managed_rooms)
-
-        _graph_block_reason: str | None = None
         _graph_block_message: str | None = None
 
-        if graph_state == "partial":
-            _graph_block_reason = "incomplete_access_graph"
+        if _graph_block_reason == "incomplete_access_graph":
             _graph_block_message = (
                 "Room access graph is partially configured. "
                 "Complete it or clear all access settings to allow basic runs."
             )
-        elif graph_state == "blank" and any_rules:
-            _graph_block_reason = "access_graph_required_for_rules"
+        elif _graph_block_reason == "access_graph_required_for_rules":
             _graph_block_message = (
                 "Room rules require a complete access graph. "
                 "Configure the dock room and room connections before using rules."

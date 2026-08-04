@@ -24,6 +24,9 @@ Coverage targets (high-priority: state-machine branches, rule eval, contracts)
 [AG-8c] A6-AGX-2: a PRE-EXISTING violation no longer blocks an unrelated edit.
 [AG-8d] A6-AGX-2: a NEW violation, and making an existing one worse, still caught.
 [AG-11b] A6-AGX-5: a graph-scoped issue reaches every room's editor.
+[AG-13b] A6-AGX-3: one PRE-EXISTING violation no longer greys out every target.
+[AG-10b] A6-AGX-1: get_access_graph_health distinguishes blank from partial.
+[AG-10c] A6-AGX-1: a blank graph names the rooms a dock room would strand.
 """
 
 from __future__ import annotations
@@ -303,18 +306,30 @@ def test_get_room_access_editor_target_would_cycle(ag):
     assert "loop" in t2["reason"].lower()
 
 
-def test_get_room_access_editor_target_not_selectable_fallback(ag):
-    """[AG-13] a candidate edge that makes the graph illegal without the issue
-    naming this room → not selectable with the generic legality reason."""
+def test_get_room_access_editor_target_not_selectable_names_the_reason(ag):
+    """[AG-13] A6-AGX-3: a refused candidate edge says WHY, accurately.
+
+    This test previously asserted the contentless "Not selectable due to graph
+    legality." and its own comment explained why — "the resulting issue names
+    room 2 (the target), not room 1" — i.e. it encoded the defect rather than
+    the intent. The reason lookup matched only the EDITING room, so
+    multiple_inbound (which is keyed on the TARGET, with the editing room merely
+    listed as a source) matched nothing and fell through to the fallback. That is
+    the commonest refusal there is, so in practice the editor almost never
+    explained itself.
+
+    The lookup now matches either END of the candidate edge, which makes the
+    branch that describes this exact case reachable.
+    """
     g, data = ag
-    # 3 -> 2 already; adding 1 -> 2 gives room 2 a second inbound edge. The
-    # resulting issue names room 2 (the target), not room 1, so the editor
-    # falls back to the generic legality reason.
+    # 3 -> 2 already; adding 1 -> 2 would give room 2 a second inbound edge.
     _seed_map(data, _rooms(_room(1, dock=True), _room(2), _room(3, grants=[2])))
     out = g.get_room_access_editor(vacuum_entity_id=_VAC, map_id=_MAP, room_id=1)
     t2 = next(t for t in out["editable_targets"] if t["room_id"] == "2")
     assert t2["selectable"] is False
-    assert t2["reason"] == "Not selectable due to graph legality."
+    assert t2["reason"] == "Target already has an inbound access room."
+    # reason_code is the localizable half A6-AGX-4's card resolver keys on.
+    assert t2["reason_code"] == "target_has_inbound"
 
 
 # ---------------------------------------------------------------------------
@@ -523,3 +538,74 @@ def test_graph_scoped_issue_reaches_every_room_editor(ag):
     out = g.get_room_access_editor(vacuum_entity_id=_VAC, map_id=_MAP, room_id=2)
     codes = [i.get("code") or i.get("type") for i in out["issues"]]
     assert codes, "a graph-scoped issue must reach this room's editor"
+
+
+def test_selectability_ignores_a_preexisting_violation(ag):
+    """[AG-13b] A6-AGX-3: one stored violation must not grey out EVERY target.
+
+    Selectability asked "is the candidate graph legal?" absolutely, so a single
+    pre-existing structural issue anywhere — a second dock room, a stored
+    multiple_inbound, a cycle reconciliation created — made every unselected
+    target unselectable on every room's editor, each with the contentless
+    fallback reason. The whole editor became unusable and the report could not
+    say why.
+    """
+    g, data = ag
+    # TWO dock rooms: structurally illegal, and nothing to do with room 4's links
+    _seed_map(data, _rooms(
+        _room(1, dock=True), _room(2, dock=True), _room(3), _room(4),
+    ))
+    out = g.get_room_access_editor(vacuum_entity_id=_VAC, map_id=_MAP, room_id=4)
+    targets = {t["room_id"]: t for t in out["editable_targets"]}
+    assert targets, "precondition: room 4 has candidate targets"
+    assert any(t["selectable"] for t in targets.values()), (
+        "a pre-existing multiple_dock_rooms greyed out every target: "
+        f"{ {k: v['reason'] for k, v in targets.items()} }"
+    )
+
+
+def test_access_graph_health_distinguishes_blank_from_partial(ag):
+    """[AG-10b] A6-AGX-1: blank and partial are no longer indistinguishable.
+
+    Both produce byte-identical dock_room_ids / missing_rooms / issues — exactly
+    [{'type': 'missing_dock_room'}] — while a BLANK graph allows every run and a
+    PARTIAL one refuses every run. The documented diagnostic could not tell a
+    user which they were in.
+    """
+    g, data = ag
+
+    _seed_map(data, _rooms(_room(1), _room(2), _room(3)))          # blank
+    blank = g.get_access_graph_health(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    _seed_map(data, _rooms(_room(1, grants=[2]), _room(2, grants=[3]), _room(3)))
+    partial = g.get_access_graph_health(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    # the collision this finding is about, documented rather than assumed
+    assert blank["issues"] == partial["issues"]
+    assert blank["dock_room_ids"] == partial["dock_room_ids"]
+    assert blank["missing_rooms"] == partial["missing_rooms"]
+
+    # ...and now distinguishable
+    assert blank["state"] == "blank"
+    assert blank["runs_blocked"] is False
+    assert blank["block_code"] is None
+
+    assert partial["state"] == "partial"
+    assert partial["runs_blocked"] is True
+    assert partial["block_code"] == "incomplete_access_graph"
+
+
+def test_access_graph_health_names_the_remediation_trap(ag):
+    """[AG-10c] A6-AGX-1: a blank graph reports which rooms setting a dock room
+    would strand.
+
+    A blank graph's ONLY issue is "no dock room". Acting on that single
+    instruction flips the state to partial and blocks every run, because every
+    other room then trips missing_dependency. Naming those rooms up front is what
+    stops the diagnostic's own advice being a trap.
+    """
+    g, data = ag
+    _seed_map(data, _rooms(_room(1), _room(2), _room(3)))
+    health = g.get_access_graph_health(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert health["state"] == "blank"
+    assert set(health["unlinked_room_ids"]) == {"1", "2", "3"}

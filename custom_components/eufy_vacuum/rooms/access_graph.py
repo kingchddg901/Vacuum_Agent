@@ -567,6 +567,22 @@ class AccessGraphManager:
             if target_room_id not in room_names
         ]
 
+        # A6-AGX-3: the SAME delta question as A6-AGX-2's gate, deliberately via
+        # the same helper. Selectability asked "is the candidate graph legal?"
+        # absolutely, so ONE pre-existing violation anywhere — a stored
+        # multiple_inbound, a second dock room, a cycle reconciliation created —
+        # greyed out EVERY unselected target on EVERY room's editor, with the
+        # contentless "Not selectable due to graph legality." because the reason
+        # lookup could not find an issue naming this room.
+        #
+        # Hoisted out of the loop: it was recomputing the whole-graph validation
+        # per candidate target, which is O(targets x graph) for an answer that
+        # does not vary.
+        baseline_keys = {
+            structural_issue_key(issue)
+            for issue in self._structural_access_graph_issues(context["validation"])
+        }
+
         editable_targets: list[dict[str, Any]] = []
         for target_room_id, target_name in sorted(room_names.items(), key=lambda item: str(item[1]).lower()):
             if target_room_id == room_id_int:
@@ -575,6 +591,7 @@ class AccessGraphManager:
             selected = target_room_id in selected_valid_targets
             selectable = True
             reason = None
+            reason_code = None
 
             if not selected:
                 candidate_rooms = {
@@ -590,36 +607,69 @@ class AccessGraphManager:
                 candidate_structural_issues = self._structural_access_graph_issues(
                     candidate_validation
                 )
-                if candidate_structural_issues:
+                # Only what adding THIS edge breaks that was not already broken.
+                new_issues = [
+                    issue for issue in candidate_structural_issues
+                    if structural_issue_key(issue) not in baseline_keys
+                ]
+                if new_issues:
                     selectable = False
+
+                    def _names_edge(issue: dict[str, Any]) -> bool:
+                        """Does this issue name either END of the candidate edge?
+
+                        The old predicate matched only the EDITING room, so the
+                        commonest refusal — multiple_inbound, which is keyed on the
+                        TARGET with the editing room merely listed as a source —
+                        matched nothing and fell through to the contentless
+                        fallback. Both endpoints, and both id-carrying shapes.
+                        """
+                        ids = {
+                            _safe_int(issue.get("room_id"), -1),
+                            _safe_int(issue.get("target_room_id"), -1),
+                        }
+                        ids |= {
+                            _safe_int(value, -1)
+                            for value in list(issue.get("rooms", []) or [])
+                        }
+                        ids |= {
+                            _safe_int(value, -1)
+                            for value in list(issue.get("source_room_ids", []) or [])
+                        }
+                        return room_id_int in ids or target_room_id in ids
+
                     candidate_issue = next(
                         (
-                            issue
-                            for issue in candidate_structural_issues
-                            if isinstance(issue, dict)
-                            and (
-                                _safe_int(issue.get("room_id"), -1) == room_id_int
-                                or room_id_int in [
-                                    _safe_int(issue_room_id, -1)
-                                    for issue_room_id in list(issue.get("rooms", []))
-                                ]
-                            )
+                            issue for issue in new_issues
+                            if isinstance(issue, dict) and _names_edge(issue)
                         ),
                         None,
                     )
                     issue_type = str(candidate_issue.get("type", "")).strip().lower() if isinstance(candidate_issue, dict) else ""
+                    # reason_code is the localizable half — A6-AGX-4's card
+                    # resolver keys on it. `reason` stays English prose for now and
+                    # crosses the same untranslated seam as the rest of that
+                    # finding; do NOT localize it here, or it gets done twice.
                     if issue_type == "cycle_detected":
-                        reason = "Would create a loop."
+                        reason, reason_code = "Would create a loop.", "would_cycle"
                     elif issue_type == "duplicate_edge":
-                        reason = "Already linked."
+                        reason, reason_code = "Already linked.", "already_linked"
                     elif issue_type == "missing_room":
-                        reason = "Target is not available."
+                        reason, reason_code = "Target is not available.", "target_unavailable"
                     elif issue_type == "self_reference":
-                        reason = "A room cannot link to itself."
+                        reason, reason_code = "A room cannot link to itself.", "self_link"
                     elif issue_type == "multiple_inbound":
-                        reason = "Target already has an inbound access room."
+                        reason, reason_code = (
+                            "Target already has an inbound access room.",
+                            "target_has_inbound",
+                        )
                     else:
-                        reason = "Not selectable due to graph legality."
+                        # Now genuinely a last resort: every known structural type
+                        # is handled above and _names_edge reaches all of them.
+                        reason, reason_code = (
+                            "Not selectable due to graph legality.",
+                            "graph_illegal",
+                        )
 
             editable_targets.append(
                 {
@@ -629,6 +679,10 @@ class AccessGraphManager:
                     "selected": selected,
                     "missing": False,
                     "reason": reason,
+                    # A6-AGX-3: the localizable half. `reason` is English prose
+                    # crossing the untranslated seam A6-AGX-4 owns; the card
+                    # resolver keys on this instead.
+                    "reason_code": reason_code,
                 }
             )
 
@@ -705,15 +759,39 @@ class AccessGraphManager:
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
         )
+        managed_rooms = context["managed_rooms"]
+        validation = context["validation"]
+        block_code = self.access_graph_block_code(managed_rooms, validation)
+        dock_room_ids = [
+            str(room_id) for room_id in list(validation.get("dock_room_ids", []))
+        ]
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
-            "dock_room_ids": [
-                str(room_id)
-                for room_id in list(context["validation"].get("dock_room_ids", []))
-            ],
+            "dock_room_ids": dock_room_ids,
             "missing_rooms": context["missing_rooms"],
             "issues": context["issues"],
+            # --- A6-AGX-1: additive, so existing consumers are unaffected. ---
+            # Without these a BLANK graph and a PARTIAL one are indistinguishable
+            # here — identical issues, identical dock_room_ids, identical
+            # missing_rooms — while one allows every run and the other refuses
+            # every run.
+            "state": self._access_graph_state(managed_rooms, validation),
+            "runs_blocked": block_code is not None,
+            "block_code": block_code,
+            # The rooms that will become missing_dependency the MOMENT a dock room
+            # is set — i.e. the cost of following this report's own advice. A blank
+            # graph's only issue is "no dock room", so acting on it flips the state
+            # to partial and blocks everything; naming the rooms up front is what
+            # stops that being a trap.
+            "unlinked_room_ids": sorted(
+                (
+                    str(room_id)
+                    for room_id, parents in (context["requires_map"] or {}).items()
+                    if not parents and str(room_id) not in dock_room_ids
+                ),
+                key=lambda value: _safe_int(value, 0),
+            ),
         }
 
     # ------------------------------------------------------------------
@@ -931,6 +1009,33 @@ class AccessGraphManager:
         if validation is not None:
             return "complete" if validation.get("valid") else "partial"
         return "partial"
+
+    @staticmethod
+    def access_graph_block_code(
+        managed_rooms: dict[str, Any],
+        validation: dict[str, Any] | None = None,
+    ) -> str | None:
+        """The reason runs are blocked by the access graph, or None.
+
+        A6-AGX-1. "Do runs block on the graph?" was asked in exactly one place —
+        an inline if/elif inside planning/run_plan.py — and nowhere else could
+        answer it. get_access_graph_health, the DOCUMENTED diagnostic a user or
+        automation calls to find out, returned only dock_room_ids / missing_rooms
+        / issues, and a BLANK graph (runs allowed) and a PARTIAL one (every run
+        refused) produce byte-identical payloads: both carry exactly
+        [{'type': 'missing_dock_room'}] with empty dock_room_ids and missing_rooms.
+        The diagnostic could not distinguish "fine" from "everything is blocked".
+
+        This is the de-dup ladder's HELPER rung — the QUESTION gets one owner
+        rather than two copies that can drift. run_plan keeps its own
+        reason -> message lookup; only the decision moves here.
+        """
+        state = AccessGraphManager._access_graph_state(managed_rooms, validation)
+        if state == "partial":
+            return "incomplete_access_graph"
+        if state == "blank" and AccessGraphManager._any_rooms_have_rules(managed_rooms):
+            return "access_graph_required_for_rules"
+        return None
 
     @staticmethod
     def _any_rooms_have_rules(managed_rooms: dict[str, Any]) -> bool:
