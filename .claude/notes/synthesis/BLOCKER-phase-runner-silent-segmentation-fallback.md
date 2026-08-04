@@ -76,7 +76,30 @@ references it and it ends 2026-06-20.
 A capture run today produces another 195/195 record with no explanation. That is
 a wasted hardware cycle.
 
-## 4. The requirement
+## 4. RESOLVED 2026-08-03 — `fabddc9`, and deployed
+
+Chris directed the deferred trace system be applied to `phase_runner` +
+`lifecycle` immediately, which lifts the ownership boundary for this work. The
+requirement below is now **met**: `decision_log.emit()` records every gate. On a
+capture run the log now answers "which gate, and by how much" directly —
+
+```
+[phase.capture.slice]   {"rooms":[8,9],"slice_samples":N,"usable":N,...}
+[phase.segment.begin]   {"engine":"...","rooms":2,"samples":N}
+[phase.segment.reject]  {"expected":2,"gate":"count","got":N}     <- the answer
+[phase.timing.apportion]{"parts":[195,195],"whole_seconds":390}
+```
+
+`gate` is one of `order` / `engine_raised` / `count` / `baseline` /
+`reconcile_seconds` / `reconcile_area` / `no_vacuum_id` — the last of which was
+not even in the original count of silent paths; segmentation is skipped outright
+when `vacuum_entity_id` is empty, and that was previously indistinguishable from
+a gate rejection.
+
+**Next group-phase run with the flight recorder on will name the cause.** Nothing
+below needs doing; it is kept as the record of what was asked for and why.
+
+## 4a. The original requirement
 
 Before the next group-phase capture run, each silent bail-out needs to emit at
 DEBUG, carrying the value that discriminates it:
