@@ -23,16 +23,28 @@ Boundary kinds (a blip = a gap between `cleaning_time` increments > ``gap_delaye
 - **transit** (``gap_transit_s`` < gap ≤ ``gap_plateau_s`` AND area stays flat) — a
   ~60-90 s inter-room hop that covered no new floor yet. A real transition the old
   rule discarded (it required an area jump), which left under-splits unrecoverable.
-- **area_jump** (`cleaning_area` rises ≥ ``area_jump_m2`` in the stretch AFTER the
-  blip, read FORWARD to the next blip) — new floor after a delayed step.
+- **area_jump** (`cleaning_area` rises ≥ ``area_jump_m2`` EITHER in the stretch
+  AFTER the blip, read forward to the next blip, OR as the discontinuity AT the
+  blip itself) — new floor around a delayed step.
 - **weak** (a short delayed step, flat area) — most likely a multi-pass turn
   (re-covering the same room); not a boundary unless the user splits it.
 
-The forward look on the area matters: `cleaning_area` packets lag the
-`cleaning_time` tick, so the next room's area-jump can land a tick *after* the
-boundary. The same-instant rule (area must jump *at* the gap) missed path-varied
-boundaries — a Narrow-intensity room whose area has already plateaued, the next
-room's area catching up a tick later.
+WHY THE AREA SIGNAL IS READ BOTH WAYS. The forward look was added because
+`cleaning_area` packets lag the `cleaning_time` tick, so the next room's
+area-jump can land a tick *after* the boundary: the original same-instant rule
+missed path-varied boundaries — a Narrow-intensity room whose area has already
+plateaued, the next room's area catching up a tick later.
+
+But the lag is not always a tick late. Measured across all seven of Alfred's
+two-room group phases (2026-08-02..03, replayed from recorder data via
+``.claude/notes/_probe_replay_segmenter.py``), the finished room's area often
+flushes ON the boundary sample instead: the discontinuity AT the blip was 2-3 m²
+in 7/7, while the forward stretch was only 1 m² in 3/7 because the trailing room
+was small. Forward-only therefore rejected TRUE boundaries the gap filter had
+already found correctly, and every one of those phases fell back to an even split.
+
+Neither look dominates, so a blip is an area_jump when EITHER clears the
+threshold. Replacing one with the other just trades which class gets missed.
 
 Area attribution is recomputed from the samples for whatever active set is chosen
 — this is why re-segmentation is exact and a client-side regroup would not be:
@@ -194,21 +206,40 @@ def _prepare_window(samples: list[dict[str, Any]], *, cadence_s: float = _CADENC
     return _Window(norm=norm, reset_t=reset_t, incs=incs, area_at=area_at, batt_at=batt_at)
 
 
+#: Tolerance on the area comparison. `cleaning_area` arrives in whole ~1 m² device
+#: steps, but an imperial HA reports them in ft² (10.76 per step, itself a 2-dp
+#: rounding of 10.7639), so a nominally exact N m² lands at N-0.0007 or N+0.0002
+#: depending on which way each step rounded. Comparing that to a threshold of
+#: exactly 2.0 is a coin flip run-to-run: measured 4 of 7 real boundaries lost to
+#: it. Far below the 1 m² quantum, so it can never promote a smaller real jump.
+_AREA_EPS = 0.01
+
+
 def _classify(
     gap: float,
     area_after: float,
+    area_delta: float,
     *,
     gap_transit_s: float,
     gap_plateau_s: float,
     area_jump_m2: float,
 ) -> str:
-    """Kind of a blip from its gap and the area covered after it."""
+    """Kind of a blip from its gap and the area around it.
+
+    ``area_after`` is the stretch forward to the next blip; ``area_delta`` is the
+    discontinuity at the blip itself. Either can carry the finished room's
+    flushed area depending on when the packet lands, so the stronger one decides
+    (see the module docstring for the measurements behind that).
+    """
     if gap > gap_plateau_s:
         return "wash_plateau"
-    if gap > gap_transit_s and area_after < area_jump_m2:
-        return "transit"
-    if area_after >= area_jump_m2:
+    # Ordered area-first, which is equivalent to the original transit-first form:
+    # that arm required `area_after < area_jump_m2`, so the two were already
+    # mutually exclusive on the area test. Only the signal and the epsilon change.
+    if max(area_after, area_delta) >= area_jump_m2 - _AREA_EPS:
         return "area_jump"
+    if gap > gap_transit_s:
+        return "transit"
     return "weak"
 
 
@@ -226,7 +257,8 @@ def find_candidates(
     A blip is any gap > ``gap_delayed_s`` between cleaning_time ticks. Each is
     returned (the selector decides which are active) with::
 
-        {id, position, gap_s, area_after_m2, kind, strength, confident, t}
+        {id, position, gap_s, area_after_m2, area_at_blip_m2, kind, strength,
+         confident, t}
 
     ``id`` == ``position`` (the increment-tick index) is a stable handle for the
     frozen samples — the card toggles boundaries by id. ``confident`` is the
@@ -249,17 +281,28 @@ def find_candidates(
         nxt = blip_positions[n + 1] if n + 1 < len(blip_positions) else len(incs)
         gap = (incs[bi][0] - incs[bi - 1][0]).total_seconds()
         area_after = area_at(incs[nxt - 1][0]) - area_at(incs[bi][0])
+        # The discontinuity AT the blip — the finished room's area flushing onto
+        # the boundary sample rather than a tick later.
+        area_delta = area_at(incs[bi][0]) - area_at(incs[bi - 1][0])
         kind = _classify(
-            gap, area_after,
+            gap, area_after, area_delta,
             gap_transit_s=gap_transit_s, gap_plateau_s=gap_plateau_s, area_jump_m2=area_jump_m2,
         )
-        strength = _KIND_WEIGHT[kind] + max(area_after, 0.0) + min(gap, 600.0) / 600.0
+        strength = (
+            _KIND_WEIGHT[kind]
+            + max(area_after, area_delta, 0.0)
+            + min(gap, 600.0) / 600.0
+        )
         out.append(
             {
                 "id": bi,
                 "position": bi,
                 "gap_s": round(gap, 1),
                 "area_after_m2": round(area_after, 2),
+                # Distinct name: `area_delta_m2` already means a SEGMENT's own
+                # span in the segment dict, and two fields with one name that
+                # measure different things is how a reader gets it wrong.
+                "area_at_blip_m2": round(area_delta, 2),
                 "kind": kind,
                 "strength": round(strength, 3),
                 "confident": kind == "wash_plateau",

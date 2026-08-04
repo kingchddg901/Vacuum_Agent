@@ -175,6 +175,55 @@ def test_path_varied_boundary_uses_forward_area():
     assert segs[1]["boundary"] == "area_jump"
 
 
+def test_boundary_area_flushes_AT_the_blip_not_after():
+    """The mirror of test_path_varied_boundary_uses_forward_area: the finished
+    room's area flushes ON the boundary sample, and the trailing room is small.
+
+    Reproduced from live hardware — all seven of Alfred's two-room group phases
+    (2026-08-02..03) have exactly this shape, and three of them carried only 1 m²
+    after the blip while the discontinuity AT it was 3 m². Reading forward ONLY,
+    the engine scored area_after=1 < area_jump_m2=2, classified a real room
+    transition as "weak", returned 1 segment for 2 rooms, and every one of those
+    phases was recorded as an even 50/50 split.
+
+    Both looks are needed: neither the forward stretch nor the at-blip
+    discontinuity dominates, because where the lagged area lands varies run to
+    run. Replacing one with the other just swaps which class gets missed.
+    """
+    samples = [
+        _s(0, 0, 0),
+        # room A: area posts to 2 m² by its last tick
+        _s(30, 30, 1), _s(60, 60, 1), _s(90, 90, 2), _s(120, 120, 2),
+        # boundary: 47 s delayed step, and A's remaining area FLUSHES HERE (2->5)
+        _s(167, 150, 5),
+        # room B: small — only 1 m² more posts after the boundary
+        _s(197, 180, 5), _s(227, 210, 6), _s(257, 240, 6),
+    ]
+    segs = segment_counters(samples)
+    assert len(segs) == 2, "the at-blip discontinuity is a boundary signal too"
+    assert segs[1]["boundary"] == "area_jump"
+
+
+def test_area_threshold_is_not_exact_float_equality():
+    """A nominally exact 2.0 m² jump must not be lost to unit-conversion drift.
+
+    `cleaning_area` arrives in whole ~1 m² device steps, but an imperial HA
+    reports them in ft² (10.76 per step — itself a 2-dp rounding of 10.7639), so
+    a real 2 m² jump reaches the comparison as ~1.9993. Against a threshold of
+    exactly 2.0 that is a coin flip run-to-run; it cost 4 of 7 real boundaries on
+    hardware before the epsilon.
+    """
+    eps_short = 2.0 - 0.0007          # what the ft² round-trip actually produces
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 1), _s(60, 60, 2), _s(90, 90, 2),
+        _s(137, 120, 2 + eps_short),   # 47 s delayed step, jump just under 2.0
+        _s(167, 150, 2 + eps_short), _s(197, 180, 3 + eps_short),
+    ]
+    segs = segment_counters(samples)
+    assert len(segs) == 2, "a 0.0007 m² shortfall must not discard a real boundary"
+
+
 def test_expected_rooms_caps_edge_to_fill_oversplit():
     """A single room cleaned edges-then-fill: area crawls to 1 m² on the edge pass,
     a turn, then the fill climbs 1->4. The counters can't tell this from a boundary
