@@ -107,6 +107,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "required": False,
                 "description": "Lifetime completed-job counter. Diagnostic only.",
             },
+            "last_clean_end": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Timestamp the device stamps when it writes a clean-summary "
+                    "record. OBSERVABILITY ONLY — never gates completion. Read by "
+                    "the issue #46 observation trace (job_active_signal.py) and "
+                    "diagnostics; deliberately absent from the lifecycle watch "
+                    "list so a clean-summary edge cannot re-trigger the "
+                    "completion gate."
+                ),
+            },
             "total_cleaning_time": {
                 "type": "str",
                 "required": False,

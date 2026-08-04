@@ -23,6 +23,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED
 from ..decision_log import emit as _dlog
+from ..job_active_signal import observe as observe_job_active
 from ..core.manager import EufyVacuumManager
 from ..core.water_amendment import (
     register_post_job_water_amendment as _register_post_job_water_amendment,
@@ -219,6 +220,18 @@ def register(hass: HomeAssistant) -> None:
                             )
 
                     lifecycle_state = str(lifecycle.get("lifecycle_state", "")).strip().lower()
+
+                    # ISSUE #46 observation trace. Records the raw inputs any
+                    # candidate "recharge dock or finish?" rule would need when
+                    # the job-active binary is missing, next to that binary's own
+                    # reading where it exists. STRICTLY PASSIVE — it emits a
+                    # decision-log record and nothing else; not one gate below
+                    # consults it. On hardware whose binary works, `native` is
+                    # the ground-truth label for the tick, which is what lets a
+                    # trace from a HEALTHY vacuum validate a rule for a BROKEN
+                    # one. Placed ABOVE the arming gate so a run that never arms
+                    # — the #46 failure itself — is still fully traced.
+                    observe_job_active(hass, vacuum_entity_id, active_job)
 
                     # Arm the "job genuinely started moving" flag — but for a brand
                     # whose active_cleaning_target is NOT a reliable idle sentinel

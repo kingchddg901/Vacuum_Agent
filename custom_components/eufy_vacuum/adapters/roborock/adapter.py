@@ -36,6 +36,8 @@ from .entities import (
     SUFFIX_ERROR_MESSAGE,
     SUFFIX_CHARGING,
     SUFFIX_JOB_ACTIVE,
+    SUFFIX_LAST_CLEAN_END,
+    SUFFIX_TOTAL_CLEANING_COUNT,
     SUFFIX_WATER_BOX,
     SUFFIX_MOP_INTENSITY,
     DOMAIN_BINARY_SENSOR,
@@ -202,6 +204,15 @@ def register_roborock_adapter_for_vacuum(
         "error_message": build_entity_id(vid, SUFFIX_ERROR_MESSAGE),
         "charging": build_entity_id(vid, SUFFIX_CHARGING, DOMAIN_BINARY_SENSOR),
         "job_active": build_entity_id(vid, SUFFIX_JOB_ACTIVE, DOMAIN_BINARY_SENSOR),
+        # OBSERVABILITY ONLY (issue #46). HA 2026.7 stops creating job_active on
+        # some devices; these two are the candidate discriminators for "recharge
+        # dock or finish?" and are declared so the observation trace and
+        # diagnostics can READ them. Nothing gates on them, and they are
+        # deliberately NOT in the lifecycle watch list — see _common.py, which
+        # only watches entities whose edges should re-trigger the completion
+        # gate. A clean-summary edge must not do that.
+        "last_clean_end": build_entity_id(vid, SUFFIX_LAST_CLEAN_END),
+        "total_cleaning_count": build_entity_id(vid, SUFFIX_TOTAL_CLEANING_COUNT),
         # mop_active: the S6 has NO per-room clean_mode — mopping is driven by the
         # physical water tank. The card reads this (via snapshot.mop_active) to
         # surface mop state + the water-level field only when the tank is attached.

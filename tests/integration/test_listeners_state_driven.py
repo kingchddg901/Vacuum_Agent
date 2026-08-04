@@ -22,6 +22,8 @@ Coverage targets
         finalize until the watchdog confirms the device started THIS room.
 [LS-15] RP-039/RF-16: the spawned _process() task is tracked and CANCELLED by
         remove(hass), not just the state-change-event unsub.
+[LS-16] the issue #46 job-active observation trace is reached from the live
+        lifecycle path, including for a job that never arms.
 """
 
 from __future__ import annotations
@@ -723,3 +725,53 @@ async def test_discovery_fires_on_active_map_value_change(hass, manager, monkeyp
     assert calls == [_VAC]
 
     discovery.remove(hass)
+
+
+async def test_lifecycle_emits_job_active_observation(hass, manager, monkeypatch, caplog):
+    """[LS-16] the issue #46 observation trace is actually REACHED from the live
+    lifecycle path — not merely importable.
+
+    A correct function with no reachable caller passes every unit test and every
+    audit while producing nothing at runtime. job_active_signal is only worth
+    anything if a real job actually writes records, so this asserts the call site,
+    not the module: drive a watched state change with an active job present and
+    require the record to appear.
+
+    Deliberately placed ABOVE the arming gate in lifecycle.py, so it must fire even
+    for a job that never arms — which is the #46 failure itself and precisely the
+    run we most need traced.
+    """
+    import logging
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_LIFECYCLE)
+    setup_map(manager, _VAC, _MAP, count=1)
+
+    # NOT armed: has_observed_active_lifecycle is absent, mirroring a #46 run.
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "status": "started",
+        "vacuum_entity_id": _VAC,
+        "map_id": _MAP,
+        "queue_room_ids": [1],
+    }
+
+    async def _no_external(*, vacuum_entity_id):
+        return False
+
+    monkeypatch.setattr(manager, "maybe_handle_external_run", _no_external)
+
+    hass.states.async_set(_TASK_STATUS_ENTITY, "cleaning")
+    await hass.async_block_till_done()
+    lifecycle.register(hass)
+
+    with caplog.at_level(logging.DEBUG,
+                         logger="custom_components.eufy_vacuum.decision_log"):
+        hass.states.async_set(_TASK_STATUS_ENTITY, "segment_cleaning")
+        await hass.async_block_till_done()
+
+    records = [r for r in caplog.records if "job_active.observe" in r.getMessage()]
+    assert records, (
+        "no [job_active.observe] record reached the log from the lifecycle path — "
+        "the trace would be empty on real hardware"
+    )
+    assert '"native"' in records[0].getMessage()

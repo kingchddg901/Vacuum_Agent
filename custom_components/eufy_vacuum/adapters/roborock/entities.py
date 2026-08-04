@@ -23,6 +23,12 @@ SUFFIX_ACTIVE_MAP = "_selected_map"              # select — multi-map pointer 
 SUFFIX_MOP_INTENSITY = "_mop_intensity"          # select — GLOBAL water level (off/low/medium/high)
 SUFFIX_CLEANING_TIME = "_cleaning_time"          # sensor — per-run minutes
 SUFFIX_CLEANING_AREA = "_cleaning_area"          # sensor — per-run m2
+# Clean-summary pair, OBSERVABILITY ONLY (issue #46) — never gates completion.
+# Both are written by the same clean-summary fetch, so they agree by construction
+# and one can never corroborate the other. Declared so the #46 observation trace
+# and diagnostics can read them; see ../../job_active_signal.py.
+SUFFIX_LAST_CLEAN_END = "_last_clean_end"        # sensor — timestamp, end of last clean
+SUFFIX_TOTAL_CLEANING_COUNT = "_total_cleaning_count"  # sensor — lifetime completed runs
 SUFFIX_BATTERY = "_battery"                      # sensor (BATTERY feature bit unset -> this sensor is mandatory)
 SUFFIX_ERROR_MESSAGE = "_vacuum_error"           # sensor — enum error-code string
 

@@ -371,47 +371,82 @@ def _vacuum_diagnostics(
     except Exception:  # pragma: no cover - defensive
         pass
 
-    # Completion / lifecycle health — a brand that gates completion on the job_active
-    # binary (completion.require_job_active_clear, e.g. Roborock) CANNOT finalize ANY
-    # run when that binary is missing: every run strands (FN-1, the lifecycle walk).
-    # This is the tripwire for upstream capability-gating dropping the entity
-    # (HA 2026.7 #173282) — surface it loud rather than letting runs silently vanish.
+    # Completion / lifecycle health — the tripwire for upstream capability-gating
+    # dropping the job-active binary (HA 2026.7, home-assistant/core#173282).
+    #
+    # A brand that gates completion on it (completion.require_job_active_clear,
+    # e.g. Roborock) cannot ARM the completion gate without it, and the
+    # consequence is NOT a quiet stall: is_stranded_started's unarmed branch
+    # (jobs/job_monitor.py) returns True on AGE ALONE at NEVER_STARTED_SECONDS,
+    # so the 1-minute reaper force-closes the run as "interrupted" a grace period
+    # later — roughly 15 minutes after dispatch, possibly MID-CLEAN.
+    #
+    # Presence now distinguishes DECLARED-BUT-NEVER-CREATED (absent from the
+    # state machine AND the registry — the #46 shape) from registered-but-
+    # momentarily-stateless (an ordinary restart window). The previous wording
+    # collapsed both into "the device appears disconnected ... no run can even be
+    # dispatched", which is wrong twice over: no dispatch path reads
+    # entities.job_active at all, and a real affected dump (Roborock Q5, issue
+    # #46) shows every OTHER entity reporting normally while only this binary is
+    # gone. Telling that user to check their connection sends them after a
+    # problem they do not have.
     try:
         from .adapters.registry import get_adapter_config as _get_cfg2
+        from .job_active_signal import probe_presence as _probe_job_active
 
         _cfg2 = _get_cfg2(vacuum_entity_id) or {}
         _requires_job_active = bool(
             (_cfg2.get("completion") or {}).get("require_job_active_clear")
         )
-        _job_active_entity = (_cfg2.get("entities") or {}).get("job_active")
-        # RP-039/RF-33 (HW-DIAG-1 fix 2): resolve presence via a LIVE hass.states
-        # lookup, matching what _job_active_entity itself already does (reads the
-        # live adapter config). The old check read entity_resolution, built from
-        # get_vacuum_capabilities(refresh=False) -- a STORED, possibly-stale
-        # snapshot whose entities map can lack job_active even when the entity
-        # currently exists live.
-        _job_active_present = bool(
-            _job_active_entity and hass.states.get(_job_active_entity) is not None
-        )
+        _presence = _probe_job_active(hass, vacuum_entity_id)
+        _ents2 = _cfg2.get("entities") or {}
+
+        def _fallback_signal(key: str) -> dict[str, Any]:
+            _eid = _ents2.get(key)
+            _st = hass.states.get(_eid) if _eid else None
+            return {
+                "entity_id": _eid,
+                "exists": _st is not None,
+                "state": str(_st.state) if _st is not None else None,
+            }
+
         _health: dict[str, Any] = {
             "requires_job_active_clear": _requires_job_active,
-            "job_active_entity": _job_active_entity,
-            "job_active_present": _job_active_present,
+            # kept as-is: existing consumers/tests read these two names
+            "job_active_entity": _presence.entity_id,
+            "job_active_present": _presence.has_state,
+            "job_active": _presence.as_dict(),
+            # Candidate substitutes for a missing binary. Reported so an affected
+            # install's FIRST dump answers "is there anything to rebuild the
+            # signal from?" instead of costing a round trip to ask. Neither gates
+            # anything today — see job_active_signal.py.
+            "fallback_signals": {
+                "last_clean_end": _fallback_signal("last_clean_end"),
+                "total_cleaning_count": _fallback_signal("total_cleaning_count"),
+            },
         }
-        if _requires_job_active and not _job_active_present:
-            # RP-039/RF-33 (HW-DIAG-1 fix 1): reworded away from "EVERY run will
-            # strand" -- the state that trips this condition is one from which NO
-            # run can even be DISPATCHED, so "will strand" (a run-time failure
-            # mode) mischaracterizes it as a permanent upstream regression rather
-            # than "this device looks disconnected right now."
-            _health["warning"] = (
-                f"Completion requires the job-active binary "
-                f"({_job_active_entity or 'not declared'}) but it is missing — the "
-                "device appears disconnected from Home Assistant right now (no run "
-                "can even be dispatched in this state). Check it's online and wake "
-                "it (e.g. a state refresh); if this persists, the upstream "
-                "integration may have dropped the entity."
-            )
+        if _requires_job_active and not _presence.has_state:
+            if _presence.never_created:
+                _health["warning"] = (
+                    f"The job-active binary ({_presence.entity_id}) is DECLARED but "
+                    "was never created — absent from both the state machine and the "
+                    "entity registry. This is the Home Assistant 2026.7 "
+                    "capability-gating change (home-assistant/core#173282), not a "
+                    "connectivity problem: check whether this vacuum's other "
+                    "entities are reporting normally above. Completion cannot arm, "
+                    "so a dispatched run is force-closed as 'interrupted' about 15 "
+                    "minutes in — possibly while it is still cleaning. Tracked as "
+                    "issue #46."
+                )
+            else:
+                _health["warning"] = (
+                    f"The job-active binary "
+                    f"({_presence.entity_id or 'not declared'}) is in the entity "
+                    "registry but has no state right now — normally the brief window "
+                    "after a restart, or a device that is offline. Check it is online "
+                    "and wake it (e.g. a state refresh). If it never comes back, the "
+                    "upstream integration may have dropped the entity (issue #46)."
+                )
         out["completion_health"] = _health
     except Exception as err:  # pragma: no cover - defensive
         out["completion_health"] = {"error": _redact(repr(err))}
