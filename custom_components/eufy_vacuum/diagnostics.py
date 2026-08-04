@@ -541,9 +541,15 @@ def _vacuum_diagnostics(
     except Exception as err:  # pragma: no cover - defensive
         out["roborock_geometry_drift_error"] = _redact(repr(err))
 
-    # Upkeep (maintenance / dock) — side-effect-free. The per-item care guides
-    # (static how-to-clean steps) are stripped: model boilerplate with no
-    # diagnostic value that otherwise dominates the dump's size.
+    # Upkeep (maintenance / dock) — side-effect-free. RF-33 cont'd: this used to
+    # be the SECOND independent non-inert path (get_upkeep_snapshot's own
+    # capabilities lookup, plus its per-component get_maintenance_remaining call,
+    # both called get_vacuum_capabilities(refresh=False)) — now both read via the
+    # inert get_vacuum_capabilities_snapshot (see maintenance/manager.py), so this
+    # collector no longer risks a first-detect write on a diagnostics pull. The
+    # per-item care guides (static how-to-clean steps) are stripped below: model
+    # boilerplate with no diagnostic value that otherwise dominates the dump's
+    # size.
     try:
         out["upkeep_snapshot"] = _slim_upkeep(
             manager.get_upkeep_snapshot(vacuum_entity_id=vacuum_entity_id)

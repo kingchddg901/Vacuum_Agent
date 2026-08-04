@@ -49,9 +49,11 @@ Coverage targets
           "EVERY run will strand" for a state where no run can even dispatch.
 [DIAG-21] RP-039/RF-33: get_vacuum_capabilities_snapshot never writes, even with
           no stored snapshot yet. [DIAG-21b] the diagnostics capabilities
-          collector itself is inert end-to-end (isolated from the SEPARATE,
-          pre-existing get_upkeep_snapshot non-inertness, out of this packet's
-          scope — see the spawned follow-up).
+          collector itself is inert end-to-end (isolated, via a stub, from the
+          SEPARATE get_upkeep_snapshot non-inertness). [DIAG-21c] RF-33 cont'd:
+          get_upkeep_snapshot itself (plus its internal per-component
+          get_maintenance_remaining call) fixed the same way — proven WITHOUT
+          the stub, end-to-end.
 """
 
 from __future__ import annotations
@@ -734,11 +736,11 @@ async def test_diagnostics_capabilities_collector_is_genuinely_inert(
     """[DIAG-21b] End-to-end through _vacuum_diagnostics's OWN capabilities
     collector (the exact call site RP-039 targets): NOTHING has ever been
     detected for this vacuum, and the dump must not trigger a write. Stubs out
-    get_upkeep_snapshot (a SEPARATE collector diagnostics.py also calls, which
-    internally has its own independent get_vacuum_capabilities(refresh=False)
-    call in maintenance/manager.py -- a distinct, pre-existing gap outside
-    RP-039's named scope) so this test isolates the ONE call path the packet
-    actually fixed."""
+    get_upkeep_snapshot (a SEPARATE collector diagnostics.py also calls) so this
+    test isolates just the ONE call path RP-039 itself fixed; the SEPARATE
+    get_upkeep_snapshot non-inertness (this stub's original reason for existing)
+    is fixed and proven unstubbed by
+    test_diagnostics_fully_inert_including_upkeep_snapshot below."""
     manager.ensure_vacuum_record(vacuum_entity_id=VACUUM)
     monkeypatch.setattr(manager, "get_upkeep_snapshot", lambda **kw: {})
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
@@ -755,4 +757,37 @@ async def test_diagnostics_capabilities_collector_is_genuinely_inert(
     # incomplete/stale", per the fix).
     assert diag["vacuums"][0]["capabilities"] == {}
     # The real proof: no write landed in manager.data via diagnostics' own path.
+    assert VACUUM not in manager.data.get("capabilities", {})
+
+
+async def test_diagnostics_fully_inert_including_upkeep_snapshot(hass, manager):
+    """[DIAG-21c] RF-33 cont'd: get_upkeep_snapshot was a SECOND, independent
+    non-inert path -- its own capabilities lookup, plus a THIRD one per
+    maintenance component via the internal get_maintenance_remaining call, both
+    called get_vacuum_capabilities(refresh=False) (self-heals/writes even with
+    refresh=False in three cases; see get_vacuum_capabilities_snapshot's own
+    docstring in core/manager.py). Both now read via the read-only accessor. This
+    is the same scenario as test_diagnostics_capabilities_collector_is_genuinely_
+    inert but WITHOUT stubbing get_upkeep_snapshot -- a full diagnostics pull
+    through the REAL MaintenanceManager, with nothing ever detected for this
+    vacuum, must still leave manager.data['capabilities'] untouched."""
+    manager.ensure_vacuum_record(vacuum_entity_id=VACUUM)
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+    assert VACUUM not in manager.data.get("capabilities", {})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+
+    vac = diag["vacuums"][0]
+    assert vac["capabilities"] == {}
+    # The real upkeep snapshot ran (not stubbed) and came back empty-shaped --
+    # no adapter maintenance components registered for this vacuum -- rather
+    # than raising or forcing detection.
+    assert vac["upkeep_snapshot"]["replacement_items"] == []
+    assert vac["upkeep_snapshot"]["maintenance_items"] == []
+    assert "upkeep_snapshot_error" not in vac
+    # The real proof: no write landed in manager.data via either collector.
     assert VACUUM not in manager.data.get("capabilities", {})
