@@ -2347,7 +2347,9 @@
       "duplicate_edges": "Místnost {room} opakuje stejný cíl přístupu.",
       "missing_room_references": "Místnost {room} odkazuje na místnost, která již neexistuje.",
       "cycle": "Tato propojení přístupu by vytvořila smyčku."
-    }
+    },
+    "missing_room": "Chybějící místnost {id}",
+    "edge_into_dock": "Toto propojení míří do místnosti s dokem. Lze je odebrat, ale ne znovu přidat."
   },
   "bind_setup": {
     "failed_add_vacuum": "Nepodařilo se přidat vysavač: {error}",

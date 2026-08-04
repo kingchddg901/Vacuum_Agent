@@ -1055,7 +1055,9 @@
       "duplicate_edges": "{room} repite el mismo destino de acceso.",
       "missing_room_references": "{room} hace referencia a una habitación que ya no existe.",
       "cycle": "Estos enlaces de acceso crearían un bucle."
-    }
+    },
+    "missing_room": "Habitación ausente {id}",
+    "edge_into_dock": "Este enlace apunta a la habitación de la base. Se puede eliminar, pero no volver a añadir."
   },
   "room_card": {
     "carpet_notice": "Habitación con alfombra; campos de mopa ocultos",

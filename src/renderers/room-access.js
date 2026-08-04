@@ -82,21 +82,32 @@ export function applyRoomAccessRenderers(proto) {
                       const isSelected = selectedIds.has(entry.id);
                       const isAvailable = entry.available !== false;
                       const claimedBy = entry.claimedBy ?? null;
+                      // A6-AGX-6: the label may arrive as a code + params (state
+                      // modules hold no `t`), so resolve it here. Same shape as
+                      // the access-graph issue labels.
+                      const label = entry.name ?? (
+                        entry.nameCode
+                          ? this.t(entry.nameCode, entry.nameParams ?? {})
+                          : ""
+                      );
                       const title = claimedBy
                         ? this.t("room_access.claimed_by", { room: claimedBy })
-                        : "";
+                        : (entry.isDockRoom && isSelected
+                            ? this.t("room_access.edge_into_dock")
+                            : "");
                       return `
                         <button
                           type="button"
                           class="evcc-chip evcc-room-access-chip
                             ${isSelected ? "active" : ""}
                             ${entry.missing ? "evcc-room-access-chip--missing" : ""}
+                            ${entry.isDockRoom && isSelected ? "evcc-room-access-chip--dock" : ""}
                             ${!isAvailable ? "evcc-room-access-chip--claimed" : ""}"
                           data-action="toggle-room-access-target"
                           data-room-id="${this.escapeHtml(entry.id)}"
                           ${!isAvailable ? "disabled" : ""}
                           ${title ? `title="${this.escapeHtml(title)}"` : ""}
-                        >${this.escapeHtml(entry.name)}</button>
+                        >${this.escapeHtml(label)}</button>
                       `;
                     }).join("")
                   : `<span class="evcc-room-access-empty">${this.t("room_access.no_other_rooms")}</span>`}

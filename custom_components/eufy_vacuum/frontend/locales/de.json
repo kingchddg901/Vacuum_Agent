@@ -1043,7 +1043,9 @@
       "duplicate_edges": "{room} führt dasselbe Zugangsziel mehrfach auf.",
       "missing_room_references": "{room} verweist auf einen Raum, der nicht mehr existiert.",
       "cycle": "Diese Zugangsverknüpfungen würden eine Schleife bilden."
-    }
+    },
+    "missing_room": "Fehlender Raum {id}",
+    "edge_into_dock": "Diese Verknüpfung zeigt auf den Stationsraum. Sie kann entfernt, aber nicht erneut hinzugefügt werden."
   },
   "room_card": {
     "carpet_notice": "Teppichraum — Wischfelder ausgeblendet",

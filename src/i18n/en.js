@@ -1008,6 +1008,12 @@ export const en = {
   "room_access.dock_room_label": "Dock Room",  // Field label. 'Dock' = robot's charging dock; noun, NOT the verb 'to dock'. Root room of the access tree.
   "room_access.graph_issues_label": "Graph Issues",  // Label over validation errors. 'Graph' = the room-access dependency graph, not a chart/diagram.
   "room_access.invalid_graph": "Invalid room access graph.",
+  // A6-AGX-6. {id} = the raw stored room id for an access link whose room is gone.
+  "room_access.missing_room": "Missing Room {id}",
+  // Tooltip on an existing access link that points AT the dock room. The dock room is
+  // never offered as a NEW target, but a stored edge into it stays visible and removable.
+  "room_access.edge_into_dock": "This link points at the dock room. It can be removed, but not re-added.",
+
   // --- A6-AGX-4: access-graph issue codes -> translated sentences. The backend
   // emits {code, params} (params never pre-joined) and the card resolves them via
   // state/access-issue-label.js; the backend's English `message` remains the

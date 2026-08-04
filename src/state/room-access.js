@@ -82,9 +82,20 @@ export function applyRoomAccessState(proto) {
     const rooms = allRooms
       .filter((entry) => {
         if (String(entry.id) === String(room.id)) return false;
-        if (entry.isDockRoom) return false;
 
         const id = String(entry.id);
+        // A6-AGX-6: the dock room is not OFFERED as a new target, but an edge
+        // into it that ALREADY EXISTS must stay visible and removable. This was
+        // an unconditional exclusion sitting two lines above the claimed-by-
+        // another rule, which already grants exactly this escape hatch — the
+        // asymmetry IS the bug, and the shorter predicate was the wrong one.
+        //
+        // Hidden, the stored edge fell through to missingSelections below and
+        // rendered as a "Missing Room N" chip: a live room shown as missing, and
+        // unrecoverable, because the same filter kept the dock room out of the
+        // selectable list so it could never be re-added once removed.
+        if (entry.isDockRoom && !selectedIds.has(id)) return false;
+
         const claimedBy = claimedByOther.get(id);
         // Hide rooms claimed by another room unless already selected by this room.
         return selectedIds.has(id) || !claimedBy;
@@ -95,6 +106,9 @@ export function applyRoomAccessState(proto) {
         missing: false,
         available: true,
         claimedBy: null,
+        // Carried so the renderer can mark a surviving edge into the dock room
+        // as what it is, rather than as an ordinary target.
+        isDockRoom: Boolean(entry.isDockRoom),
       }));
 
     const knownRoomIds = new Set(rooms.map((entry) => entry.id));
@@ -102,10 +116,16 @@ export function applyRoomAccessState(proto) {
       .filter((entry) => !knownRoomIds.has(String(entry)))
       .map((entry) => ({
         id: String(entry),
-        name: `Missing Room ${entry}`,
+        // A6-AGX-6: no English authored here. State modules hold no `t`, so the
+        // label travels as a code + params and the RENDERER resolves it — the
+        // same shape A6-AGX-4 established for access-graph issues.
+        name: null,
+        nameCode: "room_access.missing_room",
+        nameParams: { id: String(entry) },
         missing: true,
         available: true,
         claimedBy: null,
+        isDockRoom: false,
       }));
 
     return [...rooms, ...missingSelections];
@@ -173,6 +193,12 @@ export function applyRoomAccessState(proto) {
         valid: false,
         issues: [{
           code: "missing_room",
+          scope: "card",
+          params: {},
+          // A6-AGX-6 checked this literal and left it: it is the FALLBACK, not the
+          // rendered string. `code` + `scope: "card"` resolves to
+          // room_access.issue.card.missing_room in all 18 locales (A6-AGX-4), and
+          // accessIssueLabel only reaches `message` when it has no translate fn.
           message: "No room is selected for access editing.",
         }],
         normalizedGrantsAccessTo: [],

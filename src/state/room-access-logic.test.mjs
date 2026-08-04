@@ -1,7 +1,13 @@
 // Unit tests for accessEditableRooms — the chip list the room-access modal renders for the
-// "grants access to" picker. It excludes self + dock rooms, HIDES rooms claimed by ANOTHER
-// room (single-inbound constraint) UNLESS this room already selected them, and appends any
-// selected-but-unknown ids as synthetic "Missing Room N" entries.
+// "grants access to" picker. It excludes self, does not OFFER the dock room, HIDES rooms
+// claimed by ANOTHER room (single-inbound constraint) — but both of those last two yield to
+// an edge this room has ALREADY selected — and appends any selected-but-unknown ids as
+// synthetic missing entries.
+//
+// A6-AGX-6 changed two things here: the dock exclusion became conditional on
+// not-already-selected (it was unconditional, while the claimed-by-another rule two lines
+// below it always had that escape hatch — the asymmetry was the bug), and the synthetic
+// missing entry stopped carrying an English name.
 //
 // Coverage targets:
 //   [RAC-1] no active room -> []
@@ -12,12 +18,20 @@
 //   [RAC-6] selected id with no matching room -> appended synthetic "Missing Room N"
 //   [RAC-7] null/empty grants_access_to normalizes cleanly (no crash, no phantom missing)
 //   [RAC-8] shape of each returned chip (id String, missing/available/claimedBy flags)
+//   [RAC-10] a dock room ALREADY selected by this room stays visible and removable
+//   [RAC-11] ... and never falls through to the synthetic-missing list
+//   [RAC-12] an unselected dock room is still not offered (the offer rule is unchanged)
+//   [RAC-13] isDockRoom is carried onto the chip so the renderer can mark it
+//   [RAC-14] the synthetic missing entry carries a code + params, never English prose
+//   [RAC-15] the no-active-room refusal is CARD-scoped, so it resolves to the card sentence
 //
 // Run: node --test src/state/room-access-logic.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyRoomAccessState } from "./room-access.js";
 import { applyRoomsState } from "./rooms.js";
+import { accessIssueLabel } from "./access-issue-label.js";
+import { translate } from "../i18n/index.js";
 
 // Build a card whose proto has BOTH mixins so the real helpers
 // (_normalizeRoomReferenceList, _buildClaimedTargetMap) back accessEditableRooms.
@@ -114,7 +128,8 @@ test("[RAC-6] selected id with no matching room -> synthetic 'Missing Room N' ap
   assert.deepEqual(rooms.map((r) => r.id), ["2", "99"]);   // real first, missing appended
   const missing = rooms[1];
   assert.equal(missing.id, "99");
-  assert.equal(missing.name, "Missing Room 99");
+  // A6-AGX-6: no English here any more — see [RAC-14]. State modules hold no `t`.
+  assert.equal(missing.name, null);
   assert.equal(missing.missing, true);
   assert.equal(missing.available, true);
   assert.equal(missing.claimedBy, null);
@@ -150,4 +165,76 @@ test("[RAC-9] numeric room ids are stringified in the returned chips", () => {
   const chip = card.accessEditableRooms()[0];
   assert.strictEqual(chip.id, "2");        // String, not number 2
   assert.equal(typeof chip.id, "string");
+});
+
+test("[RAC-10] a dock room already selected by this room stays visible", () => {
+  // The stored edge room 1 -> dock room 3 predates the rule that stopped offering the
+  // dock as a target. Hiding it is what turned a live room into an unrecoverable
+  // "missing" chip: the same filter kept room 3 out of the list, so once removed it
+  // could never be selected again.
+  const card = makeCard(
+    [R(1), R(2), R(3, { isDockRoom: true })],
+    { activeId: 1, grants: ["3"] }
+  );
+  const rooms = card.accessEditableRooms();
+  assert.deepEqual(rooms.map((r) => r.id), ["2", "3"]);
+  const dock = rooms.find((r) => r.id === "3");
+  assert.equal(dock.missing, false);       // a REAL room, not a ghost
+  assert.equal(dock.available, true);      // and clickable, so the edge can be removed
+  assert.equal(dock.name, "Room 3");       // under its own name
+});
+
+test("[RAC-11] a selected dock room never also appears as a synthetic missing entry", () => {
+  const card = makeCard(
+    [R(1), R(3, { isDockRoom: true })],
+    { activeId: 1, grants: ["3"] }
+  );
+  const rooms = card.accessEditableRooms();
+  assert.equal(rooms.length, 1);
+  assert.equal(rooms[0].missing, false);
+  assert.equal(rooms.filter((r) => r.missing).length, 0);
+});
+
+test("[RAC-12] an UNSELECTED dock room is still not offered as a target", () => {
+  // The fix is narrow on purpose: it only preserves an edge that already exists. A dock
+  // room nobody points at must stay out of the picker.
+  const card = makeCard(
+    [R(1), R(2), R(3, { isDockRoom: true })],
+    { activeId: 1, grants: ["2"] }
+  );
+  assert.deepEqual(card.accessEditableRooms().map((r) => r.id), ["2"]);
+});
+
+test("[RAC-13] isDockRoom is carried onto the chip", () => {
+  const card = makeCard(
+    [R(1), R(2), R(3, { isDockRoom: true })],
+    { activeId: 1, grants: ["3"] }
+  );
+  const rooms = card.accessEditableRooms();
+  assert.equal(rooms.find((r) => r.id === "3").isDockRoom, true);
+  assert.equal(rooms.find((r) => r.id === "2").isDockRoom, false);   // Boolean, not undefined
+});
+
+test("[RAC-14] the synthetic missing entry carries a code + params, not English", () => {
+  const card = makeCard([R(1)], { activeId: 1, grants: ["99"] });
+  const missing = card.accessEditableRooms()[0];
+  assert.equal(missing.name, null);
+  assert.equal(missing.nameCode, "room_access.missing_room");
+  assert.deepEqual(missing.nameParams, { id: "99" });
+  assert.equal(missing.isDockRoom, false);
+});
+
+test("[RAC-15] the no-active-room refusal resolves to the CARD sentence, not the backend one", () => {
+  // A6-AGX-4 introduced scope: "card" to split the two meanings of `missing_room`
+  // and converted the six emitters in state/rooms.js — this seventh one was missed.
+  // Unscoped, it fell through to the BACKEND key, whose sentence interpolates {room}
+  // and {missing_room}: params this issue does not carry, so the user was shown
+  // "{room} still references missing room {missing_room}." with the braces intact.
+  const card = makeCard([R(1), R(2)], { activeId: null });
+  const [issue] = card.roomAccessValidation().issues;
+  assert.equal(issue.scope, "card");
+
+  const label = accessIssueLabel(issue, (k, v) => translate("en", k, v));
+  assert.equal(label, "This room no longer exists on the active map.");
+  assert.ok(!label.includes("{"), `unfilled placeholder reached the user: ${label}`);
 });

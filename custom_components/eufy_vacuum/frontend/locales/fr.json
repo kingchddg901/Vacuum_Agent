@@ -1055,7 +1055,9 @@
       "duplicate_edges": "{room} répète la même cible d'accès.",
       "missing_room_references": "{room} fait référence à une pièce qui n'existe plus.",
       "cycle": "Ces liens d'accès créeraient une boucle."
-    }
+    },
+    "missing_room": "Pièce manquante {id}",
+    "edge_into_dock": "Ce lien pointe vers la pièce de la station. Il peut être supprimé, mais pas rajouté."
   },
   "room_card": {
     "carpet_notice": "Pièce avec moquette — champs de serpillière masqués",

@@ -2347,7 +2347,9 @@
       "duplicate_edges": "{room} mengulang target akses yang sama.",
       "missing_room_references": "{room} merujuk ke ruangan yang sudah tidak ada.",
       "cycle": "Tautan akses ini akan membentuk lingkaran."
-    }
+    },
+    "missing_room": "Ruangan hilang {id}",
+    "edge_into_dock": "Tautan ini mengarah ke ruangan dok. Tautan dapat dihapus, tetapi tidak dapat ditambahkan kembali."
   },
   "bind_setup": {
     "failed_add_vacuum": "Gagal menambahkan penyedot debu: {error}",

@@ -1703,7 +1703,9 @@
       "duplicate_edges": "{room}에서 동일한 접근 대상이 반복됩니다.",
       "missing_room_references": "{room}이(가) 더 이상 존재하지 않는 방을 참조합니다.",
       "cycle": "이 접근 연결은 순환을 만들게 됩니다."
-    }
+    },
+    "missing_room": "없는 방 {id}",
+    "edge_into_dock": "이 연결은 도크 방을 가리킵니다. 제거할 수는 있지만 다시 추가할 수는 없습니다."
   },
   "room_profile": {
     "passes": {

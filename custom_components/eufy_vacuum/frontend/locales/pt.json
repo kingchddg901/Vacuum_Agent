@@ -1055,7 +1055,9 @@
       "duplicate_edges": "{room} repete o mesmo destino de acesso.",
       "missing_room_references": "{room} faz referência a uma divisão que já não existe.",
       "cycle": "Estas ligações de acesso criariam um ciclo."
-    }
+    },
+    "missing_room": "Divisão ausente {id}",
+    "edge_into_dock": "Esta ligação aponta para a divisão da base. Pode ser removida, mas não voltar a ser adicionada."
   },
   "room_card": {
     "carpet_notice": "Divisão com alcatifa — campos de mopa ocultos",

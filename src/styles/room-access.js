@@ -48,6 +48,15 @@ export const roomAccessStyles = `
     color: var(--evcc-sem-warning);
   }
 
+  /* A6-AGX-6. An access edge that points AT the dock room. It can no longer be
+     created (the dock room is not offered as a target), so a surviving one is
+     shown as a one-way door: removable, not re-addable. Deliberately NOT
+     warning-coloured — it is legal state, not a fault. */
+  .evcc-room-access-chip--dock {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--evcc-sem-info) 55%, transparent);
+  }
+
   .evcc-room-access-chip--claimed {
     opacity: 0.35;
     cursor: not-allowed;

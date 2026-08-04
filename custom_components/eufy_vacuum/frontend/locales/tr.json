@@ -2347,7 +2347,9 @@
       "duplicate_edges": "{room} aynı erişim hedefini tekrarlıyor.",
       "missing_room_references": "{room} artık var olmayan bir odaya başvuruyor.",
       "cycle": "Bu erişim bağlantıları bir döngü oluştururdu."
-    }
+    },
+    "missing_room": "Eksik oda {id}",
+    "edge_into_dock": "Bu bağlantı şarj istasyonu odasını gösteriyor. Kaldırılabilir, ancak yeniden eklenemez."
   },
   "bind_setup": {
     "failed_add_vacuum": "Robot süpürge eklenemedi: {error}",

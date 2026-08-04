@@ -1703,7 +1703,9 @@
       "duplicate_edges": "{room} で同じアクセス先が繰り返されています。",
       "missing_room_references": "{room} は既に存在しない部屋を参照しています。",
       "cycle": "このアクセスのリンクはループを作成します。"
-    }
+    },
+    "missing_room": "存在しない部屋 {id}",
+    "edge_into_dock": "このリンクはドック部屋を指しています。削除はできますが、再度追加することはできません。"
   },
   "room_profile": {
     "passes": {

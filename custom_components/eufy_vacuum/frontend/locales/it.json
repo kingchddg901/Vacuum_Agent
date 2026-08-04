@@ -1045,7 +1045,9 @@
       "duplicate_edges": "{room} ripete la stessa destinazione di accesso.",
       "missing_room_references": "{room} fa riferimento a una stanza che non esiste più.",
       "cycle": "Questi collegamenti di accesso creerebbero un ciclo."
-    }
+    },
+    "missing_room": "Stanza mancante {id}",
+    "edge_into_dock": "Questo collegamento punta alla stanza della base. Può essere rimosso, ma non aggiunto di nuovo."
   },
   "room_card": {
     "carpet_notice": "Stanza con moquette — campi mop nascosti",

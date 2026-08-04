@@ -2347,7 +2347,9 @@
       "duplicate_edges": "Pokój {room} powtarza ten sam cel dostępu.",
       "missing_room_references": "Pokój {room} odwołuje się do pokoju, który już nie istnieje.",
       "cycle": "Te powiązania dostępu utworzyłyby pętlę."
-    }
+    },
+    "missing_room": "Brakujący pokój {id}",
+    "edge_into_dock": "To połączenie wskazuje pokój ze stacją dokującą. Można je usunąć, ale nie da się go dodać ponownie."
   },
   "bind_setup": {
     "failed_add_vacuum": "Nie udało się dodać odkurzacza: {error}",

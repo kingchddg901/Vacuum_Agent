@@ -35,6 +35,8 @@
     "all_selected_rooms_blocked": "All selected rooms are currently blocked.",
     "vacuum_missing": "The vacuum entity is unavailable.",
     "map_mismatch": "This run was recorded on a different map. Switch to that map, then retry.",
+    "no_active_custom_layout": "Pick or create a custom layout before saving this.",
+    "unreadable_image_dimensions": "That image's dimensions could not be read. Try re-exporting it as a PNG.",
     "theme_not_found": "That theme could not be found — it may have been deleted.",
     "empty_draft": "There are no unsaved changes to save.",
     "invalid_payload": "That import file isn't in a format this card understands.",
@@ -846,11 +848,8 @@
     "image_too_large": "Image too large even after resizing — please pick a smaller image.",  // map-image upload rejected: payload still over HA's 4 MiB WS-frame limit after client downscale. Feeds an escapeHtml sink → keyed via tRaw
     "upload_failed_generic": "Upload failed"  // generic fallback when a map-image upload throws with no usable message
   },
-  "bind_room_access": {
-    "backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
-    "failed_to_save": "Failed to save room access. Check Home Assistant logs for details."
-  },
   "bind_room_editor": {
+    "save_rejected": "That change was rejected and has not been saved.",
     "choose_custom_profile_key": "Choose a custom profile key:\n\n{choiceText}",  // window.prompt; user types a profile KEY (backend id), {choiceText}=newline list of 'name (label)'
     "confirm_delete_profile": "Delete {label}? This cannot be undone.",
     "confirm_overwrite_profile": "Overwrite {target} with this room's current settings?",
@@ -864,6 +863,10 @@
     "rename_key_prompt": "Optional: enter a new backend profile key.",  // prompt for the backend profile KEY (internal id), distinct from the display label; keep 'key' as identifier sense
     "rename_label_prompt": "Enter the new display label for this room profile:",  // prompt for the human-readable display LABEL of a saved room profile (vs its backend key)
     "save_new_profile_prompt": "Save current room settings as a new profile. Enter a display label:"
+  },
+  "bind_room_access": {
+    "backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
+    "failed_to_save": "Failed to save room access. Check Home Assistant logs for details."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "The backend rejected this rule.",
@@ -1672,6 +1675,32 @@
     "dock_room_label": "Dock Room",  // Field label. 'Dock' = robot's charging dock; noun, NOT the verb 'to dock'. Root room of the access tree.
     "graph_issues_label": "Graph Issues",  // Label over validation errors. 'Graph' = the room-access dependency graph, not a chart/diagram.
     "invalid_graph": "Invalid room access graph.",
+    "missing_room": "Missing Room {id}",
+    "edge_into_dock": "This link points at the dock room. It can be removed, but not re-added.",
+    "issue": {
+      "list_separator": ", ",  // Joins room names in {rooms}/{sources}. Include any trailing space the language needs; CJK typically uses a full-width comma with no space.
+      "self_reference": "{room} cannot grant access to itself.",
+      "missing_room": "{room} still references missing room {missing_room}.",
+      "duplicate_edge": "{room} has the same access target listed more than once for {target}.",
+      "cycle_detected": "Access links create a loop: {rooms}.",  // {rooms} = the loop chain, in order.
+      "multiple_inbound": "{room} is granted access by more than one room ({sources}). Each room can only have one inbound link.",
+      "missing_dock_room": "One room must be marked as the dock room before access links can be considered healthy.",  // 'Dock room' = the charging-dock room, the root of the access tree.
+      "multiple_dock_rooms": "Only one dock room is allowed. Current dock rooms: {rooms}.",
+      "missing_dependency": "{room} needs an inbound dependency so it can be reached from {dock}.",
+      "unreachable_from_dock": "{room} is not reachable from {dock} through the current access links.",
+      "unknown_issue": "The access graph contains an unknown issue.",
+      "duplicate_edges": "{room} lists the same access target more than once.",  // Card-side validator; plural 'edges' is a distinct code from the backend's duplicate_edge.
+      "missing_room_references": "{room} references a room that no longer exists.",
+      "cycle": "These access links would create a loop.",  // Card-side validator; it detects the loop but does not name the chain.
+      "card": {
+        "missing_room": "This room no longer exists on the active map.",
+        "self_reference": "A room cannot grant access to itself.",
+        "duplicate_edges": "Each access link can only appear once.",
+        "missing_room_references": "All access links must point to rooms on the current map.",
+        "multiple_inbound": "{target} already has an inbound link from {claimant}. Each room can only be reached from one room.",
+        "cycle": "This access setup would create a loop in the room graph."
+      }
+    },
     "is_dock_room": "This is the Dock Room",  // Active-state chip label confirming this room IS the dock (charging-dock origin) room. 'Dock' = noun.
     "no_inbound": "No room grants access here yet.",
     "no_other_rooms": "No other rooms are available on this map.",

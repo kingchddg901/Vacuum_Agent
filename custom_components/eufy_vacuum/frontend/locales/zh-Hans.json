@@ -1703,7 +1703,9 @@
       "duplicate_edges": "{room} 重复了相同的通行目标。",
       "missing_room_references": "{room} 引用了一个已不存在的房间。",
       "cycle": "这些通行链接会形成循环。"
-    }
+    },
+    "missing_room": "缺失的房间 {id}",
+    "edge_into_dock": "此链接指向基站房间。可以移除，但无法重新添加。"
   },
   "room_profile": {
     "passes": {

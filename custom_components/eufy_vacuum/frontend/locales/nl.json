@@ -1043,7 +1043,9 @@
       "duplicate_edges": "{room} herhaalt hetzelfde toegangsdoel.",
       "missing_room_references": "{room} verwijst naar een kamer die niet meer bestaat.",
       "cycle": "Deze toegangskoppelingen zouden een lus vormen."
-    }
+    },
+    "missing_room": "Ontbrekende kamer {id}",
+    "edge_into_dock": "Deze koppeling verwijst naar de dockkamer. Hij kan worden verwijderd, maar niet opnieuw worden toegevoegd."
   },
   "room_card": {
     "carpet_notice": "Tapijtkamer — dweilvelden verborgen",
