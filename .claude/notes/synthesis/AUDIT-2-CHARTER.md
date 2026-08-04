@@ -328,6 +328,8 @@ New, learned since — these become explicit attack instructions in every discov
    without proving its origin". Known seed entries: the four stale-reproducer classes
    (delta 6), the six wave-1 probe defects, RP-014's proof-only in-flight sites (`9095968`).
 
+## 5. Cost, model, and session plan
+
 Calibration (measured on `claude-opus-5[1m]`, single-tier): one heavyweight ≈ 1.9M subagent
 tokens / ~41 min / 8 agents (6 discovery + 2 verifiers, verifiers non-negotiable — if forced to
 cut, cut discovery to 4–5, never the verifiers). Root-cause fan-in 4.5:1 — assign a cluster to
