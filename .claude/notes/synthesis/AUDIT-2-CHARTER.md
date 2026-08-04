@@ -1,8 +1,8 @@
 # AUDIT #2 CHARTER — the post-repair hostile re-siege
 
-**Status: PREP — awaiting Chris's sign-off on the open decisions in §6. Do not fire until every
-gate in §2 is green.** Written 2026-08-02 from live repo state (regenerated ledgers, not
-recollection).
+**Status: SIGNED OFF — all four §6 decisions are DECIDED (Q1/Q3/Q4 on 2026-08-03, Q2 on
+2026-08-02). The charter is now gated only on §2: fire when every gate goes green.** Written
+2026-08-02 from live repo state (regenerated ledgers, not recollection).
 
 ## 1. What this is and why it exists
 
@@ -201,8 +201,9 @@ diffed against the actual source tree, with every exclusion named.
 
 - **CV segmentor** — correctness is empirical, not textual; this method produces unfalsifiable
   noise the verifiers cannot kill (#1's banked lesson).
-- **`learning/` + Phased Jobs IF Q1 says the rebuild is still in flight** — Chris is rebuilding it;
-  auditing a moving target wastes the siege.
+- **`learning/` + Phased Jobs from S1–S3** (Q1 DECIDED: they are IN scope, as S4's exclusive
+  territory) — S4 fires only after the rebuild is declared complete; auditing a moving target
+  wastes the siege, and the other sessions name the carve-out in their coverage reports.
 - Dead code already adjudicated dead (boundary.py etc.) — cite the prior adjudication.
 
 ## 4. Method deltas from audit #1 — bake the learned failure modes into the prompts
@@ -415,21 +416,22 @@ describe is MEDIUM at most, and its trigger must be stated explicitly. Add `docs
 to the doc-vs-source sweep's scope — the drift that matters there is not "is this accurate"
 but "does the code assume a workflow the guide never documents".
 
-## 6. Open decisions for Chris — answer before firing
+## 6. Decisions — ALL DECIDED, none open
 
-- **Q1 — Phased Jobs / `learning/`:** in scope or out? *Recommendation: IN as session S4, but only
-  once you declare the rebuild complete; until then hard-excluded and named.* It will be the
-  newest least-aged critical-path code at release time — exactly what a pre-Phoenix siege is for.
+- **Q1 — Phased Jobs / `learning/`: DECIDED (Chris, 2026-08-03) — IN SCOPE as session S4.**
+  S4 is confirmed, not conditional. Sequencing unchanged: gate 6 still requires the rebuild
+  declared COMPLETE before S4 itself fires (audit a finished subsystem, not a moving target),
+  and the standing hard boundary on touching `learning/`/phased-job code remains in force for
+  everyone but the rebuilding session until that declaration. S1–S3 do not wander into it.
 - **Q2 — Model: DECIDED (Chris, 2026-08-02) — mixed-tier fleet per the §5 table.** Fable
   orchestrator + inline synthesis, Sonnet/Opus discovery, top-tier high-effort verifiers; S1 is
   the mixed-fleet calibration session and the envelope re-scales from its actuals.
-- **Q3 — Doc update ordering:** the doc reconciliation pass is a *precondition* here (gate 7), not
-  part of the audit. *Recommendation: run it as its own cheap pass first* so audit #2's
-  doc-vs-source dimension tests the reconciliation instead of rediscovering known drift.
-- **Q4 — Trigger:** fire the sessions manually as gates go green, or schedule them?
-  *Recommendation: manual* — gate 12 (hardware baseline) and gate 10 (clean worktree while two
-  sessions share the tree) both want a human-timed start; and the scheduled-task model trap
-  (gate 11) already bit once.
+- **Q3 — Doc update ordering: DECIDED (Chris, 2026-08-03) — docs first, of course.** The doc
+  reconciliation pass runs as its own cheap pass BEFORE the audit (it is gate 7's precondition),
+  so #2's doc-vs-source dimension tests the reconciliation instead of rediscovering known drift.
+- **Q4 — Trigger: DECIDED (Chris, 2026-08-03) — MANUAL.** Sessions fire by hand as gates go
+  green: gate 12 (hardware baseline) and gate 10 (clean worktree on a shared tree) both want a
+  human-timed start, and the scheduled-task model trap (gate 11) already bit once.
 
 ## 7. Rejected alternatives (so reviewers don't re-litigate)
 
