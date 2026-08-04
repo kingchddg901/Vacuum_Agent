@@ -311,7 +311,14 @@ class MaintenanceManager:
         vacuum_entity_id: str,
     ) -> dict[str, Any]:
         """Return replacement, maintenance, and dock upkeep state for one vacuum."""
-        capabilities = self._manager.get_vacuum_capabilities(vacuum_entity_id=vacuum_entity_id, refresh=False)
+        # RF-33 cont'd: read-only, unlike get_vacuum_capabilities(refresh=False) —
+        # this is the collector diagnostics.py's own upkeep_snapshot call reaches,
+        # and it's also on get_dashboard_snapshot's path. Detection is primed
+        # elsewhere (setup-time priming loop, every sensor/button/number poll for
+        # this vacuum) well before this runs, so reading whatever's stored is safe;
+        # `capabilities` below is threaded into get_maintenance_remaining so the
+        # per-component loop doesn't re-open the non-inert path.
+        capabilities = self._manager.get_vacuum_capabilities_snapshot(vacuum_entity_id=vacuum_entity_id)
         model_meta = self._get_upkeep_model_meta(vacuum_entity_id=vacuum_entity_id)
         model_code = model_meta.get("code")
         sources = capabilities.get("maintenance_sources", {})
@@ -458,6 +465,7 @@ class MaintenanceManager:
                 vacuum_entity_id=vacuum_entity_id,
                 component=component,
                 interval_hours=interval_hours,
+                capabilities=capabilities,
             )
             maintenance_status_val = maintenance_status(
                 remaining_hours=float(maint.get("remaining_hours", 0.0) or 0.0),
@@ -630,6 +638,11 @@ class MaintenanceManager:
         component: str,
     ) -> dict[str, Any]:
         """Snapshot current usage_hours for a component as the new reset point."""
+        # Left on get_vacuum_capabilities(refresh=False) deliberately: this method
+        # is itself only reachable from an explicit user action (the reset button
+        # or the reset_maintenance service) and already writes a new baseline, so
+        # there's no read-only contract to protect here — and self-heal detection
+        # right before the reset guarantees an accurate component→entity mapping.
         capabilities = self._manager.get_vacuum_capabilities(
             vacuum_entity_id=vacuum_entity_id,
             refresh=False,
@@ -694,12 +707,24 @@ class MaintenanceManager:
         vacuum_entity_id: str,
         component: str,
         interval_hours: float,
+        capabilities: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Return remaining maintenance hours for one component."""
-        capabilities = self._manager.get_vacuum_capabilities(
-            vacuum_entity_id=vacuum_entity_id,
-            refresh=False,
-        )
+        """Return remaining maintenance hours for one component.
+
+        ``capabilities`` lets a caller that already fetched the capabilities
+        dict (e.g. get_upkeep_snapshot, via the read-only
+        get_vacuum_capabilities_snapshot) pass it straight through instead of
+        this method re-fetching its own copy. Omitted (the sensor entity and
+        service call sites), this falls back to get_vacuum_capabilities
+        (refresh=False) — self-heal detection is wanted there, since a
+        maintenance sensor's own poll may be the first thing to run for a
+        freshly-added vacuum.
+        """
+        if capabilities is None:
+            capabilities = self._manager.get_vacuum_capabilities(
+                vacuum_entity_id=vacuum_entity_id,
+                refresh=False,
+            )
         sources = capabilities.get("maintenance_sources", {})
         source_entity = sources.get(component)
 

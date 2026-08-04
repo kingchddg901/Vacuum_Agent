@@ -26,6 +26,11 @@ Coverage targets
 [MNT-15] get_upkeep_snapshot surfaces v1.11.0 lifetime totals + dock firmware from device sensors.
 [MNT-16] get_upkeep_snapshot: no lifetime sensors → device_totals/dock_firmware None.
 [MNT-17] get_upkeep_snapshot: placeholder/absent sensor → that field None, the rest still surface.
+[MNT-18] RF-33 cont'd: get_upkeep_snapshot never triggers capability detection —
+         reads get_vacuum_capabilities_snapshot, not get_vacuum_capabilities(refresh=False).
+[MNT-19] RF-33 cont'd: get_maintenance_remaining reuses a passed-in `capabilities`
+         dict instead of re-fetching — the seam get_upkeep_snapshot's per-component
+         loop relies on to stay inert.
 """
 
 from __future__ import annotations
@@ -53,8 +58,13 @@ def mnt(manager) -> MaintenanceManager:
 
 
 def _caps(manager, monkeypatch, sources):
-    monkeypatch.setattr(manager, "get_vacuum_capabilities",
-                        lambda **kw: {"maintenance_sources": sources, "sources": {}})
+    payload = {"maintenance_sources": sources, "sources": {}}
+    # RF-33 cont'd: get_upkeep_snapshot now reads get_vacuum_capabilities_snapshot
+    # (the genuinely read-only accessor) while reset_maintenance/get_maintenance_remaining
+    # (called directly, not through get_upkeep_snapshot) still read get_vacuum_capabilities
+    # — stub both so this helper works for every call site under test.
+    monkeypatch.setattr(manager, "get_vacuum_capabilities", lambda **kw: payload)
+    monkeypatch.setattr(manager, "get_vacuum_capabilities_snapshot", lambda **kw: payload)
 
 
 # ---------------------------------------------------------------------------
@@ -263,10 +273,9 @@ def test_guide_only_component_family_gated(mnt, manager, monkeypatch):
 
 def _caps_with_entities(manager, monkeypatch, entities):
     """Capabilities mock that also carries the adapter 'entities' map."""
-    monkeypatch.setattr(
-        manager, "get_vacuum_capabilities",
-        lambda **kw: {"maintenance_sources": {}, "sources": {}, "entities": entities},
-    )
+    payload = {"maintenance_sources": {}, "sources": {}, "entities": entities}
+    monkeypatch.setattr(manager, "get_vacuum_capabilities", lambda **kw: payload)
+    monkeypatch.setattr(manager, "get_vacuum_capabilities_snapshot", lambda **kw: payload)
 
 
 def test_upkeep_snapshot_device_totals_and_firmware(mnt, manager, hass, monkeypatch):
@@ -437,3 +446,58 @@ def test_reset_entity_maintenance_filter_excludes(mnt, hass):
     assert mnt._get_replacement_reset_entity(
         vacuum_entity_id=_VAC, component="main_brush",
     ) is None
+
+
+# ---------------------------------------------------------------------------
+# RF-33 cont'd: get_upkeep_snapshot must never trigger capability detection
+# ---------------------------------------------------------------------------
+
+def test_upkeep_snapshot_never_triggers_capability_detection(mnt, manager):
+    """[MNT-18] get_upkeep_snapshot used to call get_vacuum_capabilities(refresh=False)
+    directly -- non-inert despite refresh=False (self-heals/writes when no stored
+    snapshot exists, exactly this vacuum's state). It now reads
+    get_vacuum_capabilities_snapshot, so a call with nothing ever detected must
+    return an empty-shaped snapshot WITHOUT writing to manager.data['capabilities']."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    assert _VAC not in manager.data.get("capabilities", {})
+
+    snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
+
+    assert snap["replacement_items"] == []
+    assert snap["maintenance_items"] == []
+    assert _VAC not in manager.data.get("capabilities", {})  # still no write
+
+
+def test_maintenance_remaining_reuses_passed_capabilities(mnt, manager, monkeypatch):
+    """[MNT-19] get_upkeep_snapshot's per-component loop calls get_maintenance_remaining
+    internally -- that used to be a THIRD independent get_vacuum_capabilities(refresh=False)
+    call site, re-deriving the same source_entity get_upkeep_snapshot had already
+    resolved. Passing `capabilities` must skip the internal fetch entirely."""
+    def _boom(**kw):
+        raise AssertionError("must not re-fetch capabilities when a dict was passed in")
+    monkeypatch.setattr(manager, "get_vacuum_capabilities", _boom)
+
+    result = mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=150.0,
+        capabilities={"maintenance_sources": {"main_brush": _SRC}, "sources": {}},
+    )
+    assert result["source_entity"] == _SRC
+
+
+def test_maintenance_remaining_default_still_self_heals(mnt, manager, monkeypatch):
+    """[MNT-19b] omitting `capabilities` (the sensor entity's + service's call
+    shape) must still fall back to get_vacuum_capabilities(refresh=False) — a
+    maintenance sensor's own poll may be the first thing to run for a
+    freshly-added vacuum and needs the self-heal detection, unlike
+    get_upkeep_snapshot's own (now read-only) call."""
+    calls: list[str] = []
+    def _tracked(**kw):
+        calls.append(kw.get("vacuum_entity_id"))
+        return {"maintenance_sources": {"main_brush": _SRC}, "sources": {}}
+    monkeypatch.setattr(manager, "get_vacuum_capabilities", _tracked)
+
+    result = mnt.get_maintenance_remaining(
+        vacuum_entity_id=_VAC, component="main_brush", interval_hours=150.0,
+    )
+    assert calls == [_VAC]
+    assert result["source_entity"] == _SRC
