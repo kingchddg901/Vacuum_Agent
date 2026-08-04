@@ -206,7 +206,36 @@ New, learned since — these become explicit attack instructions in every discov
    substitute: the harness derives per-proof admissibility; trace_route is the discovery
    instrument for routes nobody declared.
 
-## 5. Cost, model, and session plan
+8. **Mock-failure ledger — a REQUIRED #2 output, separate from the defect ledger (Chris,
+   2026-08-03: mock failures may be systemic, but the rebuild is HELD until #2 rules).**
+   Discovery agents classify every mock/stub/fixture finding into this taxonomy (one class
+   per finding, banked verbatim from the three-agent review):
+   - accepted an impossible signature
+   - replaced the wrong production boundary
+   - was never consumed
+   - encoded intended behavior instead of actual callee behavior
+   - bypassed validation or an earlier refusal
+   - returned a shape production could never return
+   - hid async/lifecycle behavior
+   - asserted output without proving its origin
+
+   **Every entry also carries a COHORT: authorship era (pre-campaign · campaign-era loops ·
+   harness-v2-era) + subsystem.** Without the denominator, "same class dominates" cannot
+   distinguish a systemic factory problem from one bad historical cluster already cured by
+   harness v2 — and the cohort axis is what makes the verdict actionable.
+
+   **Pre-registered decision rule (set BEFORE evidence, apply mechanically at synthesis):**
+   if 2–3 classes dominate ACROSS cohorts → global test-generation rules change (prefer real
+   production collaborators; mock only external uncertainty; bind fakes to production
+   signatures; fail when an expected fake is unused; prove the intended path produced the
+   asserted result). If failures are scattered or cohort-concentrated → targeted hardening
+   only; a wholesale rewrite costs more than it returns. No third option gets invented after
+   seeing the data.
+
+   Mechanical pre-seeding (don't wait for findings): harness v2's stub-invocation tracking
+   auto-populates "was never consumed"; trace_route's census populates "asserted output
+   without proving its origin". Known seed entries: the four stale-reproducer classes
+   (delta 6), the six wave-1 probe defects, RP-014's proof-only in-flight sites (`9095968`).
 
 Calibration (measured on `claude-opus-5[1m]`, single-tier): one heavyweight ≈ 1.9M subagent
 tokens / ~41 min / 8 agents (6 discovery + 2 verifiers, verifiers non-negotiable — if forced to
