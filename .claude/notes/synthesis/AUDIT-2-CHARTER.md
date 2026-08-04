@@ -395,7 +395,15 @@ New, learned since — these become explicit attack instructions in every discov
 12. **Recorder-replay corpus — Chris feeds REAL runs from the HA recorder as test fodder
     (offered 2026-08-03).** Labeled exports of actual Alfred/Ivy runs (entity-state streams
     for the adapter's entity set, with Chris's ground-truth annotation: "kitchen, then
-    entryway+hallway as a group, one recharge pause"). Four consumers:
+    entryway+hallway as a group, one recharge pause").
+    **RUN HARNESS: BUILT 2026-08-04 (`dd78d90`), stimulus-replay mode operational** —
+    `tests/replay/` (bundle extractor + frozen-time driver through the public state-change
+    seam, stimulus-only with the integration's own entities excluded, settle phase for
+    scheduled tail work). Proof-of-life green: the real pj_2026-08-02T23-04-45 window replays
+    into a noticed → buffered → grace-finalized external capture, full suite passing. OPEN
+    remainder — `blocked → design: [dispatched-oracle mode]`: start the job from the archived
+    record's own queue/payload, replay signals, assert the finalized record against the
+    archive (the three-path fix-review consumer). Four consumers:
     - **Mock replacement (delta 8's cure, not just its ledger):** replay through the PUBLIC
       seam (state-change events, production code unmodified) — a fixture recorded from the
       device cannot encode intended-instead-of-actual behavior.
