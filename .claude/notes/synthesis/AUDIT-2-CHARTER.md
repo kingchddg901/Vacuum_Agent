@@ -367,6 +367,28 @@ New, learned since — these become explicit attack instructions in every discov
     skip reading the code around it. Banked observations become premise evidence
     (`_premises.json`), per [[feedback_archive_cheap_raw_data]].
 
+12. **Recorder-replay corpus — Chris feeds REAL runs from the HA recorder as test fodder
+    (offered 2026-08-03).** Labeled exports of actual Alfred/Ivy runs (entity-state streams
+    for the adapter's entity set, with Chris's ground-truth annotation: "kitchen, then
+    entryway+hallway as a group, one recharge pause"). Four consumers:
+    - **Mock replacement (delta 8's cure, not just its ledger):** replay through the PUBLIC
+      seam (state-change events, production code unmodified) — a fixture recorded from the
+      device cannot encode intended-instead-of-actual behavior.
+    - **Premise evidence (deltas 10/11):** a library of recorded runs makes device-answerable
+      questions GREPPABLE ("does task_status ever emit X before docked?") — one query instead
+      of a fan-out, and the answer banks straight into `_premises.json`.
+    - **Probe scenarios:** discovery agents run reproducers against real streams, including
+      the ugly ones (missing entities, stale pushes, mid-run recharge).
+    - **trace_route fodder:** three-path fix review replays the SAME recorded run at BEFORE
+      and AFTER SHAs — identical stimulus, route diff is pure signal.
+    Practical rails: export SOON after interesting runs (recorder purge window eats them);
+    websocket history rows come in COMPACT format (`s`/`a`/`lu`/`lc` keys, float seconds —
+    [[reference_ha_history_compact_format]]); recorder stores state CHANGES with real
+    timestamps, so replay uses virtual time. Honest boundary: replay is deterministic — it
+    reproduces sequences and gaps, NEVER await-interleavings; race findings stay with the
+    uninstrumented race methodology (delta 6/7 limits). Complements gate 12, does not
+    replace it: baselines still need fresh LIVE captures at the pinned build.
+
 ## 5. Cost, model, and session plan
 
 Calibration (measured on `claude-opus-5[1m]`, single-tier): one heavyweight ≈ 1.9M subagent
