@@ -375,6 +375,14 @@
   "note": "Landed for 4 of its 5 scoped findings; the 5th (#8:A4-PP-RP-4) was split to RP-021c because it is parked, not unfinished. Verified at source before closing, not taken from the commit subjects: overwrite_run_profile re-snapshots steps (profiles/manager.py) and a stepped apply restores saved settings."
  },
  {
+  "packet_id": "RP-021c",
+  "commits": [
+   "176c73e"
+  ],
+  "landed_at": "2026-08-04",
+  "note": "Unparked by Chris and landed same day. Both halves in one seam: apply_run_profile derives the profile's breaks via set_queue_breaks (replace-ALL, so a flat profile also evicts stale breaks) plus a queue_source provenance tag; clear_queue empties both backings. Tests [MQ-10..12] against the REAL manager, not the MagicMock one."
+ },
+ {
   "packet_id": "RP-022",
   "commits": [
    "1288b65"

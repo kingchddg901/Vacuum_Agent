@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **451** findings via 57 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
+| Fixes APPLIED (landed packets) | **452** findings via 58 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **32** -- 2 open clusters (27 fully applied) + 30 singles |
-| By severity | CRITICAL 0 / HIGH 5 / MEDIUM 14 / LOW 13 |
+| Open findings | **31** -- 2 open clusters (27 fully applied) + 29 singles |
+| By severity | CRITICAL 0 / HIGH 4 / MEDIUM 14 / LOW 13 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -272,7 +272,7 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### HIGH (3)
+### HIGH (2)
 
 - [ ] **A6-PP-EST-BLK-1** `planning/run_plan.py:1615` [both] _(finder said CRITICAL)_  
   Mid-job path-block report walks reachability over the QUEUE only, so any queued room whose access parent is not in the queue is reported blocked — and can cancel the job  
@@ -280,9 +280,6 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-AG-1** `planning/run_plan.py:1615` [both]  
   Mid-run reachability is queue-scoped while preflight is graph-scoped — a run that omits the dock room reports EVERY remaining room as access_blocked and can cancel the job  
   -> A perfectly valid access graph plus a normal partial run (user cleans the bedroom, not the entryway the dock sits in) turns any watched blocker entity's state change into a spurious 'path blocked' verdict on every unfini
-- [ ] **A4-PP-RP-4** `profiles/manager.py:1244` [both]  
-  apply_run_profile leaves no backend record that the applied profile is stepped, so a plain Start runs it flat — or inherits the map's unrelated leftover breaks  
-  -> User presses "Apply" on a stepped profile, walks away, comes back to a reloaded dashboard (or starts it from a second tab / a phone), presses Start — and the run silently loses its structure: the charge-to-90% break neve
 
 ### MEDIUM (14)
 
@@ -374,7 +371,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 451 findings closed by a landed packet
+## APPLIED -- 452 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -733,6 +730,8 @@ a disappeared finding is indistinguishable from one never found.
   normalize_run_profile_steps passes arbitrary per-room fields through untouched, and the run-plan overlay treats them as authoritative settings — the one dispatch path that skips _protected_room_config
 - [x] **A5-RUNPROF-4** `services/run_profiles.py:85` [both] -- **RP-021b** (`f208788`, `0fa6cd9`, `4c93fb5`, `e2a424c`, 2026-08-03)  
   set_run_profile_steps accepts a bare `list` and silently drops or clamps every malformed step; only 'at least one room_group survived' is enforced
+- [x] **A4-PP-RP-4** `profiles/manager.py:1244` [both] -- **RP-021c** (`176c73e`, 2026-08-04)  
+  apply_run_profile leaves no backend record that the applied profile is stepped, so a plain Start runs it flat — or inherits the map's unrelated leftover breaks
 - [x] **DQ-ZONE-5** `core/manager.py:4030` [both] -- **RP-022** (`1288b65`, 2026-08-02)  
   zone_bounds is computed and shipped in the dashboard snapshot but has no consumer anywhere — and the card replaces the precise refusal message with a generic toast
 - [x] **A3-SNAP-4** `core/manager.py:4017` [future_brand_only] -- **RP-022** (`1288b65`, 2026-08-02)  
@@ -1319,7 +1318,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 57 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 52 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 58 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 53 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 
