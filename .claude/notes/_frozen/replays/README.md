@@ -29,6 +29,15 @@ exported full recorder history from live HA via the history UI, 2026-08-04.
   `sensor.dining_room_alfred_total_cleaning_time` — registry-history artifacts (rename /
   re-add / area-prefix)? If these are stale duplicates, that is itself corpus metadata.
 
+## Representativeness caveat (Chris, 2026-08-04)
+
+The corpus over-represents **short, kitchen-first, quick-profile test runs** — kitchen is
+Chris's standard test room (close to the dock, short, sequences well), so it opens most
+runs. Fine for lifecycle/finalize concordance and replay probes; NOT a representative
+workload distribution for estimator accuracy or coverage claims. The worst Alfred boundary
+deltas clustering on "kitchen" is this skew, not a kitchen signature — the open
+adjudication item is first-room transit attribution generally.
+
 ## Consumers (charter delta 12)
 
 1. Mock replacement — replay through the public state-change seam, production code unmodified.

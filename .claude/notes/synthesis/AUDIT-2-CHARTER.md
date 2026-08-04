@@ -401,6 +401,16 @@ New, learned since — these become explicit attack instructions in every discov
     adjudication look owed, not a defect claim). The device's account and the system's
     account of the same 68 runs agree completely.
 
+    Two Chris-settled facts about the corpus (device/user-answerable, closed without
+    agent spend — delta 11 working as intended): the worst-delta rooms all being "kitchen"
+    is USAGE SKEW, not a signature — it is his standard test room (close to the dock,
+    short, sequences well), so it opens most test runs; the owed adjudication is about
+    first-room transit attribution generally, not kitchen. Corollary caveat for every
+    replay consumer: **the corpus over-represents short kitchen-first quick-profile test
+    runs** — fine for lifecycle/finalize concordance, NOT a representative workload
+    distribution for estimator or coverage claims ([[feedback_builder_usability_blindspot]]
+    applies to data, not just settings).
+
     **The rule this buys:** after ANY change to job lifecycle, record schema, or the
     finalizer, run `python .claude/notes/_crossmatch_replays.py --check` (exit 1 on
     regression; thresholds = baseline + headroom: zero unmatched, zero orphans, Ivy ≤5s /
