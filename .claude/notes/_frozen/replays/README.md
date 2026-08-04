@@ -24,10 +24,11 @@ exported full recorder history from live HA via the history UI, 2026-08-04.
   compact keys `s`/`a`/`lu`/`lc`) supersedes this when attribute fidelity is needed.
 - Timestamps are real; replay uses virtual time. Deterministic — sequences and gaps, never
   await-interleavings. NOT race evidence (charter delta 6/7 limits).
-- Observed oddity worth Chris's confirmation, not consumer guessing: entity ids like
-  `sensor.other_alfred_active_job_3`, `switch.other_alfred_kitchen_selected_for_cleaning`,
-  `sensor.dining_room_alfred_total_cleaning_time` — registry-history artifacts (rename /
-  re-add / area-prefix)? If these are stale duplicates, that is itself corpus metadata.
+- The `other_alfred_*` / `dining_room_alfred_*` / `_3`-suffixed entity ids: ADJUDICATED
+  2026-08-04 — registry artifacts (area-prefix / re-add), and they are the on-disk proof of
+  **`live:ENT-1`** (entity-id derivation by string surgery cannot reach them; banked as a
+  release-gating finding, `6176c63`). For replay consumers they are hostile-install topology
+  specimens — exactly the naming variance the field's installs present (#46, #48).
 
 ## Representativeness caveat (Chris, 2026-08-04)
 

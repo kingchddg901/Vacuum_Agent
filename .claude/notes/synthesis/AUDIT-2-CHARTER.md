@@ -57,8 +57,10 @@ a ledger):
    the verifiers.
 8. **All gates green at a pinned SHA:** docker `pytest tests --no-cov` (the real gate; bare pytest
    skips `tests/adapters/`), `npm run test:units` (check the tally, not the exit code),
-   `npm run check:i18n`, `npm run build:deploy`, mkdocs `--strict`, CI green on that SHA (match
-   `headSha` manually — the `--commit` filter has lied before), and
+   `node scripts/check-i18n.mjs --strict-coverage` (the ratchet + coverage gate added 2026-08-04:
+   untranslated keys AND non-accepted English-identical values are fatal at the pin — plain
+   `check:i18n` stays permissive for dev), `npm run build:deploy`, mkdocs `--strict`, CI green on
+   that SHA (match `headSha` manually — the `--commit` filter has lied before), and
    `python .claude/notes/_crossmatch_replays.py --check` (the delta-12 concordance baseline —
    catches lifecycle/schema/finalizer destabilization the suite cannot).
 9. **Regenerate every derived ledger at the pin:** `_gen_repro_status.py`, `_gen_audit_doc.py` +
@@ -105,6 +107,18 @@ a ledger):
     literal `UNEXPECTED SHAPE` print and merely predate the `Proof` class, 1 is
     `_proof_harness.py` caught by the glob, and only 3 are genuinely unverifiable
     (`battery`, `onboarding`, `debug` — the last self-declared throwaway).
+14. **Field-report fix families landed (added 2026-08-04 — the HACS audience arrived before the
+    audit).** Two stranger reports in 72 hours, both in the entity-resolution / setup seam:
+    - **#46 family** (Q5, capability-gated `selected_map`): import-order fix + single-map
+      fallback, strand-gate fallback for the gated cleaning binary, brand-neutral message
+      rewrites, upkeep-snapshot TypeError. Spec: `FINDING-issue46-roborock-import-blocked.md`.
+    - **#48 family** (X10 Pro Omni): partially landed; **`live:ENT-1` (HIGH) and `live:DIAG-1`
+      (MEDIUM) are banked, UNFIXED, and explicitly release-gating** (`6176c63`) — entity ids
+      derived by string surgery with no registry lookup (proven incomplete on Chris's OWN
+      install: the area-prefixed `dining_room_alfred_*` entities are underivable — the same
+      artifacts the replay corpus flagged as an oddity), and diagnostics that cannot
+      distinguish "we looked in the wrong place" from "the device lacks it".
+    These land (or are visibly deferred with typed blockers per §2b) before firing.
 
 ## 2b. Ledger state model — partial completion is first-class (Chris, 2026-08-03)
 
@@ -197,6 +211,15 @@ diffed against the actual source tree, with every exclusion named.
 - Battery/charge family re-read once RP-043..045 land (1 agent; the family was found by live
   observation, not audit — a known blind spot to re-check).
 - Per-map store registry (RP-016) + its consumers — new infrastructure since #1.
+- **Setup / onboarding / entity-resolution seam + hostile-install topology (added 2026-08-04).**
+  #1 covered onboarding as a direct read; since then BOTH first field reports (#46, #48) landed
+  in exactly this seam within 72 hours of the HACS listing, and ENT-1 proves the derivation
+  breaks on Chris's own install (area-prefixed registry names). Audit the entity-resolution
+  path against the topologies the field actually presents: capability-gated entities (HA 2026.7
+  Roborock), renamed/area-prefixed registry entries, `_N`-suffixed re-adds. Probe fixtures
+  exist: both users' diagnostics JSONs + the replay corpus's registry scar tissue. This is the
+  builder-blindspot dimension made mechanical — "works on a fresh install with default names"
+  is the assumption every stranger's install violates differently.
 - Small subsystems from the #1 direct-read tier: re-read ONLY those touched by fix diffs since.
 
 ### Exclusions (named in every report)
