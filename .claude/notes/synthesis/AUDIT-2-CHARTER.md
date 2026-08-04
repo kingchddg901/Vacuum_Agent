@@ -305,6 +305,46 @@ inputs. Planning envelope (treat as ceiling until S1 recalibrates):
 
 Each session ends with the #1-style cost report so the estimate self-corrects.
 
+### Method delta 9 — READ THE USER GUIDE BEFORE ASSIGNING SEVERITY
+
+Audit #1 based itself on `docs/dev/` and the code. It never read `docs/user-guide/`.
+That is **22 files of intended-use documentation invisible to the entire campaign**, and
+this charter inherited the blind spot — before this entry it referenced `docs/dev` exactly
+once (the doc-vs-source sweep) and the user guide nowhere.
+
+The two trees answer different questions and only one of them was consulted:
+
+- `docs/dev/` says **how it works** — data model, services, storage, contracts.
+- `docs/user-guide/` says **how it is meant to be used** — which operations are manual
+  versus automatic, what the documented recovery path is, what the user is told to do when
+  something goes wrong.
+
+Severity is a claim about USE. Derived from mechanism alone it systematically overstates:
+any code path reachable in principle reads as a live hazard, because nothing in the dev
+docs says how often — or whether — a user actually walks it.
+
+**Worked example, `#18:A3-IMAGE--1` (HIGH, adjudicated OVERSTATED 2026-08-03).** It assumed
+routine re-analysis silently rebinding room links. `docs/user-guide/16-making-your-own-maps.md`
+"Option A" describes Auto (CV) as a one-time SETUP step — capture a prepared screenshot,
+upload, analyse, link each shape, then fine-tune **card-side** with Translation / Edges /
+Vertices ("adjustments save as you go"). Re-analysis is not a workflow at all. When detection
+is wrong the documented answer is not retuning, it is *"that's the cue to try a custom layout
+instead"*, and *"trying a custom layout never destroys your Auto (CV) result; they live side
+by side."* Nothing auto-runs at runtime. One page of the user guide would have downgraded the
+finding at authoring time — and a fix built on the mechanism alone was written, tested, and
+would have deleted hand-made room links on the one path users DO walk (a fresh upload).
+
+The same page also explains why the CV tuning holds and must not be "improved": the input is
+deliberately controlled — floor types cleared, 2D, all overlays off, tight crop, matched
+dark/light pair at identical orientation. The hard work is in the CAPTURE, not the algorithm.
+
+**Requirement for every #2 session:** before assigning severity to a finding in a
+user-facing subsystem, read that subsystem's user-guide page and quote the sentence that
+establishes intended use. A finding whose harm depends on a workflow the guide does not
+describe is MEDIUM at most, and its trigger must be stated explicitly. Add `docs/user-guide/`
+to the doc-vs-source sweep's scope — the drift that matters there is not "is this accurate"
+but "does the code assume a workflow the guide never documents".
+
 ## 6. Open decisions for Chris — answer before firing
 
 - **Q1 — Phased Jobs / `learning/`:** in scope or out? *Recommendation: IN as session S4, but only
