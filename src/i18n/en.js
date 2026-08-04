@@ -1008,6 +1008,39 @@ export const en = {
   "room_access.dock_room_label": "Dock Room",  // Field label. 'Dock' = robot's charging dock; noun, NOT the verb 'to dock'. Root room of the access tree.
   "room_access.graph_issues_label": "Graph Issues",  // Label over validation errors. 'Graph' = the room-access dependency graph, not a chart/diagram.
   "room_access.invalid_graph": "Invalid room access graph.",
+  // --- A6-AGX-4: access-graph issue codes -> translated sentences. The backend
+  // emits {code, params} (params never pre-joined) and the card resolves them via
+  // state/access-issue-label.js; the backend's English `message` remains the
+  // fallback for a code this release has not heard of. Ten backend codes, then the
+  // six the CARD's own validator raises (state/rooms.js validateRoomAccessUpdate).
+  // {room}/{target}/{dock}/{missing_room}/{claimant} are room NAMES;
+  // {rooms}/{sources} are already-joined lists (see list_separator). ---
+  "room_access.issue.list_separator": ", ",  // Joins room names in {rooms}/{sources}. Include any trailing space the language needs; CJK typically uses a full-width comma with no space.
+  "room_access.issue.self_reference": "{room} cannot grant access to itself.",
+  "room_access.issue.missing_room": "{room} still references missing room {missing_room}.",
+  "room_access.issue.duplicate_edge": "{room} has the same access target listed more than once for {target}.",
+  "room_access.issue.cycle_detected": "Access links create a loop: {rooms}.",  // {rooms} = the loop chain, in order.
+  "room_access.issue.multiple_inbound": "{room} is granted access by more than one room ({sources}). Each room can only have one inbound link.",
+  "room_access.issue.missing_dock_room": "One room must be marked as the dock room before access links can be considered healthy.",  // 'Dock room' = the charging-dock room, the root of the access tree.
+  "room_access.issue.multiple_dock_rooms": "Only one dock room is allowed. Current dock rooms: {rooms}.",
+  "room_access.issue.missing_dependency": "{room} needs an inbound dependency so it can be reached from {dock}.",
+  "room_access.issue.unreachable_from_dock": "{room} is not reachable from {dock} through the current access links.",
+  "room_access.issue.unknown_issue": "The access graph contains an unknown issue.",
+  "room_access.issue.duplicate_edges": "{room} lists the same access target more than once.",  // Card-side validator; plural 'edges' is a distinct code from the backend's duplicate_edge.
+  "room_access.issue.missing_room_references": "{room} references a room that no longer exists.",
+  "room_access.issue.cycle": "These access links would create a loop.",  // Card-side validator; it detects the loop but does not name the chain.
+  // --- CARD-raised variants. Same code, different fault: the backend's
+  // missing_room means "references a room that is gone", the card's means "the
+  // room you are editing is gone"; the two multiple_inbound sentences also
+  // interpolate different params. Scoped so neither renders the other's sentence. ---
+  "room_access.issue.card.missing_room": "This room no longer exists on the active map.",
+  "room_access.issue.card.self_reference": "A room cannot grant access to itself.",
+  "room_access.issue.card.duplicate_edges": "Each access link can only appear once.",
+  "room_access.issue.card.missing_room_references": "All access links must point to rooms on the current map.",
+  "room_access.issue.card.multiple_inbound": "{target} already has an inbound link from {claimant}. Each room can only be reached from one room.",
+  "room_access.issue.card.cycle": "This access setup would create a loop in the room graph.",
+
+
   "room_access.is_dock_room": "This is the Dock Room",  // Active-state chip label confirming this room IS the dock (charging-dock origin) room. 'Dock' = noun.
   "room_access.no_inbound": "No room grants access here yet.",
   "room_access.no_other_rooms": "No other rooms are available on this map.",

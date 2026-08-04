@@ -1021,7 +1021,31 @@
     "no_other_rooms": "Nessun'altra stanza è disponibile su questa mappa.",
     "save": "Salva accesso",
     "set_dock_room": "Imposta come stanza della base",
-    "title": "Accesso {name}"
+    "title": "Accesso {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Questa stanza non esiste più sulla mappa attiva.",
+        "self_reference": "Una stanza non può concedere l'accesso a se stessa.",
+        "duplicate_edges": "Ogni collegamento di accesso può comparire una sola volta.",
+        "missing_room_references": "Tutti i collegamenti di accesso devono puntare a stanze della mappa attuale.",
+        "multiple_inbound": "{target} ha già un collegamento in entrata da {claimant}. Ogni stanza può essere raggiunta da una sola stanza.",
+        "cycle": "Questa configurazione di accesso creerebbe un ciclo nel grafo delle stanze."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} non può concedere l'accesso a se stessa.",
+      "missing_room": "{room} fa ancora riferimento alla stanza mancante {missing_room}.",
+      "duplicate_edge": "{room} elenca più volte la stessa destinazione di accesso per {target}.",
+      "cycle_detected": "I collegamenti di accesso creano un ciclo: {rooms}.",
+      "multiple_inbound": "{room} riceve l'accesso da più di una stanza ({sources}). Ogni stanza può avere un solo collegamento in entrata.",
+      "missing_dock_room": "Una stanza deve essere contrassegnata come stanza della base prima che i collegamenti di accesso possano essere considerati corretti.",
+      "multiple_dock_rooms": "È consentita una sola stanza della base. Stanze attuali: {rooms}.",
+      "missing_dependency": "{room} necessita di una dipendenza in entrata per poter essere raggiunta da {dock}.",
+      "unreachable_from_dock": "{room} non è raggiungibile da {dock} con i collegamenti di accesso attuali.",
+      "unknown_issue": "Il grafo di accesso contiene un problema sconosciuto.",
+      "duplicate_edges": "{room} ripete la stessa destinazione di accesso.",
+      "missing_room_references": "{room} fa riferimento a una stanza che non esiste più.",
+      "cycle": "Questi collegamenti di accesso creerebbero un ciclo."
+    }
   },
   "room_card": {
     "carpet_notice": "Stanza con moquette — campi mop nascosti",

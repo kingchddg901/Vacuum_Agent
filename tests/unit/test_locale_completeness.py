@@ -24,6 +24,7 @@ Coverage targets
 [LOC-2] no bundled locale defines a key the English base does not have.
 [LOC-3] interpolation placeholders survive translation.
 [LOC-4] the en.js parser strips translator notes before reading placeholders.
+[LOC-5] no bundled locale contains another language's script (keyboard/paste slips).
 """
 
 from __future__ import annotations
@@ -184,3 +185,58 @@ def test_strip_trailing_comment(raw, expected):
     """[LOC-4] The guard on the guard: if this parser regressed to a naive regex,
     LOC-3 would go quietly green while reading placeholders out of prose."""
     assert _strip_trailing_comment(raw) == expected
+
+
+# ---------------------------------------------------------------------------
+# [LOC-5] no foreign-script contamination in a bundled locale
+# ---------------------------------------------------------------------------
+
+#: Scripts a given locale is EXPECTED to contain. A pack may legitimately carry
+#: Latin (product names, placeholders, brand words) on top of its own script, so
+#: only these four non-Latin scripts are policed — each is unmistakable and each
+#: appearing in the wrong pack means a copy/paste or keyboard slip, not a
+#: translation choice.
+_POLICED_SCRIPTS = ("CYRILLIC", "ARABIC", "HEBREW", "HANGUL")
+_EXPECTED_SCRIPT = {"ru": "CYRILLIC", "ar": "ARABIC", "he": "HEBREW", "ko": "HANGUL"}
+
+
+@pytest.mark.parametrize("locale", _bundled_locales(), ids=lambda p: p.stem)
+def test_bundled_locale_has_no_foreign_script(locale):
+    """[LOC-5] a pack must not contain a script belonging to another language.
+
+    Added after an Arabic string shipped with two CYRILLIC characters spliced
+    into the middle of a word — a keyboard slip that produced a plausible-looking
+    string. [LOC-1] passed (the key existed), [LOC-3] passed (placeholders were
+    intact), and nothing else looks at the VALUES at all, so it was invisible to
+    every existing gate and would have reached Arabic-speaking users as garbage
+    inside an otherwise correct sentence.
+
+    Deliberately narrow: only four unmistakable non-Latin scripts are policed,
+    and Latin is never flagged, because packs legitimately carry product names,
+    brand words and placeholders in Latin.
+    """
+    import unicodedata
+
+    data = json.loads(locale.read_text(encoding="utf-8"))
+    expected = _EXPECTED_SCRIPT.get(locale.stem)
+
+    offenders = []
+    for key, value in _flatten(data).items():
+        if not isinstance(value, str):
+            continue
+        present = set()
+        for ch in value:
+            if not ch.isalpha():
+                continue
+            try:
+                present.add(unicodedata.name(ch).split()[0])
+            except ValueError:
+                continue
+        for script in _POLICED_SCRIPTS:
+            if script in present and expected != script:
+                offenders.append(f"{key}: unexpected {script}")
+
+    assert not offenders, (
+        f"{locale.stem}.json contains characters from another language's script "
+        f"(likely a keyboard/paste slip):\n  " + "\n  ".join(sorted(set(offenders))[:10])
+    )

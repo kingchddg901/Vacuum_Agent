@@ -1031,7 +1031,31 @@
     "no_other_rooms": "Aucune autre pièce n'est disponible sur cette carte.",
     "save": "Enregistrer l'accès",
     "set_dock_room": "Définir comme pièce de la station",
-    "title": "Accès à {name}"
+    "title": "Accès à {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Cette pièce n'existe plus sur la carte active.",
+        "self_reference": "Une pièce ne peut pas s'accorder l'accès à elle-même.",
+        "duplicate_edges": "Chaque lien d'accès ne peut apparaître qu'une seule fois.",
+        "missing_room_references": "Tous les liens d'accès doivent pointer vers des pièces de la carte actuelle.",
+        "multiple_inbound": "{target} a déjà un lien entrant depuis {claimant}. Chaque pièce ne peut être atteinte que depuis une seule pièce.",
+        "cycle": "Cette configuration d'accès créerait une boucle dans le graphe des pièces."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} ne peut pas s'accorder l'accès à elle-même.",
+      "missing_room": "{room} fait toujours référence à la pièce manquante {missing_room}.",
+      "duplicate_edge": "{room} indique plusieurs fois la même cible d'accès pour {target}.",
+      "cycle_detected": "Les liens d'accès créent une boucle : {rooms}.",
+      "multiple_inbound": "{room} reçoit l'accès de plusieurs pièces ({sources}). Chaque pièce ne peut avoir qu'un seul lien entrant.",
+      "missing_dock_room": "Une pièce doit être désignée comme pièce de la base avant que les liens d'accès puissent être considérés comme corrects.",
+      "multiple_dock_rooms": "Une seule pièce de base est autorisée. Pièces actuelles : {rooms}.",
+      "missing_dependency": "{room} a besoin d'une dépendance entrante pour être accessible depuis {dock}.",
+      "unreachable_from_dock": "{room} n'est pas accessible depuis {dock} avec les liens d'accès actuels.",
+      "unknown_issue": "Le graphe d'accès contient un problème inconnu.",
+      "duplicate_edges": "{room} répète la même cible d'accès.",
+      "missing_room_references": "{room} fait référence à une pièce qui n'existe plus.",
+      "cycle": "Ces liens d'accès créeraient une boucle."
+    }
   },
   "room_card": {
     "carpet_notice": "Pièce avec moquette — champs de serpillière masqués",

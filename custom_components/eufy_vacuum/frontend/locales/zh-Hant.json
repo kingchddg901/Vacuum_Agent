@@ -1679,7 +1679,31 @@
     "no_other_rooms": "此地圖上沒有其他可用的房間。",
     "save": "儲存通行",
     "set_dock_room": "設為基站房間",
-    "title": "{name} 通行"
+    "title": "{name} 通行",
+    "issue": {
+      "card": {
+        "missing_room": "此房間已不在目前的地圖上。",
+        "self_reference": "房間無法對自身授予通行權限。",
+        "duplicate_edges": "每個通行連結只能出現一次。",
+        "missing_room_references": "所有通行連結都必須指向目前地圖上的房間。",
+        "multiple_inbound": "{target} 已有來自 {claimant} 的傳入連結。每個房間只能從一個房間到達。",
+        "cycle": "此通行設定會在房間關係圖中形成迴圈。"
+      },
+      "list_separator": "、",
+      "self_reference": "{room} 無法對自身授予通行權限。",
+      "missing_room": "{room} 仍在參照缺少的房間 {missing_room}。",
+      "duplicate_edge": "{room} 對 {target} 重複列出了相同的通行目標。",
+      "cycle_detected": "通行連結形成了迴圈：{rooms}。",
+      "multiple_inbound": "{room} 被多個房間（{sources}）授予通行權限。每個房間只能有一個傳入連結。",
+      "missing_dock_room": "必須先將某個房間標記為基座房間，通行連結才能視為正常。",
+      "multiple_dock_rooms": "只允許一個基座房間。目前的基座房間：{rooms}。",
+      "missing_dependency": "{room} 需要一個傳入相依性，才能從 {dock} 到達。",
+      "unreachable_from_dock": "依目前的通行連結，無法從 {dock} 到達 {room}。",
+      "unknown_issue": "通行關係圖中有未知的問題。",
+      "duplicate_edges": "{room} 重複了相同的通行目標。",
+      "missing_room_references": "{room} 參照了一個已不存在的房間。",
+      "cycle": "這些通行連結會形成迴圈。"
+    }
   },
   "room_profile": {
     "passes": {

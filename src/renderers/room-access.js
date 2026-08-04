@@ -15,6 +15,8 @@
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
  */
+import { accessIssueLabel } from "../state/access-issue-label.js";
+
 export function applyRoomAccessRenderers(proto) {
   /**
    * Render the room access editor modal. Returns empty string when closed.
@@ -125,7 +127,7 @@ export function applyRoomAccessRenderers(proto) {
                 <div class="evcc-field-label">${this.t("room_access.graph_issues_label")}</div>
                 <div class="evcc-room-access-issue-list">
                   ${validation.issues.map((issue) => `
-                    <div class="evcc-room-access-issue">${this.escapeHtml(issue.message ?? this.t("room_access.invalid_graph"))}</div>
+                    <div class="evcc-room-access-issue">${this.escapeHtml(accessIssueLabel(issue, (k, v) => this.t(k, v)))}</div>
                   `).join("")}
                 </div>
               </div>

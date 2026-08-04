@@ -319,7 +319,18 @@ class AccessGraphManager:
         issue: dict[str, Any],
         room_names: dict[int, str],
     ) -> dict[str, Any]:
-        """Convert one raw graph issue into a card-facing issue payload."""
+        """Convert one raw graph issue into a card-facing issue payload.
+
+        Returns ``{code, message, params, room_ids}``.
+
+        A6-AGX-4: ``message`` is ENGLISH PROSE built here and is kept unchanged —
+        it is the documented response-service surface (docs/advanced/03-services.md)
+        that automations and non-card consumers read, so it cannot move. ``params``
+        is the translation seam beside it: the values the sentence interpolates, as
+        strings, never pre-joined. List-valued params (``rooms``, ``sources``) stay
+        lists so the CARD chooses the separator — joining them here would bake an
+        English list convention into every locale.
+        """
         issue_type = str(issue.get("type", "")).strip().lower()
 
         if issue_type == "self_reference":
@@ -328,6 +339,7 @@ class AccessGraphManager:
             return {
                 "code": "self_reference",
                 "message": f"{room_label} cannot grant access to itself.",
+                "params": {"room": room_label},
                 "room_ids": [str(room_id)] if room_id > 0 else [],
             }
 
@@ -339,6 +351,7 @@ class AccessGraphManager:
             return {
                 "code": "missing_room",
                 "message": f"{room_label} still references missing room {missing_label}.",
+                "params": {"room": room_label, "missing_room": missing_label},
                 "room_ids": [
                     value
                     for value in (str(room_id) if room_id > 0 else None, str(target_room_id) if target_room_id > 0 else None)
@@ -354,6 +367,7 @@ class AccessGraphManager:
             return {
                 "code": "duplicate_edge",
                 "message": f"{room_label} has the same access target listed more than once for {target_label}.",
+                "params": {"room": room_label, "target": target_label},
                 "room_ids": [
                     value
                     for value in (str(room_id) if room_id > 0 else None, str(target_room_id) if target_room_id > 0 else None)
@@ -373,6 +387,7 @@ class AccessGraphManager:
                 "message": f"Access links create a loop: {' -> '.join(cycle_labels)}."
                 if cycle_labels
                 else "Access links create a loop.",
+                "params": {"rooms": list(cycle_labels)},
                 "room_ids": [str(room_id) for room_id in cycle_rooms],
             }
 
@@ -388,14 +403,24 @@ class AccessGraphManager:
             return {
                 "code": "multiple_inbound",
                 "message": f"{room_label} is granted access by more than one room ({', '.join(source_labels)}). Each room can only have one inbound link.",
-                "room_ids": [str(room_id) if room_id > 0 else None]
-                + [str(s) for s in source_ids],
+                "params": {"room": room_label, "sources": list(source_labels)},
+                # A6-AGX-4: this used to be
+                #   [str(room_id) if room_id > 0 else None] + [...]
+                # which put a literal None into the contract whenever room_id was
+                # unresolvable. Every sibling branch already filters; this one did
+                # not. A6-AGX-5's per-room filter has to defend against that None
+                # precisely because it could appear here.
+                "room_ids": (
+                    ([str(room_id)] if room_id > 0 else [])
+                    + [str(s) for s in source_ids]
+                ),
             }
 
         if issue_type == "missing_dock_room":
             return {
                 "code": "missing_dock_room",
                 "message": "One room must be marked as the dock room before access links can be considered healthy.",
+                "params": {},
                 "room_ids": [],
             }
 
@@ -411,6 +436,7 @@ class AccessGraphManager:
                 "message": f"Only one dock room is allowed. Current dock rooms: {', '.join(dock_labels)}."
                 if dock_labels
                 else "Only one dock room is allowed.",
+                "params": {"rooms": list(dock_labels)},
                 "room_ids": [str(room_id) for room_id in dock_rooms],
             }
 
@@ -422,6 +448,7 @@ class AccessGraphManager:
             return {
                 "code": "missing_dependency",
                 "message": f"{room_label} needs an inbound dependency so it can be reached from {dock_label}.",
+                "params": {"room": room_label, "dock": dock_label},
                 "room_ids": [
                     value
                     for value in (str(room_id) if room_id > 0 else None, str(dock_room_id) if dock_room_id > 0 else None)
@@ -437,6 +464,7 @@ class AccessGraphManager:
             return {
                 "code": "unreachable_from_dock",
                 "message": f"{room_label} is not reachable from {dock_label} through the current access links.",
+                "params": {"room": room_label, "dock": dock_label},
                 "room_ids": [
                     value
                     for value in (str(room_id) if room_id > 0 else None, str(dock_room_id) if dock_room_id > 0 else None)
@@ -447,6 +475,7 @@ class AccessGraphManager:
         return {
             "code": issue_type or "unknown_issue",
             "message": "The access graph contains an unknown issue.",
+            "params": {},
             "room_ids": [],
         }
 

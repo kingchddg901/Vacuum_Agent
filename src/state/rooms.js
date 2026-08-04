@@ -142,7 +142,12 @@ export function applyRoomsState(proto) {
 
     if (!knownRoomIds.has(targetRoomId)) {
       issues.push({
+        // A6-AGX-4: `scope` marks this as CARD-raised. The backend uses the same
+        // code for a different fault ("references a room that is gone"), so the
+        // resolver looks up room_access.issue.card.missing_room first.
         code: "missing_room",
+        scope: "card",
+        params: {},
         message: "This room no longer exists on the active map.",
       });
     }
@@ -150,6 +155,8 @@ export function applyRoomsState(proto) {
     if (selfReference) {
       issues.push({
         code: "self_reference",
+        scope: "card",
+        params: {},
         message: "A room cannot grant access to itself.",
       });
     }
@@ -157,6 +164,8 @@ export function applyRoomsState(proto) {
     if (duplicateRefs.length) {
       issues.push({
         code: "duplicate_edges",
+        scope: "card",
+        params: {},
         message: "Each access link can only appear once.",
         roomIds: Array.from(new Set(duplicateRefs)),
       });
@@ -165,6 +174,8 @@ export function applyRoomsState(proto) {
     if (missingRefs.length) {
       issues.push({
         code: "missing_room_references",
+        scope: "card",
+        params: {},
         message: "All access links must point to rooms on the current map.",
         roomIds: missingRefs,
       });
@@ -189,6 +200,10 @@ export function applyRoomsState(proto) {
         const targetName = roomNamesById[ref] ?? `Room ${ref}`;
         issues.push({
           code: "multiple_inbound",
+          scope: "card",
+          params: { target: targetName, claimant: claimantName },
+          // Kept as the fallback AND because it is the only rung that works
+          // before a locale pack ships the key.
           message: `${targetName} already has an inbound link from ${claimantName}. Each room can only be reached from one room.`,
           roomIds: [ref, claimedBy].filter(Boolean),
         });
@@ -200,6 +215,8 @@ export function applyRoomsState(proto) {
     if (!issues.length && this._roomAccessGraphHasCycle(adjacency)) {
       issues.push({
         code: "cycle",
+        scope: "card",
+        params: {},
         message: "This access setup would create a loop in the room graph.",
       });
     }

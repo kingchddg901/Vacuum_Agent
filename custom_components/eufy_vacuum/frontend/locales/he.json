@@ -1715,7 +1715,31 @@
     "no_other_rooms": "אין חדרים אחרים זמינים במפה זו.",
     "save": "שמור גישה",
     "set_dock_room": "הגדר כחדר עגינה",
-    "title": "גישת {name}"
+    "title": "גישת {name}",
+    "issue": {
+      "card": {
+        "missing_room": "חדר זה כבר אינו קיים במפה הפעילה.",
+        "self_reference": "חדר אינו יכול להעניק גישה לעצמו.",
+        "duplicate_edges": "כל קישור גישה יכול להופיע פעם אחת בלבד.",
+        "missing_room_references": "כל קישורי הגישה חייבים להצביע על חדרים במפה הנוכחית.",
+        "multiple_inbound": "ל־{target} כבר יש קישור נכנס מ־{claimant}. ניתן להגיע לכל חדר מחדר אחד בלבד.",
+        "cycle": "הגדרת גישה זו תיצור לולאה בגרף החדרים."
+      },
+      "list_separator": ", ",
+      "self_reference": "החדר {room} אינו יכול להעניק גישה לעצמו.",
+      "missing_room": "החדר {room} עדיין מפנה לחדר החסר {missing_room}.",
+      "duplicate_edge": "בחדר {room} אותו יעד גישה אל {target} מופיע יותר מפעם אחת.",
+      "cycle_detected": "קישורי הגישה יוצרים לולאה: {rooms}.",
+      "multiple_inbound": "לחדר {room} מוענקת גישה מיותר מחדר אחד ({sources}). לכל חדר יכול להיות קישור נכנס אחד בלבד.",
+      "missing_dock_room": "יש לסמן חדר אחד כחדר העגינה לפני שקישורי הגישה ייחשבו תקינים.",
+      "multiple_dock_rooms": "מותר חדר עגינה אחד בלבד. חדרי העגינה הנוכחיים: {rooms}.",
+      "missing_dependency": "החדר {room} זקוק לתלות נכנסת כדי שניתן יהיה להגיע אליו מ־{dock}.",
+      "unreachable_from_dock": "לא ניתן להגיע אל {room} מ־{dock} באמצעות קישורי הגישה הנוכחיים.",
+      "unknown_issue": "גרף הגישה מכיל בעיה לא ידועה.",
+      "duplicate_edges": "החדר {room} חוזר על אותו יעד גישה.",
+      "missing_room_references": "החדר {room} מפנה לחדר שכבר אינו קיים.",
+      "cycle": "קישורי גישה אלה ייצרו לולאה."
+    }
   },
   "room_profile": {
     "passes": {

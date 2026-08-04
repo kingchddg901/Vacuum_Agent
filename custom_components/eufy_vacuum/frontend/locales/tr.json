@@ -2323,7 +2323,31 @@
     "no_other_rooms": "Bu haritada başka oda yok.",
     "save": "Erişimi Kaydet",
     "set_dock_room": "Şarj İstasyonu Odası Olarak Ayarla",
-    "title": "{name} Erişimi"
+    "title": "{name} Erişimi",
+    "issue": {
+      "card": {
+        "missing_room": "Bu oda artık etkin haritada yok.",
+        "self_reference": "Bir oda kendisine erişim veremez.",
+        "duplicate_edges": "Her erişim bağlantısı yalnızca bir kez görünebilir.",
+        "missing_room_references": "Tüm erişim bağlantıları geçerli haritadaki odalara işaret etmelidir.",
+        "multiple_inbound": "{target} zaten {claimant} kaynağından gelen bir bağlantıya sahip. Her odaya yalnızca tek bir odadan ulaşılabilir.",
+        "cycle": "Bu erişim ayarı oda grafiğinde bir döngü oluştururdu."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} kendisine erişim veremez.",
+      "missing_room": "{room} hâlâ eksik oda {missing_room} öğesine başvuruyor.",
+      "duplicate_edge": "{room}, {target} için aynı erişim hedefini birden fazla kez listeliyor.",
+      "cycle_detected": "Erişim bağlantıları bir döngü oluşturuyor: {rooms}.",
+      "multiple_inbound": "{room} birden fazla odadan erişim alıyor ({sources}). Her odanın yalnızca bir gelen bağlantısı olabilir.",
+      "missing_dock_room": "Erişim bağlantılarının sağlıklı sayılabilmesi için bir oda şarj istasyonu odası olarak işaretlenmelidir.",
+      "multiple_dock_rooms": "Yalnızca bir şarj istasyonu odasına izin verilir. Mevcut odalar: {rooms}.",
+      "missing_dependency": "{room} odasına {dock} konumundan ulaşılabilmesi için gelen bir bağımlılık gerekiyor.",
+      "unreachable_from_dock": "{room} odasına mevcut erişim bağlantılarıyla {dock} konumundan ulaşılamıyor.",
+      "unknown_issue": "Erişim grafiği bilinmeyen bir sorun içeriyor.",
+      "duplicate_edges": "{room} aynı erişim hedefini tekrarlıyor.",
+      "missing_room_references": "{room} artık var olmayan bir odaya başvuruyor.",
+      "cycle": "Bu erişim bağlantıları bir döngü oluştururdu."
+    }
   },
   "bind_setup": {
     "failed_add_vacuum": "Robot süpürge eklenemedi: {error}",

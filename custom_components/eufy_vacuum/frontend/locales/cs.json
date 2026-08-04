@@ -2323,7 +2323,31 @@
     "no_other_rooms": "Na této mapě nejsou k dispozici žádné další místnosti.",
     "save": "Uložit přístup",
     "set_dock_room": "Nastavit jako místnost s dokem",
-    "title": "Přístup: {name}"
+    "title": "Přístup: {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Tato místnost již na aktivní mapě neexistuje.",
+        "self_reference": "Místnost nemůže udělit přístup sama sobě.",
+        "duplicate_edges": "Každé propojení přístupu se může objevit pouze jednou.",
+        "missing_room_references": "Všechna propojení přístupu musí odkazovat na místnosti na aktuální mapě.",
+        "multiple_inbound": "{target} již má příchozí propojení z {claimant}. Každá místnost může být dosažitelná jen z jedné místnosti.",
+        "cycle": "Toto nastavení přístupu by vytvořilo smyčku v grafu místností."
+      },
+      "list_separator": ", ",
+      "self_reference": "Místnost {room} nemůže udělit přístup sama sobě.",
+      "missing_room": "Místnost {room} stále odkazuje na chybějící místnost {missing_room}.",
+      "duplicate_edge": "Místnost {room} uvádí stejný cíl přístupu pro {target} více než jednou.",
+      "cycle_detected": "Propojení přístupu tvoří smyčku: {rooms}.",
+      "multiple_inbound": "Místnost {room} získává přístup z více než jedné místnosti ({sources}). Každá místnost může mít jen jedno příchozí propojení.",
+      "missing_dock_room": "Jedna místnost musí být označena jako místnost s dokem, než lze propojení přístupu považovat za správná.",
+      "multiple_dock_rooms": "Je povolena pouze jedna místnost s dokem. Aktuální místnosti: {rooms}.",
+      "missing_dependency": "Místnost {room} potřebuje příchozí závislost, aby byla dosažitelná z {dock}.",
+      "unreachable_from_dock": "Místnost {room} není se současnými propojeními přístupu dosažitelná z {dock}.",
+      "unknown_issue": "Graf přístupu obsahuje neznámý problém.",
+      "duplicate_edges": "Místnost {room} opakuje stejný cíl přístupu.",
+      "missing_room_references": "Místnost {room} odkazuje na místnost, která již neexistuje.",
+      "cycle": "Tato propojení přístupu by vytvořila smyčku."
+    }
   },
   "bind_setup": {
     "failed_add_vacuum": "Nepodařilo se přidat vysavač: {error}",

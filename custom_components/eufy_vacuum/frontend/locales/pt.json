@@ -1031,7 +1031,31 @@
     "no_other_rooms": "Não há outras divisões disponíveis neste mapa.",
     "save": "Guardar acesso",
     "set_dock_room": "Definir como divisão da base",
-    "title": "Acesso a {name}"
+    "title": "Acesso a {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Esta divisão já não existe no mapa ativo.",
+        "self_reference": "Uma divisão não pode conceder acesso a si própria.",
+        "duplicate_edges": "Cada ligação de acesso só pode aparecer uma vez.",
+        "missing_room_references": "Todas as ligações de acesso têm de apontar para divisões do mapa atual.",
+        "multiple_inbound": "{target} já tem uma ligação de entrada de {claimant}. Cada divisão só pode ser alcançada a partir de uma divisão.",
+        "cycle": "Esta configuração de acesso criaria um ciclo no grafo das divisões."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} não pode conceder acesso a si própria.",
+      "missing_room": "{room} ainda faz referência à divisão em falta {missing_room}.",
+      "duplicate_edge": "{room} tem o mesmo destino de acesso listado mais do que uma vez para {target}.",
+      "cycle_detected": "As ligações de acesso criam um ciclo: {rooms}.",
+      "multiple_inbound": "{room} recebe acesso de mais do que uma divisão ({sources}). Cada divisão só pode ter uma ligação de entrada.",
+      "missing_dock_room": "Uma divisão tem de ser marcada como divisão da base antes de as ligações de acesso serem consideradas corretas.",
+      "multiple_dock_rooms": "Só é permitida uma divisão da base. Divisões atuais: {rooms}.",
+      "missing_dependency": "{room} precisa de uma dependência de entrada para poder ser alcançada a partir de {dock}.",
+      "unreachable_from_dock": "{room} não é alcançável a partir de {dock} com as ligações de acesso atuais.",
+      "unknown_issue": "O grafo de acesso contém um problema desconhecido.",
+      "duplicate_edges": "{room} repete o mesmo destino de acesso.",
+      "missing_room_references": "{room} faz referência a uma divisão que já não existe.",
+      "cycle": "Estas ligações de acesso criariam um ciclo."
+    }
   },
   "room_card": {
     "carpet_notice": "Divisão com alcatifa — campos de mopa ocultos",

@@ -2323,7 +2323,31 @@
     "no_other_rooms": "Tidak ada ruangan lain yang tersedia di peta ini.",
     "save": "Simpan Akses",
     "set_dock_room": "Jadikan Ruangan Dok",
-    "title": "Akses {name}"
+    "title": "Akses {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Ruangan ini sudah tidak ada di peta aktif.",
+        "self_reference": "Ruangan tidak dapat memberikan akses ke dirinya sendiri.",
+        "duplicate_edges": "Setiap tautan akses hanya boleh muncul sekali.",
+        "missing_room_references": "Semua tautan akses harus mengarah ke ruangan di peta saat ini.",
+        "multiple_inbound": "{target} sudah memiliki tautan masuk dari {claimant}. Setiap ruangan hanya dapat dijangkau dari satu ruangan.",
+        "cycle": "Pengaturan akses ini akan membentuk lingkaran dalam grafik ruangan."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} tidak dapat memberikan akses ke dirinya sendiri.",
+      "missing_room": "{room} masih merujuk ke ruangan yang hilang {missing_room}.",
+      "duplicate_edge": "{room} mencantumkan target akses yang sama lebih dari sekali untuk {target}.",
+      "cycle_detected": "Tautan akses membentuk lingkaran: {rooms}.",
+      "multiple_inbound": "{room} diberi akses oleh lebih dari satu ruangan ({sources}). Setiap ruangan hanya boleh memiliki satu tautan masuk.",
+      "missing_dock_room": "Satu ruangan harus ditandai sebagai ruangan dok sebelum tautan akses dianggap sehat.",
+      "multiple_dock_rooms": "Hanya satu ruangan dok yang diizinkan. Ruangan dok saat ini: {rooms}.",
+      "missing_dependency": "{room} memerlukan dependensi masuk agar dapat dijangkau dari {dock}.",
+      "unreachable_from_dock": "{room} tidak dapat dijangkau dari {dock} melalui tautan akses saat ini.",
+      "unknown_issue": "Grafik akses berisi masalah yang tidak dikenal.",
+      "duplicate_edges": "{room} mengulang target akses yang sama.",
+      "missing_room_references": "{room} merujuk ke ruangan yang sudah tidak ada.",
+      "cycle": "Tautan akses ini akan membentuk lingkaran."
+    }
   },
   "bind_setup": {
     "failed_add_vacuum": "Gagal menambahkan penyedot debu: {error}",

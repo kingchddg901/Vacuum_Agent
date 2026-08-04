@@ -15,6 +15,8 @@
  *
  * @param {object} proto - VacuumCardBindings prototype to extend.
  */
+import { accessIssueLabel } from "../state/access-issue-label.js";
+
 export function applyRoomAccessBindings(proto) {
   proto._bindRoomAccess = function () {
     // Access modal lives in the external modal host, so there is
@@ -87,7 +89,7 @@ export function applyRoomAccessBindings(proto) {
           ) {
             const message =
               (Array.isArray(result?.issues) && result.issues.length
-                ? result.issues.map((issue) => issue?.message ?? String(issue)).join(" ")
+                ? result.issues.map((issue) => accessIssueLabel(issue, (k, v) => this.t(k, v))).join(" ")
                 : null) ??
               result?.reason_detail ??
               result?.message ??

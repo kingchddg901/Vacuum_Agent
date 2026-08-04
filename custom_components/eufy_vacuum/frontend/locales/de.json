@@ -1019,7 +1019,31 @@
     "no_other_rooms": "Auf dieser Karte sind keine anderen Räume verfügbar.",
     "save": "Zugang speichern",
     "set_dock_room": "Als Stationsraum festlegen",
-    "title": "Zugang zu {name}"
+    "title": "Zugang zu {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Dieser Raum existiert auf der aktiven Karte nicht mehr.",
+        "self_reference": "Ein Raum kann sich nicht selbst Zugang gewähren.",
+        "duplicate_edges": "Jede Zugangsverknüpfung darf nur einmal vorkommen.",
+        "missing_room_references": "Alle Zugangsverknüpfungen müssen auf Räume der aktuellen Karte verweisen.",
+        "multiple_inbound": "{target} hat bereits eine eingehende Verknüpfung von {claimant}. Jeder Raum kann nur von einem Raum aus erreicht werden.",
+        "cycle": "Diese Zugangseinstellung würde eine Schleife im Raumgraphen erzeugen."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} kann sich nicht selbst Zugang gewähren.",
+      "missing_room": "{room} verweist noch auf den fehlenden Raum {missing_room}.",
+      "duplicate_edge": "{room} führt dasselbe Zugangsziel für {target} mehrfach auf.",
+      "cycle_detected": "Die Zugangsverknüpfungen bilden eine Schleife: {rooms}.",
+      "multiple_inbound": "{room} erhält von mehr als einem Raum Zugang ({sources}). Jeder Raum kann nur eine eingehende Verknüpfung haben.",
+      "missing_dock_room": "Ein Raum muss als Dock-Raum markiert werden, bevor die Zugangsverknüpfungen als fehlerfrei gelten.",
+      "multiple_dock_rooms": "Es ist nur ein Dock-Raum zulässig. Aktuelle Dock-Räume: {rooms}.",
+      "missing_dependency": "{room} benötigt eine eingehende Abhängigkeit, damit der Raum von {dock} aus erreichbar ist.",
+      "unreachable_from_dock": "{room} ist über die aktuellen Zugangsverknüpfungen nicht von {dock} aus erreichbar.",
+      "unknown_issue": "Der Zugangsgraph enthält ein unbekanntes Problem.",
+      "duplicate_edges": "{room} führt dasselbe Zugangsziel mehrfach auf.",
+      "missing_room_references": "{room} verweist auf einen Raum, der nicht mehr existiert.",
+      "cycle": "Diese Zugangsverknüpfungen würden eine Schleife bilden."
+    }
   },
   "room_card": {
     "carpet_notice": "Teppichraum — Wischfelder ausgeblendet",

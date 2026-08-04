@@ -1031,7 +1031,31 @@
     "no_other_rooms": "No hay otras habitaciones disponibles en este mapa.",
     "save": "Guardar acceso",
     "set_dock_room": "Establecer como habitación de la base",
-    "title": "Acceso de {name}"
+    "title": "Acceso de {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Esta habitación ya no existe en el mapa activo.",
+        "self_reference": "Una habitación no puede concederse acceso a sí misma.",
+        "duplicate_edges": "Cada enlace de acceso solo puede aparecer una vez.",
+        "missing_room_references": "Todos los enlaces de acceso deben apuntar a habitaciones del mapa actual.",
+        "multiple_inbound": "{target} ya tiene un enlace entrante desde {claimant}. Cada habitación solo puede alcanzarse desde una habitación.",
+        "cycle": "Esta configuración de acceso crearía un bucle en el gráfico de habitaciones."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} no puede concederse acceso a sí misma.",
+      "missing_room": "{room} sigue haciendo referencia a la habitación ausente {missing_room}.",
+      "duplicate_edge": "{room} tiene el mismo destino de acceso repetido para {target}.",
+      "cycle_detected": "Los enlaces de acceso crean un bucle: {rooms}.",
+      "multiple_inbound": "{room} recibe acceso de más de una habitación ({sources}). Cada habitación solo puede tener un enlace entrante.",
+      "missing_dock_room": "Debe marcarse una habitación como habitación de la base antes de que los enlaces de acceso se consideren correctos.",
+      "multiple_dock_rooms": "Solo se permite una habitación de la base. Habitaciones actuales: {rooms}.",
+      "missing_dependency": "{room} necesita una dependencia entrante para poder alcanzarse desde {dock}.",
+      "unreachable_from_dock": "No se puede llegar a {room} desde {dock} con los enlaces de acceso actuales.",
+      "unknown_issue": "El gráfico de acceso contiene un problema desconocido.",
+      "duplicate_edges": "{room} repite el mismo destino de acceso.",
+      "missing_room_references": "{room} hace referencia a una habitación que ya no existe.",
+      "cycle": "Estos enlaces de acceso crearían un bucle."
+    }
   },
   "room_card": {
     "carpet_notice": "Habitación con alfombra; campos de mopa ocultos",

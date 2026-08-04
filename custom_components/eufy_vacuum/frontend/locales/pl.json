@@ -2323,7 +2323,31 @@
     "no_other_rooms": "Brak innych pokoi dostępnych na tej mapie.",
     "save": "Zapisz dostęp",
     "set_dock_room": "Ustaw jako pokój ze stacją dokującą",
-    "title": "Dostęp: {name}"
+    "title": "Dostęp: {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Ten pokój już nie istnieje na aktywnej mapie.",
+        "self_reference": "Pokój nie może przyznać dostępu samemu sobie.",
+        "duplicate_edges": "Każde powiązanie dostępu może wystąpić tylko raz.",
+        "missing_room_references": "Wszystkie powiązania dostępu muszą wskazywać pokoje na bieżącej mapie.",
+        "multiple_inbound": "{target} ma już powiązanie przychodzące z {claimant}. Każdy pokój może być osiągalny tylko z jednego pokoju.",
+        "cycle": "Ta konfiguracja dostępu utworzyłaby pętlę w grafie pokoi."
+      },
+      "list_separator": ", ",
+      "self_reference": "Pokój {room} nie może przyznać dostępu samemu sobie.",
+      "missing_room": "Pokój {room} nadal odwołuje się do brakującego pokoju {missing_room}.",
+      "duplicate_edge": "Pokój {room} ma ten sam cel dostępu wymieniony więcej niż raz dla {target}.",
+      "cycle_detected": "Powiązania dostępu tworzą pętlę: {rooms}.",
+      "multiple_inbound": "Pokój {room} otrzymuje dostęp z więcej niż jednego pokoju ({sources}). Każdy pokój może mieć tylko jedno powiązanie przychodzące.",
+      "missing_dock_room": "Jeden pokój musi zostać oznaczony jako pokój ze stacją, zanim powiązania dostępu będą uznane za poprawne.",
+      "multiple_dock_rooms": "Dozwolony jest tylko jeden pokój ze stacją. Obecne pokoje: {rooms}.",
+      "missing_dependency": "Pokój {room} potrzebuje powiązania przychodzącego, aby był osiągalny z {dock}.",
+      "unreachable_from_dock": "Pokój {room} nie jest osiągalny z {dock} przy obecnych powiązaniach dostępu.",
+      "unknown_issue": "Graf dostępu zawiera nieznany problem.",
+      "duplicate_edges": "Pokój {room} powtarza ten sam cel dostępu.",
+      "missing_room_references": "Pokój {room} odwołuje się do pokoju, który już nie istnieje.",
+      "cycle": "Te powiązania dostępu utworzyłyby pętlę."
+    }
   },
   "bind_setup": {
     "failed_add_vacuum": "Nie udało się dodać odkurzacza: {error}",

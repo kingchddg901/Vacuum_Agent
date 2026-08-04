@@ -1679,7 +1679,31 @@
     "no_other_rooms": "이 지도에 사용 가능한 다른 방이 없습니다.",
     "save": "접근 저장",
     "set_dock_room": "도크 방으로 설정",
-    "title": "{name} 접근"
+    "title": "{name} 접근",
+    "issue": {
+      "card": {
+        "missing_room": "이 방은 활성 지도에 더 이상 존재하지 않습니다.",
+        "self_reference": "방은 자기 자신에게 접근을 허용할 수 없습니다.",
+        "duplicate_edges": "각 접근 연결은 한 번만 나타날 수 있습니다.",
+        "missing_room_references": "모든 접근 연결은 현재 지도의 방을 가리켜야 합니다.",
+        "multiple_inbound": "{target}에는 이미 {claimant}에서의 인바운드 연결이 있습니다. 각 방은 하나의 방에서만 도달할 수 있습니다.",
+        "cycle": "이 접근 설정은 방 그래프에 순환을 만듭니다."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room}은(는) 자기 자신에게 접근을 허용할 수 없습니다.",
+      "missing_room": "{room}이(가) 없는 방 {missing_room}을(를) 여전히 참조하고 있습니다.",
+      "duplicate_edge": "{room}에 {target}에 대한 동일한 접근 대상이 여러 번 등록되어 있습니다.",
+      "cycle_detected": "접근 연결이 순환을 만듭니다: {rooms}.",
+      "multiple_inbound": "{room}이(가) 두 개 이상의 방({sources})에서 접근을 부여받았습니다. 각 방은 하나의 인바운드 연결만 가질 수 있습니다.",
+      "missing_dock_room": "접근 연결이 정상으로 간주되려면 한 방을 도크 방으로 지정해야 합니다.",
+      "multiple_dock_rooms": "도크 방은 하나만 허용됩니다. 현재 도크 방: {rooms}.",
+      "missing_dependency": "{room}에 {dock}에서 도달하려면 인바운드 종속성이 필요합니다.",
+      "unreachable_from_dock": "현재 접근 연결로는 {dock}에서 {room}에 도달할 수 없습니다.",
+      "unknown_issue": "접근 그래프에 알 수 없는 문제가 있습니다.",
+      "duplicate_edges": "{room}에서 동일한 접근 대상이 반복됩니다.",
+      "missing_room_references": "{room}이(가) 더 이상 존재하지 않는 방을 참조합니다.",
+      "cycle": "이 접근 연결은 순환을 만들게 됩니다."
+    }
   },
   "room_profile": {
     "passes": {

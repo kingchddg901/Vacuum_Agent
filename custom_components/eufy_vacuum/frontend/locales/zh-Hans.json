@@ -1679,7 +1679,31 @@
     "no_other_rooms": "此地图上没有其他可用房间。",
     "save": "保存访问",
     "set_dock_room": "设为基站房间",
-    "title": "{name} 访问"
+    "title": "{name} 访问",
+    "issue": {
+      "card": {
+        "missing_room": "该房间已不在当前地图上。",
+        "self_reference": "房间无法向自身授予通行权限。",
+        "duplicate_edges": "每个通行链接只能出现一次。",
+        "missing_room_references": "所有通行链接都必须指向当前地图上的房间。",
+        "multiple_inbound": "{target} 已有来自 {claimant} 的入站链接。每个房间只能从一个房间到达。",
+        "cycle": "此通行设置会在房间关系图中形成循环。"
+      },
+      "list_separator": "、",
+      "self_reference": "{room} 无法向自身授予通行权限。",
+      "missing_room": "{room} 仍在引用缺失的房间 {missing_room}。",
+      "duplicate_edge": "{room} 对 {target} 重复列出了相同的通行目标。",
+      "cycle_detected": "通行链接形成了循环：{rooms}。",
+      "multiple_inbound": "{room} 被多个房间（{sources}）授予通行权限。每个房间只能有一个入站链接。",
+      "missing_dock_room": "必须先将某个房间标记为基站房间，通行链接才能被视为正常。",
+      "multiple_dock_rooms": "只允许一个基站房间。当前基站房间：{rooms}。",
+      "missing_dependency": "{room} 需要一个入站依赖，才能从 {dock} 到达。",
+      "unreachable_from_dock": "按照当前的通行链接，无法从 {dock} 到达 {room}。",
+      "unknown_issue": "通行关系图中存在未知问题。",
+      "duplicate_edges": "{room} 重复了相同的通行目标。",
+      "missing_room_references": "{room} 引用了一个已不存在的房间。",
+      "cycle": "这些通行链接会形成循环。"
+    }
   },
   "room_profile": {
     "passes": {

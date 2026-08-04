@@ -1019,7 +1019,31 @@
     "no_other_rooms": "Er zijn geen andere kamers beschikbaar op deze kaart.",
     "save": "Toegang opslaan",
     "set_dock_room": "Instellen als dockkamer",
-    "title": "Toegang tot {name}"
+    "title": "Toegang tot {name}",
+    "issue": {
+      "card": {
+        "missing_room": "Deze kamer bestaat niet meer op de actieve kaart.",
+        "self_reference": "Een kamer kan zichzelf geen toegang verlenen.",
+        "duplicate_edges": "Elke toegangskoppeling mag maar één keer voorkomen.",
+        "missing_room_references": "Alle toegangskoppelingen moeten naar kamers op de huidige kaart verwijzen.",
+        "multiple_inbound": "{target} heeft al een inkomende koppeling van {claimant}. Elke kamer kan maar vanuit één kamer worden bereikt.",
+        "cycle": "Deze toegangsinstelling zou een lus in de kamergraaf maken."
+      },
+      "list_separator": ", ",
+      "self_reference": "{room} kan zichzelf geen toegang verlenen.",
+      "missing_room": "{room} verwijst nog naar de ontbrekende kamer {missing_room}.",
+      "duplicate_edge": "{room} vermeldt hetzelfde toegangsdoel meerdere keren voor {target}.",
+      "cycle_detected": "De toegangskoppelingen vormen een lus: {rooms}.",
+      "multiple_inbound": "{room} krijgt toegang van meer dan één kamer ({sources}). Elke kamer kan maar één inkomende koppeling hebben.",
+      "missing_dock_room": "Eén kamer moet als dockkamer worden gemarkeerd voordat de toegangskoppelingen als gezond gelden.",
+      "multiple_dock_rooms": "Er is maar één dockkamer toegestaan. Huidige dockkamers: {rooms}.",
+      "missing_dependency": "{room} heeft een inkomende afhankelijkheid nodig om vanaf {dock} bereikbaar te zijn.",
+      "unreachable_from_dock": "{room} is met de huidige toegangskoppelingen niet bereikbaar vanaf {dock}.",
+      "unknown_issue": "De toegangsgraaf bevat een onbekend probleem.",
+      "duplicate_edges": "{room} herhaalt hetzelfde toegangsdoel.",
+      "missing_room_references": "{room} verwijst naar een kamer die niet meer bestaat.",
+      "cycle": "Deze toegangskoppelingen zouden een lus vormen."
+    }
   },
   "room_card": {
     "carpet_notice": "Tapijtkamer — dweilvelden verborgen",

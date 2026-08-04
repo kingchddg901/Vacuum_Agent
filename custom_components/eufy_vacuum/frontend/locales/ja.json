@@ -1679,7 +1679,31 @@
     "no_other_rooms": "このマップには他に利用できる部屋がありません。",
     "save": "アクセスを保存",
     "set_dock_room": "ドック部屋に設定",
-    "title": "{name}のアクセス"
+    "title": "{name}のアクセス",
+    "issue": {
+      "card": {
+        "missing_room": "この部屋はアクティブなマップに存在しません。",
+        "self_reference": "部屋は自分自身にアクセスを許可できません。",
+        "duplicate_edges": "各アクセスリンクは 1 回しか指定できません。",
+        "missing_room_references": "すべてのアクセスリンクは現在のマップ上の部屋を指す必要があります。",
+        "multiple_inbound": "{target} には既に {claimant} からの受信リンクがあります。各部屋には 1 つの部屋からのみ到達できます。",
+        "cycle": "このアクセス設定は部屋グラフにループを作成します。"
+      },
+      "list_separator": "、",
+      "self_reference": "{room} は自分自身にアクセスを許可できません。",
+      "missing_room": "{room} は存在しない部屋 {missing_room} を参照したままです。",
+      "duplicate_edge": "{room} で {target} への同じアクセス先が複数回指定されています。",
+      "cycle_detected": "アクセスのリンクがループになっています: {rooms}。",
+      "multiple_inbound": "{room} は複数の部屋（{sources}）からアクセスを許可されています。各部屋が持てる受信リンクは 1 つだけです。",
+      "missing_dock_room": "アクセスのリンクを正常と判定するには、いずれかの部屋をドック部屋に設定してください。",
+      "multiple_dock_rooms": "ドック部屋は 1 つだけ設定できます。現在のドック部屋: {rooms}。",
+      "missing_dependency": "{room} を {dock} から到達可能にするには、受信側の依存関係が必要です。",
+      "unreachable_from_dock": "現在のアクセスのリンクでは、{room} に {dock} から到達できません。",
+      "unknown_issue": "アクセスグラフに不明な問題があります。",
+      "duplicate_edges": "{room} で同じアクセス先が繰り返されています。",
+      "missing_room_references": "{room} は既に存在しない部屋を参照しています。",
+      "cycle": "このアクセスのリンクはループを作成します。"
+    }
   },
   "room_profile": {
     "passes": {
