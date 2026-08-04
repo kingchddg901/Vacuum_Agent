@@ -100,6 +100,30 @@ def _hours_text(value: Any) -> str | None:
     return f"{rounded:g} hours"
 
 
+def _hours_summary(value: Any, suffix: str) -> str | None:
+    """``"<hours label> <suffix>"``, or None when the value has no hours label.
+
+    GUARD THE RESULT, NOT THE INPUT. The four call sites below used to read
+    ``_hours_text(value) + " suffix" if value is not None else None`` — but
+    ``value is not None`` is NOT the condition under which _hours_text returns a
+    string. It also returns None for a NEGATIVE number (line above) and for
+    anything non-numeric. An overdue consumable reports negative remaining hours,
+    passes the ``is not None`` guard, and lands on ``None + str`` → TypeError.
+
+    Found in a user's diagnostics rather than by audit (Roborock Q5, issue #46
+    thread): ``upkeep_snapshot_error: TypeError("unsupported operand type(s) for
+    +: 'NoneType' and 'str'")``. It surfaced there only because diagnostics.py
+    wraps this call in try/except — ``get_upkeep_snapshot`` is ALSO on
+    ``get_dashboard_snapshot``'s path (core/manager.py) with no guard of its own,
+    so the same overdue consumable takes out the card's whole data source.
+
+    Both copies of _hours_text have tests asserting None-for-negative ([MNT-3],
+    [CMH-2]); nothing exercised a CALL SITE with one.
+    """
+    text = _hours_text(value)
+    return f"{text} {suffix}" if text else None
+
+
 # ---------------------------------------------------------------------------
 # Pure-function status helpers
 # ---------------------------------------------------------------------------
@@ -425,13 +449,9 @@ class MaintenanceManager:
                 "remaining_summary": (
                     f"{round(remaining_percent)}% remaining"
                     if remaining_percent is not None
-                    else (_hours_text(replacement_hours) + " remaining" if replacement_hours is not None else None)
+                    else _hours_summary(replacement_hours, "remaining")
                 ),
-                "usage_summary": (
-                    _hours_text(usage_hours) + " used"
-                    if usage_hours is not None
-                    else None
-                ),
+                "usage_summary": _hours_summary(usage_hours, "used"),
                 "guide": self._get_upkeep_item_guide(
                     vacuum_entity_id=vacuum_entity_id,
                     model_code=model_code,
@@ -514,12 +534,10 @@ class MaintenanceManager:
                 "remaining_summary": (
                     f"{round(remaining_percent)}% remaining"
                     if remaining_percent is not None
-                    else (_hours_text(maint.get("remaining_hours")) + " left" if maint.get("remaining_hours") is not None else None)
+                    else _hours_summary(maint.get("remaining_hours"), "left")
                 ),
-                "usage_summary": (
-                    _hours_text(maint.get("used_since_reset_hours")) + " used since reset"
-                    if maint.get("used_since_reset_hours") is not None
-                    else None
+                "usage_summary": _hours_summary(
+                    maint.get("used_since_reset_hours"), "used since reset"
                 ),
                 "guide": self._get_upkeep_item_guide(
                     vacuum_entity_id=vacuum_entity_id,

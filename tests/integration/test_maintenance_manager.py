@@ -31,6 +31,8 @@ Coverage targets
 [MNT-19] RF-33 cont'd: get_maintenance_remaining reuses a passed-in `capabilities`
          dict instead of re-fetching — the seam get_upkeep_snapshot's per-component
          loop relies on to stay inert.
+[MNT-20] an OVERDUE consumable (negative hours) does not crash get_upkeep_snapshot —
+         the summary call sites must guard the RESULT of _hours_text, not the input.
 """
 
 from __future__ import annotations
@@ -501,3 +503,46 @@ def test_maintenance_remaining_default_still_self_heals(mnt, manager, monkeypatc
     )
     assert calls == [_VAC]
     assert result["source_entity"] == _SRC
+
+
+def test_upkeep_snapshot_overdue_consumable_does_not_raise(hass, manager, mnt, monkeypatch):
+    """[MNT-20] an OVERDUE consumable (NEGATIVE hours) must not crash the snapshot.
+
+    Regression for a TypeError found in a real user's diagnostics rather than by
+    audit (Roborock Q5, issue #46 thread):
+
+        upkeep_snapshot_error: TypeError("unsupported operand type(s) for +:
+                                         'NoneType' and 'str'")
+
+    The four summary call sites guarded the INPUT (``x is not None``) and then
+    concatenated ``_hours_text(x) + " suffix"`` — but _hours_text also returns
+    None for a NEGATIVE number, which is exactly what an upstream `*_time_left`
+    sensor reports once a part is past its service life. The guard was true, the
+    helper still returned None, and the concatenation raised.
+
+    It matters beyond diagnostics: diagnostics.py wraps this call in try/except
+    (which is the only reason it showed up as a field instead of a stack trace),
+    but get_upkeep_snapshot is ALSO on get_dashboard_snapshot's path with no
+    guard — so one overdue brush took out the card's whole data source.
+
+    [MNT-3] already asserts _hours_text(-1) is None; nothing exercised a CALL
+    SITE with one. This test is deliberately at the snapshot level for that
+    reason. State "-12" with no total_life_hours leaves remaining_percent None,
+    so remaining_summary takes the hours branch too — both broken sites at once.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"label": "Main Brush"}},
+    })
+    _caps(manager, monkeypatch, {"main_brush": _SRC})
+    hass.states.async_set(_SRC, "-12", {"usage_hours": -5})
+
+    snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
+
+    item = {i["component"]: i for i in snap["replacement_items"]}["main_brush"]
+    assert item["remaining_summary"] is None
+    assert item["usage_summary"] is None
+    # the row still reports, so the card renders an overdue part rather than
+    # losing the entire snapshot
+    assert item["remaining_hours"] == -12.0
