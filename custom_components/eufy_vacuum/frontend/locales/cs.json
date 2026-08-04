@@ -1619,7 +1619,7 @@
     "water_estimate": "Odhad vody",
     "room_skipped": "Přeskočeno",
     "run_incomplete_toast": {
-      "one": "Úklid nedokončen — vynechaná 1 místnost. Otevřete Místnosti a zkuste to znovu.",
+      "one": "Úklid nedokončen — 1 místnost vynechána. Otevřete Místnosti a zkuste to znovu.",
       "other": "Úklid nedokončen — vynecháno {count} místností. Otevřete Místnosti a zkuste to znovu."
     }
   },

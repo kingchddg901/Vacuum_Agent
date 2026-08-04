@@ -408,8 +408,8 @@
     "processing_toggle": "Runs automatisch verwerken",
     "room_skipped": "Overgeslagen",
     "run_incomplete_toast": {
-      "one": "Reiniging onvolledig — 1 kamer overgeslagen. Open Kamers om opnieuw te proberen.",
-      "other": "Reiniging onvolledig — {count} kamers overgeslagen. Open Kamers om opnieuw te proberen."
+      "one": "Run onvolledig — 1 kamer overgeslagen. Open Kamers om opnieuw te proberen.",
+      "other": "Run onvolledig — {count} kamers overgeslagen. Open Kamers om opnieuw te proberen."
     }
   },
   "maintenance": {

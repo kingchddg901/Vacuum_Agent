@@ -70,13 +70,29 @@ export function applyCoreActions(proto) {
         false,       // notifyOnError
         returnResponse
       );
-      // A NON-throwing response can still be an operational refusal (RP-031):
-      // {success: false, reason: "..."}. Without this check that shape is
-      // handed back to the caller identically to a genuine success — no toast,
-      // nothing. showServiceRefusalToast never swallows `result` — callers
-      // still get the full payload back below.
-      if (returnResponse && result && typeof result === "object" && result.success === false) {
-        this.showServiceRefusalToast(result.reason);
+      // A NON-throwing response can still be an operational refusal, and the
+      // backend has TWO such shapes: {success:false, reason} (RP-031, most
+      // services) and {started:false, reason} (job_control's start_*). Without
+      // this check either is handed back identically to a genuine success — no
+      // toast, nothing. showServiceRefusalToast never swallows `result`;
+      // callers still get the full payload back below.
+      //
+      // MZ-2: {started:false} used to be handled per call site, and only ONE of
+      // the three ever did. startCleaning toasted it; cleanZone and
+      // startRunProfile did not — so a refused ad-hoc zone clean was completely
+      // silent and the user believed the robot was going. Asking the question
+      // once here is what stops the next start-shaped service repeating it.
+      //
+      // confirmation_required is EXEMPT: it is a prompt, not a refusal, and
+      // startCleaning answers it with a dedicated dialog. Toasting it would put
+      // an error next to a question the user is being asked.
+      if (returnResponse && result && typeof result === "object") {
+        const refused =
+          result.success === false ||
+          (result.started === false && result.reason !== "confirmation_required");
+        if (refused) {
+          this.showServiceRefusalToast(result.reason);
+        }
       }
       return returnResponse ? result : undefined;
     } catch (err) {

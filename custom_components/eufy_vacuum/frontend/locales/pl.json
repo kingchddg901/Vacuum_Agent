@@ -1619,8 +1619,8 @@
     "water_estimate": "Szacowane zużycie wody",
     "room_skipped": "Pominięty",
     "run_incomplete_toast": {
-      "one": "Sprzątanie niepełne — pominięto 1 pokój. Otwórz Pokoje, aby ponowić.",
-      "other": "Sprzątanie niepełne — pominięto {count} pokoi. Otwórz Pokoje, aby ponowić."
+      "one": "Przebieg niekompletny — pominięto 1 pomieszczenie. Otwórz Pomieszczenia, aby ponowić.",
+      "other": "Przebieg niekompletny — pominięto {count} pomieszczeń. Otwórz Pomieszczenia, aby ponowić."
     }
   },
   "maintenance": {

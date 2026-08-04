@@ -412,8 +412,8 @@
     "processing_toggle": "Traiter les exécutions automatiquement",
     "room_skipped": "Ignorée",
     "run_incomplete_toast": {
-      "one": "Cycle incomplet — 1 pièce ignorée. Ouvrez Pièces pour réessayer.",
-      "other": "Cycle incomplet — {count} pièces ignorées. Ouvrez Pièces pour réessayer."
+      "one": "Nettoyage incomplet — 1 pièce manquée. Ouvrez Pièces pour réessayer.",
+      "other": "Nettoyage incomplet — {count} pièces manquées. Ouvrez Pièces pour réessayer."
     }
   },
   "maintenance": {

@@ -1861,7 +1861,8 @@
     "water_estimate": "水量预估",
     "room_skipped": "已跳过",
     "run_incomplete_toast": {
-      "other": "清扫未完成，跳过了 {count} 个房间。打开“房间”重试。"
+      "one": "清扫未完成 — 跳过了 1 个房间。打开“房间”重试。",
+      "other": "清扫未完成 — 跳过了 {count} 个房间。打开“房间”重试。"
     }
   },
   "maintenance": {

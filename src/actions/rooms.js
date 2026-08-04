@@ -139,14 +139,11 @@ export function applyRoomsActions(proto) {
 
     if (startResponse?.started === false) {
       this.state.clearStartConfirmation();
-      // confirmation_required (above) already has its own dedicated dialog.
-      // Every OTHER blocked reason (job_paused, onboarding_required, a TOCTOU
-      // race against get_start_status's earlier pre-check, ...) had NO
-      // user-visible signal at all until now (CARD-1/FE-ERR-1) — core.js's
-      // generic callService inspection can't fire it itself: this is the
-      // {started:false} shape job_control returns, not the {success:false}
-      // contract that check inspects.
-      this.showServiceRefusalToast?.(startResponse?.reason);
+      // The toast is NOT fired here any more. core.js's callService inspection
+      // now covers {started:false} as well as {success:false} (MZ-2), so
+      // toasting again would double it. What stays here is the state cleanup,
+      // which is this call site's own business — confirmation_required is
+      // handled above and never reaches this branch.
       return startResponse;
     }
 

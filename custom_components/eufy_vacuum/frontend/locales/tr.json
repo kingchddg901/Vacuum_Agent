@@ -1619,8 +1619,8 @@
     "water_estimate": "Su tahmini",
     "room_skipped": "Atlandı",
     "run_incomplete_toast": {
-      "one": "Temizlik tamamlanmadı — 1 oda atlandı. Yeniden denemek için Odalar bölümünü açın.",
-      "other": "Temizlik tamamlanmadı — {count} oda atlandı. Yeniden denemek için Odalar bölümünü açın."
+      "one": "Çalıştırma tamamlanmadı — 1 oda atlandı. Yeniden denemek için Odalar'ı açın.",
+      "other": "Çalıştırma tamamlanmadı — {count} oda atlandı. Yeniden denemek için Odalar'ı açın."
     }
   },
   "maintenance": {

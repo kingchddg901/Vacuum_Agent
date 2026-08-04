@@ -410,8 +410,8 @@
     "processing_toggle": "Elabora le esecuzioni automaticamente",
     "room_skipped": "Saltata",
     "run_incomplete_toast": {
-      "one": "Ciclo incompleto: 1 stanza saltata. Apri Stanze per riprovare.",
-      "other": "Ciclo incompleto: {count} stanze saltate. Apri Stanze per riprovare."
+      "one": "Esecuzione incompleta: 1 stanza saltata. Apri Stanze per riprovare.",
+      "other": "Esecuzione incompleta: {count} stanze saltate. Apri Stanze per riprovare."
     }
   },
   "maintenance": {

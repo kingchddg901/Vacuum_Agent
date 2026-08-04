@@ -412,8 +412,8 @@
     "processing_toggle": "Procesar limpiezas automáticamente",
     "room_skipped": "Omitida",
     "run_incomplete_toast": {
-      "one": "Limpieza incompleta: se omitió 1 habitación. Abre Habitaciones para reintentar.",
-      "other": "Limpieza incompleta: se omitieron {count} habitaciones. Abre Habitaciones para reintentar."
+      "one": "Ejecución incompleta: falta 1 habitación. Abre Habitaciones para reintentar.",
+      "other": "Ejecución incompleta: faltan {count} habitaciones. Abre Habitaciones para reintentar."
     }
   },
   "maintenance": {

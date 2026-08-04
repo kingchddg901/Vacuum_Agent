@@ -412,8 +412,8 @@
     "processing_toggle": "Processar execuções automaticamente",
     "room_skipped": "Ignorada",
     "run_incomplete_toast": {
-      "one": "Limpeza incompleta — 1 divisão ignorada. Abra Divisões para tentar novamente.",
-      "other": "Limpeza incompleta — {count} divisões ignoradas. Abra Divisões para tentar novamente."
+      "one": "Execução incompleta — 1 divisão ignorada. Abra Divisões para tentar novamente.",
+      "other": "Execução incompleta — {count} divisões ignoradas. Abra Divisões para tentar novamente."
     }
   },
   "maintenance": {
