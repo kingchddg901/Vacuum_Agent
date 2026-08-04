@@ -31,10 +31,15 @@ a ledger):
    titles like `RP-042 (RF-36 part 1): …`, and an `audit:` prefix means authoring, not landing.
 2. **RP-047 executed AND its named proof written** (`_proof_group_live_progress.py`).
    CORRECTION 2026-08-02: `a193eae` is SPEC-ONLY (only SYNTH-12 changed; `current_room_ids`
-   exists nowhere in code) — the packet is fully open, proven live by the Alfred group-phase
+   existed nowhere in code) — the packet was fully open, proven live by the Alfred group-phase
    run pj_2026-08-02T23-04-45 still pinning the card to room[0]. A `RP-XXX:`-prefixed subject
    can still be authoring — verify landings with `git show --stat` (code files changed), never
    by subject alone.
+   UPDATE 2026-08-03: part **(a) has since landed** — `6831ccd` (`core/manager.py` +51,
+   `test_manager_progress.py` +84), and `current_room_ids` is now live in the snapshot builder.
+   The proof passes and is test-backed. The REMAINDER is gated on a fresh group-phase hardware
+   run confirming the card no longer pins to room[0] — until that run is banked, do not credit
+   the packet whole, and do not let gate 5 close `#9:A3-REC-3` on the strength of (a) alone.
 3. **RP-016 follow-ups closed or visibly deferred:** ZONE-C-2 (delete_saved_zone referrer pruning)
    and IO-6 (get_paths rename-detection). Same for every landed packet's documented partial-slice
    remainders — read each packet's own landing commit message.
