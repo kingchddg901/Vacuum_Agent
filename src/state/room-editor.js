@@ -584,7 +584,23 @@ export function applyRoomEditorState(proto) {
   };
 
   proto.waterLevelOptions = function () {
-    return this._buildOptionListForRole("water_level", "water_level");
+    const options = this._buildOptionListForRole("water_level", "water_level");
+
+    // "Off" is not a real choice while mopping, and offering it is dishonest:
+    // the backend SUBSTITUTES the floor-type water default for an empty/off
+    // value on a non-carpet mop room (room_profiles.resolve_room_profile_for_room
+    // — "a mop room stayed dry-mopping instead of being corrected"). So a user
+    // could pick Off, save, and get Low/Medium back with no explanation.
+    //
+    // Carpet is untouched: the row is hidden there entirely (showWaterLevel),
+    // and carpet's own water default IS the brand's no-water value.
+    const fields = this.editorFields();
+    if (fields && !this.isEditorRoomCarpet() && this.isMopMode(fields.clean_mode)) {
+      return options.filter(
+        (o) => String(o?.value ?? "").trim().toLowerCase() !== "off"
+      );
+    }
+    return options;
   };
 
   proto.cleanIntensityOptions = function () {

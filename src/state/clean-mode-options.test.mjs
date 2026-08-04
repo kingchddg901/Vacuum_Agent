@@ -103,3 +103,50 @@ test("[CMO-4] the canonical compare folds every spelling pair", () => {
   // an unknown mode passes through rather than being forced into a known bucket
   assert.equal(c("Scrub"), "scrub");
 });
+
+
+// ---------------------------------------------------------------------------
+// Water level: "Off" is not offered while mopping
+// ---------------------------------------------------------------------------
+
+function makeWaterState({ current, cleanMode, carpet = false }) {
+  const proto = {};
+  applyRoomEditorState(proto);
+  const state = Object.create(proto);
+  state.adapterOptionsFor = () => [
+    { value: "Off", label: "Off" },
+    { value: "Low", label: "Low" },
+    { value: "Medium", label: "Medium" },
+    { value: "High", label: "High" },
+  ];
+  state.editorFields = () => ({ water_level: current, clean_mode: cleanMode });
+  state.isEditorRoomCarpet = () => carpet;
+  return state;
+}
+
+test("[WL-1] a mop mode does not offer Off", () => {
+  // The backend substitutes the floor-type default for off/empty water on a
+  // non-carpet mop room, so offering Off lets the user pick something that is
+  // silently overwritten.
+  for (const mode of ["Vacuum and mop", "vacuum_mop", "mop", "Mop"]) {
+    const state = makeWaterState({ current: "Medium", cleanMode: mode });
+    const values = state.waterLevelOptions().map((o) => o.value);
+    assert.ok(!values.includes("Off"), `Off offered in ${mode}: ${values}`);
+    assert.deepEqual(values, ["Low", "Medium", "High"]);
+  }
+});
+
+test("[WL-2] a vacuum-only mode still offers Off", () => {
+  // The row is normally hidden for vacuum-only, but the option list itself must
+  // not lose Off — other callers and the carpet path depend on it.
+  const state = makeWaterState({ current: "Off", cleanMode: "Vacuum" });
+  assert.deepEqual(
+    state.waterLevelOptions().map((o) => o.value),
+    ["Off", "Low", "Medium", "High"]
+  );
+});
+
+test("[WL-3] carpet is untouched by the mop filter", () => {
+  const state = makeWaterState({ current: "Off", cleanMode: "Vacuum and mop", carpet: true });
+  assert.ok(state.waterLevelOptions().map((o) => o.value).includes("Off"));
+});
