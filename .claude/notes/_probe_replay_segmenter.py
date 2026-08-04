@@ -11,8 +11,21 @@ It returned 1 segment for 2 rooms -> gate 2 (count) rejects -> apportion. The
 boundary IS in the data (00:31:11, a 47 s gap carrying +2.0 m², which the card
 independently reported as the Entryway->Home Office handover at ~3.5 min); the
 engine walks past it because 47 s sits below BOTH gap_transit_s (60) and
-gap_plateau_s (90), leaving only the area_jump arm, and that step is exactly at
-its 2.0 threshold.
+gap_plateau_s (90), leaving only the area_jump arm.
+
+ROOT CAUSE (confirmed by bisecting the threshold with --tuning, 2026-08-03):
+``area_after >= area_jump_m2`` fails by less than a THOUSANDTH of a square metre.
+The jump is nominally exactly 2.0 m², but the sensor reports ft² and the device
+moves in whole 1 m² steps (10.76 ft² each), so after the 0.09290304 conversion
+the compared quantity lands at ~1.9995-1.9999 against a threshold of exactly 2.0.
+This probe flips 2 segments -> 1 between ``area_jump_m2`` 1.9995 and 2.0, and gap
+tuning does not help (45 and 40 both still give 1).
+
+That makes it SYSTEMATIC rather than a one-off: because the counter is quantised
+to 1 m², a two-room boundary essentially always lands on a near-exact 2.0, so the
+most common case is a permanent coin-flip on float error. It is an exact-threshold
+comparison against a unit-converted float — treat the whole class that way, not
+just this constant.
 
 USE IT FOR: any future group-phase mis-attribution. One hardware run produces one
 data point; this produces unlimited hypothesis tests against it — retune, patch
