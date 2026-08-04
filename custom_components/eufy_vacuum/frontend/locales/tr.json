@@ -2338,7 +2338,8 @@
         "duplicate_edges": "Her erişim bağlantısı yalnızca bir kez görünebilir.",
         "missing_room_references": "Tüm erişim bağlantıları geçerli haritadaki odalara işaret etmelidir.",
         "multiple_inbound": "{target} zaten {claimant} kaynağından gelen bir bağlantıya sahip. Her odaya yalnızca tek bir odadan ulaşılabilir.",
-        "cycle": "Bu erişim ayarı oda grafiğinde bir döngü oluştururdu."
+        "cycle": "Bu erişim ayarı oda grafiğinde bir döngü oluştururdu.",
+        "no_dock_room": "Odaları bağlamadan önce bir şarj istasyonu odası belirleyin. Şarj istasyonu odası erişim ağacının başlangıcıdır."
       },
       "list_separator": ", ",
       "self_reference": "{room} kendisine erişim veremez.",
@@ -2356,7 +2357,8 @@
       "cycle": "Bu erişim bağlantıları bir döngü oluştururdu."
     },
     "missing_room": "Eksik oda {id}",
-    "edge_into_dock": "Bu bağlantı şarj istasyonu odasını gösteriyor. Kaldırılabilir, ancak yeniden eklenemez."
+    "edge_into_dock": "Bu bağlantı şarj istasyonu odasını gösteriyor. Kaldırılabilir, ancak yeniden eklenemez.",
+    "dock_held_by": "{room} şarj istasyonu odasıdır. Önce oradan serbest bırakın."
   },
   "bind_setup": {
     "failed_add_vacuum": "Robot süpürge eklenemedi: {error}",
@@ -2587,7 +2589,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Arka uç bu oda erişim grafiğini reddetti.",
-    "failed_to_save": "Oda erişimi kaydedilemedi. Ayrıntılar için Home Assistant günlüklerini kontrol edin."
+    "failed_to_save": "Oda erişimi kaydedilemedi. Ayrıntılar için Home Assistant günlüklerini kontrol edin.",
+    "release_dock_clears_graph": {
+      "one": "Şarj istasyonu odasını serbest bırakmak, 1 odanın bağlantıları dahil bu haritanın erişim grafiğini siler. Temel temizlik çalışmaya devam eder. Devam edilsin mi?",
+      "other": "Şarj istasyonu odasını serbest bırakmak, {count} odanın bağlantıları dahil bu haritanın erişim grafiğini siler. Temel temizlik çalışmaya devam eder. Devam edilsin mi?"
+    }
   },
   "toast": {
     "dismiss": "Kapat"

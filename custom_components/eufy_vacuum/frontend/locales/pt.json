@@ -122,7 +122,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "O backend rejeitou este grafo de acesso entre divisões.",
-    "failed_to_save": "Falha ao guardar o acesso entre divisões. Consulte os registos do Home Assistant para mais detalhes."
+    "failed_to_save": "Falha ao guardar o acesso entre divisões. Consulte os registos do Home Assistant para mais detalhes.",
+    "release_dock_clears_graph": {
+      "one": "Libertar a divisão da base apaga o grafo de acesso deste mapa, incluindo as ligações de 1 divisão. A limpeza básica continua a funcionar. Continuar?",
+      "other": "Libertar a divisão da base apaga o grafo de acesso deste mapa, incluindo as ligações de {count} divisões. A limpeza básica continua a funcionar. Continuar?"
+    }
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Escolha uma chave de perfil personalizada:\n\n{choiceText}",
@@ -1040,7 +1044,8 @@
         "duplicate_edges": "Cada ligação de acesso só pode aparecer uma vez.",
         "missing_room_references": "Todas as ligações de acesso têm de apontar para divisões do mapa atual.",
         "multiple_inbound": "{target} já tem uma ligação de entrada de {claimant}. Cada divisão só pode ser alcançada a partir de uma divisão.",
-        "cycle": "Esta configuração de acesso criaria um ciclo no grafo das divisões."
+        "cycle": "Esta configuração de acesso criaria um ciclo no grafo das divisões.",
+        "no_dock_room": "Defina uma divisão da base antes de ligar divisões. A divisão da base é a origem da árvore de acesso."
       },
       "list_separator": ", ",
       "self_reference": "{room} não pode conceder acesso a si própria.",
@@ -1058,7 +1063,8 @@
       "cycle": "Estas ligações de acesso criariam um ciclo."
     },
     "missing_room": "Divisão ausente {id}",
-    "edge_into_dock": "Esta ligação aponta para a divisão da base. Pode ser removida, mas não voltar a ser adicionada."
+    "edge_into_dock": "Esta ligação aponta para a divisão da base. Pode ser removida, mas não voltar a ser adicionada.",
+    "dock_held_by": "{room} é a divisão da base. Liberte-a primeiro nessa divisão."
   },
   "room_card": {
     "carpet_notice": "Divisão com alcatifa — campos de mopa ocultos",

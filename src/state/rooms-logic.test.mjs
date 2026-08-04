@@ -38,10 +38,18 @@ const room = (id, grantsAccessTo = [], extra = {}) => ({
 
 /* =========================================================
    RA — ACCESS GRAPH VALIDATOR
+
+   Fixtures here declare a dock room (room 9) wherever the test is about LINK
+   shape. Linking is only legal on a rooted graph — see [AGM-14] — so an
+   unrooted fixture would refuse for that reason and mask what is being tested.
+   [RA-*] deliberately does not re-test the gate; that lives with the model.
    ========================================================= */
 
 test("[RA-1] validateRoomAccessUpdate: clean single edge is valid with normalized output", () => {
-  const rooms = [room(1, []), room(2, []), room(3, [])];
+  // Room 9 holds the dock: linking rooms is only legal on a ROOTED graph
+  // ([AGM-14]), so without it this fixture would trip the dock gate and the
+  // test would stop being about normalization.
+  const rooms = [room(1, []), room(2, []), room(3, []), room(9, [], { isDockRoom: true })];
   const card = makeCard({ getRoomsForMap: () => rooms });
   const res = card.validateRoomAccessUpdate("m", 1, ["2"]);
   assert.equal(res.valid, true);
@@ -118,7 +126,7 @@ test("[RA-7] multiple_inbound EXCLUDES the room being edited (re-saving your own
 
 test("[RA-8] cycle: a real DFS cycle is detected only when no other issues fire", () => {
   // Existing: 2 -> 3 -> 1. Adding 1 -> 2 closes the loop 1->2->3->1.
-  const rooms = [room(1, []), room(2, ["3"]), room(3, ["1"])];
+  const rooms = [room(1, []), room(2, ["3"]), room(3, ["1"]), room(9, [], { isDockRoom: true })];
   const card = makeCard({ getRoomsForMap: () => rooms });
   const res = card.validateRoomAccessUpdate("m", 1, ["2"]);
   assert.ok(res.issues.some((i) => i.code === "cycle"), "cycle detected");
@@ -129,7 +137,7 @@ test("[RA-8] cycle: a real DFS cycle is detected only when no other issues fire"
 
 test("[RA-9] no cycle for a valid DAG chain (1->2->3)", () => {
   // Existing 2 -> 3. Adding 1 -> 2 forms a chain, not a loop.
-  const rooms = [room(1, []), room(2, ["3"]), room(3, [])];
+  const rooms = [room(1, []), room(2, ["3"]), room(3, []), room(9, [], { isDockRoom: true })];
   const card = makeCard({ getRoomsForMap: () => rooms });
   const res = card.validateRoomAccessUpdate("m", 1, ["2"]);
   assert.equal(res.valid, true);

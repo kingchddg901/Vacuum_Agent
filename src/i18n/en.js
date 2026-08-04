@@ -202,6 +202,13 @@ export const en = {
   // Generic fallback only — the backend normally returns a specific reason/issues list,
   // which the binding prefers over this.
   "bind_room_editor.save_rejected": "That change was rejected and has not been saved.",
+  // Confirm shown when the user releases the dock room. Releasing it CLEARS the
+  // whole access graph — the tree is rooted at the dock. {count} = how many rooms
+  // currently hold access links.
+  "bind_room_access.release_dock_clears_graph": {
+    "one": "Releasing the dock room clears the access graph for this map, including the links on 1 room. Basic cleaning still works. Continue?",
+    "other": "Releasing the dock room clears the access graph for this map, including the links on {count} rooms. Basic cleaning still works. Continue?"
+  },
   "bind_room_access.backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
   "bind_room_access.failed_to_save": "Failed to save room access. Check Home Assistant logs for details.",
   "bind_room_editor.choose_custom_profile_key": "Choose a custom profile key:\n\n{choiceText}",  // window.prompt; user types a profile KEY (backend id), {choiceText}=newline list of 'name (label)'
@@ -1014,6 +1021,10 @@ export const en = {
   "room_access.dock_room_label": "Dock Room",  // Field label. 'Dock' = robot's charging dock; noun, NOT the verb 'to dock'. Root room of the access tree.
   "room_access.graph_issues_label": "Graph Issues",  // Label over validation errors. 'Graph' = the room-access dependency graph, not a chart/diagram.
   "room_access.invalid_graph": "Invalid room access graph.",
+  // The dock is the root and there is exactly one, so the button is dead in every
+  // other room. {room} = the room that currently holds it.
+  "room_access.dock_held_by": "{room} is the dock room. Release it there first.",
+  "room_access.issue.card.no_dock_room": "Set a dock room before linking rooms. The dock room is the origin of the access tree.",
   // A6-AGX-6. {id} = the raw stored room id for an access link whose room is gone.
   "room_access.missing_room": "Missing Room {id}",
   // Tooltip on an existing access link that points AT the dock room. The dock room is

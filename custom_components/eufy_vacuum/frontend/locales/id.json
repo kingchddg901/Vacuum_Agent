@@ -2338,7 +2338,8 @@
         "duplicate_edges": "Setiap tautan akses hanya boleh muncul sekali.",
         "missing_room_references": "Semua tautan akses harus mengarah ke ruangan di peta saat ini.",
         "multiple_inbound": "{target} sudah memiliki tautan masuk dari {claimant}. Setiap ruangan hanya dapat dijangkau dari satu ruangan.",
-        "cycle": "Pengaturan akses ini akan membentuk lingkaran dalam grafik ruangan."
+        "cycle": "Pengaturan akses ini akan membentuk lingkaran dalam grafik ruangan.",
+        "no_dock_room": "Tetapkan ruangan dok sebelum menautkan ruangan. Ruangan dok adalah titik awal pohon akses."
       },
       "list_separator": ", ",
       "self_reference": "{room} tidak dapat memberikan akses ke dirinya sendiri.",
@@ -2356,7 +2357,8 @@
       "cycle": "Tautan akses ini akan membentuk lingkaran."
     },
     "missing_room": "Ruangan hilang {id}",
-    "edge_into_dock": "Tautan ini mengarah ke ruangan dok. Tautan dapat dihapus, tetapi tidak dapat ditambahkan kembali."
+    "edge_into_dock": "Tautan ini mengarah ke ruangan dok. Tautan dapat dihapus, tetapi tidak dapat ditambahkan kembali.",
+    "dock_held_by": "{room} adalah ruangan dok. Lepaskan dulu dari ruangan tersebut."
   },
   "bind_setup": {
     "failed_add_vacuum": "Gagal menambahkan penyedot debu: {error}",
@@ -2587,7 +2589,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Backend menolak graf akses ruangan ini.",
-    "failed_to_save": "Gagal menyimpan akses ruangan. Periksa log Home Assistant untuk detailnya."
+    "failed_to_save": "Gagal menyimpan akses ruangan. Periksa log Home Assistant untuk detailnya.",
+    "release_dock_clears_graph": {
+      "one": "Melepaskan ruangan dok akan menghapus grafik akses peta ini, termasuk tautan pada 1 ruangan. Pembersihan dasar tetap berfungsi. Lanjutkan?",
+      "other": "Melepaskan ruangan dok akan menghapus grafik akses peta ini, termasuk tautan pada {count} ruangan. Pembersihan dasar tetap berfungsi. Lanjutkan?"
+    }
   },
   "toast": {
     "dismiss": "Tutup"

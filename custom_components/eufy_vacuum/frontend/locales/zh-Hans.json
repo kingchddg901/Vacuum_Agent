@@ -1694,7 +1694,8 @@
         "duplicate_edges": "每个通行链接只能出现一次。",
         "missing_room_references": "所有通行链接都必须指向当前地图上的房间。",
         "multiple_inbound": "{target} 已有来自 {claimant} 的入站链接。每个房间只能从一个房间到达。",
-        "cycle": "此通行设置会在房间关系图中形成循环。"
+        "cycle": "此通行设置会在房间关系图中形成循环。",
+        "no_dock_room": "连接房间前请先设置基站房间。基站房间是通行关系树的起点。"
       },
       "list_separator": "、",
       "self_reference": "{room} 无法向自身授予通行权限。",
@@ -1712,7 +1713,8 @@
       "cycle": "这些通行链接会形成循环。"
     },
     "missing_room": "缺失的房间 {id}",
-    "edge_into_dock": "此链接指向基站房间。可以移除，但无法重新添加。"
+    "edge_into_dock": "此链接指向基站房间。可以移除，但无法重新添加。",
+    "dock_held_by": "{room} 是基站房间。请先在该房间取消。"
   },
   "room_profile": {
     "passes": {
@@ -1737,7 +1739,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "后端拒绝了此房间访问图。",
-    "failed_to_save": "保存房间访问失败。请查看 Home Assistant 日志了解详情。"
+    "failed_to_save": "保存房间访问失败。请查看 Home Assistant 日志了解详情。",
+    "release_dock_clears_graph": {
+      "one": "取消基站房间会清除此地图的通行关系图，包括 1 个房间的链接。基本清扫仍可使用。是否继续？",
+      "other": "取消基站房间会清除此地图的通行关系图，包括 {count} 个房间的链接。基本清扫仍可使用。是否继续？"
+    }
   },
   "bind_room_rules": {
     "backend_rejected_rule": "后端拒绝了此规则。",

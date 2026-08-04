@@ -539,6 +539,33 @@ export function applyRoomsActions(proto) {
   };
 
   /**
+   * Clear the whole access graph for the active map.
+   *
+   * RELEASING THE DOCK CLEARS THE GRAPH (Chris, 2026-08-04): the tree is rooted
+   * at the dock, so a rootless tree is not worth keeping. Goes through the
+   * replace-all service rather than N per-room writes so the map is never
+   * observably half-cleared, and so it lands on `blank` — the PERMISSIVE state,
+   * where basic runs work — rather than the `partial` state a bare unset would
+   * leave, which refuses every run.
+   *
+   * Same call that a YAML user makes to take the second exit the start refusal
+   * names ("clear all access settings to allow basic runs").
+   *
+   * @returns {Promise<object|null>} the service response, incl. block_code_after.
+   */
+  proto.clearRoomAccessGraph = async function () {
+    return this.callService(
+      "eufy_vacuum",
+      "set_room_access_graph",
+      {
+        vacuum_entity_id: this.selectedVacuum(),
+        map_id: this.activeMapId(),
+      },
+      true
+    );
+  };
+
+  /**
    * Cancel the tracked run and clear any pending start/cancel confirmation state.
    *
    * WHY the integration service and not `vacuum.return_to_base`: this used to send the

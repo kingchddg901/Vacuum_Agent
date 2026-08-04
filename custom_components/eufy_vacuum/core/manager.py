@@ -1659,6 +1659,48 @@ class EufyVacuumManager:
             if structural_issue_key(issue) not in baseline_keys
         ]
 
+        # A5-DOCK-1: links without a root are meaningless — every room trips
+        # missing_dependency and the map refuses every run. Nothing stopped that
+        # being saved: `missing_dock_room` has been absent from the structural
+        # set since v0.9.0, while its mirror image `multiple_dock_rooms` IS in it
+        # (too many docks refused, zero docks allowed). Chris believed this gate
+        # existed; it never did.
+        #
+        # NOT delta-scoped like the rules above, because "no dock yet" is a
+        # BASELINE condition by definition — delta scoping would let every edit
+        # through on exactly the maps that need the gate. Two escape hatches
+        # instead, both load-bearing:
+        #   1. a save that SETS the dock passes, or a fresh map could never get
+        #      its first edge (the ordinary path is dock + first children in one
+        #      save);
+        #   2. a save that changes no LINKS passes, so releasing the dock — and
+        #      therefore clearing the graph — stays possible.
+        # Only access edits are gated; a colour or fan-speed change on a rootless
+        # map is not this rule's business (A6-AGX-2).
+        if grants_access_to is not None:
+            _has_dock_after = any(
+                isinstance(item, dict) and bool(item.get("is_dock_room", False))
+                for item in rooms.values()
+            )
+            _links_changed = [
+                str(value) for value in (previous_room.get("grants_access_to") or [])
+            ] != [str(value) for value in (updated_room.get("grants_access_to") or [])]
+            if _links_changed and not _has_dock_after:
+                rooms[room_key] = previous_room
+                return {
+                    "ok": False,
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": str(map_id),
+                    "room_id": int(room_id),
+                    "updated": False,
+                    "error": "no_dock_room",
+                    "reason": "no_dock_room",
+                    "reason_detail": (
+                        "Set a dock room before linking rooms. The dock room is "
+                        "the origin of the access tree."
+                    ),
+                }
+
         if new_structural_issues:
             # The rollback stays: a rejected edit must still restore previous_room.
             rooms[room_key] = previous_room

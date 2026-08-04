@@ -2338,7 +2338,8 @@
         "duplicate_edges": "Każde powiązanie dostępu może wystąpić tylko raz.",
         "missing_room_references": "Wszystkie powiązania dostępu muszą wskazywać pokoje na bieżącej mapie.",
         "multiple_inbound": "{target} ma już powiązanie przychodzące z {claimant}. Każdy pokój może być osiągalny tylko z jednego pokoju.",
-        "cycle": "Ta konfiguracja dostępu utworzyłaby pętlę w grafie pokoi."
+        "cycle": "Ta konfiguracja dostępu utworzyłaby pętlę w grafie pokoi.",
+        "no_dock_room": "Ustaw pokój ze stacją dokującą, zanim połączysz pomieszczenia. Pokój ze stacją jest początkiem drzewa dostępu."
       },
       "list_separator": ", ",
       "self_reference": "Pokój {room} nie może przyznać dostępu samemu sobie.",
@@ -2356,7 +2357,8 @@
       "cycle": "Te powiązania dostępu utworzyłyby pętlę."
     },
     "missing_room": "Brakujący pokój {id}",
-    "edge_into_dock": "To połączenie wskazuje pokój ze stacją dokującą. Można je usunąć, ale nie da się go dodać ponownie."
+    "edge_into_dock": "To połączenie wskazuje pokój ze stacją dokującą. Można je usunąć, ale nie da się go dodać ponownie.",
+    "dock_held_by": "{room} jest pokojem ze stacją dokującą. Najpierw zwolnij go tam."
   },
   "bind_setup": {
     "failed_add_vacuum": "Nie udało się dodać odkurzacza: {error}",
@@ -2587,7 +2589,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Backend odrzucił ten graf dostępu do pokoi.",
-    "failed_to_save": "Nie udało się zapisać dostępu do pokoi. Sprawdź dzienniki Home Assistant, aby uzyskać szczegóły."
+    "failed_to_save": "Nie udało się zapisać dostępu do pokoi. Sprawdź dzienniki Home Assistant, aby uzyskać szczegóły.",
+    "release_dock_clears_graph": {
+      "one": "Zwolnienie pokoju ze stacją usuwa graf dostępu tej mapy, w tym połączenia 1 pomieszczenia. Podstawowe sprzątanie nadal działa. Kontynuować?",
+      "other": "Zwolnienie pokoju ze stacją usuwa graf dostępu tej mapy, w tym połączenia {count} pomieszczeń. Podstawowe sprzątanie nadal działa. Kontynuować?"
+    }
   },
   "toast": {
     "dismiss": "Zamknij"

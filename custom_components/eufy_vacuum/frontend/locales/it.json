@@ -121,7 +121,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Il backend ha rifiutato questo grafo di accesso alle stanze.",
-    "failed_to_save": "Salvataggio dell'accesso alle stanze non riuscito. Controlla i log di Home Assistant per i dettagli."
+    "failed_to_save": "Salvataggio dell'accesso alle stanze non riuscito. Controlla i log di Home Assistant per i dettagli.",
+    "release_dock_clears_graph": {
+      "one": "Liberare la stanza della base cancella il grafo di accesso di questa mappa, compresi i collegamenti di 1 stanza. La pulizia di base continua a funzionare. Continuare?",
+      "other": "Liberare la stanza della base cancella il grafo di accesso di questa mappa, compresi i collegamenti di {count} stanze. La pulizia di base continua a funzionare. Continuare?"
+    }
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Scegli una chiave di profilo personalizzata:\n\n{choiceText}",
@@ -1030,7 +1034,8 @@
         "duplicate_edges": "Ogni collegamento di accesso può comparire una sola volta.",
         "missing_room_references": "Tutti i collegamenti di accesso devono puntare a stanze della mappa attuale.",
         "multiple_inbound": "{target} ha già un collegamento in entrata da {claimant}. Ogni stanza può essere raggiunta da una sola stanza.",
-        "cycle": "Questa configurazione di accesso creerebbe un ciclo nel grafo delle stanze."
+        "cycle": "Questa configurazione di accesso creerebbe un ciclo nel grafo delle stanze.",
+        "no_dock_room": "Imposta una stanza della base prima di collegare le stanze. La stanza della base è l'origine dell'albero di accesso."
       },
       "list_separator": ", ",
       "self_reference": "{room} non può concedere l'accesso a se stessa.",
@@ -1048,7 +1053,8 @@
       "cycle": "Questi collegamenti di accesso creerebbero un ciclo."
     },
     "missing_room": "Stanza mancante {id}",
-    "edge_into_dock": "Questo collegamento punta alla stanza della base. Può essere rimosso, ma non aggiunto di nuovo."
+    "edge_into_dock": "Questo collegamento punta alla stanza della base. Può essere rimosso, ma non aggiunto di nuovo.",
+    "dock_held_by": "{room} è la stanza della base. Liberala prima da lì."
   },
   "room_card": {
     "carpet_notice": "Stanza con moquette — campi mop nascosti",

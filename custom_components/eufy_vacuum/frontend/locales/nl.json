@@ -121,7 +121,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "De backend heeft deze kamertoegangsgraaf afgewezen.",
-    "failed_to_save": "Kan kamertoegang niet opslaan. Controleer de Home Assistant-logs voor details."
+    "failed_to_save": "Kan kamertoegang niet opslaan. Controleer de Home Assistant-logs voor details.",
+    "release_dock_clears_graph": {
+      "one": "De dockkamer vrijgeven wist de toegangsgraaf van deze kaart, inclusief de koppelingen van 1 kamer. Gewoon schoonmaken blijft werken. Doorgaan?",
+      "other": "De dockkamer vrijgeven wist de toegangsgraaf van deze kaart, inclusief de koppelingen van {count} kamers. Gewoon schoonmaken blijft werken. Doorgaan?"
+    }
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Kies een aangepaste profielsleutel:\n\n{choiceText}",
@@ -1028,7 +1032,8 @@
         "duplicate_edges": "Elke toegangskoppeling mag maar één keer voorkomen.",
         "missing_room_references": "Alle toegangskoppelingen moeten naar kamers op de huidige kaart verwijzen.",
         "multiple_inbound": "{target} heeft al een inkomende koppeling van {claimant}. Elke kamer kan maar vanuit één kamer worden bereikt.",
-        "cycle": "Deze toegangsinstelling zou een lus in de kamergraaf maken."
+        "cycle": "Deze toegangsinstelling zou een lus in de kamergraaf maken.",
+        "no_dock_room": "Stel een dockkamer in voordat je kamers koppelt. De dockkamer is de oorsprong van de toegangsboom."
       },
       "list_separator": ", ",
       "self_reference": "{room} kan zichzelf geen toegang verlenen.",
@@ -1046,7 +1051,8 @@
       "cycle": "Deze toegangskoppelingen zouden een lus vormen."
     },
     "missing_room": "Ontbrekende kamer {id}",
-    "edge_into_dock": "Deze koppeling verwijst naar de dockkamer. Hij kan worden verwijderd, maar niet opnieuw worden toegevoegd."
+    "edge_into_dock": "Deze koppeling verwijst naar de dockkamer. Hij kan worden verwijderd, maar niet opnieuw worden toegevoegd.",
+    "dock_held_by": "{room} is de dockkamer. Geef die daar eerst vrij."
   },
   "room_card": {
     "carpet_notice": "Tapijtkamer — dweilvelden verborgen",

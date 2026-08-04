@@ -866,6 +866,7 @@
     "save_new_profile_prompt": "Save current room settings as a new profile. Enter a display label:"
   },
   "bind_room_access": {
+    "release_dock_clears_graph": {"one":"Releasing the dock room clears the access graph for this map, including the links on 1 room. Basic cleaning still works. Continue?","other":"Releasing the dock room clears the access graph for this map, including the links on {count} rooms. Basic cleaning still works. Continue?"},
     "backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
     "failed_to_save": "Failed to save room access. Check Home Assistant logs for details."
   },
@@ -1676,9 +1677,17 @@
     "dock_room_label": "Dock Room",  // Field label. 'Dock' = robot's charging dock; noun, NOT the verb 'to dock'. Root room of the access tree.
     "graph_issues_label": "Graph Issues",  // Label over validation errors. 'Graph' = the room-access dependency graph, not a chart/diagram.
     "invalid_graph": "Invalid room access graph.",
-    "missing_room": "Missing Room {id}",
-    "edge_into_dock": "This link points at the dock room. It can be removed, but not re-added.",
+    "dock_held_by": "{room} is the dock room. Release it there first.",
     "issue": {
+      "card": {
+        "no_dock_room": "Set a dock room before linking rooms. The dock room is the origin of the access tree.",
+        "missing_room": "This room no longer exists on the active map.",
+        "self_reference": "A room cannot grant access to itself.",
+        "duplicate_edges": "Each access link can only appear once.",
+        "missing_room_references": "All access links must point to rooms on the current map.",
+        "multiple_inbound": "{target} already has an inbound link from {claimant}. Each room can only be reached from one room.",
+        "cycle": "This access setup would create a loop in the room graph."
+      },
       "list_separator": ", ",  // Joins room names in {rooms}/{sources}. Include any trailing space the language needs; CJK typically uses a full-width comma with no space.
       "self_reference": "{room} cannot grant access to itself.",
       "missing_room": "{room} still references missing room {missing_room}.",
@@ -1692,16 +1701,10 @@
       "unknown_issue": "The access graph contains an unknown issue.",
       "duplicate_edges": "{room} lists the same access target more than once.",  // Card-side validator; plural 'edges' is a distinct code from the backend's duplicate_edge.
       "missing_room_references": "{room} references a room that no longer exists.",
-      "cycle": "These access links would create a loop.",  // Card-side validator; it detects the loop but does not name the chain.
-      "card": {
-        "missing_room": "This room no longer exists on the active map.",
-        "self_reference": "A room cannot grant access to itself.",
-        "duplicate_edges": "Each access link can only appear once.",
-        "missing_room_references": "All access links must point to rooms on the current map.",
-        "multiple_inbound": "{target} already has an inbound link from {claimant}. Each room can only be reached from one room.",
-        "cycle": "This access setup would create a loop in the room graph."
-      }
+      "cycle": "These access links would create a loop."  // Card-side validator; it detects the loop but does not name the chain.
     },
+    "missing_room": "Missing Room {id}",
+    "edge_into_dock": "This link points at the dock room. It can be removed, but not re-added.",
     "is_dock_room": "This is the Dock Room",  // Active-state chip label confirming this room IS the dock (charging-dock origin) room. 'Dock' = noun.
     "no_inbound": "No room grants access here yet.",
     "no_other_rooms": "No other rooms are available on this map.",

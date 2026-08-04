@@ -12,7 +12,11 @@
 //   [AGM-9]  unplacedRooms: [] with no dock, else rooms with no parent
 //   [AGM-10] validateEdit: every card-scoped issue code, and the clean case
 //   [AGM-11] validateEdit does NOT enforce completeness (a graph must be
-//            buildable one room at a time)
+//            buildable one room at a time) — distinct from the dock gate
+//   [AGM-13] dockHeldByOther: null for the holder and for a free graph
+//   [AGM-14] the dock gate refuses link changes with no dock room...
+//   [AGM-15] ...but NOT the save that sets the dock (the first save of a map)
+//   [AGM-16] ...and NOT a save that changes no links (releasing the dock)
 //   [AGM-12] the modal and a builder holding the same graph get the same answer
 
 import { test } from "node:test";
@@ -20,6 +24,8 @@ import assert from "node:assert/strict";
 
 import {
   claimedTargets,
+  dockGate,
+  dockHeldByOther,
   graphFromRooms,
   hasCycle,
   normalizeRefs,
@@ -181,7 +187,9 @@ test("[AGM-9] unplacedRooms: silent with no dock, else the rooms with no parent"
 });
 
 test("[AGM-10] validateEdit raises each card-scoped code, and passes a clean edit", () => {
-  const rooms = [R(1), R(2), R(3)];
+  // Room 4 holds the dock throughout, so the gate ([AGM-14]) stays out of the
+  // way and each assertion isolates the code it is actually about.
+  const rooms = [R(1), R(2), R(3), R(4, { isDockRoom: true })];
   const graph = graphFromRooms(rooms);
   const codes = (result) => result.issues.map((i) => i.code);
 
@@ -203,30 +211,96 @@ test("[AGM-10] validateEdit raises each card-scoped code, and passes a clean edi
     }
   }
 
-  const claimed = graphFromRooms([R(1, { grantsAccessTo: [3] }), R(2), R(3)]);
+  const claimed = graphFromRooms([
+    R(1, { grantsAccessTo: [3] }), R(2), R(3), R(4, { isDockRoom: true }),
+  ]);
   const inbound = validateEdit(rooms, claimed, 2, [3]);
   assert.deepEqual(codes(inbound), ["multiple_inbound"]);
   assert.deepEqual(inbound.issues[0].params, { target: "Room 3", claimant: "Room 1" });
 
-  const chain = graphFromRooms([R(1, { grantsAccessTo: [2] }), R(2, { grantsAccessTo: [3] }), R(3)]);
+  const chain = graphFromRooms([
+    R(1, { grantsAccessTo: [2] }), R(2, { grantsAccessTo: [3] }), R(3),
+    R(4, { isDockRoom: true }),
+  ]);
   assert.deepEqual(codes(validateEdit(rooms, chain, 3, [1])), ["cycle"]);
 });
 
 test("[AGM-11] validateEdit does not enforce completeness", () => {
   // A graph has to be buildable one room at a time. If a save were refused
-  // because the map is not yet fully linked, the first edge could never be
-  // saved and the graph could never be built at all. Completeness is enforced
-  // at queue-build time instead.
-  const rooms = [R(1), R(2), R(3), R(4)];
-  const graph = graphFromRooms(rooms);      // no dock room, nothing linked
+  // because the map is not yet fully LINKED, the second edge could never be
+  // saved and the graph could never be finished. Completeness is enforced at
+  // queue-build time instead.
+  //
+  // This is a different rule from the dock gate below: a rooted graph with
+  // rooms still unplaced is INCOMPLETE (fine to save, blocks runs); a graph
+  // with no root at all is MEANINGLESS (refused).
+  const rooms = [R(1, { isDockRoom: true }), R(2), R(3), R(4)];
+  const graph = graphFromRooms(rooms);      // dock set, nothing linked yet
 
   const first = validateEdit(rooms, graph, 1, [2]);
-  assert.equal(first.valid, true, "the very first edge must be savable");
+  assert.equal(first.valid, true, "an edge on a rooted graph must be savable");
 
   const codes = first.issues.map((i) => i.code);
-  assert.ok(!codes.includes("missing_dock_room"));
   assert.ok(!codes.includes("missing_dependency"));
   assert.ok(!codes.includes("unreachable_from_dock"));
+  assert.ok(!codes.includes("no_dock_room"));
+});
+
+test("[AGM-13] dockHeldByOther names the holder, and only for other rooms", () => {
+  const rooms = [R(1, { isDockRoom: true, name: "Dining Room" }), R(2), R(3)];
+  const graph = graphFromRooms(rooms);
+
+  assert.equal(dockHeldByOther(rooms, graph, 1), null, "the holder is not blocked by itself");
+  assert.deepEqual(dockHeldByOther(rooms, graph, 2), { roomId: "1", name: "Dining Room" });
+
+  // Nobody holds it -> any room may take it.
+  const free = graphFromRooms([R(1), R(2), R(3)]);
+  assert.equal(dockHeldByOther(rooms, free, 2), null);
+});
+
+test("[AGM-14] the dock gate refuses link changes when no room is the dock", () => {
+  // Links without a root are meaningless: every room trips missing_dependency
+  // and the map refuses every run. Nothing stopped this being saved — the card
+  // returned valid, and missing_dock_room has been absent from the backend's
+  // structural set since v0.9.0, while its mirror multiple_dock_rooms is IN it.
+  const rooms = [R(1), R(2), R(3)];
+  const graph = graphFromRooms(rooms);
+
+  const refused = validateEdit(rooms, graph, 1, [2]);
+  assert.equal(refused.valid, false);
+  assert.deepEqual(refused.issues.map((i) => i.code), ["no_dock_room"]);
+  assert.equal(refused.issues[0].scope, "card");
+
+  assert.deepEqual(dockGate(graph, { changesLinks: true }), {
+    allowed: false,
+    code: "no_dock_room",
+  });
+});
+
+test("[AGM-15] ...but the save that SETS the dock passes", () => {
+  // Chris's own walkthrough: one save set the dock AND picked the first two
+  // children. Refusing it would make a fresh map unstartable — the graph could
+  // never get its first edge.
+  const rooms = [R(1), R(2), R(3)];
+  const graph = graphFromRooms(rooms);
+
+  const opening = validateEdit(rooms, graph, 1, [2, 3], { isDockRoom: true });
+  assert.equal(opening.valid, true, "dock + first children in one save must pass");
+  assert.deepEqual(opening.normalizedGrantsAccessTo, ["2", "3"]);
+});
+
+test("[AGM-16] ...and a save that changes no links passes", () => {
+  // The release valve. Removing the dock must stay possible, and that save
+  // carries no link changes — gating it would make the dock unremovable and
+  // the graph unclearable.
+  const rooms = [R(1), R(2), R(3)];
+  const graph = graphFromRooms(rooms);
+
+  assert.deepEqual(dockGate(graph, { changesLinks: false }), { allowed: true, code: null });
+
+  // Re-submitting the SAME (empty) links is not a change, so it is not gated.
+  const noop = validateEdit(rooms, graph, 1, []);
+  assert.equal(noop.valid, true);
 });
 
 test("[AGM-12] modal-shaped and builder-shaped calls agree on the same graph", () => {

@@ -30,6 +30,9 @@ Coverage targets (high-priority: state-machine branches, rule eval, contracts)
 [AG-16]  A5-AG-2: access_graph_block_rooms names the rooms the refusal is about.
 [AG-16b] A5-AG-2: a room-less issue names nothing rather than a placeholder.
 [AG-16c] A5-AG-2: set-valued issues (cycles, dock rooms) are deduped and named.
+[AG-17]  A5-DOCK-1: linking rooms is refused while no room is the dock.
+[AG-17b] A5-DOCK-1: ...unless that same save sets the dock.
+[AG-17c] A5-DOCK-1: ...and a non-access edit on a rootless map is untouched.
 """
 
 from __future__ import annotations
@@ -688,3 +691,74 @@ def test_access_graph_block_rooms_tolerates_a_missing_validation(ag):
     _seed_map(data, rooms)
     assert g.access_graph_block_rooms(rooms, None) == []
     assert g.access_graph_block_rooms(rooms, {}) == []
+
+
+# ---------------------------------------------------------------------------
+# A5-DOCK-1 — the dock gate. Exercised through the real update_room_fields on
+# the parent manager, since the gate lives with the write.
+# ---------------------------------------------------------------------------
+
+
+def test_linking_rooms_is_refused_without_a_dock_room(manager):
+    """[AG-17] A5-DOCK-1: links without a root are meaningless, and were savable.
+
+    The tree is rooted at the dock. Saved rootless, every room trips
+    missing_dependency and the map refuses every run — yet nothing stopped it:
+    `missing_dock_room` has never been in the structural set (v0.9.0 identical),
+    while its mirror `multiple_dock_rooms` always has been.
+    """
+    from tests._factories import VAC, set_room_field
+    from .conftest import setup_map
+
+    setup_map(manager, VAC, "dg1", count=3)
+    out = manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="dg1", room_id=1, grants_access_to=[2]
+    )
+
+    assert out["ok"] is False
+    assert out["reason"] == "no_dock_room"
+    assert out["updated"] is False
+    # and nothing was written
+    stored = manager.data["maps"][VAC]["dg1"]["rooms"]["1"]
+    assert list(stored.get("grants_access_to") or []) == []
+
+
+def test_the_save_that_sets_the_dock_is_allowed(manager):
+    """[AG-17b] A5-DOCK-1: the escape hatch that keeps a fresh map buildable.
+
+    Chris's own walkthrough sets the dock and picks the first children in ONE
+    save. Gating that would mean a rootless map could never get its first edge —
+    the gate would lock out the only action that clears it.
+    """
+    from tests._factories import VAC, set_room_field
+    from .conftest import setup_map
+
+    setup_map(manager, VAC, "dg2", count=3)
+    out = manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="dg2", room_id=1,
+        is_dock_room=True, grants_access_to=[2, 3],
+    )
+
+    assert out["ok"] is True
+    stored = manager.data["maps"][VAC]["dg2"]["rooms"]["1"]
+    assert stored["is_dock_room"] is True
+    assert [str(t) for t in stored["grants_access_to"]] == ["2", "3"]
+
+
+def test_a_non_access_edit_on_a_rootless_map_is_untouched(manager):
+    """[AG-17c] A5-DOCK-1: only ACCESS edits are gated.
+
+    A6-AGX-2's defect was refusing unrelated edits because the graph had a
+    pre-existing problem. Re-creating it here would be the same bug wearing a
+    different hat: a colour change on a map with no dock room is nobody's
+    business but the user's.
+    """
+    from tests._factories import VAC
+    from .conftest import setup_map
+
+    setup_map(manager, VAC, "dg3", count=3)
+    out = manager.update_room_fields(
+        vacuum_entity_id=VAC, map_id="dg3", room_id=1, color="#ff0000", enabled=False
+    )
+    assert out["ok"] is True
+    assert manager.data["maps"][VAC]["dg3"]["rooms"]["1"]["color"] == "#ff0000"

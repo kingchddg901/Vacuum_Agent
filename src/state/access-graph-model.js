@@ -253,6 +253,66 @@ export function unplacedRooms(rooms, graph) {
 }
 
 /**
+ * Who currently holds the dock, from the point of view of one room.
+ *
+ * The dock is the ROOT and there is exactly one. Once a room holds it, the
+ * button must not be live in any other room (Chris, 2026-08-04) — setting it
+ * elsewhere is not a move, it is a second dock, which the backend refuses as
+ * `multiple_dock_rooms` AFTER the user has committed to the action. Answering
+ * this before the tap is what turns that into an unconstructible state.
+ *
+ * Returns null when this room may take the dock: nobody holds it, or this room
+ * already does.
+ *
+ * @param {Array<object>} rooms
+ * @param {object} graph
+ * @param {string|number} forRoomId
+ * @returns {{roomId: string, name: string}|null} the blocking holder, or null.
+ */
+export function dockHeldByOther(rooms, graph, forRoomId) {
+  const selfId = String(forRoomId);
+  const holder = (graph.dockRoomIds ?? [])
+    .map(String)
+    .find((id) => id !== selfId);
+  if (!holder) return null;
+
+  const room = rooms.find((entry) => String(entry.id) === holder);
+  return { roomId: holder, name: room?.name ?? null };
+}
+
+/**
+ * Whether a save may proceed given the dock state.
+ *
+ * THE GATE. The access graph is a tree rooted at the dock, so links without a
+ * root are meaningless — every room trips missing_dependency and the map is
+ * `partial`, which refuses every run. Nothing stopped that being saved: the
+ * card returned valid, and `missing_dock_room` is absent from the backend's
+ * structural set (it has been since v0.9.0, while its mirror image
+ * `multiple_dock_rooms` IS structural — too many docks refused, zero docks
+ * allowed).
+ *
+ * TWO ESCAPE HATCHES, both load-bearing:
+ *
+ *  1. A save that SETS the dock passes even though no dock existed before —
+ *     otherwise the very first save of a fresh map is refused and the graph can
+ *     never be started. This is the ordinary path: dock plus first children in
+ *     one save.
+ *  2. A save that changes NO links passes. Removing the dock must stay possible,
+ *     and it is the operation that clears the graph.
+ *
+ * @param {object} graph - the graph as stored, before this save.
+ * @param {{isDockRoom?: boolean, changesLinks?: boolean}} save
+ * @returns {{allowed: boolean, code: string|null}}
+ */
+export function dockGate(graph, save = {}) {
+  const hasDock = (graph.dockRoomIds ?? []).length > 0;
+  if (hasDock) return { allowed: true, code: null };
+  if (save.isDockRoom) return { allowed: true, code: null };
+  if (!save.changesLinks) return { allowed: true, code: null };
+  return { allowed: false, code: "no_dock_room" };
+}
+
+/**
  * Validate ONE room's proposed outbound edges against the rest of the graph.
  *
  * Card-side pre-flight for the modal's Save button. Issues carry `scope: "card"`
@@ -270,7 +330,7 @@ export function unplacedRooms(rooms, graph) {
  * @param {unknown} proposedTargets
  * @returns {{valid: boolean, issues: Array<object>, normalizedGrantsAccessTo: string[]}}
  */
-export function validateEdit(rooms, graph, roomId, proposedTargets = []) {
+export function validateEdit(rooms, graph, roomId, proposedTargets = [], save = {}) {
   const targetRoomId = String(roomId ?? "").trim();
   const knownRoomIds = new Set(rooms.map((room) => String(room.id)));
   const rawRefs = normalizeRefs(proposedTargets);
@@ -351,6 +411,24 @@ export function validateEdit(rooms, graph, roomId, proposedTargets = []) {
 
   const normalized = uniqueRefs.filter((ref) => knownRoomIds.has(ref));
   const proposedGraph = withEdges(graph, targetRoomId, normalized);
+
+  // The dock gate. Checked against the graph as STORED, and only when this save
+  // actually changes links — see dockGate for why both escape hatches exist.
+  const changesLinks =
+    JSON.stringify(normalizeRefs(graph.grants?.[targetRoomId])) !==
+    JSON.stringify(normalized);
+  const gate = dockGate(graph, {
+    isDockRoom: Boolean(save.isDockRoom),
+    changesLinks,
+  });
+  if (!gate.allowed) {
+    issues.push({
+      code: gate.code,
+      scope: "card",
+      params: {},
+      message: "Set a dock room before linking rooms. The dock room is the origin of the access tree.",
+    });
+  }
 
   // Only worth asking once the edges are otherwise sound — a self-reference or a
   // stale target would surface here as a "loop", blaming the wrong thing.

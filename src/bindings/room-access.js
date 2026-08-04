@@ -48,8 +48,30 @@ export function applyRoomAccessBindings(proto) {
     });
 
     host.querySelectorAll("[data-action='toggle-is-dock-room']").forEach((btn) => {
-      this.card._on(btn, "click", (e) => {
+      this.card._on(btn, "click", async (e) => {
         e.stopPropagation();
+
+        // The button is disabled when another room holds the dock, but a
+        // disabled button is a rendering fact and this handler is reachable
+        // from a synthetic event — refuse here too rather than trusting it.
+        if (this.card._state.accessDockHeldByOther?.()) return;
+
+        const releasing = this.card._state.roomAccessFields?.().is_dock_room ?? false;
+        const linked = this.card._state.accessGraphLinkedRoomCount?.() ?? 0;
+
+        // RELEASING THE DOCK CLEARS THE GRAPH (Chris, 2026-08-04). The tree is
+        // rooted at the dock, so a rootless tree is not worth keeping — and a
+        // bare unset would leave grants with no root, which is `partial` and
+        // refuses every run. Clearing lands on `blank`, where basic runs work.
+        // Warn only when there is something to lose.
+        if (releasing && linked > 0) {
+          const proceed = await this.card._confirm(
+            this.t("bind_room_access.release_dock_clears_graph", { count: linked }),
+            { danger: true }
+          );
+          if (!proceed) return;
+        }
+
         this.card._state.toggleIsDockRoomField?.();
         this.card._scheduleRender();
       });
@@ -74,12 +96,21 @@ export function applyRoomAccessBindings(proto) {
         const validation = this.card._state.roomAccessValidation?.();
         if (!room || !fields || !validation?.valid) return;
 
+        // Releasing the dock is not a per-room edit — it clears the map's graph,
+        // so it goes through the replace-all service. Detected by comparing the
+        // draft against STORED state: this room holds the dock on disk and the
+        // draft has let it go.
+        const releasingDock =
+          Boolean(room.isDockRoom) && !(fields.is_dock_room ?? false);
+
         try {
-          const result = await this.card._actions.saveRoomAccess?.(
-            room.id,
-            fields.grants_access_to ?? [],
-            fields.is_dock_room ?? false
-          );
+          const result = releasingDock
+            ? await this.card._actions.clearRoomAccessGraph?.()
+            : await this.card._actions.saveRoomAccess?.(
+                room.id,
+                fields.grants_access_to ?? [],
+                fields.is_dock_room ?? false
+              );
 
           if (
             result?.ok === false ||

@@ -15,6 +15,7 @@
  */
 
 import {
+  dockHeldByOther,
   graphFromRooms,
   offerableTargets,
   withEdges,
@@ -91,6 +92,46 @@ export function applyRoomAccessState(proto) {
     );
 
     return offerableTargets(rooms, graph, room.id);
+  };
+
+  /**
+   * The room that already holds the dock, when it is not this one.
+   *
+   * The dock is the ROOT and there is exactly one, so once a room holds it the
+   * button must not be live anywhere else (Chris, 2026-08-04). Setting it in a
+   * second room is not a move — it is a second dock, which the card used to
+   * green-light (roomAccessValidation short-circuits to valid for any dock
+   * room) and the BACKEND then refused as multiple_dock_rooms, after the user
+   * had committed to the tap. Answering this before the tap is what makes that
+   * state unconstructible instead of explained afterwards.
+   *
+   * To move the dock you release it here, which clears the graph — the tree is
+   * rooted at the dock, so a rootless tree is not a graph worth keeping.
+   *
+   * @returns {{roomId: string, name: string|null}|null}
+   */
+  proto.accessDockHeldByOther = function () {
+    const room = this.activeAccessRoom();
+    if (!room) return null;
+
+    const rooms = this.getRoomsForMap(room.mapId);
+    return dockHeldByOther(rooms, graphFromRooms(rooms), room.id);
+  };
+
+  /**
+   * Whether releasing the dock in this room would discard a configured graph.
+   *
+   * Used to decide whether the release needs a warning: on a map with no links
+   * there is nothing to lose and a confirm would be friction for nothing.
+   *
+   * @returns {number} how many rooms currently hold access links.
+   */
+  proto.accessGraphLinkedRoomCount = function () {
+    const room = this.activeAccessRoom();
+    if (!room) return 0;
+
+    const graph = graphFromRooms(this.getRoomsForMap(room.mapId));
+    return Object.values(graph.grants ?? {}).filter((targets) => targets.length).length;
   };
 
   proto.accessInboundRooms = function () {

@@ -122,7 +122,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Le backend a rejeté ce graphe d'accès aux pièces.",
-    "failed_to_save": "Échec de l'enregistrement de l'accès aux pièces. Consultez les journaux de Home Assistant pour plus de détails."
+    "failed_to_save": "Échec de l'enregistrement de l'accès aux pièces. Consultez les journaux de Home Assistant pour plus de détails.",
+    "release_dock_clears_graph": {
+      "one": "Libérer la pièce de la station efface le graphe d'accès de cette carte, y compris les liens d'une pièce. Le nettoyage simple continue de fonctionner. Continuer ?",
+      "other": "Libérer la pièce de la station efface le graphe d'accès de cette carte, y compris les liens de {count} pièces. Le nettoyage simple continue de fonctionner. Continuer ?"
+    }
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Choisissez une clé de profil personnalisé :\n\n{choiceText}",
@@ -1040,7 +1044,8 @@
         "duplicate_edges": "Chaque lien d'accès ne peut apparaître qu'une seule fois.",
         "missing_room_references": "Tous les liens d'accès doivent pointer vers des pièces de la carte actuelle.",
         "multiple_inbound": "{target} a déjà un lien entrant depuis {claimant}. Chaque pièce ne peut être atteinte que depuis une seule pièce.",
-        "cycle": "Cette configuration d'accès créerait une boucle dans le graphe des pièces."
+        "cycle": "Cette configuration d'accès créerait une boucle dans le graphe des pièces.",
+        "no_dock_room": "Désignez une pièce de la station avant de relier des pièces. La pièce de la station est l'origine de l'arbre d'accès."
       },
       "list_separator": ", ",
       "self_reference": "{room} ne peut pas s'accorder l'accès à elle-même.",
@@ -1058,7 +1063,8 @@
       "cycle": "Ces liens d'accès créeraient une boucle."
     },
     "missing_room": "Pièce manquante {id}",
-    "edge_into_dock": "Ce lien pointe vers la pièce de la station. Il peut être supprimé, mais pas rajouté."
+    "edge_into_dock": "Ce lien pointe vers la pièce de la station. Il peut être supprimé, mais pas rajouté.",
+    "dock_held_by": "{room} est la pièce de la station. Libérez-la d'abord depuis cette pièce."
   },
   "room_card": {
     "carpet_notice": "Pièce avec moquette — champs de serpillière masqués",

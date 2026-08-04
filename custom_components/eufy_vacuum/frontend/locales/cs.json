@@ -2338,7 +2338,8 @@
         "duplicate_edges": "Každé propojení přístupu se může objevit pouze jednou.",
         "missing_room_references": "Všechna propojení přístupu musí odkazovat na místnosti na aktuální mapě.",
         "multiple_inbound": "{target} již má příchozí propojení z {claimant}. Každá místnost může být dosažitelná jen z jedné místnosti.",
-        "cycle": "Toto nastavení přístupu by vytvořilo smyčku v grafu místností."
+        "cycle": "Toto nastavení přístupu by vytvořilo smyčku v grafu místností.",
+        "no_dock_room": "Než začnete propojovat místnosti, nastavte místnost s dokem. Místnost s dokem je počátek stromu přístupu."
       },
       "list_separator": ", ",
       "self_reference": "Místnost {room} nemůže udělit přístup sama sobě.",
@@ -2356,7 +2357,8 @@
       "cycle": "Tato propojení přístupu by vytvořila smyčku."
     },
     "missing_room": "Chybějící místnost {id}",
-    "edge_into_dock": "Toto propojení míří do místnosti s dokem. Lze je odebrat, ale ne znovu přidat."
+    "edge_into_dock": "Toto propojení míří do místnosti s dokem. Lze je odebrat, ale ne znovu přidat.",
+    "dock_held_by": "{room} je místnost s dokem. Nejprve ji uvolněte tam."
   },
   "bind_setup": {
     "failed_add_vacuum": "Nepodařilo se přidat vysavač: {error}",
@@ -2587,7 +2589,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Backend tento graf přístupu k místnostem odmítl.",
-    "failed_to_save": "Uložení přístupu k místnostem selhalo. Podrobnosti najdete v protokolech Home Assistant."
+    "failed_to_save": "Uložení přístupu k místnostem selhalo. Podrobnosti najdete v protokolech Home Assistant.",
+    "release_dock_clears_graph": {
+      "one": "Uvolnění místnosti s dokem vymaže graf přístupu této mapy včetně propojení 1 místnosti. Základní úklid bude dál fungovat. Pokračovat?",
+      "other": "Uvolnění místnosti s dokem vymaže graf přístupu této mapy včetně propojení {count} místností. Základní úklid bude dál fungovat. Pokračovat?"
+    }
   },
   "toast": {
     "dismiss": "Zavřít"

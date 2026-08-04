@@ -39,6 +39,10 @@ export function applyRoomAccessRenderers(proto) {
     const saveError = state.roomAccessSaveError?.();
 
     const isDockRoom = state.roomAccessFields?.().is_dock_room ?? false;
+    // Once a room holds the dock the button is dead everywhere else — a second
+    // dock is not a move, and the backend refuses it. Naming the holder is the
+    // difference between "you can't" and "you can't, and here is why".
+    const dockHeldBy = state.accessDockHeldByOther?.() ?? null;
 
     return `
       <div class="evcc-modal-backdrop" data-action="close-room-access">
@@ -60,12 +64,15 @@ export function applyRoomAccessRenderers(proto) {
               <div class="evcc-field-label">${this.t("room_access.dock_room_label")}</div>
               <div class="evcc-room-access-help">
                 ${this.t("room_access.dock_room_help")}
+                ${dockHeldBy ? `<br>${this.t("room_access.dock_held_by", { room: this.escapeHtml(dockHeldBy.name ?? dockHeldBy.roomId) })}` : ""}
               </div>
               <div class="evcc-chips">
                 <button
                   type="button"
-                  class="evcc-chip ${isDockRoom ? "active" : ""}"
+                  class="evcc-chip ${isDockRoom ? "active" : ""} ${dockHeldBy ? "evcc-room-access-chip--claimed" : ""}"
                   data-action="toggle-is-dock-room"
+                  ${dockHeldBy ? "disabled" : ""}
+                  ${dockHeldBy ? `title="${this.escapeHtml(this.t("room_access.dock_held_by", { room: dockHeldBy.name ?? dockHeldBy.roomId }))}"` : ""}
                 >${isDockRoom ? this.t("room_access.is_dock_room") : this.t("room_access.set_dock_room")}</button>
               </div>
             </div>

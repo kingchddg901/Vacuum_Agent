@@ -255,6 +255,11 @@ async def test_update_room_fields_grants_and_rules(manager):
     setup_map(manager, _VAC, _MAP, count=2)
     result = manager.update_room_fields(
         vacuum_entity_id=_VAC, map_id=_MAP, room_id=1,
+        # A5-DOCK-1: linking is only legal on a ROOTED graph, so this save
+        # declares the dock as well — which is the ordinary first save of a map
+        # (see [AG-17b]). Without it the gate refuses and the test stops being
+        # about grants + rules normalization.
+        is_dock_room=True,
         grants_access_to=[2],
         rules=[{"kind": "blocker", "id": "r1", "entity_id": "binary_sensor.win",
                 "operator": "is_on", "effect": {"reason": "window_open"}}],

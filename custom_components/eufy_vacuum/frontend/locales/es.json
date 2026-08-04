@@ -122,7 +122,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "El backend rechazó este grafo de acceso entre habitaciones.",
-    "failed_to_save": "No se pudo guardar el acceso entre habitaciones. Consulta los registros de Home Assistant para más detalles."
+    "failed_to_save": "No se pudo guardar el acceso entre habitaciones. Consulta los registros de Home Assistant para más detalles.",
+    "release_dock_clears_graph": {
+      "one": "Liberar la habitación de la base borra el gráfico de acceso de este mapa, incluidos los enlaces de 1 habitación. La limpieza básica seguirá funcionando. ¿Continuar?",
+      "other": "Liberar la habitación de la base borra el gráfico de acceso de este mapa, incluidos los enlaces de {count} habitaciones. La limpieza básica seguirá funcionando. ¿Continuar?"
+    }
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Elige una clave de perfil personalizada:\n\n{choiceText}",
@@ -1040,7 +1044,8 @@
         "duplicate_edges": "Cada enlace de acceso solo puede aparecer una vez.",
         "missing_room_references": "Todos los enlaces de acceso deben apuntar a habitaciones del mapa actual.",
         "multiple_inbound": "{target} ya tiene un enlace entrante desde {claimant}. Cada habitación solo puede alcanzarse desde una habitación.",
-        "cycle": "Esta configuración de acceso crearía un bucle en el gráfico de habitaciones."
+        "cycle": "Esta configuración de acceso crearía un bucle en el gráfico de habitaciones.",
+        "no_dock_room": "Marca una habitación de la base antes de enlazar habitaciones. La habitación de la base es el origen del árbol de acceso."
       },
       "list_separator": ", ",
       "self_reference": "{room} no puede concederse acceso a sí misma.",
@@ -1058,7 +1063,8 @@
       "cycle": "Estos enlaces de acceso crearían un bucle."
     },
     "missing_room": "Habitación ausente {id}",
-    "edge_into_dock": "Este enlace apunta a la habitación de la base. Se puede eliminar, pero no volver a añadir."
+    "edge_into_dock": "Este enlace apunta a la habitación de la base. Se puede eliminar, pero no volver a añadir.",
+    "dock_held_by": "{room} es la habitación de la base. Libérala allí primero."
   },
   "room_card": {
     "carpet_notice": "Habitación con alfombra; campos de mopa ocultos",

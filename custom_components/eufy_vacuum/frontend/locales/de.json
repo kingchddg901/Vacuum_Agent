@@ -121,7 +121,11 @@
   },
   "bind_room_access": {
     "backend_rejected_graph": "Das Backend hat diesen Raumzugriffs-Graphen abgelehnt.",
-    "failed_to_save": "Raumzugriff konnte nicht gespeichert werden. Prüfe die Home-Assistant-Protokolle für Details."
+    "failed_to_save": "Raumzugriff konnte nicht gespeichert werden. Prüfe die Home-Assistant-Protokolle für Details.",
+    "release_dock_clears_graph": {
+      "one": "Wenn Sie den Stationsraum freigeben, wird der Zugangsgraph dieser Karte gelöscht, einschließlich der Verknüpfungen von 1 Raum. Einfache Reinigungen funktionieren weiterhin. Fortfahren?",
+      "other": "Wenn Sie den Stationsraum freigeben, wird der Zugangsgraph dieser Karte gelöscht, einschließlich der Verknüpfungen von {count} Räumen. Einfache Reinigungen funktionieren weiterhin. Fortfahren?"
+    }
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Wähle einen benutzerdefinierten Profilschlüssel:\n\n{choiceText}",
@@ -1028,7 +1032,8 @@
         "duplicate_edges": "Jede Zugangsverknüpfung darf nur einmal vorkommen.",
         "missing_room_references": "Alle Zugangsverknüpfungen müssen auf Räume der aktuellen Karte verweisen.",
         "multiple_inbound": "{target} hat bereits eine eingehende Verknüpfung von {claimant}. Jeder Raum kann nur von einem Raum aus erreicht werden.",
-        "cycle": "Diese Zugangseinstellung würde eine Schleife im Raumgraphen erzeugen."
+        "cycle": "Diese Zugangseinstellung würde eine Schleife im Raumgraphen erzeugen.",
+        "no_dock_room": "Legen Sie einen Stationsraum fest, bevor Sie Räume verknüpfen. Der Stationsraum ist der Ursprung des Zugangsbaums."
       },
       "list_separator": ", ",
       "self_reference": "{room} kann sich nicht selbst Zugang gewähren.",
@@ -1046,7 +1051,8 @@
       "cycle": "Diese Zugangsverknüpfungen würden eine Schleife bilden."
     },
     "missing_room": "Fehlender Raum {id}",
-    "edge_into_dock": "Diese Verknüpfung zeigt auf den Stationsraum. Sie kann entfernt, aber nicht erneut hinzugefügt werden."
+    "edge_into_dock": "Diese Verknüpfung zeigt auf den Stationsraum. Sie kann entfernt, aber nicht erneut hinzugefügt werden.",
+    "dock_held_by": "{room} ist der Stationsraum. Geben Sie ihn zuerst dort frei."
   },
   "room_card": {
     "carpet_notice": "Teppichraum — Wischfelder ausgeblendet",
