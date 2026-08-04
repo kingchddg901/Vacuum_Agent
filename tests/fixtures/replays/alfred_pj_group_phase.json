@@ -1,0 +1,1208 @@
+{
+ "meta": {
+  "source": "alfred_history_2026-07-25_to_2026-08-04.csv",
+  "window": [
+   "2026-08-03T06:04:00.000Z",
+   "2026-08-03T06:21:00.000Z"
+  ]
+ },
+ "initial": {
+  "sensor.alfred_battery": "100",
+  "sensor.alfred_charge_cycles": "5.74",
+  "sensor.alfred_charge_rate": "0.3492",
+  "sensor.alfred_charge_rate_high_zone": "0.3492",
+  "sensor.alfred_charge_rate_low_zone": "0.4289",
+  "sensor.alfred_cleaning_area": "64.5834625002583",
+  "sensor.alfred_cleaning_time": "6.5",
+  "sensor.alfred_cleaning_tray_maintenance_remaining": "30.0",
+  "sensor.alfred_cleaning_tray_remaining": "24",
+  "sensor.alfred_filter_maintenance_remaining": "3.0",
+  "sensor.alfred_filter_remaining": "320",
+  "sensor.alfred_last_charge_duration": "18.4",
+  "sensor.alfred_last_job_drain_per_hour": "3.918",
+  "sensor.alfred_last_job_drain_per_m2": "0.1667",
+  "sensor.alfred_last_job_drain_rate": "0.0653",
+  "sensor.alfred_mid_job_recharge_rate": "0.2617",
+  "sensor.alfred_mopping_cloth_maintenance_remaining": "20.0",
+  "sensor.alfred_mopping_cloth_remaining": "180",
+  "sensor.alfred_robot_position_x_raw": "16392",
+  "sensor.alfred_robot_position_y_raw": "112",
+  "sensor.alfred_rolling_brush_maintenance_remaining": "11.0",
+  "sensor.alfred_rolling_brush_remaining": "320",
+  "sensor.alfred_sensor_maintenance_remaining": "60.0",
+  "sensor.alfred_sensor_remaining": "42",
+  "sensor.alfred_side_brush_maintenance_remaining": "11.0",
+  "sensor.alfred_side_brush_remaining": "140",
+  "sensor.alfred_swivel_wheel_maintenance_remaining": "46.0",
+  "sensor.alfred_water_level": "63",
+  "sensor.alfred_wifi_signal_strength": "-50.0",
+  "sensor.dining_room_alfred_total_cleaning_area": "16404.1994750656",
+  "sensor.dining_room_alfred_total_cleaning_count": "253",
+  "sensor.dining_room_alfred_total_cleaning_time": "36.9583333333333",
+  "binary_sensor.alfred_active_run_has_error": "off",
+  "button.alfred_reset_filter_maintenance": "unknown",
+  "button.alfred_reset_cleaning_tray_maintenance": "unknown",
+  "button.alfred_reset_mopping_cloth_maintenance": "unknown",
+  "button.alfred_reset_rolling_brush_maintenance": "unknown",
+  "button.alfred_reset_sensor_maintenance": "unknown",
+  "button.alfred_reset_side_brush_maintenance": "unknown",
+  "button.alfred_reset_swivel_wheel_maintenance": "unknown",
+  "switch.other_alfred_bathroom_selected_for_cleaning": "off",
+  "switch.other_alfred_bryan_s_room_selected_for_cleaning": "off",
+  "switch.other_alfred_hallway_selected_for_cleaning": "off",
+  "switch.other_alfred_master_bedroom_selected_for_cleaning": "off",
+  "switch.other_alfred_dining_room_selected_for_cleaning": "off",
+  "switch.other_alfred_entryway_selected_for_cleaning": "on",
+  "switch.other_alfred_home_office_selected_for_cleaning": "on",
+  "switch.other_alfred_kitchen_selected_for_cleaning": "on",
+  "switch.other_alfred_living_room_selected_for_cleaning": "off",
+  "switch.other_alfred_cat_room_selected_for_cleaning": "off",
+  "number.alfred_filter_maintenance_interval": "21.0",
+  "number.alfred_rolling_brush_maintenance_interval": "30.0",
+  "number.alfred_sensor_maintenance_interval": "60.0",
+  "number.alfred_side_brush_maintenance_interval": "30.0",
+  "number.alfred_cleaning_tray_maintenance_interval": "30.0",
+  "number.alfred_mopping_cloth_maintenance_interval": "20.0",
+  "number.alfred_swivel_wheel_maintenance_interval": "65.0",
+  "number.other_alfred_bryan_s_room_order": "4.0",
+  "number.other_alfred_bathroom_order": "5.0",
+  "number.other_alfred_hallway_order": "7.0",
+  "number.other_alfred_kitchen_order": "1.0",
+  "number.other_alfred_master_bedroom_order": "6.0",
+  "number.other_alfred_dining_room_order": "9.0",
+  "number.other_alfred_entryway_order": "2.0",
+  "number.other_alfred_living_room_order": "8.0",
+  "number.other_alfred_cat_room_order": "10.0",
+  "number.other_alfred_home_office_order": "3.0",
+  "sensor.alfred_available_profiles": "4",
+  "sensor.alfred_dock_events": "2026-08-03T01:24:20Z",
+  "sensor.alfred_theme_state": "Core Slate",
+  "sensor.alfred_map_overlays": "Dining Room",
+  "sensor.alfred_onboarding_state": "rooms_needed",
+  "sensor.alfred_battery_health": "unknown",
+  "sensor.alfred_cc_charge_speed": "unknown",
+  "sensor.alfred_cv_charge_speed": "unknown",
+  "sensor.alfred_active_run_error": "none",
+  "sensor.alfred_last_device_error": "MACHINE PICKED UP",
+  "sensor.other_alfred_active_job": "none",
+  "sensor.other_alfred_active_job_2": "none",
+  "sensor.other_alfred_active_job_3": "finalized",
+  "sensor.other_alfred_bryan_s_room_cleaning_history": "unknown",
+  "sensor.other_alfred_bathroom_cleaning_history": "unknown",
+  "sensor.other_alfred_bathroom_rule_status": "not_selected",
+  "sensor.other_alfred_bryan_s_room_rule_status": "not_selected",
+  "sensor.other_alfred_hallway_cleaning_history": "2026-08-02T18:36:51Z",
+  "sensor.other_alfred_master_bedroom_cleaning_history": "unknown",
+  "sensor.other_alfred_master_bedroom_rule_status": "not_selected",
+  "sensor.other_alfred_hallway_rule_status": "not_selected",
+  "sensor.other_alfred_kitchen_cleaning_history": "2026-08-03T03:35:54Z",
+  "sensor.other_alfred_kitchen_rule_status": "allowed",
+  "sensor.other_alfred_dining_room_cleaning_history": "2026-07-16T14:04:29Z",
+  "sensor.other_alfred_dining_room_rule_status": "not_selected",
+  "sensor.other_alfred_living_room_cleaning_history": "unknown",
+  "sensor.other_alfred_living_room_rule_status": "not_selected",
+  "sensor.other_alfred_entryway_cleaning_history": "2026-08-03T03:35:54Z",
+  "sensor.other_alfred_entryway_rule_status": "allowed",
+  "sensor.other_alfred_home_office_cleaning_history": "2026-08-03T03:35:54Z",
+  "sensor.other_alfred_cat_room_cleaning_history": "unknown",
+  "sensor.other_alfred_home_office_rule_status": "allowed",
+  "sensor.other_alfred_cat_room_rule_status": "not_selected",
+  "vacuum.alfred": "docked",
+  "button.alfred_dry_mop": "2026-04-10T07:17:08.482317+00:00",
+  "button.alfred_wash_mop": "2026-06-27T08:24:01.869136+00:00",
+  "button.dining_room_alfred_pause": "unknown",
+  "button.dining_room_alfred_return_to_base": "unknown",
+  "button.dining_room_alfred_start_cleaning": "unknown",
+  "button.alfred_empty_dust_bin": "2026-07-09T23:18:12.083499+00:00",
+  "button.alfred_reset_filter": "2026-03-23T09:14:35.711063+00:00",
+  "button.alfred_reset_rolling_brush": "2026-03-23T09:14:37.841012+00:00",
+  "button.alfred_stop_dry_mop": "2026-04-21T02:41:39.446656+00:00",
+  "button.alfred_reset_cleaning_tray": "2026-07-08T00:54:19.752858+00:00",
+  "button.alfred_reset_mopping_cloth": "2026-03-23T09:14:32.039475+00:00",
+  "button.alfred_reset_sensors": "2026-05-28T06:41:58.623269+00:00",
+  "button.alfred_reset_side_brush": "2026-03-23T09:14:41.004866+00:00",
+  "sensor.alfred_error_message": "",
+  "sensor.alfred_task_status": "Completed",
+  "sensor.alfred_work_mode": "unknown",
+  "sensor.alfred_dock_status": "Idle",
+  "sensor.alfred_active_cleaning_target": "None",
+  "sensor.alfred_wifi_ssid": "Internet",
+  "sensor.alfred_ip_address": "192.168.4.57",
+  "sensor.dining_room_alfred_dock_firmware_version": "1.2.27",
+  "sensor.alfred_active_map": "12",
+  "select.alfred_cleaning_mode": "Vacuum and mop",
+  "select.alfred_mop_intensity": "Automatic",
+  "select.alfred_suction_level": "Standard",
+  "select.alfred_water_level": "Medium",
+  "select.alfred_auto_empty_mode": "Smart",
+  "select.alfred_cleaning_intensity": "Normal",
+  "select.alfred_dry_duration": "4h",
+  "select.alfred_wash_frequency_mode": "ByRoom",
+  "select.dining_room_alfred_voice": "unknown",
+  "select.alfred_clean_room": "None",
+  "select.alfred_scene": "None",
+  "select.dining_room_alfred_switch_map": "Home (ID: 12)",
+  "switch.alfred_auto_empty": "off",
+  "switch.alfred_auto_wash": "on",
+  "switch.alfred_do_not_disturb": "off",
+  "switch.dining_room_alfred_off_peak_charging": "off",
+  "number.alfred_wash_frequency_value_time": "20",
+  "number.dining_room_alfred_voice_volume": "0",
+  "switch.alfred_child_lock": "off",
+  "switch.alfred_find_robot": "off",
+  "binary_sensor.alfred_charging": "off",
+  "time.alfred_do_not_disturb_start": "22:00:00",
+  "time.alfred_do_not_disturb_end": "08:00:00",
+  "time.dining_room_alfred_off_peak_charging_begin": "00:00:00",
+  "time.dining_room_alfred_off_peak_charging_end": "00:00:00",
+  "camera.dining_room_alfred_map": "idle",
+  "sensor.alfred_active_job": "unavailable"
+ },
+ "events": [
+  [
+   "2026-08-03T06:04:45.950Z",
+   "sensor.alfred_active_cleaning_target",
+   "Kitchen"
+  ],
+  [
+   "2026-08-03T06:04:45.971Z",
+   "select.alfred_clean_room",
+   "Kitchen (ID: 5)"
+  ],
+  [
+   "2026-08-03T06:04:46.038Z",
+   "sensor.other_alfred_active_job_3",
+   "started"
+  ],
+  [
+   "2026-08-03T06:04:46.043Z",
+   "switch.other_alfred_kitchen_selected_for_cleaning",
+   "off"
+  ],
+  [
+   "2026-08-03T06:04:46.046Z",
+   "switch.other_alfred_entryway_selected_for_cleaning",
+   "off"
+  ],
+  [
+   "2026-08-03T06:04:46.054Z",
+   "switch.other_alfred_home_office_selected_for_cleaning",
+   "off"
+  ],
+  [
+   "2026-08-03T06:04:46.141Z",
+   "sensor.other_alfred_entryway_rule_status",
+   "not_selected"
+  ],
+  [
+   "2026-08-03T06:04:46.141Z",
+   "sensor.other_alfred_home_office_rule_status",
+   "not_selected"
+  ],
+  [
+   "2026-08-03T06:04:46.141Z",
+   "sensor.other_alfred_kitchen_rule_status",
+   "not_selected"
+  ],
+  [
+   "2026-08-03T06:04:48.298Z",
+   "select.alfred_suction_level",
+   "Quiet"
+  ],
+  [
+   "2026-08-03T06:04:48.314Z",
+   "select.alfred_cleaning_mode",
+   "Vacuum"
+  ],
+  [
+   "2026-08-03T06:04:48.314Z",
+   "select.alfred_mop_intensity",
+   "Quiet"
+  ],
+  [
+   "2026-08-03T06:04:48.314Z",
+   "select.alfred_water_level",
+   "Low"
+  ],
+  [
+   "2026-08-03T06:04:48.315Z",
+   "select.alfred_cleaning_intensity",
+   "Quick"
+  ],
+  [
+   "2026-08-03T06:04:48.376Z",
+   "vacuum.alfred",
+   "cleaning"
+  ],
+  [
+   "2026-08-03T06:04:48.383Z",
+   "sensor.alfred_task_status",
+   "Cleaning"
+  ],
+  [
+   "2026-08-03T06:04:48.384Z",
+   "sensor.alfred_work_mode",
+   "Room"
+  ],
+  [
+   "2026-08-03T06:04:48.386Z",
+   "binary_sensor.alfred_charging",
+   "on"
+  ],
+  [
+   "2026-08-03T06:04:48.701Z",
+   "binary_sensor.alfred_charging",
+   "off"
+  ],
+  [
+   "2026-08-03T06:04:48.801Z",
+   "sensor.alfred_cleaning_time",
+   "0.0"
+  ],
+  [
+   "2026-08-03T06:04:51.264Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-52.0"
+  ],
+  [
+   "2026-08-03T06:05:06.414Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-64.0"
+  ],
+  [
+   "2026-08-03T06:05:25.077Z",
+   "sensor.alfred_map_overlays",
+   "Kitchen"
+  ],
+  [
+   "2026-08-03T06:05:40.602Z",
+   "sensor.alfred_cleaning_time",
+   "0.5"
+  ],
+  [
+   "2026-08-03T06:06:10.652Z",
+   "sensor.alfred_cleaning_area",
+   "10.7639104167097"
+  ],
+  [
+   "2026-08-03T06:06:10.652Z",
+   "sensor.alfred_cleaning_time",
+   "1.0"
+  ],
+  [
+   "2026-08-03T06:06:40.611Z",
+   "sensor.alfred_cleaning_area",
+   "21.5278208334195"
+  ],
+  [
+   "2026-08-03T06:06:40.611Z",
+   "sensor.alfred_cleaning_time",
+   "1.5"
+  ],
+  [
+   "2026-08-03T06:07:10.618Z",
+   "sensor.alfred_cleaning_time",
+   "2.0"
+  ],
+  [
+   "2026-08-03T06:07:18.147Z",
+   "select.alfred_suction_level",
+   "Standard"
+  ],
+  [
+   "2026-08-03T06:07:18.227Z",
+   "select.alfred_cleaning_mode",
+   "Vacuum and mop"
+  ],
+  [
+   "2026-08-03T06:07:18.227Z",
+   "select.alfred_water_level",
+   "Medium"
+  ],
+  [
+   "2026-08-03T06:07:18.228Z",
+   "select.alfred_cleaning_intensity",
+   "Normal"
+  ],
+  [
+   "2026-08-03T06:07:18.228Z",
+   "select.alfred_mop_intensity",
+   "Automatic"
+  ],
+  [
+   "2026-08-03T06:07:18.327Z",
+   "vacuum.alfred",
+   "returning"
+  ],
+  [
+   "2026-08-03T06:07:18.330Z",
+   "sensor.alfred_task_status",
+   "Returning"
+  ],
+  [
+   "2026-08-03T06:07:19.591Z",
+   "sensor.dining_room_alfred_total_cleaning_area",
+   "16425.727295899"
+  ],
+  [
+   "2026-08-03T06:07:19.592Z",
+   "sensor.dining_room_alfred_total_cleaning_count",
+   "254"
+  ],
+  [
+   "2026-08-03T06:07:19.592Z",
+   "sensor.dining_room_alfred_total_cleaning_time",
+   "36.9916666666667"
+  ],
+  [
+   "2026-08-03T06:07:41.280Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-50.0"
+  ],
+  [
+   "2026-08-03T06:07:46.281Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-59.0"
+  ],
+  [
+   "2026-08-03T06:07:51.279Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-51.0"
+  ],
+  [
+   "2026-08-03T06:07:55.209Z",
+   "sensor.alfred_map_overlays",
+   "Dining Room"
+  ],
+  [
+   "2026-08-03T06:07:58.394Z",
+   "binary_sensor.alfred_charging",
+   "on"
+  ],
+  [
+   "2026-08-03T06:08:00.469Z",
+   "vacuum.alfred",
+   "docked"
+  ],
+  [
+   "2026-08-03T06:08:00.481Z",
+   "sensor.alfred_active_cleaning_target",
+   "None"
+  ],
+  [
+   "2026-08-03T06:08:00.481Z",
+   "sensor.alfred_task_status",
+   "Completed"
+  ],
+  [
+   "2026-08-03T06:08:03.814Z",
+   "select.alfred_clean_room",
+   "None"
+  ],
+  [
+   "2026-08-03T06:08:03.829Z",
+   "sensor.alfred_last_job_drain_per_hour",
+   "0.0"
+  ],
+  [
+   "2026-08-03T06:08:03.829Z",
+   "sensor.alfred_last_job_drain_rate",
+   "0.0"
+  ],
+  [
+   "2026-08-03T06:08:03.830Z",
+   "sensor.alfred_last_job_drain_per_m2",
+   "unknown"
+  ],
+  [
+   "2026-08-03T06:08:04.469Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16495"
+  ],
+  [
+   "2026-08-03T06:08:04.474Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2012"
+  ],
+  [
+   "2026-08-03T06:09:14.018Z",
+   "sensor.alfred_active_cleaning_target",
+   "Entryway, Home Office"
+  ],
+  [
+   "2026-08-03T06:09:14.019Z",
+   "select.alfred_clean_room",
+   "Entryway (ID: 8)"
+  ],
+  [
+   "2026-08-03T06:09:16.316Z",
+   "select.alfred_suction_level",
+   "Quiet"
+  ],
+  [
+   "2026-08-03T06:09:16.319Z",
+   "select.alfred_cleaning_intensity",
+   "Quick"
+  ],
+  [
+   "2026-08-03T06:09:16.319Z",
+   "select.alfred_cleaning_mode",
+   "Vacuum"
+  ],
+  [
+   "2026-08-03T06:09:16.319Z",
+   "select.alfred_mop_intensity",
+   "Quiet"
+  ],
+  [
+   "2026-08-03T06:09:16.319Z",
+   "select.alfred_water_level",
+   "Low"
+  ],
+  [
+   "2026-08-03T06:09:16.392Z",
+   "vacuum.alfred",
+   "cleaning"
+  ],
+  [
+   "2026-08-03T06:09:16.396Z",
+   "sensor.alfred_task_status",
+   "Cleaning"
+  ],
+  [
+   "2026-08-03T06:09:16.843Z",
+   "sensor.alfred_cleaning_time",
+   "0.0"
+  ],
+  [
+   "2026-08-03T06:09:16.934Z",
+   "binary_sensor.alfred_charging",
+   "off"
+  ],
+  [
+   "2026-08-03T06:09:18.192Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16205"
+  ],
+  [
+   "2026-08-03T06:09:18.193Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2055"
+  ],
+  [
+   "2026-08-03T06:09:26.377Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-61.0"
+  ],
+  [
+   "2026-08-03T06:09:55.213Z",
+   "sensor.alfred_map_overlays",
+   "Entryway"
+  ],
+  [
+   "2026-08-03T06:10:06.601Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-69.0"
+  ],
+  [
+   "2026-08-03T06:10:16.313Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-59.0"
+  ],
+  [
+   "2026-08-03T06:10:19.598Z",
+   "sensor.alfred_cleaning_area",
+   "10.7639104167097"
+  ],
+  [
+   "2026-08-03T06:10:19.598Z",
+   "sensor.alfred_cleaning_time",
+   "0.5"
+  ],
+  [
+   "2026-08-03T06:10:36.680Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16087"
+  ],
+  [
+   "2026-08-03T06:10:36.680Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2545"
+  ],
+  [
+   "2026-08-03T06:10:49.648Z",
+   "sensor.alfred_cleaning_time",
+   "1.0"
+  ],
+  [
+   "2026-08-03T06:11:01.292Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-67.0"
+  ],
+  [
+   "2026-08-03T06:11:19.599Z",
+   "sensor.alfred_cleaning_time",
+   "1.5"
+  ],
+  [
+   "2026-08-03T06:11:49.673Z",
+   "sensor.alfred_cleaning_area",
+   "21.5278208334195"
+  ],
+  [
+   "2026-08-03T06:11:49.673Z",
+   "sensor.alfred_cleaning_time",
+   "2.0"
+  ],
+  [
+   "2026-08-03T06:11:57.028Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16093"
+  ],
+  [
+   "2026-08-03T06:11:57.028Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2143"
+  ],
+  [
+   "2026-08-03T06:12:10.855Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16095"
+  ],
+  [
+   "2026-08-03T06:12:10.856Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2105"
+  ],
+  [
+   "2026-08-03T06:12:11.428Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16082"
+  ],
+  [
+   "2026-08-03T06:12:11.428Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2221"
+  ],
+  [
+   "2026-08-03T06:12:39.783Z",
+   "sensor.alfred_cleaning_area",
+   "43.0556416668389"
+  ],
+  [
+   "2026-08-03T06:12:39.783Z",
+   "sensor.alfred_cleaning_time",
+   "2.5"
+  ],
+  [
+   "2026-08-03T06:12:55.221Z",
+   "sensor.alfred_map_overlays",
+   "Home Office"
+  ],
+  [
+   "2026-08-03T06:13:00.683Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16059"
+  ],
+  [
+   "2026-08-03T06:13:00.683Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2289"
+  ],
+  [
+   "2026-08-03T06:13:00.775Z",
+   "sensor.alfred_battery",
+   "99"
+  ],
+  [
+   "2026-08-03T06:13:00.780Z",
+   "sensor.alfred_charge_cycles",
+   "5.75"
+  ],
+  [
+   "2026-08-03T06:13:09.853Z",
+   "sensor.alfred_cleaning_area",
+   "53.8195520835486"
+  ],
+  [
+   "2026-08-03T06:13:09.853Z",
+   "sensor.alfred_cleaning_time",
+   "3.0"
+  ],
+  [
+   "2026-08-03T06:13:39.798Z",
+   "sensor.alfred_cleaning_time",
+   "3.5"
+  ],
+  [
+   "2026-08-03T06:13:50.011Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16054"
+  ],
+  [
+   "2026-08-03T06:13:50.011Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2209"
+  ],
+  [
+   "2026-08-03T06:14:09.780Z",
+   "sensor.alfred_cleaning_area",
+   "64.5834625002583"
+  ],
+  [
+   "2026-08-03T06:14:09.780Z",
+   "sensor.alfred_cleaning_time",
+   "4.0"
+  ],
+  [
+   "2026-08-03T06:14:15.546Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16040"
+  ],
+  [
+   "2026-08-03T06:14:15.547Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2275"
+  ],
+  [
+   "2026-08-03T06:14:22.705Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16034"
+  ],
+  [
+   "2026-08-03T06:14:22.705Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2353"
+  ],
+  [
+   "2026-08-03T06:14:28.687Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16043"
+  ],
+  [
+   "2026-08-03T06:14:28.687Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2209"
+  ],
+  [
+   "2026-08-03T06:14:33.067Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16041"
+  ],
+  [
+   "2026-08-03T06:14:33.068Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2259"
+  ],
+  [
+   "2026-08-03T06:14:33.533Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16043"
+  ],
+  [
+   "2026-08-03T06:14:33.533Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2195"
+  ],
+  [
+   "2026-08-03T06:14:39.796Z",
+   "sensor.alfred_cleaning_time",
+   "4.5"
+  ],
+  [
+   "2026-08-03T06:15:09.791Z",
+   "sensor.alfred_cleaning_time",
+   "5.0"
+  ],
+  [
+   "2026-08-03T06:15:09.973Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16016"
+  ],
+  [
+   "2026-08-03T06:15:09.973Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2353"
+  ],
+  [
+   "2026-08-03T06:15:11.413Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16032"
+  ],
+  [
+   "2026-08-03T06:15:11.413Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2191"
+  ],
+  [
+   "2026-08-03T06:15:13.140Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16018"
+  ],
+  [
+   "2026-08-03T06:15:13.141Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2341"
+  ],
+  [
+   "2026-08-03T06:15:15.377Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16012"
+  ],
+  [
+   "2026-08-03T06:15:15.377Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2391"
+  ],
+  [
+   "2026-08-03T06:15:17.698Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16008"
+  ],
+  [
+   "2026-08-03T06:15:17.699Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2439"
+  ],
+  [
+   "2026-08-03T06:15:19.867Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16029"
+  ],
+  [
+   "2026-08-03T06:15:19.867Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2179"
+  ],
+  [
+   "2026-08-03T06:15:21.971Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16019"
+  ],
+  [
+   "2026-08-03T06:15:21.971Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2289"
+  ],
+  [
+   "2026-08-03T06:15:25.046Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16022"
+  ],
+  [
+   "2026-08-03T06:15:25.046Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2241"
+  ],
+  [
+   "2026-08-03T06:15:25.862Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16006"
+  ],
+  [
+   "2026-08-03T06:15:25.862Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2447"
+  ],
+  [
+   "2026-08-03T06:15:27.719Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16007"
+  ],
+  [
+   "2026-08-03T06:15:27.719Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2421"
+  ],
+  [
+   "2026-08-03T06:15:37.565Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16018"
+  ],
+  [
+   "2026-08-03T06:15:37.565Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2251"
+  ],
+  [
+   "2026-08-03T06:15:39.431Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16031"
+  ],
+  [
+   "2026-08-03T06:15:39.431Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2183"
+  ],
+  [
+   "2026-08-03T06:15:39.839Z",
+   "sensor.alfred_cleaning_time",
+   "5.5"
+  ],
+  [
+   "2026-08-03T06:15:46.318Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-59.0"
+  ],
+  [
+   "2026-08-03T06:15:46.953Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16017"
+  ],
+  [
+   "2026-08-03T06:15:46.953Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2241"
+  ],
+  [
+   "2026-08-03T06:15:48.527Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16026"
+  ],
+  [
+   "2026-08-03T06:15:48.528Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2119"
+  ],
+  [
+   "2026-08-03T06:15:51.209Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16018"
+  ],
+  [
+   "2026-08-03T06:15:51.209Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2203"
+  ],
+  [
+   "2026-08-03T06:15:53.326Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2209"
+  ],
+  [
+   "2026-08-03T06:15:59.368Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16002"
+  ],
+  [
+   "2026-08-03T06:15:59.368Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2327"
+  ],
+  [
+   "2026-08-03T06:16:00.703Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16016"
+  ],
+  [
+   "2026-08-03T06:16:00.704Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2165"
+  ],
+  [
+   "2026-08-03T06:16:01.339Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-66.0"
+  ],
+  [
+   "2026-08-03T06:16:02.630Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16020"
+  ],
+  [
+   "2026-08-03T06:16:02.630Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2169"
+  ],
+  [
+   "2026-08-03T06:16:05.143Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16007"
+  ],
+  [
+   "2026-08-03T06:16:05.143Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2275"
+  ],
+  [
+   "2026-08-03T06:16:09.793Z",
+   "sensor.alfred_cleaning_time",
+   "6.0"
+  ],
+  [
+   "2026-08-03T06:16:22.002Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16013"
+  ],
+  [
+   "2026-08-03T06:16:22.002Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2165"
+  ],
+  [
+   "2026-08-03T06:16:26.318Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-59.0"
+  ],
+  [
+   "2026-08-03T06:16:39.793Z",
+   "sensor.alfred_cleaning_area",
+   "75.3473729169681"
+  ],
+  [
+   "2026-08-03T06:16:39.793Z",
+   "sensor.alfred_cleaning_time",
+   "6.5"
+  ],
+  [
+   "2026-08-03T06:16:41.321Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-66.0"
+  ],
+  [
+   "2026-08-03T06:17:12.772Z",
+   "sensor.dining_room_alfred_total_cleaning_area",
+   "16501.074668816"
+  ],
+  [
+   "2026-08-03T06:17:12.773Z",
+   "sensor.dining_room_alfred_total_cleaning_count",
+   "255"
+  ],
+  [
+   "2026-08-03T06:17:12.773Z",
+   "sensor.dining_room_alfred_total_cleaning_time",
+   "37.1"
+  ],
+  [
+   "2026-08-03T06:17:16.281Z",
+   "select.alfred_suction_level",
+   "Standard"
+  ],
+  [
+   "2026-08-03T06:17:16.374Z",
+   "select.alfred_cleaning_mode",
+   "Vacuum and mop"
+  ],
+  [
+   "2026-08-03T06:17:16.375Z",
+   "select.alfred_mop_intensity",
+   "Automatic"
+  ],
+  [
+   "2026-08-03T06:17:16.375Z",
+   "select.alfred_water_level",
+   "Medium"
+  ],
+  [
+   "2026-08-03T06:17:16.377Z",
+   "select.alfred_cleaning_intensity",
+   "Normal"
+  ],
+  [
+   "2026-08-03T06:17:16.464Z",
+   "vacuum.alfred",
+   "returning"
+  ],
+  [
+   "2026-08-03T06:17:16.468Z",
+   "sensor.alfred_task_status",
+   "Returning"
+  ],
+  [
+   "2026-08-03T06:17:36.312Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-57.0"
+  ],
+  [
+   "2026-08-03T06:17:51.797Z",
+   "sensor.alfred_robot_position_x_raw",
+   "15977"
+  ],
+  [
+   "2026-08-03T06:17:51.797Z",
+   "sensor.alfred_robot_position_y_raw",
+   "2275"
+  ],
+  [
+   "2026-08-03T06:17:51.887Z",
+   "sensor.alfred_battery",
+   "98"
+  ],
+  [
+   "2026-08-03T06:17:51.891Z",
+   "sensor.alfred_charge_cycles",
+   "5.76"
+  ],
+  [
+   "2026-08-03T06:17:53.127Z",
+   "sensor.alfred_cleaning_tray_remaining",
+   "23"
+  ],
+  [
+   "2026-08-03T06:17:55.235Z",
+   "sensor.alfred_map_overlays",
+   "Dining Room"
+  ],
+  [
+   "2026-08-03T06:17:56.318Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-64.0"
+  ],
+  [
+   "2026-08-03T06:18:01.318Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-51.0"
+  ],
+  [
+   "2026-08-03T06:18:13.145Z",
+   "sensor.alfred_filter_remaining",
+   "319"
+  ],
+  [
+   "2026-08-03T06:18:13.145Z",
+   "sensor.alfred_rolling_brush_remaining",
+   "319"
+  ],
+  [
+   "2026-08-03T06:18:13.145Z",
+   "sensor.alfred_side_brush_remaining",
+   "139"
+  ],
+  [
+   "2026-08-03T06:18:21.319Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-63.0"
+  ],
+  [
+   "2026-08-03T06:18:25.233Z",
+   "sensor.alfred_filter_maintenance_remaining",
+   "2.0"
+  ],
+  [
+   "2026-08-03T06:18:25.235Z",
+   "sensor.alfred_rolling_brush_maintenance_remaining",
+   "10.0"
+  ],
+  [
+   "2026-08-03T06:18:25.235Z",
+   "sensor.alfred_side_brush_maintenance_remaining",
+   "10.0"
+  ],
+  [
+   "2026-08-03T06:18:25.236Z",
+   "sensor.alfred_swivel_wheel_maintenance_remaining",
+   "45.0"
+  ],
+  [
+   "2026-08-03T06:18:31.319Z",
+   "sensor.alfred_wifi_signal_strength",
+   "-55.0"
+  ],
+  [
+   "2026-08-03T06:18:49.209Z",
+   "binary_sensor.alfred_charging",
+   "on"
+  ],
+  [
+   "2026-08-03T06:18:51.274Z",
+   "vacuum.alfred",
+   "docked"
+  ],
+  [
+   "2026-08-03T06:18:51.285Z",
+   "sensor.alfred_active_cleaning_target",
+   "None"
+  ],
+  [
+   "2026-08-03T06:18:51.285Z",
+   "sensor.alfred_task_status",
+   "Completed"
+  ],
+  [
+   "2026-08-03T06:18:53.865Z",
+   "select.alfred_clean_room",
+   "None"
+  ],
+  [
+   "2026-08-03T06:18:53.870Z",
+   "sensor.alfred_last_job_drain_per_hour",
+   "12.246"
+  ],
+  [
+   "2026-08-03T06:18:53.870Z",
+   "sensor.alfred_last_job_drain_rate",
+   "0.2041"
+  ],
+  [
+   "2026-08-03T06:18:53.940Z",
+   "sensor.alfred_last_job_drain_per_hour",
+   "8.49"
+  ],
+  [
+   "2026-08-03T06:18:53.940Z",
+   "sensor.alfred_last_job_drain_per_m2",
+   "0.2857"
+  ],
+  [
+   "2026-08-03T06:18:53.940Z",
+   "sensor.alfred_last_job_drain_rate",
+   "0.1415"
+  ],
+  [
+   "2026-08-03T06:18:54.067Z",
+   "sensor.other_alfred_active_job_3",
+   "finalized"
+  ],
+  [
+   "2026-08-03T06:18:54.073Z",
+   "sensor.other_alfred_kitchen_cleaning_history",
+   "2026-08-03T06:18:53Z"
+  ],
+  [
+   "2026-08-03T06:18:54.074Z",
+   "sensor.other_alfred_entryway_cleaning_history",
+   "2026-08-03T06:18:53Z"
+  ],
+  [
+   "2026-08-03T06:18:54.074Z",
+   "sensor.other_alfred_home_office_cleaning_history",
+   "2026-08-03T06:18:53Z"
+  ],
+  [
+   "2026-08-03T06:18:54.804Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16318"
+  ],
+  [
+   "2026-08-03T06:18:54.805Z",
+   "sensor.alfred_robot_position_y_raw",
+   "1758"
+  ],
+  [
+   "2026-08-03T06:19:44.895Z",
+   "sensor.alfred_robot_position_x_raw",
+   "16403"
+  ],
+  [
+   "2026-08-03T06:19:44.895Z",
+   "sensor.alfred_robot_position_y_raw",
+   "1782"
+  ],
+  [
+   "2026-08-03T06:19:44.988Z",
+   "sensor.alfred_battery",
+   "99"
+  ],
+  [
+   "2026-08-03T06:19:44.999Z",
+   "sensor.alfred_charge_rate",
+   "1.117"
+  ],
+  [
+   "2026-08-03T06:19:44.999Z",
+   "sensor.alfred_charge_rate_high_zone",
+   "1.117"
+  ]
+ ]
+}
