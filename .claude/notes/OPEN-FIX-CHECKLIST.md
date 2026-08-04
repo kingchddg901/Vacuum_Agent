@@ -1,7 +1,7 @@
 # OPEN FIX CHECKLIST -- hostile audit campaign
 
 > **RECONCILED 2026-08-04.** The unchecked list had drifted badly: of 27 entries,
-> **17 were already landed** and simply never ticked — most inside RP-035 (the
+> **19 were already landed** and simply never ticked — most inside RP-035 (the
 > sensor/entity platform batch) and the RP-023 access-graph work. Verified by
 > in-code fix markers whose comments describe the change in the past tense, not
 > the problem. Ticked above.
@@ -11,11 +11,18 @@
 > LEDGER yields phantom findings and reads busy. Both are answered the same way —
 > check the code, not the count.
 >
-> Genuinely open after the sweep: **EP-5**, **DQ-ACT-6**, **A7-ROBORO-4**,
-> **DR-ONB-2**, **A5-PP-RP-2** (verify each — no in-code marker, which is
-> evidence but not proof); **A2-POLYGO-6/-7** (docstring accuracy, no runtime
-> defect); **A4-SETUP-6** (deferred by decision, fix shape recorded in the
-> adjudication); **ENT-1** / **DIAG-1** (banked for the next release).
+> **CORRECTION, same day.** The first pass of this sweep used "does the code cite
+> the finding id?" as the test and put **A2-POLYGO-6/-7** in the open column. Both
+> were already fixed — the compactness docstring now derives the π/4 maximum and
+> states that a digital disc scores π²/16, BELOW a square, and
+> `normalized_color_features` had the dead Rec.709 arithmetic removed outright.
+> Neither fix cites its finding id. **Absence of a marker proved nothing, exactly
+> as flagged.** Read the code; the marker is a shortcut, not the test. 19, not 17.
+>
+> Genuinely open after the sweep: **DQ-ACT-6**, **A7-ROBORO-4**, **DR-ONB-2**,
+> **A5-PP-RP-2** — each still to be read, not inferred; **A4-SETUP-6** (deferred
+> by decision, fix shape recorded in the adjudication); **ENT-1** / **DIAG-1**
+> (banked for the next release). **EP-5** landed in c84e502.
 
 
 Durable ledger of every finding NOT yet applied. Generated from the audit JSON, not from
@@ -340,7 +347,7 @@ audit is a snapshot, not a ledger.
 
 ### LOW (13)
 
-- [ ] **EP-5** `button.py:256` [both]  
+- [x] **EP-5** `button.py:256` [both]  
   The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
   -> Every other entity class in scope declares _attr_translation_key and lets HA resolve the name from strings.json. EufyVacuumSavedRunProfileButton sets _attr_has_entity_name = True, declares NO translation key, and overrid
 - [x] **INF-9** `entity_helpers.py:109` [both]  
@@ -355,10 +362,10 @@ audit is a snapshot, not a ledger.
 - [x] **A5-FURNIS-4** `mapping/mapping_services.py:2162` [both] _(finder said MEDIUM)_  
   area_label_anchors are keyed by device room id and nothing prunes them on a room rebuild, so a re-import silently re-aims one room's dragged label onto a different room  
   -> This is the direct answer to 'does the edit survive a re-import?': the bytes survive, their meaning does not, and nothing detects it. Cosmetic in consequence (a mis-placed m² chip, not a mis-cleaned room) but silently wr
-- [ ] **A2-POLYGO-6** `mapping/segment_primitives.py:342` [Neither at runtime (Eufy CV thresholds are empirically tuned); affects future adapter authors, which is exactly this module's advertised audience]  
+- [x] **A2-POLYGO-6** `mapping/segment_primitives.py:342` [Neither at runtime (Eufy CV thresholds are empirically tuned); affects future adapter authors, which is exactly this module's advertised audience]  
   `compactness` docstring claims 'Range 0-1; 1 = circle' - the attainable maximum is pi/4 and a circle scores LOWER than a square  
   -> No runtime defect - segmentor.py's thresholds (e.g. `compactness < 0.08` for `fragmented_candidate`) were tuned empirically against the actual function. The harm is to the stated purpose of this module: its header calls
-- [ ] **A2-POLYGO-7** `mapping/segment_primitives.py:526` [Neither at runtime (Eufy CV only, thresholds empirically tuned); affects future adapter authors]  
+- [x] **A2-POLYGO-7** `mapping/segment_primitives.py:526` [Neither at runtime (Eufy CV only, thresholds empirically tuned); affects future adapter authors]  
   `normalized_color_features`' luminance normalisation provably cancels out - the Rec.709 weights are dead arithmetic and tuning them changes nothing  
   -> No behavioural defect - the output is correct chromaticity and segmentor.py's hue clustering is tuned against it. The trap is for maintenance: the docstring says 'illumination-normalized chromaticity features' and the co
 - [x] **EP-4** `number.py:7` [both]  
