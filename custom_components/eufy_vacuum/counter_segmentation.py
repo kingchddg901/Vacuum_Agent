@@ -75,11 +75,32 @@ from typing import Any
 from .timestamp_utils import UTC, datetime_to_utc_iso, parse_timestamp
 
 # Defaults (seconds / m²). cleaning_time ticks every ~30 s while cleaning.
+#
+# BOTH FAMILIES ARE "ONE UNIT PLUS MARGIN", NOT PHYSICAL MEASUREMENTS. Read them
+# that way before retuning either, or you will move a number that was never about
+# the quantity its unit suggests.
+#
+# TIME. cleaning_time is a COUNT OF 30 s WORK UNITS, not a clock: measured over
+# 229 consecutive rises, every single one was exactly +0.500 min, and the wall
+# interval between them was 29.5-30.0 s. So a "gap" is really idle time,
+# `wall_gap - 30`, and the thresholds are one work-unit apart by design:
+#   35 -> at least  5 s not cleaning   (30 + jitter margin; the floor is 29.5)
+#   60 -> at least 30 s not cleaning
+#   90 -> at least 60 s not cleaning
+#
+# AREA. cleaning_area is QUANTISED to whole device steps of 1 m². _AREA_JUMP_M2
+# does not mean "two square metres" — it means MORE THAN ONE QUANTUM, i.e. the
+# floor covered is at least two steps, so a single step cannot read as a room
+# change. On a metric HA that is exact (1.0, 2.0, 3.0 …) and 2.0 is simply right.
+# On an imperial HA it is NOT: the same value round-trips m² -> ft² -> m² as
+# 1 -> 10.7639 -> displayed 10.76 -> 0.99964, and two steps land at 1.9993 —
+# under an exact 2.0 by a thousandth. Hence _AREA_EPS. Expressing the intent as
+# "> 1 quantum" would have been frame-independent and would not have needed it.
 _CADENCE_S = 30.0
-_GAP_DELAYED_S = 35.0   # gap above this = a delayed step (a hop or a pass-turn)
-_GAP_TRANSIT_S = 60.0   # gap above this (≤ plateau) with FLAT area = an inter-room transit
-_GAP_PLATEAU_S = 90.0   # gap above this = an unambiguous boundary (wash / long transit)
-_AREA_JUMP_M2 = 2.0     # cleaning_area delta across a delayed step marking new floor
+_GAP_DELAYED_S = 35.0   # >= ~5 s not cleaning (one work unit + jitter margin)
+_GAP_TRANSIT_S = 60.0   # >= 30 s not cleaning, with FLAT area = an inter-room transit
+_GAP_PLATEAU_S = 90.0   # >= 60 s not cleaning = a dock trip (must also prove it undocked)
+_AREA_JUMP_M2 = 2.0     # MORE THAN ONE 1 m² quantum of new floor — not "2 m²"
 
 # A firmware freeze/stall (or an over-long dock) shows up as a long INTERIOR gap between
 # cleaning_time increments. cleaning_time is THE cleaning clock (~30 s ticks WHILE cleaning),
