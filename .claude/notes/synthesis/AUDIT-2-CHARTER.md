@@ -280,7 +280,16 @@ New, learned since — these become explicit attack instructions in every discov
    - **Earlier refusal.** A later change made a branch refuse sooner, so the case never reaches
      the check it asserts (`_proof_zone_caps.py`).
 
-   **Build the v2 harness BEFORE firing (gate 13). Requirements:**
+   **HARNESS V2: BUILT 2026-08-04 — all four requirements live** (`Proof.patch()`
+   invocation tracking · sweep-side no-verdict fail · quarantine rendering, `QUARANTINED —
+   0 of N admissible`, BEFORE never fires it · `require_contract()` against production's
+   `contract_versions.py`, seeded with `completed_room_evidence` v2). Validated by a full
+   sweep: the three remaining stale proofs render QUARANTINED and bucket correctly;
+   `_proof_inflight_askers.py` repaired to AFTER by the concurrent session; one new ERROR
+   (`_proof_reachability.py`) attributed to a proof-fixture gap in the A6-AGX family — the
+   fix now lets its case reach DEEPER than the fixture supports (the "earlier refusal"
+   class inverted: **deeper reach after repair** — hunt this fifth variant too). The
+   original requirements, for the record:
    - **Stub-invocation tracking.** Make `H.patch()` the only sanctioned stub path and fail any
      proof where a registered stub was never invoked. Catches the moved-call-site class for
      free, with zero author declaration.
