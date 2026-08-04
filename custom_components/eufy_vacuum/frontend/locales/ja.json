@@ -1699,7 +1699,8 @@
     "label_required": "部屋プロファイルのラベルが必要です。",
     "rename_key_prompt": "任意: 新しいバックエンドのプロファイルキーを入力してください。",
     "rename_label_prompt": "この部屋プロファイルの新しい表示ラベルを入力してください:",
-    "save_new_profile_prompt": "現在の部屋設定を新しいプロファイルとして保存します。表示ラベルを入力してください:"
+    "save_new_profile_prompt": "現在の部屋設定を新しいプロファイルとして保存します。表示ラベルを入力してください:",
+    "save_rejected": "この変更は拒否され、保存されていません。"
   },
   "bind_room_access": {
     "backend_rejected_graph": "バックエンドがこの部屋アクセスグラフを拒否しました。",

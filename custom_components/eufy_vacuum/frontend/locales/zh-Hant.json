@@ -1699,7 +1699,8 @@
     "label_required": "房間設定檔標籤為必填。",
     "rename_key_prompt": "選填：輸入新的後端設定檔識別碼。",
     "rename_label_prompt": "輸入此房間設定檔的新顯示標籤：",
-    "save_new_profile_prompt": "將目前的房間設定另存為新設定檔。請輸入顯示標籤："
+    "save_new_profile_prompt": "將目前的房間設定另存為新設定檔。請輸入顯示標籤：",
+    "save_rejected": "該變更已被拒絕，尚未儲存。"
   },
   "bind_room_access": {
     "backend_rejected_graph": "後端拒絕了此房間通行圖。",

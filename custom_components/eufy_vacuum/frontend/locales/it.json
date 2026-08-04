@@ -135,7 +135,8 @@
     "rename_key_prompt": "Facoltativo: inserisci una nuova chiave di profilo backend.",
     "rename_label_prompt": "Inserisci la nuova etichetta visualizzata per questo profilo stanza:",
     "save_new_profile_prompt": "Salva le impostazioni attuali della stanza come nuovo profilo. Inserisci un'etichetta visualizzata:",
-    "profile_already_removed": "Quel profilo era già stato rimosso."
+    "profile_already_removed": "Quel profilo era già stato rimosso.",
+    "save_rejected": "Questa modifica è stata rifiutata e non è stata salvata."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "Il backend ha rifiutato questa regola.",

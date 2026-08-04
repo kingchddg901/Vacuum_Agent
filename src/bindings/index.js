@@ -293,11 +293,18 @@ export class VacuumCardBindings {
         if (!room || !fields) return;
 
         try {
-          await this.card._actions.saveRoomEditor(
+          const result = await this.card._actions.saveRoomEditor(
             room.mapId,
             room.id,
             fields
           );
+
+          // A6-AGX-2 Half B: same refusal check as the main-root binding, via
+          // the SHARED helper in bindings/room-editor.js — not a second copy.
+          // These two handlers already drifted once (this one never gained
+          // setSkipRefreshOnClose), which is exactly why the check is not
+          // duplicated here.
+          if (this._roomEditorSaveWasRejected(result)) return;
 
           await this._refreshRoomEditorEstimates?.();
           this.card._state.closeRoomEditor();

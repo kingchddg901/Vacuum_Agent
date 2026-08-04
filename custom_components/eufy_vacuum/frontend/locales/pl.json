@@ -2414,7 +2414,8 @@
     "label_required": "Etykieta profilu pokoju jest wymagana.",
     "rename_key_prompt": "Opcjonalnie: wprowadź nowy klucz profilu w backendzie.",
     "rename_label_prompt": "Wprowadź nową etykietę wyświetlaną dla tego profilu pokoju:",
-    "save_new_profile_prompt": "Zapisz bieżące ustawienia pokoju jako nowy profil. Wprowadź etykietę wyświetlaną:"
+    "save_new_profile_prompt": "Zapisz bieżące ustawienia pokoju jako nowy profil. Wprowadź etykietę wyświetlaną:",
+    "save_rejected": "Ta zmiana została odrzucona i nie została zapisana."
   },
   "bind_map": {
     "analysis_failed": "Analiza nie powiodła się",

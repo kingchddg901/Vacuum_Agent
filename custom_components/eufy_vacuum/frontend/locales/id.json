@@ -2414,7 +2414,8 @@
     "label_required": "Label profil ruangan diperlukan.",
     "rename_key_prompt": "Opsional: masukkan kunci profil backend baru.",
     "rename_label_prompt": "Masukkan label tampilan baru untuk profil ruangan ini:",
-    "save_new_profile_prompt": "Simpan pengaturan ruangan saat ini sebagai profil baru. Masukkan label tampilan:"
+    "save_new_profile_prompt": "Simpan pengaturan ruangan saat ini sebagai profil baru. Masukkan label tampilan:",
+    "save_rejected": "Perubahan itu ditolak dan belum disimpan."
   },
   "bind_map": {
     "analysis_failed": "Analisis gagal",

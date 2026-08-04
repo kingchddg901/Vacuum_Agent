@@ -399,6 +399,49 @@ export function applyRoomEditorBindings(proto) {
     });
   };
 
+  /**
+   * A6-AGX-2 Half B — ONE refusal check, shared by both save bindings.
+   *
+   * The room editor's Save button is bound in TWO places, on two different
+   * roots: _bindRoomEditorSave() for the main shadow root, and
+   * bindModalHostEvents() in bindings/index.js for the detached modal host
+   * (main.js:1562). Both awaited saveRoomEditor(), ignored the result, and
+   * closed the modal — so a backend refusal (update_room_fields returning
+   * {ok:false, reason:"invalid_access_graph"}) looked exactly like a save, and
+   * the value reverted on the next snapshot with nothing shown anywhere.
+   *
+   * Deliberately ONE function rather than the same check written twice: these
+   * two handlers already drifted apart once (the modal-host copy never gained
+   * setSkipRefreshOnClose), and a second copy of a predicate is how the shorter
+   * one becomes the bug.
+   *
+   * @returns {boolean} true when the save was REFUSED — caller must return
+   *   without closing the modal.
+   */
+  proto._roomEditorSaveWasRejected = function (result) {
+    if (
+      result?.ok === false ||
+      result?.updated === false ||
+      result?.error === "invalid_access_graph" ||
+      result?.reason === "invalid_access_graph"
+    ) {
+      const message =
+        (Array.isArray(result?.issues) && result.issues.length
+          ? result.issues.map((issue) => issue?.message ?? String(issue)).join(" ")
+          : null) ??
+        result?.reason_detail ??
+        result?.message ??
+        result?.reason ??
+        this.tRaw("bind_room_editor.save_rejected");
+
+      this.card._state.setRoomEditorSaveError?.(message);
+      this.card._scheduleRender();
+      return true;
+    }
+    this.card._state.setRoomEditorSaveError?.(null);
+    return false;
+  };
+
   proto._bindRoomEditorSave = function () {
     this.card._on(
       this.card.$("[data-action='save-room-editor']"),
@@ -409,11 +452,14 @@ export function applyRoomEditorBindings(proto) {
         if (!room || !fields) return;
 
         try {
-          await this.card._actions.saveRoomEditor(
+          const result = await this.card._actions.saveRoomEditor(
             room.mapId,
             room.id,
             fields
           );
+
+          // A6-AGX-2 Half B: a refusal keeps the modal OPEN and shows why.
+          if (this._roomEditorSaveWasRejected(result)) return;
 
           this.card._state.setSkipRefreshOnClose(true);
 

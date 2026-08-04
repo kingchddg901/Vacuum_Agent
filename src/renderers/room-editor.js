@@ -83,6 +83,12 @@ export function applyRoomEditorRenderer(proto) {
             ${this._renderTransitionField(room)}
             ${this._renderRoomColorField(room, fields)}
 
+            ${state.roomEditorSaveError?.() ? `
+              <div class="evcc-room-editor-save-error">
+                ${this.escapeHtml(state.roomEditorSaveError())}
+              </div>
+            ` : ""}
+
           </div>
 
           <div class="evcc-modal-footer">

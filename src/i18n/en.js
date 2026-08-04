@@ -192,6 +192,10 @@ export const en = {
   "bind_map.variant_image_deleted": "{variant} image deleted",  // {variant}=map-image variant name (Dark/Light/Default), capitalized at call site
   "bind_map.image_too_large": "Image too large even after resizing — please pick a smaller image.",  // map-image upload rejected: payload still over HA's 4 MiB WS-frame limit after client downscale. Feeds an escapeHtml sink → keyed via tRaw
   "bind_map.upload_failed_generic": "Upload failed",  // generic fallback when a map-image upload throws with no usable message
+  // A6-AGX-2 Half B: shown IN the room-editor modal when update_room_fields refuses.
+  // Generic fallback only — the backend normally returns a specific reason/issues list,
+  // which the binding prefers over this.
+  "bind_room_editor.save_rejected": "That change was rejected and has not been saved.",
   "bind_room_access.backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
   "bind_room_access.failed_to_save": "Failed to save room access. Check Home Assistant logs for details.",
   "bind_room_editor.choose_custom_profile_key": "Choose a custom profile key:\n\n{choiceText}",  // window.prompt; user types a profile KEY (backend id), {choiceText}=newline list of 'name (label)'

@@ -136,7 +136,8 @@
     "rename_key_prompt": "Opcional: introduza uma nova chave de perfil do backend.",
     "rename_label_prompt": "Introduza a nova etiqueta de apresentação para este perfil de divisão:",
     "save_new_profile_prompt": "Guardar as definições atuais da divisão como novo perfil. Introduza uma etiqueta de apresentação:",
-    "profile_already_removed": "Esse perfil já tinha sido removido."
+    "profile_already_removed": "Esse perfil já tinha sido removido.",
+    "save_rejected": "Essa alteração foi rejeitada e não foi guardada."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "O backend rejeitou esta regra.",

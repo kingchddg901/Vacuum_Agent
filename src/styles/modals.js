@@ -247,6 +247,20 @@ export const modalStyles = `
      ROOM EDITOR SPECIFICS
      ========================================================= */
 
+  /* A6-AGX-2 Half B: a backend refusal shown in-modal instead of the save
+     silently reverting. Mirrors .evcc-room-access-save-error (styles/room-access.js)
+     rather than sharing it — that one is scoped to the access modal, and this
+     lives in the room-editor modal, which can render in the detached modal host. */
+  .evcc-room-editor-save-error {
+    font-size:     0.82rem;
+    line-height:   1.4;
+    padding:       10px 12px;
+    border-radius: 10px;
+    color:         var(--evcc-sem-warning);
+    border:        1px solid color-mix(in srgb, var(--evcc-sem-warning) 32%, transparent);
+    background:    color-mix(in srgb, var(--evcc-sem-warning) 12%, transparent);
+  }
+
   .evcc-room-editor-carpet-notice {
     display:       flex;
     align-items:   center;

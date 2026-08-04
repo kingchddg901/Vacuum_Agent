@@ -2414,7 +2414,8 @@
     "label_required": "Bir oda profili etiketi gereklidir.",
     "rename_key_prompt": "İsteğe bağlı: yeni bir arka uç profil anahtarı girin.",
     "rename_label_prompt": "Bu oda profili için yeni görünen etiketi girin:",
-    "save_new_profile_prompt": "Mevcut oda ayarlarını yeni bir profil olarak kaydedin. Bir görünen etiket girin:"
+    "save_new_profile_prompt": "Mevcut oda ayarlarını yeni bir profil olarak kaydedin. Bir görünen etiket girin:",
+    "save_rejected": "Bu değişiklik reddedildi ve kaydedilmedi."
   },
   "bind_map": {
     "analysis_failed": "Analiz başarısız",

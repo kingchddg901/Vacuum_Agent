@@ -135,7 +135,8 @@
     "rename_key_prompt": "Optional: gib einen neuen Backend-Profilschlüssel ein.",
     "rename_label_prompt": "Gib die neue Anzeigebezeichnung für dieses Raumprofil ein:",
     "save_new_profile_prompt": "Aktuelle Raumeinstellungen als neues Profil speichern. Gib eine Anzeigebezeichnung ein:",
-    "profile_already_removed": "Dieses Profil wurde bereits entfernt."
+    "profile_already_removed": "Dieses Profil wurde bereits entfernt.",
+    "save_rejected": "Diese Änderung wurde abgelehnt und nicht gespeichert."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "Das Backend hat diese Regel abgelehnt.",

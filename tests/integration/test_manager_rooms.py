@@ -18,6 +18,10 @@ Coverage targets
         'status') via index-ingest; a new-format index uses completed jobs.
 [MR-14] get_known_map_ids folds in the runtime's selected/active map ids.
 [MR-15] set_rooms_enabled_subset tolerates a non-dict rooms bucket and reaches
+[MR-10e] A6-AGX-2: a PRE-EXISTING structural violation no longer vetoes an
+         unrelated field edit.
+[MR-10f] A6-AGX-2: a NEW (worse) violation on an already-dirty graph is still
+         rejected and rolled back.
         the non-dict-room-entry guard.
 [RRS-1] _update_room_rule_status_snapshot records 'blocked_and_modified' for a
         selected+blocked+modified room and skips non-dict / room_id<=0 entries.
@@ -768,3 +772,64 @@ async def test_get_room_cleaning_history_corrupt_entry_defaults(manager):
     # Both hours-since derive from None timestamps -> None.
     assert result["hours_since_last_vacuum"] is None
     assert result["hours_since_last_mop"] is None
+
+
+def _seed_dirty_graph(manager):
+    """Write a graph that ALREADY violates single-inbound, bypassing the gate.
+
+    Rooms 1 and 2 both grant access to room 3. update_room_fields would refuse to
+    create this, which is the point — it arrives through reconciliation, which
+    rewrites grants through an id remap and de-dupes only WITHIN one room's list,
+    never re-checking the cross-room constraint. So the stored graph can carry a
+    violation no edit created and no edit can clear.
+    """
+    setup_map(manager, _VAC, _MAP, count=5)
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    rooms["1"]["is_dock_room"] = True
+    rooms["1"]["grants_access_to"] = [3]
+    rooms["2"]["grants_access_to"] = [3]
+    return rooms
+
+
+async def test_preexisting_violation_does_not_veto_an_unrelated_edit(manager):
+    """[MR-10e] A6-AGX-2: a violation already in the graph must not block an
+    edit that has nothing to do with it.
+
+    Before: the gate refused on ANY structural issue in the post-edit graph, so a
+    stored multiple_inbound made every subsequent edit — a fan speed, a colour, an
+    enable toggle — fail with invalid_access_graph, and the card silently
+    discarded it. There was no way to clear the violation either, because clearing
+    it is also an edit.
+    """
+    _seed_dirty_graph(manager)
+
+    result = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=4, fan_speed="max"
+    )
+
+    assert result["ok"] is not False, f"blocked by a pre-existing issue: {result}"
+    assert result.get("updated") is not False
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["4"]["fan_speed"] == "max"
+
+
+async def test_gate_still_rejects_a_new_violation_on_a_dirty_graph(manager):
+    """[MR-10f] A6-AGX-2: the delta must not become a no-op.
+
+    Same already-violating graph, but now the edit ADDS a third inbound source to
+    room 3 — a genuinely new (and worse) violation. It must still be refused and
+    rolled back, which is what keeps the gate meaningful after the change.
+    """
+    _seed_dirty_graph(manager)
+
+    result = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=5, grants_access_to=[3]
+    )
+
+    assert result["ok"] is False
+    assert result["error"] == "invalid_access_graph"
+    assert result["updated"] is False
+    assert isinstance(result["issues"], list) and result["issues"]
+    # rollback: room 5's grant was not persisted
+    assert 3 not in (
+        manager.data["maps"][_VAC][_MAP]["rooms"]["5"].get("grants_access_to") or []
+    )

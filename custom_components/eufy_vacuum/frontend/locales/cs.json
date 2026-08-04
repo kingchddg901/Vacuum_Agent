@@ -2414,7 +2414,8 @@
     "label_required": "Je vyžadován název profilu místnosti.",
     "rename_key_prompt": "Volitelné: zadejte nový klíč profilu (backend).",
     "rename_label_prompt": "Zadejte nový zobrazovaný název tohoto profilu místnosti:",
-    "save_new_profile_prompt": "Uložit aktuální nastavení místnosti jako nový profil. Zadejte zobrazovaný název:"
+    "save_new_profile_prompt": "Uložit aktuální nastavení místnosti jako nový profil. Zadejte zobrazovaný název:",
+    "save_rejected": "Tato změna byla odmítnuta a nebyla uložena."
   },
   "bind_map": {
     "analysis_failed": "Analýza se nezdařila",

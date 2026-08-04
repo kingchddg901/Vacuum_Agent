@@ -100,6 +100,20 @@ export function applyRoomEditorState(proto) {
     this._roomEditorMapId = null;
     this._roomEditorFields = null;
     this._skipRefreshOnClose = false;
+    this._roomEditorSaveError = null;
+  };
+
+  // A6-AGX-2 Half B: a backend refusal has to survive long enough to be
+  // rendered. update_room_fields can return {ok:false, reason:"invalid_access_graph"},
+  // and both save bindings discarded it and closed the modal anyway — so the
+  // edit silently reverted on the next snapshot with no banner and no toast.
+  // Mirrors setRoomAccessSaveError/roomAccessSaveError in state/room-access.js.
+  proto.setRoomEditorSaveError = function (error) {
+    this._roomEditorSaveError = error ?? null;
+  };
+
+  proto.roomEditorSaveError = function () {
+    return this._roomEditorSaveError ?? null;
   };
 
   proto.setSkipRefreshOnClose = function (skip) {

@@ -1699,7 +1699,8 @@
     "label_required": "房间方案标签为必填项。",
     "rename_key_prompt": "可选：输入新的后端方案键。",
     "rename_label_prompt": "输入此房间方案的新显示标签：",
-    "save_new_profile_prompt": "将当前房间设置另存为新方案。请输入显示标签："
+    "save_new_profile_prompt": "将当前房间设置另存为新方案。请输入显示标签：",
+    "save_rejected": "该更改已被拒绝，尚未保存。"
   },
   "bind_room_access": {
     "backend_rejected_graph": "后端拒绝了此房间访问图。",
