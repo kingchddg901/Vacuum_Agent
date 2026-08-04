@@ -61,6 +61,29 @@ a ledger):
    `headSha` manually — the `--commit` filter has lied before).
 9. **Regenerate every derived ledger at the pin:** `_gen_repro_status.py`, `_gen_audit_doc.py` +
    `_gen_checklist.py`, closure matrix. Never carry a count forward in prose.
+   **KNOWN UNCERTAINTY BAND — the open count is approximate, in BOTH directions.**
+   `_gen_packet_closure.py` reads only `finding_ids:`, but wave-1 packets (SYNTH-04,
+   RP-001..RP-009) declare the same thing as `findings_addressed:`. Those nine therefore
+   resolve by `repair_family` alone, and the consumer picks family **or** explicit list, never
+   both. Two consequences, each measured 2026-08-03 rather than reasoned:
+   - **Under-credit.** A finding with no `repair_family` of its own is unreachable by a family
+     match and stays open with its fix landed. `#12:A6-GUARD-2` is exactly that: RP-008 names it
+     in `findings_addressed`, the single-flight guard is at `listeners/path_blockers.py:243`, and
+     `[PB-9]` in `test_listeners_active.py` tests both its clauses (coalescing AND the
+     double-cancel, via `assert_awaited_once`). It still renders open. C17 is really 4/4.
+   - **Over-credit.** Family matching credits a wave-1 packet with its WHOLE family even where
+     the packet's own `findings_not_closed:` says otherwise — RP-008 closes 2 of RF-13 and says
+     so in writing.
+   **Both naive repairs were tried and are WRONG; do not re-attempt without per-finding
+   adjudication.** Teaching the generator `findings_addressed` flips those nine packets from
+   family to explicit and **9 findings reopen** (A3-COMMON-3, A3-SNAP-1, A3-SNAP-3, A4-POSE-3,
+   A6-PRE-1, DR-MNT-1, INF-4, INF-5, SN-2) with no evidence they are unfixed. Unioning family
+   with the explicit list instead **closes 17**, including `#8:A4-PP-RP-4` — deliberately parked,
+   and `_proof_profile_roundtrip.py` still reports it BEFORE — because the union re-widens
+   wave-2 packets from their deliberately precise lists back to whole families, undoing the
+   precision the exclusive preference exists to enforce.
+   The real fix is per-finding adjudication of the nine, which is this gate's work, not a
+   generator tweak.
 10. **Clean audit checkout.** Two sessions share this working tree and the other session's
     uncommitted files are routinely present. The audit MUST run against a dedicated
     `git worktree add` at the pinned SHA — never against the shared tree — or the evidence is
