@@ -1,6 +1,10 @@
 # DESIGN — Access graph builder (one modal, click-driven)
 
-**Status:** awaiting approval. No code written.
+**Status:** SUPERSEDED — the builder in §2 was REJECTED. Waves A and B shipped
+and stand on their own; Waves C and D are dropped. See
+[HANDOVER-access-graph-design-session.md](HANDOVER-access-graph-design-session.md)
+for the reasoning, the measurements that killed it, and what shipped instead.
+This file is kept as the record of the design that was considered.
 **Origin:** `live:AGX-CLEAR-1`, and Chris's design call on `A5-AG-2` (2026-08-04) —
 the graph is **all-or-nothing** by design; the fix is not to relax the block but to
 make both of its exits reachable. Auto-suggestion from map geometry is **rejected**
