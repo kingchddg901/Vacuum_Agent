@@ -19,6 +19,8 @@ Coverage targets
 [MS-15] _apply_segment_adjustments: non-numeric center logged and left unchanged (no crash).
 [MS-16] A3-IMAGE--8: _png_dimensions reads IHDR with no dependency.
 [MS-16b] _png_dimensions returns None rather than a confident wrong answer.
+[MS-17] A3-IMAGE--4: only CV SOURCE variants mark the segmentation stale.
+[MS-17b] the mark is idempotent and needs a real available cache.
 [MS-16] _build_segments_response: non-dict segment_room_links / companion_anchors coerced to {}.
 """
 
@@ -252,3 +254,53 @@ def test_png_dimensions_rejects_anything_it_cannot_read():
     zero = bytearray(_png_bytes(4, 4))
     zero[16:20] = struct.pack(">I", 0)
     assert _png_dimensions(bytes(zero)) is None
+
+
+# ---------------------------------------------------------------------------
+# [MS-17] A3-IMAGE--4 — a cached segmentation goes stale with its source image
+# ---------------------------------------------------------------------------
+
+def _stale_helper():
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        _mark_segments_stale_for_variant,
+    )
+    return _mark_segments_stale_for_variant
+
+
+def test_mark_segments_stale_only_for_cv_source_variants():
+    """[MS-17] only the variants the segmenter actually READS invalidate it.
+
+    analyze probes dark -> default as its source and light as an assist.
+    custom_<layout> backdrops and *_art renders are never segmented, so
+    replacing one of those must not invalidate anything.
+    """
+    mark = _stale_helper()
+    for variant in ("dark", "default", "light"):
+        bucket = {"image_segments": {"available": True}}
+        assert mark(bucket, variant) is True
+        assert bucket["image_segments"]["stale_since"]
+
+    for variant in ("custom_L1", "custom_L1_home_art", "sepia"):
+        bucket = {"image_segments": {"available": True}}
+        assert mark(bucket, variant) is False
+        assert "stale_since" not in bucket["image_segments"]
+
+
+def test_mark_segments_stale_is_idempotent_and_needs_a_real_cache():
+    """[MS-17b] returns True only on the TRANSITION, so callers log the edge once.
+
+    Also: nothing to invalidate when there is no cache, or when the cache never
+    became available -- marking those would invent a staleness that has no
+    referent.
+    """
+    mark = _stale_helper()
+
+    bucket = {"image_segments": {"available": True}}
+    assert mark(bucket, "dark") is True
+    first = bucket["image_segments"]["stale_since"]
+    assert mark(bucket, "dark") is False        # already stale, no re-stamp
+    assert bucket["image_segments"]["stale_since"] == first
+
+    assert mark({}, "dark") is False
+    assert mark({"image_segments": None}, "dark") is False
+    assert mark({"image_segments": {"available": False}}, "dark") is False

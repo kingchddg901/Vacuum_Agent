@@ -17,6 +17,7 @@ Coverage targets
          (it used to report saved into a throwaway dict -- silent data loss).
 [MSH-4c] A4-CUSTOM-2: CV mode and a RESOLVED custom layout both still write.
 [MSH-7g] A4-CUSTOM-2: the same guard on set_companion_anchor.
+[MSH-8b] A3-IMAGE--4: get_map_segments reports segments_stale, and still serves.
 [MSH-8]  delete_map_image: returns a well-formed dict when no image exists.
 [LAYOUT-1] legacy single custom_segments store migrates into ONE default layout; shared links/anchors split.
 [LAYOUT-2] create / rename / list / set-active / delete lifecycle, incl. delete-active reassign + delete-last flips to CV.
@@ -1335,3 +1336,32 @@ async def test_cv_and_resolved_custom_scopes_still_write(hass, mapping_services)
                           "segment_id": "s1", "room_id": "7"})
     assert custom["saved"] is True
     assert bucket["custom_layouts"][layout_id]["segment_room_links"]["s1"] == "7"
+
+
+async def test_get_map_segments_reports_stale_segments(hass, mapping_services):
+    """[MSH-8b] A3-IMAGE--4: a caller that does not re-analyze still learns the
+    polygons predate the current image.
+
+    The helper marking the store is only half the fix -- if nothing surfaces it,
+    a consumer reads stale geometry exactly as before and the flag is dead
+    weight. This pins the read seam, not the helper.
+    """
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        _mark_segments_stale_for_variant,
+    )
+    _seed_segments(mapping_services)
+    bucket = ensure_map_bucket(data=mapping_services.data,
+                               vacuum_entity_id=_VAC, map_id=_MAP)
+
+    fresh = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert fresh["segments_stale"] is False
+
+    assert _mark_segments_stale_for_variant(bucket, "dark") is True
+
+    stale = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert stale["segments_stale"] is True
+    # the segments are still SERVED -- marked, never deleted, because zones and
+    # layout art anchor to them (RP-006)
+    assert stale["segments"], "a stale store must still answer, not go blank"

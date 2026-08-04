@@ -925,6 +925,14 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
             "width": result["actual_width"],
             "height": result["actual_height"],
         }
+        # A3-IMAGE--4. Placed BEFORE the art/backdrop branches on purpose: those
+        # force custom_* variant keys, which the helper's own membership test
+        # already excludes — so one call site here instead of three below.
+        if _mark_segments_stale_for_variant(map_bucket, variant):
+            _LOGGER.info(
+                "upload_map_image: %s/%s %s replaced -- cached segments marked stale",
+                vacuum_entity_id, map_id, variant,
+            )
         if art_scope is not None:
             # Furnished ART: write the derived variant onto the layout's home_art /
             # rooms[*] (lazily created), NOT backdrop_variant (that stays the layout's
@@ -955,6 +963,43 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
 
     _LOGGER.debug("upload_map_image: %s", result)
     return result
+
+
+#: The image variants the segmenter actually reads — _handle_analyze_map_image
+#: probes "dark" then "default" as its primary source and "light" as an assist.
+#: Uploading or deleting one of these invalidates any cached segmentation;
+#: custom_<layout_id> backdrops and custom_<layout_id>_*_art renders are never
+#: segmented, so they must not invalidate anything. Consolidated here rather
+#: than added: the same three names are already hard-coded in the analyzer.
+_CV_SOURCE_VARIANTS = frozenset({"dark", "default", "light"})
+
+
+def _mark_segments_stale_for_variant(map_bucket: dict, variant: str) -> bool:
+    """A3-IMAGE--4: invalidate the cached segmentation when its SOURCE changes.
+
+    The cache belongs to the image bytes it was run against, but uploading a
+    replacement (or deleting one) wrote only the variant row — ``image_segments``
+    was never touched, and the analyze cache gate returned it unconditionally on
+    ``available``. So a user could replace the map image and keep being served
+    polygons derived from the previous one, with nothing anywhere saying so.
+
+    MARK, NEVER DELETE. Zones, layout and art anchor to these segments (RP-006),
+    so dropping the store would orphan all of them for the whole re-analyze
+    window and leave nothing for RP-006's own failure guard to preserve. A stale
+    store is still the best available answer until a fresh one exists.
+
+    Returns True only when it actually transitioned, so callers can log the edge
+    once rather than on every touch.
+    """
+    if variant not in _CV_SOURCE_VARIANTS:
+        return False
+    segs = map_bucket.get("image_segments")
+    if not isinstance(segs, dict) or not segs.get("available"):
+        return False
+    if segs.get("stale_since"):
+        return False
+    segs["stale_since"] = utc_now_iso()
+    return True
 
 
 def _clear_layout_references_to_variant(map_bucket: dict, variant: str) -> dict[str, int]:
@@ -1055,6 +1100,15 @@ async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> di
             variant, cleared_refs,
         )
 
+    # A3-IMAGE--4: deleting a CV source variant invalidates the cache for the
+    # same reason replacing one does — the bytes it was derived from are gone.
+    _segments_stale = _mark_segments_stale_for_variant(map_bucket, variant)
+    if _segments_stale:
+        _LOGGER.info(
+            "delete_map_image: %s/%s %s removed -- cached segments marked stale",
+            vacuum_entity_id, map_id, variant,
+        )
+
     await manager.async_save()
 
     result = {
@@ -1065,6 +1119,7 @@ async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> di
         "variant": variant,
         "remaining_variants": list(map_bucket["image_variants"].keys()),
         "cleared_layout_references": cleared_refs,
+        "segments_stale": _segments_stale,
     }
     _LOGGER.debug("delete_map_image: %s", result)
     return result
@@ -1115,6 +1170,10 @@ def _build_segments_response(map_bucket: dict) -> dict:
             enriched.append(seg)
         response["segments"] = enriched
     response["companion_anchors"] = dict(anchors)
+    # A3-IMAGE--4: an explicit flag rather than leaving callers to notice the raw
+    # `stale_since` that rides along in dict(base). A caller that does NOT
+    # re-analyze still gets told the polygons predate the current image.
+    response["segments_stale"] = bool(base.get("stale_since"))
     return response
 
 
@@ -1142,7 +1201,11 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
     # RP-006 (IMAGE--3): the cache-hit gate checks AVAILABLE, not truthiness — a
     # cached FAILURE envelope is a truthy dict and used to be served as if it
     # were a successful analysis forever.
-    if not force_reanalyze and (map_bucket.get("image_segments") or {}).get("available"):
+    # A3-IMAGE--4: a cache marked stale by an upload/delete of its source variant
+    # must not satisfy this gate. A fresh analysis assigns a whole new result dict
+    # below, so `stale_since` clears itself — there is nothing to reset by hand.
+    _cached = map_bucket.get("image_segments") or {}
+    if not force_reanalyze and _cached.get("available") and not _cached.get("stale_since"):
         _LOGGER.debug("analyze_map_image: returning cached for %s map %s", vacuum_entity_id, map_id)
         return _build_segments_response(map_bucket)
 
@@ -1375,6 +1438,8 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         "segment_room_links": dict(links) if isinstance(links, dict) else {},
         "available": bool(raw.get("available", False)),
         "analyzed_at": raw.get("analyzed_at"),
+        # A3-IMAGE--4: the source image changed since these polygons were derived.
+        "segments_stale": bool(raw.get("stale_since")),
         "image": raw.get("image"),
         "image_variants": map_bucket.get("image_variants") or {},
         "summary": {
