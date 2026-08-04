@@ -404,6 +404,78 @@ def test_runtime_block_still_fires_when_the_parent_really_is_blocked(rp, hass):
     assert by_id[2]["reason"] == "access_blocked"
 
 
+def test_runtime_block_propagates_down_the_chain(rp, hass):
+    """[RPS-22] Widening the walk must not weaken propagation.
+
+    Chain 1 -> 2 -> 3 -> 4, queue [2, 3, 4]. A blocker MID-CHAIN on room 2 must
+    take 3 and 4 with it, and a blocker on the LEAF must take only itself.
+    Blocking stays monotone because the seed subtracts direct_blocked, the loop
+    skips blocked rooms so they can never re-enter the set, and a child joins
+    only via `any(parent in accessible)`.
+    """
+    rp_, mgr = rp
+    for map_id, blocked_room, expected in (("spm24", 2, ["2", "3", "4"]),
+                                           ("spm25", 4, ["4"])):
+        cfgs = [
+            {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
+            {"enabled": True, "grants_access_to": [3]},
+            {"enabled": True, "grants_access_to": [4]},
+            {"enabled": True},
+        ]
+        ent = f"binary_sensor.chain{blocked_room}"
+        cfgs[blocked_room - 1] = dict(
+            cfgs[blocked_room - 1],
+            rules=[{"kind": "blocker", "id": f"b{blocked_room}", "entity_id": ent,
+                    "operator": "is_on", "effect": {"reason": "window_open"}}],
+        )
+        _seed(mgr, map_id, cfgs)
+        mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[map_id] = {
+            "status": "started", "job_id": f"j{map_id}",
+            "queue_room_ids": [2, 3, 4], "completed_room_ids": [],
+        }
+        hass.states.async_set(ent, "on")
+        report = mgr.get_runtime_path_block_report(
+            vacuum_entity_id=_VAC, map_id=map_id,
+            trigger_entity_id=ent, trigger_entity_state="on")
+        got = [] if report is None else sorted(report["affected_remaining_room_ids"])
+        assert got == expected, f"blocker on {blocked_room}: got {got}"
+
+
+def test_multiple_inbound_is_structural_so_the_walk_never_sees_two_parents(rp, hass):
+    """[RPS-22] A room CANNOT have two parents — asserting the invariant itself.
+
+    Written because a "two parents, one blocked, room stays reachable" test would
+    be VACUOUS: `multiple_inbound` is a structural issue, the report bails on
+    structural issues, so it returns None and an `== []` assertion passes without
+    the walk ever running. The invariant is the thing worth pinning, not a
+    reachability behaviour that can never be reached.
+
+    Consequence for the walk: `requires_map[room]` holds 0 or 1 entries in any
+    graph that gets that far, so the `any(...)` and the `next(...)` fallback in
+    get_runtime_path_block_report are defensive, not semantic.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "spm26", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [3]},
+        {"enabled": True, "grants_access_to": [3]},
+        {"enabled": True},
+    ])
+    rooms = mgr._normalized_managed_rooms_with_automation(
+        vacuum_entity_id=_VAC, map_id="spm26")
+    validation = mgr._validate_room_access_graph(managed_rooms=rooms)
+    assert "multiple_inbound" in [i["type"] for i in validation["issues"]]
+    assert "multiple_inbound" in [
+        i["type"] for i in mgr._structural_access_graph_issues(validation)
+    ], "two inbound edges must be STRUCTURAL, or the walk could see two parents"
+
+    mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm26"] = {
+        "status": "started", "job_id": "j26",
+        "queue_room_ids": [3], "completed_room_ids": [],
+    }
+    assert mgr.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm26") is None
+
+
 def test_modifier_fan_out_guard_branches(rp, hass):
     """[RPS-10] the fan-out loop's per-target + matched-rule guards.
 

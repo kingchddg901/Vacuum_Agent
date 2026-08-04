@@ -1769,6 +1769,12 @@ class RunPlanManager:
             # merely-unqueued parent as the blocker is what made the old report
             # read as "the entryway is blocking you" for a run that simply did
             # not include the entryway.
+            #
+            # NOTE this list holds 0 or 1 entries in practice: two inbound edges
+            # raise `multiple_inbound`, which _structural_access_graph_issues
+            # treats as illegal, and this method returns None above on any
+            # structural issue. The any()/next() shapes are DEFENSIVE, not a
+            # multi-parent model — do not read them as one.
             parent_ids = list(requires_map.get(room_id, []))
             blocked_by_room_id = next(
                 (
