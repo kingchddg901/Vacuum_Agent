@@ -234,7 +234,30 @@ class OnboardingManager:
         vacuum_entity_id: str,
         map_id: str,
     ) -> bool:
-        """Return True if room count has grown since last check."""
+        """Return True if this MAP's room count has grown since the last check.
+
+        DR-ONB-2. The two sides of this comparison were scoped differently. The
+        stored side, ``room_count_at_last_check``, is stamped by
+        ``mark_rooms_discovered`` from ``data["maps"][vacuum][map_id]["rooms"]``
+        — per map. The live side reads the vacuum entity's room-list attribute,
+        which describes whichever map the robot currently has LOADED. On a
+        multi-map vacuum, asking about map A while map B is active compared A's
+        stored count against B's live one: a smaller second floor reads as "no
+        new rooms" forever, and a larger one reports new rooms that belong to a
+        different map.
+
+        The live source cannot be map-scoped — the attribute simply has no map
+        dimension — so the honest answer when the requested map is not the active
+        one is "I cannot tell", i.e. False. That preserves every single-map
+        install byte-for-byte, which is the only shape reachable today.
+
+        NOTE, and the reason this stayed LOW: this method has NO production
+        callers. It is not registered in services.yaml, and the only reference is
+        an unused delegator on the parent manager (core/manager.py). Fixed rather
+        than deleted because the mechanism is real and the method is public
+        surface; if it stays callerless it should go, not linger as a correct
+        answer nobody asks for.
+        """
         map_ob = self._get_map_onboarding(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
@@ -249,6 +272,15 @@ class OnboardingManager:
 
         source_state = self._hass.states.get(source_entity)
         if source_state is None:
+            return False
+
+        # DR-ONB-2: the live attribute describes the ACTIVE map. Comparing it
+        # against another map's stored count is not a stale answer, it is an
+        # answer about a different room set.
+        from ..rooms.room_discovery import get_active_map_id
+
+        active_map_id = get_active_map_id(self._hass, vacuum_entity_id)
+        if active_map_id is not None and str(active_map_id) != str(map_id):
             return False
 
         segments = source_state.attributes.get(attribute)

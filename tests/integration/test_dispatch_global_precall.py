@@ -22,6 +22,8 @@ Mixed-batch safe water (mixed_mode_water_policy="safest"):
         minimum available option (never leave a prior HIGH value).
 [GPC-10] a vacuum-only room with NO water_level field still forces the safe 'off' — the
         presence of a dry room is the signal, not the min of DECLARED levels.
+[GPC-11] DQ-ACT-6: pre-calls run AFTER payload resolution, so a start that aborts
+        there leaves the robot's global settings untouched.
 """
 
 from __future__ import annotations
@@ -230,3 +232,45 @@ async def test_mixed_batch_vacuum_room_without_water_level(hass, manager):
         ],
     )
     assert sel == [{"entity_id": _MOP, "option": "off"}]
+
+
+# ---------------------------------------------------------------------------
+# [GPC-11] DQ-ACT-6 — ordering: the device is not reconfigured by a start that
+# then fails to reach dispatch.
+# ---------------------------------------------------------------------------
+
+def test_pre_calls_run_after_payload_resolution():
+    """[GPC-11] DQ-ACT-6: a failed start must not leave the robot rewritten.
+
+    The pre-calls push GLOBAL device settings — on Roborock, the mop-intensity
+    select. They used to run BEFORE _resolve_live_dispatch_payload, which is a
+    real failure path rather than a theoretical one: it raises when the map has
+    been re-segmented and the stored slugs no longer resolve
+    (dispatch/manager.py, "been re-segmented; re-import rooms"). The start then
+    aborted with the robot's global mop intensity already changed and nothing to
+    put it back, so the next clean the user ran from the vendor app inherited a
+    setting that outlived the job it was made for.
+
+    ORDER is the fix, so order is what this pins — read off the real start path
+    rather than from a stub sequence, because a mock-driven ordering test passes
+    just as happily when the production order is wrong: the mocks answer in the
+    order the test calls them, not the order the code does.
+    """
+    import inspect
+
+    from custom_components.eufy_vacuum.core.manager import EufyVacuumManager
+
+    src = inspect.getsource(EufyVacuumManager.start_selected_rooms)
+
+    resolve_at = src.index("await self._resolve_live_dispatch_payload(")
+    pre_calls_at = src.index("await self._run_global_pre_calls(")
+    dispatch_at = src.index("await self._dispatch_clean_payload(")
+
+    assert resolve_at < pre_calls_at, (
+        "global pre-calls run before payload resolution — a resolution failure "
+        "would abort the start with the device already reconfigured (DQ-ACT-6)"
+    )
+    assert pre_calls_at < dispatch_at, (
+        "pre-calls must still precede dispatch, or the settings they push do not "
+        "apply to the job being dispatched"
+    )

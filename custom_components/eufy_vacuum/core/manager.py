@@ -5981,15 +5981,6 @@ class EufyVacuumManager:
         battery_start = self._get_battery_level(vacuum_entity_id)
         job_id = self._generate_job_id()
 
-        # Push global device settings (fan/mop) for brands that expose them only
-        # globally (Roborock: per-room fan/water can't ride app_segment_clean),
-        # derived max-wins from the selected rooms. No-op when no adapter declares
-        # dispatch.global_pre_calls (e.g. Eufy, which carries fan/water per-room).
-        await self._run_global_pre_calls(
-            vacuum_entity_id=vacuum_entity_id,
-            resolved_rooms=list(payload_state.get("resolved_rooms", [])),
-        )
-
         # Resolve slug -> LIVE segment id for brands whose ids renumber on
         # re-segment (Roborock), so the right room is cleaned regardless of any
         # un-confirmed identity review. Wire-only: the active_job below keeps the
@@ -6001,6 +5992,36 @@ class EufyVacuumManager:
             payload=payload,
             resolved_rooms=list(payload_state.get("resolved_rooms", [])),
         )
+
+        # DQ-ACT-6: pre-calls run AFTER resolution, immediately before dispatch.
+        #
+        # They push global device settings (fan/mop) for brands that expose them
+        # only globally (Roborock: per-room fan/water cannot ride
+        # app_segment_clean), derived max-wins from the selected rooms. No-op when
+        # no adapter declares dispatch.global_pre_calls — Eufy carries fan/water
+        # per room, so this whole block is dead for it.
+        #
+        # They used to run BEFORE _resolve_live_dispatch_payload, which is a real
+        # failure path, not a theoretical one: it raises when the map has been
+        # re-segmented and the stored slugs no longer resolve
+        # (dispatch/manager.py, "been re-segmented; re-import rooms"). The start
+        # then aborted with the robot's GLOBAL mop intensity already rewritten and
+        # nothing to put it back — so a failed start silently reconfigured the
+        # device, and the next clean the user ran from the vendor app inherited
+        # it. A settings change that outlives the job it was made for.
+        #
+        # Reordering closes the window that had a known trigger. It does NOT make
+        # this transactional: a failure inside _dispatch_clean_payload itself
+        # still leaves the pre-call applied. Restoring the previous value would
+        # need a read-back per pre-call and a policy for the user changing it
+        # concurrently — a bigger design, and worth doing only with an S6 to
+        # verify against, since every pre-call here is Roborock-only and marked
+        # UNVERIFIED on-device in adapters/roborock/adapter.py.
+        await self._run_global_pre_calls(
+            vacuum_entity_id=vacuum_entity_id,
+            resolved_rooms=list(payload_state.get("resolved_rooms", [])),
+        )
+
         await self._dispatch_clean_payload(
             vacuum_entity_id=vacuum_entity_id, payload=wire_payload
         )

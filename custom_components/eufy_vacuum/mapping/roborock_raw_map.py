@@ -184,8 +184,26 @@ def roborock_render_data(
         "height": int(height),
         "ro_width": int(width),              # the raster IS the canvas (no outline frame)
         "ro_height": int(height),
+        # A7-ROBORO-4. ro_dx/dy stay 0 and that is CORRECT for the room raster:
+        # the decoded raster IS the render canvas, so there is no outline frame
+        # for it to be offset from. What was wrong is that the IMAGE block's
+        # decoded `top`/`left` — the raster's position within the DEVICE frame —
+        # were computed (see decode, header_len-16/-12) and then thrown away
+        # here, so nothing downstream could ever discover an offset existed.
+        #
+        # They are emitted, not APPLIED. Every overlay composited on this raster
+        # (robot/dock anchors, no-go and no-mop quads, saved zones) is mapped
+        # from device coordinates via res/origin, and whether those need shifting
+        # by top/left is exactly the pose-registration question this module's
+        # header already defers to hardware ("calibrate on device"). Changing the
+        # render math against an unverified assumption would trade a possible
+        # misalignment for a certain one. Ivy answers this; until then the data
+        # is preserved rather than discarded, so the calibration does not need a
+        # re-decode to get at it.
         "ro_dx": 0,
         "ro_dy": 0,
+        "raw_top": int(decoded.get("top", 0) or 0),
+        "raw_left": int(decoded.get("left", 0) or 0),
         "res": int(decoded.get("res", 50)),  # roborock map/50 -> 50 mm/px; pose-only, calibrate on device
         "flip_y": bool(decoded.get("flip_y", DEFAULT_FLIP_Y)),
         "rid_shift": int(decoded.get("rid_shift", 0)),

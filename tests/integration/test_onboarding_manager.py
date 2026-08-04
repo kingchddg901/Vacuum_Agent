@@ -5,6 +5,9 @@ Coverage targets
 [OB-1] get_onboarding_state: rooms_needed / floor_type_needed / complete.
 [OB-2] mark_rooms_discovered + confirm_floor_type mutate state.
 [OB-3] check_for_new_rooms: grown segment count → True; no state → False.
+[OB-3b] DR-ONB-2: a map that is not the ACTIVE one cannot be answered — the live
+        room-list attribute has no map dimension, so it describes a different
+        room set entirely.
 [OB-4] get_rooms_onboarding_summary aggregates per map.
 [OB-5] reset_onboarding clears the map state.
 [OB-6] remap_confirmed_floor_types carries confirmations onto re-segmented ids (old->new).
@@ -90,6 +93,47 @@ def test_check_for_new_rooms(hass):
     # no vacuum state → False
     hass.states.get.return_value = None
     assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is False
+
+
+def test_check_for_new_rooms_refuses_a_non_active_map(hass, monkeypatch):
+    """[OB-3b] DR-ONB-2: the two sides of the comparison were scoped differently.
+
+    The stored side is per map; the live side is the vacuum entity's room-list
+    attribute, which describes whichever map is LOADED. Asking about map A while
+    map B is active compared A's stored count against B's rooms — a smaller
+    second floor reads as "no new rooms" forever, and a larger one reports new
+    rooms belonging to another map.
+
+    The live source cannot be map-scoped, so the honest answer is "I cannot
+    tell". Single-map installs — every reachable shape today — are unchanged,
+    because there the active map IS the map being asked about.
+    """
+    from custom_components.eufy_vacuum.onboarding import manager as _ob_mod
+
+    data: dict = {}
+    ob = OnboardingManager(data, hass)
+    hass.states.get.return_value = MagicMock(attributes={"segments": [1, 2, 3]})
+
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda _hass, _vac: "OTHER_MAP",
+    )
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is False
+
+    # The SAME map still answers normally.
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda _hass, _vac: _MAP,
+    )
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is True
+
+    # Unknown active map (boot window / attribute-mode) must not start refusing
+    # what it answered before.
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda _hass, _vac: None,
+    )
+    assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is True
 
 
 def test_summary(hass):

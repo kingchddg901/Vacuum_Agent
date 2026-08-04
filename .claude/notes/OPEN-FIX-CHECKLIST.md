@@ -19,10 +19,20 @@
 > Neither fix cites its finding id. **Absence of a marker proved nothing, exactly
 > as flagged.** Read the code; the marker is a shortcut, not the test. 19, not 17.
 >
-> Genuinely open after the sweep: **DQ-ACT-6**, **A7-ROBORO-4**, **DR-ONB-2**,
-> **A5-PP-RP-2** — each still to be read, not inferred; **A4-SETUP-6** (deferred
-> by decision, fix shape recorded in the adjudication); **ENT-1** / **DIAG-1**
-> (banked for the next release). **EP-5** landed in c84e502.
+> **AUDIT CLEARED 2026-08-04.** All five remaining findings worked: EP-5
+> (c84e502), A5-PP-RP-2 (9898833), and DR-ONB-2 / A7-ROBORO-4 / DQ-ACT-6 in the
+> closing commit. Nothing is left unchecked here except:
+>
+> - **A4-SETUP-6** — deferred by decision; map-scoped rejection, fix shape in the
+>   adjudication, do it with the multi-map work.
+> - **ENT-1** / **DIAG-1** — banked for the next release, DIAG-1 first.
+>
+> Two of the five turned out to be narrower than filed and are recorded as such
+> rather than as clean fixes: **A7-ROBORO-4**'s offset is preserved but NOT
+> applied (applying it is pose registration, which needs an S6 on the bench), and
+> **DR-ONB-2**'s method has no production callers at all — fixed because the
+> mechanism is real, but it should be deleted rather than left as a correct
+> answer nobody asks for.
 
 
 Durable ledger of every finding NOT yet applied. Generated from the audit JSON, not from
@@ -308,7 +318,7 @@ audit is a snapshot, not a ledger.
 - [x] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
   -> After a Roborock re-segment + migrate, the user can no longer change ANY room setting on that map — changing a room's fan speed or disabling a room fails with an error claiming they requested illegal access links, which
-- [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
+- [x] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   -> A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
 - [ ] **DIAG-1** `diagnostics.py:0` [both]  
@@ -317,16 +327,16 @@ audit is a snapshot, not a ledger.
 - [x] **A4-CUSTOM-2** `mapping/mapping_services.py:1550` [Both (Eufy + Roborock). The card path additionally needs a live map source present (mss.present) for the dock-mascot fallback, which is the normal Eufy fork configuration.] _(finder said HIGH)_  
   In custom mode with no resolvable layout, _resolve_active_scope hands writers THROWAWAY dicts — set_companion_anchor / set_segment_room_link mutate a garbage-collected object and report saved: True  
   -> The mascot visibly stays where the user parked it for the rest of the session (the card never refetches after an anchor write) and silently snaps back on the next page load — repeatedly, with no error and no way for the
-- [ ] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
+- [x] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
   ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
   -> IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
 - [x] **DR-ONB-1** `onboarding/manager.py:182` [both]  
   remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap  
   -> PROVEN by execution. The loop pops str(old_id) and writes str(new_id) into the SAME dict it is iterating over, so a new_id that is also a later old_id consumes the entry just written. Measured: id_remap={1:2, 2:3, 3:4} w
-- [ ] **DR-ONB-2** `onboarding/manager.py:186` [both]  
+- [x] **DR-ONB-2** `onboarding/manager.py:186` [both]  
   check_for_new_rooms compares a PER-MAP stored count against a source with no map scoping  
   -> The stored side, room_count_at_last_check, is stamped by mark_rooms_discovered from data['maps'][vacuum][map_id]['rooms'] -- per map. The live side reads the vacuum entity's `segments` attribute, which carries only the A
-- [ ] **A5-PP-RP-2** `planning/run_plan.py:1379` [both] _(finder said HIGH)_  
+- [x] **A5-PP-RP-2** `planning/run_plan.py:1379` [both] _(finder said HIGH)_  
   Any plan whose FIRST surviving phase is a zone is refused with "Room-clean payload is missing or invalid" — and a live blocker rule can push a plan into that state  
   -> A saved run that worked yesterday becomes unstartable the moment a door/occupancy sensor blocks the rooms in its first group — with an error that blames a corrupt payload rather than naming the blocked room. The rest of
 - [x] **A6-AGX-4** `rooms/access_graph.py:364` [both]  

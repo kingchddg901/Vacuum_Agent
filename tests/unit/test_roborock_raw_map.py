@@ -19,6 +19,8 @@ Coverage targets
 [RRD-9]  raster_room_bboxes: per-room normalized bbox from the resolved raster.
 [RRD-10] geometry_drift: overlay parser vs raster bboxes -> aligned / flip / set-mismatch.
 [RRD-12] raster_room_bboxes: flip_y honored -> raw top rows land at the rendered bottom (Ivy).
+[RRD-13] A7-ROBORO-4: the decoded IMAGE top/left survive into the payload
+         (emitted, not applied — ro_dx/dy stay 0).
 """
 
 from __future__ import annotations
@@ -295,3 +297,30 @@ def test_raster_bboxes_flip_y():
     # a parser bbox at that flipped spot now aligns (was a false mismatch before the fix).
     d = geometry_drift([{"number": 5, "bbox": [0.0, 2 / 3, 1.0, 1.0]}], top_room)
     assert d["aligned"] is True and d["min_iou"] > 0.9
+
+
+def test_render_data_preserves_the_decoded_image_offset():
+    """[RRD-13] A7-ROBORO-4: the IMAGE block's top/left survive into the payload.
+
+    The decoder has always read them (header_len-16 / -12) and the render-data
+    builder then dropped them, so nothing downstream could discover that an
+    offset between the raw IMAGE frame and the render canvas even existed.
+
+    They are EMITTED, NOT APPLIED. ro_dx/dy stay 0, which is correct for the room
+    raster — the raster IS the canvas, with no outline frame to be offset from.
+    Whether the overlays mapped from device coordinates (robot/dock anchors,
+    no-go quads, saved zones) need shifting by these is the pose-registration
+    question this module defers to hardware; changing the render math against an
+    unverified assumption would trade a possible misalignment for a certain one.
+    """
+    decoded = decode_roborock_v1_segments(
+        _blob(_image_block(4, 3, bytes([_room(5)] * 12), top=17, left=42))
+    )
+    assert decoded["top"] == 17 and decoded["left"] == 42
+
+    rd = roborock_render_data(decoded, {5: "Kitchen"})
+    assert rd["raw_top"] == 17
+    assert rd["raw_left"] == 42
+    # unchanged, deliberately: nothing about the render moved.
+    assert rd["ro_dx"] == 0 and rd["ro_dy"] == 0
+    assert rd["width"] == 4 and rd["ro_width"] == 4
