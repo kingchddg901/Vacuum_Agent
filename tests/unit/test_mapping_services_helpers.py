@@ -21,6 +21,10 @@ Coverage targets
 [MS-16b] _png_dimensions returns None rather than a confident wrong answer.
 [MS-17] A3-IMAGE--4: only CV SOURCE variants mark the segmentation stale.
 [MS-17b] the mark is idempotent and needs a real available cache.
+[MS-18] A5-FURNIS-4: legacy area_label_anchors migrate onto the room record.
+[MS-18b] unresolvable entries KEPT (unmanaged rooms), room-record anchors never clobbered.
+[MS-18c] un-migrated records still served (migration is write-path only).
+[MS-18d] an anchor on the room survives a renumber for free.
 [MS-16] _build_segments_response: non-dict segment_room_links / companion_anchors coerced to {}.
 """
 
@@ -304,3 +308,96 @@ def test_mark_segments_stale_is_idempotent_and_needs_a_real_cache():
     assert mark({}, "dark") is False
     assert mark({"image_segments": None}, "dark") is False
     assert mark({"image_segments": {"available": False}}, "dark") is False
+
+
+# ---------------------------------------------------------------------------
+# [MS-18] A5-FURNIS-4 — the dragged area label lives ON the room record
+# ---------------------------------------------------------------------------
+
+def _anchor_helpers():
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        _migrate_area_label_anchors,
+        resolve_area_label_anchors,
+    )
+    return _migrate_area_label_anchors, resolve_area_label_anchors
+
+
+def test_area_label_anchors_migrate_onto_the_room_record():
+    """[MS-18] the legacy side-table moves onto the rooms and is then dropped."""
+    migrate, resolve = _anchor_helpers()
+    bucket = {
+        "rooms": {"16": {"room_id": 16, "slug": "kitchen"},
+                  "17": {"room_id": 17, "slug": "hall"}},
+        "area_label_anchors": {"16": {"pct_x": 30.0, "pct_y": 80.0}},
+    }
+    assert migrate(bucket) == 1
+    assert bucket["rooms"]["16"]["label_anchor"] == {"pct_x": 30.0, "pct_y": 80.0}
+    assert "area_label_anchors" not in bucket          # side-table retired
+    assert resolve(bucket) == {"16": {"pct_x": 30.0, "pct_y": 80.0}}
+
+    assert migrate(bucket) == 0                        # idempotent
+
+
+def test_area_label_anchors_keep_unresolvable_and_never_clobber():
+    """[MS-18b] an unresolvable entry is KEPT, and a room-record anchor wins.
+
+    Deliberately non-destructive. The migration cannot tell "this room was
+    deleted" from "this room was never managed", and the card CAN drag a label on
+    an unmanaged room -- it renders the chips from the live map source's room
+    list, not from the managed records. Dropping on that ambiguity would destroy
+    a user's dragged position in order to tidy a store.
+
+    The finding's orphaning is still fixed: only MANAGED rooms are renumbered by
+    a rebuild, and their anchors now live on the record.
+    """
+    migrate, _ = _anchor_helpers()
+    bucket = {
+        "rooms": {"16": {"room_id": 16, "label_anchor": {"pct_x": 1.0, "pct_y": 2.0}}},
+        "area_label_anchors": {
+            "16": {"pct_x": 99.0, "pct_y": 99.0},   # redundant; room already has one
+            "44": {"pct_x": 10.0, "pct_y": 10.0},   # unresolvable -- keep, do not destroy
+        },
+    }
+    assert migrate(bucket) == 0                      # nothing NEW moved
+    assert bucket["rooms"]["16"]["label_anchor"] == {"pct_x": 1.0, "pct_y": 2.0}
+    assert "16" not in bucket["area_label_anchors"]  # redundant copy retired
+    assert bucket["area_label_anchors"]["44"] == {"pct_x": 10.0, "pct_y": 10.0}
+
+
+def test_area_label_anchors_still_served_before_migration():
+    """[MS-18c] an un-migrated record keeps rendering exactly as before.
+
+    The migration runs on WRITE paths only -- a read that mutates storage is the
+    defect RP-029/POLYGO-3 exists to prevent -- so the reader has to tolerate the
+    legacy shape indefinitely.
+    """
+    _, resolve = _anchor_helpers()
+    legacy_only = {"rooms": {"5": {"room_id": 5}},
+                   "area_label_anchors": {"5": {"pct_x": 30.0, "pct_y": 80.0}}}
+    assert resolve(legacy_only) == {"5": {"pct_x": 30.0, "pct_y": 80.0}}
+
+    # room record wins where both exist
+    both = {"rooms": {"5": {"room_id": 5, "label_anchor": {"pct_x": 1.0, "pct_y": 2.0}}},
+            "area_label_anchors": {"5": {"pct_x": 30.0, "pct_y": 80.0}}}
+    assert resolve(both) == {"5": {"pct_x": 1.0, "pct_y": 2.0}}
+
+
+def test_area_label_anchor_survives_a_renumber_via_the_room_record():
+    """[MS-18d] THE POINT OF THE WHOLE CHANGE.
+
+    reconciliation carries the room record wholesale (`carried = dict(source)`,
+    only room_id/name/slug overwritten) and matches rooms by SLUG, so an anchor
+    stored ON the room rides a renumber for free. This simulates that carry to
+    prove the anchor is no longer stranded -- which is what the side-table could
+    never do without a hand-written sweep.
+    """
+    _, resolve = _anchor_helpers()
+    before = {"room_id": 16, "slug": "kitchen",
+              "label_anchor": {"pct_x": 30.0, "pct_y": 80.0}}
+
+    carried = dict(before)          # exactly what reconciliation.py does
+    carried["room_id"] = 27
+    carried["slug"] = "kitchen"
+
+    after = {"rooms": {"27": carried}}
+    assert resolve(after) == {"27": {"pct_x": 30.0, "pct_y": 80.0}}

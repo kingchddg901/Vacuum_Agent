@@ -1458,8 +1458,9 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         # Hidden regions are MAP-LEVEL (mode-independent physical masks), not scope-resolved.
         "hidden_regions": hidden_regions_out,
         # Area-label positions are MAP-LEVEL too (the device rooms are mode-independent).
-        "area_label_anchors": dict(map_bucket.get("area_label_anchors") or {})
-        if isinstance(map_bucket.get("area_label_anchors"), dict) else {},
+        # A5-FURNIS-4: derived from the room records (legacy side-table entries
+        # still served until something writes). Same wire shape as before.
+        "area_label_anchors": resolve_area_label_anchors(map_bucket),
     }
 
 
@@ -1637,6 +1638,88 @@ def _active_custom_layout(map_bucket: dict) -> dict | None:
     layout_id = map_bucket.get("active_custom_layout_id")
     layout = layouts.get(layout_id) if layout_id else None
     return layout if isinstance(layout, dict) else None
+
+
+#: Where a room's dragged area-label position lives: ON THE ROOM RECORD.
+_LABEL_ANCHOR_KEY = "label_anchor"
+
+
+def resolve_area_label_anchors(map_bucket: dict) -> dict[str, dict]:
+    """The ``{room_id: {pct_x, pct_y}}`` response shape, DERIVED from the rooms.
+
+    A5-FURNIS-4. This used to be a map-level side-table keyed by device room id,
+    and nothing pruned or re-keyed it on a room rebuild — so after a re-import
+    one room's dragged label silently rendered over a different room, or over a
+    room that no longer existed.
+
+    The side-table was never load-bearing: ``rooms/reconciliation.py`` matches
+    rooms by SLUG and carries the whole record forward (``carried = dict(source)``,
+    only room_id/name/slug overwritten), so anything stored ON the room already
+    survives a renumber for free. The anchor was simply in the wrong place — a
+    parallel index keyed by the one property of a room that is not stable.
+
+    TOLERANT OF UN-MIGRATED RECORDS: legacy side-table entries are still served,
+    and a room-record anchor wins where both exist. So a record that has never
+    been written to keeps rendering exactly as before, and the migration below
+    can happen lazily on the next write instead of needing a store-wide sweep.
+    """
+    out: dict[str, dict] = {}
+    legacy = map_bucket.get("area_label_anchors")
+    if isinstance(legacy, dict):
+        for room_id, anchor in legacy.items():
+            if isinstance(anchor, dict):
+                out[str(room_id)] = dict(anchor)
+    rooms = map_bucket.get("rooms")
+    if isinstance(rooms, dict):
+        for room_id, room in rooms.items():
+            if isinstance(room, dict) and isinstance(room.get(_LABEL_ANCHOR_KEY), dict):
+                out[str(room_id)] = dict(room[_LABEL_ANCHOR_KEY])
+    return out
+
+
+def _migrate_area_label_anchors(map_bucket: dict) -> int:
+    """One-time move of the legacy side-table onto the room records.
+
+    Idempotent, and NON-DESTRUCTIVE: an entry whose room id does not resolve to a
+    managed room is LEFT WHERE IT IS, not dropped. This cannot tell "the room was
+    deleted" from "the room was never managed", and the card can drag a label on
+    an unmanaged room — it renders these chips from the live map source's room
+    list (`mss.rooms`), not from the managed records. Deleting on that ambiguity
+    would destroy a user's dragged position to tidy a store.
+
+    The finding's orphaning is still fixed: only MANAGED rooms get renumbered by
+    a rebuild, and those are exactly the ones whose anchor now lives on the
+    record and rides the rebuild via reconciliation's slug matching.
+
+    Runs on the WRITE paths, never on a read: a read that mutates storage is the
+    defect RP-029/POLYGO-3 exists to prevent. Un-migrated records stay readable
+    through ``resolve_area_label_anchors`` until something writes.
+    """
+    legacy = map_bucket.get("area_label_anchors")
+    if not isinstance(legacy, dict):
+        return 0
+
+    rooms = map_bucket.get("rooms")
+    moved = 0
+    if isinstance(rooms, dict):
+        for room_id in list(legacy):
+            anchor = legacy.get(room_id)
+            room = rooms.get(str(room_id))
+            if not isinstance(room, dict) or not isinstance(anchor, dict):
+                continue
+            # An anchor already on the room is newer; never overwrite it, but the
+            # legacy copy is now redundant either way.
+            if not isinstance(room.get(_LABEL_ANCHOR_KEY), dict):
+                room[_LABEL_ANCHOR_KEY] = {
+                    "pct_x": anchor.get("pct_x"),
+                    "pct_y": anchor.get("pct_y"),
+                }
+                moved += 1
+            legacy.pop(room_id, None)
+
+    if not legacy:
+        map_bucket.pop("area_label_anchors", None)
+    return moved
 
 
 def _migrate_custom_layouts(map_bucket: dict) -> None:
@@ -2388,16 +2471,44 @@ async def _handle_set_area_label_anchor(
     if resolved.refusal is not None:
         return {"saved": False, **resolved.refusal}
     map_id, map_bucket = resolved.map_id, resolved.map_bucket
-    anchors: dict = map_bucket.setdefault("area_label_anchors", {})
+    # A5-FURNIS-4: the anchor lives ON the room record, so it rides a re-import
+    # through reconciliation's slug matching instead of being stranded in a
+    # parallel id-keyed table nobody prunes. Migrate any legacy entries first —
+    # on the write path, never on a read.
+    _migrate_area_label_anchors(map_bucket)
+    rooms = map_bucket.get("rooms")
+    room = rooms.get(room_id) if isinstance(rooms, dict) else None
 
+    # PREFER the room record; fall back to the map-level table when there is no
+    # managed room to hang it on.
+    #
+    # An earlier draft REFUSED with room_not_found here, on the assumption that
+    # every room whose label can be dragged has a managed record. It does not:
+    # the card renders these chips from `mss.rooms` — the live MAP-SOURCE room
+    # list (src/renderers/map.js, keyed by r.number) — which can contain rooms
+    # that were never configured. Refusing would have broken dragging a label on
+    # a discovered-but-unmanaged room. [MSH-7e] caught it.
+    #
+    # The fallback is not a regression: only MANAGED rooms are renumbered (a
+    # rebuild rewrites map_bucket["rooms"]), so the orphaning this finding is
+    # about is exactly the case the room record now covers. What stays in the
+    # side-table is anchors for rooms the rebuild never touches.
     if pct_x is None and pct_y is None:
-        anchors.pop(room_id, None)
         action = "cleared"
+        if isinstance(room, dict):
+            room.pop(_LABEL_ANCHOR_KEY, None)
+        legacy = map_bucket.get("area_label_anchors")
+        if isinstance(legacy, dict):
+            legacy.pop(room_id, None)
     else:
         x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
         y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
-        anchors[room_id] = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
+        anchor = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
         action = "set"
+        if isinstance(room, dict):
+            room[_LABEL_ANCHOR_KEY] = anchor
+        else:
+            map_bucket.setdefault("area_label_anchors", {})[room_id] = anchor
 
     await manager.async_save()
     _LOGGER.debug(
@@ -2406,7 +2517,9 @@ async def _handle_set_area_label_anchor(
     )
     return {
         "saved": True, "room_id": room_id, "action": action,
-        "area_label_anchors": dict(anchors),
+        # Wire format unchanged — the card still reads
+        # mapSegmentsData().area_label_anchors and does not move.
+        "area_label_anchors": resolve_area_label_anchors(map_bucket),
     }
 
 

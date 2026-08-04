@@ -4741,6 +4741,11 @@ class EufyVacuumManager:
             resolve_furnished_render,
             resolve_overlay_visibility,
         )
+        # A5-FURNIS-4: one derivation, shared with get_map_segments, so the
+        # dashboard snapshot and the editor cannot answer differently.
+        from ..mapping.mapping_services import (
+            resolve_area_label_anchors as _derive_area_label_anchors,
+        )
         map_overlay_visibility = resolve_overlay_visibility(
             _live_map_bucket.get("overlay_visibility")
         )
@@ -4806,10 +4811,12 @@ class EufyVacuumManager:
             # chips + noise masks outside the editor, where get_map_segments isn't fetched).
             # Surfaced here from the same bucket as map_overlay_visibility so a dragged label
             # position + a drawn mask PERSIST on the plain dashboard, not only in the editor.
-            "area_label_anchors": (
-                dict(_live_map_bucket.get("area_label_anchors") or {})
-                if isinstance(_live_map_bucket.get("area_label_anchors"), dict) else {}
-            ),
+            # A5-FURNIS-4: anchors live ON the room record now, so they survive a
+            # re-import via reconciliation's slug matching. Derived through the
+            # mapping helper (which still serves legacy side-table entries) so
+            # this snapshot and get_map_segments cannot answer differently — a
+            # second hand-rolled copy here is how they would drift.
+            "area_label_anchors": _derive_area_label_anchors(_live_map_bucket),
             "hidden_regions": (
                 list(_live_map_bucket.get("hidden_regions") or [])
                 if isinstance(_live_map_bucket.get("hidden_regions"), list) else []
