@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import HomeAssistantError
 
+from ..decision_log import emit as _dlog
 from ..adapters.registry import (
     adapter_honors_clean_order,
     get_adapter_config as _get_adapter_config,
@@ -140,8 +141,15 @@ class PhaseRunner:
         clears the guard in its own finally (via ``_run_charge_wait_phase`` / ``_run_wait_phase``)."""
         key = (vacuum_entity_id, str(map_id), int(phase_index))
         if key in self._dock_poller_active:
+            # The guard doing its job: an advance and a re-arm both reached for
+            # the same dock phase. Benign, but it explains a "re-arm did nothing".
+            _dlog("phase.dock.spawn_refused", reason="already_active",
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  phase_index=int(phase_index), phase_type=phase_type)
             return False
         self._dock_poller_active.add(key)
+        _dlog("phase.dock.spawn", vacuum=vacuum_entity_id, map_id=str(map_id),
+              phase_index=int(phase_index), phase_type=phase_type)
         coro = (
             self._run_charge_wait_phase(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), phase_index=phase_index
@@ -185,12 +193,22 @@ class PhaseRunner:
         Returns True when re-armed."""
         job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
         if not isinstance(job, dict) or job.get("status") != "started":
+            # The wedge-detection path declining. If a run IS wedged and this
+            # keeps firing, the status here is the reason it never re-arms.
+            _dlog("phase.rearm.skip", reason="not_started",
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  status=(job or {}).get("status") if isinstance(job, dict) else None)
             return False
         phases = job.get("phases")
         if not isinstance(phases, list):
+            _dlog("phase.rearm.skip", reason="atomic_job",
+                  vacuum=vacuum_entity_id, map_id=str(map_id))
             return False
         idx = _safe_int(job.get("current_phase_index"), -1)
         if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
+            _dlog("phase.rearm.skip", reason="index_out_of_range",
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  phase_index=idx, phase_count=len(phases))
             return False
         phase_type = str(phases[idx].get("phase_type") or "")
         # Re-assert the dispatch guard the restart cleared, so the intentional
@@ -211,6 +229,8 @@ class PhaseRunner:
         self._reset_phase_watchdog_liveness(
             vacuum_entity_id=vacuum_entity_id, map_id=str(map_id), phase_index=idx,
         )
+        _dlog("phase.rearm.ok", vacuum=vacuum_entity_id, map_id=str(map_id),
+              phase_index=idx, phase_type=phase_type, route="watchdog")
         self._manager.hass.async_create_task(
             self._run_advanced_phase(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
@@ -240,6 +260,9 @@ class PhaseRunner:
         # flight the cancel path owns finalization; do not advance or snapshot
         # timing for a phase the cancel is about to tear down.
         if active_job.get("_cancel_in_flight"):
+            _dlog("phase.advance.refuse", reason="cancel_in_flight",
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  job_id=active_job.get("job_id"))
             return False
         # ...and refuse once the cancel has FINISHED. `_cancel_in_flight` above only covers
         # the window while it runs: mark_active_job_finalized deliberately clears that latch,
@@ -261,6 +284,11 @@ class PhaseRunner:
                 vacuum_entity_id, map_id, active_job.get("status"),
                 " (finalized)" if active_job.get("finalized") else "",
             )
+            _dlog("phase.advance.refuse", reason="not_live",
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  job_id=active_job.get("job_id"),
+                  status=active_job.get("status"),
+                  finalized=bool(active_job.get("finalized")))
             return False
         # Snapshot the FINISHING phase's room_timing from its OWN counter slice BEFORE advance
         # resets the queue/timing. Without this, strict-order finalization segments the whole
@@ -276,6 +304,13 @@ class PhaseRunner:
         self._record_phase_to_parent(vacuum_entity_id, str(map_id), active_job)
         advanced = advance_active_job_phase(active_job)
         if advanced is None:
+            # The normal end of a sequenced run: no next phase, so the caller
+            # finalizes. Not a fault — but indistinguishable from the refusals
+            # above unless it says so.
+            _dlog("phase.advance.exhausted", vacuum=vacuum_entity_id,
+                  map_id=str(map_id), job_id=active_job.get("job_id"),
+                  phase_index=active_job.get("current_phase_index"),
+                  phase_count=len(active_job.get("phases") or []))
             return False
 
         advanced["current_room_started_at"] = _iso_now()
@@ -304,6 +339,11 @@ class PhaseRunner:
             else {}
         )
         _next_type = str(_next_phase.get("phase_type") or "")
+        _dlog("phase.advance.ok", vacuum=vacuum_entity_id, map_id=str(map_id),
+              job_id=advanced.get("job_id"), phase_index=_next_idx,
+              phase_count=len(_next_phases), phase_type=_next_type,
+              rooms=_next_phase.get("room_ids") or _next_phase.get("queue_room_ids"),
+              route="dock_poller" if is_dock_polled_phase_type(_next_type) else "watchdog")
         if is_dock_polled_phase_type(_next_type):
             # Route through the guarded spawn so a normal advance and a re-arm
             # (rearm_dock_phase_if_needed) can't both drive the same dock phase.
@@ -368,12 +408,19 @@ class PhaseRunner:
         """
         phased_job_id = str(active_job.get("phased_job_id") or "")
         if not phased_job_id:
+            _dlog("phase.parent.skip", reason="no_phased_job_id",
+                  vacuum=vacuum_entity_id, map_id=str(map_id))
             return
         phases = active_job.get("phases")
         if not isinstance(phases, list):
+            _dlog("phase.parent.skip", reason="atomic_job",
+                  vacuum=vacuum_entity_id, phased_job_id=phased_job_id)
             return
         idx = _safe_int(active_job.get("current_phase_index"), 0)
         if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
+            _dlog("phase.parent.skip", reason="index_out_of_range",
+                  phased_job_id=phased_job_id, phase_index=idx,
+                  phase_count=len(phases))
             return
         phase = phases[idx]
         phase_type = str(phase.get("phase_type") or "")
@@ -391,6 +438,9 @@ class PhaseRunner:
                     "phase %s of %s finished with no parent record -- skipping, the "
                     "parent should have been opened at run start", idx, phased_job_id,
                 )
+                _dlog("phase.parent.skip", reason="parent_absent",
+                      phased_job_id=phased_job_id, phase_index=idx,
+                      vacuum=vacuum_entity_id)
                 return
             # Per-phase battery bounds (invariant 3: one child must not inherit
             # another's counters). Stamped here because this runs once per finishing
@@ -441,10 +491,18 @@ class PhaseRunner:
                 outcome="completed",
                 record_id=record_id,
             )
-        except Exception:  # noqa: BLE001 - telemetry must not block the next phase
+            # record_id None on a CLEAN phase is the "child never got written"
+            # shape — the parent still says completed, so only this distinguishes
+            # a recorded phase from an accounted-for-but-empty one.
+            _dlog("phase.parent.ok", phased_job_id=phased_job_id, phase_index=idx,
+                  phase_type=phase_type, record_id=record_id)
+        except Exception as err:  # noqa: BLE001 - telemetry must not block the next phase
             _LOGGER.exception(
                 "could not record phase %s of %s", idx, phased_job_id
             )
+            _dlog("phase.parent.error", phased_job_id=phased_job_id,
+                  phase_index=idx, error_type=type(err).__name__,
+                  error=str(err)[:200])
 
     def _finalize_phase_as_child(
         self,
@@ -482,6 +540,8 @@ class PhaseRunner:
         """
         record_id = str(phase.get("_child_record_id") or "")
         if record_id:
+            _dlog("phase.child.skip", reason="already_written",
+                  phase_index=idx, record_id=record_id)
             return record_id  # idempotent — a re-arm must not write a second child
         try:
             # NOT `self._manager.learning` — the core manager has no such attribute; the
@@ -493,6 +553,10 @@ class PhaseRunner:
             # wrong one.
             learning = self._manager._get_learning_manager()
             if learning is None:
+                # The failure that wrote record_id:null on the first live run
+                # while every test passed (the MagicMock invented `.learning`).
+                _dlog("phase.child.skip", reason="no_learning_manager",
+                      phase_index=idx)
                 return None
             finalizer = learning.finalizer
             ended_at = str(phase.get("_timing_end_t") or _iso_now())
@@ -585,6 +649,9 @@ class PhaseRunner:
                 rebuild_stats=False,
             )
             if not isinstance(result, dict) or not result.get("completed_job"):
+                _dlog("phase.child.skip", reason="finalizer_no_record",
+                      phase_index=idx,
+                      result_keys=sorted(result.keys()) if isinstance(result, dict) else None)
                 return None
             # Stamp the phase identity ONTO THE SAVED RECORD. Setting it on the input
             # state is not enough — the record payload is built from named fields, so an
@@ -603,9 +670,18 @@ class PhaseRunner:
                 payload=child,
             )
             phase["_child_record_id"] = child_id
+            _dlog("phase.child.ok", phase_index=idx, record_id=child_id,
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  phase_type=str(phase.get("phase_type") or ""),
+                  rows=len(phase.get("room_timing") or []))
             return child_id
-        except Exception:  # noqa: BLE001 - a child that fails must not stop the next phase
+        except Exception as err:  # noqa: BLE001 - a child that fails must not stop the next phase
             _LOGGER.exception("could not finalize phase %s as a child", idx)
+            # The swallowed-exception case that cost two live runs. The type is
+            # the whole diagnosis (AttributeError vs TypeError were two different
+            # bugs wearing the same silence).
+            _dlog("phase.child.error", phase_index=idx,
+                  error_type=type(err).__name__, error=str(err)[:200])
             return None
 
     def _break_record_payload(
@@ -680,11 +756,20 @@ class PhaseRunner:
         ``_iso_now()`` so a lexical compare slices correctly. Atomic jobs (no ``phases``) → no-op."""
         phases = active_job.get("phases")
         if not isinstance(phases, list):
+            _dlog("phase.capture.skip", reason="atomic_job",
+                  vacuum=vacuum_entity_id, map_id=str(map_id))
             return
         idx = _safe_int(active_job.get("current_phase_index"), 0)
         if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
+            _dlog("phase.capture.skip", reason="index_out_of_range",
+                  vacuum=vacuum_entity_id, map_id=str(map_id),
+                  phase_index=idx, phase_count=len(phases))
             return
         if phases[idx].get("_timing_end_t"):
+            # Idempotent re-entry. Benign, but it means something called the
+            # capture twice — worth seeing when a phase's timing looks wrong.
+            _dlog("phase.capture.skip", reason="already_captured",
+                  vacuum=vacuum_entity_id, map_id=str(map_id), phase_index=idx)
             return  # already attempted (idempotent — an empty capture must not re-run either)
 
         if is_dock_polled_phase(phases[idx]):
@@ -693,6 +778,9 @@ class PhaseRunner:
             # it as a dock/hold interval, not a phantom zero-metric room.
             phases[idx]["room_timing"] = []
             phases[idx]["_timing_end_t"] = _iso_now()
+            _dlog("phase.capture.empty", reason="dock_polled_phase",
+                  vacuum=vacuum_entity_id, map_id=str(map_id), phase_index=idx,
+                  phase_type=str(phases[idx].get("phase_type") or ""))
             return
 
         if str(phases[idx].get("phase_type") or "") == "zone":
@@ -707,6 +795,8 @@ class PhaseRunner:
             )
             phases[idx]["room_timing"] = []
             phases[idx]["_timing_end_t"] = _iso_now()
+            _dlog("phase.capture.empty", reason="zone_phase",
+                  vacuum=vacuum_entity_id, map_id=str(map_id), phase_index=idx)
             return
 
         now_t = _iso_now()
@@ -749,6 +839,18 @@ class PhaseRunner:
             s for s in slice_samples
             if s.get("cleaning_time") is not None or s.get("cleaning_area") is not None
         ]
+        # The inputs the whole per-room attribution rests on. When a group phase
+        # comes out apportioned, this record plus the phase.segment.* that follows
+        # it are the difference between "which gate" and "we cannot tell".
+        _dlog("phase.capture.slice", vacuum=vacuum_entity_id, map_id=str(map_id),
+              phase_index=idx, rooms=group_ids, total_samples=len(samples),
+              slice_samples=len(slice_samples), usable=len(usable),
+              sliced_from=start_t or "run_start")
+        if not group_ids or len(usable) < 2:
+            _dlog("phase.capture.empty",
+                  reason="no_rooms" if not group_ids else "insufficient_samples",
+                  vacuum=vacuum_entity_id, map_id=str(map_id), phase_index=idx,
+                  rooms=len(group_ids), usable=len(usable))
         room_timings = (
             self._split_group_room_timing(
                 group_ids, slug_by_id, slice_samples, vacuum_entity_id
@@ -767,8 +869,19 @@ class PhaseRunner:
                 if learned:
                     rt["area_m2"] = learned
                     rt["area_source"] = "learned_fallback"
+                    _dlog("phase.capture.area_fallback", room_id=rt.get("room_id"),
+                          learned_m2=learned, vacuum=vacuum_entity_id,
+                          map_id=str(map_id), phase_index=idx)
+                else:
+                    _dlog("phase.capture.area_unresolved", room_id=rt.get("room_id"),
+                          vacuum=vacuum_entity_id, map_id=str(map_id),
+                          phase_index=idx)
         phases[idx]["room_timing"] = room_timings
         phases[idx]["_timing_end_t"] = now_t
+        _dlog("phase.capture.ok", vacuum=vacuum_entity_id, map_id=str(map_id),
+              phase_index=idx, rows=len(room_timings),
+              allocated=[bool(r.get("allocated")) for r in room_timings],
+              seconds=[r.get("cleaning_seconds") for r in room_timings])
 
     def _capture_zone_phase_timing(
         self,
@@ -954,6 +1067,8 @@ class PhaseRunner:
         """
         n = len(group_ids)
         if not adapter_honors_clean_order(vacuum_entity_id):
+            _dlog("phase.segment.reject", gate="order", rooms=n,
+                  vacuum=vacuum_entity_id)
             return None
 
         from ..learning.job_segmenter_engines import get_job_segmenter_engine
@@ -961,14 +1076,23 @@ class PhaseRunner:
         _js = (_get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
         engine = get_job_segmenter_engine(_js.get("engine") if isinstance(_js, dict) else None)
         tuning = _js.get("tuning") if isinstance(_js, dict) else None
+        _dlog("phase.segment.begin", rooms=n, samples=len(slice_samples),
+              engine=type(engine).__name__, tuned=bool(tuning))
         try:
             segments = engine.segment_legacy(
                 slice_samples, expected_rooms=n, tuning=tuning
             )
         except Exception:  # pragma: no cover - a segmenter fault must not lose the phase
             _LOGGER.exception("phase timing: segmentation failed; apportioning instead")
+            _dlog("phase.segment.reject", gate="engine_raised", rooms=n,
+                  engine=type(engine).__name__)
             return None
         if len(segments) != n:
+            # THE most likely gate: the counter stream did not plateau into
+            # exactly one bout per member. `got` is the whole diagnosis.
+            _dlog("phase.segment.reject", gate="count", expected=n,
+                  got=len(segments), samples=len(slice_samples),
+                  engine=type(engine).__name__)
             return None
 
         # Baseline = the slice's own first readings, the same two values
@@ -985,6 +1109,11 @@ class PhaseRunner:
         base_ct = _first("cleaning_time")
         base_area = _first("cleaning_area")
         if base_ct is None or base_area is None:
+            # Which one is missing says whether the counter stream is absent
+            # entirely or just one of its two channels.
+            _dlog("phase.segment.reject", gate="baseline",
+                  have_ct=base_ct is not None, have_area=base_area is not None,
+                  samples=len(slice_samples))
             return None
 
         rows: list[dict[str, Any]] = []
@@ -1019,10 +1148,25 @@ class PhaseRunner:
         # Gate 3. Off-by-a-second/centimetre is rounding; anything larger means the
         # rebase did not describe the same span the group measured, and a wrong
         # per-room number admitted to learning is worse than an honest even split.
-        if abs(sum(r["cleaning_seconds"] for r in rows) - int(whole["cleaning_seconds"])) > n:
+        parts_secs = sum(r["cleaning_seconds"] for r in rows)
+        whole_secs = int(whole["cleaning_seconds"])
+        if abs(parts_secs - whole_secs) > n:
+            # The rebase did not describe the same span the group measured.
+            # Both sides plus the tolerance, so the delta needs no re-derivation.
+            _dlog("phase.segment.reject", gate="reconcile_seconds",
+                  parts=parts_secs, whole=whole_secs, tolerance=n)
             return None
-        if abs(sum(r["area_m2"] for r in rows) - float(whole["area_m2"])) > 0.05 * n:
+        parts_area = sum(r["area_m2"] for r in rows)
+        whole_area = float(whole["area_m2"])
+        if abs(parts_area - whole_area) > 0.05 * n:
+            _dlog("phase.segment.reject", gate="reconcile_area",
+                  parts=round(parts_area, 3), whole=round(whole_area, 3),
+                  tolerance=round(0.05 * n, 3))
             return None
+        _dlog("phase.segment.ok", rooms=n,
+              seconds=[r["cleaning_seconds"] for r in rows],
+              boundaries=[r["boundary"] for r in rows],
+              room_ids=[r["room_id"] for r in rows])
         return rows
 
     def _split_group_room_timing(
@@ -1063,6 +1207,7 @@ class PhaseRunner:
         n = len(group_ids)
         if n == 1:
             rid = group_ids[0]
+            _dlog("phase.timing.exact", room_id=rid, samples=len(slice_samples))
             return [self._phase_room_timing(rid, slug_by_id.get(rid), slice_samples)]
 
         whole = self._phase_room_timing(None, None, slice_samples)
@@ -1072,6 +1217,10 @@ class PhaseRunner:
             )
             if observed is not None:
                 return observed
+        else:
+            # Segmentation never even attempted — distinct from every gate, and
+            # previously indistinguishable from them in the record.
+            _dlog("phase.segment.reject", gate="no_vacuum_id", rooms=n)
 
         secs_parts = _distribute_int(int(whole["cleaning_seconds"]), n)
         area_milli_total = round(float(whole["area_m2"]) * 1000)
@@ -1080,6 +1229,10 @@ class PhaseRunner:
         bat_parts = (
             _distribute_int(int(bat_total), n) if bat_total is not None else [None] * n
         )
+        # The arithmetic outcome. Paired with the phase.segment.reject that
+        # precedes it, a capture now reads "which gate, and what it cost".
+        _dlog("phase.timing.apportion", rooms=n, room_ids=list(group_ids),
+              whole_seconds=int(whole["cleaning_seconds"]), parts=secs_parts)
 
         return [
             {
@@ -1658,6 +1811,15 @@ class PhaseRunner:
                 or int(job.get("current_phase_index", -1)) != phase_index
                 or job.get("_cancel_in_flight")
             ):
+                # Returns True ("stop waiting"), but NOT because the phase
+                # started — the job moved out from under the watcher. Reading
+                # this as a confirmed start is a real misdiagnosis risk.
+                _dlog("phase.await.abandon", vacuum=vacuum_entity_id,
+                      map_id=str(map_id), phase_index=phase_index,
+                      has_job=bool(job),
+                      status=(job or {}).get("status"),
+                      at_index=(job or {}).get("current_phase_index"),
+                      cancel_in_flight=bool((job or {}).get("_cancel_in_flight")))
                 return True
             # A ZONE phase has NO target room, so the native current-room match below can
             # never confirm it (target current_room_id is None) — the guard would never clear
@@ -1680,6 +1842,11 @@ class PhaseRunner:
                 if idle >= pt["verify_seconds"]:
                     # Small zone that finished within confirm_seconds -> treat as confirmed;
                     # a true no-show (never cleaned) -> False to retry.
+                    _dlog("phase.await.zone_verdict", vacuum=vacuum_entity_id,
+                          map_id=str(map_id), phase_index=phase_index,
+                          cleaning_seconds=round(cleaning_in_target, 1),
+                          idle_seconds=round(idle, 1),
+                          confirmed=cleaning_in_target > 0)
                     return cleaning_in_target > 0
                 await asyncio.sleep(_poll)
                 continue
@@ -1701,9 +1868,19 @@ class PhaseRunner:
                 ):
                     cleaning_in_target += _poll
                     if cleaning_in_target >= pt["confirm_seconds"]:
+                        _dlog("phase.await.confirmed", how="native_room_match",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              phase_index=phase_index, room_id=target,
+                              cleaning_seconds=round(cleaning_in_target, 1))
                         return True
                     progressed = True
             elif self._vacuum_started_cleaning(vacuum_entity_id):
+                # The COARSE path — "the vacuum is cleaning something". It cannot
+                # tell which room, so a phase confirmed this way is weaker
+                # evidence than the native match above.
+                _dlog("phase.await.confirmed", how="coarse_cleaning",
+                      vacuum=vacuum_entity_id, map_id=str(map_id),
+                      phase_index=phase_index)
                 return True
             # Reset the no-progress budget whenever we saw cleaning-of-the-target;
             # otherwise accrue it and give up the attempt (re-dispatch) once the
@@ -1719,6 +1896,12 @@ class PhaseRunner:
                 # cleaned room is ignored by the device, which would leave the phase
                 # stalled forever (_phase_dispatch_pending never clears). Only a true
                 # no-show (never cleaned the target) returns False to retry.
+                _dlog("phase.await.budget_spent", vacuum=vacuum_entity_id,
+                      map_id=str(map_id), phase_index=phase_index,
+                      cleaning_seconds=round(cleaning_in_target, 1),
+                      idle_seconds=round(idle, 1),
+                      verdict="confirmed_short_room" if cleaning_in_target > 0
+                      else "no_show_retry")
                 return cleaning_in_target > 0
             await asyncio.sleep(_poll)
 
@@ -1762,6 +1945,9 @@ class PhaseRunner:
                 job.get("current_phase_index"), job.get("phase_count"),
                 len(zones), attempt,
             )
+            _dlog("phase.dispatch.zone", vacuum=vacuum_entity_id,
+                  map_id=str(map_id), phase_index=_idx, zones=len(zones),
+                  attempt=attempt, sent=bool(zones))
             return
 
         await self._manager._run_global_pre_calls(
@@ -1796,11 +1982,26 @@ class PhaseRunner:
                 "chokepoint (cancelled or no longer started, attempt %s)",
                 vacuum_entity_id, map_id, attempt,
             )
+            # RP-010's chokepoint firing. Which of the three conditions caught it
+            # matters: a missing record is a different bug from a live cancel.
+            _dlog("phase.dispatch.abort", reason="chokepoint",
+                  vacuum=vacuum_entity_id, map_id=str(map_id), attempt=attempt,
+                  stored=isinstance(_stored, dict),
+                  cancel_in_flight=bool(isinstance(_stored, dict)
+                                        and _stored.get("_cancel_in_flight")),
+                  status=(_stored or {}).get("status") if isinstance(_stored, dict) else None)
             return
 
         await self._manager._dispatch_clean_payload(
             vacuum_entity_id=vacuum_entity_id, payload=wire_payload
         )
+        # An empty segment list here is the silent skip: the wire send "succeeded"
+        # having been asked to clean nothing.
+        _dlog("phase.dispatch.sent", vacuum=vacuum_entity_id, map_id=str(map_id),
+              phase_index=job.get("current_phase_index"),
+              phase_count=job.get("phase_count"), attempt=attempt,
+              payload_keys=sorted(wire_payload.keys()) if isinstance(wire_payload, dict) else None,
+              segments=(wire_payload or {}).get("segments") if isinstance(wire_payload, dict) else None)
         # INFO so a strict-order run is diagnosable without enabling debug: shows
         # the exact payload re-dispatched (an empty segment list = the next room
         # was skipped, e.g. a slug that didn't resolve to a live id) + the attempt.

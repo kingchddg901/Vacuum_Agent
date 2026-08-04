@@ -22,6 +22,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_JOB_FINISHED
+from ..decision_log import emit as _dlog
 from ..core.manager import EufyVacuumManager
 from ..core.water_amendment import (
     register_post_job_water_amendment as _register_post_job_water_amendment,
@@ -118,6 +119,12 @@ def register(hass: HomeAssistant) -> None:
                 matched_vacuum_ids.append(vacuum_entity_id)
 
         if not matched_vacuum_ids:
+            # A watched entity changed and no vacuum claimed it. Normal for
+            # unrelated entities, but if a lifecycle signal is being IGNORED this
+            # is where it dies, and it dies without a word.
+            _dlog("lifecycle.event.unmatched", entity_id=entity_id,
+                  from_state=old_state, to_state=new_state,
+                  known_vacuums=len(list(manager_local.get_known_vacuum_ids())))
             return
 
         async def _process() -> None:
@@ -134,10 +141,12 @@ def register(hass: HomeAssistant) -> None:
                         vacuum_entity_id=vacuum_entity_id
                     ):
                         any_changes = True
-                except Exception:  # pragma: no cover - best-effort external capture
+                except Exception as err:  # pragma: no cover - best-effort external capture
                     _LOGGER.exception(
                         "External-run handling failed for %s", vacuum_entity_id
                     )
+                    _dlog("lifecycle.external.error", vacuum=vacuum_entity_id,
+                          error_type=type(err).__name__, error=str(err)[:200])
 
                 for map_id in manager_local.get_known_map_ids(vacuum_entity_id):
                     active_job = manager_local.get_active_job(
@@ -146,6 +155,9 @@ def register(hass: HomeAssistant) -> None:
                     )
 
                     if active_job.get("status") not in {"started", "paused"}:
+                        _dlog("lifecycle.map.skip", reason="job_not_live",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              status=active_job.get("status"))
                         continue
 
                     manager_local.record_active_job_transition(
@@ -330,6 +342,11 @@ def register(hass: HomeAssistant) -> None:
                     # advance, queue_engine.advance_active_job_phase).
                     if should_finalize_completed and active_job.get("_phase_dispatch_pending"):
                         should_finalize_completed = False
+                        _dlog("lifecycle.finalize.suppress",
+                              reason="phase_dispatch_pending",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              job_id=active_job.get("job_id"),
+                              phase_index=active_job.get("current_phase_index"))
 
                     # RP-010/RF-06: a cancel in flight owns finalization for this
                     # job. Its own return-to-base dock can otherwise read as
@@ -339,18 +356,39 @@ def register(hass: HomeAssistant) -> None:
                     # cancel's own finalize.
                     if should_finalize_completed and active_job.get("_cancel_in_flight"):
                         should_finalize_completed = False
+                        _dlog("lifecycle.finalize.suppress",
+                              reason="cancel_in_flight",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              job_id=active_job.get("job_id"))
 
                     if not should_finalize_completed:
+                        # The dominant path: signals did not add up to "done".
+                        # Silent until now, which is why a run that never
+                        # finalizes looks identical to one nothing happened in.
+                        _dlog("lifecycle.finalize.hold",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              job_id=active_job.get("job_id"),
+                              status=active_job.get("status"),
+                              entity_id=entity_id, to_state=new_state)
                         continue
 
                     # Sequenced job model: a completed phase advances to the next
                     # phase (re-dispatch) instead of finalizing. Atomic jobs —
                     # every adapter today — return False here and finalize as
                     # before. Each phase finalizes only when it is the last.
+                    _dlog("lifecycle.finalize.reached",
+                          vacuum=vacuum_entity_id, map_id=str(map_id),
+                          job_id=active_job.get("job_id"),
+                          entity_id=entity_id, to_state=new_state)
                     if await manager_local.maybe_advance_phase(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id,
                     ):
+                        # Advanced instead of finalized — pair this with the
+                        # phase.advance.* record to see which phase took over.
+                        _dlog("lifecycle.finalize.deferred_to_phase",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              job_id=active_job.get("job_id"))
                         any_changes = True
                         continue
 
@@ -369,13 +407,24 @@ def register(hass: HomeAssistant) -> None:
                             map_id,
                             finalize_result,
                         )
-                    except Exception:  # pragma: no cover - best-effort auto-finalize
+                    except Exception as err:  # pragma: no cover - best-effort auto-finalize
                         finalize_raised = True
                         _LOGGER.exception(
                             "Failed to auto-finalize job for %s map %s",
                             vacuum_entity_id,
                             map_id,
                         )
+                        _dlog("lifecycle.finalize.error",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              job_id=active_job.get("job_id"),
+                              error_type=type(err).__name__, error=str(err)[:200])
+                    else:
+                        _dlog("lifecycle.finalize.ok",
+                              vacuum=vacuum_entity_id, map_id=str(map_id),
+                              job_id=active_job.get("job_id"),
+                              succeeded=finalize_result_succeeded(finalize_result),
+                              result_keys=sorted(finalize_result.keys())
+                              if isinstance(finalize_result, dict) else None)
 
                     # RP-002/RF-01: a refusal dict ({"finalized": False, "reason": ...})
                     # is not a success — branch on finalize_result_succeeded, not on
