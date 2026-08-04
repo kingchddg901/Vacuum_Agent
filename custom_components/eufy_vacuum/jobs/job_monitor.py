@@ -242,8 +242,17 @@ def build_start_blocker_from_lifecycle(
     active_map_id: str | None,
     queue_room_ids: list[int] | list[str],
     payload_room_count: int,
+    clean_phase_count: int | None = None,
 ) -> dict[str, Any]:
-    """Build start protection result from lifecycle state and prepared payload."""
+    """Build start protection result from lifecycle state and prepared payload.
+
+    ``payload_room_count`` is the room count of the FIRST phase, which is what
+    ``payload_state`` has always been. ``clean_phase_count`` is how many phases
+    in the whole plan actually clean something — rooms OR zones. Pass it and the
+    invalid-payload refusal asks the right question; omit it and the old
+    first-phase-only behaviour is preserved for callers that have no plan to
+    count (A5-PP-RP-2).
+    """
     selected_map_id_n = str(selected_map_id or "").strip()
     active_map_id_n = str(active_map_id or "").strip()
     queue_count = len(queue_room_ids or [])
@@ -269,7 +278,26 @@ def build_start_blocker_from_lifecycle(
             "blocked": True,
         }
 
-    if int(payload_room_count or 0) <= 0:
+    # A5-PP-RP-2. This used to read `payload_room_count <= 0` alone, and
+    # payload_room_count is phases[0]["room_count"] — the FIRST phase only. A zone
+    # phase carries room_count 0 by construction, so any plan whose first
+    # surviving phase is a zone was refused as a corrupt payload while being
+    # perfectly runnable.
+    #
+    # It is reachable WITHOUT the user changing anything. _build_steps_phases
+    # skips a room_group whose rooms are all blocked ("whole group blocked / not
+    # enabled -> skip"), so a saved rooms-then-zone run becomes unstartable the
+    # moment a door or occupancy sensor blocks the rooms in its first group — and
+    # the message blames a broken payload rather than naming the blocked room.
+    #
+    # The real question is "is there anything to clean?", not "does phase 0 have
+    # rooms?". When the caller can answer it, that answer wins.
+    _nothing_to_clean = (
+        int(clean_phase_count) <= 0
+        if clean_phase_count is not None
+        else int(payload_room_count or 0) <= 0
+    )
+    if _nothing_to_clean:
         return {
             "reason": "invalid_payload",
             "message": "Room-clean payload is missing or invalid.",

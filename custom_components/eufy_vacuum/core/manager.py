@@ -3494,6 +3494,22 @@ class EufyVacuumManager:
                 "confirm_token": preflight.get("confirm_token"),
             }
 
+        # A5-PP-RP-2: count the phases that actually CLEAN across the whole plan —
+        # a room_group with rooms, or a zone. Breaks (charge_wait / wait) clean
+        # nothing and must not keep a plan alive on their own.
+        _plan_phases = start_plan.get("phases") or []
+        if not _plan_phases and isinstance(payload_state, dict):
+            _plan_phases = [payload_state]
+        _clean_phase_count = sum(
+            1
+            for _phase in _plan_phases
+            if isinstance(_phase, dict)
+            and (
+                int(_phase.get("room_count", 0) or 0) > 0
+                or (_phase.get("phase_type") == "zone" and _phase.get("zones"))
+            )
+        )
+
         result = build_start_blocker_from_lifecycle(
             lifecycle_state=lifecycle_state["lifecycle_state"],
             lifecycle_message=lifecycle_state["message"],
@@ -3501,6 +3517,7 @@ class EufyVacuumManager:
             active_map_id=active_map_state.state if active_map_state else None,
             queue_room_ids=queue_state.get("queue_room_ids", []),
             payload_room_count=int(payload_state.get("room_count", 0)),
+            clean_phase_count=_clean_phase_count,
         )
 
         if result["blocked"]:

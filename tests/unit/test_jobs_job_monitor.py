@@ -26,7 +26,9 @@ Coverage targets
 [JM-22] build_start_blocker_from_lifecycle: empty selected map → no_target_map.
 [JM-23] build_start_blocker_from_lifecycle: selected != active → map_mismatch.
 [JM-24] build_start_blocker_from_lifecycle: empty queue → no_rooms_selected.
-[JM-25] build_start_blocker_from_lifecycle: payload_room_count <= 0 → invalid_payload.
+[JM-25] build_start_blocker_from_lifecycle: nothing to clean → invalid_payload.
+[JM-25b] A5-PP-RP-2: a ZONE-first plan is runnable, not a corrupt payload.
+[JM-25c] A5-PP-RP-2: break-only phases still refuse — a break cleans nothing.
 [JM-26] build_start_blocker_from_lifecycle: mid_job_service passthrough.
 [JM-27] build_start_blocker_from_lifecycle: active_job_running passthrough.
 [JM-28] build_start_blocker_from_lifecycle: vacuum_busy passthrough.
@@ -304,9 +306,51 @@ def test_blocker_no_rooms_selected():
 
 
 def test_blocker_invalid_payload():
-    """[JM-25]"""
+    """[JM-25] no clean phases anywhere -> invalid_payload."""
     result = _blocker(payload_room_count=0)
     assert result["reason"] == "invalid_payload"
+    # ...and explicitly, with the plan-wide count the caller now supplies.
+    assert _blocker(payload_room_count=0, clean_phase_count=0)["reason"] == "invalid_payload"
+
+
+def test_blocker_zone_first_plan_is_not_an_invalid_payload():
+    """[JM-25b] A5-PP-RP-2: a plan whose first phase is a ZONE must start.
+
+    payload_room_count is phases[0]["room_count"], and a zone phase carries 0 by
+    construction — so a zone-first plan was refused as a corrupt payload while
+    being perfectly runnable.
+
+    It is reachable without the user changing anything: _build_steps_phases skips
+    a room_group whose rooms are all blocked, so a saved rooms-then-zone run
+    becomes unstartable the moment a door sensor blocks the rooms in its first
+    group, with a message blaming a broken payload instead of naming the room.
+    """
+    result = _blocker(payload_room_count=0, clean_phase_count=1)
+    assert result["reason"] != "invalid_payload"
+    assert result["blocked"] is False
+
+
+def test_blocker_break_only_plan_still_refuses():
+    """[JM-25c] A5-PP-RP-2: the fix must not let a break-only plan through.
+
+    charge_wait and wait clean nothing. Counting phases rather than clean phases
+    would have made a plan of nothing but breaks look startable — trading one
+    wrong refusal for a wrong acceptance, which is the worse direction.
+    """
+    result = _blocker(payload_room_count=0, clean_phase_count=0)
+    assert result["reason"] == "invalid_payload"
+    assert result["blocked"] is True
+
+
+def test_blocker_without_the_new_argument_keeps_the_old_behaviour():
+    """[JM-25d] A5-PP-RP-2: callers that cannot count a plan are unchanged.
+
+    clean_phase_count is optional on purpose — omitted, the gate falls back to
+    the first-phase room count exactly as before, so no caller changes meaning
+    just because the signature grew.
+    """
+    assert _blocker(payload_room_count=0)["reason"] == "invalid_payload"
+    assert _blocker(payload_room_count=3)["blocked"] is False
 
 
 def test_blocker_mid_job_service_passthrough():
