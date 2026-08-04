@@ -97,6 +97,25 @@ async def async_setup_entry(
         for unique_id, entity in desired_entities.items():
             existing = entity_map.get(unique_id)
             if existing is not None:
+                if existing.profile_name != entity.profile_name:
+                    # EP-5 / SN-4: the freshly built `entity` carries the
+                    # profile's CURRENT name via _attr_translation_placeholders;
+                    # writing state onto the STALE `existing` object would never
+                    # update the friendly name. SN-4 fixed exactly this in the
+                    # sensor platform and did not reach the button platform --
+                    # the forgotten sibling. Swap the entity object instead.
+                    # Same unique_id on both, so the registry entry and any user
+                    # name override survive; deliberately NOT calling
+                    # registry.async_update_entity(name=...), which would stomp
+                    # a user override and freeze future translation updates.
+                    entity_map[unique_id] = entity
+
+                    async def _swap_renamed(_old=existing, _new=entity) -> None:
+                        await _old.async_remove()
+                        async_add_entities([_new])
+
+                    hass.async_create_task(_swap_renamed())
+                    continue
                 existing.async_write_ha_state()
                 continue
             entity_map[unique_id] = entity
@@ -159,7 +178,10 @@ def _build_run_profile_buttons_for_map(
             )
         )
 
-    entities.sort(key=lambda entity: str(entity.name or "").lower())
+    # EP-5: sort on profile_name, not entity.name. `name` is now resolved by HA
+    # from the translation key and is None at build time, so sorting on it would
+    # silently collapse to a single key and lose the alphabetical order.
+    entities.sort(key=lambda entity: entity.profile_name.lower())
     return entities
 
 
@@ -212,6 +234,12 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
     _attr_icon = "mdi:play-circle-outline"
     _attr_should_poll = False
     _attr_has_entity_name = True
+    # EP-5: was the ONE entity class in the integration that declared
+    # has_entity_name and then overrode `name` with an f-string, so "Run" stayed
+    # English in every locale while every sibling resolved its name from
+    # strings.json. Same shape as EufyVacuumMaintenanceResetButton above, which
+    # has always interpolated {component} this way.
+    _attr_translation_key = "run_profile"
 
     def __init__(
         self,
@@ -227,6 +255,21 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
         self._map_id = str(map_id)
         self._profile_id = str(profile_id)
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
+        # Captured ONCE, like every other translated entity in this integration.
+        # A later rename is handled by rebuilding and SWAPPING the entity object
+        # (see _on_run_profiles_updated), not by mutating this in place.
+        self._profile_name = str(self._profile.get("name", "")).strip() or "Saved Run"
+        self._attr_translation_placeholders = {"profile": self._profile_name}
+
+    @property
+    def profile_name(self) -> str:
+        """This button's profile display name, as of its last (re)build.
+
+        Mirrors ``room_name`` on the room entities: a rename sync compares this
+        against a freshly built sibling to detect a rename, rather than reaching
+        for the underscore attribute.
+        """
+        return self._profile_name
 
     @property
     def _profile(self) -> dict[str, Any]:
@@ -252,12 +295,6 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
             f"{_run_profile_button_unique_prefix(vacuum_entity_id=self._vacuum_entity_id, map_id=self._map_id)}"
             f"{self._profile_id}"
         )
-
-    @property
-    def name(self) -> str | None:
-        """Return the dynamic button name (device name is prepended by HA)."""
-        profile_name = str(self._profile.get("name", "Saved Run"))
-        return f"Run {profile_name}"
 
     @property
     def available(self) -> bool:

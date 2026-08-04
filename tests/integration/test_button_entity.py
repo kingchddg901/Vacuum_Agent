@@ -6,7 +6,8 @@ Coverage targets
 [BE-2]  EufyVacuumMaintenanceResetButton.icon set from constructor.
 [BE-3]  EufyVacuumMaintenanceResetButton.async_press calls manager.reset_maintenance + async_save.
 [BE-4]  EufyVacuumSavedRunProfileButton.unique_id uses prefix + profile_id.
-[BE-5]  EufyVacuumSavedRunProfileButton.name returns 'Run {profile_name}'.
+[BE-5]  EufyVacuumSavedRunProfileButton resolves its name through the
+        translation mechanism (EP-5), not a hardcoded English f-string.
 [BE-6]  EufyVacuumSavedRunProfileButton.available True when expose_as_button=True.
 [BE-7]  EufyVacuumSavedRunProfileButton.available False when expose_as_button=False or missing.
 [BE-8]  EufyVacuumSavedRunProfileButton.extra_state_attributes includes vacuum_entity_id and map_id.
@@ -113,21 +114,55 @@ def test_run_button_unique_id_uses_prefix_and_profile_id():
 
 
 # ---------------------------------------------------------------------------
-# [BE-5] EufyVacuumSavedRunProfileButton.name
+# [BE-5] EufyVacuumSavedRunProfileButton — name via the translation mechanism
 # ---------------------------------------------------------------------------
 
-def test_run_button_name_returns_run_profile_name():
-    """[BE-5] name is 'Run {profile_name}' from the stored profile."""
+def test_run_button_declares_a_translation_key_and_placeholder():
+    """[BE-5] EP-5: the name resolves from strings.json, not an f-string.
+
+    This was the ONE entity class in the integration that set
+    has_entity_name = True and then overrode `name` with f"Run {profile_name}",
+    so the verb stayed English in all 18 shipped locales while every sibling
+    resolved its name from strings.json. HA now composes it from
+    entity.button.run_profile with {profile} interpolated.
+    """
     manager = make_manager_mock(run_profiles={"p1": {"name": "Morning Vacuum", "expose_as_button": True}})
     btn = _make_run_button(manager)
-    assert btn.name == "Run Morning Vacuum"
+
+    assert btn.translation_key == "run_profile"
+    assert btn.translation_placeholders == {"profile": "Morning Vacuum"}
+    assert btn.profile_name == "Morning Vacuum"
+    # The class must NOT carry its own name any more — an override would win over
+    # the translation and silently re-introduce the English.
+    assert type(btn).name is not None      # inherited Entity.name, not a local one
+    assert "name" not in vars(type(btn))
 
 
 def test_run_button_name_defaults_when_profile_missing():
-    """[BE-5] name defaults to 'Run Saved Run' when profile has no name field."""
+    """[BE-5] a profile with no name field still yields a usable placeholder."""
     manager = make_manager_mock(run_profiles={"p1": {}})
     btn = _make_run_button(manager)
-    assert btn.name == "Run Saved Run"
+    assert btn.profile_name == "Saved Run"
+    assert btn.translation_placeholders == {"profile": "Saved Run"}
+
+
+def test_run_profile_translation_key_exists_in_both_files():
+    """[BE-5b] EP-5: the key must be in strings.json AND translations/en.json.
+
+    has_entity_name with a translation_key and no matching entry resolves the
+    name to None — every saved-run button on a vacuum would collapse to the bare
+    device name and become indistinguishable. Cheap to get wrong, invisible in a
+    unit test that only reads the entity.
+    """
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "custom_components" / "eufy_vacuum"
+    for rel in ("strings.json", "translations/en.json"):
+        data = json.loads((root / rel).read_text(encoding="utf-8"))
+        entry = data["entity"]["button"]["run_profile"]
+        assert entry["name"] == "Run {profile}", rel
+        assert "{profile}" in entry["name"], rel
 
 
 # ---------------------------------------------------------------------------

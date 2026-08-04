@@ -36,42 +36,101 @@
   },
   "entity": {
     "sensor": {
-      "onboarding_state": { "name": "Onboarding State" },
-      "map_overlays": { "name": "Map Overlays" },
-      "dock_events": { "name": "Dock Events" },
-      "theme_state": { "name": "Theme State" },
-      "available_profiles": { "name": "Available Profiles" },
-      "active_job": { "name": "Active Job" },
-      "active_run_error": { "name": "Active Run Error" },
-      "last_device_error": { "name": "Last Device Error" },
-      "charge_cycles": { "name": "Charge Cycles" },
-      "charge_rate": { "name": "Charge Rate" },
-      "charge_rate_low_zone": { "name": "Charge Rate (Low Zone)" },
-      "charge_rate_high_zone": { "name": "Charge Rate (High Zone)" },
-      "last_charge_duration": { "name": "Last Charge Duration" },
-      "battery_health": { "name": "Battery Health" },
-      "cc_charge_speed": { "name": "CC Charge Speed" },
-      "cv_charge_speed": { "name": "CV Charge Speed" },
-      "last_job_drain_rate": { "name": "Last Job Drain Rate" },
-      "last_job_drain_per_hour": { "name": "Last Job Drain Per Hour" },
-      "last_job_drain_per_m2": { "name": "Last Job Drain Per m²" },
-      "mid_job_recharge_rate": { "name": "Mid-Job Recharge Rate" },
-      "maintenance_remaining": { "name": "{component} Maintenance Remaining" },
-      "room_cleaning_history": { "name": "{room} Cleaning History" },
-      "room_rule_status": { "name": "{room} Rule Status" }
+      "onboarding_state": {
+        "name": "Onboarding State"
+      },
+      "map_overlays": {
+        "name": "Map Overlays"
+      },
+      "dock_events": {
+        "name": "Dock Events"
+      },
+      "theme_state": {
+        "name": "Theme State"
+      },
+      "available_profiles": {
+        "name": "Available Profiles"
+      },
+      "active_job": {
+        "name": "Active Job"
+      },
+      "active_run_error": {
+        "name": "Active Run Error"
+      },
+      "last_device_error": {
+        "name": "Last Device Error"
+      },
+      "charge_cycles": {
+        "name": "Charge Cycles"
+      },
+      "charge_rate": {
+        "name": "Charge Rate"
+      },
+      "charge_rate_low_zone": {
+        "name": "Charge Rate (Low Zone)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Charge Rate (High Zone)"
+      },
+      "last_charge_duration": {
+        "name": "Last Charge Duration"
+      },
+      "battery_health": {
+        "name": "Battery Health"
+      },
+      "cc_charge_speed": {
+        "name": "CC Charge Speed"
+      },
+      "cv_charge_speed": {
+        "name": "CV Charge Speed"
+      },
+      "last_job_drain_rate": {
+        "name": "Last Job Drain Rate"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Last Job Drain Per Hour"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Last Job Drain Per m²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Mid-Job Recharge Rate"
+      },
+      "maintenance_remaining": {
+        "name": "{component} Maintenance Remaining"
+      },
+      "room_cleaning_history": {
+        "name": "{room} Cleaning History"
+      },
+      "room_rule_status": {
+        "name": "{room} Rule Status"
+      }
     },
     "binary_sensor": {
-      "active_run_has_error": { "name": "Active Run Has Error" }
+      "active_run_has_error": {
+        "name": "Active Run Has Error"
+      }
     },
     "button": {
-      "maintenance_reset": { "name": "Reset {component} Maintenance" }
+      "maintenance_reset": {
+        "name": "Reset {component} Maintenance"
+      },
+      "run_profile": {
+        "name": "Run {profile}"
+      }
     },
     "number": {
-      "maintenance_interval": { "name": "{component} Maintenance Interval" },
-      "room_order": { "name": "{room} Order" }
+      "maintenance_interval": {
+        "name": "{component} Maintenance Interval"
+      },
+      "room_order": {
+        "name": "{room} Order"
+      }
     },
     "switch": {
-      "room_selected": { "name": "{room} Selected for Cleaning" }
+      "room_selected": {
+        "name": "{room} Selected for Cleaning"
+      }
     }
   }
 }
