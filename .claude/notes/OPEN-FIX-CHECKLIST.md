@@ -11,8 +11,8 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
 | Fixes APPLIED (landed packets) | **447** findings via 56 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **37** -- 2 open clusters (27 fully applied) + 35 singles |
-| By severity | CRITICAL 1 / HIGH 8 / MEDIUM 16 / LOW 12 |
+| Open findings | **36** -- 2 open clusters (27 fully applied) + 34 singles |
+| By severity | CRITICAL 1 / HIGH 7 / MEDIUM 16 / LOW 12 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -278,11 +278,8 @@ audit is a snapshot, not a ledger.
   overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
   -> A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
 
-### HIGH (6)
+### HIGH (5)
 
-- [ ] **A3-IMAGE--1** `mapping/mapping_services.py:1174` [Both. Eufy (eufy_cv_v1) is where re-analysis actually reshuffles ids; Roborock inherits the same read-time enrichment for any image_segments it holds.]  
-  Re-analysis rebinds the user's room links and manual segment adjustments onto positionally-reassigned segment ids  
-  -> The map overlay silently mislabels rooms after any re-analysis in which blob ordering shifts, and the mislabel is actuating, not cosmetic: tapping a segment polygon calls toggleRoomEnabled for the LINKED room (src/bindin
 - [ ] **A6-PP-EST-BLK-1** `planning/run_plan.py:1615` [both] _(finder said CRITICAL)_  
   Mid-job path-block report walks reachability over the QUEUE only, so any queued room whose access parent is not in the queue is reported blocked — and can cancel the job  
   -> Running a subset of rooms (the normal case) plus any door/motion blocker rule: the first time that blocker entity changes state mid-run, rooms that the start plan judged perfectly accessible are declared blocked. With ca
@@ -1341,6 +1338,26 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 
 Cost tracks the 8-agent shape far more than subsystem size -- #10 covered 2,531 LOC for 1.07M
 while #7 covered 1,515 LOC for 1.58M. Scope future audits by agent count, not by LOC.
+
+## ADJUDICATED -- judged not-a-fix, with reasoning. NOT open, NOT forgotten.
+
+A finding here was examined and deliberately not fixed. The reasoning is kept in
+full so audit #2 can overturn it on evidence rather than rediscover it from
+scratch. Audit findings are adjudicated in `.claude/notes/_adjudicated_findings.json`
+(an overlay -- the audit JSON itself is frozen evidence and is never edited);
+direct-read rows carry `wontfix` inline.
+
+- **A3-IMAGE--1** (#18 mapping services) `mapping/mapping_services.py:1174`  
+  Re-analysis rebinds the user's room links and manual segment adjustments onto positionally-reassigned segment ids  
+  -> OVERSTATED (2026-08-03) -- The mechanism as written does not hold, and the proposed cure is worse than the disease. (1) Ids are NOT positionally reassigned. adapters/eufy/segmentor.py mints segment_id when a blob is ADMITTED (:1289 kept regions, :1474 count-deficit recoveries) and the id rides with that blob; the sorts at :1414 and :1485 reorder the LIST and renumber nothing. (2) The pipeline is deterministic -- no RNG and no set-iteration anywhere in the path -- so the same image with the same tuning yields byte-identical ids. A plain re-analysis therefore cannot reassign anything, which is what the finding's 'any re-analysis in which blob ordering shifts' claims. Ids can only shift when the admitted blob SET changes: tuning altered (min_area_pixels / expected_room_count / max_segments, via the dedup at :1416-1432, the recovery branch at :1444-1483, or the truncate at :1487), or a genuinely different map image. (3) 'Silently' is wrong. The link injects room_id onto the segment and the card renders that room's name on the polygon, so a stale link paints the wrong room name onto a map of the user's own home -- among the most visible failure modes this integration has, and Chris confirms this subsystem surfaces its failures in practice. The residual real case is narrow: a re-tune that swaps two similar adjacent rooms where the wrong label is not obvious. (4) A fix was written and REJECTED: retiring links whose segment geometry moved. Re-tuning IS the intended workflow -- the CV output is human-corrected at the end via card-side translations, edge nudges and vertex moves -- so the guard fires precisely when the user is iterating on tuning and deletes hand-made room links at exactly the wrong moment. The rooms did not move; only the segmentation did. Trading a visible mislabel for silent destruction of the user's own work is a bad trade. Its 'old centre inside new bbox' test was also a hidden threshold, scale-dependent (a large room's bbox swallows any centre; a closet's retires on noise) and asymmetric -- and in a CV subsystem an explicit tuned threshold, e.g. bbox IoU declared in mapping.segmenter_tuning beside the existing knobs, is the correct idiom rather than something to avoid. If this is ever revisited, the shape is a per-link IoU CONFIDENCE surfaced to the card, never a backend deletion.
+
+- **SN-10a** (agent: sensor (2-lens verified)) `sensor/theme.py:75`  
+  KILLED: the claim that a hand-edited theme import can store a raw null name  
+  -> KILLED — the reachability premise is fatal to the claim AS RECORDED. Stage B's reproducer executed it: import_theme does `name = str(source_theme.get('name','')).strip()` (themes/manager.py:537), so a JSON null becomes the STRING 'None', which is truthy and passes the `if not name` gate. The stated entry path — 'reachable via a hand-edited import' — cannot produce the defect. That sentence was mine and it was wrong. Split from the original SN-10 so Corpus C does not have to assert the LINE is correct; the line-level defect survives as SN-10b.
+
+- **DR-DBG-5** (direct read) `debug_capture.py:263`  
+  The restore guard cannot distinguish its own DEBUG from a user's mid-capture `logger:` DEBUG  
+  -> Reaching it requires starting the flight recorder — a tool whose entire purpose is to avoid enabling `logger:` debug — and then enabling `logger:` debug anyway, mid-capture. That is a user footgun, not a defect: the two actions contradict each other. Documented in the module and in the post rather than guarded against.
 
 ## Regenerating this file
 

@@ -22,6 +22,29 @@ _dr = pathlib.Path(".claude/notes/_direct_reads.json")
 if _dr.exists():
     rows.extend(json.loads(_dr.read_text(encoding="utf-8")))
 
+# ADJUDICATED findings — an overlay, not an edit to the audit JSON. The audits are
+# frozen evidence; a verdict about a finding is a LATER judgement and belongs
+# beside it, not inside it. `wontfix` already existed but only for _direct_reads
+# rows, which are hand-maintained; an AUDIT finding had no way to be adjudicated
+# at all, so anything judged overstated just sat open and got re-litigated.
+# Same shape and lifecycle as _reopened_findings.json: hand-written, applied here,
+# and LOUD when it goes stale.
+_ADJ = pathlib.Path(".claude/notes/_adjudicated_findings.json")
+if _ADJ.exists():
+    _by_cid = {}
+    for _r in rows:
+        _run = _r["run"]
+        _prefix = _run.split()[0] if _run.startswith("#") else _run
+        _by_cid.setdefault(f"{_prefix}:{_r['id']}", _r)
+    for _a in json.loads(_ADJ.read_text(encoding="utf-8")):
+        _row = _by_cid.get(_a["finding_id"])
+        if _row is None:
+            print(f"WARNING: adjudicated finding {_a['finding_id']!r} not found among open "
+                  f"findings -- already closed by a packet, or a stale entry in "
+                  f"_adjudicated_findings.json")
+            continue
+        _row["wontfix"] = f"{_a['verdict'].upper()} ({_a['adjudicated_at']}) -- {_a['reason']}"
+
 # Deliberately-not-fixing entries are tracked, but they are NOT open findings and must
 # not reappear in the fix list — an unmarked wontfix just gets re-litigated.
 WONTFIX = [r for r in rows if r.get("wontfix")]
@@ -272,6 +295,30 @@ A("")
 A("Cost tracks the 8-agent shape far more than subsystem size -- #10 covered 2,531 LOC for 1.07M")
 A("while #7 covered 1,515 LOC for 1.58M. Scope future audits by agent count, not by LOC.")
 A("")
+# ADJUDICATED / WONTFIX. This list was COLLECTED and never RENDERED -- a dead
+# variable since it was introduced, so the two direct-read entries had been
+# silently absent from the output the whole time. That is precisely the failure
+# this file guards against everywhere else: a finding that disappears is
+# indistinguishable from one that was never found, and an unrendered wontfix gets
+# re-litigated by the next audit exactly like an unmarked one.
+A("## ADJUDICATED -- judged not-a-fix, with reasoning. NOT open, NOT forgotten.")
+A("")
+A("A finding here was examined and deliberately not fixed. The reasoning is kept in")
+A("full so audit #2 can overturn it on evidence rather than rediscover it from")
+A("scratch. Audit findings are adjudicated in `.claude/notes/_adjudicated_findings.json`")
+A("(an overlay -- the audit JSON itself is frozen evidence and is never edited);")
+A("direct-read rows carry `wontfix` inline.")
+A("")
+if not WONTFIX:
+    A("_None._")
+    A("")
+for _w in sorted(WONTFIX, key=lambda r: (r["run"], r["id"])):
+    A(f"- **{_w['id']}** ({_w['run']}) `{_w.get('file', '?')}"
+      f"{':' + str(_w['line']) if _w.get('line') else ''}`  ")
+    A(f"  {_w.get('title', '')}  ")
+    A(f"  -> {_w['wontfix']}")
+    A("")
+
 A("## Regenerating this file")
 A("")
 A("    python .claude/notes/_gen_checklist.py")
