@@ -229,7 +229,7 @@ export function applyRoomEditorRenderer(proto) {
           ${options.map((opt) => `
             <button
               type="button"
-              class="evcc-chip ${fields.clean_mode === opt.value ? "active" : ""}"
+              class="evcc-chip ${state._canonicalCleanModeCompare(fields.clean_mode) === state._canonicalCleanModeCompare(opt.value) ? "active" : ""}"
               data-field="clean_mode"
               data-value="${this.escapeHtml(opt.value)}"
             >${this.tVocab("clean_mode", opt.value, opt.label)}</button>

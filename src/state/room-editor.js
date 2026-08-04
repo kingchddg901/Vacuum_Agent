@@ -520,7 +520,17 @@ export function applyRoomEditorState(proto) {
    * @param {string} profileFieldName - matching key inside saved profiles
    * @returns {Array<{value: string, label: string}>}
    */
-  proto._buildOptionListForRole = function (roleKey, profileFieldName) {
+  /**
+   * @param {string} roleKey
+   * @param {string} profileFieldName
+   * @param {(v: string) => string} [canonicalize] - how to decide two spellings
+   *   are the SAME option. Defaults to lowercase. clean_mode passes
+   *   _canonicalCleanModeCompare because the stored value is a DISPLAY label
+   *   ("Vacuum and mop") while the adapter declares the token ("vacuum_mop") —
+   *   without it the legacy-fallback below sees them as different and appends a
+   *   duplicate chip (issue #48, visible in the Cleaning Mode row).
+   */
+  proto._buildOptionListForRole = function (roleKey, profileFieldName, canonicalize) {
     const adapterOptions = this.adapterOptionsFor?.(roleKey) ?? [];
     // When the adapter declares NO options for a role, the brand doesn't expose
     // that field at all — hide it (return []) rather than resurrecting it from
@@ -528,13 +538,14 @@ export function applyRoomEditorState(proto) {
     // the picker" contract (e.g. Roborock has no per-room clean_mode / clean
     // intensity, so those rows must not appear).
     if (adapterOptions.length === 0) return [];
+    const key_of = canonicalize || ((v) => String(v ?? "").trim().toLowerCase());
     const seen = new Set();
     const result = [];
 
     for (const opt of adapterOptions) {
       const value = String(opt?.value ?? "").trim();
       if (!value) continue;
-      const key = value.toLowerCase();
+      const key = key_of(value);
       if (seen.has(key)) continue;
       seen.add(key);
       result.push({
@@ -549,14 +560,18 @@ export function applyRoomEditorState(proto) {
     // surfacing in a Roborock room's suction picker (which declares only
     // gentle/quiet/balanced/turbo/max and never "Standard").
     const currentValue = String(this.editorFields?.()?.[profileFieldName] ?? "").trim();
-    if (currentValue && !seen.has(currentValue.toLowerCase())) {
+    if (currentValue && !seen.has(key_of(currentValue))) {
       result.push({ value: currentValue, label: currentValue });
     }
     return result;
   };
 
   proto.cleanModeOptions = function () {
-    const options = this._buildOptionListForRole("clean_mode", "clean_mode");
+    // issue #48: canonical comparison, so the stored display label and the
+    // adapter's token are ONE option rather than two chips.
+    const options = this._buildOptionListForRole(
+      "clean_mode", "clean_mode", (v) => this._canonicalCleanModeCompare(v)
+    );
     // UX rule: carpet rooms cannot use mop modes.
     if (this.isEditorRoomCarpet()) {
       return options.filter((o) => !this.isMopMode(o.value));
