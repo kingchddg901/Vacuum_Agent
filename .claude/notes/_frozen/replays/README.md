@@ -31,12 +31,19 @@ exported full recorder history from live HA via the history UI, 2026-08-04.
 
 ## Representativeness caveat (Chris, 2026-08-04)
 
-The corpus over-represents **short, kitchen-first, quick-profile test runs** — kitchen is
-Chris's standard test room (close to the dock, short, sequences well), so it opens most
-runs. Fine for lifecycle/finalize concordance and replay probes; NOT a representative
-workload distribution for estimator accuracy or coverage claims. The worst Alfred boundary
-deltas clustering on "kitchen" is this skew, not a kitchen signature — the open
-adjudication item is first-room transit attribution generally.
+The corpus over-represents **kitchen-first test runs** — kitchen is Chris's standard test
+room for four deliberate reasons: close to the dock (short loops), isolated from the house
+(runnable any time of day without interfering), flooring that accepts EVERY vacuum setting,
+and small enough that even the deepest settings finish in ~8 minutes.
+
+Consequence, stated precisely: this is a **fixed-geometry, varied-settings** corpus. It is
+GOOD coverage of the settings/profile dimension (one constant room swept across modes,
+intensities, and sequences — settings comparisons are nearly controlled experiments) and of
+lifecycle/finalize concordance. It is WEAK on geometry/room variance, multi-room routing
+diversity, and anything resembling a household workload — do not base estimator-accuracy or
+coverage claims on its distribution. The worst Alfred boundary deltas clustering on
+"kitchen" is exposure, not a kitchen signature — the open adjudication item is first-room
+transit attribution generally.
 
 ## Consumers (charter delta 12)
 
