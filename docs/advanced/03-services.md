@@ -1103,6 +1103,63 @@ Supports response.
 
 ---
 
+### `set_room_access_graph`
+
+Replaces the **entire** access graph for one map in a single write: the dock room plus every access link. Call it with no `dock_room_id` and no `edges` to **clear** the graph, which is what unblocks basic runs on a map whose graph is only partly configured.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | Defaults to the current active map. |
+| `dock_room_id` | No | The room containing the charging dock — the root of the access tree. Omit to clear it. |
+| `edges` | No | The complete link list as `{from, to}` pairs, where `from` grants access to `to`. Omit to remove all links. |
+
+Supports response.
+
+**Replace, not merge.** Any link absent from `edges` is removed. This is deliberate: the access graph is all-or-nothing — a map is either *blank* (no graph, basic runs allowed) or *complete* (valid graph, room rules usable), and the *partial* state in between refuses every run. Writing the graph room by room would walk the map through that blocked state on the way, and an interrupted sequence would leave it there. One call, one validation, one notification.
+
+**What it touches.** Only `is_dock_room` and `grants_access_to`. Room rules, selection, order, colours, profiles and `is_transition` are left alone.
+
+**Refusals.** A structurally illegal graph — a loop, a room reached from two rooms, a link to a room that is not on this map — is refused with `ok: false` and formatted `issues`, and **nothing is written**. An *incomplete* graph is not refused: completeness is enforced when the cleaning queue is built, and refusing it here would make a graph impossible to build in stages.
+
+**Did it actually unlock anything?** The response carries `block_code_before` and `block_code_after`:
+
+```yaml
+ok: true
+dock_room_id: "1"
+edge_count: 3
+block_code_before: incomplete_access_graph
+block_code_after: null
+blocked_before: true
+blocked_after: false
+blocking_rooms: []
+```
+
+Check `blocked_after` rather than `ok`. Clearing the graph on a map that has **blocker rules** moves you from `incomplete_access_graph` to `access_graph_required_for_rules` — the write succeeds and you are still blocked, because blocker rules need an access graph to evaluate against. `blocking_rooms` names the rooms responsible when `block_code_after` is `incomplete_access_graph`.
+
+**Build a tree:**
+
+```yaml
+action: eufy_vacuum.set_room_access_graph
+data:
+  vacuum_entity_id: vacuum.alfred
+  dock_room_id: 1
+  edges:
+    - {from: 1, to: 2}
+    - {from: 1, to: 3}
+    - {from: 3, to: 4}
+```
+
+**Clear it:**
+
+```yaml
+action: eufy_vacuum.set_room_access_graph
+data:
+  vacuum_entity_id: vacuum.alfred
+```
+
+---
+
 ## Learning Services
 
 The learning system records completed job history to build per-room timing estimates. Most of these services run automatically — the ones below are the ones you would call explicitly from an automation or script.

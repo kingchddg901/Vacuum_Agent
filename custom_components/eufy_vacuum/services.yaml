@@ -279,6 +279,52 @@ get_room_access_editor:
           step: 1
           mode: box
 
+set_room_access_graph:
+  name: Set room access graph
+  description: >
+    Replace the entire room access graph for one map in a single atomic write:
+    the dock room plus every access link. Call it with no dock room and no edges
+    to CLEAR the graph, which unblocks basic runs on a map whose graph is only
+    partly configured. Structural problems (a loop, a room reached from two
+    rooms, an unknown room) are refused without writing anything. Only
+    is_dock_room and grants_access_to are touched; rules, selection, order and
+    colours are left alone.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    dock_room_id:
+      name: Dock room ID
+      description: >
+        The room containing the charging dock — the root of the access tree.
+        Leave blank to clear the dock room.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 9999
+          step: 1
+          mode: box
+    edges:
+      name: Access links
+      description: >
+        The complete list of access links as {from, to} pairs, where "from"
+        grants access to "to". Replaces every existing link. Leave blank to
+        remove all links.
+      required: false
+      example: "[{from: 1, to: 2}, {from: 1, to: 3}, {from: 3, to: 4}]"
+      selector:
+        object: {}
+
 get_access_graph_health:
   name: Get access graph health
   description: >

@@ -1704,6 +1704,194 @@ class EufyVacuumManager:
                 "room": rooms[room_key],
         }
 
+    def set_room_access_graph(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        dock_room_id: int | str | None = None,
+        edges: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Replace the whole access graph for one map, atomically.
+
+        REPLACE-ALL, deliberately. The access graph is all-or-nothing by design
+        (Chris, 2026-08-04) -- blank or complete, with no half-configured state --
+        and N per-room ``update_room_fields`` calls cannot honour that: the map
+        is observably half-built between them, and a browser closed midway
+        leaves it that way. One write, one validation, one notify.
+
+        This is also the CLEAR operation. Called with no dock room and no edges
+        it blanks the graph, which is the second exit the start refusal names
+        ("clear all access settings to allow basic runs") and which previously
+        had no service and no button at all (live:AGX-CLEAR-1). Build, rebuild
+        and clear being one call is why there is no separate clear service.
+
+        Touches ONLY ``is_dock_room`` and ``grants_access_to``. Rules, enabled,
+        order, colours, profiles and ``is_transition`` are left alone --
+        ``is_transition`` in particular is never read by
+        ``_validate_room_access_graph`` and so is not a graph field at all.
+
+        Refuses STRUCTURAL illegality (self-reference, multiple inbound, cycles,
+        unknown targets) without writing anything. Does NOT refuse an incomplete
+        graph: completeness is enforced at queue-build time, and refusing it here
+        would make a graph unbuildable in stages. An incomplete submission is
+        reported instead -- see ``block_code_after``.
+
+        Args:
+            vacuum_entity_id: owning vacuum.
+            map_id: the map whose graph is being replaced.
+            dock_room_id: the room containing the dock, or None to clear it.
+            edges: ``[{"from": room_id, "to": room_id}, ...]``. Pairs rather than
+                a parent->children mapping because that is what the builder
+                produces -- one tap is one edge -- and because pairs are
+                order-independent and trivially validatable.
+
+        Returns:
+            ``{ok, ...}``; on success also ``block_code_before`` /
+            ``block_code_after``, so a caller can tell whether the write actually
+            unlocked anything.
+        """
+        map_bucket = ensure_map_bucket(
+            data=self.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+        rooms = map_bucket.get("rooms", {})
+
+        def _refusal(reason: str, detail: str, **extra: Any) -> dict[str, Any]:
+            return {
+                "ok": False,
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "updated": False,
+                "error": reason,
+                "reason": reason,
+                "reason_detail": detail,
+                **extra,
+            }
+
+        known_ids = {
+            _safe_int(room.get("room_id", key), -1)
+            for key, room in rooms.items()
+            if isinstance(room, dict)
+        }
+        known_ids.discard(-1)
+
+        # Baseline BEFORE anything is touched, so "did this unlock me?" is
+        # answered against what the user actually had.
+        before_validation = self._validate_room_access_graph(managed_rooms=rooms)
+        block_code_before = self.access_graph_block_code(rooms, before_validation)
+
+        resolved_dock = _safe_int(dock_room_id, -1) if dock_room_id is not None else -1
+        if dock_room_id is not None and resolved_dock not in known_ids:
+            return _refusal(
+                "room_not_found",
+                "The requested dock room is not on this map.",
+                block_code_before=block_code_before,
+            )
+
+        grants: dict[int, list[int]] = {room_id: [] for room_id in known_ids}
+        for edge in edges or []:
+            if not isinstance(edge, dict):
+                return _refusal(
+                    "invalid_edge",
+                    "Each edge must be a mapping with 'from' and 'to'.",
+                    block_code_before=block_code_before,
+                )
+            source = _safe_int(edge.get("from"), -1)
+            target = _safe_int(edge.get("to"), -1)
+            if source not in known_ids or target not in known_ids:
+                return _refusal(
+                    "room_not_found",
+                    f"Edge {source} -> {target} references a room that is not on this map.",
+                    block_code_before=block_code_before,
+                )
+            if target not in grants[source]:
+                grants[source].append(target)
+
+        # Build the candidate WITHOUT committing, so a structural refusal leaves
+        # the stored graph exactly as it was.
+        candidate = {
+            key: (
+                {
+                    **room,
+                    "is_dock_room": _safe_int(room.get("room_id", key), -1) == resolved_dock,
+                    "grants_access_to": [
+                        str(target)
+                        for target in grants.get(_safe_int(room.get("room_id", key), -1), [])
+                    ],
+                }
+                if isinstance(room, dict)
+                else room
+            )
+            for key, room in rooms.items()
+        }
+
+        validation = self._validate_room_access_graph(managed_rooms=candidate)
+        structural_issues = self._structural_access_graph_issues(validation)
+
+        if structural_issues:
+            room_names = {
+                _safe_int(item.get("room_id", key), -1): str(
+                    item.get("name", f"Room {_safe_int(item.get('room_id', key), -1)}")
+                ).strip()
+                or f"Room {_safe_int(item.get('room_id', key), -1)}"
+                for key, item in candidate.items()
+                if isinstance(item, dict) and _safe_int(item.get("room_id", key), -1) > 0
+            }
+            return _refusal(
+                "invalid_access_graph",
+                "The requested access graph is structurally invalid and was not saved.",
+                block_code_before=block_code_before,
+                issues=[
+                    self._format_access_graph_issue(issue=issue, room_names=room_names)
+                    for issue in structural_issues
+                ],
+            )
+
+        # Commit by MUTATING the stored dict rather than rebinding it. The
+        # candidate was built as a fresh mapping so a structural refusal could
+        # leave storage untouched, but rebinding map_bucket["rooms"] to it would
+        # strand every reference already held to the original dict — which is
+        # how update_room_fields does it, and the difference is invisible until
+        # something reads through a stale handle.
+        for room_key, room_value in candidate.items():
+            rooms[room_key] = room_value
+
+        map_bucket["rooms"] = rooms
+        map_bucket["summary"] = build_room_selection_summary(managed_rooms=rooms)
+        self._refresh_room_derived_state(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+        self._notify_rooms_updated(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+
+        block_code_after = self.access_graph_block_code(rooms, validation)
+        return {
+            "ok": True,
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "updated": True,
+            "dock_room_id": str(resolved_dock) if resolved_dock > 0 else None,
+            "rooms_updated": len(known_ids),
+            "edge_count": sum(len(targets) for targets in grants.values()),
+            # A6-AGX-1's lesson applied to the WRITE side: clearing the graph on a
+            # map that has blocker rules moves the user from
+            # incomplete_access_graph to access_graph_required_for_rules -- STILL
+            # blocked, with a different message. A "clear to unlock" action that
+            # silently fails to unlock is the same remediation trap, and this pair
+            # is where a caller catches it.
+            "block_code_before": block_code_before,
+            "block_code_after": block_code_after,
+            "blocked_before": block_code_before is not None,
+            "blocked_after": block_code_after is not None,
+            "blocking_rooms": self.access_graph_block_rooms(rooms, validation),
+            "issues": validation.get("issues", []),
+        }
+
     # ------------------------------------------------------------------
     # Room / map management
     # ------------------------------------------------------------------
