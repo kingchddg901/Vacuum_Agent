@@ -18,8 +18,15 @@ queue callers and the existing tests.
 
 Boundary kinds (a blip = a gap between `cleaning_time` increments > ``gap_delayed_s``):
 
-- **wash_plateau** (gap > ``gap_plateau_s``) — a minutes-long mop wash (ByRoom) or
-  long transit. An unambiguous boundary; pass-turns are seconds, never minutes.
+- **wash_plateau** (gap > ``gap_plateau_s`` AND the vacuum reported leaving
+  `cleaning` during it) — a minutes-long mop wash (ByRoom) or long transit.
+  Pass-turns are seconds, never minutes. The state check is NOT belt-and-braces:
+  duration alone cannot tell a dock trip from an in-room stall, and this kind
+  carries the top ``_KIND_WEIGHT``, so a mislabelled stall does not merely get the
+  wrong name — it outranks the real boundary and displaces it under the
+  ``expected_rooms`` cap, yielding the right segment COUNT at the wrong PLACE.
+  Absent the signal entirely (pre-2026-08-03 records, external ingests, synthetic
+  streams) the check abstains and duration decides, as before.
 - **transit** (``gap_transit_s`` < gap ≤ ``gap_plateau_s`` AND area stays flat) — a
   ~60-90 s inter-room hop that covered no new floor yet. A real transition the old
   rule discarded (it required an area jump), which left under-splits unrecoverable.
@@ -76,17 +83,26 @@ from .timestamp_utils import UTC, datetime_to_utc_iso, parse_timestamp
 
 # Defaults (seconds / m²). cleaning_time ticks every ~30 s while cleaning.
 #
-# BOTH FAMILIES ARE "ONE UNIT PLUS MARGIN", NOT PHYSICAL MEASUREMENTS. Read them
-# that way before retuning either, or you will move a number that was never about
-# the quantity its unit suggests.
+# NEITHER FAMILY MEASURES THE QUANTITY ITS UNIT SUGGESTS. Read this before
+# retuning either, or you will move a number that was never about seconds of
+# elapsed time or square metres of floor.
 #
 # TIME. cleaning_time is a COUNT OF 30 s WORK UNITS, not a clock: measured over
-# 229 consecutive rises, every single one was exactly +0.500 min, and the wall
-# interval between them was 29.5-30.0 s. So a "gap" is really idle time,
-# `wall_gap - 30`, and the thresholds are one work-unit apart by design:
-#   35 -> at least  5 s not cleaning   (30 + jitter margin; the floor is 29.5)
-#   60 -> at least 30 s not cleaning
-#   90 -> at least 60 s not cleaning
+# 229 consecutive rises, every single one was exactly +0.500 min, with 29.5-30.0 s
+# of wall between them. Each threshold is therefore read AFTER subtracting that
+# one quantum, and the remainder is time with NO COUNTER PROGRESS:
+#   35 -> ~ 5 s  (i.e. one work unit + jitter margin; the measured floor is 29.5)
+#   60 -> ~30 s
+#   90 -> ~60 s
+# The three are NOT evenly spaced and are not meant to be — 35 buys jitter margin
+# on a single tick, while 60 and 90 are chosen against observed hop and dock
+# durations.
+#
+# CAVEAT on that subtraction: it assumes every rise carries exactly ONE unit. That
+# held 229/229 in the sampled history, but nothing in the code verifies it — a
+# batched +1.5 min update landing after a 100 s wall gap would be ~10 s of real
+# idle and would still clear _GAP_PLATEAU_S. `incs` already stores (t, ct), so the
+# honest measure is available for free: wall_gap - (ct_delta).
 #
 # AREA. cleaning_area is QUANTISED to whole device steps of 1 m². _AREA_JUMP_M2
 # does not mean "two square metres" — it means MORE THAN ONE QUANTUM, i.e. the
@@ -97,9 +113,10 @@ from .timestamp_utils import UTC, datetime_to_utc_iso, parse_timestamp
 # under an exact 2.0 by a thousandth. Hence _AREA_EPS. Expressing the intent as
 # "> 1 quantum" would have been frame-independent and would not have needed it.
 _CADENCE_S = 30.0
-_GAP_DELAYED_S = 35.0   # >= ~5 s not cleaning (one work unit + jitter margin)
-_GAP_TRANSIT_S = 60.0   # >= 30 s not cleaning, with FLAT area = an inter-room transit
-_GAP_PLATEAU_S = 90.0   # >= 60 s not cleaning = a dock trip (must also prove it undocked)
+_GAP_DELAYED_S = 35.0   # >= ~5 s without counter progress (one unit + jitter margin)
+_GAP_TRANSIT_S = 60.0   # >= ~30 s without counter progress, FLAT area = inter-room transit
+_GAP_PLATEAU_S = 90.0   # >= ~60 s without counter progress; a wash ALSO requires
+                        # evidence the vacuum left cleaning (see _left_cleaning)
 _AREA_JUMP_M2 = 2.0     # MORE THAN ONE 1 m² quantum of new floor — not "2 m²"
 
 # A firmware freeze/stall (or an over-long dock) shows up as a long INTERIOR gap between
@@ -242,7 +259,7 @@ _AREA_EPS = 0.01
 #: exclusive by construction, not by observation. Measured on 5 days of Alfred
 #: history: all 229 rising counter ticks had the vacuum `cleaning`, and all 49
 #: dock-status changes had it `docked`. No overlap.
-_UNDOCKED_EXIT_STATES: frozenset[str] = frozenset({"docked", "returning", "returning_to_dock"})
+_OFF_FLOOR_STATES: frozenset[str] = frozenset({"docked", "returning", "returning_to_dock"})
 
 
 def _left_cleaning(samples: list[dict[str, Any]], a: Any, b: Any) -> bool | None:
@@ -268,7 +285,7 @@ def _left_cleaning(samples: list[dict[str, Any]], a: Any, b: Any) -> bool | None
         if when is None or not (a <= when <= b):
             continue
         seen = True
-        if str(state).strip().lower() in _UNDOCKED_EXIT_STATES:
+        if str(state).strip().lower() in _OFF_FLOOR_STATES:
             return True
     return False if seen else None
 
