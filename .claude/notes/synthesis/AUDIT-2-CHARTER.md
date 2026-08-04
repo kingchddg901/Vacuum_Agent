@@ -58,7 +58,9 @@ a ledger):
 8. **All gates green at a pinned SHA:** docker `pytest tests --no-cov` (the real gate; bare pytest
    skips `tests/adapters/`), `npm run test:units` (check the tally, not the exit code),
    `npm run check:i18n`, `npm run build:deploy`, mkdocs `--strict`, CI green on that SHA (match
-   `headSha` manually — the `--commit` filter has lied before).
+   `headSha` manually — the `--commit` filter has lied before), and
+   `python .claude/notes/_crossmatch_replays.py --check` (the delta-12 concordance baseline —
+   catches lifecycle/schema/finalizer destabilization the suite cannot).
 9. **Regenerate every derived ledger at the pin:** `_gen_repro_status.py`, `_gen_audit_doc.py` +
    `_gen_checklist.py`, closure matrix. Never carry a count forward in prose.
    **KNOWN UNCERTAINTY BAND — the open count is approximate, in BOTH directions.**
@@ -388,6 +390,26 @@ New, learned since — these become explicit attack instructions in every discov
     reproduces sequences and gaps, NEVER await-interleavings; race findings stay with the
     uninstrumented race methodology (delta 6/7 limits). Complements gate 12, does not
     replace it: baselines still need fresh LIVE captures at the pinned build.
+
+    **CONCORDANCE BASELINE — a standing destabilization detector for lifecycle / record-
+    schema / finalizer changes (measured 2026-08-04, corpus banked `e8d380a`).** The frozen
+    recorder window and the learning archive were cross-matched: **57/57 Alfred + 11/11 Ivy
+    episodes matched a learned job record, ZERO true orphans in either direction**; room-
+    boundary deltas (episode start vs learned `room_timings.cleaning_start`): **Ivy max 1s**
+    (native current_room — now bankable premise evidence), **Alfred max 138s** (all worst
+    cases are the run's FIRST room — reads as dock-exit transit + attribution lag; one
+    adjudication look owed, not a defect claim). The device's account and the system's
+    account of the same 68 runs agree completely.
+
+    **The rule this buys:** after ANY change to job lifecycle, record schema, or the
+    finalizer, run `python .claude/notes/_crossmatch_replays.py --check` (exit 1 on
+    regression; thresholds = baseline + headroom: zero unmatched, zero orphans, Ivy ≤5s /
+    Alfred ≤180s). The frozen window never changes — so lost concordance means the change
+    destabilized finalize behavior or broke old records in migration, **even while the
+    whole pytest suite stays green**. This is route-evidence thinking (delta 7) applied at
+    system level: outcome tests can stay green while finalization drifts; concordance
+    against the device's own record cannot. S1 (lifecycle re-siege) includes the check in
+    its probe kit, and it joins gate 8's green-at-the-pin list.
 
 ## 5. Cost, model, and session plan
 
