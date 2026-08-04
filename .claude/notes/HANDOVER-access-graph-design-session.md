@@ -7,6 +7,16 @@ reasoning so nobody re-opens the settled parts.
 **Read this before touching `rooms/access_graph.py`, `state/room-access.js`, or
 the room-access modal.**
 
+> **VERIFIED 2026-08-04**, after the audit queue was cleared, by re-checking every
+> claim rather than re-reading: all cited commits and file paths resolve;
+> `reconciliation.py:307` still drops unresolvable remapped targets;
+> `room_access.claimed_by` is still in 17 packs plus English with `claimedBy`
+> hardcoded `null`, so still unreachable; `room_access.no_other_rooms` and
+> `docs/user-guide/07-room-access-graph.md:25` are unchanged and still contradict
+> each other. §1–§5 are unaffected by anything that landed since — INF-9, EP-5,
+> A5-PP-RP-2 and the closing three touch the start path and the entity platforms,
+> not the access graph.
+
 ---
 
 ## 1. What the access graph IS
@@ -215,8 +225,10 @@ mid-build. Chris closed it by habit (dock first); the gate closes it by rule.
    Neither is announced. The remap itself is sound (fresh list per room, no
    mutate-while-iterating — it does not have `DR-ONB-1`'s bug).
 6. **Not deployed.** `set_room_access_graph` is committed but not on the live box,
-   and a new service only registers on an HA restart. The card bundle is also
-   unbuilt.
+   and a new service only registers on an HA restart — updating the files alone
+   does nothing. The card bundle is also unbuilt, so every card-side change in
+   this document (the dock guard, the release-clears-graph confirm, the
+   translated refusals) is inert until a rebuild. Deploy and restart together.
 
 ---
 
