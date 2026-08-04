@@ -120,12 +120,28 @@ regenerated at the pin (gate 9):**
 - The unit of closure is the SUB-ITEM (clause / finding_id / named follow-up), never the packet.
   Every multi-clause packet enumerates its sub-items once, and the header is DERIVED:
 
-  `RP-047 — OPEN, 1 of 2 complete · gated: [card-unpin confirm → hardware group-phase run]`
+  `RP-047 — OPEN, 1 of 2 complete · blocked → hardware: [group-phase run confirming card unpin]`
   `RP-016 — OPEN, 6 of 8 complete · open: [ZONE-C-2 referrer pruning], [IO-6 rename detection]`
+  `RP-017 — OPEN, 0 of 3 complete · was blocked → packet: [RP-016 registry] until 2feb9e0 landed`
 
-- Sub-item states: `complete` · `open` · `blocked → <named blocker>` · `gated → <named gate,
-  e.g. hardware run>` · `wontfix (reasoning)`. A blocker/gate is always NAMED — "blocked" with
-  no object is the vagueness this section abolishes.
+- Sub-item states: `complete` · `open` · `blocked → <TYPE>: <named object>` ·
+  `wontfix (reasoning)`. A blocker is always NAMED — "blocked" with no object is the vagueness
+  this section abolishes — **and always TYPED, because the type decides how it gets scheduled
+  (Chris, 2026-08-03). Closed vocabulary:**
+  - `hardware: <which capture/run>` — needs a physical run; DECAYS; all hardware blocks batch
+    into one capture session (feeds gate 12 directly).
+  - `packet: <RP-xxx / clause>` — depends on a previous fix landing; forms the dependency
+    graph; flips to `open` AUTOMATICALLY when the named clause completes, so regeneration
+    unblocks these without anyone remembering to.
+  - `design: <decision needed + owner>` — queued on a Chris decision or design session
+    (CARD-7's whole history is this type).
+  - `upstream: <external dep, e.g. fork PR #150, HA core release>` — outside this repo's
+    control; unschedulable, must be WATCHED not waited on.
+  - `deferred: <decision ref + revisit trigger>` — a deliberate deferment is only valid WITH a
+    revisit trigger (a date, a release, an event); an untriggerd deferment is how carried items
+    rot into invisible wontfixes.
+  The ledger rolls these up (`blocked by hardware: n · by packet: n · …`) so planning reads
+  straight off the table — e.g. the gate-12 hardware session's worklist IS the `hardware:` rows.
 - The header stays `OPEN, x of y` until x = y (wontfix counts as adjudicated, shown separately:
   `x of y complete, z wontfix`). **No packet is ever written as bare "LANDED" while y > x** —
   that is the A3-REC-3 forgery — and never as bare "OPEN" while x > 0 — that is the RP-047 fog.
