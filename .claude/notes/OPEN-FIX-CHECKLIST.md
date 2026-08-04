@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **452** findings via 58 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
+| Fixes APPLIED (landed packets) | **454** findings via 59 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **31** -- 2 open clusters (27 fully applied) + 29 singles |
-| By severity | CRITICAL 0 / HIGH 4 / MEDIUM 14 / LOW 13 |
+| Open findings | **29** -- 2 open clusters (27 fully applied) + 27 singles |
+| By severity | CRITICAL 0 / HIGH 2 / MEDIUM 14 / LOW 13 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -272,15 +272,6 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### HIGH (2)
-
-- [ ] **A6-PP-EST-BLK-1** `planning/run_plan.py:1615` [both] _(finder said CRITICAL)_  
-  Mid-job path-block report walks reachability over the QUEUE only, so any queued room whose access parent is not in the queue is reported blocked — and can cancel the job  
-  -> Running a subset of rooms (the normal case) plus any door/motion blocker rule: the first time that blocker entity changes state mid-run, rooms that the start plan judged perfectly accessible are declared blocked. With ca
-- [ ] **A5-AG-1** `planning/run_plan.py:1615` [both]  
-  Mid-run reachability is queue-scoped while preflight is graph-scoped — a run that omits the dock room reports EVERY remaining room as access_blocked and can cancel the job  
-  -> A perfectly valid access graph plus a normal partial run (user cleans the bedroom, not the entryway the dock sits in) turns any watched blocker entity's state change into a spurious 'path blocked' verdict on every unfini
-
 ### MEDIUM (14)
 
 - [ ] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
@@ -371,7 +362,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 452 findings closed by a landed packet
+## APPLIED -- 454 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -752,6 +743,10 @@ a disappeared finding is indistinguishable from one never found.
   Zone size limits are not enforced at author time, contradicting the doc — an un-cleanable zone can be saved and only fails when the user taps clean
 - [x] **A2-JOB-4** `services/job_control.py:130` [eufy] -- **RP-022** (`1288b65`, 2026-08-02)  
   start_zone_clean clean_times has no upper bound; the schema comment claims a dispatch-side per-brand ceiling that exists only on the Roborock branch
+- [x] **A6-PP-EST-BLK-1** `planning/run_plan.py:1615` [both] -- **RP-023a** (`d76d110`, `333c3db`, 2026-08-03)  
+  Mid-job path-block report walks reachability over the QUEUE only, so any queued room whose access parent is not in the queue is reported blocked — and can cancel the job
+- [x] **A5-AG-1** `planning/run_plan.py:1615` [both] -- **RP-023a** (`d76d110`, `333c3db`, 2026-08-03)  
+  Mid-run reachability is queue-scoped while preflight is graph-scoped — a run that omits the dock room reports EVERY remaining room as access_blocked and can cancel the job
 - [x] **A5-FACADE-4** `core/manager.py:1239` [both] -- **RP-024** (`9abcb69`, `71cc479`, 2026-08-02)  
   save_user_room_profile facade silently overwrites the existing 'user_1' profile when profile_name is omitted, while its sibling mints a unique id
 - [x] **A6-PP-EST-DSP-1** `planning/run_plan.py:125` [both] -- **RP-024** (`9abcb69`, `71cc479`, 2026-08-02)  
@@ -1318,7 +1313,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 58 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 53 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 59 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 54 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 

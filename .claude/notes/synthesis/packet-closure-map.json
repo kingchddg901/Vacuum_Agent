@@ -317,11 +317,19 @@
   "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
  },
  {
-  "packet_id": "RP-023",
+  "packet_id": "RP-023a",
   "repair_family": null,
   "finding_ids": [
    "#10:A5-AG-1",
-   "#8:A6-PP-EST-BLK-1",
+   "#8:A6-PP-EST-BLK-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md",
+  "note": "Split 2026-08-04. The two reachability findings d76d110 actually repaired; the other 9 moved to RP-023b. Both were verified at source before crediting -- see _landed_packets.json."
+ },
+ {
+  "packet_id": "RP-023b",
+  "repair_family": null,
+  "finding_ids": [
    "#10:A5-AG-2",
    "#10:A6-AGX-1",
    "#10:A6-AGX-2",
@@ -332,7 +340,8 @@
    "agent: infra (2-lens verified):INF-9",
    "agent: platforms (2-lens verified):EP-5"
   ],
-  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md"
+  "source_doc": ".claude/notes/synthesis/SYNTH-08-packets-wave4.md",
+  "note": "Split out of RP-023 2026-08-04: the access-graph remainder. All 9 re-verified against live source 2026-08-04 and specced -- 8 STILL_OPEN, #10:A5-AG-2 OVERSTATED (the naming surface it asks for already exists card-side as orphanedRooms(); only its i18n half is real)."
  },
  {
   "packet_id": "RP-024",

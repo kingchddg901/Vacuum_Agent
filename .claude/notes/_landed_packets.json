@@ -383,6 +383,15 @@
   "note": "Unparked by Chris and landed same day. Both halves in one seam: apply_run_profile derives the profile's breaks via set_queue_breaks (replace-ALL, so a flat profile also evicts stale breaks) plus a queue_source provenance tag; clear_queue empties both backings. Tests [MQ-10..12] against the REAL manager, not the MagicMock one."
  },
  {
+  "packet_id": "RP-023a",
+  "commits": [
+   "d76d110",
+   "333c3db"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Credited 2026-08-04 after verifying at source, not from the commit subject -- which named neither finding id, which is why this sat open. get_runtime_path_block_report now walks the ACCESS GRAPH: all three queue-scoped sites (rule loop, seed, walk) take all_room_ids; queue_room_id_set is gone; parent lists are unfiltered at both sites; blocked_by_room_id names the actually-unreachable parent, which was A5-AG-1's 'the event names no blocking room' half. The single surviving queue_room_ids use computes remaining_room_ids -- the OUTPUT scope, which is correct per the commit's own note that the walk widens and the report does not. Bounded by [RPS-22] x4; 7 reachability tests green."
+ },
+ {
   "packet_id": "RP-022",
   "commits": [
    "1288b65"
