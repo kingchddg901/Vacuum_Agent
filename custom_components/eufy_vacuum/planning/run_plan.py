@@ -1645,7 +1645,25 @@ class RunPlanManager:
         grants_map, requires_map = self._manager._build_room_access_views(
             managed_rooms=managed_rooms
         )
-        queue_room_id_set = set(queue_room_ids)
+        # A6-PP-EST-BLK-1 / A5-AG-1. Reachability is a property of the ACCESS
+        # GRAPH, not of the queue. This report used to evaluate rules, seed and
+        # walk over `queue_room_ids` only — three places where "the queue" stood
+        # in for "the graph" — so any queued room whose access parent was not
+        # ALSO queued had its parent list filtered to empty, never became
+        # reachable, and was reported access_blocked. A normal partial run (clean
+        # the bedroom, not the entryway the dock sits in) therefore turned the
+        # first blocker-entity state change into a spurious block on EVERY
+        # remaining room, which the caller can escalate to a cancel.
+        #
+        # The robot drives THROUGH rooms it is not cleaning, so a non-queued room
+        # both grants access and can itself be blocked. `_build_effective_start_plan`
+        # already walks it this way and is the reference; only MODIFIERS are
+        # selection-scoped there (:1199), never blockers. Reporting stays scoped
+        # to remaining queue rooms — it is the walk that widens, not the output.
+        all_room_ids = [
+            rid for rid in (_safe_int(key, -1) for key in managed_rooms)
+            if rid > 0
+        ]
 
         direct_blocked: dict[int, dict[str, Any]] = {}
         room_names: dict[int, str] = {}
@@ -1653,7 +1671,7 @@ class RunPlanManager:
         blocker_rules_present = False
         indeterminate_rules: list[dict[str, Any]] = []   # RP-008 diagnostics
 
-        for room_id in queue_room_ids:
+        for room_id in all_room_ids:
             room = managed_rooms.get(str(room_id), {})
             if not isinstance(room, dict):
                 continue
@@ -1717,7 +1735,7 @@ class RunPlanManager:
 
         accessible_room_ids = {
             room_id
-            for room_id in queue_room_ids
+            for room_id in all_room_ids
             if not requires_map.get(room_id)
         }
         accessible_room_ids -= set(direct_blocked)
@@ -1725,14 +1743,10 @@ class RunPlanManager:
         changed = True
         while changed:
             changed = False
-            for room_id in queue_room_ids:
+            for room_id in all_room_ids:
                 if room_id in accessible_room_ids or room_id in direct_blocked:
                     continue
-                parent_ids = [
-                    parent_id
-                    for parent_id in requires_map.get(room_id, [])
-                    if parent_id in queue_room_id_set
-                ]
+                parent_ids = list(requires_map.get(room_id, []))
                 if parent_ids and any(
                     parent_id in accessible_room_ids for parent_id in parent_ids
                 ):
@@ -1750,12 +1764,21 @@ class RunPlanManager:
             if room_id in accessible_room_ids:
                 continue
 
-            parent_ids = [
-                parent_id
-                for parent_id in requires_map.get(room_id, [])
-                if parent_id in queue_room_id_set
-            ]
-            blocked_by_room_id = parent_ids[0] if parent_ids else None
+            # Mirrors preflight (:1240-1248): name the parent that is ACTUALLY
+            # unreachable where there is one, falling back to the first. Naming a
+            # merely-unqueued parent as the blocker is what made the old report
+            # read as "the entryway is blocking you" for a run that simply did
+            # not include the entryway.
+            parent_ids = list(requires_map.get(room_id, []))
+            blocked_by_room_id = next(
+                (
+                    parent_id
+                    for parent_id in parent_ids
+                    if parent_id not in accessible_room_ids
+                    or parent_id in direct_blocked
+                ),
+                parent_ids[0] if parent_ids else None,
+            )
             affected_remaining_rooms.append(
                 {
                     "room_id": room_id,

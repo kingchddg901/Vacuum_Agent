@@ -326,6 +326,84 @@ def test_runtime_path_block_report(rp, hass, manager):
         vacuum_entity_id=_VAC, map_id="spm9") is None
 
 
+def test_runtime_block_walks_the_graph_not_the_queue(rp, hass):
+    """[RPS-22] A6-PP-EST-BLK-1 / A5-AG-1: a PARTIAL run must not report every
+    remaining room blocked just because their access parent is not queued.
+
+    Graph: dock room 1 grants access to 2, which grants access to 3. The user
+    cleans only 2 and 3 — the normal case, and the dock room is not in the queue.
+    A blocker fires on an UNRELATED room 4.
+
+    The report used to evaluate rules, seed and walk over queue_room_ids alone.
+    Room 2 requires room 1, room 1 was not queued, so its parent list filtered to
+    empty, it never became reachable, and both remaining rooms came back
+    access_blocked — which the caller can escalate to a cancel. Reachability is a
+    property of the graph; the robot drives THROUGH rooms it is not cleaning.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "spm22", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
+        {"enabled": True, "grants_access_to": [3]},
+        {"enabled": True},
+        {"enabled": True, "rules": [_blocker("binary_sensor.far")]},
+    ])
+    mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm22"] = {
+        "status": "started", "job_id": "j22",
+        "queue_room_ids": [2, 3], "completed_room_ids": [],
+    }
+    hass.states.async_set("binary_sensor.far", "on")
+
+    report = mgr.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm22",
+        trigger_entity_id="binary_sensor.far", trigger_entity_state="on")
+
+    # Rooms 2 and 3 are reachable through the unqueued dock room. Neither is
+    # blocked, so there is nothing actionable to report at all.
+    blocked = [] if report is None else list(report["affected_remaining_room_ids"])
+    assert blocked == [], f"a partial run reported {blocked} as blocked"
+
+
+def test_runtime_block_still_fires_when_the_parent_really_is_blocked(rp, hass):
+    """[RPS-22] The other direction — widening the walk must not blind it.
+
+    Same graph, but the blocker sits on the UNQUEUED dock room that rooms 2 and 3
+    actually depend on. Walking the graph means a non-queued room can now block,
+    which queue-scoping could never see, so the block is real and both remaining
+    rooms are correctly unreachable.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "spm23", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2],
+         "rules": [_blocker("binary_sensor.hall")]},
+        {"enabled": True, "grants_access_to": [3]},
+        {"enabled": True},
+    ])
+    mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm23"] = {
+        "status": "started", "job_id": "j23",
+        "queue_room_ids": [2, 3], "completed_room_ids": [],
+    }
+    hass.states.async_set("binary_sensor.hall", "on")
+
+    report = mgr.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm23",
+        trigger_entity_id="binary_sensor.hall", trigger_entity_state="on")
+    assert report is not None
+    assert sorted(report["affected_remaining_room_ids"]) == ["2", "3"]
+
+    # The room-id list ALONE does not discriminate: queue-scoping also returned
+    # [2, 3] here, because filtering their parents to the queue made them
+    # unreachable regardless of any blocker. Same output, different cause. The
+    # ATTRIBUTION is what separates them — only a graph walk sees the rule on the
+    # unqueued room 1 and can name it as the thing standing in the way.
+    by_id = {r["room_id"]: r for r in report["affected_rooms"]}
+    assert by_id[2]["blocked_by_room_id"] == 1, (
+        "room 2 must be blocked BY the dock room whose blocker fired. Queue-scoping "
+        "filtered room 2's parents to the queue, leaving none, so it reported None "
+        "— blocked, with nothing to point at."
+    )
+    assert by_id[2]["reason"] == "access_blocked"
+
+
 def test_modifier_fan_out_guard_branches(rp, hass):
     """[RPS-10] the fan-out loop's per-target + matched-rule guards.
 
