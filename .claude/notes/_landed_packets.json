@@ -615,5 +615,14 @@
   ],
   "landed_at": "2026-08-03",
   "note": "Code landed inside 40cbaac. Verified in source: health_qualifying_sessions plus decoupled _session_cc_qualifies / _session_cv_qualifies in battery/manager.py."
+ },
+ {
+  "packet_id": "RP-046",
+  "commits": [
+   "5b21a1a",
+   "14a4f43"
+  ],
+  "landed_at": "2026-08-04",
+  "note": "Completed 2026-08-04. Clauses 1-2 shipped earlier (evidence axis + deduction gate); 3 is a documented rejection (no timeline correlation); 4 (error_seconds_by_source, wiring the previously-callerless eufy_error_source tables) and 5 (Roborock's absence STATED, since its codes are enum strings) landed in 14a4f43. Could not close before today for a ledger reason, not a code one: finding_id 'live:DOCK-1' resolved to no corpus row, so the packet was uncreditable and the finding rendered nowhere as open. Row added to _direct_reads.json, which is now tracked."
  }
 ]
