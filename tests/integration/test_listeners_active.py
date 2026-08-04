@@ -17,6 +17,7 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [JP-1]  job_progress: active job → snapshot + EVENT_JOB_PROGRESS_TICK.
 [JP-2]  job_progress: inactive status → skipped.
 [JP-3]  job_progress: snapshot raises → swallowed, no event.
+[JP-4]  job_progress: an app-started (external) run still ticks.
 [PB-1]  path_blockers: pause_and_event → pause + EVENT_PATH_BLOCKED.
 [PB-2]  path_blockers: cancel_and_event → cancel + JOB_FINISHED + PATH_BLOCKED.
 [PB-3]  path_blockers: event_only → just EVENT_PATH_BLOCKED.
@@ -289,6 +290,32 @@ async def test_job_progress_snapshot_raises(hass):
     await hass.async_block_till_done()
     job_progress.remove(hass)
     assert ticks == []
+
+
+async def test_job_progress_ticks_external_run(hass):
+    """[JP-4] RP-014 / #12:A5-METRICS-1 — an app-started run is on the floor.
+
+    The loop entry asked the DISPATCHED question ({"started", "paused"}) about a
+    ticker that must cover ANY run, so status="external" never reached the body:
+    no snapshot, no EVENT_JOB_PROGRESS_TICK, and no Lever B live-room pulse —
+    whose only caller in the package sits inside this loop. Lever B exists
+    BECAUSE an external run has no dispatched phases to refresh on, so the one
+    case it was built for was the one case excluded.
+
+    Asserts only what the packet requires (the tick covered the run). Where the
+    pulse is gated is deliberately NOT asserted — a correct repair that gated it
+    differently must not fail this test.
+    """
+    m = _mgr(hass)
+    m.get_active_job.return_value = {"status": "external", "phases": []}
+    m.apply_job_progress_tick.return_value = {}
+    ticks = _collect(hass, EVENT_JOB_PROGRESS_TICK)
+    job_progress.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=6))
+    await hass.async_block_till_done()
+    job_progress.remove(hass)
+    assert len(ticks) == 1
+    m.apply_job_progress_tick.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ Coverage targets
 [DK-15] _get_dock_action_entity resolves a present button by candidate id.
 [DK-16] async_dry_mop / async_empty_dust / async_stop_dry_mop delegate.
 [DK-17] _get_dock_action_entity: token_sets fallback resolves a drift-named button.
+[DK-18] gating: job_active also covers an app-started (external) run.
 """
 
 from __future__ import annotations
@@ -239,6 +240,19 @@ def test_gate_missing_entity(dock, manager, hass, monkeypatch):
 def test_gate_job_active(dock, manager, hass, monkeypatch):
     """[DK-9]"""
     _ready(dock, manager, hass, monkeypatch, active_status="started")
+    assert _wash_reason(dock)["reason"] == "job_active"
+
+
+def test_gate_job_active_external(dock, manager, hass, monkeypatch):
+    """[DK-18] RP-014 / #12:A6-VAC-1 — the robot is docked MID app-started run.
+
+    The realistic trigger is a mid-run dock visit (recharge or mop wash) where
+    vacuum.state is "docked" and the user presses Empty Dust from the card. The
+    gate asked the QUEUE's question ({"started", "paused"}) about the robot, so
+    an app-started run read as no run at all and a wash/dry/empty could actuate
+    under a live run. This one fires hardware.
+    """
+    _ready(dock, manager, hass, monkeypatch, active_status="external")
     assert _wash_reason(dock)["reason"] == "job_active"
 
 

@@ -7,7 +7,7 @@ Coverage targets
 [ER-2]  ActiveRunError attributes surface the error message.
 [ER-3]  LastDeviceError native + attributes.
 [ER-4]  error sensor add/remove listener + vacuum-filtered update callback.
-[LC-1]  ActiveJob native: started / paused / finalized / cancelled / none.
+[LC-1]  ActiveJob native: started / paused / finalized / cancelled / none / external.
 [LC-2]  ActiveJob attributes carry the job snapshot.
 [LC-3]  ActiveJob update callbacks write on a matching vacuum/map, skip otherwise.
 [MN-1]  MaintenanceRemaining native: remaining hours, None when unavailable.
@@ -120,6 +120,10 @@ def _job_sensor(job):
     ({"status": "completed"}, "finalized"),
     ({"status": "completed", "finalize_summary": {"status": "cancelled"}}, "cancelled"),
     ({"status": "idle"}, "none"),
+    # RP-014 / #12:DR-SENS-1 — an app-started run the integration IS tracking.
+    # The enum had no arm for it, so the recorder, history and any automation
+    # saw "none" (idle) while a tracked run was in flight.
+    ({"status": "external"}, "external"),
 ])
 def test_active_job_native(job, expected):
     """[LC-1]"""
