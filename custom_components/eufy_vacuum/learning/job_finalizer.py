@@ -38,7 +38,7 @@ from .utils import (
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
 from ..step_types import is_dock_polled_phase
-from ..core.error_tracker import classify_error_code
+from ..core.error_tracker import classify_error_code, error_source_for_code
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -955,6 +955,25 @@ class LearningJobFinalizer:
                     vacuum_entity_id, e.get("code")
                 ) == b,
             )
+        # RF-DOCK clause 4: the SECOND axis. Evidence (above) decides what may be
+        # deducted; source decides which hardware to point the user at. Both are
+        # needed and neither implies the other -- the live incident's five 6013
+        # faults are evidence-SAFE (correctly not deducted) and dock-SOURCED, so
+        # reporting only the evidence axis tells the user their run was fine and
+        # never tells them their station's water pump is failing.
+        #
+        # Reported, never subtracted: nothing below reads _by_source. It exists so
+        # a human (and diagnostics) can see WHERE 455 preserved seconds came from.
+        _by_source: dict[str, int] = {}
+        for _src in ("dock", "robot", "unknown"):
+            _by_source[_src] = _compute_total_error_seconds(
+                error_latch,
+                job_ended_at=ended_at,
+                keep_entry=lambda e, s=_src: error_source_for_code(
+                    vacuum_entity_id, e.get("code")
+                ) == s,
+            )
+
         deductible_error_seconds = _split["invalidating"]
         if _split["unclassified"]:
             _LOGGER.debug(
@@ -1021,6 +1040,11 @@ class LearningJobFinalizer:
                 # so a vendor code newer than the adapter's table is visible instead of
                 # quietly changing the arithmetic.
                 "error_seconds_by_evidence": dict(_split),
+                # RF-DOCK clause 4. Whose hardware raised those seconds —
+                # {"dock": n, "robot": n, "unknown": n}. Additive and advisory;
+                # no arithmetic reads it. A brand declaring no source tables
+                # reports everything under "unknown", which is honest.
+                "error_seconds_by_source": dict(_by_source),
                 "error_seconds_deducted": deductible_error_seconds,
             },
         )

@@ -21,6 +21,9 @@ Coverage targets
 [ET-12] secondary-channel grace: schedule on vacuum=error, generic latch on expiry.
 [ET-13] _persist_and_notify schedules async_save + fires update listeners.
 [ET-14] task_status in 'error' counts as a secondary error channel.
+[ET-15] RF-DOCK clause 4: error_source_for_code resolves dock/robot/unknown from the
+        adapter tables, independently of the evidence axis.
+[ET-15b] a brand declaring no source tables reports every fault unattributed.
 """
 
 from __future__ import annotations
@@ -828,3 +831,57 @@ async def test_a_handed_out_latch_cannot_corrupt_the_tracker(tracker, hass):
     device = t.get_last_device_latch(_VAC)
     device["message"] = "tampered"
     assert t.get_last_device_latch(_VAC)["message"] == "Brush stuck"
+
+
+# ---------------------------------------------------------------------------
+# [ET-15] RF-DOCK clause 4 — error_source_for_code: WHOSE hardware raised it
+# ---------------------------------------------------------------------------
+
+def test_error_source_for_code_reads_the_adapter_tables():
+    """[ET-15] dock / robot / unknown, sourced from the adapter's declared sets.
+
+    A SECOND axis from classify_error_code, not a finer grain of it. The live
+    incident's 6013 faults are evidence-SAFE (correctly not deducted) and
+    dock-SOURCED (the user's station pump is failing) — reporting only the
+    evidence axis tells them the run was fine and never tells them that.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.core.error_tracker import (
+        classify_error_code, error_source_for_code,
+    )
+
+    register_adapter_config(_VAC, {
+        "error_tracking": {
+            "dock_sourced_error_codes": [6013],
+            "robot_sourced_error_codes": [2112],
+            "evidence_invalidating_error_codes": [2112],
+            "evidence_safe_error_codes": [6013],
+        },
+    })
+
+    assert error_source_for_code(_VAC, 6013) == "dock"
+    assert error_source_for_code(_VAC, 2112) == "robot"
+    # a code in neither table is UNATTRIBUTED, never guessed into a majority class
+    assert error_source_for_code(_VAC, 9999) == "unknown"
+    assert error_source_for_code(_VAC, None) == "unknown"
+
+    # the two axes are independent: dock-sourced is evidence-SAFE here, and the
+    # pair (dock, safe) is exactly the combination a single collapsed axis loses
+    assert (error_source_for_code(_VAC, 6013), classify_error_code(_VAC, 6013)) == ("dock", "safe")
+    assert (error_source_for_code(_VAC, 2112), classify_error_code(_VAC, 2112)) == ("robot", "invalidating")
+
+
+def test_error_source_for_code_undeclared_brand_reports_unknown():
+    """[ET-15b] a brand declaring no source tables attributes NOTHING.
+
+    Roborock is deliberately in this state — its codes arrive as enum strings,
+    so an int-keyed table would be a table of guesses. Reporting every fault as
+    unattributed is the honest degradation; defaulting to "robot" would start
+    blaming hardware that is fine.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.core.error_tracker import error_source_for_code
+
+    register_adapter_config(_VAC, {"error_tracking": {"grace_window_seconds": 5}})
+    for code in (6013, 2112, 1, 0, "bumper_stuck"):
+        assert error_source_for_code(_VAC, code) == "unknown"

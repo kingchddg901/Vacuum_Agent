@@ -189,6 +189,41 @@ def classify_error_code(vacuum_entity_id: str, code: Any) -> str:
     return "unclassified"
 
 
+def error_source_for_code(vacuum_entity_id: str, code: Any) -> str:
+    """WHOSE hardware raised this fault: "dock", "robot", or "unknown". RF-DOCK.
+
+    A SECOND, INDEPENDENT AXIS from ``classify_error_code`` — not a finer grain of
+    it. Evidence answers "may these seconds be deducted?" and drives the
+    arithmetic. Source answers "which box do I point the user at?" and drives
+    nothing: it is reported, never subtracted. Keeping them separate is the point.
+    A dock fault the robot cleaned straight through is evidence-SAFE (do not
+    deduct) and dock-SOURCED (tell the user their station needs attention), and
+    collapsing the two would lose one of those every time.
+
+    Without this the live incident is only half legible. alfred
+    job_2026-08-01T23-23-35 reports 455 error seconds preserved rather than
+    deducted, which is the fix working — but nothing said the 455 s were five
+    STATION CLEAN WATER PUMP SHORT faults from the DOCK. The user is told their
+    run was fine and never told their station's pump is failing.
+
+    UNKNOWN IS A REAL ANSWER. A brand that declares neither set gets "unknown" for
+    everything, which reports honestly as unattributed rather than guessing a
+    majority class. Same reasoning as the adapter-side
+    ``eufy_error_source``: this table WILL go stale as the vendor adds codes, and
+    a consumer that defaulted unrecognised faults to "robot" would start blaming
+    hardware that is fine.
+    """
+    rid = _exact_int(code)
+    if rid is None:
+        return "unknown"
+    cfg = _error_tracking_cfg(vacuum_entity_id)
+    if rid in _int_set(cfg.get("dock_sourced_error_codes")):
+        return "dock"
+    if rid in _int_set(cfg.get("robot_sourced_error_codes")):
+        return "robot"
+    return "unknown"
+
+
 def error_label_key(vacuum_entity_id: str, code: Any) -> str | None:
     """Return this fault's i18n key, or None when the brand declares no label for it.
 

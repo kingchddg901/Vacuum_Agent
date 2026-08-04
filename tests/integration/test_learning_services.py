@@ -3414,3 +3414,72 @@ async def test_rebuild_accuracy_stats_recomputes_from_the_archive(hass, learning
     stats = learning.store.load_accuracy_stats(vacuum_entity_id=_VAC) or {}
     assert "poisoned" not in (stats.get("rooms") or {}), "the rebuild folded onto stale data"
     assert applied == 2, f"expected the 2 learning-eligible records, got {applied}"
+
+
+# ---------------------------------------------------------------------------
+# [LS-29c] RF-DOCK clause 4 — the record says WHOSE hardware raised the seconds
+# ---------------------------------------------------------------------------
+
+async def test_finalize_reports_error_seconds_by_source(hass, learning_services):
+    """[LS-29c] error_seconds_by_source attributes preserved seconds to the dock.
+
+    Drives the live incident's own shape (alfred job_2026-08-01T23-23-35): a
+    productive 360 s clean with 455 s of code-6013 STATION CLEAN WATER PUMP SHORT
+    raised while the robot worked straight through it.
+
+    The evidence axis alone already stops the deduction — that is RP-046's first
+    half and it is asserted here too. What clause 4 adds is that the record can
+    now say the 455 s came from the DOCK. Without it the user is told their run
+    was fine and never told their station's pump is failing.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
+    from custom_components.eufy_vacuum.core.error_tracker import ErrorTracker
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    register_adapter_config(_VAC, {
+        "error_tracking": {
+            "evidence_invalidating_error_codes": [2112],
+            "evidence_safe_error_codes": [6013],
+            "dock_sourced_error_codes": [6013],
+            "robot_sourced_error_codes": [2112],
+        },
+    })
+    tracker = ErrorTracker(hass, runtime_manager=learning_services)
+    hass.data.setdefault(DOMAIN, {})[DATA_ERROR_TRACKER] = tracker
+    record = tracker._ensure_record(_VAC)
+    record["active_run_error"] = {
+        "error_count": 1,
+        "errors": [
+            {"code": 6013,
+             "captured_at": "2026-01-01T09:00:00+00:00",
+             "recovered_at": "2026-01-01T09:07:35+00:00"},   # 455 s
+        ],
+    }
+    _seed_active_job(learning_services, _VAC, _MAP, last_cleaning_time_seconds=360)
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    learning_mgr = _get_learning_manager(hass)
+    result = await hass.async_add_executor_job(
+        lambda: learning_mgr.finalize_completed_job(
+            manager=core_manager, vacuum_entity_id=_VAC, map_id=_MAP,
+            battery_start=85, battery_end=82,
+            started_at="2026-01-01T09:00:00+00:00",
+            ended_at="2026-01-01T09:30:00+00:00",
+            used_for_learning=False, rebuild_stats=False,
+        )
+    )
+    job = result.get("completed_job", {}).get("job", {})
+    outcome = result.get("completed_job", {}).get("outcome", {})
+
+    # first half (already shipped): a dock fault is NOT charged against the clean
+    assert job.get("cleaning_time_seconds") == 360
+    assert outcome.get("total_error_seconds") == 455   # full window still visible
+    assert outcome.get("error_seconds_deducted") == 0
+    assert (outcome.get("error_seconds_by_evidence") or {}).get("safe") == 455
+
+    # clause 4: and the record says the 455 s came from the DOCK
+    by_source = outcome.get("error_seconds_by_source") or {}
+    assert by_source.get("dock") == 455
+    assert by_source.get("robot") == 0
+    assert by_source.get("unknown") == 0

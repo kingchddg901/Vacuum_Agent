@@ -303,6 +303,25 @@ def register_roborock_adapter_for_vacuum(
             "grace_window_seconds": 5,
             "error_code_attribute_names": ["error_code", "code", "errorCode"],
             "unknown_error_message": "Unknown error during run",
+            # RF-DOCK clause 5 — DELIBERATELY NO CODE TABLES, stated rather than
+            # merely absent. Roborock is not omitted here because nobody got to
+            # it; it is omitted because the code arrives as an ENUM STRING
+            # ("bumper_stuck", "wheels_suspended") and not a number (see the
+            # error_code_attribute_names note above), so an int-keyed table has
+            # nothing to match and would be a table of guesses.
+            #
+            # The degradation is the safe one and is the reason this can stay
+            # empty: classify_error_code returns "unclassified" for every code,
+            # so NOTHING is deducted from cleaning_time_seconds, and
+            # error_source_for_code returns "unknown", so every fault reports as
+            # unattributed. A Roborock run keeps its full cleaning time and says
+            # honestly that it cannot attribute the fault -- rather than zeroing a
+            # productive run, which is the incident RF-DOCK exists to prevent.
+            #
+            # If these are ever declared, they must be keyed on whatever
+            # classify_error_code actually receives for this brand. Declaring
+            # int codes while the tracker sees strings would silently match
+            # nothing and read as "tables exist, so this is handled".
         },
 
         "dispatch": {

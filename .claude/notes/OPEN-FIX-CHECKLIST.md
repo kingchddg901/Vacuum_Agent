@@ -11,8 +11,8 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
 | Fixes APPLIED (landed packets) | **454** findings via 59 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **29** -- 2 open clusters (27 fully applied) + 27 singles |
-| By severity | CRITICAL 0 / HIGH 2 / MEDIUM 14 / LOW 13 |
+| Open findings | **30** -- 2 open clusters (27 fully applied) + 28 singles |
+| By severity | CRITICAL 0 / HIGH 3 / MEDIUM 14 / LOW 13 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -271,6 +271,12 @@ audit is a snapshot, not a ledger.
 ---
 
 ## TIER 2 -- singles, by corrected severity
+
+### HIGH (1)
+
+- [ ] **DOCK-1** `learning/job_finalizer.py:939` [eufy (Roborock declares no code tables, so it degrades to 'trust the run')]  
+  total_error_seconds is subtracted from cleaning_time_seconds with no notion of WHOSE fault it was, so a station fault raised while the robot cleaned normally is charged against the robot's cleaning time  
+  -> Found by LIVE OBSERVATION, not by an audit -- which is why it had no corpus row until 2026-08-04 and RP-046 could never credit (its finding_id 'live:DOCK-1' resolved to nothing, so the packet was structurally uncloseable
 
 ### MEDIUM (14)
 

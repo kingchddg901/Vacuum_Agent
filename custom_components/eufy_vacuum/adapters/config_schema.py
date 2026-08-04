@@ -684,6 +684,31 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "table was written silently changes the arithmetic."
                 ),
             },
+            "dock_sourced_error_codes": {
+                "type": "list[int]",
+                "required": False,
+                "description": (
+                    "Error codes raised by the BASE STATION. A SECOND, "
+                    "independent axis from the two evidence lists above — not a "
+                    "finer grain of them. Evidence decides whether seconds may "
+                    "be deducted; source decides which box to point the user at, "
+                    "and a station fault the robot cleaned straight through is "
+                    "both evidence-safe and dock-sourced. Reported only, never "
+                    "subtracted. A brand that omits this reports every fault as "
+                    "unattributed rather than guessing a majority class."
+                ),
+            },
+            "robot_sourced_error_codes": {
+                "type": "list[int]",
+                "required": False,
+                "description": (
+                    "Error codes raised by the ROBOT itself. Companion to "
+                    "dock_sourced_error_codes; a code in neither reports as "
+                    "'unknown', which stays honest as the vendor adds codes. "
+                    "Defaulting an unrecognised fault to 'robot' would start "
+                    "blaming hardware that is fine."
+                ),
+            },
         },
     },
 
