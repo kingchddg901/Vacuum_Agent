@@ -329,6 +329,44 @@ New, learned since — these become explicit attack instructions in every discov
    without proving its origin". Known seed entries: the four stale-reproducer classes
    (delta 6), the six wave-1 probe defects, RP-014's proof-only in-flight sites (`9095968`).
 
+   *(Delta 9 — read the user guide before assigning severity — sits as its own subsection
+   after §5.)*
+
+10. **Premise ledger — findings share PREMISES, and a retired premise fells every dependent
+    finding at once (GPT-proposed, adopted 2026-08-03).** The measured failure: A3-IMAGE--1,
+    A2-POLYGO-5, and A4-CUSTOM-6 all rest on ONE empirical claim ("CV segment ids can be
+    reassigned by a re-analysis"). It was disproved once, on-device, and the ruling sat in
+    `_adjudicated_findings.json` — but only one of five verification groups was told to read
+    it, so four agents spent ~1.4M tokens re-deriving a premise retired the day before.
+    Findings were deduped by root cause of DEFECT (4.5:1 fan-in); nobody deduped by root
+    cause of BELIEF. Mechanism, kept small:
+    - `_premises.json`: `{id, statement, status: established|retired|open, evidence,
+      retired_by}` — e.g. `cv-ids-unstable`, `card-can-retune-cv`, `one-map-per-vacuum`.
+    - Findings carry the premise ids they rest on; an adjudication that retires a premise
+      auto-flags every dependent finding for re-check, carrying the RETIRING EVIDENCE with
+      the flag (the 30-re-analyses observation travels; no agent re-derives from source).
+    - Symmetric in reverse: a re-established premise reopens everything built on it.
+    - This is [[feedback_centralize_question_not_vocabulary]] applied to audit evidence.
+    **Not in conflict with §7's rejected author-declared premises:** that mechanism made
+    authors declare liabilities at proof-writing time (inviting under-declaration); this one
+    records disproofs at adjudication time, and tagging BENEFITS the tagged finding — the
+    incentive runs the right way.
+    **Hard rule regardless: every verification agent reads `_adjudicated_findings.json`
+    unconditionally** — in the shared inventory, never a per-group hint. Costs nothing and is
+    the fix for the actual failure observed.
+
+11. **Route by ANSWERABILITY: code-answerable vs device-answerable (adopted 2026-08-03).**
+    Before fanning out on any finding, classify the disputed premise: if it is disprovable by
+    OBSERVATION ("what does the device do"), ask Chris / bank one hardware observation FIRST —
+    30 re-analyses settled in one sentence what 1.4M tokens of code-reading could not, because
+    the question was never "what does the code say". Measured pattern: three of the day's real
+    defects came from live observation (the upkeep crash, both #46 halves); the two biggest
+    wrong answers came from reading code without a device. #1 had NEEDS-LIVE-HARDWARE as an
+    *output* class — #2 makes answerability an *input* routing decision. Guard the reverse
+    too: device-answerable routes the DISPUTED PREMISE to observation; it is not an excuse to
+    skip reading the code around it. Banked observations become premise evidence
+    (`_premises.json`), per [[feedback_archive_cheap_raw_data]].
+
 ## 5. Cost, model, and session plan
 
 Calibration (measured on `claude-opus-5[1m]`, single-tier): one heavyweight ≈ 1.9M subagent
