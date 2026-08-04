@@ -2028,7 +2028,13 @@
     "stat_updated": "更新时间",
     "unavailable": "无法获取学习历史。",
     "unknown": "未知",
-    "working": "处理中…"
+    "working": "处理中…",
+    "badge_errors": "错误",
+    "badge_errors_count": {
+      "one": "1 个错误",
+      "other": "{count} 个错误"
+    },
+    "badge_errors_seconds": "本次清扫中处于错误状态 {seconds} 秒"
   },
   "bind_maintenance": {
     "could_not_reset": "无法重置{label}",

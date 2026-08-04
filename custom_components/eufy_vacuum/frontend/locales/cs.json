@@ -1359,7 +1359,13 @@
     "stat_updated": "Aktualizováno",
     "unavailable": "Historie učení nedostupná.",
     "unknown": "Neznámé",
-    "working": "Pracuji..."
+    "working": "Pracuji...",
+    "badge_errors": "Chyby",
+    "badge_errors_count": {
+      "one": "1 chyba",
+      "other": "Chyby: {count}"
+    },
+    "badge_errors_seconds": "{seconds}s ve stavu chyby během tohoto úklidu"
   },
   "rooms": {
     "access_not_set": "Přístup nenastaven",

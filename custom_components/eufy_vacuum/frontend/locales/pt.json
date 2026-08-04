@@ -1019,7 +1019,13 @@
     "badge_external": "Externo",
     "detail_area_m2": "{value} m²",
     "kv_area": "Área limpa",
-    "kv_zones": "Zonas"
+    "kv_zones": "Zonas",
+    "badge_errors": "Erros",
+    "badge_errors_count": {
+      "one": "1 erro",
+      "other": "{count} erros"
+    },
+    "badge_errors_seconds": "{seconds}s em estado de erro durante esta execução"
   },
   "room_access": {
     "accessed_from_help": "A divisão que concede acesso a esta divisão. Só de leitura — definida no editor da outra divisão.",

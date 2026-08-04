@@ -1359,7 +1359,13 @@
     "stat_updated": "Güncellendi",
     "unavailable": "Öğrenme geçmişi kullanılamıyor.",
     "unknown": "Bilinmiyor",
-    "working": "Çalışıyor..."
+    "working": "Çalışıyor...",
+    "badge_errors": "Hatalar",
+    "badge_errors_count": {
+      "one": "1 hata",
+      "other": "{count} hata"
+    },
+    "badge_errors_seconds": "Bu çalıştırma sırasında {seconds}s hata durumunda geçirildi"
   },
   "rooms": {
     "access_not_set": "Erişim ayarlanmadı",

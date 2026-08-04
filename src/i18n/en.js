@@ -947,6 +947,14 @@ export const en = {
   "review.badge_external": "External",  // Job badge: run was captured externally (started outside HA / on the robot); its own flag, NOT a sanity or learning verdict
   "review.badge_multi_room": "Multi Room",  // Job badge: run covered multiple rooms ('Multi-room'); pairs with Single Room
   "review.badge_recharge": "Recharge",  // Job badge: robot recharged mid-run, not a battery level
+  // Job badge: the run hit one or more device FAULTS while cleaning (bin full, brush
+  // tangled, stuck…). Distinct from a cancel or a sanity failure — the run may still
+  // have completed. Plural on the fault count.
+  "review.badge_errors": "Errors",  // fallback when the count is unknown
+  "review.badge_errors_count": { one: "1 error", other: "{count} errors" },
+  // Tooltip, shown ONLY when the duration was actually measured. {seconds} = whole
+  // seconds the run spent in a fault state.
+  "review.badge_errors_seconds": "{seconds}s spent in an error state during this run",
   "review.badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
   "review.badge_single_room": "Single Room",
   "review.badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning

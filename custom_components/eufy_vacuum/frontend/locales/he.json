@@ -2115,7 +2115,13 @@
     "stat_updated": "עודכן",
     "unavailable": "היסטוריית למידה אינה זמינה.",
     "unknown": "לא ידוע",
-    "working": "מבצע..."
+    "working": "מבצע...",
+    "badge_errors": "שגיאות",
+    "badge_errors_count": {
+      "one": "שגיאה אחת",
+      "other": "{count} שגיאות"
+    },
+    "badge_errors_seconds": "{seconds} שניות במצב שגיאה במהלך ריצה זו"
   },
   "bind_maintenance": {
     "could_not_reset": "לא ניתן לאפס את {label}",

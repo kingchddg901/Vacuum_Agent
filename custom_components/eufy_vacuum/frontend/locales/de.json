@@ -1007,7 +1007,13 @@
     "badge_external": "Extern",
     "detail_area_m2": "{value} m²",
     "kv_area": "Gereinigte Fläche",
-    "kv_zones": "Zonen"
+    "kv_zones": "Zonen",
+    "badge_errors": "Fehler",
+    "badge_errors_count": {
+      "one": "1 Fehler",
+      "other": "{count} Fehler"
+    },
+    "badge_errors_seconds": "{seconds}s in einem Fehlerzustand während dieses Laufs"
   },
   "room_access": {
     "accessed_from_help": "Der Raum, der den Zugang zu diesem Raum gewährt. Schreibgeschützt — im Editor des anderen Raums festgelegt.",

@@ -438,6 +438,29 @@ export function applyReviewRenderers(proto) {
     if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: this.tVocabRaw("status", job?.status, job?.status_label || this._formatReviewLabel(job?.status || this.t("review.unknown"))), cls: "evcc-review-badge--warning" });
     if (job?.sanity_passed === false && !isExternal) badges.push({ text: this.t("review.badge_sanity_failed"), cls: "evcc-review-badge--warning" });
     if (job?.mid_job_recharge_observed === true) badges.push({ text: this.t("review.badge_recharge"), cls: "evcc-review-badge--neutral" });
+    // Error evidence captured DURING the run. The backend has carried this end to
+    // end for both origins (finalizer and app-started ingest write the same keys)
+    // and NOTHING displayed it — a run that hit a fault looked identical here to
+    // one that did not, which is the whole point of having captured it.
+    //
+    // The count rides the badge when known. total_error_seconds is deliberately
+    // absent on the app-started path (no per-phase timings to derive it from), so
+    // it goes in the TOOLTIP only when finite — printing an unmeasured duration
+    // as "0s" would assert the run spent no time in error, a stronger claim than
+    // "we did not measure it".
+    if (job?.had_errors === true) {
+      const errorCount = Number(job?.error_count);
+      const errorSeconds = Number(job?.total_error_seconds);
+      badges.push({
+        text: Number.isFinite(errorCount) && errorCount > 0
+          ? this.t("review.badge_errors_count", { count: errorCount })
+          : this.t("review.badge_errors"),
+        cls: "evcc-review-badge--warning",
+        title: Number.isFinite(errorSeconds) && errorSeconds > 0
+          ? this.t("review.badge_errors_seconds", { seconds: Math.round(errorSeconds) })
+          : null,
+      });
+    }
     if (job?.is_single_room === true) badges.push({ text: this.t("review.badge_single_room"), cls: "evcc-review-badge--neutral" });
     if (job?.is_multi_room === true) badges.push({ text: this.t("review.badge_multi_room"), cls: "evcc-review-badge--neutral" });
     // Atomic-dispatched reconcile: the live room signal disagreed with the assigned (positional)

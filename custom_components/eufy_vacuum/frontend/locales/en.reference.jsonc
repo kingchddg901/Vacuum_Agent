@@ -1601,6 +1601,9 @@
     "badge_external": "External",  // Job badge: run was captured externally (started outside HA / on the robot); its own flag, NOT a sanity or learning verdict
     "badge_multi_room": "Multi Room",  // Job badge: run covered multiple rooms ('Multi-room'); pairs with Single Room
     "badge_recharge": "Recharge",  // Job badge: robot recharged mid-run, not a battery level
+    "badge_errors": "Errors",  // fallback when the count is unknown
+    "badge_errors_count": {"one":"1 error","other":"{count} errors"},
+    "badge_errors_seconds": "{seconds}s spent in an error state during this run",
     "badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
     "badge_single_room": "Single Room",
     "badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning

@@ -1077,7 +1077,13 @@
     "badge_external": "Внешний",
     "detail_area_m2": "{value} м²",
     "kv_area": "Убранная площадь",
-    "kv_zones": "Зоны"
+    "kv_zones": "Зоны",
+    "badge_errors": "Ошибки",
+    "badge_errors_count": {
+      "one": "1 ошибка",
+      "other": "Ошибок: {count}"
+    },
+    "badge_errors_seconds": "{seconds} с в состоянии ошибки во время этой уборки"
   },
   "room_access": {
     "accessed_from_help": "Комната, которая даёт доступ к этой комнате. Только для чтения — задаётся в редакторе другой комнаты.",

@@ -2028,7 +2028,13 @@
     "stat_updated": "更新",
     "unavailable": "学習履歴は利用できません。",
     "unknown": "不明",
-    "working": "処理中..."
+    "working": "処理中...",
+    "badge_errors": "エラー",
+    "badge_errors_count": {
+      "one": "エラー 1 件",
+      "other": "エラー {count} 件"
+    },
+    "badge_errors_seconds": "この掃除中にエラー状態だった時間: {seconds} 秒"
   },
   "bind_maintenance": {
     "could_not_reset": "{label}をリセットできませんでした",

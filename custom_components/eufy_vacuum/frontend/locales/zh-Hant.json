@@ -2028,7 +2028,13 @@
     "stat_updated": "更新時間",
     "unavailable": "無法取得學習紀錄。",
     "unknown": "未知",
-    "working": "處理中…"
+    "working": "處理中…",
+    "badge_errors": "錯誤",
+    "badge_errors_count": {
+      "one": "1 個錯誤",
+      "other": "{count} 個錯誤"
+    },
+    "badge_errors_seconds": "本次清掃中處於錯誤狀態 {seconds} 秒"
   },
   "bind_maintenance": {
     "could_not_reset": "無法重設 {label}",

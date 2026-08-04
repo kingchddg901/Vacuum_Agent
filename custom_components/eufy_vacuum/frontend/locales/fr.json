@@ -1019,7 +1019,13 @@
     "badge_external": "Externe",
     "detail_area_m2": "{value} m²",
     "kv_area": "Surface nettoyée",
-    "kv_zones": "Zones"
+    "kv_zones": "Zones",
+    "badge_errors": "Erreurs",
+    "badge_errors_count": {
+      "one": "1 erreur",
+      "other": "{count} erreurs"
+    },
+    "badge_errors_seconds": "{seconds}s passées en état d'erreur pendant ce nettoyage"
   },
   "room_access": {
     "accessed_from_help": "La pièce qui donne accès à cette pièce. En lecture seule — défini depuis l'éditeur de l'autre pièce.",

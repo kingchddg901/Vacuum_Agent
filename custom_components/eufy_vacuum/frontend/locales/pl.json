@@ -1359,7 +1359,13 @@
     "stat_updated": "Zaktualizowano",
     "unavailable": "Historia uczenia niedostępna.",
     "unknown": "Nieznane",
-    "working": "Trwa przetwarzanie..."
+    "working": "Trwa przetwarzanie...",
+    "badge_errors": "Błędy",
+    "badge_errors_count": {
+      "one": "1 błąd",
+      "other": "Błędy: {count}"
+    },
+    "badge_errors_seconds": "{seconds}s w stanie błędu podczas tego przebiegu"
   },
   "rooms": {
     "access_not_set": "Dostęp nieustawiony",

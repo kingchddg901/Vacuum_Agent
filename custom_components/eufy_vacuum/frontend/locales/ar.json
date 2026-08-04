@@ -2173,7 +2173,13 @@
     "stat_updated": "آخر تحديث",
     "unavailable": "سجلّ التعلّم غير متاح.",
     "unknown": "غير معروف",
-    "working": "جارٍ العمل..."
+    "working": "جارٍ العمل...",
+    "badge_errors": "أخطاء",
+    "badge_errors_count": {
+      "one": "خطأ واحد",
+      "other": "{count} أخطاء"
+    },
+    "badge_errors_seconds": "{seconds} ثانية في حالة خطأ خلال عملية التنظيف هذه"
   },
   "bind_maintenance": {
     "could_not_reset": "تعذّرت إعادة تعيين {label}",

@@ -1928,6 +1928,23 @@ class LearningManager:
                     "sanity_flags": sanity_flags,
                     "sanity_flag_labels": [_display_label(item) for item in sanity_flags if _display_label(item)],
                     "sanity_flag_texts": [_reason_text(item) for item in sanity_flags if _reason_text(item)],
+                    # Error evidence captured DURING the run. The finalizer and the
+                    # app-started ingest both write these onto `outcome` under the
+                    # same key names on purpose, so one shape serves both origins —
+                    # but this enrichment lifted only learning_blockers and
+                    # sanity_flags out of outcome, so the evidence reached storage
+                    # and stopped there. A run that hit a fault looked identical in
+                    # the review list to one that did not.
+                    #
+                    # total_error_seconds is passed through rather than defaulted:
+                    # the app-started path deliberately omits it (it has no
+                    # per-phase timings to derive it from), and a 0 here would
+                    # assert "spent no time in error", a stronger claim than "not
+                    # measured". None means unmeasured; the card must not print it
+                    # as zero.
+                    "had_errors": bool(outcome.get("had_errors", False)),
+                    "error_count": _safe_int(outcome.get("error_count"), 0),
+                    "total_error_seconds": outcome.get("total_error_seconds"),
                     "outlier_score": round(outlier_score, 2),
                     "duration_vs_room_avg_minutes": duration_vs_room_avg,
                     "duration_vs_profile_avg_minutes": duration_vs_profile_avg,

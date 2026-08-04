@@ -1019,7 +1019,13 @@
     "badge_external": "Externo",
     "detail_area_m2": "{value} m²",
     "kv_area": "Área limpiada",
-    "kv_zones": "Zonas"
+    "kv_zones": "Zonas",
+    "badge_errors": "Errores",
+    "badge_errors_count": {
+      "one": "1 error",
+      "other": "{count} errores"
+    },
+    "badge_errors_seconds": "{seconds}s en estado de error durante esta ejecución"
   },
   "room_access": {
     "accessed_from_help": "La habitación que da acceso a esta habitación. Solo lectura; se configura desde el editor de la otra habitación.",

@@ -1007,7 +1007,13 @@
     "badge_external": "Extern",
     "detail_area_m2": "{value} m²",
     "kv_area": "Schoongemaakt oppervlak",
-    "kv_zones": "Zones"
+    "kv_zones": "Zones",
+    "badge_errors": "Fouten",
+    "badge_errors_count": {
+      "one": "1 fout",
+      "other": "{count} fouten"
+    },
+    "badge_errors_seconds": "{seconds}s in een foutstatus tijdens deze run"
   },
   "room_access": {
     "accessed_from_help": "De kamer die toegang verleent tot deze kamer. Alleen-lezen — stel in vanuit de editor van de andere kamer.",
