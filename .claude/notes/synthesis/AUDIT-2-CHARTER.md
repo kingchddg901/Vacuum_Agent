@@ -183,6 +183,24 @@ New, learned since — these become explicit attack instructions in every discov
    `before=`/`after=` with no third accepting arm, so tolerant "correct either way" branches
    (which the pre-harness proofs do contain) cannot be written.
 
+7. **Route evidence, not just outcome evidence — the trace_route instrument.** Design banked
+   2026-08-03 (three-agent convergence): `DESIGN-trace-route-tool.md`. A green outcome proves
+   success; only the executed ROUTE proves the success used the intended mechanism — the
+   campaign's recurring enemy was "false agreement about which code actually ran." Two probe
+   stages for #2 discovery agents, both zero-source-modification (coverage.py-based, scoped to
+   the integration, run in the pinned worktree):
+   - **Fallback census:** run the suite/scenario green, then report every executed degraded
+     branch (swallowed exception, fired fallback, rescue path under a passing assertion) —
+     mechanizes the prompt's "silent degradation paths that conceal failures".
+   - **Three-path fix review:** for landed packets in scope, diff the scenario's route at the
+     BEFORE and AFTER SHAs against the expected repaired route — catches partial closure
+     ("output appears fixed, named defect not proven fixed", the A3-REC-3 class) that outcome
+     assertions certify as fixed.
+   Limits stated wherever used: proves what executed, never what SHOULD execute; not
+   admissible for race findings (races stay uninstrumented). Complementary to delta 6, not a
+   substitute: the harness derives per-proof admissibility; trace_route is the discovery
+   instrument for routes nobody declared.
+
 ## 5. Cost, model, and session plan
 
 Calibration (measured on `claude-opus-5[1m]`, single-tier): one heavyweight ≈ 1.9M subagent
