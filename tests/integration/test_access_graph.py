@@ -27,6 +27,9 @@ Coverage targets (high-priority: state-machine branches, rule eval, contracts)
 [AG-13b] A6-AGX-3: one PRE-EXISTING violation no longer greys out every target.
 [AG-10b] A6-AGX-1: get_access_graph_health distinguishes blank from partial.
 [AG-10c] A6-AGX-1: a blank graph names the rooms a dock room would strand.
+[AG-16]  A5-AG-2: access_graph_block_rooms names the rooms the refusal is about.
+[AG-16b] A5-AG-2: a room-less issue names nothing rather than a placeholder.
+[AG-16c] A5-AG-2: set-valued issues (cycles, dock rooms) are deduped and named.
 """
 
 from __future__ import annotations
@@ -609,3 +612,79 @@ def test_access_graph_health_names_the_remediation_trap(ag):
     health = g.get_access_graph_health(vacuum_entity_id=_VAC, map_id=_MAP)
     assert health["state"] == "blank"
     assert set(health["unlinked_room_ids"]) == {"1", "2", "3"}
+
+
+def test_access_graph_block_rooms_names_the_offending_rooms(ag):
+    """[AG-16] A5-AG-2: the refusal finally names which rooms it is about.
+
+    THE FINDING: a map rebuild discovers one new room, the graph flips to
+    `partial`, and every Start is refused with a sentence that names no room on
+    a map that may have eleven. The block itself is unchanged here — only
+    whether the user can tell which room to go fix.
+    """
+    g, data = ag
+    rooms = _rooms(
+        _room(1, dock=True, grants=[2], name="Hallway"),
+        _room(2, name="Kitchen"),
+        _room(3, name="Study"),          # discovered by the rebuild, no inbound edge
+    )
+    _seed_map(data, rooms)
+
+    validation = g._validate_room_access_graph(managed_rooms=rooms)
+    assert validation["valid"] is False
+    assert g.access_graph_block_code(rooms, validation) == "incomplete_access_graph"
+
+    named = g.access_graph_block_rooms(rooms, validation)
+    assert [entry["name"] for entry in named] == ["Study"]
+    assert [entry["room_id"] for entry in named] == ["3"]
+
+
+def test_access_graph_block_rooms_is_empty_when_no_room_is_at_fault(ag):
+    """[AG-16b] A5-AG-2: missing_dock_room names no room — say nothing, not "Room 0".
+
+    An empty list is the honest answer and the caller has a sentence for it. A
+    placeholder here would put a room that does not exist into a refusal.
+    """
+    g, data = ag
+    rooms = _rooms(_room(1, grants=[2]), _room(2))     # grants, but no dock room
+    _seed_map(data, rooms)
+
+    validation = g._validate_room_access_graph(managed_rooms=rooms)
+    assert {issue["type"] for issue in validation["issues"]} == {"missing_dock_room"}
+    assert g.access_graph_block_code(rooms, validation) == "incomplete_access_graph"
+    assert g.access_graph_block_rooms(rooms, validation) == []
+
+
+def test_access_graph_block_rooms_dedups_set_valued_issues(ag):
+    """[AG-16c] A5-AG-2: a cycle chain repeats its entry room; name it once.
+
+    cycle_detected carries `rooms` (a chain that starts and ends on the same
+    room) rather than a single room_id, so the dedup is load-bearing rather than
+    defensive — without it the refusal names one room twice.
+    """
+    g, data = ag
+    rooms = _rooms(
+        _room(1, dock=True, grants=[2], name="Hallway"),
+        _room(2, grants=[3], name="Kitchen"),
+        _room(3, grants=[2], name="Study"),        # 2 -> 3 -> 2
+    )
+    _seed_map(data, rooms)
+
+    validation = g._validate_room_access_graph(managed_rooms=rooms)
+    named = g.access_graph_block_rooms(rooms, validation)
+    ids = [entry["room_id"] for entry in named]
+    assert len(ids) == len(set(ids)), f"a room was named more than once: {ids}"
+    assert set(ids) >= {"2", "3"}
+    # name-sorted, so the list reads the way the card renders it
+    assert [entry["name"] for entry in named] == sorted(
+        entry["name"] for entry in named
+    )
+
+
+def test_access_graph_block_rooms_tolerates_a_missing_validation(ag):
+    """[AG-16d] A5-AG-2: no validation -> no rooms, never a crash on the start path."""
+    g, data = ag
+    rooms = _rooms(_room(1, dock=True))
+    _seed_map(data, rooms)
+    assert g.access_graph_block_rooms(rooms, None) == []
+    assert g.access_graph_block_rooms(rooms, {}) == []

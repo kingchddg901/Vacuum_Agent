@@ -1372,7 +1372,14 @@
       "already_cleaning": "Zaten temizleniyor.",
       "returning_to_dock": "Şarj istasyonuna dönüyor.",
       "vacuum_error": "Robot süpürgede bir hata var.",
-      "start_blocked": "Başlatma engellendi."
+      "start_blocked": "Başlatma engellendi.",
+      "incomplete_access_graph": "Şu odalar için oda erişimi eksik: {rooms}. Erişim bağlantılarını tamamlayın veya temel çalıştırmalara izin vermek için tüm erişim ayarlarını temizleyin.",
+      "access_graph_required_for_rules": "Oda kuralları eksiksiz bir erişim grafiği gerektirir. Kuralları kullanmadan önce şarj istasyonu odasını ve oda bağlantılarını yapılandırın.",
+      "access_graph_required": "Oda engelleyicileri kullanılabilmesi için önce elle oluşturulmuş bir oda erişim grafiği gerektirir.",
+      "rooms_blocked": "Bazı odalar kuralları nedeniyle engellendi ve atlanacak.",
+      "confirmation_required": "Bu kısaltılmış çalıştırma başlatılmadan önce onay gerekiyor.",
+      "job_paused": "İzlenen bir iş duraklatıldı. Yeni bir tane başlatmadan önce sürdürün veya iptal edin.",
+      "onboarding_required": "Temizliğe başlamadan önce bu haritanın kurulumunu tamamlayın."
     },
     "blocked_fallback": "Engellendi",
     "blocked_rooms": "Engellenen Odalar",
@@ -2403,7 +2410,8 @@
     "saving": "Kaydediliyor…",
     "yes": "Evet",
     "service_failed": "{service} tamamlanamadı — robot süpürge komutu almamış olabilir",
-    "service_refused": "Bu işlem tamamlanamadı — {reason}"
+    "service_refused": "Bu işlem tamamlanamadı — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Zaten devam eden bir temizlik görevi var.",

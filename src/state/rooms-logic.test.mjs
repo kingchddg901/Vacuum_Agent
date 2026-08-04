@@ -314,32 +314,67 @@ test("[SB-5] canStartCleaning: falls back to _startStatus.blocked flag when no j
   assert.equal(ok.canStartCleaning(), true);
 });
 
-test("[SB-6] startBlockedReason: returns the local code, else jobControl message when blocked", () => {
+test("[SB-6] startBlockedReason: local code, else the backend's code AND its message", () => {
   const enabled = [{ ...room(1), enabled: true }];
-  // Local block -> the reason CODE (renderer localizes it).
+  // Local block -> the reason CODE. No backend payload behind it, so no message.
   const local = makeCard({
     getRoomsForActiveMap: () => enabled,
     vacuumState: () => "returning",
   });
-  assert.equal(local.startBlockedReason(), "returning_to_dock");
+  assert.deepEqual(local.startBlockedReason(), {
+    code: "returning_to_dock",
+    params: {},
+    message: null,
+  });
 
-  // No local block, jobControl says blocked -> its message string.
+  // A5-AG-2: this used to return ONLY jobControl.message — the English prose —
+  // and discard `reason` one line earlier, which is exactly why every
+  // backend-sourced refusal was untranslatable. Both now travel together:
+  // the renderer prefers the code and keeps the message as its fallback.
   const jc = makeCard({
     getRoomsForActiveMap: () => enabled,
     vacuumState: () => "docked",
-    dashboardJobControl: () => ({ blocked: true, message: "Bin is full" }),
+    dashboardJobControl: () => ({
+      blocked: true,
+      reason: "incomplete_access_graph",
+      reason_params: { rooms: ["Hall", "Study"] },
+      message: "Room access is incomplete for Hall, Study.",
+    }),
   });
-  assert.equal(jc.startBlockedReason(), "Bin is full");
+  assert.deepEqual(jc.startBlockedReason(), {
+    code: "incomplete_access_graph",
+    params: { rooms: ["Hall", "Study"] },
+    message: "Room access is incomplete for Hall, Study.",
+  });
 });
 
-test("[SB-7] startBlockedReason: jobControl blocked with no message falls back to 'start_blocked'", () => {
+test("[SB-7] startBlockedReason: jobControl blocked with no reason falls back to 'start_blocked'", () => {
   const enabled = [{ ...room(1), enabled: true }];
   const card = makeCard({
     getRoomsForActiveMap: () => enabled,
     vacuumState: () => "docked",
     dashboardJobControl: () => ({ blocked: true }),
   });
-  assert.equal(card.startBlockedReason(), "start_blocked");
+  assert.deepEqual(card.startBlockedReason(), {
+    code: "start_blocked",
+    params: {},
+    message: null,
+  });
+});
+
+test("[SB-7b] a backend message with no code still reaches the user", () => {
+  // Forward-compat in the other direction: an older/other backend that sends
+  // prose and no reason must not go silent just because the card now leads
+  // with the code.
+  const enabled = [{ ...room(1), enabled: true }];
+  const card = makeCard({
+    getRoomsForActiveMap: () => enabled,
+    vacuumState: () => "docked",
+    dashboardJobControl: () => ({ blocked: true, message: "Bin is full" }),
+  });
+  const descriptor = card.startBlockedReason();
+  assert.equal(descriptor.message, "Bin is full");
+  assert.equal(descriptor.code, "start_blocked");
 });
 
 test("[SB-8] startBlockedReason: null when a confirmation is required (the confirm flow owns the label)", () => {

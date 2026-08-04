@@ -15,7 +15,8 @@
     "confirm": "Bestätigen",
     "ok": "OK",
     "service_failed": "{service} konnte nicht abgeschlossen werden — der Saugroboter hat den Befehl möglicherweise nicht erhalten",
-    "service_refused": "Vorgang konnte nicht abgeschlossen werden — {reason}"
+    "service_refused": "Vorgang konnte nicht abgeschlossen werden — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Es läuft bereits ein Reinigungsauftrag.",
@@ -1311,7 +1312,14 @@
       "already_cleaning": "Reinigt bereits.",
       "returning_to_dock": "Rückkehr zur Basis.",
       "vacuum_error": "Der Saugroboter hat einen Fehler.",
-      "start_blocked": "Start ist blockiert."
+      "start_blocked": "Start ist blockiert.",
+      "incomplete_access_graph": "Der Raumzugang ist für {rooms} unvollständig. Vervollständigen Sie deren Zugangsverknüpfungen oder löschen Sie alle Zugangseinstellungen, um einfache Läufe zu erlauben.",
+      "access_graph_required_for_rules": "Raumregeln erfordern einen vollständigen Zugangsgraphen. Richten Sie den Stationsraum und die Raumverbindungen ein, bevor Sie Regeln verwenden.",
+      "access_graph_required": "Raum-Blocker erfordern einen manuellen Raumzugangsgraphen, bevor sie verwendet werden können.",
+      "rooms_blocked": "Einige Räume werden durch ihre Regeln blockiert und übersprungen.",
+      "confirmation_required": "Dieser reduzierte Lauf muss vor dem Start bestätigt werden.",
+      "job_paused": "Ein erfasster Auftrag ist pausiert. Setzen Sie ihn fort oder brechen Sie ihn ab, bevor Sie einen neuen starten.",
+      "onboarding_required": "Schließen Sie die Einrichtung dieser Karte ab, bevor Sie eine Reinigung starten."
     },
     "charge_time_varies": "Die Ladezeit hängt vom Akkustand beim Andocken ab.",
     "chip_charge_label": "Laden auf",

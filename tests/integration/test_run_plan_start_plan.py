@@ -40,6 +40,12 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
          (reserved for a structurally invalid graph) stays False there.
 [RPS-21] PRE-3 control: a PARTIAL block (some rooms still includable) keeps
          available=True.
+[RPS-22] A5-AG-2: the graph-block preflight NAMES the offending rooms, in
+         reason_params (list, unjoined) and in the English message.
+[RPS-23] A5-AG-2: a refusal that no room causes still refuses, with an empty
+         room list and the generic sentence.
+[RPS-24] A5-AG-2: reason_params is declared on the base shape, so a ready
+         preflight has the same keys as a blocked one.
 """
 
 from __future__ import annotations
@@ -729,3 +735,67 @@ def test_pending_steps_survive_preflight(rp):
         vacuum_entity_id=_VAC, map_id="6", consume_pending_steps=True)
     assert mgr.data["_pending_run_steps"][_VAC].get("6") is None            # consumed
     assert any(p.get("phase_type") == "charge_wait" for p in plan2["phases"])
+
+
+def test_graph_block_names_the_offending_rooms(rp):
+    """[RPS-22] A5-AG-2: the refusal names which rooms it is about.
+
+    THE FINDING: 'no shipped surface names the offending room'. Room 3 has no
+    inbound edge — the shape a map rebuild produces — and every Start on this
+    map is refused. Before, with a sentence that named nothing.
+
+    `rooms` rides as a LIST so the card joins it with the locale's separator;
+    pre-joining it here would bake an English list convention into 18 locales.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "spm22", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2], "name": "Hallway"},
+        {"enabled": True, "name": "Kitchen"},
+        {"enabled": True, "name": "Study"},
+    ])
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm22")
+    pf = out["preflight"]
+
+    assert pf["blocked"] is True
+    assert pf["reason"] == "incomplete_access_graph"
+
+    assert pf["reason_params"]["rooms"] == ["Study"]
+    assert isinstance(pf["reason_params"]["rooms"], list), "must NOT be pre-joined"
+    assert pf["reason_params"]["room_ids"] == ["3"]
+    assert pf["blocking_rooms"] == [{"room_id": "3", "name": "Study"}]
+
+    # The English fallback improves too — it is what a non-card consumer reads.
+    assert "Study" in pf["message"]
+
+
+def test_graph_block_with_no_room_at_fault_still_refuses(rp):
+    """[RPS-23] A5-AG-2: no dock room blames no room, and says so generically.
+
+    The empty list must not degrade into naming a room that does not exist, and
+    the block itself is unchanged — this finding's semantics half (should ONE
+    unconfigured room block the whole map?) is a separate decision.
+    """
+    rp_, mgr = rp
+    _seed(mgr, "spm23", [
+        {"enabled": True, "grants_access_to": [2]},   # a grant, but nothing is the dock
+        {"enabled": True},
+    ])
+    pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm23")["preflight"]
+
+    assert pf["blocked"] is True
+    assert pf["reason"] == "incomplete_access_graph"
+    assert pf["reason_params"] == {"rooms": [], "room_ids": []}
+    assert pf["blocking_rooms"] == []
+    assert "partially configured" in pf["message"]
+
+
+def test_ready_preflight_declares_the_same_keys(rp):
+    """[RPS-24] A5-AG-2: an absent key and an empty one read alike to a template
+    but not to code, so the base shape declares both fields."""
+    rp_, mgr = rp
+    _seed(mgr, "spm24", [{"enabled": True}, {"enabled": True}])
+    pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm24")["preflight"]
+
+    assert pf["blocked"] is False
+    assert pf["reason_params"] == {}
+    assert pf["blocking_rooms"] == []

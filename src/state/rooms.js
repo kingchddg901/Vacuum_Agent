@@ -931,38 +931,60 @@ export function applyRoomsState(proto) {
     return true;
   };
 
+  /**
+   * Build the {code, params, message} descriptor a coded label resolves from.
+   *
+   * A5-AG-2. This used to return a bare STRING, and it preferred the backend's
+   * English `message` over the machine `reason` — so every backend-sourced
+   * refusal reached the user as untranslatable English while the code that
+   * could have been translated was discarded one line earlier. The renderer now
+   * resolves the code first and keeps `message` as the fallback, which is what
+   * makes a code this card release has never heard of still say something.
+   *
+   * State modules hold no `t`, so no resolution happens here.
+   *
+   * @param {string|null} code
+   * @param {object|null} source - the payload carrying params/message, if any.
+   * @returns {{code: string, params: object, message: string|null}}
+   */
+  const _blockDescriptor = (code, source = null) => ({
+    code: String(code ?? ""),
+    params: source?.reason_params ?? {},
+    message: source?.message ?? source?.reason_detail ?? null,
+  });
+
   proto.startBlockedReason = function () {
     if (this.startRequiresConfirmation()) return null;
 
+    // Locally-derived blocks (no rooms enabled, already cleaning, …) are card
+    // knowledge — there is no backend payload behind them and never a message.
     const localBlock = this._localStartBlockReason();
-    if (localBlock) return localBlock;
+    if (localBlock) return _blockDescriptor(localBlock);
 
     const jobControl = this.dashboardJobControl?.();
     if (jobControl) {
       if (this._startStatusFlag("blocked")) {
-        return jobControl.message ?? jobControl.reason_detail ?? jobControl.reason ?? "start_blocked";
+        return _blockDescriptor(jobControl.reason ?? "start_blocked", jobControl);
       }
 
       if (this._startStatusFlag("warning")) {
-        return jobControl.message ?? jobControl.reason_detail ?? null;
+        const warning = _blockDescriptor(jobControl.reason ?? "", jobControl);
+        // A warning with nothing to say stays silent, as before — but a warning
+        // with only a CODE now speaks, where it used to be dropped.
+        return warning.message || warning.code ? warning : null;
       }
     }
 
+    const startStatus = this.dashboardStartStatus?.() ?? this._startStatus ?? null;
+
     if (this._startStatus || this.dashboardStartStatus?.()) {
       if (this._startStatusFlag("blocked")) {
-        return (
-          this.dashboardStartStatus?.()?.message ??
-          this._startStatus?.message ??
-          "start_blocked"
-        );
+        return _blockDescriptor(startStatus?.reason ?? "start_blocked", startStatus);
       }
 
       if (this._startStatusFlag("warning")) {
-        return (
-          this.dashboardStartStatus?.()?.message ??
-          this._startStatus?.message ??
-          null
-        );
+        const warning = _blockDescriptor(startStatus?.reason ?? "", startStatus);
+        return warning.message || warning.code ? warning : null;
       }
 
       return null;

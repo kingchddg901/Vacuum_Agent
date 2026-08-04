@@ -1372,7 +1372,14 @@
       "already_cleaning": "Sedang membersihkan.",
       "returning_to_dock": "Kembali ke dok.",
       "vacuum_error": "Penyedot debu mengalami kesalahan.",
-      "start_blocked": "Mulai terhalang."
+      "start_blocked": "Mulai terhalang.",
+      "incomplete_access_graph": "Akses ruangan belum lengkap untuk {rooms}. Lengkapi tautan aksesnya, atau hapus semua pengaturan akses agar pembersihan dasar diizinkan.",
+      "access_graph_required_for_rules": "Aturan ruangan memerlukan grafik akses yang lengkap. Konfigurasikan ruangan dok dan koneksi antar ruangan sebelum menggunakan aturan.",
+      "access_graph_required": "Pemblokir ruangan memerlukan grafik akses ruangan manual sebelum dapat digunakan.",
+      "rooms_blocked": "Beberapa ruangan diblokir oleh aturannya dan akan dilewati.",
+      "confirmation_required": "Konfirmasi diperlukan sebelum memulai pembersihan yang dikurangi ini.",
+      "job_paused": "Ada tugas terlacak yang dijeda. Lanjutkan atau batalkan sebelum memulai yang baru.",
+      "onboarding_required": "Selesaikan penyiapan peta ini sebelum memulai pembersihan."
     },
     "blocked_fallback": "Terhalang",
     "blocked_rooms": "Ruangan Terhalang",
@@ -2403,7 +2410,8 @@
     "saving": "Menyimpan…",
     "yes": "Ya",
     "service_failed": "Tidak dapat menyelesaikan {service} — penyedot debu mungkin tidak menerimanya",
-    "service_refused": "Tidak dapat menyelesaikan tindakan ini — {reason}"
+    "service_refused": "Tidak dapat menyelesaikan tindakan ini — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Tugas pembersihan sudah berlangsung.",

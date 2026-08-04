@@ -245,6 +245,26 @@ selected_room_ids = [int(room.room_id) for room in selected_rooms]
 
 Additionally, if any blocker rules exist but no room has a non-empty `grants_access_to`, the plan is blocked with `reason: "access_graph_required"`.
 
+All three of these refusals also carry `reason_params` and `blocking_rooms`:
+
+```python
+"reason": "incomplete_access_graph",
+"reason_params": {"rooms": ["Study"], "room_ids": ["3"]},
+"blocking_rooms": [{"room_id": "3", "name": "Study"}],
+"message": "Room access is incomplete for Study. Complete their access links, ...",
+```
+
+`reason_params.rooms` is a **list, never pre-joined** — the card joins it with the
+locale's own separator (`common.list_separator`), because joining server-side would
+bake an English list convention into all 18 shipped locales. `message` remains the
+English response-service surface for non-card consumers and is the card's fallback
+when it does not recognise the code.
+
+The rooms are derived by `AccessGraphManager.access_graph_block_rooms`, the companion
+to `access_graph_block_code`: the code answers *are runs blocked*, this answers
+*because of which rooms*. A refusal that no single room causes (`missing_dock_room`)
+yields an empty list and the generic sentence rather than a placeholder room.
+
 **Step 3 — Evaluate all rules**
 
 Iterates over **all** rooms (not just selected rooms):

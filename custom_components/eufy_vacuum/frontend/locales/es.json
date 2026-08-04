@@ -15,7 +15,8 @@
     "confirm": "Confirmar",
     "ok": "Aceptar",
     "service_failed": "No se pudo completar {service}: es posible que el robot no lo haya recibido",
-    "service_refused": "No se pudo completar esta acción: {reason}"
+    "service_refused": "No se pudo completar esta acción: {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Ya hay un trabajo de limpieza en curso.",
@@ -1326,7 +1327,14 @@
       "already_cleaning": "Ya está limpiando.",
       "returning_to_dock": "Regresando a la base.",
       "vacuum_error": "El aspirador tiene un error.",
-      "start_blocked": "El inicio está bloqueado."
+      "start_blocked": "El inicio está bloqueado.",
+      "incomplete_access_graph": "El acceso entre habitaciones está incompleto para {rooms}. Complete sus enlaces de acceso o borre todos los ajustes de acceso para permitir ejecuciones básicas.",
+      "access_graph_required_for_rules": "Las reglas de habitación requieren un gráfico de acceso completo. Configure la habitación de la base y las conexiones entre habitaciones antes de usar reglas.",
+      "access_graph_required": "Los bloqueadores de habitación requieren un gráfico de acceso manual antes de poder usarse.",
+      "rooms_blocked": "Algunas habitaciones están bloqueadas por sus reglas y se omitirán.",
+      "confirmation_required": "Es necesario confirmar antes de iniciar esta ejecución reducida.",
+      "job_paused": "Hay un trabajo en pausa. Reanúdelo o cancélelo antes de iniciar uno nuevo.",
+      "onboarding_required": "Termine de configurar este mapa antes de iniciar una limpieza."
     },
     "charge_time_varies": "El tiempo de carga varía según el nivel de batería al llegar a la base.",
     "chip_charge_label": "Cargar al",

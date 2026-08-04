@@ -1372,7 +1372,14 @@
       "already_cleaning": "Sprzątanie już trwa.",
       "returning_to_dock": "Powrót do stacji dokującej.",
       "vacuum_error": "Odkurzacz zgłasza błąd.",
-      "start_blocked": "Rozpoczęcie jest zablokowane."
+      "start_blocked": "Rozpoczęcie jest zablokowane.",
+      "incomplete_access_graph": "Dostęp do pomieszczeń jest niekompletny dla: {rooms}. Uzupełnij ich połączenia dostępu albo wyczyść wszystkie ustawienia dostępu, aby zezwolić na podstawowe uruchomienia.",
+      "access_graph_required_for_rules": "Reguły pomieszczeń wymagają kompletnego grafu dostępu. Skonfiguruj pokój ze stacją dokującą i połączenia między pomieszczeniami, zanim użyjesz reguł.",
+      "access_graph_required": "Blokady pomieszczeń wymagają ręcznego grafu dostępu, zanim będzie można ich użyć.",
+      "rooms_blocked": "Niektóre pomieszczenia są zablokowane przez swoje reguły i zostaną pominięte.",
+      "confirmation_required": "Przed uruchomieniem tego ograniczonego przebiegu wymagane jest potwierdzenie.",
+      "job_paused": "Śledzone zadanie jest wstrzymane. Wznów je lub anuluj, zanim uruchomisz nowe.",
+      "onboarding_required": "Dokończ konfigurację tej mapy przed rozpoczęciem sprzątania."
     },
     "blocked_fallback": "Zablokowano",
     "blocked_rooms": "Zablokowane pokoje",
@@ -2403,7 +2410,8 @@
     "saving": "Zapisywanie…",
     "yes": "Tak",
     "service_failed": "Nie udało się ukończyć {service} — odkurzacz mógł go nie otrzymać",
-    "service_refused": "Nie udało się tego wykonać — {reason}"
+    "service_refused": "Nie udało się tego wykonać — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Zadanie sprzątania jest już w toku.",

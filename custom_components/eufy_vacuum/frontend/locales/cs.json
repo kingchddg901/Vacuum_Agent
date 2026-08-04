@@ -1372,7 +1372,14 @@
       "already_cleaning": "Úklid již probíhá.",
       "returning_to_dock": "Návrat do doku.",
       "vacuum_error": "Vysavač hlásí chybu.",
-      "start_blocked": "Spuštění je zablokováno."
+      "start_blocked": "Spuštění je zablokováno.",
+      "incomplete_access_graph": "Přístup do místností je neúplný pro: {rooms}. Doplňte jejich propojení přístupu, nebo vymažte všechna nastavení přístupu, aby byly povoleny základní úklidy.",
+      "access_graph_required_for_rules": "Pravidla místností vyžadují úplný graf přístupu. Než použijete pravidla, nastavte místnost s dokem a propojení místností.",
+      "access_graph_required": "Blokátory místností vyžadují ruční graf přístupu, než je bude možné použít.",
+      "rooms_blocked": "Některé místnosti jsou blokovány svými pravidly a budou přeskočeny.",
+      "confirmation_required": "Před spuštěním tohoto zkráceného úklidu je nutné potvrzení.",
+      "job_paused": "Sledovaná úloha je pozastavena. Než spustíte novou, obnovte ji nebo zrušte.",
+      "onboarding_required": "Než spustíte úklid, dokončete nastavení této mapy."
     },
     "blocked_fallback": "Zablokováno",
     "blocked_rooms": "Zablokované místnosti",
@@ -2403,7 +2410,8 @@
     "saving": "Ukládání…",
     "yes": "Ano",
     "service_failed": "Nepodařilo se dokončit {service} — vysavač jej možná neobdržel",
-    "service_refused": "Nepodařilo se to dokončit — {reason}"
+    "service_refused": "Nepodařilo se to dokončit — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Úklidová úloha již probíhá.",

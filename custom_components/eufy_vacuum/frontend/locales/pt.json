@@ -15,7 +15,8 @@
     "confirm": "Confirmar",
     "ok": "OK",
     "service_failed": "Não foi possível concluir {service} — o aspirador pode não ter recebido",
-    "service_refused": "Não foi possível concluir esta ação — {reason}"
+    "service_refused": "Não foi possível concluir esta ação — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Já há uma tarefa de limpeza em andamento.",
@@ -1325,7 +1326,14 @@
       "already_cleaning": "Já está a limpar.",
       "returning_to_dock": "A regressar à base.",
       "vacuum_error": "O aspirador tem um erro.",
-      "start_blocked": "O início está bloqueado."
+      "start_blocked": "O início está bloqueado.",
+      "incomplete_access_graph": "O acesso entre divisões está incompleto para {rooms}. Complete as suas ligações de acesso ou limpe todas as definições de acesso para permitir execuções básicas.",
+      "access_graph_required_for_rules": "As regras de divisão exigem um grafo de acesso completo. Configure a divisão da base e as ligações entre divisões antes de usar regras.",
+      "access_graph_required": "Os bloqueadores de divisão exigem um grafo de acesso manual antes de poderem ser usados.",
+      "rooms_blocked": "Algumas divisões estão bloqueadas pelas suas regras e serão ignoradas.",
+      "confirmation_required": "É necessária confirmação antes de iniciar esta execução reduzida.",
+      "job_paused": "Há um trabalho registado em pausa. Retome-o ou cancele-o antes de iniciar um novo.",
+      "onboarding_required": "Termine a configuração deste mapa antes de iniciar uma limpeza."
     },
     "charge_time_varies": "O tempo de carga varia com o nível de bateria ao chegar à base.",
     "chip_charge_label": "Carregar até",

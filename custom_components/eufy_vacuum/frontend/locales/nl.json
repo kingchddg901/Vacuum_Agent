@@ -15,7 +15,8 @@
     "confirm": "Bevestigen",
     "ok": "OK",
     "service_failed": "Kan {service} niet voltooien — de stofzuiger heeft dit mogelijk niet ontvangen",
-    "service_refused": "Kan dit niet voltooien — {reason}"
+    "service_refused": "Kan dit niet voltooien — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Er is al een schoonmaaktaak bezig.",
@@ -1311,7 +1312,14 @@
       "already_cleaning": "Al aan het stofzuigen.",
       "returning_to_dock": "Keert terug naar het dock.",
       "vacuum_error": "De stofzuiger heeft een fout.",
-      "start_blocked": "Starten is geblokkeerd."
+      "start_blocked": "Starten is geblokkeerd.",
+      "incomplete_access_graph": "De kamertoegang is onvolledig voor {rooms}. Vul hun toegangskoppelingen aan of wis alle toegangsinstellingen om basisruns toe te staan.",
+      "access_graph_required_for_rules": "Kamerregels vereisen een volledige toegangsgraaf. Stel de dockkamer en de kamerverbindingen in voordat je regels gebruikt.",
+      "access_graph_required": "Kamerblokkeringen vereisen een handmatige toegangsgraaf voordat ze kunnen worden gebruikt.",
+      "rooms_blocked": "Sommige kamers worden door hun regels geblokkeerd en worden overgeslagen.",
+      "confirmation_required": "Deze verkorte run moet worden bevestigd voordat hij start.",
+      "job_paused": "Er is een gevolgde taak gepauzeerd. Hervat of annuleer die voordat je een nieuwe start.",
+      "onboarding_required": "Rond het instellen van deze kaart af voordat je gaat schoonmaken."
     },
     "charge_time_varies": "De laadtijd hangt af van het accuniveau bij het dockken.",
     "chip_charge_label": "Opladen tot",

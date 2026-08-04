@@ -15,7 +15,8 @@
     "confirm": "Confirmer",
     "ok": "OK",
     "service_failed": "Impossible de terminer {service} — l'aspirateur ne l'a peut-être pas reçu",
-    "service_refused": "Impossible de terminer cette action — {reason}"
+    "service_refused": "Impossible de terminer cette action — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "Un cycle de nettoyage est déjà en cours.",
@@ -1326,7 +1327,14 @@
       "already_cleaning": "Nettoyage déjà en cours.",
       "returning_to_dock": "Retour à la base.",
       "vacuum_error": "L'aspirateur a une erreur.",
-      "start_blocked": "Le démarrage est bloqué."
+      "start_blocked": "Le démarrage est bloqué.",
+      "incomplete_access_graph": "L'accès aux pièces est incomplet pour {rooms}. Complétez leurs liens d'accès ou effacez tous les réglages d'accès pour autoriser les nettoyages simples.",
+      "access_graph_required_for_rules": "Les règles de pièce nécessitent un graphe d'accès complet. Configurez la pièce de la station et les connexions entre pièces avant d'utiliser des règles.",
+      "access_graph_required": "Les bloqueurs de pièce nécessitent un graphe d'accès manuel avant de pouvoir être utilisés.",
+      "rooms_blocked": "Certaines pièces sont bloquées par leurs règles et seront ignorées.",
+      "confirmation_required": "Une confirmation est requise avant de lancer ce nettoyage réduit.",
+      "job_paused": "Une tâche suivie est en pause. Reprenez-la ou annulez-la avant d'en démarrer une nouvelle.",
+      "onboarding_required": "Terminez la configuration de cette carte avant de lancer un nettoyage."
     },
     "charge_time_varies": "Le temps de charge varie selon le niveau de batterie au retour à la station.",
     "chip_charge_label": "Charger jusqu'à",

@@ -2302,6 +2302,13 @@ class EufyVacuumManager:
         _rooms = managed_rooms if managed_rooms is not None else kwargs.get("managed_rooms")
         return self.access_graph.access_graph_block_code(_rooms, validation)
 
+    def access_graph_block_rooms(self, managed_rooms=None, validation=None, **kwargs):
+        """Delegate to AccessGraphManager. A5-AG-2 — the companion to
+        access_graph_block_code: which rooms the refusal is about, so the start
+        path can name them instead of refusing an eleven-room map anonymously."""
+        _rooms = managed_rooms if managed_rooms is not None else kwargs.get("managed_rooms")
+        return self.access_graph.access_graph_block_rooms(_rooms, validation)
+
     def _room_rule_matches(self, rule):
         """Delegate to AccessGraphManager."""
         return self.access_graph._room_rule_matches(rule)
@@ -3184,6 +3191,7 @@ class EufyVacuumManager:
                 "lifecycle_message": lifecycle_state["message"],
                 "reason": "job_paused",
                 "reason_label": _display_label("job_paused"),
+                "reason_params": {},
                 "message": "A tracked job is currently paused. Resume or cancel it before starting a new one.",
                 "blocked": True,
                 "warning": False,
@@ -3265,6 +3273,12 @@ class EufyVacuumManager:
                 "lifecycle_message": lifecycle_state["message"],
                 "reason": result["reason"],
                 "reason_label": _display_label(result["reason"]),
+                # A5-AG-2: params travel WITH the code they belong to. This
+                # branch's reason comes from the lifecycle result, which names no
+                # room, so an empty dict is the honest answer — taking the
+                # preflight's params here would pair a room list with an
+                # unrelated code.
+                "reason_params": {},
                 "message": result["message"],
                 "blocked": True,
                 "warning": bool(result.get("warning", False)),
@@ -3288,6 +3302,10 @@ class EufyVacuumManager:
                 "lifecycle_message": lifecycle_state["message"],
                 "reason": preflight.get("reason", "blocked"),
                 "reason_label": _display_label(preflight.get("reason", "blocked")),
+                # A5-AG-2: the access-graph refusal reaches the card HERE. Without
+                # its params the card can only render the English `message`, so
+                # the block was untranslatable and named no room.
+                "reason_params": preflight.get("reason_params", {}) or {},
                 "message": preflight.get("message", "Start is blocked."),
                 "blocked": True,
                 "warning": bool(preflight.get("warnings")),
@@ -3304,9 +3322,11 @@ class EufyVacuumManager:
         # over the lifecycle blocker's own text.
         _preflight_reason = preflight.get("reason")
         _preflight_message = preflight.get("message")
+        _preflight_params = preflight.get("reason_params", {}) or {}
         if _preflight_reason == "ready":
             _preflight_reason = None
             _preflight_message = None
+            _preflight_params = {}
 
         runtime.start_block_reason = str(_preflight_reason or result["reason"])
         water_estimate = self.get_planned_job_estimate(
@@ -3339,6 +3359,12 @@ class EufyVacuumManager:
             "lifecycle_message": lifecycle_state["message"],
             "reason": water_reason or _preflight_reason or result["reason"],
             "reason_label": _display_label(water_reason or _preflight_reason or result["reason"]),
+            # A5-AG-2: bound to whichever reason won above — the water reasons and
+            # the lifecycle result carry none, so params only survive when the
+            # PREFLIGHT reason is the one being reported.
+            "reason_params": (
+                {} if water_reason else (_preflight_params if _preflight_reason else {})
+            ),
             "message": water_message or _preflight_message or result["message"],
             "blocked": False,
             "warning": bool(result.get("warning", False) or water_warning or preflight.get("warnings") or preflight.get("requires_confirmation", False)),

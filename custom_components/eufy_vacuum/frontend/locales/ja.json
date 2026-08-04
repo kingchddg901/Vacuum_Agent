@@ -1393,7 +1393,14 @@
       "already_cleaning": "すでに清掃中です。",
       "returning_to_dock": "ドックへ帰還中です。",
       "vacuum_error": "ロボット掃除機にエラーがあります。",
-      "start_blocked": "開始がブロックされています。"
+      "start_blocked": "開始がブロックされています。",
+      "incomplete_access_graph": "{rooms} の部屋アクセスが未完成です。これらのアクセスのリンクを設定するか、すべてのアクセス設定を消去して通常の掃除を許可してください。",
+      "access_graph_required_for_rules": "部屋ルールには完全なアクセスグラフが必要です。ルールを使う前にドック部屋と部屋どうしの接続を設定してください。",
+      "access_graph_required": "部屋ブロッカーを使うには、先に手動の部屋アクセスグラフが必要です。",
+      "rooms_blocked": "一部の部屋はルールによりブロックされ、スキップされます。",
+      "confirmation_required": "この縮小された掃除を開始するには確認が必要です。",
+      "job_paused": "追跡中のジョブが一時停止しています。新しく開始する前に再開するかキャンセルしてください。",
+      "onboarding_required": "掃除を開始する前に、このマップの設定を完了してください。"
     },
     "blocked_fallback": "ブロック",
     "blocked_rooms": "ブロックされた部屋",
@@ -2373,7 +2380,8 @@
     "saving": "保存中…",
     "yes": "はい",
     "service_failed": "{service} を完了できませんでした。ロボット掠除機に届いていない可能性があります",
-    "service_refused": "この操作を完了できませんでした — {reason}"
+    "service_refused": "この操作を完了できませんでした — {reason}",
+    "list_separator": "、"
   },
   "service_reasons": {
     "job_in_progress": "すでに清掃ジョブが実行中です。",

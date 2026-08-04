@@ -30,6 +30,12 @@
 
 export const en = {
   // --- common ---
+  // A5-AG-2. The glue between items when a backend ships a LIST param unjoined
+  // (blocking rooms, cycle chains, inbound sources) so the CARD picks the
+  // separator — joining server-side would bake an English list convention into
+  // every locale. Include any trailing space the language needs; CJK typically
+  // uses a full-width comma with no space.
+  "common.list_separator": ", ",
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
@@ -1239,6 +1245,17 @@ export const en = {
   "rooms.block_reason.returning_to_dock": "Returning to dock.",  // start blocked: vacuum is returning to its dock
   "rooms.block_reason.vacuum_error": "Vacuum has an error.",  // start blocked: vacuum is in an error state
   "rooms.block_reason.start_blocked": "Start is blocked.",  // start blocked: generic fallback when no more specific reason is available
+  // --- A5-AG-2: BACKEND refusal codes. These reach the card as `reason` on the
+  // start status / job-control payload and were previously rendered only as the
+  // backend's English `message` — untranslatable in the 17 non-English packs.
+  // {rooms} is a LIST joined card-side with common.list_separator.
+  "rooms.block_reason.incomplete_access_graph": "Room access is incomplete for {rooms}. Complete their access links, or clear all access settings to allow basic runs.",  // start blocked: the room-access graph is half-configured. {rooms} = the rooms whose access links are missing or broken.
+  "rooms.block_reason.access_graph_required_for_rules": "Room rules require a complete access graph. Configure the dock room and room connections before using rules.",  // start blocked: rules are set but no access graph exists to evaluate them against.
+  "rooms.block_reason.access_graph_required": "Room blockers require a manual room access graph before they can be used.",  // start blocked: blocker rules exist with no access graph at all.
+  "rooms.block_reason.rooms_blocked": "Some rooms are blocked by their rules and will be skipped.",  // preflight WARNING (not a block): a reduced run is offered for confirmation.
+  "rooms.block_reason.confirmation_required": "Confirmation is required before starting this reduced run.",  // start warning: the reduced-run confirm flow.
+  "rooms.block_reason.job_paused": "A tracked job is paused. Resume or cancel it before starting a new one.",  // start blocked: a paused job owns the vacuum.
+  "rooms.block_reason.onboarding_required": "Finish setting up this map before starting a clean.",  // start blocked: onboarding (e.g. floor types) is incomplete.
   "rooms.blocked_fallback": "Blocked",
   "rooms.blocked_rooms": "Blocked Rooms",
   "rooms.cancel_run": "Cancel Run",

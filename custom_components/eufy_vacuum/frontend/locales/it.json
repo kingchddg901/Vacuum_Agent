@@ -15,7 +15,8 @@
     "confirm": "Conferma",
     "ok": "OK",
     "service_failed": "Impossibile completare {service}: l'aspirapolvere potrebbe non averlo ricevuto",
-    "service_refused": "Impossibile completare l'operazione: {reason}"
+    "service_refused": "Impossibile completare l'operazione: {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "È già in corso un lavoro di pulizia.",
@@ -1313,7 +1314,14 @@
       "already_cleaning": "Pulizia già in corso.",
       "returning_to_dock": "In rientro alla base.",
       "vacuum_error": "L'aspirapolvere ha un errore.",
-      "start_blocked": "L'avvio è bloccato."
+      "start_blocked": "L'avvio è bloccato.",
+      "incomplete_access_graph": "L'accesso alle stanze è incompleto per {rooms}. Completa i loro collegamenti di accesso o cancella tutte le impostazioni di accesso per consentire esecuzioni di base.",
+      "access_graph_required_for_rules": "Le regole delle stanze richiedono un grafo di accesso completo. Configura la stanza della base e i collegamenti tra stanze prima di usare le regole.",
+      "access_graph_required": "I blocchi per stanza richiedono un grafo di accesso manuale prima di poter essere usati.",
+      "rooms_blocked": "Alcune stanze sono bloccate dalle loro regole e verranno saltate.",
+      "confirmation_required": "È necessaria una conferma prima di avviare questa esecuzione ridotta.",
+      "job_paused": "Un lavoro tracciato è in pausa. Riprendilo o annullalo prima di avviarne uno nuovo.",
+      "onboarding_required": "Completa la configurazione di questa mappa prima di avviare una pulizia."
     },
     "charge_time_varies": "Il tempo di carica varia in base al livello della batteria quando torna alla base.",
     "chip_charge_label": "Carica fino al",

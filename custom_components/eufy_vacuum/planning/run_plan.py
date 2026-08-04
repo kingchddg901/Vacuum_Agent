@@ -1022,6 +1022,11 @@ class RunPlanManager:
             "confirm_token": None,
             "reason": "ready",
             "message": "Ready to start cleaning.",
+            # A5-AG-2: declared on the base shape so every consumer sees the same
+            # keys whether or not a refusal fired — an absent key and an empty one
+            # read identically to a template but not to code.
+            "reason_params": {},
+            "blocking_rooms": [],
             "selected_room_ids": list(selected_room_ids),
             "included_room_ids": list(selected_room_ids),
             "blocked_room_ids": [],
@@ -1057,10 +1062,27 @@ class RunPlanManager:
         )
         _graph_block_message: str | None = None
 
+        # A5-AG-2: which rooms the refusal is ABOUT. The old sentence named none,
+        # so on a map where a rebuild discovered one new room every Start was
+        # refused with nothing to act on. `rooms` rides in reason_params as a
+        # LIST (never pre-joined) so the card picks its own separator — same
+        # contract as the access-graph issue params (A6-AGX-4).
+        _graph_block_rooms = self._manager.access_graph_block_rooms(
+            managed_rooms, validation
+        )
+        _graph_block_names = [room["name"] for room in _graph_block_rooms]
+
         if _graph_block_reason == "incomplete_access_graph":
             _graph_block_message = (
-                "Room access graph is partially configured. "
-                "Complete it or clear all access settings to allow basic runs."
+                "Room access is incomplete for "
+                f"{', '.join(_graph_block_names)}. "
+                "Complete their access links, or clear all access settings to "
+                "allow basic runs."
+                if _graph_block_names
+                else (
+                    "Room access graph is partially configured. "
+                    "Complete it or clear all access settings to allow basic runs."
+                )
             )
         elif _graph_block_reason == "access_graph_required_for_rules":
             _graph_block_message = (
@@ -1076,6 +1098,15 @@ class RunPlanManager:
                     # nothing is includable regardless of what got selected.
                     "available": False,
                     "reason": _graph_block_reason,
+                    # A5-AG-2: `message` stays as the documented English response
+                    # surface and as the card's last-resort fallback; the CARD
+                    # renders reason + reason_params, so the refusal is finally
+                    # translatable in the 18 shipped locales.
+                    "reason_params": {
+                        "rooms": _graph_block_names,
+                        "room_ids": [room["room_id"] for room in _graph_block_rooms],
+                    },
+                    "blocking_rooms": _graph_block_rooms,
                     "message": _graph_block_message,
                     "warnings": [_graph_block_reason],
                 }
@@ -1144,6 +1175,12 @@ class RunPlanManager:
                     # block branch above.
                     "available": False,
                     "reason": "access_graph_required",
+                    # A5-AG-2: sibling of the branch above — it names no room
+                    # because none is at fault (the graph does not exist at all),
+                    # but it carries the same SHAPE so the card has one contract
+                    # to render rather than a special case per reason.
+                    "reason_params": {"rooms": [], "room_ids": []},
+                    "blocking_rooms": [],
                     "message": "Room blockers require a manual room access graph before they can be used.",
                     "warnings": ["access_graph_required"],
                 }

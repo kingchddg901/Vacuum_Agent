@@ -1393,7 +1393,14 @@
       "already_cleaning": "이미 청소 중입니다.",
       "returning_to_dock": "도크로 복귀 중입니다.",
       "vacuum_error": "로봇청소기에 오류가 있습니다.",
-      "start_blocked": "시작이 차단되었습니다."
+      "start_blocked": "시작이 차단되었습니다.",
+      "incomplete_access_graph": "{rooms}의 방 접근 설정이 불완전합니다. 해당 방의 접근 연결을 완성하거나 모든 접근 설정을 지워 기본 청소를 허용하세요.",
+      "access_graph_required_for_rules": "방 규칙에는 완전한 접근 그래프가 필요합니다. 규칙을 사용하기 전에 도크 방과 방 사이의 연결을 설정하세요.",
+      "access_graph_required": "방 차단기를 사용하려면 먼저 수동 방 접근 그래프가 필요합니다.",
+      "rooms_blocked": "일부 방은 규칙에 의해 차단되어 건너뜁니다.",
+      "confirmation_required": "축소된 이 청소를 시작하기 전에 확인이 필요합니다.",
+      "job_paused": "추적 중인 작업이 일시정지되었습니다. 새로 시작하기 전에 재개하거나 취소하세요.",
+      "onboarding_required": "청소를 시작하기 전에 이 지도의 설정을 완료하세요."
     },
     "blocked_fallback": "차단됨",
     "blocked_rooms": "차단된 방",
@@ -2373,7 +2380,8 @@
     "saving": "저장 중…",
     "yes": "예",
     "service_failed": "{service}을(를) 완료하지 못했습니다. 로봇청소기가 명령을 받지 못했을 수 있습니다",
-    "service_refused": "이 작업을 완료하지 못했습니다 — {reason}"
+    "service_refused": "이 작업을 완료하지 못했습니다 — {reason}",
+    "list_separator": ", "
   },
   "service_reasons": {
     "job_in_progress": "이미 청소 작업이 진행 중입니다.",

@@ -1067,6 +1067,65 @@ class AccessGraphManager:
         return None
 
     @staticmethod
+    def access_graph_block_rooms(
+        managed_rooms: dict[str, Any],
+        validation: dict[str, Any] | None = None,
+    ) -> list[dict[str, str]]:
+        """Return the rooms the block is ABOUT, as [{room_id, name}], name-sorted.
+
+        A5-AG-2. `access_graph_block_code` answers "are runs blocked?"; this
+        answers "because of which rooms?" — the half no shipped surface could
+        answer. A map rebuild that discovers one new room makes the graph
+        `partial`, and every Start on that map is then refused with a sentence
+        that names no room, on a map that may have eleven. The user is told to
+        "complete it or clear all access settings" with nothing to act on.
+
+        Reads the RAW validation issues (``type`` + ``room_id``), not the
+        card-facing formatted ones — this runs inside the start path, which
+        never formats. Issues that name no room (``missing_dock_room``) yield
+        nothing rather than a placeholder: an empty list is the honest answer
+        and the caller has a sentence for it.
+
+        Does NOT change what blocks. The map-wide block for a single
+        unconfigured room is the other half of A5-AG-2 and is a semantics
+        decision that stays with Chris; this only makes the existing refusal
+        explicable.
+        """
+        if not validation:
+            return []
+
+        room_ids: list[int] = []
+        for issue in validation.get("issues", []) or []:
+            if not isinstance(issue, dict):
+                continue
+            single = issue.get("room_id")
+            if single is not None:
+                room_ids.append(_safe_int(single, -1))
+            # cycle_detected / multiple_dock_rooms name a SET of rooms; a cycle
+            # chain repeats its entry room, so dedup below is load-bearing.
+            for value in issue.get("rooms", []) or []:
+                room_ids.append(_safe_int(value, -1))
+
+        names: dict[int, str] = {}
+        for room_id_key, room in managed_rooms.items():
+            if not isinstance(room, dict):
+                continue
+            resolved = _safe_int(room.get("room_id", room_id_key), -1)
+            if resolved > 0:
+                names[resolved] = str(room.get("name") or f"Room {resolved}")
+
+        seen: set[int] = set()
+        unique = [
+            room_id
+            for room_id in room_ids
+            if room_id > 0 and not (room_id in seen or seen.add(room_id))
+        ]
+        return [
+            {"room_id": str(room_id), "name": names.get(room_id, f"Room {room_id}")}
+            for room_id in sorted(unique, key=lambda item: names.get(item, f"Room {item}").lower())
+        ]
+
+    @staticmethod
     def _any_rooms_have_rules(managed_rooms: dict[str, Any]) -> bool:
         """Return True if any room has at least one rule configured."""
         return any(

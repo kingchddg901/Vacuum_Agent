@@ -1393,7 +1393,14 @@
       "already_cleaning": "已在清潔中。",
       "returning_to_dock": "正在返回基站。",
       "vacuum_error": "吸塵器發生錯誤。",
-      "start_blocked": "無法開始。"
+      "start_blocked": "無法開始。",
+      "incomplete_access_graph": "{rooms} 的房間通行設定不完整。請補齊它們的通行連結，或清除所有通行設定以允許基本清掃。",
+      "access_graph_required_for_rules": "房間規則需要完整的通行關係圖。使用規則前請先設定基站房間與房間之間的連線。",
+      "access_graph_required": "房間阻斷規則需要先有手動設定的房間通行關係圖才能使用。",
+      "rooms_blocked": "部分房間被其規則阻斷，將被略過。",
+      "confirmation_required": "開始這次縮減的清掃前需要確認。",
+      "job_paused": "有一個已追蹤的工作處於暫停狀態。請先繼續或取消，再開始新的工作。",
+      "onboarding_required": "請先完成此地圖的設定，再開始清掃。"
     },
     "blocked_fallback": "已封鎖",
     "blocked_rooms": "已封鎖房間",
@@ -2373,7 +2380,8 @@
     "saving": "儲存中…",
     "yes": "是",
     "service_failed": "無法完成{service}，掃地機器人可能未收到該指令",
-    "service_refused": "無法完成此操作 — {reason}"
+    "service_refused": "無法完成此操作 — {reason}",
+    "list_separator": "、"
   },
   "service_reasons": {
     "job_in_progress": "已有清掃工作正在進行。",

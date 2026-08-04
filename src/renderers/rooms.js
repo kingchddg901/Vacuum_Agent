@@ -10,15 +10,17 @@
  */
 
 import { renderStepsManifest } from "../state/steps-manifest.js";
+import { resolveCodedLabel } from "../state/coded-label.js";
 
 /**
- * Local-block reason CODES that state/rooms.js returns (as opposed to raw backend
- * messages). The renderer localizes these via tRaw("rooms.block_reason.<code>");
- * any value NOT in this set is a backend-provided message and passes through raw.
+ * A5-AG-2. This was a hand-maintained Set of the five codes the card knew how to
+ * translate; anything else was rendered raw. It has been deleted rather than
+ * extended, because the resolver already answers "do I have a key for this?" by
+ * asking the catalog — a second, shorter answer beside it is exactly the copy
+ * that drifts. Backend codes (incomplete_access_graph, access_graph_required, …)
+ * now translate through the same path the five local ones do.
  */
-const BLOCK_REASON_CODES = new Set([
-  "no_rooms_included", "already_cleaning", "returning_to_dock", "vacuum_error", "start_blocked",
-]);
+const BLOCK_REASON_PREFIX = "rooms.block_reason.";
 
 /**
  * CARD-2 clause 3: the confidence chip's tooltip, with the sample count folded
@@ -132,9 +134,15 @@ export function applyRoomsRenderers(proto) {
     const orderedRooms = this._withCurrentRoomPinned(rooms, state);
     const canStart = state.canStartCleaning();
     const rawBlockReason = state.startBlockedReason();
-    const blockedReason = rawBlockReason && BLOCK_REASON_CODES.has(rawBlockReason)
-      ? this.tRaw(`rooms.block_reason.${rawBlockReason}`)
-      : rawBlockReason;
+    // tRaw, not t: both sinks below escapeHtml the result, and translate()
+    // inserts vars RAW either way — so tRaw + escape-at-sink escapes the catalog
+    // string and the room names exactly once each. t() here would double-escape
+    // the sentence (see reference_i18n_double_escape).
+    const blockedReason = rawBlockReason
+      ? resolveCodedLabel(rawBlockReason, (k, v) => this.tRaw(k, v), {
+          prefixes: [BLOCK_REASON_PREFIX],
+        }) || null
+      : null;
     const hasWarning = state.hasStartWarning();
     const enabledCount = state.enabledRoomCount();
     const activeJob = state.activeJobRooms();
@@ -708,7 +716,18 @@ proto.renderRoomsActionBar = function (
               <div class="evcc-start-preflight-list">
                 ${warnings.map((warning) => `
                   <div class="evcc-start-preflight-item">
-                    <span class="evcc-start-preflight-reason">${this.escapeHtml(warning)}</span>
+                    <span class="evcc-start-preflight-reason">${this.escapeHtml(
+                      // A5-AG-2: preflight warnings are backend CODES
+                      // ("rooms_blocked", "incomplete_access_graph"), and this
+                      // sink printed them verbatim — so the confirmation panel
+                      // showed the user a snake_case identifier under a
+                      // "Warnings" heading. Same namespace as the block reason,
+                      // and an unknown code still falls back to the raw string
+                      // rather than going blank.
+                      resolveCodedLabel({ code: warning }, (k, v) => this.tRaw(k, v), {
+                        prefixes: [BLOCK_REASON_PREFIX],
+                      })
+                    )}</span>
                   </div>
                 `).join("")}
               </div>
