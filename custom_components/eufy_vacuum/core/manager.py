@@ -14,7 +14,10 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..adapters.registry import (
+    adapter_honors_clean_order,
+    get_adapter_config as _get_adapter_config,
+)
 from .charging import (
     get_battery_level as _get_battery_level_impl,
     is_charging as _is_charging_impl,
@@ -3682,11 +3685,7 @@ class EufyVacuumManager:
                         threshold += self._timing_completion_threshold_minutes(_b_entry)
                 if threshold > 0 and current_room_elapsed_minutes >= threshold:
                     awaiting_bounds_exit = True
-        _adapter_capabilities = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
-        if (
-            isinstance(_adapter_capabilities, dict)
-            and _adapter_capabilities.get("honors_clean_order") is False
-        ):
+        if not adapter_honors_clean_order(vacuum_entity_id):
             awaiting_bounds_exit = False
 
         # ------------------------------------------------------------------
@@ -4633,7 +4632,11 @@ class EufyVacuumManager:
         # Whether the brand cleans rooms in the DISPATCHED order (Eufy) or path-optimizes
         # and ignores it (Roborock -> False). Surfaced so the dashboard card offers the
         # strict-order toggle only where it matters (it's a no-op on order-honoring brands).
-        honors_clean_order = bool(_caps_cfg.get("honors_clean_order", True))
+        # Read through the shared predicate: this line used to be the ONE divergent copy
+        # (`bool(_caps_cfg.get(..., True))`, which folds None to False), so the value the
+        # card saw could disagree with every gate the backend applied. The card's own test
+        # is `honors_clean_order !== false`, matching the predicate.
+        honors_clean_order = adapter_honors_clean_order(vacuum_entity_id)
         # The vacuum's provider setting entities (suction / mode / intensity / water
         # level selects), resolved + existence-checked from the adapter's
         # `settings_selects` (the same block the external-run capture uses). Surfaced

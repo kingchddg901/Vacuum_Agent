@@ -653,3 +653,40 @@ def get_adapter_value(
         if node is None:
             return fallback
     return node
+
+
+def adapter_honors_clean_order(vacuum_entity_id: str) -> bool:
+    """Whether this brand cleans rooms in the DISPATCHED queue order.
+
+    THE ONE READ OF ``capabilities.honors_clean_order``. It lives here, next to
+    ``get_adapter_value``, because five unrelated subsystems ask the question and
+    one of them used to answer it differently:
+
+      - ``core/manager.py`` — clears the bounds-exit gate, and exports the flag
+        into the dashboard snapshot the card reads.
+      - ``jobs/active_job.py`` — gates stall / running-long / skipped anomalies.
+      - ``jobs/phase_runner.py`` — gates whether a multi-room group phase's
+        per-room timings are SEGMENTED (admitted to learning) or apportioned
+        evenly (excluded).
+      - ``planning/run_plan.py`` — the run-start "order is advisory" note and
+        the strict-order phase split.
+
+    ONLY A LITERAL ``False`` MEANS "DOES NOT HONOR ORDER". The declared contract
+    is default-True (``adapters/config_schema.py``, ``docs/dev/22-adapter-config-reference.md``
+    §14): a brand OPTS OUT by declaring False, so absent / ``None`` / an
+    unreadable capabilities block all mean the default, True. The snapshot
+    exporter used ``bool(_caps_cfg.get("honors_clean_order", True))`` instead,
+    which folds ``None``/``0``/``""`` to False — so an adapter declaring
+    ``honors_clean_order: null`` was read as order-honoring by the four gates
+    and as path-optimizing by the snapshot. That is the wrong direction to be
+    wrong in: a false "does not honor order" sends confidently-wrong evenly-
+    apportioned per-room baselines into learning. Answer conservatively here
+    and there is only one answer to be wrong about.
+
+    Non-dict ``capabilities`` returns True for the same reason — an unreadable
+    declaration is not a declaration of False.
+    """
+    capabilities = get_adapter_value(vacuum_entity_id, "capabilities")
+    if not isinstance(capabilities, dict):
+        return True
+    return capabilities.get("honors_clean_order") is not False

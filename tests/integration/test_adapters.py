@@ -11,6 +11,9 @@ Coverage targets
 [RG-3]  register with invalid mapping logs but still stores; non-dict raises.
 [RG-4]  _validate_adapter: valid, mapping-not-dict, missing/unknown engine, noop ok.
 [RG-5]  bare-function fallback shims operate on _REGISTRY when no coordinator.
+[RG-6]  adapter_honors_clean_order: only a literal False opts out (True/False/
+        None/0/""/absent/non-dict block), on both registry surfaces; and the
+        five consumer call sites all route through it.
 [CL-1]  load_stored_adapter_configs: non-dict store → 0; malformed skipped; counts.
 [CL-2]  load_stored_adapter_configs: register exception is swallowed.
 [CL-3]  save / delete / get_stored_adapter_config round-trip.
@@ -18,6 +21,8 @@ Coverage targets
 """
 
 from __future__ import annotations
+
+from pathlib import Path
 
 import pytest
 
@@ -166,6 +171,105 @@ def test_fallback_register_nondict_raises():
     """[RG-5] fallback path also rejects non-dict configs."""
     with pytest.raises(TypeError):
         reg.register_adapter_config(_VAC, "not-a-dict")
+
+
+# ---------------------------------------------------------------------------
+# adapter_honors_clean_order — the ONE read of capabilities.honors_clean_order
+# ---------------------------------------------------------------------------
+#
+# The predicate was hand-copied at five call sites and ONE copy diverged:
+# get_dashboard_snapshot used `bool(_caps_cfg.get("honors_clean_order", True))`,
+# which folds None/0/"" to False, while the four gates used `is False`. An
+# adapter declaring `honors_clean_order: null` was therefore order-honoring to
+# the backend and path-optimizing to the card. The declared contract is
+# default-True (config_schema + docs/dev/22-adapter-config-reference.md §14) —
+# a brand OPTS OUT by declaring False — so these cases pin `is False`.
+
+
+@pytest.mark.parametrize(
+    "capabilities,expected",
+    [
+        ({"honors_clean_order": True}, True),
+        ({"honors_clean_order": False}, False),
+        # The four falsy non-False values. Each one is what `bool(...)` got
+        # wrong; none of them is a declaration of "does not honor order".
+        ({"honors_clean_order": None}, True),
+        ({"honors_clean_order": 0}, True),
+        ({"honors_clean_order": ""}, True),
+        # Absent key (Eufy: omits the flag entirely) and absent block.
+        ({"supports_zone_clean": True}, True),
+        ({}, True),
+        # Unreadable capabilities block — still not a declaration of False.
+        ("not-a-dict", True),
+        ([("honors_clean_order", False)], True),
+        (None, True),
+    ],
+)
+def test_honors_clean_order_only_literal_false_opts_out(capabilities, expected):
+    """[RG-6] only a literal False means "does not honor order"."""
+    config = {"adapter_id": "a", "source": "code"}
+    if capabilities is not None:
+        config["capabilities"] = capabilities
+    reg.register_adapter_config(_VAC, config)
+    assert reg.adapter_honors_clean_order(_VAC) is expected
+
+
+def test_honors_clean_order_unregistered_vacuum_defaults_true():
+    """[RG-6] no adapter at all is not a declaration of False either."""
+    assert reg.get_adapter_config("vacuum.nobody") is None
+    assert reg.adapter_honors_clean_order("vacuum.nobody") is True
+
+
+@pytest.mark.parametrize(
+    "capabilities,expected",
+    [({"honors_clean_order": False}, False), ({"honors_clean_order": None}, True)],
+)
+def test_honors_clean_order_same_answer_on_the_coordinator_surface(
+    hass, capabilities, expected
+):
+    """[RG-6] the predicate reads through get_adapter_value, so it must give the
+    same answer whether the config lives in the coordinator (production) or in
+    the module-level _REGISTRY fallback (pre-setup / unit tests)."""
+    coord = _coord(hass)
+    coord.register_adapter_config(
+        _VAC, {"adapter_id": "a", "source": "code", "capabilities": capabilities}
+    )
+    assert reg.get_active_coordinator() is coord
+    assert reg._REGISTRY == {}  # proves the answer came from the coordinator
+    assert reg.adapter_honors_clean_order(_VAC) is expected
+
+
+def test_every_honors_clean_order_call_site_routes_through_the_predicate():
+    """[RG-6] the five call sites must ask the shared predicate, not re-derive
+    the read. Two independent checks, because either alone is passable:
+
+      1. Each consumer module binds the SAME function object (an identity check
+         — an equal-looking local copy would fail it).
+      2. No consumer module contains a raw ``.get("honors_clean_order"...)``.
+         Identity alone would still pass if a sixth site were hand-rolled next
+         to a correct import, which is exactly how the divergence arose.
+
+    Prose references to the flag in docstrings are untouched by (2) — it looks
+    only for the dict read.
+    """
+    from custom_components.eufy_vacuum.core import manager as _manager
+    from custom_components.eufy_vacuum.jobs import active_job as _active_job
+    from custom_components.eufy_vacuum.jobs import phase_runner as _phase_runner
+    from custom_components.eufy_vacuum.planning import run_plan as _run_plan
+
+    consumers = (_manager, _active_job, _phase_runner, _run_plan)
+    for module in consumers:
+        assert (
+            module.adapter_honors_clean_order is reg.adapter_honors_clean_order
+        ), f"{module.__name__} does not use the shared predicate"
+
+    for module in consumers:
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        for raw in ('.get("honors_clean_order"', ".get('honors_clean_order'"):
+            assert raw not in source, (
+                f"{module.__name__} re-derives honors_clean_order; call "
+                f"adapters.registry.adapter_honors_clean_order instead"
+            )
 
 
 # ---------------------------------------------------------------------------

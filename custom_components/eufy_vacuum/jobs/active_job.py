@@ -23,7 +23,10 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable
 
-from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..adapters.registry import (
+    adapter_honors_clean_order,
+    get_adapter_config as _get_adapter_config,
+)
 from ..core.charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
@@ -954,11 +957,7 @@ class ActiveJobTracker:
         Returns the anomaly fields for the snapshot dict."""
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         _anomaly_cfg = _adapter_cfg.get("anomaly", {})
-        _capabilities = _adapter_cfg.get("capabilities", {})
-        _honors_clean_order = not (
-            isinstance(_capabilities, dict)
-            and _capabilities.get("honors_clean_order") is False
-        )
+        _honors_clean_order = adapter_honors_clean_order(vacuum_entity_id)
         _STALL_RATIO = _safe_float(_anomaly_cfg.get("stall_ratio"), 2.0)
         _RUNNING_LONG_RATIO = _safe_float(_anomaly_cfg.get("running_long_ratio"), 1.5)
         stall_detected = False

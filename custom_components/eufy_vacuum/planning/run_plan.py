@@ -15,7 +15,10 @@ import hashlib
 import logging
 from typing import TYPE_CHECKING, Any
 
-from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..adapters.registry import (
+    adapter_honors_clean_order,
+    get_adapter_config as _get_adapter_config,
+)
 from ..step_types import CLEANING_PHASE_TYPE, DOCK_POLLED_PHASE_TYPES
 from ..entity_helpers import get_floor_type_label
 from ..queue.queue_engine import build_queue_from_managed_rooms
@@ -736,11 +739,7 @@ class RunPlanManager:
         honor order (``capabilities.honors_clean_order`` defaults True — Eufy) or
         a single-room run (order is moot).
         """
-        honors = (
-            (_get_adapter_config(vacuum_entity_id) or {})
-            .get("capabilities", {})
-            .get("honors_clean_order", True)
-        )
+        honors = adapter_honors_clean_order(vacuum_entity_id)
         if honors or len(included_room_ids) < 2:
             return None
         return (
@@ -795,11 +794,7 @@ class RunPlanManager:
         never alters an order-honoring brand (Eufy), even if requested.
         """
         dispatch_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
-        honors_order = (
-            (_get_adapter_config(vacuum_entity_id) or {})
-            .get("capabilities", {})
-            .get("honors_clean_order", True)
-        )
+        honors_order = adapter_honors_clean_order(vacuum_entity_id)
         effective_strict = bool(strict_order) and not honors_order
         engine = get_dispatch_engine(dispatch_cfg.get("template"))
         # STAMP THE PHASE TYPE. Break and zone steps declare their own type below, but a

@@ -1746,7 +1746,20 @@ supports_room_profiles     supports_zone_clean
 >
 > - `honors_clean_order` (default `True`) — `False` for a path-optimizing brand
 >   (the S6). Gates the opt-in **strict-order** sequenced-clean mode and the
->   run-start "order is advisory" note. Read in `planning/run_plan.py`.
+>   run-start "order is advisory" note (`planning/run_plan.py`), the bounds-exit
+>   gate + the anomaly bars (`core/manager.py`, `jobs/active_job.py`), and
+>   whether a multi-room group phase's per-room timings are segmented or evenly
+>   apportioned (`jobs/phase_runner.py`, see [30-phase-runner.md](30-phase-runner.md) §Order).
+>
+>   **Read it through `adapters/registry.adapter_honors_clean_order(vacuum_entity_id)`,
+>   never by hand.** The predicate is `is not False`: a brand OPTS OUT by
+>   declaring `False`, so absent / `None` / a non-dict `capabilities` block all
+>   mean the default `True`. One of the five sites used to hand-roll
+>   `bool(caps.get("honors_clean_order", True))`, which folds `None` to `False` —
+>   so `honors_clean_order: null` read as order-honoring to the four gates and
+>   path-optimizing to the card, whose own test is `!== false`. Pinned by
+>   `tests/integration/test_adapters.py` `[RG-6]`, which also fails any new site
+>   that re-derives the read.
 > - `supports_room_profiles` (default `True`) — `False` drops per-room profile
 >   templates (the S6: mop unsettable, passes global).
 >

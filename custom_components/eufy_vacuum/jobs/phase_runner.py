@@ -33,7 +33,10 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.exceptions import HomeAssistantError
 
-from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..adapters.registry import (
+    adapter_honors_clean_order,
+    get_adapter_config as _get_adapter_config,
+)
 from ..queue.queue_engine import advance_active_job_phase
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 from ..step_types import is_dock_polled_phase, is_dock_polled_phase_type
@@ -950,8 +953,7 @@ class PhaseRunner:
         which telescopes back to the group's measured whole. Gate 3 proves it did.
         """
         n = len(group_ids)
-        caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
-        if isinstance(caps, dict) and caps.get("honors_clean_order") is False:
+        if not adapter_honors_clean_order(vacuum_entity_id):
             return None
 
         from ..learning.job_segmenter_engines import get_job_segmenter_engine
