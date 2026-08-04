@@ -850,5 +850,21 @@
    "live:BAT-4"
   ],
   "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
+ },
+ {
+  "packet_id": "RP-046",
+  "repair_family": "RF-DOCK",
+  "finding_ids": [
+   "live:DOCK-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
+ },
+ {
+  "packet_id": "RP-047",
+  "repair_family": "RF-11",
+  "finding_ids": [
+   "#9:A3-REC-3"
+  ],
+  "source_doc": ".claude/notes/synthesis/SYNTH-12-packets-battery.md"
  }
 ]

@@ -306,6 +306,15 @@
   }
  },
  {
+  "packet_id": "RP-014",
+  "commits": [
+   "5c4c0f0",
+   "9095968"
+  ],
+  "landed_at": "2026-08-03",
+  "note": "Landed per git (first commit touching code); back-filled by _sync_landed_packets.py."
+ },
+ {
   "packet_id": "RP-015",
   "commits": [
    "6726b19",

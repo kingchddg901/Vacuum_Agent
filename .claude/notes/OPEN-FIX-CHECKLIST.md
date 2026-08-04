@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **442** findings via 55 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
+| Fixes APPLIED (landed packets) | **447** findings via 56 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **42** -- 3 open clusters (26 fully applied) + 38 singles |
-| By severity | CRITICAL 1 / HIGH 9 / MEDIUM 18 / LOW 14 |
+| Open findings | **37** -- 2 open clusters (27 fully applied) + 35 singles |
+| By severity | CRITICAL 1 / HIGH 8 / MEDIUM 16 / LOW 12 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -172,13 +172,13 @@ audit is a snapshot, not a ledger.
 - **Fix:** One in-flight guard / coalescing pattern, applied to all four. This is the same question four times.
 - [ ] applied  [ ] tested  [ ] hardware-checked
 
-### C18. The listener layer is a THIRD answer to 'is a job active' *(not independently verified)* — **1/3 applied**
+### C18. The listener layer is a THIRD answer to 'is a job active' *(not independently verified)* — **3/3 applied**
 
 - **Seam:** `listeners/_common.py:110 (is_job_active)`
-- **Closes:** ~~A3-COMMON-1~~ ✅ RP-008 (`8d244dc`), A3-COMMON-6, A5-METRICS-1
+- **Closes:** ~~A3-COMMON-1~~ ✅ RP-008 (`8d244dc`), ~~A3-COMMON-6~~ ✅ RP-014 (`5c4c0f0`), ~~A5-METRICS-1~~ ✅ RP-014 (`5c4c0f0`)
 - **What breaks:** jobs/active_job.py owns two deliberate predicates (dispatched_job_is_in_flight, run_is_in_flight). The listener layer uses NEITHER -- _common.is_job_active is an independent third implementation, and job_progress gates on a hand-copied {'started','paused'} literal that is a fourth. On Roborock, is_job_active treats a not-yet-added job_active entity as 'not active'. Fifth instance of the campaign's forgotten-override-sibling pattern, and the first where the divergence is a whole LAYER.
 - **Fix:** Route the listener layer at the canonical predicates, or state explicitly why the input layer needs a different question and derive it from the same constant.
-- [ ] applied  [ ] tested  [ ] hardware-checked
+- [x] applied  [ ] tested  [ ] hardware-checked
 
 ### C19. A public service call wipes a map's entire room configuration, silently **[VERIFIED AT SOURCE]** — **5/5 applied**
 
@@ -278,11 +278,8 @@ audit is a snapshot, not a ledger.
   overwrite_run_profile unconditionally destroys a saved profile's step sequence; save_run_profile preserves it — same "snapshot the current run" contract, opposite behaviour  
   -> A saved run "Downstairs, wait 30 min for the floor to dry, then Upstairs" (or any rooms->zone / multi-group run) loses its entire sequence the first time the user opens its editor and saves — e.g. just to fix a typo in t
 
-### HIGH (7)
+### HIGH (6)
 
-- [ ] **A6-VAC-1** `dock/manager.py:154` [eufy]  
-  Dock-action gate is blind to app-started (external) runs — every dock action reports "Ready" and fires while the robot is mid-run at the dock  
-  -> The user starts a clean from the Eufy app. The robot returns to the dock to recharge ("Charging (Resume)") or wash the pad mid-run. The card's Base Station tab shows Wash Mop / Dry Mop / Empty Dust as Ready. Tapping Dry
 - [ ] **A3-IMAGE--1** `mapping/mapping_services.py:1174` [Both. Eufy (eufy_cv_v1) is where re-analysis actually reshuffles ids; Roborock inherits the same read-time enrichment for any image_segments it holds.]  
   Re-analysis rebinds the user's room links and manual segment adjustments onto positionally-reassigned segment ids  
   -> The map overlay silently mislabels rooms after any re-analysis in which blob ordering shifts, and the mislabel is actuating, not cosmetic: tapping a segment polygon calls toggleRoomEnabled for the LINKED room (src/bindin
@@ -302,7 +299,7 @@ audit is a snapshot, not a ledger.
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
 
-### MEDIUM (17)
+### MEDIUM (16)
 
 - [ ] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
@@ -346,9 +343,6 @@ audit is a snapshot, not a ledger.
 - [ ] **SN-4** `sensor/__init__.py:272` [both]  
   Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
   -> VERIFIED: async_update_entity has ZERO occurrences anywhere in the integration. Both sync blocks construct a fresh entity per desired room and then discard it when the unique_id is already known, pushing only a state wri
-- [ ] **DR-SENS-1** `sensor/lifecycle.py:203` [both]  
-  The active_job sensor reports 'none' during an app-started run the system itself considers in flight  
-  -> native_value hand-enumerates started / paused / completed and defaults everything else to 'none'. But `external` is a first-class status in this codebase: jobs/active_job.py:136 puts it in _RUN_IN_FLIGHT_STATUSES so run_
 - [ ] **A5-RUNPROF-4** `services/run_profiles.py:85` [both]  
   set_run_profile_steps accepts a bare `list` and silently drops or clamps every malformed step; only 'at least one room_group survived' is enforced  
   -> A YAML author who mistypes a step type or a percent field gets `saved: True` and a profile that has lost its charge stop — the robot then runs the whole sequence in one go and can strand mid-run instead of docking to cha
@@ -356,7 +350,7 @@ audit is a snapshot, not a ledger.
   The card's access modal renders an existing edge into the dock room as "Missing Room N" — an edge that exists is displayed as a stale reference to a room that does not  
   -> The editor misrepresents the stored graph: a live room is labelled missing/stale, inviting the user to delete a valid edge. Conversely they cannot re-create it, because the dock room is filtered out of the selectable lis
 
-### LOW (13)
+### LOW (12)
 
 - [ ] **EP-5** `button.py:256` [both]  
   The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
@@ -364,9 +358,6 @@ audit is a snapshot, not a ledger.
 - [ ] **INF-9** `entity_helpers.py:109` [both]  
   get_floor_type_label emits hardcoded English into an 18-language product  
   -> Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
-- [ ] **A3-COMMON-4** `listeners/_common.py:178` [both]  
-  _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules  
-  -> No wrong result today (the two literal sets are identical). Latent divergence: changing the generic completion fallback in one place silently leaves the completion gate and the stranded reaper judging the same run agains
 - [ ] **A3-IMAGE--8** `mapping/mapping_services.py:910` [Both; depends on whether Pillow is importable on the host.]  
   Upload persists width/height as None when Pillow is unavailable and still reports saved:True  
   -> On a Pillow-less install a successful upload is recorded in a state that makes custom-segment authoring report a missing backdrop, and the variant row displays null dimensions. Confined to installs without Pillow, and th
@@ -400,7 +391,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 442 findings closed by a landed packet
+## APPLIED -- 447 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -647,6 +638,16 @@ a disappeared finding is indistinguishable from one never found.
   The two sample recorders still use the repudiated `started_at and not ended_at` predicate and write into EVERY map bucket, so a finished or stranded job silently absorbs another run's counters
 - [x] **A5-METRICS-2** `listeners/job_metrics.py:172` [both] -- **RP-013e** (`4b0cda3`, `dbbb348`, 2026-08-02)  
   `last_battery_percent` has no writer anywhere in production, so every counter sample carries battery=None and per-room `battery_delta` is permanently null on both dispatch paths
+- [x] **A6-VAC-1** `dock/manager.py:154` [eufy] -- **RP-014** (`5c4c0f0`, `9095968`, 2026-08-03)  
+  Dock-action gate is blind to app-started (external) runs — every dock action reports "Ready" and fires while the robot is mid-run at the dock
+- [x] **A3-COMMON-4** `listeners/_common.py:178` [both] -- **RP-014** (`5c4c0f0`, `9095968`, 2026-08-03)  
+  _common owns the completion QUESTION but not its vocabulary defaults — the clear-sentinel and completion-status fallbacks exist as two hand-copied literals in different modules
+- [x] **A3-COMMON-6** `listeners/_common.py:110` [both] -- **RP-014** (`5c4c0f0`, `9095968`, 2026-08-03)  
+  The listener layer never uses either canonical in-flight predicate — it hand-inlines the status set that dispatched_job_is_in_flight declares itself "THE single answer" to
+- [x] **A5-METRICS-1** `listeners/job_progress.py:74` [roborock] -- **RP-014** (`5c4c0f0`, `9095968`, 2026-08-03)  
+  job_progress ticker gates on a hand-copied {"started","paused"} literal, so app-started (external) runs never get the Lever B live current-room refresh or a progress tick
+- [x] **DR-SENS-1** `sensor/lifecycle.py:203` [both] -- **RP-014** (`5c4c0f0`, `9095968`, 2026-08-03)  
+  The active_job sensor reports 'none' during an app-started run the system itself considers in flight
 - [x] **A6-TRK-5** `mapping/tracker.py:47` [both] -- **RP-015** (`6726b19`, `5af0fa2`, 2026-08-02)  
   _norm_room_name normalises differently from slugify_room_name — it merges room identities that rooms/ keeps distinct, and lacks the NFC canonicalisation slugify was given specifically to prevent this
 - [x] **A2-REC-2** `rooms/reconciliation.py:84` [both] -- **RP-015** (`6726b19`, `5af0fa2`, 2026-08-02)  
@@ -1327,7 +1328,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 55 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 50 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 56 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 51 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 

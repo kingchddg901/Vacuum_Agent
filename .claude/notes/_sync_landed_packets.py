@@ -46,12 +46,16 @@ PACKET = re.compile(r"\b(RP-\d+[a-f]?|CARD-\d+)\b")
 #: Remove the entry once the packet is complete and the next sync picks it up.
 _PARTIAL: dict[str, str] = {
     "RP-021b": (
-        "3 of 5 findings landed (f208788 A4-PP-RP-2 CRITICAL, 4c93fb5 A4-PP-RP-6, "
-        "0fa6cd9 A4-PP-RP-1). STILL OPEN: #8:A4-PP-RP-4 (applied-profile stamp + "
-        "third step source in _build_effective_start_plan — deliberately parked, "
-        "it changes step-source precedence and wants a hardware baseline first) "
-        "and #13:A5-RUNPROF-4 (per-step service schema + structured refusal). "
-        "_proof_profile_roundtrip.py correctly still reports 1 BEFORE."
+        "4 of 5 findings landed (f208788 A4-PP-RP-2 CRITICAL, 4c93fb5 A4-PP-RP-6, "
+        "0fa6cd9 A4-PP-RP-1, e2a424c #13:A5-RUNPROF-4 — the write path now refuses "
+        "malformed steps with structured reporting instead of silently dropping "
+        "them; services/run_profiles.py is where the finding pointed). "
+        "STILL OPEN: #8:A4-PP-RP-4 only (applied-profile stamp + third step source "
+        "in _build_effective_start_plan — deliberately parked at Chris's "
+        "instruction 2026-08-03, it changes step-source precedence and wants a "
+        "hardware baseline first). _proof_profile_roundtrip.py correctly still "
+        "reports 1 BEFORE, and that one BEFORE is RP-4 — when it flips, this whole "
+        "entry comes out and the next sync records the packet."
     ),
 }
 
