@@ -17,6 +17,8 @@ Coverage targets
 [MS-13] _adjust_polygon_pixel: valid vertex move applies; bad/out-of-range moves ignored.
 [MS-14] _apply_segment_adjustments: edge nudges + vertex moves set their manual-adjustment flags.
 [MS-15] _apply_segment_adjustments: non-numeric center logged and left unchanged (no crash).
+[MS-16] A3-IMAGE--8: _png_dimensions reads IHDR with no dependency.
+[MS-16b] _png_dimensions returns None rather than a confident wrong answer.
 [MS-16] _build_segments_response: non-dict segment_room_links / companion_anchors coerced to {}.
 """
 
@@ -197,3 +199,56 @@ def test_apply_segment_adjustments_bad_center_swallowed():
              "center_pixel": ["a", "b"], "issues": []}]
     out = _apply_segment_adjustments(segs, {"s1": {"offset_x": 2}})[0]
     assert out["center_pixel"] == ["a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# [MS-16] A3-IMAGE--8 — _png_dimensions reads IHDR without any dependency
+# ---------------------------------------------------------------------------
+
+def _png_bytes(width: int, height: int) -> bytes:
+    """A minimal, valid PNG built with the stdlib only.
+
+    Deliberately not Pillow: the whole point of the helper under test is that it
+    works on an install WITHOUT Pillow, so the fixture must not need it either.
+    """
+    import struct
+    import zlib
+
+    def chunk(tag: bytes, payload: bytes) -> bytes:
+        return (struct.pack(">I", len(payload)) + tag + payload
+                + struct.pack(">I", zlib.crc32(tag + payload) & 0xFFFFFFFF))
+
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    raw = b"".join(b"\x00" + b"\x00\x00\x00" * width for _ in range(height))
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(raw))
+            + chunk(b"IEND", b""))
+
+
+def test_png_dimensions_reads_ihdr():
+    """[MS-16] width/height come straight out of the IHDR chunk."""
+    from custom_components.eufy_vacuum.mapping.mapping_services import _png_dimensions
+
+    assert _png_dimensions(_png_bytes(640, 480)) == (640, 480)
+    assert _png_dimensions(_png_bytes(1, 1)) == (1, 1)
+
+
+def test_png_dimensions_rejects_anything_it_cannot_read():
+    """[MS-16b] returns None rather than a wrong answer.
+
+    None is what makes the caller fall through to Pillow and then to a refusal,
+    so a confident wrong value here would be worse than no value.
+    """
+    from custom_components.eufy_vacuum.mapping.mapping_services import _png_dimensions
+
+    assert _png_dimensions(b"") is None
+    assert _png_dimensions(b"not a png at all, not even close") is None
+    assert _png_dimensions(_png_bytes(4, 4)[:20]) is None          # truncated header
+    # PNG magic but the first chunk is not IHDR
+    assert _png_dimensions(b"\x89PNG\r\n\x1a\n" + b"\x00" * 4 + b"IDAT" + b"\x00" * 8) is None
+    # a header claiming zero width is not a usable image
+    import struct
+    zero = bytearray(_png_bytes(4, 4))
+    zero[16:20] = struct.pack(">I", 0)
+    assert _png_dimensions(bytes(zero)) is None

@@ -66,6 +66,13 @@ export const en = {
   "service_reasons.all_selected_rooms_blocked": "All selected rooms are currently blocked.",
   "service_reasons.vacuum_missing": "The vacuum entity is unavailable.",
   "service_reasons.map_mismatch": "This run was recorded on a different map. Switch to that map, then retry.",
+  // A4-CUSTOM-2: custom segmentation mode is on but no layout is active, so there is
+  // nowhere to store a room link or a companion anchor. The backend now refuses rather
+  // than writing into a throwaway dict and reporting success.
+  "service_reasons.no_active_custom_layout": "Pick or create a custom layout before saving this.",
+  // A3-IMAGE--8: the uploaded image's dimensions could not be read, so the variant
+  // is refused rather than stored with nulls that break every consumer downstream.
+  "service_reasons.unreadable_image_dimensions": "That image's dimensions could not be read. Try re-exporting it as a PNG.",
   // --- theme service reason codes (CARD-9(2)/(3), RP-034's manager.py) — every {ok:false, reason}
   // code the theme library/draft/import services can return, resolved through the SAME
   // showServiceRefusalToast() path above (now centralized in _callThemeService, actions/theme.js). ---

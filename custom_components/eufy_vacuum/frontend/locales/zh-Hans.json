@@ -2366,7 +2366,9 @@
     "missing_vacuum": "此卡片未选择任何扫地机器人。",
     "empty_scope": "未选择要替换的地板类型。",
     "no_active_theme": "此扫地机器人没有可更新的当前主题。",
-    "unknown": "此操作被拒绝（{reason}）。"
+    "unknown": "此操作被拒绝（{reason}）。",
+    "no_active_custom_layout": "保存前请先选择或创建自定义布局。",
+    "unreadable_image_dimensions": "无法读取该图片的尺寸。请尝试重新导出为 PNG。"
   },
   "card_editor": {
     "vacuum_label": "扫地机器人",

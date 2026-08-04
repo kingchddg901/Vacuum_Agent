@@ -2490,7 +2490,9 @@
     "missing_vacuum": "לא נבחר שואב אבק עבור כרטיס זה.",
     "empty_scope": "לא נבחר סוג רצפה להחלפה.",
     "no_active_theme": "לשואב אבק זה אין ערכת עיצוב פעילה לעדכון.",
-    "unknown": "הפעולה נדחתה ({reason})."
+    "unknown": "הפעולה נדחתה ({reason}).",
+    "no_active_custom_layout": "בחר או צור פריסה מותאמת אישית לפני השמירה.",
+    "unreadable_image_dimensions": "לא ניתן היה לקרוא את מידות התמונה. נסה לייצא אותה מחדש כקובץ PNG."
   },
   "card_editor": {
     "vacuum_label": "שואב",

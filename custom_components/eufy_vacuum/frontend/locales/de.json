@@ -35,7 +35,9 @@
     "missing_vacuum": "Für diese Karte ist kein Saugroboter ausgewählt.",
     "empty_scope": "Es wurden keine Bodentypen zum Ersetzen ausgewählt.",
     "no_active_theme": "Dieser Saugroboter hat kein aktives Theme zum Aktualisieren.",
-    "unknown": "Diese Aktion wurde abgelehnt ({reason})."
+    "unknown": "Diese Aktion wurde abgelehnt ({reason}).",
+    "no_active_custom_layout": "Wählen Sie ein benutzerdefiniertes Layout aus oder erstellen Sie eines, bevor Sie dies speichern.",
+    "unreadable_image_dimensions": "Die Abmessungen des Bildes konnten nicht gelesen werden. Exportieren Sie es erneut als PNG."
   },
   "base_station": {
     "action_available": "Aktion verfügbar",

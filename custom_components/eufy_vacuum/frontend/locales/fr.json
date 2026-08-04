@@ -35,7 +35,9 @@
     "missing_vacuum": "Aucun aspirateur n'est sélectionné pour cette carte.",
     "empty_scope": "Aucun type de sol n'a été sélectionné à remplacer.",
     "no_active_theme": "Cet aspirateur n'a pas de thème actif à mettre à jour.",
-    "unknown": "Cette action a été refusée ({reason})."
+    "unknown": "Cette action a été refusée ({reason}).",
+    "no_active_custom_layout": "Sélectionnez ou créez une disposition personnalisée avant d'enregistrer.",
+    "unreadable_image_dimensions": "Les dimensions de l'image n'ont pas pu être lues. Essayez de l'exporter à nouveau au format PNG."
   },
   "base_station": {
     "action_available": "Action disponible",

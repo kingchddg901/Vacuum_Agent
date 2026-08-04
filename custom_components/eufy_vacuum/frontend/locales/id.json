@@ -2397,7 +2397,9 @@
     "missing_vacuum": "Tidak ada penyedot debu yang dipilih untuk kartu ini.",
     "empty_scope": "Tidak ada jenis lantai yang dipilih untuk diganti.",
     "no_active_theme": "Penyedot debu ini tidak memiliki tema aktif untuk diperbarui.",
-    "unknown": "Tindakan ini ditolak ({reason})."
+    "unknown": "Tindakan ini ditolak ({reason}).",
+    "no_active_custom_layout": "Pilih atau buat tata letak khusus sebelum menyimpan ini.",
+    "unreadable_image_dimensions": "Dimensi gambar tidak dapat dibaca. Coba ekspor ulang sebagai PNG."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Pilih kunci profil kustom:\n\n{choiceText}",

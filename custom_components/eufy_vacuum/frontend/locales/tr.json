@@ -2397,7 +2397,9 @@
     "missing_vacuum": "Bu kart için seçili bir süpürge yok.",
     "empty_scope": "Değiştirilecek herhangi bir zemin türü seçilmedi.",
     "no_active_theme": "Bu süpürgenin güncellenecek etkin bir teması yok.",
-    "unknown": "Bu işlem reddedildi ({reason})."
+    "unknown": "Bu işlem reddedildi ({reason}).",
+    "no_active_custom_layout": "Bunu kaydetmeden önce özel bir düzen seçin veya oluşturun.",
+    "unreadable_image_dimensions": "Görüntünün boyutları okunamadı. PNG olarak yeniden dışa aktarmayı deneyin."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Özel bir profil anahtarı seçin:\n\n{choiceText}",

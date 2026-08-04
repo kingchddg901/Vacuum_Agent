@@ -2366,7 +2366,9 @@
     "missing_vacuum": "此卡片未選擇任何掃地機器人。",
     "empty_scope": "未選擇要取代的地板類型。",
     "no_active_theme": "此掃地機器人沒有可更新的目前主題。",
-    "unknown": "此操作已被拒絕（{reason}）。"
+    "unknown": "此操作已被拒絕（{reason}）。",
+    "no_active_custom_layout": "儲存前請先選擇或建立自訂版面配置。",
+    "unreadable_image_dimensions": "無法讀取該圖片的尺寸。請嘗試重新匯出為 PNG。"
   },
   "card_editor": {
     "vacuum_label": "掃地機",

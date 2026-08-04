@@ -2397,7 +2397,9 @@
     "missing_vacuum": "Pro tuto kartu není vybrán žádný vysavač.",
     "empty_scope": "Nebyl vybrán žádný typ podlahy k nahrazení.",
     "no_active_theme": "Tento vysavač nemá žádné aktivní téma k aktualizaci.",
-    "unknown": "Tato akce byla odmítnuta ({reason})."
+    "unknown": "Tato akce byla odmítnuta ({reason}).",
+    "no_active_custom_layout": "Před uložením vyberte nebo vytvořte vlastní rozvržení.",
+    "unreadable_image_dimensions": "Rozměry obrázku se nepodařilo načíst. Zkuste jej znovu exportovat jako PNG."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Vyberte vlastní klíč profilu:\n\n{choiceText}",

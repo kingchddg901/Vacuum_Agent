@@ -35,7 +35,9 @@
     "missing_vacuum": "No hay ningún aspirador seleccionado para esta tarjeta.",
     "empty_scope": "No se seleccionó ningún tipo de suelo para reemplazar.",
     "no_active_theme": "Este aspirador no tiene un tema activo que actualizar.",
-    "unknown": "Esta acción fue rechazada ({reason})."
+    "unknown": "Esta acción fue rechazada ({reason}).",
+    "no_active_custom_layout": "Elige o crea un diseño personalizado antes de guardar esto.",
+    "unreadable_image_dimensions": "No se pudieron leer las dimensiones de la imagen. Prueba a exportarla de nuevo como PNG."
   },
   "base_station": {
     "action_available": "Acción disponible",

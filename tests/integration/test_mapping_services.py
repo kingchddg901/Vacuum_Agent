@@ -13,6 +13,10 @@ Coverage targets
 [MSH-5]  set_segment_room_link: null room_id clears the link.
 [MSH-6]  set_segment_room_link: 1:1 enforcement drops the older segment's link.
 [MSH-7]  set_companion_anchor: set then clear.
+[MSH-4b] A4-CUSTOM-2: set_segment_room_link REFUSES in custom mode with no layout
+         (it used to report saved into a throwaway dict -- silent data loss).
+[MSH-4c] A4-CUSTOM-2: CV mode and a RESOLVED custom layout both still write.
+[MSH-7g] A4-CUSTOM-2: the same guard on set_companion_anchor.
 [MSH-8]  delete_map_image: returns a well-formed dict when no image exists.
 [LAYOUT-1] legacy single custom_segments store migrates into ONE default layout; shared links/anchors split.
 [LAYOUT-2] create / rename / list / set-active / delete lifecycle, incl. delete-active reassign + delete-last flips to CV.
@@ -1254,3 +1258,80 @@ async def test_adjust_segment_vertex_move_cancels_to_zero(hass, mapping_services
     s1 = next(s for s in segments["segments"] if s["segment_id"] == "s1")
     assert s1["polygon_pixel"][0] == [0, 0]
 
+
+
+async def test_link_refuses_when_custom_mode_has_no_layout(hass, mapping_services):
+    """[MSH-4b] A4-CUSTOM-2: refuse rather than report a save that was discarded.
+
+    _resolve_active_scope's custom-mode-with-no-layout branch returns fresh
+    literal dicts bound to nothing. The writer took `["links"]` by reference,
+    mutated it, called async_save() and returned saved:True with the link echoed
+    back -- so the card showed a room label on the segment that vanished on the
+    next snapshot, with no error anywhere. Silent data loss that LOOKS like
+    success is worse than a refusal.
+    """
+    _seed_segments(mapping_services)
+    bucket = ensure_map_bucket(data=mapping_services.data,
+                               vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket["segmentation_mode"] = "custom"          # custom mode, no active layout
+
+    result = await _call(hass, SERVICE_SET_SEGMENT_ROOM_LINK,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "segment_id": "s1", "room_id": "3"})
+
+    assert result["saved"] is False
+    assert result["reason"] == "no_active_custom_layout"
+    # and nothing was written anywhere: not on the bucket, not on a layout
+    assert not (bucket.get("segment_room_links") or {}).get("s1")
+    for layout in (bucket.get("custom_layouts") or {}).values():
+        assert not (layout.get("segment_room_links") or {}).get("s1")
+
+
+async def test_companion_anchor_refuses_when_custom_mode_has_no_layout(hass, mapping_services):
+    """[MSH-7g] A4-CUSTOM-2: same guard on the anchor writer.
+
+    The sibling copy of the same defect -- a dragged companion anchor reported
+    saved into a dict the garbage collector took on the next line.
+    """
+    _seed_segments(mapping_services)
+    bucket = ensure_map_bucket(data=mapping_services.data,
+                               vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket["segmentation_mode"] = "custom"
+
+    result = await _call(hass, SERVICE_SET_COMPANION_ANCHOR,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "room_id": "3", "pct_x": 0.5, "pct_y": 0.5})
+
+    assert result["saved"] is False
+    assert result["reason"] == "no_active_custom_layout"
+    assert not (bucket.get("companion_anchors") or {}).get("3")
+
+
+async def test_cv_and_resolved_custom_scopes_still_write(hass, mapping_services):
+    """[MSH-4c] A4-CUSTOM-2 must not break the paths that DO resolve.
+
+    The guard keys on `resolved`, so CV mode (always resolved) and custom mode
+    with a real active layout both keep writing exactly as before. Pins that the
+    refusal is scoped to the one branch that returns throwaways.
+    """
+    _seed_segments(mapping_services)
+    bucket = ensure_map_bucket(data=mapping_services.data,
+                               vacuum_entity_id=_VAC, map_id=_MAP)
+
+    # CV mode (the default) still writes
+    cv = await _call(hass, SERVICE_SET_SEGMENT_ROOM_LINK,
+                     {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                      "segment_id": "s1", "room_id": "3"})
+    assert cv["saved"] is True
+    assert bucket["segment_room_links"]["s1"] == "3"
+
+    # custom mode WITH a resolvable layout still writes, into the layout
+    layout_id = "L1"
+    bucket["custom_layouts"] = {layout_id: {"name": "Custom"}}
+    bucket["active_custom_layout_id"] = layout_id
+    bucket["segmentation_mode"] = "custom"
+    custom = await _call(hass, SERVICE_SET_SEGMENT_ROOM_LINK,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "segment_id": "s1", "room_id": "7"})
+    assert custom["saved"] is True
+    assert bucket["custom_layouts"][layout_id]["segment_room_links"]["s1"] == "7"

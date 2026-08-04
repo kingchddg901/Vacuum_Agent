@@ -35,7 +35,9 @@
     "missing_vacuum": "Er is geen stofzuiger geselecteerd voor deze kaart.",
     "empty_scope": "Er zijn geen vloertypen geselecteerd om te vervangen.",
     "no_active_theme": "Deze stofzuiger heeft geen actief thema om bij te werken.",
-    "unknown": "Deze actie is geweigerd ({reason})."
+    "unknown": "Deze actie is geweigerd ({reason}).",
+    "no_active_custom_layout": "Kies of maak een aangepaste indeling voordat je dit opslaat.",
+    "unreadable_image_dimensions": "De afmetingen van de afbeelding konden niet worden gelezen. Exporteer deze opnieuw als PNG."
   },
   "base_station": {
     "action_available": "Actie beschikbaar",

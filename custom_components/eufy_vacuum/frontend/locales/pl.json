@@ -2397,7 +2397,9 @@
     "missing_vacuum": "Dla tej karty nie wybrano odkurzacza.",
     "empty_scope": "Nie wybrano żadnego typu podłogi do zastąpienia.",
     "no_active_theme": "Ten odkurzacz nie ma aktywnego motywu do aktualizacji.",
-    "unknown": "Ta czynność została odrzucona ({reason})."
+    "unknown": "Ta czynność została odrzucona ({reason}).",
+    "no_active_custom_layout": "Wybierz lub utwórz układ niestandardowy przed zapisaniem.",
+    "unreadable_image_dimensions": "Nie udało się odczytać wymiarów obrazu. Spróbuj wyeksportować go ponownie jako PNG."
   },
   "bind_room_editor": {
     "choose_custom_profile_key": "Wybierz niestandardowy klucz profilu:\n\n{choiceText}",

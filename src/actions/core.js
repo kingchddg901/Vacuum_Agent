@@ -17,6 +17,12 @@ const SERVICE_REASON_KEYS = {
   all_selected_rooms_blocked: "service_reasons.all_selected_rooms_blocked",
   vacuum_missing: "service_reasons.vacuum_missing",
   map_mismatch: "service_reasons.map_mismatch",
+  // A4-CUSTOM-2 — set_segment_room_link / set_companion_anchor refuse when custom
+  // mode has no resolvable layout, instead of silently discarding the write.
+  no_active_custom_layout: "service_reasons.no_active_custom_layout",
+  // A3-IMAGE--8 — upload refuses rather than persisting a variant with null
+  // width/height when neither the PNG header nor Pillow could measure it.
+  unreadable_image_dimensions: "service_reasons.unreadable_image_dimensions",
   // Theme library/draft/import refusal codes (CARD-9(2)/(3), RP-034's
   // themes/manager.py — {ok:false, reason} shape, distinct from this file's
   // {success:false, reason} shape but resolved through the same lookup).

@@ -67,6 +67,33 @@ _LOGGER = logging.getLogger(__name__)
 
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
+
+def _png_dimensions(data: bytes) -> tuple[int, int] | None:
+    """(width, height) from a PNG's IHDR header, or None if it isn't readable.
+
+    A3-IMAGE--8. Pillow is an OPTIONAL dependency here (the manifest declares no
+    requirements), so the upload path could not measure an image on a plain
+    install — and its only other source, the caller-declared dimensions, is never
+    populated because the card does not send them. The result was a variant
+    persisted with null width/height.
+
+    No dependency is needed for the common case: the PNG spec fixes IHDR as the
+    first chunk, so width and height sit at bytes 16-24 of any valid PNG. Pillow
+    remains the second source because it is the one that also handles a
+    Pillow-converted non-PNG correctly.
+    """
+    if (
+        len(data) < 24
+        or not data.startswith(_PNG_MAGIC)
+        or data[12:16] != b"IHDR"
+    ):
+        return None
+    width = int.from_bytes(data[16:20], "big")
+    height = int.from_bytes(data[20:24], "big")
+    if width <= 0 or height <= 0:
+        return None
+    return (width, height)
+
 # ---------------------------------------------------------------------------
 # Service names
 # ---------------------------------------------------------------------------
@@ -834,15 +861,41 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
         os.makedirs(base_dir, exist_ok=True)
         with open(file_path, "wb") as fh:
             fh.write(image_bytes)
-        actual_width: int | None = None
-        actual_height: int | None = None
-        try:
-            from PIL import Image as _PILImage
-            with _PILImage.open(file_path) as img:
-                actual_width, actual_height = img.size
-        except Exception:
-            actual_width = declared_width
-            actual_height = declared_height
+        # A3-IMAGE--8: three sources, most reliable first, and NEVER persist nulls.
+        # This used to be Pillow-or-declared. Pillow is genuinely optional
+        # (manifest requirements are empty), and the declared fallback is empty in
+        # practice -- image_width/image_height are optional in the schema and the
+        # card never sends them (zero hits for "image_width" under src/). So on an
+        # install without Pillow BOTH sources were None, and the variant was
+        # persisted with null dimensions, which is the state that then poisons
+        # every consumer downstream.
+        #
+        # IHDR needs no dependency: the PNG spec fixes it as the first chunk, so
+        # the dimensions are at a known offset in the bytes we already hold.
+        actual_width, actual_height = _png_dimensions(image_bytes) or (None, None)
+        if actual_width is None:
+            try:
+                from PIL import Image as _PILImage
+                with _PILImage.open(file_path) as img:
+                    actual_width, actual_height = img.size
+            except Exception:
+                actual_width = declared_width
+                actual_height = declared_height
+
+        if not actual_width or not actual_height:
+            # Refuse, and take the file with us so the store and the filesystem
+            # agree -- a saved PNG whose variant record never lands is a leak.
+            try:
+                os.remove(file_path)
+            except OSError:
+                pass
+            return {
+                "saved": False,
+                "reason": "unreadable_image_dimensions",
+                "variant": variant,
+                "size_bytes": len(image_bytes),
+            }
+
         return {
             "saved": True,
             "path": file_path,
@@ -1572,9 +1625,15 @@ def _migrate_custom_layouts(map_bucket: dict) -> None:
 def _resolve_active_scope(map_bucket: dict) -> dict:
     """Resolve the live segment store / link store / anchor store / backdrop
     variant from (segmentation_mode, active layout). CV → the map-bucket-level
-    keys; custom → the active layout's keys. ``links``/``anchors`` are the real
-    mutable dicts, so the existing 1:1-enforcement and clamp logic is unchanged.
-    Call after ``_migrate_custom_layouts``.
+    keys; custom → the active layout's keys. Call after ``_migrate_custom_layouts``.
+
+    ``links``/``anchors`` are the real mutable dicts ONLY when ``resolved`` is
+    True. A4-CUSTOM-2: the custom-mode-with-no-layout branch has to return
+    something, and it returns fresh throwaway literals bound to nothing. A writer
+    that mutates those is writing into a dict the garbage collector takes on the
+    next line — while reporting ``saved: True``. Every caller that WRITES must
+    check ``resolved`` first; read-only callers can use the empty stores as-is,
+    which is why the shape stays uniform instead of returning None.
     """
     mode = map_bucket.get("segmentation_mode") or "cv"
     if mode == "custom":
@@ -1582,19 +1641,21 @@ def _resolve_active_scope(map_bucket: dict) -> dict:
         if layout is not None:
             return {
                 "mode": "custom",
+                "resolved": True,
                 "layout_id": map_bucket.get("active_custom_layout_id"),
                 "segments_store": layout.setdefault("custom_segments", {}),
                 "links": layout.setdefault("segment_room_links", {}),
                 "anchors": layout.setdefault("companion_anchors", {}),
                 "backdrop_variant": layout.get("backdrop_variant"),
             }
+        # NOT resolved: these four are throwaways. Safe to read, never to write.
         return {
-            "mode": "custom", "layout_id": None,
+            "mode": "custom", "resolved": False, "layout_id": None,
             "segments_store": {}, "links": {}, "anchors": {},
             "backdrop_variant": None,
         }
     return {
-        "mode": "cv", "layout_id": None,
+        "mode": "cv", "resolved": True, "layout_id": None,
         "segments_store": map_bucket.get("image_segments") or {},
         "links": map_bucket.setdefault("segment_room_links", {}),
         "anchors": map_bucket.setdefault("companion_anchors", {}),
@@ -1868,7 +1929,14 @@ async def _handle_set_segment_room_link(
         return {"saved": False, **resolved.refusal}
     map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
-    links: dict = _resolve_active_scope(map_bucket)["links"]
+    # A4-CUSTOM-2: refuse rather than write into a throwaway dict and claim
+    # success. Custom mode with no resolvable layout hands back literals bound to
+    # nothing, so the link was discarded on the next line while the card showed a
+    # saved room label that vanished on the next snapshot.
+    scope = _resolve_active_scope(map_bucket)
+    if not scope["resolved"]:
+        return {"saved": False, "reason": "no_active_custom_layout"}
+    links: dict = scope["links"]
 
     if room_id_raw is None or str(room_id_raw).strip() == "":
         # Clear path.
@@ -1925,7 +1993,12 @@ async def _handle_set_companion_anchor(
         return {"saved": False, **resolved.refusal}
     map_id, map_bucket = resolved.map_id, resolved.map_bucket
     _migrate_custom_layouts(map_bucket)
-    anchors: dict = _resolve_active_scope(map_bucket)["anchors"]
+    # A4-CUSTOM-2: same guard as _handle_set_segment_room_link — a dragged
+    # companion anchor must not report saved into a discarded dict.
+    scope = _resolve_active_scope(map_bucket)
+    if not scope["resolved"]:
+        return {"saved": False, "reason": "no_active_custom_layout"}
+    anchors: dict = scope["anchors"]
 
     if pct_x is None and pct_y is None:
         anchors.pop(room_id, None)

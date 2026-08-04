@@ -2366,7 +2366,9 @@
     "missing_vacuum": "このカードに選択されたロボット掃除機がありません。",
     "empty_scope": "置き換える床タイプが選択されていません。",
     "no_active_theme": "このロボット掃除機には更新するアクティブなテーマがありません。",
-    "unknown": "この操作は拒否されました（{reason}）。"
+    "unknown": "この操作は拒否されました（{reason}）。",
+    "no_active_custom_layout": "保存する前にカスタムレイアウトを選択または作成してください。",
+    "unreadable_image_dimensions": "画像のサイズを読み取れませんでした。PNG として書き出し直してください。"
   },
   "card_editor": {
     "vacuum_label": "ロボット掃除機",
