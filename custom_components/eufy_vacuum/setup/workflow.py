@@ -135,6 +135,56 @@ async def add_vacuum(
 # ---------------------------------------------------------------------------
 
 
+def _no_map_message(
+    hass: HomeAssistant, vacuum_entity_id: str, refresh: dict[str, Any] | None
+) -> str:
+    """Why the map could not be identified, in terms of THIS vacuum's brand.
+
+    ISSUE #46: the old text was one string for every cause and every brand. It
+    told a Roborock owner to go check the Eufy app, and said nothing about the
+    real reason — HA 2026.7 not creating his map-selector entity. Chris's
+    verdict on it ("sit and cry") was fair.
+
+    The refresh result already distinguishes the causes (RP-007/SRC-1 gave it
+    five named exits); this just says which one happened, in the right vocabulary.
+    """
+    from ..adapters.registry import get_adapter_config
+
+    config = get_adapter_config(vacuum_entity_id) or {}
+    brand = str(config.get("brand") or config.get("adapter_id") or "").strip()
+    app = f"{brand} app" if brand else "vacuum's app"
+    reason = (refresh or {}).get("reason")
+
+    if reason == "entity_unavailable":
+        return (
+            f"'{vacuum_entity_id}' did not respond, so its map could not be read. "
+            "The vacuum is usually asleep or off its dock — wake it and try again."
+        )
+    if reason in ("no_maps_service", "not_declared"):
+        return (
+            f"This vacuum's adapter does not declare how to fetch its map list, "
+            f"so '{vacuum_entity_id}' cannot be imported. This is an integration "
+            "bug rather than anything wrong with your setup — please report it."
+        )
+    if reason == "service_call_failed":
+        return (
+            f"Asking '{vacuum_entity_id}' for its maps failed. If the vacuum is "
+            "online and the problem persists, please report it with diagnostics."
+        )
+
+    # Refresh succeeded (or was a no-op) and we still have no anchor. Either the
+    # device reports several maps with no selector to say which is active, or it
+    # has not finished mapping yet.
+    return (
+        f"No map could be identified for '{vacuum_entity_id}'. Make sure it has "
+        f"completed a mapping run with rooms set up in the {app}, then try again. "
+        "If this vacuum reports more than one map, Vacuum Agent needs its "
+        "map-selector entity to know which is active — some Home Assistant "
+        "versions no longer create that entity, in which case please report this "
+        "with diagnostics attached."
+    )
+
+
 async def import_active_map(
     hass: HomeAssistant,
     vacuum_entity_id: str,
@@ -161,19 +211,31 @@ async def import_active_map(
             next_actions=["add_vacuum"],
         )
 
+    # ISSUE #46: FETCH THE ROOM LIST FIRST. This refresh used to sit BELOW the
+    # map-id gate, so the cache that can identify the map was populated only
+    # after the check that needs it. A Roborock on HA 2026.7 — where
+    # core#173282 means the map-selector entity is never created — hit the gate
+    # with an empty cache and was refused at "no map detected", even though its
+    # rooms decoded perfectly. The single-map fallback inside
+    # discover_rooms_for_vacuum could never help either: nothing reached it.
+    #
+    # Safe to hoist: it is a no-op for attribute brands (Eufy) by its own first
+    # branch, and it does not depend on map_id.
+    from ..rooms.source_refresh import async_refresh_room_source
+    refresh = await async_refresh_room_source(hass, vacuum_entity_id)
+
     map_id = get_active_map_id(hass, vacuum_entity_id)
     if not map_id:
         return _result(
             "blocked",
-            (
-                f"No map or room list detected for '{vacuum_entity_id}'. "
-                "Ensure the vacuum is powered on and has completed a mapping run "
-                "with rooms configured in your vacuum app, then try again. "
-                "(Devices on Eufy's reduced transport have no map sensor — the "
-                "room list loads directly from the vacuum and may take a moment "
-                "after startup.)"
-            ),
-            data={"vacuum_entity_id": vacuum_entity_id},
+            _no_map_message(hass, vacuum_entity_id, refresh),
+            data={
+                "vacuum_entity_id": vacuum_entity_id,
+                # The reason the refresh gave, so a support capture says whether
+                # the device was asleep, the adapter misdeclared, or the map is
+                # genuinely ambiguous — instead of one message for all three.
+                "room_source_refresh": refresh,
+            },
         )
 
     existing_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
@@ -190,12 +252,6 @@ async def import_active_map(
             },
             next_actions=["configure_rooms"],
         )
-
-    # Service-response brands (Roborock: rooms live in the get_maps response, not
-    # an entity attribute) need the source cache refreshed before the sync
-    # discovery reads it. No-op for attribute brands (Eufy).
-    from ..rooms.source_refresh import async_refresh_room_source
-    await async_refresh_room_source(hass, vacuum_entity_id)
 
     rooms = discover_rooms_for_vacuum(
         hass,

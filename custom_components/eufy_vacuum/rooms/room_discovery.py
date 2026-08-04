@@ -87,7 +87,10 @@ def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
             "implicit attribute map", active_map_entity, vacuum_entity_id,
         )
 
-    return _implicit_attribute_map_id(hass, vacuum_entity_id, config)
+    implicit = _implicit_attribute_map_id(hass, vacuum_entity_id, config)
+    if implicit is not None:
+        return implicit
+    return _single_cached_map_id(hass, vacuum_entity_id, config)
 
 
 def _entity_registered(hass: HomeAssistant, entity_id: str) -> bool:
@@ -101,6 +104,53 @@ def _entity_registered(hass: HomeAssistant, entity_id: str) -> bool:
         return er.async_get(hass).async_get(entity_id) is not None
     except Exception:  # pragma: no cover - defensive
         return False
+
+
+def _single_cached_map_id(
+    hass: HomeAssistant, vacuum_entity_id: str, config: dict | None
+) -> str | None:
+    """The one map's id for a service-response brand that reports exactly one map.
+
+    ISSUE #46. HA 2026.7 changed how the core Roborock integration decides which
+    entities to create (home-assistant/core#173282), and on some devices the
+    map-selector entity is no longer created AT ALL. `entities.active_map` is a
+    NAMING declaration, so the adapter still names it and every branch above
+    returns None: not in the state machine, not in the registry, and the implicit
+    fallback is attribute-source-only. Map import then refused at "no map
+    detected" while the device's rooms decoded perfectly — the room list was
+    never the problem, the anchor was.
+
+    A vacuum with exactly ONE map does not need a selector to say which map is
+    active; there is only one answer, and the cached room source is already keyed
+    by it. So take that key.
+
+    Deliberately narrow, because the cost of guessing wrong here is serving one
+    map's rooms under another's id — the exact bug RP-019/ID-2 guards in
+    discover_rooms_for_vacuum:
+      * ONLY when the cache holds exactly one map. Two or more and the selector
+        genuinely carried information we no longer have, so we return None and
+        the caller reports honestly rather than picking a map.
+      * ONLY for a service-response source. Attribute brands have their own
+        implicit path above and must not reach this one.
+      * The map must actually carry rooms — an empty list anchors nothing.
+    """
+    discovery = (config or {}).get("discovery", {}) or {}
+    if discovery.get("source") != SOURCE_SERVICE_RESPONSE:
+        return None
+    per_map = get_cached_room_source(hass, vacuum_entity_id)
+    if not isinstance(per_map, dict) or len(per_map) != 1:
+        return None
+    map_id, segments = next(iter(per_map.items()))
+    if not isinstance(segments, list) or not any(
+        isinstance(row, dict) for row in segments
+    ):
+        return None
+    _LOGGER.debug(
+        "No active-map entity for %s; the cached room source holds exactly one "
+        "map (%s) with rooms — using it as the anchor (issue #46)",
+        vacuum_entity_id, map_id,
+    )
+    return str(map_id)
 
 
 def _implicit_attribute_map_id(

@@ -229,6 +229,103 @@ async def test_import_active_map_service_response(hass, manager, _no_panel):
     assert {r["name"] for r in rooms.values()} == {"KITCHEN", "Dining Room"}
 
 
+async def test_import_active_map_without_map_selector_entity(hass, manager, _no_panel):
+    """[SW-9c] ISSUE #46 — a single-map Roborock whose map-selector entity was
+    never created still imports.
+
+    HA 2026.7 (core#173282) changed how the core Roborock integration decides
+    which entities to create; on loryanstrant's Q5 `select.<vac>_selected_map`
+    is not created at all. `entities.active_map` is a NAMING declaration, so the
+    adapter still names an entity that does not exist, every branch of
+    get_active_map_id returns None, and import refused at "no map detected"
+    while the device's 12 rooms decoded perfectly.
+
+    Two things had to change together. The refresh that populates the get_maps
+    cache used to run BELOW the map-id gate, so the cache that identifies the
+    map was filled only after the check that needs it — the fallback could never
+    be reached. And the resolver had no single-map inference for
+    service-response brands (the existing implicit path is attribute-only).
+
+    NOTE the select is never registered here: `hass.states.async_set` for it is
+    deliberately absent, which is exactly the Q5's state.
+    """
+    from homeassistant.core import SupportsResponse
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        # declared, as the adapter always does — but never created by HA
+        "entities": {"active_map": "select.alfred_selected_map"},
+        "discovery": {
+            "source": "service_response",
+            "maps_service": {"domain": "roborock", "service": "get_maps"},
+            "maps_rooms_key": "rooms", "map_name_key": "name",
+            "room_id_key": "segment_id", "room_name_key": "name",
+        },
+    })
+
+    async def _get_maps(call):
+        return {_VAC: {"maps": [{"flag": 0, "name": "Upstairs",
+                                 "rooms": {"16": "KITCHEN", "17": "Dining Room"}}]}}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY,
+    )
+    hass.states.async_set(_VAC, "docked")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+
+    assert result["status"] == "success", result["message"]
+    assert result["data"]["map_id"] == "Upstairs"
+    assert result["data"]["room_count"] == 2
+    rooms = manager.data["maps"][_VAC]["Upstairs"]["rooms"]
+    assert {r["name"] for r in rooms.values()} == {"KITCHEN", "Dining Room"}
+
+
+async def test_import_refuses_when_several_maps_and_no_selector(hass, manager, _no_panel):
+    """[SW-9c] The other side of #46: inference is for ONE map only.
+
+    With two maps and no selector, the selector genuinely carried information we
+    no longer have. Picking one would serve one map's rooms under another's id —
+    the bug RP-019/ID-2 guards. It must refuse, and the refusal must NOT tell a
+    Roborock owner to go and check the Eufy app.
+    """
+    from homeassistant.core import SupportsResponse
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code", "brand": "Roborock",
+        "entities": {"active_map": "select.alfred_selected_map"},
+        "discovery": {
+            "source": "service_response",
+            "maps_service": {"domain": "roborock", "service": "get_maps"},
+            "maps_rooms_key": "rooms", "map_name_key": "name",
+            "room_id_key": "segment_id", "room_name_key": "name",
+        },
+    })
+
+    async def _get_maps(call):
+        return {_VAC: {"maps": [
+            {"flag": 0, "name": "Upstairs", "rooms": {"16": "KITCHEN"}},
+            {"flag": 1, "name": "Downstairs", "rooms": {"21": "Den"}},
+        ]}}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY,
+    )
+    hass.states.async_set(_VAC, "docked")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+
+    assert result["status"] == "blocked"
+    assert "Eufy" not in result["message"], (
+        "the refusal must be brand-aware — issue #46's reporter is a Roborock owner"
+    )
+    # and it carries the refresh outcome so a support capture can tell the
+    # causes apart instead of guessing from one generic string
+    assert "room_source_refresh" in result["data"]
+
+
 # ---------------------------------------------------------------------------
 # [SW-10] — [SW-12] delete_map protection gating
 # ---------------------------------------------------------------------------
