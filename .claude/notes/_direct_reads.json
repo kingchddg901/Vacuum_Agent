@@ -726,5 +726,27 @@
   "line": 939,
   "title": "total_error_seconds is subtracted from cleaning_time_seconds with no notion of WHOSE fault it was, so a station fault raised while the robot cleaned normally is charged against the robot's cleaning time",
   "impact": "Found by LIVE OBSERVATION, not by an audit -- which is why it had no corpus row until 2026-08-04 and RP-046 could never credit (its finding_id 'live:DOCK-1' resolved to nothing, so the packet was structurally uncloseable AND the finding rendered nowhere as open: invisible in both directions). Evidence: alfred job_2026-08-01T23-23-35, archived in _frozen/baseline/. The robot cleaned the kitchen for 360 s, covered 4.0 m2, drew 3% battery and used 30.8 ml of mop water. The record says it cleaned for ZERO seconds: cleaning_time_seconds_raw 360, total_error_seconds 455, cleaning_time_seconds max(0, 360-455) = 0. Five faults, all code 6013 STATION CLEAN WATER PUMP SHORT, at job-elapsed 72/83/478/486/525 s -- the station's clean-water pump complained while the robot worked through it. used_for_learning was TRUE, so the model learned that 4 m2 takes no time. PARTLY FIXED since: the evidence axis (invalidating/safe/unclassified) now gates the subtraction and is reported as error_seconds_by_evidence. The SOURCE axis (dock/robot/unknown) is still unwired -- eufy_error_source() exists in adapters/eufy/vocabulary.py:515 with ZERO callers -- so a user cannot see that 455 s of fault came from their dock rather than their robot."
+ },
+ {
+  "run": "live",
+  "id": "ENT-1",
+  "sev": "HIGH",
+  "orig": "HIGH",
+  "brands": "eufy",
+  "file": "adapters/eufy/entities.py",
+  "line": 119,
+  "title": "Companion entities are resolved by deriving a name from the vacuum entity id, with no device-registry lookup and no fallback — a device whose entities are named differently reports EVERY capability as absent, silently",
+  "impact": "build_entity_id does string surgery: vacuum_entity_id.split('.')[-1] + suffix. There is no registry lookup, no fallback, and no signal when a derived name does not exist — the capability is simply reported absent. PROVEN INCOMPLETE ON THE MAINTAINER'S OWN INSTALL (2026-08-04): all 65 robovac_mqtt entities share a device_id with vacuum.alfred, and at least three are AREA-PREFIXED and therefore underivable — camera.dining_room_alfred_map, select.dining_room_alfred_switch_map, sensor.dining_room_alfred_total_cleaning_area. It goes unnoticed only because the adapter does not currently declare those particular entities. Suspected live impact, issue #48 (ptruman, X10 Pro Omni, vacuum.robovac_x10_pro_omni): ALL TEN declared companions resolved to exists=False, so the install was classified as reduced/scalar transport and reported supports_water_control False and supports_mop_features False on a machine that has both — while the user could see a water level entity in Developer Tools. Not confirmed as the cause there (a genuine reduced transport produces the same diagnostics, which is DIAG-1), but the derivation is defective independently of that. FIX SHAPE: resolve through the entity registry by device_id, keep the derived name as a fallback. Wants care — device-scoped matching must still pick the right entity when a device exposes two plausible candidates, and it changes resolution for every Eufy install."
+ },
+ {
+  "run": "live",
+  "id": "DIAG-1",
+  "sev": "MEDIUM",
+  "orig": "MEDIUM",
+  "brands": "both",
+  "file": "diagnostics.py",
+  "line": 0,
+  "title": "entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'",
+  "impact": "The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the demonstration: ten entities at exists=False could mean a reduced-transport device (nothing to fix) or a resolution failure (ENT-1, affecting anyone whose entity naming differs) — and answering it required going back to the user for entity ids the diagnostics could have carried. FIX: alongside entity_resolution, list the entities sharing a device_id with the vacuum entity. Cheap, no behaviour change, and it makes the NEXT report of this class self-diagnosing instead of costing a round trip."
  }
 ]

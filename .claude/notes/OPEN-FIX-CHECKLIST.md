@@ -11,8 +11,8 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
 | Fixes APPLIED (landed packets) | **455** findings via 60 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **27** -- 2 open clusters (27 fully applied) + 25 singles |
-| By severity | CRITICAL 0 / HIGH 2 / MEDIUM 12 / LOW 13 |
+| Open findings | **29** -- 2 open clusters (27 fully applied) + 27 singles |
+| By severity | CRITICAL 0 / HIGH 3 / MEDIUM 13 / LOW 13 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
@@ -272,7 +272,13 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### MEDIUM (12)
+### HIGH (1)
+
+- [ ] **ENT-1** `adapters/eufy/entities.py:119` [eufy]  
+  Companion entities are resolved by deriving a name from the vacuum entity id, with no device-registry lookup and no fallback — a device whose entities are named differently reports EVERY capability as absent, silently  
+  -> build_entity_id does string surgery: vacuum_entity_id.split('.')[-1] + suffix. There is no registry lookup, no fallback, and no signal when a derived name does not exist — the capability is simply reported absent. PROVEN
+
+### MEDIUM (13)
 
 - [ ] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
@@ -280,6 +286,9 @@ audit is a snapshot, not a ledger.
 - [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   -> A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
+- [ ] **DIAG-1** `diagnostics.py:0` [both]  
+  entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'  
+  -> The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the
 - [ ] **A4-CUSTOM-2** `mapping/mapping_services.py:1550` [Both (Eufy + Roborock). The card path additionally needs a live map source present (mss.present) for the dock-mascot fallback, which is the normal Eufy fork configuration.] _(finder said HIGH)_  
   In custom mode with no resolvable layout, _resolve_active_scope hands writers THROWAWAY dicts — set_companion_anchor / set_segment_room_link mutate a garbage-collected object and report saved: True  
   -> The mascot visibly stays where the user parked it for the rest of the session (the card never refetches after an anchor write) and silently snaps back on the next page load — repeatedly, with no error and no way for the
