@@ -123,7 +123,26 @@ diffed against the actual source tree, with every exclusion named.
 
 - Doc-vs-source sweep across ALL updated docs/dev (the reusable drift-audit pattern:
   fan-out audit → verify → by-doc fix → mkdocs --strict). Runs AFTER the doc update, can be its
-  own cheap session.
+  own cheap session. Scope now includes `docs/user-guide/` (delta 9) and `docs/advanced/`.
+
+  **`docs/advanced/` is a SCRIPT, not a reading pass.** It is the contract surface — service
+  parameters, event names, and 700+ lines of automation YAML users copy verbatim — and it is
+  structurally diffable: `03-services.md` heads each section with the literal service name over
+  a `| Parameter |` table, `02-events.md` heads each with the literal event name, and the
+  examples are executable. `.claude/notes/_check_advanced_doc_drift.py` checks all four in about
+  a second and exits 1 on a BREAK. Do NOT spend agent time reading these 4,495 lines; run the
+  script. Measured 2026-08-03: **0 breaks** — nothing documented is missing or misnamed, so no
+  user can copy a snippet and hit "service not found".
+
+  **FOR THE DOC PASS — the 10 open GAPS (real, undocumented, none user-breaking):**
+  - no section in `03-services.md`: `acknowledge_map_frame`, `add_queue_zone`, `battery_rebaseline`
+  - parameter accepted but never mentioned in its section: `delete_room_profile.force`,
+    `get_learning_history_snapshot.origin`, `reconcile_room.force`, `reconcile_room.plan_token`,
+    `save_managed_rooms.floor_types`, `set_custom_segments.layout_id`
+  - fired but undocumented event: `eufy_vacuum_boundary_saved`
+  Re-run the script after the doc pass; it should report 0/0. Ten services are exempt from GAPS
+  by design (flight-recorder tooling, and the queue-break surface while Phased Jobs is rebuilt) —
+  that list lives in the script and is the thing to revisit if either decision changes.
 - Battery/charge family re-read once RP-043..045 land (1 agent; the family was found by live
   observation, not audit — a known blind spot to re-check).
 - Per-map store registry (RP-016) + its consumers — new infrastructure since #1.
