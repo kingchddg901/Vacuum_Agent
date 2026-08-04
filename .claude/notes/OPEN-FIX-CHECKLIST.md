@@ -1,5 +1,23 @@
 # OPEN FIX CHECKLIST -- hostile audit campaign
 
+> **RECONCILED 2026-08-04.** The unchecked list had drifted badly: of 27 entries,
+> **17 were already landed** and simply never ticked — most inside RP-035 (the
+> sensor/entity platform batch) and the RP-023 access-graph work. Verified by
+> in-code fix markers whose comments describe the change in the past tense, not
+> the problem. Ticked above.
+>
+> The count over-reported open work by ~2.5x, which is the inverse of the usual
+> failure: an unaudited scope yields no findings and reads clean, but a stale
+> LEDGER yields phantom findings and reads busy. Both are answered the same way —
+> check the code, not the count.
+>
+> Genuinely open after the sweep: **EP-5**, **DQ-ACT-6**, **A7-ROBORO-4**,
+> **DR-ONB-2**, **A5-PP-RP-2** (verify each — no in-code marker, which is
+> evidence but not proof); **A2-POLYGO-6/-7** (docstring accuracy, no runtime
+> defect); **A4-SETUP-6** (deferred by decision, fix shape recorded in the
+> adjudication); **ENT-1** / **DIAG-1** (banked for the next release).
+
+
 Durable ledger of every finding NOT yet applied. Generated from the audit JSON, not from
 recollection. **This file lives in git-ignored `.claude/notes/` -- it does not survive a
 machine loss.** Copy it somewhere backed up if that matters to you.
@@ -280,7 +298,7 @@ audit is a snapshot, not a ledger.
 
 ### MEDIUM (13)
 
-- [ ] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
+- [x] **A6-AGX-2** `core/manager.py:1374` [both] _(finder said HIGH)_  
   The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with "The requested access links would make the graph invalid."  
   -> After a Roborock re-segment + migrate, the user can no longer change ANY room setting on that map — changing a room's fan speed or disabling a room fails with an error claiming they requested illegal access links, which
 - [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
@@ -289,13 +307,13 @@ audit is a snapshot, not a ledger.
 - [ ] **DIAG-1** `diagnostics.py:0` [both]  
   entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'  
   -> The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the
-- [ ] **A4-CUSTOM-2** `mapping/mapping_services.py:1550` [Both (Eufy + Roborock). The card path additionally needs a live map source present (mss.present) for the dock-mascot fallback, which is the normal Eufy fork configuration.] _(finder said HIGH)_  
+- [x] **A4-CUSTOM-2** `mapping/mapping_services.py:1550` [Both (Eufy + Roborock). The card path additionally needs a live map source present (mss.present) for the dock-mascot fallback, which is the normal Eufy fork configuration.] _(finder said HIGH)_  
   In custom mode with no resolvable layout, _resolve_active_scope hands writers THROWAWAY dicts — set_companion_anchor / set_segment_room_link mutate a garbage-collected object and report saved: True  
   -> The mascot visibly stays where the user parked it for the rest of the session (the card never refetches after an anchor write) and silently snaps back on the next page load — repeatedly, with no error and no way for the
 - [ ] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
   ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
   -> IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
-- [ ] **DR-ONB-1** `onboarding/manager.py:182` [both]  
+- [x] **DR-ONB-1** `onboarding/manager.py:182` [both]  
   remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap  
   -> PROVEN by execution. The loop pops str(old_id) and writes str(new_id) into the SAME dict it is iterating over, so a new_id that is also a later old_id consumes the entry just written. Measured: id_remap={1:2, 2:3, 3:4} w
 - [ ] **DR-ONB-2** `onboarding/manager.py:186` [both]  
@@ -304,19 +322,19 @@ audit is a snapshot, not a ledger.
 - [ ] **A5-PP-RP-2** `planning/run_plan.py:1379` [both] _(finder said HIGH)_  
   Any plan whose FIRST surviving phase is a zone is refused with "Room-clean payload is missing or invalid" — and a live blocker rule can push a plan into that state  
   -> A saved run that worked yesterday becomes unstartable the moment a door/occupancy sensor blocks the rooms in its first group — with an error that blames a corrupt payload rather than naming the blocked room. The rest of
-- [ ] **A6-AGX-4** `rooms/access_graph.py:364` [both]  
+- [x] **A6-AGX-4** `rooms/access_graph.py:364` [both]  
   Every access-graph issue message is a hard-coded English literal and is rendered verbatim in the card on all 18 shipped locales  
   -> On any non-English install the room-access modal's issue list and its save-error banner are English, including for AR/HE where they are injected into an RTL layout. This is the one place in the access feature where the u
-- [ ] **A6-AGX-1** `rooms/access_graph.py:651` [both] _(finder said HIGH)_  
+- [x] **A6-AGX-1** `rooms/access_graph.py:651` [both] _(finder said HIGH)_  
   get_access_graph_health emits no verdict — the "runs are allowed" empty graph and the "every run is blocked" partial graph are indistinguishable, and the report's own remediation moves the user from the first into the second  
   -> The one service documented as the access-graph diagnostic cannot answer the only question that matters — "are my runs blocked right now?". Following its single actionable instruction on a fresh map (mark a dock room) sil
-- [ ] **A5-AG-2** `rooms/access_graph.py:770` [both]  
+- [x] **A5-AG-2** `rooms/access_graph.py:770` [both]  
   A room with no inbound edge makes the whole graph 'partial', hard-blocking every run on the map, and no shipped surface names the offending room  
   -> After a map rebuild that discovers even one new room, every Start on that map is refused with 'Room access graph is partially configured. Complete it or clear all access settings to allow basic runs.' — a message that na
-- [ ] **SN-4** `sensor/__init__.py:272` [both]  
+- [x] **SN-4** `sensor/__init__.py:272` [both]  
   Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
   -> VERIFIED: async_update_entity has ZERO occurrences anywhere in the integration. Both sync blocks construct a fresh entity per desired room and then discard it when the unique_id is already known, pushing only a state wri
-- [ ] **A6-AGX-6** `src/state/room-access.js:85` [both]  
+- [x] **A6-AGX-6** `src/state/room-access.js:85` [both]  
   The card's access modal renders an existing edge into the dock room as "Missing Room N" — an edge that exists is displayed as a stale reference to a room that does not  
   -> The editor misrepresents the stored graph: a live room is labelled missing/stale, inviting the user to delete a valid edge. Conversely they cannot re-create it, because the dock room is filtered out of the selectable lis
 
@@ -325,16 +343,16 @@ audit is a snapshot, not a ledger.
 - [ ] **EP-5** `button.py:256` [both]  
   The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
   -> Every other entity class in scope declares _attr_translation_key and lets HA resolve the name from strings.json. EufyVacuumSavedRunProfileButton sets _attr_has_entity_name = True, declares NO translation key, and overrid
-- [ ] **INF-9** `entity_helpers.py:109` [both]  
+- [x] **INF-9** `entity_helpers.py:109` [both]  
   get_floor_type_label emits hardcoded English into an 18-language product  
   -> Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
-- [ ] **A3-IMAGE--8** `mapping/mapping_services.py:910` [Both; depends on whether Pillow is importable on the host.]  
+- [x] **A3-IMAGE--8** `mapping/mapping_services.py:910` [Both; depends on whether Pillow is importable on the host.]  
   Upload persists width/height as None when Pillow is unavailable and still reports saved:True  
   -> On a Pillow-less install a successful upload is recorded in a state that makes custom-segment authoring report a missing backdrop, and the variant row displays null dimensions. Confined to installs without Pillow, and th
-- [ ] **A3-IMAGE--4** `mapping/mapping_services.py:933` [Both.] _(finder said MEDIUM)_  
+- [x] **A3-IMAGE--4** `mapping/mapping_services.py:933` [Both.] _(finder said MEDIUM)_  
   Re-uploading a map image does not invalidate image_segments, so a default analyze returns the previous image's segments  
   -> An automation or script that uploads a refreshed map export and analyzes it gets the previous map's room geometry back with a success-shaped response and no staleness signal. The card path is immune (it always passes for
-- [ ] **A5-FURNIS-4** `mapping/mapping_services.py:2162` [both] _(finder said MEDIUM)_  
+- [x] **A5-FURNIS-4** `mapping/mapping_services.py:2162` [both] _(finder said MEDIUM)_  
   area_label_anchors are keyed by device room id and nothing prunes them on a room rebuild, so a re-import silently re-aims one room's dragged label onto a different room  
   -> This is the direct answer to 'does the edit survive a re-import?': the bytes survive, their meaning does not, and nothing detects it. Cosmetic in consequence (a mis-placed m² chip, not a mis-cleaned room) but silently wr
 - [ ] **A2-POLYGO-6** `mapping/segment_primitives.py:342` [Neither at runtime (Eufy CV thresholds are empirically tuned); affects future adapter authors, which is exactly this module's advertised audience]  
@@ -343,19 +361,19 @@ audit is a snapshot, not a ledger.
 - [ ] **A2-POLYGO-7** `mapping/segment_primitives.py:526` [Neither at runtime (Eufy CV only, thresholds empirically tuned); affects future adapter authors]  
   `normalized_color_features`' luminance normalisation provably cancels out - the Rec.709 weights are dead arithmetic and tuning them changes nothing  
   -> No behavioural defect - the output is correct chromaticity and segmentor.py's hue clustering is tuned against it. The trap is for maintenance: the docstring says 'illumination-normalized chromaticity features' and the co
-- [ ] **EP-4** `number.py:7` [both]  
+- [x] **EP-4** `number.py:7` [both]  
   Module comment asserts 'no polling'; the one class that polls is the one relying on it  
   -> The comment `# All number entities write directly to manager storage; no polling.` sits above PARALLEL_UPDATES = 0. Verified as a claim: NumberEntity, unlike ButtonEntity, does NOT set _attr_should_poll = False, and Eufy
-- [ ] **EP-7** `room_entities.py:87` [both]  
+- [x] **EP-7** `room_entities.py:87` [both]  
   _async_update_room silently drops non-managed keys from a mixed update  
   -> Branch 2 filters `updates` to a hand-maintained managed_field_names set and, if ANY managed key is present, routes only that subset to update_room_fields and RETURNS -- so every non-managed key in the same call is discar
-- [ ] **A6-AGX-3** `rooms/access_graph.py:559` [both] _(finder said MEDIUM)_  
+- [x] **A6-AGX-3** `rooms/access_graph.py:559` [both] _(finder said MEDIUM)_  
   get_room_access_editor marks every unselected target unselectable when the graph is already broken elsewhere, with the contentless reason "Not selectable due to graph legality."  
   -> A consumer of the documented editor service sees every link greyed out with a message that explains nothing and blames the edge being offered rather than the pre-existing violation. The user cannot tell what to fix; the
-- [ ] **A6-AGX-5** `rooms/access_graph.py:613` [both] _(finder said MEDIUM)_  
+- [x] **A6-AGX-5** `rooms/access_graph.py:613` [both] _(finder said MEDIUM)_  
   The per-room editor's issue list drops graph-scoped issues, so it reports a room as problem-free on a map whose graph is invalid and blocking runs  
   -> The per-room diagnostic reports a clean bill of health for a room on a map where cleaning is blocked, and never surfaces the one issue ("no dock room") that is causing it. The user auditing rooms one at a time will find
-- [ ] **SN-9** `sensor/map_overlays.py:76` [both]  
+- [x] **SN-9** `sensor/map_overlays.py:76` [both]  
   native_value returns the literal string 'unavailable', colliding with HA's reserved state  
   -> VERIFIED AT SOURCE: `if not res.get('present'): return 'unavailable'`. That is indistinguishable in hass.states, templates, is_state() and the frontend from an entity that is genuinely unavailable, while the real diagnos
 - [ ] **A4-SETUP-6** `services/setup.py:243` [both] _(finder said HIGH)_  
