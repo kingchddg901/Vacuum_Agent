@@ -280,9 +280,23 @@ def _room_surface_labels(
     *,
     floor_type: Any = None,
 ) -> dict[str, Any]:
-    """Return reusable room floor display labels."""
+    """Return the room floor surface fields: the stable CODE and its label.
+
+    INF-9. This used to emit ``floor_type_label`` ALONE — an English string built
+    by ``get_floor_type_label`` ("Marble / Natural Stone") with no machine value
+    beside it. On the start-plan payload that is the only floor information a
+    consumer gets (``run_plan.py``'s ``room_entry`` carries no ``floor_type``),
+    so an automation had to string-match English prose to branch on a floor, and
+    no locale could translate it because the code it would key on never arrived.
+
+    The label STAYS: it is the documented response-service surface, and it is the
+    fallback for any consumer that meets a value this release has not keyed —
+    the same contract ``message`` holds for access-graph issues (A6-AGX-4) and
+    start refusals (A5-AG-2). What changes is that the code now travels with it.
+    """
     floor_value = str(floor_type or "").strip().lower() or None
     return {
+        "floor_type": floor_value,
         "floor_type_label": get_floor_type_label(floor_value) if floor_value else None,
     }
 

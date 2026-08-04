@@ -19,6 +19,8 @@ Coverage targets
 [RPM-9]  _build_blocked_room_entry / _build_modified_room_entry canonical shape.
 [RPM-10] _confirmation_token_for_preflight deterministic + 12 hex chars.
 [RPM-11] _update_room_rule_status_snapshot delegates to the manager.
+[RPM-12] INF-9: the floor_type CODE travels with its English label on the
+         estimate's room rows, so a consumer can branch and a locale translate.
 """
 
 from __future__ import annotations
@@ -376,3 +378,56 @@ def test_update_room_rule_status_snapshot_delegates(rpm):
     mgr._update_room_rule_status_snapshot.assert_called_once()
     kwargs = mgr._update_room_rule_status_snapshot.call_args.kwargs
     assert kwargs["vacuum_entity_id"] == _VAC and kwargs["map_id"] == "6"
+
+
+def test_floor_type_code_travels_with_its_label(rpm, hass):
+    """[RPM-12] INF-9: the estimate's room rows carry the CODE, not just prose.
+
+    These rows used to carry `floor_type_label` ALONE — "Marble / Natural Stone",
+    an English string built by get_floor_type_label — with no machine value
+    beside it. It is the only floor information on this payload, so an automation
+    had to string-match English to branch on a floor, and no locale could
+    translate it because the code it would key on never arrived.
+
+    The label stays: it is the documented response surface and the fallback for a
+    value this release has not keyed — the contract `message` holds for
+    access-graph issues (A6-AGX-4) and start refusals (A5-AG-2).
+    """
+    rm, mgr = rpm
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "water_model_configs": {
+            "X8": {
+                "model_name": "X8 Pro",
+                "robot_internal_tank_ml": 80,
+                "dock_clean_tank_capacity_ml": 4000,
+                "dock_wash_overhead_ml_per_cycle": 100,
+                "water_rates": _EUFY_RATES,
+            },
+        },
+        "entities": {"water_level": "sensor.alfred_water"},
+    })
+    mgr._get_upkeep_model_meta.return_value = {"code": "X8", "name": "X8 Pro"}
+    mgr.get_vacuum_capabilities.return_value = {
+        "entities": {"water_level": "sensor.alfred_water"}}
+    hass.states.async_set("sensor.alfred_water", "75")
+
+    out = rm.estimate_job_water_usage(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[
+            {"room_id": 1, "name": "Kitchen", "clean_mode": "vacuum_mop",
+             "water_level": "high", "floor_type": "marble"},
+            {"room_id": 2, "name": "Den", "clean_mode": "vacuum",
+             "water_level": "off", "floor_type": "carpet_high_pile"},
+            {"room_id": 3, "name": "Nook", "clean_mode": "vacuum",
+             "water_level": "off"},                       # no floor type at all
+        ],
+        room_timeline=[{"room_id": 1, "minutes": 10}],
+    )
+    rooms = out["rooms"]
+
+    assert [r["floor_type"] for r in rooms] == ["marble", "carpet_high_pile", None]
+    assert rooms[0]["floor_type_label"] == "Marble / Natural Stone"
+    # A room with no floor type reports null on BOTH — never a stray label with
+    # nothing behind it, which is the shape this finding was about.
+    assert rooms[2]["floor_type_label"] is None
