@@ -3604,6 +3604,7 @@ debug_capture_start:
             - learning
             - setup
             - themes
+            - decisions
     services:
       name: Trace services
       description: >

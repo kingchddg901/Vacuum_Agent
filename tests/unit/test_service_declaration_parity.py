@@ -7,7 +7,7 @@ walking the real registration code (AST) and cross-checks it against
 services.yaml and each schema's own field set. A service or field added later
 is caught automatically -- nobody has to remember to update a checklist.
 
-Four assertions, each independent:
+Five assertions, each independent:
   1. every hass.services.async_register(...) call has a schema (not None).
   2. every registered service has a services.yaml entry OR is on the
      INTERNAL_SERVICES allowlist below (checked in, one comment per entry --
@@ -17,6 +17,9 @@ Four assertions, each independent:
      schema accepts a field yaml never mentions).
   4. no dead schemas: a module-level `vol.Schema(...)`/`vol.All(...)` constant
      defined but never referenced anywhere in its own file.
+  5. the debug-capture `areas` selector in services.yaml matches EUFY_AREAS —
+     the same list written twice, where drift silently makes an area either
+     unselectable or rejected on use.
 
 THE INTERNAL_SERVICES RULE (Chris, 2026-08-02 -- the no_yaml_entry ruling in
 .claude/notes/synthesis/SYNTH-10-packets-wave6.md; centralizing the QUESTION,
@@ -561,3 +564,38 @@ def _collect_all_failure_keys() -> set[tuple[str, str]]:
         keys.add(("dead_schema", f"{file}::{name}"))
 
     return keys
+
+
+def test_debug_capture_area_options_match_configured_areas():
+    """5. the areas SELECTOR in services.yaml lists exactly the areas the
+    recorder actually knows about.
+
+    The same list is written twice — once as EUFY_AREAS (which _resolve_areas
+    validates against, raising on an unknown name) and once as the services.yaml
+    select options (which is all the UI ever offers). Drift is silent in both
+    directions and each direction is its own failure:
+
+      yaml-only  -> the UI offers an area that _resolve_areas REJECTS, so
+                    starting a capture fails with a validation error.
+      code-only  -> an area exists but nothing can select it, so the loggers it
+                    scopes are reachable ONLY by selecting no area at all and
+                    taking the whole tree. That is exactly how `decisions`
+                    (the decision_log scope, where the issue #46 observation
+                    trace lands) was unreachable from the UI.
+
+    Not a checklist: it derives both sides and diffs them, so a future area is
+    covered without anyone remembering this test exists.
+    """
+    from custom_components.eufy_vacuum.services.debug import EUFY_AREAS
+
+    options = (
+        _load_services_yaml()["debug_capture_start"]["fields"]["areas"]
+        ["selector"]["select"]["options"]
+    )
+    yaml_only = sorted(set(options) - set(EUFY_AREAS))
+    code_only = sorted(set(EUFY_AREAS) - set(options))
+    assert not yaml_only and not code_only, (
+        "services.yaml areas selector has drifted from EUFY_AREAS — "
+        f"offered but unknown to the recorder: {yaml_only or 'none'}; "
+        f"known but not offered: {code_only or 'none'}"
+    )
