@@ -44,6 +44,7 @@ from ..queue.queue_engine import (
     phased_job_id_for,
 )
 from ..queue.dispatch_engines import get_dispatch_engine
+from ..rooms.access_graph import structural_issue_key
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
 from ..timestamp_utils import parse_timestamp, utc_now_iso
@@ -1626,13 +1627,40 @@ class EufyVacuumManager:
         updated_room = self._finalize_room_update({**room, **updates})
 
         previous_room = dict(room)
+
+        # A6-AGX-2: reject what this edit BREAKS, not what the graph already
+        # carried. The check below validates the whole post-edit graph and used to
+        # refuse on any structural issue at all, so a violation that was already
+        # stored blocked edits with nothing to do with it — a fan-speed change, an
+        # enable toggle, a colour. Such a violation can genuinely pre-exist:
+        # reconciliation rewrites grants through an id remap and de-dupes only
+        # WITHIN one room's list, never re-checking the cross-room single-inbound
+        # constraint.
+        #
+        # Baseline is captured BEFORE the mutation, from the same validator, so the
+        # two sides are directly comparable.
+        baseline_keys = {
+            structural_issue_key(issue)
+            for issue in self._structural_access_graph_issues(
+                self._validate_room_access_graph(managed_rooms=rooms)
+            )
+        }
+
         rooms[room_key] = updated_room
 
         validation = self._validate_room_access_graph(managed_rooms=rooms)
 
         structural_issues = self._structural_access_graph_issues(validation)
+        # Only violations this edit INTRODUCED. A genuinely new one has a fresh
+        # key, so the gate still catches it — including "made an existing one
+        # worse", because source_room_ids/rooms are part of the key.
+        new_structural_issues = [
+            issue for issue in structural_issues
+            if structural_issue_key(issue) not in baseline_keys
+        ]
 
-        if structural_issues:
+        if new_structural_issues:
+            # The rollback stays: a rejected edit must still restore previous_room.
             rooms[room_key] = previous_room
             room_names = {
                 _safe_int(item.get("room_id", key), -1): str(item.get("name", f"Room {_safe_int(item.get('room_id', key), -1)}")).strip() or f"Room {_safe_int(item.get('room_id', key), -1)}"
@@ -1650,7 +1678,7 @@ class EufyVacuumManager:
                 "reason_detail": "The requested access links would make the graph invalid.",
                 "issues": [
                     self._format_access_graph_issue(issue=issue, room_names=room_names)
-                    for issue in structural_issues
+                    for issue in new_structural_issues
                 ],
             }
 

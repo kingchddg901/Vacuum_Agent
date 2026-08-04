@@ -20,6 +20,10 @@ Coverage targets (high-priority: state-machine branches, rule eval, contracts)
 [AG-11] get_room_access_editor: room_not_found, normal, stale-reference target.
 [AG-12] _room_rule_matches: all operators.
 [AG-13] _normalize_rule_operand: bool / number / on-off / string.
+[AG-8b] A6-AGX-2: structural_issue_key identity — order-free sources, ordered cycles.
+[AG-8c] A6-AGX-2: a PRE-EXISTING violation no longer blocks an unrelated edit.
+[AG-8d] A6-AGX-2: a NEW violation, and making an existing one worse, still caught.
+[AG-11b] A6-AGX-5: a graph-scoped issue reaches every room's editor.
 """
 
 from __future__ import annotations
@@ -418,3 +422,104 @@ def test_room_rule_indeterminate_tristate(ag, hass):
     assert g._room_rule_matches_known(rule_ne) == (True, True)   # genuine block
     hass.states.async_set("binary_sensor.door", "closed")
     assert g._room_rule_matches_known(rule_ne) == (False, True)  # genuine clear
+
+
+# ---------------------------------------------------------------------------
+# [AG-8b] A6-AGX-2 — structural_issue_key identifies ONE violation
+# ---------------------------------------------------------------------------
+
+def test_structural_issue_key_distinguishes_and_matches():
+    """[AG-8b] the identity the delta gate compares against a baseline."""
+    from custom_components.eufy_vacuum.rooms.access_graph import structural_issue_key
+
+    a = {"type": "multiple_inbound", "room_id": 3, "source_room_ids": [1, 2]}
+    assert structural_issue_key(a) == structural_issue_key(dict(a))       # stable
+    # source order must not matter...
+    assert structural_issue_key(a) == structural_issue_key(
+        {"type": "multiple_inbound", "room_id": 3, "source_room_ids": [2, 1]})
+    # ...but a THIRD source is a different, worse violation and must not match.
+    assert structural_issue_key(a) != structural_issue_key(
+        {"type": "multiple_inbound", "room_id": 3, "source_room_ids": [1, 2, 4]})
+
+    # `rooms` is a cycle CHAIN: order carries meaning, so two different cycles
+    # over the same room set must NOT collapse to one key (which is what sorting
+    # it would have done).
+    assert structural_issue_key({"type": "cycle_detected", "rooms": [1, 2, 3]}) \
+        != structural_issue_key({"type": "cycle_detected", "rooms": [1, 3, 2]})
+
+
+def test_structural_gate_ignores_a_preexisting_violation(ag):
+    """[AG-8c] A6-AGX-2: a violation already in the graph must not block an
+    unrelated edit.
+
+    The gate validated the whole post-edit graph and refused on ANY structural
+    issue, so a stored violation rejected a fan-speed change or a colour. Such a
+    violation genuinely pre-exists: reconciliation rewrites grants through an id
+    remap and de-dupes only WITHIN one room's list, never re-checking the
+    cross-room single-inbound constraint.
+
+    Asserted at the level that owns the decision -- the baseline/post-edit key
+    diff -- because update_room_fields also needs a full manager. [AG-8d] pins
+    that a NEW violation is still caught.
+    """
+    from custom_components.eufy_vacuum.rooms.access_graph import structural_issue_key
+
+    g, _ = ag
+    # rooms 1 and 2 BOTH grant to 3 -> multiple_inbound on 3, already stored
+    before = _rooms(_room(1, dock=True, grants=[3]), _room(2, grants=[3]), _room(3))
+    baseline = {
+        structural_issue_key(i)
+        for i in g._structural_access_graph_issues(
+            g._validate_room_access_graph(managed_rooms=before))
+    }
+    assert baseline, "precondition: the graph already violates single-inbound"
+
+    # an edit that touches nothing structural (rename room 3)
+    after = _rooms(_room(1, dock=True, grants=[3]), _room(2, grants=[3]),
+                   _room(3, name="Kitchen"))
+    post = g._structural_access_graph_issues(
+        g._validate_room_access_graph(managed_rooms=after))
+    new = [i for i in post if structural_issue_key(i) not in baseline]
+    assert new == [], f"an unrelated edit was blocked by a pre-existing issue: {new}"
+
+
+def test_structural_gate_still_catches_a_new_violation(ag):
+    """[AG-8d] A6-AGX-2: the delta must not become a no-op.
+
+    Two directions: a brand-new violation, and making an EXISTING one worse.
+    """
+    from custom_components.eufy_vacuum.rooms.access_graph import structural_issue_key
+
+    g, _ = ag
+
+    def _keys(managed):
+        return {
+            structural_issue_key(i)
+            for i in g._structural_access_graph_issues(
+                g._validate_room_access_graph(managed_rooms=managed))
+        }
+
+    # (1) clean graph -> an edit introduces multiple_inbound
+    clean = _rooms(_room(1, dock=True, grants=[3]), _room(2), _room(3))
+    baseline = _keys(clean)
+    broken = _rooms(_room(1, dock=True, grants=[3]), _room(2, grants=[3]), _room(3))
+    assert _keys(broken) - baseline, "a NEW violation must be caught"
+
+    # (2) already violating -> a THIRD source is worse, and has a fresh key
+    worse = _rooms(_room(1, dock=True, grants=[3]), _room(2, grants=[3]),
+                   _room(4, grants=[3]), _room(3))
+    assert _keys(worse) - _keys(broken), "making it worse must still be caught"
+
+
+def test_graph_scoped_issue_reaches_every_room_editor(ag):
+    """[AG-11b] A6-AGX-5: an issue with no room_ids applies to every room.
+
+    missing_dock_room is a property of the whole graph. The old membership test
+    dropped it from every room's editor, so a user opening a room panel while the
+    map was unusable saw a clean list and no explanation.
+    """
+    g, data = ag
+    _seed_map(data, _rooms(_room(1, grants=[2]), _room(2)))   # grants, NO dock room
+    out = g.get_room_access_editor(vacuum_entity_id=_VAC, map_id=_MAP, room_id=2)
+    codes = [i.get("code") or i.get("type") for i in out["issues"]]
+    assert codes, "a graph-scoped issue must reach this room's editor"

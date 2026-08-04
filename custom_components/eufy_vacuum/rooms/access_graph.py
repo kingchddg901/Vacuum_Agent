@@ -40,6 +40,40 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def structural_issue_key(issue: dict[str, Any]) -> tuple:
+    """A stable identity for one structural access-graph violation.
+
+    A6-AGX-2. ``update_room_fields`` validates the WHOLE graph after an edit and
+    rejects the edit if any structural issue exists — absolute, not a delta. So a
+    violation already stored (reconciliation rewrites grants through an id remap
+    and only de-dupes WITHIN one room's list, never re-checking the cross-room
+    single-inbound constraint) rejects edits that have nothing to do with it: a
+    fan-speed change, an enable toggle, a colour. Comparing post-edit issues
+    against a pre-edit baseline needs an identity for "the same violation", which
+    is this.
+
+    The payload fields are load-bearing, not decoration:
+
+    - ``source_room_ids`` (multiple_inbound) must be in the key. Adding a THIRD
+      source to a room that already has two changes the key, so that edit is still
+      correctly rejected as making an existing violation worse.
+    - ``rooms`` is NOT sorted, deliberately. It is a cycle CHAIN for
+      cycle_detected (order carries meaning) and is already sorted at source for
+      multiple_dock_rooms. Sorting would collapse two different cycles over the
+      same room set into one key, masking a newly-created cycle as pre-existing.
+    """
+    return (
+        str(issue.get("type", "")).strip().lower(),
+        _safe_int(issue.get("room_id"), -1),
+        _safe_int(issue.get("target_room_id"), -1),
+        tuple(_safe_int(value, -1) for value in list(issue.get("rooms", []) or [])),
+        tuple(sorted(
+            _safe_int(value, -1)
+            for value in list(issue.get("source_room_ids", []) or [])
+        )),
+    )
+
+
 class AccessGraphManager:
     """Owns room access graph validation and automation rule evaluation."""
 
@@ -610,10 +644,33 @@ class AccessGraphManager:
                 }
             )
 
+        def _issue_applies(issue: dict[str, Any]) -> bool:
+            """A6-AGX-5: graph-scoped issues reach EVERY room's editor.
+
+            An issue carrying no ``room_ids`` (missing_dock_room, unknown_issue) is
+            a property of the whole graph, not of one room — but the old membership
+            test dropped it from every room, so a user opening a room editor while
+            the map was unusable saw a clean panel.
+
+            The ``is not None`` filter is load-bearing rather than tidiness:
+            _format_access_graph_issue's multiple_inbound branch can emit a literal
+            None inside room_ids, and a ``[None]`` list is truthy — without the
+            filter it would read as "scoped to some room" and wrongly suppress the
+            widening.
+            """
+            room_ids = [
+                str(value) for value in list(issue.get("room_ids", []) or [])
+                if value is not None
+            ]
+            return not room_ids or str(room_id_int) in room_ids
+
+        # NOTE: multiple_dock_rooms is graph-scoped in effect but names only the
+        # dock rooms, so an ordinary room still sees nothing here while the map is
+        # blocked. That is deliberate — the whole-map verdict belongs on
+        # get_access_graph_health (A6-AGX-1), not duplicated per room. Do not
+        # "fix" it a second time in this filter.
         room_related_issues = [
-            issue
-            for issue in context["issues"]
-            if str(room_id_int) in list(issue.get("room_ids", []))
+            issue for issue in context["issues"] if _issue_applies(issue)
         ]
 
         return {
