@@ -30,6 +30,7 @@ from ..profiles.room_profiles import (
     BUILT_IN_ROOM_PROFILES,
     apply_room_profile_to_config,
     get_default_room_profiles,
+    is_mop_clean_mode,
     merge_profile_dicts,
     normalize_clean_intensity,
     normalize_room_profile,
@@ -95,10 +96,18 @@ class ProfileManager:
         clean_mode = str(protected.get("clean_mode", "")).lower()
 
         is_carpet = floor_type.startswith("carpet")
-        is_mop_mode = "mop" in clean_mode or "wash" in clean_mode
+        # ISSUE #48: one shared predicate. "wash" is kept as an extra tolerance
+        # this copy had and the canonical table does not cover.
+        is_mop_mode = is_mop_clean_mode(clean_mode) or "wash" in clean_mode
 
         if is_carpet:
-            if clean_mode in {"mop", "vacuum_mop"}:
+            # Was `clean_mode in {"mop", "vacuum_mop"}` — the same exact,
+            # case-sensitive membership test that lost Edge Mopping on the read
+            # path. Here it under-fired instead: a carpet room stored as
+            # "Vacuum and mop" (the spelling the card actually writes) was NOT
+            # downgraded, so it kept a mop mode with water and edge forced off —
+            # the carpet invariant half-applied.
+            if is_mop_clean_mode(clean_mode):
                 protected["clean_mode"] = "vacuum"
                 clean_mode = "vacuum"
                 is_mop_mode = False

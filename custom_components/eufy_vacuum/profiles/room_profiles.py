@@ -403,6 +403,57 @@ def resolve_profile_name_for_constraints(
     return normalized_name
 
 
+#: Display spellings the card and older records use for the combined mode. The
+#: card writes a DISPLAY label ("Vacuum and mop") through update_room_fields,
+#: while the framework and adapter value_maps use the token "vacuum_mop".
+_CLEAN_MODE_DISPLAY_ALIASES: dict[str, str] = {
+    "vacuum and mop": "vacuum_mop",
+    "vacuum & mop": "vacuum_mop",
+    "vacuum+mop": "vacuum_mop",
+    "vac & mop": "vacuum_mop",
+    "vacmop": "vacuum_mop",
+}
+
+
+def canonical_clean_mode(value: Any) -> str:
+    """Normalize a clean_mode to its canonical token: vacuum | mop | vacuum_mop.
+
+    ISSUE #48. Every "is this a mop mode?" test in the tree had its own spelling
+    of the answer, and the two on the room-settings round trip disagreed:
+
+      - SAVE path (_protected_room_config) asks ``"mop" in clean_mode`` — a
+        substring test, which matches "Vacuum and mop" and preserves the value.
+      - READ path (below) asked ``clean_mode in {"mop", "vacuum_mop"}`` — an
+        exact, case-SENSITIVE set, which does not.
+
+    So a user could enable Edge Mopping, have it correctly persisted, and get it
+    back as off on every read, forever, with nothing reporting a problem. Same
+    for "Mop" and "VACUUM_MOP", which only the case-sensitive copy rejects.
+
+    learning/utils.py already solved this for its own bucket and its docstring
+    names the cause exactly — internal records store the display string while
+    value_maps use the token. That fix never reached the profile resolver, which
+    is the copy the card reads through. This is now the ONE owner; learning's
+    private helper delegates here rather than keeping a second table.
+
+    Unknown values pass through lowercased so a brand-specific mode survives.
+    """
+    text = str(value or "").strip().lower()
+    if not text:
+        return text
+    if text in _CLEAN_MODE_DISPLAY_ALIASES:
+        return _CLEAN_MODE_DISPLAY_ALIASES[text]
+    # Any phrasing carrying both verbs is a combined vacuum+mop run.
+    if "vacuum" in text and "mop" in text:
+        return "vacuum_mop"
+    return text
+
+
+def is_mop_clean_mode(value: Any) -> bool:
+    """True when this clean_mode wets the floor. THE question, asked once."""
+    return canonical_clean_mode(value) in {"mop", "vacuum_mop"}
+
+
 def resolve_room_profile_for_room(
     *,
     room_config: dict[str, Any],
@@ -483,14 +534,17 @@ def resolve_room_profile_for_room(
     # guard never fired on Roborock, whose value is "off", so a mop room with water off
     # stayed dry-mopping instead of being corrected.
     if (
-        resolved_clean_mode in {"mop", "vacuum_mop"}
+        is_mop_clean_mode(resolved_clean_mode)
         and resolved_water_level.strip().lower() in ("", "off")
         and not floor_type.startswith("carpet")
     ):
         resolved_water_level = water_defaults.get(floor_type, "")
 
     # Edge mopping is only meaningful for mop modes on non-carpet floors.
-    if resolved_clean_mode not in {"mop", "vacuum_mop"} or floor_type.startswith("carpet"):
+    # ISSUE #48: this was an exact, case-SENSITIVE set membership test, so the
+    # display spelling the card actually stores ("Vacuum and mop") read as
+    # not-a-mop-mode and zeroed a correctly-persisted value on every read.
+    if not is_mop_clean_mode(resolved_clean_mode) or floor_type.startswith("carpet"):
         resolved_edge_mopping = False
 
     passes = int(room_config.get("clean_passes", resolved_profile.get("clean_passes", 1)))

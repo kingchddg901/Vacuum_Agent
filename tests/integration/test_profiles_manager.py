@@ -41,6 +41,9 @@ Coverage targets
         profile["rooms"]; legacy rooms-only stays correct (Defect #7).
 [PM-28] delete_room_profile refuses when a room still references it, unless force=True (RP-016).
 [PM-29] rename_room_profile repoints every referring room's profile_name to the new name (RP-016).
+[PM-19] ISSUE #48: Edge Mopping survives the save -> read round trip.
+[PM-19b] every mop spelling (display label, token, mixed case) keeps it.
+[PM-19c] the carpet-downgrade sibling uses the same predicate.
 """
 
 from __future__ import annotations
@@ -935,3 +938,77 @@ def test_reads_stay_tolerant_of_a_legacy_profile(pm):
 
     # and the shared normalizer's public arm is unchanged for the same reason
     assert ProfileManager.normalize_run_profile_steps(legacy["steps"]) == steps
+
+
+# ---------------------------------------------------------------------------
+# [PM-19] ISSUE #48 — Edge Mopping must survive the save -> read round trip
+# ---------------------------------------------------------------------------
+
+def test_edge_mopping_survives_the_display_spelling_round_trip():
+    """[PM-19] ptruman/#48: enable Edge Mopping, save, reopen -> it was off.
+
+    The card writes clean_mode as a DISPLAY label ("Vacuum and mop"), not the
+    canonical token. The SAVE path asked `"mop" in clean_mode` (substring — it
+    matched, so the value persisted correctly, and his diagnostics confirm
+    edge_mopping true on disk). The READ path asked
+    `clean_mode in {"mop","vacuum_mop"}` — exact and case-SENSITIVE — decided he
+    was not in a mop mode, and zeroed it on every read. Forever, silently.
+
+    Driven with his exact stored room.
+    """
+    from custom_components.eufy_vacuum.profiles.room_profiles import (
+        resolve_room_profile_for_room,
+    )
+
+    room = {
+        "room_id": 1, "name": "Utility", "profile_name": "custom",
+        "clean_mode": "Vacuum and mop", "floor_type": "laminate",
+        "water_level": "Medium", "clean_intensity": "Deep",
+        "edge_mopping": True, "clean_passes": 1,
+    }
+    resolved = resolve_room_profile_for_room(room_config=room, stored_profiles={})
+    assert resolved["edge_mopping"] is True
+
+
+@pytest.mark.parametrize("clean_mode,expected", [
+    ("Vacuum and mop", True),    # what the card actually stores
+    ("vacuum_mop", True),        # the canonical token
+    ("Vacuum & mop", True),
+    ("mop", True),
+    ("Mop", True),               # case-sensitivity was its own half of the bug
+    ("VACUUM_MOP", True),
+    ("vacuum", False),           # edge mopping is meaningless without mop
+    ("Vacuum", False),
+])
+def test_edge_mopping_predicate_accepts_every_mop_spelling(clean_mode, expected):
+    """[PM-19b] the round trip must not depend on which spelling was stored."""
+    from custom_components.eufy_vacuum.profiles.room_profiles import (
+        resolve_room_profile_for_room,
+    )
+
+    resolved = resolve_room_profile_for_room(
+        room_config={
+            "room_id": 1, "profile_name": "custom", "clean_mode": clean_mode,
+            "floor_type": "hardwood", "edge_mopping": True,
+        },
+        stored_profiles={},
+    )
+    assert resolved["edge_mopping"] is expected
+
+
+def test_carpet_downgrade_uses_the_same_predicate(mnt_profiles_manager=None):
+    """[PM-19c] ISSUE #48, the sibling copy: a carpet room stored with the
+    DISPLAY spelling must still be downgraded off mop.
+
+    The carpet guard used the same exact/case-sensitive membership test, so it
+    UNDER-fired: a carpet room stored as "Vacuum and mop" kept a mop mode with
+    water and edge forced off — the invariant half-applied.
+    """
+    from custom_components.eufy_vacuum.profiles.room_profiles import is_mop_clean_mode
+
+    assert is_mop_clean_mode("Vacuum and mop") is True
+    assert is_mop_clean_mode("vacuum_mop") is True
+    assert is_mop_clean_mode("Mop") is True
+    assert is_mop_clean_mode("vacuum") is False
+    assert is_mop_clean_mode("") is False
+    assert is_mop_clean_mode(None) is False
