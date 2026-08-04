@@ -104,6 +104,39 @@ a ledger):
     `_proof_harness.py` caught by the glob, and only 3 are genuinely unverifiable
     (`battery`, `onboarding`, `debug` — the last self-declared throwaway).
 
+## 2b. Ledger state model — partial completion is first-class (Chris, 2026-08-03)
+
+**The flaw this fixes:** in the #1 campaign's ledgers, a packet with ANY blocked subcomponent
+stayed "open" — undifferentiated and vague — until everything landed. That single bit failed in
+both directions: RP-047 read as plain "open" while its snapshot half was landed and test-backed
+(only the hardware confirmation is outstanding); RP-016 read as "landed" while ZONE-C-2/IO-6
+float unlisted; and #9:A3-REC-3 was the inverse — one closed half CREDITED as the whole, the
+campaign's most expensive reopen. Binary state cannot express partial truth, so it alternately
+hides progress and manufactures false closure.
+
+**The model — mandatory for every #2 ledger, and applied to the #1 carry-over ledgers when
+regenerated at the pin (gate 9):**
+
+- The unit of closure is the SUB-ITEM (clause / finding_id / named follow-up), never the packet.
+  Every multi-clause packet enumerates its sub-items once, and the header is DERIVED:
+
+  `RP-047 — OPEN, 1 of 2 complete · gated: [card-unpin confirm → hardware group-phase run]`
+  `RP-016 — OPEN, 6 of 8 complete · open: [ZONE-C-2 referrer pruning], [IO-6 rename detection]`
+
+- Sub-item states: `complete` · `open` · `blocked → <named blocker>` · `gated → <named gate,
+  e.g. hardware run>` · `wontfix (reasoning)`. A blocker/gate is always NAMED — "blocked" with
+  no object is the vagueness this section abolishes.
+- The header stays `OPEN, x of y` until x = y (wontfix counts as adjudicated, shown separately:
+  `x of y complete, z wontfix`). **No packet is ever written as bare "LANDED" while y > x** —
+  that is the A3-REC-3 forgery — and never as bare "OPEN" while x > 0 — that is the RP-047 fog.
+- Derived, not declared, per the delta-6 philosophy: the generators compute x/y from the packet's
+  own enumerated clause list + per-clause evidence (commit, proof case, hardware capture),
+  so under-enumeration is loud (a packet with no clause list renders `?/?` and fails the sweep).
+- **Generator work owed before gate 9 can satisfy this:** `_gen_repro_status.py`,
+  `_gen_checklist.py`, and the closure matrix all currently emit packet-granular state; they
+  need the clause column. Until that lands, any hand-written status line MUST carry the x-of-y
+  form anyway.
+
 ## 3. Scope — enumerated, tiered, diffed against the tree
 
 Coverage is claimed from SCOPES, never from findings counts (an unaudited subsystem yields 0
