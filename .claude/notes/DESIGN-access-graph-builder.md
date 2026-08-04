@@ -8,11 +8,39 @@ make both of its exits reachable. Auto-suggestion from map geometry is **rejecte
 
 ---
 
+## 0. What the graph MEANS (Chris, 2026-08-04)
+
+It is a sketch of the house, drawn once. The dock is the **root**, and the
+invariant is not "no loops" — it is **every room must be able to reach the dock**.
+The robot leaves the dock, works outward, and must be able to come home; that
+round trip is what the tree guarantees.
+
+An edge is a **doorway**, and a doorway works both ways. The graph stores it
+directed (parent → child) only to express which side you enter from. So
+"reachable from the dock" and "can reach the dock" are the same statement here,
+which is why the validator checks only the outward direction.
+
+Shape, in Chris's terms — `A → B → C`, then `C → C1, C2`, then `C1 → C1-1`:
+
+- **one way IN.** Each room has exactly one parent. That is the constraint.
+- **many ways ON.** A room may lead to any number of rooms. `C` having both `C1`
+  and `C2` is ordinary — fan-out is not a violation, which is why "Rooms Accessed
+  From Here" is a list.
+- **depth is free.** `C1-1` hanging off `C1` is just a longer chain home.
+- **the way back is the parent chain, reversed.** Follow your one parent upward
+  and you arrive at the dock. Nothing else needs storing.
+
+Loop prevention is a CONSEQUENCE of this, not the goal. Note that single-parent
+alone does not forbid a ring — `A → B, B → A` gives both rooms exactly one parent
+— so `cycle_detected` remains a real check for callers who post arbitrary graphs.
+What forbids it is single-parent PLUS everything hanging off the dock: a ring's
+rooms take their one parent from inside the ring, so no edge from the tree can
+reach them and the ring is a detached island.
+
 ## 1. The problem, precisely
 
-The single-inbound constraint means the access graph is a **tree**: every non-dock
-room has exactly one parent. Building it is therefore N−1 parent assignments — and
-nothing more.
+Because the graph is a tree rooted at the dock, building it is N−1 parent
+assignments — and nothing more.
 
 Today that work is spread across N per-room modals, reached via
 room editor → Access. The user must:
@@ -47,9 +75,9 @@ Every invalid state becomes **unconstructible**, rather than constructible-then-
 | --- | --- |
 | `self_reference` | a room is never in its own pool |
 | `multiple_inbound` | a placed room has left the pool |
-| `cycle_detected` | only *unplaced* rooms are ever attached |
-| `unreachable_from_dock` | every room is attached to the tree by construction |
-| `missing_dependency` | ditto — the pool empties only when all rooms have a parent |
+| `unreachable_from_dock` | you can only attach to a room already connected to the dock, so every room has a path home the moment it is placed |
+| `cycle_detected` | only *unplaced* rooms are ever attached, so every edge points away from the tree and never back into it |
+| `missing_dependency` | the pool empties only when every room has a parent |
 | `missing_dock_room` | step 1 is the dock room |
 | `duplicate_edge` | a target is tapped into exactly one parent's list |
 
@@ -149,6 +177,12 @@ same remediation trap AGX-1 was about, and the response is where it gets caught.
   tests, including the `block_code_before/after` trap case. Closes
   `live:AGX-CLEAR-1` on the YAML side.
 - **C — the builder.** Renderer + bindings over Wave A, committing through Wave B.
-  Card-side i18n, styles in `src/styles/` only.
+  Card-side i18n, styles in `src/styles/` only. **Opens SEEDED from the surviving
+  graph, never blank** — the graph is drawn once, and the only thing that erodes
+  it is a map rebuild: a newly discovered room arrives with no parent (the
+  A5-AG-2 scenario), and `rooms/reconciliation.py:307` drops remapped targets
+  that no longer resolve, orphaning whatever they led to. Neither is announced.
+  Seeded, a post-rebuild repair is "place the one new room" rather than
+  re-sketching the house, which is what makes "never touch it again" honest.
 - **D — entry points.** Where the builder opens from (rooms view when blocked, Setup),
   and the Clear button.
