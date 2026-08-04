@@ -700,6 +700,22 @@ class ActiveJobTracker:
         # the empty-state guard.
         accumulator_changed = False
         if entity_id == vacuum_entity_id:
+            # THE segmenter's only window into a gap. The counter buffer is fed by
+            # counter CHANGES, and the counters are frozen while the robot is off
+            # the floor — so a dock visit contributes no samples at all and both
+            # edges of the gap read "cleaning". Stamping the vacuum's own
+            # transitions onto the same buffer is what lets find_candidates tell a
+            # dock trip from an in-room stall. Counters are carried unchanged, so
+            # these rows add no increment and cannot move a boundary by themselves.
+            if str(to_state or "").strip() and to_state != from_state:
+                self._append_counter_sample(
+                    active_job,
+                    changed_at_ts,
+                    active_job.get("last_cleaning_time_seconds"),
+                    active_job.get("last_cleaning_area_m2"),
+                    vacuum_entity_id,
+                    state=to_state,
+                )
             accumulator_changed = self._accumulate_current_room_noncleaning(
                 vacuum_entity_id=vacuum_entity_id,
                 active_job=active_job,
@@ -2053,6 +2069,47 @@ class ActiveJobTracker:
             pass
         return True
 
+    def _append_counter_sample(
+        self,
+        job: dict[str, Any],
+        observed: str,
+        ct: Any,
+        ca: Any,
+        vacuum_entity_id: str,
+        state: str | None = None,
+    ) -> None:
+        """One entry on the counter buffer, carrying the vacuum's state with it.
+
+        ``vacuum_state`` rides along because the segmenter has to answer "did the
+        robot LEAVE cleaning during this gap" and cannot ask HA at classify time
+        (it runs at finalize, over frozen samples, and is deliberately HA-free).
+
+        Recording the state is not enough on its own — counter samples only fire
+        when the counters MOVE, and they do not move while the robot is at the
+        dock, which is exactly what makes a gap a gap. So a dock visit would land
+        zero samples and both edges would read "cleaning". ``record_active_job_
+        transition`` therefore also calls this on the vacuum's own state changes,
+        which is where the in-gap coverage actually comes from.
+        """
+        if state is None:
+            # No explicit state: read it live. Callers driven BY a transition pass
+            # `to_state` instead, because hass may not have committed the write
+            # yet and a stale read here would defeat the whole point.
+            state_obj = self._manager.hass.states.get(vacuum_entity_id)
+            state = None if state_obj is None else state_obj.state
+        samples = job.setdefault("counter_samples", [])
+        samples.append(
+            {
+                "t": observed,
+                "cleaning_time": ct,
+                "cleaning_area": ca,
+                "battery": job.get("last_battery_percent"),
+                "vacuum_state": None if state is None else str(state).strip().lower(),
+            }
+        )
+        if len(samples) > _MAX_COUNTER_SAMPLES:
+            del samples[: len(samples) - _MAX_COUNTER_SAMPLES]
+
     def record_counter_sample(
         self,
         *,
@@ -2086,17 +2143,7 @@ class ActiveJobTracker:
         ca = job.get("last_cleaning_area_m2")
         if ct is None and ca is None:
             return False
-        samples = job.setdefault("counter_samples", [])
-        samples.append(
-            {
-                "t": observed,
-                "cleaning_time": ct,
-                "cleaning_area": ca,
-                "battery": job.get("last_battery_percent"),
-            }
-        )
-        if len(samples) > _MAX_COUNTER_SAMPLES:
-            del samples[: len(samples) - _MAX_COUNTER_SAMPLES]
+        self._append_counter_sample(job, observed, ct, ca, vacuum_entity_id)
         # External runs: also snapshot the per-room setting selects (deduped —
         # one entry per flip), our only window into what the app set per room.
         if job.get("status") == "external":

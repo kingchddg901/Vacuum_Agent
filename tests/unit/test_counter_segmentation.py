@@ -224,6 +224,70 @@ def test_area_threshold_is_not_exact_float_equality():
     assert len(segs) == 2, "a 0.0007 m² shortfall must not discard a real boundary"
 
 
+def _sv(sec: int, ct: float, ca: float, vacuum_state: str, batt=100):
+    """A sample carrying the vacuum's own state (post wash-plateau guard)."""
+    d = _s(sec, ct, ca, batt)
+    d["vacuum_state"] = vacuum_state
+    return d
+
+
+def test_wash_plateau_requires_leaving_cleaning():
+    """A long gap is NOT a wash if the robot never left the floor.
+
+    wash_plateau asserts "went to the dock and washed", and a dock action is
+    physically impossible unless docked — the cleaning counters cannot advance
+    while the robot is on the dock, so the two are mutually exclusive by
+    construction. A >90 s gap with the vacuum still reporting `cleaning`
+    throughout is an in-room stall, and letting it keep the kind hands it
+    _KIND_WEIGHT 4000 — which outranks the real boundary (area_jump, 1000) and
+    DISPLACES it under the expected_rooms cap, producing the right segment count
+    at the wrong place. That is worse than under-segmenting, because the count
+    gate passes and the record is written allocated:false, i.e. "measured".
+    """
+    stall = [
+        _sv(0, 0, 0, "cleaning"),
+        _sv(30, 30, 1, "cleaning"), _sv(60, 60, 2, "cleaning"),
+        _sv(90, 90, 2, "cleaning"),
+        # 120 s of nothing, robot never leaves cleaning
+        _sv(120, 90, 2, "cleaning"), _sv(150, 90, 2, "cleaning"),
+        _sv(210, 120, 2, "cleaning"), _sv(240, 150, 2, "cleaning"),
+        _sv(270, 180, 3, "cleaning"),
+    ]
+    assert len(segment_counters(stall)) == 1, "an in-room stall is not a boundary"
+
+
+def test_wash_plateau_still_fires_on_a_real_dock_trip():
+    """The other direction: the same gap IS a boundary when the robot docked."""
+    trip = [
+        _sv(0, 0, 0, "cleaning"),
+        _sv(30, 30, 1, "cleaning"), _sv(60, 60, 2, "cleaning"),
+        _sv(90, 90, 2, "returning"), _sv(120, 90, 2, "docked"),
+        _sv(150, 90, 2, "docked"),
+        _sv(210, 120, 2, "cleaning"), _sv(240, 150, 2, "cleaning"),
+        _sv(270, 180, 3, "cleaning"),
+    ]
+    segs = segment_counters(trip)
+    assert len(segs) == 2
+    assert segs[1]["boundary"] == "wash_plateau"
+
+
+def test_wash_plateau_guard_is_fail_open_without_the_signal():
+    """No vacuum_state anywhere → NO INFORMATION, so behave exactly as before.
+
+    Every record written before this signal existed, plus external ingests and
+    synthetic streams, carry no vacuum_state. Absence of evidence must not
+    silently reclassify them: the guard suppresses only on a POSITIVE "never left
+    cleaning", never on a missing field.
+    """
+    legacy = [
+        _s(0, 0, 0), _s(30, 30, 1), _s(60, 60, 2), _s(90, 90, 2),
+        _s(210, 120, 2), _s(240, 150, 2), _s(270, 180, 3),
+    ]
+    segs = segment_counters(legacy)
+    assert len(segs) == 2
+    assert segs[1]["boundary"] == "wash_plateau"
+
+
 def test_expected_rooms_caps_edge_to_fill_oversplit():
     """A single room cleaned edges-then-fill: area crawls to 1 m² on the edge pass,
     a turn, then the fill climbs 1->4. The counters can't tell this from a boundary

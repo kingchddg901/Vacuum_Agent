@@ -215,6 +215,43 @@ def _prepare_window(samples: list[dict[str, Any]], *, cadence_s: float = _CADENC
 _AREA_EPS = 0.01
 
 
+#: Vacuum states that mean the robot is NOT on the floor cleaning. A dock action
+#: (wash / dry / empty) is physically impossible unless the robot is docked, and
+#: the cleaning counters cannot advance while it is — the two are mutually
+#: exclusive by construction, not by observation. Measured on 5 days of Alfred
+#: history: all 229 rising counter ticks had the vacuum `cleaning`, and all 49
+#: dock-status changes had it `docked`. No overlap.
+_UNDOCKED_EXIT_STATES: frozenset[str] = frozenset({"docked", "returning", "returning_to_dock"})
+
+
+def _left_cleaning(samples: list[dict[str, Any]], a: Any, b: Any) -> bool | None:
+    """Did the vacuum report leaving `cleaning` between ``a`` and ``b``?
+
+    ``True`` / ``False`` when the window carries vacuum_state at all, ``None``
+    when it carries none — an OLD record, an external ingest, or a synthetic
+    stream. None means "no information", and the caller must then behave exactly
+    as it did before this signal existed: absence of evidence cannot be allowed
+    to silently reclassify historical runs.
+
+    An ANY-match over the interval, not an endpoint check: entity states lag the
+    robot, and both edges of a dock trip legitimately read `cleaning`.
+    """
+    seen = False
+    for s in samples:
+        if not isinstance(s, dict):
+            continue
+        state = s.get("vacuum_state")
+        if state is None:
+            continue
+        when = _to_dt(s.get("t"))
+        if when is None or not (a <= when <= b):
+            continue
+        seen = True
+        if str(state).strip().lower() in _UNDOCKED_EXIT_STATES:
+            return True
+    return False if seen else None
+
+
 def _classify(
     gap: float,
     area_after: float,
@@ -223,6 +260,7 @@ def _classify(
     gap_transit_s: float,
     gap_plateau_s: float,
     area_jump_m2: float,
+    left_cleaning: bool | None = None,
 ) -> str:
     """Kind of a blip from its gap and the area around it.
 
@@ -231,7 +269,13 @@ def _classify(
     flushed area depending on when the packet lands, so the stronger one decides
     (see the module docstring for the measurements behind that).
     """
-    if gap > gap_plateau_s:
+    # A wash_plateau claims "the robot went to the dock and washed". A dock action
+    # requires being docked, so if the vacuum never reported leaving `cleaning`
+    # across this gap, the claim is false however long the gap was — it is an
+    # in-room stall, and letting it keep the kind hands it weight 4000, which
+    # outranks the real boundary and displaces it under the expected_rooms cap.
+    # `None` = the stream predates the signal; behave exactly as before.
+    if gap > gap_plateau_s and left_cleaning is not False:
         return "wash_plateau"
     # Ordered area-first, which is equivalent to the original transit-first form:
     # that arm required `area_after < area_jump_m2`, so the two were already
@@ -287,6 +331,7 @@ def find_candidates(
         kind = _classify(
             gap, area_after, area_delta,
             gap_transit_s=gap_transit_s, gap_plateau_s=gap_plateau_s, area_jump_m2=area_jump_m2,
+            left_cleaning=_left_cleaning(samples, incs[bi - 1][0], incs[bi][0]),
         )
         strength = (
             _KIND_WEIGHT[kind]
