@@ -179,17 +179,54 @@ class OnboardingManager:
         migrate. Confirmations are keyed by room id; without re-keying through the
         old->new id_remap, every renumbered-but-already-confirmed room reads as needing
         confirmation and the start gate blocks cleaning with onboarding_required until
-        the user re-confirms each one. No-op when id_remap is empty (no renumbering)."""
+        the user re-confirms each one. No-op when id_remap is empty (no renumbering).
+
+        CONTRACT, independent of dict iteration order: ``after[str(new)]`` is True iff
+        ``before[str(old)]`` was True, for every (old, new) in id_remap; a key never
+        named as an old_id survives verbatim; a key named only as an old_id is dropped.
+
+        One residual ambiguity, resolved deliberately: if a target new_id is ALSO a
+        pre-existing confirmed key that no remap entry names as an old_id, the migrated
+        room's confirmation WINS. That matches rooms/room_crud.py:323-325, which purges
+        rule-status in both directions on exactly this hazard."""
         if not id_remap:
             return
         map_ob = self._get_map_onboarding(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
         )
+        # DR-ONB-1: build from an immutable SNAPSHOT, never from the dict being
+        # drained. The old loop popped from `confirmed` and wrote back into it in
+        # the same pass, so a new_id that is also a LATER old_id consumed the
+        # entry just written. Executed on real shapes:
+        #
+        #   chain {1:2, 2:3, 3:4}, rooms 1-3 confirmed -> {'4': True}
+        #                                                 2 of 3 confirmations gone
+        #   swap  {1:2, 2:1}, only room 1 confirmed     -> {'1': True}
+        #                                                 lands on the WRONG room
+        #   swap  {1:2, 2:1}, both confirmed            -> {'1': True}
+        #
+        # A disjoint remap like {16: 27} is correct, which is exactly why [OB-6]
+        # never saw it. The damage is silent and card-reachable: reconcile_room's
+        # migrate branch (rooms/room_crud.py:330) is the only caller, and a lost
+        # confirmation makes the start gate refuse with onboarding_required until
+        # the user re-confirms a room they already did.
         confirmed = map_ob.setdefault("floor_types_confirmed", {})
-        for old_id, new_id in id_remap.items():
-            if confirmed.pop(str(old_id), False):
-                confirmed[str(new_id)] = True
+        before = dict(confirmed)                       # every read is of the OLD state
+        remap = {str(old): str(new) for old, new in id_remap.items()}
+
+        rebuilt: dict[str, bool] = {
+            key: value for key, value in before.items() if key not in remap
+        }
+        for old_key, new_key in remap.items():
+            if before.get(old_key, False):
+                rebuilt[new_key] = True
+
+        # clear+update, not reassignment: reset_onboarding and get_onboarding_state
+        # both reach this dict through map_ob, so preserve object identity for
+        # anything already holding a reference.
+        confirmed.clear()
+        confirmed.update(rebuilt)
 
     def check_for_new_rooms(
         self,

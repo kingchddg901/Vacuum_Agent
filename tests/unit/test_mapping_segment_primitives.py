@@ -28,6 +28,8 @@ Coverage targets
 [SP-22] transform_color_image: per-channel transform preserves channel count.
 [SP-23] mask_edge_band: dilate-XOR-erode produces a non-empty edge ring (scipy).
 [SP-24] normalized_color_features: per-pixel chromaticity channels sum to 1.
+[SP-10b] compactness ranks blockiness: pi/4 ceiling, disc scores below square.
+[SP-24b] normalized_color_features == rgb/sum(rgb); the luminance weights were dead.
 [SP-25] mask_to_polygon: RDP-collapse fallback reverts to best_loop for a drawable (>=4 vertex) polygon.
 [SP-26] estimate_alignment: a strictly-better shifted candidate takes the best-update branch (recovers the shift).
 [SP-RAST-1] rasterize_primitives: a pct rect -> rectangle polygon in map px; empty -> [].
@@ -397,3 +399,49 @@ def test_rasterize_primitives_subtract_and_polygon(np):
     )
     assert len(tri) >= 3
 
+
+
+def test_compactness_ranks_blockiness_not_roundness():
+    """[SP-10b] A2-POLYGO-6: pin the RASTER quotient's real behaviour.
+
+    The docstring used to claim "Range 0-1; 1 = circle". Both halves are wrong,
+    and [SP-10] has always asserted ~0.785 for a square, so the test and the
+    docstring were contradicting each other. `perimeter` is mask_perimeter's
+    exposed-edge count -- a taxicab perimeter -- so the attainable maximum is
+    pi/4 and a digital disc scores BELOW a square of the same footprint.
+
+    The ordering assert is the anchor: it encodes the fact the old docstring
+    denied, so anyone who "fixes" the arithmetic to make circles score 1.0
+    breaks it deliberately rather than silently rescaling the Eufy segmentor's
+    tuned 0.08 / 0.22 thresholds.
+    """
+    square = compactness(100, 40)                       # 10x10, P = 2(w+h) = 40
+    assert square <= math.pi / 4 + 1e-9                 # pi/4 is the ceiling, not 1.0
+    assert square == pytest.approx(math.pi / 4)         # a square ATTAINS it
+
+    single_pixel = compactness(1, 4)                    # also exactly pi/4
+    assert single_pixel == pytest.approx(math.pi / 4)
+
+    # a radius-10 digital disc: 4-connected staircase perimeter is 8r, the same
+    # as its bounding square's
+    disc = compactness(int(math.pi * 100), 80)
+    assert disc < square, "a circle scores WORSE than a box under a raster perimeter"
+
+
+def test_normalized_color_features_has_no_luminance_weighting(np):
+    """[SP-24b] A2-POLYGO-7: the transform is pure chromaticity.
+
+    The removed Rec.709 luminance divide cancelled exactly in the ratio that
+    follows -- (rgb/L)/(sum(rgb)/L) == rgb/sum(rgb) -- so the weights could not
+    influence the output. This asserts the closed form directly, which is what
+    makes the removal provably behaviour-neutral rather than merely untested.
+    """
+    rng = np.random.default_rng(0)
+    rgb = rng.integers(0, 256, size=(6, 5, 3), dtype=np.uint8)
+
+    expected_f = rgb.astype(np.float32) + 1.0
+    expected = expected_f / expected_f.sum(axis=2, keepdims=True)
+
+    assert np.allclose(normalized_color_features(rgb), expected, atol=1e-6)
+    # and the defining property still holds for a non-uint8 caller
+    assert np.allclose(normalized_color_features(rgb.astype(np.float32)).sum(axis=2), 1.0)

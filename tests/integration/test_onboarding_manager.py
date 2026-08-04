@@ -8,6 +8,9 @@ Coverage targets
 [OB-4] get_rooms_onboarding_summary aggregates per map.
 [OB-5] reset_onboarding clears the map state.
 [OB-6] remap_confirmed_floor_types carries confirmations onto re-segmented ids (old->new).
+[OB-6b] DR-ONB-1: a CHAINED remap ({1:2,2:3,3:4}) must not eat its own output.
+[OB-6c] DR-ONB-1: a SWAP ({1:2,2:1}) must not land a confirmation on the wrong room.
+[OB-6d] an unremapped confirmation survives verbatim; the dict keeps its identity.
 """
 
 from __future__ import annotations
@@ -132,3 +135,71 @@ def test_disabled_room_does_not_block_completion(hass):
     assert state2["status"] == "complete"
     assert state2["onboarding_complete"] is True
     assert state2["enabled_rooms_needing_floor_type"] == []
+
+
+def _confirmed(data):
+    return data["onboarding"][_VAC][_MAP]["floor_types_confirmed"]
+
+
+def _remap_case(hass, confirm_ids, id_remap):
+    data: dict = {}
+    _seed_rooms(data, {str(i): {"enabled": True} for i in set(id_remap.values())})
+    ob = OnboardingManager(data, hass)
+    for rid in confirm_ids:
+        ob.confirm_floor_type(vacuum_entity_id=_VAC, map_id=_MAP, room_id=str(rid))
+    ob.remap_confirmed_floor_types(
+        vacuum_entity_id=_VAC, map_id=_MAP, id_remap=id_remap
+    )
+    return _confirmed(data)
+
+
+def test_remap_confirmed_floor_types_chain(hass):
+    """[OB-6b] DR-ONB-1: a CHAINED remap must not eat its own output.
+
+    The old loop popped from the confirmations dict and wrote back into it in the
+    same pass, so a new_id that is also a later old_id consumed the entry just
+    written. {1:2, 2:3, 3:4} with rooms 1-3 confirmed collapsed to {'4': True} —
+    two of three confirmations destroyed. Each lost one makes the start gate
+    refuse with onboarding_required until the user re-confirms a room they
+    already did.
+
+    [OB-6] never caught it because its remap ({16: 27}) is disjoint, which is the
+    one shape that happens to be correct either way.
+    """
+    confirmed = _remap_case(hass, [1, 2, 3], {1: 2, 2: 3, 3: 4})
+    assert confirmed.get("2") is True
+    assert confirmed.get("3") is True
+    assert confirmed.get("4") is True
+    assert "1" not in confirmed
+
+
+def test_remap_confirmed_floor_types_swap(hass):
+    """[OB-6c] DR-ONB-1: a SWAP must not land a confirmation on the wrong room.
+
+    {1:2, 2:1} with only room 1 confirmed used to produce {'1': True} — the
+    confirmation survived in name but moved to a room the user never confirmed,
+    which is worse than losing it: the gate opens on unverified floor type.
+    """
+    only_first = _remap_case(hass, [1], {1: 2, 2: 1})
+    assert only_first.get("2") is True
+    assert "1" not in only_first
+
+    both = _remap_case(hass, [1, 2], {1: 2, 2: 1})
+    assert both.get("1") is True and both.get("2") is True
+
+
+def test_remap_confirmed_floor_types_leaves_unremapped_keys(hass):
+    """[OB-6d] a confirmation whose id is not named in the remap survives verbatim."""
+    data: dict = {}
+    _seed_rooms(data, {"9": {"enabled": True}})
+    ob = OnboardingManager(data, hass)
+    for rid in ("5", "9"):
+        ob.confirm_floor_type(vacuum_entity_id=_VAC, map_id=_MAP, room_id=rid)
+    before = _confirmed(data)
+    ob.remap_confirmed_floor_types(vacuum_entity_id=_VAC, map_id=_MAP, id_remap={5: 6})
+
+    confirmed = _confirmed(data)
+    assert confirmed is before, "object identity must survive (callers hold refs)"
+    assert confirmed.get("6") is True     # remapped
+    assert confirmed.get("9") is True     # untouched
+    assert "5" not in confirmed

@@ -339,7 +339,32 @@ def mask_perimeter(mask: Any) -> int:
 
 
 def compactness(area: int, perimeter: int) -> float:
-    """Return the isoperimetric quotient (4πA / P²).  Range 0–1; 1 = circle."""
+    """Isoperimetric quotient 4πA/P², computed against a RASTER perimeter.
+
+    RANKS BLOCKINESS, NOT ROUNDNESS — and the range is NOT 0–1. ``perimeter``
+    comes from ``mask_perimeter``, which counts exposed pixel EDGES, so it is a
+    taxicab perimeter and not a smooth contour. Everything below follows from
+    that and is arithmetic, not estimate:
+
+      - the attainable maximum is **π/4 ≈ 0.785**, not 1.0 — reached by any
+        axis-aligned square, and by a single pixel (area 1, perimeter 4);
+      - a w×h rectangle scores πwh/(w+h)²;
+      - a digital disc of radius r has the SAME staircase perimeter as its
+        bounding square (8r), so it scores π²/16 ≈ 0.617 — strictly LOWER than
+        a square. A circle does not score 1 here; it scores worse than a box.
+
+    The old docstring claimed "Range 0–1; 1 = circle", which is wrong on both
+    counts. [SP-10] has always asserted ≈0.785 for a square, so the test and the
+    docstring have been contradicting each other.
+
+    DO NOT normalise the maximum to 1.0 to "fix" this. The Eufy segmentor's
+    thresholds are tuned empirically against THIS function — ``< 0.08`` is the
+    fragmented-candidate floor (adapters/eufy/segmentor.py:97) and ``>= 0.22``
+    the clean-room bar (:902) — and rescaling silently moves both.
+
+    Coupled to ``mask_perimeter``: change that definition and every calibration
+    point above moves with it.
+    """
     if area <= 0 or perimeter <= 0:
         return 0.0
     return float((4.0 * math.pi * area) / max(float(perimeter * perimeter), 1.0))
@@ -521,14 +546,31 @@ def estimate_alignment(reference_mask: Any, candidate_mask: Any) -> dict[str, An
 # -- color features -----------------------------------------------------------
 
 def normalized_color_features(rgb: Any) -> Any:
-    """Return illumination-normalized chromaticity features for an RGB image array."""
+    """Per-pixel CHROMATICITY: each channel divided by that pixel's channel sum.
+
+    The three outputs sum to 1, so the pixel's overall brightness is divided
+    out — which is precisely what makes the features illumination-invariant.
+
+    THERE IS DELIBERATELY NO LUMINANCE WEIGHTING, and that is the load-bearing
+    fact for anyone porting this. It used to compute a Rec.709 luminance and
+    divide by it before the chromaticity step. Those weights cancelled EXACTLY::
+
+        (rgb/L) / (sum(rgb)/L)  ==  rgb / sum(rgb)
+
+    L divides out identically at every pixel, so the weights could not influence
+    the output at all — and neither clamp on that path could ever bind: after the
+    ``+ 1.0`` every channel is ≥ 1, and the Rec.709 coefficients sum to exactly
+    1.0, so L ≥ 1 always. Removing them is behaviour-neutral to float32 rounding
+    and saves a full-image divide per call.
+
+    ANY weighting cancels the same way, so re-adding one cannot change anything.
+    A porting author who wants brand-specific colour behaviour must change the
+    CLUSTERING (adapters/eufy/segmentor.py:435-438, :553-555), not this
+    transform.
+    """
+    # +1.0 is the zero-guard that makes a pure-black pixel well-defined.
     rgb_float = rgb.astype(np.float32) + 1.0
-    luminance = (
-        (0.2126 * rgb_float[:, :, 0])
-        + (0.7152 * rgb_float[:, :, 1])
-        + (0.0722 * rgb_float[:, :, 2])
-    )
-    luminance = np.maximum(luminance, 1.0)
-    normalized = rgb_float / luminance[:, :, None]
-    channel_sum = np.maximum(normalized.sum(axis=2, keepdims=True), 1e-6)
-    return normalized / channel_sum
+    # For uint8 input this floor is provably unreachable (min channel_sum = 3);
+    # kept as defence for a non-uint8 caller.
+    channel_sum = np.maximum(rgb_float.sum(axis=2, keepdims=True), 1e-6)
+    return rgb_float / channel_sum
