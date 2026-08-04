@@ -1823,7 +1823,21 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
         map_id: str,
     ) -> dict[str, Any]:
-        """Clear queue state for one vacuum/map."""
+        """Clear queue state for one vacuum/map — rooms AND their breaks.
+
+        RP-021c / #8:A4-PP-RP-4. The live queue has TWO backings: the enabled
+        rooms, and the charge/wait/zone breaks interleaved between them
+        (``map_bucket["queue_breaks"]``). This method used to empty only the
+        first, so "Clear queue" on the card left the breaks behind with no rooms
+        to sit between — and the next composition inherited them, landing a
+        charge break after an arbitrary room of a run that never asked for one.
+
+        The rule is not new here; ``_clear_selection_after_start`` already states
+        it for the post-run path: "both backings must reset together; clearing
+        only rooms leaves a trailing zone/wait as an orphan chip in the composer".
+        That predicate simply had a shorter copy at this seam. The shorter copy
+        was the bug.
+        """
         self.data.setdefault("queue", {})
         self.data["queue"].setdefault(vacuum_entity_id, {})
         self.data["queue"][vacuum_entity_id][str(map_id)] = {
@@ -1834,8 +1848,26 @@ class EufyVacuumManager:
             "queue_rooms": [],
         }
 
+        map_bucket = ensure_map_bucket(
+            data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        _had_breaks = bool(map_bucket.get("queue_breaks"))
+        map_bucket["queue_breaks"] = []
+        # Drop the applied-profile provenance too: with the queue emptied there is
+        # no longer a profile this queue "came from", and a stale tag would claim
+        # otherwise to the card and to diagnostics.
+        map_bucket.pop("queue_source", None)
+
         runtime = self.ensure_runtime(vacuum_entity_id)
         runtime.queue_room_ids = []
+
+        if _had_breaks:
+            # Only when something actually went: the composer renders breaks, so a
+            # cleared break that never announces itself leaves a stale chip on the
+            # card until some unrelated refresh happens to redraw it.
+            self._notify_rooms_updated(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+            )
 
         return self.get_queue_state(
             vacuum_entity_id=vacuum_entity_id,

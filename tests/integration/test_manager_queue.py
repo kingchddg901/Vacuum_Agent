@@ -13,6 +13,9 @@ Coverage targets
 [MQ-9]  build_queue after partial disable excludes disabled rooms.
 [DISP-1]  _dispatch_clean_payload merges directly {entity_id, **payload} when no command declared.
 [DISP-2]  _dispatch_clean_payload wraps {entity_id, command, params} when a command is declared.
+[MQ-10] clear_queue drops the interleaved breaks, not just the rooms.
+[MQ-11] applying a STEPPED run profile records its breaks (a plain Start no longer runs it flat).
+[MQ-12] applying a FLAT run profile WIPES breaks left over from an earlier composition.
 """
 
 from __future__ import annotations
@@ -232,3 +235,109 @@ async def test_dispatch_clean_payload_wrapped_with_command(manager, hass):
             "params": {"segments": [1, 2], "fan": "Quiet"},
         }
     ]
+
+
+# ---------------------------------------------------------------------------
+# [MQ-10..12] RP-021c / #8:A4-PP-RP-4 — the queue's TWO backings move together
+#
+# Deliberately here, against the REAL manager fixture, rather than in
+# test_profiles_manager.py which drives ProfileManager with a MagicMock manager.
+# The fix calls self._manager.set_queue_breaks(...); against a mock that call
+# does nothing and returns a mock, so every assertion below would pass while the
+# breaks were never written. A mock agrees with the caller, not the callee.
+# ---------------------------------------------------------------------------
+
+def _bucket(manager):
+    return manager.data["maps"][_VAC][str(_MAP)]
+
+
+def _save_profile(manager, profile_id, profile):
+    store = manager.profiles._get_saved_run_profile_store(
+        vacuum_entity_id=_VAC, map_id=str(_MAP)
+    )
+    store[profile_id] = profile
+
+
+async def test_clear_queue_also_clears_breaks(manager):
+    """[MQ-10] "Clear queue" drops the interleaved breaks too.
+
+    The live queue has TWO backings — enabled rooms, and the charge/wait/zone
+    breaks between them. clear_queue emptied only the first, so the breaks
+    survived with no rooms to sit between and the NEXT composition inherited
+    them: a charge break landing after an arbitrary room of a run that never
+    asked for one.
+    """
+    setup_map(manager, _VAC, _MAP, count=3)
+    manager.build_queue(vacuum_entity_id=_VAC, map_id=_MAP)
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="charge_wait",
+        after_index=1, target_battery_percent=90,
+    )
+    assert _bucket(manager)["queue_breaks"], "precondition: a break was added"
+
+    manager.clear_queue(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert _bucket(manager)["queue_breaks"] == []
+    assert "queue_source" not in _bucket(manager)
+
+
+async def test_apply_stepped_profile_writes_its_breaks(manager):
+    """[MQ-11] Applying a STEPPED profile records its structure, not just rooms.
+
+    Without this, apply enabled the right rooms in the right ORDER and stopped —
+    so a plain Start (reloaded dashboard, second tab, phone, or an automation
+    doing apply_run_profile then start_cleaning) ran the profile FLAT: the
+    charge break never happened and the robot died mid-run.
+    """
+    setup_map(manager, _VAC, _MAP, count=3)
+    _save_profile(manager, "nightly", {
+        "name": "Nightly",
+        "rooms": [{"room_id": 1}, {"room_id": 2}],
+        "steps": [
+            {"type": "room_group", "rooms": [{"room_id": 1}]},
+            {"type": "charge_wait", "target_battery_percent": 90},
+            {"type": "room_group", "rooms": [{"room_id": 2}]},
+        ],
+    })
+
+    out = manager.profiles.apply_run_profile(
+        vacuum_entity_id=_VAC, map_id=str(_MAP), profile_id="nightly"
+    )
+    assert out["applied"] is True
+
+    breaks = _bucket(manager)["queue_breaks"]
+    assert len(breaks) == 1, f"expected the charge break to be recorded, got {breaks}"
+    assert breaks[0]["after_index"] == 1          # after the FIRST room, not room id 1
+    assert breaks[0]["step"]["type"] == "charge_wait"
+
+    source = _bucket(manager)["queue_source"]
+    assert source["stepped"] is True
+    assert source["profile_id"] == "nightly"
+
+
+async def test_apply_flat_profile_wipes_leftover_breaks(manager):
+    """[MQ-12] Applying a FLAT profile clears breaks the map was still carrying.
+
+    The finding's other half. set_queue_breaks is replace-ALL, so a flat profile
+    deriving an empty list is what evicts a stale charge break from an earlier
+    composition — rather than letting it attach itself to a run that never asked
+    for one. This is why the two halves are one fix.
+    """
+    setup_map(manager, _VAC, _MAP, count=3)
+    manager.build_queue(vacuum_entity_id=_VAC, map_id=_MAP)
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="charge_wait",
+        after_index=1, target_battery_percent=90,
+    )
+    assert _bucket(manager)["queue_breaks"], "precondition: a stale break exists"
+
+    _save_profile(manager, "flat", {
+        "name": "Flat", "rooms": [{"room_id": 1}, {"room_id": 2}],
+    })
+    out = manager.profiles.apply_run_profile(
+        vacuum_entity_id=_VAC, map_id=str(_MAP), profile_id="flat"
+    )
+    assert out["applied"] is True
+
+    assert _bucket(manager)["queue_breaks"] == []
+    assert _bucket(manager)["queue_source"]["stepped"] is False

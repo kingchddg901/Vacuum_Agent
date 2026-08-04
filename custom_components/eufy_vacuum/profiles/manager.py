@@ -1518,6 +1518,66 @@ class ProfileManager:
 
         map_bucket["rooms"] = rooms
         map_bucket["summary"] = build_room_selection_summary(managed_rooms=rooms)
+
+        # RP-021c / #8:A4-PP-RP-4: apply the profile's STRUCTURE, not only its rooms.
+        #
+        # This method used to enable the right rooms in the right ORDER and stop
+        # there, leaving no backend record that the profile was stepped. The
+        # breaks live in a different backing (map_bucket["queue_breaks"]) which
+        # nothing here wrote, so a plain Start -- from a reloaded dashboard, a
+        # second tab, a phone, or an automation that calls apply_run_profile then
+        # start_cleaning -- ran the profile FLAT. The charge-to-90% break never
+        # happened and the robot died mid-run; a wait was skipped; a zone step was
+        # never cleaned at all. Silent in both directions: nothing reported that
+        # the structure had been dropped.
+        #
+        # Derive the breaks from the profile's own steps and write them through
+        # set_queue_breaks, the single replace-ALL primitive. Replace-all is doing
+        # double duty, and is why this is one fix rather than two: a FLAT profile
+        # derives an empty list, which WIPES whatever breaks the map was carrying
+        # from an earlier composition. That was the finding's other half -- a
+        # leftover charge break landing after an arbitrary room of a profile that
+        # never asked for one.
+        #
+        # after_index counts only rooms that actually RESOLVED against this map, so
+        # a break stays anchored to the room it followed even when the profile
+        # references rooms a re-segment has since removed. set_queue_breaks clamps
+        # to an interior slot and drops breaks entirely below two rooms, which is
+        # also where a leading/trailing break resolves -- unsupported per RP-021a
+        # (Q17), and handled there consistently rather than by a second rule here.
+        _derived_breaks: list[dict[str, Any]] = []
+        _applied_set = set(applied_room_ids)
+        _rooms_emitted = 0
+        for _step in self.run_profile_steps(profile):
+            if not isinstance(_step, dict):
+                continue
+            if str(_step.get("type") or "").strip().lower() == "room_group":
+                _rooms_emitted += sum(
+                    1 for _r in (_step.get("rooms") or [])
+                    if isinstance(_r, dict)
+                    and _safe_int(_r.get("room_id"), -1) in _applied_set
+                )
+                continue
+            if _rooms_emitted >= 1:
+                _derived_breaks.append({**_step, "after_index": _rooms_emitted})
+
+        self._manager.set_queue_breaks(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            breaks=_derived_breaks,
+        )
+
+        # The TAG. The breaks above are what make a plain Start behave; this is the
+        # provenance that makes it explicable -- which profile the live queue came
+        # from, and whether it carried structure. Without it, "why does Start pause
+        # to charge?" has no answer visible in stored state, and a queue composed
+        # by hand is indistinguishable from one a profile applied.
+        map_bucket["queue_source"] = {
+            "profile_id": profile_id,
+            "stepped": bool(_derived_breaks),
+            "applied_at": utc_now_iso(),
+        }
+
         self._manager._refresh_room_derived_state(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
