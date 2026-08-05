@@ -392,11 +392,84 @@ def harvest_run(
     }
 
 
+def eject_window(
+    con: sqlite3.Connection, entity_like: str, start_iso: str, end_iso: str,
+    all_entities: bool = False,
+) -> dict[str, Any]:
+    """Eject an arbitrary time window - no job record required.
+
+    THE POINT OF THIS MODE. The job-record path can only reach runs the
+    integration already understood well enough to write down, which excludes the
+    two moments you actually want the tape for:
+
+      * something looked WRONG and you want to see what the device really did,
+        including runs that never produced a record at all;
+      * you are bringing up a NEW ADAPTER, where there are no job records yet
+        by definition and the whole question is what this brand's entities do.
+
+    For the adapter case pass ``all_entities`` - ROLE_SUFFIXES encodes what Eufy
+    and Roborock happen to call things, which is exactly the assumption a new
+    brand breaks. Narrowing to known suffixes on an unknown device is how you
+    miss the entity that mattered.
+    """
+    lo, hi = _epoch(start_iso), _epoch(end_iso)
+    span = _retention_span(con)
+    if span[0] is not None and lo < span[0]:
+        print(f"  WARNING: {start_iso} predates the recorder's oldest state "
+              f"({_iso(span[0])}) - the window is CLIPPED, not empty.")
+
+    rows = con.execute(
+        "SELECT metadata_id, entity_id FROM states_meta WHERE entity_id LIKE ?",
+        (f"%{entity_like}%",),
+    ).fetchall()
+    ents = {
+        mid: eid for mid, eid in rows
+        if all_entities or eid.startswith("vacuum.") or any(
+            eid.endswith(sfx) for sfx in ROLE_SUFFIXES
+        )
+    }
+    initial: dict[str, str] = {}
+    events: list[list[str]] = []
+    for mid, eid in sorted(ents.items(), key=lambda kv: kv[1]):
+        prior = con.execute(
+            "SELECT state FROM states WHERE metadata_id=? AND last_updated_ts < ? "
+            "ORDER BY last_updated_ts DESC LIMIT 1", (mid, lo),
+        ).fetchone()
+        if prior and prior[0] not in (None, "unknown", "unavailable"):
+            initial[eid] = prior[0]
+        for t, state, _attrs in con.execute(
+            "SELECT s.last_updated_ts, s.state, sa.shared_attrs FROM states s "
+            "LEFT JOIN state_attributes sa ON sa.attributes_id = s.attributes_id "
+            "WHERE s.metadata_id=? AND s.last_updated_ts BETWEEN ? AND ? "
+            "ORDER BY s.last_updated_ts", (mid, lo, hi),
+        ):
+            if state is not None:
+                events.append([_iso(t), eid, state])
+    events.sort()
+    return {
+        "meta": {
+            "source": "home-assistant_v2.db (recorder, immutable)",
+            "match": entity_like, "window": [start_iso, end_iso],
+            "entities": len(ents), "all_entities": all_entities,
+        },
+        "initial": initial,
+        "events": events,
+    }
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--db", required=True)
-    ap.add_argument("--config", required=True, help="the eufy_vacuum config dir")
+    ap.add_argument("--config", default="", help="the eufy_vacuum config dir "
+                    "(job-record mode; omit when using --window)")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--window", nargs=2, metavar=("START_ISO", "END_ISO"),
+                    help="eject an arbitrary window instead of walking job records")
+    ap.add_argument("--match", default="", help="--window: entity_id substring, "
+                    "e.g. a vacuum's name")
+    ap.add_argument("--all-entities", action="store_true",
+                    help="--window: carry EVERY matching entity, not just known "
+                         "roles. Use when bringing up a new adapter.")
     ap.add_argument("--vacuums", default="alfred,ivy")
     ap.add_argument(
         "--area-units", default="",
@@ -414,6 +487,19 @@ def main() -> None:
     con = sqlite3.connect(f"file:{args.db}?immutable=1", uri=True)
     out_root = Path(args.out)
     out_root.mkdir(parents=True, exist_ok=True)
+
+    if args.window:
+        start, end = args.window
+        bundle = eject_window(con, args.match, start, end, args.all_entities)
+        name = f"window_{start.replace(':', '').replace('-', '')}.json"
+        (out_root / name).write_text(
+            json.dumps(bundle, indent=1, ensure_ascii=False), encoding="utf-8")
+        con.close()
+        print(f"ejected {bundle['meta']['entities']} entities, "
+              f"{len(bundle['events'])} events -> {out_root / name}")
+        return
+    if not args.config:
+        ap.error("--config is required unless --window is given")
     index: list[dict[str, Any]] = []
     skipped = 0
 
