@@ -1044,7 +1044,7 @@ export const en = {
   "room_access.accessed_from_here_label": "Rooms Accessed From Here",  // Section label over editable list: rooms THIS room unlocks/grants access to (outbound).
   "room_access.accessed_from_label": "Accessed From",  // Section label over the read-only inbound list: rooms that grant access INTO this room.
   "room_access.claimed_by": "Already claimed by Room {room}",  // Tooltip on a disabled room chip. {room} = the claiming room's id/label. 'Claimed' = already has another room as its access-grantor; keep word 'Room'.
-  "room_access.dock_room_help": "The dock room is the origin of the access tree. It has no inbound dependencies. Only one room can be the dock room.",
+  "room_access.dock_room_help": "The dock room is the origin of the access tree. It has no inbound dependencies. Only one room can be the dock room. Releasing it clears the whole access graph for this map.",
   "room_access.dock_room_label": "Dock Room",  // Field label. 'Dock' = robot's charging dock; noun, NOT the verb 'to dock'. Root room of the access tree.
   "room_access.graph_issues_label": "Graph Issues",  // Label over validation errors. 'Graph' = the room-access dependency graph, not a chart/diagram.
   "room_access.invalid_graph": "Invalid room access graph.",
@@ -1287,7 +1287,12 @@ export const en = {
   // start status / job-control payload and were previously rendered only as the
   // backend's English `message` — untranslatable in the 17 non-English packs.
   // {rooms} is a LIST joined card-side with common.list_separator.
-  "rooms.block_reason.incomplete_access_graph": "Room access is incomplete for {rooms}. Complete their access links, or clear all access settings to allow basic runs.",  // start blocked: the room-access graph is half-configured. {rooms} = the rooms whose access links are missing or broken.
+  // live:AGX-CLEAR-1: the refusal named two exits and only one was findable.
+  // "Clear all access settings" is a real, one-tap action — releasing the dock
+  // room clears the graph — but nothing said WHERE, so a user could read this
+  // sentence a dozen times and never locate the second door. Naming the room is
+  // the difference between an instruction and a riddle.
+  "rooms.block_reason.incomplete_access_graph": "Room access is incomplete for {rooms}. Complete their access links, or open the dock room's Access panel and release it — that clears the graph and lets basic runs work again.",  // start blocked: the room-access graph is half-configured. {rooms} = the rooms whose access links are missing or broken.
   "rooms.block_reason.access_graph_required_for_rules": "Room rules require a complete access graph. Configure the dock room and room connections before using rules.",  // start blocked: rules are set but no access graph exists to evaluate them against.
   "rooms.block_reason.access_graph_required": "Room blockers require a manual room access graph before they can be used.",  // start blocked: blocker rules exist with no access graph at all.
   "rooms.block_reason.rooms_blocked": "Some rooms are blocked by their rules and will be skipped.",  // preflight WARNING (not a block): a reduced run is offered for confirmation.
