@@ -102,7 +102,24 @@ everyone forgets the details. Machine-proposed, Chris-adjudicated, never auto-pu
 it from timestamps in one declared timezone.** "This was a lot of work, so it took days"
 and "one commit, so it was quick" are both forbidden inferences; the corpus itself proves
 volume and duration decouple (an 8-agent audit = ~30 wall minutes; one two-line fix can
-gate on a hardware run for days). Mechanically:
+gate on a hardware run for days).
+
+**The named bias behind the rule (Chris, 2026-08-04): agents assign human-normal
+durations to work volume.** A model's temporal intuitions are calibrated on human teams,
+so a corpus of 484 findings / 60 packets / 416 commits "feels like" weeks, and this
+campaign's true timeline — six days, ~30 wall-minutes per heavyweight audit — reads
+*impossible* on that calibration. The failure is therefore not just bad guessing: a
+narrating agent will actively "correct" true timestamps toward human plausibility, which
+is the narrative-cleaner-than-evidence failure in temporal form. Two consequences:
+- **S2 designated attack (c):** hunt human-scale temporal language — "weeks of effort",
+  "after a long investigation", "quick fix", any pacing adjective — and demand the
+  timestamp pair. Duration words with no pair are kills, same as uncited causality.
+- Agent-authored artifacts INSIDE the evidence (journal prose, commit bodies, handoffs)
+  carry the same bias — their temporal *language* is inadmissible as a clock even though
+  their recorded *timestamps* are primary sources. A quote may establish what was
+  believed, never how long something took.
+
+Mechanically:
 
 - **Declared timezone: America/Los_Angeles** (the commit log's own offset). Extractors
   store every timestamp as ISO-8601 with offset exactly as the artifact states it;
