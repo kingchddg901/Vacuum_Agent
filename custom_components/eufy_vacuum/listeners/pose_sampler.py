@@ -41,7 +41,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+from functools import partial
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
@@ -50,6 +51,12 @@ from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN
 from ..core.manager import EufyVacuumManager
 from ..learning.room_attribution_engines import get_room_attribution_engine
+from .. import pose_store
+
+
+def _iso_now() -> str:
+    """UTC ISO seconds — the same shape read_range compares lexicographically."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 from ..learning.utils import cleaning_area_to_m2
 from ..rooms.utils import slugify_room_name
 
@@ -275,6 +282,39 @@ async def _sample_vacuum_once(hass, manager, vacuum_entity_id: str) -> int:
             heading=sample["heading"],
         ):
             recorded += 1
+
+        # 24-hour pose ring — a PARALLEL copy that outlives the job. The buffer
+        # above is job-scoped: it lives until the next run on the same map
+        # overwrites it, and it never reaches the finalized record, so the moment
+        # a run ends its fine-grained history is gone. See pose_store's module
+        # docstring for why 24 h and why chunked.
+        #
+        # Deliberately NOT gated on record_pose_sample's return: that guards the
+        # live attribution buffer, and the ring wants the sample regardless of
+        # whether a job slot accepted it.
+        #
+        # Offloaded because this coroutine runs on the event loop and direct file
+        # I/O there trips HA's blocking-call detector — the same reason
+        # battery/manager.py offloads its append. Failure here must never disturb
+        # a run, so the store swallows its own I/O errors.
+        try:
+            hass.async_add_executor_job(
+                partial(
+                    pose_store.append_sample,
+                    config_dir=hass.config.config_dir,
+                    vacuum_entity_id=vacuum_entity_id,
+                    sample={
+                        "t": _iso_now(),
+                        "map_id": map_id_str,
+                        "current_room": sample["current_room"],
+                        "anchor": sample["anchor"],
+                        "cleaning_area": sample["cleaning_area"],
+                        "heading": sample["heading"],
+                    },
+                )
+            )
+        except Exception:  # pragma: no cover - observability must not break a run
+            _LOGGER.debug("pose ring: append could not be scheduled", exc_info=True)
     return recorded
 
 
