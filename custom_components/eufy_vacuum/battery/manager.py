@@ -132,6 +132,35 @@ REGIME_PCT_MAX = 150.0
 #: counts toward cumulative cycles since drain is independent of time.
 MAX_RATE_INTERVAL_SEC = 600.0
 
+#: Physical ceiling on a charge rate, in percentage points per minute.
+#:
+#: live:BATT-ZONE-1. THE BATTERY IS QUANTISED TO WHOLE PERCENT, so
+#: `delta_pct / (elapsed/60)` inflates without limit as `elapsed` shrinks: one 1%
+#: tick landing 18 s after the previous sample reads as 3.33 %/min whatever the pack
+#: is really doing. That is the shape of the observed rate_high_zone 3.3079 on a dock
+#: measured at ~0.45 %/min at its fastest — an eightfold overstatement produced by a
+#: short interval, not by charging. MAX_RATE_INTERVAL_SEC bounded the LONG end and
+#: nothing bounded the short one, which reads as complete until you ask what the
+#: other end does.
+#:
+#: 2.5 %/min is a 40-minute 0-100 charge, far beyond any dock these adapters serve
+#: (Alfred's measured deep recharge was 9% -> 49% in 88 minutes, about 0.45 %/min).
+#: Above it the number is arithmetic, not electricity.
+#:
+#: A MINIMUM-INTERVAL FLOOR WAS TRIED FIRST AND THE REAL DATA REJECTED IT. Bounding
+#: the error at source is the better-looking fix, but at 120 s it discarded genuine
+#: samples from the captured charge-curve fixture and moved cc_charge_speed 118.9 ->
+#: 114.7. The device's own sample cadence is shorter than the interval a 1% quantum
+#: needs, so no floor exists that is both safe and useful — the artefact has to be
+#: caught by its VALUE instead. Do not re-add the floor without re-running
+#: test_charge_rates.
+#:
+#: NOT applied as a taper invariant (high_zone <= low_zone) either. That holds of a
+#: charge CURVE but not of any single sample pair, so asserting it per sample would
+#: reject legitimate readings. This bound removes the artefact that violated it
+#: without inventing a rule the data cannot honour.
+MAX_PLAUSIBLE_RATE_PCT_PER_MIN = 2.5
+
 #: Battery range that counts as "low zone" — slow CC start.
 LOW_ZONE_MAX = 29
 
@@ -667,6 +696,23 @@ class BatteryHealthManager:
                     # a misleading averaged-over-the-gap value.
                     if raw_delta > 0 and elapsed_sec <= MAX_RATE_INTERVAL_SEC:
                         rate_per_min = delta_pct / (elapsed_sec / 60.0)
+                        # live:BATT-ZONE-1 — a 1% quantum over a short interval reads
+                        # as a huge rate. Caught by VALUE because the device's sample
+                        # cadence rules out catching it by interval (see the constant).
+                        if rate_per_min > MAX_PLAUSIBLE_RATE_PCT_PER_MIN:
+                            _LOGGER.warning(
+                                "battery: implausible charge rate %.4f %%/min "
+                                "(%.2f%% over %.0fs, zone=%s) — above %.2f, discarding "
+                                "the sample rather than publishing it",
+                                rate_per_min, delta_pct, elapsed_sec, zone,
+                                MAX_PLAUSIBLE_RATE_PCT_PER_MIN,
+                            )
+                            record["stats"]["rejected_rate_per_min"] = round(rate_per_min, 4)
+                            rate_per_min = None
+                    else:
+                        rate_per_min = None
+
+                    if rate_per_min is not None:
                         record["stats"]["rate_overall_per_min"] = round(rate_per_min, 4)
                         if zone == "low":
                             record["stats"]["rate_low_zone_per_min"] = round(rate_per_min, 4)
