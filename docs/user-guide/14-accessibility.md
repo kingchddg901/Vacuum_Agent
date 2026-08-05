@@ -90,6 +90,35 @@ you can narrow the gallery or the card's theme picker to, say, "Best for
 red-green" and see the themes tuned most strongly for your own vision. Only
 themes that have earned the Colorblind Safe badge carry a "Best for" tag.
 
+## Dyslexia-friendly typeface
+
+The card can render in **OpenDyslexic**, a typeface designed with weighted
+bottoms on each letter to make characters harder to flip or confuse.
+
+Open the **globe** in the card header — the same menu you pick a language in —
+and choose it under **Typeface**. The option is shown in OpenDyslexic itself, so
+you can see the typeface before you commit to it, and the menu stays open so you
+can switch straight back if it isn't for you.
+
+The choice is stored **per Home Assistant user**, the same way the language is,
+so it follows your login to every device you open the card on. It does not
+change what anyone else sees.
+
+**Two things worth knowing:**
+
+- It is offered in **English only** for now. That isn't an oversight: a typeface
+  is only offered for a language once we've checked it actually contains every
+  character that language's translations need. OpenDyslexic is missing some
+  accented letters that Polish, Czech and Turkish require, so offering it there
+  would give you a patchy half-translated screen rather than a readable one.
+  Other languages get it as they're verified.
+- Text the **font doesn't cover falls back** to your normal font — a room you
+  named in Cyrillic, for example. That's deliberate. The alternative is empty
+  boxes where the letters should be.
+
+Selecting **Default** returns the card to whatever your Home Assistant theme
+uses.
+
 ## Other niceties
 
 - **Keyboard:** press **Esc** to close any open modal.

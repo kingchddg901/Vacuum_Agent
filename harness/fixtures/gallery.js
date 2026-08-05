@@ -729,8 +729,31 @@ const ROOMS_CYRILLIC = {
   controller: ROOMS_ACTIVE.controller,
 };
 
+/* =========================================================
+   ROOMS — OpenDyslexic (accessibility typeface)
+   =========================================================
+   The SAME fixture as ROOMS_ACTIVE, shot in the other typeface. Deliberately
+   not a new scenario: the point is a side-by-side of identical content, so any
+   difference in the shot is the FONT and not the data. OpenDyslexic is wider
+   and heavier than the default, so this is where chip wrapping, queue-row
+   truncation and header fit get to fail visibly.
+
+   Claims no semantic-colour tokens — it is a typography case, not a colour one,
+   and gallery-completeness is about colour coverage. */
+const ROOMS_OPENDYSLEXIC = {
+  id: "rooms-opendyslexic",
+  view: "rooms",
+  label: "Rooms — OpenDyslexic (accessibility typeface)",
+  bundle: ROOMS_ACTIVE.bundle,
+  tokens: ROOMS_ACTIVE.tokens,
+  state: ROOMS_ACTIVE.state,
+  controller: ROOMS_ACTIVE.controller,
+  font: "opendyslexic",
+};
+
 export const GALLERY = [
   ROOMS_ACTIVE,
+  ROOMS_OPENDYSLEXIC,
   ROOMS_CYRILLIC,
   LEARNING_REVIEW,
   MAPPING_REVIEW,

@@ -24,6 +24,16 @@ now**. To use your language today, pick it directly from the globe.
     globe. Once a language is reviewed and promoted, **Auto** will follow your Home
     Assistant language to it automatically. The wording will keep improving.
 
+## The typeface lives here too
+
+The same globe menu carries a **Typeface** section when a dyslexia-friendly font
+is available for your language — see
+[Accessibility](14-accessibility.md#dyslexia-friendly-typeface). It's in this
+menu rather than its own because it's the same kind of setting: a per-user
+display preference that follows your login.
+
+If you don't see it, the font hasn't been verified for your language yet.
+
 ## Don't see your language?
 
 Anyone can add one — a translation is just a file, no coding. If you'd like to

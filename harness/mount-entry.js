@@ -193,6 +193,7 @@ function freezeClock() {
 }
 
 function render(view, opts = {}) {
+  const font = opts.font ?? null;
   const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null, lang = null, mobile = false } = opts;
   const restoreClock = freeze ? freezeClock() : null;
 
@@ -258,6 +259,12 @@ function render(view, opts = {}) {
     // selector exists and ltr is the default, so every existing baseline is
     // pixel-identical.
     applyDir(host, lang);
+    // Accessibility typeface, stamped the same way and for the same reason dir
+    // is: styles/fonts.js keys --evcc-font-family off :host([data-evcc-font=…]),
+    // so without the attribute the harness would render the font's STRINGS but
+    // never the font itself — exactly the gap applyDir was added to close for
+    // RTL layout. src/main.js's _applyFontAttribute does this on the live card.
+    if (font) host.setAttribute("data-evcc-font", font);
     root.appendChild(host);
 
     const shadow = host.attachShadow({ mode: "open" });
@@ -328,6 +335,9 @@ function renderGallery(id, opts = {}) {
     modal: entry.modal ?? null,
     lang: opts.lang ?? null,
     mobile: opts.mobile ?? false,
+    // Entry-declared, overridable per shot — so one fixture can be shot in both
+    // typefaces without a second fixture that could drift from the first.
+    font: opts.font ?? entry.font ?? null,
   });
   return { ...res, id, clip: entry.clip ?? null, label: entry.label };
 }
@@ -485,5 +495,6 @@ window.__evcc = {
     tokens: g.tokens,
     clip: g.clip ?? null,
     modal: g.modal ?? null,
+    font: g.font ?? null,
   })),
 };
