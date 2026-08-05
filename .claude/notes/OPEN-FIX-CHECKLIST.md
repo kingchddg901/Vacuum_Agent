@@ -11,8 +11,8 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
 | Fixes APPLIED (landed packets) | **455** findings via 60 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **17** -- 1 open clusters (28 fully applied) + 16 singles |
-| By severity | CRITICAL 0 / HIGH 2 / MEDIUM 7 / LOW 8 |
+| Open findings | **8** -- 1 open clusters (28 fully applied) + 7 singles |
+| By severity | CRITICAL 0 / HIGH 1 / MEDIUM 3 / LOW 4 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -263,13 +263,7 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### HIGH (1)
-
-- [ ] **ENT-1** `adapters/eufy/entities.py:119` [eufy]  
-  Companion entities are resolved by deriving a name from the vacuum entity id, with no device-registry lookup and no fallback — a device whose entities are named differently reports EVERY capability as absent, silently  
-  -> build_entity_id does string surgery: vacuum_entity_id.split('.')[-1] + suffix. There is no registry lookup, no fallback, and no signal when a derived name does not exist — the capability is simply reported absent. PROVEN
-
-### MEDIUM (7)
+### MEDIUM (3)
 
 - [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
@@ -277,27 +271,12 @@ audit is a snapshot, not a ledger.
 - [ ] **AGX-CLEAR-1** `custom_components/eufy_vacuum/services.yaml:0` [both]  
   The graph refusal offers two exits and only one is reachable — there is no clear-the-access-graph action or service  
   -> The access graph is all-or-nothing BY DESIGN (Chris, 2026-08-04): blank or complete, no half-configured state — so the block on a partial graph is intentional and the refusal names its two exits, 'complete their access l
-- [ ] **DIAG-1** `diagnostics.py:0` [both]  
-  entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'  
-  -> The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the
 - [ ] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
   ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
   -> IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
-- [ ] **DR-ONB-1** `onboarding/manager.py:182` [both]  
-  remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap  
-  -> PROVEN by execution. The loop pops str(old_id) and writes str(new_id) into the SAME dict it is iterating over, so a new_id that is also a later old_id consumes the entry just written. Measured: id_remap={1:2, 2:3, 3:4} w
-- [ ] **DR-ONB-2** `onboarding/manager.py:186` [both]  
-  check_for_new_rooms compares a PER-MAP stored count against a source with no map scoping  
-  -> The stored side, room_count_at_last_check, is stamped by mark_rooms_discovered from data['maps'][vacuum][map_id]['rooms'] -- per map. The live side reads the vacuum entity's `segments` attribute, which carries only the A
-- [ ] **SN-4** `sensor/__init__.py:272` [both]  
-  Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
-  -> VERIFIED: async_update_entity has ZERO occurrences anywhere in the integration. Both sync blocks construct a fresh entity per desired room and then discard it when the unique_id is already known, pushing only a state wri
 
-### LOW (8)
+### LOW (4)
 
-- [ ] **EP-5** `button.py:256` [both]  
-  The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
-  -> Every other entity class in scope declares _attr_translation_key and lets HA resolve the name from strings.json. EufyVacuumSavedRunProfileButton sets _attr_has_entity_name = True, declares NO translation key, and overrid
 - [ ] **DEAD-ROLLOVER-1** `custom_components/eufy_vacuum/jobs/active_job.py:1371` [both]  
   _pending_fast_rollover is READ but written nowhere - the fast-rollover branch of room advancement is dead code  
   -> FILED 2026-08-05 under the charter's new 2c rule, and it is the case that rule exists
@@ -306,15 +285,6 @@ survived only because it reached a closing summary. A
 - [ ] **INF-9** `entity_helpers.py:109` [both]  
   get_floor_type_label emits hardcoded English into an 18-language product  
   -> Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
-- [ ] **EP-4** `number.py:7` [both]  
-  Module comment asserts 'no polling'; the one class that polls is the one relying on it  
-  -> The comment `# All number entities write directly to manager storage; no polling.` sits above PARALLEL_UPDATES = 0. Verified as a claim: NumberEntity, unlike ButtonEntity, does NOT set _attr_should_poll = False, and Eufy
-- [ ] **EP-7** `room_entities.py:87` [both]  
-  _async_update_room silently drops non-managed keys from a mixed update  
-  -> Branch 2 filters `updates` to a hand-maintained managed_field_names set and, if ANY managed key is present, routes only that subset to update_room_fields and RETURNS -- so every non-managed key in the same call is discar
-- [ ] **SN-9** `sensor/map_overlays.py:76` [both]  
-  native_value returns the literal string 'unavailable', colliding with HA's reserved state  
-  -> VERIFIED AT SOURCE: `if not res.get('present'): return 'unavailable'`. That is indistinguishable in hass.states, templates, is_state() and the frontend from an entity that is genuinely unavailable, while the real diagnos
 - [ ] **A4-SETUP-6** `services/setup.py:243` [both] _(finder said HIGH)_  
   setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
   -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
@@ -1437,13 +1407,85 @@ THE EXPENSIVE COROLLARY. RP-047(b) was built ON this finding's stale premise —
 
 CONSEQUENCE STILL OPEN — RE-READ #?:A2-CAN-2. The audit recorded that A3-REC-3 is what made A2-CAN-2's under-reporting UNCONDITIONAL rather than occasional. With this premise gone, CAN-2's failure mode has changed and must be re-read against current code rather than against its ticket. Do not scope CAN-2 from its original text.
 
+- **EP-4** (agent: platforms (2-lens verified)) `number.py:7`  
+  Module comment asserts 'no polling'; the one class that polls is the one relying on it  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: custom_components/eufy_vacuum/number.py:215-217 — EufyVacuumMaintenanceIntervalNumber now declares `_attr_should_poll = False`, and number.py:278 — async_set_native_value ends with `self.async_write_ha_state()` after `await self._manager.async_save()`. Both halves of the described defect are gone: the class no longer depends on the platform's 30s SCAN_INTERVAL to publish a value it mutated in storage, so the 30s lag after a card-side interval save is gone and adding should_poll=False can no longer freeze the entity. The module comment at number.py:7-11 was rewritten to match the code ("each explicitly sets _attr_should_poll=False ... rather than relying on HA's default polling to paper over a missed async_write_ha_state() call (EP-4)") above PARALLEL_UPDATES = 0, so the comment is now a true claim rather than the false one the finding flagged. Sibling classes confirmed poll-free: room_entities.py:20 (base of EufyVacuumRoomOrderNumber), button.py:235, binary_sensor.py:67, sensor/*.py. Pinned by tests/integration/test_number_entity.py:138-155 [NE-7] (patches async_write_ha_state, asserts called once) and :158-162 [NE-9] (asserts _attr_should_poll is False).
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **EP-5** (agent: platforms (2-lens verified)) `button.py:256`  
+  The saved-run-profile button name is hardcoded English, bypassing the translation mechanism  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: custom_components/eufy_vacuum/button.py:231-262 — EufyVacuumSavedRunProfileButton no longer overrides `name`: grepping lines 231-420 of the class returns no `def name`, no `_attr_name`, and no `f"Run {...}"` f-string. It now declares `_attr_translation_key = "run_profile"` (line 242) and `self._attr_translation_placeholders = {"profile": self._profile_name}` (line 262), i.e. the same mechanism as the sibling EufyVacuumMaintenanceResetButton (`_attr_translation_key = "maintenance_reset"`, line 198). The translation target exists: custom_components/eufy_vacuum/strings.json `entity.button` = {"maintenance_reset": {"name": "Reset {component} Maintenance"}, "run_profile": {"name": "Run {profile}"}} and translations/en.json carries the same `run_profile` key (I parsed both files; the translations dir holds only en.json, which is the pre-existing HA-backend shape — the 18 packs are card-side i18n, not entity names). The one residual English literal is line 261's `or "Saved Run"`, but that is now only a fallback VALUE for an empty user-supplied profile name substituted into {profile}, not the entity name template — the verb "Run" is resolved by HA from strings.json in every locale. No EP-5 marker was needed for this call; the class comment at 237-241 does cite it, and the mechanism it describes is gone.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **EP-7** (agent: platforms (2-lens verified)) `room_entities.py:87`  
+  _async_update_room silently drops non-managed keys from a mixed update  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: custom_components/eufy_vacuum/room_entities.py:99-174 — branch 2 no longer returns unconditionally. Lines 122-131 build BOTH `managed_updates` (keys in managed_field_names) and `remaining_updates` (keys not in it). Line 132-142: `if managed_updates:` calls update_room_fields(**managed_updates), then `if not remaining_updates: save; write_ha_state; return` — the early return is now GUARDED on there being nothing left. Otherwise control falls through to the generic merge, where line 157 does `current.update(remaining_updates if managed_updates else updates)`, followed by the summary rebuild at line 163 (`build_room_selection_summary`), `_refresh_room_derived_state` (164), `_notify_rooms_updated` (168), save and write state. The finding's exact repro — `_async_update_room({'enabled': True, 'color': '#ff0000'})` — now persists both keys. Verified `current` is not clobbered: room_entities re-reads the same live dict object that update_room_fields wrote to (core/manager.py:1663 `rooms[room_key] = updated_room`, same map_bucket via ensure_map_bucket/setdefault). The sub-claim about the skipped summary rebuild is also moot: core/manager.py:1740-1741 shows update_room_fields itself sets `map_bucket["summary"] = build_room_selection_summary(...)` on its success path. Regression test: tests/integration/test_platform_files.py:125-147 `test_room_update_mixed_managed_and_unmanaged_fields` asserts color reaches storage while only `enabled` reaches update_room_fields.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
 - **SN-10a** (agent: sensor (2-lens verified)) `sensor/theme.py:75`  
   KILLED: the claim that a hand-edited theme import can store a raw null name  
   -> KILLED — the reachability premise is fatal to the claim AS RECORDED. Stage B's reproducer executed it: import_theme does `name = str(source_theme.get('name','')).strip()` (themes/manager.py:537), so a JSON null becomes the STRING 'None', which is truthy and passes the `if not name` gate. The stated entry path — 'reachable via a hand-edited import' — cannot produce the defect. That sentence was mine and it was wrong. Split from the original SN-10 so Corpus C does not have to assert the LINE is correct; the line-level defect survives as SN-10b.
 
+- **SN-4** (agent: sensor (2-lens verified)) `sensor/__init__.py:272`  
+  Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: Seam is now the unified per-room sync `_sync_dynamic_entities` in custom_components/eufy_vacuum/sensor/__init__.py (the two byte-identical history/rule-status twins the finding called "both sync blocks" were merged into it; the twins are now thin wrappers at :408-434). The described mechanism — build a fresh entity per desired room, then DISCARD it when the unique_id is already known and push only a state write — is gone. At sensor/__init__.py:366-391 the loop now does: `existing = entity_dict.get(unique_id)`; `if existing is not None:` -> `if existing.room_name != entity.room_name:` -> replaces the dict slot with the freshly built object (`entity_dict[unique_id] = entity`) and schedules `_swap_renamed(_old=existing,_new=entity)` (:382-386) which awaits `_old.async_remove()` then `async_add_entities([_new])`, `continue`-ing PAST the `_request_entity_state_write(existing)` fallthrough at :388. Only the unchanged-name path still does the bare state write. The comparison key is real: `EufyVacuumRoomEntity.room_name` is a property at custom_components/eufy_vacuum/room_entities.py:79-87 returning `self._room_name`, which is captured once in `__init__` at room_entities.py:38 and fed to `_attr_translation_placeholders = {"room": self._room_name}` at room_entities.py:53 — so a rebuilt sibling genuinely carries the new name and the swap re-resolves the friendly name at add-time. The fix deliberately does NOT call `registry.async_update_entity(name=...)` (comment at :377-379, to avoid stomping a user override), so the finding's "async_update_entity has ZERO occurrences" observation is still true and is no longer the test. Regression-locked by tests/integration/test_init_setup.py:569-618 `test_room_rename_swaps_entity_keeping_unique_id`, which asserts `after_entity is not before_entity` and `after_entity.room_name == "Great Room"` while the registry entity_id for unique_id `vacuum_alfred_6_1_cleaning_history` is unchanged — i.e. it rejects a mere state re-write on the stale object. Same fix shape also present in button.py:99-117 and number.py:132-150. SCOPE BOUNDARY / sibling gap outside SN-4's declared seam: custom_components/eufy_vacuum/switch.py:90-96 still has the ORIGINAL pattern — `if existing is not None: existing.async_write_ha_state()` with the rebuilt `EufyVacuumRoomEnabledSwitch` (same EufyVacuumRoomEntity base, same placeholder name capture, built at switch.py:61-68) discarded and no room_name comparison. That is the SN-4 mechanism surviving on the switch platform; it does not change SN-4's verdict at sensor/__init__.py but should be filed.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **SN-9** (agent: sensor (2-lens verified)) `sensor/map_overlays.py:76`  
+  native_value returns the literal string 'unavailable', colliding with HA's reserved state  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: Seam: `EufyVacuumMapOverlaysSensor.native_value` in custom_components/eufy_vacuum/sensor/map_overlays.py. The finding's exact source line `if not res.get('present'): return 'unavailable'` no longer exists — map_overlays.py:85-89 now reads `def native_value(self) -> str | None:` / `res = self._result()` / `if not res.get("present"): return None`. The recommended alternative was adopted verbatim: a real `available` property was added at map_overlays.py:72-82 returning `bool(self._result().get("present"))`, with a docstring naming SN-9 and stating the reason is carried in `extra_state_attributes["reason"]` rather than encoded into the state string; that attribute is still populated on the not-present branch at map_overlays.py:109-111. So not-present now flows through HA's own availability mechanism (available=False + native_value None) instead of a literal string colliding with the reserved state. Repo-wide check: `grep -rn 'return "unavailable"' custom_components/` returns ZERO hits, so the sentinel is not lurking elsewhere in the integration. Regression-locked by tests/unit/test_map_overlays_sensor.py:53 ([MOS-1d] "absent map_state_source -> available=False, native_value=None") and tests/integration/test_sensor_map_overlays.py:185 ("SN-9: not-present is reported via the REAL HA availability mechanism"). Note, not a residue of this finding: native_value still returns the literal string "available" at map_overlays.py:92 when the map IS present but current_room is None. "available" is not an HA-reserved state (only "unavailable"/"unknown" are), so the described collision does not apply, though the wording is confusing next to the availability property.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
 - **DR-DBG-5** (direct read) `debug_capture.py:263`  
   The restore guard cannot distinguish its own DEBUG from a user's mid-capture `logger:` DEBUG  
   -> Reaching it requires starting the flight recorder — a tool whose entire purpose is to avoid enabling `logger:` debug — and then enabling `logger:` debug anyway, mid-capture. That is a user footgun, not a defect: the two actions contradict each other. Documented in the module and in the post rather than guarded against.
+
+- **DR-ONB-1** (direct read) `onboarding/manager.py:182`  
+  remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: custom_components/eufy_vacuum/onboarding/manager.py:214-229 no longer mutates while iterating. It takes an immutable snapshot first -- `before = dict(confirmed)` (:215) -- normalizes the remap to string keys (:216), builds a NEW dict `rebuilt` from keys not named as an old_id (:218-220), then writes `rebuilt[new_key] = True` only from `before.get(old_key)` (:221-223), so every read is of the OLD state. It finishes with `confirmed.clear(); confirmed.update(rebuilt)` (:228-229) to preserve object identity for callers holding a reference. Traced the record's own reproducer by hand: before={'1','2','3'} all True, remap {1:2,2:3,3:4} -> rebuilt {'2':T,'3':T,'4':T} (was {'4':True}); swap {1:2,2:1} with only room 1 confirmed -> {'2':True}, not the wrong-room {'1':True}. Both shapes are now pinned by tests/integration/test_onboarding_manager.py:200-232 ([OB-6b] chain, [OB-6c] swap) and identity by :246. Sole production caller rooms/room_crud.py:330 is unchanged, so the fixed function is the one actually reached.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **DR-ONB-2** (direct read) `onboarding/manager.py:186`  
+  check_for_new_rooms compares a PER-MAP stored count against a source with no map scoping  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: custom_components/eufy_vacuum/onboarding/manager.py:277-284 — check_for_new_rooms now imports get_active_map_id from ..rooms.room_discovery and returns False when `active_map_id is not None and str(active_map_id) != str(map_id)`, BEFORE reading the un-scoped live attribute at line 286 (`source_state.attributes.get(attribute)`) and comparing it to `map_ob["room_count_at_last_check"]` at 291. The described mechanism — a per-map stored count compared against the ACTIVE map's live segment list on a non-active map — can no longer execute: the cross-map comparison is refused instead of answered. Docstring at 237-259 names DR-ONB-2 and states the design (unknown active map falls through unchanged, which is the deliberate single-map/boot-window behaviour, not the defect). Backed by tests/integration/test_onboarding_manager.py:98-136 [OB-3b], which monkeypatches get_active_map_id to "OTHER_MAP" (expects False), to _MAP (expects True), and to None (expects True). get_active_map_id itself is real at custom_components/eufy_vacuum/rooms/room_discovery.py:43.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **DIAG-1** (live) `diagnostics.py`  
+  entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: custom_components/eufy_vacuum/diagnostics.py:383-440 adds `_device_entity_census`, which resolves the vacuum entity in the entity registry (`er.async_get(hass).async_get(vacuum_entity_id)`), takes its `device_id`, and enumerates real siblings via `er.async_entries_for_device(registry, device_id, include_disabled_entities=True)` -> emits `entity_count` plus a sorted `entities` list of `{entity_id, disabled, platform}`. It is wired into the dump at :471 (`out["device_entities"] = _device_entity_census(...)`) alongside `out["entity_resolution"]` at :467, and :490-503 adds `entity_resolution_summary` with `declared`, `unresolved`, `device_entity_count`, and `likely_naming_mismatch = bool(unresolved and isinstance(sibling_count,int) and sibling_count > 0)`. Reachability confirmed: `async_get_config_entry_diagnostics` (:759) fans out to `_vacuum_diagnostics` at :811. The described mechanism -- 'the dump never lists what the device actually exposes, so a naming miss and an absent capability are byte-identical' -- is gone: a naming miss now reads as unresolved roles WITH a populated sibling census, an absent capability as unresolved roles with `entity_count: 0`. Degenerate cases are named rather than blank (`vacuum_entity_not_in_registry`, `vacuum_entity_has_no_device`). Introduced by commit 20c0ab1 'fix(diagnostics): live:DIAG-1'.
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **ENT-1** (live) `adapters/eufy/entities.py:119`  
+  Companion entities are resolved by deriving a name from the vacuum entity id, with no device-registry lookup and no fallback — a device whose entities are named differently reports EVERY capability as absent, silently  
+  -> VERIFIED APPLIED AT SOURCE (HIGH CONFIDENCE) (2026-08-05) -- BACKFILL OF A HAND-TICK THAT HAD NO DATA BEHIND IT. This finding was ticked in OPEN-FIX-CHECKLIST.md during the campaign but never written back to the generator's inputs, so regenerating the file would have silently discarded the verification. Re-established against current source 2026-08-05 rather than trusted.
+
+EVIDENCE: The derivation itself is unchanged (custom_components/eufy_vacuum/adapters/eufy/entities.py:125-126 still does `vacuum_entity_id.split(".",1)[-1] + suffix`), but the defect's mechanism — no device-registry lookup and no fallback, so an oddly-named companion makes the role read absent — is repaired at the resolution seam. custom_components/eufy_vacuum/core/capabilities.py:182-269 defines augment_candidates_from_device: it looks up the vacuum in `er.async_get(hass)`, takes `er.async_entries_for_device(registry, entry.device_id, include_disabled_entities=True)`, learns the suffix off each declared candidate that starts with the vacuum's object_id, and appends siblings whose DOMAIN matches and whose object_id ends with that suffix (line 263), leaving the derived id first in the list. It is WIRED, not just present: capabilities.py:310 `_cands = augment_candidates_from_device(hass, vacuum_entity_id, entity_candidates)` and every `_find`/`_find_reg`/`_any_present` at 313-323 reads `_cands`, which is what feeds water_level -> supports_mop_features (capabilities.py:388-390) -> supports_water_control (411). Degradation paths return the input unchanged (lines 217/223/232/234), so a fallback can never be removed. The maintainer's area-prefix case is covered end-to-end by tests/integration/test_core_capabilities.py:469-493 [CAP-11e] (device exposes sensor.downstairs_alfred_task_status only; detect_capabilities must resolve it), plus CAP-11/11b/11c/11d at 378-466. The sibling pattern path (live-map camera) was separately hardened at core/manager.py:5396-5403 using the same helper (that one is ENT-2).
+
+Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
 
 ## Regenerating this file
 
