@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _PATH_BLOCKER_UNSUBS = "_path_blocker_unsubs"
 _PATH_BLOCKER_ROOM_CALLBACK = "_path_blocker_room_callback"
-#: RP-008 (GUARD-2): per-run single-flight for _process — a burst of blocker
+#: RP-008 (A6-GUARD-2): per-run single-flight for _process — a burst of blocker
 #: edges used to spawn one unbounded task per event. One evaluation runs; one
 #: re-check is queued behind it; further arrivals coalesce into that re-check.
 _PATH_BLOCKER_INFLIGHT = "_path_blocker_inflight"

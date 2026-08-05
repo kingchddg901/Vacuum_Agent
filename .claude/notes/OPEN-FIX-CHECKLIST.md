@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **455** findings via 60 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046) |
+| Fixes APPLIED (landed packets) | **462** findings via 63 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **8** -- 1 open clusters (28 fully applied) + 7 singles |
-| By severity | CRITICAL 0 / HIGH 1 / MEDIUM 3 / LOW 4 |
+| Open findings | **1** -- 0 open clusters (29 fully applied) + 1 singles |
+| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 0 / LOW 1 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -155,13 +155,13 @@ audit is a snapshot, not a ledger.
 - **Fix:** Require the previous value to be a real non-trigger dock state before recording a cycle. Move the timestamp write inside the debounce guard.
 - [x] applied  [ ] tested  [ ] hardware-checked
 
-### C17. Reactive listeners spawn unbounded concurrent work with no in-flight guard *(not independently verified)* — **3/4 applied**
+### C17. Reactive listeners spawn unbounded concurrent work with no in-flight guard *(not independently verified)* — **4/4 applied**
 
 - **Seam:** `listeners/path_blockers.py + pause_timeout.py + lifecycle.py + pose_sampler.py`
-- **Closes:** A6-GUARD-2, ~~A6-GUARD-4~~ ✅ RP-011 (`365f90b`), ~~A2-LIFE-2~~ ✅ RP-003 (`76d92fc`), ~~A4-POSE-2~~ ✅ RP-012 (`7269020`)
+- **Closes:** ~~A6-GUARD-2~~ ✅ RP-050 (`8d244dc`), ~~A6-GUARD-4~~ ✅ RP-011 (`365f90b`), ~~A2-LIFE-2~~ ✅ RP-003 (`76d92fc`), ~~A4-POSE-2~~ ✅ RP-012 (`7269020`)
 - **What breaks:** path_blockers spawns a _process task per event with no coalescing, so a bouncing sensor stacks them; the 1-minute reap ticker has no in-flight guard while each reap blocks; the pose timer is fire-and-forget so a slow tick overlaps the next; and _process tasks are untracked, so remove() drops the subscription but not the work already in flight.
 - **Fix:** One in-flight guard / coalescing pattern, applied to all four. This is the same question four times.
-- [ ] applied  [ ] tested  [ ] hardware-checked
+- [x] applied  [ ] tested  [ ] hardware-checked
 
 ### C18. The listener layer is a THIRD answer to 'is a job active' *(not independently verified)* — **3/3 applied**
 
@@ -263,39 +263,15 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### MEDIUM (3)
+### LOW (1)
 
-- [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
-  A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
-  -> A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
-- [ ] **AGX-CLEAR-1** `custom_components/eufy_vacuum/services.yaml:0` [both]  
-  The graph refusal offers two exits and only one is reachable — there is no clear-the-access-graph action or service  
-  -> The access graph is all-or-nothing BY DESIGN (Chris, 2026-08-04): blank or complete, no half-configured state — so the block on a partial graph is intentional and the refusal names its two exits, 'complete their access l
-- [ ] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
-  ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
-  -> IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
-
-### LOW (4)
-
-- [ ] **DEAD-ROLLOVER-1** `custom_components/eufy_vacuum/jobs/active_job.py:1371` [both]  
-  _pending_fast_rollover is READ but written nowhere - the fast-rollover branch of room advancement is dead code  
-  -> FILED 2026-08-05 under the charter's new 2c rule, and it is the case that rule exists
-for: found while chasing live:ROOM-FLICKER-1, not the thing being chased, and it
-survived only because it reached a closing summary. A
-- [ ] **INF-9** `entity_helpers.py:109` [both]  
-  get_floor_type_label emits hardcoded English into an 18-language product  
-  -> Nine English literals plus an English-derived fallback (str(floor_type).replace('_',' ').title()), emitted as floor_type_label from three backend payloads (core/manager.py:280, planning/run_plan.py:174, profiles/manager.
-- [ ] **A4-SETUP-6** `services/setup.py:243` [both] _(finder said HIGH)_  
-  setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back  
-  -> A YAML/automation caller, or a user clicking Reject on a room the drift panel surfaced, silently loses that room's configuration on maps they were not looking at. Room entities disappear, run profiles and queues referenc
-  -> **ADJUDICATED:** SEVERITY CORRECTED HIGH -> LOW (LATENT) (2026-08-03) -- MECHANISM CONFIRMED, HARM MISDESCRIBED. The scoping claim is correct and worth keeping: rejection is NOT map-scoped. `rejected_rooms` is a flat list[int] on setup_progress[vacuum_entity_id] with no map dimension, _get_progress_record is keyed by vacuum only, the suppression is a flat set subtraction applied identically to every map, and reject_rooms iterates manager.data['maps'][veid] with no filter -- while discovery IS map-capable (discover_rooms_for_vacuum takes map_id), each drift row carries a map_id, and the card renders it beside the button. The UI presents a per-map decision that the backend applies per-vacuum. But the finding's HARM -- 'silently loses that room's configuration on maps they were not looking at' -- is unreachable. new_candidate_ids = discovered - configured_ids - rejected, and _list_configured_room_ids collects across ALL maps for the vacuum, so a room configured anywhere is never offered for rejection anywhere. The rooms.pop therefore removes a discovery-created stub, not user data. And the user guide (docs/user-guide/11-setup.md, applying charter delta 9) shows the other two 'harms' are the FEATURE: phantom rooms 'need to be rejected here so they don't become managed entities', and Reject as phantom 'permanently suppresses the room... never appears in this list again... Use this for ghost rooms the firmware occasionally invents.' Permanence is the point, and a typed-token gate on dismissing a firmware ghost would be absurd friction. Chris: it refuses the room's CREATION, it does not delete a room. The card offers it only inside Setup; anything else needs a hand-written service call. WHAT SURVIVES, and why it stays OPEN at LOW rather than being retired: rejection is vacuum-scoped while phantoms are per-map, and Eufy reuses ids 1-11 per map. A genuine phantom id on one floor therefore permanently blocks configuring a REAL room with the same id on another, and there is no un-reject path (grep: the only writers are drift.py and core/manager.py:559 record-init). That is the inverse of the finding's harm -- not losing existing configuration, but losing the ABILITY to configure. Latent today because only one map per vacuum carries rooms in this fleet; that is current state, NOT a limit (Chris), so it becomes live the day a second floor is configured. Minor second residual: reject_rooms never checks is_configured, so a direct service call can pop a configured room. Not reachable from the card. FIX SHAPE when it is worth doing: carry the map the rejection was made on rather than adding a confirmation gate or a protection level -- neither of those addresses the actual defect. Reads stay tolerant of the legacy flat list (treat as all-maps, preserving today's behaviour for existing records); writes become map-keyed; the service takes an optional map_id and the card passes the map_id it already renders.
-- [ ] **I18N-1** `src/renderers/shared.js:0` [both]  
-  The tRaw docstring claims it escapes interpolated values; it does not — neither t() nor tRaw() escapes vars  
-  -> NOT a live vulnerability — every tRaw call site checked (bindings/setup.js's ~12 failed_* handlers, bindings/map.js, room-access, room-rules, room-editor) lands in a sink that escapes: renderers/setup.js:126 escapeHtml(S
+- [ ] **SETUP-REJ-2** `rooms/room_manager.py:51` [both]  
+  build_managed_rooms' rejected_rooms= exclusion (CRUD-5) has no production caller  
+  -> Found while fixing A4-SETUP-6, filed rather than folded in (charter 2c). build_managed_rooms takes a rejected_rooms= parameter and skips those ids at :122, documented as CRUD-5 'excludes ids the user explicitly rejected
 
 ---
 
-## APPLIED -- 455 findings closed by a landed packet
+## APPLIED -- 462 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1212,6 +1188,20 @@ a disappeared finding is indistinguishable from one never found.
   Protection evaluation calls .get() on map buckets and room records without isinstance guards
 - [x] **DOCK-1** `learning/job_finalizer.py:939` [eufy (Roborock declares no code tables, so it degrades to 'trust the run')] -- **RP-046** (`5b21a1a`, `14a4f43`, 2026-08-04)  
   total_error_seconds is subtracted from cleaning_time_seconds with no notion of WHOSE fault it was, so a station fault raised while the robot cleaned normally is charged against the robot's cleaning time
+- [x] **A4-SETUP-6** `services/setup.py:243` [both] -- **RP-048** (`56af6b1`, 2026-08-05)  
+  setup_reject_rooms permanently deletes rooms from EVERY map for the vacuum with no map scoping, no protection gate, no confirmation and no way back
+- [x] **DQ-ACT-6** `core/manager.py:5005` [roborock] -- **RP-049** (`4fbb530`, 2026-08-05)  
+  A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start
+- [x] **AGX-CLEAR-1** `custom_components/eufy_vacuum/services.yaml:0` [both] -- **RP-049** (`4fbb530`, 2026-08-05)  
+  The graph refusal offers two exits and only one is reachable — there is no clear-the-access-graph action or service
+- [x] **INF-9** `entity_helpers.py:109` [both] -- **RP-049** (`4fbb530`, 2026-08-05)  
+  get_floor_type_label emits hardcoded English into an 18-language product
+- [x] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock] -- **RP-049** (`4fbb530`, 2026-08-05)  
+  ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame
+- [x] **I18N-1** `src/renderers/shared.js:0` [both] -- **RP-049** (`4fbb530`, 2026-08-05)  
+  The tRaw docstring claims it escapes interpolated values; it does not — neither t() nor tRaw() escapes vars
+- [x] **A6-GUARD-2** `listeners/path_blockers.py:194` [both] -- **RP-050** (`8d244dc`, 2026-08-05)  
+  path_blockers spawns unbounded concurrent `_process` tasks; a second blocker event inside the 30s cancel-confirm window double-cancels and the loser deterministically nulls the run's finalize_summary
 
 ---
 
@@ -1248,7 +1238,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 60 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 55 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 63 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 58 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 
@@ -1470,6 +1460,10 @@ Marker-independent by method: the check was whether the finding's described MECH
 EVIDENCE: custom_components/eufy_vacuum/onboarding/manager.py:277-284 — check_for_new_rooms now imports get_active_map_id from ..rooms.room_discovery and returns False when `active_map_id is not None and str(active_map_id) != str(map_id)`, BEFORE reading the un-scoped live attribute at line 286 (`source_state.attributes.get(attribute)`) and comparing it to `map_ob["room_count_at_last_check"]` at 291. The described mechanism — a per-map stored count compared against the ACTIVE map's live segment list on a non-active map — can no longer execute: the cross-map comparison is refused instead of answered. Docstring at 237-259 names DR-ONB-2 and states the design (unknown active map falls through unchanged, which is the deliberate single-map/boot-window behaviour, not the defect). Backed by tests/integration/test_onboarding_manager.py:98-136 [OB-3b], which monkeypatches get_active_map_id to "OTHER_MAP" (expects False), to _MAP (expects True), and to None (expects True). get_active_map_id itself is real at custom_components/eufy_vacuum/rooms/room_discovery.py:43.
 
 Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **DEAD-ROLLOVER-1** (live) `custom_components/eufy_vacuum/jobs/active_job.py:1371`  
+  _pending_fast_rollover is READ but written nowhere - the fast-rollover branch of room advancement is dead code  
+  -> WONTFIX -- INTENTIONAL DORMANT SEAM, MARKER ADDED SO IT STOPS BEING RE-FOUND (2026-08-05) -- MECHANISM CONFIRMED, DISPOSITION KEEP. _pending_fast_rollover is read at jobs/active_job.py (fast-room branch) and popped on use, and nothing in shipped code writes it: the producer, MappingTracker._signal_fast_rollover, was removed on 2026-07-12 (f8f29c1) with the mapping split. So the branch is unreachable in production, exactly as filed. It stays because Chris's standing preference is to keep an expansion seam and ship a tiny surface -- the restraint belongs on shipped surface, not on stripping the seam -- and the cost here is ~18 lines plus one test (AJS-5), with no behavioural effect either way. The REAL cost of this finding was never the lines: it is that a reader with no writer is indistinguishable from dead code by inspection, so every campaign re-files it. Prose did not stop that -- the branch was ALREADY documented as dormant-by-design in both the docstring and docs/dev/06-job-lifecycle.md when this audit filed it anyway. The fix for the actual cost is therefore a MARKER: the docstring now cites live:DEAD-ROLLOVER-1, so _verify_ledger.py sees the contradiction and a future audit lands on the decision rather than re-deriving it. One thing recorded that the finding did not say: the fast-exit case is no longer uncovered. counter_plateau and the native current-room branch both ship and both advance ahead of the timing threshold from better sources than a coordinate-confidence signal. Any future producer here needs the stable coordinate origin whose absence retired the original one (see the boundary-derivation DEAD decision); reviving it on the old premise would be a regression, not a feature.
 
 - **DIAG-1** (live) `diagnostics.py`  
   entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'  

@@ -1323,6 +1323,17 @@ class ActiveJobTracker:
             flag in production today; the reader below is retained — and
             exercised by tests (AJS-5) — as an extension point for a future
             fast-exit signal.
+
+            live:DEAD-ROLLOVER-1 — KEPT ON PURPOSE, and the id is written here so
+            the next audit finds this sentence instead of re-filing it. A reader
+            with no writer is genuinely indistinguishable from dead code by
+            inspection, so it gets re-found every campaign; the marker is the only
+            thing that stops that, since prose alone already failed to (this was
+            documented as dormant on 2026-07-12 and filed anyway). Two live
+            replacements now cover the fast-exit case from better sources —
+            ``counter_plateau`` and the native current-room branch — so this is a
+            seam, not a gap: do NOT restore a producer for it without the stable
+            coordinate origin whose absence retired the original one.
         """
         if active_job.get("status") != "started":
             return active_job
