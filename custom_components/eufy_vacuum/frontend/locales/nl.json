@@ -500,7 +500,12 @@
     "water_empty": "Leeg",
     "water_high": "Hoog",
     "water_low": "Laag",
-    "water_medium": "Gemiddeld"
+    "water_medium": "Gemiddeld",
+    "attention_summary": {
+      "one": "1 onderhoudspunt vraagt aandacht.",
+      "other": "{count} onderhoudspunten vragen aandacht."
+    },
+    "attention_summary_none": "Geen onderhoudspunten vragen aandacht."
   },
   "map": {
     "adjusting": "Aanpassen:",

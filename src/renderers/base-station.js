@@ -29,7 +29,16 @@ export function applyBaseStationRenderers(proto) {
   proto.renderBaseStationView = function (ctx) {
     const { state } = ctx;
     const upkeep = state.dashboardUpkeep?.() ?? {};
-    const dockStatus = state.dockStatusLabel?.() ?? state.dockStatus?.() ?? upkeep.dock_status_label ?? upkeep.dock_status ?? null;
+    // CENSUS-6: code first. dockStatusLabel() is the backend's English
+    // *_status_label, and preferring it meant the header's "Dock status:" stayed
+    // English in all 18 locales while vocab.device_status.* — documented for
+    // exactly this row — sat unused. tVocab falls back to the backend label for
+    // any state not keyed, so an unknown status still reads.
+    const _dockStatusCode = state.dockStatus?.() ?? upkeep.dock_status ?? null;
+    const _dockStatusLabel = state.dockStatusLabel?.() ?? upkeep.dock_status_label ?? null;
+    const dockStatus = _dockStatusCode
+      ? this.tVocab("device_status", _dockStatusCode, _dockStatusLabel ?? _dockStatusCode)
+      : (_dockStatusLabel ?? null);
     const lifecycleState = state.dockLifecycleStateLabel?.() ?? state.dockLifecycleState?.() ?? null;
     const taskStatus = state.dockTaskStatusLabel?.() ?? state.dockTaskStatus?.() ?? null;
     const docked = state.isDocked?.() ?? false;

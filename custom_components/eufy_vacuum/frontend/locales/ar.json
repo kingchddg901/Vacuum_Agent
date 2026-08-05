@@ -2086,7 +2086,12 @@
     "water_empty": "فارغ",
     "water_high": "مرتفع",
     "water_low": "منخفض",
-    "water_medium": "متوسط"
+    "water_medium": "متوسط",
+    "attention_summary": {
+      "one": "عنصر صيانة واحد يحتاج إلى انتباه.",
+      "other": "{count} عناصر صيانة تحتاج إلى انتباه."
+    },
+    "attention_summary_none": "لا توجد عناصر صيانة تحتاج إلى انتباه."
   },
   "review": {
     "badge_attribution_disagreement": "عدم تطابق الغرفة",

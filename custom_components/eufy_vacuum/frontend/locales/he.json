@@ -2032,7 +2032,12 @@
     "water_empty": "ריק",
     "water_high": "גבוה",
     "water_low": "נמוך",
-    "water_medium": "בינוני"
+    "water_medium": "בינוני",
+    "attention_summary": {
+      "one": "פריט תחזוקה אחד דורש טיפול.",
+      "other": "{count} פריטי תחזוקה דורשים טיפול."
+    },
+    "attention_summary_none": "אין פריטי תחזוקה הדורשים טיפול."
   },
   "review": {
     "badge_attribution_disagreement": "אי-התאמת חדר",

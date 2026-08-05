@@ -114,7 +114,28 @@ export function applyMaintenanceRenderers(proto) {
     const { state } = ctx;
 
     const upkeep = state.dashboardUpkeep?.() ?? {};
-    const attentionSummary = upkeep.attention_summary ?? state.dashboardAttentionSummary?.();
+    // CENSUS-6: composed CARD-side from the count. The backend ships this as an
+    // English sentence — f"{n} upkeep item(s) need attention." — and it was
+    // rendered verbatim in every locale. The count is already on the payload, so
+    // the card can say it properly, with real plurals instead of "item(s)".
+    // upkeep.attention_summary stays as the fallback for a payload that carries
+    // the sentence but no count.
+    // Deliberately reads attention_count WITHOUT the `?? 0` the existing
+    // attentionCount below applies: absent must stay absent here so the fallback
+    // can fire, where 0 would confidently claim "no upkeep items need attention"
+    // on a payload that never said so. Same absent-is-not-zero call as REV-6.
+    // `!= null` FIRST, then finite — the REV-6 ordering, and this code had the
+    // same bug before [C6-6] caught it: Number(null) is 0, which IS finite, so a
+    // null count rendered a confident "No upkeep items need attention." on a
+    // payload that never said so.
+    const _attentionCountRaw = upkeep.attention_count != null
+      ? Number(upkeep.attention_count)
+      : NaN;
+    const attentionSummary = Number.isFinite(_attentionCountRaw)
+      ? (_attentionCountRaw > 0
+          ? this.t("maintenance.attention_summary", { count: _attentionCountRaw })
+          : this.t("maintenance.attention_summary_none"))
+      : (upkeep.attention_summary ?? state.dashboardAttentionSummary?.());
     const statusSummary = state.dashboardStatusSummary?.();
     const modelMeta = upkeep.model_meta ?? {};
 
@@ -127,7 +148,9 @@ export function applyMaintenanceRenderers(proto) {
       : [];
 
     const attentionCount = Number(upkeep.attention_count ?? 0);
-    const highestPriorityStatus = upkeep.highest_priority_status_label ?? upkeep.highest_priority_status ?? null;
+    const highestPriorityStatus = upkeep.highest_priority_status
+      ? this._maintenanceStatusText(upkeep.highest_priority_status, upkeep.highest_priority_status_label)
+      : (upkeep.highest_priority_status_label ?? null);
     const updatedAt = upkeep.updated_at ?? null;
     const activeTab = state.maintenanceActiveTab?.() ?? "maintenance_items";
     const tabItems = activeTab === "replacements"
@@ -330,7 +353,7 @@ export function applyMaintenanceRenderers(proto) {
    */
   proto._renderMaintenanceAttentionItem = function (item) {
     const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.unnamed_item");
-    const status = item?.status_label ?? this._formatMaintenanceStatus(item?.status ?? "warning");
+    const status = this._maintenanceStatusText(item?.status ?? "warning", item?.status_label);
     const detail =
       item?.remaining_summary ??
       item?.usage_summary ??
@@ -934,6 +957,38 @@ export function applyMaintenanceRenderers(proto) {
    * @param {string|null} status - Raw status key.
    * @returns {string} Display label.
    */
+  /**
+   * CENSUS-6. Resolve a maintenance status CODE-FIRST, with the backend's
+   * English `*_status_label` as the fallback.
+   *
+   * Every call site used to read `status_label ?? _formatMaintenanceStatus(code)`
+   * — label first — so a server-baked English string won over a translation the
+   * card already had, in all 18 locales. Exactly the precedence inversion
+   * A5-AG-2 found in startBlockedReason: the machine value was present and
+   * discarded one operator earlier.
+   *
+   * The label is KEPT as the fallback rather than dropped. It is what makes a
+   * status this card release has never heard of still render — a newer backend
+   * can add one without the card going blank.
+   *
+   * @param {string|null|undefined} status - the stable status code.
+   * @param {string|null|undefined} label  - the backend's English label.
+   * @returns {string}
+   */
+  proto._maintenanceStatusText = function (status, label) {
+    const normalized = String(status ?? "").trim().toLowerCase();
+    if (normalized) {
+      const key = `maintenance.status_${normalized}`;
+      const translated = this.tRaw(key);
+      if (translated && translated !== key) return translated;
+    }
+    if (label) return String(label);
+    // `normalized || "unknown"`, not `status ?? "unknown"`: ?? only substitutes
+    // for null/undefined, so an EMPTY-STRING status fell through and rendered a
+    // near-blank label. Caught by [C6-3].
+    return this._formatMaintenanceStatus(normalized || "unknown");
+  };
+
   proto._formatMaintenanceStatus = function (status) {
     const normalized = String(status ?? "").trim().toLowerCase();
 

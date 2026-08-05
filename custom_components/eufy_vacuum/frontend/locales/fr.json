@@ -506,7 +506,12 @@
     "water_empty": "Vide",
     "water_high": "Élevé",
     "water_low": "Faible",
-    "water_medium": "Moyen"
+    "water_medium": "Moyen",
+    "attention_summary": {
+      "one": "1 élément d'entretien nécessite votre attention.",
+      "other": "{count} éléments d'entretien nécessitent votre attention."
+    },
+    "attention_summary_none": "Aucun élément d'entretien ne nécessite votre attention."
   },
   "map": {
     "adjusting": "Ajustement :",

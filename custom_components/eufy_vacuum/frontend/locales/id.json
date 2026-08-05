@@ -1718,7 +1718,12 @@
     "water_empty": "Kosong",
     "water_high": "Tinggi",
     "water_low": "Rendah",
-    "water_medium": "Sedang"
+    "water_medium": "Sedang",
+    "attention_summary": {
+      "one": "1 item perawatan perlu diperhatikan.",
+      "other": "{count} item perawatan perlu diperhatikan."
+    },
+    "attention_summary_none": "Tidak ada item perawatan yang perlu diperhatikan."
   },
   "setup": {
     "add": "Tambah",

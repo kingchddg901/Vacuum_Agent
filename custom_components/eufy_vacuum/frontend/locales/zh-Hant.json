@@ -1951,7 +1951,12 @@
     "water_empty": "空",
     "water_high": "高",
     "water_low": "低",
-    "water_medium": "中"
+    "water_medium": "中",
+    "attention_summary": {
+      "one": "有 1 項保養需要處理。",
+      "other": "有 {count} 項保養需要處理。"
+    },
+    "attention_summary_none": "沒有需要處理的保養項目。"
   },
   "review": {
     "badge_attribution_disagreement": "房間不符",

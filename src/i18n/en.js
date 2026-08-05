@@ -500,6 +500,13 @@ export const en = {
   "maintenance.stat_water": "Water",  // overview stat cell: dock station water status value
   "maintenance.station_water_detail": "Base station water reservoir status",
   "maintenance.station_water_title": "Station Water",
+  // CENSUS-6. Composed CARD-side from upkeep.attention_count. The backend also
+  // ships an English `attention_summary` sentence ("3 upkeep item(s) need
+  // attention.") which stays as the response-service surface and the card's
+  // fallback — but "item(s)" is not a plural, it is a shrug, and it was rendered
+  // verbatim in all 18 locales.
+  "maintenance.attention_summary": { one: "1 upkeep item needs attention.", other: "{count} upkeep items need attention." },
+  "maintenance.attention_summary_none": "No upkeep items need attention.",
   "maintenance.status_empty": "Empty",  // replacements group status: no replacement items tracked (empty list)
   "maintenance.status_good": "Good",  // consumable/water health status = Good (not 'Good' rating elsewhere)
   "maintenance.status_replace_now": "Replace Now",

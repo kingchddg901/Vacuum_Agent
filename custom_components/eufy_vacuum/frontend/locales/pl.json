@@ -1718,7 +1718,12 @@
     "water_empty": "Pusty",
     "water_high": "Wysoki",
     "water_low": "Niski",
-    "water_medium": "Średni"
+    "water_medium": "Średni",
+    "attention_summary": {
+      "one": "1 element konserwacji wymaga uwagi.",
+      "other": "Elementy konserwacji wymagające uwagi: {count}."
+    },
+    "attention_summary_none": "Żaden element konserwacji nie wymaga uwagi."
   },
   "setup": {
     "add": "Dodaj",

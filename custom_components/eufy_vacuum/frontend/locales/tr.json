@@ -1718,7 +1718,12 @@
     "water_empty": "Boş",
     "water_high": "Yüksek",
     "water_low": "Düşük",
-    "water_medium": "Orta"
+    "water_medium": "Orta",
+    "attention_summary": {
+      "one": "1 bakım öğesi ilgi bekliyor.",
+      "other": "{count} bakım öğesi ilgi bekliyor."
+    },
+    "attention_summary_none": "İlgi bekleyen bakım öğesi yok."
   },
   "setup": {
     "add": "Ekle",

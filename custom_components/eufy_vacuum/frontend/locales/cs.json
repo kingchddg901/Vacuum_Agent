@@ -1718,7 +1718,12 @@
     "water_empty": "Prázdná",
     "water_high": "Vysoká",
     "water_low": "Nízká",
-    "water_medium": "Střední"
+    "water_medium": "Střední",
+    "attention_summary": {
+      "one": "1 položka údržby vyžaduje pozornost.",
+      "other": "Položky údržby vyžadující pozornost: {count}."
+    },
+    "attention_summary_none": "Žádná položka údržby nevyžaduje pozornost."
   },
   "setup": {
     "add": "Přidat",

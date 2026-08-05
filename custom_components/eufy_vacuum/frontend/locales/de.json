@@ -500,7 +500,12 @@
     "water_empty": "Leer",
     "water_high": "Hoch",
     "water_low": "Niedrig",
-    "water_medium": "Mittel"
+    "water_medium": "Mittel",
+    "attention_summary": {
+      "one": "1 Wartungspunkt benötigt Aufmerksamkeit.",
+      "other": "{count} Wartungspunkte benötigen Aufmerksamkeit."
+    },
+    "attention_summary_none": "Keine Wartungspunkte benötigen Aufmerksamkeit."
   },
   "map": {
     "adjusting": "Wird angepasst:",

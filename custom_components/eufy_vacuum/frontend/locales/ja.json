@@ -1951,7 +1951,12 @@
     "water_empty": "空",
     "water_high": "多",
     "water_low": "少",
-    "water_medium": "中"
+    "water_medium": "中",
+    "attention_summary": {
+      "one": "メンテナンス項目 1 件が対応を必要としています。",
+      "other": "メンテナンス項目 {count} 件が対応を必要としています。"
+    },
+    "attention_summary_none": "対応が必要なメンテナンス項目はありません。"
   },
   "review": {
     "badge_attribution_disagreement": "部屋の不一致",

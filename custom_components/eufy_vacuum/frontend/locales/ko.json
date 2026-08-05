@@ -1951,7 +1951,12 @@
     "water_empty": "비어 있음",
     "water_high": "많음",
     "water_low": "적음",
-    "water_medium": "보통"
+    "water_medium": "보통",
+    "attention_summary": {
+      "one": "관리 항목 1건에 조치가 필요합니다.",
+      "other": "관리 항목 {count}건에 조치가 필요합니다."
+    },
+    "attention_summary_none": "조치가 필요한 관리 항목이 없습니다."
   },
   "review": {
     "badge_attribution_disagreement": "방 불일치",

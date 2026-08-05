@@ -502,7 +502,12 @@
     "water_empty": "Vuoto",
     "water_high": "Alto",
     "water_low": "Basso",
-    "water_medium": "Medio"
+    "water_medium": "Medio",
+    "attention_summary": {
+      "one": "1 elemento di manutenzione richiede attenzione.",
+      "other": "{count} elementi di manutenzione richiedono attenzione."
+    },
+    "attention_summary_none": "Nessun elemento di manutenzione richiede attenzione."
   },
   "map": {
     "adjusting": "Regolazione:",

@@ -1154,6 +1154,8 @@
     "stat_water": "Water",  // overview stat cell: dock station water status value
     "station_water_detail": "Base station water reservoir status",
     "station_water_title": "Station Water",
+    "attention_summary": {"one":"1 upkeep item needs attention.","other":"{count} upkeep items need attention."},
+    "attention_summary_none": "No upkeep items need attention.",
     "status_empty": "Empty",  // replacements group status: no replacement items tracked (empty list)
     "status_good": "Good",  // consumable/water health status = Good (not 'Good' rating elsewhere)
     "status_replace_now": "Replace Now",
