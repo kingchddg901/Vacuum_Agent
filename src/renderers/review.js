@@ -471,7 +471,15 @@ export function applyReviewRenderers(proto) {
       this._formatReviewTimestamp(job?.started_at),
       Number.isFinite(Number(job?.duration_minutes)) ? this.t("review.detail_minutes", { value: Number(job.duration_minutes).toFixed(1).replace(/\.0$/, "") }) : "",
       Number.isFinite(Number(job?.outlier_score)) ? this.t("review.detail_outlier", { value: Number(job.outlier_score).toFixed(2) }) : "",
-      Number.isFinite(Number(job?.battery_used)) ? this.t("review.detail_battery", { value: Number(job.battery_used) }) : "",
+      // REV-6: `!= null` FIRST, before the finite check. Number(null) and
+      // Number(undefined) are 0 and NaN respectively — the null case is finite,
+      // so isFinite alone let an ABSENT battery render as a confident
+      // "Battery 0". Externally-captured runs have no battery block at all, so
+      // that was every app-started run in the list. Omitting the stat is the
+      // honest render; claiming zero consumption is not.
+      job?.battery_used != null && Number.isFinite(Number(job.battery_used))
+        ? this.t("review.detail_battery", { value: Number(job.battery_used) })
+        : "",
       Number.isFinite(Number(job?.total_water_used_ml)) && Number(job.total_water_used_ml) > 0
         ? this.t("review.detail_water", { value: Math.round(Number(job.total_water_used_ml)) })
         : "",

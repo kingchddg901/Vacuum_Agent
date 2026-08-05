@@ -899,7 +899,22 @@ class LearningStatsRebuilder:
                 else job_info.get("duration_minutes"),
                 0.0,
             ), 2)
-            battery_used = round(_safe_float(battery.get("used"), 0.0), 2)
+            # REV-6. An externally-captured run has no battery block at all —
+            # history_store writes {"start": …, "end": None, "used": None} — and
+            # folding that to zero made the review row render a confident
+            # "Battery 0" for every app-started run. Absent is not zero: "the run
+            # used no battery" is a claim, "we did not measure it" is the truth.
+            #
+            # DESCRIBING a run and doing ARITHMETIC over it are split rather than
+            # unified, deliberately. `battery_used` stays numeric because the
+            # per-room allocation below divides by it and the aggregates sum it —
+            # you cannot divide an unknown, and treating it as 0 there is the only
+            # sane arithmetic. `battery_used_known` carries the distinction the
+            # DISPLAY needs. Propagating None through the maths instead would have
+            # pushed a null check into every consumer to fix one render.
+            _battery_used_raw = battery.get("used")
+            battery_used = round(_safe_float(_battery_used_raw, 0.0), 2)
+            battery_used_known = _battery_used_raw is not None
             robot_water_used = round(_safe_float(water.get("estimated_robot_water_used_ml"), 0.0), 2)
             water_overhead_used = round(
                 _safe_float(water.get("estimated_dock_wash_water_used_ml"), 0.0)
@@ -974,7 +989,9 @@ class LearningStatsRebuilder:
                     "area_over_attributed": bool(_sanity["over_attributed"]) if _sanity else False,
                     "used_for_learning": bool(outcome.get("used_for_learning", False)),
                     "sanity_passed": True if is_external else bool(outcome.get("sanity_passed", False)),
-                    "battery_used": battery_used,
+                    # None, not 0.0, when the run carried no battery block — the
+                    # card omits the stat rather than claiming zero consumption.
+                    "battery_used": battery_used if battery_used_known else None,
                     "robot_water_used_ml": robot_water_used,
                     "water_overhead_ml": water_overhead_used,
                     "total_water_used_ml": total_water_used,
