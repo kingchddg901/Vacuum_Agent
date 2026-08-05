@@ -1628,7 +1628,9 @@
     "run_incomplete_toast": {
       "one": "Pembersihan tidak lengkap — 1 ruangan terlewat. Buka Ruangan untuk mencoba lagi.",
       "other": "Pembersihan tidak lengkap — {count} ruangan terlewat. Buka Ruangan untuk mencoba lagi."
-    }
+    },
+    "phase_context_title": "Sedang di langkah {step} dari {total}",
+    "phase_context_next": "Berikutnya: {step}"
   },
   "maintenance": {
     "attention_empty": "Saat ini semuanya terlihat sehat.",

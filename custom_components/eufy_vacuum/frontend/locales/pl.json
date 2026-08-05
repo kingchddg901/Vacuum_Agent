@@ -1628,7 +1628,9 @@
     "run_incomplete_toast": {
       "one": "Przebieg niekompletny — pominięto 1 pomieszczenie. Otwórz Pomieszczenia, aby ponowić.",
       "other": "Przebieg niekompletny — pominięto {count} pomieszczeń. Otwórz Pomieszczenia, aby ponowić."
-    }
+    },
+    "phase_context_title": "Aktualnie krok {step} z {total}",
+    "phase_context_next": "Następny: {step}"
   },
   "maintenance": {
     "attention_empty": "Obecnie wszystko wygląda prawidłowo.",

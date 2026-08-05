@@ -319,6 +319,14 @@ export const learningStyles = `
     color: var(--evcc-learning-text-secondary);
   }
 
+  /* EST-PHASE-1: the "next step" line under the live phase description. Quieter
+     than the current step — it is context, not the answer to the question. */
+  .evcc-learning-phase-next {
+    margin-top: var(--evcc-space-xs, 4px);
+    color: var(--evcc-text-muted);
+    font-size: var(--evcc-font-size-sm, 0.85em);
+  }
+
   /* =========================================================
      ANIMATED SURFACES
      ========================================================= */

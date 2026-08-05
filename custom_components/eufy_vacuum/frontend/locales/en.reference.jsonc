@@ -1059,6 +1059,8 @@
     "estimate_unavailable_message": "Estimate unavailable.",
     "estimate_unavailable_title": "Estimate unavailable",
     "estimated_job_time": "Estimated Job Time",
+    "phase_context_title": "Currently on step {step} of {total}",
+    "phase_context_next": "Next: {step}",  // {step} is an already-rendered step description (room name, 'Wait 2 min', a zone name)
     "finished_at": "Finished at {time}",
     "hours_minutes": "{hours}h {minutes}m",  // Duration format '{hours}h {minutes}m'; h/m = hour/minute unit abbrevs, localize per language
     "hours_only": "{hours}h",  // Duration '{hours}h'; h = hours unit abbreviation, localize if your language differs

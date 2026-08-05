@@ -417,7 +417,9 @@
     "run_incomplete_toast": {
       "one": "Lauf unvollständig — 1 Raum ausgelassen. Zum Wiederholen Räume öffnen.",
       "other": "Lauf unvollständig — {count} Räume ausgelassen. Zum Wiederholen Räume öffnen."
-    }
+    },
+    "phase_context_title": "Aktuell Schritt {step} von {total}",
+    "phase_context_next": "Weiter: {step}"
   },
   "maintenance": {
     "attention_empty": "Aktuell sieht alles gesund aus.",

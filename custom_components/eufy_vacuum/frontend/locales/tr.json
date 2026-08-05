@@ -1628,7 +1628,9 @@
     "run_incomplete_toast": {
       "one": "Çalıştırma tamamlanmadı — 1 oda atlandı. Yeniden denemek için Odalar'ı açın.",
       "other": "Çalıştırma tamamlanmadı — {count} oda atlandı. Yeniden denemek için Odalar'ı açın."
-    }
+    },
+    "phase_context_title": "Şu anda {total} adımdan {step}. adım",
+    "phase_context_next": "Sonraki: {step}"
   },
   "maintenance": {
     "attention_empty": "Şu anda her şey sağlıklı görünüyor.",

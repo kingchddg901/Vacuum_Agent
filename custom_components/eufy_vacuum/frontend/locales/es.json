@@ -421,7 +421,9 @@
     "run_incomplete_toast": {
       "one": "Ejecución incompleta: falta 1 habitación. Abre Habitaciones para reintentar.",
       "other": "Ejecución incompleta: faltan {count} habitaciones. Abre Habitaciones para reintentar."
-    }
+    },
+    "phase_context_title": "Actualmente en el paso {step} de {total}",
+    "phase_context_next": "Siguiente: {step}"
   },
   "maintenance": {
     "attention_empty": "Por ahora todo parece en buen estado.",

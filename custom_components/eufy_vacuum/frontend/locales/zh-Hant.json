@@ -1863,7 +1863,9 @@
     "run_incomplete_toast": {
       "one": "清掃未完成 — 略過了 1 個房間。開啟「房間」重試。",
       "other": "清掃未完成 — 略過了 {count} 個房間。開啟「房間」重試。"
-    }
+    },
+    "phase_context_title": "目前第 {step} 步，共 {total} 步",
+    "phase_context_next": "下一步：{step}"
   },
   "maintenance": {
     "attention_empty": "目前一切看起來良好。",

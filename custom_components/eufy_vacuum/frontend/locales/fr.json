@@ -421,7 +421,9 @@
     "run_incomplete_toast": {
       "one": "Nettoyage incomplet — 1 pièce manquée. Ouvrez Pièces pour réessayer.",
       "other": "Nettoyage incomplet — {count} pièces manquées. Ouvrez Pièces pour réessayer."
-    }
+    },
+    "phase_context_title": "Étape {step} sur {total} en cours",
+    "phase_context_next": "Suivant : {step}"
   },
   "maintenance": {
     "attention_empty": "Tout semble en bon état pour le moment.",

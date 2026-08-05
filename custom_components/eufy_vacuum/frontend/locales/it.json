@@ -419,7 +419,9 @@
     "run_incomplete_toast": {
       "one": "Esecuzione incompleta: 1 stanza saltata. Apri Stanze per riprovare.",
       "other": "Esecuzione incompleta: {count} stanze saltate. Apri Stanze per riprovare."
-    }
+    },
+    "phase_context_title": "Attualmente al passaggio {step} di {total}",
+    "phase_context_next": "Successivo: {step}"
   },
   "maintenance": {
     "attention_empty": "Al momento tutto sembra in salute.",

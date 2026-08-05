@@ -111,7 +111,14 @@ def test_there_are_bundled_locales_to_check():
 
 @pytest.mark.parametrize("locale", _bundled_locales(), ids=lambda p: p.stem)
 def test_bundled_locale_is_complete(locale: Path):
-    """[LOC-1]"""
+    """[LOC-1] RELEASE GATE, not a work-blocker — and the failure text says so.
+
+    Adding an English key without its translations fails this immediately, which
+    is right at release time and misleading mid-change: ``translate()`` falls back
+    to the English base catalog for any missing key, so nothing is broken for a
+    user in the meantime. A red bar that reads as "you broke it" when it means
+    "do not tag yet" trains people to ignore the bar.
+    """
     english = set(_english_keys())
     have = set(_flatten(json.loads(locale.read_text(encoding="utf-8"))))
     missing = sorted(english - have)
@@ -121,11 +128,20 @@ def test_bundled_locale_is_complete(locale: Path):
             by_ns[key.split(".")[0]] = by_ns.get(key.split(".")[0], 0) + 1
         summary = ", ".join(f"{ns} ({n})" for ns, n in sorted(by_ns.items()))
         pytest.fail(
-            f"{locale.stem}.json is missing {len(missing)} key(s) — {summary}\n"
-            f"  first few: {missing[:5]}\n"
-            f"  Bundled locales ship complete. Add the keys, or if this namespace is "
-            f"deliberately English-only, say so here rather than letting it fall back "
-            f"silently."
+            f"RELEASE GATE — {locale.stem}.json is missing {len(missing)} key(s): {summary}"
+            f"\n  first few: {missing[:5]}"
+            "\n"
+            "\n  NOT BROKEN RIGHT NOW: translate() falls back to the English base for"
+            "\n  any missing key, so the UI renders English rather than a blank or a"
+            "\n  raw key id. Safe to leave red WHILE ITERATING."
+            "\n"
+            "\n  MUST BE GREEN TO TAG A RELEASE: bundled locales ship complete, and a"
+            "\n  stray English string inside a translated pack is a defect the user"
+            "\n  sees and cannot fix."
+            "\n"
+            "\n  To clear: add the keys to the locale files, or — if this namespace is"
+            "\n  deliberately English-only — say so here rather than letting it fall"
+            "\n  back silently."
         )
 
 

@@ -408,6 +408,13 @@ export const en = {
   "learning.estimate_unavailable_message": "Estimate unavailable.",
   "learning.estimate_unavailable_title": "Estimate unavailable",
   "learning.estimated_job_time": "Estimated Job Time",
+  // EST-PHASE-1: shown INSTEAD of "Queue rooms first" while a stepped run is in
+  // flight — that copy tells the user to act on a run that is proceeding fine.
+  // {step}/{total} count the LIVE-QUEUE CHIPS, which expand a room group into one
+  // chip per room, so the numbers match the row directly above rather than the
+  // backend's phase count.
+  "learning.phase_context_title": "Currently on step {step} of {total}",
+  "learning.phase_context_next": "Next: {step}",  // {step} is an already-rendered step description (room name, 'Wait 2 min', a zone name)
   "learning.finished_at": "Finished at {time}",
   "learning.hours_minutes": "{hours}h {minutes}m",  // Duration format '{hours}h {minutes}m'; h/m = hour/minute unit abbrevs, localize per language
   "learning.hours_only": "{hours}h",  // Duration '{hours}h'; h = hours unit abbreviation, localize if your language differs

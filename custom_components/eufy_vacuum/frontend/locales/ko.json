@@ -1863,7 +1863,9 @@
     "run_incomplete_toast": {
       "one": "청소가 완료되지 않았습니다 — 1개 방을 건너뛰었습니다. ‘방’을 열어 다시 시도하세요.",
       "other": "청소가 완료되지 않았습니다 — {count}개 방을 건너뛰었습니다. ‘방’을 열어 다시 시도하세요."
-    }
+    },
+    "phase_context_title": "현재 {total}단계 중 {step}단계",
+    "phase_context_next": "다음: {step}"
   },
   "maintenance": {
     "attention_empty": "현재 모두 정상입니다.",

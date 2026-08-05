@@ -1863,7 +1863,9 @@
     "run_incomplete_toast": {
       "one": "掃除が未完了です — 1 部屋がスキップされました。「部屋」を開いて再試行してください。",
       "other": "掃除が未完了です — {count} 部屋がスキップされました。「部屋」を開いて再試行してください。"
-    }
+    },
+    "phase_context_title": "現在 {total} ステップ中 {step} 番目",
+    "phase_context_next": "次: {step}"
   },
   "maintenance": {
     "attention_empty": "現在すべて正常です。",

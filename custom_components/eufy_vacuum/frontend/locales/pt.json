@@ -421,7 +421,9 @@
     "run_incomplete_toast": {
       "one": "Execução incompleta — 1 divisão ignorada. Abra Divisões para tentar novamente.",
       "other": "Execução incompleta — {count} divisões ignoradas. Abra Divisões para tentar novamente."
-    }
+    },
+    "phase_context_title": "Atualmente na etapa {step} de {total}",
+    "phase_context_next": "Próximo: {step}"
   },
   "maintenance": {
     "attention_empty": "Tudo parece estar saudável de momento.",

@@ -1932,7 +1932,9 @@
     "run_incomplete_toast": {
       "one": "הריצה לא הושלמה — דולג על חדר אחד. פתחו את «חדרים» כדי לנסות שוב.",
       "other": "הריצה לא הושלמה — דולג על {count} חדרים. פתחו את «חדרים» כדי לנסות שוב."
-    }
+    },
+    "phase_context_title": "כעת בשלב {step} מתוך {total}",
+    "phase_context_next": "הבא: {step}"
   },
   "maintenance": {
     "attention_empty": "הכול נראה תקין כרגע.",

@@ -1628,7 +1628,9 @@
     "run_incomplete_toast": {
       "one": "Úklid nedokončen — 1 místnost vynechána. Otevřete Místnosti a zkuste to znovu.",
       "other": "Úklid nedokončen — vynecháno {count} místností. Otevřete Místnosti a zkuste to znovu."
-    }
+    },
+    "phase_context_title": "Aktuálně krok {step} z {total}",
+    "phase_context_next": "Další: {step}"
   },
   "maintenance": {
     "attention_empty": "Vše aktuálně vypadá v pořádku.",

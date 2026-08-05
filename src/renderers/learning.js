@@ -136,11 +136,94 @@ export function applyLearningRenderers(proto) {
    * @param {object} state - Card state accessor.
    * @returns {string} HTML string.
    */
+  /**
+   * Where the run has got to, for when no estimate is answerable (EST-PHASE-1).
+   *
+   * Returns "" unless a live queue is actually running, so the ordinary
+   * nothing-queued case keeps its original copy — this replaces the message only
+   * where that message is wrong.
+   *
+   * NUMBERING MATCHES THE CHIPS DELIBERATELY. The live-queue row expands a room
+   * GROUP into one chip per room (this run shows 4 chips for 3 backend phases:
+   * Kitchen | Wait | Entryway | Home Office). Counting backend phases here would
+   * put "2 of 3" under a row numbered to 4, so this counts what the user can see
+   * and calls them steps rather than phases.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string, or "" when no live queue is running.
+   */
+  proto.renderLearningPhaseContext = function (state) {
+    const steps = state.dashboardLiveQueue?.()?.steps;
+    if (!Array.isArray(steps) || !steps.length) return "";
+
+    const idx = steps.findIndex((s) => String(s?.state || "") === "current");
+    if (idx < 0) return "";
+    const step = steps[idx];
+    const next = steps.slice(idx + 1).find((s) => String(s?.state || "") !== "done");
+
+    // Describe the step in ITS OWN terms — a wait is not a room and should not
+    // borrow a room's vocabulary.
+    const describe = (st) => {
+      if (!st) return "";
+      const kind = String(st.kind || "room");
+      if (kind === "wait") {
+        return `${this.t("rooms.chip_wait_label")} ${this.escapeHtml(String(Number(st.wait_minutes ?? 0)))} ${this.t("run_profiles.minutes_unit")}`;
+      }
+      if (kind === "charge") {
+        return `${this.t("rooms.chip_charge_label")} ${this.escapeHtml(String(Number(st.target_battery_percent ?? 100)))}%`;
+      }
+      if (kind === "zone") {
+        const names = (Array.isArray(st.zone_names) ? st.zone_names : []).filter(Boolean).join(", ");
+        return this.escapeHtml(names || this.t("rooms.zone_fallback"));
+      }
+      return this.escapeHtml(String(st.name || this.t("learning.next_room")));
+    };
+
+    const pct = (String(step.kind || "room") === "room" && step.progress_percent != null)
+      ? ` · ${Math.max(0, Math.min(99, Math.floor(Number(step.progress_percent))))}%`
+      : "";
+    const eta = step.eta_minutes != null
+      ? ` · ${this.t("learning.minutes_left", { minutes: this.escapeHtml(this._formatLearningMinutes(step.eta_minutes)) })}`
+      : "";
+
+    return `
+      <div class="evcc-learning-panel evcc-learning-panel--empty">
+        <div class="evcc-learning-panel-header">
+          <div class="evcc-learning-panel-title">
+            ${this.t("learning.phase_context_title", {
+              step: this.escapeHtml(String(Number(step.seq) || idx + 1)),
+              total: this.escapeHtml(String(steps.length)),
+            })}
+          </div>
+        </div>
+        <div class="evcc-learning-empty-message">
+          ${describe(step)}${pct}${eta}
+          ${next ? `<div class="evcc-learning-phase-next">${this.t("learning.phase_context_next", { step: describe(next) })}</div>` : ""}
+        </div>
+      </div>
+    `;
+  };
+
   proto.renderLearningPreJobPanel = function (state) {
     const estimate = state.dashboardPlannedJobEstimate?.() ?? state.learningEstimate();
     if (!estimate) return "";
 
     if (estimate.error || estimate.available === false) {
+      // EST-PHASE-1. A STEPPED RUN lands here every time, and the generic copy is
+      // actively wrong there: "Queue rooms first to see an estimate" is an
+      // INSTRUCTION TO ACT, shown beside a live queue that is proceeding fine.
+      // Wrong text is one thing; text telling the user to intervene in a healthy
+      // run is the kind that gets followed.
+      //
+      // The reason it lands here is real and not worth fighting: dispatch clears
+      // the payload get_planned_job_estimate reads, and a break phase has no room
+      // job to fall back to, so `available: false` is the honest answer to "what
+      // would I plan right now". The panel just should not answer THAT question
+      // mid-run. It says where the run has got to instead, which the card already
+      // knows — this is the same steps array the live-queue chips render, so the
+      // two cannot disagree.
+      const live = this.renderLearningPhaseContext?.(state);
+      if (live) return live;
       return `
         <div class="evcc-learning-panel evcc-learning-panel--empty">
           <div class="evcc-learning-panel-header">

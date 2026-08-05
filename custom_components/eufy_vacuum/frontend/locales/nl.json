@@ -417,7 +417,9 @@
     "run_incomplete_toast": {
       "one": "Run onvolledig — 1 kamer overgeslagen. Open Kamers om opnieuw te proberen.",
       "other": "Run onvolledig — {count} kamers overgeslagen. Open Kamers om opnieuw te proberen."
-    }
+    },
+    "phase_context_title": "Momenteel bij stap {step} van {total}",
+    "phase_context_next": "Volgende: {step}"
   },
   "maintenance": {
     "attention_empty": "Alles ziet er momenteel gezond uit.",
