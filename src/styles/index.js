@@ -20,6 +20,7 @@
  */
 
 import { foundationStyles, sharedChipStyles } from "./foundation.js";
+import { fontStyles                          } from "./fonts.js";
 import { baseStationStyles                   } from "./base-station.js";
 import { metricsStyles                       } from "./metrics.js";
 import { reviewStyles                        } from "./review.js";
@@ -46,6 +47,10 @@ import { dialogModalStyles                   } from "./dialog.js";
 import { THEME_TOKEN_REGISTRY                } from "../theme-tokens/index.js";
 
 export const STYLES = [
+  // FIRST: the @font-face declarations must be parsed before anything reads
+  // --evcc-font-family, and the [data-evcc-font] override must lose to nothing
+  // except specificity (it is on the root, so it beats a theme-set token).
+  fontStyles,
   foundationStyles,
   baseStationStyles,
   metricsStyles,

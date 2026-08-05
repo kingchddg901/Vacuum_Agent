@@ -196,12 +196,19 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     maps_dir, textures_dir, frontend_dir, locales_dir = await hass.async_add_executor_job(
         _prepare_static_dirs
     )
+    fonts_dir = os.path.join(frontend_dir, "fonts")
 
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig("/eufy_vacuum/maps", maps_dir, cache_headers=False),
             StaticPathConfig("/eufy_vacuum/textures", textures_dir, cache_headers=True),
             StaticPathConfig("/eufy_vacuum/frontend", frontend_dir, cache_headers=False),
+            # Fonts get their OWN path purely for cache_headers=True. The bundle
+            # path deliberately disables caching so a redeploy is picked up without
+            # a hard refresh; a woff2 never changes between releases and must not
+            # be re-fetched on every page load. Same directory tree, shipped in the
+            # same HACS package — this is not an external asset.
+            StaticPathConfig("/eufy_vacuum/fonts", fonts_dir, cache_headers=True),
             StaticPathConfig("/eufy_vacuum/locales", locales_dir, cache_headers=False),
         ]
     )
