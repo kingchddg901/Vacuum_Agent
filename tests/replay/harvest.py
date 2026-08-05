@@ -88,6 +88,20 @@ ROLE_SUFFIXES = (
 )
 
 
+#: Entities dropped even under ``--all-entities``. Not "uninteresting" - too
+#: CHATTY to carry, which is a different and measurable thing.
+#:
+#: MEASURED over one 50-minute window (2026-08-01 20:40-21:30Z): the 20
+#: ``*_rule_status`` sensors produced 20,548 state rows against 680 from the
+#: other 224 entities combined. 96.8% of the volume, ~1000 changes each, across
+#: exactly two distinct values ("not_selected" / "allowed"). Carrying them makes
+#: every bundle ~30x larger and buries the signal in a diff.
+#:
+#: --include-noisy brings them back, which is the right move if the rule
+#: evaluation itself is ever the thing under investigation.
+NOISY_SUFFIXES = ("_rule_status",)
+
+
 def _iso(ts: float) -> str:
     return dt.datetime.fromtimestamp(ts, UTC).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -156,6 +170,8 @@ def _entities_for(con: sqlite3.Connection, vacuum: str) -> dict[int, str]:
     ).fetchall()
     keep: dict[int, str] = {}
     for mid, eid in rows:
+        if any(eid.endswith(sfx) for sfx in NOISY_SUFFIXES):
+            continue
         if eid == f"vacuum.{vacuum}" or any(eid.endswith(sfx) for sfx in ROLE_SUFFIXES):
             keep[mid] = eid
     return keep
@@ -394,7 +410,7 @@ def harvest_run(
 
 def eject_window(
     con: sqlite3.Connection, entity_like: str, start_iso: str, end_iso: str,
-    all_entities: bool = False,
+    all_entities: bool = False, include_noisy: bool = False,
 ) -> dict[str, Any]:
     """Eject an arbitrary time window - no job record required.
 
@@ -424,10 +440,19 @@ def eject_window(
     ).fetchall()
     ents = {
         mid: eid for mid, eid in rows
-        if all_entities or eid.startswith("vacuum.") or any(
+        if (include_noisy or not any(eid.endswith(n) for n in NOISY_SUFFIXES))
+        and (all_entities or eid.startswith("vacuum.") or any(
             eid.endswith(sfx) for sfx in ROLE_SUFFIXES
-        )
+        ))
     }
+    dropped = sum(
+        1 for _mid, eid in rows if any(eid.endswith(n) for n in NOISY_SUFFIXES)
+    ) if not include_noisy else 0
+    if dropped:
+        # Say what was left out. A bundle that silently omits entities reads as
+        # "this is everything the device did", which is the one thing it is not.
+        print(f"  dropped {dropped} chatty entities ({', '.join(NOISY_SUFFIXES)}) "
+              f"- pass --include-noisy to keep them")
     initial: dict[str, str] = {}
     events: list[list[str]] = []
     for mid, eid in sorted(ents.items(), key=lambda kv: kv[1]):
@@ -451,6 +476,7 @@ def eject_window(
             "source": "home-assistant_v2.db (recorder, immutable)",
             "match": entity_like, "window": [start_iso, end_iso],
             "entities": len(ents), "all_entities": all_entities,
+            "noisy_included": include_noisy, "noisy_suffixes": list(NOISY_SUFFIXES),
         },
         "initial": initial,
         "events": events,
@@ -470,6 +496,9 @@ def main() -> None:
     ap.add_argument("--all-entities", action="store_true",
                     help="--window: carry EVERY matching entity, not just known "
                          "roles. Use when bringing up a new adapter.")
+    ap.add_argument("--include-noisy", action="store_true",
+                    help=f"keep {', '.join(NOISY_SUFFIXES)} entities, dropped by "
+                         "default as ~97%% of state volume across two values")
     ap.add_argument("--vacuums", default="alfred,ivy")
     ap.add_argument(
         "--area-units", default="",
@@ -490,7 +519,8 @@ def main() -> None:
 
     if args.window:
         start, end = args.window
-        bundle = eject_window(con, args.match, start, end, args.all_entities)
+        bundle = eject_window(con, args.match, start, end, args.all_entities,
+                              args.include_noisy)
         name = f"window_{start.replace(':', '').replace('-', '')}.json"
         (out_root / name).write_text(
             json.dumps(bundle, indent=1, ensure_ascii=False), encoding="utf-8")
