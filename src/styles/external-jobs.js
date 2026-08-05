@@ -75,6 +75,28 @@ export const externalJobsStyles = `
 `;
 
 export const externalWizardModalStyles = `
+  /* REV-2: a SUGGESTED room reads as an offer, not a selection. Dashed rather
+     than filled — the filled/active state must keep meaning "you chose this",
+     or the distinction the fix rests on is only in the markup. */
+  .evcc-ext-room-suggested {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--evcc-sem-info) 55%, transparent);
+  }
+
+  /* The per-room prompt and the footer count. Warning-toned: they are the reason
+     Confirm is disabled, so they must not read as incidental hint text. */
+  .evcc-ext-room-needed,
+  .evcc-ext-unassigned-note {
+    color: var(--evcc-sem-warning);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .evcc-ext-unassigned-note {
+    align-self: center;
+    margin-inline-end: 8px;
+  }
+
   .evcc-external-wizard-modal { max-width: 560px; width: 92vw; }
   .evcc-external-error {
     background: color-mix(in srgb, var(--evcc-sem-error) 16%, transparent);

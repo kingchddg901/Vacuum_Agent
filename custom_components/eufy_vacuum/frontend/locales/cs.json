@@ -1996,7 +1996,14 @@
     "wizard_phase_name": "pojmenujte každou místnost",
     "wizard_step_of": "Krok {step} z 2 — {phase}",
     "wizard_title": "Zkontrolovat úklid spuštěný z aplikace",
-    "passes": "Průchody"
+    "passes": "Průchody",
+    "suggested_tag": "návrh",
+    "suggested_hint": "Náš nejlepší odhad podle trasy robota. Klepnutím přijmete, nebo vyberte jinou místnost.",
+    "pick_required": "vyberte",
+    "rooms_unassigned": {
+      "one": "Zbývá vybrat 1 místnost",
+      "other": "Zbývá vybrat {count} místností"
+    }
   },
   "vacuum_card": {
     "dock": "Do doku",

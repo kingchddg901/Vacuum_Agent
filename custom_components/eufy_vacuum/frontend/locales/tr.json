@@ -1996,7 +1996,14 @@
     "wizard_phase_count": "kaç oda?",
     "wizard_phase_name": "her odayı adlandır",
     "wizard_step_of": "Adım {step} / 2 — {phase}",
-    "wizard_title": "Uygulamadan başlatılan çalıştırmayı incele"
+    "wizard_title": "Uygulamadan başlatılan çalıştırmayı incele",
+    "suggested_tag": "öneri",
+    "suggested_hint": "Robotun gittiği yola göre en iyi tahminimiz. Kabul etmek için dokunun ya da başka bir oda seçin.",
+    "pick_required": "birini seçin",
+    "rooms_unassigned": {
+      "one": "1 oda daha seçilmeli",
+      "other": "{count} oda daha seçilmeli"
+    }
   },
   "vacuum_card": {
     "dock": "İstasyona Dön",

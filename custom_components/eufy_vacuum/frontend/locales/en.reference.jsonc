@@ -1015,6 +1015,10 @@
     "subtab_external_count": "External Jobs ({count})",
     "subtab_history": "Learning History",
     "unknown_time": "Unknown time",
+    "suggested_tag": "suggested",  // appended to the guessed room chip; lowercase, reads as an aside not a label
+    "suggested_hint": "Our best guess from where the robot went. Tap to accept it, or pick another room.",
+    "pick_required": "pick one",  // inline prompt beside the room label while nothing is chosen
+    "rooms_unassigned": {"one":"1 room still needs picking","other":"{count} rooms still need picking"},
     "which_room": "Which room?",
     "wizard_phase_count": "how many rooms?",
     "wizard_phase_name": "name each room",

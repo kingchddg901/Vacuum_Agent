@@ -1996,7 +1996,14 @@
     "wizard_phase_name": "nazwij każdy pokój",
     "wizard_step_of": "Krok {step} z 2 — {phase}",
     "wizard_title": "Przejrzyj uruchomienie rozpoczęte w aplikacji",
-    "passes": "Przejazdy"
+    "passes": "Przejazdy",
+    "suggested_tag": "sugerowany",
+    "suggested_hint": "Nasze najlepsze przypuszczenie na podstawie trasy robota. Dotknij, aby zaakceptować, albo wybierz inny pokój.",
+    "pick_required": "wybierz",
+    "rooms_unassigned": {
+      "one": "Pozostał 1 pokój do wyboru",
+      "other": "Pozostało {count} pokoi do wyboru"
+    }
   },
   "vacuum_card": {
     "dock": "Do stacji",

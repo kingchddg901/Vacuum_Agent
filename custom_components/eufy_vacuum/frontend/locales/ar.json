@@ -2368,7 +2368,14 @@
     "wizard_phase_count": "كم عدد الغرف؟",
     "wizard_phase_name": "سمِّ كل غرفة",
     "wizard_step_of": "الخطوة {step} من 2 — {phase}",
-    "wizard_title": "مراجعة جولة بدأت من التطبيق"
+    "wizard_title": "مراجعة جولة بدأت من التطبيق",
+    "suggested_tag": "مقترحة",
+    "suggested_hint": "أفضل تخمين لدينا بناءً على مسار الروبوت. اضغط للقبول أو اختر غرفة أخرى.",
+    "pick_required": "اختر واحدة",
+    "rooms_unassigned": {
+      "one": "تبقّت غرفة واحدة للاختيار",
+      "other": "تبقّت {count} غرف للاختيار"
+    }
   },
   "run_profiles": {
     "create_profile": "إنشاء ملف تشغيل",

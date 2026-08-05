@@ -2192,7 +2192,14 @@
     "wizard_phase_count": "部屋はいくつ？",
     "wizard_phase_name": "各部屋に名前を付ける",
     "wizard_step_of": "ステップ {step}/2 — {phase}",
-    "wizard_title": "アプリ開始の実行をレビュー"
+    "wizard_title": "アプリ開始の実行をレビュー",
+    "suggested_tag": "推定",
+    "suggested_hint": "ロボットの走行経路からの推定です。タップして採用するか、別の部屋を選んでください。",
+    "pick_required": "選択してください",
+    "rooms_unassigned": {
+      "one": "あと 1 部屋の選択が必要です",
+      "other": "あと {count} 部屋の選択が必要です"
+    }
   },
   "run_profiles": {
     "create_profile": "プロファイルを作成",

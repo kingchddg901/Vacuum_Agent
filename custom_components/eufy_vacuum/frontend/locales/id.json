@@ -1996,7 +1996,14 @@
     "wizard_phase_count": "berapa banyak ruangan?",
     "wizard_phase_name": "beri nama setiap ruangan",
     "wizard_step_of": "Langkah {step} dari 2 — {phase}",
-    "wizard_title": "Tinjau proses yang dimulai dari aplikasi"
+    "wizard_title": "Tinjau proses yang dimulai dari aplikasi",
+    "suggested_tag": "saran",
+    "suggested_hint": "Perkiraan terbaik kami dari jalur yang dilalui robot. Ketuk untuk menerima, atau pilih ruangan lain.",
+    "pick_required": "pilih satu",
+    "rooms_unassigned": {
+      "one": "1 ruangan masih harus dipilih",
+      "other": "{count} ruangan masih harus dipilih"
+    }
   },
   "vacuum_card": {
     "dock": "Kembali ke Dok",

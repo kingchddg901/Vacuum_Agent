@@ -289,7 +289,14 @@
     "wizard_phase_count": "hoeveel kamers?",
     "wizard_phase_name": "benoem elke kamer",
     "wizard_step_of": "Stap {step} van 2 — {phase}",
-    "wizard_title": "Door de app gestarte run beoordelen"
+    "wizard_title": "Door de app gestarte run beoordelen",
+    "suggested_tag": "voorstel",
+    "suggested_hint": "Onze beste gok op basis van waar de robot kwam. Tik om te accepteren, of kies een andere kamer.",
+    "pick_required": "kies er een",
+    "rooms_unassigned": {
+      "one": "Nog 1 kamer kiezen",
+      "other": "Nog {count} kamers kiezen"
+    }
   },
   "language": {
     "button_title": "Taal",

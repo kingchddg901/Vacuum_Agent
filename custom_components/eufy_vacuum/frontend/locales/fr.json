@@ -291,7 +291,14 @@
     "wizard_phase_count": "combien de pièces ?",
     "wizard_phase_name": "nommer chaque pièce",
     "wizard_step_of": "Étape {step} sur 2 — {phase}",
-    "wizard_title": "Vérifier la tâche lancée depuis l'application"
+    "wizard_title": "Vérifier la tâche lancée depuis l'application",
+    "suggested_tag": "suggérée",
+    "suggested_hint": "Notre meilleure estimation d'après le trajet du robot. Touchez pour l'accepter, ou choisissez une autre pièce.",
+    "pick_required": "à choisir",
+    "rooms_unassigned": {
+      "one": "1 pièce reste à choisir",
+      "other": "{count} pièces restent à choisir"
+    }
   },
   "language": {
     "button_title": "Langue",

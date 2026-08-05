@@ -2192,7 +2192,14 @@
     "wizard_phase_count": "有幾個房間？",
     "wizard_phase_name": "為每個房間命名",
     "wizard_step_of": "步驟 {step} / 2 — {phase}",
-    "wizard_title": "審核 App 啟動的清潔紀錄"
+    "wizard_title": "審核 App 啟動的清潔紀錄",
+    "suggested_tag": "推測",
+    "suggested_hint": "根據機器人走過的路徑推測。點按採用，或另選一個房間。",
+    "pick_required": "請選擇",
+    "rooms_unassigned": {
+      "one": "還有 1 個房間需要選擇",
+      "other": "還有 {count} 個房間需要選擇"
+    }
   },
   "run_profiles": {
     "create_profile": "建立設定檔",

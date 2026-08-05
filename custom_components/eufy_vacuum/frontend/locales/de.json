@@ -289,7 +289,14 @@
     "wizard_phase_count": "wie viele Räume?",
     "wizard_phase_name": "jeden Raum benennen",
     "wizard_step_of": "Schritt {step} von 2 — {phase}",
-    "wizard_title": "App-gestarteten Lauf überprüfen"
+    "wizard_title": "App-gestarteten Lauf überprüfen",
+    "suggested_tag": "Vorschlag",
+    "suggested_hint": "Unsere beste Vermutung anhand des gefahrenen Wegs. Tippen zum Übernehmen oder einen anderen Raum wählen.",
+    "pick_required": "auswählen",
+    "rooms_unassigned": {
+      "one": "Noch 1 Raum auswählen",
+      "other": "Noch {count} Räume auswählen"
+    }
   },
   "language": {
     "button_title": "Sprache",

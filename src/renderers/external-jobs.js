@@ -102,7 +102,7 @@ export function applyExternalJobsRenderers(proto) {
             ${w.error ? `<div class="evcc-external-error">${this.escapeHtml(String(w.error))}</div>` : ""}
             ${body}
           </div>
-          ${this._renderExtWizardFooter(w, groups)}
+          ${this._renderExtWizardFooter(w, groups, state)}
         </div>
       </div>
     `;
@@ -228,11 +228,19 @@ export function applyExternalJobsRenderers(proto) {
     const ov = a.overrides || {};
 
     const shortlist = Array.isArray(lead.shortlist) ? lead.shortlist : [];
-    const roomChips = shortlist.map((r) => `
-      <button class="evcc-chip ${a.room_id === r.room_id ? "active" : ""}"
-              data-action="ext-pick-room" data-order="${order}" data-room-id="${r.room_id}">
-        ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${(r.learned_area_m2 ?? r.footprint_area_m2) ? ` · ${Number(r.learned_area_m2 ?? r.footprint_area_m2).toFixed(0)} m²` : ""}
-      </button>`).join("");
+    // REV-2: the top shortlist entry is marked SUGGESTED, not active. `active`
+    // means "you chose this"; suggested means "we think, you decide". Rendering
+    // a guess as a choice is what let a wrong one through in two clicks.
+    const roomChips = shortlist.map((r) => {
+      const isPicked = a.room_id === r.room_id;
+      const isSuggested = !isPicked && a.suggested_room_id === r.room_id;
+      return `
+      <button class="evcc-chip ${isPicked ? "active" : ""} ${isSuggested ? "evcc-ext-room-suggested" : ""}"
+              data-action="ext-pick-room" data-order="${order}" data-room-id="${r.room_id}"
+              ${isSuggested ? `title="${this.escapeHtml(this.t("external_jobs.suggested_hint"))}"` : ""}>
+        ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${(r.learned_area_m2 ?? r.footprint_area_m2) ? ` · ${Number(r.learned_area_m2 ?? r.footprint_area_m2).toFixed(0)} m²` : ""}${isSuggested ? ` · ${this.t("external_jobs.suggested_tag")}` : ""}
+      </button>`;
+    }).join("");
 
     const modeCur = ov.clean_mode ?? settings.clean_mode;
     const modeChips = [
@@ -267,7 +275,9 @@ export function applyExternalJobsRenderers(proto) {
         <div class="evcc-ext-room-head">${this.t("external_jobs.room_n", { n: idx + 1 })} · ${area.toFixed(0)} m²
           ${group.orders.length > 1 ? `· ${this.t("external_jobs.segments_merged", { count: group.orders.length })}` : ""}</div>
         <div class="evcc-editor-field-group">
-          <div class="evcc-field-label">${this.t("external_jobs.which_room")}</div>
+          <div class="evcc-field-label">${this.t("external_jobs.which_room")}${
+            a.room_id == null ? ` <span class="evcc-ext-room-needed">${this.t("external_jobs.pick_required")}</span>` : ""
+          }</div>
           <div class="evcc-chip-row">${roomChips}${this._extAllRoomsOptions(ctx, order, a.room_id)}</div>
         </div>
         <div class="evcc-editor-field-group">
@@ -333,8 +343,10 @@ export function applyExternalJobsRenderers(proto) {
       </select>`;
   };
 
-  proto._renderExtWizardFooter = function (w, groups) {
+  proto._renderExtWizardFooter = function (w, groups, state) {
     const blocked = Array.isArray(w.blocked) ? w.blocked : [];
+    // REV-2: Confirm stays disabled until every room has actually been chosen.
+    const unassigned = state?.externalWizardUnassignedOrders?.() ?? [];
     const blockedText = this.t("external_jobs.blocked", { count: blocked.length });
     const blockedHtml = blocked.length
       ? `<div class="evcc-ext-blocked">⚠ ${blockedText}</div>`
@@ -347,7 +359,9 @@ export function applyExternalJobsRenderers(proto) {
     } else {
       left = `<button class="evcc-btn evcc-btn-ghost" data-action="ext-wizard-back">← ${this.t("external_jobs.back")}</button>`;
       right = `
-        <button class="evcc-btn evcc-btn-primary" data-action="ext-wizard-confirm" ${w.busy ? "disabled" : ""}>
+        ${unassigned.length ? `<span class="evcc-ext-unassigned-note">${this.t("external_jobs.rooms_unassigned", { count: unassigned.length })}</span>` : ""}
+        <button class="evcc-btn evcc-btn-primary" data-action="ext-wizard-confirm"
+                ${w.busy || unassigned.length ? "disabled" : ""}>
           ${w.busy ? this.t("common.saving") : this.t("external_jobs.confirm")}
         </button>
         ${blocked.length ? `<button class="evcc-btn evcc-btn-warn" data-action="ext-wizard-override">${this.t("external_jobs.keep_anyway")}</button>` : ""}`;

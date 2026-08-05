@@ -291,7 +291,14 @@
     "wizard_phase_count": "quantas divisões?",
     "wizard_phase_name": "nomear cada divisão",
     "wizard_step_of": "Passo {step} de 2 — {phase}",
-    "wizard_title": "Rever execução iniciada na aplicação"
+    "wizard_title": "Rever execução iniciada na aplicação",
+    "suggested_tag": "sugerida",
+    "suggested_hint": "O nosso melhor palpite a partir do percurso do robô. Toque para aceitar ou escolha outra divisão.",
+    "pick_required": "escolha uma",
+    "rooms_unassigned": {
+      "one": "Falta escolher 1 divisão",
+      "other": "Faltam escolher {count} divisões"
+    }
   },
   "language": {
     "button_title": "Idioma",

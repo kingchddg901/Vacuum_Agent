@@ -307,7 +307,14 @@
     "wizard_phase_count": "сколько комнат?",
     "wizard_phase_name": "назовите каждую комнату",
     "wizard_step_of": "Шаг {step} из 2 — {phase}",
-    "wizard_title": "Проверка очистки из приложения"
+    "wizard_title": "Проверка очистки из приложения",
+    "suggested_tag": "предположение",
+    "suggested_hint": "Наша лучшая догадка по маршруту робота. Нажмите, чтобы принять, или выберите другую комнату.",
+    "pick_required": "выберите",
+    "rooms_unassigned": {
+      "one": "Осталось выбрать 1 комнату",
+      "other": "Осталось выбрать комнат: {count}"
+    }
   },
   "language": {
     "button_title": "Язык",

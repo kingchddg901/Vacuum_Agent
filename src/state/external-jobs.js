@@ -70,8 +70,18 @@ export function applyExternalJobsState(proto) {
         splits[order] = !!seg?.confident_boundary;
       }
       const top = Array.isArray(seg?.shortlist) && seg.shortlist[0] ? seg.shortlist[0] : null;
+      // REV-2: the shortlist's top entry is a GUESS — a pose/area match the
+      // backend is not certain of, which is why it ships a shortlist rather than
+      // an answer. Pre-selecting it made the wizard confirmable in two clicks
+      // with no room ever actually chosen, so a wrong guess was accepted by
+      // reflex and then LEARNED FROM, which is the part that does not wash out.
+      //
+      // The suggestion is kept and shown; only the pre-selection goes. Losing
+      // the guess entirely would trade a silent wrong answer for a slow right
+      // one, and the guess is usually correct.
       assignments[order] = {
-        room_id: top ? top.room_id : null,
+        room_id: null,
+        suggested_room_id: top ? top.room_id : null,
         edge_mopping: false,
         override: false,
         overrides: {},
@@ -107,6 +117,34 @@ export function applyExternalJobsState(proto) {
    * assignments are rebuilt from the new segments' shortlists (room picks happen
    * in step 2, after the boundaries are settled in step 1).
    */
+  /**
+   * Orders whose room has not been picked yet.
+   *
+   * REV-2. The wizard used to open with every room pre-filled from the
+   * shortlist's top guess, so "Confirm" was reachable in two clicks without the
+   * user ever having made a choice. These runs feed LEARNING, so a wrong guess
+   * accepted by reflex becomes a wrong timing sample attributed to the wrong
+   * room — the kind of error that does not wash out with more data.
+   *
+   * @returns {number[]} unassigned orders, ascending.
+   */
+  proto.externalWizardUnassignedOrders = function () {
+    const w = this._extWizard;
+    if (!w) return [];
+    return Object.keys(w.assignments || {})
+      .map(Number)
+      .filter((order) => {
+        const a = w.assignments[order];
+        return !a || a.room_id == null || a.room_id === "";
+      })
+      .sort((x, y) => x - y);
+  };
+
+  /** Whether the wizard may be confirmed — every room actively chosen. */
+  proto.externalWizardCanConfirm = function () {
+    return this.externalWizardUnassignedOrders().length === 0;
+  };
+
   proto.applyResegmentResult = function (record) {
     const w = this._extWizard;
     if (!w || !record) return;
@@ -115,7 +153,16 @@ export function applyExternalJobsState(proto) {
     for (const seg of segments) {
       const order = Number(seg?.order ?? 0);
       const top = Array.isArray(seg?.shortlist) && seg.shortlist[0] ? seg.shortlist[0] : null;
-      assignments[order] = { room_id: top ? top.room_id : null, edge_mopping: false, override: false, overrides: {} };
+      // REV-2: same as openExternalWizard — suggest, never pre-select. A
+      // resegmentation produces a NEW shortlist, so this is exactly when a stale
+      // pre-selection would be most wrong.
+      assignments[order] = {
+        room_id: null,
+        suggested_room_id: top ? top.room_id : null,
+        edge_mopping: false,
+        override: false,
+        overrides: {},
+      };
     }
     w.segments = segments;
     w.assignments = assignments;

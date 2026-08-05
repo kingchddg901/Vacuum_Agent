@@ -11,7 +11,8 @@
 //   [EXJ-4]  externalWizardGroups v1: first segment always starts a group even if order!=0 (empty-guard)
 //   [EXJ-5]  externalWizardGroups v1: only the split boundaries produce breaks (precedence)
 //   [EXG-6]  openExternalWizard: splits only for order>0, keyed by confident_boundary
-//   [EXG-7]  openExternalWizard: assignments seeded from shortlist[0].room_id (null when empty)
+//   [EXG-7]  openExternalWizard: shortlist[0] is SUGGESTED, never pre-selected (REV-2)
+//   [EXG-7b] the confirm gate: unassigned orders block Confirm until each is picked
 //   [EXG-8]  openExternalWizard: v2 fields normalized (activeBoundaries->Number, resegmentable, counts)
 //   [EXG-9]  openExternalWizard: null/absent run -> empty, safe defaults
 //   [EXR-10] applyResegmentResult: no wizard or no record -> no-op
@@ -104,21 +105,58 @@ test("[EXG-6] openExternalWizard: splits only for order>0, value = !!confident_b
   assert.equal(w.splits[3], false);
 });
 
-test("[EXG-7] openExternalWizard: assignments seed room_id from shortlist[0], null when empty", () => {
+test("[EXG-7] openExternalWizard: shortlist[0] is SUGGESTED, never pre-selected", () => {
+  // REV-2. This test used to assert room_id === 5 — it pinned the defect. The
+  // shortlist's top entry is a GUESS the backend is not certain of (it ships a
+  // shortlist precisely because it does not know), and pre-selecting it made the
+  // wizard confirmable in two clicks with no room ever chosen. These runs feed
+  // LEARNING, so a wrong guess accepted by reflex becomes a wrong timing sample
+  // on the wrong room — an error that does not wash out with more data.
+  //
+  // The suggestion is KEPT and surfaced; only the pre-selection goes.
   const c = makeCard();
   c.openExternalWizard({
     segments: [
-      { order: 0, shortlist: [{ room_id: 5 }, { room_id: 9 }] }, // top -> 5
-      { order: 1, shortlist: [] },                                // empty -> null
-      { order: 2 },                                              // absent -> null
+      { order: 0, shortlist: [{ room_id: 5 }, { room_id: 9 }] }, // top -> suggested 5
+      { order: 1, shortlist: [] },                                // empty -> no suggestion
+      { order: 2 },                                              // absent -> no suggestion
     ],
   });
   const w = c.externalWizard();
-  assert.equal(w.assignments[0].room_id, 5);                     // shortlist[0].room_id
-  assert.equal(w.assignments[1].room_id, null);
-  assert.equal(w.assignments[2].room_id, null);
-  // default assignment shape
-  assert.deepEqual(w.assignments[0], { room_id: 5, edge_mopping: false, override: false, overrides: {} });
+
+  assert.equal(w.assignments[0].room_id, null, "the guess was pre-selected");
+  assert.equal(w.assignments[0].suggested_room_id, 5, "the guess was lost entirely");
+  assert.equal(w.assignments[1].suggested_room_id, null);
+  assert.equal(w.assignments[2].suggested_room_id, null);
+
+  assert.deepEqual(w.assignments[0], {
+    room_id: null,
+    suggested_room_id: 5,
+    edge_mopping: false,
+    override: false,
+    overrides: {},
+  });
+});
+
+test("[EXG-7b] Confirm is gated until every room is actively picked", () => {
+  const c = makeCard();
+  c.openExternalWizard({
+    segments: [
+      { order: 0, shortlist: [{ room_id: 5 }] },
+      { order: 1, shortlist: [{ room_id: 7 }] },
+    ],
+  });
+
+  assert.deepEqual(c.externalWizardUnassignedOrders(), [0, 1]);
+  assert.equal(c.externalWizardCanConfirm(), false, "confirmable with nothing chosen");
+
+  c.setExternalAssignment(0, { room_id: 5 });   // accepting the suggestion is a CHOICE
+  assert.deepEqual(c.externalWizardUnassignedOrders(), [1]);
+  assert.equal(c.externalWizardCanConfirm(), false);
+
+  c.setExternalAssignment(1, { room_id: 99 });  // ...and overriding it is too
+  assert.deepEqual(c.externalWizardUnassignedOrders(), []);
+  assert.equal(c.externalWizardCanConfirm(), true);
 });
 
 test("[EXG-8] openExternalWizard: v2 boundary fields normalized to numbers + counts", () => {
@@ -193,9 +231,13 @@ test("[EXR-11] applyResegmentResult: replaces segments/assignments/activeBoundar
   });
   const w = c.externalWizard();
   assert.equal(w.segments.length, 2);                           // replaced
-  assert.equal(w.assignments[0].room_id, 3);                    // reseeded from new shortlist
-  assert.equal(w.assignments[1].room_id, null);                // empty shortlist -> null
-  assert.deepEqual(w.assignments[0], { room_id: 3, edge_mopping: false, override: false, overrides: {} });
+  // REV-2: a resegmentation produces a NEW shortlist, which is exactly when a
+  // stale pre-selection would be most wrong — so it suggests and clears.
+  assert.equal(w.assignments[0].room_id, null);
+  assert.equal(w.assignments[0].suggested_room_id, 3);
+  assert.equal(w.assignments[1].room_id, null);
+  assert.equal(w.assignments[1].suggested_room_id, null);
+  assert.deepEqual(w.assignments[0], { room_id: null, suggested_room_id: 3, edge_mopping: false, override: false, overrides: {} });
   assert.deepEqual(w.activeBoundaries, [1]);                    // Number-coerced
   assert.deepEqual(w.candidates, [{ order: 1 }]);
   assert.equal(w.suggestedRoomCount, 2);

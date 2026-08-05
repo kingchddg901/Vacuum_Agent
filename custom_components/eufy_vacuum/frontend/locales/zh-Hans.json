@@ -2192,7 +2192,14 @@
     "wizard_phase_count": "多少个房间？",
     "wizard_phase_name": "为每个房间命名",
     "wizard_step_of": "第 {step} 步，共 2 步 — {phase}",
-    "wizard_title": "复核应用启动的运行记录"
+    "wizard_title": "复核应用启动的运行记录",
+    "suggested_tag": "推测",
+    "suggested_hint": "根据机器人走过的路径推测。点按采用，或另选一个房间。",
+    "pick_required": "请选择",
+    "rooms_unassigned": {
+      "one": "还有 1 个房间需要选择",
+      "other": "还有 {count} 个房间需要选择"
+    }
   },
   "run_profiles": {
     "create_profile": "创建方案",

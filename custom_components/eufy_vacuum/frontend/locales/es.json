@@ -291,7 +291,14 @@
     "wizard_phase_count": "¿cuántas habitaciones?",
     "wizard_phase_name": "nombra cada habitación",
     "wizard_step_of": "Paso {step} de 2 — {phase}",
-    "wizard_title": "Revisar limpieza iniciada desde la app"
+    "wizard_title": "Revisar limpieza iniciada desde la app",
+    "suggested_tag": "sugerida",
+    "suggested_hint": "Nuestra mejor estimación según por dónde pasó el robot. Tócala para aceptarla o elige otra habitación.",
+    "pick_required": "elige una",
+    "rooms_unassigned": {
+      "one": "Falta elegir 1 habitación",
+      "other": "Faltan {count} habitaciones por elegir"
+    }
   },
   "language": {
     "button_title": "Idioma",

@@ -2298,7 +2298,14 @@
     "wizard_phase_count": "כמה חדרים?",
     "wizard_phase_name": "תנו שם לכל חדר",
     "wizard_step_of": "שלב {step} מתוך 2 — {phase}",
-    "wizard_title": "בדיקת ריצה שהתחילה מהאפליקציה"
+    "wizard_title": "בדיקת ריצה שהתחילה מהאפליקציה",
+    "suggested_tag": "הצעה",
+    "suggested_hint": "ההשערה הטובה ביותר שלנו לפי המסלול של הרובוט. הקישו כדי לאשר, או בחרו חדר אחר.",
+    "pick_required": "בחרו אחד",
+    "rooms_unassigned": {
+      "one": "נותר חדר אחד לבחירה",
+      "other": "נותרו {count} חדרים לבחירה"
+    }
   },
   "run_profiles": {
     "create_profile": "יצירת פרופיל",

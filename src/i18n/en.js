@@ -360,6 +360,14 @@ export const en = {
   "external_jobs.subtab_external_count": "External Jobs ({count})",
   "external_jobs.subtab_history": "Learning History",
   "external_jobs.unknown_time": "Unknown time",
+  // REV-2. The shortlist's top entry is a GUESS the backend is not certain of —
+  // it ships a shortlist precisely because it does not know. It is now SHOWN but
+  // not pre-selected, so a wrong guess cannot be confirmed by reflex and then
+  // learned from.
+  "external_jobs.suggested_tag": "suggested",  // appended to the guessed room chip; lowercase, reads as an aside not a label
+  "external_jobs.suggested_hint": "Our best guess from where the robot went. Tap to accept it, or pick another room.",
+  "external_jobs.pick_required": "pick one",  // inline prompt beside the room label while nothing is chosen
+  "external_jobs.rooms_unassigned": { one: "1 room still needs picking", other: "{count} rooms still need picking" },
   "external_jobs.which_room": "Which room?",
   "external_jobs.wizard_phase_count": "how many rooms?",
   "external_jobs.wizard_phase_name": "name each room",

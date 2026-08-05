@@ -289,7 +289,14 @@
     "wizard_phase_count": "quante stanze?",
     "wizard_phase_name": "nomina ogni stanza",
     "wizard_step_of": "Passaggio {step} di 2 — {phase}",
-    "wizard_title": "Rivedi esecuzione avviata dall'app"
+    "wizard_title": "Rivedi esecuzione avviata dall'app",
+    "suggested_tag": "suggerita",
+    "suggested_hint": "La nostra ipotesi migliore in base al percorso del robot. Tocca per accettarla o scegli un'altra stanza.",
+    "pick_required": "scegline una",
+    "rooms_unassigned": {
+      "one": "Manca 1 stanza da scegliere",
+      "other": "Mancano {count} stanze da scegliere"
+    }
   },
   "language": {
     "button_title": "Lingua",
