@@ -357,6 +357,28 @@ export function applyReviewRenderers(proto) {
 
     if (!normalized.length) return "";
 
+    // CC-5: this compared `String(option.value) === String(selected)` while
+    // setReviewProfileMatcherField stores the DISPLAY-canonicalised clean mode.
+    // The option carries the ADAPTER's declared token ("vacuum_mop"); the field
+    // holds "Vacuum and mop". Those are never equal, so the chip the user had
+    // just clicked did not render active — the row looked like nothing was
+    // selected while the matcher was in fact filtering on it.
+    //
+    // Same display-label-vs-canonical-token split as issue #48, and answered the
+    // same way: canonicalise BOTH sides at comparison time rather than changing
+    // what is stored. The store side is deliberate — the matcher compares against
+    // profile templates that hold display labels — and canonicalising here also
+    // absorbs any legacy spelling already sitting in a saved matcher.
+    //
+    // Reuses the room editor's comparator instead of adding a second one; that
+    // function IS the answer to "are these two clean modes the same".
+    const canonical = key === "clean_mode"
+      ? (value) =>
+          this.card?._state?._canonicalCleanModeCompare?.(value) ??
+          String(value ?? "").trim().toLowerCase().replace(/[\s+_-]+/g, "")
+      : (value) => String(value ?? "");
+    const matches = (a, b) => canonical(a) === canonical(b);
+
     return `
       <div class="evcc-editor-field-group evcc-review-matcher-field">
         <div class="evcc-field-label">${this.escapeHtml(label)}</div>
@@ -364,7 +386,7 @@ export function applyReviewRenderers(proto) {
           ${normalized.map((option) => `
             <button
               type="button"
-              class="evcc-chip ${String(option.value) === String(selected) ? "active" : ""}"
+              class="evcc-chip ${matches(option.value, selected) ? "active" : ""}"
               data-review-matcher-field="${this.escapeHtml(key)}"
               data-value="${this.escapeHtml(String(option.value))}"
             >${this.tVocab(key, option.value, String(option.label))}</button>
