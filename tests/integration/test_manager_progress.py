@@ -817,3 +817,85 @@ def test_estimate_panel_thaws_once_the_job_is_terminal(manager, hass):
 
     out = manager._planned_estimate_for_dashboard(vacuum_entity_id=_VAC, map_id=_MAP)
     assert out.get("frozen_at_dispatch") is not True
+
+
+def test_group_phase_marks_every_room_current(manager, hass):
+    """[PR-24] RP-047(b) — a group phase lights ALL its rooms, not room[0].
+
+    THE FINDING (C4 / #9:A3-REC-3). is_current compared against the SINGULAR
+    current_room_id, which for a group dispatch is room[0]. A phase cleaning
+    three rooms at once therefore marked exactly one room current, and the card
+    pinned to it for the whole phase — reproduced live on Alfred as
+    pj_2026-08-02T23-04-45, which stayed on Entryway.
+
+    RP-047(a) already computed current_room_ids for the active phase and shipped
+    it in the current_phase block; NOTHING CONSUMED IT. Matching the per-room
+    flag against the list is the whole fix, and it needs no card change: every
+    surface already reads this flag.
+    """
+    _wire(manager, hass)
+    hass.states.async_set(_VAC, "cleaning")
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[1, 2, 3],
+        resolved_rooms=[
+            {"room_id": 1, "name": "Entryway", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 2, "name": "Hallway", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 3, "name": "Study", "minutes": 5, "clean_mode": "vacuum"},
+        ],
+        # room[0] — exactly what the old code pinned to.
+        current_room_id=1, current_phase_index=0,
+        phases=[
+            {"resolved_rooms": [
+                {"room_id": 1, "name": "Entryway"},
+                {"room_id": 2, "name": "Hallway"},
+                {"room_id": 3, "name": "Study"},
+             ],
+             "queue_room_ids": [1, 2, 3], "payload": {}, "room_count": 3},
+        ],
+    )
+
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    timeline = snap["timeline"]
+    current = sorted(
+        int(r["room_id"]) for r in timeline if r.get("current")
+    )
+
+    assert current == [1, 2, 3], (
+        f"the group phase marked {current} current — a group dispatch cleans all "
+        "three at once, so pinning to room[0] is the defect"
+    )
+    # and the phase block still describes itself
+    assert snap["current_phase"]["is_group"] is True
+    assert sorted(snap["current_phase"]["room_ids"]) == [1, 2, 3]
+
+
+def test_single_room_phase_is_unchanged(manager, hass):
+    """[PR-24b] RP-047(b) — atomic dispatch keeps exactly one current room.
+
+    The safety half. Falling back to the singular when there is no phase block,
+    and matching a one-room phase, must both behave exactly as before — the fix
+    may only ever ADD rooms to a group, never change a single-room run.
+    """
+    _wire(manager, hass)
+    hass.states.async_set(_VAC, "cleaning")
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[1, 2],
+        resolved_rooms=[
+            {"room_id": 1, "name": "Entryway", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 2, "name": "Hallway", "minutes": 5, "clean_mode": "vacuum"},
+        ],
+        current_room_id=2, current_phase_index=1,
+        phases=[
+            {"resolved_rooms": [{"room_id": 1, "name": "Entryway"}],
+             "queue_room_ids": [1], "payload": {}, "room_count": 1},
+            {"resolved_rooms": [{"room_id": 2, "name": "Hallway"}],
+             "queue_room_ids": [2], "payload": {}, "room_count": 1},
+        ],
+    )
+
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    current = [int(r["room_id"]) for r in snap["timeline"] if r.get("current")]
+    assert current == [2], f"single-room phase marked {current} current"
+    assert snap["current_phase"]["is_group"] is False
