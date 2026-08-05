@@ -142,6 +142,29 @@ def get_map_bucket(
     return copy.deepcopy(bucket)
 
 
+def map_ids_with_rooms(data: dict[str, Any], vacuum_entity_id: str) -> list[str]:
+    """Map ids that actually carry rooms — i.e. the maps that are REAL.
+
+    A stored bucket is not evidence of a map. ``ensure_map_bucket`` is called
+    from ~38 sites, many keyed on "the currently active map", and it persists a
+    skeleton the moment anything touches an id. Eufy firmware only ever rolls the
+    active map id FORWARD (it never reuses one), so every re-map leaves behind an
+    empty bucket that nothing prunes: a live install carried maps 7, 11 and 12
+    where only 12 was ever configured, 7 and 11 being untouched skeletons with
+    every field at its default.
+
+    Two sites already answered this question ad hoc and a third (the multi-map
+    ambiguity check) got it wrong by counting buckets — which made a single-map
+    vacuum look like a three-map one. Same question, one implementation.
+    """
+    buckets = (data.get("maps") or {}).get(vacuum_entity_id) or {}
+    return sorted(
+        str(map_id)
+        for map_id, bucket in buckets.items()
+        if isinstance(bucket, dict) and bucket.get("rooms")
+    )
+
+
 def get_vacuum_maps_summary(
     *,
     data: dict[str, Any],

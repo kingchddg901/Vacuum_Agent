@@ -11,8 +11,8 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
 | Fixes APPLIED (landed packets) | **463** findings via 64 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050, RP-051) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **0** -- 0 open clusters (29 fully applied) + 0 singles |
-| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 0 / LOW 0 |
+| Open findings | **1** -- 0 open clusters (29 fully applied) + 1 singles |
+| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 0 / LOW 1 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -262,6 +262,12 @@ audit is a snapshot, not a ledger.
 ---
 
 ## TIER 2 -- singles, by corrected severity
+
+### LOW (1)
+
+- [ ] **MAP-GHOST-1** `maps/map_manager.py:145` [eufy]  
+  Empty map buckets accumulate one per firmware re-map and surface in the card  
+  -> Found on live storage 2026-08-05: alfred carries maps 7, 11 and 12 where only 12 is real. Eufy firmware only rolls the active map id FORWARD, so 7 and 11 cannot return. They are not delete residue -- remove_map does `del
 
 ---
 

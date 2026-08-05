@@ -24,6 +24,8 @@ Coverage targets
 [DRD-20] ...and reading it does not create a setup_progress record.
 [DRD-21] A STALE rejection must never delete an already-CONFIGURED room.
 [DRD-22] ...but still refuses creation of an unconfigured rejected room.
+[DRD-23] Empty map skeletons do not make a vacuum look multi-map.
+[DRD-24] Emptying a map must not re-open the legacy flat list.
 """
 
 from __future__ import annotations
@@ -507,3 +509,55 @@ def test_a_rejection_still_refuses_an_unconfigured_room(manager):
     assert "3" not in manager.data["maps"][_VAC][_MAP]["rooms"], (
         "the exclusion stopped refusing creation entirely"
     )
+
+
+# ---------------------------------------------------------------------------
+# [DRD-23] A stored bucket is not a map
+#
+# Found on live data: alfred carried maps 7, 11 and 12 where only 12 was ever
+# configured. 7 and 11 are untouched skeletons — every field at its default.
+# ensure_map_bucket is called from ~38 sites, many keyed on "the active map", and
+# Eufy firmware only rolls the active id FORWARD, so each re-map strands a bucket
+# nothing prunes. Counting buckets made a single-map vacuum look multi-map and
+# would have refused an unqualified reject as ambiguous.
+# ---------------------------------------------------------------------------
+
+def test_empty_map_skeletons_do_not_make_a_vacuum_multi_map(manager):
+    """[DRD-23] Only maps carrying rooms count toward the ambiguity check."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    # two stranded skeletons, exactly as they appear on disk
+    for ghost in ("7", "11"):
+        manager.data["maps"][_VAC][ghost] = {
+            "map_id": ghost, "metadata": {}, "rooms": {}, "summary": {},
+            "custom_layouts": {}, "active_custom_layout_id": "",
+            "segment_room_links": {}, "companion_anchors": {}, "saved_zones": {},
+        }
+
+    result = reject_rooms(manager, _VAC, [3])
+
+    assert result.get("reason") != "map_ambiguous", (
+        "empty skeletons made a single-map vacuum look ambiguous"
+    )
+    assert result["map_id"] == _MAP
+    assert result["rejected"] == [3]
+
+
+def test_rejecting_the_last_room_does_not_reopen_the_legacy_flat_list(manager):
+    """[DRD-24] Rejecting the LAST room on a map empties it, so that map stops
+    carrying rooms — and a follow-up unqualified reject must still land on that
+    map, not fall through to the vacuum-global flat list this change retired."""
+    setup_map(manager, _VAC, _MAP, count=1)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    reject_rooms(manager, _VAC, [1])
+    assert not manager.data["maps"][_VAC][_MAP]["rooms"], "precondition: map emptied"
+
+    second = reject_rooms(manager, _VAC, [2])
+
+    record = manager.data["setup_progress"][_VAC]
+    assert record["rejected_rooms"] == [], (
+        "a rejection was appended to the LEGACY flat list — it must stay read-only"
+    )
+    assert second["map_id"] == _MAP
+    assert rejected_room_ids(record, map_id=_MAP) == {1, 2}

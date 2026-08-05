@@ -184,10 +184,12 @@ async def delete_map(
     await manager.async_save()
 
     warnings: list[str] = []
-    remaining_maps = [
-        mid for mid, b in manager.data.get("maps", {}).get(vacuum_entity_id, {}).items()
-        if b.get("rooms")
-    ]
+    # Through the shared predicate: "a bucket exists" is not "a map exists", and
+    # this site already knew that (it filtered on rooms) while the multi-map
+    # ambiguity check did not. One implementation of the question now.
+    from ..maps.map_manager import map_ids_with_rooms
+
+    remaining_maps = map_ids_with_rooms(manager.data, vacuum_entity_id)
     if not remaining_maps:
         warnings.append(
             "This vacuum now has no imported maps. "

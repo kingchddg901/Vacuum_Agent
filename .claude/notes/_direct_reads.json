@@ -797,5 +797,16 @@
   "line": 51,
   "title": "build_managed_rooms' rejected_rooms= exclusion (CRUD-5) has no production caller",
   "impact": "Found while fixing A4-SETUP-6, filed rather than folded in (charter 2c). build_managed_rooms takes a rejected_rooms= parameter and skips those ids at :122, documented as CRUD-5 'excludes ids the user explicitly rejected from resurrecting on rediscovery'. Nothing passes it: save_managed_rooms (rooms/room_crud.py:388) is the only production caller and omits it entirely, so the exclusion has never executed. Resurrection is in fact prevented one layer up -- the drift filter keeps rejected ids out of new_rooms, so the user is never offered the room to enable -- which is why the gap produced no symptom and no test caught it. Two things to settle, and they pull opposite ways: either wire it (defence in depth at the write boundary, and the natural place to apply the now map-scoped rejection set) or delete it (an unwired parameter reads as an enforced guard and will be trusted by a future caller). Do NOT wire it without deciding which map's rejections apply -- passing the vacuum-wide union would reintroduce A4-SETUP-6 at a new site. This is the reachability class audits are structurally blind to: a callerless parameter passes every review."
+ },
+ {
+  "run": "live",
+  "id": "MAP-GHOST-1",
+  "sev": "LOW",
+  "orig": "LOW",
+  "brands": "eufy",
+  "file": "maps/map_manager.py",
+  "line": 145,
+  "title": "Empty map buckets accumulate one per firmware re-map and surface in the card",
+  "impact": "Found on live storage 2026-08-05: alfred carries maps 7, 11 and 12 where only 12 is real. Eufy firmware only rolls the active map id FORWARD, so 7 and 11 cannot return. They are not delete residue -- remove_map does `del vacuum_maps[map_id]` and drops the whole bucket -- they were MINTED AND ABANDONED: ensure_map_bucket is called from ~38 sites, many keyed on 'the currently active map', and persists a skeleton the moment anything touches a new id. Every re-map strands one, and nothing prunes them. Two consequences. (1) get_vacuum_maps_summary applies no rooms filter, so the skeletons render in the card's map list as entries with room_count 0 -- the user sees maps that do not exist. (2) any code counting BUCKETS rather than real maps miscounts; that already bit the multi-map ambiguity check on the same day it shipped, now routed through maps.map_manager.map_ids_with_rooms. NOT fixed: the skeletons themselves. Pruning touches stored state, so it needs a migration decision (prune on load? prune on import? leave and filter at every read?) rather than a drive-by. Filtering get_vacuum_maps_summary is the cheap half and is safe on its own; the accumulation is the part that wants a decision."
  }
 ]

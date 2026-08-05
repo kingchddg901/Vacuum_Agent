@@ -276,9 +276,17 @@ def rejected_room_ids_for(
 
 
 def _known_map_ids(manager: Any, vacuum_entity_id: str) -> list[str]:
-    """Every map id this vacuum has a stored bucket for, sorted."""
-    vac_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {}) or {}
-    return sorted(str(m) for m in vac_maps if isinstance(vac_maps.get(m), dict))
+    """The REAL maps for this vacuum — those carrying rooms.
+
+    Counting stored buckets instead was wrong, and wrong in the direction that
+    misfires: empty skeletons accumulate one per firmware re-map (see
+    ``map_ids_with_rooms``), so a live single-map vacuum presented as a three-map
+    one and an unqualified reject would have been refused as ambiguous. A bucket
+    with no rooms cannot own a room id, so it cannot make a room id ambiguous.
+    """
+    from ..maps.map_manager import map_ids_with_rooms   # local: import cycle
+
+    return map_ids_with_rooms(manager.data, vacuum_entity_id)
 
 
 def _resolve_rejection_map(
@@ -305,7 +313,22 @@ def _resolve_rejection_map(
     """
     if map_id is not None:
         return str(map_id), None
+
     known = _known_map_ids(manager, vacuum_entity_id)
+    if not known:
+        # No map carries rooms — which happens when the LAST room on a map was
+        # just rejected, so the map that a follow-up rejection obviously means
+        # has stopped qualifying. Falling through to None here would write to the
+        # legacy flat list, i.e. quietly re-open the exact backing this change
+        # promised never to append to again. A single stored bucket is still
+        # unambiguous, so use it; several empty ones genuinely are not.
+        buckets = sorted(
+            str(m) for m, b in
+            ((manager.data.get("maps") or {}).get(vacuum_entity_id) or {}).items()
+            if isinstance(b, dict)
+        )
+        known = buckets
+
     if len(known) > 1:
         return None, {
             "status": "error",
