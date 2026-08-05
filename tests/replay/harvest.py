@@ -61,6 +61,21 @@ UTC = dt.timezone.utc
 #: Measured, not assumed - see live:PHASE-ATTR-1.
 FT2_TO_M2 = 0.09290304
 
+#: Unit scales, keyed by the sensor's own ``unit_of_measurement``.
+#:
+#: The unit is NOT a property of the brand and must never be declared. It follows
+#: the Home Assistant unit system, so the same integration reports ft2 on an
+#: imperial install and m2 on a metric one, and a user flipping that setting
+#: changes it underneath a running corpus. My first harvest pass hardcoded
+#: "alfred=ft2, ivy=m2" from observation, which was right for this house on this
+#: day and wrong as a rule - it divided every one of Ivy's runs by 10.76.
+#:
+#: It IS recoverable: the recorder keeps attributes in `state_attributes`, joined
+#: from `states.attributes_id`, so the unit in force AT THE TIME OF EACH RUN can
+#: be read back per run rather than assumed once.
+_AREA_TO_M2 = {"m2": 1.0, "m²": 1.0, "ft2": FT2_TO_M2, "ft²": FT2_TO_M2}
+_TIME_TO_S = {"s": 1.0, "sec": 1.0, "min": 60.0, "h": 3600.0}
+
 #: Entity-id suffixes worth carrying. Deliberately NOT every entity the device
 #: exposes: a full dump was 329 KB for a single 20-minute run, which across a
 #: 10-day harvest is tens of megabytes of mostly-irrelevant maintenance counters.
@@ -81,7 +96,7 @@ def _epoch(iso: str) -> float:
     return dt.datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp()
 
 
-def _progress_total(values: list[float]) -> float:
+def _progress_total(values: list[float], floor: float | None = None) -> float:
     """Total advance of a counter that may reset, given its readings in order.
 
     The same reset-aware accumulation the integration now uses, reimplemented
@@ -89,9 +104,18 @@ def _progress_total(values: list[float]) -> float:
     that helper would be invisible - truth and the thing under test would agree
     by construction. Two independent implementations disagreeing is a signal;
     one implementation agreeing with itself is not.
+
+    ``floor`` is the counter's last reading from BEFORE the window, and passing
+    it is not optional in practice. Without it the first in-window reading only
+    establishes a baseline and contributes nothing - so a run whose area counter
+    ticked once reported 0.0 m2 of truth. That is the SAME one-quantum loss this
+    harvester exists to detect, reproduced inside the measurement; my first pass
+    shipped it and produced 'truth 0.0 vs recorded 7.0' rows that were entirely
+    my own error. With the floor supplied, the reset at run start is seen for
+    what it is and the opening quantum is counted.
     """
     total = 0.0
-    prev: float | None = None
+    prev: float | None = floor
     for value in values:
         if prev is None:
             total = 0.0
@@ -153,11 +177,64 @@ def _numeric(rows: list[tuple[float, str]], scale: float = 1.0) -> list[float]:
     return out
 
 
+def _unit_at(con: sqlite3.Connection, mid: int, at_ts: float) -> str | None:
+    """The sensor's ``unit_of_measurement`` as of ``at_ts``, from the recorder.
+
+    Looks backwards first - the unit in force when the run happened - and only
+    falls forward if the sensor had never recorded attributes by then.
+    """
+    for order, cmp_op in (("DESC", "<="), ("ASC", ">")):
+        row = con.execute(
+            f"SELECT sa.shared_attrs FROM states s "
+            f"JOIN state_attributes sa ON sa.attributes_id = s.attributes_id "
+            f"WHERE s.metadata_id=? AND s.attributes_id IS NOT NULL "
+            f"AND s.last_updated_ts {cmp_op} ? ORDER BY s.last_updated_ts {order} LIMIT 1",
+            (mid, at_ts),
+        ).fetchone()
+        if row and row[0]:
+            try:
+                unit = json.loads(row[0]).get("unit_of_measurement")
+            except (TypeError, ValueError):
+                continue
+            if unit:
+                return str(unit).strip()
+    return None
+
+
+def _scale_for(unit: str | None, table: dict[str, float], fallback: float) -> tuple[float, str]:
+    """Scale factor for ``unit``, plus how it was arrived at.
+
+    An unrecognised or absent unit is NOT guessed at - it falls back to treating
+    the reading as already canonical, the same policy as the production
+    ``cleaning_area_to_m2``, and says so in the returned tag so a reader can see
+    that the number rests on a fallback rather than a measurement.
+    """
+    key = str(unit or "").strip().lower()
+    if key in table:
+        return table[key], f"detected:{unit}"
+    return fallback, ("absent" if not key else f"unrecognised:{unit}")
+
+
+def _floor_before(con: sqlite3.Connection, mid: int, lo: float, scale: float) -> float | None:
+    """The counter's last reading before the window opened, or None if it never reported."""
+    row = con.execute(
+        "SELECT state FROM states WHERE metadata_id=? AND last_updated_ts < ? "
+        "ORDER BY last_updated_ts DESC LIMIT 1", (mid, lo),
+    ).fetchone()
+    if not row:
+        return None
+    try:
+        return float(row[0]) * scale
+    except (TypeError, ValueError):
+        return None
+
+
 def harvest_run(
     con: sqlite3.Connection,
     vacuum: str,
     record: dict[str, Any],
     pad_s: float = 120.0,
+    area_unit_override: str | None = None,
 ) -> dict[str, Any] | None:
     """One job record -> its bundle, its counter truth, and what was recorded."""
     job = record.get("job") or {}
@@ -179,13 +256,22 @@ def harvest_run(
 
     truth: dict[str, Any] = {"cleaning_seconds": None, "area_m2": None}
     if ct_mid is not None:
-        # The sensor reports MINUTES; the integration stores seconds.
+        scale, how = _scale_for(
+            area_unit_override or _unit_at(con, ct_mid, hi), _TIME_TO_S, 1.0
+        )
+        truth["time_unit"] = how
         truth["cleaning_seconds"] = round(
-            _progress_total(_numeric(_series(con, ct_mid, lo, hi), 60.0)), 1
+            _progress_total(_numeric(_series(con, ct_mid, lo, hi), scale),
+                            _floor_before(con, ct_mid, lo, scale)), 1
         )
     if ca_mid is not None:
+        scale, how = _scale_for(
+            area_unit_override or _unit_at(con, ca_mid, hi), _AREA_TO_M2, 1.0
+        )
+        truth["area_unit"] = how
         truth["area_m2"] = round(
-            _progress_total(_numeric(_series(con, ca_mid, lo, hi), FT2_TO_M2)), 3
+            _progress_total(_numeric(_series(con, ca_mid, lo, hi), scale),
+                            _floor_before(con, ca_mid, lo, scale)), 3
         )
 
     initial: dict[str, str] = {}
@@ -203,9 +289,15 @@ def harvest_run(
     events.sort()
 
     rooms = job.get("room_timings") or []
+    # A PHASE-CHILD record leaves cleaning_area_m2 at 0.0 while its room rows
+    # carry the real figures, so comparing truth against the job-level field
+    # alone reported a fabricated -6 m2 gap on exactly the runs that mattered.
+    _job_area = job.get("cleaning_area_m2")
+    _room_area = round(sum(float(r.get("area_m2") or 0) for r in rooms), 3) if rooms else None
     recorded = {
         "cleaning_seconds": job.get("cleaning_time_seconds"),
-        "area_m2": job.get("cleaning_area_m2"),
+        "area_m2": _room_area if (not _job_area and _room_area) else _job_area,
+        "area_from": "room_rows" if (not _job_area and _room_area) else "job_field",
         "rooms": [
             {
                 "slug": r.get("slug"), "room_id": r.get("room_id"),
@@ -217,6 +309,30 @@ def harvest_run(
             for r in rooms if isinstance(r, dict)
         ],
     }
+
+    # FLAGS. A raw truth-minus-recorded gap is NOT automatically a defect, and
+    # presenting it as one would be the harvester lying by omission:
+    #
+    #  * `recorded.area_m2` is sometimes an ESTIMATE BY DESIGN. phase_runner falls
+    #    back to the room's LEARNED area when the within-phase cleaning_area delta
+    #    is ~0 (a stale or flat sensor through the phase). job_2026-07-26T13-03-41
+    #    is the worked example: a 2m40s run whose area counter never moved, truth
+    #    correctly 0.0, recorded 7.0 - the learned value, doing its job. Reading
+    #    that as "over-credited by 7 m2" would file a feature as a bug.
+    #  * a run that never advanced either counter did not clean, so both figures
+    #    are trivially 0 and the comparison says nothing.
+    #  * a zero-second room row with allocated=False is the live:PHASE-ATTR-1
+    #    signature - a fabricated observation admitted to learning as measured.
+    flags: list[str] = []
+    _t_truth = truth.get("cleaning_seconds") or 0.0
+    _a_truth = truth.get("area_m2") or 0.0
+    if _t_truth <= 0 and _a_truth <= 0:
+        flags.append("run_never_advanced_counters")
+    if _a_truth <= 0.01 and float(recorded["area_m2"] or 0) > 0.01:
+        flags.append("area_likely_learned_fallback")
+    if any(r.get("cleaning_seconds") in (0, None) and r.get("allocated") is False
+           for r in recorded["rooms"]):
+        flags.append("zero_second_observed_room")
 
     def _gap(a: Any, b: Any) -> float | None:
         if a is None or b is None:
@@ -238,6 +354,7 @@ def harvest_run(
         },
         "truth": truth,
         "recorded": recorded,
+        "flags": flags,
         "delta": {
             "cleaning_seconds": _gap(truth["cleaning_seconds"], recorded["cleaning_seconds"]),
             "area_m2": _gap(truth["area_m2"], recorded["area_m2"]),
@@ -259,7 +376,18 @@ def main() -> None:
     ap.add_argument("--config", required=True, help="the eufy_vacuum config dir")
     ap.add_argument("--out", required=True)
     ap.add_argument("--vacuums", default="alfred,ivy")
+    ap.add_argument(
+        "--area-units", default="",
+        help="LAST RESORT override, e.g. alfred=ft2. Units are DETECTED per run "
+             "from the recorder's state_attributes; only use this for a sensor "
+             "that never recorded attributes at all.",
+    )
     args = ap.parse_args()
+    units: dict[str, str] = {}
+    for pair in (args.area_units or "").split(","):
+        if "=" in pair:
+            k, _, v = pair.partition("=")
+            units[k.strip()] = v.strip()
 
     con = sqlite3.connect(f"file:{args.db}?immutable=1", uri=True)
     out_root = Path(args.out)
@@ -278,7 +406,8 @@ def main() -> None:
                 record = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            got = harvest_run(con, vacuum, record)
+            got = harvest_run(con, vacuum, record,
+                              area_unit_override=units.get(vacuum))
             if got is None:
                 continue
             if got.get("skipped"):
@@ -289,7 +418,7 @@ def main() -> None:
                 json.dumps(got["bundle"], indent=1, ensure_ascii=False), encoding="utf-8"
             )
             index.append({
-                "vacuum": vacuum, "name": name,
+                "vacuum": vacuum, "name": name, "flags": got["flags"],
                 "bundle": f"{vacuum}/{name}.json",
                 "events": len(got["bundle"]["events"]),
                 "run_span": got["bundle"]["meta"]["run_span"],
@@ -306,7 +435,12 @@ def main() -> None:
             "note": (
                 "truth = measured from the recorder's counter series (reset-aware, "
                 "independent implementation). recorded = what the integration wrote. "
-                "delta.cleaning_seconds > 0 means the run swept MORE than was credited."
+                "delta.cleaning_seconds > 0 means the run swept MORE than was credited. "
+                "READ THE FLAGS BEFORE THE DELTAS: area_likely_learned_fallback means "
+                "the integration substituted a learned area on purpose (a flat sensor), "
+                "and run_never_advanced_counters means the run did not clean at all. "
+                "Neither is a defect. zero_second_observed_room IS the PHASE-ATTR-1 "
+                "signature: a fabricated zero admitted to learning as an observation."
             ),
             "skipped_outside_retention": skipped,
             "runs": index,
