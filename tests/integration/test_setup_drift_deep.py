@@ -19,6 +19,9 @@ Coverage targets
 [DRD-15] Omitted map_id means "the only map" on a single-map vacuum.
 [DRD-16] ...and is REFUSED on a multi-map vacuum rather than meaning "every map".
 [DRD-17] The un-reject path refuses the same ambiguity, in the same way.
+[DRD-18] SETUP-REJ-2: a direct save cannot resurrect a rejected room.
+[DRD-19] ...and that enforcement is MAP-SCOPED, not the vacuum-wide union.
+[DRD-20] ...and reading it does not create a setup_progress record.
 """
 
 from __future__ import annotations
@@ -394,3 +397,61 @@ def test_unreject_without_map_id_is_refused_on_a_multi_map_vacuum(manager):
     assert result["reason"] == "map_ambiguous"
     assert result["unrejected"] == []
     assert manager.data["setup_progress"][_VAC]["rejected_rooms"] == [3]  # untouched
+
+
+# ---------------------------------------------------------------------------
+# [DRD-18..20] SETUP-REJ-2 — the write boundary enforces rejection
+#
+# build_managed_rooms has always accepted rejected_rooms= and skipped those ids
+# (CRUD-5); save_managed_rooms, its only production caller, never passed it, so
+# the skip had never executed. No symptom, because rejected ids are filtered out
+# of new_rooms a layer up and so never reach the save as candidates — but that is
+# a UI-path protection, and a direct service call with explicit enabled_room_ids
+# walks past it.
+# ---------------------------------------------------------------------------
+
+def test_save_managed_rooms_refuses_to_create_a_rejected_room(manager):
+    """[DRD-18] A direct save cannot resurrect a rejected room, even when the
+    caller explicitly enables it — the bypass the drift filter cannot see."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP)
+    assert "3" not in manager.data["maps"][_VAC][_MAP]["rooms"]
+
+    # The hand-written call the panel would never make: ask for room 3 by name.
+    manager.save_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP, enabled_room_ids=[1, 2, 3]
+    )
+
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    assert "3" not in rooms, "a rejected room was re-created by a direct save"
+    assert {"1", "2"} <= set(rooms)
+
+
+def test_save_managed_rooms_rejection_is_map_scoped(manager):
+    """[DRD-19] THE TRAP. The write boundary must use the MAP-SCOPED set: passing
+    the vacuum-wide union would drop a real room on map B out of a save the user
+    explicitly asked for, because an unrelated ghost shared its id on map A."""
+    _setup_two_maps(manager)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP)
+
+    manager.save_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP_B, enabled_room_ids=[1, 2, 3]
+    )
+
+    assert "3" in manager.data["maps"][_VAC][_MAP_B]["rooms"], (
+        "room 3 on map B was dropped by map A's rejection — A4-SETUP-6 at a new site"
+    )
+
+
+def test_save_managed_rooms_does_not_create_a_setup_progress_record(manager):
+    """[DRD-20] Reading the rejection set must not materialise setup-progress
+    state — a save asks a question, it does not own that record."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    manager.data.pop("setup_progress", None)
+
+    manager.save_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP, enabled_room_ids=[1, 2]
+    )
+
+    assert _VAC not in (manager.data.get("setup_progress") or {})

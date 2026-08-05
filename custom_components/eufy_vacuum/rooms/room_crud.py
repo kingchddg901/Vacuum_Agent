@@ -385,6 +385,24 @@ class RoomMapManager:
 
         existing_rooms = map_bucket.get("rooms", {})
 
+        # SETUP-REJ-2: build_managed_rooms has always accepted rejected_rooms= and
+        # skipped those ids (CRUD-5), and this — its ONLY production caller — never
+        # passed it, so that branch had never executed. No symptom, because the
+        # protection that actually worked sits a layer up: rejected ids are filtered
+        # out of new_rooms, so the panel never offers them and they never arrive here
+        # as candidates. But that is a UI-PATH protection. A hand-written
+        # save_managed_rooms call with explicit enabled_room_ids walks straight past
+        # it and can create a room the user rejected — the mirror of the "a direct
+        # service call can pop a configured room" residual noted on A4-SETUP-6.
+        # Enforcing it at the write boundary closes that, and makes the parameter's
+        # documented contract true rather than aspirational.
+        #
+        # MAP-SCOPED, and this is the whole trap: passing the vacuum-wide union would
+        # mean a rejection on floor 1 silently drops a REAL room on floor 2 out of a
+        # save the user explicitly asked for. That is A4-SETUP-6 reappearing at a new
+        # site, and destructive here rather than merely blocking.
+        from ..setup.drift import rejected_room_ids_for   # local: import cycle
+
         managed_rooms = build_managed_rooms(
             discovered_rooms=filtered_rooms,
             # The BRAND's default profile decides what a newly-approved room starts with,
@@ -393,6 +411,9 @@ class RoomMapManager:
             existing_rooms=existing_rooms,
             enabled_room_ids=enabled_room_ids,
             floor_types=floor_types or {},
+            rejected_rooms=rejected_room_ids_for(
+                self._manager, vacuum_entity_id, map_id=str(map_id)
+            ),
         )
 
         refusal = _refuse_destructive_replace(

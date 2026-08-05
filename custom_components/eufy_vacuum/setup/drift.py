@@ -236,6 +236,22 @@ def rejected_room_ids(
     return ids
 
 
+def rejected_room_ids_for(
+    manager: Any, vacuum_entity_id: str, *, map_id: str | None = None
+) -> set[int]:
+    """``rejected_room_ids`` for a vacuum, read WITHOUT creating its record.
+
+    Deliberately not routed through ``_get_progress_record``: that helper
+    ``setdefault``s the record into existence, which is right for the write paths
+    that own it but wrong here. This is called from ``save_managed_rooms``, and a
+    room save must not materialise setup-progress state as a side effect of
+    asking a question. Missing record -> no rejections, which is the correct
+    answer for a vacuum that has never rejected anything.
+    """
+    record = (manager.data.get("setup_progress") or {}).get(vacuum_entity_id) or {}
+    return rejected_room_ids(record, map_id=map_id)
+
+
 def _known_map_ids(manager: Any, vacuum_entity_id: str) -> list[str]:
     """Every map id this vacuum has a stored bucket for, sorted."""
     vac_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {}) or {}

@@ -84,6 +84,13 @@ def build_managed_rooms(
     NOT auto-confirmed — a previously-confirmed room stays confirmed across a
     re-save regardless. ``rejected_rooms`` (CRUD-5) excludes ids the user
     explicitly rejected (setup/drift.py) from resurrecting on rediscovery.
+
+    SETUP-REJ-2: that last sentence was true of the CODE and false of the SYSTEM
+    until 2026-08-05 — ``save_managed_rooms``, the only production caller, never
+    passed the argument, so the skip had never run. It does now, with the
+    MAP-SCOPED rejection set (``rejected_room_ids_for``). Any future caller must
+    pass the same thing: the vacuum-wide union would drop a real room on one map
+    because an unrelated id was rejected on another (A4-SETUP-6).
     """
     from ..profiles.room_profiles import DEFAULT_ROOM_PROFILE_NAME   # local: import cycle
 
