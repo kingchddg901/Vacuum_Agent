@@ -97,6 +97,119 @@ def _distribute_int(total: int, n: int) -> list[int]:
     return [base + 1 if i < rem else base for i in range(n)]
 
 
+_PHASE_COUNTER_KEYS = ("cleaning_time", "cleaning_area")
+
+
+def _phase_progress_samples(
+    prior_samples: list[dict[str, Any]] | None,
+    slice_samples: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Re-express a phase's counter slice as PROGRESS SINCE THE PHASE STARTED.
+
+    live:PHASE-ATTR-1. Everything downstream of this used to pick its own
+    baseline out of the slice, and the two answers disagreed - which is how one
+    room ended up credited with 270 s of cleaning inside a 240 s window, an
+    arithmetic impossibility that only two fenceposts can produce. Normalising
+    once, here, means ``build_segments`` (which counts from zero), ``whole`` and
+    the per-room rebase are all reading the same numbers.
+
+    TWO THINGS MAKE THE NAIVE last-minus-first WRONG, both measured off the
+    recorder for job_2026-08-04T19-37-52 rather than reasoned about:
+
+    1. **The first in-phase reading is already late.**
+       ``last_cleaning_time_seconds`` / ``last_cleaning_area_m2`` are ``None`` at
+       job creation and only become non-None when the sensor CHANGES, so a
+       phase's first sample already carries one full quantum. Kitchen swept
+       0 -> 2 m2 in 120 s and was recorded as 90 s / 1.0 m2 - exactly one 30 s
+       poll and one area quantum short. cleaning_area is quantised to a hard
+       1 m2 (the sensor exposes ft2; every value is an integer multiple of
+       10.7639104167097 ft2 = 1.000000 m2), so a lost quantum is not a rounding
+       smudge, it is the smallest thing the device can say.
+
+    2. **The reset can land INSIDE the slice, not on its edge.**
+       Eufy resets these counters per PHASE, not once per run - cleaning_time was
+       logged going 2.0 -> 0.0 the instant phase 2 dispatched. But the two
+       sensors do not reset together: a sample is appended whenever EITHER
+       changes and carries the other one forward, so phase 2's first samples
+       still carried kitchen's stale 2 m2 until the area sensor caught up two
+       polls later. A baseline taken at the slice edge cannot see that, and the
+       room that owned the reset loses its whole area.
+
+    So this walks the series and accumulates, treating any DECREASE as a reset
+    (after which the new value is itself the progress since that reset). That is
+    the ordinary monotonic-counter-with-resets reading, and it is correct whether
+    the brand resets per phase, per run, or never - no declaration needed and no
+    assumption about which world we are in.
+
+    ``prior_samples`` is the run's samples from BEFORE this phase; its last
+    reading of each counter is the floor the phase starts from. Empty (the run's
+    first phase) means the phase starts from zero.
+
+    Returns new dicts - the caller's samples are never mutated, because
+    ``counter_samples`` is the run's one shared buffer and every later phase
+    reads it again.
+    """
+    floors: dict[str, float | None] = {}
+    for key in _PHASE_COUNTER_KEYS:
+        floors[key] = _last_counter_value(prior_samples or [], key)
+
+    totals: dict[str, float] = {key: 0.0 for key in _PHASE_COUNTER_KEYS}
+    out: list[dict[str, Any]] = []
+    for sample in slice_samples:
+        if not isinstance(sample, dict):
+            continue
+        row = dict(sample)
+        for key in _PHASE_COUNTER_KEYS:
+            raw = sample.get(key)
+            if raw is None:
+                # Carry the running total rather than a hole: a sample appended
+                # because the OTHER counter moved still describes this instant.
+                row[key] = totals[key] if floors[key] is not None else None
+                continue
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                row[key] = totals[key] if floors[key] is not None else None
+                continue
+            prev = floors[key]
+            if prev is None:
+                # NO pre-phase reading means no evidence, NOT zero. Treating an
+                # unknown floor as zero would credit a later phase's opening
+                # cumulative reading as that room's work - the trap [SOPT-12]
+                # pins, where a group phase opening at 600 s would book 600 s
+                # against its first member. The slice's own first value is the
+                # only floor available, so this phase starts measuring from here.
+                # (The run's TRUE floor is recorded at job start instead - see
+                # _append_baseline_counter_sample - which is what lets the first
+                # phase keep its opening quantum without guessing.)
+                floors[key] = value
+                row[key] = totals[key]
+                continue
+            if value < prev:
+                totals[key] += max(0.0, value)  # reset: value is progress since it
+            else:
+                totals[key] += value - prev
+            floors[key] = value
+            row[key] = totals[key]
+        out.append(row)
+    return out
+
+
+def _last_counter_value(samples: list[dict[str, Any]], key: str) -> float | None:
+    """The last non-None ``key`` in ``samples`` (None when it never reported)."""
+    for sample in reversed(samples or []):
+        if not isinstance(sample, dict):
+            continue
+        value = sample.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
 class PhaseRunner:
     """Owns strict-order phase execution. Constructed with the core manager (the
     bundled-subsystem pattern); reads/writes ``manager.data['active_jobs']`` and uses
@@ -812,8 +925,13 @@ class PhaseRunner:
                 s for s in samples
                 if isinstance(s, dict) and str(s.get("t") or "") > start_t
             ]
+            prior_samples = [
+                s for s in samples
+                if isinstance(s, dict) and str(s.get("t") or "") <= start_t
+            ]
         else:
             slice_samples = [s for s in samples if isinstance(s, dict)]
+            prior_samples = []
 
         slug_by_id: dict[int, str | None] = {}
         for r in active_job.get("resolved_rooms") or []:
@@ -853,7 +971,8 @@ class PhaseRunner:
                   rooms=len(group_ids), usable=len(usable))
         room_timings = (
             self._split_group_room_timing(
-                group_ids, slug_by_id, slice_samples, vacuum_entity_id
+                group_ids, slug_by_id, slice_samples, vacuum_entity_id,
+                prior_samples=prior_samples,
             )
             if group_ids and len(usable) >= 2 else []
         )
@@ -982,13 +1101,23 @@ class PhaseRunner:
             return 0
 
     def _phase_room_timing(
-        self, room_id: Any, slug: str | None, slice_samples: list[dict[str, Any]]
+        self,
+        room_id: Any,
+        slug: str | None,
+        slice_samples: list[dict[str, Any]],
+        prior_samples: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """One strict-order phase = one room. Compute its timing/area directly from the phase's
-        counter slice as WITHIN-slice deltas — cleaning_time / cleaning_area are CUMULATIVE across
-        the run, so the per-phase figure is last − first. No segmenter: a single-room slice needs
-        no segmentation, and the direct delta avoids the segmenter's cumulative-from-zero area
-        accounting (which would report a later phase's cumulative total, not its own area)."""
+        counter slice. No segmenter: a single-room slice needs no segmentation.
+        The slice is re-based to progress-since-phase-start first
+        (``_phase_progress_samples``), so the phase figure is its last reading."""
+        # live:PHASE-ATTR-1. Normalise HERE rather than at the call site. Doing it
+        # in the caller left this function silently requiring pre-re-based input
+        # - the same "two places must agree about the floor" defect it exists to
+        # fix, just moved. Given the raw slice plus what came before it, this is
+        # always right; given no prior it degrades to the old last-minus-first.
+        slice_samples = _phase_progress_samples(prior_samples, slice_samples)
+
         def _vals(key: str) -> list[float]:
             out: list[float] = []
             for s in slice_samples:
@@ -1005,8 +1134,13 @@ class PhaseRunner:
         cts = _vals("cleaning_time")
         bats = _vals("battery")
         ts = [str(s.get("t")) for s in slice_samples if s.get("t")]
-        area = max(0.0, cas[-1] - cas[0]) if len(cas) >= 2 else 0.0
-        secs = int(max(0.0, cts[-1] - cts[0])) if len(cts) >= 2 else 0
+        # live:PHASE-ATTR-1: the slice is already progress-since-phase-start, so
+        # the phase total is simply its last reading. Subtracting cas[0]/cts[0]
+        # here is what discarded the phase's first quantum. One sample is now
+        # enough to measure a phase, because the floor is no longer something
+        # that has to be discovered inside the slice.
+        area = max(0.0, cas[-1]) if cas else 0.0
+        secs = int(max(0.0, cts[-1])) if cts else 0
         bat_delta = int(bats[0] - bats[-1]) if len(bats) >= 2 else None
         wall = self._wall_seconds(ts[0], ts[-1]) if len(ts) >= 2 else secs
         return {
@@ -1029,6 +1163,7 @@ class PhaseRunner:
         slug_by_id: dict[int, str | None],
         slice_samples: list[dict[str, Any]],
         whole: dict[str, Any],
+        prior_samples: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]] | None:
         """Per-room rows SEGMENTED from the group's own counter slice, or ``None``
         when the split could not be observed (the caller then apportions).
@@ -1056,15 +1191,21 @@ class PhaseRunner:
            below.
 
         THE REBASE. ``build_segments`` counts from zero (``prev_ct``/``prev_area``
-        start at 0.0) while ``cleaning_time``/``cleaning_area`` are CUMULATIVE
-        across the run, and ``_prepare_window`` only re-bases at a counter reset,
-        which happens once per RUN and not once per phase. Fed a phase slice, its
-        first segment would therefore report the whole run's cumulative totals as
-        that room's — the exact trap ``_phase_room_timing``'s docstring names as
-        its reason for not using the segmenter. So the parts are recomputed here
-        from each segment's cumulative *end* against the slice's own baseline,
-        which telescopes back to the group's measured whole. Gate 3 proves it did.
+        start at 0.0) while ``cleaning_time``/``cleaning_area`` are cumulative,
+        and ``_prepare_window`` only re-bases at a counter reset. Fed a RAW phase
+        slice its first segment would therefore report the run's cumulative total
+        as that room's. ``_phase_progress_samples`` removes that mismatch at the
+        source (live:PHASE-ATTR-1) by handing every consumer the same
+        progress-since-phase-start series, so the parts are recomputed here from
+        each segment's *end* against a zero floor and telescope back to the
+        group's measured whole. Gate 3 proves it did.
         """
+        # live:PHASE-ATTR-1: the segmenter counts from zero, so hand it the same
+        # progress-since-phase-start series `whole` was measured from. Rebasing
+        # them independently is what let a room be credited with 270 s of
+        # cleaning inside a 240 s window.
+        slice_samples = _phase_progress_samples(prior_samples, slice_samples)
+
         n = len(group_ids)
         if not adapter_honors_clean_order(vacuum_entity_id):
             _dlog("phase.segment.reject", gate="order", rooms=n,
@@ -1095,8 +1236,12 @@ class PhaseRunner:
                   engine=type(engine).__name__)
             return None
 
-        # Baseline = the slice's own first readings, the same two values
-        # _phase_room_timing subtracts to produce `whole`.
+        # live:PHASE-ATTR-1. The baseline is ZERO, not the slice's first reading:
+        # `slice_samples` is already progress-since-phase-start, which is the same
+        # floor `build_segments` counts from and the same one `whole` measures
+        # against. Taking the first reading instead re-based the parts onto a
+        # floor `whole` did not share, so they no longer telescoped back to it -
+        # and the room that owned the phase's opening quantum was zeroed outright.
         def _first(key: str) -> float | None:
             for s in slice_samples:
                 if isinstance(s, dict) and s.get(key) is not None:
@@ -1106,8 +1251,8 @@ class PhaseRunner:
                         continue
             return None
 
-        base_ct = _first("cleaning_time")
-        base_area = _first("cleaning_area")
+        base_ct = 0.0 if _first("cleaning_time") is not None else None
+        base_area = 0.0 if _first("cleaning_area") is not None else None
         if base_ct is None or base_area is None:
             # Which one is missing says whether the counter stream is absent
             # entirely or just one of its two channels.
@@ -1175,6 +1320,7 @@ class PhaseRunner:
         slug_by_id: dict[int, str | None],
         slice_samples: list[dict[str, Any]],
         vacuum_entity_id: str = "",
+        prior_samples: list[dict[str, Any]] | None = None,
     ) -> list[dict[str, Any]]:
         """One timing entry PER room in a group phase.
 
@@ -1208,12 +1354,17 @@ class PhaseRunner:
         if n == 1:
             rid = group_ids[0]
             _dlog("phase.timing.exact", room_id=rid, samples=len(slice_samples))
-            return [self._phase_room_timing(rid, slug_by_id.get(rid), slice_samples)]
+            return [
+                self._phase_room_timing(
+                    rid, slug_by_id.get(rid), slice_samples, prior_samples
+                )
+            ]
 
-        whole = self._phase_room_timing(None, None, slice_samples)
+        whole = self._phase_room_timing(None, None, slice_samples, prior_samples)
         if vacuum_entity_id:
             observed = self._segment_group_room_timing(
-                vacuum_entity_id, group_ids, slug_by_id, slice_samples, whole
+                vacuum_entity_id, group_ids, slug_by_id, slice_samples, whole,
+                prior_samples=prior_samples,
             )
             if observed is not None:
                 return observed

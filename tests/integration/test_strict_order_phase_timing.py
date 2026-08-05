@@ -479,3 +479,82 @@ async def test_phase_scoped_ids_win_over_job_whole_run_queue(hass, manager, monk
 
     assert [t["room_id"] for t in rt1] == [9]
     assert rt1[0]["allocated"] is False
+
+
+# ---------------------------------------------------------------------------
+# live:PHASE-ATTR-1 — a phase's counters are progress since THAT phase started
+# ---------------------------------------------------------------------------
+
+def test_phase_progress_rebases_on_a_reset_that_lags_into_the_slice():
+    """[SOPT-15] The counters reset per PHASE, and the two do not reset together.
+
+    MEASURED on hardware (job_2026-08-04T19-37-52, recorder series frozen at
+    tests/fixtures/replays/alfred_phase_attr_1.json). Phase 2 dispatched at
+    02:43:27Z and cleaning_time reset 2.0 -> 0.0 that same second — but a counter
+    sample is appended whenever EITHER sensor changes and carries the other one
+    forward, so the slice's opening samples still quoted kitchen's stale 2 m2 for
+    two more polls before cleaning_area caught up and dropped to 1 m2.
+
+    A baseline read at the slice EDGE cannot see a reset that lands inside the
+    slice. The room that owned the reset — Entryway — was recorded as
+    0 s / 0.0 m2 across a 90 s window it demonstrably cleaned, and that zero went
+    into learning with allocated=False, i.e. as a genuine observation.
+
+    Real numbers, so this cannot pass on a shape alone: phase 2 swept 0 -> 6 m2
+    in 390 s. cleaning_area is quantised to a hard 1 m2, so the m2 figures below
+    are the device's own integers, not a scale I chose.
+    """
+    prior = [
+        _cs("2026-08-05T02:39:18Z", 60, 1.0),
+        _cs("2026-08-05T02:40:18Z", 120, 2.0),   # kitchen's last reading
+    ]
+    # cleaning_time resets at the boundary; cleaning_area lags two polls behind it.
+    slice_samples = [
+        _cs("2026-08-05T02:43:28Z", 0, 2.0),     # ct reset, area still kitchen's
+        _cs("2026-08-05T02:44:33Z", 30, 2.0),
+        _cs("2026-08-05T02:45:03Z", 60, 1.0),    # area finally resets, INSIDE the slice
+        _cs("2026-08-05T02:46:03Z", 120, 2.0),
+        _cs("2026-08-05T02:50:50Z", 390, 6.0),
+    ]
+    out = phase_runner_mod._phase_progress_samples(prior, slice_samples)
+
+    # Every reading is now progress since the phase began, so the phase total is
+    # simply the last one — 390 s and 6 m2, exactly what the device swept.
+    assert [s["cleaning_time"] for s in out] == [0.0, 30.0, 60.0, 120.0, 390.0]
+    assert [s["cleaning_area"] for s in out] == [0.0, 0.0, 1.0, 2.0, 6.0]
+
+    # The lagging reset is the whole point: the pre-reset stale 2.0 contributes
+    # nothing, and the 1 m2 that posts at 02:45:03 is counted as this phase's
+    # first square metre rather than being cancelled against kitchen's leftover.
+    assert out[2]["cleaning_area"] == 1.0
+
+
+def test_phase_progress_will_not_invent_a_floor_it_was_never_given():
+    """[SOPT-16] An unknown floor is NOT zero, and the difference is a whole run.
+
+    With no pre-phase sample there is no evidence of where the counter stood.
+    Assuming zero would re-credit a later phase's opening cumulative reading as
+    its first member's work — the exact trap [SOPT-12] pins, where a slice
+    opening at 600 s would book 600 s against one room. So the slice's own first
+    reading stays the floor, and this phase measures forward from it.
+    """
+    slice_samples = [
+        _cs("2026-01-01T00:00:30Z", 600, 42.0),
+        _cs("2026-01-01T00:01:00Z", 630, 43.5),
+        _cs("2026-01-01T00:01:30Z", 660, 45.0),
+    ]
+    out = phase_runner_mod._phase_progress_samples([], slice_samples)
+    assert [s["cleaning_time"] for s in out] == [0.0, 30.0, 60.0]
+    assert [s["cleaning_area"] for s in out] == [0.0, 1.5, 3.0]
+
+
+def test_phase_progress_does_not_mutate_the_shared_counter_buffer():
+    """[SOPT-17] ``counter_samples`` is the run's ONE buffer and every later phase
+    slices it again. Re-basing in place would make each phase's floor depend on
+    which phases had already been captured."""
+    prior = [_cs("2026-01-01T00:00:30Z", 120, 2.0)]
+    original = [_cs("2026-01-01T00:01:00Z", 0, 2.0),
+                _cs("2026-01-01T00:01:30Z", 30, 1.0)]
+    before = [dict(s) for s in original]
+    phase_runner_mod._phase_progress_samples(prior, original)
+    assert original == before
