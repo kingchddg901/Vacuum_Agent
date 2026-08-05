@@ -179,6 +179,96 @@ KNOWN_CAPABILITY_HINTS: frozenset[str] = frozenset({
 })
 
 
+def augment_candidates_from_device(
+    hass: HomeAssistant,
+    vacuum_entity_id: str,
+    entity_candidates: dict[str, list[str]] | None,
+) -> dict[str, list[str]]:
+    """Append device-registry siblings to each role's candidate list.
+
+    live:ENT-1. Every companion entity is found by DERIVING a name from the
+    vacuum's own entity_id — ``sensor.{object_id}_task_status`` and friends —
+    with no device lookup anywhere. That silently assumes the companion entities
+    were named after the vacuum, which HA does not guarantee: an area prefix, a
+    user rename, or an integration that names from the device rather than the
+    vacuum entity all produce ids the derivation never generates. The role then
+    reads as "this device has no such entity", and the feature is quietly absent
+    rather than broken — the worst shape, because nothing errors.
+
+    PROVEN on the maintainer's own install: his companions carry an area prefix,
+    so the derived ids do not exist. GitHub issue #48 is the reporter-facing
+    version of the same thing.
+
+    THE ADDITION IS PURELY ADDITIVE, and that is the whole safety argument.
+    Derived candidates stay FIRST in every list, and detect_capabilities' _find
+    takes the first that exists — so an install where derivation already works
+    resolves byte-identically and never consults the registry result. Only a role
+    that would have resolved to NOTHING can now find something.
+
+    Brand-agnostic by construction: the suffix and domain are read back off the
+    candidates the adapter already declared, so this learns no vocabulary of its
+    own and a new adapter gets the behaviour for free.
+
+    Best-effort — a registry that cannot be read returns the candidates
+    unchanged, because failing to ADD a fallback must never remove one.
+    """
+    cands = entity_candidates or {}
+    if not cands:
+        return dict(cands)
+
+    try:
+        registry = er.async_get(hass)
+        entry = registry.async_get(vacuum_entity_id)
+        if entry is None or not entry.device_id:
+            return dict(cands)
+
+        siblings = [
+            item.entity_id
+            for item in er.async_entries_for_device(
+                registry, entry.device_id, include_disabled_entities=True
+            )
+        ]
+        if not siblings:
+            return dict(cands)
+    except Exception:  # pragma: no cover - defensive
+        return dict(cands)
+
+    object_id = vacuum_entity_id.split(".", 1)[-1]
+    out: dict[str, list[str]] = {}
+
+    for role, declared in cands.items():
+        merged = list(declared or [])
+        seen = set(merged)
+
+        for candidate in declared or []:
+            if not isinstance(candidate, str) or "." not in candidate:
+                continue
+            domain, _, cand_object = candidate.partition(".")
+            # The SUFFIX is whatever the adapter appended to the object_id. Only
+            # a candidate actually built from this vacuum's object_id can tell us
+            # that, which is exactly the naming assumption being repaired — a
+            # candidate that does not start with it teaches us nothing.
+            if not cand_object.startswith(object_id):
+                continue
+            suffix = cand_object[len(object_id):]
+            if not suffix:
+                continue
+
+            for sibling in siblings:
+                if sibling in seen:
+                    continue
+                sib_domain, _, sib_object = sibling.partition(".")
+                # Domain AND suffix must both match. Suffix alone would let a
+                # `select.*_water_level` satisfy a role that needs the sensor.
+                if sib_domain == domain and sib_object.endswith(suffix):
+                    merged.append(sibling)
+                    seen.add(sibling)
+
+        out[role] = merged
+
+    return out
+
+
 def detect_capabilities(
     hass: HomeAssistant,
     *,
@@ -208,7 +298,16 @@ def detect_capabilities(
     if vacuum_state is not None:
         supported_features = int(vacuum_state.attributes.get("supported_features", 0))
 
-    _cands = entity_candidates or {}
+    # live:ENT-1: derived names first, device siblings appended behind them. An
+    # install where derivation already works resolves byte-identically; only a
+    # role that would have found NOTHING can now find something.
+    # live:ENT-1: derived names first, device siblings appended behind them. An
+    # install where derivation already works resolves byte-identically; only a
+    # role that would have found NOTHING can now find something.
+    # live:ENT-1: derived names first, device siblings appended behind them. An
+    # install where derivation already works resolves byte-identically; only a
+    # role that would have found NOTHING can now find something.
+    _cands = augment_candidates_from_device(hass, vacuum_entity_id, entity_candidates)
     _hints = capability_hints or {}
 
     def _find(key: str) -> str | None:

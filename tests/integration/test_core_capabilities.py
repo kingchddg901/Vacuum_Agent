@@ -343,3 +343,151 @@ def test_detect_zone_clean_hint_wins(hass):
         capability_hints={"supports_zone_clean": False},
     )
     assert caps["supports_zone_clean"] is False
+
+
+# ---------------------------------------------------------------------------
+# [CAP-11] live:ENT-1 — companions resolved by DEVICE as well as derived name
+# ---------------------------------------------------------------------------
+
+def _vacuum_on_device(hass, *, object_id="alfred", companions=()):
+    """Register a vacuum plus companions on ONE device; return the registry."""
+    from homeassistant.helpers import device_registry as dr
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain="eufy_vacuum", entry_id="cap11")
+    entry.add_to_hass(hass)
+
+    devices = dr.async_get(hass)
+    registry = er.async_get(hass)
+    device = devices.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={("eufy_vacuum", "alfred-device")},
+    )
+    registry.async_get_or_create(
+        "vacuum", "eufy_vacuum", f"{object_id}_vac",
+        suggested_object_id=object_id, device_id=device.id,
+    )
+    for domain, obj in companions:
+        registry.async_get_or_create(
+            domain, "eufy_vacuum", f"uid_{domain}_{obj}",
+            suggested_object_id=obj, device_id=device.id,
+        )
+    return registry
+
+
+async def test_device_siblings_rescue_a_renamed_companion(hass):
+    """[CAP-11] live:ENT-1 — an area-prefixed companion is found.
+
+    Every companion is located by DERIVING a name from the vacuum's entity_id.
+    HA does not guarantee companions are named after the vacuum: an area prefix,
+    a rename, or an integration that names from the DEVICE all produce ids the
+    derivation never generates. The role then reads as "this device has no such
+    entity" — quietly absent rather than broken, which is the worst shape
+    because nothing errors.
+
+    PROVEN on the maintainer's own install (area-prefixed entities); issue #48
+    is the reporter-facing version.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    # The device carries the entity under a DIFFERENT name than the derivation
+    # would produce: downstairs_alfred_task_status, not alfred_task_status.
+    _vacuum_on_device(hass, companions=[("sensor", "downstairs_alfred_task_status")])
+    hass.states.async_set("sensor.downstairs_alfred_task_status", "cleaning")
+
+    out = augment_candidates_from_device(
+        hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}
+    )
+
+    # The derived name is still FIRST — that is the safety property.
+    assert out["task_status"][0] == "sensor.alfred_task_status"
+    assert "sensor.downstairs_alfred_task_status" in out["task_status"]
+
+
+async def test_derived_name_still_wins_when_it_resolves(hass):
+    """[CAP-11b] live:ENT-1 — an install where derivation works is unchanged.
+
+    This is the whole safety argument for the change: derived candidates stay
+    first, and detect_capabilities' _find takes the first that EXISTS, so a
+    working install never consults the device result. Only a role that would
+    have resolved to nothing can now find something.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_on_device(hass, companions=[
+        ("sensor", "alfred_task_status"),
+        ("sensor", "downstairs_alfred_task_status"),
+    ])
+    out = augment_candidates_from_device(
+        hass, _VAC, {"task_status": ["sensor.alfred_task_status"]}
+    )
+    assert out["task_status"][0] == "sensor.alfred_task_status"
+
+
+async def test_augmentation_never_crosses_domains(hass):
+    """[CAP-11c] live:ENT-1 — suffix alone is not enough; the DOMAIN must match.
+
+    A `select.*_water_level` must never satisfy a role that needs the sensor.
+    Matching on suffix alone would resolve the wrong entity and the failure
+    would be silent — a control read as a reading.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    _vacuum_on_device(hass, companions=[("select", "downstairs_alfred_water_level")])
+    out = augment_candidates_from_device(
+        hass, _VAC, {"water_level": ["sensor.alfred_water_level"]}
+    )
+    assert out["water_level"] == ["sensor.alfred_water_level"], out
+
+
+async def test_augmentation_degrades_rather_than_removing(hass):
+    """[CAP-11d] live:ENT-1 — failing to ADD a fallback must never REMOVE one.
+
+    No device, no registry entry, empty candidates: every degraded path returns
+    what it was given. A fallback-finder that can drop candidates is worse than
+    one that finds nothing.
+    """
+    from custom_components.eufy_vacuum.core.capabilities import (
+        augment_candidates_from_device,
+    )
+
+    given = {"task_status": ["sensor.alfred_task_status"]}
+
+    # vacuum not in the registry at all
+    assert augment_candidates_from_device(hass, "vacuum.ghost", given) == given
+    # no candidates to learn a suffix from
+    assert augment_candidates_from_device(hass, _VAC, {}) == {}
+    assert augment_candidates_from_device(hass, _VAC, None) == {}
+
+
+async def test_detect_capabilities_actually_uses_the_device_fallback(hass):
+    """[CAP-11e] live:ENT-1 — END TO END, through detect_capabilities.
+
+    [CAP-11] proves the helper works; this proves it is WIRED. A helper that is
+    correct and uncalled is the exact shape of a fix that looks done and changes
+    nothing — and the audit's own lesson about call-site reachability.
+
+    The vacuum's companion is named with an area prefix, so the derived id does
+    not exist. Before the fix, task_status resolved to None and the capability
+    read as unsupported.
+    """
+    _vacuum_on_device(hass, companions=[("sensor", "downstairs_alfred_task_status")])
+    hass.states.async_set("sensor.downstairs_alfred_task_status", "cleaning")
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"task_status": ["sensor.alfred_task_status"]},
+    )
+
+    assert caps["entities"]["task_status"] == "sensor.downstairs_alfred_task_status", (
+        "the device fallback is not wired into detect_capabilities — the role "
+        "resolved to nothing even though the device exposes it"
+    )

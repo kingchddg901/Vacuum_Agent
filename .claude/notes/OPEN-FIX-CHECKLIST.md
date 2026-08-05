@@ -309,7 +309,7 @@ audit is a snapshot, not a ledger.
 
 ### HIGH (1)
 
-- [ ] **ENT-1** `adapters/eufy/entities.py:119` [eufy]  
+- [x] **ENT-1** `adapters/eufy/entities.py:119` [eufy]  
   Companion entities are resolved by deriving a name from the vacuum entity id, with no device-registry lookup and no fallback — a device whose entities are named differently reports EVERY capability as absent, silently  
   -> build_entity_id does string surgery: vacuum_entity_id.split('.')[-1] + suffix. There is no registry lookup, no fallback, and no signal when a derived name does not exist — the capability is simply reported absent. PROVEN
 
@@ -321,7 +321,7 @@ audit is a snapshot, not a ledger.
 - [x] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
   A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
   -> A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
-- [ ] **DIAG-1** `diagnostics.py:0` [both]  
+- [x] **DIAG-1** `diagnostics.py:0` [both]  
   entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'  
   -> The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the
 - [x] **A4-CUSTOM-2** `mapping/mapping_services.py:1550` [Both (Eufy + Roborock). The card path additionally needs a live map source present (mss.present) for the dock-mascot fallback, which is the normal Eufy fork configuration.] _(finder said HIGH)_  
