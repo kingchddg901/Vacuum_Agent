@@ -126,11 +126,6 @@ def build_managed_rooms(
         room_id = int(room["room_id"])
         room_id_key = str(room_id)
 
-        if room_id in rejected_ids:
-            continue
-        if has_explicit_enabled_ids and room_id not in explicit_enabled_ids:
-            continue
-
         slug = str(room.get("slug") or "").strip()
         matched_by_slug = existing_by_slug.get(slug) if slug else None
         if matched_by_slug is not None:
@@ -140,6 +135,24 @@ def build_managed_rooms(
         else:
             existing = {}
         is_new_room = not existing
+
+        # A rejection REFUSES A ROOM'S CREATION; it does not delete a room
+        # (Chris, adjudicating A4-SETUP-6). So the skip is gated on the room not
+        # already being configured — otherwise a stale rejection silently deletes
+        # user data on the next re-save, and the room's settings (profile, floor
+        # type, order, colour) go with it.
+        #
+        # SETUP-REJ-2 made this reachable and it is NOT hypothetical: a live
+        # install carried rejected_rooms=[10] alongside a configured room 10 on a
+        # LATER map, precisely because the exclusion had never been wired. Turning
+        # the exclusion on without this gate converted a dormant stale entry into
+        # an active room-deleter. Removing a room that is genuinely a phantom is
+        # still possible — that is reject_rooms' own explicit, user-initiated
+        # strip, which reports what it removed.
+        if room_id in rejected_ids and not existing.get("is_configured"):
+            continue
+        if has_explicit_enabled_ids and room_id not in explicit_enabled_ids:
+            continue
 
         # Wizard-supplied floor type takes priority over any stored value;
         # the value encodes carpet pile height (e.g. "carpet_low_pile").

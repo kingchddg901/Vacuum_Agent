@@ -22,6 +22,8 @@ Coverage targets
 [DRD-18] SETUP-REJ-2: a direct save cannot resurrect a rejected room.
 [DRD-19] ...and that enforcement is MAP-SCOPED, not the vacuum-wide union.
 [DRD-20] ...and reading it does not create a setup_progress record.
+[DRD-21] A STALE rejection must never delete an already-CONFIGURED room.
+[DRD-22] ...but still refuses creation of an unconfigured rejected room.
 """
 
 from __future__ import annotations
@@ -455,3 +457,53 @@ def test_save_managed_rooms_does_not_create_a_setup_progress_record(manager):
     )
 
     assert _VAC not in (manager.data.get("setup_progress") or {})
+
+
+# ---------------------------------------------------------------------------
+# [DRD-21..22] SETUP-REJ-2 regression — a rejection must never DELETE a room
+#
+# Caught on live data minutes after SETUP-REJ-2 shipped, not by review. The
+# install carried rejected_rooms=[10] (a legacy flat entry, no map) AND a
+# configured room 10 named "Cat Room" on a LATER map. Those coexist precisely
+# BECAUSE the exclusion had never been wired — so wiring it converted a dormant
+# stale entry into an active deleter of a real room, settings and all, on the
+# next Configure-rooms save.
+#
+# Chris's own rule, from adjudicating A4-SETUP-6: rejection "refuses the room's
+# CREATION, it does not delete a room."
+# ---------------------------------------------------------------------------
+
+def test_a_stale_rejection_does_not_delete_a_configured_room(manager):
+    """[DRD-21] The live shape: legacy flat [10] + configured room 10 on a map."""
+    setup_map(manager, _VAC, _MAP, count=10)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    _seed_legacy_rejection(manager, [10])
+
+    before = set(manager.data["maps"][_VAC][_MAP]["rooms"])
+    assert "10" in before
+
+    manager.save_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        enabled_room_ids=list(range(1, 11)),
+    )
+
+    after = set(manager.data["maps"][_VAC][_MAP]["rooms"])
+    assert "10" in after, "a stale rejection deleted a CONFIGURED room"
+    assert before == after
+
+
+def test_a_rejection_still_refuses_an_unconfigured_room(manager):
+    """[DRD-22] ...and the guard is not a blanket disable: an id rejected on THIS
+    map still refuses creation of a room that was never configured."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    # room 3 discovered but never configured, and rejected on this map
+    manager.data["maps"][_VAC][_MAP]["rooms"].pop("3", None)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP)
+
+    manager.save_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP, enabled_room_ids=[1, 2, 3]
+    )
+
+    assert "3" not in manager.data["maps"][_VAC][_MAP]["rooms"], (
+        "the exclusion stopped refusing creation entirely"
+    )

@@ -184,7 +184,10 @@ def _get_progress_record(
 
 
 def rejected_room_ids(
-    record: dict[str, Any], *, map_id: str | None = None
+    record: dict[str, Any],
+    *,
+    map_id: str | None = None,
+    include_unscoped: bool = True,
 ) -> set[int]:
     """Ids the user has rejected as phantoms, resolved FOR ONE MAP.
 
@@ -213,6 +216,19 @@ def rejected_room_ids(
     the defect itself. Every production caller passes a map; the WRITE paths
     refuse rather than default (``_resolve_rejection_map``). Do not reach for the
     None form to avoid resolving a map.
+
+    ``include_unscoped=False`` drops the legacy flat list, and the asymmetry it
+    creates is deliberate:
+
+    * READ side (which rooms to stop OFFERING) keeps it. Applying an
+      unattributable rejection everywhere only hides a suggestion; the worst case
+      is a room you are not offered, and ``unreject_rooms`` undoes that.
+    * WRITE side (which rooms to refuse CREATING) drops it. There the same
+      ambiguity is destructive, and a legacy entry cannot say which map it meant.
+      A live install carried ``rejected_rooms=[10]`` beside a configured room 10
+      on a LATER map — honouring that at a write boundary deletes a real room.
+
+    So: an unattributable rejection may suppress, but it may never destroy.
     """
     ids: set[int] = set()
 
@@ -223,7 +239,8 @@ def rejected_room_ids(
             except (TypeError, ValueError):
                 continue
 
-    _absorb(record.get("rejected_rooms"))
+    if include_unscoped:
+        _absorb(record.get("rejected_rooms"))
 
     by_map = record.get("rejected_rooms_by_map") or {}
     if not isinstance(by_map, dict):
@@ -237,7 +254,11 @@ def rejected_room_ids(
 
 
 def rejected_room_ids_for(
-    manager: Any, vacuum_entity_id: str, *, map_id: str | None = None
+    manager: Any,
+    vacuum_entity_id: str,
+    *,
+    map_id: str | None = None,
+    include_unscoped: bool = True,
 ) -> set[int]:
     """``rejected_room_ids`` for a vacuum, read WITHOUT creating its record.
 
@@ -249,7 +270,9 @@ def rejected_room_ids_for(
     answer for a vacuum that has never rejected anything.
     """
     record = (manager.data.get("setup_progress") or {}).get(vacuum_entity_id) or {}
-    return rejected_room_ids(record, map_id=map_id)
+    return rejected_room_ids(
+        record, map_id=map_id, include_unscoped=include_unscoped
+    )
 
 
 def _known_map_ids(manager: Any, vacuum_entity_id: str) -> list[str]:

@@ -411,8 +411,16 @@ class RoomMapManager:
             existing_rooms=existing_rooms,
             enabled_room_ids=enabled_room_ids,
             floor_types=floor_types or {},
+            # include_unscoped=False: only rejections that KNOW their map reach a
+            # write boundary. The legacy flat list still suppresses new_rooms (safe,
+            # reversible), but must never refuse a creation here — a live install
+            # carried rejected_rooms=[10] beside a configured room 10 on a later
+            # map, and honouring it here deleted that room.
             rejected_rooms=rejected_room_ids_for(
-                self._manager, vacuum_entity_id, map_id=str(map_id)
+                self._manager,
+                vacuum_entity_id,
+                map_id=str(map_id),
+                include_unscoped=False,
             ),
         )
 
