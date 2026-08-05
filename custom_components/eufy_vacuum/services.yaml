@@ -1,5 +1,5 @@
-# ============================================================
-# Vacuum Agent — Service Definitions
+﻿# ============================================================
+# Vacuum Agent â€” Service Definitions
 # ============================================================
 #
 # Groups:
@@ -24,7 +24,7 @@ discover_rooms:
   description: >
     Discover rooms from the underlying vacuum integration (whichever
     integration provides the vacuum.* entity; e.g. eufy-clean for Eufy).
-    Results are written to discovery state only — no rooms are created.
+    Results are written to discovery state only â€” no rooms are created.
     Call save_managed_rooms to create room entities from discovery results.
   fields:
     vacuum_entity_id:
@@ -44,7 +44,7 @@ setup_unreject_rooms:
   name: Un-reject rooms
   description: >
     Undo a room rejection so the room can be discovered and configured again.
-    Rejecting a room during setup hides it permanently — it stops appearing as a
+    Rejecting a room during setup hides it permanently â€” it stops appearing as a
     new room, which is exactly what makes a mistaken rejection hard to notice and
     impossible to undo from the panel. This is the way back. The room does not
     reappear instantly: it resurfaces on the next discovery pass that sees it.
@@ -70,7 +70,7 @@ setup_unreject_rooms:
       description: >
         Leave blank to use the current active map. If the active map cannot be
         determined and this vacuum has more than one map, the call is refused
-        rather than guessing — room IDs are reused across maps, so an ID on its
+        rather than guessing â€” room IDs are reused across maps, so an ID on its
         own does not identify a room.
       required: false
       selector:
@@ -162,13 +162,11 @@ reconcile_room:
         Required for action=migrate (ignored for action=ignore). The
         plan_token returned by discover_rooms alongside the reviews you are
         confirming. Refused with plan_changed if the live discovery no longer
-        matches what that token fingerprints — re-run discover_rooms and
+        matches what that token fingerprints â€” re-run discover_rooms and
         review again before retrying.
       required: false
       selector:
         text: {}
-      selector:
-        boolean: {}
 
 get_vacuum_maps:
   name: Get vacuum maps
@@ -185,7 +183,7 @@ update_room_fields:
   name: Update room fields
   description: >
     Apply per-room field overrides without requiring a named profile.
-    Only supplied fields are changed — others stay unchanged.
+    Only supplied fields are changed â€” others stay unchanged.
     Sets profile_name to "custom" to signal divergence from a preset.
     Water-on-carpet enforcement is applied at payload time regardless
     of what is stored here.
@@ -341,7 +339,7 @@ set_room_access_graph:
     dock_room_id:
       name: Dock room ID
       description: >
-        The room containing the charging dock — the root of the access tree.
+        The room containing the charging dock â€” the root of the access tree.
         Leave blank to clear the dock room.
       required: false
       selector:
@@ -475,7 +473,7 @@ get_queue_steps:
   name: Get queue steps
   description: >
     Return the live queue as an ordered steps list (room groups interleaved
-    with charge/wait breaks) — the same shape a run profile uses.
+    with charge/wait breaks) â€” the same shape a run profile uses.
   fields:
     vacuum_entity_id:
       name: Vacuum entity
@@ -494,7 +492,7 @@ add_queue_break:
   name: Add queue break
   description: >
     Insert a charge or wait break into the live queue, after the Nth enabled
-    room in order — turning a flat clean into a stepped one. A break must sit
+    room in order â€” turning a flat clean into a stepped one. A break must sit
     between two rooms, so after_index is clamped to an interior slot.
   fields:
     vacuum_entity_id:
@@ -530,7 +528,7 @@ add_queue_break:
           mode: box
     target_battery_percent:
       name: Charge target percent
-      description: For charge_wait — charge to this battery percent (1-100).
+      description: For charge_wait â€” charge to this battery percent (1-100).
       required: false
       selector:
         number:
@@ -540,7 +538,7 @@ add_queue_break:
           mode: slider
     wait_minutes:
       name: Wait minutes
-      description: For wait — hold this many minutes (1-1440).
+      description: For wait â€” hold this many minutes (1-1440).
       required: false
       selector:
         number:
@@ -578,7 +576,7 @@ remove_queue_break:
 
 clear_queue_breaks:
   name: Clear queue breaks
-  description: Remove all breaks — the queue drops back to a flat clean.
+  description: Remove all breaks â€” the queue drops back to a flat clean.
   fields:
     vacuum_entity_id:
       name: Vacuum entity
@@ -596,7 +594,7 @@ clear_queue_breaks:
 set_queue_breaks:
   name: Set queue breaks
   description: >-
-    Replace ALL breaks on the live queue in one call — the single primitive
+    Replace ALL breaks on the live queue in one call â€” the single primitive
     behind reordering breaks and editing their charge %/wait minutes. Send the
     full desired list; after_index is clamped to sit between rooms.
   fields:
@@ -629,7 +627,7 @@ set_queue_breaks:
 add_queue_zone:
   name: Add queue zone
   description: >-
-    Insert a zone step into the live queue — clean the named saved zones together
+    Insert a zone step into the live queue â€” clean the named saved zones together
     in one phase, positioned between rooms. after_index is the number of rooms
     before the zone (clamped to sit between rooms).
   fields:
@@ -994,7 +992,7 @@ start_zone_clean:
   description: >
     Clean one or more free-form rectangular zones instead of whole rooms.
     Fire-and-forget (no room-id job tracking). Each zone is normalized
-    [x0, y0, x1, y1] — fractions 0-1 of the live-map image with (0,0) at the
+    [x0, y0, x1, y1] â€” fractions 0-1 of the live-map image with (0,0) at the
     top-left; the provider converts them to the device's world frame. Requires
     a provider that supports zone cleaning (capability supports_zone_clean).
   fields:
@@ -1018,7 +1016,7 @@ start_zone_clean:
       name: Clean times
       description: >
         Number of cleaning passes per zone (1-10). Not every provider supports
-        repeats — an adapter that declares it unsupported (e.g. Eufy) always
+        repeats â€” an adapter that declares it unsupported (e.g. Eufy) always
         normalizes to 1 regardless of this value.
       required: false
       default: 1
@@ -1046,7 +1044,7 @@ battery_rebaseline:
   description: >
     Clear the health baseline anchor so the next qualifying recharge
     re-anchors it. Use after replacing the battery. Does not affect cycle
-    count, per-job metrics, or aggregates — only the health % comparison
+    count, per-job metrics, or aggregates â€” only the health % comparison
     baseline.
   fields:
     vacuum_entity_id:
@@ -1574,7 +1572,7 @@ set_run_profile_steps:
     Replace a saved run profile's ordered steps. A step is a room group
     ({type: room_group, rooms: [...]}), a charge wait
     ({type: charge_wait, target_battery_percent: 95}), or a timed wait
-    ({type: wait, wait_minutes: 30}) — letting one run vacuum a group, dock and
+    ({type: wait, wait_minutes: 30}) â€” letting one run vacuum a group, dock and
     charge to a target (or hold for a set time, e.g. a mop-dry pause), then
     continue with the next group.
   fields:
@@ -1793,7 +1791,7 @@ set_maintenance_interval:
 set_dock_event_count:
   name: Set dock event count
   description: >
-    Overwrite a dock event counter to a specific value — for historical
+    Overwrite a dock event counter to a specific value â€” for historical
     correction after a missed detection, or to seed a counter for testing.
   fields:
     vacuum_entity_id:
@@ -1829,7 +1827,7 @@ save_learning_snapshot:
   name: Save learning snapshot
   description: >
     Manually save a learning snapshot for the current job state.
-    This is called automatically by start_selected_rooms — manual
+    This is called automatically by start_selected_rooms â€” manual
     use is only needed for edge cases.
   fields:
     vacuum_entity_id:
@@ -1871,7 +1869,7 @@ finalize_learning_job:
   name: Finalize learning job
   description: >
     Manually finalize a completed job and optionally rebuild learned stats.
-    This is called automatically when the vacuum returns to dock — manual
+    This is called automatically when the vacuum returns to dock â€” manual
     use is only needed for edge cases or historical corrections.
   fields:
     vacuum_entity_id:
@@ -1948,7 +1946,7 @@ rebuild_learning_stats:
   name: Rebuild learning stats
   description: >
     Rebuild learned job and room stats from all completed job history.
-    Called automatically after finalize_learning_job — manual use forces
+    Called automatically after finalize_learning_job â€” manual use forces
     a full rebuild from scratch.
   fields:
     vacuum_entity_id:
@@ -1969,7 +1967,7 @@ set_learning_processing:
   description: >
     Box-level toggle for learning's heavy per-run stats processing (flips all vacuums).
     When off, completed runs are still collected (saved to history) but the stats rebuild
-    is skipped — near-zero churn, useful on low-power hardware. Turning it back on
+    is skipped â€” near-zero churn, useful on low-power hardware. Turning it back on
     reprocesses the whole backlog and resumes normal per-run processing.
   fields:
     enabled:
@@ -1990,7 +1988,7 @@ run_learning_estimate:
   description: >
     Compute a full job estimate from learned room history and current queue state.
     Returns per-room ETAs, confidence scores, overhead breakdown, and battery info.
-    Battery is informational only — low battery never blocks the job since the
+    Battery is informational only â€” low battery never blocks the job since the
     vacuum recharges mid-job and resumes.
   fields:
     vacuum_entity_id:
@@ -2049,7 +2047,7 @@ record_estimate_accuracy:
   name: Record estimate accuracy
   description: >
     Record estimated vs actual minutes per room after a job completes.
-    Called automatically by finalize_learning_job — manual use is only
+    Called automatically by finalize_learning_job â€” manual use is only
     needed when supplying per-room actuals from an external source such
     as another external source.
   fields:
@@ -2132,7 +2130,7 @@ get_next_room:
   name: Get next room
   description: >
     Return the next incomplete room from a reanchored timeline.
-    Lightweight shortcut — returns only what the live job banner needs.
+    Lightweight shortcut â€” returns only what the live job banner needs.
     Returns empty dict when all rooms are complete.
   fields:
     reanchored_estimate:
@@ -2244,9 +2242,9 @@ rename_theme:
 set_theme_tags:
   name: Set theme tags
   description: >
-    Replace a theme's free-text "vibe" tags (aurora, cozy, retro…). An empty
-    list clears them. Facet tags (mode/accent/…) and colorblind-safe are derived
-    from the palette and verified by the card — they are never set here.
+    Replace a theme's free-text "vibe" tags (aurora, cozy, retroâ€¦). An empty
+    list clears them. Facet tags (mode/accent/â€¦) and colorblind-safe are derived
+    from the palette and verified by the card â€” they are never set here.
   fields:
     theme_id:
       name: Theme ID
@@ -2321,7 +2319,7 @@ update_working_draft:
         object: {}
     alpha:
       name: Alpha
-      description: Dict mapping alpha token names to opacity values (0.0–1.0).
+      description: Dict mapping alpha token names to opacity values (0.0â€“1.0).
       required: false
       selector:
         object: {}
@@ -2379,7 +2377,7 @@ get_room_learning_estimates:
   name: Get room learning estimates
   description: >
     Return per-room learning estimates for all rooms on a map based on each
-    room's current effective persisted settings. Queue-independent — queued
+    room's current effective persisted settings. Queue-independent â€” queued
     and unqueued rooms both receive estimates. Safe for frequent UI refreshes.
     No side effects.
   fields:
@@ -2397,7 +2395,7 @@ get_room_learning_estimates:
         text: {}
     current_battery:
       name: Current battery
-      description: Optional current battery %. Informational only — never blocks.
+      description: Optional current battery %. Informational only â€” never blocks.
       required: false
       selector:
         number:
@@ -2483,7 +2481,7 @@ get_trouble_rooms_log:
 get_incomplete_run_log:
   name: Get incomplete run log
   description: >
-    Return the last incomplete-run log for a vacuum — recorded when a job was
+    Return the last incomplete-run log for a vacuum â€” recorded when a job was
     cancelled, failed, or interrupted before all queued rooms were cleaned.
     Pairs with retry_missed_rooms, which reads this same log to decide which
     rooms to re-queue. Returns an empty payload when no incomplete run log
@@ -2576,7 +2574,7 @@ confirm_external_run:
     record, assigning each detected segment to a room. Each assignment is
     gated against the room's learned area band; if any assignment is
     implausible without its own override, the WHOLE confirm is blocked and
-    nothing is written — check the response's blocked list. On success the
+    nothing is written â€” check the response's blocked list. On success the
     pending record is deleted and learned stats rebuild (unless
     rebuild_stats is false). This mutates learning data permanently; there
     is no undo service.
@@ -2622,7 +2620,7 @@ discard_external_run:
   name: Discard external run
   description: >
     Delete a pending external run record without graduating it. Destructive
-    and cannot be undone — the captured segments are gone, not archived.
+    and cannot be undone â€” the captured segments are gone, not archived.
   fields:
     vacuum_entity_id:
       name: Vacuum entity
@@ -2641,7 +2639,7 @@ resegment_external_run:
   name: Resegment external run
   description: >
     Re-run room segmentation on a pending external (app-started) run record
-    server-side, then rewrite it in place — the review wizard's room-count /
+    server-side, then rewrite it in place â€” the review wizard's room-count /
     boundary-toggle repair action. Reads the record's embedded raw samples,
     so it only works on records captured with samples (not older v1
     records). Fails without touching the file if the record is missing, has
@@ -2668,7 +2666,7 @@ resegment_external_run:
       name: Expected room count
       description: >
         Target room count to resegment to. Mutually exclusive with
-        active_boundaries — omit both to reset to the segmenter's own
+        active_boundaries â€” omit both to reset to the segmenter's own
         confident default.
       required: false
       selector:
@@ -2681,7 +2679,7 @@ resegment_external_run:
       description: >
         Explicit list of boundary indices to keep, for hand-picking exactly
         where the run splits into rooms. Mutually exclusive with
-        expected_rooms — omit both to reset to the segmenter's own confident
+        expected_rooms â€” omit both to reset to the segmenter's own confident
         default.
       required: false
       selector:
@@ -2695,7 +2693,7 @@ acknowledge_error:
   name: Acknowledge error
   description: >
     Clear the active-run / last-device error latch(es) for one vacuum.
-    Does not affect upstream — the next rising edge will recreate
+    Does not affect upstream â€” the next rising edge will recreate
     whichever latch the upstream condition triggers. Use after acting
     on an error to reset the integration's state.
   fields:
@@ -2759,7 +2757,7 @@ delete_map_image:
   description: >
     Delete one uploaded image variant for a map: removes the PNG from disk
     and drops it from the map's recorded variants. This is destructive and
-    cannot be undone — the file is gone, not archived. Safe to call again on
+    cannot be undone â€” the file is gone, not archived. Safe to call again on
     a variant that's already deleted (returns deleted: false, reason:
     not_found rather than an error).
   fields:
@@ -2823,7 +2821,7 @@ set_segmentation_mode:
   name: Set segmentation mode
   description: >
     Toggle a map between CV (auto-detected) and Custom (manually authored)
-    segmentation. Only flips the active source — it never re-runs the segmenter
+    segmentation. Only flips the active source â€” it never re-runs the segmenter
     in either direction, so the CV and Custom segment sets each survive a
     round-trip untouched.
   fields:
@@ -2877,7 +2875,7 @@ set_custom_segments:
     layout_id:
       name: Layout ID
       description: >
-        The custom layout to replace segments on. Required — this is a
+        The custom layout to replace segments on. Required â€” this is a
         destructive replace-all, so the target layout must be named
         explicitly rather than falling back to whichever layout happens to
         be active.
@@ -2896,7 +2894,7 @@ set_custom_segments:
       name: Backdrop width
       description: >
         Rasterization pixel width. Only needed for a live-image-backed layout
-        (no uploaded custom backdrop) — send the rendered live image's
+        (no uploaded custom backdrop) â€” send the rendered live image's
         natural pixel width.
       required: false
       selector:
@@ -2907,7 +2905,7 @@ set_custom_segments:
       name: Backdrop height
       description: >
         Rasterization pixel height. Only needed for a live-image-backed
-        layout (no uploaded custom backdrop) — send the rendered live
+        layout (no uploaded custom backdrop) â€” send the rendered live
         image's natural pixel height.
       required: false
       selector:
@@ -2962,7 +2960,7 @@ set_companion_anchor:
 set_hidden_regions:
   name: Set hidden regions
   description: >
-    Replace the per-map "hidden regions" — rectangles you draw on the map to mask out
+    Replace the per-map "hidden regions" â€” rectangles you draw on the map to mask out
     render noise (e.g. a porch the vacuum picked up off a room). Each region is a
     normalized [x0, y0, x1, y1] (0-1 of the map image). Send an empty list to clear.
     Stored per map so it follows you across devices. Normally driven by the card's
@@ -2991,7 +2989,7 @@ set_hidden_regions:
 set_area_label_anchor:
   name: Set area-label position
   description: >
-    Move a room's area (m²) chip off its name label. pct_x/pct_y are 0-100 percentages
+    Move a room's area (mÂ²) chip off its name label. pct_x/pct_y are 0-100 percentages
     of the map content box; omit both to reset to the room centre. Stored per map so it
     follows you across devices. Normally driven by dragging the chip on the card.
   fields:
@@ -3035,8 +3033,8 @@ set_area_label_anchor:
 set_live_map_rotation:
   name: Set live map rotation
   description: >
-    Set the display rotation (0/90/180/270°) of the live map image in the card's
-    Map view, so it matches how you picture your home. Display only — never affects
+    Set the display rotation (0/90/180/270Â°) of the live map image in the card's
+    Map view, so it matches how you picture your home. Display only â€” never affects
     cleaning (dispatch is by room). Stored per map so it follows you across devices.
   fields:
     vacuum_entity_id:
@@ -3069,7 +3067,7 @@ acknowledge_map_frame:
     Override the post-map-switch safety pause. After switching the active map the
     robot's coordinate frame is un-grounded until it next moves, so the card pauses
     zone drawing and tap-to-select (they would land in the wrong place). Call this to
-    re-enable them anyway when you know the robot's position is correct — the pause
+    re-enable them anyway when you know the robot's position is correct â€” the pause
     re-arms automatically on the next map switch. Saved zones and the room list are
     never affected.
   fields:
@@ -3087,7 +3085,7 @@ set_map_overlay_visibility:
     Show or hide individual map overlay layers (room labels, room area, current room,
     robot, dock, no-go / no-mop zones, virtual walls, saved zones, cleaning path,
     obstacles) in the card's Map view. Stored per map (only your changes are kept,
-    merged over the defaults). Display only — never affects cleaning.
+    merged over the defaults). Display only â€” never affects cleaning.
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -3139,7 +3137,7 @@ get_map_live_pose:
   name: Get map live pose
   description: >
     Return the live moving-overlay pose (robot + dock anchors, current room, heading)
-    from the provider's in-memory coordinator — fresher than the .storage-derived pose.
+    from the provider's in-memory coordinator â€” fresher than the .storage-derived pose.
     The card polls this on the live cadence so the robot overlay isn't stale. Brands
     without a live_pose config return present:false.
   fields:
@@ -3156,7 +3154,7 @@ compare_map_sources:
   description: >
     Verify probe: compare the provider's IN-MEMORY map data against the .storage copy
     and report whether the raster + geometry are byte-identical (normalization_safe). Run
-    this once before repointing the map source to the fresher, loop-safe in-memory data —
+    this once before repointing the map source to the fresher, loop-safe in-memory data â€”
     a true result means the validated overlay alignment is preserved. Diagnostic only.
   fields:
     vacuum_entity_id:
@@ -3170,7 +3168,7 @@ compare_map_sources:
 debug_log_live_room:
   name: "Debug: log live current_room (THROWAWAY)"
   description: >
-    Wave 0 validation probe (docs/dev/eufy-native-transition.md) — TEMPORARY, remove after use.
+    Wave 0 validation probe (docs/dev/eufy-native-transition.md) â€” TEMPORARY, remove after use.
     Logs the live current_room signal server-side, one line per tick, to
     config/eufy_current_room_probe_<vacuum>.jsonl. Run it, then start a multi-room clean with
     the map tab CLOSED (so the card's UI poll isn't keeping the signal warm). Read the file for
@@ -3211,7 +3209,7 @@ debug_log_live_room:
 create_saved_zone:
   name: Create saved zone
   description: >
-    Create a named, reusable saved zone (a clean region — "the couch", "the stove")
+    Create a named, reusable saved zone (a clean region â€” "the couch", "the stove")
     on a map from a normalized 0-1 polygon. Wave 1 stores geometry + name; filing by
     room and cleaning land in later waves. Returns the new zone_id.
   fields:
@@ -3241,7 +3239,7 @@ create_saved_zone:
     kind:
       name: Kind
       description: >
-        Only "clean" is currently accepted — no dispatch path reads any
+        Only "clean" is currently accepted â€” no dispatch path reads any
         other value. Defaults to "clean" if omitted.
       required: false
       default: clean
@@ -3303,7 +3301,7 @@ set_saved_zone_room:
   name: Set saved-zone room
   description: >
     Set or clear which room a saved zone is FILED under (its section in the list).
-    Leave room_number empty to move it to the Unassigned section. Filing only — this
+    Leave room_number empty to move it to the Unassigned section. Filing only â€” this
     never affects what the zone cleans.
   fields:
     vacuum_entity_id:
@@ -3335,7 +3333,7 @@ clean_saved_zone:
   name: Clean saved zone
   description: >
     Fire a saved zone as an ad-hoc zone clean (fire-and-forget, not tracked in the
-    job queue). Only works when the zone's map is the currently active map — otherwise
+    job queue). Only works when the zone's map is the currently active map â€” otherwise
     it refuses (switch to that map first).
   fields:
     vacuum_entity_id:
@@ -3370,7 +3368,7 @@ clean_saved_zones:
     Clean several saved zones together in one ad-hoc zone clean (fire-and-forget, not
     tracked in the job queue). The device cleans the whole selected set in a single run.
     Only works when the zones' map is the currently active map. Per-brand caps apply
-    (Eufy: up to 10 zones, each side 0.5-10 m; Roborock: up to 5 zones, 1 ft²-3.05 m² each).
+    (Eufy: up to 10 zones, each side 0.5-10 m; Roborock: up to 5 zones, 1 ftÂ²-3.05 mÂ² each).
   fields:
     vacuum_entity_id:
       name: Vacuum
@@ -3402,7 +3400,7 @@ clean_saved_zones:
 create_custom_layout:
   name: Create custom layout
   description: >
-    Create and activate a new named custom segmentation layout for a map — its own
+    Create and activate a new named custom segmentation layout for a map â€” its own
     backdrop image, authored segments, room links and mascot anchors. Flips the map
     into custom mode and returns the new layout_id.
   fields:
@@ -3579,7 +3577,7 @@ set_furnished_art_placement:
 set_furnished_render_mode:
   name: Set furnished render mode
   description: >
-    Set how the furnished view composites on the active custom layout — "live" (live map
+    Set how the furnished view composites on the active custom layout â€” "live" (live map
     only), "art" (art only), or "blend" (art faded over the live map). Omit room_id for the
     layout-level default; pass it for a per-room override.
   fields:
@@ -3665,7 +3663,7 @@ set_room_viewport:
 # ============================================================
 
 debug_capture_start:
-  name: Debug capture — start
+  name: Debug capture â€” start
   description: >
     Begin silently capturing this integration's DEBUG logs into an in-memory ring,
     WITHOUT flooding home-assistant.log. Optionally scope to areas and set the size.
@@ -3690,7 +3688,7 @@ debug_capture_start:
     services:
       name: Trace services
       description: >
-        Per-service tracing — capture ONLY while these flagged services run (call
+        Per-service tracing â€” capture ONLY while these flagged services run (call
         debug_capture_status to list the traceable ones). Omit for a full capture.
       required: false
       example: "[start_zone_clean]"
@@ -3730,12 +3728,12 @@ debug_capture_start:
         boolean:
 
 debug_capture_stop:
-  name: Debug capture — stop
+  name: Debug capture â€” stop
   description: >
     Stop capturing and restore normal logging. Captured records survive for a final dump.
 
 debug_capture_dump:
-  name: Debug capture — dump
+  name: Debug capture â€” dump
   description: >
     Return the captured records and (by default) write them to
     config/eufy_vacuum/debug/debug-<timestamp>.log for sharing.
@@ -3756,6 +3754,6 @@ debug_capture_dump:
         boolean:
 
 debug_capture_status:
-  name: Debug capture — status
+  name: Debug capture â€” status
   description: Report whether capture is active and how much has been captured.
 

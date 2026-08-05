@@ -599,3 +599,48 @@ def test_debug_capture_area_options_match_configured_areas():
         f"offered but unknown to the recorder: {yaml_only or 'none'}; "
         f"known but not offered: {code_only or 'none'}"
     )
+
+
+# ---------------------------------------------------------------------------
+# 6. no duplicate sibling keys in services.yaml
+#
+# yaml.safe_load takes the LAST of a duplicated key and says nothing, so a
+# copy-paste that leaves two `selector:` blocks under one field parses cleanly
+# and ships. Found live on 2026-08-05: reconcile_room's `plan_token` carried
+# `selector: text` followed by `selector: boolean`, so a field the schema
+# declares `cv.string` and that is REQUIRED for action=migrate rendered as a
+# toggle -- the migrate path was uncallable from the UI. Present since
+# 0e0369f (2026-08-02).
+#
+# Home Assistant's own loader DOES warn ("contains duplicate key"), which is how
+# it surfaced -- but only in the core log, at startup, on a running instance.
+# Every gate in this file ran green over it for three days. A warning nobody
+# reads is not a gate.
+# ---------------------------------------------------------------------------
+
+class _DuplicateKeyLoader(yaml.SafeLoader):
+    """SafeLoader that records duplicate mapping keys instead of silently merging."""
+
+    duplicates: list[tuple[str, int, int]] = []
+
+    def construct_mapping(self, node, deep=False):  # noqa: D102
+        seen: dict = {}
+        for key_node, _value_node in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                _DuplicateKeyLoader.duplicates.append(
+                    (str(key), seen[key], key_node.start_mark.line + 1)
+                )
+            seen[key] = key_node.start_mark.line + 1
+        return super().construct_mapping(node, deep=deep)
+
+
+def test_services_yaml_has_no_duplicate_keys():
+    """A duplicated key parses fine and silently discards one of the two values."""
+    _DuplicateKeyLoader.duplicates = []
+    yaml.load(SERVICES_YAML_PATH.read_text(encoding="utf-8"), Loader=_DuplicateKeyLoader)
+    dupes = _DuplicateKeyLoader.duplicates
+    assert not dupes, (
+        "duplicate keys in services.yaml -- the later value silently wins:\n"
+        + "\n".join(f"  '{k}' at lines {a} and {b}" for k, a, b in dupes)
+    )
