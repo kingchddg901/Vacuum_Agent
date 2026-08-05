@@ -99,6 +99,24 @@ def _distribute_int(total: int, n: int) -> list[int]:
 
 _PHASE_COUNTER_KEYS = ("cleaning_time", "cleaning_area")
 
+#: How far a counter may go BACKWARDS before it counts as a reset rather than
+#: noise. A bare ``value < prev`` cannot tell the two apart, and getting it wrong
+#: is expensive in one direction: a jitter misread as a reset re-adds the whole
+#: reading as fresh progress, inflating the phase by up to a full quantum.
+#:
+#: This is not hypothetical. counter_segmentation._AREA_EPS already exists for
+#: the same reason and documents the mechanism: cleaning_area arrives in whole
+#: ~1 m2 device steps, but an imperial HA reports them in ft2 (10.76 per step,
+#: itself a 2-dp rounding of 10.7639), so a nominally exact N m2 lands at
+#: N-0.0007 or N+0.0002 depending on which way each step rounded - and that
+#: comment records 4 of 7 real boundaries lost to exactly this. Plain float
+#: arithmetic does it too: 3.0 round-tripped through a ft2 conversion comes back
+#: 2.9999999999999942, which is a DECREASE.
+#:
+#: Both values sit far below their counter's quantum (1 m2, 30 s), so neither can
+#: mask a real reset - a reset goes to ~0, not down by a hundredth.
+_RESET_EPS = {"cleaning_time": 0.5, "cleaning_area": 0.01}
+
 
 def _phase_progress_samples(
     prior_samples: list[dict[str, Any]] | None,
@@ -185,10 +203,12 @@ def _phase_progress_samples(
                 floors[key] = value
                 row[key] = totals[key]
                 continue
-            if value < prev:
+            if value < prev - _RESET_EPS.get(key, 0.0):
                 totals[key] += max(0.0, value)  # reset: value is progress since it
-            else:
+            elif value > prev:
                 totals[key] += value - prev
+            # else: a decrease within tolerance is rounding jitter, not progress
+            #       and not a reset - the counter did not move.
             floors[key] = value
             row[key] = totals[key]
         out.append(row)

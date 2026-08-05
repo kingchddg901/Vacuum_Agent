@@ -96,7 +96,8 @@ def _epoch(iso: str) -> float:
     return dt.datetime.fromisoformat(str(iso).replace("Z", "+00:00")).timestamp()
 
 
-def _progress_total(values: list[float], floor: float | None = None) -> float:
+def _progress_total(values: list[float], floor: float | None = None,
+                    reset_eps: float = 0.01) -> float:
     """Total advance of a counter that may reset, given its readings in order.
 
     The same reset-aware accumulation the integration now uses, reimplemented
@@ -119,10 +120,13 @@ def _progress_total(values: list[float], floor: float | None = None) -> float:
     for value in values:
         if prev is None:
             total = 0.0
-        elif value < prev:
+        elif value < prev - reset_eps:
             total += max(0.0, value)   # reset: the new reading IS progress since it
-        else:
+        elif value > prev:
             total += value - prev
+        # else: a decrease inside the tolerance is rounding jitter. Reading it as
+        # a reset re-adds the whole value as fresh progress - 3.0 arriving back
+        # from a ft2 round-trip as 2.9999999999999942 inflated a 5 m2 run to 7.
         prev = value
     return total
 
@@ -167,38 +171,15 @@ def _series(
     ).fetchall()
 
 
-def _numeric(rows: list[tuple[float, str]], scale: float = 1.0) -> list[float]:
-    out: list[float] = []
-    for _t, state in rows:
-        try:
-            out.append(float(state) * scale)
-        except (TypeError, ValueError):
-            continue          # unknown/unavailable is a gap, not a zero
-    return out
-
-
-def _unit_at(con: sqlite3.Connection, mid: int, at_ts: float) -> str | None:
-    """The sensor's ``unit_of_measurement`` as of ``at_ts``, from the recorder.
-
-    Looks backwards first - the unit in force when the run happened - and only
-    falls forward if the sensor had never recorded attributes by then.
-    """
-    for order, cmp_op in (("DESC", "<="), ("ASC", ">")):
-        row = con.execute(
-            f"SELECT sa.shared_attrs FROM states s "
-            f"JOIN state_attributes sa ON sa.attributes_id = s.attributes_id "
-            f"WHERE s.metadata_id=? AND s.attributes_id IS NOT NULL "
-            f"AND s.last_updated_ts {cmp_op} ? ORDER BY s.last_updated_ts {order} LIMIT 1",
-            (mid, at_ts),
-        ).fetchone()
-        if row and row[0]:
-            try:
-                unit = json.loads(row[0]).get("unit_of_measurement")
-            except (TypeError, ValueError):
-                continue
-            if unit:
-                return str(unit).strip()
-    return None
+def _unit_of(shared_attrs: str | None) -> str | None:
+    """``unit_of_measurement`` out of a state_attributes blob."""
+    if not shared_attrs:
+        return None
+    try:
+        unit = json.loads(shared_attrs).get("unit_of_measurement")
+    except (TypeError, ValueError):
+        return None
+    return str(unit).strip() if unit else None
 
 
 def _scale_for(unit: str | None, table: dict[str, float], fallback: float) -> tuple[float, str]:
@@ -206,8 +187,7 @@ def _scale_for(unit: str | None, table: dict[str, float], fallback: float) -> tu
 
     An unrecognised or absent unit is NOT guessed at - it falls back to treating
     the reading as already canonical, the same policy as the production
-    ``cleaning_area_to_m2``, and says so in the returned tag so a reader can see
-    that the number rests on a fallback rather than a measurement.
+    ``cleaning_area_to_m2``, and says so in the returned tag.
     """
     key = str(unit or "").strip().lower()
     if key in table:
@@ -215,18 +195,62 @@ def _scale_for(unit: str | None, table: dict[str, float], fallback: float) -> tu
     return fallback, ("absent" if not key else f"unrecognised:{unit}")
 
 
-def _floor_before(con: sqlite3.Connection, mid: int, lo: float, scale: float) -> float | None:
-    """The counter's last reading before the window opened, or None if it never reported."""
-    row = con.execute(
-        "SELECT state FROM states WHERE metadata_id=? AND last_updated_ts < ? "
-        "ORDER BY last_updated_ts DESC LIMIT 1", (mid, lo),
-    ).fetchone()
-    if not row:
-        return None
-    try:
-        return float(row[0]) * scale
-    except (TypeError, ValueError):
-        return None
+def _readings(
+    con: sqlite3.Connection, mid: int, lo: float, hi: float,
+    table: dict[str, float], override: str | None = None,
+) -> tuple[list[float], list[float], set[str]]:
+    """Canonical-unit readings in the window, plus the floor before it.
+
+    EACH ROW IS CONVERTED WITH ITS OWN UNIT, not with one unit resolved for the
+    whole window. Recorder rows carry their own ``attributes_id``, so the unit
+    that was in force for a given reading is recoverable exactly - and it has to
+    be, because Home Assistant's unit preference is a USER SETTING that can change
+    between two runs, or in the middle of one.
+
+    Resolving a single unit at the window edge and applying it backwards is the
+    fencepost this avoids, and it fails in BOTH directions: readings taken before
+    a mid-run change get scaled with the unit that replaced them, and the
+    pre-window floor - which by definition predates everything in the window -
+    gets scaled with the unit in force at the END of it.
+
+    Converting per row also makes a mid-run change harmless to the accumulation
+    downstream. The RAW series jumps (6 m2 becomes 64.58 the instant the display
+    flips to ft2) and a reset-aware total would read that as a huge sweep;
+    converted per row both readings are 6 m2 and the change is invisible, which
+    is correct - the robot did not clean anything by the user opening a settings
+    page.
+
+    Returns (in-window canonical values, [floor] or [], units actually seen).
+    """
+    seen: set[str] = set()
+
+    def _convert(rows: list[tuple[float, str, str | None]]) -> list[float]:
+        out: list[float] = []
+        for _t, state, attrs in rows:
+            unit = override or _unit_of(attrs)
+            if unit:
+                seen.add(unit)
+            scale, _how = _scale_for(unit, table, 1.0)
+            try:
+                out.append(float(state) * scale)
+            except (TypeError, ValueError):
+                continue        # unknown/unavailable is a gap, not a zero
+        return out
+
+    sql = (
+        "SELECT s.last_updated_ts, s.state, sa.shared_attrs FROM states s "
+        "LEFT JOIN state_attributes sa ON sa.attributes_id = s.attributes_id "
+        "WHERE s.metadata_id=? AND "
+    )
+    window = con.execute(
+        sql + "s.last_updated_ts BETWEEN ? AND ? ORDER BY s.last_updated_ts",
+        (mid, lo, hi),
+    ).fetchall()
+    prior = con.execute(
+        sql + "s.last_updated_ts < ? ORDER BY s.last_updated_ts DESC LIMIT 1",
+        (mid, lo),
+    ).fetchall()
+    return _convert(window), _convert(prior), seen
 
 
 def harvest_run(
@@ -255,24 +279,22 @@ def harvest_run(
     ca_mid = by_role.get(f"sensor.{vacuum}_cleaning_area")
 
     truth: dict[str, Any] = {"cleaning_seconds": None, "area_m2": None}
-    if ct_mid is not None:
-        scale, how = _scale_for(
-            area_unit_override or _unit_at(con, ct_mid, hi), _TIME_TO_S, 1.0
-        )
-        truth["time_unit"] = how
-        truth["cleaning_seconds"] = round(
-            _progress_total(_numeric(_series(con, ct_mid, lo, hi), scale),
-                            _floor_before(con, ct_mid, lo, scale)), 1
-        )
-    if ca_mid is not None:
-        scale, how = _scale_for(
-            area_unit_override or _unit_at(con, ca_mid, hi), _AREA_TO_M2, 1.0
-        )
-        truth["area_unit"] = how
-        truth["area_m2"] = round(
-            _progress_total(_numeric(_series(con, ca_mid, lo, hi), scale),
-                            _floor_before(con, ca_mid, lo, scale)), 3
-        )
+    unit_changed: list[str] = []
+    for mid, key, table, digits, tag in (
+        (ct_mid, "cleaning_seconds", _TIME_TO_S, 1, "time_units"),
+        (ca_mid, "area_m2", _AREA_TO_M2, 3, "area_units"),
+    ):
+        if mid is None:
+            continue
+        values, floor, seen = _readings(con, mid, lo, hi, table, area_unit_override)
+        truth[key] = round(_progress_total(values, floor[0] if floor else None), digits)
+        truth[tag] = sorted(seen) or ["absent"]
+        if len(seen) > 1:
+            # The user changed unit preferences across this run. Converting per
+            # row already handled it; saying so keeps it from looking like noise.
+            unit_changed.append(tag)
+    if unit_changed:
+        truth["unit_changed_mid_window"] = unit_changed
 
     initial: dict[str, str] = {}
     events: list[list[str]] = []

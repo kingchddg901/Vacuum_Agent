@@ -558,3 +558,40 @@ def test_phase_progress_does_not_mutate_the_shared_counter_buffer():
     before = [dict(s) for s in original]
     phase_runner_mod._phase_progress_samples(prior, original)
     assert original == before
+
+
+def test_rounding_jitter_is_not_a_counter_reset():
+    """[SOPT-18] A counter that dips by a hundredth did not reset.
+
+    A bare ``value < prev`` cannot tell a reset from noise, and the two cost very
+    different things: a jitter misread as a reset RE-ADDS the whole reading as
+    fresh progress, inflating the phase by up to a full quantum.
+
+    This is not hypothetical, and counter_segmentation._AREA_EPS already exists
+    for it - its comment records 4 of 7 real boundaries lost to the same effect.
+    cleaning_area arrives in whole ~1 m2 device steps, but an imperial HA reports
+    them in ft2 (10.76 per step, itself a 2-dp rounding of 10.7639), so a
+    nominally exact N m2 comes back as N-0.0007 or N+0.0002 depending on which
+    way each step rounded. Plain float arithmetic does it too: 3.0 through a ft2
+    round-trip returns 2.9999999999999942, which IS a decrease.
+
+    The value below is that exact round-trip, not a number I chose to be small.
+    Without the tolerance this phase measures ~7 m2 of sweeping instead of 4.
+    """
+    jittered = 3.0 * 10.7639104167097 * 0.09290304   # == 2.9999999999999942
+    assert jittered < 3.0, "the premise: this round-trip really does go backwards"
+
+    prior = [_cs("2026-01-01T00:00:00Z", 0, 0.0)]
+    slice_samples = [
+        _cs("2026-01-01T00:00:30Z", 30, 1.0),
+        _cs("2026-01-01T00:01:00Z", 60, 2.0),
+        _cs("2026-01-01T00:01:30Z", 90, 3.0),
+        _cs("2026-01-01T00:02:00Z", 120, jittered),   # the dip
+        _cs("2026-01-01T00:02:30Z", 150, 4.0),
+    ]
+    out = phase_runner_mod._phase_progress_samples(prior, slice_samples)
+    assert round(out[-1]["cleaning_area"], 6) == 4.0
+    # The dip itself contributes nothing: the counter did not move, so neither
+    # does the total. It must not go DOWN either.
+    assert round(out[3]["cleaning_area"], 6) == 3.0
+    assert [round(s["cleaning_area"], 6) for s in out] == [1.0, 2.0, 3.0, 3.0, 4.0]
