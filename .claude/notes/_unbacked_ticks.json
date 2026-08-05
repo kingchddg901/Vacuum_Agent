@@ -1,0 +1,184 @@
+[
+ {
+  "id": "A2-POLYGO-6",
+  "sev": "LOW",
+  "file": "mapping/segment_primitives.py",
+  "line": 342,
+  "title": "`compactness` docstring claims 'Range 0-1; 1 = circle' - the attainable maximum is pi/4 and a circle scores LOWER than a square"
+ },
+ {
+  "id": "A2-POLYGO-7",
+  "sev": "LOW",
+  "file": "mapping/segment_primitives.py",
+  "line": 526,
+  "title": "`normalized_color_features`' luminance normalisation provably cancels out - the Rec.709 weights are dead arithmetic and tuning them changes nothing"
+ },
+ {
+  "id": "A3-IMAGE--4",
+  "sev": "LOW",
+  "file": "mapping/mapping_services.py",
+  "line": 933,
+  "title": "Re-uploading a map image does not invalidate image_segments, so a default analyze returns the previous image's segments"
+ },
+ {
+  "id": "A3-IMAGE--8",
+  "sev": "LOW",
+  "file": "mapping/mapping_services.py",
+  "line": 910,
+  "title": "Upload persists width/height as None when Pillow is unavailable and still reports saved:True"
+ },
+ {
+  "id": "A4-CUSTOM-2",
+  "sev": "MEDIUM",
+  "file": "mapping/mapping_services.py",
+  "line": 1550,
+  "title": "In custom mode with no resolvable layout, _resolve_active_scope hands writers THROWAWAY dicts — set_companion_anchor / set_segment_room_link mutate a garbage-collected object and report saved: True"
+ },
+ {
+  "id": "A5-AG-2",
+  "sev": "MEDIUM",
+  "file": "rooms/access_graph.py",
+  "line": 770,
+  "title": "A room with no inbound edge makes the whole graph 'partial', hard-blocking every run on the map, and no shipped surface names the offending room"
+ },
+ {
+  "id": "A5-FURNIS-4",
+  "sev": "LOW",
+  "file": "mapping/mapping_services.py",
+  "line": 2162,
+  "title": "area_label_anchors are keyed by device room id and nothing prunes them on a room rebuild, so a re-import silently re-aims one room's dragged label onto a different room"
+ },
+ {
+  "id": "A5-PP-RP-2",
+  "sev": "MEDIUM",
+  "file": "planning/run_plan.py",
+  "line": 1379,
+  "title": "Any plan whose FIRST surviving phase is a zone is refused with \"Room-clean payload is missing or invalid\" — and a live blocker rule can push a plan into that state"
+ },
+ {
+  "id": "A6-AGX-1",
+  "sev": "MEDIUM",
+  "file": "rooms/access_graph.py",
+  "line": 651,
+  "title": "get_access_graph_health emits no verdict — the \"runs are allowed\" empty graph and the \"every run is blocked\" partial graph are indistinguishable, and the report's own remediation moves the user from t"
+ },
+ {
+  "id": "A6-AGX-2",
+  "sev": "MEDIUM",
+  "file": "core/manager.py",
+  "line": 1374,
+  "title": "The structural gate on every per-room edit is absolute, not a delta: one stored graph violation rejects unrelated edits (fan speed, enable, color) with \"The requested access links would make the graph"
+ },
+ {
+  "id": "A6-AGX-3",
+  "sev": "LOW",
+  "file": "rooms/access_graph.py",
+  "line": 559,
+  "title": "get_room_access_editor marks every unselected target unselectable when the graph is already broken elsewhere, with the contentless reason \"Not selectable due to graph legality.\""
+ },
+ {
+  "id": "A6-AGX-4",
+  "sev": "MEDIUM",
+  "file": "rooms/access_graph.py",
+  "line": 364,
+  "title": "Every access-graph issue message is a hard-coded English literal and is rendered verbatim in the card on all 18 shipped locales"
+ },
+ {
+  "id": "A6-AGX-5",
+  "sev": "LOW",
+  "file": "rooms/access_graph.py",
+  "line": 613,
+  "title": "The per-room editor's issue list drops graph-scoped issues, so it reports a room as problem-free on a map whose graph is invalid and blocking runs"
+ },
+ {
+  "id": "A6-AGX-6",
+  "sev": "MEDIUM",
+  "file": "src/state/room-access.js",
+  "line": 85,
+  "title": "The card's access modal renders an existing edge into the dock room as \"Missing Room N\" — an edge that exists is displayed as a stale reference to a room that does not"
+ },
+ {
+  "id": "A7-ROBORO-4",
+  "sev": "MEDIUM",
+  "file": "mapping/roborock_raw_map.py",
+  "line": 171,
+  "title": "ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame"
+ },
+ {
+  "id": "DIAG-1",
+  "sev": "MEDIUM",
+  "file": "diagnostics.py",
+  "line": 0,
+  "title": "entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'"
+ },
+ {
+  "id": "DQ-ACT-6",
+  "sev": "MEDIUM",
+  "file": "core/manager.py",
+  "line": 5005,
+  "title": "A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start"
+ },
+ {
+  "id": "DR-ONB-1",
+  "sev": "MEDIUM",
+  "file": "onboarding/manager.py",
+  "line": 182,
+  "title": "remap_confirmed_floor_types mutates in place while iterating, losing confirmations whenever old and new id sets overlap"
+ },
+ {
+  "id": "DR-ONB-2",
+  "sev": "MEDIUM",
+  "file": "onboarding/manager.py",
+  "line": 186,
+  "title": "check_for_new_rooms compares a PER-MAP stored count against a source with no map scoping"
+ },
+ {
+  "id": "ENT-1",
+  "sev": "HIGH",
+  "file": "adapters/eufy/entities.py",
+  "line": 119,
+  "title": "Companion entities are resolved by deriving a name from the vacuum entity id, with no device-registry lookup and no fallback — a device whose entities are named differently reports EVERY capability as"
+ },
+ {
+  "id": "EP-4",
+  "sev": "LOW",
+  "file": "number.py",
+  "line": 7,
+  "title": "Module comment asserts 'no polling'; the one class that polls is the one relying on it"
+ },
+ {
+  "id": "EP-5",
+  "sev": "LOW",
+  "file": "button.py",
+  "line": 256,
+  "title": "The saved-run-profile button name is hardcoded English, bypassing the translation mechanism"
+ },
+ {
+  "id": "EP-7",
+  "sev": "LOW",
+  "file": "room_entities.py",
+  "line": 87,
+  "title": "_async_update_room silently drops non-managed keys from a mixed update"
+ },
+ {
+  "id": "INF-9",
+  "sev": "LOW",
+  "file": "entity_helpers.py",
+  "line": 109,
+  "title": "get_floor_type_label emits hardcoded English into an 18-language product"
+ },
+ {
+  "id": "SN-4",
+  "sev": "MEDIUM",
+  "file": "sensor/__init__.py",
+  "line": 272,
+  "title": "Renaming a room never reaches the entity's friendly name - the rebuilt entity carrying the new name is discarded"
+ },
+ {
+  "id": "SN-9",
+  "sev": "LOW",
+  "file": "sensor/map_overlays.py",
+  "line": 76,
+  "title": "native_value returns the literal string 'unavailable', colliding with HA's reserved state"
+ }
+]
