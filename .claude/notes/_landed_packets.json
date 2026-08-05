@@ -648,5 +648,13 @@
   ],
   "landed_at": "2026-08-05",
   "note": "LEDGER RECONCILIATION, no new code -- the last quarter of cluster C17, which has read '3/4 applied' since the fix shipped. A6-GUARD-2 (path_blockers spawns a _process task per event with no coalescing, so a bouncing sensor stacks them) was CLOSED inside RP-008's commit 8d244dc: listeners/path_blockers.py gained _PATH_BLOCKER_INFLIGHT and _process_single_flight(), which runs one _process at a time and coalesces further arrivals into a single re-check. Verified at source and in the diff, not inferred from the commit subject.\n  WHY IT SAT UNTICKED, and it is a mechanism worth naming rather than a slip: closure is credited two ways, by explicit finding_ids or by repair_family. RP-008's spec credits by family RF-13; A6-GUARD-2 is owned by RF-06. The packet closed a finding outside its own family, so no rule reached it. Given its own packet_id here rather than by widening RP-008's family, which would silently re-scope nine other findings.\n  The id-grep could not catch it either: the code cited 'RP-008 (GUARD-2)', and 'GUARD-2' does not match the ledger row 'A6-GUARD-2'. The comment now writes the full id, so _verify_ledger.py can see it."
+ },
+ {
+  "packet_id": "RP-051",
+  "commits": [
+   "2a283eb"
+  ],
+  "landed_at": "2026-08-05",
+  "note": "SETUP-REJ-2 wired at the write boundary. save_managed_rooms now passes the MAP-SCOPED rejection set to build_managed_rooms, so the CRUD-5 exclusion that had never executed does. Closes the direct-service-call bypass: the protection that actually worked was the new_rooms drift filter, which is UI-path only, so a hand-written call with explicit enabled_room_ids could create a room the user rejected. Map-scoped is load-bearing -- the vacuum-wide union would drop a real room on one map because an unrelated id was rejected on another, which is A4-SETUP-6 at a new site and destructive rather than merely blocking. Not wireable before 56af6b1: the rejection set had no map dimension, so there was nothing correct to pass. rejected_room_ids_for reads without creating the record, so a save does not materialise setup-progress state. [DRD-18..20]; removing the argument fails DRD-18."
  }
 ]

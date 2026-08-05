@@ -912,5 +912,13 @@
    "#12:A6-GUARD-2"
   ],
   "source_doc": ".claude/notes/synthesis/SYNTH-04-packets-wave1.md"
+ },
+ {
+  "packet_id": "RP-051",
+  "repair_family": null,
+  "finding_ids": [
+   "live:SETUP-REJ-2"
+  ],
+  "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
  }
 ]

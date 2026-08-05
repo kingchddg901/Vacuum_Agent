@@ -9,10 +9,10 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **462** findings via 63 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050) |
+| Fixes APPLIED (landed packets) | **463** findings via 64 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050, RP-051) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **1** -- 0 open clusters (29 fully applied) + 1 singles |
-| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 0 / LOW 1 |
+| Open findings | **0** -- 0 open clusters (29 fully applied) + 0 singles |
+| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 0 / LOW 0 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
@@ -263,15 +263,9 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### LOW (1)
-
-- [ ] **SETUP-REJ-2** `rooms/room_manager.py:51` [both]  
-  build_managed_rooms' rejected_rooms= exclusion (CRUD-5) has no production caller  
-  -> Found while fixing A4-SETUP-6, filed rather than folded in (charter 2c). build_managed_rooms takes a rejected_rooms= parameter and skips those ids at :122, documented as CRUD-5 'excludes ids the user explicitly rejected
-
 ---
 
-## APPLIED -- 462 findings closed by a landed packet
+## APPLIED -- 463 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1202,6 +1196,8 @@ a disappeared finding is indistinguishable from one never found.
   The tRaw docstring claims it escapes interpolated values; it does not — neither t() nor tRaw() escapes vars
 - [x] **A6-GUARD-2** `listeners/path_blockers.py:194` [both] -- **RP-050** (`8d244dc`, 2026-08-05)  
   path_blockers spawns unbounded concurrent `_process` tasks; a second blocker event inside the 30s cancel-confirm window double-cancels and the loser deterministically nulls the run's finalize_summary
+- [x] **SETUP-REJ-2** `rooms/room_manager.py:51` [both] -- **RP-051** (`2a283eb`, 2026-08-05)  
+  build_managed_rooms' rejected_rooms= exclusion (CRUD-5) has no production caller
 
 ---
 
@@ -1238,7 +1234,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 63 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 58 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 64 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 59 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 
