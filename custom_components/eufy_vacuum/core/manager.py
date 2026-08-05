@@ -697,7 +697,11 @@ class EufyVacuumManager:
                 ],
                 "last_advanced_at": now,
                 "migrated_at": now,
+                # rejected_rooms is the LEGACY flat (per-vacuum) list; new
+                # rejections land in rejected_rooms_by_map (A4-SETUP-6). A record
+                # created here has no rejections at all, so both start empty.
                 "rejected_rooms": [],
+                "rejected_rooms_by_map": {},
                 "room_drift_history": {},
             }
 

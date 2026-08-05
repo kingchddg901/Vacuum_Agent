@@ -1,19 +1,22 @@
 """Setup panel services — onboarding wizard backend.
 
-Eight services driving the panel-based setup flow:
+Services driving the panel-based setup flow:
 - setup_get_status: read the current setup state
 - setup_add_vacuum: register a vacuum with the integration
 - setup_import_active_map: import the vacuum's active map
 - setup_get_map_rooms: list managed rooms for a map
 - setup_save_rooms: persist the room selection
 - setup_delete_map: delete a map (gated by protection)
-- setup_reject_rooms: mark rooms as phantoms (never re-surface)
+- setup_reject_rooms: mark rooms as phantoms on ONE map (never re-surface)
+- setup_unreject_rooms: undo that, so the room can be configured again
 - setup_force_remove_room: bypass missing-pass counter for one room
+- setup_set_map_camera / setup_set_panel_title: panel presentation
 """
 
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import voluptuous as vol
 
@@ -33,6 +36,7 @@ from ..const import (
     SERVICE_SETUP_SAVE_ROOMS,
     SERVICE_SETUP_SET_MAP_CAMERA,
     SERVICE_SETUP_SET_PANEL_TITLE,
+    SERVICE_SETUP_UNREJECT_ROOMS,
 )
 from ._common import resolved_call_data
 
@@ -47,6 +51,7 @@ SERVICES = (
     SERVICE_SETUP_SAVE_ROOMS,
     SERVICE_SETUP_DELETE_MAP,
     SERVICE_SETUP_REJECT_ROOMS,
+    SERVICE_SETUP_UNREJECT_ROOMS,
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_SETUP_SET_MAP_CAMERA,
     SERVICE_SETUP_SET_PANEL_TITLE,
@@ -129,6 +134,17 @@ _SETUP_REJECT_ROOMS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("room_ids"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+        # A4-SETUP-6: optional so every existing caller keeps working; when
+        # omitted the handler resolves the ACTIVE map rather than falling back
+        # to the old every-map rejection.
+        vol.Optional("map_id"): cv.string,
+    }
+)
+_SETUP_UNREJECT_ROOMS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("room_ids"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+        vol.Optional("map_id"): cv.string,
     }
 )
 _SETUP_FORCE_REMOVE_ROOM_SCHEMA = vol.Schema(
@@ -152,8 +168,28 @@ def register(hass: HomeAssistant) -> None:
     from ..setup.drift import (
         record_step_completed as _record_setup_step,
         reject_rooms as _reject_rooms,
+        unreject_rooms as _unreject_rooms,
         force_remove_room as _force_remove_room,
     )
+
+    def _rejection_map_id(manager: Any, call: ServiceCall) -> str | None:
+        """The map a rejection applies to: the caller's, else the ACTIVE map.
+
+        A4-SETUP-6. Room ids are reissued per map, so a rejection has to name
+        one. The card does not send ``map_id`` today, and the map it was looking
+        at when the user clicked is the active one, so resolving it here is both
+        correct and back-compatible. None (no resolver, or an adapter that cannot
+        say) falls through to the legacy every-map rejection — worse, but it is
+        the pre-existing behaviour and never silently no-ops the rejection.
+        """
+        explicit = call.data.get("map_id")
+        if explicit:
+            return str(explicit)
+        resolver = getattr(manager, "resolve_active_map_id", None)
+        if not callable(resolver):
+            return None
+        resolved = resolver(call.data["vacuum_entity_id"])
+        return str(resolved) if resolved else None
 
     async def setup_get_status(call: ServiceCall) -> dict:
         return _get_setup_status(hass)
@@ -270,6 +306,7 @@ def register(hass: HomeAssistant) -> None:
             manager,
             vacuum_entity_id,
             call.data["room_ids"],
+            map_id=_rejection_map_id(manager, call),
         )
         # Fire room-update callbacks for every map that lost a room so
         # the entity-platform cleanup (switch/number/sensor) tears down
@@ -280,6 +317,30 @@ def register(hass: HomeAssistant) -> None:
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=affected_map_id,
             )
+        await manager.async_save()
+        return {"status": "success", **result}
+
+    async def setup_unreject_rooms(call: ServiceCall) -> dict:
+        """Undo a rejection so the room can be discovered and configured again.
+
+        A4-SETUP-6's escape hatch. Without it a rejection was one-way: the
+        rejected id stopped surfacing in ``new_rooms``, so a room rejected by
+        mistake — or, before rejections were map-scoped, a REAL room upstairs
+        sharing an id with a ghost downstairs — had no route back short of
+        hand-editing ``.storage``.
+
+        The room does not reappear immediately: it resurfaces on the next
+        discovery pass that sees it, through the normal confirmation cadence.
+        """
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"status": "error", "message": "Integration manager not available."}
+        result = _unreject_rooms(
+            manager,
+            call.data["vacuum_entity_id"],
+            call.data["room_ids"],
+            map_id=_rejection_map_id(manager, call),
+        )
         await manager.async_save()
         return {"status": "success", **result}
 
@@ -414,6 +475,10 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_REJECT_ROOMS, setup_reject_rooms,
         schema=_SETUP_REJECT_ROOMS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SETUP_UNREJECT_ROOMS, setup_unreject_rooms,
+        schema=_SETUP_UNREJECT_ROOMS_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_FORCE_REMOVE_ROOM, setup_force_remove_room,

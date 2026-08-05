@@ -10,6 +10,15 @@ Coverage targets
 [DRD-6]  reject_rooms clears the room's drift history entry.
 [DRD-7]  force_remove_room sets missing_passes to the configured threshold.
 [DRD-8]  force_remove_room causes compute_room_drift to report the room as removed.
+[DRD-9]  A4-SETUP-6: rejecting an id on one map leaves that id on another map.
+[DRD-10] ...and leaves it DISCOVERABLE there, not silently filtered.
+[DRD-11] Legacy flat (per-vacuum) rejections still apply to every map.
+[DRD-12] unreject_rooms clears a legacy flat rejection — the escape hatch.
+[DRD-13] unreject_rooms is map-scoped and reports what it did not clear.
+[DRD-14] An un-rejected room resurfaces through the normal new_rooms cadence.
+[DRD-15] Omitted map_id means "the only map" on a single-map vacuum.
+[DRD-16] ...and is REFUSED on a multi-map vacuum rather than meaning "every map".
+[DRD-17] The un-reject path refuses the same ambiguity, in the same way.
 """
 
 from __future__ import annotations
@@ -24,6 +33,8 @@ from custom_components.eufy_vacuum.setup.drift import (
     force_remove_room,
     get_discovery_cadence,
     reject_rooms,
+    rejected_room_ids,
+    unreject_rooms,
     update_drift_history,
 )
 
@@ -80,12 +91,17 @@ def test_get_discovery_cadence_uses_adapter_values(manager):
 # ---------------------------------------------------------------------------
 
 def test_reject_rooms_adds_room_ids(manager):
-    """[DRD-3] reject_rooms records room IDs in setup_progress.rejected_rooms."""
+    """[DRD-3] reject_rooms records the room IDs as rejected.
+
+    Asserted through ``rejected_room_ids`` rather than by reading a storage key:
+    A4-SETUP-6 moved WHERE a rejection is written (per-map, not one flat list)
+    without changing WHAT it means, and a test that names the backing fails on a
+    correct refactor while telling you nothing about behaviour.
+    """
     setup_map(manager, _VAC, _MAP, count=2)
     result = reject_rooms(manager, _VAC, [1, 2])
-    rejected = manager.data["setup_progress"][_VAC]["rejected_rooms"]
-    assert 1 in rejected
-    assert 2 in rejected
+    record = manager.data["setup_progress"][_VAC]
+    assert rejected_room_ids(record, map_id=_MAP) == {1, 2}
     assert result["rejected"] == [1, 2]
 
 
@@ -93,9 +109,12 @@ def test_reject_rooms_is_idempotent(manager):
     """[DRD-4] Calling reject_rooms twice with the same ID does not duplicate it."""
     setup_map(manager, _VAC, _MAP, count=1)
     reject_rooms(manager, _VAC, [1])
-    reject_rooms(manager, _VAC, [1])
-    rejected = manager.data["setup_progress"][_VAC]["rejected_rooms"]
-    assert rejected.count(1) == 1
+    second = reject_rooms(manager, _VAC, [1])
+    record = manager.data["setup_progress"][_VAC]
+    assert rejected_room_ids(record, map_id=_MAP) == {1}
+    assert second["rejected"] == []          # nothing new to add
+    stored = record["rejected_rooms_by_map"][_MAP]
+    assert stored.count(1) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -188,3 +207,190 @@ def test_force_remove_room_surfaces_in_compute_room_drift(manager):
     removed_ids = {r["room_id"] for r in result["removed_rooms"]}
     assert 1 in removed_ids
     assert result["in_sync"] is False
+
+
+# ---------------------------------------------------------------------------
+# [DRD-9..14] A4-SETUP-6 — rejection is per MAP, and reversible
+#
+# The filed mechanism, verbatim: Eufy reissues room ids 1..N from scratch on
+# every map, so id 3 downstairs and id 3 upstairs are different physical rooms.
+# Rejection was stored as one flat per-VACUUM list, so rejecting a ghost id 3 on
+# the ground floor made the REAL id 3 upstairs unconfigurable — permanently, and
+# invisibly, because a rejected id never surfaces in new_rooms for the user to
+# notice it is missing. There was also no un-reject path at all.
+#
+# These tests exercise a two-map install, which is what activates it. Every
+# single-map shape (each of DRD-3..8 above, all of which still call reject_rooms
+# with no map_id) keeps the pre-change behaviour on purpose.
+# ---------------------------------------------------------------------------
+
+_MAP_B = "2"
+
+
+def _setup_two_maps(manager, count: int = 3):
+    """Seed two maps for one vacuum, both with rooms 1..count configured."""
+    setup_map(manager, _VAC, _MAP, count=count)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    setup_map(manager, _VAC, _MAP_B, count=count)
+    _mark_rooms_configured(manager, _VAC, _MAP_B)
+
+
+def _seed_legacy_rejection(manager, room_ids: list[int]) -> None:
+    """Write a setup_progress record in the PRE-A4-SETUP-6 shape.
+
+    Deliberately omits ``rejected_rooms_by_map`` entirely rather than seeding it
+    empty: that absent key is what a record written by an older build actually
+    looks like on disk, and reading one is the compatibility claim being tested.
+    """
+    manager.data.setdefault("setup_progress", {})[_VAC] = {
+        "completed_steps": [],
+        "last_advanced_at": None,
+        "rejected_rooms": list(room_ids),
+        "room_drift_history": {},
+    }
+
+
+def test_map_scoped_rejection_leaves_the_same_id_on_another_map(manager):
+    """[DRD-9] The filed defect: rejecting ghost id 3 downstairs must not take
+    the REAL id 3 upstairs with it."""
+    _setup_two_maps(manager)
+
+    result = reject_rooms(manager, _VAC, [3], map_id=_MAP)
+
+    assert "3" not in manager.data["maps"][_VAC][_MAP]["rooms"]
+    assert "3" in manager.data["maps"][_VAC][_MAP_B]["rooms"], (
+        "room 3 on the OTHER map was stripped — this is A4-SETUP-6"
+    )
+    assert result["affected_map_ids"] == [_MAP]
+    assert result["map_id"] == _MAP
+
+
+def test_map_scoped_rejection_does_not_hide_the_id_on_another_map(manager):
+    """[DRD-10] ...and the id stays DISCOVERABLE on the other map, which is the
+    half the user would actually notice: a filtered id never reaches new_rooms,
+    so it cannot be configured and cannot be complained about."""
+    _setup_two_maps(manager)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP)
+
+    record = manager.data["setup_progress"][_VAC]
+    assert 3 in rejected_room_ids(record, map_id=_MAP)
+    assert 3 not in rejected_room_ids(record, map_id=_MAP_B)
+
+
+def test_legacy_flat_rejection_still_applies_to_every_map(manager):
+    """[DRD-11] Existing installs must not change. A rejection recorded before
+    this change carries no map, so it keeps applying everywhere — which is what
+    the user meant when only one map existed."""
+    _setup_two_maps(manager)
+    _seed_legacy_rejection(manager, [3])
+
+    record = manager.data["setup_progress"][_VAC]
+    assert 3 in rejected_room_ids(record, map_id=_MAP)
+    assert 3 in rejected_room_ids(record, map_id=_MAP_B)
+    assert 3 in rejected_room_ids(record)          # no map dimension -> union
+
+
+def test_unreject_clears_a_legacy_flat_rejection(manager):
+    """[DRD-12] The escape hatch. An install that ALREADY hit the defect has a
+    flat entry blocking a real room; clearing it is the documented way out, and
+    it must not require hand-editing .storage."""
+    _setup_two_maps(manager)
+    _seed_legacy_rejection(manager, [3])
+
+    result = unreject_rooms(manager, _VAC, [3], map_id=_MAP_B)
+
+    assert result["unrejected"] == [3]
+    record = manager.data["setup_progress"][_VAC]
+    assert record["rejected_rooms"] == []
+    assert 3 not in rejected_room_ids(record, map_id=_MAP)
+    assert 3 not in rejected_room_ids(record, map_id=_MAP_B)
+
+
+def test_unreject_is_scoped_and_reports_what_it_did_not_clear(manager):
+    """[DRD-13] Un-rejecting on one map leaves another map's rejection standing,
+    and SAYS SO rather than implying a clean sweep."""
+    _setup_two_maps(manager)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP_B)
+
+    result = unreject_rooms(manager, _VAC, [3], map_id=_MAP_B)
+
+    record = manager.data["setup_progress"][_VAC]
+    assert 3 not in rejected_room_ids(record, map_id=_MAP_B)
+    assert 3 in rejected_room_ids(record, map_id=_MAP)
+    assert result["still_rejected_on"] == {_MAP: [3]}
+
+
+def test_unrejected_room_resurfaces_as_new_on_the_next_pass(manager):
+    """[DRD-14] Un-reject is only useful if the room comes BACK. It returns
+    through the normal new_rooms cadence, not instantly."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP)
+
+    update_drift_history(manager, _VAC, discovered_room_ids={1, 2, 3}, map_id=_MAP)
+    drift = compute_room_drift(
+        manager, _VAC, discovered_room_ids={1, 2, 3}, map_id=_MAP
+    )
+    assert 3 not in {r["room_id"] for r in drift["new_rooms"]}
+
+    unreject_rooms(manager, _VAC, [3], map_id=_MAP)
+
+    update_drift_history(manager, _VAC, discovered_room_ids={1, 2, 3}, map_id=_MAP)
+    drift = compute_room_drift(
+        manager, _VAC, discovered_room_ids={1, 2, 3}, map_id=_MAP
+    )
+    assert 3 in {r["room_id"] for r in drift["new_rooms"]}
+
+
+def test_omitted_map_id_means_the_only_map_not_every_map(manager):
+    """[DRD-15] On a SINGLE-map vacuum, omitting map_id is unambiguous and the
+    rejection is pinned to that map — so a second floor added later inherits
+    nothing."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    _mark_rooms_configured(manager, _VAC, _MAP)
+
+    result = reject_rooms(manager, _VAC, [3])
+
+    assert result["map_id"] == _MAP
+    record = manager.data["setup_progress"][_VAC]
+    assert record["rejected_rooms"] == []          # nothing new lands in the flat list
+    assert rejected_room_ids(record, map_id=_MAP) == {3}
+
+
+def test_omitted_map_id_is_refused_on_a_multi_map_vacuum(manager):
+    """[DRD-16] ...and on a MULTI-map vacuum it refuses instead of guessing.
+
+    'Every map' is not a safe reading of an unqualified room id — that reading IS
+    A4-SETUP-6. The refusal writes nothing and names the maps so the caller can
+    re-issue.
+    """
+    _setup_two_maps(manager)
+
+    result = reject_rooms(manager, _VAC, [3])
+
+    assert result["status"] == "error"
+    assert result["reason"] == "map_ambiguous"
+    assert sorted(result["map_ids"]) == sorted([_MAP, _MAP_B])
+    assert result["rejected"] == []
+    # Refused means NOTHING happened — both maps keep room 3.
+    assert "3" in manager.data["maps"][_VAC][_MAP]["rooms"]
+    assert "3" in manager.data["maps"][_VAC][_MAP_B]["rooms"]
+
+
+def test_unreject_without_map_id_is_refused_on_a_multi_map_vacuum(manager):
+    """[DRD-17] The recovery path refuses the same ambiguity.
+
+    Un-reject is NOT the safe direction of an ambiguous call: the legacy flat
+    entry it clears is exactly the vacuum-global one, so an unqualified un-reject
+    would un-hide an id on every floor at once — A4-SETUP-6 pointed the other way.
+    """
+    _setup_two_maps(manager)
+    _seed_legacy_rejection(manager, [3])
+
+    result = unreject_rooms(manager, _VAC, [3])
+
+    assert result["status"] == "error"
+    assert result["reason"] == "map_ambiguous"
+    assert result["unrejected"] == []
+    assert manager.data["setup_progress"][_VAC]["rejected_rooms"] == [3]  # untouched

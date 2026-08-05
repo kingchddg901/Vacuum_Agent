@@ -40,6 +40,42 @@ discover_rooms:
       selector:
         text: {}
 
+setup_unreject_rooms:
+  name: Un-reject rooms
+  description: >
+    Undo a room rejection so the room can be discovered and configured again.
+    Rejecting a room during setup hides it permanently — it stops appearing as a
+    new room, which is exactly what makes a mistaken rejection hard to notice and
+    impossible to undo from the panel. This is the way back. The room does not
+    reappear instantly: it resurfaces on the next discovery pass that sees it.
+    Clears the rejection on the given map, and also clears any older rejection
+    that was recorded before rejections were per-map (those applied to every map,
+    so an id rejected on one floor could block a real room on another).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    room_ids:
+      name: Room IDs
+      description: The room IDs to un-reject.
+      required: true
+      example: "[3, 7]"
+      selector:
+        object: {}
+    map_id:
+      name: Map ID
+      description: >
+        Leave blank to use the current active map. If the active map cannot be
+        determined and this vacuum has more than one map, the call is refused
+        rather than guessing — room IDs are reused across maps, so an ID on its
+        own does not identify a room.
+      required: false
+      selector:
+        text: {}
+
 save_managed_rooms:
   name: Save managed rooms
   description: >

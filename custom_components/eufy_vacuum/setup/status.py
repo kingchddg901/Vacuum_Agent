@@ -238,7 +238,19 @@ def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
         # reflects the latest stored history. Discovery passes run via
         # auto-triggers (see setup/drift.py and stage-2 listener wiring)
         # and update history out-of-band.
-        drift = compute_room_drift(manager, vacuum_entity_id)
+        #
+        # Scoped to the ACTIVE map (A4-SETUP-6). The drift history it reads is
+        # written by passes against whichever map was loaded, and rejections are
+        # per map — so leaving the map unset here would filter new_rooms by the
+        # UNION of every map's rejections, and a room rejected downstairs would
+        # never be offered upstairs. That is the same defect on the read side,
+        # where it is harder to see: the room is simply absent from the panel.
+        _drift_map_id = None
+        _resolver = getattr(manager, "resolve_active_map_id", None)
+        if callable(_resolver):
+            _resolved = _resolver(vacuum_entity_id)
+            _drift_map_id = str(_resolved) if _resolved else None
+        drift = compute_room_drift(manager, vacuum_entity_id, map_id=_drift_map_id)
 
         # Identity-shift reconciliation reviews (CARD-7/RP-019): same passive,
         # last-cached-pass contract as drift immediately above — see
