@@ -2080,10 +2080,16 @@ async def test_finalize_overhead_observed_from_transit_capture(hass, learning_se
     )
     job = result["completed_job"]["job"]
     assert job["transit_capture_valid"] is True
-    assert job["transitions"][0]["transit_seconds"] == 330
+    assert job["transitions"][0]["transit_seconds"] == 300
     # the enrichment overrode inter_room_minutes with the observed transit sum
-    # (330s / 60 = 5.5), proving the capture-valid branch ran (not the base).
-    assert job["overhead_observed"]["inter_room_minutes"] == 5.5
+    # (300s / 60 = 5.0), proving the capture-valid branch ran (not the base).
+    #
+    # 300, not the raw 330 s gap: the counter advanced 30 s inside that window, so
+    # the robot was cleaning for part of it. Counting that as inter-room overhead
+    # inflated the estimate - measured 83% over on real runs (history_store
+    # ._idle_seconds). The correction propagates here because overhead is the sum
+    # of the transits.
+    assert job["overhead_observed"]["inter_room_minutes"] == 5.0
 
 
 # ---------------------------------------------------------------------------

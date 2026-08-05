@@ -1059,7 +1059,11 @@ def test_build_transit_blocks_two_rooms():
     assert len(transitions) == 1
     tr = transitions[0]
     assert tr["from_room_id"] == 1 and tr["to_room_id"] == 2
-    assert tr["transit_seconds"] == 330   # 540 - 210
+    assert tr["transit_seconds"] == 300  # 330 s wall, 30 s of which the counter was still advancing -> 300 s of
+    # NOT-CLEANING. transit_seconds used to be the raw gap (330), which counted
+    # that cleaning as travel; see history_store._idle_seconds.
+    assert tr["gap_seconds"] == 330            # the raw window, kept alongside
+    assert tr["transit_source"] == "counter_idle"
 
 
 def test_build_transit_blocks_single_room_valid_no_transitions():
@@ -1133,7 +1137,9 @@ def test_build_completed_job_payload_emits_transit_blocks(tmp_path):
     assert job["room_timings"][0]["area_m2"] == 6.0
     assert job["room_timings"][1]["area_m2"] == 2.0
     assert len(job["transitions"]) == 1
-    assert job["transitions"][0]["transit_seconds"] == 330   # 540 - 210
+    assert job["transitions"][0]["transit_seconds"] == 300  # 330 s wall, 30 s of which the counter was still advancing -> 300 s of
+    # NOT-CLEANING. transit_seconds used to be the raw gap (330), which counted
+    # that cleaning as travel; see history_store._idle_seconds.
     assert job["transitions"][0]["from_slug"] == "kitchen"
     assert job["transitions"][0]["to_slug"] == "bath"
 

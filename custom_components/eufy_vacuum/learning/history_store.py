@@ -133,17 +133,87 @@ def _build_transit_blocks(
 
     transitions: list[dict[str, Any]] = []
     for prev, cur, seg in zip(room_timings, room_timings[1:], segs[1:]):
+        gap = _safe_int(seg.get("gap_before_s"), 0)
+        idle = _idle_seconds(
+            counter_samples, prev.get("cleaning_end"), cur.get("cleaning_start")
+        )
         transitions.append(
             {
                 "from_room_id": prev.get("room_id"),
                 "from_slug": prev.get("slug"),
                 "to_room_id": cur.get("room_id"),
                 "to_slug": cur.get("slug"),
-                "transit_seconds": _safe_int(seg.get("gap_before_s"), 0),
+                # The robot was NOT CLEANING for this long. See _idle_seconds -
+                # gap_before_s is the whole window and includes the cleaning that
+                # happened inside it, which over-stated transit by 83% on the
+                # 2026-08-05 measurements (66 s recorded, 36 s real).
+                "transit_seconds": gap if idle is None else idle,
+                # The raw window, kept alongside so the two are separable in a
+                # record rather than one silently replacing the other.
+                "gap_seconds": gap,
+                # Which one the number came from, so a reader never has to guess
+                # whether the counter was usable on this run.
+                "transit_source": "gap_only" if idle is None else "counter_idle",
             }
         )
 
     return room_timings, transitions, valid
+
+
+def _counter_at(counter_samples: Any, when_iso: Any) -> float | None:
+    """``cleaning_time`` as of ``when_iso`` - the last sample at or before it."""
+    if not when_iso:
+        return None
+    best: float | None = None
+    for sample in counter_samples or []:
+        if not isinstance(sample, dict):
+            continue
+        stamp = sample.get("t")
+        value = sample.get("cleaning_time")
+        if not stamp or value is None or str(stamp) > str(when_iso):
+            continue
+        try:
+            best = float(value)
+        except (TypeError, ValueError):
+            continue
+    return best
+
+
+def _idle_seconds(counter_samples: Any, start_iso: Any, end_iso: Any) -> int | None:
+    """Seconds in [start, end] during which the robot was NOT CLEANING.
+
+    THE CORRECTION. ``transit_seconds`` was ``gap_before_s`` - the wall gap between
+    one segment's last counter increment and the next segment's first. That window
+    is not transit: the increment that OPENS the next segment carries cleaning that
+    accrued inside the gap, so the gap contains real cleaning time and reports it
+    as travel.
+
+    Measured on two consecutive identical runs, 2026-08-05: Kitchen -> Entryway
+    recorded transit_seconds 66 on both, while the counter advanced 30 s inside
+    that window. Actual non-cleaning time: 36 s. An 83% over-count, feeding
+    avg_ingress_transit_seconds on every multi-room run.
+
+    ``cleaning_time`` only advances while the robot is cleaning - that is the
+    device fact the whole measure rests on - so wall minus the counter's own
+    progress IS the idle time, exactly, with no threshold and nothing to tune.
+
+    Returns None when the counter cannot be read at both edges, so the caller can
+    fall back to the raw gap rather than silently reporting a wrong zero.
+    """
+    if not start_iso or not end_iso:
+        return None
+    a = _counter_at(counter_samples, start_iso)
+    b = _counter_at(counter_samples, end_iso)
+    if a is None or b is None:
+        return None
+    try:
+        wall = (
+            datetime.fromisoformat(str(end_iso).replace("Z", "+00:00"))
+            - datetime.fromisoformat(str(start_iso).replace("Z", "+00:00"))
+        ).total_seconds()
+    except (ValueError, TypeError):
+        return None
+    return int(max(0.0, wall - max(0.0, b - a)))
 
 
 def clean_mode_of(rooms: Any) -> str | None:
