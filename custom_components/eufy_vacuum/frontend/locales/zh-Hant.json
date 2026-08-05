@@ -2034,7 +2034,8 @@
       "one": "1 個錯誤",
       "other": "{count} 個錯誤"
     },
-    "badge_errors_seconds": "本次清掃中處於錯誤狀態 {seconds} 秒"
+    "badge_errors_seconds": "本次清掃中處於錯誤狀態 {seconds} 秒",
+    "runs_truncated": "正在顯示 {total} 次符合清掃中的 {shown} 次 — 縮小篩選條件以查看其餘記錄。"
   },
   "bind_maintenance": {
     "could_not_reset": "無法重設 {label}",

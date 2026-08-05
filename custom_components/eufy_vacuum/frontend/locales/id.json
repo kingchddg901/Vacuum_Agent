@@ -1365,7 +1365,8 @@
       "one": "1 kesalahan",
       "other": "{count} kesalahan"
     },
-    "badge_errors_seconds": "{seconds}d dalam status kesalahan selama pembersihan ini"
+    "badge_errors_seconds": "{seconds}d dalam status kesalahan selama pembersihan ini",
+    "runs_truncated": "Menampilkan {shown} dari {total} pembersihan yang cocok — persempit filter untuk melihat sisanya."
   },
   "rooms": {
     "access_not_set": "Akses tidak diatur",

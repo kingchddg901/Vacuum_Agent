@@ -1365,7 +1365,8 @@
       "one": "1 błąd",
       "other": "Błędy: {count}"
     },
-    "badge_errors_seconds": "{seconds}s w stanie błędu podczas tego przebiegu"
+    "badge_errors_seconds": "{seconds}s w stanie błędu podczas tego przebiegu",
+    "runs_truncated": "Wyświetlono {shown} z {total} pasujących przebiegów — zawęź filtry, aby zobaczyć pozostałe."
   },
   "rooms": {
     "access_not_set": "Dostęp nieustawiony",

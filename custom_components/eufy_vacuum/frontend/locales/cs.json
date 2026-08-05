@@ -1365,7 +1365,8 @@
       "one": "1 chyba",
       "other": "Chyby: {count}"
     },
-    "badge_errors_seconds": "{seconds}s ve stavu chyby během tohoto úklidu"
+    "badge_errors_seconds": "{seconds}s ve stavu chyby během tohoto úklidu",
+    "runs_truncated": "Zobrazeno {shown} z {total} odpovídajících úklidů — zužte filtry, abyste viděli zbytek."
   },
   "rooms": {
     "access_not_set": "Přístup nenastaven",

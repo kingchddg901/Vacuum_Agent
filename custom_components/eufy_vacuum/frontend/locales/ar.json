@@ -2179,7 +2179,8 @@
       "one": "خطأ واحد",
       "other": "{count} أخطاء"
     },
-    "badge_errors_seconds": "{seconds} ثانية في حالة خطأ خلال عملية التنظيف هذه"
+    "badge_errors_seconds": "{seconds} ثانية في حالة خطأ خلال عملية التنظيف هذه",
+    "runs_truncated": "يتم عرض {shown} من أصل {total} عملية تنظيف مطابقة — ضيّق عوامل التصفية لعرض الباقي."
   },
   "bind_maintenance": {
     "could_not_reset": "تعذّرت إعادة تعيين {label}",

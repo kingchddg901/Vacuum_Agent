@@ -1009,6 +1009,11 @@ export const en = {
   "review.room_fallback": "Room",
   "review.runs_empty": "No learning history jobs matched the current filters.",
   "review.runs_subtitle": "Newest first unless another sort is selected.",
+  // REV-5. Shown ONLY when the run list was cut by the limit. {shown} = rows in this
+  // payload, {total} = rows that matched the filters. A cap the user cannot see reads
+  // as "there is nothing more", which is why the stat and the list disagreeing silently
+  // was the bug.
+  "review.runs_truncated": "Showing {shown} of {total} matching runs — narrow the filters to see the rest.",
   "review.runs_title": "Runs",  // Section title: list of cleaning runs/jobs (the noun 'Runs', not the verb)
   "review.search_aria": "Search {label}",
   "review.search_placeholder": "Search…",

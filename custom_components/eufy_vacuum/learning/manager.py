@@ -2170,6 +2170,18 @@ class LearningManager:
                 "job_stats": job_stats.get("job_stats", {}) if isinstance(job_stats.get("job_stats"), dict) else {},
                 "job_count": _safe_int(jobs_index.get("job_count"), len(index_jobs)),
                 "filtered_job_count": len(filtered_jobs),
+                # REV-5: the list below is CUT to `limit`, and filtered_job_count is
+                # counted before the cut — so the headline stat read "127 runs" over
+                # a list of 50 with nothing saying so. A cap the user cannot see is
+                # indistinguishable from there being nothing more to see.
+                #
+                # Both numbers are emitted rather than one being "corrected":
+                # filtered_job_count is the honest answer to "how many runs match",
+                # which the stat should keep showing, and returned_job_count is the
+                # answer to "how many are in this payload". The card needs both to
+                # say "showing 50 of 127".
+                "returned_job_count": min(len(enriched_jobs), limit_value),
+                "jobs_truncated": len(enriched_jobs) > limit_value,
                 "filtered_room_count": len(filtered_rooms),
                 "filtered_room_profile_count": len(filtered_room_profiles),
                 "selected_room": selected_room,

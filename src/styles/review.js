@@ -47,6 +47,13 @@ export const reviewStyles = `
     line-height: 1.45;
   }
 
+  /* REV-5: the "showing N of M" note. Warning-toned rather than secondary — a
+     silent cap is exactly what the finding was about, so it must not read as
+     more muted prose under a subtitle that is already muted. */
+  .evcc-review-truncation-note {
+    color: var(--evcc-sem-warning);
+  }
+
   .evcc-review-stats,
   .evcc-review-filters {
     display: grid;

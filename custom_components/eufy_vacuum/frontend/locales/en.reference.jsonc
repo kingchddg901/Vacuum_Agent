@@ -1658,6 +1658,7 @@
     "room_fallback": "Room",
     "runs_empty": "No learning history jobs matched the current filters.",
     "runs_subtitle": "Newest first unless another sort is selected.",
+    "runs_truncated": "Showing {shown} of {total} matching runs — narrow the filters to see the rest.",
     "runs_title": "Runs",  // Section title: list of cleaning runs/jobs (the noun 'Runs', not the verb)
     "search_aria": "Search {label}",
     "search_placeholder": "Search…",

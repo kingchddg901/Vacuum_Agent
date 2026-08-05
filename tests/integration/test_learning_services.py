@@ -3483,3 +3483,32 @@ async def test_finalize_reports_error_seconds_by_source(hass, learning_services)
     assert by_source.get("dock") == 455
     assert by_source.get("robot") == 0
     assert by_source.get("unknown") == 0
+
+
+def test_review_payload_states_its_own_truncation(manager):
+    """[LS-REV5] REV-5: the list is cut to `limit`; the payload must say so.
+
+    filtered_job_count is counted BEFORE `enriched_jobs[:limit_value]`, so the
+    headline stat read "127 runs" over a list of 50 with nothing indicating the
+    cut. A cap the user cannot see is indistinguishable from there being nothing
+    more to see.
+
+    Both numbers are emitted rather than one being "corrected": filtered_job_count
+    remains the honest answer to "how many runs match" — which the stat should keep
+    showing — and returned_job_count answers "how many are in this payload".
+    """
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    learning = _get_learning_manager(manager.hass)
+    payload = learning.get_learning_history_snapshot(vacuum_entity_id=_VAC, limit=2)
+    summary = payload["summary"]
+
+    assert "returned_job_count" in summary, "the payload cannot state its own cut"
+    assert "jobs_truncated" in summary
+    assert summary["returned_job_count"] == len(payload["jobs"])
+    assert summary["returned_job_count"] <= summary["filtered_job_count"]
+    if summary["filtered_job_count"] > 2:
+        assert summary["jobs_truncated"] is True
+        assert summary["returned_job_count"] == 2
+    else:
+        assert summary["jobs_truncated"] is False

@@ -1025,7 +1025,8 @@
       "one": "1 error",
       "other": "{count} errores"
     },
-    "badge_errors_seconds": "{seconds}s en estado de error durante esta ejecución"
+    "badge_errors_seconds": "{seconds}s en estado de error durante esta ejecución",
+    "runs_truncated": "Mostrando {shown} de {total} ejecuciones coincidentes: acota los filtros para ver el resto."
   },
   "room_access": {
     "accessed_from_help": "La habitación que da acceso a esta habitación. Solo lectura; se configura desde el editor de la otra habitación.",

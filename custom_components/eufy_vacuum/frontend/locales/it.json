@@ -1015,7 +1015,8 @@
       "one": "1 errore",
       "other": "{count} errori"
     },
-    "badge_errors_seconds": "{seconds}s in stato di errore durante questa esecuzione"
+    "badge_errors_seconds": "{seconds}s in stato di errore durante questa esecuzione",
+    "runs_truncated": "Vengono mostrate {shown} di {total} esecuzioni corrispondenti: restringi i filtri per vedere le altre."
   },
   "room_access": {
     "accessed_from_help": "La stanza che concede l'accesso a questa stanza. Sola lettura — si imposta dall'editor dell'altra stanza.",

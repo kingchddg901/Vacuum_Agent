@@ -2121,7 +2121,8 @@
       "one": "שגיאה אחת",
       "other": "{count} שגיאות"
     },
-    "badge_errors_seconds": "{seconds} שניות במצב שגיאה במהלך ריצה זו"
+    "badge_errors_seconds": "{seconds} שניות במצב שגיאה במהלך ריצה זו",
+    "runs_truncated": "מוצגות {shown} מתוך {total} ריצות תואמות — צמצמו את המסננים כדי לראות את השאר."
   },
   "bind_maintenance": {
     "could_not_reset": "לא ניתן לאפס את {label}",

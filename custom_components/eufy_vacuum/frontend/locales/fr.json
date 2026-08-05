@@ -1025,7 +1025,8 @@
       "one": "1 erreur",
       "other": "{count} erreurs"
     },
-    "badge_errors_seconds": "{seconds}s passées en état d'erreur pendant ce nettoyage"
+    "badge_errors_seconds": "{seconds}s passées en état d'erreur pendant ce nettoyage",
+    "runs_truncated": "Affichage de {shown} nettoyages sur {total} correspondants — affinez les filtres pour voir le reste."
   },
   "room_access": {
     "accessed_from_help": "La pièce qui donne accès à cette pièce. En lecture seule — défini depuis l'éditeur de l'autre pièce.",

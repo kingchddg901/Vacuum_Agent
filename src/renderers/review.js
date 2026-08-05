@@ -123,6 +123,12 @@ export function applyReviewRenderers(proto) {
               <div>
                 <div class="evcc-review-panel-title">${this.t("review.runs_title")}</div>
                 <div class="evcc-review-panel-subtitle">${this.t("review.runs_subtitle")}</div>
+                ${summary?.jobs_truncated === true ? `
+                  <div class="evcc-review-panel-subtitle evcc-review-truncation-note">${this.t("review.runs_truncated", {
+                    shown: Number(summary?.returned_job_count ?? jobs.length),
+                    total: Number(summary?.filtered_job_count ?? 0),
+                  })}</div>
+                ` : ""}
               </div>
             </div>
 

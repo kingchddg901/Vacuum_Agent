@@ -1365,7 +1365,8 @@
       "one": "1 hata",
       "other": "{count} hata"
     },
-    "badge_errors_seconds": "Bu çalıştırma sırasında {seconds}s hata durumunda geçirildi"
+    "badge_errors_seconds": "Bu çalıştırma sırasında {seconds}s hata durumunda geçirildi",
+    "runs_truncated": "Eşleşen {total} çalıştırmadan {shown} tanesi gösteriliyor — geri kalanını görmek için filtreleri daraltın."
   },
   "rooms": {
     "access_not_set": "Erişim ayarlanmadı",

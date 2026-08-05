@@ -2034,7 +2034,8 @@
       "one": "エラー 1 件",
       "other": "エラー {count} 件"
     },
-    "badge_errors_seconds": "この掃除中にエラー状態だった時間: {seconds} 秒"
+    "badge_errors_seconds": "この掃除中にエラー状態だった時間: {seconds} 秒",
+    "runs_truncated": "該当する {total} 件のうち {shown} 件を表示しています。残りを見るにはフィルターを絞り込んでください。"
   },
   "bind_maintenance": {
     "could_not_reset": "{label}をリセットできませんでした",

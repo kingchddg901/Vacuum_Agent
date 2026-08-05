@@ -1013,7 +1013,8 @@
       "one": "1 fout",
       "other": "{count} fouten"
     },
-    "badge_errors_seconds": "{seconds}s in een foutstatus tijdens deze run"
+    "badge_errors_seconds": "{seconds}s in een foutstatus tijdens deze run",
+    "runs_truncated": "{shown} van {total} overeenkomende runs weergegeven — verfijn de filters om de rest te zien."
   },
   "room_access": {
     "accessed_from_help": "De kamer die toegang verleent tot deze kamer. Alleen-lezen — stel in vanuit de editor van de andere kamer.",
