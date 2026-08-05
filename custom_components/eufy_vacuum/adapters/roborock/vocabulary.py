@@ -145,7 +145,23 @@ ROOM_PROFILES: dict[str, dict] = {
         "water_level": "medium",
         "path_type": "narrow",
         "clean_passes": 2,
-        "edge_mopping": True,
+        # The adapter used to contradict itself here: this was the only one of the
+        # five profiles in this file requesting edge_mopping, while adapter.py
+        # declares supports_edge_mopping False brand-wide (:179 and :610). A
+        # profile asking for a capability its own adapter says does not exist.
+        #
+        # WHAT WAS DELIBERATELY NOT DONE, because the obvious reading is backwards:
+        # do NOT gate the card on supports_edge_mopping. That flag is a HARDCODED
+        # brand-wide literal with no model gating — unlike the Eufy adapter, which
+        # asks `model_family in {...}` for its per-model capabilities — so it is a
+        # per-model fact frozen at brand level. Gating on it would hide the control
+        # on EVERY Roborock, including models that can edge mop. Chris's S6 cannot;
+        # that is a model fact, not a brand fact.
+        #
+        # So the declaration stays False and the request goes away, which is the
+        # Q12 precedent: unsupported and unsurfaced until independently verified,
+        # then add a real per-model declaration rather than widening a guess.
+        "edge_mopping": False,
         "mop_required": True,
     },
 }

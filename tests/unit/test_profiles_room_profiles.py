@@ -354,3 +354,45 @@ def test_normalize_floor_type_keeps_granite_and_concrete():
         assert _normalize_floor_type(ft) == ft
     assert _normalize_floor_type("carpet") == "carpet_low_pile"   # legacy migration kept
     assert _normalize_floor_type("bogus") == "hardwood"           # unknown -> default
+
+
+def test_roborock_profiles_never_request_an_undeclared_capability():
+    """[RP-EDGE-1] no Roborock room profile may request edge_mopping while the
+    adapter declares supports_edge_mopping False.
+
+    vacuum_mop_deep used to be the only one of the five profiles in that file
+    asking for it, against a brand-wide False in adapter.py (:179 and :610) —
+    the adapter contradicting itself, requesting a capability it declares absent.
+
+    Pins the AGREEMENT, not the literal: re-declaring the capability per model
+    (the eventual fix for a Roborock that CAN edge mop) makes the profile legal
+    again automatically, instead of tripping a test that hard-coded False.
+
+    Deliberately NOT asserted: that the card hides the control. Gating the UI on
+    supports_edge_mopping would hide it on EVERY Roborock, including models that
+    can do it — the flag is a hardcoded brand-wide literal with no model gating,
+    unlike the Eufy adapter's `model_family in {...}` per-model checks.
+    """
+    import re
+    from pathlib import Path
+
+    from custom_components.eufy_vacuum.adapters.roborock.vocabulary import ROOM_PROFILES
+
+    adapter_src = (
+        Path(__file__).resolve().parents[2]
+        / "custom_components" / "eufy_vacuum" / "adapters" / "roborock" / "adapter.py"
+    ).read_text(encoding="utf-8")
+
+    declarations = re.findall(r'"supports_edge_mopping":\s*(True|False)', adapter_src)
+    assert declarations, "the adapter no longer declares supports_edge_mopping at all"
+
+    requesting = sorted(
+        name for name, cfg in ROOM_PROFILES.items()
+        if isinstance(cfg, dict) and cfg.get("edge_mopping") is True
+    )
+
+    if all(value == "False" for value in declarations):
+        assert requesting == [], (
+            "these profiles request edge_mopping while every adapter declaration "
+            f"says it is absent: {requesting}"
+        )
