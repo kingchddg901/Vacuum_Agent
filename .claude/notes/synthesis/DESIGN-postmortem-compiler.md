@@ -73,7 +73,7 @@ merged root cause), each event carrying provenance.
   "event_id": "EV-RF36-004",
   "chain": "RF-36/RAB-3",
   "type": "test_result",           // see closed vocabulary below
-  "at": "2026-08-02T…",            // from the artifact, never invented
+  "at": "2026-08-02T23:04:45-07:00", // DERIVED from an artifact timestamp, never invented
   "claim": "Four unit tests failed: arithmetic in the ring accumulator assumed a total numeric battery value.",
   "provenance": [                   // ≥1 REQUIRED, or the event is 'asserted:uncited'
     {"kind": "commit",  "ref": "623372a", "quote": "…"},
@@ -97,6 +97,26 @@ designs) · `superseded`.
 
 Each chain ends with an **invariant field**: the one sentence that should survive after
 everyone forgets the details. Machine-proposed, Chris-adjudicated, never auto-published.
+
+**The time rule (Chris, 2026-08-04): never infer duration from work volume — reconstruct
+it from timestamps in one declared timezone.** "This was a lot of work, so it took days"
+and "one commit, so it was quick" are both forbidden inferences; the corpus itself proves
+volume and duration decouple (an 8-agent audit = ~30 wall minutes; one two-line fix can
+gate on a hardware run for days). Mechanically:
+
+- **Declared timezone: America/Los_Angeles** (the commit log's own offset). Extractors
+  store every timestamp as ISO-8601 with offset exactly as the artifact states it;
+  rendering normalizes to the declared zone. Mixed-zone arithmetic is a lint failure.
+- **The clock sources, in trust order:** git commits (committer date = when it LANDED;
+  author date = when it was WRITTEN — they differ under amend/rebase, and landing events
+  use committer date) · run/capture ids that embed timestamps (pj_2026-08-02T23-04-45)
+  · frozen-artifact digests' recorded times · file mtimes (weakest — mtime moves on
+  copy; admissible only when nothing better exists, and marked as such).
+- **`at` is derived-only:** every event's time must be computable from one of its
+  provenance entries. An event with no timestamped artifact gets `at: null` — visibly
+  undated, never plausibly dated. Duration claims in rendered prose ("took three days",
+  "later that night", "within 72 hours") are causal-connective-class statements: the
+  S4 lint requires each to resolve to a timestamp pair from the graph.
 
 ## 3. The causal edges — the layer that currently lives only in heads
 
