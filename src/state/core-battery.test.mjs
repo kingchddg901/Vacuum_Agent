@@ -8,6 +8,8 @@
 //   [BAT-3] battery unavailable (null) -> good; charging still wins over null level
 //   [BAT-4] end-to-end through real isCharging()/batteryLevel() reading stubbed hass
 //   [BAT-5] non-finite / edge battery_level values fall through to null -> good
+//   [BAT-6] HA REMOVED battery_level from vacuum entities — fall back to
+//           sensor.<vacuum>_battery, and prefer the attribute when it exists
 // Run: node --test src/state/core-battery.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -96,4 +98,57 @@ test("[BAT-5] non-finite / stringy battery levels resolve via batteryLevel() the
   // Fractional boundary just below 15 is still low; just above is warn.
   assert.equal(makeBanded({ level: 15.0 }).batteryState(), "low");
   assert.equal(makeBanded({ level: 15.01 }).batteryState(), "warn");
+});
+
+// --- [BAT-6] the HA breaking change -----------------------------------------
+// Home Assistant deprecated then REMOVED `battery_level` from vacuum entities;
+// battery moved to its own sensor.<vacuum>_battery. Verified on HA 2026.7.4:
+// vacuum.alfred exposes no battery_level while sensor.alfred_battery reads 100.
+//
+// Nothing failed loudly. batteryLevel() returned null, every consumer treated it
+// as "unknown", and the header battery just stopped rendering — noticed months
+// later as a MISSING FEATURE rather than a regression, which is what a silent
+// upstream removal looks like from the outside.
+
+function makeModern({ batteryAttr, batterySensor, chargingState = "off" } = {}) {
+  const proto = {};
+  applyCoreState(proto);
+  const card = Object.create(proto);
+  card.config = { vacuum_entity_id: "vacuum.alfred" };
+  const states = {
+    "binary_sensor.alfred_charging": { state: chargingState },
+    "vacuum.alfred": { attributes: batteryAttr === undefined ? {} : { battery_level: batteryAttr } },
+  };
+  if (batterySensor !== undefined) states["sensor.alfred_battery"] = { state: batterySensor };
+  card.hass = { states };
+  return card;
+}
+
+test("[BAT-6] falls back to sensor.<vacuum>_battery when the attribute is gone", () => {
+  // The live shape on HA 2026.7.4: no attribute, sensor present.
+  const card = makeModern({ batterySensor: "42" });
+  assert.equal(card.batteryLevel(), 42);
+  assert.equal(card.batteryState(), "mid", "and the banding works off it");
+});
+
+test("[BAT-6] the attribute still WINS when present", () => {
+  // Additive by construction: an install where the attribute survives resolves
+  // exactly as before, so this can only rescue a broken case and never alter a
+  // working one.
+  const card = makeModern({ batteryAttr: 88, batterySensor: "42" });
+  assert.equal(card.batteryLevel(), 88);
+});
+
+test("[BAT-6] neither source available is still null, not zero", () => {
+  // null means "unknown" and banding answers "good"; 0 would mean "flat" and
+  // read as an emergency. Absent must never become a value.
+  const card = makeModern({});
+  assert.equal(card.batteryLevel(), null);
+});
+
+test("[BAT-6] an unavailable sensor does not become a number", () => {
+  for (const bad of ["unavailable", "unknown", "", "n/a"]) {
+    const card = makeModern({ batterySensor: bad });
+    assert.equal(card.batteryLevel(), null, `sensor state ${JSON.stringify(bad)}`);
+  }
 });

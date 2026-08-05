@@ -83,9 +83,40 @@ export function applyCoreState(proto) {
 
   /** @returns {number|null} current battery level (0–100), or null */
   proto.batteryLevel = function () {
+    // The vacuum entity's `battery_level` attribute FIRST, so any install where
+    // it still exists resolves exactly as before and this can only rescue, never
+    // change, a working case.
     const raw = this.vacuumAttrs()?.battery_level;
     const n   = Number(raw);
-    return Number.isFinite(n) ? n : null;
+    if (Number.isFinite(n)) return n;
+
+    // Home Assistant DEPRECATED AND REMOVED battery_level from vacuum entities;
+    // battery now lives on its own `sensor.<vacuum>_battery` (device_class
+    // battery). Verified on HA 2026.7.4: vacuum.alfred exposes no battery_level
+    // at all, while sensor.alfred_battery reads 100.
+    //
+    // Nothing failed loudly when that happened — this returned null, every
+    // consumer treated it as "unknown", and the header battery simply stopped
+    // rendering. Chris noticed it as a MISSING FEATURE ("such a normal thing
+    // I've never noticed it's missing"), which is what a silent upstream
+    // removal looks like from the outside.
+    //
+    // isCharging() below already reads binary_sensor.<vacuum>_charging, so the
+    // separate-entity pattern was known here; battery just never got the same
+    // treatment. The shorter copy at the neighbouring seam.
+    const objectId = this.vacuumObjectId();
+    if (!objectId) return null;
+    const raw2 = this.stateOf(`sensor.${objectId}_battery`);
+    // The non-value check MUST precede Number(): Number("") is 0, and 0 is
+    // finite, so an empty or missing state would read as a FLAT battery rather
+    // than an unknown one — "good" becomes "emergency" with no data behind it.
+    // Third occurrence of this exact trap in one session (REV-6, CENSUS-6);
+    // caught here by [BAT-6] rather than in the field.
+    if (raw2 == null || raw2 === "" || raw2 === "unavailable" || raw2 === "unknown") {
+      return null;
+    }
+    const sensor = Number(raw2);
+    return Number.isFinite(sensor) ? sensor : null;
   };
 
   /**

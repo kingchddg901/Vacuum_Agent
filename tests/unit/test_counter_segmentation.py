@@ -9,7 +9,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from custom_components.eufy_vacuum.counter_segmentation import build_segments, segment_counters
+from custom_components.eufy_vacuum.counter_segmentation import (
+    build_segments,
+    find_candidates,
+    segment_counters,
+    select_active,
+)
 
 _BASE = datetime(2026, 6, 6, 21, 54, 0)
 
@@ -371,3 +376,124 @@ def test_segment_counters_long_freeze_boundary_lands_in_overhead():
     assert segs[1]["boundary"] == "wash_plateau"
     assert segs[1]["gap_before_s"] == 1200.0           # freeze -> overhead
     assert segs[1]["time_wall_s"] == 30.0              # room B's own span, not inflated
+
+
+# --------------------------------------------------------------------------
+# live:RECHARGE-ATTR-1 — a mid-job recharge is not a room boundary
+#
+# The robot runs flat, docks, charges, and resumes THE SAME room. The gap is
+# therefore INTERIOR to that room's work. Before this was classified, it read as
+# a wash_plateau (weight 4000, confident) and took a guaranteed slot under the
+# expected_rooms cap, displacing a real boundary and shifting every room label
+# after it. Proven on alfred job_2026-08-05T02-52-05.
+# --------------------------------------------------------------------------
+
+
+def _recharge_stream():
+    """One room, worked -> flat battery -> 20 min dock that CHARGES -> same room resumes."""
+    return [
+        _s(0, 0, 0, batt=30),
+        _s(30, 30, 1, batt=28), _s(60, 60, 2, batt=26), _s(90, 90, 3, batt=24),
+        # docked: cleaning_time frozen, battery climbing
+        _s(400, 90, 3, batt=42), _s(800, 90, 3, batt=60),
+        _s(1290, 120, 4, batt=68), _s(1320, 150, 5, batt=66),   # 1200 s gap, resumed
+    ]
+
+
+def test_recharge_dock_is_classified_apart_from_a_wash():
+    cands = find_candidates(_recharge_stream())
+    dock = [c for c in cands if c["gap_s"] == 1200.0]
+    assert len(dock) == 1
+    assert dock[0]["kind"] == "recharge_dock"
+    assert dock[0]["confident"] is False               # never wins a slot on confidence
+    assert dock[0]["batt_rise_pct"] == 44.0            # 24 -> 68, the discriminator
+
+
+def test_recharge_dock_never_becomes_a_boundary():
+    """Filtered in EVERY selection mode — including an explicit card toggle."""
+    samples = _recharge_stream()
+    cands = find_candidates(samples)
+    dock_id = next(c["id"] for c in cands if c["kind"] == "recharge_dock")
+    for kwargs in ({"expected_rooms": 4}, {"default": "all"}, {"active_ids": [dock_id]}):
+        active = select_active(cands, **kwargs)
+        assert all(c["kind"] != "recharge_dock" for c in active), kwargs
+
+
+def test_recharge_gap_stays_interior_and_is_carved_from_wall():
+    """The payoff: build_segments' existing stall carve already handles it correctly
+    once the gap is no longer promoted to a boundary."""
+    samples = _recharge_stream()
+    segs = build_segments(samples, select_active(find_candidates(samples), expected_rooms=1))
+    assert len(segs) == 1                              # ONE room, not two
+    assert segs[0]["time_active_s"] == 150.0           # counter never ticks while docked
+    assert segs[0]["area_delta_m2"] == 5.0
+    assert segs[0]["time_wall_s"] == 90.0              # 1290 s span minus the 1200 s dock
+
+
+def test_recharge_dock_does_not_displace_a_real_boundary():
+    """The live failure. Three real area_jump transitions plus a recharge dock, with only
+    expected_rooms - 1 = 3 slots. The dock must not take one of them."""
+    samples = [
+        _s(0, 0, 0, batt=40),
+        _s(30, 30, 2, batt=38), _s(60, 60, 4, batt=36),          # room A
+        _s(120, 90, 7, batt=34), _s(150, 120, 9, batt=32),       # room B (area jump)
+        _s(210, 150, 12, batt=12), _s(240, 180, 14, batt=10),    # room C (area jump)
+        # flat battery, dock and charge for 20 min, then room C RESUMES
+        _s(600, 180, 14, batt=35), _s(1000, 180, 14, batt=55),
+        _s(1440, 210, 16, batt=58),                              # 1200 s gap
+        _s(1500, 240, 19, batt=56), _s(1530, 270, 21, batt=54),  # room D (area jump)
+    ]
+    cands = find_candidates(samples)
+    assert any(c["kind"] == "recharge_dock" for c in cands)
+    active = select_active(cands, expected_rooms=4)
+    assert len(active) == 3
+    assert all(c["kind"] != "recharge_dock" for c in active)
+    segs = build_segments(samples, active)
+    assert len(segs) == 4                              # four rooms, four segments
+    # the dock sits INSIDE the third segment rather than splitting it
+    assert segs[2]["time_wall_s"] < 200.0
+
+
+def test_a_dock_that_did_not_charge_is_still_a_wash():
+    """Regression guard: duration alone must not reclassify a real mop wash. Same 1200 s
+    gap, battery flat across it -> unchanged behaviour."""
+    samples = [
+        _s(0, 0, 0, batt=80),
+        _s(30, 30, 1, batt=79), _s(60, 60, 2, batt=78), _s(90, 90, 3, batt=77),
+        _s(400, 90, 3, batt=77), _s(800, 90, 3, batt=77),        # docked, NOT charging
+        _s(1290, 120, 4, batt=76), _s(1320, 150, 5, batt=75),
+    ]
+    segs = segment_counters(samples)
+    assert len(segs) == 2
+    assert segs[1]["boundary"] == "wash_plateau"
+
+
+def test_recharge_needs_BOTH_a_long_gap_and_a_real_rise():
+    """A short gap that charged, and a long gap that barely charged, are both NOT recharges."""
+    charged_but_brief = [
+        _s(0, 0, 0, batt=20),
+        _s(30, 30, 1, batt=19), _s(60, 60, 2, batt=18),
+        _s(180, 90, 3, batt=44), _s(210, 120, 4, batt=43),       # 120 s gap, +26%
+    ]
+    assert all(c["kind"] != "recharge_dock" for c in find_candidates(charged_but_brief))
+
+    long_but_trickle = [
+        _s(0, 0, 0, batt=50),
+        _s(30, 30, 1, batt=49), _s(60, 60, 2, batt=48),
+        _s(1260, 90, 3, batt=50), _s(1290, 120, 4, batt=49),     # 1200 s gap, only +2%
+    ]
+    assert all(c["kind"] != "recharge_dock" for c in find_candidates(long_but_trickle))
+
+
+def test_recharge_check_abstains_when_the_stream_has_no_battery():
+    """No battery reading -> the question was not asked, and classification is exactly what
+    it was before the signal existed. Absent data must never silently reclassify history."""
+    samples = [
+        {"t": s["t"], "cleaning_time": s["cleaning_time"], "cleaning_area": s["cleaning_area"]}
+        for s in _recharge_stream()
+    ]
+    cands = find_candidates(samples)
+    dock = [c for c in cands if c["gap_s"] == 1200.0]
+    assert len(dock) == 1
+    assert dock[0]["kind"] == "wash_plateau"           # unchanged, fail-open
+    assert dock[0]["batt_rise_pct"] is None

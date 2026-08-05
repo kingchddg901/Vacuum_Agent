@@ -201,3 +201,66 @@ cautionary tale for three traps that compound:
 
   Otherwise prefer `>=` / presence checks (gotcha 2). `pytest tests; pytest tests`
   in one container is the cheap check for this whole class of re-run flake.
+
+## 12. `Number.isFinite` does NOT prove a value was present — `Number("")` is `0`
+
+JavaScript coerces several *absent-ish* values to `0`, and `0` is finite. So the
+common shape
+
+```js
+const n = Number(raw);
+return Number.isFinite(n) ? n : null;   // WRONG for null / "" / [] / false
+```
+
+silently turns **missing data into a real reading of zero**. The coercion table is
+the trap, because it is not consistent:
+
+| input        | `Number(input)` | passes `isFinite`? |
+|--------------|-----------------|--------------------|
+| `null`       | `0`             | **yes** ← absent becomes zero |
+| `""`         | `0`             | **yes** ← absent becomes zero |
+| `"   "`      | `0`             | **yes** |
+| `[]`         | `0`             | **yes** |
+| `false`      | `0`             | **yes** |
+| `undefined`  | `NaN`           | no  |
+| `"unknown"`  | `NaN`           | no  |
+
+`undefined` and `"unavailable"` are caught; `null` and `""` are not. Code that
+looks tested because it handles `"unavailable"` still lets `null` through.
+
+**Why it matters more than a wrong number.** Zero is rarely a neutral value in
+this domain — it is usually an *alarming* one. A battery of `null` means unknown;
+a battery of `0` means flat. An `attention_count` of `null` means "not computed";
+`0` means "all clear". The bug does not produce nonsense you would notice, it
+produces a confident, plausible, wrong answer.
+
+**The rule: check for the non-value BEFORE coercing.**
+
+```js
+if (raw == null || raw === "" || raw === "unavailable" || raw === "unknown") {
+  return null;
+}
+const n = Number(raw);
+return Number.isFinite(n) ? n : null;
+```
+
+(`raw == null` with `==` is deliberate — it catches `null` and `undefined` both.)
+
+**Testing it.** A test that only feeds `"unavailable"` and a good value will pass
+against the broken form. The case that bites must be in the table:
+
+```js
+for (const bad of [null, "", "   ", "unavailable", "unknown"]) {
+  assert.equal(readValue(bad), null, `input ${JSON.stringify(bad)}`);
+}
+```
+
+**This has happened three times in one session** (REV-6, an absent battery
+rendered as "Battery 0"; CENSUS-6, `Number(attention_count)` with `null`;
+BAT-6, an empty `sensor.<vacuum>_battery` state reading as a flat battery). Two
+were caught by tests written for the *same* fix minutes earlier, which is the
+argument for the loop above rather than a single happy-path case.
+
+The Python equivalent is milder but real: `float(None)` raises, but
+`_safe_float(value, 0.0)` returns the default and is indistinguishable from a
+genuine `0.0`. Prefer a `None` default and let the caller decide.

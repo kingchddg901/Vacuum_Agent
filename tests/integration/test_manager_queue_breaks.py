@@ -262,6 +262,44 @@ async def test_get_queue_steps_exposes_raw_breaks(manager):
     assert entry["step"]["target_battery_percent"] == 90
 
 
+async def test_get_queue_steps_names_its_rooms(manager):
+    """live:QUEUE-READ-1. get_queue_steps could describe the queue's STRUCTURE but its
+    rooms were `{"room_id": N}` and nothing else, so rendering the live plan needed a
+    second service (get_queue_state) that in turn could not see the breaks at all — two
+    services each half-answering "what is queued". build_queue_from_managed_rooms
+    already resolves this metadata; it was being discarded."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    manager.add_queue_break(
+        vacuum_entity_id=_VAC, map_id=_MAP, break_type="wait", after_index=1, wait_minutes=2
+    )
+    res = manager.get_queue_steps(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert [s["type"] for s in res["steps"]] == ["room_group", "wait", "room_group"]
+
+    rooms = [r for s in res["steps"] if s["type"] == "room_group" for r in s["rooms"]]
+    assert len(rooms) == 3
+    for room in rooms:
+        # room_id stays first and unchanged — existing consumers are unaffected.
+        assert isinstance(room["room_id"], int) and room["room_id"] > 0
+        assert set(room) == {"room_id", "name", "slug", "order", "profile_name"}
+        assert room["name"]
+        # slug/profile_name are passed through verbatim from the managed room — a room
+        # that has never stored one reads None rather than a fabricated value, so the
+        # contract is "the key is always present", not "it is always populated".
+    # order is the QUEUE order, so the plan can be rendered without a second lookup
+    assert [r["order"] for r in rooms] == sorted(r["order"] for r in rooms)
+
+
+async def test_queue_step_room_ids_still_match_the_id_only_sibling(manager):
+    """The id-only helper is now DERIVED from the metadata one, so the two cannot
+    disagree about order — which is the failure mode that made two backings diverge
+    in the first place."""
+    setup_map(manager, _VAC, _MAP, count=3)
+    bucket = manager.data["maps"][_VAC][_MAP]
+    assert manager._enabled_room_ids_in_order(bucket, _VAC, _MAP) == [
+        r["room_id"] for r in manager._enabled_rooms_in_order(bucket, _VAC, _MAP)
+    ]
+
+
 async def test_add_queue_zone_inserts_between_rooms(manager):
     """[ZP-1] A zone step slots between rooms like a break, but is a clean action."""
     setup_map(manager, _VAC, _MAP, count=3)

@@ -70,6 +70,42 @@ def _room_baseline_key(map_id: Any, slug: Any) -> str:
     return f"{_safe_int(map_id, 0)}::{str(slug or '').strip().lower()}"
 
 
+def _captured_minutes(timing: dict[str, Any]) -> float:
+    """The room's learned minutes from a captured timing row.
+
+    live:PHASE-ATTR-3. This used to read ``cleaning_wall_seconds``, and that field
+    has TWO fenceposts depending on which code path produced the row:
+
+      boundary="phase"      wall spans the phase, so it INCLUDES the approach
+      boundary=<segmenter>  wall opens at the first counter increment, so it LOSES
+                            whatever accrued before that tick
+
+    Measured on Kitchen, n=37, same room, same house: the phase path runs ~22 s
+    LONGER than the counter and the segmenter path ~30 s SHORTER — about 52 s apart
+    on a ~120 s room, roughly 43%. Both populations fed ONE rolling average, so the
+    room's learned time drifted with how it happened to be dispatched while the robot
+    did exactly the same thing. A rolling average cannot defend against that: it is
+    indistinguishable from genuine change, and confidence keeps climbing.
+
+    ``cleaning_seconds`` has no such split. The device only advances cleaning_time in
+    the room it is cleaning, so approach and drive-home are excluded BY THE DEVICE
+    rather than by our arithmetic — and it measured identically (120 s) on both paths
+    for the same room, reconciling exactly against the recorder on all four
+    observations of 2026-08-04.
+
+    Wall is not useless, it is the wrong PER-ROOM signal: job duration genuinely needs
+    transit, and that is already modelled separately (overhead_observed,
+    transit_seconds, the card's Overhead breakdown). Wall was quietly doing both jobs.
+
+    Falls back to wall ONLY for records written before cleaning_seconds existed, where
+    it is the sole answer available — a stale convention beats no measurement.
+    """
+    cleaning = _safe_float(timing.get("cleaning_seconds"), 0.0)
+    if cleaning > 0.0:
+        return cleaning / 60.0
+    return _safe_float(timing.get("cleaning_wall_seconds"), 0.0) / 60.0
+
+
 def _stddev(values: list[float]) -> float:
     """Return population standard deviation of a list of floats."""
     n = len(values)
@@ -485,7 +521,7 @@ class LearningStatsRebuilder:
                             allocated_rids.add(_rid)
                         captured[_rid] = (
                             _safe_float(_rt.get("area_m2"), 0.0),
-                            _safe_float(_rt.get("cleaning_wall_seconds"), 0.0) / 60.0,
+                            _captured_minutes(_rt),
                         )
 
             for room in rooms:
@@ -851,7 +887,15 @@ class LearningStatsRebuilder:
                 "room_baselines.by_clean_times / by_edge_mopping break the per-room average out "
                 "by setting (1 vs 2 passes; edge mop on vs off), each carrying a minutes_min/max/"
                 "stddev band so a consumer can match within variance, not against a point mean. "
-                "All stats are learning-jobs-only (bad runs excluded). Area is not bucketed."
+                "All stats are learning-jobs-only (bad runs excluded). Area is not bucketed. "
+                "CONSUMED BY estimator._relaxed_setting_scale: when _find_room_match has to "
+                "relax across clean_passes or edge_mopping it returns another setting's "
+                "avg_minutes, and clean_times DOMINATES room time (2 passes is about 2x 1 pass), "
+                "so the match is scaled onto the requested settings before use. These buckets "
+                "are where that ratio is measured — the room's own first, then the median "
+                "across rooms carrying both, then a linear-in-passes prior. They are therefore "
+                "an ESTIMATOR INPUT, not a reporting extra: dropping them would silently return "
+                "the estimator to using a 1-pass number for a 2-pass room."
             ),
             "transit_note": (
                 "transit_stats / access_graph_edges hold per room-pair travel time aggregated "

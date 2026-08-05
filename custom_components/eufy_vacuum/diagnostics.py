@@ -329,6 +329,57 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _pattern_resolution(
+    hass: HomeAssistant, manager: Any, vacuum_entity_id: str
+) -> dict[str, Any]:
+    """Roles resolved from an adapter PATTERN rather than from entity_candidates.
+
+    live:ENT-2. ``entity_resolution`` above enumerates the adapter's DECLARED candidate
+    roles, and every one of them can resolve while the install still has a naming
+    mismatch — because the live-map camera is not a declared role. It comes from
+    ``mapping.live_map_image_entity_pattern``, which the census never looked at.
+
+    On the maintainer's own box that produced a diagnostic reading
+    ``{declared: 10, unresolved: [], likely_naming_mismatch: false}`` on an install
+    where ``camera.alfred_map`` does not exist and ``camera.dining_room_alfred_map``
+    does. Not wrong about what it measured — but a reader trusting the one-line verdict
+    would conclude the install is clean, which is the failure this whole diagnostic
+    exists to prevent.
+
+    Reports the DERIVATION's health specifically, separate from whether the feature
+    works: a manual override (or the ENT-2 device-sibling fallback) can make the live
+    map work while the derived id is still wrong, and that combination is exactly what
+    hid this for so long.
+    """
+    from .adapters.registry import get_adapter_config
+
+    out: dict[str, Any] = {}
+    config = get_adapter_config(vacuum_entity_id) or {}
+    pattern = (config.get("mapping") or {}).get("live_map_image_entity_pattern")
+    if not pattern:
+        return out
+    object_id = str(vacuum_entity_id).split(".", 1)[-1]
+    try:
+        # map_slug is per-map and diagnostics is map-agnostic; a pattern that uses it
+        # yields a partial id here, so only the SUFFIX comparison below is meaningful.
+        derived = str(pattern).format(object_id=object_id, map_slug="")
+    except (KeyError, IndexError, ValueError):
+        return out
+    try:
+        vac_record = (manager.data.get("vacuums", {}) or {}).get(vacuum_entity_id, {}) or {}
+    except Exception:  # pragma: no cover - defensive
+        vac_record = {}
+    override = vac_record.get("live_map_image_entity")
+    out["live_map_image"] = {
+        "pattern": str(pattern),
+        "derived": derived,
+        "derived_exists": bool(derived) and hass.states.get(derived) is not None,
+        "override": _redact(override) if override else None,
+        "override_exists": bool(override) and hass.states.get(override) is not None,
+    }
+    return out
+
+
 def _device_entity_census(hass: HomeAssistant, vacuum_entity_id: str) -> dict[str, Any]:
     """What the vacuum's DEVICE actually exposes, beside what the adapter derived.
 
@@ -426,13 +477,28 @@ def _vacuum_diagnostics(
     _unresolved = sorted(
         role for role, snap in entity_resolution.items() if not snap.get("exists")
     )
+    # live:ENT-2 — pattern-resolved roles are NOT in caps["entities"], so without this
+    # the verdict below is computed over the declared roles alone and can read
+    # "no naming mismatch" on an install whose only broken role is a pattern one.
+    out["pattern_resolution"] = _pattern_resolution(hass, manager, vacuum_entity_id)
+    _pattern_unresolved = sorted(
+        f"{role} (pattern)"
+        for role, info in out["pattern_resolution"].items()
+        if not info.get("derived_exists")
+    )
     _sibling_count = out["device_entities"].get("entity_count")
     out["entity_resolution_summary"] = {
-        "declared": len(entity_resolution),
-        "unresolved": _unresolved,
+        "declared": len(entity_resolution) + len(out["pattern_resolution"]),
+        # A pattern role appears here when its DERIVATION fails, even if an override or
+        # the device-sibling fallback makes the feature work — "the derived name is
+        # wrong" and "the feature is broken" are different facts, and conflating them is
+        # what let this hide behind a manual repair.
+        "unresolved": _unresolved + _pattern_unresolved,
         "device_entity_count": _sibling_count,
         "likely_naming_mismatch": bool(
-            _unresolved and isinstance(_sibling_count, int) and _sibling_count > 0
+            (_unresolved or _pattern_unresolved)
+            and isinstance(_sibling_count, int)
+            and _sibling_count > 0
         ),
     }
 

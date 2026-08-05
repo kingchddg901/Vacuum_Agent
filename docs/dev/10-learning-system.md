@@ -206,6 +206,40 @@ Because area is settings-invariant (a room's floor area doesn't change with mode
 
 Each bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes_stddev, avg_battery_used}` — the min/max/stddev band lets a consumer match *within variance* rather than against a brittle point mean. All stats are **learning-jobs-only** (cancelled / failed / sanity-blocked runs are excluded before aggregation, so a bad run never skews a bucket). The full per-room average is retained; the buckets are **additive**, so a consumer can match a job's settings (e.g. a 2-pass, edge-mop run) to the right sub-average. Area is intentionally **not** bucketed — a room's floor area does not change with passes or edge mopping.
 
+#### Who reads them: `_relaxed_setting_scale`
+
+These buckets are an **estimator input**, not a reporting extra. `_find_room_match`
+keeps `clean_passes` and `edge_mopping` longest in its relaxation ladder precisely
+because they move duration the most — but when it finally *has* to relax (no history
+at the requested pass count), it returns another setting's `avg_minutes`. Used at face
+value that is roughly **half** the truth for a 2-pass room matched on 1-pass history,
+and it is the same number `_timing_completion_threshold_minutes` rolls the live room
+on, so the card struck rooms out about a third of the way through.
+
+`estimator._relaxed_setting_scale` closes that by scaling the relaxed match onto the
+requested settings, in strict precedence:
+
+1. **This room's own measured ratio** from its buckets — a setting's effect is partly a
+   property of the room, since a cluttered room loses more to a second pass than an
+   open one.
+2. **The median ratio across every room that has both buckets** — a real measurement of
+   this house's robot on this profile, which a constant never is. Median, not mean, so
+   one partial run cannot drag it.
+3. **A linear-in-passes prior** (`want / got`) — a pass is another full sweep of the
+   same floor, so N passes is about N times the work once approach and egress are
+   excluded, which the switch to `cleaning_seconds` guarantees.
+
+A ratio needs at least 2 samples on **both** sides and is clamped to `[0.25, 4.0]`; an
+unmeasurable ratio returns `None` rather than a confident `1.0`. **Edge mopping gets no
+prior** — a perimeter pass is additive, not proportional, so an unmeasured edge
+difference leaves the estimate alone. `minutes_stddev` scales with the mean so the
+coefficient of variation is preserved and a relaxed match cannot earn *more* confidence
+than the exact one it stood in for.
+
+Applied at both consumers — `estimator.build_job_estimate` and
+`manager.get_room_learning_estimates` (the dashboard's per-room panel) — so the job
+estimate and the card cannot disagree about the same room.
+
 **Water metrics in `room_baselines`:** Paralleling `room_stats`, each baseline also carries `avg_robot_water_used_ml`, `avg_water_overhead_ml`, and `avg_total_water_used_ml` (all rounded to 2 dp).
 
 **Carpet counts in `room_baselines`:** The baseline holds `carpet_true_count` (runs on carpet) and `carpet_false_count` (runs on hard floor) — a tally of runs per surface type. Effective modes are tracked as a dict `{mode: count}` (keyed by mode, incremented once per run).

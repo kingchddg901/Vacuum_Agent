@@ -2507,6 +2507,7 @@ class LearningManager:
         """
         from ..learning.estimator import (
             _find_room_match,
+            _relaxed_setting_scale,
             _score_room_confidence,
             _confidence_result,
             _learning_velocity,
@@ -2588,6 +2589,25 @@ class LearningManager:
                     )
                     sample_count = _safe_int(match.get("sample_count"), 0)
                     minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
+                    # SIBLING of the estimator's relaxed-setting scale, and the same
+                    # reasoning as the guard above: clean_times dominates room time, so
+                    # a match found at another pass count is roughly half (or double)
+                    # the truth. Fixing only the estimator would leave THIS path — the
+                    # dashboard's per-room panel — showing the unscaled number, so the
+                    # card and the job estimate would disagree about the same room.
+                    if _timing_n > 0:
+                        setting_scale = _relaxed_setting_scale(
+                            baselines=(room_stats_data or {}).get("room_baselines", []),
+                            map_id=map_id_int,
+                            slug=slug,
+                            want_passes=clean_passes,
+                            got_passes=_safe_int(match.get("clean_times"), clean_passes),
+                            want_edge=edge_mopping,
+                            got_edge=bool(match.get("edge_mopping", False)),
+                        )
+                        if setting_scale != 1.0:
+                            minutes = round(minutes * setting_scale, 2)
+                            minutes_stddev = round(minutes_stddev * setting_scale, 4)
                     source = "learned" if _timing_n > 0 else "default"
                     room_key = _room_key(
                         map_id_int, slug, clean_mode, clean_passes, is_carpet, clean_intensity, edge_mopping

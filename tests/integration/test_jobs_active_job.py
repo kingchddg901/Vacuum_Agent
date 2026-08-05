@@ -399,6 +399,119 @@ def test_recharge_started_persists(tracker, manager):
 # recharge state machine
 # ---------------------------------------------------------------------------
 
+def _pose_at(seconds_ago: float, room: int | None) -> dict:
+    from datetime import datetime, timedelta, timezone
+    return {
+        "t": (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat(),
+        "current_room": room,
+    }
+
+
+def test_pose_veto_survives_a_boundary_flicker(tracker):
+    """live:ROOM-FLICKER-1, with the run's real numbers. A double-pass profile sweeps
+    perpendicular to the shared wall, so it crosses repeatedly: excursions of 2 s, 2 s
+    and 12 s against dwells of 94 s and 162 s. The robot is in Entryway (8); a 2 s dip
+    into Home Office (9) must not let timing concede the room."""
+    job = {"pose_samples": [
+        _pose_at(18, 8), _pose_at(16, 8), _pose_at(14, 9), _pose_at(12, 9),   # 2 s excursion
+        _pose_at(10, 8), _pose_at(8, 8), _pose_at(6, 8), _pose_at(4, 8), _pose_at(2, 8),
+    ]}
+    assert tracker._pose_says_still_in_room(job, 8) is True
+
+
+def test_pose_veto_releases_after_a_genuine_departure(tracker):
+    """Absent for the WHOLE dwell window — a real exit, so timing may advance. One
+    window late is the deliberate cost of not conceding a room on a 2 s blip."""
+    job = {"pose_samples": [
+        _pose_at(60, 8), _pose_at(40, 8),
+        _pose_at(18, 9), _pose_at(12, 9), _pose_at(6, 9), _pose_at(1, 9),
+    ]}
+    assert tracker._pose_says_still_in_room(job, 8) is False
+
+
+def test_pose_veto_fails_open(tracker):
+    """No pose, no timestamps, or a buffer that stopped arriving must all behave exactly
+    as before the guard existed. A veto that can permanently stall the queue would be
+    worse than the flicker it prevents."""
+    assert tracker._pose_says_still_in_room({}, 8) is False
+    assert tracker._pose_says_still_in_room({"pose_samples": []}, 8) is False
+    assert tracker._pose_says_still_in_room({"pose_samples": [{"t": "nonsense"}]}, 8) is False
+    assert tracker._pose_says_still_in_room({"pose_samples": [_pose_at(2, 8)]}, None) is False
+    # sampler died 10 minutes ago, robot still nominally "in" room 8
+    stale = {"pose_samples": [_pose_at(700, 8), _pose_at(620, 8)]}
+    assert tracker._pose_says_still_in_room(stale, 8) is False
+
+
+def test_pose_veto_ignores_docked_ticks(tracker):
+    """current_room=None means docked / off-raster — it says nothing about which room,
+    so it must neither hold the veto open nor release it."""
+    job = {"pose_samples": [_pose_at(18, 8), _pose_at(12, None), _pose_at(6, None), _pose_at(2, None)]}
+    assert tracker._pose_says_still_in_room(job, 8) is True     # room 8 still inside the window
+    job2 = {"pose_samples": [_pose_at(18, None), _pose_at(12, None), _pose_at(2, None)]}
+    assert tracker._pose_says_still_in_room(job2, 8) is False   # nothing says it is here
+
+
+def test_seed_counter_baseline_records_the_floor(hass, tracker, monkeypatch):
+    """live:PHASE-ATTR-1 (first-phase half). Counter samples only land when a counter
+    CHANGES, so the opening phase had no floor and its first increment was credited to
+    nothing — kitchen measured 90 s / 1 m² against a recorder-verified 120 s / 2 m².
+    Seeding at job start measures the floor instead of guessing it."""
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.jobs.active_job._get_adapter_config",
+        lambda _v: {"entities": {"cleaning_time": "sensor.ct", "cleaning_area": "sensor.ca"}},
+    )
+    hass.states.async_set("sensor.ct", "120", {"unit_of_measurement": "s"})
+    hass.states.async_set("sensor.ca", "2", {"unit_of_measurement": "m²"})
+    job = {"status": "started", "counter_samples": []}
+
+    assert tracker.seed_counter_baseline(
+        vacuum_entity_id=_VAC, active_job=job, observed_at="2026-01-01T09:00:00+00:00") is True
+    assert job["last_cleaning_time_seconds"] == 120
+    assert job["last_cleaning_area_m2"] == 2.0
+    assert len(job["counter_samples"]) == 1
+    assert job["counter_samples"][0]["cleaning_time"] == 120
+    assert job["counter_samples"][0]["cleaning_area"] == 2.0
+
+
+def test_seed_counter_baseline_normalizes_imperial_area(hass, tracker, monkeypatch):
+    """An imperial HA presents Eufy's cleaning_area in ft². The baseline has to be in the
+    SAME canonical m² the running samples use, or the very first delta is a unit error —
+    which is why this reuses cleaning_area_to_m2 instead of reading the raw state."""
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.jobs.active_job._get_adapter_config",
+        lambda _v: {"entities": {"cleaning_time": "sensor.ct", "cleaning_area": "sensor.ca"}},
+    )
+    hass.states.async_set("sensor.ct", "60", {"unit_of_measurement": "s"})
+    hass.states.async_set("sensor.ca", "21.53", {"unit_of_measurement": "ft²"})
+    job = {"status": "started", "counter_samples": []}
+
+    tracker.seed_counter_baseline(vacuum_entity_id=_VAC, active_job=job)
+    assert job["last_cleaning_area_m2"] == pytest.approx(2.0, abs=0.01)
+
+
+def test_seed_counter_baseline_no_counters_is_a_noop(hass, tracker, monkeypatch):
+    """An adapter that declares no counters (or whose sensors are unreadable) must not get
+    a fabricated zero floor — that is the live:AUDIT2-ZEROCOERCE shape, and a zero baseline
+    would re-credit a stale cumulative reading to the first room."""
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.jobs.active_job._get_adapter_config",
+        lambda _v: {"entities": {}},
+    )
+    job = {"status": "started", "counter_samples": []}
+    assert tracker.seed_counter_baseline(vacuum_entity_id=_VAC, active_job=job) is False
+    assert job["counter_samples"] == []
+    assert "last_cleaning_time_seconds" not in job
+
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.jobs.active_job._get_adapter_config",
+        lambda _v: {"entities": {"cleaning_time": "sensor.ct", "cleaning_area": "sensor.ca"}},
+    )
+    hass.states.async_set("sensor.ct", "unavailable")
+    hass.states.async_set("sensor.ca", "unknown")
+    assert tracker.seed_counter_baseline(vacuum_entity_id=_VAC, active_job=job) is False
+    assert job["counter_samples"] == []
+
+
 def test_recharge_low_battery_sets_pending(tracker, manager, monkeypatch):
     """[AJI-11] low-battery return arms pending; not charging yet → returns."""
     _seed(manager)
@@ -410,7 +523,13 @@ def test_recharge_low_battery_sets_pending(tracker, manager, monkeypatch):
 
 
 def test_recharge_starts_and_pauses(hass, tracker, manager, monkeypatch):
-    """[AJI-12] pending + charging + not yet observed → recharge begins, sampling pauses."""
+    """[AJI-12] pending + charging + not yet observed → recharge begins, sampling pauses.
+
+    live:RECHARGE-FLAG-2 CHANGED THE COUNT'S TIMING. Starting to charge at the dock
+    does not prove the trip was a recharge — the end-of-job return looks identical to
+    is_low_battery_return_state whenever the run happens to finish under the battery
+    threshold. The count therefore moved to resolve_mid_job_recharge_resumed, where
+    the robot going back to work proves it. Here it must still be 0."""
     _seed(manager)
     monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: True)
     monkeypatch.setattr(tracker, "_is_charging", lambda v: True)
@@ -420,9 +539,51 @@ def test_recharge_starts_and_pauses(hass, tracker, manager, monkeypatch):
     result = tracker.update_active_job_recharge_observation(
         vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
     assert result["observed_mid_job_recharge"] is True
-    assert result["observed_mid_job_recharge_count"] == 1
+    assert result["observed_mid_job_recharge_count"] == 0        # not yet proved
     assert result["pending_mid_job_recharge_return"] is False
     fake_tracker.pause_sampling.assert_called_once_with(_VAC)
+
+
+def test_terminal_dock_does_not_count_as_a_recharge(hass, tracker, manager, monkeypatch):
+    """live:RECHARGE-FLAG-2. A run that ENDS at low battery returns to dock and charges,
+    which satisfies is_low_battery_return_state in full — its generic arm is only
+    `returning` + battery <= threshold, and the battery gate exists to exclude a
+    FULL-battery return_to_base, not a job that simply finished while low.
+
+    Alfred finished its last room at 17% against a threshold of 20 and recorded
+    count=2 for one real recharge (job_2026-08-05T05-33-49). Without a resume there
+    must be no count at all."""
+    _seed(manager)
+    monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: True)
+    monkeypatch.setattr(tracker, "_is_charging", lambda v: True)
+    hass.data[DOMAIN]["mapping_tracker"] = MagicMock()
+
+    result = tracker.update_active_job_recharge_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    # The job finalizes here, still charging: resolve_mid_job_recharge_resumed never runs.
+    assert result["observed_mid_job_recharge_count"] == 0
+    assert result["recharge_seconds_accumulated"] == 0           # count and accum agree
+
+
+def test_recharge_count_and_accumulator_agree_by_construction(hass, tracker, manager, monkeypatch):
+    """live:RECHARGE-FLAG-2. Both are written by the SAME resume, so they cannot drift.
+    Their disagreement (count=2, accum=one recharge's worth) is what exposed the bug."""
+    _seed(
+        manager,
+        pending_mid_job_recharge_return=True,
+        observed_mid_job_recharge=True,
+        observed_mid_job_recharge_started_at="2026-01-01T09:00:00+00:00",
+        observed_mid_job_recharge_count=0,
+        recharge_seconds_accumulated=0,
+    )
+    monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
+    hass.data[DOMAIN]["mapping_tracker"] = MagicMock()
+
+    result = tracker.resolve_mid_job_recharge_resumed(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["observed_mid_job_recharge_count"] == 1
+    assert result["recharge_seconds_accumulated"] == 300
+    assert result["observed_mid_job_recharge"] is False
 
 
 def test_recharge_ends_accumulates(hass, tracker, manager, monkeypatch):

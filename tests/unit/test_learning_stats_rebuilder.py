@@ -10,6 +10,7 @@ import pytest
 from custom_components.eufy_vacuum.learning.stats_rebuilder import (
     LearningStatsRebuilder,
     _canonical_clean_mode,
+    _captured_minutes,
     _room_baseline_key,
     _room_key,
     _stddev,
@@ -1053,3 +1054,43 @@ def test_a_cleaning_phase_with_no_timing_is_a_capture_FAILURE():
     # Breaks and zones are genuinely valid-empty — unchanged.
     for break_type in ("wait", "charge_wait", "zone"):
         assert phase_capture_is_valid({"phase_type": break_type, "room_timing": []}) is True
+
+
+# ---------------------------------------------------------------------------
+# _captured_minutes — live:PHASE-ATTR-3
+#
+# The learned per-room minutes must not depend on which code path recorded the
+# room. Two wall conventions feeding one rolling average made a room's learned
+# time drift with dispatch habits while the robot did the same thing.
+# ---------------------------------------------------------------------------
+
+
+def test_captured_minutes_is_the_same_on_both_dispatch_paths():
+    """THE PROPERTY, stated as code. One room, one real 120 s of cleaning, recorded
+    by both paths with their own wall fenceposts — the phase path folds the approach
+    IN (142 s), the segmenter path opens at the first counter tick and loses it (75 s).
+    Measured on Kitchen across 37 runs. cleaning_seconds is identical on both."""
+    phase_row = {
+        "boundary": "phase", "cleaning_seconds": 120, "cleaning_wall_seconds": 142,
+    }
+    segmented_row = {
+        "boundary": "area_jump", "cleaning_seconds": 120, "cleaning_wall_seconds": 75,
+    }
+    assert _captured_minutes(phase_row) == _captured_minutes(segmented_row) == 2.0
+
+
+def test_captured_minutes_ignores_the_repeated_group_wall():
+    """An ALLOCATED row's cleaning_wall_seconds is the WHOLE group phase's wall,
+    repeated identically for every member — a 390 s two-room phase taught 6.5 min to
+    both. cleaning_seconds on that row is a genuine apportioned share."""
+    member = {"boundary": "phase", "allocated": True, "allocation_group_size": 2,
+              "cleaning_seconds": 195, "cleaning_wall_seconds": 390}
+    assert _captured_minutes(member) == 3.25          # its share, not the group's
+
+
+def test_captured_minutes_falls_back_to_wall_only_for_pre_field_records():
+    """Records written before cleaning_seconds existed carry wall alone, where a stale
+    convention still beats no measurement at all."""
+    assert _captured_minutes({"cleaning_wall_seconds": 90}) == 1.5
+    assert _captured_minutes({"cleaning_seconds": 0, "cleaning_wall_seconds": 90}) == 1.5
+    assert _captured_minutes({}) == 0.0

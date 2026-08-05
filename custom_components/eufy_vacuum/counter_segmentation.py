@@ -35,6 +35,14 @@ Boundary kinds (a blip = a gap between `cleaning_time` increments > ``gap_delaye
   blip itself) — new floor around a delayed step.
 - **weak** (a short delayed step, flat area) — most likely a multi-pass turn
   (re-covering the same room); not a boundary unless the user splits it.
+- **recharge_dock** (gap > ``stall_wall_s`` AND the battery ROSE by at least
+  ``_RECHARGE_MIN_RISE_PCT``) — the robot ran flat, docked, charged and resumed
+  THE SAME room. Reported like any other candidate so the dock trip stays visible,
+  but listed in ``_NEVER_BOUNDARY_KINDS`` and therefore filtered out of every
+  selection mode, including an explicit ``active_ids`` toggle. Checked before
+  wash_plateau, which it would otherwise satisfy in full — see live:RECHARGE-ATTR-1
+  for the run where that displaced a real boundary and shifted every room label
+  after it by one.
 
 WHY THE AREA SIGNAL IS READ BOTH WAYS. The forward look was added because
 `cleaning_area` packets lag the `cleaning_time` tick, so the next room's
@@ -132,6 +140,33 @@ _AREA_JUMP_M2 = 2.0     # MORE THAN ONE 1 m² quantum of new floor — not "2 m�
 # tick posts new cleaning area, so area appears to "rise across" the gap even for a real freeze.
 _STALL_WALL_S = 600.0        # 10 min — an interior gap between cleaning_time ticks longer than this = dead time
 
+# live:RECHARGE-ATTR-1. A MID-JOB RECHARGE is not a room boundary. The robot runs
+# flat, docks, charges, and resumes THE SAME ROOM it left — so the gap sits INSIDE
+# a room's work, not between two rooms.
+#
+# _left_cleaning cannot tell it from a mop wash: both genuinely leave `cleaning`
+# and genuinely dock, so the wash_plateau guard (built for the inverse case — an
+# in-room stall falsely claiming a dock trip) passes it and hands it weight 4000
+# plus confident=True. Under the expected_rooms - 1 cap that is a guaranteed slot,
+# and on job_2026-08-05T02-52-05 it displaced a real boundary whose three rivals
+# were tied to two decimal places (1004.09 / 1004.06 / 1004.09). Kitchen absorbed
+# Entryway and every label after it shifted to the next queue entry — while the
+# segment count still equalled the room count, so positional_valid stayed True and
+# nothing downstream could object.
+#
+# BATTERY IS THE DISCRIMINATOR, and it is already in hand: _prepare_window builds
+# batt_at. A wash is minutes and gives back ~nothing; a recharge is an hour or more
+# and gives back tens of percent. Requiring BOTH a stall-length gap and a real rise
+# makes a false positive need a ten-minute wash that also charged 5% — which the
+# dock cannot do, because charging that fast is the high-zone rate (~3.3 %/min)
+# only reached well below the wash-cycle battery level.
+#
+# Classifying it correctly costs nothing extra downstream: with the dock no longer
+# a boundary the gap goes back to being INTERIOR to its group, where build_segments
+# already carves any gap over _STALL_WALL_S out of time_wall_s as dead time. The
+# machinery was always right; the classification was routing around it.
+_RECHARGE_MIN_RISE_PCT = 5.0
+
 # Only a true wash/dock plateau forward-reads the lagged area to the next room. A
 # transit covered no new floor; an area_jump's rise is the NEXT room's — both stay
 # same-instant (see build_segments).
@@ -141,8 +176,23 @@ _FORWARD_AREA_KINDS = frozenset({"wash_plateau"})
 # keep wash > transit > area_jump > weak above any plausible area/gap fraction; the
 # settings-flip confidence bonus floats a corroborated cut up within its band. On the
 # legacy wash/area_jump-only pool this reproduces the old (gap>plateau, area_after) sort.
-_KIND_WEIGHT = {"wash_plateau": 4000.0, "transit": 2000.0, "area_jump": 1000.0, "weak": 0.0}
+_KIND_WEIGHT = {
+    "wash_plateau": 4000.0,
+    "transit": 2000.0,
+    "area_jump": 1000.0,
+    "weak": 0.0,
+    # Never ranked (filtered before selection); present so strength stays total.
+    "recharge_dock": 0.0,
+}
 _CONFIDENT_BONUS = 500.0
+
+#: Kinds that are REPORTED as candidates but can never become boundaries, in any
+#: selection mode — including an explicit active_ids toggle from the card. A
+#: recharge dock is evidence about the BATTERY, not about the rooms: the robot
+#: resumes where it left off, so honouring a toggle here would let the UI
+#: reintroduce exactly the split live:RECHARGE-ATTR-1 is about. They stay in the
+#: candidate list so the dock trip remains visible to the card and the ingest.
+_NEVER_BOUNDARY_KINDS: frozenset[str] = frozenset({"recharge_dock"})
 
 
 def _to_dt(value: Any) -> datetime | None:
@@ -299,6 +349,8 @@ def _classify(
     gap_plateau_s: float,
     area_jump_m2: float,
     left_cleaning: bool | None = None,
+    batt_rise: float | None = None,
+    stall_wall_s: float = _STALL_WALL_S,
 ) -> str:
     """Kind of a blip from its gap and the area around it.
 
@@ -306,7 +358,22 @@ def _classify(
     discontinuity at the blip itself. Either can carry the finished room's
     flushed area depending on when the packet lands, so the stronger one decides
     (see the module docstring for the measurements behind that).
+
+    ``batt_rise`` is the battery gained across the gap, or ``None`` when the
+    stream carries no battery reading — the same "no information" contract as
+    ``left_cleaning``: absence of evidence must classify exactly as it did before
+    the signal existed, so historical runs are never silently reclassified.
     """
+    # live:RECHARGE-ATTR-1 — checked FIRST, because a recharge dock satisfies every
+    # test below it. It is not a room boundary at all: the robot resumes the room it
+    # left, so the gap belongs INSIDE that room's segment where build_segments
+    # already carves it out of wall time as dead time.
+    if (
+        gap > stall_wall_s
+        and batt_rise is not None
+        and batt_rise >= _RECHARGE_MIN_RISE_PCT
+    ):
+        return "recharge_dock"
     # A wash_plateau claims "the robot went to the dock and washed". A dock action
     # requires being docked, so if the vacuum never reported leaving `cleaning`
     # across this gap, the claim is false however long the gap was — it is an
@@ -333,6 +400,7 @@ def find_candidates(
     gap_plateau_s: float = _GAP_PLATEAU_S,
     area_jump_m2: float = _AREA_JUMP_M2,
     cadence_s: float = _CADENCE_S,
+    stall_wall_s: float = _STALL_WALL_S,
 ) -> list[dict[str, Any]]:
     """Every detected boundary in the stream, in cleaning order — no discards.
 
@@ -354,6 +422,21 @@ def find_candidates(
     incs = win.incs
     area_at = win.area_at
 
+    def batt_rise(a: datetime, b: datetime) -> float | None:
+        """Battery gained from ``a`` to ``b``, or None when either end is unknown.
+
+        None-preserving on purpose: ``_f`` would fold an unreadable reading to a
+        default and turn "we do not know" into a confident number, which is the
+        live:AUDIT2-ZEROCOERCE shape. No reading -> no reclassification.
+        """
+        ba, bb = win.batt_at(a), win.batt_at(b)
+        if ba is None or bb is None:
+            return None
+        fa, fb = _f(ba, -1.0), _f(bb, -1.0)
+        if fa < 0.0 or fb < 0.0:
+            return None
+        return fb - fa
+
     blip_positions = [
         i for i in range(1, len(incs))
         if (incs[i][0] - incs[i - 1][0]).total_seconds() > gap_delayed_s
@@ -366,10 +449,12 @@ def find_candidates(
         # The discontinuity AT the blip — the finished room's area flushing onto
         # the boundary sample rather than a tick later.
         area_delta = area_at(incs[bi][0]) - area_at(incs[bi - 1][0])
+        rise = batt_rise(incs[bi - 1][0], incs[bi][0])
         kind = _classify(
             gap, area_after, area_delta,
             gap_transit_s=gap_transit_s, gap_plateau_s=gap_plateau_s, area_jump_m2=area_jump_m2,
             left_cleaning=_left_cleaning(samples, incs[bi - 1][0], incs[bi][0]),
+            batt_rise=rise, stall_wall_s=stall_wall_s,
         )
         strength = (
             _KIND_WEIGHT[kind]
@@ -389,6 +474,9 @@ def find_candidates(
                 "kind": kind,
                 "strength": round(strength, 3),
                 "confident": kind == "wash_plateau",
+                # Why a long gap was or was not read as a recharge. None = the
+                # stream carried no battery, so the question was not asked.
+                "batt_rise_pct": round(rise, 1) if rise is not None else None,
                 "t": datetime_to_utc_iso(incs[bi][0]),
             }
         )
@@ -416,7 +504,16 @@ def select_active(
       pool — the caller reports any cap.
     - ``default`` — ``"confident"`` (the default view), ``"all"``, or ``"none"``.
     """
-    pool = [c for c in candidates if kinds is None or c.get("kind") in kinds]
+    # live:RECHARGE-ATTR-1 — drop never-boundary kinds BEFORE every mode, including
+    # the explicit active_ids path. This is the one filter a caller cannot opt out
+    # of: a recharge dock is not a weak boundary to be re-enabled by a higher room
+    # count or a card toggle, it is not a boundary at all.
+    pool = [
+        c
+        for c in candidates
+        if c.get("kind") not in _NEVER_BOUNDARY_KINDS
+        and (kinds is None or c.get("kind") in kinds)
+    ]
 
     if active_ids is not None:
         ids = {int(x) for x in active_ids}

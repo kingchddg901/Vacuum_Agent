@@ -2174,21 +2174,40 @@ class EufyVacuumManager:
         out.sort(key=lambda e: e["after_index"])
         return out
 
-    def _enabled_room_ids_in_order(
+    def _enabled_rooms_in_order(
         self, map_bucket: dict[str, Any], vacuum_entity_id: str, map_id: str
-    ) -> list[int]:
-        """Enabled room ids for one map, in queue order."""
+    ) -> list[dict[str, Any]]:
+        """Enabled rooms for one map, in queue order, WITH their metadata.
+
+        live:QUEUE-READ-1. ``build_queue_from_managed_rooms`` already resolves
+        name / slug / order / profile_name for every enabled room; the id-only
+        sibling below threw all of that away, which is why ``get_queue_steps``
+        could describe the queue's STRUCTURE but not name a single room in it,
+        and ``get_queue_state`` had to exist alongside it to supply the names.
+        Two services each half-answering "what is queued" is the wrong rung of
+        the de-dup ladder; keeping the metadata here is what makes the steps
+        response complete enough for the other to retire.
+        """
         payload = build_queue_from_managed_rooms(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
             managed_rooms=map_bucket.get("rooms", {}),
         )
-        ids: list[int] = []
-        for room in payload.get("queue_rooms", []) or []:
-            rid = _safe_int(room.get("room_id"), -1)
-            if rid > 0:
-                ids.append(rid)
-        return ids
+        return [
+            room
+            for room in (payload.get("queue_rooms", []) or [])
+            if _safe_int(room.get("room_id"), -1) > 0
+        ]
+
+    def _enabled_room_ids_in_order(
+        self, map_bucket: dict[str, Any], vacuum_entity_id: str, map_id: str
+    ) -> list[int]:
+        """Enabled room ids for one map, in queue order. Derived from the
+        metadata-carrying sibling so the two can never disagree about ORDER."""
+        return [
+            _safe_int(room.get("room_id"), -1)
+            for room in self._enabled_rooms_in_order(map_bucket, vacuum_entity_id, map_id)
+        ]
 
     def get_queue_steps(
         self, *, vacuum_entity_id: str, map_id: str
@@ -2198,7 +2217,7 @@ class EufyVacuumManager:
         map_bucket = get_map_bucket(
             data=self.data, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
         )
-        ordered_ids = self._enabled_room_ids_in_order(
+        ordered_rooms = self._enabled_rooms_in_order(
             map_bucket, vacuum_entity_id, map_id
         )
         breaks = self._map_queue_breaks(map_bucket)
@@ -2206,14 +2225,27 @@ class EufyVacuumManager:
         steps: list[dict[str, Any]] = []
         group: list[dict[str, Any]] = []
         bi = 0
-        for i, rid in enumerate(ordered_ids):
+        for i, room in enumerate(ordered_rooms):
             while bi < len(breaks) and breaks[bi]["after_index"] == i:
                 if group:
                     steps.append({"type": "room_group", "rooms": group})
                     group = []
                 steps.append(dict(breaks[bi]["step"]))
                 bi += 1
-            group.append({"room_id": rid})
+            # live:QUEUE-READ-1 — carry the room's IDENTITY, not just its id. This
+            # was `{"room_id": rid}`, which left a caller able to see that the plan
+            # is "clean, wait 2 min, clean two more" but unable to say WHICH rooms,
+            # so rendering the live plan needed a second service. room_id stays
+            # FIRST and unchanged, so every existing consumer is unaffected.
+            group.append(
+                {
+                    "room_id": _safe_int(room.get("room_id"), -1),
+                    "name": room.get("name"),
+                    "slug": room.get("slug"),
+                    "order": _safe_int(room.get("order"), 999),
+                    "profile_name": room.get("profile_name"),
+                }
+            )
         if group:
             steps.append({"type": "room_group", "rooms": group})
         # Trailing inserted steps (after_index == room count) — a zone cleaned AFTER the last
@@ -5344,6 +5376,31 @@ class EufyVacuumManager:
             return None
         if candidate and self.hass.states.get(candidate) is not None:
             return candidate
+        # live:ENT-2 — the derived id does not exist, so try the DEVICE.
+        #
+        # ENT-1 hardened detect_capabilities' entity_candidates path with exactly this
+        # fallback, but the live-map camera does not go through entity_candidates at
+        # all: it is resolved from the adapter's live_map_image_entity_pattern, and the
+        # pattern path never saw that augmentation. Forgotten-override sibling — one
+        # resolution path hardened, the other left as it was, and on the maintainer's
+        # install the UNHARDENED one is the only role actually broken
+        # (camera.alfred_map does not exist; camera.dining_room_alfred_map does).
+        #
+        # It went unnoticed because there is a manual escape hatch and he had already
+        # used it — the per-vacuum override above is checked FIRST, so the live map
+        # works on the install that would otherwise have exposed this. A new user has
+        # no such repair.
+        #
+        # Purely additive and ordered the same way: derivation still wins whenever it
+        # resolves, so an install where the pattern already works is untouched.
+        if candidate:
+            from .capabilities import augment_candidates_from_device
+
+            for sibling in augment_candidates_from_device(
+                self.hass, vacuum_entity_id, {"live_map_image": [candidate]}
+            ).get("live_map_image", []):
+                if sibling != candidate and self.hass.states.get(sibling) is not None:
+                    return sibling
         return None
 
     async def async_refresh_map_state_source(
@@ -6065,6 +6122,16 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id,
             active_job=active_job,
             started_at=started_at,
+        )
+        # live:PHASE-ATTR-1 (first-phase half). Counter samples only land when a
+        # counter CHANGES, so without this the opening phase has no floor and its
+        # first increment is credited to nothing — a measured 90 s / 1 m² against a
+        # true 120 s / 2 m², every run. Same site and same reason as the call above:
+        # this is where the live sensors are readable.
+        self.active_job.seed_counter_baseline(
+            vacuum_entity_id=vacuum_entity_id,
+            active_job=active_job,
+            observed_at=started_at,
         )
         active_job["path_block_action"] = _normalize_path_block_action(
             path_block_action

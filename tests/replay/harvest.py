@@ -266,6 +266,25 @@ def _readings(
     page.
 
     Returns (in-window canonical values, [floor] or [], units actually seen).
+
+    KNOWN HOLE, found 2026-08-05 by the integration DISAGREEING with this tool and
+    being right. Reset detection here is decrease-based, so a reset that lands
+    BETWEEN two samples is invisible whenever the counter climbs back above the
+    old floor before publishing again. Real case: job_2026-08-04T23-01-25 swept
+    2 m2; cleaning_area published exactly ONCE in the window, at 2.0, against a
+    stale floor of 1.0 from the previous run. 2.0 > 1.0, so no reset was seen and
+    this reported 1.0 - one quantum LOW. The record's 2.0 was correct.
+
+    CONSEQUENCE FOR THE CORPUS: this under-measures truth on any run with sparse
+    area readings, which biases `truth - recorded` DOWNWARD. It cannot manufacture
+    an under-credit finding (those need truth HIGH), but it can inflate
+    `area_likely_learned_fallback`, which fires on truth being near zero. Treat
+    that flag as a candidate, not a verdict.
+
+    A fix would need a reset signal that does not depend on a decrease - the job's
+    own start boundary is the obvious one, since these counters reset per job.
+    Not attempted: it would make this tool depend on job records, and the whole
+    point of measuring independently is that it does not.
     """
     seen: set[str] = set()
 

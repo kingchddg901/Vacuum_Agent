@@ -39,10 +39,13 @@ from custom_components.eufy_vacuum.learning.estimator import (
     _breakpoint_for_score,
     _compute_overhead,
     _confidence_result,
+    _bucket_ratio,
     _find_room_match,
     _learning_velocity,
     _lookup_transit_minutes,
+    _measured_setting_ratio,
     _normalize_wash_frequency_mode,
+    _relaxed_setting_scale,
     _score_room_confidence,
 )
 
@@ -989,3 +992,117 @@ def test_estimate_default_room_velocity_ceiling_unaffected(tmp_path):
     velocity = result["room_timeline"][0]["learning_velocity"]
     assert velocity["high_reachable"] is True
     assert velocity["runs_to_high"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Relaxed-setting scaling — clean_times is DOMINANT for room time (Chris, 2026-08-05)
+#
+# _find_room_match keeps clean_passes longest, but when it finally relaxes it
+# returns another pass count's avg_minutes verbatim. A 2-pass room matched on
+# 1-pass history estimated at roughly HALF its real time — which is the same
+# number the live rollover threshold uses, so it also struck rooms out early.
+# ---------------------------------------------------------------------------
+
+
+def _baseline(slug, *, map_id=1, passes=None, edge=None):
+    base = {"map_id": map_id, "room_slug": slug}
+    if passes:
+        base["by_clean_times"] = {
+            key: {"sample_count": n, "avg_minutes": mins}
+            for key, (n, mins) in passes.items()
+        }
+    if edge:
+        base["by_edge_mopping"] = {
+            key: {"sample_count": n, "avg_minutes": mins}
+            for key, (n, mins) in edge.items()
+        }
+    return base
+
+
+def test_bucket_ratio_needs_real_samples_on_both_sides():
+    """An unmeasured ratio must be None, never a confident 1.0."""
+    thin = {"1": {"sample_count": 1, "avg_minutes": 2.0}, "2": {"sample_count": 4, "avg_minutes": 4.0}}
+    assert _bucket_ratio(thin, 2, 1) is None
+    zero = {"1": {"sample_count": 4, "avg_minutes": 0.0}, "2": {"sample_count": 4, "avg_minutes": 4.0}}
+    assert _bucket_ratio(zero, 2, 1) is None
+    assert _bucket_ratio(None, 2, 1) is None
+    assert _bucket_ratio({"1": {"sample_count": 4, "avg_minutes": 2.0}}, 2, 1) is None
+
+    good = {"1": {"sample_count": 4, "avg_minutes": 2.0}, "2": {"sample_count": 3, "avg_minutes": 4.6}}
+    assert _bucket_ratio(good, 2, 1) == pytest.approx(2.3)
+
+
+def test_bucket_ratio_clamps_an_absurd_ratio():
+    """A partial run or a stalled counter can produce a wild ratio; that is an artefact,
+    not a setting effect."""
+    wild = {"1": {"sample_count": 4, "avg_minutes": 0.1}, "2": {"sample_count": 4, "avg_minutes": 40.0}}
+    assert _bucket_ratio(wild, 2, 1) == 4.0
+
+
+def test_measured_ratio_prefers_the_rooms_own_history():
+    """A setting's effect is partly a property of the room — a cluttered room loses more
+    to a second pass than an open one — so its own measurement wins."""
+    baselines = [
+        _baseline("kitchen", passes={"1": (4, 2.0), "2": (4, 5.0)}),      # this room: 2.5x
+        _baseline("office", passes={"1": (4, 2.0), "2": (4, 4.0)}),       # others: 2.0x
+        _baseline("hall", passes={"1": (4, 3.0), "2": (4, 6.0)}),
+    ]
+    assert _measured_setting_ratio(baselines, "by_clean_times", 2, 1, 1, "kitchen") == 2.5
+    # A room with no bucket of its own falls back to the MEDIAN across rooms that have
+    # one — ratios here are 2.5 / 2.0 / 2.0, so the median is 2.0 and kitchen's outlier
+    # does not drag it. That is the point of median over mean.
+    assert _measured_setting_ratio(baselines, "by_clean_times", 2, 1, 1, "den") == 2.0
+
+
+def test_measured_ratio_is_none_when_nothing_measured_it():
+    assert _measured_setting_ratio([], "by_clean_times", 2, 1, 1, "kitchen") is None
+    assert _measured_setting_ratio(
+        [_baseline("kitchen")], "by_clean_times", 2, 1, 1, "kitchen") is None
+
+
+def test_relaxed_scale_is_identity_when_settings_match():
+    assert _relaxed_setting_scale(
+        baselines=[], map_id=1, slug="kitchen",
+        want_passes=2, got_passes=2, want_edge=True, got_edge=True) == 1.0
+
+
+def test_relaxed_scale_uses_the_linear_prior_with_no_history():
+    """THE CASE THAT BIT. Two passes requested, only single-pass history: the estimate was
+    used verbatim, so a room that takes ~4 min estimated at ~2. A pass is another full
+    sweep of the same floor, so N passes is about N times the work."""
+    assert _relaxed_setting_scale(
+        baselines=[], map_id=1, slug="kitchen",
+        want_passes=2, got_passes=1, want_edge=False, got_edge=False) == 2.0
+    # and the inverse direction, so a 1-pass request off 2-pass history is halved
+    assert _relaxed_setting_scale(
+        baselines=[], map_id=1, slug="kitchen",
+        want_passes=1, got_passes=2, want_edge=False, got_edge=False) == 0.5
+
+
+def test_measurement_beats_the_prior():
+    """The prior is a placeholder for a number this house can actually measure."""
+    baselines = [_baseline("kitchen", passes={"1": (4, 2.0), "2": (4, 4.6)})]
+    assert _relaxed_setting_scale(
+        baselines=baselines, map_id=1, slug="kitchen",
+        want_passes=2, got_passes=1, want_edge=False, got_edge=False) == pytest.approx(2.3)
+
+
+def test_edge_mopping_gets_no_prior():
+    """A perimeter pass is ADDITIVE, not proportional, and nothing in the model says how
+    long this room's perimeter takes — so unmeasured, it must leave the estimate alone."""
+    assert _relaxed_setting_scale(
+        baselines=[], map_id=1, slug="kitchen",
+        want_passes=1, got_passes=1, want_edge=True, got_edge=False) == 1.0
+
+    measured = [_baseline("kitchen", edge={"off": (4, 2.0), "on": (4, 2.6)})]
+    assert _relaxed_setting_scale(
+        baselines=measured, map_id=1, slug="kitchen",
+        want_passes=1, got_passes=1, want_edge=True, got_edge=False) == pytest.approx(1.3)
+
+
+def test_pass_and_edge_scales_compose():
+    baselines = [_baseline("kitchen", edge={"off": (4, 2.0), "on": (4, 3.0)})]
+    # 2x from the pass prior, 1.5x from the measured edge ratio
+    assert _relaxed_setting_scale(
+        baselines=baselines, map_id=1, slug="kitchen",
+        want_passes=2, got_passes=1, want_edge=True, got_edge=False) == pytest.approx(3.0)

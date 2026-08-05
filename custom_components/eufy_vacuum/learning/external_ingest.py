@@ -575,6 +575,51 @@ def reconcile_dispatched_identity(
     return "robust"
 
 
+#: How many CONSECUTIVE shifted rows make a dropped boundary rather than bad luck.
+#: One row naming its neighbour is ordinary ambiguity at a room border. Two in a
+#: row is a structure that cannot arise from independent per-room noise.
+_SHIFT_BLOCK_MIN_RUN = 2
+
+
+def monotone_shift_run(room_timings: list[dict[str, Any]]) -> int:
+    """Longest run of consecutive rows whose POSE room is the NEXT row's positional room.
+
+    THE SIGNATURE OF A DROPPED BOUNDARY, and the reason live:RECHARGE-ATTR-1 reached
+    the learning store untouched. When the segmenter loses one real boundary, two
+    rooms merge and every label after the merge slides onto its neighbour — so row K
+    is named room K while the robot was in room K+1, for a RUN of rows. The segment
+    count still equals the queue count (something else supplied the missing split),
+    so ``positional_valid`` stays True, every row takes the conservative FLAG branch,
+    and the run finalizes as healthy.
+
+    Reading the disagreements ONE AT A TIME cannot see this: each looks like a single
+    ambiguous room, which is exactly the case FLAG is right to leave alone. Reading
+    them as a SEQUENCE makes it unmistakable — a monotone slide is a property of the
+    segmentation, not of any one room.
+
+    Deliberately cause-independent. It says a boundary was dropped, not why, so it
+    fires for any future mechanism that drops one — which is the point of having it
+    alongside the specific fix rather than instead of it.
+    """
+    best = run = 0
+    for index, timing in enumerate(room_timings or []):
+        disagreement = timing.get("attribution_disagreement")
+        following = room_timings[index + 1] if index + 1 < len(room_timings) else None
+        shifted = (
+            isinstance(disagreement, dict)
+            and following is not None
+            and _safe_int(disagreement.get("pose"), -1) == _safe_int(following.get("room_id"), -2)
+        )
+        run = run + 1 if shifted else 0
+        best = max(best, run)
+    return best
+
+
+def attribution_shift_blocks_learning(room_timings: list[dict[str, Any]]) -> bool:
+    """Whether the room identities slid far enough to disqualify the run from learning."""
+    return monotone_shift_run(room_timings) >= _SHIFT_BLOCK_MIN_RUN
+
+
 def _max_cleaning_area_m2(*sample_lists: Any) -> float | None:
     """The device's own run total: the PEAK cleaning_area across the captured sample stream(s)
     (already normalized to m² at capture). Independent of the per-room attribution, so it is the

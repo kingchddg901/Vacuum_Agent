@@ -532,10 +532,21 @@ class ActiveJobTracker:
 
         active_job["observed_mid_job_recharge"] = True
         active_job["observed_mid_job_recharge_started_at"] = observed_at_value
-        active_job["observed_mid_job_recharge_count"] = max(
-            _safe_int(active_job.get("observed_mid_job_recharge_count"), 0),
-            0,
-        ) + 1
+        # live:RECHARGE-FLAG-2 — the COUNT is no longer incremented here. Reaching this
+        # point only proves the robot went to the dock and started charging; it does NOT
+        # prove the dock trip was a recharge rather than the end of the job.
+        #
+        # is_low_battery_return_state cannot tell them apart. Its generic arm is
+        # `vacuum_state == "returning" AND battery <= threshold`, and the battery gate
+        # was put there to exclude a return_to_base on a FULL battery — it says nothing
+        # about a run that simply ENDS while the battery happens to be low. Alfred
+        # finished its last room at 17% against a threshold of 20 and tripped it, so
+        # job_2026-08-05T05-33-49 recorded count=2 for one real recharge.
+        #
+        # A recharge is only a recharge if the robot goes back to WORK, so the count is
+        # incremented in resolve_mid_job_recharge_resumed. That also makes the count and
+        # recharge_seconds_accumulated agree by construction rather than by discipline —
+        # they disagreeing was the tell that exposed this.
         active_job["pending_mid_job_recharge_return"] = False
         active_job["pending_mid_job_recharge_return_at"] = None
 
@@ -596,6 +607,18 @@ class ActiveJobTracker:
                 elapsed = int((ended_dt - started_dt).total_seconds())
                 current = max(_safe_int(active_job.get("recharge_seconds_accumulated"), 0), 0)
                 active_job["recharge_seconds_accumulated"] = current + elapsed
+        # live:RECHARGE-FLAG-2 — count it HERE, where the resume is proved. Charging has
+        # stopped and the job is still `started`/`paused`, so the robot went back to
+        # work: that is what makes the dock trip a MID-job recharge rather than the end
+        # of the run. A terminal dock never reaches this line (the job finalizes while
+        # still charging), so it can no longer inflate the count.
+        #
+        # Outside the duration block on purpose: a resume with an unparseable or
+        # zero-length window is still a recharge that happened, and dropping it would
+        # trade an over-count for an under-count.
+        active_job["observed_mid_job_recharge_count"] = max(
+            _safe_int(active_job.get("observed_mid_job_recharge_count"), 0), 0
+        ) + 1
         active_job["observed_mid_job_recharge"] = False
         active_job["observed_mid_job_recharge_started_at"] = None
 
@@ -907,6 +930,65 @@ class ActiveJobTracker:
     # the room than a genuine clean. The tracker's own time/movement-
     # factor model already filters most noise; this is a final floor.
     _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER = 1.5  # 90 s
+
+    #: live:ROOM-FLICKER-1. How long the pose must AGREE the robot has left before
+    #: timing is allowed to concede the room. Measured on the flicker run: excursions
+    #: of 2 s, 2 s and 12 s against genuine dwells of 94 s and 162 s, so anything
+    #: between ~15 s and ~90 s separates them cleanly.
+    _ROOM_EXIT_DWELL_S = 20.0
+
+    #: Past this, the pose buffer is treated as not arriving and the guard abstains.
+    #: Without it a sampler that stops mid-run would veto every future rollover.
+    _POSE_VETO_STALE_S = 60.0
+
+    def _pose_says_still_in_room(
+        self, active_job: dict[str, Any], room_id: Any
+    ) -> bool:
+        """Whether the buffered pose still places the robot in ``room_id``.
+
+        live:ROOM-FLICKER-1. Timing rollover fires on ``elapsed >= threshold`` alone,
+        and that threshold is the ESTIMATE plus slack. The estimate is matched on
+        clean_passes, but with no double-pass history the estimator relaxes to the
+        single-pass entry — so a double-pass room, which takes roughly twice as long,
+        reaches its "learned" threshold about a third of the way through and the card
+        strikes the room out while the robot is visibly still working in it.
+
+        The estimate cannot be trusted to know when the room is done, but the pose can
+        say when it is not. Requiring the robot to have been ABSENT for the whole dwell
+        window turns a 2-second boundary excursion into a non-event while leaving a
+        genuine departure to advance one window late.
+
+        FAILS OPEN by design — no pose, an unusable timestamp, or a buffer that has
+        stopped arriving all return False, so rollover behaves exactly as before. A
+        guard that can permanently stall the queue would be worse than the flicker.
+        """
+        if room_id is None:
+            return False
+        samples = active_job.get("pose_samples") or []
+        if not isinstance(samples, list) or not samples:
+            return False
+        newest_t = parse_timestamp(str((samples[-1] or {}).get("t") or ""))
+        if newest_t is None:
+            return False
+        now = parse_timestamp(_iso_now())
+        if now is not None and (now - newest_t).total_seconds() > self._POSE_VETO_STALE_S:
+            return False
+
+        want = _safe_int(room_id, -2)
+        for sample in reversed(samples):
+            if not isinstance(sample, dict):
+                continue
+            when = parse_timestamp(str(sample.get("t") or ""))
+            if when is None:
+                continue
+            if (newest_t - when).total_seconds() > self._ROOM_EXIT_DWELL_S:
+                break
+            room = sample.get("current_room")
+            if room is None:
+                continue  # docked / off-raster says nothing about which room
+            if _safe_int(room, -1) == want:
+                return True
+        return False
 
     def _live_transition_config(self, vacuum_entity_id: str) -> dict[str, Any]:
         """Live rollover ORCHESTRATION, adapter-overridable. Merges the adapter's
@@ -1367,6 +1449,14 @@ class ActiveJobTracker:
             # (The bounds / position-lock rollover confirmation was removed with
             #  the mapping split — no adapter had a localization frame reliable
             #  enough to trust it, so timing alone advanced in practice anyway.)
+            #
+            # live:ROOM-FLICKER-1 — except when the pose can see the robot is still
+            # HERE. The threshold is the estimate plus slack, and on a double-pass run
+            # the estimate came from single-pass history, so it opens roughly a third
+            # of the way through the room. Timing alone then strikes the room out
+            # while the robot is visibly still cleaning it. Abstains without pose.
+            if self._pose_says_still_in_room(active_job, current_room_id):
+                return active_job
             rollover_source = "timing_rollover"
 
         return self._apply_room_rollover(
@@ -2109,6 +2199,92 @@ class ActiveJobTracker:
         )
         if len(samples) > _MAX_COUNTER_SAMPLES:
             del samples[: len(samples) - _MAX_COUNTER_SAMPLES]
+
+    def seed_counter_baseline(
+        self,
+        *,
+        vacuum_entity_id: str,
+        active_job: dict[str, Any],
+        observed_at: str | None = None,
+    ) -> bool:
+        """Record where the counters STOOD when this run began.
+
+        live:PHASE-ATTR-1, the first-phase half. Counter samples are only appended
+        when a counter CHANGES, so a run's opening phase has no sample before its
+        first tick and no floor to measure from. The first increment therefore
+        arrives already-accrued and is credited to nothing: kitchen measured 90 s /
+        1 m² against a recorder-verified 120 s / 2 m², on every run. Later phases do
+        not have this problem — the previous phase left a sample behind, which is
+        exactly what this seeds for phase one.
+
+        THE FLOOR EXISTS, IT WAS SIMPLY NOT RECORDED. Reading it here rather than
+        assuming zero matters: assuming zero would re-credit a stale cumulative
+        carry-in to the first room, which is the trap SOPT-12 pins.
+
+        A STALE CARRY-IN IS SAFE. This baseline may hold the PREVIOUS run's total
+        (a 20-hour-old 6 m² in the observed case). When the device resets its
+        counters for the new run, ``_prepare_window`` trims the stream to after the
+        last reset and drops this sample outright; when it does not reset, the
+        sample is the correct floor. Both paths are already handled — the only thing
+        missing was the measurement.
+
+        Called from the same site as ``reopen_current_room_noncleaning`` (job start,
+        where the live state is readable). Returns True if a baseline was written.
+        """
+        # Local imports: this module is imported by core.manager, which job_metrics
+        # imports in turn. Reusing their conversions rather than writing a third copy
+        # is the point — the unit logic is the hazard here (Roborock's cleaning_time
+        # is bare MINUTES; an imperial HA presents Eufy's cleaning_area in ft²), and
+        # a second implementation of it would drift silently.
+        from ..learning.utils import cleaning_area_to_m2
+        from ..listeners.job_metrics import _duration_state_to_seconds
+
+        config = _get_adapter_config(vacuum_entity_id) or {}
+        entities = config.get("entities", {}) or {}
+
+        def _live(entity_id: Any) -> Any:
+            if not entity_id:
+                return None
+            state_obj = self._manager.hass.states.get(str(entity_id))
+            if state_obj is None or state_obj.state in ("unavailable", "unknown", None):
+                return None
+            return state_obj
+
+        cleaning_time = cleaning_area = None
+        ct_state = _live(entities.get("cleaning_time"))
+        if ct_state is not None:
+            try:
+                cleaning_time = _duration_state_to_seconds(
+                    ct_state.state,
+                    ct_state.attributes.get("unit_of_measurement")
+                    or (str(config.get("cleaning_time_unit") or "").strip() or None),
+                )
+            except (TypeError, ValueError):
+                cleaning_time = None
+        ca_state = _live(entities.get("cleaning_area"))
+        if ca_state is not None:
+            try:
+                cleaning_area = cleaning_area_to_m2(
+                    ca_state.state, ca_state.attributes.get("unit_of_measurement")
+                )
+            except (TypeError, ValueError):
+                cleaning_area = None
+
+        if cleaning_time is None and cleaning_area is None:
+            return False        # no counters on this adapter, or both unreadable
+
+        if cleaning_time is not None:
+            active_job["last_cleaning_time_seconds"] = cleaning_time
+        if cleaning_area is not None:
+            active_job["last_cleaning_area_m2"] = cleaning_area
+        self._append_counter_sample(
+            active_job,
+            observed_at or _iso_now(),
+            cleaning_time,
+            cleaning_area,
+            vacuum_entity_id,
+        )
+        return True
 
     def record_counter_sample(
         self,

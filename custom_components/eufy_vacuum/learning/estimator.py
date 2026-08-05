@@ -513,6 +513,133 @@ def _lookup_transit_minutes(
 # Room stat lookup
 # ---------------------------------------------------------------------------
 
+#: Below this many samples on EITHER side, a measured setting ratio is noise.
+_SETTING_RATIO_MIN_SAMPLES = 2
+
+#: A learned ratio outside this band is an artefact (a partial run, a stalled
+#: counter), not a setting effect. Clamps both the measured and the prior ratio.
+_SETTING_RATIO_MIN = 0.25
+_SETTING_RATIO_MAX = 4.0
+
+
+def _bucket_ratio(buckets: Any, want_key: Any, got_key: Any) -> float | None:
+    """``avg_minutes[want] / avg_minutes[got]`` from a room_baselines setting bucket.
+
+    ``None`` when either side is missing, too thinly sampled, or zero — an unmeasured
+    ratio must not become a confident 1.0, which is the live:AUDIT2-ZEROCOERCE shape.
+    """
+    if not isinstance(buckets, dict):
+        return None
+    want, got = buckets.get(str(want_key)), buckets.get(str(got_key))
+    if not isinstance(want, dict) or not isinstance(got, dict):
+        return None
+    if (
+        _safe_int(want.get("sample_count"), 0) < _SETTING_RATIO_MIN_SAMPLES
+        or _safe_int(got.get("sample_count"), 0) < _SETTING_RATIO_MIN_SAMPLES
+    ):
+        return None
+    want_minutes = _safe_float(want.get("avg_minutes"), 0.0)
+    got_minutes = _safe_float(got.get("avg_minutes"), 0.0)
+    if want_minutes <= 0.0 or got_minutes <= 0.0:
+        return None
+    return min(max(want_minutes / got_minutes, _SETTING_RATIO_MIN), _SETTING_RATIO_MAX)
+
+
+def _measured_setting_ratio(
+    baselines: list[dict[str, Any]] | None,
+    field: str,
+    want_key: Any,
+    got_key: Any,
+    map_id: int | None = None,
+    slug: str | None = None,
+) -> float | None:
+    """This room's own measured ratio, else the MEDIAN across every room that has one.
+
+    The room's own history wins because a setting's effect is partly a property of the
+    room (a cluttered room loses more to a second pass than an open one). The median
+    across rooms is the next best thing — it is a real measurement of this house's
+    robot on this profile, which a constant never is. Median, not mean, so one partial
+    run cannot drag it.
+    """
+    ratios: list[float] = []
+    for base in baselines or []:
+        if not isinstance(base, dict):
+            continue
+        ratio = _bucket_ratio(base.get(field), want_key, got_key)
+        if ratio is None:
+            continue
+        if (
+            map_id is not None
+            and _safe_int(base.get("map_id")) == map_id
+            and str(base.get("room_slug", "")).strip().lower() == slug
+        ):
+            return ratio
+        ratios.append(ratio)
+    if not ratios:
+        return None
+    ratios.sort()
+    return ratios[len(ratios) // 2]
+
+
+def _relaxed_setting_scale(
+    *,
+    baselines: list[dict[str, Any]] | None,
+    map_id: int | None,
+    slug: str,
+    want_passes: int,
+    got_passes: int,
+    want_edge: bool,
+    got_edge: bool,
+) -> float:
+    """Scale a relaxed match's learned minutes onto the settings actually requested.
+
+    CHRIS 2026-08-05: "a number of clean times is a dominant for the time it takes to
+    clean a room compared to 1 pass." ``_find_room_match`` already keeps clean_passes
+    longest, but when it finally has to relax (pass 5, no history at the requested pass
+    count) it returns the other bucket's ``avg_minutes`` VERBATIM and marks a mismatch.
+    A 2-pass room matched on 1-pass history therefore estimates at roughly HALF its
+    real time, carrying only a confidence penalty to say so.
+
+    That is not a cosmetic error. It is the same number ``_timing_completion_threshold_
+    minutes`` rolls the live room on, so it opened about a third of the way through a
+    double-pass room and struck it out on the card while the robot was still in it —
+    see live:ROOM-FLICKER-1, whose root cause this addresses at source.
+
+    PRECEDENCE: the room's own measured ratio, then the median measured ratio across
+    rooms that have both buckets, then a LINEAR-IN-PASSES prior — a pass is another
+    full sweep of the same floor, so N passes is about N times the work once approach
+    and egress are excluded (which live:PHASE-ATTR-3's switch to cleaning_seconds now
+    guarantees). Measurement always beats the prior and replaces it as soon as it
+    exists.
+
+    EDGE MOPPING GETS NO PRIOR. A perimeter pass is additive, not proportional, and
+    nothing in the model says how long this room's perimeter takes — so an unmeasured
+    edge difference leaves the estimate alone rather than guessing at it.
+    """
+    scale = 1.0
+    if want_passes != got_passes and want_passes > 0 and got_passes > 0:
+        ratio = _measured_setting_ratio(
+            baselines, "by_clean_times", want_passes, got_passes, map_id, slug
+        )
+        if ratio is None:
+            ratio = min(
+                max(want_passes / got_passes, _SETTING_RATIO_MIN), _SETTING_RATIO_MAX
+            )
+        scale *= ratio
+    if want_edge != got_edge:
+        ratio = _measured_setting_ratio(
+            baselines,
+            "by_edge_mopping",
+            "on" if want_edge else "off",
+            "on" if got_edge else "off",
+            map_id,
+            slug,
+        )
+        if ratio is not None:
+            scale *= ratio
+    return scale
+
+
 def _find_room_match(
     *,
     room_stats: list[dict[str, Any]],
@@ -1041,6 +1168,28 @@ class LearningEstimator:
                     match.get("timing_sample_count", match.get("sample_count")), 0
                 )
                 minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
+                # Chris 2026-08-05: clean_times DOMINATES room time, so a match found
+                # at a different pass count cannot be used at face value. Scale it onto
+                # the requested settings — measured ratio first, linear-in-passes prior
+                # otherwise. Only for a genuinely LEARNED duration: scaling the default
+                # would dress a guess up as a measurement.
+                if _timing_n > 0:
+                    setting_scale = _relaxed_setting_scale(
+                        baselines=(room_stats_data or {}).get("room_baselines", []),
+                        map_id=map_id_int,
+                        slug=slug,
+                        want_passes=clean_passes,
+                        got_passes=_safe_int(match.get("clean_times"), clean_passes),
+                        want_edge=edge_mopping,
+                        got_edge=bool(match.get("edge_mopping", False)),
+                    )
+                    if setting_scale != 1.0:
+                        minutes = round(minutes * setting_scale, 2)
+                        # Scale the band with the mean so the coefficient of variation
+                        # is preserved. Leaving stddev behind would SHRINK the CV and
+                        # hand a relaxed match MORE confidence than the exact one it
+                        # stood in for — the mismatch penalty already carries that.
+                        minutes_stddev = round(minutes_stddev * setting_scale, 4)
                 area_m2 = _safe_float(match.get("avg_area_m2"), 0.0)
                 # `source` describes where the DURATION came from — it is what the
                 # confidence score keys off. A room whose every timing was an allocation

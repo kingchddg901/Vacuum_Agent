@@ -204,6 +204,42 @@ export function applyLearningRenderers(proto) {
     `;
   };
 
+  /**
+   * The estimate panel's TITLE (EST-PHASE-1).
+   *
+   * While a job is in flight the panel shows a FROZEN estimate, because dispatch
+   * clears the payload the live estimator reads — without the freeze the panel
+   * emptied itself the moment a run started. In a PHASED run the active job IS a
+   * phase, so that frozen figure is the current PHASE's plan: correct data under a
+   * job-scoped title, rendered directly beneath a live queue strip showing all four
+   * steps. "4 min · done by 10:35 PM" against a visibly four-step run reads as the
+   * card contradicting itself, and the real finish was 10:46.
+   *
+   * Retitling costs no new estimation and no new string — phase_context_title is
+   * already translated in all 18 locales and already numbers steps the way the chips
+   * above do, so the title and the row cannot disagree about which step is current.
+   *
+   * The WHOLE-RUN number is deliberately not attempted here. It is a genuinely softer
+   * quantity (a finish time across a charge hold depends on how far the previous phase
+   * drained the battery) and presenting it as firm would be the real defect.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} Translated panel title.
+   */
+  proto._learningEstimateTitle = function (state) {
+    const steps = state?.dashboardLiveQueue?.()?.steps;
+    if (Array.isArray(steps) && steps.length > 1) {
+      const idx = steps.findIndex((s) => String(s?.state || "") === "current");
+      if (idx >= 0) {
+        return this.t("learning.phase_context_title", {
+          step: String(idx + 1),
+          total: String(steps.length),
+        });
+      }
+    }
+    return this.t("learning.estimated_job_time");
+  };
+
   proto.renderLearningPreJobPanel = function (state) {
     const estimate = state.dashboardPlannedJobEstimate?.() ?? state.learningEstimate();
     if (!estimate) return "";
@@ -261,7 +297,7 @@ export function applyLearningRenderers(proto) {
       <div class="evcc-learning-panel evcc-learning-panel--prejob">
         <div class="evcc-learning-panel-header">
           <div class="evcc-learning-panel-title-group">
-            <div class="evcc-learning-panel-title">${this.t("learning.estimated_job_time")}</div>
+            <div class="evcc-learning-panel-title">${this._learningEstimateTitle(state)}</div>
             <div class="evcc-learning-panel-subtitle">
               ${this.escapeHtml(totalMinutes)}
               ${jobEtaAt ? ` · ${this.t("learning.done_by", { time: this.escapeHtml(jobEtaAt) })}` : ""}

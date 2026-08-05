@@ -19,8 +19,10 @@ from pathlib import Path
 from custom_components.eufy_vacuum.learning.external_ingest import (
     _apply_pose_identity,
     _dominant_room,
+    attribution_shift_blocks_learning,
     build_attributed_job,
     build_pending_record,
+    monotone_shift_run,
     reconcile_dispatched_identity,
 )
 
@@ -625,3 +627,65 @@ def test_reconcile_unnamed_window_left_untouched():
     assert room_timings[0]["pose_confidence"] == "confirmed"      # window 0 named + confirmed
     assert "pose_confidence" not in room_timings[1]               # window 1 unnamed -> untouched
     assert room_timings[1]["room_id"] == 9
+
+
+# =============================================================================
+# monotone_shift_run — the DROPPED-BOUNDARY signature (live:RECHARGE-ATTR-1 net).
+#
+# FLAG is right to leave one ambiguous room alone. It is wrong when consecutive
+# rows each name their SUCCESSOR: that is one lost boundary sliding every label
+# after it, which no per-room caution can make safe to learn. Read as a sequence,
+# not one row at a time.
+# =============================================================================
+
+
+def _shifted(room_id: int, pose_room: int | None) -> dict:
+    rt = {"room_id": room_id, "slug": _SLUGS.get(room_id, str(room_id))}
+    if pose_room is not None:
+        rt["attribution_disagreement"] = {"positional": room_id, "pose": pose_room}
+    return rt
+
+
+def test_monotone_shift_detects_a_dropped_boundary():
+    """Queue 5 -> 8 -> 9; each row's pose names the NEXT room. Reproduces alfred
+    job_2026-08-05T02-52-05, which finalized used_for_learning=True with three of
+    four rooms carrying the wrong numbers."""
+    room_timings = [_shifted(5, 8), _shifted(8, 9), _shifted(9, 7), _shifted(7, None)]
+    assert monotone_shift_run(room_timings) == 3
+    assert attribution_shift_blocks_learning(room_timings) is True
+
+
+def test_a_single_disagreement_does_not_block():
+    """One room named as its neighbour is ordinary border ambiguity — exactly the case
+    the conservative FLAG branch exists for. Learning inclusion must be UNCHANGED."""
+    room_timings = [_shifted(5, None), _shifted(8, 9), _shifted(9, None)]
+    assert monotone_shift_run(room_timings) == 1
+    assert attribution_shift_blocks_learning(room_timings) is False
+
+
+def test_disagreements_that_do_not_point_forward_do_not_block():
+    """Two disagreements, but neither names the following row's room — that is noise,
+    not a slide, and must not be read as a structural failure."""
+    room_timings = [_shifted(5, 9), _shifted(8, 5), _shifted(9, None)]
+    assert monotone_shift_run(room_timings) == 0
+    assert attribution_shift_blocks_learning(room_timings) is False
+
+
+def test_shift_must_be_consecutive():
+    """Two forward-pointing rows separated by an agreeing row are two runs of ONE, not a
+    run of two — a slide is contiguous by construction."""
+    room_timings = [_shifted(5, 8), _shifted(8, None), _shifted(9, 7), _shifted(7, None)]
+    assert monotone_shift_run(room_timings) == 1
+    assert attribution_shift_blocks_learning(room_timings) is False
+
+
+def test_clean_and_degenerate_runs_are_never_blocked():
+    for room_timings in ([], [_shifted(5, None)], [_shifted(5, None), _shifted(8, None)]):
+        assert monotone_shift_run(room_timings) == 0
+        assert attribution_shift_blocks_learning(room_timings) is False
+
+
+def test_last_row_cannot_start_a_shift():
+    """The final row has no successor to point at, so it can never contribute — otherwise a
+    trailing disagreement would inflate the run and block a merely-ambiguous last room."""
+    assert monotone_shift_run([_shifted(5, None), _shifted(8, 9)]) == 0

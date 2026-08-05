@@ -1672,13 +1672,34 @@ class LearningHistoryStore:
 
         battery_used = max(_safe_int(battery_start, 0) - _safe_int(battery_end, 0), 0)
         water_estimate = active_job_state.get("water_estimate", {}) if isinstance(active_job_state, dict) else {}
-        mid_job_recharge_observed = _safe_bool(active_job_state.get("observed_mid_job_recharge"), False)
         mid_job_recharge_started_at = str(
             active_job_state.get("observed_mid_job_recharge_started_at", "") or ""
         ).strip() or None
         mid_job_recharge_count = max(
             _safe_int(active_job_state.get("observed_mid_job_recharge_count"), 0),
             0,
+        )
+        # live:RECHARGE-FLAG-1. `observed_mid_job_recharge` is a LIVE "charging right
+        # now" flag, and resolve_mid_job_recharge_resumed CLEARS it the moment the
+        # robot goes back to work. Read straight, it answers "was the robot charging
+        # at the instant we finalized" — so a run that recharged AND RESUMED, which is
+        # every successful mid-job recharge, records that none happened.
+        #
+        # THE RECORD MUST ANSWER A DIFFERENT QUESTION: did a recharge occur during this
+        # run. That is a fact about the past and the accumulators already hold it —
+        # they are written on resume and never cleared. The live flag stays in the OR
+        # only for the one case the accumulators cannot cover: finalizing while still
+        # docked and charging, where the resume that would have accrued the seconds
+        # has not happened yet.
+        #
+        # Proven both ways on two runs that each had exactly ONE real recharge:
+        #   02-52-05  resumed -> flag cleared -> recorded False, count 1, accum 6059
+        #   05-33-49  finalized while charging -> recorded True (right, wrong reason)
+        # See live:RECHARGE-FLAG-2 for why that second one also over-counted.
+        mid_job_recharge_observed = (
+            mid_job_recharge_count > 0
+            or recharge_seconds_accumulated > 0
+            or _safe_bool(active_job_state.get("observed_mid_job_recharge"), False)
         )
 
         status = str(outcome_status or "completed").strip().lower() or "completed"
@@ -1817,7 +1838,10 @@ class LearningHistoryStore:
                 active_job_state.get("pose_samples") if isinstance(active_job_state, dict) else None
             )
             if _pose_samples:
-                from .external_ingest import reconcile_dispatched_identity
+                from .external_ingest import (
+                    attribution_shift_blocks_learning,
+                    reconcile_dispatched_identity,
+                )
 
                 reconcile_dispatched_identity(
                     room_timings=room_timings,
@@ -1826,6 +1850,23 @@ class LearningHistoryStore:
                     positional_valid=transit_capture_valid,
                     slug_by_id=slug_by_id,
                 )
+                # live:RECHARGE-ATTR-1 (the net). FLAG is deliberately conservative —
+                # it keeps a working positional assignment and leaves learning
+                # inclusion alone, which is right for ONE ambiguous room. It is not
+                # right for a MONOTONE SLIDE across consecutive rooms: that is a
+                # dropped boundary, so the numbers are attached to the wrong rooms
+                # and no amount of per-room caution makes them safe to learn.
+                #
+                # Applied here rather than in the blockers block above because
+                # room_timings do not exist until this point. Same shape as the
+                # cancel_detection amendment below: append, clear the flag, and
+                # RE-PUBLISH the canonical list, since outcome["learning_blockers"]
+                # was already snapshotted from a copy.
+                if attribution_shift_blocks_learning(room_timings):
+                    learning_blockers.append("attribution_shift")
+                    used_for_learning = False
+                    outcome["used_for_learning"] = False
+                    outcome["learning_blockers"] = sorted(set(learning_blockers))
 
         # Zone phases carry their OWN zone_timing (phase_runner._capture_zone_phase_timing); the
         # room path drops them, so gather them in parallel — the record + review card show which
