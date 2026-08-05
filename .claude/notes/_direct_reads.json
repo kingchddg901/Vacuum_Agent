@@ -748,7 +748,8 @@
   "file": "diagnostics.py",
   "line": 0,
   "title": "entity_resolution reports only what the adapter DERIVED, so 'we looked in the wrong place' is indistinguishable from 'this device has no such entity'",
-  "impact": "The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the demonstration: ten entities at exists=False could mean a reduced-transport device (nothing to fix) or a resolution failure (ENT-1, affecting anyone whose entity naming differs) — and answering it required going back to the user for entity ids the diagnostics could have carried. FIX: alongside entity_resolution, list the entities sharing a device_id with the vacuum entity. Cheap, no behaviour change, and it makes the NEXT report of this class self-diagnosing instead of costing a round trip."
+  "impact": "The dump lists each declared companion with exists true/false. It never lists what the vacuum's DEVICE actually exposes, so a naming miss and a genuinely absent capability produce byte-identical output. Issue #48 is the demonstration: ten entities at exists=False could mean a reduced-transport device (nothing to fix) or a resolution failure (ENT-1, affecting anyone whose entity naming differs) — and answering it required going back to the user for entity ids the diagnostics could have carried. FIX: alongside entity_resolution, list the entities sharing a device_id with the vacuum entity. Cheap, no behaviour change, and it makes the NEXT report of this class self-diagnosing instead of costing a round trip.",
+  "status": "CLOSED 2026-08-04 — device_entities census + entity_resolution_summary; [DIAG-14/14b]"
  },
  {
   "run": "live",

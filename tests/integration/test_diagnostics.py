@@ -791,3 +791,69 @@ async def test_diagnostics_fully_inert_including_upkeep_snapshot(hass, manager):
     assert "upkeep_snapshot_error" not in vac
     # The real proof: no write landed in manager.data via either collector.
     assert VACUUM not in manager.data.get("capabilities", {})
+
+
+async def test_device_entity_census_distinguishes_the_two_failure_modes(hass):
+    """[DIAG-14] live:DIAG-1 — a failed resolution must be distinguishable from
+    an absent capability.
+
+    `entity_resolution` lists each declared role with exists true/false, and a
+    role reading exists=false has two completely different causes producing
+    byte-identical output: the device genuinely has no such entity, or the
+    adapter DERIVED the wrong id from the vacuum's own entity_id (live:ENT-1 —
+    an area prefix, a rename). Issue #48 is the worked example: ten roles at
+    exists=false, and answering "which is this?" needed a round-trip to the
+    reporter for entity ids the dump could have carried.
+
+    The census plus the summary make the two visibly different in the dump
+    itself. This test pins the DISTINCTION, not the wording.
+    """
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    vac = diag["vacuums"][0]
+
+    assert "device_entities" in vac, "the dump cannot answer 'what does the device have?'"
+    assert "entity_resolution_summary" in vac
+
+    summary = vac["entity_resolution_summary"]
+    assert isinstance(summary["declared"], int)
+    assert isinstance(summary["unresolved"], list)
+    # The verdict is only claimed when it can be: it needs BOTH unresolved roles
+    # and a known sibling count, so an unreadable registry never produces a
+    # confident wrong answer.
+    assert isinstance(summary["likely_naming_mismatch"], bool)
+    if summary["likely_naming_mismatch"]:
+        assert summary["unresolved"]
+        assert isinstance(summary["device_entity_count"], int)
+        assert summary["device_entity_count"] > 0
+
+
+async def test_device_entity_census_never_costs_the_dump(hass):
+    """[DIAG-14b] live:DIAG-1 — the census is best-effort, always.
+
+    Diagnostics is the tool reached for when things are already broken, so a
+    registry lookup that fails must degrade to a reason string rather than take
+    the whole dump with it. A vacuum entity that is not in the registry at all
+    is the ordinary version of that.
+    """
+    manager = _make_manager()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {"segments": []})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    census = diag["vacuums"][0]["device_entities"]
+
+    # Whatever happened, the block exists and says WHY rather than being empty.
+    assert isinstance(census, dict)
+    assert any(k in census for k in ("entities", "reason", "error")), census
+    # ...and the rest of the dump is intact.
+    assert diag["vacuums"][0]["entity_resolution"]

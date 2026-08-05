@@ -25,6 +25,7 @@ from typing import Any
 from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .const import DATA_RUNTIME, DOMAIN
 from .debug_capture import _redact
@@ -328,6 +329,66 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _device_entity_census(hass: HomeAssistant, vacuum_entity_id: str) -> dict[str, Any]:
+    """What the vacuum's DEVICE actually exposes, beside what the adapter derived.
+
+    DIAG-1. ``entity_resolution`` lists each declared role with exists true/false
+    — and a role that reads ``exists: false`` has two completely different
+    causes that produce byte-identical output:
+
+      1. the device genuinely has no such entity (nothing to fix), or
+      2. we looked in the WRONG PLACE — the adapter derives companion entity ids
+         from the vacuum's own entity_id, so any device whose entities are named
+         differently (an area prefix, a rename) resolves to ids that do not
+         exist (live:ENT-1).
+
+    Issue #48 is the worked example: ten roles at exists=false, and answering
+    "which of the two is this?" needed a round-trip to the reporter for entity
+    ids the dump could have carried. Listing the device's real entities makes the
+    two cases visibly different — a populated census beside failed resolutions IS
+    the naming mismatch, and an empty one is a genuinely reduced device.
+
+    Best-effort by construction: diagnostics is the tool reached for when things
+    are already broken, so every failure here degrades to a reason string rather
+    than costing the reader the whole dump.
+    """
+    census: dict[str, Any] = {}
+    try:
+        registry = er.async_get(hass)
+        entry = registry.async_get(vacuum_entity_id)
+        if entry is None:
+            census["reason"] = "vacuum_entity_not_in_registry"
+            return census
+
+        device_id = entry.device_id
+        census["device_id"] = device_id
+        if not device_id:
+            # A vacuum entity with no device cannot have siblings — say so
+            # explicitly rather than returning an empty list, which would read
+            # like "this device exposes nothing".
+            census["reason"] = "vacuum_entity_has_no_device"
+            return census
+
+        siblings = er.async_entries_for_device(
+            registry, device_id, include_disabled_entities=True
+        )
+        census["entity_count"] = len(siblings)
+        census["entities"] = [
+            {
+                "entity_id": item.entity_id,
+                # disabled_by is the OTHER silent cause: an entity that exists in
+                # the registry but has no state is indistinguishable, through
+                # hass.states.get, from one that was never created at all.
+                "disabled": bool(item.disabled_by),
+                "platform": item.platform,
+            }
+            for item in sorted(siblings, key=lambda i: i.entity_id)
+        ]
+    except Exception as err:  # pragma: no cover - defensive
+        census["error"] = _redact(repr(err))
+    return census
+
+
 def _vacuum_diagnostics(
     hass: HomeAssistant, manager: Any, vacuum_entity_id: str
 ) -> dict[str, Any]:
@@ -353,6 +414,27 @@ def _vacuum_diagnostics(
         for role, entity_id in sorted(entities_map.items())
     }
     out["entity_resolution"] = entity_resolution
+
+    # DIAG-1: the counterpart to the table above. Read them together — declared
+    # roles that failed to resolve, against what the device really has.
+    out["device_entities"] = _device_entity_census(hass, vacuum_entity_id)
+
+    # The one-line verdict, so a reader does not have to cross-reference two
+    # lists by eye. Unresolved roles WITH siblings present is the shape of a
+    # naming mismatch (live:ENT-1); unresolved roles with no siblings is a
+    # genuinely reduced device.
+    _unresolved = sorted(
+        role for role, snap in entity_resolution.items() if not snap.get("exists")
+    )
+    _sibling_count = out["device_entities"].get("entity_count")
+    out["entity_resolution_summary"] = {
+        "declared": len(entity_resolution),
+        "unresolved": _unresolved,
+        "device_entity_count": _sibling_count,
+        "likely_naming_mismatch": bool(
+            _unresolved and isinstance(_sibling_count, int) and _sibling_count > 0
+        ),
+    }
 
     # Capability flags (the entities sub-dict is already expanded above).
     if isinstance(caps, dict):
