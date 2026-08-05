@@ -67,12 +67,28 @@ export function applySharedRenderers(proto) {
 
   /**
    * Translate a key whose English carries AUTHORED markup (e.g. <strong>):
-   * skips string-escaping so the markup survives, but STILL escapes interpolated
-   * values. Reserved for the audited markup allowlist — see `proto.t`.
+   * skips escaping of the CATALOG STRING so that markup survives. Reserved for
+   * the audited markup allowlist — see `proto.t`.
+   *
+   * INTERPOLATED VALUES ARE INSERTED RAW — exactly as in `t()`. This docstring
+   * used to claim tRaw "STILL escapes interpolated values"; it never has
+   * (i18n/index.js: the `raw` option skips `esc(s)` on the catalog string, and
+   * the `{name}` substitution below it is unconditional). live:I18N-1.
+   *
+   * THE CALLER ESCAPES AT THE SINK, for both functions. Every tRaw call site
+   * today does — the bind_setup.* handlers pass err.message into a sink that
+   * escapes, and the block-reason sinks escapeHtml their result — so this was a
+   * documentation defect, not a live hole. The reason it still mattered: a
+   * future caller who trusted the old sentence and therefore skipped escaping
+   * at a NEW sink would open one, with the docstring reading as justification.
+   *
+   * Pinned by renderers/i18n-escaping-contract.test.mjs so the two cannot
+   * disagree again.
    *
    * @param {string} key - dot-namespaced string key.
-   * @param {Record<string, unknown>} [vars] - interpolation values (raw).
-   * @returns {string} the resolved string with authored markup preserved.
+   * @param {Record<string, unknown>} [vars] - interpolation values, inserted RAW.
+   * @returns {string} the resolved string with authored markup preserved; the
+   *   CALLER must escape it (and any interpolated user data) at the sink.
    */
   proto.tRaw = function (key, vars) {
     return translate(this._i18nLanguage(), key, vars, { raw: true });
