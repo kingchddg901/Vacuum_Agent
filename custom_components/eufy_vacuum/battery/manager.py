@@ -101,6 +101,31 @@ _LOGGER = logging.getLogger(__name__)
 #: stays cleaner with them excluded.
 MAX_DELTA_PCT = 3.0
 
+#: Plausible band for a regime-speed percentage (``baseline / current * 100``).
+#:
+#: live:BATT-CV-1. That expression is a RATIO and nothing bounded it: a regime span
+#: measured across a very small window drives ``current`` toward zero and the
+#: quotient explodes. Observed on Alfred 2026-08-05 — the first time these fields
+#: ever held a value at all, after two deep overnight charges finally re-qualified
+#: the session set — as cv 868.7 against cc 118.4.
+#:
+#: THE PHYSICS RULES IT OUT BEFORE ANY THRESHOLD IS ARGUED. CV is the TAPER phase,
+#: where current falls and charging SLOWS. A CV figure seven times the CC one is
+#: backwards, whatever band you pick.
+#:
+#: 100 is a pack matching its own anchor. The floor is deliberately generous — a
+#: genuinely tired pack reading 30 is grim but real, and rejecting it would hide
+#: exactly the degradation this proxy exists to show. The ceiling is the load-
+#: bearing one: charging measurably FASTER than when the baseline was taken is
+#: something a cell cannot do, so anything above it is a measurement artefact.
+#:
+#: WHY NONE IS SAFE HERE. These three fields read None on both vacuums for months
+#: before RP-045, so every consumer — sensors, card, diagnostics — already handles
+#: it, and health_unavailable_reason already exists to explain it. Rejecting into a
+#: state the system has always had cannot break an install; publishing 868.7 could.
+REGIME_PCT_MIN = 25.0
+REGIME_PCT_MAX = 150.0
+
 #: Ignore *rate* computation when more than this many seconds elapsed since
 #: the previous sample — the value would be a meaningless average over the
 #: gap (e.g. an HA restart, integration unloaded for a while). Drain still
@@ -1069,12 +1094,20 @@ class BatteryHealthManager:
                     baseline["anchored_at"] = seed.get("end_ts")
                     break
 
-        record["stats"]["cc_charge_speed_pct"] = self._compute_regime_pct(
+        cc_pct, cc_rejected = self._compute_regime_pct(
             cc_qualifying, baseline.get("cc_min_per_pct"), "cc_min_per_pct"
         )
-        record["stats"]["cv_charge_speed_pct"] = self._compute_regime_pct(
+        cv_pct, cv_rejected = self._compute_regime_pct(
             cv_qualifying, baseline.get("cv_min_per_pct"), "cv_min_per_pct"
         )
+        record["stats"]["cc_charge_speed_pct"] = cc_pct
+        record["stats"]["cv_charge_speed_pct"] = cv_pct
+        # live:BATT-CV-1 — what the plausibility guard threw away, kept so the failure
+        # is diagnosable. A rejected value that leaves no trace is how "the field reads
+        # unknown" becomes indistinguishable from "the field was never computed", which
+        # is the confusion RP-045 spent a whole packet undoing.
+        record["stats"]["cc_charge_speed_rejected_pct"] = cc_rejected
+        record["stats"]["cv_charge_speed_rejected_pct"] = cv_rejected
         # Headline alias — the entity_id stays "_battery_health" for
         # continuity, but the value is now explicitly the CV (resistance)
         # signal, which is what "battery health" conventionally means.
@@ -1084,7 +1117,20 @@ class BatteryHealthManager:
         # must say so rather than read None forever — but only once there's
         # enough session history to say WHY; a brand-new install with zero
         # charges yet is genuinely "still building", not stuck.
-        if record["stats"]["health_pct"] is None and record.get("session_history_recent"):
+        if record["stats"]["health_pct"] is None and cv_rejected is not None:
+            # live:BATT-CV-1 — REJECTED is not the same as NEVER COMPUTED. Saying
+            # "no completed charge has started low enough" would be a lie here: one
+            # did, and the number it produced was impossible. Naming that sends a
+            # reader to the session data instead of to their charging habits.
+            record["stats"]["health_unavailable_reason"] = "implausible_regime_ratio"
+            record["stats"]["health_unavailable_reason_text"] = (
+                f"A health figure was computed but rejected as implausible "
+                f"({cv_rejected}%, outside {REGIME_PCT_MIN:.0f}-{REGIME_PCT_MAX:.0f}%). "
+                "This is a ratio against the baseline charge, so a regime measured "
+                "over a very short span can inflate it without limit. The next "
+                "qualifying charge that spans the full window will replace it."
+            )
+        elif record["stats"]["health_pct"] is None and record.get("session_history_recent"):
             record["stats"]["health_unavailable_reason"] = "insufficient_discharge_data"
             record["stats"]["health_unavailable_reason_text"] = (
                 f"No completed charge has started at {HEALTH_QUALIFY_START_MAX}% or "
@@ -1101,10 +1147,16 @@ class BatteryHealthManager:
         qualifying: list[dict[str, Any]],
         baseline_value: float | None,
         field: str,
-    ) -> float | None:
-        """Compute current regime % vs baseline; None if no usable data."""
+    ) -> tuple[float | None, float | None]:
+        """Current regime % vs baseline, as ``(value, rejected)``.
+
+        ``value`` is None when there is no usable data OR when the computed figure is
+        implausible (live:BATT-CV-1); in the latter case ``rejected`` carries the raw
+        number so it can be reported rather than vanish. Exactly one of the two is
+        ever non-None.
+        """
         if baseline_value is None:
-            return None
+            return None, None
 
         cutoff = datetime.now(timezone.utc) - timedelta(days=CURRENT_WINDOW_DAYS)
         recent: list[float] = []
@@ -1124,12 +1176,28 @@ class BatteryHealthManager:
                     recent = [float(value)]
                     break
             if not recent:
-                return None
+                return None, None
 
         current = sum(recent) / len(recent)
         if current <= 0:
-            return None
-        return round(baseline_value / current * 100.0, 1)
+            return None, None
+        value = round(baseline_value / current * 100.0, 1)
+        # live:BATT-CV-1 — the ratio is unbounded by construction, so plausibility is
+        # checked HERE rather than trusted. Out-of-band returns None (a state these
+        # fields have always had and every consumer already handles) and hands the raw
+        # figure back so it can be surfaced instead of silently swallowed — the same
+        # shape as `rejected_delta_pct` on the drain accumulator, which is the guard
+        # this one was missing.
+        if not (REGIME_PCT_MIN <= value <= REGIME_PCT_MAX):
+            _LOGGER.warning(
+                "battery: implausible %s regime speed %.1f%% (baseline %.4f vs current "
+                "%.4f min/pct over %d session(s)) — outside %.0f-%.0f%%, reporting "
+                "unknown rather than publishing it",
+                field, value, baseline_value, current, len(recent),
+                REGIME_PCT_MIN, REGIME_PCT_MAX,
+            )
+            return None, value
+        return value, None
 
     # -- baseline management ---------------------------------------------------
 

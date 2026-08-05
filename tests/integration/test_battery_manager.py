@@ -49,7 +49,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.eufy_vacuum.battery.manager import BatteryHealthManager
+from custom_components.eufy_vacuum.battery.manager import (
+    REGIME_PCT_MAX,
+    REGIME_PCT_MIN,
+    BatteryHealthManager,
+)
+
+
+def _iso_now() -> str:
+    """A timestamp inside the regime guard's CURRENT_WINDOW_DAYS lookback."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 _VAC = "vacuum.alfred"
@@ -623,3 +632,52 @@ def test_rebuild_job_aggregates_leaves_last_job_and_charge_linkage_alone(bm):
 
     assert bm.get_record(_VAC)["last_job"]["job_id"] == "real_last", "the rebuild overwrote last_job"
     assert _VAC not in bm._pending_post_job, "the rebuild re-armed the post-job-charge linkage"
+
+
+# ---------------------------------------------------------------------------
+# live:BATT-CV-1 — the regime-speed plausibility guard.
+#
+# `baseline / current * 100` is a RATIO and nothing bounded it: a regime measured
+# across a very small window drives `current` toward zero and the quotient
+# explodes. Observed on Alfred 2026-08-05 — the FIRST time these fields ever held
+# a value — as cv 868.7 against cc 118.4. CV is the taper phase, where charging
+# SLOWS, so a CV figure seven times the CC one is backwards from the physics.
+# ---------------------------------------------------------------------------
+
+
+def test_regime_pct_accepts_a_plausible_ratio(bm):
+    """A healthy pack matching its anchor, and a genuinely tired one, both pass. The
+    floor is deliberately generous — rejecting a grim reading would hide exactly the
+    degradation this proxy exists to show."""
+    sessions = [{"cv_min_per_pct": 1.0, "end_ts": _iso_now()}]
+    assert bm._compute_regime_pct(sessions, 1.0, "cv_min_per_pct") == (100.0, None)
+
+    tired = [{"cv_min_per_pct": 2.5, "end_ts": _iso_now()}]
+    value, rejected = bm._compute_regime_pct(tired, 1.0, "cv_min_per_pct")
+    assert value == 40.0 and rejected is None
+
+
+def test_regime_pct_rejects_the_impossible_ratio_and_keeps_it(bm):
+    """The observed failure. A tiny `current` inflates the ratio without limit; the
+    value must not be published, and must not vanish either — a rejection that leaves
+    no trace makes "reads unknown" indistinguishable from "never computed"."""
+    sessions = [{"cv_min_per_pct": 0.115, "end_ts": _iso_now()}]
+    value, rejected = bm._compute_regime_pct(sessions, 1.0, "cv_min_per_pct")
+    assert value is None
+    assert rejected is not None and rejected > REGIME_PCT_MAX
+
+
+def test_regime_pct_rejects_below_the_floor(bm):
+    sessions = [{"cv_min_per_pct": 100.0, "end_ts": _iso_now()}]
+    value, rejected = bm._compute_regime_pct(sessions, 1.0, "cv_min_per_pct")
+    assert value is None and rejected is not None and rejected < REGIME_PCT_MIN
+
+
+def test_regime_pct_no_data_is_not_a_rejection(bm):
+    """No baseline / no sessions returns (None, None) — nothing was computed, so
+    nothing was thrown away. Keeping those cases distinct is the whole point."""
+    assert bm._compute_regime_pct([], None, "cv_min_per_pct") == (None, None)
+    assert bm._compute_regime_pct([], 1.0, "cv_min_per_pct") == (None, None)
+    assert bm._compute_regime_pct(
+        [{"cv_min_per_pct": 0.0, "end_ts": _iso_now()}], 1.0, "cv_min_per_pct"
+    ) == (None, None)
