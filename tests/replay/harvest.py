@@ -88,18 +88,42 @@ ROLE_SUFFIXES = (
 )
 
 
-#: Entities dropped even under ``--all-entities``. Not "uninteresting" - too
-#: CHATTY to carry, which is a different and measurable thing.
+#: Entities filtered OUT BY DEFAULT - not dropped from the recorder, and not
+#: judged uninteresting. Filtered because they are chatty, which is measurable:
+#: over one 50-minute window (2026-08-01 20:40-21:30Z) the 20 ``*_rule_status``
+#: sensors produced 20,548 state rows against 680 from the other 224 entities
+#: combined - 96.8% of the volume.
 #:
-#: MEASURED over one 50-minute window (2026-08-01 20:40-21:30Z): the 20
-#: ``*_rule_status`` sensors produced 20,548 state rows against 680 from the
-#: other 224 entities combined. 96.8% of the volume, ~1000 changes each, across
-#: exactly two distinct values ("not_selected" / "allowed"). Carrying them makes
-#: every bundle ~30x larger and buries the signal in a diff.
-#:
-#: --include-noisy brings them back, which is the right move if the rule
-#: evaluation itself is ever the thing under investigation.
+#: They ARE the signal when a rule is what you are testing and the vacuum's own
+#: state does not capture it, so --include-noisy brings them straight back. That
+#: is cheap now: deduped, those 20,548 rows are 27.
 NOISY_SUFFIXES = ("_rule_status",)
+
+
+def _dedupe(events: list[list[str]]) -> tuple[list[list[str]], int]:
+    """Drop rows that repeat an entity's previous state.
+
+    LOSSLESS for a states-only bundle, because a row whose state equals the one
+    before it carries no state information - and replaying it through
+    tests/replay/harness.py is a no-op either way. (Home Assistant writes a new
+    row when ATTRIBUTES change too, which is where most of these come from; a
+    bundle that carried attributes could not do this.)
+
+    Worth doing, not a micro-optimisation. Measured on the same window: 99.9% of
+    the ``*_rule_status`` rows repeat the previous state - those sensors
+    re-publish unchanged rather than flipping, ~10 of them in lockstep at every
+    one of 2,035 instants, and the whole 20,548 rows carry 27 distinct fleet
+    snapshots between them.
+    """
+    last: dict[str, str] = {}
+    out: list[list[str]] = []
+    for row in events:
+        _t, entity, state = row
+        if last.get(entity) == state:
+            continue
+        last[entity] = state
+        out.append(row)
+    return out, len(events) - len(out)
 
 
 def _iso(ts: float) -> str:
@@ -325,6 +349,7 @@ def harvest_run(
             if state is not None:
                 events.append([_iso(t), eid, state])
     events.sort()
+    events, _deduped = _dedupe(events)
 
     rooms = job.get("room_timings") or []
     # A PHASE-CHILD record leaves cleaning_area_m2 at 0.0 while its room rows
@@ -411,6 +436,7 @@ def harvest_run(
 def eject_window(
     con: sqlite3.Connection, entity_like: str, start_iso: str, end_iso: str,
     all_entities: bool = False, include_noisy: bool = False,
+    dedupe: bool = True,
 ) -> dict[str, Any]:
     """Eject an arbitrary time window - no job record required.
 
@@ -451,8 +477,8 @@ def eject_window(
     if dropped:
         # Say what was left out. A bundle that silently omits entities reads as
         # "this is everything the device did", which is the one thing it is not.
-        print(f"  dropped {dropped} chatty entities ({', '.join(NOISY_SUFFIXES)}) "
-              f"- pass --include-noisy to keep them")
+        print(f"  filtered out {dropped} chatty entities "
+              f"({', '.join(NOISY_SUFFIXES)}) - --include-noisy keeps them")
     initial: dict[str, str] = {}
     events: list[list[str]] = []
     for mid, eid in sorted(ents.items(), key=lambda kv: kv[1]):
@@ -471,12 +497,19 @@ def eject_window(
             if state is not None:
                 events.append([_iso(t), eid, state])
     events.sort()
+    deduped = 0
+    if dedupe:
+        events, deduped = _dedupe(events)
+        if deduped:
+            print(f"  deduped {deduped} repeated-state rows "
+                  f"({deduped / (deduped + len(events)) * 100:.1f}%)")
     return {
         "meta": {
             "source": "home-assistant_v2.db (recorder, immutable)",
             "match": entity_like, "window": [start_iso, end_iso],
             "entities": len(ents), "all_entities": all_entities,
             "noisy_included": include_noisy, "noisy_suffixes": list(NOISY_SUFFIXES),
+            "deduped_rows": deduped,
         },
         "initial": initial,
         "events": events,
@@ -496,6 +529,9 @@ def main() -> None:
     ap.add_argument("--all-entities", action="store_true",
                     help="--window: carry EVERY matching entity, not just known "
                          "roles. Use when bringing up a new adapter.")
+    ap.add_argument("--no-dedupe", action="store_true",
+                    help="keep rows that repeat an entity's previous state "
+                         "(dropped by default - lossless for a states-only bundle)")
     ap.add_argument("--include-noisy", action="store_true",
                     help=f"keep {', '.join(NOISY_SUFFIXES)} entities, dropped by "
                          "default as ~97%% of state volume across two values")
@@ -520,7 +556,7 @@ def main() -> None:
     if args.window:
         start, end = args.window
         bundle = eject_window(con, args.match, start, end, args.all_entities,
-                              args.include_noisy)
+                              args.include_noisy, dedupe=not args.no_dedupe)
         name = f"window_{start.replace(':', '').replace('-', '')}.json"
         (out_root / name).write_text(
             json.dumps(bundle, indent=1, ensure_ascii=False), encoding="utf-8")
