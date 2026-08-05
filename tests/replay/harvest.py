@@ -56,9 +56,14 @@ from typing import Any
 
 UTC = dt.timezone.utc
 
-#: ft2 -> m2. The Eufy area sensor publishes ft2 while the device counts WHOLE
-#: square metres, so every raw value is an integer multiple of 1/0.09290304.
-#: Measured, not assumed - see live:PHASE-ATTR-1.
+#: ft2 -> m2. The device counts WHOLE square metres (robovac_mqtt DPS 110), so a
+#: ft2-published reading is always an integer multiple of 1/0.09290304.
+#:
+#: WHICH SENSOR PUBLISHES WHICH UNIT IS PER-ENTITY, not per-install: verified
+#: live 2026-08-04 that this HA's unit system is METRIC while
+#: sensor.alfred_cleaning_area reads ft2, because the entity registry carries a
+#: per-entity unit override on it. That is exactly why units are read back from
+#: state_attributes per row rather than declared - see _readings.
 FT2_TO_M2 = 0.09290304
 
 #: Unit scales, keyed by the sensor's own ``unit_of_measurement``.

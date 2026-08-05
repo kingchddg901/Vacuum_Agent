@@ -106,12 +106,16 @@ _PHASE_COUNTER_KEYS = ("cleaning_time", "cleaning_area")
 #:
 #: This is not hypothetical. counter_segmentation._AREA_EPS already exists for
 #: the same reason and documents the mechanism: cleaning_area arrives in whole
-#: ~1 m2 device steps, but an imperial HA reports them in ft2 (10.76 per step,
-#: itself a 2-dp rounding of 10.7639), so a nominally exact N m2 lands at
-#: N-0.0007 or N+0.0002 depending on which way each step rounded - and that
-#: comment records 4 of 7 real boundaries lost to exactly this. Plain float
-#: arithmetic does it too: 3.0 round-tripped through a ft2 conversion comes back
-#: 2.9999999999999942, which is a DECREASE.
+#: ~1 m2 device steps, but the SENSOR can publish ft2 - and that is not an
+#: "imperial Home Assistant" thing, which is what I first wrote. VERIFIED on the
+#: live box 2026-08-04: HA's unit system there is METRIC (m2, km), the device
+#: reports whole m2 (robovac_mqtt const.py, DPS 110), and
+#: sensor.alfred_cleaning_area still reads ft2 - because the ENTITY REGISTRY
+#: carries a per-entity unit override to ft2 on it (original_device_class 'area',
+#: so HA offers the conversion). The m2 -> ft2 -> m2 round trip is where the
+#: jitter enters, and a per-entity override can put ANY install on that path
+#: regardless of its unit system. Plain float arithmetic does it too: 3.0
+#: round-tripped comes back 2.9999999999999942, which is a DECREASE.
 #:
 #: Both values sit far below their counter's quantum (1 m2, 30 s), so neither can
 #: mask a real reset - a reset goes to ~0, not down by a hundredth.

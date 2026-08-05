@@ -568,11 +568,13 @@ def test_rounding_jitter_is_not_a_counter_reset():
     fresh progress, inflating the phase by up to a full quantum.
 
     This is not hypothetical, and counter_segmentation._AREA_EPS already exists
-    for it - its comment records 4 of 7 real boundaries lost to the same effect.
-    cleaning_area arrives in whole ~1 m2 device steps, but an imperial HA reports
-    them in ft2 (10.76 per step, itself a 2-dp rounding of 10.7639), so a
-    nominally exact N m2 comes back as N-0.0007 or N+0.0002 depending on which
-    way each step rounded. Plain float arithmetic does it too: 3.0 through a ft2
+    for it. cleaning_area arrives in whole ~1 m2 device steps, but the SENSOR can
+    publish ft2 - and NOT only on an "imperial Home Assistant", which is what I
+    first wrote here. Verified live 2026-08-04: that HA's unit system is METRIC,
+    the device reports whole m2, and sensor.alfred_cleaning_area still reads ft2
+    because the entity registry carries a per-entity unit override on it. So the
+    m2 -> ft2 -> m2 round trip - and this jitter - can reach any install, not a
+    niche one. Plain float arithmetic does it too:way each step rounded. Plain float arithmetic does it too: 3.0 through a ft2
     round-trip returns 2.9999999999999942, which IS a decrease.
 
     The value below is that exact round-trip, not a number I chose to be small.
