@@ -2812,5 +2812,10 @@
   "faults": {
     "unknown_code": "Fout {code}",
     "unknown": "Onbekende fout"
+  },
+  "font": {
+    "heading": "Lettertype",
+    "default": "Standaard",
+    "opendyslexic": "OpenDyslexic"
   }
 }

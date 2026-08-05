@@ -2812,5 +2812,10 @@
   "faults": {
     "unknown_code": "Chyba {code}",
     "unknown": "Neznámá chyba"
+  },
+  "font": {
+    "heading": "Písmo",
+    "default": "Výchozí",
+    "opendyslexic": "OpenDyslexic"
   }
 }

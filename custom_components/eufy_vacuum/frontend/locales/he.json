@@ -2924,5 +2924,10 @@
   "faults": {
     "unknown_code": "שגיאה {code}",
     "unknown": "שגיאה לא ידועה"
+  },
+  "font": {
+    "heading": "גופן",
+    "default": "ברירת מחדל",
+    "opendyslexic": "OpenDyslexic"
   }
 }

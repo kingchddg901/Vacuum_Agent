@@ -11,6 +11,7 @@ import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js"
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
 import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus, applyDir } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
+import { FONT_DEFAULT, getStoredFont, setStoredFont } from "./i18n/font-store.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -57,6 +58,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // _langUserPicked blocks a late server read from clobbering a fresh
     // in-session pick (see _maybeLoadLangOverride / setLanguageOverride).
     this._langOverride = "auto";
+    // Accessibility typeface (font-store.js). FONT_DEFAULT = defer to the theme.
+    this._uiFont = FONT_DEFAULT;
     this._languageMenuOpen = false;
     this._langOverrideLoaded = false;
     this._langUserPicked = false;
@@ -396,6 +399,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * tradeoff of the per-user-data store), not in real time.
    */
   _maybeLoadLangOverride() {
+    this._maybeLoadFontChoice();   // same trigger, same one-shot contract
     if (this._langOverrideLoaded) return;
     this._langOverrideLoaded = true; // one-shot, set before the await
     getStoredLang(this._hass).then((code) => {
@@ -409,6 +413,60 @@ class EufyVacuumCommandCenter extends HTMLElement {
       if (this._config?.vacuum_entity_id) this._scheduleRender();
       else this._renderNoVacuumPlaceholder();
     });
+  }
+
+  /**
+   * Load the per-user font choice ONCE, mirroring _maybeLoadLangOverride.
+   *
+   * Same one-shot + in-session-pick-wins shape, and for the same reason: a late
+   * server read must never clobber a choice the user just made. Fails soft to
+   * FONT_DEFAULT, which is simply "whatever the theme says" — so a failed read
+   * is invisible rather than broken.
+   */
+  _maybeLoadFontChoice() {
+    if (this._uiFontLoaded) return;
+    this._uiFontLoaded = true; // one-shot, set before the await
+    getStoredFont(this._hass).then((fontId) => {
+      if (this._fontUserPicked) return;
+      if (!fontId || fontId === this._uiFont) return;
+      this._uiFont = fontId;
+      // Apply BEFORE the re-render: the attribute drives a CSS custom property,
+      // so setting it after paint would flash the theme font first.
+      this._applyFontAttribute();
+      if (this._config?.vacuum_entity_id) this._scheduleRender();
+      else this._renderNoVacuumPlaceholder();
+    });
+  }
+
+  /**
+   * Apply (or clear) the accessibility typeface on the host element.
+   *
+   * The attribute lives on the HOST, not on inner markup, so styles/fonts.js's
+   * `:host([data-evcc-font=…])` rule sets --evcc-font-family at the top of the
+   * cascade and BEATS a theme that also sets the token — the user's
+   * accessibility choice outranks a theme's aesthetic one.
+   *
+   * Removed rather than set to "default": absence is the default state, and the
+   * CSS has nothing keyed to a "default" value to match.
+   */
+  _applyFontAttribute() {
+    const fontId = this._uiFont;
+    if (fontId && fontId !== FONT_DEFAULT) this.setAttribute("data-evcc-font", fontId);
+    else this.removeAttribute("data-evcc-font");
+  }
+
+  /**
+   * Pick a typeface: apply immediately (optimistic), re-render, and persist in
+   * the background — the same fire-and-forget contract setLanguageOverride uses.
+   *
+   * @param {string} fontId - a FONT_SUPPORT id, or FONT_DEFAULT.
+   */
+  setUiFont(fontId) {
+    this._fontUserPicked = true; // an in-session pick wins over a late server read
+    this._uiFont = fontId || FONT_DEFAULT;
+    this._applyFontAttribute();
+    this._scheduleRender();
+    setStoredFont(this._hass, this._uiFont);
   }
 
   /**

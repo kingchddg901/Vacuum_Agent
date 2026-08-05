@@ -2773,5 +2773,10 @@
   "faults": {
     "unknown_code": "錯誤 {code}",
     "unknown": "未知錯誤"
+  },
+  "font": {
+    "heading": "字體",
+    "default": "預設",
+    "opendyslexic": "OpenDyslexic"
   }
 }

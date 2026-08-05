@@ -104,6 +104,13 @@ export const en = {
 
   // --- language (the header globe control: per-user display-language override, persisted across devices) ---
   "language.button_title": "Language",  // tooltip/aria-label on the header globe button that opens the language menu
+  // ACCESSIBILITY typeface picker, inside the language menu. Translated at
+  // creation even though the control is English-gated today — when a locale's
+  // catalogue coverage is verified and enabled, the chrome must already be
+  // there rather than appear in English on the day it is switched on.
+  "font.heading": "Typeface",  // sub-heading over the font options in the language menu
+  "font.default": "Default",   // font option: defer to the theme / Home Assistant font
+  "font.opendyslexic": "OpenDyslexic",  // font option: PROPER NOUN — the typeface name, never translate it
   "language.heading": "Display language",  // heading at the top of the language dropdown menu
   "language.auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
   "language.auto_draft_note": "{lang} is still a draft, so Auto shows English — pick it below to use it.",  // sub-note under the Auto row when the HA system language is a draft (gated to English); {lang} = that language's own name

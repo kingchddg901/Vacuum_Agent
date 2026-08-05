@@ -2815,5 +2815,10 @@
   "faults": {
     "unknown_code": "Errore {code}",
     "unknown": "Errore sconosciuto"
+  },
+  "font": {
+    "heading": "Carattere",
+    "default": "Predefinito",
+    "opendyslexic": "OpenDyslexic"
   }
 }

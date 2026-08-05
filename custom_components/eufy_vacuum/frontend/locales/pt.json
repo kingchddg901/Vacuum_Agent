@@ -2827,5 +2827,10 @@
   "faults": {
     "unknown_code": "Erro {code}",
     "unknown": "Erro desconhecido"
+  },
+  "font": {
+    "heading": "Tipo de letra",
+    "default": "Predefinido",
+    "opendyslexic": "OpenDyslexic"
   }
 }

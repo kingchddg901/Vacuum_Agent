@@ -2828,5 +2828,10 @@
   "faults": {
     "unknown_code": "Error {code}",
     "unknown": "Error desconocido"
+  },
+  "font": {
+    "heading": "Tipografía",
+    "default": "Predeterminada",
+    "opendyslexic": "OpenDyslexic"
   }
 }

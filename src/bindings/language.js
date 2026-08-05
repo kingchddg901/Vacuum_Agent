@@ -7,6 +7,7 @@
  *   - toggle-language-menu  → open/close the dropdown
  *   - close-language-menu   → the backdrop (outside click)
  *   - set-language          → pick a locale (or "auto")
+ *   - set-font              → pick the accessibility typeface
  *
  * All idempotent via card._onAll, re-attached after every render like the rest
  * of the bindings. The control lives in BOTH the desktop and mobile headers; a
@@ -39,6 +40,14 @@ export function applyLanguageBindings(proto) {
     this.card._onAll("[data-action='set-language']", "click", (e) => {
       const lang = e.currentTarget?.dataset?.lang;
       if (lang) this.card.setLanguageOverride(lang);
+    });
+
+    // Accessibility typeface. Deliberately does NOT close the menu: the option
+    // renders in the font it offers, so staying open lets the user see the
+    // whole card change and switch straight back if it is not for them.
+    this.card._onAll("[data-action='set-font']", "click", (e) => {
+      const font = e.currentTarget?.dataset?.font;
+      if (font) this.card.setUiFont(font);
     });
   };
 }

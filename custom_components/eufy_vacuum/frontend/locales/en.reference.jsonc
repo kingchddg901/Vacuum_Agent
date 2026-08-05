@@ -64,6 +64,11 @@
     "auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
     "auto_draft_note": "{lang} is still a draft, so Auto shows English — pick it below to use it."  // sub-note under the Auto row when the HA system language is a draft (gated to English); {lang} = that language's own name
   },
+  "font": {
+    "heading": "Typeface",  // sub-heading over the font options in the language menu
+    "default": "Default",  // font option: defer to the theme / Home Assistant font
+    "opendyslexic": "OpenDyslexic"  // font option: PROPER NOUN — the typeface name, never translate it
+  },
   "vocab": {
     "clean_mode": {
       "vacuum": "Vacuum",  // clean mode: suction only

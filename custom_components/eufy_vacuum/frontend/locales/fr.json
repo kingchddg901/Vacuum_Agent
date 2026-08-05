@@ -2829,5 +2829,10 @@
   "faults": {
     "unknown_code": "Erreur {code}",
     "unknown": "Erreur inconnue"
+  },
+  "font": {
+    "heading": "Police",
+    "default": "Par défaut",
+    "opendyslexic": "OpenDyslexic"
   }
 }

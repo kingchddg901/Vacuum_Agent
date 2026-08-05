@@ -2918,5 +2918,10 @@
   "faults": {
     "unknown_code": "Ошибка {code}",
     "unknown": "Неизвестная ошибка"
+  },
+  "font": {
+    "heading": "Шрифт",
+    "default": "По умолчанию",
+    "opendyslexic": "OpenDyslexic"
   }
 }

@@ -2812,5 +2812,10 @@
   "faults": {
     "unknown_code": "Hata {code}",
     "unknown": "Bilinmeyen hata"
+  },
+  "font": {
+    "heading": "Yazı tipi",
+    "default": "Varsayılan",
+    "opendyslexic": "OpenDyslexic"
   }
 }

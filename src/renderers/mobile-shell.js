@@ -126,7 +126,7 @@ export function applyMobileShellRenderer(proto) {
   proto.renderMobileHeader = function (ctx) {
     const { vacuumName, vacuumStatus, vacuumStatusLabel,
             dockStatus, dockStatusLabel, battery,
-            langOverride, currentLang, languageMenuOpen, autoInfo } = ctx;
+            langOverride, currentLang, languageMenuOpen, autoInfo, uiFont } = ctx;
     const batteryText = battery != null ? `${battery}%` : "";
     // Localize the device-status VALUE via the adapter vocab; fall back to the
     // backend label (then title-cased raw) for unkeyed states. tVocabRaw — sink escapes.
@@ -142,7 +142,7 @@ export function applyMobileShellRenderer(proto) {
       <div class="evcc-mobile-header">
         <div class="evcc-mobile-header-lang">
           ${renderLanguageControl(this, {
-            langOverride, currentLang, open: languageMenuOpen, autoInfo,
+            langOverride, currentLang, open: languageMenuOpen, autoInfo, uiFont,
           })}
         </div>
         <div class="evcc-mobile-vacuum-name">

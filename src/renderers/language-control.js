@@ -21,6 +21,7 @@
  */
 
 import { listLocales } from "../i18n/index.js";
+import { FONT_DEFAULT, availableFonts } from "../i18n/font-store.js";
 
 /** Minimal HTML escape — labels come from our own endonym table, escaped for defence in depth. */
 function esc(s) {
@@ -64,7 +65,7 @@ function languageBadge(code) {
  *   - `open`: whether the dropdown is open.
  * @returns {string} HTML
  */
-export function renderLanguageControl(renderers, { langOverride, currentLang, open, autoInfo } = {}) {
+export function renderLanguageControl(renderers, { langOverride, currentLang, open, autoInfo, uiFont } = {}) {
   const t = (k, v) => renderers.t(k, v);
   const active = langOverride && langOverride !== "auto" ? String(langOverride) : "auto";
   const badge = languageBadge(currentLang);
@@ -111,6 +112,31 @@ export function renderLanguageControl(renderers, { langOverride, currentLang, op
     })
     .join("");
 
+  // ACCESSIBILITY TYPEFACE, in the language menu rather than a surface of its
+  // own: it is the same kind of thing as the globe — a per-user DISPLAY
+  // preference, stored in the same user-data object — and a second dropdown for
+  // one toggle would be more chrome than feature.
+  //
+  // The English gate is not written here. availableFonts() consults
+  // FONT_SUPPORT, so a locale whose catalogue coverage has not been VERIFIED
+  // returns the default alone and the whole section disappears. Adding a locale
+  // later is a data edit; this markup never learns a language name.
+  const fonts = availableFonts(currentLang);
+  const activeFont = uiFont || FONT_DEFAULT;
+  const fontSection = fonts.length > 1
+    ? `<div class="evcc-lang-menu-heading evcc-lang-menu-heading--sub">${t("font.heading")}</div>
+       ${fonts.map((fontId) => {
+         const isActive = fontId === activeFont;
+         return `
+        <button type="button" role="menuitemradio" aria-checked="${isActive}"
+                class="evcc-lang-option${isActive ? " is-active" : ""}"
+                data-action="set-font" data-font="${esc(fontId)}">
+          <span class="evcc-lang-check" aria-hidden="true">${isActive ? "✓" : ""}</span>
+          <span class="evcc-lang-label${fontId === "opendyslexic" ? " evcc-font-sample-opendyslexic" : ""}">${t(`font.${fontId}`)}</span>
+        </button>`;
+       }).join("")}`
+    : "";
+
   return `
     <div class="evcc-lang${open ? " is-open" : ""}">
       <button type="button" class="evcc-lang-button"
@@ -126,6 +152,7 @@ export function renderLanguageControl(renderers, { langOverride, currentLang, op
            <div class="evcc-lang-menu" role="menu" aria-label="${t("language.heading")}">
              <div class="evcc-lang-menu-heading">${t("language.heading")}</div>
              ${items}
+             ${fontSection}
            </div>`
         : ""}
     </div>

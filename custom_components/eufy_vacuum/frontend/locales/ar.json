@@ -3024,5 +3024,10 @@
   "faults": {
     "unknown_code": "خطأ {code}",
     "unknown": "خطأ غير معروف"
+  },
+  "font": {
+    "heading": "نوع الخط",
+    "default": "افتراضي",
+    "opendyslexic": "OpenDyslexic"
   }
 }

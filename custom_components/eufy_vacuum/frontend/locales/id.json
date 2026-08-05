@@ -2812,5 +2812,10 @@
   "faults": {
     "unknown_code": "Kesalahan {code}",
     "unknown": "Kesalahan tidak diketahui"
+  },
+  "font": {
+    "heading": "Jenis huruf",
+    "default": "Bawaan",
+    "opendyslexic": "OpenDyslexic"
   }
 }

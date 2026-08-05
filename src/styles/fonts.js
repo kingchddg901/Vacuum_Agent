@@ -85,4 +85,12 @@ export const fontStyles = `
   [data-evcc-font="opendyslexic"] {
     --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
+
+  /* The picker's own option renders IN the font it offers, so the user can see
+     what they are choosing before choosing it — the one place the font must
+     apply regardless of the current setting. Not the token: this option must
+     stay OpenDyslexic even while the card is on the default. */
+  .evcc-font-sample-opendyslexic {
+    font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+  }
 `;
