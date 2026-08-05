@@ -4078,29 +4078,9 @@ class EufyVacuumManager:
             room_id = _safe_int(room.get("room_id", -1), -1)
             room_entry = dict(room)
             is_completed = room_id in completed_room_ids
-            # RP-047(b). This compared against the SINGULAR current_room_id, which
-            # for a group dispatch is room[0] — so a phase cleaning three rooms at
-            # once lit exactly one chip and the card pinned to Entryway for the
-            # whole phase. That is C4's own stated fix: "record the phase as a
-            # phase rather than as room[0]".
-            #
-            # RP-047(a) already computes current_room_ids for the active phase and
-            # ships it in the current_phase block; nothing consumed it. Matching on
-            # the LIST is the whole fix, and it needs no card change at all: every
-            # surface — queue chips, room cards, the learning banner, the map —
-            # already reads this per-room `current` flag, so they all correct
-            # together. A card-side rewrite would have taught four renderers a new
-            # shape to answer a question this contract already answers.
-            #
-            # Falls back to the singular when the phase block is absent (an atomic
-            # job, or a snapshot written before RP-047(a)), so single-room dispatch
-            # is byte-identical.
-            _phase_room_ids = current_room_ids if current_room_ids else (
-                [current_room_id] if isinstance(current_room_id, int) else []
-            )
             is_current = (
                 room_id >= 0
-                and room_id in _phase_room_ids
+                and room_id == current_room_id
                 and active_job.get("status") in {"started", "paused"}
                 and not is_completed
             )
