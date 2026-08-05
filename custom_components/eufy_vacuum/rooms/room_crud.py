@@ -548,6 +548,24 @@ class RoomMapManager:
             removed["rooms_removed"] = len(rooms)
             del vacuum_maps[map_id_str]
 
+        # A4-SETUP-6 follow-up: rejections are per MAP, so the deleted map's take
+        # its rejections with it. They live inside the per-VACUUM setup_progress
+        # record rather than a per-map store, so PER_MAP_STORES below cannot reach
+        # them and this needs its own line. Observed surviving a real delete on a
+        # live box. Eufy only ever rolls map ids FORWARD, so an id is not gone for
+        # good — leaving the entry means a future map that eventually reaches this
+        # number silently inherits a rejection made for a different map, which is
+        # A4-SETUP-6 again with time rather than floors as the axis.
+        _progress = (
+            (self._manager.data.get("setup_progress") or {}).get(vacuum_entity_id) or {}
+        )
+        _by_map = _progress.get("rejected_rooms_by_map")
+        if isinstance(_by_map, dict) and map_id_str in _by_map:
+            removed["rejected_rooms_removed"] = sorted(
+                int(r) for r in (_by_map.pop(map_id_str) or [])
+                if str(r).lstrip("-").isdigit()
+            )
+
         # RP-016/RF-20: consume the SAME registry RP-017's id-remap walker
         # reads, so a bucket added there is reachable here too without a
         # second hand-maintained list -- the defect this packet closes

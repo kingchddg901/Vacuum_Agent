@@ -26,6 +26,7 @@ Coverage targets
 [DRD-22] ...but still refuses creation of an unconfigured rejected room.
 [DRD-23] Empty map skeletons do not make a vacuum look multi-map.
 [DRD-24] Emptying a map must not re-open the legacy flat list.
+[DRD-25] Deleting a map removes that map's rejections (live-observed orphan).
 """
 
 from __future__ import annotations
@@ -561,3 +562,27 @@ def test_rejecting_the_last_room_does_not_reopen_the_legacy_flat_list(manager):
     )
     assert second["map_id"] == _MAP
     assert rejected_room_ids(record, map_id=_MAP) == {1, 2}
+
+
+def test_deleting_a_map_takes_its_rejections_with_it(manager):
+    """[DRD-25] Observed on a live box: by_map["99"] survived deleting map 99.
+
+    Rejections are per map, so a deleted map's must go too. They live inside the
+    per-VACUUM setup_progress record, not a per-map store, so remove_map's
+    PER_MAP_STORES loop cannot reach them. Eufy rolls map ids FORWARD only, so an
+    id is not retired for good — a stranded entry means a future map reaching that
+    number inherits a rejection made for a different one.
+    """
+    _setup_two_maps(manager)
+    reject_rooms(manager, _VAC, [3], map_id=_MAP_B)
+    record = manager.data["setup_progress"][_VAC]
+    assert record["rejected_rooms_by_map"].get(_MAP_B) == [3]
+
+    manager.remove_map(vacuum_entity_id=_VAC, map_id=_MAP_B)
+
+    assert _MAP_B not in manager.data["setup_progress"][_VAC]["rejected_rooms_by_map"]
+    # the surviving map's rejections are untouched
+    reject_rooms(manager, _VAC, [1], map_id=_MAP)
+    assert rejected_room_ids(
+        manager.data["setup_progress"][_VAC], map_id=_MAP
+    ) == {1}
