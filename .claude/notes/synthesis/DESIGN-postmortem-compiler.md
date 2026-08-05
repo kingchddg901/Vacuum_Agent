@@ -214,12 +214,24 @@ that must survive a machine loss.
   process freely (model tiers, token spend, wrong turns, Chris rulings) — that candor is
   the document's value, and it is exactly what a public version would have to strip.
 
+- **S2 foreign model: GPT, via the paste-ready attack-packet loop (Chris, 2026-08-04).**
+  His testing: Gemini is not good at this; the others are tuned too hard for other
+  things. Attack packets are self-contained (chain + provenance quotes, no repo
+  access), which is exactly the ChatGPT loop's constraint — human in the loop,
+  rulings come back through Chris and are recorded as adjudications.
+- **Deliverable set (talked out 2026-08-04): one shared graph, four renderings.**
+  PM-1 Findings & Fixes (compiler-driven — the only doc gated on the graph) ·
+  PM-2 the audit's own architecture with reasoning (failure that forced it →
+  alternatives rejected → mechanism adopted → trust boundary; absorbs the trap
+  bestiary and discharges TASK-write-audit-methodology) · PM-3 instrument shop
+  (tool catalog: what it answers, invocation, trust boundary) · PM-4 planning
+  book (thin prose over regeneration commands — every number stated in prose is
+  a future lie). Sequence: PM-3 → PM-2 → compiler+PM-1 → PM-4. PM-2/PM-3 are
+  written from existing sources now and ingested later as S0 graph nodes.
+
 **Still open:**
-1. **Foreign model for S2** — the ChatGPT loop via paste-ready attack packets (human in
-   the loop, free), or an automated second-model pass in-fleet (faster, costs tokens)?
-   Design supports both; the packets are self-contained either way.
-2. **Chapter grain** — the ~7 predicted themes suggest 6–10 chapters; acceptable range,
-   or per-family appendices under the thematic chapters?
+1. **Chapter grain (PM-1 only)** — the ~7 predicted themes suggest 6–10 chapters;
+   acceptable range, or per-family appendices under the thematic chapters?
 
 ## 8. What this design rejects (so reviewers don't re-litigate)
 
