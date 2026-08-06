@@ -119,6 +119,52 @@ a ledger):
       artifacts the replay corpus flagged as an oddity), and diagnostics that cannot
       distinguish "we looked in the wrong place" from "the device lacks it".
     These land (or are visibly deferred with typed blockers per §2b) before firing.
+15. **Every ledger item is ADDRESSABLE — canonical id + file:line, CARRIED ITEMS INCLUDED
+    (added 2026-08-05).** Nothing enters the #2 ledger that the closure machinery and the
+    staleness sweep cannot see.
+
+    **The failure this closes, measured on the #1 Tier-3 list.** Carried items were stored in
+    `_carried.json` with `{key, title, note, subsystem, blocked_by}` — **no `id`, no `file`,
+    no `line`**. Consequences, both structural rather than sloppy:
+    - No id ⇒ `_landed_packets.json` → `packet-closure-map.json` → `finding_ids` can never
+      credit one, so a carried item CANNOT close by the normal path. It needed a bespoke
+      `closed` field bolted on 2026-08-05 just to be recordable.
+    - No file:line ⇒ `_verify_ledger.py` greps shipped code for finding ids, finds nothing to
+      grep for, and **skips the whole section**. Tier 3 was invisible to every gate the #1
+      campaign built.
+
+    Result when it was finally read by hand on 2026-08-05: of nine carried items, **four were
+    stale** (three fixed weeks earlier — OpenDyslexic `dfff15f`/`818ad37`/`dd2ec11`, the three
+    untranslated strings pinned green by `[CARD4-1]`, Roborock edge-mopping `162e391` — plus
+    FE-ERR-1/MZ-2 closed with 10 passing tests), and **one was unlocatable**. The generated
+    sections stayed true the whole time; only the hand-maintained one drifted.
+
+    **The rule:** an item enters the ledger with a canonical id and a `file:line`, or it does
+    not enter. Carried-forward items from #1 are re-filed to that shape at the pin (gate 9) or
+    are adjudicated out — carrying one forward unaddressable just re-imports the blind spot.
+
+    **TWO NAMED EXCEPTIONS, because forcing everything into the findings corpus is its own
+    failure:**
+    - **Decisions are not findings.** A deliberate deferral with a stated reason, or a product
+      call about user data, renders in a DECISIONS list — never as an unticked box. #1 carried
+      two of these (pose-sampler predicates: re-pointing would silently add `paused` to what
+      gets sampled; Roborock room migration: stored user data, repairing it is a product
+      decision) and rendering them as open work made a 2-item list read as 6. A permanently
+      unticked box for a settled decision is exactly the fog §2b abolishes.
+    - **No seam, no entry.** An item that names no file, no symptom and no mechanism does not
+      enter the ledger. The cautionary case is #1's carried "Card: the qualification gap
+      (CC-5) — surface provenance, truncation and absent data honestly rather than as confident
+      values": no file, no seam, its only same-named corpus row is an unrelated
+      `learning/estimator.py` slug bug, and the `review.js:360` CC-5 is a different, already-fixed
+      concern. It is now unverifiable and unactionable by anyone, including its author. **A
+      finding that does not name its seam is a note about a feeling.** Write the seam at filing
+      time or do not file.
+
+    **Closure is declared by `finding_ids:` ONLY.** Gate 9's uncertainty band documents what the
+    `findings_addressed:` / `finding_ids:` split cost — nine packets resolving by
+    `repair_family` alone, under-crediting `#12:A6-GUARD-2` and over-crediting others, with both
+    naive repairs proven wrong. That is a #1 legacy to adjudicate, not a shape to reproduce: a
+    #2 packet that declares closure any other way is a gate failure, not a style preference.
 
 ## 2b. Ledger state model — partial completion is first-class (Chris, 2026-08-03)
 
