@@ -35,6 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 
 from .brand_facts import brand_facts_for
 from ..const import DOMAIN
+from ..core.error_tracker import error_label_key, error_source_for_code
 from ..profiles.room_profiles import get_default_room_profiles
 from ..timestamp_utils import parse_timestamp, utc_now
 from .utils import _iso_now, _room_key, _room_profile_key, _safe_float, _safe_int
@@ -47,6 +48,72 @@ from .zone_learning import (
     observations_from_timings,
     record_observations,
 )
+
+
+#: Cap on faults returned per job. A run that flaps can latch dozens; the card
+#: shows a summary, not the log. The COUNT above is never capped, so a truncated
+#: list can still be recognised as truncated rather than silently under-reporting.
+_RUN_ERROR_ROW_LIMIT = 12
+
+
+def _run_error_rows(vacuum_entity_id: str, outcome: dict[str, Any]) -> list[dict[str, Any]]:
+    """Name the faults a run hit: vendor code -> our i18n key, plus whose hardware.
+
+    CARD-3 / RF-DOCK clause 4. The evidence has been persisted end to end for both
+    origins since the finalizer wrote it, and NOTHING ever read it -- ``had_errors``
+    and ``error_count`` told the user a run hit three faults and never which three.
+    ``error_label_key`` and ``error_source_for_code`` existed, were tested, and had
+    zero production callers. This is the call site.
+
+    RESOLVED AT READ TIME, NOT STORED, and that is the load-bearing choice. The raw
+    vendor code is already on every record ever written, so resolving here means
+    EVERY HISTORICAL JOB gets named the moment this ships -- no migration, no
+    "only new runs have labels". It also means a mapping fixed later applies
+    retroactively: three Roborock states are deliberately unmapped today because
+    the vendor's own strings contradict their enum names, and if their meaning is
+    ever established, old records pick the labels up for free. Storing the key
+    would freeze each record at the table version that happened to be live when it
+    finalized.
+
+    Core never learns a brand's codes [[feedback_eufy_ism_leak_layers]]: the adapter
+    owns the mapping, this hands the card a key, and the strings are the locale
+    packs'. A code the adapter has no label for yields label_key None, and the card
+    falls back to the RAW code -- honest and searchable, which a humanised
+    "Bumper stuck" would not be.
+    """
+    latch = outcome.get("errors")
+    if not isinstance(latch, dict):
+        return []
+    entries = latch.get("errors")
+    if not isinstance(entries, list):
+        return []
+
+    rows: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        code = entry.get("code")
+        rows.append(
+            {
+                "code": code,
+                "label_key": error_label_key(vacuum_entity_id, code),
+                # "dock" / "robot" / "unknown". Unknown is a real answer, not a
+                # fallback to the majority class -- blaming the robot for a code
+                # newer than the adapter's table points the user at hardware that
+                # is fine.
+                "source": error_source_for_code(vacuum_entity_id, code),
+                # recovered_at is stamped by the falling edge. Absent means the
+                # fault was still latched when the run ended -- which is NOT the
+                # same as "the fault ended the run", so this reports recovery only
+                # and claims nothing about causation.
+                "recovered": entry.get("recovered_at") is not None,
+                "captured_at": entry.get("captured_at"),
+                "room_id": entry.get("room_id"),
+            }
+        )
+        if len(rows) >= _RUN_ERROR_ROW_LIMIT:
+            break
+    return rows
 
 
 def _normalize_graph_targets(value: Any) -> list[int]:
@@ -1945,6 +2012,10 @@ class LearningManager:
                     "had_errors": bool(outcome.get("had_errors", False)),
                     "error_count": _safe_int(outcome.get("error_count"), 0),
                     "total_error_seconds": outcome.get("total_error_seconds"),
+                    # CARD-3: the faults themselves, NAMED. The counts above say a
+                    # run hit three faults; this says WHICH, which is the whole
+                    # point of having captured them.
+                    "run_errors": _run_error_rows(vacuum_entity_id, outcome),
                     "outlier_score": round(outlier_score, 2),
                     "duration_vs_room_avg_minutes": duration_vs_room_avg,
                     "duration_vs_profile_avg_minutes": duration_vs_profile_avg,

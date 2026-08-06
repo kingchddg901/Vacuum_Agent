@@ -122,6 +122,7 @@ def _seed_completed_job(
     ended_at: str = "2026-01-01T09:30:00+00:00",
     origin: str | None = None,
     room_timings: list[dict] | None = None,
+    outcome_extra: dict | None = None,
 ) -> dict:
     """Seed a minimal completed job directly via LearningHistoryStore."""
     if room_slugs is None:
@@ -165,6 +166,7 @@ def _seed_completed_job(
             "status": status,
             "used_for_learning": used_for_learning,
             "learning_blockers": [],
+            **(outcome_extra or {}),
         },
     }
     if origin is not None:
@@ -1170,6 +1172,212 @@ async def test_get_learning_history_snapshot_with_seeded_jobs(hass, learning_ser
         assert code in kitchen_job, f"single-room job missing flat setting code {code!r}"
     assert kitchen_job.get("clean_mode")   # seeded 'vacuum', normalized → non-empty
     assert kitchen_job.get("room_label")   # room prefix for the composed localized label
+
+
+# ---------------------------------------------------------------------------
+# [LS-RE] run_errors — CARD-3: the history snapshot NAMES the faults a run hit.
+#
+# The evidence has been persisted end to end for both origins since the finalizer
+# wrote it, and nothing ever read it: had_errors/error_count said a run hit three
+# faults and never which three. error_label_key/error_source_for_code existed, were
+# tested, and had ZERO production callers.
+#
+# Brand-agnostic on purpose [[feedback_brand_agnostic_tests]] — a stub adapter owns
+# the code space so these assert the SEAM, not Eufy's table.
+# ---------------------------------------------------------------------------
+
+def _register_fault_adapter(vac: str) -> None:
+    """Stub adapter declaring a tiny fault vocabulary, in BOTH code spaces."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(vac, {
+        "adapter_id": "test_faults",
+        "source": "test",
+        "error_tracking": {
+            "error_label_keys": {
+                1: "fault.test.bumper_stuck",
+                6021: "fault.test.dirty_tank_full",
+                "bumper_stuck": "fault.test.bumper_stuck",
+            },
+            "dock_sourced_error_codes": [6021],
+            "robot_sourced_error_codes": [1, "bumper_stuck"],
+        },
+    })
+
+
+def _latch(*entries) -> dict:
+    """An error latch in the shape BOTH origins persist under outcome['errors']."""
+    return {"error_count": len(entries), "errors": list(entries)}
+
+
+async def _history_snapshot(hass) -> dict:
+    """Rebuild the jobs index, then fetch the snapshot.
+
+    Seeding writes the job FILE; the snapshot reads the INDEX, which only picks up
+    new records on a rebuild. The store also outlives an individual test, so
+    without this a test silently sees whichever jobs a PREVIOUS test indexed —
+    which made an earlier draft of the clean-run control pass vacuously, its
+    assertion loop never running because none of its jobs were present.
+    """
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False}, blocking=True,
+    )
+    await hass.async_block_till_done()
+    return await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+
+
+def _job_from(result: dict, job_id: str) -> dict:
+    """Pull one job out of a snapshot, reporting what WAS there when it is absent.
+    A bare next() raises StopIteration, which inside a coroutine surfaces as an
+    opaque RuntimeError and hides which ids came back."""
+    jobs = result.get("jobs", [])
+    for job in jobs:
+        if job.get("job_id") == job_id:
+            return job
+    raise AssertionError(
+        f"{job_id!r} not in snapshot; got {[j.get('job_id') for j in jobs]!r}"
+    )
+
+
+async def test_run_errors_names_the_faults(hass, learning_services):
+    """[LS-RE1] A run's faults arrive named, sourced, and with recovery state."""
+    _register_fault_adapter(_VAC)
+    _seed_completed_job(
+        hass, _VAC, "j-err-1", room_slugs=["kitchen"],
+        outcome_extra={
+            "had_errors": True,
+            "error_count": 2,
+            "errors": _latch(
+                {"code": 1, "captured_at": "2026-01-01T09:05:00+00:00",
+                 "recovered_at": "2026-01-01T09:06:00+00:00", "room_id": 1},
+                {"code": 6021, "captured_at": "2026-01-01T09:20:00+00:00",
+                 "recovered_at": None, "room_id": 2},
+            ),
+        },
+    )
+    result = await _history_snapshot(hass)
+    job = _job_from(result, "j-err-1")
+    rows = job.get("run_errors")
+    assert isinstance(rows, list) and len(rows) == 2, "the faults never reached the card"
+
+    # Robot-side fault, recovered mid-run.
+    assert rows[0]["code"] == 1
+    assert rows[0]["label_key"] == "fault.test.bumper_stuck"
+    assert rows[0]["source"] == "robot"
+    assert rows[0]["recovered"] is True
+
+    # DOCK-1: a station fault, still latched at the end. The source is what the
+    # user needs — it says which box to go and look at.
+    assert rows[1]["source"] == "dock"
+    assert rows[1]["recovered"] is False
+
+
+async def test_run_errors_resolves_enum_string_codes(hass, learning_services):
+    """[LS-RE2] Brands whose codes are enum STRINGS resolve too, not just ints.
+
+    Roborock surfaces `bumper_stuck`, not 1. Core normalises through _code_key;
+    before that, every seam opened with _exact_int and a string was dead on arrival.
+    """
+    _register_fault_adapter(_VAC)
+    _seed_completed_job(
+        hass, _VAC, "j-err-str", room_slugs=["kitchen"],
+        outcome_extra={"had_errors": True, "error_count": 1, "errors": _latch(
+            {"code": "bumper_stuck", "captured_at": "2026-01-01T09:05:00+00:00",
+             "recovered_at": None},
+        )},
+    )
+    result = await _history_snapshot(hass)
+    job = _job_from(result, "j-err-str")
+    assert job["run_errors"][0]["label_key"] == "fault.test.bumper_stuck"
+    assert job["run_errors"][0]["source"] == "robot"
+
+
+async def test_unlabelled_code_yields_none_not_a_guess(hass, learning_services):
+    """[LS-RE3] A code the adapter has no label for gets label_key None and
+    source 'unknown' — the card then renders the RAW code, which is honest and
+    searchable. Inventing a label would point the user at the wrong hardware."""
+    _register_fault_adapter(_VAC)
+    _seed_completed_job(
+        hass, _VAC, "j-err-unk", room_slugs=["kitchen"],
+        outcome_extra={"had_errors": True, "error_count": 1, "errors": _latch(
+            {"code": 999999, "captured_at": "2026-01-01T09:05:00+00:00",
+             "recovered_at": None},
+        )},
+    )
+    result = await _history_snapshot(hass)
+    row = _job_from(result, "j-err-unk")["run_errors"][0]
+    assert row["label_key"] is None
+    assert row["source"] == "unknown"
+    assert row["code"] == 999999, "the raw code must survive — it is the fallback"
+
+
+async def test_run_errors_is_empty_for_a_clean_run(hass, learning_services):
+    """[LS-RE4] Control: no latch, a malformed latch, and a latch with no entries
+    all yield [] rather than raising or fabricating a row."""
+    _register_fault_adapter(_VAC)
+    for job_id, extra in (
+        ("j-clean-1", {}),
+        ("j-clean-2", {"errors": None}),
+        ("j-clean-3", {"errors": "not-a-dict"}),
+        ("j-clean-4", {"errors": {"error_count": 0}}),
+        ("j-clean-5", {"errors": {"errors": "not-a-list"}}),
+        ("j-clean-6", {"errors": {"errors": [None, 7, "junk"]}}),
+    ):
+        _seed_completed_job(hass, _VAC, job_id, room_slugs=["kitchen"], outcome_extra=extra)
+    result = await _history_snapshot(hass)
+    seen = 0
+    for job in result["jobs"]:
+        if str(job.get("job_id", "")).startswith("j-clean-"):
+            seen += 1
+            assert job.get("run_errors") == [], f"{job['job_id']} fabricated a fault row"
+    # Without this the loop passes vacuously when the jobs are absent -- which is
+    # exactly what an earlier draft of this test did.
+    assert seen == 6, f"control only saw {seen}/6 seeded clean jobs"
+
+
+async def test_run_errors_caps_rows_but_never_the_count(hass, learning_services):
+    """[LS-RE5] A flapping run can latch dozens. The LIST is capped so the card
+    shows a summary; error_count is NOT, so a truncated list is still recognisable
+    as truncated instead of silently under-reporting."""
+    _register_fault_adapter(_VAC)
+    _seed_completed_job(
+        hass, _VAC, "j-err-many", room_slugs=["kitchen"],
+        outcome_extra={
+            "had_errors": True,
+            "error_count": 40,
+            "errors": {"error_count": 40, "errors": [
+                {"code": 1, "captured_at": "2026-01-01T09:05:00+00:00",
+                 "recovered_at": None} for _ in range(40)
+            ]},
+        },
+    )
+    result = await _history_snapshot(hass)
+    job = _job_from(result, "j-err-many")
+    assert len(job["run_errors"]) == 12
+    assert job["error_count"] == 40, "the count must not inherit the list's cap"
+
+
+async def test_app_started_runs_get_named_faults_too(hass, learning_services):
+    """[LS-RE6] The external ingest writes outcome['errors'] under the SAME key and
+    shape as the dispatched finalizer, deliberately, so one reader serves both. If
+    that ever diverges, app-started runs silently lose their fault names."""
+    _register_fault_adapter(_VAC)
+    _seed_completed_job(
+        hass, _VAC, "j-ext-err", room_slugs=["kitchen"], origin="external",
+        outcome_extra={"had_errors": True, "error_count": 1, "errors": _latch(
+            {"code": 6021, "captured_at": "2026-01-01T09:05:00+00:00",
+             "recovered_at": None},
+        )},
+    )
+    result = await _history_snapshot(hass)
+    job = _job_from(result, "j-ext-err")
+    assert job.get("origin") == "external"
+    assert job["run_errors"][0]["label_key"] == "fault.test.dirty_tank_full"
+    assert job["run_errors"][0]["source"] == "dock"
 
 
 async def test_history_snapshot_multipass_appends_pass_to_suggested_label(hass, learning_services):
