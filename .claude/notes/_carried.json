@@ -71,7 +71,9 @@
   "note": "The backend now carries app-started-run error evidence end to end. Nothing displays it.",
   "subsystem": "frontend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "closed": "2026-08-05",
+  "closed_evidence": "Closed across 1b3155c (core carries enum-string codes; Roborock declares its tables) and this commit (the card reads error_seconds_by_source). The field was ALREADY persisted by the finalizer and nothing read it, so the fix was plumbing, not enrichment. Badge tooltip now names each source with seconds; unattributed is named explicitly rather than omitted, because silence would imply attribution we do not have. Three new keys translated into all 17 packs at creation. [REB-7..10] pin it, and [REB-6] drift guard extended to the source split."
  },
  {
   "key": "opendyslexic",
