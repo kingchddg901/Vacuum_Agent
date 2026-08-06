@@ -21,8 +21,34 @@ unchanged, previously-clean areas get a targeted look, not a second full excavat
 
 ## 2. Readiness gates — ALL must be green before firing
 
-Verified state as of 2026-08-02 (regenerate everything before firing; an audit is a snapshot, not
-a ledger):
+**REBASE 2026-08-06 — AUDIT #1 IS COMPLETE AND CLEARED.** The reconciled ledger stands at
+**464 findings applied via 67 packets, 0 open (0/0/0/0 by severity)**; deep history in
+`AUDIT-1-CLOSEOUT.md`. The gate list below predates the clear — current status by gate:
+
+- **Gates 1, 3, 5, 14 — SATISFIED by the clear.** All packet families landed (the second wave
+  emptied the banked live findings: ENT-1 `9a37ad6`, DIAG-1 `20c0ab1`, I18N-1 `367180a`,
+  AGX-CLEAR-1 `de495a1`; #46's import family landed with the wave); the group-phase hardware
+  run (the "third closure") **disproved `#9:A3-REC-3` AND RP-047(b)** — (b) was shipped
+  (`3fa8d5f`) then REVERTED (`45c18e7`) on live evidence, and the surviving design
+  (`current_room_ids`/`current_phase`, per-room `current` pinned to the singular id) is now
+  what doc 06 documents. Confirm-at-pin only: regenerate ledgers, expect 0 open.
+- **Gate 2 — RESOLVED as adjudicated:** RP-047(a) landed + proof; (b) closed as
+  disproven-not-owed. Nothing outstanding.
+- **Gate 4 — adjudicated remainder, all TYPED (none gate the audit):** A4-SETUP-6
+  `deferred → multi-map work`; A7-ROBORO-4 `hardware → S6 bench (offset preserved, not
+  applied)`; DR-ONB-2 fixed-but-callerless `deferred → delete later`; CENSUS-5
+  `design → feature to build`; REV-2 `design → Chris`; SEG-1 active_boundaries
+  `deferred → schema-version bump`; Roborock room migration RE-SCOPED surface-never-rewrite.
+- **Gate 6 (Q1 declaration) — STILL OPEN, now the sole substantive Chris-gate.**
+- **Gate 7 (doc update) — IN PROGRESS** (the dr-doc-reconciliation workflow, this pass).
+- **Gates 8–13 — procedural at the pin, unchanged.**
+- **Gate 12 addendum:** fold in ENT-1's owed hardware re-verify (a fresh Alfred diagnostics
+  dump; `entity_resolution_summary.likely_naming_mismatch` answers it in one line) and the
+  unshot OpenDyslexic gallery baseline (Chris's eyeball — a new visual baseline is a claim
+  about what correct looks like).
+
+Original gate list, kept for the record (verified state as of 2026-08-02 — regenerate
+everything before firing; an audit is a snapshot, not a ledger):
 
 1. **Open fix packets landed.** Still open today: RP-017 (unblocked by RP-016), RP-021b, RP-023,
    RP-033, RP-035, RP-036, RP-038, RP-039, RP-041 (Tier 3), and RP-043/044/045 (battery — only
