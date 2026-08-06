@@ -22,6 +22,7 @@ from custom_components.eufy_vacuum.adapters.registry import (
 )
 from custom_components.eufy_vacuum.adapters.roborock import adapter as rb
 from custom_components.eufy_vacuum.adapters.roborock import model_catalog
+from custom_components.eufy_vacuum.adapters.roborock import vocabulary as rbv
 from custom_components.eufy_vacuum.adapters.roborock.entities import build_entity_id
 
 
@@ -315,6 +316,103 @@ def test_vocabulary(s6_config):
     assert "clean_mode_options" not in vocab
     assert "clean_intensity_options" not in vocab
     assert "segment_cleaning" in vocab["active_run_task_states"]
+
+
+# --- error classification (RF-DOCK clauses 4/5) ------------------------------
+#
+# These pin INVARIANTS of the tables, not their contents: a table that grows is
+# fine, a table that contradicts itself is not. Two of these caught real defects
+# when first written -- robot_trapped was invalidating without being declared
+# robot-sourced, and the 11 dock codes were transcribed into two separate lists.
+
+
+def test_error_codes_reach_the_adapter_config(s6_config):
+    """The sets are declared in vocabulary.py; core reads them from HERE."""
+    cfg = s6_config["error_tracking"]
+    assert "strainer_error" in cfg["dock_sourced_error_codes"]
+    assert "wheels_jammed" in cfg["robot_sourced_error_codes"]
+    assert "robot_trapped" in cfg["evidence_invalidating_error_codes"]
+    assert "cannot_cross_carpet" in cfg["evidence_safe_error_codes"]
+
+
+def test_invalidating_is_a_subset_of_robot_sourced():
+    """A fault cannot invalidate the robot's evidence without being the robot's.
+
+    robot_trapped was in INVALIDATING and absent from ROBOT_SOURCED, so
+    error_source_for_code answered "unknown" for a fault we were confident enough
+    about to subtract a run's seconds over.
+    """
+    assert (
+        rbv.ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES
+        <= rbv.ROBOROCK_ROBOT_SOURCED_ERROR_CODES
+    )
+
+
+def test_safe_and_invalidating_are_disjoint():
+    """The same code cannot both preserve and destroy a run's seconds."""
+    assert not (
+        rbv.ROBOROCK_EVIDENCE_SAFE_ERROR_CODES
+        & rbv.ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES
+    )
+
+
+def test_safe_is_derived_so_dock_codes_are_written_once():
+    """SAFE must stay DOCK | SAFE_ROBOT rather than a hand-copy of both.
+
+    Every dock fault is evidence-safe by definition (the robot worked through it),
+    so a dock code missing from SAFE is always a transcription slip -- which is
+    exactly what a second literal list invites.
+    """
+    assert rbv.ROBOROCK_EVIDENCE_SAFE_ERROR_CODES == (
+        rbv.ROBOROCK_DOCK_SOURCED_ERROR_CODES
+        | rbv.ROBOROCK_EVIDENCE_SAFE_ROBOT_CODES
+    )
+    assert (
+        rbv.ROBOROCK_DOCK_SOURCED_ERROR_CODES
+        <= rbv.ROBOROCK_EVIDENCE_SAFE_ERROR_CODES
+    )
+
+
+def test_a_code_is_not_both_dock_and_robot_sourced():
+    assert not (
+        rbv.ROBOROCK_DOCK_SOURCED_ERROR_CODES
+        & rbv.ROBOROCK_ROBOT_SOURCED_ERROR_CODES
+    )
+
+
+def test_codes_are_lowercase_enum_strings():
+    """core/_code_key lowercases string codes, so an uppercase declaration here
+    would silently never match. Numeric-looking strings would resolve to ints and
+    land in Eufy's code space instead of ours."""
+    for name in (
+        "ROBOROCK_DOCK_SOURCED_ERROR_CODES",
+        "ROBOROCK_ROBOT_SOURCED_ERROR_CODES",
+        "ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES",
+        "ROBOROCK_EVIDENCE_SAFE_ERROR_CODES",
+    ):
+        for code in getattr(rbv, name):
+            assert isinstance(code, str), f"{name}: {code!r}"
+            assert code == code.lower(), f"{name}: {code!r}"
+            assert not code.strip().lstrip("-").isdigit(), f"{name}: {code!r}"
+
+
+def test_no_error_label_keys_declared(s6_config):
+    """Deliberate: HA already ships translations for all 53 vacuum_error states.
+    If this ever fails, someone minted fault.roborock.* keys -- check vocabulary.py
+    for why that was rejected before accepting the change."""
+    assert "error_label_keys" not in s6_config["error_tracking"]
+
+
+def test_sentinel_none_is_never_classified():
+    """`none` is the idle value, not a fault. Classifying it would attribute
+    error seconds to every healthy run."""
+    every = (
+        rbv.ROBOROCK_DOCK_SOURCED_ERROR_CODES
+        | rbv.ROBOROCK_ROBOT_SOURCED_ERROR_CODES
+        | rbv.ROBOROCK_EVIDENCE_SAFE_ERROR_CODES
+        | rbv.ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES
+    )
+    assert not (every & rbv.NOT_ERROR_SENTINELS)
 
 
 def test_cancel_detection_states(s6_config):

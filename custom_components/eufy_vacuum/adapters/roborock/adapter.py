@@ -63,6 +63,10 @@ from .vocabulary import (
     ROOM_PROFILES,
     WATER_LEVEL_OPTIONS,
     CLEAN_MODE_OPTIONS,
+    ROBOROCK_DOCK_SOURCED_ERROR_CODES,
+    ROBOROCK_ROBOT_SOURCED_ERROR_CODES,
+    ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES,
+    ROBOROCK_EVIDENCE_SAFE_ERROR_CODES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -303,7 +307,7 @@ def register_roborock_adapter_for_vacuum(
             "grace_window_seconds": 5,
             "error_code_attribute_names": ["error_code", "code", "errorCode"],
             "unknown_error_message": "Unknown error during run",
-            # RF-DOCK clause 5 — NOW DECLARED, as enum STRINGS (live:RB-ERR-1).
+            # RF-DOCK clauses 4/5 — DECLARED, as enum STRINGS (live:RB-ERR-1).
             #
             # The note that stood here said an int-keyed table "has nothing to
             # match", and warned that declaring int codes while the tracker sees
@@ -318,94 +322,21 @@ def register_roborock_adapter_for_vacuum(
             # for: Eufy surfaces numbers, Roborock surfaces strings, and the backend
             # deals with both.
             #
-            # THE SOURCE SETS ARE READ, NOT MEASURED, AND THAT IS THE RIGHT BAR HERE
-            # (Chris, 2026-08-05): "These are error states. I don't need to see them
-            # to know that certain errors would block a run." Hardware testing
-            # verifies BEHAVIOUR; this is a TAXONOMY — `dirty_water_box` cannot be
-            # robot hardware on any model that has ever shipped. Note Ivy is an S6
-            # with NO dock (supports_base_station False), so the dock rows are
-            # unverifiable here by construction; waiting for a dock to confirm that
-            # a dirty-water tank belongs to the dock is waiting for evidence nobody
-            # needs.
-            #
-            # ANYTHING GENUINELY AMBIGUOUS BY NAME IS LEFT OUT, not guessed:
-            # clear_water_box_* (both robot and dock carry a clean-water tank,
-            # model-dependent), clear_brush_exception*, light_touch, internal_error,
-            # temperature_protection, water_carriage_drop. Omission lands on
-            # unclassified/unknown, which preserves the run's seconds and claims
-            # nothing — the safe degradation this block always relied on.
-            "dock_sourced_error_codes": [
-                "collect_dust_error_3", "collect_dust_error_4",
-                "dirty_water_box_hoare", "sink_strainer_hoare", "strainer_error",
-                "up_water_exception", "drain_water_exception",
-                "filter_screen_exception", "clean_carousel_exception",
-                "clean_carousel_water_full", "check_clean_carouse",
-            ],
-            "robot_sourced_error_codes": [
-                "lidar_blocked", "bumper_stuck", "vertical_bumper_pressed",
-                "wheels_suspended", "wheels_jammed", "cliff_sensor_error",
-                "main_brush_jammed", "side_brush_jammed", "side_brush_error",
-                "fan_error", "no_dustbin", "filter_blocked", "compass_error",
-                "battery_error", "robot_tilted", "wall_sensor_dirty",
-                "optical_flow_sensor_dirt", "visual_sensor", "vibrarise_jammed",
-            ],
-            # INVALIDATING means "these seconds were not cleaning", so it is scoped
-            # to the robot being demonstrably IMMOBILE — not to every robot fault. A
-            # jammed brush or blocked filter degrades quality while the robot keeps
-            # moving and covering floor; deducting that time would destroy a real
-            # observation, which is the asymmetry RF-DOCK turns on (wrongly
-            # crediting adds noise that averages out; wrongly zeroing does not).
-            "evidence_invalidating_error_codes": [
-                "wheels_suspended", "wheels_jammed", "robot_trapped",
-                "robot_tilted", "bumper_stuck", "vertical_bumper_pressed",
-            ],
-            # SAFE = the robot's cleaning evidence stands. Three groups: dock-side
-            # faults it worked straight through; events that are not faults at all
-            # (navigation/informational); and faults that can only fire AFTER
-            # cleaning finished or DURING dock washing — where timing settles the
-            # question even when the hardware boundary does not.
-            "evidence_safe_error_codes": [
-                "collect_dust_error_3", "collect_dust_error_4",
-                "dirty_water_box_hoare", "sink_strainer_hoare", "strainer_error",
-                "up_water_exception", "drain_water_exception",
-                "filter_screen_exception", "clean_carousel_exception",
-                "clean_carousel_water_full", "check_clean_carouse",
-                "nogo_zone_detected", "invisible_wall_detected",
-                "cannot_cross_carpet", "robot_on_carpet", "dock",
-                "dock_locator_error", "return_to_dock_fail", "charging_error",
-                "mopping_roller_1", "mopping_roller_2", "mopping_roller_error_2",
-                "low_battery", "audio_error",
-            ],
-            # NO error_label_keys, and the reason is only HALF settled — read this
-            # before building the per-error label surface.
-            #
-            # SETTLED: sensor.{id}_vacuum_error is an HA enum sensor whose 54 states
-            # Home Assistant ships translations for, in every language it supports.
-            # Minting fault.roborock.* keys here would duplicate a table HA already
-            # maintains and cost 18 packs of our own, which is the opposite of
-            # [[feedback_kiss_upstream_signals]]. Eufy needs its own table only
-            # because its codes are bare numbers with no upstream label at all.
-            #
-            # NOT SETTLED, and an earlier draft of this comment asserted it as fact:
-            # HOW the card would obtain that translated string. `hass.states.get(...)
-            # .state` returns the RAW enum ("bumper_stuck") — HA translates entity
-            # states in the FRONTEND at display time, not on the state object. As of
-            # 2026-08-05 this card has never translated an HA state: no
-            # formatEntityState, no computeStateDisplay, no hass.localize anywhere in
-            # src/. So there is no existing seam to lean on, and three routes are
-            # open, none verified:
-            #   1. hass.localize("component.roborock.entity.sensor.vacuum_error"
-            #      ".state.<enum>") — depends on the roborock integration's
-            #      translations being loaded in the frontend, which is NOT guaranteed
-            #      just because we ask for the key.
-            #   2. hass.formatEntityState(stateObj) — newer frontend API; availability
-            #      on the shipped HA baseline unchecked.
-            #   3. our own fault.roborock.* keys after all — guaranteed to work,
-            #      at the cost this block exists to avoid.
-            # Nothing currently shipped depends on the answer: the review badge
-            # surfaces error_seconds_by_source, which is numbers rendered through the
-            # card's OWN translated keys. Settle route 1 vs 2 with a live check before
-            # writing the label surface, not from this comment.
+            # THE TABLES LIVE IN vocabulary.py, next to every other Roborock
+            # declaration and in the same place Eufy keeps its own — read there for
+            # what each set means, why INVALIDATING is hand-declared rather than
+            # derived, and which states are deliberately left unclassified.
+            "dock_sourced_error_codes": sorted(ROBOROCK_DOCK_SOURCED_ERROR_CODES),
+            "robot_sourced_error_codes": sorted(ROBOROCK_ROBOT_SOURCED_ERROR_CODES),
+            "evidence_invalidating_error_codes": sorted(
+                ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES
+            ),
+            "evidence_safe_error_codes": sorted(ROBOROCK_EVIDENCE_SAFE_ERROR_CODES),
+            # NO error_label_keys — deliberate, not an omission. HA already ships
+            # translations for all 53 vacuum_error enum states, so minting
+            # fault.roborock.* here would duplicate a table HA maintains and cost 18
+            # packs of our own. vocabulary.py carries the reasoning, the VERIFIED
+            # retrieval route for the card, and the fallback that route still needs.
         },
 
         "dispatch": {

@@ -193,3 +193,132 @@ FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
     "carpet_low_pile": "max",
     "carpet_high_pile": "turbo",
 }
+
+
+# --- error classification ----------------------------------------------------
+#
+# RF-DOCK clauses 4/5, declared HERE rather than inline in adapter.py so both brands
+# put the same concept in the same place -- Eufy's live in eufy/vocabulary.py and its
+# adapter only references them. An earlier pass dumped these as string literals into
+# the Roborock adapter's config dict; two brands declaring one concept in two shapes
+# is how the pair goes stale.
+#
+# CODES ARE ENUM STRINGS, not the numbers Eufy uses: sensor.{id}_vacuum_error carries
+# `bumper_stuck`, not 1. Core normalizes through `_code_key`, which lowercases string
+# keys, so every string below must be lowercase to match.
+#
+# VERIFIED 2026-08-05 against the live instance (frontend/get_translations, category
+# "entity", integration ["roborock"]): HA serves 53 vacuum_error enum states and all
+# 60 strings declared below are real ones -- no typos, and a typo here would silently
+# match nothing rather than fail. 44 of the 53 are classified; the 9 left out are
+# listed at the bottom of this block.
+#
+# THE SOURCE SETS ARE READ, NOT MEASURED, AND THAT IS THE RIGHT BAR (Chris,
+# 2026-08-05): "These are error states. I don't need to see them to know that certain
+# errors would block a run." Hardware testing verifies BEHAVIOUR; this is a TAXONOMY.
+# `dirty_water_box` cannot be robot hardware on any model that has ever shipped. Note
+# Ivy is an S6 with NO dock (supports_base_station False), so the dock rows are
+# unverifiable on this hardware by construction.
+
+#: Faults raised by the station. Ivy has no dock, so none of these can ever fire here.
+ROBOROCK_DOCK_SOURCED_ERROR_CODES: frozenset[str] = frozenset({
+    "collect_dust_error_3",         # auto-empty
+    "collect_dust_error_4",
+    "dirty_water_box_hoare",        # waste tank -- station-side by construction
+    "sink_strainer_hoare",          # wash basin
+    "strainer_error",
+    "up_water_exception",           # station plumbing
+    "drain_water_exception",
+    "filter_screen_exception",
+    "clean_carousel_exception",     # mop-wash carousel
+    "clean_carousel_water_full",
+    "check_clean_carouse",          # vendor's spelling, not a typo of ours
+})
+
+#: Faults raised by the robot itself.
+ROBOROCK_ROBOT_SOURCED_ERROR_CODES: frozenset[str] = frozenset({
+    "lidar_blocked", "bumper_stuck", "vertical_bumper_pressed",
+    "wheels_suspended", "wheels_jammed", "robot_trapped",
+    "cliff_sensor_error", "main_brush_jammed", "side_brush_jammed",
+    "side_brush_error", "fan_error", "no_dustbin", "filter_blocked",
+    "compass_error", "battery_error", "robot_tilted", "wall_sensor_dirty",
+    "optical_flow_sensor_dirt", "visual_sensor", "vibrarise_jammed",
+})
+
+#: Faults after which the run's cleaning evidence cannot be trusted. Core subtracts
+#: these seconds.
+#:
+#: HAND-DECLARED, and deliberately NOT derived as ``ROBOT - SAFE_ROBOT`` the way Eufy
+#: does it. That derivation is valid for Eufy because its table is CLOSED -- the full
+#: ErrorCode proto was captured, so "robot-sourced and not explicitly safe" really does
+#: mean invalidating. Roborock's is OPEN: a partial classification of a vendor enum with
+#: the ambiguous states deliberately left out. Copying the derivation was checked and
+#: would be wrong -- SAFE_ROBOT below is DISJOINT from ROBOT_SOURCED, so ``ROBOT -
+#: SAFE_ROBOT`` returns all 20 robot codes and would start deducting for
+#: `main_brush_jammed`, `fan_error`, `filter_blocked`.
+#:
+#: INVALIDATING is scoped to the robot being demonstrably IMMOBILE, not to every robot
+#: fault. A jammed brush or blocked filter degrades quality while the robot keeps moving
+#: and covering floor; deducting that time would destroy a real observation. That is the
+#: asymmetry RF-DOCK turns on -- wrongly crediting adds noise that averages out, wrongly
+#: zeroing does not.
+ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES: frozenset[str] = frozenset({
+    "wheels_suspended", "wheels_jammed", "robot_trapped",
+    "robot_tilted", "bumper_stuck", "vertical_bumper_pressed",
+})
+
+#: Robot-side events whose cleaning evidence still stands: navigation and
+#: informational states that are not faults at all, plus faults that can only fire
+#: AFTER the clean finished or DURING dock washing -- where timing settles the question
+#: even when the hardware boundary does not.
+ROBOROCK_EVIDENCE_SAFE_ROBOT_CODES: frozenset[str] = frozenset({
+    "nogo_zone_detected", "invisible_wall_detected",     # obeyed, not failed
+    "cannot_cross_carpet", "robot_on_carpet",
+    "dock", "dock_locator_error", "return_to_dock_fail",  # after the clean
+    "charging_error", "low_battery", "audio_error",
+    "mopping_roller_1", "mopping_roller_2", "mopping_roller_error_2",
+})
+
+#: Faults that leave the floor work valid. Core preserves these seconds.
+#: DERIVED, so the 11 dock codes are written once -- they were previously transcribed
+#: into both this list and the dock list, and a transcribed block diverges silently.
+ROBOROCK_EVIDENCE_SAFE_ERROR_CODES: frozenset[str] = (
+    ROBOROCK_DOCK_SOURCED_ERROR_CODES | ROBOROCK_EVIDENCE_SAFE_ROBOT_CODES
+)
+
+# DELIBERATELY UNCLASSIFIED -- ambiguous by name, so left out rather than guessed:
+#   clear_water_box_exception / clear_water_box_hoare  (both robot and dock carry a
+#       clean-water tank, model-dependent)
+#   clear_brush_exception / clear_brush_exception_2
+#   light_touch, internal_error, temperature_protection, water_carriage_drop
+# Plus `none`, the idle sentinel (see NOT_ERROR_SENTINELS). Omission lands on
+# unclassified/unknown, which preserves the run's seconds and claims nothing -- the
+# safe degradation this table relies on. NEVER widen one of these on a hunch; a wrong
+# dock/robot call points the user at hardware that is fine.
+
+# NO error_label_keys, and that is a decision rather than an omission.
+#
+# sensor.{id}_vacuum_error is an HA enum sensor whose 53 states Home Assistant already
+# ships translations for, in every language it supports. Minting fault.roborock.* keys
+# here would duplicate a table HA maintains and cost 18 packs of our own, which is the
+# opposite of [[feedback_kiss_upstream_signals]]. Eufy needs its own table only because
+# its codes are bare numbers with no upstream label at all.
+#
+# HOW THE CARD GETS THE STRING -- VERIFIED 2026-08-05, after an earlier draft asserted
+# it as fact without checking. The trap: `hass.states.get(...).state` returns the RAW
+# enum; HA translates entity states in the FRONTEND at display time, and the translation
+# is not on the state object. This card had never translated an HA state (no
+# formatEntityState / computeStateDisplay / hass.localize anywhere in src/).
+#
+# The key resolves. Probing the live instance in French returned all 53 states under
+#     component.roborock.entity.sensor.vacuum_error.state.<enum>
+# e.g. bumper_stuck -> "Pare-chocs coince", charging_error -> "Erreur de charge". So
+# `hass.localize(...)` with that key is the route. Corroboration worth keeping: HA's
+# French for bumper_stuck is byte-identical to our own fr.json fault.eufy.bumper_stuck.
+#
+# STILL REQUIRED WHEN BUILDING THE LABEL SURFACE -- a fallback. The frontend loads
+# translations per integration, so those resources are only present if something has
+# already caused them to load; asking for the key does not fetch it, and a miss returns
+# EMPTY rather than the enum. So: hass.localize(key) first, then humanise the raw enum
+# ("bumper_stuck" -> "Bumper stuck"). Never render an empty string where a fault name
+# belongs.
