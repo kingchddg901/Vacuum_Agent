@@ -55,7 +55,7 @@ library (see below).
 | `adapter.py` | Assembly + `register_roborock_adapter_for_vacuum()`. Pure assembly, as in Eufy. |
 | `const.py` | Identity strings (`DOMAIN`, `NAME`, `SUPPORTED_TESTED_MODEL`), the brand-level `ADAPTER_ID`, and `LOW_BATTERY_THRESHOLD_PERCENT`. |
 | `entities.py` | `build_entity_id()` + the Roborock-core entity suffixes (`_status`, `_current_room`, `_cleaning_time`, …). |
-| `vocabulary.py` | Task-status / error / completion state sets + the fan-speed `*_options` (card vocab) and the per-room-live fan `options_key` vocabulary guard. A brand may also declare display→canonical alias maps (`clean_mode_aliases` / `clean_intensity_aliases` / `fan_speed_aliases`) so the learning manager hands the card a canonical code for observed settings; the S6's values already slug to canonical (`gentle`/`balanced`/…), so it declares none. |
+| `vocabulary.py` | Task-status / error / completion state sets + the fan-speed `*_options` (card vocab) and the per-room-live fan `options_key` vocabulary guard. A brand may also declare display→canonical alias maps (`clean_mode_aliases` / `clean_intensity_aliases` / `fan_speed_aliases`) so the learning manager hands the card a canonical code for observed settings; the S6's values already slug to canonical (`gentle`/`balanced`/…), so it declares none. **Also carries the 5 error-classification catalogs** (`dock_sourced_error_codes`, `robot_sourced_error_codes`, `evidence_invalidating_error_codes`, `evidence_safe_error_codes`, `error_label_keys`) that `adapter.py` merely imports and assembles into the `error_tracking` config block — see §4 below. |
 | `model_catalog.py` | `profile_for_model()` — maps `roborock.vacuum.s6` → the s6 **capability profile** (a dict: `family`/`display_name`/`has_dock`/`has_mop`/`supports_segments`), not a family string like Eufy's `detect_model_family()`. |
 | `maintenance_components.py` | **12** entries: 4 life-tracked (main/side brush, filter, sensor — device-owned `*_time_left` countdowns with reset buttons) + 8 `maintenance_only` guide-only cleanables (dustbin, mop_cloth, water_filter, caster_wheel, main_wheel; dock/station ones family-gated). |
 | `upkeep_catalog.py` + `roborock_upkeep_guides.py` + `upkeep_guides_i18n/` | Per-model upkeep guide library (standard/auto_empty/wash_station tiers, ~37 models) + 13-language `guide_translations` — a full `upkeep_catalog` config block, same shape as Eufy's. |
@@ -220,6 +220,27 @@ reconciliation review surfaces ambiguous shifts. See
   "Unknown error during run"`. Dual-channel (`_status` and `vacuum.state` both flip `error`);
   the code rides an **enum string** on `_vacuum_error`, so the numeric-attr list usually
   misses → code `None`, message = the code string.
+
+  Roborock also declares all five error-**classification** blocks doc
+  [22 §9](22-adapter-config-reference.md#9-error_tracking--error-tracker-configuration)
+  documents: `dock_sourced_error_codes` (11), `robot_sourced_error_codes` (20),
+  `evidence_invalidating_error_codes` (6 — the robot demonstrably immobile:
+  `wheels_suspended`/`wheels_jammed`/`robot_trapped`/`robot_tilted`/`bumper_stuck`/
+  `vertical_bumper_pressed`), `evidence_safe_error_codes` (24 = the 11 dock codes ∪ 13
+  hand-picked safe-robot states), and `error_label_keys` (49 fault → i18n-key entries,
+  3 of 53 enum states left deliberately unmapped where HA's own label contradicts its
+  enum name). **These five catalogs live in `adapters/roborock/vocabulary.py`
+  (lines ~198–389), not in `adapter.py`** — `adapter.py` only imports the five
+  constants and assembles them into the `error_tracking` dict
+  (`adapter.py:327–341`); vocabulary.py's own header explains why: "declared HERE
+  rather than inline in adapter.py so both brands put the same concept in the same
+  place — Eufy's live in `eufy/vocabulary.py` and its adapter only references them."
+  Codes throughout are **lowercase enum strings** (`"bumper_stuck"`, not a number) —
+  contrast Eufy, whose equivalent five tables in `eufy/vocabulary.py` are `int`-keyed.
+  Roborock's invalidating set is **hand-declared**, not derived as `ROBOT -
+  SAFE_ROBOT` the way Eufy's is: Roborock's classification is a partial, open read of
+  a vendor enum (several ambiguous states left out on purpose), so the Eufy-style
+  derivation would wrongly widen invalidating to every un-vetted robot code.
 - **`room_attribution`** — `engine: "eufy_anchor_winding_v1"`, **`source: "native_current_room"`**
   (reads the `_current_room` NAME sensor + slugifies, vs Eufy's `live_pose`), tuning
   `interval_s: 5.0` / `dwell_min_ticks: 3` / `swept_area_min_m2: 0.5`. **Dormant** until the

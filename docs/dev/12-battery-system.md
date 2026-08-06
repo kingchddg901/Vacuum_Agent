@@ -623,6 +623,44 @@ decimal places are a code-level detail, not a pinned contract.
 > A plain `wait` phase does not recharge and is not flagged (its `start − end` drain
 > is accurate).
 
+### 10.6 Not to be confused with: the job-history `recharge` field
+
+`battery_metrics.mid_job_recharge` (above) and the completed-job record's own
+`battery.mid_job_recharge_observed` (`jobs/{job_id}.json`, written by
+`build_completed_job_payload` in `learning/history_store.py`, not by this subsystem) are
+**two separate signals with two separate write sites** — a reader chasing "did this job
+recharge" can land on either and get a different, non-contradictory answer to a
+different question:
+
+| | `battery_metrics.mid_job_recharge` | `battery.mid_job_recharge_observed` |
+|---|---|---|
+| Written by | `learning/job_finalizer.py`, right after `compute_job_battery_metrics` returns (§9 above) | `learning/history_store.py` `build_completed_job_payload` |
+| Stored where | `battery.vacuums.<vid>.last_job.mid_job_recharge` (this subsystem's storage, §4) | The job record's own `battery` block (`jobs/{job_id}.json`) |
+| Answers | Should this job's drain be excluded from the per-config mean buckets (§10.5)? | Did the run's active-job state show a recharge, as of finalize time? |
+| Formula | `recharge_seconds_accumulated > 0 OR observed_mid_job_recharge_count > 0 OR had a charge_wait phase` | `mid_job_recharge_count > 0 OR recharge_seconds_accumulated > 0 OR observed_mid_job_recharge` (a live "charging right now" flag) |
+
+Both are computed **once, at finalize time**, from the active-job state, and both are
+then frozen into their respective stores.
+
+**The card's learning-history job row reads neither verbatim.**
+`get_learning_history_snapshot`'s `recharge` field
+(`learning/manager.py::_job_recharge`) re-derives a third time, on every read, straight
+from the stored `battery.mid_job_recharge_count` / `battery.recharge_seconds_accumulated`
+counters on the archived job record — because the stored
+`battery.mid_job_recharge_observed` flag above was computed by an expression that was
+itself fixed once (the live-flag term used to be read alone, which cleared the moment a
+resumed recharge went back to cleaning, so a run that recharged *and* resumed — every
+successful mid-job recharge — recorded that none happened), and a record finalized
+**before** that fix keeps its old, possibly-wrong answer forever. Re-evaluating the
+fixed formula at read time instead of trusting the frozen flag corrects those old
+records retroactively, no migration required: measured on the real Alfred archive, the
+stored `battery.mid_job_recharge_observed` flag says 1 of 68 jobs recharged mid-job; the
+read-time re-derivation says 2 of 68 — the recovered record is the very job the fix's
+own code comment cites as its evidence. See
+[10-learning-system §3.4](10-learning-system.md)
+and [03-data-model §9c](03-data-model.md#9c-card-facing-job-history-row-get_learning_history_snapshot)
+for the full row shape.
+
 ---
 
 ## 11. Post-job charge linkage (`_attach_post_job_charge_if_pending`)

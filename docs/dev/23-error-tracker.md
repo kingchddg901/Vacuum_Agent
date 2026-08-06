@@ -79,7 +79,7 @@ dispatched finalizer doing it. See [03-data-model](03-data-model.md) §5a / §9b
 | `first_seen_job_elapsed_seconds` | int | Seconds into the run when the first error fired (`_job_elapsed_seconds`: clamped ≥ 0; **0** when there is no run in flight or `started_at` is missing/unparseable; a tz-naive `started_at` is read as UTC rather than raising) |
 | `error_count` | int | Number of rising edges accumulated into this latch |
 | `current_message` | str | Latest error message (`""` after recovery) |
-| `current_code` | int \| None | Latest numeric error code (`None` after recovery) |
+| `current_code` | int \| None | Latest error code as captured (`None` after recovery) — the attribute route writes ints only today (§4.4); the classification seams accept enum-string codes too (§4.5) |
 | `errored_room_id` | str \| None | `current_room_id` of the active job at first error |
 | `recovered` | bool | `True` once the message clears mid-run; flips back to `False` on a fresh rising edge |
 | `errors` | list[dict] | Per-edge sub-records (shape below), capped at `_LATCH_ERRORS_LIMIT` (50) |
@@ -88,8 +88,8 @@ dispatched finalizer doing it. See [03-data-model](03-data-model.md) §5a / §9b
 
 | Field | Type | Description |
 |---|---|---|
-| `message` | str | Error string for this edge |
-| `code` | int \| None | Numeric code for this edge |
+| `message` | str | Error string for this edge — for a brand whose error entity state IS the code enum (Roborock), the enum string lands here (§4.4) |
+| `code` | int \| None | Code for this edge as captured (§4.4) |
 | `captured_at` | str | ISO-8601 timestamp |
 | `job_elapsed_seconds` | int | Seconds into the job at this edge |
 | `room_id` | str \| None | Active-job room at this edge |
@@ -120,9 +120,57 @@ Each entry in the `recent_errors` list:
 | `active_job_id` | str \| None | Job ID at capture, if any |
 | `vacuum_state` | str \| None | `vacuum.state` value at capture |
 
-### 4.4 Error-code extraction
+### 4.4 Error-code extraction (the attribute route)
 
-Numeric codes are pulled from the entity's `extra_state_attributes` by `_read_error_code_attr()`. Attribute keys are tried in order — `error_code`, `code`, `errorCode` — across the `error_message` entity then the vacuum entity; the first non-zero int wins. A code of `0` is treated as "no code captured" (upstream uses `0` as the no-error sentinel), so it is recorded as `None`.
+Codes are pulled from `extra_state_attributes` by `_read_error_code_attr()`. The attribute
+names come from adapter config `error_tracking.error_code_attribute_names` (default
+`("error_code", "code", "errorCode")`, module constant `_DEFAULT_ERROR_CODE_ATTRS`) — this
+config **is read** (it was once advertised in doc 22 §9 but never consulted; that is fixed,
+and the name resolution is hoisted out of the per-entity loop since the answer cannot differ
+between the two entities of one vacuum). The declared names are tried in order across the
+`error_message` entity then the vacuum entity; the **first non-zero int** wins (`_safe_int` —
+non-int values are skipped). A code of `0` is treated as "no code captured" (upstream's
+per-model error protos all start `E0000_NONE = 0`, so `0` is the no-error sentinel) and
+recorded as `None`.
+
+**Brand reality.** Eufy surfaces numeric codes on the vacuum entity's attributes — the route
+above captures them. Roborock's code IS the enum-string **state** of its error entity
+(`bumper_stuck`, `wheels_suspended`): the attribute route finds no int, so a Roborock edge
+records `code = None` with the enum string in `message`. Consequence: the §4.5 classification
+seams currently receive `None` for every Roborock fault, so the adapter's declared code
+tables cannot match at runtime — **open finding `live:RB-ERR-2`**
+(`.claude/notes/synthesis/FINDING-roborock-error-code-carrier.md`); the capture-side bridge
+is not yet built, and this doc records what capture writes today.
+
+### 4.5 Code normalization + classification seams
+
+Three module-level functions classify a code against adapter-declared tables. All three
+normalize through `_code_key()` first, and none ever learns a brand's codes — core asks the
+question, the adapter answers it.
+
+**`_code_key(value) -> int | str | None`** — one code to a comparable key. Exists because all
+three seams once opened with `_exact_int(code)` and bailed on `None`, making a non-numeric
+code unmatchable no matter what the adapter declared (`live:RB-ERR-1`). Both int guards are
+load-bearing and preserved: never `int()` a float (`int(3.7)` is 3 — a real Eufy code), and
+`bool` is an int subclass so `True` must not resolve to code 1. A numeric **string** still
+resolves to an int (adapter config round-trips through JSON); any other non-empty string
+becomes a lowercased, stripped string key; empty/whitespace is `None` — absence, not a code
+named `""`. Declared code lists are coerced by `_code_set()` (ints AND enum strings; the
+int-only `_int_set()` sibling remains for callers that genuinely mean integers).
+
+| Seam | Returns | Tables read | Consumer |
+|---|---|---|---|
+| `classify_error_code(vid, code)` | `"invalidating"` / `"safe"` / `"unclassified"` | `evidence_invalidating_error_codes` / `evidence_safe_error_codes` | Finalizer's error-seconds split (§7.2) — only **invalidating** seconds are deducted; **unclassified is a real answer and is preserved**, so a brand that declares nothing keeps every run's cleaning time intact |
+| `error_source_for_code(vid, code)` | `"dock"` / `"robot"` / `"unknown"` | `dock_sourced_error_codes` / `robot_sourced_error_codes` | A second, **independent** axis — reported, never subtracted; `"unknown"` is a real answer (never default-blame the robot for a code newer than the table) |
+| `error_label_key(vid, code)` | i18n key (`fault.<brand>.*`) or `None` | `error_label_keys` (string keys tolerated — JSON round-trip) | Read-time fault naming (below); `None` means the card renders the raw code — honest and searchable |
+
+**Read-time fault naming.** `learning/manager.py::_run_error_rows` resolves
+`error_label_key` + `error_source_for_code` per latch edge **at read time** when serving
+`get_learning_history_snapshot` job rows (capped at `_RUN_ERROR_ROW_LIMIT = 12`). Resolution
+is deliberately not stored: the raw vendor code is on every record ever written, so every
+historical job gets named the moment a mapping ships, and a mapping fixed later applies
+retroactively. The label strings live in the frontend locale packs (`fault.eufy.*` /
+`fault.roborock.*` in `src/i18n/en.js` + 17 locales), resolved by the card's own translator.
 
 ---
 
@@ -188,7 +236,21 @@ async_call_later(hass, _ERROR_MESSAGE_GRACE_SECONDS, _on_grace_expired)
 
 During the grace window the tracker waits for the `error_message` sensor to update with a real message. If the primary channel fires within the window, the grace timer is cancelled and the primary-channel message is used. If the window expires while the device is still in error state, the error is finalized with `error_message = "Unknown error during run"` and `code = None` (no `source` field is recorded).
 
-The grace callback is stored per-vacuum and cancelled on rising primary-channel edge.
+The grace callback is stored per-vacuum and cancelled on rising primary-channel edge. The
+window length honours adapter config `error_tracking.grace_window_seconds` (default: the
+module constant; a declared `0` fires on the next tick — the read tests for `None`, not
+falsiness).
+
+**Placeholder re-arm guard.** The tracker does **not** re-arm the grace timer while an
+unrecovered placeholder latch from a previous expiry is still standing (checked by comparing
+`current_message` against the adapter's `unknown_error_message`). Without this, one sustained
+fault re-arms on every upstream state write and manufactures a run of identical
+"Unknown error during run" edges — `error_count` in the tens for a single physical fault, and
+the 50-entry `recent_errors` ring (the only shadow copy that survives a harvest) flushed of
+all real history. At expiry the message is also re-checked against the **adapter's** not-error
+set (not the generic set) — with the generic set, a brand's own idle value (`"none"`,
+`"normal"`) read as an error and the expiry path latched nothing for exactly the fault class
+the secondary channels exist to catch.
 
 ---
 
@@ -230,9 +292,20 @@ job's `outcome` under four keys: `had_errors` (bool, `error_count > 0`), `error_
 `errors` (the **full latch dict verbatim**), `total_error_seconds` (int). `total_error_seconds` is
 derived from the latch's `errors[]` — each treated as a half-open `[captured_at, recovered_at)`
 interval (an open interval is closed by the next edge's `captured_at`, else the job's `ended_at`;
-overlaps merged) — then **subtracted from `cleaning_time_seconds`** (clamped ≥ 0) so a recoverable
-run isn't penalised for transient faults. This is why `errors[].captured_at` / `recovered_at` (and
-the `recovered_at: None` semantics) are load-bearing.
+overlaps merged). This is why `errors[].captured_at` / `recovered_at` (and the
+`recovered_at: None` semantics) are load-bearing.
+
+**RF-DOCK: only evidence-invalidating seconds are deducted.** `total_error_seconds` still
+reports the FULL window, but the finalizer additionally splits it per bucket by running the
+same interval computation filtered through `classify_error_code` (§4.5):
+`invalidating` / `safe` / `unclassified`. Only `deductible_error_seconds` (= the invalidating
+bucket) is **subtracted from `cleaning_time_seconds`** (clamped ≥ 0); unclassified seconds
+are preserved and logged at debug — the failure mode degrades toward "trust the run", so a
+station fault the robot worked straight through can no longer zero a productive run (the
+live incident: five dock-side pump faults charged 455 s against a 360 s clean, and the model
+learned that 4 m² takes no time). A parallel `_by_source` split (`error_source_for_code`)
+is computed and **reported, never subtracted** — it exists so a human can see WHERE preserved
+seconds came from. Raw and adjusted cleaning seconds are both stored on the record.
 
 ### 7.3 Acknowledge
 
@@ -345,8 +418,19 @@ The tracker reads the following from the adapter registry at runtime:
 | `vocabulary.not_error_sentinels` | Brand-specific non-error strings that **replace** the generic set (no merge) — each adapter must re-include `""` / `"unknown"` / `"unavailable"` itself |
 | `error_tracking.unknown_error_message` | Placeholder text used on grace expiry (default: `"Unknown error during run"`) |
 | `error_tracking.task_status_error_value` | Value of the **`task_status`** channel that counts as an error (default: `"error"`) |
-| `error_tracking.grace_window_seconds` | Late-arrival grace duration (default: the module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`) |
+| `error_tracking.grace_window_seconds` | Late-arrival grace duration (default: the module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`; a declared `0` is honoured) |
 | `error_tracking.error_code_attribute_names` | Ordered attribute names searched for the numeric code (default: `("error_code", "code", "errorCode")`) |
+| `error_tracking.evidence_invalidating_error_codes` | Codes whose seconds MAY be deducted from cleaning time (§4.5 / §7.2) |
+| `error_tracking.evidence_safe_error_codes` | Codes whose seconds must NOT be deducted (fault the robot works through) |
+| `error_tracking.dock_sourced_error_codes` | Codes attributed to the base station (`error_source_for_code` → `"dock"`) |
+| `error_tracking.robot_sourced_error_codes` | Codes attributed to the robot (`"robot"`; undeclared → `"unknown"`, never default-blamed) |
+| `error_tracking.error_label_keys` | Code → `fault.<brand>.*` i18n key map for read-time fault naming (§4.5); string keys tolerated (JSON round-trip) |
+
+The five classification tables accept ints AND enum strings (`_code_set` / `_code_key`,
+§4.5) — Eufy declares numbers, Roborock enum strings. Full per-brand values and counts:
+doc [22 §9](22-adapter-config-reference.md) and each adapter's `vocabulary.py`.
+`grace_window_seconds` and `error_code_attribute_names` were once advertised here but not
+read by the tracker; both are genuinely consulted now.
 
 Every `error_tracking` read goes through the module-level `_error_tracking_cfg()` helper, which
 returns `{}` for an unregistered adapter or a missing block; each caller then applies its own

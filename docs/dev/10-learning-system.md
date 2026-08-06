@@ -799,6 +799,109 @@ Two sanity flags are computed and appended to `sanity_flags` when conditions fai
   so it is sane by construction, and the explicit value keeps the history view from
   ever reading a missing key as a failure.
 
+### 3.4 Job-row enrichment — `run_errors` / `recharge` / `room_detail` (derived at read time)
+
+`get_learning_history_snapshot` (`manager.py`) does not serve `jobs_index.json` entries (§8.2)
+verbatim. Each row in its `jobs` list is `dict(item)` (the index entry) merged with several
+fields computed **fresh from the archived `jobs/{job_id}.json` record on every call**
+(`archived = archived_job_map.get(job_id, {})`, `manager.py` line 1995). Three of those computed
+fields are non-trivial nested shapes in their own right, and none of the three are ever written
+back onto `jobs_index.json` or the archived record — they exist only in the dict this call
+returns. That is deliberate for all three: a fix to the underlying rule (a new error label, a
+corrected recharge expression, a room-matching change) applies to **every historical job
+retroactively** the next time the snapshot is read, with no migration and no version-gating on
+when a job was finalized.
+
+**`run_errors`** (`_run_error_rows`, `manager.py` line 59) — the named faults a run hit, resolved
+from `outcome.errors` (the `ActiveRunError`-shaped latch the finalizer writes onto `outcome` via
+`extra_outcome` — see [23-error-tracker](23-error-tracker.md) for the full latch shape). Returns
+`[]` when `outcome.errors` is absent/not a dict, or its `errors` list is absent/not a list. Each
+row:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `code` | Any | The raw vendor error code, verbatim |
+| `label_key` | str \| None | `error_label_key(vacuum_entity_id, code)` (`core/error_tracker.py`) — the adapter's i18n key; `None` when the adapter has no label for the code (the card falls back to the raw code, never a humanized guess) |
+| `source` | str | `error_source_for_code(vacuum_entity_id, code)` — `"dock"` \| `"robot"` \| `"unknown"`; unknown is a real answer, not a fallback to the majority class |
+| `recovered` | bool | `entry["recovered_at"] is not None` — absent means the fault was still latched when the run ended, which is **not** the same as "the fault ended the run" |
+| `captured_at` | Any | Passed through verbatim from the latch entry |
+| `room_id` | Any | Passed through verbatim from the latch entry |
+
+Capped at `_RUN_ERROR_ROW_LIMIT = 12` rows (`manager.py` line 56). **Why this resolves at read
+time instead of being stored:** the raw vendor code is already on every historical record, so
+resolving here means every past job gets a name the moment a label ships — no migration, no
+"only new runs have labels" — and a mapping fixed later applies retroactively (three Roborock
+states are deliberately unmapped today because the vendor's own strings contradict their enum
+names; if their meaning is ever established, old records pick up the label for free). Core never
+learns a brand's error codes — the adapter owns the code→label mapping, this function only hands
+the card a key [[feedback_eufy_ism_leak_layers]].
+
+**`recharge`** (`_job_recharge`, `manager.py` line 119) — whether the run recharged mid-job,
+**re-derived** from the archived record's `battery` block rather than trusted from the stored
+`battery.mid_job_recharge_observed` flag (§2.0). Returns `None` (the card omits the row entirely
+rather than render a confident "0") unless at least one of:
+
+```python
+count = max(_safe_int(battery.get("mid_job_recharge_count"), 0), 0)
+seconds = max(_safe_int(battery.get("recharge_seconds_accumulated"), 0), 0)
+stored = bool(battery.get("mid_job_recharge_observed"))
+# returns None unless: count > 0 or seconds > 0 or stored
+```
+
+Otherwise:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `observed` | bool | Always `True` when the row is returned |
+| `count` | int | `mid_job_recharge_count`, floored at 0 — an older record can carry the stored flag with no counter behind it |
+| `seconds` | int | `recharge_seconds_accumulated`, floored at 0 |
+| `started_at` | str \| None | `mid_job_recharge_started_at`, verbatim |
+| `recovered_from_stale_record` | bool | `True` when `stored` was `False` but `count`/`seconds` fired anyway — this record predates the finalize-time fix and is being corrected on read |
+
+**Why re-derive rather than trust the stored flag:** `battery.mid_job_recharge_observed` is
+computed once, at finalize time, by `history_store.py`'s
+`mid_job_recharge_observed = count > 0 or seconds > 0 or <live "charging now" flag>` expression
+(line ~1699) — and that expression itself was **fixed** at some point in the project's history
+(the live-flag term used to be read alone, which cleared the moment a recharge resumed, so a run
+that recharged *and* resumed — every successful mid-job recharge — recorded that none happened).
+A record finalized **after** the fix already agrees with the re-derivation, so
+`recovered_from_stale_record` is always `False` for it; only records finalized **before** the fix
+can disagree. Measured on the real Alfred archive: the stored flag says 1 of 68 jobs recharged
+mid-job, the read-time re-derivation says 2 — the recovered record is the very job the fix's own
+code comment cites as its evidence. See [12-battery-system §10.6](12-battery-system.md) for the
+distinct `battery_metrics.mid_job_recharge` flag this is not to be confused with.
+
+**`room_detail`** (`_job_room_rows`, `manager.py` line 175) — per-room settings AS DISPATCHED,
+joined to what the room's timing capture actually measured. Reads `resolved_rooms` (falling back
+to `job_profile.rooms` when `resolved_rooms` is missing/empty), then joins each room to its
+`job.room_timings` entry: matched by `room_id` first, falling back to a lowercased `slug` match
+only for **id-less** timing entries (a timing that carries a `room_id` never also registers under
+its slug — a house with two same-slug rooms on different floors would otherwise let the id-less
+lookup hand one room's result to the other, which a test caught doing exactly that). One row per
+room in `resolved_rooms` / `job_profile.rooms`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `room_id` | Any | From the resolved room |
+| `slug` | str \| None | Lowercased; `None` if absent |
+| `name` | str \| None | `room["name"]` or `room["label"]` |
+| `profile_key` | Any | `room["profile_key"]` or `room["selected_profile"]` |
+| `settings` | dict | Subset of `clean_mode`, `fan_speed`, `clean_intensity`, `water_level`, `path_type`, `clean_passes`, `edge_mopping` — only the keys present (non-`None`) on the room record |
+| `cleaning_seconds` | float \| None | From the matched `room_timings` entry (device active-clock reading) |
+| `cleaning_wall_seconds` | float \| None | From the matched `room_timings` entry (wall-clock reading) — the two disagree on 110 of 113 real timing entries, so both are carried rather than collapsed to one |
+| `area_m2` | float \| None | From the matched `room_timings` entry |
+| `boundary` | str \| None | The boundary kind that opened the room's segment (§2.2) — the one field that can say "this split came from a recharge dock" |
+| `has_result` | bool | `True` when a `room_timings` entry was matched at all |
+
+A room with settings but `has_result: False` is normal, not an error — a room that was queued but
+never reached (an interrupted/cancelled run, or a room simply not gotten to) leaves nothing to
+measure; on the real archive this was 26 of 139 Alfred rooms and 24 of 31 Ivy rooms. **Battery is
+deliberately omitted** from this row: per-room `battery_delta` exists on `room_timings` but does
+not reconcile with the job total (partial recharges — see `recharge` above — plus unattributed
+transit), and a per-room figure that contradicts the headline `battery.used` turns a data
+question into a support question. It stays available on the raw `job.room_timings` for anyone
+reading the archived record directly.
+
 ---
 
 ## 4. Confidence Scoring — Full Math

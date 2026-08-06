@@ -1589,6 +1589,16 @@ have `record_type == "completed_job"`, `outcome.status == "completed"`, and
 naive `.get(..., True)` default never fired). Graduated **external** runs (§9b) set
 `sanity_passed=True` / `sanity_flags=[]` explicitly — they are sane by construction.
 
+`outcome` also carries error-tracking fields not listed in the shape above —
+`had_errors` (bool), `error_count` (int), `errors` (the `ActiveRunError`-shaped latch,
+or absent), `total_error_seconds`, plus RF-DOCK's `error_seconds_by_evidence` /
+`error_seconds_by_source` / `error_seconds_deducted` — written by the same
+`extra_outcome` merge (`history_store.py`: `outcome.update(extra_outcome)`, ~line 1752)
+as `lifecycle_state` / `cancel_detection` above. Full latch shape:
+[23-error-tracker](23-error-tracker.md). `outcome.errors` is the field
+`get_learning_history_snapshot`'s `run_errors` job-history row resolves labels from
+(§9c below).
+
 **`learning_blockers` values:** `"invalid_room_count"`, `"invalid_duration"`,
 `"missing_resolved_rooms"`, `"job_cancelled"`, `"job_failed"`,
 `"job_interrupted"`, `"test_job"`, `"cancel_likely"` (or reason string from
@@ -1727,6 +1737,62 @@ cleaning_seconds, cleaning_wall_seconds, area_m2}` (one or more merged segments 
 room). `ExtProfileRoom` carries `{room_id, slug, name, clean_mode, clean_intensity,
 fan_speed, water_level, clean_passes, is_carpet, edge_mopping}` — settings resolved
 as explicit override → the segment's recovered selects → the room config.
+
+### 9c. Card-facing job-history row (`get_learning_history_snapshot`)
+
+`LearningManager.get_learning_history_snapshot` (`learning/manager.py`) does not return
+the `jobs_index.json` entries (§8.2 of [10-learning-system](10-learning-system.md)) as
+stored. Each row in its `jobs` list is the index entry merged with several fields
+computed **fresh from the archived completed-job record (§9/§9b above) on every call**
+— `archived = archived_job_map.get(job_id, {})`. Three of them are non-trivial nested
+shapes, and **none are persisted** back onto `jobs_index.json` or the archived record:
+a fix to the derivation rule applies retroactively to every historical job the next
+time the snapshot is read, with no migration. Full derivation logic and worked numbers:
+[10-learning-system §3.4](10-learning-system.md).
+
+```
+{
+  ... jobs_index job entry fields (10-learning-system §8.2) ...
+  "run_errors": list[{
+    "code":        Any
+    "label_key":   str | None   # adapter i18n key; None = unlabeled, card shows raw code
+    "source":      str          # "dock" | "robot" | "unknown"
+    "recovered":   bool         # recovered_at is not None
+    "captured_at": Any
+    "room_id":     Any
+  }]                            # resolved from outcome.errors; capped at 12 rows; [] when absent
+  "recharge": {
+    "observed":                    bool   # always True when the key is present
+    "count":                       int
+    "seconds":                     int
+    "started_at":                  str | None
+    "recovered_from_stale_record": bool   # stored battery.mid_job_recharge_observed disagreed with count/seconds
+  } | None                        # key present but null-equivalent: row omitted by the card when no signal fired
+  "room_detail": list[{
+    "room_id":               Any
+    "slug":                  str | None
+    "name":                  str | None
+    "profile_key":           Any
+    "settings":               dict   # subset of clean_mode/fan_speed/clean_intensity/water_level/path_type/clean_passes/edge_mopping present on the room
+    "cleaning_seconds":       float | None
+    "cleaning_wall_seconds":  float | None
+    "area_m2":                float | None
+    "boundary":               str | None
+    "has_result":             bool
+  }]
+}
+```
+
+`run_errors` reads `outcome.errors` (§9's `OutcomeInfo` note above). `recharge`
+re-derives from `battery.mid_job_recharge_count` / `battery.recharge_seconds_accumulated`
+(§9 `BatteryInfo`) rather than trusting the stored `battery.mid_job_recharge_observed`
+flag, because that flag is frozen at whatever the finalize-time formula was when the
+job finalized — a record written before a since-fixed formula keeps its old, possibly
+wrong answer forever. See [12-battery-system §10.6](12-battery-system.md) for the
+distinct `battery_metrics.mid_job_recharge` flag this is not to be confused with.
+`room_detail` joins `resolved_rooms` (falling back to `job_profile.rooms`) to
+`job.room_timings` by `room_id`, falling back to slug only for id-less legacy timing
+entries.
 
 ---
 

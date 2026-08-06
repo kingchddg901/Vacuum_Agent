@@ -403,8 +403,29 @@ Configures the active-run error tracker (`core/error_tracker.py`).
 | `grace_window_seconds` | `int` | `5` | Wait window after the secondary signal fires before finalising as unknown error — some firmware emits the state DPS before the message DPS. |
 | `error_code_attribute_names` | `list[str]` | – | Attribute names to check when reading an error code. Tried in order, first non-zero int wins. |
 | `unknown_error_message` | `str` | `"Unknown error during run"` | Placeholder used when the grace window elapses without a real message. |
+| `evidence_invalidating_error_codes` | `list[int \| str]` | – (nothing deducted) | Error codes after which the run's cleaning evidence can't be trusted — **only** these codes' seconds are deducted from `cleaning_time_seconds`. A brand that omits this deducts nothing (degrades toward trusting the run, not zeroing it). Read by `classify_error_code()`. |
+| `evidence_safe_error_codes` | `list[int \| str]` | – | Error codes that leave the floor work valid (station faults the robot cleaned straight through; robot faults that bracket rather than interrupt the clean) — reported but never deducted. Declared **separately** from the invalidating list, not its complement: a code in neither list is `"unclassified"`, which is also preserved (not deducted) but stays visibly distinct from deliberately-safe. |
+| `dock_sourced_error_codes` | `list[int \| str]` | – | Error codes raised by the **base station**. Read by `error_source_for_code()`. This is a second, independent axis from the two evidence lists above — not a finer grain of them: a station fault the robot cleaned straight through is both evidence-safe *and* dock-sourced. Reported only, never subtracted. A brand that omits this reports every fault as `"unknown"` rather than guessing a majority class. |
+| `robot_sourced_error_codes` | `list[int \| str]` | – | Error codes raised by the **robot** itself. Companion to `dock_sourced_error_codes`; a code in neither resolves `"unknown"`. |
+| `error_label_keys` | `dict[int \| str, str]` | – | Maps this brand's error codes to i18n keys for the card's fault labels (`fault.<brand>.<name>`, strings live in the frontend locale packs — core only passes the key through and never learns a brand's codes). A code absent from this map has no label; the card falls back to the raw code. Read by `error_label_key()`. |
 
-### Example
+**Code-key type is brand-dependent, not fixed to `int`.** Every code in the
+five fields above is normalized through `core/error_tracker.py::_code_key()`
+(`core/error_tracker.py:270-307`): an `int` passes through as-is, a numeric
+*string* still resolves to an `int` (so a stored adapter config that
+round-tripped through JSON keeps matching), and anything else non-empty
+becomes a lowercased, stripped string key. **Eufy's tables are `int`**
+(`adapters/eufy/vocabulary.py`, e.g. `EUFY_DOCK_SOURCED_ERROR_CODES:
+frozenset[int]` at line 266) — its `error_message` sensor reports a number.
+**Roborock's tables are lowercase enum strings**
+(`adapters/roborock/vocabulary.py`, e.g. `ROBOROCK_DOCK_SOURCED_ERROR_CODES:
+frozenset[str]` at line 224, values like `"bumper_stuck"`,
+`"wheels_suspended"`) — `sensor.{id}_vacuum_error` reports an enum name, not
+a number, and there is no coercion to int for these. Both shapes are valid;
+declare whichever matches the brand's `error_message` sensor's actual
+values.
+
+### Example (Eufy — int codes)
 
 ```python
 "error_tracking": {
@@ -412,12 +433,71 @@ Configures the active-run error tracker (`core/error_tracker.py`).
     "grace_window_seconds": 5,
     "error_code_attribute_names": ["error_code", "code", "errorCode"],
     "unknown_error_message": "Unknown error during run",
+    "dock_sourced_error_codes": [41, 70, 73, 74, 6010, 6011, 6012, 6013, ...],  # 38 total
+    "robot_sourced_error_codes": [1, 2, 3, 4, 5, 6, 7, 8, 13, 14, ...],         # 161 total
+    "evidence_invalidating_error_codes": [2, 5, 6, 13, ...],  # 142 total = 161 robot codes - 19 safe-robot
+    "evidence_safe_error_codes": [41, 70, 73, 74, ...],       # 57 total = 38 dock codes + 19 safe-robot
+    "error_label_keys": {1: "fault.eufy.bumper_stuck", 2: "fault.eufy.wheel_stuck", ...},  # 199 total
 },
 ```
 
+### Example (Roborock — enum-string codes)
+
+```python
+"error_tracking": {
+    "task_status_error_value": "error",
+    "grace_window_seconds": 5,
+    "error_code_attribute_names": ["error_code", "code", "errorCode"],
+    "unknown_error_message": "Unknown error during run",
+    "dock_sourced_error_codes": ["collect_dust_error_3", "dirty_water_box_hoare", "strainer_error", ...],  # 11 total
+    "robot_sourced_error_codes": ["lidar_blocked", "bumper_stuck", "wheels_suspended", ...],               # 20 total
+    "evidence_invalidating_error_codes": [
+        "wheels_suspended", "wheels_jammed", "robot_trapped",
+        "robot_tilted", "bumper_stuck", "vertical_bumper_pressed",
+    ],  # all 6 — the robot demonstrably immobile, not "every robot fault"
+    "evidence_safe_error_codes": [...],  # 24 total = 11 dock codes + 13 safe-robot
+    "error_label_keys": {"bumper_stuck": "fault.roborock.bumper_stuck", "lidar_blocked": "fault.roborock.lidar_blocked", ...},  # 49 total
+},
+```
+
+Eufy **derives** `evidence_invalidating_error_codes` as
+`EUFY_ROBOT_SOURCED_ERROR_CODES - EUFY_EVIDENCE_SAFE_ROBOT_CODES`
+(`adapters/eufy/vocabulary.py:576-577`) because Eufy's source table is
+*closed* (the full `ErrorCode` proto was captured). Roborock instead
+**hand-declares** its invalidating set (`adapters/roborock/vocabulary.py:265`)
+rather than deriving it the same way, because Roborock's source tables are a
+*partial, open* classification of a vendor enum — several states are left
+out on purpose as ambiguous (see `adapters/roborock/vocabulary.py:289-297`),
+so `ROBOT - SAFE_ROBOT` would wrongly widen the invalidating set to every
+un-vetted robot code. Both brands' `evidence_safe_error_codes` **are**
+derived as `dock_sourced_error_codes | <a separate safe-robot set>`
+(`adapters/eufy/vocabulary.py:582-583`,
+`adapters/roborock/vocabulary.py:285-287`) — a brand's dock codes never need
+transcribing twice.
+
+### Where the framework reads it
+
+- `classify_error_code(vacuum_entity_id, code)` (`core/error_tracker.py:161`)
+  — returns `"invalidating"` / `"safe"` / `"unclassified"` from the two
+  evidence lists; drives the `cleaning_time_seconds` deduction.
+- `error_source_for_code(vacuum_entity_id, code)` (`core/error_tracker.py:192`)
+  — returns `"dock"` / `"robot"` / `"unknown"` from the two source lists;
+  reported only, never affects arithmetic.
+- `error_label_key(vacuum_entity_id, code)` (`core/error_tracker.py:227`)
+  — returns the i18n key or `None`; feeds the card's fault label.
+- All three resolve their config through the private
+  `_error_tracking_cfg(vacuum_entity_id)` (`core/error_tracker.py:143`),
+  which reads `adapter_config["error_tracking"]` and returns `{}` (never
+  raises) for a vacuum with no adapter or no block — every consumer then
+  falls back to its own documented default (nothing deducted, `"unknown"`
+  source, no label).
+
 **UI builder notes:** Advanced section — collapse by default. The
 `error_code_attribute_names` field is an ordered list editor (drag
-to reorder).
+to reorder). The four code-list fields plus `error_label_keys` are large,
+brand-specific catalogs (tens of entries) generated from a captured error
+enum, not hand-typed in a form — treat them as an import/paste affordance
+(one code + label per row) rather than a chip input.
 
 ---
 
