@@ -5,7 +5,9 @@
   "note": "Deferred deliberately: it changes a persisted record field and warrants separate scrutiny.",
   "subsystem": "backend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "closed": "2026-08-05",
+  "closed_evidence": "Closed by facf7a9 as the ADDITIVE second field Chris chose -- his words, 'the least change and the safest change'. `selected_boundaries` records what the segmenter SELECTED, captured PRE-drop, alongside the two sets the record already had: `candidates` (every boundary detected) and `active_boundaries` (the survivors of the trailing-drop). The gap was the middle set: `active_ids` was built inside the keep-loop past its break, so a dropped trailing segment's boundary was erased and the record could not reproduce its own input.\n  Nothing is reinterpreted, no schema bump, no migration -- a record written earlier simply has no key, which reads as UNKNOWN rather than empty. Changing the meaning of a field under records already on disk is the class of problem that bit twice today; the second-field shape sidesteps it entirely.\n  Mattered more than when filed: tests/replay/reverdict.py now re-judges old records with current code (four fixes validated that way today, no vacuum), and a record that cannot restate its inputs bounds what replay can prove. Pin verified to bite -- pre-fix the fixture gives selected == active == [2], the erasure reproduced."
  },
  {
   "key": "pose_sampler",
