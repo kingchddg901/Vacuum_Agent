@@ -64,6 +64,28 @@ export const sharedChipStyles = `
     cursor: pointer;
   }
 
+  /* Optional leading glyph on a chip (see BADGE_ICONS in renderers/review.js).
+     Sized in em units so it tracks --evcc-chip-font-size and any user font
+     scaling, instead of pinning to a px size the surrounding text has outgrown.
+
+     margin-inline-end, not margin-right: the icon leads the text, so under
+     ar/he the whole chip mirrors and the gap has to follow it to the other
+     side. flex 0 0 auto keeps it from being squeezed when a translated label
+     is long — the TEXT may wrap in filter rows, the glyph never shrinks.
+
+     No colour declared on purpose: the SVG paints with currentColor, so it
+     inherits whichever semantic token the chip's modifier class set.
+
+     (No backticks in this comment — one would close the enclosing template
+     literal and silently truncate every rule after it. That is the exact bug
+     scripts/check-styles.mjs exists to catch, and it caught this one.) */
+  .evcc-chip-icon {
+    inline-size: 1em;
+    block-size:  1em;
+    flex:        0 0 auto;
+    margin-inline-end: 0.4em;
+  }
+
   /* Filter-chip rows carry long, must-stay-READABLE labels (you pick a filter by
      its text), so under translation they WRAP within the chip rather than
      truncate or push the row into horizontal overflow. Targeted at the filter

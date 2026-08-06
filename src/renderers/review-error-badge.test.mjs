@@ -15,6 +15,12 @@
 //   [REB-7] the SOURCE split rides the tooltip — dock vs robot vs unattributed
 //   [REB-8] unattributed is named explicitly; silence would imply attribution
 //   [REB-9] a source with no seconds is never mentioned
+//   [REB-10] a record with no source block still gets the plain duration tooltip
+//   [REB-11] the badge requests the warning glyph
+//   [REB-12] the glyph is inline SVG — never U+26A0 (absent from OpenDyslexic,
+//            and its emoji presentation ignores CSS color)
+//   [REB-13] only the ERROR badge takes it, not every --warning chip
+//   [REB-14] an unknown or PROTOTYPE-INHERITED icon name resolves to nothing
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -52,10 +58,17 @@ function badgesFor(job) {
         ? host.t("review.badge_errors_count", { count: errorCount })
         : host.t("review.badge_errors"),
       cls: "evcc-review-badge--warning",
+      icon: "warning",
       title: titleParts.length ? titleParts.join(" · ") : null,
     });
   }
   return pushed;
+}
+
+/** The renderer's icon lookup, transcribed. Pinned by [REB-6] / [REB-13]. */
+function iconFor(badge) {
+  const BADGE_ICONS = Object.freeze({ warning: "<svg class=\"evcc-chip-icon\"></svg>" });
+  return badge.icon && Object.hasOwn(BADGE_ICONS, badge.icon) ? BADGE_ICONS[badge.icon] : "";
 }
 
 test("[REB-1] a run with errors gets a warning badge naming the count", () => {
@@ -122,6 +135,56 @@ test("[REB-6] the renderer still contains the block this file transcribes", asyn
   // and the source split this file now transcribes
   assert.match(src, /error_seconds_by_source/);
   assert.match(src, /review\.badge_errors_unattributed/);
+  // and the icon: the badge must still REQUEST it, and the renderer must still
+  // resolve it through an own-property check rather than a bare index.
+  assert.match(src, /icon:\s*"warning"/);
+  assert.match(src, /Object\.hasOwn\(BADGE_ICONS,\s*badge\.icon\)/);
+});
+
+
+test("[REB-11] the error badge requests the warning glyph", () => {
+  const [badge] = badgesFor({ had_errors: true, error_count: 3 });
+  assert.equal(badge.icon, "warning");
+  assert.notEqual(iconFor(badge), "", "the badge asked for an icon and got nothing");
+});
+
+test("[REB-12] the glyph is inline SVG, never a unicode warning sign", async () => {
+  // U+26A0 is absent from BOTH shipped OpenDyslexic faces (measured: 1586
+  // codepoints, no U+26A0), and its emoji presentation ignores CSS color — it
+  // would sit in a --evcc-sem-warning row refusing the theme. check-styles lints
+  // CSS declarations and cannot see a glyph that bypasses CSS, so this is the
+  // only place that failure can be caught.
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("./review.js", import.meta.url), "utf-8");
+
+  assert.ok(!src.includes("⚠"), "a raw U+26A0 WARNING SIGN reached the renderer");
+  assert.ok(!src.includes("⚡"), "a raw U+26A1 reached the renderer");
+  assert.match(src, /<svg class="evcc-chip-icon"/);
+  // currentColor, so the glyph inherits whichever semantic token the chip set.
+  assert.match(src, /fill="currentColor"/);
+  // The badge text is the accessible name; the glyph must not be announced too.
+  assert.match(src, /aria-hidden="true"/);
+});
+
+test("[REB-13] only the ERROR badge takes the glyph, not every warning chip", () => {
+  // sanity-failed and non-completed runs share evcc-review-badge--warning and are
+  // a DIFFERENT claim. A triangle on those would say a fault occurred when none did.
+  for (const badge of [
+    { cls: "evcc-review-badge--warning" },              // sanity failed / status
+    { cls: "evcc-review-badge--neutral" },
+    { cls: "evcc-review-badge--excluded" },
+  ]) {
+    assert.equal(iconFor(badge), "", `an unrelated badge rendered a glyph: ${badge.cls}`);
+  }
+});
+
+test("[REB-14] an unknown or inherited icon name resolves to nothing", () => {
+  // A bare `BADGE_ICONS[badge.icon]` would resolve these to prototype junk and
+  // splice it straight into the DOM the day this field takes an outside value.
+  for (const name of ["constructor", "toString", "__proto__", "hasOwnProperty", "nope"]) {
+    assert.equal(iconFor({ icon: name }), "", `"${name}" resolved to something`);
+  }
+  assert.equal(iconFor({}), "", "a badge with no icon field rendered one");
 });
 
 

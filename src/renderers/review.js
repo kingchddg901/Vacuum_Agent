@@ -10,6 +10,38 @@
  */
 
 /**
+ * Optional badge glyphs, keyed by a badge's `icon` field. A badge without one
+ * renders exactly as before, so this is opt-in per badge rather than per class.
+ *
+ * INLINE SVG, NOT A UNICODE GLYPH. U+26A0 WARNING SIGN was the obvious choice and
+ * fails three ways here: it is absent from BOTH shipped OpenDyslexic faces (1586
+ * codepoints, measured — so the font we serve for dyslexic users would fall back
+ * mid-row), it has dual text/emoji presentation so bare it renders monochrome on
+ * some platforms and as the colour emoji on others, and the emoji presentation
+ * IGNORES CSS color — it would sit in a `--evcc-sem-warning` row refusing the
+ * theme, invisibly to check-styles, which lints CSS declarations and cannot see a
+ * glyph that bypasses CSS entirely.
+ *
+ * `currentColor` inherits the chip's semantic colour, so the icon is themed by the
+ * same token as its text and needs no colour of its own.
+ *
+ * aria-hidden: the badge TEXT is the accessible name and is already translated in
+ * every shipped locale. The triangle is scannability — it lets a faulted run be
+ * spotted down a long list without reading — and the shape is ISO 7010 W001, about
+ * as close to language-independent as iconography gets. It is deliberately NOT
+ * carrying meaning alone: a bare glyph has no accessible name, and colour-blind
+ * users lose the amber cue.
+ */
+const BADGE_ICONS = Object.freeze({
+  warning:
+    '<svg class="evcc-chip-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">' +
+    '<path fill="currentColor" fill-rule="evenodd" ' +
+    'd="M12.86 3.48a1 1 0 0 0-1.72 0L1.4 20.5A1 1 0 0 0 2.26 22h19.48a1 1 0 0 0 .86-1.5L12.86 3.48Z' +
+    'M11 9.25a1 1 0 0 1 2 0v5.5a1 1 0 0 1-2 0v-5.5Z' +
+    'M12 16.9a1.25 1.25 0 1 0 0 2.5 1.25 1.25 0 0 0 0-2.5Z"/></svg>',
+});
+
+/**
  * Mix learning review renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
@@ -511,6 +543,11 @@ export function applyReviewRenderers(proto) {
           ? this.t("review.badge_errors_count", { count: errorCount })
           : this.t("review.badge_errors"),
         cls: "evcc-review-badge--warning",
+        // Only THIS badge takes the triangle, not every --warning chip. The icon
+        // means "this run hit a fault", not "this chip is warning-coloured" — a
+        // sanity-failed or non-completed run share the class and are a different
+        // claim. An icon on all of them would say a fault occurred when none did.
+        icon: "warning",
         title: titleParts.length ? titleParts.join(" · ") : null,
       });
     }
@@ -594,9 +631,15 @@ export function applyReviewRenderers(proto) {
             <div class="evcc-review-job-subtitle">${this.escapeHtml(detailParts.join(" | "))}</div>
           </div>
           <div class="evcc-review-job-badges">
-            ${badges.map((badge) => `
-              <span class="evcc-chip ${badge.cls}"${badge.title ? ` title="${this.escapeHtml(badge.title)}"` : ""}>${this.escapeHtml(badge.text)}</span>
-            `).join("")}
+            ${badges.map((badge) => {
+              // Object.hasOwn, not a bare lookup: `badge.icon` is ours today, but a
+              // plain index would resolve "constructor"/"toString" to prototype junk
+              // and splice it into the DOM the day this field takes an outside value.
+              const icon = badge.icon && Object.hasOwn(BADGE_ICONS, badge.icon) ? BADGE_ICONS[badge.icon] : "";
+              return `
+              <span class="evcc-chip ${badge.cls}"${badge.title ? ` title="${this.escapeHtml(badge.title)}"` : ""}>${icon}${this.escapeHtml(badge.text)}</span>
+            `;
+            }).join("")}
           </div>
         </div>
 
