@@ -1030,7 +1030,10 @@
       "other": "{count} errori"
     },
     "badge_errors_seconds": "{seconds}s in stato di errore durante questa esecuzione",
-    "runs_truncated": "Vengono mostrate {shown} di {total} esecuzioni corrispondenti: restringi i filtri per vedere le altre."
+    "runs_truncated": "Vengono mostrate {shown} di {total} esecuzioni corrispondenti: restringi i filtri per vedere le altre.",
+    "badge_errors_from_dock": "{seconds}s dalla base",
+    "badge_errors_from_robot": "{seconds}s dal robot",
+    "badge_errors_unattributed": "{seconds}s non attribuiti a un hardware specifico"
   },
   "room_access": {
     "accessed_from_help": "La stanza che concede l'accesso a questa stanza. Sola lettura — si imposta dall'editor dell'altra stanza.",

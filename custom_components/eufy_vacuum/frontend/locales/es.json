@@ -1040,7 +1040,10 @@
       "other": "{count} errores"
     },
     "badge_errors_seconds": "{seconds}s en estado de error durante esta ejecución",
-    "runs_truncated": "Mostrando {shown} de {total} ejecuciones coincidentes: acota los filtros para ver el resto."
+    "runs_truncated": "Mostrando {shown} de {total} ejecuciones coincidentes: acota los filtros para ver el resto.",
+    "badge_errors_from_dock": "{seconds}s de la base",
+    "badge_errors_from_robot": "{seconds}s del robot",
+    "badge_errors_unattributed": "{seconds}s sin atribuir a un hardware concreto"
   },
   "room_access": {
     "accessed_from_help": "La habitación que da acceso a esta habitación. Solo lectura; se configura desde el editor de la otra habitación.",

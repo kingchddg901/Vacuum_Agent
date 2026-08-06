@@ -1040,7 +1040,10 @@
       "other": "{count} erreurs"
     },
     "badge_errors_seconds": "{seconds}s passées en état d'erreur pendant ce nettoyage",
-    "runs_truncated": "Affichage de {shown} nettoyages sur {total} correspondants — affinez les filtres pour voir le reste."
+    "runs_truncated": "Affichage de {shown} nettoyages sur {total} correspondants — affinez les filtres pour voir le reste.",
+    "badge_errors_from_dock": "{seconds}s provenant de la base",
+    "badge_errors_from_robot": "{seconds}s provenant du robot",
+    "badge_errors_unattributed": "{seconds}s non attribuées à un matériel précis"
   },
   "room_access": {
     "accessed_from_help": "La pièce qui donne accès à cette pièce. En lecture seule — défini depuis l'éditeur de l'autre pièce.",

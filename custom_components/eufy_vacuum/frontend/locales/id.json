@@ -1366,7 +1366,10 @@
       "other": "{count} kesalahan"
     },
     "badge_errors_seconds": "{seconds}d dalam status kesalahan selama pembersihan ini",
-    "runs_truncated": "Menampilkan {shown} dari {total} pembersihan yang cocok — persempit filter untuk melihat sisanya."
+    "runs_truncated": "Menampilkan {shown} dari {total} pembersihan yang cocok — persempit filter untuk melihat sisanya.",
+    "badge_errors_from_dock": "{seconds}d dari dok",
+    "badge_errors_from_robot": "{seconds}d dari robot",
+    "badge_errors_unattributed": "{seconds}d tidak dikaitkan dengan perangkat keras tertentu"
   },
   "rooms": {
     "access_not_set": "Akses tidak diatur",

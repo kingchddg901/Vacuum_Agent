@@ -1040,7 +1040,10 @@
       "other": "{count} erros"
     },
     "badge_errors_seconds": "{seconds}s em estado de erro durante esta execução",
-    "runs_truncated": "A mostrar {shown} de {total} execuções correspondentes — restrinja os filtros para ver as restantes."
+    "runs_truncated": "A mostrar {shown} de {total} execuções correspondentes — restrinja os filtros para ver as restantes.",
+    "badge_errors_from_dock": "{seconds}s da base",
+    "badge_errors_from_robot": "{seconds}s do robô",
+    "badge_errors_unattributed": "{seconds}s não atribuídos a hardware específico"
   },
   "room_access": {
     "accessed_from_help": "A divisão que concede acesso a esta divisão. Só de leitura — definida no editor da outra divisão.",

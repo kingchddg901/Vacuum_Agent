@@ -2042,7 +2042,10 @@
       "other": "오류 {count}건"
     },
     "badge_errors_seconds": "이 청소 중 오류 상태로 보낸 시간: {seconds}초",
-    "runs_truncated": "일치하는 {total}건 중 {shown}건을 표시하고 있습니다 — 나머지를 보려면 필터를 좁히세요."
+    "runs_truncated": "일치하는 {total}건 중 {shown}건을 표시하고 있습니다 — 나머지를 보려면 필터를 좁히세요.",
+    "badge_errors_from_dock": "도크에서 발생: {seconds}초",
+    "badge_errors_from_robot": "로봇에서 발생: {seconds}초",
+    "badge_errors_unattributed": "특정 하드웨어로 확인되지 않음: {seconds}초"
   },
   "bind_maintenance": {
     "could_not_reset": "{label}을(를) 초기화할 수 없음",

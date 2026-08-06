@@ -1366,7 +1366,10 @@
       "other": "{count} hata"
     },
     "badge_errors_seconds": "Bu çalıştırma sırasında {seconds}s hata durumunda geçirildi",
-    "runs_truncated": "Eşleşen {total} çalıştırmadan {shown} tanesi gösteriliyor — geri kalanını görmek için filtreleri daraltın."
+    "runs_truncated": "Eşleşen {total} çalıştırmadan {shown} tanesi gösteriliyor — geri kalanını görmek için filtreleri daraltın.",
+    "badge_errors_from_dock": "{seconds}s şarj istasyonundan",
+    "badge_errors_from_robot": "{seconds}s robottan",
+    "badge_errors_unattributed": "{seconds}s belirli bir donanıma atfedilmedi"
   },
   "rooms": {
     "access_not_set": "Erişim ayarlanmadı",

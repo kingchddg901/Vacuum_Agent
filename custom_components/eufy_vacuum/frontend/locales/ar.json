@@ -2187,7 +2187,10 @@
       "other": "{count} أخطاء"
     },
     "badge_errors_seconds": "{seconds} ثانية في حالة خطأ خلال عملية التنظيف هذه",
-    "runs_truncated": "يتم عرض {shown} من أصل {total} عملية تنظيف مطابقة — ضيّق عوامل التصفية لعرض الباقي."
+    "runs_truncated": "يتم عرض {shown} من أصل {total} عملية تنظيف مطابقة — ضيّق عوامل التصفية لعرض الباقي.",
+    "badge_errors_from_dock": "{seconds} ثانية من قاعدة الشحن",
+    "badge_errors_from_robot": "{seconds} ثانية من الروبوت",
+    "badge_errors_unattributed": "{seconds} ثانية غير منسوبة إلى جهاز محدد"
   },
   "bind_maintenance": {
     "could_not_reset": "تعذّرت إعادة تعيين {label}",

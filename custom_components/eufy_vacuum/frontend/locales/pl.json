@@ -1366,7 +1366,10 @@
       "other": "Błędy: {count}"
     },
     "badge_errors_seconds": "{seconds}s w stanie błędu podczas tego przebiegu",
-    "runs_truncated": "Wyświetlono {shown} z {total} pasujących przebiegów — zawęź filtry, aby zobaczyć pozostałe."
+    "runs_truncated": "Wyświetlono {shown} z {total} pasujących przebiegów — zawęź filtry, aby zobaczyć pozostałe.",
+    "badge_errors_from_dock": "{seconds}s ze stacji",
+    "badge_errors_from_robot": "{seconds}s z robota",
+    "badge_errors_unattributed": "{seconds}s bez przypisania do konkretnego sprzętu"
   },
   "rooms": {
     "access_not_set": "Dostęp nieustawiony",

@@ -1098,7 +1098,10 @@
       "other": "Ошибок: {count}"
     },
     "badge_errors_seconds": "{seconds} с в состоянии ошибки во время этой уборки",
-    "runs_truncated": "Показано {shown} из {total} подходящих уборок — сузьте фильтры, чтобы увидеть остальные."
+    "runs_truncated": "Показано {shown} из {total} подходящих уборок — сузьте фильтры, чтобы увидеть остальные.",
+    "badge_errors_from_dock": "{seconds} с со стороны базы",
+    "badge_errors_from_robot": "{seconds} с со стороны робота",
+    "badge_errors_unattributed": "{seconds} с без привязки к конкретному оборудованию"
   },
   "room_access": {
     "accessed_from_help": "Комната, которая даёт доступ к этой комнате. Только для чтения — задаётся в редакторе другой комнаты.",

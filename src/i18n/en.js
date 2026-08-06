@@ -984,6 +984,16 @@ export const en = {
   // Tooltip, shown ONLY when the duration was actually measured. {seconds} = whole
   // seconds the run spent in a fault state.
   "review.badge_errors_seconds": "{seconds}s spent in an error state during this run",
+  // Tooltip continuation — WHOSE hardware raised the faults (RF-DOCK clause 4). The
+  // evidence axis already decides whether the seconds were deducted; this answers the
+  // other question, "which box do I go and look at". Appended only for a source that
+  // actually has seconds, so a purely robot-side run never mentions a dock.
+  // {seconds} = whole seconds attributed to that source.
+  "review.badge_errors_from_dock": "{seconds}s from the dock",
+  "review.badge_errors_from_robot": "{seconds}s from the robot",
+  // Shown when the brand does not classify a code, so the user is not told we know
+  // which hardware it was. Silence would imply attribution we do not have.
+  "review.badge_errors_unattributed": "{seconds}s not attributed to specific hardware",
   "review.badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
   "review.badge_single_room": "Single Room",
   "review.badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning

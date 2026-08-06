@@ -479,14 +479,39 @@ export function applyReviewRenderers(proto) {
     if (job?.had_errors === true) {
       const errorCount = Number(job?.error_count);
       const errorSeconds = Number(job?.total_error_seconds);
+      // RF-DOCK clause 4 / live:RB-ERR-1. error_seconds_by_source has been written
+      // by the finalizer all along and nothing ever read it, so the user was told a
+      // fault happened and never which hardware raised it. That is the DOCK-1 case
+      // exactly: five STATION CLEAN WATER PUMP SHORT faults, correctly NOT deducted,
+      // and the run reported as merely "errors" — the station's pump was failing and
+      // the card had the evidence to say so.
+      //
+      // Only sources with seconds are named, so a purely robot-side run never
+      // mentions a dock; unattributed is named EXPLICITLY rather than omitted,
+      // because saying nothing would imply an attribution we do not have. A brand
+      // that classifies nothing (or a code added after the table was written) lands
+      // there honestly instead of being silently blamed on the robot.
+      const bySource = job?.error_seconds_by_source;
+      const sourceParts = [];
+      if (bySource && typeof bySource === "object") {
+        const dock = Math.round(Number(bySource.dock));
+        const robot = Math.round(Number(bySource.robot));
+        const unknown = Math.round(Number(bySource.unknown));
+        if (Number.isFinite(dock) && dock > 0) sourceParts.push(this.t("review.badge_errors_from_dock", { seconds: dock }));
+        if (Number.isFinite(robot) && robot > 0) sourceParts.push(this.t("review.badge_errors_from_robot", { seconds: robot }));
+        if (Number.isFinite(unknown) && unknown > 0) sourceParts.push(this.t("review.badge_errors_unattributed", { seconds: unknown }));
+      }
+      const titleParts = [];
+      if (Number.isFinite(errorSeconds) && errorSeconds > 0) {
+        titleParts.push(this.t("review.badge_errors_seconds", { seconds: Math.round(errorSeconds) }));
+      }
+      titleParts.push(...sourceParts);
       badges.push({
         text: Number.isFinite(errorCount) && errorCount > 0
           ? this.t("review.badge_errors_count", { count: errorCount })
           : this.t("review.badge_errors"),
         cls: "evcc-review-badge--warning",
-        title: Number.isFinite(errorSeconds) && errorSeconds > 0
-          ? this.t("review.badge_errors_seconds", { seconds: Math.round(errorSeconds) })
-          : null,
+        title: titleParts.length ? titleParts.join(" · ") : null,
       });
     }
     if (job?.is_single_room === true) badges.push({ text: this.t("review.badge_single_room"), cls: "evcc-review-badge--neutral" });

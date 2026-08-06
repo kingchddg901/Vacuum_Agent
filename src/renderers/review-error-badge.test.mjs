@@ -12,6 +12,9 @@
 //   [REB-3] a measured duration rides the TOOLTIP, not the badge text
 //   [REB-4] an UNMEASURED duration produces no tooltip — never "0s"
 //   [REB-5] a clean run gets no badge at all (control)
+//   [REB-7] the SOURCE split rides the tooltip — dock vs robot vs unattributed
+//   [REB-8] unattributed is named explicitly; silence would imply attribution
+//   [REB-9] a source with no seconds is never mentioned
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -29,14 +32,27 @@ function badgesFor(job) {
   if (job?.had_errors === true) {
     const errorCount = Number(job?.error_count);
     const errorSeconds = Number(job?.total_error_seconds);
+    const bySource = job?.error_seconds_by_source;
+    const sourceParts = [];
+    if (bySource && typeof bySource === "object") {
+      const dock = Math.round(Number(bySource.dock));
+      const robot = Math.round(Number(bySource.robot));
+      const unknown = Math.round(Number(bySource.unknown));
+      if (Number.isFinite(dock) && dock > 0) sourceParts.push(host.t("review.badge_errors_from_dock", { seconds: dock }));
+      if (Number.isFinite(robot) && robot > 0) sourceParts.push(host.t("review.badge_errors_from_robot", { seconds: robot }));
+      if (Number.isFinite(unknown) && unknown > 0) sourceParts.push(host.t("review.badge_errors_unattributed", { seconds: unknown }));
+    }
+    const titleParts = [];
+    if (Number.isFinite(errorSeconds) && errorSeconds > 0) {
+      titleParts.push(host.t("review.badge_errors_seconds", { seconds: Math.round(errorSeconds) }));
+    }
+    titleParts.push(...sourceParts);
     pushed.push({
       text: Number.isFinite(errorCount) && errorCount > 0
         ? host.t("review.badge_errors_count", { count: errorCount })
         : host.t("review.badge_errors"),
       cls: "evcc-review-badge--warning",
-      title: Number.isFinite(errorSeconds) && errorSeconds > 0
-        ? host.t("review.badge_errors_seconds", { seconds: Math.round(errorSeconds) })
-        : null,
+      title: titleParts.length ? titleParts.join(" · ") : null,
     });
   }
   return pushed;
@@ -103,4 +119,51 @@ test("[REB-6] the renderer still contains the block this file transcribes", asyn
   assert.match(src, /job\?\.had_errors === true/);
   assert.match(src, /review\.badge_errors_count/);
   assert.match(src, /Number\.isFinite\(errorSeconds\) && errorSeconds > 0/);
+  // and the source split this file now transcribes
+  assert.match(src, /error_seconds_by_source/);
+  assert.match(src, /review\.badge_errors_unattributed/);
+});
+
+
+test("[REB-7] the source split rides the tooltip (RF-DOCK clause 4)", () => {
+  // The DOCK-1 shape: five station faults, correctly NOT deducted, and the card
+  // used to say only "errors" — the user was told their run was fine and never
+  // told their dock's water pump was failing.
+  const [badge] = badgesFor({
+    had_errors: true, error_count: 5, total_error_seconds: 455,
+    error_seconds_by_source: { dock: 455, robot: 0, unknown: 0 },
+  });
+  assert.match(badge.title, /badge_errors_seconds/);
+  assert.match(badge.title, /badge_errors_from_dock/);
+  assert.match(badge.title, /"seconds":455/);
+  assert.doesNotMatch(badge.title, /from_robot/, "a dock-only run must not mention the robot");
+});
+
+test("[REB-8] unattributed seconds are named, not silently omitted", () => {
+  // A brand that classifies nothing (Roborock before RB-ERR-1, or any code added
+  // after a table was written) must not read as "we know it was the robot".
+  const [badge] = badgesFor({
+    had_errors: true, error_count: 2, total_error_seconds: 30,
+    error_seconds_by_source: { dock: 0, robot: 0, unknown: 30 },
+  });
+  assert.match(badge.title, /badge_errors_unattributed/);
+  assert.doesNotMatch(badge.title, /from_dock|from_robot/);
+});
+
+test("[REB-9] a mixed run names both sources, and omits the empty one", () => {
+  const [badge] = badgesFor({
+    had_errors: true, error_count: 4, total_error_seconds: 100,
+    error_seconds_by_source: { dock: 60, robot: 40, unknown: 0 },
+  });
+  assert.match(badge.title, /from_dock/);
+  assert.match(badge.title, /from_robot/);
+  assert.doesNotMatch(badge.title, /unattributed/);
+});
+
+test("[REB-10] no source block still yields the plain duration tooltip (back-compat)", () => {
+  // Records written before the finalizer carried error_seconds_by_source, and any
+  // path that omits it, must keep behaving exactly as before.
+  const [badge] = badgesFor({ had_errors: true, error_count: 1, total_error_seconds: 12 });
+  assert.match(badge.title, /badge_errors_seconds/);
+  assert.doesNotMatch(badge.title, /from_dock|from_robot|unattributed/);
 });

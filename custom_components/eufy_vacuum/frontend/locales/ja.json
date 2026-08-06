@@ -2042,7 +2042,10 @@
       "other": "エラー {count} 件"
     },
     "badge_errors_seconds": "この掃除中にエラー状態だった時間: {seconds} 秒",
-    "runs_truncated": "該当する {total} 件のうち {shown} 件を表示しています。残りを見るにはフィルターを絞り込んでください。"
+    "runs_truncated": "該当する {total} 件のうち {shown} 件を表示しています。残りを見るにはフィルターを絞り込んでください。",
+    "badge_errors_from_dock": "ドック由来: {seconds} 秒",
+    "badge_errors_from_robot": "ロボット由来: {seconds} 秒",
+    "badge_errors_unattributed": "特定のハードウェアに紐づかない時間: {seconds} 秒"
   },
   "bind_maintenance": {
     "could_not_reset": "{label}をリセットできませんでした",

@@ -1028,7 +1028,10 @@
       "other": "{count} fouten"
     },
     "badge_errors_seconds": "{seconds}s in een foutstatus tijdens deze run",
-    "runs_truncated": "{shown} van {total} overeenkomende runs weergegeven — verfijn de filters om de rest te zien."
+    "runs_truncated": "{shown} van {total} overeenkomende runs weergegeven — verfijn de filters om de rest te zien.",
+    "badge_errors_from_dock": "{seconds}s van het dock",
+    "badge_errors_from_robot": "{seconds}s van de robot",
+    "badge_errors_unattributed": "{seconds}s niet toegewezen aan specifieke hardware"
   },
   "room_access": {
     "accessed_from_help": "De kamer die toegang verleent tot deze kamer. Alleen-lezen — stel in vanuit de editor van de andere kamer.",

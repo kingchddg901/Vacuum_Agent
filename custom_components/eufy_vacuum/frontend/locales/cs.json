@@ -1366,7 +1366,10 @@
       "other": "Chyby: {count}"
     },
     "badge_errors_seconds": "{seconds}s ve stavu chyby během tohoto úklidu",
-    "runs_truncated": "Zobrazeno {shown} z {total} odpovídajících úklidů — zužte filtry, abyste viděli zbytek."
+    "runs_truncated": "Zobrazeno {shown} z {total} odpovídajících úklidů — zužte filtry, abyste viděli zbytek.",
+    "badge_errors_from_dock": "{seconds}s z doku",
+    "badge_errors_from_robot": "{seconds}s z robota",
+    "badge_errors_unattributed": "{seconds}s bez přiřazení ke konkrétnímu hardwaru"
   },
   "rooms": {
     "access_not_set": "Přístup nenastaven",
