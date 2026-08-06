@@ -116,6 +116,140 @@ def _run_error_rows(vacuum_entity_id: str, outcome: dict[str, Any]) -> list[dict
     return rows
 
 
+def _job_recharge(record: dict[str, Any]) -> dict[str, Any] | None:
+    """Did this run recharge mid-job? Derived, so old records answer correctly.
+
+    ``battery.used`` is start-minus-end and is structurally blind to a recharge: on
+    alfred job_2026-08-05T02-52-05 it reads 11 while the rooms drew 52, because a
+    +44% recharge sits in the middle (confirmed by replaying the recorder tape --
+    the segmenter classifies that 6128 s gap as ``recharge_dock``). Reporting 11 as
+    the run's consumption without saying a recharge happened is a lie of omission on
+    exactly the runs where the number matters most.
+
+    DERIVED RATHER THAN READ, for the same reason the fault labels are. The stored
+    ``mid_job_recharge_observed`` is a conclusion frozen at finalize time, and
+    RECHARGE-FLAG-1 (history_store.py:1699) fixed how it is computed -- but a record
+    written before that keeps its old answer forever. Re-evaluating the fix's own
+    expression here corrects them: measured over the real corpus, stored says 1 of
+    68 alfred runs recharged, this says 2, and the one it recovers is the very
+    record RECHARGE-FLAG-1's comment cites as its evidence.
+
+    Returns None when no recharge is indicated, so the card can omit the row
+    entirely rather than render a confident "0".
+    """
+    battery = record.get("battery")
+    if not isinstance(battery, dict):
+        return None
+
+    count = max(_safe_int(battery.get("mid_job_recharge_count"), 0), 0)
+    seconds = max(_safe_int(battery.get("recharge_seconds_accumulated"), 0), 0)
+    # The live flag stays in the OR for the one case the accumulators cannot cover:
+    # finalizing while still docked and charging, before the resume that would have
+    # accrued the seconds. Mirrors history_store.py:1699 deliberately -- if that
+    # expression changes, this must change with it.
+    stored = bool(battery.get("mid_job_recharge_observed"))
+    if not (count > 0 or seconds > 0 or stored):
+        return None
+
+    return {
+        "observed": True,
+        # 0 is honest here: an older record can carry the flag without a counter.
+        "count": count,
+        "seconds": seconds,
+        "started_at": battery.get("mid_job_recharge_started_at"),
+        # True when the stored field disagreed with the accumulators -- i.e. this
+        # record was written before RECHARGE-FLAG-1 and is being corrected on read.
+        "recovered_from_stale_record": bool(not stored and (count > 0 or seconds > 0)),
+    }
+
+
+#: Per-room setting codes carried onto each room row. The card localizes the CODE
+#: (vocab.*) rather than showing a backend English label, so the user's globe
+#: language wins over whatever the backend spoke at finalize time.
+_ROOM_SETTING_KEYS = (
+    "clean_mode", "fan_speed", "clean_intensity", "water_level",
+    "path_type", "clean_passes", "edge_mopping",
+)
+
+
+def _job_room_rows(record: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per-room settings AS DISPATCHED, joined to what actually happened.
+
+    The settings come from ``resolved_rooms`` -- the values this run really used --
+    never from the room's CURRENT profile, which may have been edited since. That
+    distinction is the whole reason the job record stores them.
+
+    Two cleaning times are carried, not one, because they disagree on 110 of 113
+    real timing entries (one run: 1050 s cleaning vs 1065 s wall). Collapsing them
+    would silently pick a side.
+
+    BATTERY IS DELIBERATELY OMITTED. Per-room ``battery_delta`` exists but does not
+    reconcile with the job total -- partly recharges (see _job_recharge), partly
+    unattributed transit -- and surfacing a per-room figure that contradicts the
+    headline turns a data question into a support question. It stays in the record.
+
+    A room with settings but no timing entry is normal, not an error: 26 of 139
+    alfred rooms and 24 of 31 ivy rooms have none, because a room that was queued
+    but never reached leaves nothing to measure. Those rows carry results of None,
+    which the card omits.
+    """
+    rooms = record.get("resolved_rooms")
+    if not isinstance(rooms, list) or not rooms:
+        profile = record.get("job_profile")
+        rooms = profile.get("rooms") if isinstance(profile, dict) else None
+    if not isinstance(rooms, list):
+        return []
+
+    timings = (record.get("job") or {}).get("room_timings")
+    by_id: dict[Any, dict[str, Any]] = {}
+    by_slug: dict[str, dict[str, Any]] = {}
+    if isinstance(timings, list):
+        for entry in timings:
+            if not isinstance(entry, dict):
+                continue
+            rid = entry.get("room_id")
+            slug = str(entry.get("slug") or "").strip().lower()
+            if rid is not None:
+                # A timing that knows its room id may ONLY attach to that room. It
+                # deliberately does NOT also register under its slug: a house with
+                # two rooms sharing a slug across floors would otherwise let the
+                # id-less lookup below hand the upstairs kitchen's result to the
+                # downstairs one, which a test caught doing exactly that.
+                by_id.setdefault(rid, entry)
+            elif slug:
+                # Only id-less entries are slug-addressable -- back-compat for
+                # records written before timings carried room_id.
+                by_slug.setdefault(slug, entry)
+
+    out: list[dict[str, Any]] = []
+    for room in rooms:
+        if not isinstance(room, dict):
+            continue
+        rid = room.get("room_id")
+        slug = str(room.get("slug") or "").strip().lower()
+        # room_id first: slugs can repeat across maps, ids are the run's own keys.
+        timing = by_id.get(rid) or (by_slug.get(slug) if slug else None) or {}
+
+        row: dict[str, Any] = {
+            "room_id": rid,
+            "slug": slug or None,
+            "name": room.get("name") or room.get("label") or None,
+            "profile_key": room.get("profile_key") or room.get("selected_profile") or None,
+            "settings": {
+                k: room.get(k) for k in _ROOM_SETTING_KEYS if room.get(k) is not None
+            },
+            "cleaning_seconds": timing.get("cleaning_seconds"),
+            "cleaning_wall_seconds": timing.get("cleaning_wall_seconds"),
+            "area_m2": timing.get("area_m2"),
+            # Why this room's boundary was drawn where it was. Advisory, and the
+            # one field that can say "this split came from a recharge dock".
+            "boundary": timing.get("boundary"),
+            "has_result": bool(timing),
+        }
+        out.append(row)
+    return out
+
+
 def _normalize_graph_targets(value: Any) -> list[int]:
     """Return normalized downstream room ids from grants_access_to."""
     if not isinstance(value, list):
@@ -2016,6 +2150,11 @@ class LearningManager:
                     # run hit three faults; this says WHICH, which is the whole
                     # point of having captured them.
                     "run_errors": _run_error_rows(vacuum_entity_id, outcome),
+                    # Job-summary detail. Both DERIVED from the archived record at
+                    # read time, so records written before the current rules heal
+                    # instead of staying frozen at the verdict they shipped with.
+                    "recharge": _job_recharge(archived),
+                    "room_detail": _job_room_rows(archived),
                     "outlier_score": round(outlier_score, 2),
                     "duration_vs_room_avg_minutes": duration_vs_room_avg,
                     "duration_vs_profile_avg_minutes": duration_vs_profile_avg,

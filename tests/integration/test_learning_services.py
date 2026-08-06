@@ -1380,6 +1380,163 @@ async def test_app_started_runs_get_named_faults_too(hass, learning_services):
     assert job["run_errors"][0]["source"] == "dock"
 
 
+# ---------------------------------------------------------------------------
+# [LS-JD] Job-summary detail — the recharge line and per-room rows the modal needs.
+#
+# Both are DERIVED at read time from the archived record, so a job written before
+# the current rules gets the current answer instead of staying frozen.
+# ---------------------------------------------------------------------------
+
+def _seed_with_record(hass, job_id: str, *, battery=None, rooms=None, timings=None):
+    """Seed a job then overwrite the archived record's battery/room blocks.
+
+    _seed_completed_job's fixed shape cannot express these, and the derivations
+    read the ARCHIVED record rather than the index row.
+    """
+    from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+
+    payload = _seed_completed_job(hass, _VAC, job_id, room_slugs=["kitchen"])
+    if battery is not None:
+        payload["battery"] = battery
+    if rooms is not None:
+        payload["resolved_rooms"] = rooms
+        payload["job_profile"]["rooms"] = rooms
+    if timings is not None:
+        payload["job"]["room_timings"] = timings
+    LearningHistoryStore(hass).save_completed_job(
+        vacuum_entity_id=_VAC, job_id=job_id, payload=payload
+    )
+    return payload
+
+
+async def test_recharge_is_derived_so_stale_records_heal(hass, learning_services):
+    """[LS-JD1] The real defect this exists for: alfred job_2026-08-05T02-52-05
+    stored mid_job_recharge_observed=False while carrying count=1 and 6059 s of
+    accumulated charge, because the live flag is CLEARED on resume and the record
+    froze that. Re-deriving from the accumulators corrects it."""
+    _seed_with_record(hass, "j-recharge-stale", battery={
+        "start": 39, "end": 28, "used": 11,
+        "mid_job_recharge_observed": False,      # the stale, wrong conclusion
+        "mid_job_recharge_count": 1,
+        "recharge_seconds_accumulated": 6059,
+        "mid_job_recharge_started_at": "2026-08-05T03:10:00+00:00",
+    })
+    job = _job_from(await _history_snapshot(hass), "j-recharge-stale")
+    rc = job.get("recharge")
+    assert rc, "a run that recharged reported nothing"
+    assert rc["observed"] is True, "stored False was trusted over the accumulators"
+    assert rc["count"] == 1
+    assert rc["seconds"] == 6059
+    assert rc["recovered_from_stale_record"] is True
+
+
+async def test_recharge_absent_on_a_run_that_did_not(hass, learning_services):
+    """[LS-JD2] None, not a zeroed block — the card omits the row rather than
+    rendering a confident 'recharged 0 times'."""
+    for job_id, battery in (
+        ("j-nore-1", {"start": 100, "end": 91, "used": 9,
+                      "mid_job_recharge_observed": False,
+                      "mid_job_recharge_count": 0,
+                      "recharge_seconds_accumulated": 0}),
+        ("j-nore-2", {"start": 100, "end": 91, "used": 9}),   # older, no fields
+        ("j-nore-3", None),                                    # no battery block
+    ):
+        _seed_with_record(hass, job_id, battery=battery)
+    snap = await _history_snapshot(hass)
+    for job_id in ("j-nore-1", "j-nore-2", "j-nore-3"):
+        assert _job_from(snap, job_id).get("recharge") is None, job_id
+
+
+async def test_recharge_still_honours_the_live_flag(hass, learning_services):
+    """[LS-JD3] Finalizing while still docked and charging is the one case the
+    accumulators cannot cover — the resume that would accrue the seconds has not
+    happened. history_store.py:1699 keeps the live flag in its OR for exactly this,
+    and so must the derivation."""
+    _seed_with_record(hass, "j-recharge-live", battery={
+        "start": 28, "end": 17, "used": 11,
+        "mid_job_recharge_observed": True,
+        "mid_job_recharge_count": 0,
+        "recharge_seconds_accumulated": 0,
+    })
+    rc = _job_from(await _history_snapshot(hass), "j-recharge-live")["recharge"]
+    assert rc["observed"] is True
+    assert rc["recovered_from_stale_record"] is False, "nothing was corrected here"
+
+
+async def test_room_detail_uses_the_settings_the_run_dispatched(hass, learning_services):
+    """[LS-JD4] Settings come from the record, never the room's CURRENT profile —
+    which may have been edited since the run. Both cleaning times are carried
+    because they disagree on 110 of 113 real entries."""
+    rooms = [{"slug": "kitchen", "room_id": 5, "name": "Kitchen",
+              "clean_mode": "vacuum", "fan_speed": "max", "clean_intensity": "deep",
+              "water_level": "off", "path_type": "wide", "clean_passes": 2,
+              "edge_mopping": False},
+             {"slug": "hall", "room_id": 8, "name": "Hall",
+              "clean_mode": "vacuum", "fan_speed": "quiet", "clean_passes": 1}]
+    timings = [{"room_id": 5, "slug": "kitchen", "cleaning_seconds": 1050,
+                "cleaning_wall_seconds": 1065, "area_m2": 12.5,
+                "battery_delta": 21.0, "boundary": "job_start"}]
+    _seed_with_record(hass, "j-rooms", rooms=rooms, timings=timings)
+
+    detail = _job_from(await _history_snapshot(hass), "j-rooms")["room_detail"]
+    assert len(detail) == 2
+
+    kitchen = next(r for r in detail if r["room_id"] == 5)
+    assert kitchen["settings"]["fan_speed"] == "max"
+    assert kitchen["settings"]["clean_passes"] == 2
+    # edge_mopping False is a real setting, not a missing one.
+    assert kitchen["settings"]["edge_mopping"] is False
+    assert kitchen["cleaning_seconds"] == 1050
+    assert kitchen["cleaning_wall_seconds"] == 1065, "the two times were collapsed"
+    assert kitchen["area_m2"] == 12.5
+    assert kitchen["has_result"] is True
+    assert "battery_delta" not in kitchen and "battery" not in kitchen, (
+        "per-room battery was surfaced -- it does not reconcile with the job total"
+    )
+
+    # A queued room the run never reached: settings, no result. Normal, not an error.
+    hall = next(r for r in detail if r["room_id"] == 8)
+    assert hall["has_result"] is False
+    assert hall["cleaning_seconds"] is None
+    assert hall["settings"]["fan_speed"] == "quiet"
+    assert "clean_intensity" not in hall["settings"], "an absent setting was invented"
+
+
+async def test_room_detail_joins_on_room_id_not_slug(hass, learning_services):
+    """[LS-JD5] Slugs repeat across maps; room ids are the run's own keys. Joining
+    on slug would attach one room's result to another's settings."""
+    rooms = [{"slug": "kitchen", "room_id": 5, "name": "Kitchen", "fan_speed": "max"},
+             {"slug": "kitchen", "room_id": 9, "name": "Kitchen (upstairs)",
+              "fan_speed": "quiet"}]
+    timings = [{"room_id": 9, "slug": "kitchen", "cleaning_seconds": 600,
+                "cleaning_wall_seconds": 610, "area_m2": 3.0}]
+    _seed_with_record(hass, "j-dupslug", rooms=rooms, timings=timings)
+
+    detail = _job_from(await _history_snapshot(hass), "j-dupslug")["room_detail"]
+    by_id = {r["room_id"]: r for r in detail}
+    assert by_id[9]["cleaning_seconds"] == 600
+    assert by_id[5]["cleaning_seconds"] is None, "the result landed on the wrong room"
+
+
+async def test_room_detail_survives_malformed_records(hass, learning_services):
+    """[LS-JD6] Control: junk in the record yields [] rather than raising inside a
+    service call the whole history view depends on."""
+    for job_id, rooms, timings in (
+        ("j-bad-1", [], None),
+        ("j-bad-2", "not-a-list", None),
+        ("j-bad-3", [None, 7, "junk"], None),
+        ("j-bad-4", [{"slug": "kitchen", "room_id": 5}], "not-a-list"),
+        ("j-bad-5", [{"slug": "kitchen", "room_id": 5}], [None, "junk"]),
+    ):
+        _seed_with_record(hass, job_id, rooms=rooms, timings=timings)
+    snap = await _history_snapshot(hass)
+    for job_id in ("j-bad-1", "j-bad-2", "j-bad-3"):
+        assert _job_from(snap, job_id)["room_detail"] == [], job_id
+    for job_id in ("j-bad-4", "j-bad-5"):
+        rows = _job_from(snap, job_id)["room_detail"]
+        assert len(rows) == 1 and rows[0]["has_result"] is False, job_id
+
+
 async def test_history_snapshot_multipass_appends_pass_to_suggested_label(hass, learning_services):
     """[LS-23c] A room profile observed with clean_passes>1 appends '<N> Pass' to
     the public save_suggested_label (manager 1091->1092).
