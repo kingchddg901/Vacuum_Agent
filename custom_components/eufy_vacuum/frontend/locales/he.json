@@ -2533,7 +2533,9 @@
     "yes": "כן",
     "service_failed": "לא ניתן היה להשלים את {service} — ייתכן שהשואב לא קיבל את הפקודה",
     "service_refused": "לא ניתן היה להשלים את הפעולה — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds} שנ׳"
   },
   "service_reasons": {
     "job_in_progress": "משימת ניקוי כבר פועלת.",
@@ -2991,5 +2993,41 @@
     "heading": "גופן",
     "default": "ברירת מחדל",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "סיכום ריצה",
+    "open_aria": "פתיחת סיכום הריצה",
+    "started": "זמן התחלה",
+    "elapsed": "זמן שחלף",
+    "cleaning_time": "זמן ניקוי",
+    "area": "שטח שנוקה",
+    "battery": "סוללה שנוצלה",
+    "room_cleaning": "ניקוי {duration}",
+    "room_elapsed": "חלפו {duration}",
+    "room_no_result": "הרובוט לא הגיע",
+    "source_dock": "תחנת העגינה",
+    "source_robot": "הרובוט",
+    "source_unknown": "ללא שיוך לחומרה",
+    "recovered": "נפתרה",
+    "not_recovered": "לא נפתרה",
+    "captured_from_app": "המידע נאסף מהאפליקציה — חלק מהפרטים אינם זמינים בריצות שלא התחילו מכרטיס זה.",
+    "recharged": {
+      "one": "בוצעה טעינה מחדש פעם אחת באמצע הריצה",
+      "two": "בוצעו {count} טעינות מחדש באמצע הריצה",
+      "many": "בוצעו {count} טעינות מחדש באמצע הריצה",
+      "other": "בוצעו {count} טעינות מחדש באמצע הריצה"
+    },
+    "recharged_for": {
+      "one": "בוצעה טעינה מחדש פעם אחת באמצע הריצה · {duration}",
+      "two": "בוצעו {count} טעינות מחדש באמצע הריצה · {duration}",
+      "many": "בוצעו {count} טעינות מחדש באמצע הריצה · {duration}",
+      "other": "בוצעו {count} טעינות מחדש באמצע הריצה · {duration}"
+    },
+    "errors_count": {
+      "one": "שגיאה אחת",
+      "two": "{count} שגיאות",
+      "many": "{count} שגיאות",
+      "other": "{count} שגיאות"
+    }
   }
 }

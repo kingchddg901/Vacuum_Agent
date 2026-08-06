@@ -16,7 +16,9 @@
     "ok": "ОК",
     "service_failed": "Не удалось выполнить {service} — пылесос мог не получить команду",
     "service_refused": "Не удалось выполнить это действие — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds} с"
   },
   "service_reasons": {
     "job_in_progress": "Задача уборки уже выполняется.",
@@ -2985,5 +2987,41 @@
     "heading": "Шрифт",
     "default": "По умолчанию",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Сводка по уборке",
+    "open_aria": "Открыть сводку по уборке",
+    "started": "Начало",
+    "elapsed": "Общее время",
+    "cleaning_time": "Время очистки",
+    "area": "Убранная площадь",
+    "battery": "Расход батареи",
+    "room_cleaning": "Очистка {duration}",
+    "room_elapsed": "Всего {duration}",
+    "room_no_result": "Робот не дошёл",
+    "source_dock": "База",
+    "source_robot": "Робот",
+    "source_unknown": "Источник не определён",
+    "recovered": "Устранена",
+    "not_recovered": "Не устранена",
+    "captured_from_app": "Записано из приложения — некоторые сведения недоступны для уборок, которые запустила не эта карточка.",
+    "recharged": {
+      "one": "{count} подзарядка в середине уборки",
+      "few": "{count} подзарядки в середине уборки",
+      "many": "{count} подзарядок в середине уборки",
+      "other": "{count} подзарядок в середине уборки"
+    },
+    "recharged_for": {
+      "one": "{count} подзарядка в середине уборки · {duration}",
+      "few": "{count} подзарядки в середине уборки · {duration}",
+      "many": "{count} подзарядок в середине уборки · {duration}",
+      "other": "{count} подзарядок в середине уборки · {duration}"
+    },
+    "errors_count": {
+      "one": "Ошибки — {count}",
+      "few": "Ошибки — {count}",
+      "many": "Ошибки — {count}",
+      "other": "Ошибки — {count}"
+    }
   }
 }

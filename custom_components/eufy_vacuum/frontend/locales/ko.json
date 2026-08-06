@@ -2412,7 +2412,9 @@
     "yes": "예",
     "service_failed": "{service}을(를) 완료하지 못했습니다. 로봇청소기가 명령을 받지 못했을 수 있습니다",
     "service_refused": "이 작업을 완료하지 못했습니다 — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}초"
   },
   "service_reasons": {
     "job_in_progress": "이미 청소 작업이 진행 중입니다.",
@@ -2840,5 +2842,32 @@
     "heading": "서체",
     "default": "기본값",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "실행 요약",
+    "open_aria": "실행 요약 열기",
+    "started": "시작 시각",
+    "elapsed": "경과 시간",
+    "cleaning_time": "청소 시간",
+    "area": "청소한 면적",
+    "battery": "배터리 사용량",
+    "room_cleaning": "청소 {duration}",
+    "room_elapsed": "경과 {duration}",
+    "room_no_result": "방문하지 않음",
+    "source_dock": "도크",
+    "source_robot": "로봇",
+    "source_unknown": "발생 하드웨어 알 수 없음",
+    "recovered": "복구됨",
+    "not_recovered": "복구되지 않음",
+    "captured_from_app": "앱에서 수집한 기록입니다 — 이 카드가 시작하지 않은 실행은 일부 정보를 확인할 수 없습니다.",
+    "recharged": {
+      "other": "실행 중 재충전 {count}회"
+    },
+    "recharged_for": {
+      "other": "실행 중 재충전 {count}회 · 충전 {duration}"
+    },
+    "errors_count": {
+      "other": "오류 {count}건"
+    }
   }
 }

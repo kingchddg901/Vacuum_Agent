@@ -2437,7 +2437,9 @@
     "yes": "Evet",
     "service_failed": "{service} tamamlanamadı — robot süpürge komutu almamış olabilir",
     "service_refused": "Bu işlem tamamlanamadı — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "%{percent}",
+    "seconds_short": "{seconds} sn"
   },
   "service_reasons": {
     "job_in_progress": "Zaten devam eden bir temizlik görevi var.",
@@ -2879,5 +2881,35 @@
     "heading": "Yazı tipi",
     "default": "Varsayılan",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Çalışma özeti",
+    "open_aria": "Çalışma özetini aç",
+    "started": "Başlangıç",
+    "elapsed": "Geçen süre",
+    "cleaning_time": "Temizleme süresi",
+    "area": "Temizlenen alan",
+    "battery": "Kullanılan pil",
+    "room_cleaning": "Temizleme {duration}",
+    "room_elapsed": "Geçen süre {duration}",
+    "room_no_result": "Ulaşılmadı",
+    "source_dock": "Şarj istasyonu",
+    "source_robot": "Robot",
+    "source_unknown": "Donanım belirlenemedi",
+    "recovered": "Giderildi",
+    "not_recovered": "Giderilmedi",
+    "captured_from_app": "Uygulamadan kaydedildi — bu kartın başlatmadığı çalışmalar için bazı ayrıntılar kullanılamıyor.",
+    "recharged": {
+      "one": "Çalışma sırasında bir kez yeniden şarj oldu",
+      "other": "Çalışma sırasında {count} kez yeniden şarj oldu"
+    },
+    "recharged_for": {
+      "one": "Çalışma sırasında bir kez yeniden şarj oldu · {duration}",
+      "other": "Çalışma sırasında {count} kez yeniden şarj oldu · {duration}"
+    },
+    "errors_count": {
+      "one": "Hatalar — 1",
+      "other": "Hatalar — {count}"
+    }
   }
 }

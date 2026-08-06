@@ -16,7 +16,9 @@
     "ok": "Aceptar",
     "service_failed": "No se pudo completar {service}: es posible que el robot no lo haya recibido",
     "service_refused": "No se pudo completar esta acción: {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent} %",
+    "seconds_short": "{seconds}s"
   },
   "service_reasons": {
     "job_in_progress": "Ya hay un trabajo de limpieza en curso.",
@@ -2895,5 +2897,38 @@
     "heading": "Tipografía",
     "default": "Predeterminada",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Resumen de la limpieza",
+    "open_aria": "Abrir el resumen de la limpieza",
+    "started": "Iniciado",
+    "elapsed": "Transcurrido",
+    "cleaning_time": "Tiempo de limpieza",
+    "area": "Área limpiada",
+    "battery": "Batería usada",
+    "room_cleaning": "Limpieza {duration}",
+    "room_elapsed": "Transcurrido {duration}",
+    "room_no_result": "Sin visitar",
+    "source_dock": "Base",
+    "source_robot": "Robot",
+    "source_unknown": "Origen desconocido",
+    "recovered": "Resuelto",
+    "not_recovered": "Sin resolver",
+    "captured_from_app": "Capturada desde la app: algunos detalles no están disponibles en las limpiezas que no inició esta tarjeta.",
+    "recharged": {
+      "one": "Se recargó una vez durante la limpieza",
+      "many": "Se recargó {count} veces durante la limpieza",
+      "other": "Se recargó {count} veces durante la limpieza"
+    },
+    "recharged_for": {
+      "one": "Se recargó una vez durante la limpieza · {duration}",
+      "many": "Se recargó {count} veces durante la limpieza · {duration}",
+      "other": "Se recargó {count} veces durante la limpieza · {duration}"
+    },
+    "errors_count": {
+      "one": "Errores — 1",
+      "many": "Errores — {count}",
+      "other": "Errores — {count}"
+    }
   }
 }

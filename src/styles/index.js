@@ -44,6 +44,7 @@ import { setupStyles                         } from "./setup.js";
 import { MOBILE_STYLES                       } from "./mobile.js";
 import { externalJobsStyles, externalWizardModalStyles } from "./external-jobs.js";
 import { dialogModalStyles                   } from "./dialog.js";
+import { jobSummaryStyles                    } from "./job-summary.js";
 import { THEME_TOKEN_REGISTRY                } from "../theme-tokens/index.js";
 
 export const STYLES = [
@@ -561,6 +562,7 @@ export const MODAL_HOST_STYLES = `
   ${maintenanceModalHostStyles}
   ${roomAccessStyles}
   ${roomEstimateStyles}
+  ${jobSummaryStyles}
   ${externalWizardModalStyles}
   ${dialogModalStyles}
 

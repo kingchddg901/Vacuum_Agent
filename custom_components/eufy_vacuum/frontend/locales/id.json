@@ -2437,7 +2437,9 @@
     "yes": "Ya",
     "service_failed": "Tidak dapat menyelesaikan {service} — penyedot debu mungkin tidak menerimanya",
     "service_refused": "Tidak dapat menyelesaikan tindakan ini — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}d"
   },
   "service_reasons": {
     "job_in_progress": "Tugas pembersihan sudah berlangsung.",
@@ -2879,5 +2881,32 @@
     "heading": "Jenis huruf",
     "default": "Bawaan",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Ringkasan Proses",
+    "open_aria": "Buka ringkasan proses",
+    "started": "Dimulai",
+    "elapsed": "Waktu Berlalu",
+    "cleaning_time": "Waktu Pembersihan",
+    "area": "Area Dibersihkan",
+    "battery": "Baterai Terpakai",
+    "room_cleaning": "Pembersihan {duration}",
+    "room_elapsed": "Waktu berlalu {duration}",
+    "room_no_result": "Belum dikunjungi",
+    "source_dock": "Dok",
+    "source_robot": "Robot",
+    "source_unknown": "Sumber tidak diketahui",
+    "recovered": "Teratasi",
+    "not_recovered": "Belum teratasi",
+    "captured_from_app": "Direkam dari aplikasi — sebagian detail tidak tersedia untuk proses yang tidak dimulai oleh kartu ini.",
+    "recharged": {
+      "other": "Pengisian ulang daya {count}× di tengah proses"
+    },
+    "recharged_for": {
+      "other": "Pengisian ulang daya {count}× di tengah proses · {duration}"
+    },
+    "errors_count": {
+      "other": "Kesalahan — {count}"
+    }
   }
 }

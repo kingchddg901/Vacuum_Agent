@@ -623,8 +623,16 @@ export function applyReviewRenderers(proto) {
       ? this.tVocabRaw("job_scope", job.job_scope, job?.job_scope_label || this._formatReviewLabel(job.job_scope))
       : (job?.job_scope_label || this.t("review.unknown"));
 
+    // The whole card opens the Job Summary. data-job-summary-open also sits on the
+    // error badge below, so the badge and the row lead to the SAME surface rather
+    // than a separate error dialog. role/tabindex because a div that behaves like a
+    // button must be reachable and announced as one.
     return `
-      <article class="evcc-review-job-card ${excluded ? "evcc-review-job-card--excluded" : ""} ${job?.exclude_suggested ? "evcc-review-job-card--suggested" : ""}">
+      <article class="evcc-review-job-card ${excluded ? "evcc-review-job-card--excluded" : ""} ${job?.exclude_suggested ? "evcc-review-job-card--suggested" : ""}"
+               data-job-summary-open="${this.escapeHtml(jobId)}"
+               role="button"
+               tabindex="0"
+               aria-label="${this.t("job_summary.open_aria")}">
         <div class="evcc-review-job-header">
           <div>
             <div class="evcc-review-job-title">${this.escapeHtml(jobId)}</div>

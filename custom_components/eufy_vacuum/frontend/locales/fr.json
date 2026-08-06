@@ -16,7 +16,9 @@
     "ok": "OK",
     "service_failed": "Impossible de terminer {service} — l'aspirateur ne l'a peut-être pas reçu",
     "service_refused": "Impossible de terminer cette action — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent} %",
+    "seconds_short": "{seconds} s"
   },
   "service_reasons": {
     "job_in_progress": "Un cycle de nettoyage est déjà en cours.",
@@ -2896,5 +2898,38 @@
     "heading": "Police",
     "default": "Par défaut",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Résumé du nettoyage",
+    "open_aria": "Ouvrir le résumé du nettoyage",
+    "started": "Début",
+    "elapsed": "Temps écoulé",
+    "cleaning_time": "Temps de nettoyage",
+    "area": "Surface nettoyée",
+    "battery": "Batterie utilisée",
+    "room_cleaning": "Nettoyage {duration}",
+    "room_elapsed": "Écoulé {duration}",
+    "room_no_result": "Non atteinte",
+    "source_dock": "Station de base",
+    "source_robot": "Robot",
+    "source_unknown": "Source inconnue",
+    "recovered": "Résolue",
+    "not_recovered": "Non résolue",
+    "captured_from_app": "Capturé depuis l'application — certains détails sont indisponibles pour les nettoyages que cette carte n'a pas lancés.",
+    "recharged": {
+      "one": "Une recharge en cours de nettoyage",
+      "many": "{count} recharges en cours de nettoyage",
+      "other": "{count} recharges en cours de nettoyage"
+    },
+    "recharged_for": {
+      "one": "Une recharge en cours de nettoyage · {duration}",
+      "many": "{count} recharges en cours de nettoyage · {duration}",
+      "other": "{count} recharges en cours de nettoyage · {duration}"
+    },
+    "errors_count": {
+      "one": "Erreurs — 1",
+      "many": "Erreurs — {count}",
+      "other": "Erreurs — {count}"
+    }
   }
 }

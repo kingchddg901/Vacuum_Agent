@@ -2437,7 +2437,9 @@
     "yes": "Ano",
     "service_failed": "Nepodařilo se dokončit {service} — vysavač jej možná neobdržel",
     "service_refused": "Nepodařilo se to dokončit — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent} %",
+    "seconds_short": "{seconds} s"
   },
   "service_reasons": {
     "job_in_progress": "Úklidová úloha již probíhá.",
@@ -2879,5 +2881,41 @@
     "heading": "Písmo",
     "default": "Výchozí",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Souhrn běhu",
+    "open_aria": "Otevřít souhrn běhu",
+    "started": "Zahájeno",
+    "elapsed": "Uplynulo",
+    "cleaning_time": "Doba úklidu",
+    "area": "Uklizená plocha",
+    "battery": "Využitá baterie",
+    "room_cleaning": "Úklid {duration}",
+    "room_elapsed": "Uplynulo {duration}",
+    "room_no_result": "Nedošlo na ni",
+    "source_dock": "Z doku",
+    "source_robot": "Z robota",
+    "source_unknown": "Zdroj neurčen",
+    "recovered": "Vyřešeno",
+    "not_recovered": "Nevyřešeno",
+    "captured_from_app": "Zachyceno z aplikace — některé údaje nejsou k dispozici u běhů, které tato karta nespustila.",
+    "recharged": {
+      "one": "Během běhu nabito jednou",
+      "few": "Během běhu nabito {count}×",
+      "many": "Během běhu nabito {count}×",
+      "other": "Během běhu nabito {count}×"
+    },
+    "recharged_for": {
+      "one": "Během běhu nabito jednou · {duration}",
+      "few": "Během běhu nabito {count}× · {duration}",
+      "many": "Během běhu nabito {count}× · {duration}",
+      "other": "Během běhu nabito {count}× · {duration}"
+    },
+    "errors_count": {
+      "one": "1 chyba",
+      "few": "{count} chyby",
+      "many": "{count} chyby",
+      "other": "{count} chyb"
+    }
   }
 }

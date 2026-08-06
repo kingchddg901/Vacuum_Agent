@@ -16,7 +16,9 @@
     "ok": "OK",
     "service_failed": "Não foi possível concluir {service} — o aspirador pode não ter recebido",
     "service_refused": "Não foi possível concluir esta ação — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}s"
   },
   "service_reasons": {
     "job_in_progress": "Já há uma tarefa de limpeza em andamento.",
@@ -2894,5 +2896,38 @@
     "heading": "Tipo de letra",
     "default": "Predefinido",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Resumo da execução",
+    "open_aria": "Abrir o resumo da execução",
+    "started": "Início",
+    "elapsed": "Tempo decorrido",
+    "cleaning_time": "Tempo de limpeza",
+    "area": "Área limpa",
+    "battery": "Bateria usada",
+    "room_cleaning": "Limpeza {duration}",
+    "room_elapsed": "Decorrido {duration}",
+    "room_no_result": "Não alcançada",
+    "source_dock": "Base",
+    "source_robot": "Robô",
+    "source_unknown": "Origem desconhecida",
+    "recovered": "Resolvido",
+    "not_recovered": "Não resolvido",
+    "captured_from_app": "Capturada da aplicação — alguns detalhes não estão disponíveis nas execuções que este cartão não iniciou.",
+    "recharged": {
+      "one": "Recarregou uma vez a meio da execução",
+      "many": "Recarregou {count}× a meio da execução",
+      "other": "Recarregou {count}× a meio da execução"
+    },
+    "recharged_for": {
+      "one": "Recarregou uma vez a meio da execução · {duration}",
+      "many": "Recarregou {count}× a meio da execução · {duration}",
+      "other": "Recarregou {count}× a meio da execução · {duration}"
+    },
+    "errors_count": {
+      "one": "Erros — {count}",
+      "many": "Erros — {count}",
+      "other": "Erros — {count}"
+    }
   }
 }

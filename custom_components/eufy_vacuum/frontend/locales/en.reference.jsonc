@@ -14,6 +14,8 @@
     "list_separator": ", ",
     "cancel": "Cancel",
     "close": "Close",
+    "percent_value": "{percent}%",  // A bare percentage. A KEY rather than string concat because the sign does not always trail the number — Turkish writes %42
+    "seconds_short": "{seconds}s",  // A sub-minute duration. Only used below 30s, where the minutes formatter would round to '0 min' and read as 'no time at all'
     "service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
     "service_refused": "Could not complete this — {reason}",  // Error toast when a service call reaches Home Assistant and returns NORMALLY but
     "confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
@@ -2487,6 +2489,27 @@
     "currently": "Currently",
     "after_move": "After move",
     "move_to_position": "Move to position"
+  },
+  "job_summary": {
+    "title": "Run summary",  // Modal title. 'Run' not 'Job': the user thinks of it as one cleaning run
+    "open_aria": "Open run summary",  // Accessible name for the clickable job card. Deliberately does NOT interpolate the run id — a screen reader would read out 'job underscore 2026 dash 08...', which is unique but useless; the card's own text already identifies which run it is
+    "started": "Started",  // KV label: when the run began
+    "elapsed": "Elapsed",  // KV label: wall-clock start to finish, INCLUDING docking/washing overhead
+    "cleaning_time": "Cleaning time",  // KV label: time actually spent cleaning — deliberately distinct from Elapsed
+    "area": "Area cleaned",  // KV label: total floor area for the run
+    "battery": "Battery used",  // KV label: job-level battery consumption
+    "recharged": {"one":"Recharged once mid-run","other":"Recharged {count}× mid-run"},
+    "recharged_for": {"one":"Recharged once mid-run · {duration}","other":"Recharged {count}× mid-run · {duration}"},
+    "room_cleaning": "Cleaning {duration}",  // Per-room result: time spent cleaning that room
+    "room_elapsed": "Elapsed {duration}",  // Per-room result: wall-clock in that room; shown only when it differs from cleaning time
+    "room_no_result": "Not reached",  // A room that was queued but the run never got to — normal, not an error
+    "errors_count": {"one":"Errors — 1","other":"Errors — {count}"},
+    "source_dock": "Dock",  // Which hardware raised a fault. NOT map.dock (a map marker) or vacuum_card.dock (a button) — this is an attribution, and the distinction survives translation
+    "source_robot": "Robot",  // Which hardware raised a fault
+    "source_unknown": "Source unknown",  // Deliberately explicit: blaming the robot for an unclassified fault would send the user to hardware that is fine
+    "recovered": "Recovered",  // The fault cleared during the run
+    "not_recovered": "Not recovered",  // The fault was still latched when the run ended — NOT a claim that it ended the run, which the record cannot establish
+    "captured_from_app": "Captured from the app — some details are unavailable for runs this card did not start."  // Explains why an app-started run's summary is thinner, so it reads as expected rather than broken
   },
   "fault": {
     "eufy": {

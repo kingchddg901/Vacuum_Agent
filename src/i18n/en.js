@@ -38,6 +38,8 @@ export const en = {
   "common.list_separator": ", ",
   "common.cancel": "Cancel",
   "common.close": "Close",
+  "common.percent_value": "{percent}%",  // A bare percentage. A KEY rather than string concat because the sign does not always trail the number — Turkish writes %42
+  "common.seconds_short": "{seconds}s",  // A sub-minute duration. Only used below 30s, where the minutes formatter would round to '0 min' and read as 'no time at all'
   "common.service_failed": "Could not complete {service} — the vacuum may not have received it",  // Error toast when a card action fails to reach Home Assistant (network, unavailable
   // service, or a backend error). {service} is a raw "domain.service" identifier — do NOT
   // translate it. The second clause matters: the user must not assume the robot acted.
@@ -2472,6 +2474,49 @@ export const en = {
   "vocab.theme_group.animal_companion_raccoon": "Raccoon",
   "vocab.theme_group.animal_companion_snake": "Snake",
   "vocab.theme_group.rainbow_bridge": "Rainbow Bridge",
+
+  // === JOB SUMMARY MODAL =================================================
+  // Opened from a Learning Review job card (row body OR its error badge — both
+  // lead here, so there is one surface rather than a separate error dialog).
+  // Most of what this modal shows reuses existing keys; only the labels that had
+  // no equivalent are minted here.
+  // REUSED rather than minted, after checking the catalog for equivalents:
+  //   review.detail_area_m2   "{value} m²"   — the card's area value everywhere
+  //   review.passes           plural, already { one, other }
+  //   learning.stat_rooms     "Rooms"        — literally 'count of rooms this run'
+  //   room_editor.edge_mopping, review.kv_rooms, review.unknown, common.close
+  //
+  // The two FORMATTER strings this modal needed had no equivalent, so they live in
+  // common.* rather than here — they are units, not modal vocabulary, and the next
+  // surface that needs a bare percent or a sub-minute duration should inherit them.
+  "job_summary.title": "Run summary",  // Modal title. 'Run' not 'Job': the user thinks of it as one cleaning run
+  "job_summary.open_aria": "Open run summary",  // Accessible name for the clickable job card. Deliberately does NOT interpolate the run id — a screen reader would read out 'job underscore 2026 dash 08...', which is unique but useless; the card's own text already identifies which run it is
+  "job_summary.started": "Started",  // KV label: when the run began
+  "job_summary.elapsed": "Elapsed",  // KV label: wall-clock start to finish, INCLUDING docking/washing overhead
+  "job_summary.cleaning_time": "Cleaning time",  // KV label: time actually spent cleaning — deliberately distinct from Elapsed
+  "job_summary.area": "Area cleaned",  // KV label: total floor area for the run
+  "job_summary.battery": "Battery used",  // KV label: job-level battery consumption
+  "job_summary.recharged": {
+    one: "Recharged once mid-run",
+    other: "Recharged {count}× mid-run",
+  },  // plural; shown when the robot recharged but the charge duration is unknown. Without this line the battery figure silently understates what the run actually drew (start-minus-end cannot see the pack going back up)
+  "job_summary.recharged_for": {
+    one: "Recharged once mid-run · {duration}",
+    other: "Recharged {count}× mid-run · {duration}",
+  },  // plural; same as recharged, with total time spent charging
+  "job_summary.room_cleaning": "Cleaning {duration}",  // Per-room result: time spent cleaning that room
+  "job_summary.room_elapsed": "Elapsed {duration}",  // Per-room result: wall-clock in that room; shown only when it differs from cleaning time
+  "job_summary.room_no_result": "Not reached",  // A room that was queued but the run never got to — normal, not an error
+  "job_summary.errors_count": {
+    one: "Errors — 1",
+    other: "Errors — {count}",
+  },  // plural; Errors section heading with the fault count
+  "job_summary.source_dock": "Dock",  // Which hardware raised a fault. NOT map.dock (a map marker) or vacuum_card.dock (a button) — this is an attribution, and the distinction survives translation
+  "job_summary.source_robot": "Robot",  // Which hardware raised a fault
+  "job_summary.source_unknown": "Source unknown",  // Deliberately explicit: blaming the robot for an unclassified fault would send the user to hardware that is fine
+  "job_summary.recovered": "Recovered",  // The fault cleared during the run
+  "job_summary.not_recovered": "Not recovered",  // The fault was still latched when the run ended — NOT a claim that it ended the run, which the record cannot establish
+  "job_summary.captured_from_app": "Captured from the app — some details are unavailable for runs this card did not start.",  // Explains why an app-started run's summary is thinner, so it reads as expected rather than broken
 
   // === EUFY FAULT LABELS (CARD-3 / RF-DOCK) ==============================
   // Plain-language labels for robovac_mqtt's 199 fault codes. The ADAPTER maps

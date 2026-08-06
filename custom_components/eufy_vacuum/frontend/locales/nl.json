@@ -16,7 +16,9 @@
     "ok": "OK",
     "service_failed": "Kan {service} niet voltooien — de stofzuiger heeft dit mogelijk niet ontvangen",
     "service_refused": "Kan dit niet voltooien — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}s"
   },
   "service_reasons": {
     "job_in_progress": "Er is al een schoonmaaktaak bezig.",
@@ -2879,5 +2881,35 @@
     "heading": "Lettertype",
     "default": "Standaard",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Runsamenvatting",
+    "open_aria": "Runsamenvatting openen",
+    "started": "Gestart",
+    "elapsed": "Verstreken",
+    "cleaning_time": "Schoonmaaktijd",
+    "area": "Schoongemaakt oppervlak",
+    "battery": "Accu gebruikt",
+    "room_cleaning": "Schoonmaaktijd {duration}",
+    "room_elapsed": "Verstreken {duration}",
+    "room_no_result": "Niet bereikt",
+    "source_dock": "Dock",
+    "source_robot": "Robot",
+    "source_unknown": "Bron onbekend",
+    "recovered": "Verholpen",
+    "not_recovered": "Niet verholpen",
+    "captured_from_app": "Vastgelegd vanuit de app — sommige details zijn niet beschikbaar voor runs die niet door deze kaart zijn gestart.",
+    "recharged": {
+      "one": "Eén keer opgeladen tijdens de run",
+      "other": "{count}× opgeladen tijdens de run"
+    },
+    "recharged_for": {
+      "one": "Eén keer opgeladen tijdens de run · {duration}",
+      "other": "{count}× opgeladen tijdens de run · {duration}"
+    },
+    "errors_count": {
+      "one": "Fouten — 1",
+      "other": "Fouten — {count}"
+    }
   }
 }

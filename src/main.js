@@ -1569,12 +1569,17 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     // Dialog (confirm / alert / prompt) is rendered LAST so it stacks above
     // whatever modal triggered it (e.g. the run-profile editor below it).
+    const jobSummaryHtml =
+      typeof this._renderers.renderJobSummaryModal === "function"
+        ? this._renderers.renderJobSummaryModal(ctx)
+        : "";
+
     const dialogHtml =
       typeof this._renderers.renderDialogModal === "function"
         ? this._renderers.renderDialogModal(ctx)
         : "";
 
-    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}${themeJsonHtml}${dialogHtml}`;
+    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}${themeJsonHtml}${jobSummaryHtml}${dialogHtml}`;
 
     if (!html) {
       if (this._modalHost) {

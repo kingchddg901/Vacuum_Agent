@@ -2412,7 +2412,9 @@
     "yes": "是",
     "service_failed": "无法完成{service}，扫地机器人可能未收到该指令",
     "service_refused": "无法完成此操作 — {reason}",
-    "list_separator": "、"
+    "list_separator": "、",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds} 秒"
   },
   "service_reasons": {
     "job_in_progress": "已有清扫任务正在进行。",
@@ -2840,5 +2842,32 @@
     "heading": "字体",
     "default": "默认",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "运行摘要",
+    "open_aria": "打开运行摘要",
+    "started": "开始时间",
+    "elapsed": "总耗时",
+    "cleaning_time": "清扫时长",
+    "area": "清扫面积",
+    "battery": "电量消耗",
+    "room_cleaning": "清扫 {duration}",
+    "room_elapsed": "总耗时 {duration}",
+    "room_no_result": "未到达",
+    "source_dock": "来自基站",
+    "source_robot": "来自机器人",
+    "source_unknown": "未归属到具体硬件",
+    "recovered": "已恢复",
+    "not_recovered": "未恢复",
+    "captured_from_app": "本次运行由应用启动 — 对于非本卡片发起的运行，部分详情无法获取。",
+    "recharged": {
+      "other": "中途充电 {count} 次"
+    },
+    "recharged_for": {
+      "other": "中途充电 {count} 次 · {duration}"
+    },
+    "errors_count": {
+      "other": "错误 — {count}"
+    }
   }
 }

@@ -2613,7 +2613,9 @@
     "yes": "نعم",
     "service_failed": "تعذّر إكمال {service} — قد لا تكون المكنسة قد استلمت الأمر",
     "service_refused": "تعذّر إكمال هذا الإجراء — {reason}",
-    "list_separator": "، "
+    "list_separator": "، ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}ث"
   },
   "service_reasons": {
     "job_in_progress": "هناك مهمة تنظيف قيد التنفيذ بالفعل.",
@@ -3091,5 +3093,47 @@
     "heading": "نوع الخط",
     "default": "افتراضي",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "ملخّص الجولة",
+    "open_aria": "فتح ملخّص الجولة",
+    "started": "وقت البدء",
+    "elapsed": "المنقضي",
+    "cleaning_time": "وقت التنظيف",
+    "area": "المساحة المنظّفة",
+    "battery": "استهلاك البطارية",
+    "room_cleaning": "التنظيف {duration}",
+    "room_elapsed": "المنقضي {duration}",
+    "room_no_result": "لم يصل إليها الروبوت",
+    "source_dock": "قاعدة الشحن",
+    "source_robot": "الروبوت",
+    "source_unknown": "المصدر غير معروف",
+    "recovered": "تم التعافي",
+    "not_recovered": "لم يتم التعافي",
+    "captured_from_app": "مُلتقَطة من التطبيق — بعض التفاصيل غير متاحة للجولات التي لم تبدأها هذه البطاقة.",
+    "recharged": {
+      "zero": "أُعيد الشحن {count} مرة أثناء الجولة",
+      "one": "أُعيد الشحن مرة واحدة أثناء الجولة",
+      "two": "أُعيد الشحن مرتين أثناء الجولة",
+      "few": "أُعيد الشحن {count} مرات أثناء الجولة",
+      "many": "أُعيد الشحن {count} مرة أثناء الجولة",
+      "other": "أُعيد الشحن {count} مرة أثناء الجولة"
+    },
+    "recharged_for": {
+      "zero": "أُعيد الشحن {count} مرة أثناء الجولة · {duration}",
+      "one": "أُعيد الشحن مرة واحدة أثناء الجولة · {duration}",
+      "two": "أُعيد الشحن مرتين أثناء الجولة · {duration}",
+      "few": "أُعيد الشحن {count} مرات أثناء الجولة · {duration}",
+      "many": "أُعيد الشحن {count} مرة أثناء الجولة · {duration}",
+      "other": "أُعيد الشحن {count} مرة أثناء الجولة · {duration}"
+    },
+    "errors_count": {
+      "zero": "لا أخطاء",
+      "one": "خطأ واحد",
+      "two": "خطآن",
+      "few": "{count} أخطاء",
+      "many": "{count} خطأً",
+      "other": "{count} خطأ"
+    }
   }
 }

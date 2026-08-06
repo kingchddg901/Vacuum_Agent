@@ -16,7 +16,9 @@
     "ok": "OK",
     "service_failed": "{service} konnte nicht abgeschlossen werden — der Saugroboter hat den Befehl möglicherweise nicht erhalten",
     "service_refused": "Vorgang konnte nicht abgeschlossen werden — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}s"
   },
   "service_reasons": {
     "job_in_progress": "Es läuft bereits ein Reinigungsauftrag.",
@@ -2879,5 +2881,35 @@
     "heading": "Schriftart",
     "default": "Standard",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Zusammenfassung des Laufs",
+    "open_aria": "Zusammenfassung des Laufs öffnen",
+    "started": "Gestartet",
+    "elapsed": "Gesamtdauer",
+    "cleaning_time": "Reinigungszeit",
+    "area": "Gereinigte Fläche",
+    "battery": "Akkuverbrauch",
+    "room_cleaning": "Reinigung {duration}",
+    "room_elapsed": "Gesamt {duration}",
+    "room_no_result": "Nicht erreicht",
+    "source_dock": "Station",
+    "source_robot": "Roboter",
+    "source_unknown": "Quelle unbekannt",
+    "recovered": "Behoben",
+    "not_recovered": "Nicht behoben",
+    "captured_from_app": "Aus der App erfasst — für Läufe, die nicht über diese Karte gestartet wurden, sind einige Details nicht verfügbar.",
+    "recharged": {
+      "one": "Einmal während des Laufs aufgeladen",
+      "other": "{count}× während des Laufs aufgeladen"
+    },
+    "recharged_for": {
+      "one": "Einmal während des Laufs aufgeladen · {duration}",
+      "other": "{count}× während des Laufs aufgeladen · {duration}"
+    },
+    "errors_count": {
+      "one": "Fehler — 1",
+      "other": "Fehler — {count}"
+    }
   }
 }

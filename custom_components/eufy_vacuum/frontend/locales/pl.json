@@ -2437,7 +2437,9 @@
     "yes": "Tak",
     "service_failed": "Nie udało się ukończyć {service} — odkurzacz mógł go nie otrzymać",
     "service_refused": "Nie udało się tego wykonać — {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}s"
   },
   "service_reasons": {
     "job_in_progress": "Zadanie sprzątania jest już w toku.",
@@ -2879,5 +2881,41 @@
     "heading": "Krój pisma",
     "default": "Domyślny",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Podsumowanie przebiegu",
+    "open_aria": "Otwórz podsumowanie przebiegu",
+    "started": "Rozpoczęto",
+    "elapsed": "Upłynęło",
+    "cleaning_time": "Czas sprzątania",
+    "area": "Posprzątana powierzchnia",
+    "battery": "Zużyta bateria",
+    "room_cleaning": "Sprzątanie {duration}",
+    "room_elapsed": "Upłynęło {duration}",
+    "room_no_result": "Nie dotarto",
+    "source_dock": "Stacja",
+    "source_robot": "Robot",
+    "source_unknown": "Nieznane źródło",
+    "recovered": "Ustąpił",
+    "not_recovered": "Nie ustąpił",
+    "captured_from_app": "Zarejestrowano z aplikacji — część szczegółów jest niedostępna dla przebiegów, których nie rozpoczęła ta karta.",
+    "recharged": {
+      "one": "Jedno doładowanie w trakcie przebiegu",
+      "few": "{count} doładowania w trakcie przebiegu",
+      "many": "{count} doładowań w trakcie przebiegu",
+      "other": "{count} doładowania w trakcie przebiegu"
+    },
+    "recharged_for": {
+      "one": "Jedno doładowanie w trakcie przebiegu · {duration}",
+      "few": "{count} doładowania w trakcie przebiegu · {duration}",
+      "many": "{count} doładowań w trakcie przebiegu · {duration}",
+      "other": "{count} doładowania w trakcie przebiegu · {duration}"
+    },
+    "errors_count": {
+      "one": "1 błąd",
+      "few": "{count} błędy",
+      "many": "{count} błędów",
+      "other": "{count} błędu"
+    }
   }
 }

@@ -2412,7 +2412,9 @@
     "yes": "是",
     "service_failed": "無法完成{service}，掃地機器人可能未收到該指令",
     "service_refused": "無法完成此操作 — {reason}",
-    "list_separator": "、"
+    "list_separator": "、",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds} 秒"
   },
   "service_reasons": {
     "job_in_progress": "已有清掃工作正在進行。",
@@ -2840,5 +2842,32 @@
     "heading": "字體",
     "default": "預設",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "清潔摘要",
+    "open_aria": "開啟清潔摘要",
+    "started": "開始時間",
+    "elapsed": "總時長",
+    "cleaning_time": "清潔時長",
+    "area": "清潔面積",
+    "battery": "電量消耗",
+    "room_cleaning": "清潔 {duration}",
+    "room_elapsed": "總時長 {duration}",
+    "room_no_result": "未到達",
+    "source_dock": "基站",
+    "source_robot": "機器人",
+    "source_unknown": "來源不明",
+    "recovered": "已恢復",
+    "not_recovered": "未恢復",
+    "captured_from_app": "擷取自 App — 非由此卡片啟動的清潔，部分細節無法取得。",
+    "recharged": {
+      "other": "清潔途中回充 {count} 次"
+    },
+    "recharged_for": {
+      "other": "清潔途中回充 {count} 次 · 共充電 {duration}"
+    },
+    "errors_count": {
+      "other": "錯誤 — {count} 個"
+    }
   }
 }

@@ -16,7 +16,9 @@
     "ok": "OK",
     "service_failed": "Impossibile completare {service}: l'aspirapolvere potrebbe non averlo ricevuto",
     "service_refused": "Impossibile completare l'operazione: {reason}",
-    "list_separator": ", "
+    "list_separator": ", ",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}s"
   },
   "service_reasons": {
     "job_in_progress": "È già in corso un lavoro di pulizia.",
@@ -2882,5 +2884,38 @@
     "heading": "Carattere",
     "default": "Predefinito",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "Riepilogo esecuzione",
+    "open_aria": "Apri il riepilogo dell'esecuzione",
+    "started": "Inizio",
+    "elapsed": "Tempo trascorso",
+    "cleaning_time": "Tempo di pulizia",
+    "area": "Area pulita",
+    "battery": "Batteria usata",
+    "room_cleaning": "Pulizia {duration}",
+    "room_elapsed": "Trascorso {duration}",
+    "room_no_result": "Non raggiunta",
+    "source_dock": "Base",
+    "source_robot": "Robot",
+    "source_unknown": "Origine sconosciuta",
+    "recovered": "Risolto",
+    "not_recovered": "Non risolto",
+    "captured_from_app": "Acquisita dall'app: alcuni dettagli non sono disponibili per le esecuzioni non avviate da questa scheda.",
+    "recharged": {
+      "one": "Una ricarica a metà esecuzione",
+      "many": "{count} ricariche a metà esecuzione",
+      "other": "{count} ricariche a metà esecuzione"
+    },
+    "recharged_for": {
+      "one": "Una ricarica a metà esecuzione · {duration}",
+      "many": "{count} ricariche a metà esecuzione · {duration}",
+      "other": "{count} ricariche a metà esecuzione · {duration}"
+    },
+    "errors_count": {
+      "one": "Errori — 1",
+      "many": "Errori — {count}",
+      "other": "Errori — {count}"
+    }
   }
 }

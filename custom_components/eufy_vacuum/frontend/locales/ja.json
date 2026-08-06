@@ -2412,7 +2412,9 @@
     "yes": "はい",
     "service_failed": "{service} を完了できませんでした。ロボット掠除機に届いていない可能性があります",
     "service_refused": "この操作を完了できませんでした — {reason}",
-    "list_separator": "、"
+    "list_separator": "、",
+    "percent_value": "{percent}%",
+    "seconds_short": "{seconds}秒"
   },
   "service_reasons": {
     "job_in_progress": "すでに清掃ジョブが実行中です。",
@@ -2840,5 +2842,32 @@
     "heading": "書体",
     "default": "デフォルト",
     "opendyslexic": "OpenDyslexic"
+  },
+  "job_summary": {
+    "title": "実行サマリー",
+    "open_aria": "実行サマリーを開く",
+    "started": "開始時刻",
+    "elapsed": "経過時間",
+    "cleaning_time": "清掃時間",
+    "area": "清掃面積",
+    "battery": "バッテリー使用量",
+    "room_cleaning": "清掃 {duration}",
+    "room_elapsed": "経過 {duration}",
+    "room_no_result": "未到達",
+    "source_dock": "ドック由来",
+    "source_robot": "ロボット由来",
+    "source_unknown": "由来不明",
+    "recovered": "解消済み",
+    "not_recovered": "未解消",
+    "captured_from_app": "アプリから取得 — このカードが開始していない実行では、一部の詳細は利用できません。",
+    "recharged": {
+      "other": "実行の途中で{count}回再充電"
+    },
+    "recharged_for": {
+      "other": "実行の途中で{count}回再充電 · 充電時間 {duration}"
+    },
+    "errors_count": {
+      "other": "エラー {count} 件"
+    }
   }
 }
