@@ -535,7 +535,11 @@ export function applyReviewRenderers(proto) {
       }
       const titleParts = [];
       if (Number.isFinite(errorSeconds) && errorSeconds > 0) {
-        titleParts.push(this.t("review.badge_errors_seconds", { seconds: Math.round(errorSeconds) }));
+        titleParts.push(this.t("review.badge_errors_seconds",
+          // count drives CLDR form selection; seconds is what the string
+          // interpolates. Same number, two roles — without count the
+          // selector sees undefined and every language gets "other".
+          { seconds: Math.round(errorSeconds), count: Math.round(errorSeconds) }));
       }
       titleParts.push(...sourceParts);
       badges.push({

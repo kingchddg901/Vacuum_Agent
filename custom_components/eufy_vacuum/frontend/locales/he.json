@@ -2128,7 +2128,12 @@
       "one": "שגיאה אחת",
       "other": "{count} שגיאות"
     },
-    "badge_errors_seconds": "{seconds} שניות במצב שגיאה במהלך ריצה זו",
+    "badge_errors_seconds": {
+      "one": "שנייה אחת במצב שגיאה במהלך ריצה זו",
+      "two": "שתי שניות במצב שגיאה במהלך ריצה זו",
+      "many": "{seconds} שניות במצב שגיאה במהלך ריצה זו",
+      "other": "{seconds} שניות במצב שגיאה במהלך ריצה זו"
+    },
     "runs_truncated": "מוצגות {shown} מתוך {total} ריצות תואמות — צמצמו את המסננים כדי לראות את השאר.",
     "badge_errors_from_dock": "{seconds} שניות מתחנת העגינה",
     "badge_errors_from_robot": "{seconds} שניות מהרובוט",
