@@ -4,7 +4,7 @@
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const BUNDLE = join(here, "..", "dist", "mount.js");
@@ -13,8 +13,45 @@ const PAGE_HTML =
   `<!doctype html><html><head><meta charset="utf-8"></head>` +
   `<body style="margin:0;background:#0b0d10"><div id="root"></div></body></html>`;
 
+/**
+ * The card's @font-face points at /eufy_vacuum/fonts/*.woff2, which Home
+ * Assistant serves (registered in __init__.py). The harness is a bare page with
+ * no such route, so the request 404s, the face never loads, and everything
+ * renders in the fallback.
+ *
+ * That silently gutted the accessibility case: gallery `rooms-opendyslexic`
+ * exists precisely because "OpenDyslexic is wider and heavier than the default,
+ * so this is where chip wrapping, queue-row truncation and header fit get to
+ * fail visibly" — and its screenshot came out BYTE-IDENTICAL to `rooms-active`
+ * (same sha256, same 245099 bytes). A case that cannot differ cannot catch the
+ * thing it was written for.
+ *
+ * Fulfil the request from the shipped woff2 files instead, so the harness
+ * renders the same face a real install does.
+ */
+const FONT_DIR = join(here, "..", "..", "custom_components", "eufy_vacuum",
+                      "frontend", "fonts");
+
+async function serveCardFonts(page) {
+  await page.route("**/eufy_vacuum/fonts/*", (route) => {
+    const name = basename(new URL(route.request().url()).pathname);
+    try {
+      route.fulfill({
+        status: 200,
+        contentType: name.endsWith(".woff2") ? "font/woff2" : "text/plain",
+        body: readFileSync(join(FONT_DIR, name)),
+      });
+    } catch {
+      // Missing file is a real failure worth SEEING as a fallback render rather
+      // than a hang: abort so the page proceeds without the face.
+      route.abort();
+    }
+  });
+}
+
 /** Mount a fresh page with #root and the harness bundle loaded. */
 export async function mountHarness(page) {
+  await serveCardFonts(page);
   await page.setContent(PAGE_HTML, { waitUntil: "domcontentloaded" });
   await page.addScriptTag({ content: readFileSync(BUNDLE, "utf8") });
   await page.waitForFunction(() => Boolean(window.__evcc));

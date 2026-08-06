@@ -26,6 +26,12 @@ const RUN = Boolean(process.env.CI) || Boolean(process.env.VISUAL);
 const GALLERY_IDS = [
   "rooms-active",
   "rooms-cyrillic",
+  // Added with the OpenDyslexic gallery case (dd2ec11, 2026-08-04) and never
+  // listed here, so the drift guard has been red ever since — unseen, because
+  // nothing was pushed and CI never ran it. Its baseline is generated AFTER the
+  // typeface was fixed to actually apply (c465ba7); a baseline taken on 08-04
+  // would have frozen the broken render, where the case showed the default face.
+  "rooms-opendyslexic",
   "review-badges",
   "mapping-badges",
   "external-jobs",
