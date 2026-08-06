@@ -40,8 +40,10 @@
   "title": "Card: the two failure-renders-as-success paths (FE-ERR-1 / MZ-2)",
   "note": "Blocked on a backend `supports_response` change.",
   "subsystem": "frontend",
-  "blocked_by": "backend supports_response change",
-  "note_recovery": "verbatim"
+  "blocked_by": null,
+  "note_recovery": "verbatim",
+  "closed": "2026-08-05",
+  "closed_evidence": "VERIFIED AT SOURCE AND BY TEST 2026-08-05. Both failure-renders-as-success paths are closed by ONE centralised check in src/actions/core.js:89-95 -- inside the shared service caller, so it is asked once rather than at each call site:\n    if (returnResponse && result && typeof result === 'object') {\n      const refused = result.success === false\n        || (result.started === false && result.reason !== 'confirmation_required');\n      if (refused) this.showServiceRefusalToast(result.reason);\n    }\n  It handles BOTH backend refusal shapes -- {success:false, reason} (RP-031, most services) and {started:false, reason} (job_control's start_*) -- either of which was previously handed back identically to a genuine success: no toast, nothing. MZ-2 specifically was {started:false} handled per call site where only ONE of three ever did it: startCleaning toasted, cleanZone and startRunProfile did not, so a refused ad-hoc zone clean was completely silent while the user believed the robot was going. confirmation_required is deliberately EXEMPT -- it is a prompt, not a refusal, and toasting it would put an error beside a question the user is being asked.\n  10 regression tests pass: [CSF-1..6] core-service-failure.test.mjs (error toast names the service, failed call still returns null so existing null-checks keep working, success raises no toast, response payload untouched, no-toast-host does not throw, message routes through i18n not a literal) and [MZT-1..4] map-zone-clean-refusal-toast.test.mjs (job_in_progress refusal toasts with its reason, cleanZone passes returnResponse=true, a genuine dispatch raises no toast as control, no vacuum entity means no call and no toast).\n  The carried entry's blocked_by, 'backend supports_response change', is STALE: the code reads returnResponse and the structured result throughout. Nothing was waiting on the backend."
  },
  {
   "key": "qualification_gap",
