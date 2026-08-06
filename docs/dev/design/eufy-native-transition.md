@@ -14,6 +14,19 @@ thresholds** (and re-confirm the file:line anchors). See
 [Wave 0 results](#wave-0--the-validation-gate-captured-2026-06-20). Anchors below are *as-investigated*
 and must be re-confirmed at implementation time (verify-vs-code rule).
 
+> **Current state (2026-08-06).** The track that shipped (1.8.0, see "Shipped" below) is the **W5
+> pose/attribution path** — the in-job hybrid's prerequisite shims #1–#4 and the W3 flag flip were
+> **never wired into the `live_transition` seam**: Eufy still declares
+> `live_transition.native_transition_source: False` (`adapters/eufy/adapter.py:785`) and still uses
+> `active_cleaning_target` as its secondary completion sentinel (`adapters/eufy/adapter.py:439`);
+> Roborock declares `True` (`adapters/roborock/adapter.py:521`). Two structural moves since the
+> anchors were taken: external-run finalize is now owned by `ExternalRunManager` in
+> `learning/external_run.py` (the W5c bullet's `core/manager.py::_finalize_external_run` anchor
+> still resolves — `core/manager.py:3795` — but as a thin delegator; the substance is
+> `learning/external_run.py:351`), and the throwaway `debug_log_live_room` probe **handler** has
+> been removed (`listeners/pose_sampler.py` is its production successor) — though its orphaned
+> `services.yaml` block remains (`services.yaml:3168`).
+
 ## The question
 
 Eufy now exposes a per-frame `current_room` (read from eufy-clean's in-memory `MapData`,
@@ -362,7 +375,7 @@ The native-attribution path is live for **Eufy and Roborock**, on **app-started 
 
 ## Related
 
-- `docs/dev/map-state-source.md` — where the rid signal comes from.
+- `docs/dev/design/map-state-source.md` — where the rid signal comes from.
 - `docs/dev/29-roborock-adapter.md` — the native-rollover precedent.
 - `docs/dev/06-job-lifecycle.md` — the rollover tick + phase model.
 - memory: `reference_eufy_intersession_coord_drift`, `project_room_segmentation_unified`,

@@ -9,7 +9,7 @@ the [i18n system reference](../dev/frontend/i18n-system.md).
 ## Where strings come from
 
 English (`src/i18n/en.js`) is the source of truth and the complete key list —
-~2,090 keys. A locale is a **subset**: anything you leave out (or get wrong)
+~2,520 keys. A locale is a **subset**: anything you leave out (or get wrong)
 falls back to English, so a partial translation is perfectly valid and ships
 fine. Start from the generated English reference — it carries a context comment
 on every ambiguous key, so you can translate without reading the source:
@@ -17,7 +17,7 @@ on every ambiguous key, so you can translate without reading the source:
 **→ [Open `en.reference.jsonc`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc)** — click **Raw** (or **⋯ → Download**) to grab it, translate the values, and save as `<code>.json`.
 
 (Repo path: `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc`. The
-shipped locales — [`de`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/frontend/locales/de.json) / `fr` / `es` / `nl` / `it` / `pt` / `ru.json` in that same folder — are good models for structure.)
+17 shipped locales in that same folder — [`de`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/frontend/locales/de.json) / `fr` / `es` / `nl` / `it` / `pt` / `ru` / `pl` / `cs` / `tr` / `id` / `ar` / `he` / `ja` / `ko` / `zh-Hans` / `zh-Hant.json` — are good models for structure.)
 
 ## Authoring format
 
@@ -71,7 +71,7 @@ before it loads. Knowing the rules keeps your file from being rejected:
   see `<span>` in the UI). That's your cue to fix it; it isn't a security problem.
 - **Active content quarantines the whole file.** A `<script>`/`<iframe>`, an
   `onclick=`/`onerror=`, a `javascript:` link — any of these is treated as
-  tampering and the **entire file is rejected** (the other ~1,900 keys share its
+  tampering and the **entire file is rejected** (the other ~2,500 keys share its
   source, so none are trusted). Translations never need any of this.
 
 If a file is quarantined it's remembered by its content hash and skipped silently
@@ -89,9 +89,10 @@ defines exactly what each status controls (and how it differs from the intake
 gate's safety outcomes).
 
 The per-language **[native-review worklist](translation-review.md)** lists the
-specific judgment-calls flagged for each shipped locale
-(`de`/`fr`/`es`/`nl`/`it`/`pt`/`ru`) — a native speaker's to-do list. Confirm or
-correct an item there or in the
+specific judgment-calls flagged for the first seven shipped locales
+(`de`/`fr`/`es`/`nl`/`it`/`pt`/`ru`) — a native speaker's to-do list. (The later
+locales — `pl`/`cs`/`tr`/`id`, RTL `ar`/`he`, and CJK `ja`/`ko`/`zh-Hans`/`zh-Hant`
+— ship as drafts without a worklist yet.) Confirm or correct an item there or in the
 [translate discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).
 
 To contribute a language upstream, open a PR adding `<code>.json` to the served

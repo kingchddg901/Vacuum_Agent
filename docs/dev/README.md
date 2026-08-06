@@ -8,10 +8,12 @@ Read them in this order if you are new to the codebase; jump in anywhere if you 
 
 ## Foundation
 
-Start here. These four files give you the mental model you need before reading anything else.
+Start here. The standard first — the bar every subsystem doc is held to — then the four
+files that give you the mental model you need before reading anything else.
 
 | # | File | What it covers |
 |---|---|---|
+| 00 | [disaster-recovery-standard](00-disaster-recovery-standard.md) | The disaster-recovery doc standard: the DR-grade rubric, meta-rules, and the per-subsystem audit-status table |
 | 01 | [architecture-overview](01-architecture-overview.md) | The big picture: adapter pattern, data flow, concurrency rules, subsystem map |
 | 02 | [ha-integration](02-ha-integration.md) | Config entry lifecycle, platform setup, entity registration, coordinator pattern |
 | 03 | [data-model](03-data-model.md) | The persistent store schema — every top-level key and what lives under it |
@@ -98,7 +100,7 @@ Cross-cutting features that span several subsystems.
 
 Not in the numbered reading order — design rationale the subsystem docs point to.
 
-- **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation), `voice-assist-wizard` (design-only, not yet implemented).
+- **[design/](design/map-state-source.md)** — design/proposal references: `map-state-source` (the provider-map-source seam rationale, paired with [31](31-map-source-coordinator.md)), `eufy-native-transition` (native current-room detection design + validation; its pose/attribution track shipped in 1.8.0), `voice-assist-wizard` (design-only, not yet implemented).
 - **[32-core-minimality-and-deconstruction](32-core-minimality-and-deconstruction.md)** — the irreducible-core map (analysis, not a changelog).
 
 *(The battery-accounting and external-run-robustness follow-up trackers were folded into their subsystem docs — [12 §9](12-battery-system.md) and [28 §11](28-external-run-ingestion.md) — and removed 2026-07-29 once their items were closed.)*
@@ -114,6 +116,20 @@ set in **[frontend/](frontend/architecture-overview.md)**. Start with the **arch
 
 ---
 
+## Reference & maintenance
+
+Not in the numbered reading order.
+
+- **[reference/](reference/ai-theme-authoring.md)** — theme-token references:
+  [THEME_TOKEN_MAP](reference/THEME_TOKEN_MAP.md) + [THEME_TOKEN_USAGE](reference/THEME_TOKEN_USAGE.md)
+  (both **generated** — regenerate with `node scripts/gen-theme-token-docs.mjs`, never hand-edit) and
+  [ai-theme-authoring](reference/ai-theme-authoring.md) (theming the card with an AI assistant).
+- **[maintenance/](maintenance/highly-aggressive-audit.md)** — the hostile-audit working ledger
+  (`highly-aggressive-audit`): what each subsystem audit found, what is fixed, what is still open.
+  **Repo-only** — excluded from the published docs site (`exclude_docs` in `mkdocs.yml`).
+
+---
+
 ## Contributing docs
 
 Not numbered — separate audience.
@@ -121,6 +137,9 @@ Not numbered — separate audience.
 - [porting-guide](../contributing/porting-guide.md) — end-to-end workflow for adding a new vacuum brand
 - [animal-authoring](../contributing/animal-authoring.md) — public path: submit a declarative animal **descriptor** (sanitised + codegen'd) — the safe way to share a companion
 - [mascot-authoring](../contributing/mascot-authoring.md) — maintainer / runtime path: hand-written `animals/<id>.js` (`register()`, `type:'custom'`) plus the craft standards that apply to both paths
+- [theme-authoring](../contributing/theme-authoring.md) — making a card theme (editor / AI-assisted / hand-written JSON) and sharing it in the gallery
+- [translating](../contributing/translating.md) — contributing a card translation (a JSON locale file — data, not code)
+- [translation-review](../contributing/translation-review.md) — AI-drafted-translation review notes awaiting native-speaker confirmation
 
 ## Testing docs
 

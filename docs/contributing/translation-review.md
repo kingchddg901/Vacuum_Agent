@@ -23,10 +23,10 @@ Verdicts: de = usable_with_fixes (now good after the fan-speed fix); all others 
 > already native, e.g. "Deutsch (Entwurf)"). The canonical English source is `en.reference.jsonc`.
 
 > **`mapping_review.*` keys — retired:** the Map Bounds Review view was removed in the
-> mapping split (room tracking now runs off the device native current-room signal), so the
-> `mapping_review.*` strings still sitting in the bundles are dead and pending the batch i18n
-> prune. **Skip any `mapping_review.*` item struck through below** — no native review is
-> needed for strings that no longer render.
+> mapping split (room tracking now runs off the device native current-room signal), and the
+> `mapping_review.*` strings have since been pruned from the English catalog and every
+> locale bundle. **Skip any `mapping_review.*` item struck through below** — no native
+> review is needed for strings that no longer exist.
 
 ## ru (Russian — pilot, live native review)
 - `learning.queue_missed_rooms` — lost the imperative verb, reads as a fragment. → e.g. "Добавить пропущенные комнаты в очередь".

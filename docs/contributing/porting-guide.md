@@ -41,9 +41,10 @@ framework contract.
 An adapter is a small package mirroring `adapters/eufy/`. The table below is the
 **Eufy reference — the maximal surface**, not a required checklist: most files
 are optional. A divergent brand ships only what it needs — Roborock, for example,
-is just `adapter.py` / `const.py` / `entities.py` / `vocabulary.py` /
-`model_catalog.py` / `maintenance_components.py` (no `buttons` / `discovery` /
-`lifecycle` / `water_config` / `upkeep` / `segmentor`). See the
+is `adapter.py` / `const.py` / `entities.py` / `vocabulary.py` /
+`model_catalog.py` / `maintenance_components.py` plus its upkeep guide library
+(`upkeep_catalog.py`, `roborock_upkeep_guides.py`, `upkeep_guides_i18n/`) — no
+`buttons` / `lifecycle` / `water_config` / `segmentor`. See the
 [Roborock adapter](../dev/29-roborock-adapter.md) §2 for that minimal-surface
 example.
 
@@ -52,10 +53,9 @@ example.
 | `adapter.py` | Builds the config dict and calls `register_adapter_config(...)`. Entry point: `register_eufy_adapter_for_vacuum(hass, vacuum_entity_id)`. |
 | `entities.py` | Entity-ID naming convention (role → entity_id). |
 | `vocabulary.py` | Brand state-string vocabulary sets. |
-| `discovery.py` | How the room list is read from the integration. |
 | `lifecycle.py` | Brand lifecycle signal helpers. |
 | `buttons.py` | Dock-action and replacement-reset button candidate/token lists (the single source `adapter.py` builds `dock_events.action_buttons` and `maintenance_components[*].reset_button` from). |
-| `maintenance_components.py`, `upkeep_catalog.py`, `water_config.py`, `model_catalog.py`, `constants.py` | Static per-model catalogs and tuned constants. |
+| `maintenance_components.py`, `upkeep_catalog.py`, `eufy_upkeep_guides.py` (+ `upkeep_guides_i18n/`), `water_config.py`, `model_catalog.py`, `constants.py` | Static per-model catalogs, upkeep guides, and tuned constants. |
 | `segmentor.py` | (Optional) brand CV map segmentor. |
 
 The config dict it builds must match the schema in
@@ -118,8 +118,11 @@ value maps — no new code. Roborock (`app_segment_clean`):
     "service_domain": "vacuum", "service_name": "send_command",
     "command": "app_segment_clean",
     "rooms_field": "segments", "clean_passes_field": "repeat",
+    # app_segment_clean wants `params` LIST-wrapped on the wire — without
+    # this the bare dict reaches the device and the clean does not start.
+    "params_as_list": True,
 },
-# → {"command": "app_segment_clean", "params": {"segments": [16, 17], "repeat": 2}}
+# → {"command": "app_segment_clean", "params": [{"segments": [16, 17], "repeat": 2}]}
 ```
 
 Dreame (`vacuum_clean_segment`, parallel arrays via a `room_fields` transpose):
@@ -242,9 +245,10 @@ context in [Roborock adapter](../dev/29-roborock-adapter.md).
   (authoritative room bboxes + dock/robot anchors) into normalized, VA-owned
   geometry, plus the **in-memory live pose** for the moving overlays. `map_render`
   declares how the card sources the raster for its own VA-owned backdrop (the
-  source pointer is reused from `map_state_source`, no duplicate schema). Eufy
-  declares both against eufy-clean's storage backend; a brand whose
-  integration already exposes frame-fresh map data (Roborock) omits them.
+  source pointer is reused from `map_state_source`, no duplicate schema). Both
+  brands declare both: Eufy against the eufy-clean fork's storage backend,
+  Roborock against the HA-core integration's in-memory parsed map (a `memory`
+  backend + the `roborock_raw_map_v1` render decode).
 - `room_attribution` — a pluggable engine that recovers **which** managed rooms an
   **external** (undispatched) run cleaned, from a per-tick pose time-series. A
   different axis from the job/run segmenter (§9): that one owns time/area
@@ -393,6 +397,9 @@ block; `live_transition` carries only the live-rollover orchestration knobs:
     "tuning": {
         "gap_delayed_s": 35.0, "gap_transit_s": 60.0, "gap_plateau_s": 90.0,
         "area_jump_m2": 2.0, "cadence_s": 30.0,
+        # A gap longer than this between cleaning_time ticks INSIDE a segment
+        # is a firmware freeze / over-long dock — carved out of time_wall_s.
+        "stall_wall_s": 600.0,
     },
 },
 "live_transition": {
@@ -414,10 +421,11 @@ instead of the counter/timing heuristic. See the
 [Roborock adapter](../dev/29-roborock-adapter.md) and
 [Adapter config reference](../dev/22-adapter-config-reference.md) §13b.
 
-> **Threshold home moved.** The five gap/area/cadence thresholds
+> **Threshold home moved.** The six gap/area/cadence/stall thresholds
 > (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`,
-> `cadence_s`) now live **only** in `job_segmenter.tuning`. They are no longer
-> carried in `live_transition` — any older note that listed them there is stale.
+> `cadence_s`, `stall_wall_s`) now live **only** in `job_segmenter.tuning`.
+> They are no longer carried in `live_transition` — any older note that listed
+> them there is stale.
 
 `registry._validate_adapter` validates a declared `job_segmenter` block (mirrors
 the mapping check): `engine` is required when the block is present, must be a
@@ -459,14 +467,17 @@ The Eufy adapter declares this block **by reference** to the in-code constants
 (no duplication). `registry._validate_adapter` applies a light check: the block
 must be a dict, `default_profile` a string, and the catalog sub-keys dicts.
 
-**Honest boundary.** The catalog is wired into the **dispatch** path only
-(`queue/queue_engine.py::build_room_clean_payload` resolves it from the adapter
-and threads it into per-room profile resolution + capability gating). The
-**global profile editor** (`profiles/manager.py`) and the pure room-builder
-defaults (`rooms/room_manager.py`) lack per-vacuum context, so they use the
-framework default catalog. For Eufy this is byte-identical; for a second brand
-those editor surfaces would show framework defaults until threaded — a documented
-follow-up, not a wired feature.
+**Where it's consumed.** The per-vacuum catalog is resolved (via
+`resolve_profile_catalog` on the vacuum's registered `room_profiles` block) at
+three consumers: the **dispatch** path
+(`queue/queue_engine.py::build_room_clean_payload` threads it into per-room
+profile resolution + capability gating), **profile application**
+(`profiles/manager.py::apply_room_profile` resolves the vacuum's catalog so an
+omitted field fills from the brand's `normalize_defaults`, not the in-code Eufy
+ones), and **new-room defaults**
+(`rooms/room_defaults.py::resolve_new_room_defaults_for_vacuum`, used by the
+room-creation call sites). An unregistered adapter or absent block resolves the
+in-code framework catalog — byte-identical to Eufy's.
 
 ---
 
@@ -476,7 +487,8 @@ These subsystems operate entirely on the internal data model / HA service calls
 and need no brand work:
 
 - **Learning** (`learning/`) — consumes canonical `resolved_rooms` + lifecycle
-  events. Per-room *run segmentation* is the one pluggable seam here (§9); the
+  events. Per-room *run segmentation* (§9) and external-run *room attribution*
+  (§6a; `learning/room_attribution_engines.py`) are the pluggable seams here; the
   rest (history store, external ingest, accumulation) is brand-agnostic.
 - **Queue engine** (`queue/queue_engine.py`) — ordering, enabled-room filtering,
   access graph, blocker/modifier rules, start protection.
@@ -485,8 +497,8 @@ and need no brand work:
 - **Mapping/bounds** (`mapping/`) — trace-based bounds from position sensors
   (coordinate units may need adjustment per brand).
 - **HA entity platforms** — `button.py`, `switch.py`, `number.py`, `sensor/`
-  (the integration registers **five** platforms: `binary_sensor`, `button`,
-  `switch`, `number`, `sensor` — there is no `select` platform).
+  (the integration registers **six** platforms: `binary_sensor`, `button`,
+  `switch`, `select`, `number`, `sensor`).
 - **Listeners** (`listeners/` package) — lifecycle/finalize, job progress, dock
   events, path blockers, pause timeout. Driven by adapter config.
 - **Card frontend, theme system, profile system** — fully brand-agnostic.

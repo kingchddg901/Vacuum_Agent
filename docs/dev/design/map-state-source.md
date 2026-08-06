@@ -8,6 +8,17 @@ the parser's own `ImageDimensions.to_img(...).rotated(...)` transform (the live 
 verified exact by hand against the raw room coords). No consumer wiring yet (Wave 3). No eufy-clean
 changes required.
 
+> **Current state (2026-08-06).** This file is the design + build log; the shipped coordinator is
+> documented in [31-map-source-coordinator](../31-map-source-coordinator.md). Wave 3 consumer wiring
+> has since landed: the card overlay layers + "Map Layers" panel and the
+> `sensor.<vac>_map_overlays` mirror (both below), and the live room signal now drives room
+> attribution on both brands (shipped 1.8.0 — see
+> [eufy-native-transition](eufy-native-transition.md), "Shipped") — **Eufy** via this reader's
+> decoded-map pose (`async_get_map_live_pose`, `room_attribution.source: live_pose`), **Roborock**
+> via its native current-room NAME entity (`source: native_current_room` — its attribution path
+> does not go through `map_state_source` at all). One Wave-1 claim has since diverged: Roborock no
+> longer omits `map_render` — see the marked note in the self-render section.
+
 ### Roborock specifics (learned at runtime, 2026-06-19)
 
 - Parsed geometry is NOT on the coordinator (`runtime_data` carries only id→name metadata) — it
@@ -174,6 +185,14 @@ live-map-camera crop). Adapter-driven, brand-agnostic core + card.
   `eufy_room_pixels_v1`) and **reuses the `map_state_source` store pointer** (no duplicate
   schema). Roborock omits it → `supports_va_render: false` → the card hides the toggle (its
   HA-core render is already frame-matched).
+
+  > **Current state (2026-08-06):** Roborock has since gained its own `map_render` block
+  > (`format: "roborock_raw_map_v1"`, `adapters/roborock/adapter.py` — re-decodes the raw map
+  > blob's segment layer to a per-pixel room-id raster), so `supports_va_render` is now `True`
+  > for **both** brands (gated on `isinstance(_adapter_cfg.get("map_render"), dict)` in
+  > `core/manager.py::get_dashboard_snapshot`). The "Roborock omits it" line above records the
+  > Wave-1 (2026-06-19) state. Details: [22 §13a.3](../22-adapter-config-reference.md) /
+  > [29](../29-roborock-adapter.md).
 - **Service** `get_map_render_data` → `manager.async_get_map_render_data` (a thin delegator to
   `MapSourceCoordinator.async_get_map_render_data` in `mapping/map_source_coordinator.py`)
   dispatches by `map_render.format`, executor-reads `.storage`, returns the raster (`room_pixels`

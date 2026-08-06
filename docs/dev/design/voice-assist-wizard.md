@@ -5,6 +5,12 @@
 > file/symbol references must be **re-confirmed against current code at implementation
 > time** (verify-vs-code rule). Authored 2026-06-28.
 
+> **Current state (2026-08-06): still design-only.** No `conversation.py`, no `voice/` module,
+> and no `conversation` dependency exist in the integration. One contract input has moved since
+> authoring: the standing i18n contract now covers **18 languages (17 locale packs + bundled
+> English)** (locked; new packs only on user request) — this doc's "+7 locales" figures are the
+> 2026-06-28 count.
+
 ## 1. Goal
 
 Drive the existing "configure a clean" flow over **Home Assistant Assist voice** as a
