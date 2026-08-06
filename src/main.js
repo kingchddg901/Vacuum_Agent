@@ -450,9 +450,23 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * CSS has nothing keyed to a "default" value to match.
    */
   _applyFontAttribute() {
+    this._applyFontAttributeTo(this);
+  }
+
+  /**
+   * Stamp (or clear) the typeface id on one element.
+   *
+   * Shared by the card host and the two body-mounted hosts so they cannot drift:
+   * a font selected on the card must reach its modals and toasts, and those live
+   * outside the shadow tree where the token is declared.
+   *
+   * @param {HTMLElement|null} el - target element.
+   */
+  _applyFontAttributeTo(el) {
+    if (!el) return;
     const fontId = this._uiFont;
-    if (fontId && fontId !== FONT_DEFAULT) this.setAttribute("data-evcc-font", fontId);
-    else this.removeAttribute("data-evcc-font");
+    if (fontId && fontId !== FONT_DEFAULT) el.setAttribute("data-evcc-font", fontId);
+    else el.removeAttribute("data-evcc-font");
   }
 
   /**
@@ -1599,6 +1613,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // resolved language's direction on it, or an RTL card's modals render LTR
     // (numbered steps + headings on the wrong side) with only per-character bidi.
     applyDir(this._modalHost, resolveLang(this._hass, this._config, this._langOverride));
+    // Same reason as applyDir above: a body-mounted host cannot inherit the
+    // typeface token, which is set on :host([data-evcc-font]) in the card's own
+    // shadow tree. Stamp the id so the host's stylesheet can key off it — the
+    // @font-face itself is registered document-wide, so the face is available
+    // here even though the token is not.
+    this._applyFontAttributeTo(this._modalHost);
 
     const modalMarkup = `<style>${MODAL_HOST_STYLES}</style>${html}`;
     if (this._modalHost.dataset.renderedHtml !== modalMarkup) {
@@ -1698,6 +1718,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // Body-mounted like the modal host — stamp the card's resolved direction so
     // RTL toasts align/flow correctly instead of inheriting the document's LTR.
     applyDir(this._toastHost, resolveLang(this._hass, this._config, this._langOverride));
+    // Same reason as applyDir above: a body-mounted host cannot inherit the
+    // typeface token, which is set on :host([data-evcc-font]) in the card's own
+    // shadow tree. Stamp the id so the host's stylesheet can key off it — the
+    // @font-face itself is registered document-wide, so the face is available
+    // here even though the token is not.
+    this._applyFontAttributeTo(this._toastHost);
 
     const markup = `<style>${TOAST_HOST_STYLES}</style>${html}`;
     if (this._toastHost.dataset.renderedHtml !== markup) {

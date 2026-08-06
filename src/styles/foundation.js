@@ -277,7 +277,14 @@ export const foundationStyles = `
     background: var(--evcc-surface-card);
     border-radius: var(--evcc-radius-card);
     color: var(--evcc-text-primary);
-    font-family: var(--paper-font-body1_-_font-family, sans-serif);
+    /* --evcc-font-family FIRST, or the accessibility typeface is inert. This is
+       the card shell every surface inherits from, and it used to name the HA paper
+       font directly — so styles/fonts.js set the token on :host and nothing in the
+       card ever read it. The two rules that DID read it are the modal and toast
+       hosts, which live on document.body and cannot inherit a token set on :host,
+       so the feature was broken in both directions and OpenDyslexic never applied
+       anywhere. The fallback chain is unchanged for the default typeface. */
+    font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
     font-size: 14px;
     line-height: 1.5;
     position: relative;

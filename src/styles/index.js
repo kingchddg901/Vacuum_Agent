@@ -116,6 +116,16 @@ export function applyDynamicTheme(card, resolvedTheme) {
    child of body with no transform ancestors.
    ========================================================= */
 export const MODAL_HOST_STYLES = `
+
+  /* TYPEFACE — this host cannot inherit --evcc-font-family, which is declared on
+     :host([data-evcc-font]) inside the card's shadow tree. main.js stamps the same
+     attribute here (_applyFontAttributeTo), so the token is re-declared for this
+     branch of the document. The @font-face itself is registered document-wide, so
+     only the token needs restating, not the face. Without this the card switches
+     typeface and its modals do not. */
+  .evcc-modal-host[data-evcc-font="opendyslexic"] {
+    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+  }
   * {
     box-sizing: border-box;
     margin: 0;
@@ -899,6 +909,16 @@ export const MODAL_HOST_STYLES = `
    re-enables them.
    ========================================================= */
 export const TOAST_HOST_STYLES = `
+
+  /* TYPEFACE — this host cannot inherit --evcc-font-family, which is declared on
+     :host([data-evcc-font]) inside the card's shadow tree. main.js stamps the same
+     attribute here (_applyFontAttributeTo), so the token is re-declared for this
+     branch of the document. The @font-face itself is registered document-wide, so
+     only the token needs restating, not the face. Without this the card switches
+     typeface and its toasts do not. */
+  .evcc-toast-host[data-evcc-font="opendyslexic"] {
+    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+  }
   * {
     box-sizing: border-box;
     margin: 0;
