@@ -376,13 +376,36 @@ def register_roborock_adapter_for_vacuum(
                 "mopping_roller_1", "mopping_roller_2", "mopping_roller_error_2",
                 "low_battery", "audio_error",
             ],
-            # NO error_label_keys, deliberately. sensor.{id}_vacuum_error is an HA
-            # enum sensor whose 54 states Home Assistant ALREADY translates, in every
-            # language it ships. Minting fault.roborock.* keys would duplicate a table
-            # HA maintains and force 18 packs of our own — the opposite of
-            # [[feedback_kiss_upstream_signals]]. The card reads the entity's
-            # translated state for this brand; Eufy needs its own table only because
-            # its codes are bare numbers with no upstream label.
+            # NO error_label_keys, and the reason is only HALF settled — read this
+            # before building the per-error label surface.
+            #
+            # SETTLED: sensor.{id}_vacuum_error is an HA enum sensor whose 54 states
+            # Home Assistant ships translations for, in every language it supports.
+            # Minting fault.roborock.* keys here would duplicate a table HA already
+            # maintains and cost 18 packs of our own, which is the opposite of
+            # [[feedback_kiss_upstream_signals]]. Eufy needs its own table only
+            # because its codes are bare numbers with no upstream label at all.
+            #
+            # NOT SETTLED, and an earlier draft of this comment asserted it as fact:
+            # HOW the card would obtain that translated string. `hass.states.get(...)
+            # .state` returns the RAW enum ("bumper_stuck") — HA translates entity
+            # states in the FRONTEND at display time, not on the state object. As of
+            # 2026-08-05 this card has never translated an HA state: no
+            # formatEntityState, no computeStateDisplay, no hass.localize anywhere in
+            # src/. So there is no existing seam to lean on, and three routes are
+            # open, none verified:
+            #   1. hass.localize("component.roborock.entity.sensor.vacuum_error"
+            #      ".state.<enum>") — depends on the roborock integration's
+            #      translations being loaded in the frontend, which is NOT guaranteed
+            #      just because we ask for the key.
+            #   2. hass.formatEntityState(stateObj) — newer frontend API; availability
+            #      on the shipped HA baseline unchecked.
+            #   3. our own fault.roborock.* keys after all — guaranteed to work,
+            #      at the cost this block exists to avoid.
+            # Nothing currently shipped depends on the answer: the review badge
+            # surfaces error_seconds_by_source, which is numbers rendered through the
+            # card's OWN translated keys. Settle route 1 vs 2 with a live check before
+            # writing the label surface, not from this comment.
         },
 
         "dispatch": {
