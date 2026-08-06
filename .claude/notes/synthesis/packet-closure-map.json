@@ -928,5 +928,13 @@
    "live:DEPLOY-PURGE-1"
   ],
   "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
+ },
+ {
+  "packet_id": "RP-053",
+  "repair_family": null,
+  "finding_ids": [
+   "#18:A7-ROBORO-4"
+  ],
+  "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
  }
 ]

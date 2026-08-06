@@ -191,15 +191,27 @@ def roborock_render_data(
         # were computed (see decode, header_len-16/-12) and then thrown away
         # here, so nothing downstream could ever discover an offset existed.
         #
-        # They are emitted, not APPLIED. Every overlay composited on this raster
-        # (robot/dock anchors, no-go and no-mop quads, saved zones) is mapped
-        # from device coordinates via res/origin, and whether those need shifting
-        # by top/left is exactly the pose-registration question this module's
-        # header already defers to hardware ("calibrate on device"). Changing the
-        # render math against an unverified assumption would trade a possible
-        # misalignment for a certain one. Ivy answers this; until then the data
-        # is preserved rather than discarded, so the calibration does not need a
-        # re-decode to get at it.
+        # They are emitted, not APPLIED — and that is VERIFIED as of 2026-08-05,
+        # no longer deferred. DO NOT "fix" this by shifting overlays by top/left;
+        # that double-applies a correction the parser already made.
+        #
+        # WHY 0 IS THE MEASUREMENT, NOT A PLACEHOLDER. Overlays composited on this
+        # raster never see top/left: they project through _mapdata_projector
+        # (map_source_runtime.py:509), which calls the parser's own
+        # ImageDimensions.to_img(point).rotated(dims) — the transform that ALREADY
+        # carries the trim offset top/left describes. And ro_dx/dy specifically are
+        # the OUTLINE→main-grid offset (map_source._outline_geometry), which exists
+        # because Eufy's room_pixels lives in a separate outline frame. Roborock's
+        # raster IS the main grid, so there is nothing to offset from.
+        #
+        # ON-DEVICE (Ivy, 2026-08-05): raw_top/raw_left = 281/245. At 50 mm/px that
+        # is 12.25 m x 14.05 m — a genuine frame mismatch would throw every overlay
+        # off the map, unmissably. Every overlay feature enabled; no-go quads,
+        # walls, saved zones and the dock/robot anchors all landed where they were
+        # drawn. The NON-ZERO offset is what made that a falsifying test: where
+        # top/left are 0, applying and not applying look identical.
+        #
+        # Pinned by [RRD-13].
         "ro_dx": 0,
         "ro_dy": 0,
         "raw_top": int(decoded.get("top", 0) or 0),

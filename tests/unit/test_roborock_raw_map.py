@@ -306,12 +306,29 @@ def test_render_data_preserves_the_decoded_image_offset():
     builder then dropped them, so nothing downstream could discover that an
     offset between the raw IMAGE frame and the render canvas even existed.
 
-    They are EMITTED, NOT APPLIED. ro_dx/dy stay 0, which is correct for the room
-    raster — the raster IS the canvas, with no outline frame to be offset from.
-    Whether the overlays mapped from device coordinates (robot/dock anchors,
-    no-go quads, saved zones) need shifting by these is the pose-registration
-    question this module defers to hardware; changing the render math against an
-    unverified assumption would trade a possible misalignment for a certain one.
+    They are EMITTED, NOT APPLIED — and as of 2026-08-05 that is VERIFIED, not
+    deferred. Two independent confirmations, which is the point of running both:
+
+    STRUCTURAL. The overlays never touch raw_top/raw_left. They project through
+    `_mapdata_projector` (map_source_runtime.py:509), which calls the parser's OWN
+    `ImageDimensions.to_img(point).rotated(dims)` — the transform that ALREADY
+    contains the trim offset top/left describes. So top/left is the header's copy
+    of a fact applied upstream, and shifting by it here would DOUBLE-apply it.
+    Separately, ro_dx/dy are the OUTLINE→main-grid offset (map_source
+    ._outline_geometry) — a Eufy concern, where room_pixels lives in its own
+    outline frame. Roborock's raster IS the main grid, so 0 is not a placeholder,
+    it is the measurement.
+
+    ON-DEVICE. Ivy's live map carries raw_top/raw_left = 281/245 — at 50 mm/px
+    that is 12.25 m x 14.05 m, so a real misalignment would throw every overlay
+    clean off the map, not subtly askew. Chris enabled every overlay feature and
+    confirmed no-go quads, walls, saved zones and the dock/robot anchors all land
+    exactly where he drew them. The non-zero offset is what made this a falsifying
+    test rather than a vacuous one: on a map where top/left are 0, applying and
+    not applying are indistinguishable.
+
+    The eye says the output is right; the structure says WHY it is right. Keep
+    both — the second is what survives the next refactor.
     """
     decoded = decode_roborock_v1_segments(
         _blob(_image_block(4, 3, bytes([_room(5)] * 12), top=17, left=42))

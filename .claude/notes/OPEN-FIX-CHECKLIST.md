@@ -9,20 +9,11 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **462** findings via 65 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050, RP-051, RP-052) |
+| Fixes APPLIED (landed packets) | **463** findings via 66 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050, RP-051, RP-052, RP-053) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
 | Open findings | **2** -- 0 open clusters (29 fully applied) + 2 singles |
 | By severity | CRITICAL 0 / HIGH 0 / MEDIUM 1 / LOW 1 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
-
-
-> ### 1 REOPENED finding(s) — a landed packet was credited with a fix that
-> does not hold. Closure is binary; findings are not.
->
-> **#18:A7-ROBORO-4** — credited to RP-049 (4fbb530), reopened 2026-08-05
-> - **Evidence:** mapping/roborock_raw_map.py still emits ro_dx/ro_dy as literal 0 at :203-204. 4fbb530 closed the half that was a DEFECT -- the IMAGE block's top/left were decoded and then silently dropped, so nothing downstream could discover an offset existed. They are now emitted. APPLYING them is untouched.
-> - **Why:** OPEN, 1 of 2 complete - blocked -> hardware: an S6 bench capture confirming device-frame overlay registration (robot/dock anchors, no-go quads, saved zones). Per charter 2b the surviving half is a sub-item with a NAMED, TYPED blocker, not a closure. I credited it as whole in RP-049, which is the A3-REC-3 forgery that section exists to abolish -- committed, with no irony intended, in a message that quoted the charter. Applying the offset against an unverified assumption would trade a POSSIBLE misalignment for a CERTAIN one, so the deferral is right; recording it as done was not.
-> - **NOT fixable by:** reading the code -- this needs a Roborock S6 on the bench. Ivy can answer it; batch it into the gate-12 hardware session.
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
 else was reported by a finder and confirmed by both adversarial verifiers, but not
@@ -274,9 +265,9 @@ audit is a snapshot, not a ledger.
 
 ### MEDIUM (1)
 
-- [ ] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
-  ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
-  -> IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
+- [ ] **RB-PROJ-1** `mapping/map_source_runtime.py:509` [roborock]  
+  A dead projector empties EVERY Roborock overlay silently — nothing counts the drops, nothing logs  
+  -> _mapdata_projector's `proj` catches Exception broadly and returns None PER POINT, and every caller drops silently: _proj_areas (`if not p: pts=[]; break`), _proj_walls, _proj_rects, _proj_path, _proj_obstacles, and rooms
 
 ### LOW (1)
 
@@ -286,7 +277,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 462 findings closed by a landed packet
+## APPLIED -- 463 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1209,6 +1200,8 @@ a disappeared finding is indistinguishable from one never found.
   The graph refusal offers two exits and only one is reachable — there is no clear-the-access-graph action or service
 - [x] **INF-9** `entity_helpers.py:109` [both] -- **RP-049** (`4fbb530`, 2026-08-05)  
   get_floor_type_label emits hardcoded English into an 18-language product
+- [x] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock] -- **RP-049** (`4fbb530`, 2026-08-05)  
+  ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame
 - [x] **I18N-1** `src/renderers/shared.js:0` [both] -- **RP-049** (`4fbb530`, 2026-08-05)  
   The tRaw docstring claims it escapes interpolated values; it does not — neither t() nor tRaw() escapes vars
 - [x] **A6-GUARD-2** `listeners/path_blockers.py:194` [both] -- **RP-050** (`8d244dc`, 2026-08-05)  
@@ -1253,7 +1246,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 65 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 60 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 66 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 61 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 

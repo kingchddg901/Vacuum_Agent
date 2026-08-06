@@ -664,5 +664,13 @@
   ],
   "landed_at": "2026-08-05",
   "note": "DEPLOY-PURGE-1. deploy-live.ps1 gains /PURGE, authorized by Chris before the edit because the flag makes the script delete from a live Home Assistant config dir. Dry-run showed exactly 2 files / 0 dirs; exclusions (/XD __pycache__, /XF *.pyc) apply to purging too, so HA's compiled cache is untouched. Both orphans removed; repo and live now match with no EXTRA and no Newer. The two files were repairs.py and adapters/eufy/discovery.py, BOTH deleted by RP-040 -- an audit closing batch -- so two findings the ledger called closed had been closed in git and open on the machine ever since. repairs.py is off disk but HA loaded it at startup and it stays resident until a restart."
+ },
+ {
+  "packet_id": "RP-053",
+  "commits": [
+   "5714f8d"
+  ],
+  "landed_at": "2026-08-05",
+  "note": "A7-ROBORO-4 CLOSED BY VERIFICATION, not by a code fix -- the emitted-not-applied shape from 4fbb530 was already correct and is now proven so. Reopened earlier today because RP-049 had credited it whole while its apply-the-offset half sat blocked on hardware; the hardware answered the same day.\n  STRUCTURAL: overlays never read raw_top/raw_left. They project through _mapdata_projector (map_source_runtime.py:509) -> the parser's OWN ImageDimensions.to_img(point).rotated(dims), which already carries the trim offset top/left describes. Applying it here would DOUBLE-apply. Separately ro_dx/dy are the OUTLINE->main-grid offset (_outline_geometry), a Eufy concern where room_pixels has its own frame; Roborock's raster IS the main grid, so 0 is the measurement.\n  ON-DEVICE: Ivy's live map carries raw_top/raw_left = 281/245 -- 12.25 m x 14.05 m at 50 mm/px, so a real mismatch would throw every overlay clean off the map. Chris enabled every overlay feature and confirmed no-go quads, walls, saved zones and dock/robot anchors land where he drew them. The NON-ZERO offset is what made it a falsifying test: where top/left are 0, applying and not applying are indistinguishable.\n  Both halves of eye-and-code agree, for DIFFERENT reasons -- the eye says the output is right, the structure says why. [RRD-13] pins it and its docstring now records the answer instead of the deferral; the module comment carries an explicit DO NOT 'fix' this."
  }
 ]
