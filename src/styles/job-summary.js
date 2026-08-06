@@ -20,7 +20,10 @@
 export const jobSummaryStyles = `
 
   .evcc-job-summary-modal {
-    max-width: var(--evcc-modal-width-lg, 560px);
+    /* Literal, matching the sibling room-estimate modal. There is no width
+       token in this card and inventing one that nothing defines would look
+       themeable while always falling back. */
+    max-width: 560px;
   }
 
   .evcc-job-summary-subtitle {
@@ -28,14 +31,14 @@ export const jobSummaryStyles = `
     color: var(--evcc-text-secondary);
     /* The run id is a machine token; keep it exactly as it is so a user can
        paste it into a search or an issue and have it match. */
-    font-family: var(--evcc-font-mono, ui-monospace, monospace);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     overflow-wrap: anywhere;
   }
 
   .evcc-job-summary-note {
     padding: 8px 12px;
     margin-block-end: 12px;
-    border-radius: var(--evcc-radius-sm, 8px);
+    border-radius: var(--evcc-radius-inner);
     border: 1px solid color-mix(in srgb, var(--evcc-sem-info, var(--evcc-accent)) 30%, transparent);
     background: color-mix(in srgb, var(--evcc-sem-info, var(--evcc-accent)) 10%, transparent);
     color: var(--evcc-text-secondary);
