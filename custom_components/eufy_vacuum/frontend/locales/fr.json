@@ -2865,7 +2865,7 @@
       "invisible_wall_detected": "Mur virtuel détecté",
       "lidar_blocked": "Lidar obstrué",
       "low_battery": "Batterie faible",
-      "main_brush_jammed": "Brosse rotative bloquée",
+      "main_brush_jammed": "Brosse principale bloquée",
       "nogo_zone_detected": "Zone interdite détectée",
       "optical_flow_sensor_dirty": "Capteur de flux optique encrassé",
       "reinstall_water_filter": "Réinstallez le filtre à eau",
