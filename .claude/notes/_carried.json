@@ -47,7 +47,9 @@
   "note": "Surface provenance, truncation and absent data honestly rather than as confident values.",
   "subsystem": "frontend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "closed": "2026-08-05",
+  "closed_evidence": "CLOSED AS NOT VERIFIABLE (Chris, 2026-08-05). The note — 'surface provenance, truncation and absent data honestly rather than as confident values' — names no file, no seam, no symptom. Searched: the only CC-5 corpus row is A2-ACC-5, an unrelated learning/estimator.py slug-matching bug; the src/renderers/review.js:360 CC-5 is a DIFFERENT concern (a clean-mode chip comparison) and is already fixed; and ec83cd7, which claimed 'CC-5 cluster down to two', touched only ledger files, no code. Nothing in the tree corresponds to this entry. It is unverifiable and unactionable by anyone, including whoever wrote it. This is the cautionary case now named in charter gate 15: an item that names no seam does not enter the ledger — a finding that does not name its seam is a note about a feeling.\n  THE UNDERLYING IDEA MAY STILL BE GOOD, and is preserved here rather than lost with the box: the card presents derived values (estimates, confidence, coverage) without always saying where they came from, whether they were truncated, or that the data was absent rather than zero. Chris: 'It may mean we need a new feature.' If pursued it is a FEATURE with its own scoping — pick the surfaces, decide what provenance means per value, decide how absent renders differently from zero — NOT a defect to re-file. Do not resurrect this as a finding without a named seam."
  },
  {
   "key": "surface_run_errors",
