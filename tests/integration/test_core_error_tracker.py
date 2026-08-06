@@ -885,3 +885,78 @@ def test_error_source_for_code_undeclared_brand_reports_unknown():
     register_adapter_config(_VAC, {"error_tracking": {"grace_window_seconds": 5}})
     for code in (6013, 2112, 1, 0, "bumper_stuck"):
         assert error_source_for_code(_VAC, code) == "unknown"
+
+
+# --- live:RB-ERR-1 — core must carry ENUM-STRING codes, not only ints ----------
+#
+# classify_error_code / error_source_for_code / error_label_key all opened with
+# `_exact_int(code)` and bailed on None, so a brand whose codes are enum strings
+# (Roborock: bumper_stuck, wheels_suspended, dirty_water_box_hoare) could never
+# match anything its adapter declared. The Roborock adapter's own note called this
+# "an int-keyed table has nothing to match" — right about the symptom, wrong about
+# the cause. The table was never the problem: core could not carry the code.
+
+_RB = "vacuum.ivy"
+
+
+def _register_string_code_brand():
+    register_adapter_config(_RB, {
+        "adapter_id": "t", "source": "t", "entities": {},
+        "error_tracking": {
+            "dock_sourced_error_codes": ["dirty_water_box_hoare", "collect_dust_error_3"],
+            "robot_sourced_error_codes": ["bumper_stuck", "wheels_suspended"],
+            "evidence_invalidating_error_codes": ["wheels_suspended"],
+            "evidence_safe_error_codes": ["dirty_water_box_hoare", "dock_locator_error"],
+            "error_label_keys": {"bumper_stuck": "fault.rb.bumper_stuck"},
+        },
+    })
+
+
+def test_enum_string_codes_classify_for_a_string_code_brand():
+    """[ET-16] RB-ERR-1: a non-numeric code resolves against the adapter's tables."""
+    _register_string_code_brand()
+    assert et.error_source_for_code(_RB, "bumper_stuck") == "robot"
+    assert et.error_source_for_code(_RB, "dirty_water_box_hoare") == "dock"
+    assert et.classify_error_code(_RB, "wheels_suspended") == "invalidating"
+    assert et.classify_error_code(_RB, "dirty_water_box_hoare") == "safe"
+    assert et.error_label_key(_RB, "bumper_stuck") == "fault.rb.bumper_stuck"
+
+
+def test_string_codes_are_matched_case_insensitively_and_trimmed():
+    """[ET-17] The upstream enum's casing/whitespace must not decide the verdict."""
+    _register_string_code_brand()
+    assert et.error_source_for_code(_RB, "  BUMPER_Stuck ") == "robot"
+
+
+def test_an_undeclared_string_code_still_degrades_safely():
+    """[ET-18] Omission remains the safe default — nothing deducted, nothing claimed.
+
+    This is what lets the Roborock table ship PARTIAL without shipping dangerous:
+    everything the reading could not settle lands here.
+    """
+    _register_string_code_brand()
+    assert et.error_source_for_code(_RB, "light_touch") == "unknown"
+    assert et.classify_error_code(_RB, "light_touch") == "unclassified"
+    assert et.error_label_key(_RB, "light_touch") is None
+
+
+def test_int_guards_survive_the_string_support():
+    """[ET-19] The two int guards are load-bearing and must NOT have been relaxed.
+
+    int(3.7) == 3 is a real Eufy code (SIDE BRUSH STUCK), so a malformed float
+    reading must not classify as a genuine fault and get subtracted. bool is an int
+    subclass, so True must not resolve to code 1.
+    """
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t", "entities": {},
+        "error_tracking": {
+            "robot_sourced_error_codes": [1, 3],
+            "evidence_invalidating_error_codes": [3],
+        },
+    })
+    assert et.error_source_for_code(_VAC, 3) == "robot"        # control: ints still work
+    assert et.error_source_for_code(_VAC, "3") == "robot"      # JSON round-trip still works
+    assert et.error_source_for_code(_VAC, 3.7) == "unknown"    # never int(3.7) -> 3
+    assert et.error_source_for_code(_VAC, True) == "unknown"   # bool is not code 1
+    assert et.classify_error_code(_VAC, 3.7) == "unclassified"
+    assert et.error_source_for_code(_VAC, "") == "unknown"     # empty is absence, not a code

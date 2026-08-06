@@ -303,25 +303,86 @@ def register_roborock_adapter_for_vacuum(
             "grace_window_seconds": 5,
             "error_code_attribute_names": ["error_code", "code", "errorCode"],
             "unknown_error_message": "Unknown error during run",
-            # RF-DOCK clause 5 — DELIBERATELY NO CODE TABLES, stated rather than
-            # merely absent. Roborock is not omitted here because nobody got to
-            # it; it is omitted because the code arrives as an ENUM STRING
-            # ("bumper_stuck", "wheels_suspended") and not a number (see the
-            # error_code_attribute_names note above), so an int-keyed table has
-            # nothing to match and would be a table of guesses.
+            # RF-DOCK clause 5 — NOW DECLARED, as enum STRINGS (live:RB-ERR-1).
             #
-            # The degradation is the safe one and is the reason this can stay
-            # empty: classify_error_code returns "unclassified" for every code,
-            # so NOTHING is deducted from cleaning_time_seconds, and
-            # error_source_for_code returns "unknown", so every fault reports as
-            # unattributed. A Roborock run keeps its full cleaning time and says
-            # honestly that it cannot attribute the fault -- rather than zeroing a
-            # productive run, which is the incident RF-DOCK exists to prevent.
+            # The note that stood here said an int-keyed table "has nothing to
+            # match", and warned that declaring int codes while the tracker sees
+            # strings would silently match nothing. Right about the symptom, wrong
+            # about the cause: the table was never the problem — CORE COULD NOT
+            # CARRY A NON-NUMERIC CODE. classify_error_code / error_source_for_code
+            # / error_label_key all opened with `_exact_int(code)` and bailed on
+            # None, so ANY declaration here was dead on arrival. Core now normalizes
+            # through `_code_key`, which keeps every int guard (never int(3.7); bool
+            # is not code 1; numeric strings still resolve to ints) and lets an enum
+            # brand declare its own code space. That is what the adapter seam is
+            # for: Eufy surfaces numbers, Roborock surfaces strings, and the backend
+            # deals with both.
             #
-            # If these are ever declared, they must be keyed on whatever
-            # classify_error_code actually receives for this brand. Declaring
-            # int codes while the tracker sees strings would silently match
-            # nothing and read as "tables exist, so this is handled".
+            # THE SOURCE SETS ARE READ, NOT MEASURED, AND THAT IS THE RIGHT BAR HERE
+            # (Chris, 2026-08-05): "These are error states. I don't need to see them
+            # to know that certain errors would block a run." Hardware testing
+            # verifies BEHAVIOUR; this is a TAXONOMY — `dirty_water_box` cannot be
+            # robot hardware on any model that has ever shipped. Note Ivy is an S6
+            # with NO dock (supports_base_station False), so the dock rows are
+            # unverifiable here by construction; waiting for a dock to confirm that
+            # a dirty-water tank belongs to the dock is waiting for evidence nobody
+            # needs.
+            #
+            # ANYTHING GENUINELY AMBIGUOUS BY NAME IS LEFT OUT, not guessed:
+            # clear_water_box_* (both robot and dock carry a clean-water tank,
+            # model-dependent), clear_brush_exception*, light_touch, internal_error,
+            # temperature_protection, water_carriage_drop. Omission lands on
+            # unclassified/unknown, which preserves the run's seconds and claims
+            # nothing — the safe degradation this block always relied on.
+            "dock_sourced_error_codes": [
+                "collect_dust_error_3", "collect_dust_error_4",
+                "dirty_water_box_hoare", "sink_strainer_hoare", "strainer_error",
+                "up_water_exception", "drain_water_exception",
+                "filter_screen_exception", "clean_carousel_exception",
+                "clean_carousel_water_full", "check_clean_carouse",
+            ],
+            "robot_sourced_error_codes": [
+                "lidar_blocked", "bumper_stuck", "vertical_bumper_pressed",
+                "wheels_suspended", "wheels_jammed", "cliff_sensor_error",
+                "main_brush_jammed", "side_brush_jammed", "side_brush_error",
+                "fan_error", "no_dustbin", "filter_blocked", "compass_error",
+                "battery_error", "robot_tilted", "wall_sensor_dirty",
+                "optical_flow_sensor_dirt", "visual_sensor", "vibrarise_jammed",
+            ],
+            # INVALIDATING means "these seconds were not cleaning", so it is scoped
+            # to the robot being demonstrably IMMOBILE — not to every robot fault. A
+            # jammed brush or blocked filter degrades quality while the robot keeps
+            # moving and covering floor; deducting that time would destroy a real
+            # observation, which is the asymmetry RF-DOCK turns on (wrongly
+            # crediting adds noise that averages out; wrongly zeroing does not).
+            "evidence_invalidating_error_codes": [
+                "wheels_suspended", "wheels_jammed", "robot_trapped",
+                "robot_tilted", "bumper_stuck", "vertical_bumper_pressed",
+            ],
+            # SAFE = the robot's cleaning evidence stands. Three groups: dock-side
+            # faults it worked straight through; events that are not faults at all
+            # (navigation/informational); and faults that can only fire AFTER
+            # cleaning finished or DURING dock washing — where timing settles the
+            # question even when the hardware boundary does not.
+            "evidence_safe_error_codes": [
+                "collect_dust_error_3", "collect_dust_error_4",
+                "dirty_water_box_hoare", "sink_strainer_hoare", "strainer_error",
+                "up_water_exception", "drain_water_exception",
+                "filter_screen_exception", "clean_carousel_exception",
+                "clean_carousel_water_full", "check_clean_carouse",
+                "nogo_zone_detected", "invisible_wall_detected",
+                "cannot_cross_carpet", "robot_on_carpet", "dock",
+                "dock_locator_error", "return_to_dock_fail", "charging_error",
+                "mopping_roller_1", "mopping_roller_2", "mopping_roller_error_2",
+                "low_battery", "audio_error",
+            ],
+            # NO error_label_keys, deliberately. sensor.{id}_vacuum_error is an HA
+            # enum sensor whose 54 states Home Assistant ALREADY translates, in every
+            # language it ships. Minting fault.roborock.* keys would duplicate a table
+            # HA maintains and force 18 packs of our own — the opposite of
+            # [[feedback_kiss_upstream_signals]]. The card reads the entity's
+            # translated state for this brand; Eufy needs its own table only because
+            # its codes are bare numbers with no upstream label.
         },
 
         "dispatch": {

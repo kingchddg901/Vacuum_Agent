@@ -178,13 +178,13 @@ def classify_error_code(vacuum_entity_id: str, code: Any) -> str:
     toward "trust the run" instead of toward zero, and a code the vendor adds after the
     table was written cannot resurrect the incident above.
     """
-    rid = _exact_int(code)
+    rid = _code_key(code)
     if rid is None:
         return "unclassified"
     cfg = _error_tracking_cfg(vacuum_entity_id)
-    if rid in _int_set(cfg.get("evidence_invalidating_error_codes")):
+    if rid in _code_set(cfg.get("evidence_invalidating_error_codes")):
         return "invalidating"
-    if rid in _int_set(cfg.get("evidence_safe_error_codes")):
+    if rid in _code_set(cfg.get("evidence_safe_error_codes")):
         return "safe"
     return "unclassified"
 
@@ -213,13 +213,13 @@ def error_source_for_code(vacuum_entity_id: str, code: Any) -> str:
     a consumer that defaulted unrecognised faults to "robot" would start blaming
     hardware that is fine.
     """
-    rid = _exact_int(code)
+    rid = _code_key(code)
     if rid is None:
         return "unknown"
     cfg = _error_tracking_cfg(vacuum_entity_id)
-    if rid in _int_set(cfg.get("dock_sourced_error_codes")):
+    if rid in _code_set(cfg.get("dock_sourced_error_codes")):
         return "dock"
-    if rid in _int_set(cfg.get("robot_sourced_error_codes")):
+    if rid in _code_set(cfg.get("robot_sourced_error_codes")):
         return "robot"
     return "unknown"
 
@@ -235,7 +235,7 @@ def error_label_key(vacuum_entity_id: str, code: Any) -> str | None:
     number, which is honest and searchable. Inventing a label would be worse than the
     number it replaced.
     """
-    rid = _exact_int(code)
+    rid = _code_key(code)
     if rid is None:
         return None
     mapping = _error_tracking_cfg(vacuum_entity_id).get("error_label_keys")
@@ -253,6 +253,58 @@ def _int_set(value: Any) -> frozenset[int]:
         return frozenset()
     out = {rid for rid in (_exact_int(v) for v in value) if rid is not None}
     return frozenset(out)
+
+
+def _code_set(value: Any) -> frozenset[Any]:
+    """Coerce a declared code list to comparable keys — ints AND enum strings.
+
+    The int-only sibling above is kept for callers that genuinely mean integers;
+    this is the one the classification seams use, because a brand's code space is
+    the ADAPTER's business (see ``_code_key``).
+    """
+    if not isinstance(value, (list, tuple, set, frozenset)):
+        return frozenset()
+    return frozenset(k for k in (_code_key(v) for v in value) if k is not None)
+
+
+def _code_key(value: Any) -> Any | None:
+    """Normalize one error code to a comparable key: an exact int, or an enum string.
+
+    WHY THIS EXISTS (live:RB-ERR-1). ``classify_error_code``,
+    ``error_source_for_code`` and ``error_label_key`` all used to open with
+    ``_exact_int(code)`` and bail on None — so a NON-NUMERIC code could never match
+    anything, no matter what its adapter declared. Roborock reports enum strings
+    (``bumper_stuck``, ``wheels_suspended``, ``dirty_water_box_hoare``) rather than
+    numbers, so all three seams returned unclassified/unknown/None for every
+    Roborock fault, and writing the brand's tables would have changed nothing. The
+    Roborock adapter's own note reads "an int-keyed table has nothing to match",
+    which is right about the symptom and points at the wrong fix: the table is not
+    the problem, CORE COULD NOT CARRY THE CODE.
+
+    Both int guards are preserved because both are load-bearing:
+      * NEVER ``int()`` on a float — ``int(3.7)`` is 3, a real Eufy code (SIDE BRUSH
+        STUCK), so a malformed reading would classify as a genuine fault and get
+        subtracted from cleaning time.
+      * ``bool`` is an int subclass, so True would otherwise resolve to code 1.
+
+    A numeric STRING still resolves to an int, so an adapter config that round-trips
+    through JSON keeps matching its integer table. Anything else non-empty becomes a
+    lowercased, stripped string key — which is what lets an enum brand declare
+    tables at all. Empty/whitespace is None: absence, not a code named "".
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        try:
+            return int(text)
+        except (TypeError, ValueError):
+            return text.lower()
+    return None
 
 
 def _exact_int(value: Any) -> int | None:
