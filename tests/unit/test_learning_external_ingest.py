@@ -762,3 +762,53 @@ def test_build_graduated_job_ignores_a_malformed_run_errors_value():
     assert blocked == []
     assert rec["outcome"]["had_errors"] is False
     assert rec["outcome"]["errors"] is None
+
+
+# --- SEG-1/SEG-4: the record must be able to reproduce its own input -------------
+
+def test_selected_boundaries_keeps_a_boundary_whose_segment_was_dropped():
+    """SEG-1. `_enrich_segments` drops TRAILING sub-room segments (station clean /
+    re-pass), and it built `active_ids` INSIDE that keep-loop, after the break — so
+    the boundary that opened the dropped stretch was erased from the record.
+
+    Nothing downstream could then tell a run that never had that boundary from one
+    where the drop stage removed it, and the record could not reproduce its own
+    input. That caps replay: tests/replay/reverdict.py re-judges old records with
+    current code, and a record that cannot restate its inputs bounds what
+    re-judging can prove.
+
+    `selected_boundaries` is captured PRE-drop, so it survives. Additive — nothing
+    reinterprets `active_boundaries`, and a record written before this change simply
+    has no key, which reads as "unknown" rather than "empty".
+    """
+    counter = [
+        _c(0, 0, 0),
+        _c(60, 30, 3), _c(90, 60, 6),           # room A: real area
+        _c(540, 90, 9), _c(570, 120, 12),       # 450s plateau -> boundary; room B: real area
+        _c(1000, 150, 12), _c(1030, 180, 12),   # 430s plateau -> boundary; TRAILING: area flat
+    ]
+    settings = [
+        _ss(60, {"clean_mode": "vacuum"}),
+        _ss(540, {"clean_mode": "vacuum_mop"}),
+        _ss(1000, {"clean_mode": "vacuum"}),
+    ]
+    rec = _build(counter, settings)
+    assert rec is not None
+
+    active = rec["active_boundaries"]
+    selected = rec["selected_boundaries"]
+
+    # precondition: the trailing flat-area stretch really was dropped
+    assert len(rec["segments"]) < len(selected) + 1 or len(selected) > len(active), (
+        f"fixture did not produce a dropped trailing segment "
+        f"(segments={len(rec['segments'])}, selected={selected}, active={active})"
+    )
+
+    # THE POINT: selection is a superset — the dropped stretch's boundary survives
+    assert set(active) <= set(selected)
+    assert len(selected) > len(active), (
+        "the dropped trailing segment's boundary is missing from selected_boundaries "
+        "— the record still cannot reproduce its own input"
+    )
+    # and the full detected pool is still there, unchanged, as the third set
+    assert set(selected) <= {int(c["id"]) for c in rec["candidates"]}

@@ -297,15 +297,34 @@ def _enrich_segments(
     baselines: list[dict[str, Any]],
     map_id: Any,
     footprint_by_id: dict[int, float] | None = None,
-) -> tuple[list[dict[str, Any]], int, list[int]]:
+) -> tuple[list[dict[str, Any]], int, list[int], list[int]]:
     """Bake per-segment review fields (settings, passes, shortlist, confidence),
     drop only TRAILING sub-room segments, and re-index 0..N-1.
 
-    Returns ``(out_segments, confident_count, active_boundary_ids)``. Shared by
-    finalize (build_pending_record) and re-segment so the two never drift. A LEADING
-    or middle ~0 m² segment is KEPT (cleaning_area lags — a short first room can read
-    ~0 m² as its area lands on the next segment); only the end-of-run station clean /
-    re-pass is dropped.
+    Returns ``(out_segments, confident_count, active_boundary_ids,
+    selected_boundary_ids)``. Shared by finalize (build_pending_record) and
+    re-segment so the two never drift. A LEADING or middle ~0 m² segment is KEPT
+    (cleaning_area lags — a short first room can read ~0 m² as its area lands on the
+    next segment); only the end-of-run station clean / re-pass is dropped.
+
+    **SEG-1/SEG-4 — the record must be able to reproduce its own input.** Three
+    boundary sets exist and the record used to persist only two:
+
+      candidates          every boundary DETECTED  (already persisted)
+      selected_boundaries what the segmenter CHOSE (this function's `segments` input)
+      active_boundaries   what SURVIVED the trailing-drop below
+
+    ``active_ids`` is appended inside the keep-loop, after its ``break``, so the
+    boundary that opened a dropped trailing segment was erased — and nothing
+    downstream could tell a run that never had that boundary from one where the drop
+    stage removed it. That gap caps replay: ``tests/replay/reverdict.py`` re-judges
+    old records with current code, and a record that cannot reproduce its own input
+    bounds what re-judging can prove.
+
+    ``selected_boundary_ids`` is ADDITIVE and its absence is meaningful: a record
+    written before this change simply has no such key, which reads correctly as
+    "unknown", not as "empty". Nothing reinterprets ``active_boundaries``, so no
+    schema bump and no migration — old records keep meaning exactly what they meant.
     """
     area_by_slug = _baseline_area_by_slug(baselines, map_id)
     conf_by_id = {int(c.get("id", -1)): bool(c.get("confident")) for c in candidates}
@@ -318,6 +337,12 @@ def _enrich_segments(
     out_segments: list[dict[str, Any]] = []
     confident_count = 0
     active_ids: list[int] = []
+    # SEG-1: captured from the PRE-DROP input, so the trailing-drop below cannot erase
+    # it the way it erases active_ids (which is built inside the loop, past the break).
+    selected_ids: list[int] = [
+        int(s["boundary_id"]) for s in segments
+        if isinstance(s, dict) and s.get("boundary_id") is not None
+    ]
     for index, seg in enumerate(segments):
         if index > last_real:
             break  # trailing sub-room stretch — drop it and everything after
@@ -357,7 +382,7 @@ def _enrich_segments(
                 ),
             }
         )
-    return out_segments, confident_count, active_ids
+    return out_segments, confident_count, active_ids, selected_ids
 
 
 def strip_samples(rec: dict[str, Any]) -> dict[str, Any]:
@@ -735,6 +760,7 @@ def build_attributed_job(
         "gap_transit_s": 60.0,  # schema field; unused (no counter resegment for pose-only)
         "candidates": [],  # no counter candidates → resegmentable=False at the service
         "active_boundaries": [],
+        "selected_boundaries": [],   # SEG-1; pose-only run has no counter segmentation
         # Raw pose embedded so the run can be RE-ATTRIBUTED server-side after an engine fix
         # (the pose-path sibling of counter re-segmentation). Stripped before serving to the
         # card. Bounded by _MAX_POSE_SAMPLES (active_job.py).
@@ -797,7 +823,7 @@ def build_pending_record(
             footprint_by_id=footprint_by_id,
         )
 
-    out_segments, _confident_count, active_ids = _enrich_segments(
+    out_segments, _confident_count, active_ids, selected_ids = _enrich_segments(
         segments, candidates, counter, settings, rooms, baselines, map_id,
         footprint_by_id=footprint_by_id,
     )
@@ -840,6 +866,8 @@ def build_pending_record(
         "gap_transit_s": _safe_float(tuning.get("gap_transit_s"), 60.0),
         "candidates": candidates,
         "active_boundaries": active_ids,
+        # SEG-1: what the segmenter SELECTED, before the trailing-drop trimmed it.
+        "selected_boundaries": selected_ids,
         "counter_samples": counter,
         "settings_samples": settings,
         # Raw pose embedded (when a pose stream was captured) so the run can be RE-ATTRIBUTED
@@ -919,7 +947,7 @@ def resegment_pending_record(
         suggested = None
 
     segments = engine.build_segments(counter, active, tuning=seg_tuning)
-    out_segments, _confident_count, active_boundary_ids = _enrich_segments(
+    out_segments, _confident_count, active_boundary_ids, selected_boundary_ids = _enrich_segments(
         segments, candidates, counter, settings, rooms, baselines, map_id,
         footprint_by_id=footprint_by_id,
     )
@@ -933,6 +961,7 @@ def resegment_pending_record(
     new_record["gap_transit_s"] = gap_transit_s
     new_record["candidates"] = candidates
     new_record["active_boundaries"] = active_boundary_ids
+    new_record["selected_boundaries"] = selected_boundary_ids   # SEG-1
     new_record["segments"] = out_segments
     return new_record, meta
 
