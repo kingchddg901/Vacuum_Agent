@@ -46,7 +46,16 @@
 /** Where __init__.py serves frontend/fonts/. Kept in one place. */
 const FONT_BASE = "/eufy_vacuum/fonts";
 
-export const fontStyles = `
+/* The face declarations, alone. Injected into document.head by
+   ensureFontFacesInDocument() below — Chromium does NOT register @font-face
+   rules that live only inside a shadow tree, so a shadow-stylesheet copy of
+   these is inert there (live:FONT-1: four comments asserted "registered
+   document-wide"; nothing performed it, and document.fonts.check() exonerated
+   the gap because check() returns true for a family with no registered faces
+   at all). The rules also remain part of fontStyles for engines that do read
+   them from shadow sheets — duplicate registration of an identical face is a
+   no-op. */
+export const FONT_FACE_CSS = `
   /* Regular + Bold only. Italic and Bold-Italic are deliberately not shipped:
      the card renders no italic body text, and each face is another ~115KB the
      browser might fetch for nothing. Synthetic oblique is an acceptable
@@ -69,6 +78,26 @@ export const fontStyles = `
     font-style: normal;
     font-display: swap;
   }
+`;
+
+const FONT_FACE_STYLE_ID = "eufy-vacuum-font-faces";
+
+/**
+ * Register the typeface's @font-face rules on the DOCUMENT, where every
+ * browser honours them. Idempotent (id-guarded); safe to call from every
+ * bundle entry — whichever loads first wins and the rest no-op. No-op outside
+ * a browser (tests, node).
+ */
+export function ensureFontFacesInDocument(doc = globalThis.document) {
+  if (!doc || !doc.head || doc.getElementById(FONT_FACE_STYLE_ID)) return;
+  const style = doc.createElement("style");
+  style.id = FONT_FACE_STYLE_ID;
+  style.textContent = FONT_FACE_CSS;
+  doc.head.appendChild(style);
+}
+
+export const fontStyles = `
+  ${FONT_FACE_CSS}
 
   /* The override. Set on the shell ROOT so it beats a theme that also sets
      --evcc-font-family: the user's accessibility choice must win over a theme's

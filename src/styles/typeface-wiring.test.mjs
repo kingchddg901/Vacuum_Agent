@@ -71,6 +71,27 @@ test("[TF-4] @font-face still points at the served path, not a CDN", () => {
     "an external font URL appeared — the files ship inside the HACS package");
 });
 
+test("[TF-6] the faces are registered on the DOCUMENT, from every bundle entry", () => {
+  // live:FONT-1 — the connection TF-1..TF-5 never asserted. Chromium ignores
+  // @font-face inside shadow trees, so a shadow-sheet copy registers nothing;
+  // document.fonts.check() cannot catch the gap (it returns true for a family
+  // with no registered faces). The face must be injected into document.head,
+  // and every bundle entry must perform the (idempotent) injection.
+  const fonts = read("./fonts.js");
+  assert.match(fonts, /export function ensureFontFacesInDocument/,
+    "the document-level registration function vanished");
+  assert.match(fonts, /doc\.getElementById\(FONT_FACE_STYLE_ID\)/,
+    "the injection lost its idempotence guard");
+  assert.match(fonts, /doc\.head\.appendChild\(style\)/,
+    "the injection no longer reaches document.head");
+
+  for (const entry of ["../all-cards.js", "../cards-standalone.js", "../cards/vacuum-map-host.js"]) {
+    const src = read(entry);
+    assert.match(src, /ensureFontFacesInDocument\(\)/,
+      `${entry} no longer registers the faces — any surface loaded via that bundle alone renders the fallback forever`);
+  }
+});
+
 test("[TF-5] the picker's own sample renders in the font unconditionally", () => {
   // It must show the typeface BEFORE it is selected, so it cannot go through the
   // token — that would only resolve once the setting is already on.
