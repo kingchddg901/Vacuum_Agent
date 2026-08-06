@@ -15,7 +15,12 @@
   "note": "Two call sites were deliberately not re-pointed at the shared in-flight helper, because doing so would silently add `paused` to what gets sampled. Wants its own change.",
   "subsystem": "backend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "kind": "decision",
+  "decided_at": "2026-08-05",
+  "decision": "KEEP the two call sites off the shared in-flight helper",
+  "rationale": "jobs/active_job.py owns two deliberate predicates (dispatched_job_is_in_flight, run_is_in_flight) and the de-dup instinct says route the pose sampler's two call sites through them. Doing so would SILENTLY WIDEN what gets sampled: the shared helper counts `paused` as in-flight, so pose would start being captured while the robot sits paused mid-room. That is not a refactor, it is a behaviour change wearing a refactor's clothes — exactly the case feedback_centralize_question_not_vocabulary warns about, where ~50% of apparent divergence is deliberate. Divergence here is the point.",
+  "revisit_trigger": "If pose sampling is ever intentionally widened to cover paused time — then route both call sites through the shared helper IN THE SAME CHANGE, so the widening is the visible decision rather than a side effect."
  },
  {
   "key": "roborock_room_migration",
@@ -23,7 +28,12 @@
   "note": "Room *creation* now takes brand-correct defaults. Rooms created before that still carry the old values. Stored user data, so repairing it is a product decision.",
   "subsystem": "backend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "kind": "decision",
+  "decided_at": "2026-08-05",
+  "decision": "DO NOT migrate; surface instead if it ever matters",
+  "rationale": "Room CREATION now takes brand-correct defaults; rooms created before that still carry the old values. Rewriting them means editing stored user data on other people's installs to change settings they may have since tuned by hand — a migration cannot tell 'stale default' from 'deliberate choice'. Same call Chris made on MAP-GHOST-1 the same day, and for the same reason: 'I'm not going to start deleting things off people's boxes. This does cover more than me.' The integration is in the HACS default store.",
+  "revisit_trigger": "A user report where the old defaults cause a real symptom. Then the fix is to SURFACE the mismatch (show that a room's settings predate the brand defaults, offer a one-click reset), never to rewrite silently."
  },
  {
   "key": "untranslated_strings",

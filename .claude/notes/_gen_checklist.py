@@ -279,13 +279,38 @@ A("")
 # is hand-maintained, so it drifts silently while the generated sections stay true.
 _CARRIED_ALL = json.loads(
     pathlib.Path(".claude/notes/_carried.json").read_text(encoding="utf-8"))
-CARRIED = [(c["title"], c["note"]) for c in _CARRIED_ALL if not c.get("closed")]
-_CARRIED_CLOSED = [c for c in _CARRIED_ALL if c.get("closed")]
+# DECISIONS ARE NOT FINDINGS (charter gate 15). A settled deferral or product call
+# renders in its own block, never as an unticked box -- an open checkbox for a
+# decision already made is the fog 2b abolishes, and it made a 2-item list read as
+# 6. Per 2b a deferral is only valid WITH a revisit trigger, so the trigger is
+# rendered too: an untriggered deferment is how carried items rot into invisible
+# wontfixes.
+_CARRIED_DECISIONS = [c for c in _CARRIED_ALL if c.get("kind") == "decision"]
+_CARRIED_CLOSED = [c for c in _CARRIED_ALL
+                   if c.get("closed") and c.get("kind") != "decision"]
+CARRIED = [(c["title"], c["note"]) for c in _CARRIED_ALL
+           if not c.get("closed") and c.get("kind") != "decision"]
 for c in _CARRIED_ALL:
+    if c.get("kind") == "decision":
+        continue
     if c.get("closed"):
         A(f"- [x] ~~**{c['title']}**~~ CLOSED {c['closed']} -- {c.get('closed_evidence', '')}")
     else:
         A(f"- [ ] **{c['title']}** -- {c['note']}")
+
+if _CARRIED_DECISIONS:
+    A("")
+    A(f"### {len(_CARRIED_DECISIONS)} DECISION(S) -- settled, not open work")
+    A("")
+    A("Rendered apart from the checklist deliberately (charter gate 15). These are not")
+    A("things to do; they are things already decided, each with the trigger that would")
+    A("reopen it. An unticked box for a settled decision reads as unfinished work.")
+    for c in _CARRIED_DECISIONS:
+        A("")
+        A(f"**{c['title']}** -- decided {c.get('decided_at', '?')}")
+        A(f"- **Decision:** {c.get('decision', '')}")
+        A(f"- **Why:** {c.get('rationale', '')}")
+        A(f"- **Revisit when:** {c.get('revisit_trigger', 'NO TRIGGER RECORDED -- fix this')}")
 A("")
 A("---")
 A("")
@@ -362,4 +387,5 @@ print(f"applied: {len(APPLIED_ROWS)} findings via {len(_landed)} packets")
 print(f"clusters: {len(CLUSTERS)} covering {len(clustered)} ids "
       f"({len(_fully_closed_clusters)} fully applied)")
 print(f"singles: {len(singles)}   carried: {len(CARRIED)} open"
-      f" + {len(_CARRIED_CLOSED)} closed")
+      f" + {len(_CARRIED_CLOSED)} closed"
+      f" + {len(_CARRIED_DECISIONS)} decision(s)")
