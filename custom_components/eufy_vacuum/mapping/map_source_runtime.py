@@ -511,19 +511,84 @@ def _mapdata_projector(map_data: Any):
         keeps today's unconditional clamp) makes a point whose RAW (pre-clamp)
         projected pixel falls outside the image return None instead of a clamped
         edge point, so a caller that wants to DETECT a bad/out-of-frame correspondence
-        (rather than draw it) can opt in."""
+        (rather than draw it) can opt in.
+
+        live:RB-PROJ-1 — the two None returns below mean OPPOSITE things and are
+        counted apart. ``out_of_grid`` is a deliberate, healthy rejection. ``errors``
+        is the library transform failing, and if it ever hits 100% every Roborock
+        overlay vanishes at once. Counters ride on the function object so no call
+        site had to change shape.
+        """
+        proj.calls += 1
         try:
             p = dims.to_img(_XY(x, y))
             if rotation:
                 p = p.rotated(dims)
             raw_x, raw_y = p.x / img_w, p.y / img_h
             if reject_out_of_grid and not (0.0 <= raw_x <= 1.0 and 0.0 <= raw_y <= 1.0):
+                proj.out_of_grid += 1
                 return None
             return [_clamp01(raw_x), _clamp01(raw_y)]
         except Exception:  # pragma: no cover - defensive over library internals
+            proj.errors += 1
             return None
 
+    proj.calls = 0
+    proj.errors = 0
+    proj.out_of_grid = 0
     return proj, img_w, img_h
+
+
+#: live:RB-PROJ-1. True while the projector is failing EVERY call, so the warning
+#: fires on the transition instead of on every map refresh (~30 s on Roborock).
+_projector_alarm_active = False
+
+
+def _note_projector_health(proj) -> dict[str, int]:
+    """Count what the projector dropped, and SAY SO when it drops everything.
+
+    THE DEFECT THIS CLOSES. `proj` swallows Exception per point and every caller
+    drops silently (`if p0 and p1`, `if not p: continue`, …), and
+    ``overlays_from_mapdata`` omits empty layers by contract. So a change inside
+    ``vacuum-map-parser-roborock``'s ``ImageDimensions.to_img`` — a dependency HA
+    core bumps on its own schedule, outside this repo's control — takes out no-go
+    quads, no-mop quads, virtual walls, saved zones, the path, obstacle markers AND
+    the room list in one stroke, while the map still reports present:True and
+    renders the raster. The user sees a correct-looking map with nothing on it and
+    nothing anywhere says why. A layer that had inputs and produced zero output was
+    indistinguishable from a legitimately empty layer; these counts are the whole
+    difference.
+
+    Warns only on TOTAL failure. Partial drops are normal — `reject_out_of_grid`
+    exists precisely to discard off-frame points — so alarming on those would train
+    everyone to ignore the line.
+
+    The repairs platform is deliberately NOT the surface: repairs.py was deleted as
+    unreachable (#14:INF-6) and purged off the live box (RP-052). The log is, now
+    that it is known to live at /api/hassio/core/logs rather than a file nobody
+    could find.
+    """
+    global _projector_alarm_active
+    stats = {
+        "calls": int(getattr(proj, "calls", 0)),
+        "errors": int(getattr(proj, "errors", 0)),
+        "out_of_grid": int(getattr(proj, "out_of_grid", 0)),
+    }
+    total_failure = stats["calls"] > 0 and stats["errors"] == stats["calls"]
+    if total_failure and not _projector_alarm_active:
+        _LOGGER.warning(
+            "Roborock overlay projector failed EVERY point (%d/%d): every overlay "
+            "layer — rooms, no-go, no-mop, walls, zones, path, obstacles — will be "
+            "empty while the map still renders. Most likely the parser's "
+            "ImageDimensions.to_img changed shape. live:RB-PROJ-1",
+            stats["errors"], stats["calls"],
+        )
+        _projector_alarm_active = True
+    elif not total_failure and _projector_alarm_active:
+        _LOGGER.warning("Roborock overlay projector recovered (%d/%d errors).",
+                        stats["errors"], stats["calls"])
+        _projector_alarm_active = False
+    return stats
 
 
 def _rb_area_m2(x0: float, y0: float, x1: float, y1: float) -> float:
@@ -745,6 +810,12 @@ def overlays_from_mapdata(map_data: Any) -> dict[str, Any]:
     obstacles = _proj_obstacles(getattr(map_data, "obstacles", None), proj)
     if obstacles:
         out["obstacles"] = obstacles
+
+    # live:RB-PROJ-1. ALWAYS emitted, including the all-zero healthy case: the point
+    # is that a consumer can tell "this layer is empty because there was nothing"
+    # from "this layer is empty because every projection failed". An absent key
+    # would just move the ambiguity one level up.
+    out["projector"] = _note_projector_health(proj)
     return out
 
 

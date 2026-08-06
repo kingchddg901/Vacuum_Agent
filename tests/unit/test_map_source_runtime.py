@@ -8,6 +8,8 @@ PURE given injected plain data — tested here without Home Assistant.
 [MSR-2] roborock_result_from_candidates / rooms_from_mapdata / find_mapdata: MapData
         located + projected via the parser's to_img transform, no-go-immune, no-geometry,
         presence gate, structure dump — always with a diagnostics breadcrumb.
+[MSR-2h/i/j] live:RB-PROJ-1: projector health counts — a dead transform is
+        distinguishable from legitimately empty layers; off-grid != error.
 [MSR-3] find_roomlike_collection / _walk: duck-typing, cycle-safety, attr denylist.
 """
 import base64
@@ -22,6 +24,7 @@ from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     find_mapdata,
     find_roomlike_collection,
     overlays_from_mapdata,
+    _mapdata_projector,
     roborock_result_from_candidates,
     rooms_from_mapdata,
     _walk,
@@ -674,3 +677,77 @@ def test_eufy_live_pose_hostile_candidate_then_success():
     )
     assert out["present"] is True
     assert out["robot_pixel"] == [5, 6] and out["dock_pixel"] == [7, 8]
+
+
+# --- live:RB-PROJ-1 — a dead projector must not look like empty layers ----------
+#
+# `proj` swallows Exception per point and every caller drops silently, and
+# overlays_from_mapdata omits empty layers by contract. So a change inside
+# vacuum-map-parser-roborock's ImageDimensions.to_img — a dependency HA core bumps
+# on its own schedule — empties rooms, no-go, no-mop, walls, zones, path and
+# obstacles in one stroke while the map still renders. Nothing counted, nothing
+# logged: `_LOGGER` was declared and never used.
+
+class _BrokenDims:
+    """ImageDimensions whose to_img raises — i.e. the library changed underneath us."""
+    rotation = 0
+
+    def to_img(self, _point):
+        raise AttributeError("to_img signature changed")
+
+
+def test_projector_counts_are_emitted_even_when_healthy():
+    """[MSR-2h] the counts ride ALONG, including all-zero, so a consumer can tell
+    'empty because nothing was there' from 'empty because everything failed'."""
+    md = _mapdata(
+        {16: _Room(500, 500, 2500, 4500, 16)},
+        walls=[_Seg(500, 500, 1500, 1500)],
+    )
+    ov = overlays_from_mapdata(md)
+    assert "projector" in ov, "the health counts must always be present"
+    p = ov["projector"]
+    assert p["calls"] > 0
+    assert p["errors"] == 0
+    assert ov.get("walls"), "precondition: the healthy layer really did render"
+
+
+def test_a_dead_projector_is_distinguishable_from_empty_layers():
+    """[MSR-2i] THE DEFECT. With to_img raising, every layer drops out — and the
+    counts say WHY, which is the whole difference this finding was about."""
+    md = _mapdata(
+        {16: _Room(500, 500, 2500, 4500, 16)},
+        vacuum_position=_VPoint(1000, 2000, 90),
+        charger=_VPoint(500, 500),
+        no_go_areas=[_Quad([(500, 500), (1500, 500), (1500, 1500), (500, 1500)])],
+        walls=[_Seg(500, 500, 1500, 1500)],
+        zones=[_Seg(500, 500, 1500, 1500)],
+        obstacles=[_Obstacle(500, 500, "cable")],
+    )
+    md.image.dimensions = _BrokenDims()
+
+    ov = overlays_from_mapdata(md)
+
+    # every drawable layer is gone — exactly the silent failure, reproduced
+    for layer in ("robot_anchor", "dock_anchor", "no_go", "walls", "zones", "obstacles"):
+        assert layer not in ov, f"{layer} unexpectedly survived a dead projector"
+
+    # ...but it is no longer SILENT: the counts distinguish it from empty input
+    p = ov["projector"]
+    assert p["calls"] > 0
+    assert p["errors"] == p["calls"], "a total failure must read as total"
+    assert p["out_of_grid"] == 0, "a transform error is not an out-of-bounds rejection"
+
+
+def test_out_of_grid_rejections_are_not_counted_as_errors():
+    """[MSR-2j] The two None returns mean opposite things. reject_out_of_grid is a
+    HEALTHY discard; counting it as an error would make the alarm cry wolf and
+    train everyone to ignore the one line that matters."""
+    md = _mapdata({16: _Room(500, 500, 2500, 4500, 16)})
+    proj = _mapdata_projector(md)[0]
+
+    assert proj(500, 500) is not None                       # in-frame
+    assert proj(10_000_000, 10_000_000, reject_out_of_grid=True) is None
+
+    assert proj.errors == 0, "an off-grid point is not a broken transform"
+    assert proj.out_of_grid == 1
+    assert proj.calls == 2
