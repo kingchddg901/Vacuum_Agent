@@ -296,29 +296,94 @@ ROBOROCK_EVIDENCE_SAFE_ERROR_CODES: frozenset[str] = (
 # safe degradation this table relies on. NEVER widen one of these on a hunch; a wrong
 # dock/robot call points the user at hardware that is fine.
 
-# NO error_label_keys, and that is a decision rather than an omission.
+# --- fault labels -------------------------------------------------------------
 #
-# sensor.{id}_vacuum_error is an HA enum sensor whose 53 states Home Assistant already
-# ships translations for, in every language it supports. Minting fault.roborock.* keys
-# here would duplicate a table HA maintains and cost 18 packs of our own, which is the
-# opposite of [[feedback_kiss_upstream_signals]]. Eufy needs its own table only because
-# its codes are bare numbers with no upstream label at all.
+# Roborock enum state -> OUR i18n key, the same seam Eufy uses. Core hands the card a
+# key and never learns a brand's codes [[feedback_eufy_ism_leak_layers]]; the strings
+# live in the frontend locale packs.
 #
-# HOW THE CARD GETS THE STRING -- VERIFIED 2026-08-05, after an earlier draft asserted
-# it as fact without checking. The trap: `hass.states.get(...).state` returns the RAW
-# enum; HA translates entity states in the FRONTEND at display time, and the translation
-# is not on the state object. This card had never translated an HA state (no
-# formatEntityState / computeStateDisplay / hass.localize anywhere in src/).
+# WE SHIP OUR OWN KEYS RATHER THAN LEANING ON HA'S TRANSLATIONS, and the earlier draft
+# of this block argued the opposite. It was wrong on both legs, measured 2026-08-05:
 #
-# The key resolves. Probing the live instance in French returned all 53 states under
-#     component.roborock.entity.sensor.vacuum_error.state.<enum>
-# e.g. bumper_stuck -> "Pare-chocs coince", charging_error -> "Erreur de charge". So
-# `hass.localize(...)` with that key is the route. Corroboration worth keeping: HA's
-# French for bumper_stuck is byte-identical to our own fr.json fault.eufy.bumper_stuck.
+#  1. COVERAGE. HA does not have our languages. Probing the live instance for all 18
+#     card locales: Arabic 0/53 translated (pure English fallback, inside an RTL layout
+#     we do translate fully), Polish 10/53, Indonesian 18/53, and it/nl/ru/zh-Hans
+#     83-87%. Only 11 of 18 are complete.
+#  2. LANGUAGE RESOLUTION. hass.localize keys off the HA PROFILE language. The card
+#     resolves its own via i18n/index.js resolveLang: per-user globe override, then a
+#     dashboard config pin, then HA's language. The first two deliberately diverge, so
+#     a user who picks German on an English HA would get a German card with English
+#     fault names even where HA's German is complete. The per-user language store is
+#     precisely what makes the upstream route unusable.
 #
-# STILL REQUIRED WHEN BUILDING THE LABEL SURFACE -- a fallback. The frontend loads
-# translations per integration, so those resources are only present if something has
-# already caused them to load; asking for the key does not fetch it, and a miss returns
-# EMPTY rather than the enum. So: hass.localize(key) first, then humanise the raw enum
-# ("bumper_stuck" -> "Bumper stuck"). Never render an empty string where a fault name
-# belongs.
+# The duplication it avoids is also smaller than claimed: the packs already carry 189
+# fault.eufy.* strings each, verified 100% translated across all 17 (3213 strings), so
+# these join an existing table rather than starting one.
+#
+# THREE STATES ARE DELIBERATELY UNMAPPED because HA's own table contradicts its enum
+# names and there is no way to tell which side is wrong:
+#     clear_brush_exception    -> HA: "Check that the water filter has been correctly
+#                                 installed"  (a WATER FILTER message on a BRUSH enum)
+#     clear_brush_exception_2  -> HA: "Positioning button error"
+#     light_touch              -> HA: "Wall sensor error"
+# An unmapped code falls through to the raw enum, which is honest and searchable.
+# Naming the wrong part sends someone to disassemble hardware that is fine, so this
+# follows the rule the Eufy table already states: never invent a label for a code whose
+# meaning is not established.
+#
+# mopping_roller_1 and mopping_roller_2 SHARE a key -- identical meaning, same
+# precedent as Eufy's 106/114/3012 all being the robot's water pump.
+ROBOROCK_ERROR_LABEL_KEYS: dict[str, str] = {
+    "audio_error": "fault.roborock.audio_error",
+    "battery_error": "fault.roborock.battery_error",
+    "bumper_stuck": "fault.roborock.bumper_stuck",
+    "cannot_cross_carpet": "fault.roborock.cannot_cross_carpet",
+    "charging_error": "fault.roborock.charging_error",
+    # Vendor's own spelling is "carouse"; our slug is not obliged to inherit the typo.
+    "check_clean_carouse": "fault.roborock.check_cleaning_carousel",
+    "clean_carousel_exception": "fault.roborock.cleaning_carousel_error",
+    "clean_carousel_water_full": "fault.roborock.cleaning_carousel_water_full",
+    # "hoare" recurs across three vendor tokens and carries no meaning; slugs are
+    # written from what the state MEANS, which is what the map exists to allow.
+    "clear_water_box_exception": "fault.roborock.clean_water_tank_empty",
+    "clear_water_box_hoare": "fault.roborock.check_clean_water_tank",
+    "cliff_sensor_error": "fault.roborock.cliff_sensor_error",
+    "collect_dust_error_3": "fault.roborock.clean_auto_empty_dock",
+    "collect_dust_error_4": "fault.roborock.auto_empty_dock_voltage_error",
+    "compass_error": "fault.roborock.strong_magnetic_field",
+    "dirty_water_box_hoare": "fault.roborock.check_dirty_water_tank",
+    "dock": "fault.roborock.dock_not_powered",
+    "dock_locator_error": "fault.roborock.dock_locator_error",
+    "drain_water_exception": "fault.roborock.water_drainage_error",
+    "fan_error": "fault.roborock.fan_error",
+    "filter_blocked": "fault.roborock.filter_blocked",
+    "filter_screen_exception": "fault.roborock.clean_dock_water_filter",
+    "internal_error": "fault.roborock.internal_error",
+    "invisible_wall_detected": "fault.roborock.invisible_wall_detected",
+    "lidar_blocked": "fault.roborock.lidar_blocked",
+    "low_battery": "fault.roborock.low_battery",
+    "main_brush_jammed": "fault.roborock.main_brush_jammed",
+    "mopping_roller_1": "fault.roborock.wash_roller_may_be_jammed",
+    "mopping_roller_2": "fault.roborock.wash_roller_may_be_jammed",
+    "mopping_roller_error_2": "fault.roborock.wash_roller_not_lowered",
+    "no_dustbin": "fault.roborock.dustbin_missing",
+    "nogo_zone_detected": "fault.roborock.nogo_zone_detected",
+    "optical_flow_sensor_dirt": "fault.roborock.optical_flow_sensor_dirty",
+    "return_to_dock_fail": "fault.roborock.could_not_return_to_dock",
+    "robot_on_carpet": "fault.roborock.robot_on_carpet",
+    "robot_tilted": "fault.roborock.robot_tilted",
+    "robot_trapped": "fault.roborock.robot_trapped",
+    "side_brush_error": "fault.roborock.side_brush_error",
+    "side_brush_jammed": "fault.roborock.side_brush_jammed",
+    "sink_strainer_hoare": "fault.roborock.reinstall_water_filter",
+    "strainer_error": "fault.roborock.filter_wet_or_blocked",
+    "temperature_protection": "fault.roborock.temperature_protection",
+    "up_water_exception": "fault.roborock.water_supply_error",
+    "vertical_bumper_pressed": "fault.roborock.vertical_bumper_pressed",
+    "vibrarise_jammed": "fault.roborock.vibrarise_jammed",
+    "visual_sensor": "fault.roborock.camera_error",
+    "wall_sensor_dirty": "fault.roborock.wall_sensor_dirty",
+    "water_carriage_drop": "fault.roborock.water_carriage_dropped",
+    "wheels_jammed": "fault.roborock.wheels_jammed",
+    "wheels_suspended": "fault.roborock.wheels_suspended",
+}

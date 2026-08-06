@@ -67,6 +67,7 @@ from .vocabulary import (
     ROBOROCK_ROBOT_SOURCED_ERROR_CODES,
     ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES,
     ROBOROCK_EVIDENCE_SAFE_ERROR_CODES,
+    ROBOROCK_ERROR_LABEL_KEYS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -332,11 +333,12 @@ def register_roborock_adapter_for_vacuum(
                 ROBOROCK_EVIDENCE_INVALIDATING_ERROR_CODES
             ),
             "evidence_safe_error_codes": sorted(ROBOROCK_EVIDENCE_SAFE_ERROR_CODES),
-            # NO error_label_keys — deliberate, not an omission. HA already ships
-            # translations for all 53 vacuum_error enum states, so minting
-            # fault.roborock.* here would duplicate a table HA maintains and cost 18
-            # packs of our own. vocabulary.py carries the reasoning, the VERIFIED
-            # retrieval route for the card, and the fallback that route still needs.
+            # CARD-3: enum string -> i18n key. OUR keys, not HA's translations —
+            # HA has only 11 of our 18 languages complete (Arabic 0/53), and
+            # hass.localize keys off the HA PROFILE language while the card resolves
+            # its own through the per-user globe. vocabulary.py carries the measured
+            # reasoning and the three states left unmapped on purpose.
+            "error_label_keys": dict(ROBOROCK_ERROR_LABEL_KEYS),
         },
 
         "dispatch": {

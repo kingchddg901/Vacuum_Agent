@@ -2479,8 +2479,9 @@ export const en = {
   // learns a brand's codes. Resolved at render time by faultLabel() in
   // src/i18n/faults.js, which is why these are reachable via template rather than
   // a literal t("…") call. CARD-3 shows the raw code alongside, so the vendor term
-  // stays available. English signed off 2026-08-02; the 17-locale pass is pending
-  // (see synthesis/CARD-3-FAULT-REWRITES.md).
+  // stays available. English signed off 2026-08-02; the 17-locale pass IS DONE —
+  // verified 2026-08-05, all 189 keys translated in all 17 packs, 0 English
+  // placeholders (the note here claimed it was still pending long after it landed).
   "fault.eufy.base_station_clean_water_pump_electrical_fault": "Base station clean-water pump electrical fault",  // Eufy code 6013
   "fault.eufy.base_station_clean_water_pump_not_responding": "Base station clean-water pump not responding",  // Eufy code 6012
   "fault.eufy.base_station_clean_water_tank_not_connected": "Base station clean water tank not connected",  // Eufy code 6010
@@ -2670,6 +2671,76 @@ export const en = {
   "fault.eufy.wi_fi_or_bluetooth_fault": "Wi-Fi or Bluetooth fault",  // Eufy code 119
   "fault.eufy.wipe_holder_motor_stuck": "Wipe holder motor stuck",  // Eufy code 32
   "fault.eufy.wiping_bracket_motor_stuck": "Wiping bracket motor stuck",  // Eufy code 33,
+
+  // === ROBOROCK FAULT LABELS (CARD-3 / RF-DOCK) ==========================
+  // Same seam as the Eufy block above, but the vendor's codes are ENUM STRINGS
+  // rather than numbers — the adapter maps them (adapters/roborock/vocabulary.py
+  // ROBOROCK_ERROR_LABEL_KEYS), core carries the key, these are the strings.
+  //
+  // WE SHIP OUR OWN RATHER THAN USING HA'S. Home Assistant does translate these 53
+  // enum states, and the earlier plan was to call hass.localize and skip this table
+  // entirely. Measured 2026-08-05, that fails twice: HA has only 11 of our 18
+  // languages complete (Arabic 0/53, Polish 10/53, Indonesian 18/53), and
+  // hass.localize keys off the HA PROFILE language while this card resolves its own
+  // through the per-user globe override — so a user on a German card with an English
+  // HA would get English fault names even where HA's German is complete.
+  //
+  // Register follows the Eufy block: sentence-case descriptive noun phrases, with
+  // imperatives kept only where the state IS a maintenance prompt and the action is
+  // the information (cf. "Clean dust collector" above).
+  //
+  // clear_brush_exception, clear_brush_exception_2 and light_touch are deliberately
+  // ABSENT — HA's strings for those contradict their own enum names, and an unmapped
+  // code falls through to the raw enum, which is honest. See vocabulary.py.
+  "fault.roborock.audio_error": "Audio error",  // audio_error
+  "fault.roborock.auto_empty_dock_voltage_error": "Auto-empty dock voltage error",  // collect_dust_error_4
+  "fault.roborock.battery_error": "Battery error",  // battery_error
+  "fault.roborock.bumper_stuck": "Bumper stuck",  // bumper_stuck
+  "fault.roborock.camera_error": "Camera error",  // visual_sensor
+  "fault.roborock.cannot_cross_carpet": "Cannot cross carpet",  // cannot_cross_carpet
+  "fault.roborock.charging_error": "Charging error",  // charging_error
+  "fault.roborock.check_clean_water_tank": "Check the clean water tank",  // clear_water_box_hoare
+  "fault.roborock.check_cleaning_carousel": "Check the cleaning carousel",  // check_clean_carouse
+  "fault.roborock.check_dirty_water_tank": "Check the dirty water tank",  // dirty_water_box_hoare
+  "fault.roborock.clean_auto_empty_dock": "Clean the auto-empty dock",  // collect_dust_error_3
+  "fault.roborock.clean_dock_water_filter": "Clean the dock water filter",  // filter_screen_exception
+  "fault.roborock.clean_water_tank_empty": "Clean water tank empty",  // clear_water_box_exception
+  "fault.roborock.cleaning_carousel_error": "Cleaning carousel error",  // clean_carousel_exception
+  "fault.roborock.cleaning_carousel_water_full": "Cleaning carousel water full",  // clean_carousel_water_full
+  "fault.roborock.cliff_sensor_error": "Cliff sensor error",  // cliff_sensor_error
+  "fault.roborock.could_not_return_to_dock": "Could not return to dock",  // return_to_dock_fail
+  "fault.roborock.dock_locator_error": "Dock locator error",  // dock_locator_error
+  "fault.roborock.dock_not_powered": "Dock not connected to power",  // dock
+  "fault.roborock.dustbin_missing": "Dustbin missing",  // no_dustbin
+  "fault.roborock.fan_error": "Fan error",  // fan_error
+  "fault.roborock.filter_blocked": "Filter blocked",  // filter_blocked
+  "fault.roborock.filter_wet_or_blocked": "Filter is wet or blocked",  // strainer_error
+  "fault.roborock.internal_error": "Internal error",  // internal_error
+  "fault.roborock.invisible_wall_detected": "Invisible wall detected",  // invisible_wall_detected
+  "fault.roborock.lidar_blocked": "Lidar blocked",  // lidar_blocked
+  "fault.roborock.low_battery": "Low battery",  // low_battery
+  "fault.roborock.main_brush_jammed": "Main brush jammed",  // main_brush_jammed
+  "fault.roborock.nogo_zone_detected": "No-go zone detected",  // nogo_zone_detected
+  "fault.roborock.optical_flow_sensor_dirty": "Optical flow sensor dirty",  // optical_flow_sensor_dirt
+  "fault.roborock.reinstall_water_filter": "Reinstall the water filter",  // sink_strainer_hoare
+  "fault.roborock.robot_on_carpet": "Robot on carpet",  // robot_on_carpet
+  "fault.roborock.robot_tilted": "Robot tilted",  // robot_tilted
+  "fault.roborock.robot_trapped": "Robot trapped",  // robot_trapped
+  "fault.roborock.side_brush_error": "Side brush error",  // side_brush_error
+  "fault.roborock.side_brush_jammed": "Side brush jammed",  // side_brush_jammed
+  "fault.roborock.strong_magnetic_field": "Strong magnetic field detected",  // compass_error
+  "fault.roborock.temperature_protection": "Temperature protection active",  // temperature_protection
+  "fault.roborock.vertical_bumper_pressed": "Vertical bumper pressed",  // vertical_bumper_pressed
+  "fault.roborock.vibrarise_jammed": "VibraRise jammed",  // vibrarise_jammed
+  "fault.roborock.wall_sensor_dirty": "Wall sensor dirty",  // wall_sensor_dirty
+  "fault.roborock.wash_roller_may_be_jammed": "Wash roller may be jammed",  // mopping_roller_1, mopping_roller_2
+  "fault.roborock.wash_roller_not_lowered": "Wash roller not lowered properly",  // mopping_roller_error_2
+  "fault.roborock.water_carriage_dropped": "Water carriage dropped",  // water_carriage_drop
+  "fault.roborock.water_drainage_error": "Water drainage error",  // drain_water_exception
+  "fault.roborock.water_supply_error": "Water supply error",  // up_water_exception
+  "fault.roborock.wheels_jammed": "Wheels jammed",  // wheels_jammed
+  "fault.roborock.wheels_suspended": "Wheels suspended",  // wheels_suspended
+
   "faults.unknown_code": "Error {code}",  // fallback when the adapter has no label for a fault code — the raw vendor number is honest and searchable
   "faults.unknown": "Unknown error",  // fallback when neither a label key nor a raw code is available
 };

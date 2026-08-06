@@ -396,11 +396,66 @@ def test_codes_are_lowercase_enum_strings():
             assert not code.strip().lstrip("-").isdigit(), f"{name}: {code!r}"
 
 
-def test_no_error_label_keys_declared(s6_config):
-    """Deliberate: HA already ships translations for all 53 vacuum_error states.
-    If this ever fails, someone minted fault.roborock.* keys -- check vocabulary.py
-    for why that was rejected before accepting the change."""
-    assert "error_label_keys" not in s6_config["error_tracking"]
+# --- fault labels (CARD-3) ---------------------------------------------------
+
+
+def test_error_label_keys_reach_the_adapter_config(s6_config):
+    cfg = s6_config["error_tracking"]["error_label_keys"]
+    assert cfg["bumper_stuck"] == "fault.roborock.bumper_stuck"
+    # Slug written from MEANING, not from the vendor's token.
+    assert cfg["visual_sensor"] == "fault.roborock.camera_error"
+    assert cfg["check_clean_carouse"] == "fault.roborock.check_cleaning_carousel"
+
+
+def test_every_label_key_is_ours_and_brand_scoped():
+    """faultLabel() in src/state/faults.js splits fault.<brand>.<slug> and refuses
+    anything else. A key in another shape silently renders the raw code instead."""
+    for enum, key in rbv.ROBOROCK_ERROR_LABEL_KEYS.items():
+        assert key.startswith("fault.roborock."), f"{enum} -> {key}"
+        assert key == key.lower(), f"{enum} -> {key}"
+        assert " " not in key, f"{enum} -> {key}"
+
+
+def test_label_keys_are_lowercase_enum_strings():
+    """core/_code_key lowercases string codes; an uppercase key never matches."""
+    for enum in rbv.ROBOROCK_ERROR_LABEL_KEYS:
+        assert isinstance(enum, str) and enum == enum.lower(), enum
+
+
+def test_duplicate_meanings_share_one_key():
+    """mopping_roller_1 and _2 are the same message. Same precedent as Eufy's
+    106/114/3012 all being the robot's water pump -- one key, one translation."""
+    keys = rbv.ROBOROCK_ERROR_LABEL_KEYS
+    assert keys["mopping_roller_1"] == keys["mopping_roller_2"]
+
+
+def test_contradictory_states_stay_unmapped():
+    """HA's own strings for these three contradict their enum names -- a WATER
+    FILTER message on a BRUSH enum, and so on. Unmapped falls through to the raw
+    enum, which is honest; naming the wrong part sends someone to strip down
+    hardware that is fine.
+
+    This test exists so that 'filling the gap' has to confront the reason first.
+    If the meanings ever get established, map them AND delete this test.
+    """
+    for enum in ("clear_brush_exception", "clear_brush_exception_2", "light_touch"):
+        assert enum not in rbv.ROBOROCK_ERROR_LABEL_KEYS, enum
+
+
+def test_every_label_key_has_an_english_string():
+    """A key with no string renders the dotted key at the user. These are reached
+    through a TEMPLATE (faultLabel builds `fault.${brand}.${slug}`), so check-i18n
+    cannot see them and this is the only gate."""
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parents[3]
+    en = (root / "src" / "i18n" / "en.js").read_text(encoding="utf-8")
+    defined = set(re.findall(r'"(fault\.roborock\.[a-z0-9_]+)":', en))
+
+    declared = set(rbv.ROBOROCK_ERROR_LABEL_KEYS.values())
+    assert not (declared - defined), f"declared with no English string: {sorted(declared - defined)}"
+    assert not (defined - declared), f"English string nothing maps to: {sorted(defined - declared)}"
 
 
 def test_sentinel_none_is_never_classified():

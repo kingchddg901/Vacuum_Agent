@@ -2679,6 +2679,56 @@
       "wi_fi_or_bluetooth_fault": "Wi-Fi or Bluetooth fault",  // Eufy code 119
       "wipe_holder_motor_stuck": "Wipe holder motor stuck",  // Eufy code 32
       "wiping_bracket_motor_stuck": "Wiping bracket motor stuck"  // Eufy code 33,
+    },
+    "roborock": {
+      "audio_error": "Audio error",  // audio_error
+      "auto_empty_dock_voltage_error": "Auto-empty dock voltage error",  // collect_dust_error_4
+      "battery_error": "Battery error",  // battery_error
+      "bumper_stuck": "Bumper stuck",  // bumper_stuck
+      "camera_error": "Camera error",  // visual_sensor
+      "cannot_cross_carpet": "Cannot cross carpet",  // cannot_cross_carpet
+      "charging_error": "Charging error",  // charging_error
+      "check_clean_water_tank": "Check the clean water tank",  // clear_water_box_hoare
+      "check_cleaning_carousel": "Check the cleaning carousel",  // check_clean_carouse
+      "check_dirty_water_tank": "Check the dirty water tank",  // dirty_water_box_hoare
+      "clean_auto_empty_dock": "Clean the auto-empty dock",  // collect_dust_error_3
+      "clean_dock_water_filter": "Clean the dock water filter",  // filter_screen_exception
+      "clean_water_tank_empty": "Clean water tank empty",  // clear_water_box_exception
+      "cleaning_carousel_error": "Cleaning carousel error",  // clean_carousel_exception
+      "cleaning_carousel_water_full": "Cleaning carousel water full",  // clean_carousel_water_full
+      "cliff_sensor_error": "Cliff sensor error",  // cliff_sensor_error
+      "could_not_return_to_dock": "Could not return to dock",  // return_to_dock_fail
+      "dock_locator_error": "Dock locator error",  // dock_locator_error
+      "dock_not_powered": "Dock not connected to power",  // dock
+      "dustbin_missing": "Dustbin missing",  // no_dustbin
+      "fan_error": "Fan error",  // fan_error
+      "filter_blocked": "Filter blocked",  // filter_blocked
+      "filter_wet_or_blocked": "Filter is wet or blocked",  // strainer_error
+      "internal_error": "Internal error",  // internal_error
+      "invisible_wall_detected": "Invisible wall detected",  // invisible_wall_detected
+      "lidar_blocked": "Lidar blocked",  // lidar_blocked
+      "low_battery": "Low battery",  // low_battery
+      "main_brush_jammed": "Main brush jammed",  // main_brush_jammed
+      "nogo_zone_detected": "No-go zone detected",  // nogo_zone_detected
+      "optical_flow_sensor_dirty": "Optical flow sensor dirty",  // optical_flow_sensor_dirt
+      "reinstall_water_filter": "Reinstall the water filter",  // sink_strainer_hoare
+      "robot_on_carpet": "Robot on carpet",  // robot_on_carpet
+      "robot_tilted": "Robot tilted",  // robot_tilted
+      "robot_trapped": "Robot trapped",  // robot_trapped
+      "side_brush_error": "Side brush error",  // side_brush_error
+      "side_brush_jammed": "Side brush jammed",  // side_brush_jammed
+      "strong_magnetic_field": "Strong magnetic field detected",  // compass_error
+      "temperature_protection": "Temperature protection active",  // temperature_protection
+      "vertical_bumper_pressed": "Vertical bumper pressed",  // vertical_bumper_pressed
+      "vibrarise_jammed": "VibraRise jammed",  // vibrarise_jammed
+      "wall_sensor_dirty": "Wall sensor dirty",  // wall_sensor_dirty
+      "wash_roller_may_be_jammed": "Wash roller may be jammed",  // mopping_roller_1, mopping_roller_2
+      "wash_roller_not_lowered": "Wash roller not lowered properly",  // mopping_roller_error_2
+      "water_carriage_dropped": "Water carriage dropped",  // water_carriage_drop
+      "water_drainage_error": "Water drainage error",  // drain_water_exception
+      "water_supply_error": "Water supply error",  // up_water_exception
+      "wheels_jammed": "Wheels jammed",  // wheels_jammed
+      "wheels_suspended": "Wheels suspended"  // wheels_suspended
     }
   },
   "faults": {
