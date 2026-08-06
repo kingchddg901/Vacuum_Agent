@@ -137,5 +137,100 @@ for (const rel of RTL_TARGETS) {
   });
 }
 
+/* ---------------------------------------------------------------------------
+ * TOKEN-LINT — every `var(--evcc-*)` must resolve to something real.
+ *
+ * WHY. A token nothing defines still RENDERS, because the reference carries a
+ * fallback — so it looks themeable, always falls back, and never appears in the
+ * theme editor. It advertises a knob that does not exist. Three shipped that way
+ * in one sitting (--evcc-modal-width-lg, --evcc-radius-sm, --evcc-font-mono) and
+ * the theme-lint above could not see them: it flags un-tokenized COLOURS, and a
+ * var() pointing at nothing is still a var(). Chris caught them by asking, which
+ * is not a gate.
+ *
+ * A reference counts as resolved when it is:
+ *   1. declared in CSS anywhere in the card (`--evcc-x: value`), including the
+ *      token definition file whose literals ARE the defaults;
+ *   2. present in the theme-token INVENTORY (src/theme-tokens/*), which declares
+ *      tokens a THEME may supply that the card itself never defines;
+ *   3. set at RUNTIME from a renderer, as an inline style="--evcc-x:${v}" — the
+ *      map rotation and merged-group stroke are supplied per element, not themed.
+ *
+ * KNOWN_DANGLING is pre-existing debt, not permission. Entries fail once fixed
+ * (see the stale check below), so the list can only ever shrink.
+ * ------------------------------------------------------------------------- */
+const TOKEN_REF = /var\(\s*(--evcc-[a-z0-9-]+)/g;
+const TOKEN_DEF = /(--evcc-[a-z0-9-]+)\s*:/g;
+
+// Sources that can DEFINE a token: all card CSS, plus renderers/cards for the
+// inline-style runtime case.
+const DEF_SOURCES = [
+  ...readdirSync(DIR).filter((n) => n.endsWith(".js")).map((n) => join("src", "styles", n)),
+  ...["renderers", "cards", "state", "bindings"].flatMap((d) => {
+    const abs = join(REPO, "src", d);
+    try {
+      return readdirSync(abs).filter((n) => n.endsWith(".js")).map((n) => join("src", d, n));
+    } catch { return []; }
+  }),
+  join("src", "room-card.js"),
+];
+
+const known = new Set();
+for (const rel of DEF_SOURCES) {
+  let text;
+  try { text = readFileSync(join(REPO, rel), "utf8"); } catch { continue; }
+  for (const m of text.matchAll(TOKEN_DEF)) known.add(m[1]);
+}
+// The inventory: tokens a theme may supply that the card never declares itself.
+try {
+  const TT = join(REPO, "src", "theme-tokens");
+  for (const n of readdirSync(TT).filter((x) => x.endsWith(".js") && !x.includes(".test."))) {
+    const text = readFileSync(join(TT, n), "utf8");
+    for (const m of text.matchAll(/--evcc-[a-z0-9-]+/g)) known.add(m[0]);
+    for (const m of text.matchAll(/["'`](evcc-[a-z0-9-]+)["'`]/g)) known.add("--" + m[1]);
+  }
+} catch { /* no inventory — every reference must then be defined in CSS */ }
+
+// Pre-existing dangling references, recorded 2026-08-06. Each is a var() whose
+// token nothing defines, so it silently always uses its fallback. Most look like
+// near-misses of a real token (--evcc-text vs --evcc-text-primary, --evcc-border
+// vs --evcc-border-default). Fix them and DELETE the entry; the stale check below
+// makes leaving a fixed entry here a failure, so this list cannot rot upward.
+const KNOWN_DANGLING = new Set([
+  "--evcc-border", "--evcc-danger", "--evcc-font-size-sm",
+  "--evcc-map-ov-savedzone", "--evcc-map-ov-savedzone-text",
+  "--evcc-on-accent", "--evcc-shadow-overlay", "--evcc-space-xs",
+  "--evcc-surface-default", "--evcc-surface-hover", "--evcc-text",
+]);
+
+const seenDangling = new Set();
+for (const rel of LINT_TARGETS) {
+  let text;
+  try { text = readFileSync(join(REPO, rel), "utf8"); } catch { continue; }
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (line.includes("token-lint-ignore")) return;
+    TOKEN_REF.lastIndex = 0;
+    let m;
+    while ((m = TOKEN_REF.exec(line))) {
+      const tok = m[1];
+      if (known.has(tok)) continue;
+      if (KNOWN_DANGLING.has(tok)) { seenDangling.add(tok); continue; }
+      fail(
+        `${rel}:${i + 1}: var(${tok}) resolves to NOTHING — no CSS definition, ` +
+        `not in the theme-token inventory, never set at runtime. It will always ` +
+        `use its fallback and will not appear in the theme editor. Define it, ` +
+        `use an existing token, or drop the var() for a literal.`
+      );
+    }
+  });
+}
+// A KNOWN_DANGLING entry that no longer dangles is stale — remove it, or the list
+// silently grants permission to reintroduce the token later.
+for (const tok of KNOWN_DANGLING) {
+  if (!seenDangling.has(tok)) {
+    fail(`KNOWN_DANGLING lists ${tok}, but it no longer dangles — delete that entry from check-styles.mjs`);
+  }
+}
+
 if (failures) { console.error(`FAIL — ${failures} style problem(s).`); process.exit(1); }
-console.log("OK — style modules import cleanly, CSS exports brace-balanced, no un-tokenized colors, and no physical-direction (non-RTL) CSS.");
+console.log("OK — style modules import cleanly, CSS exports brace-balanced, no un-tokenized colors, no physical-direction (non-RTL) CSS, and every --evcc-* reference resolves.");
