@@ -672,5 +672,13 @@
   ],
   "landed_at": "2026-08-05",
   "note": "A7-ROBORO-4 CLOSED BY VERIFICATION, not by a code fix -- the emitted-not-applied shape from 4fbb530 was already correct and is now proven so. Reopened earlier today because RP-049 had credited it whole while its apply-the-offset half sat blocked on hardware; the hardware answered the same day.\n  STRUCTURAL: overlays never read raw_top/raw_left. They project through _mapdata_projector (map_source_runtime.py:509) -> the parser's OWN ImageDimensions.to_img(point).rotated(dims), which already carries the trim offset top/left describes. Applying it here would DOUBLE-apply. Separately ro_dx/dy are the OUTLINE->main-grid offset (_outline_geometry), a Eufy concern where room_pixels has its own frame; Roborock's raster IS the main grid, so 0 is the measurement.\n  ON-DEVICE: Ivy's live map carries raw_top/raw_left = 281/245 -- 12.25 m x 14.05 m at 50 mm/px, so a real mismatch would throw every overlay clean off the map. Chris enabled every overlay feature and confirmed no-go quads, walls, saved zones and dock/robot anchors land where he drew them. The NON-ZERO offset is what made it a falsifying test: where top/left are 0, applying and not applying are indistinguishable.\n  Both halves of eye-and-code agree, for DIFFERENT reasons -- the eye says the output is right, the structure says why. [RRD-13] pins it and its docstring now records the answer instead of the deferral; the module comment carries an explicit DO NOT 'fix' this."
+ },
+ {
+  "packet_id": "RP-054",
+  "commits": [
+   "168b26c"
+  ],
+  "landed_at": "2026-08-05",
+  "note": "RB-PROJ-1. proj counts calls/errors/out_of_grid on the function object (no call site changed shape); overlays_from_mapdata always emits the counts, including all-zero, so an empty layer caused by a dead transform is distinguishable from one that was legitimately empty. Warns only on TOTAL failure and only on the transition (~30s refresh would otherwise be its own silence). out_of_grid is counted APART from errors -- a healthy discard vs a broken transform; conflating them would make the alarm cry wolf. Surface is the LOG, deliberately: repairs.py was deleted (#14:INF-6) and purged (RP-052), and the log only became usable today once it was found at /api/hassio/core/logs. [MSR-2h/i/j]; pin verified to bite (assert 0 == 8 with the counter removed)."
  }
 ]

@@ -936,5 +936,13 @@
    "#18:A7-ROBORO-4"
   ],
   "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
+ },
+ {
+  "packet_id": "RP-054",
+  "repair_family": null,
+  "finding_ids": [
+   "live:RB-PROJ-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
  }
 ]
