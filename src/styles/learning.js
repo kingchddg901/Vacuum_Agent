@@ -324,7 +324,7 @@ export const learningStyles = `
   .evcc-learning-phase-next {
     margin-top: var(--evcc-space-xs, 4px);
     color: var(--evcc-text-muted);
-    font-size: var(--evcc-font-size-sm, 0.85em);
+    font-size: 0.85em;
   }
 
   /* =========================================================

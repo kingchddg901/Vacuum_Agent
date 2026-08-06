@@ -381,6 +381,14 @@ export const MODAL_HOST_STYLES = `
       var(--evcc-map-ov-dock, #a3e635);
     --evcc-map-ov-obstacle:
       var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
+    /* Saved zones shipped after this block was written and their overlay colour
+       was referenced but never declared, so it always fell back and never showed
+       up in the Theme editor beside its siblings. Values are the fallbacks that
+       were already rendering, so defining them changes nothing on screen. */
+    --evcc-map-ov-savedzone:
+      var(--evcc-map-ov-savedzone, rgba(167, 139, 250, 0.85));
+    --evcc-map-ov-savedzone-text:
+      var(--evcc-map-ov-savedzone-text, #ffffff);
     --evcc-map-ov-area-text:
       var(--evcc-map-ov-area-text, #ffffff);
 

@@ -806,7 +806,7 @@ export const setupStyles = `
     gap:             12px;
     padding:         8px 10px;
     border-radius:   8px;
-    background:      var(--evcc-surface-default, rgba(255, 255, 255, 0.04));
+    background:      var(--evcc-surface-subtle);
     border:          1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.06));
   }
 

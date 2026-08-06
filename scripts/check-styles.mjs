@@ -197,10 +197,14 @@ try {
 // vs --evcc-border-default). Fix them and DELETE the entry; the stale check below
 // makes leaving a fixed entry here a failure, so this list cannot rot upward.
 const KNOWN_DANGLING = new Set([
-  "--evcc-border", "--evcc-danger", "--evcc-font-size-sm",
-  "--evcc-map-ov-savedzone", "--evcc-map-ov-savedzone-text",
-  "--evcc-on-accent", "--evcc-shadow-overlay", "--evcc-space-xs",
-  "--evcc-surface-default", "--evcc-surface-hover", "--evcc-text",
+  // EMPTY, and it should stay that way. The 11 entries recorded here on
+  // 2026-08-06 were all fixed the same day: two map-overlay tokens and
+  // --evcc-space-xs / --evcc-surface-hover were DEFINED (they completed
+  // families that already existed), --evcc-on-accent and
+  // --evcc-surface-default were renames onto exact-value tokens that were
+  // already there, --evcc-font-size-sm and --evcc-shadow-overlay lost their
+  // var() because no such family exists, and four were repointed at the real
+  // token their fallback had been approximating.
 ]);
 
 const seenDangling = new Set();

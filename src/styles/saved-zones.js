@@ -55,7 +55,7 @@ export const savedZonesStyles = `
     font-weight: 700;
     padding: 2px 8px;
     border-radius: 999px;
-    color: var(--evcc-on-accent, #fff);
+    color: var(--evcc-text-on-accent);
     background: var(--evcc-accent, #4c9be8);
   }
 
@@ -196,7 +196,7 @@ export const savedZonesStyles = `
   .evcc-saved-zones-cap-warn {
     font-size: 0.74rem;
     font-weight: 600;
-    color: var(--evcc-danger, #e5534b);
+    color: var(--evcc-sem-error);
   }
 
   .evcc-saved-zones-drawbtn {

@@ -157,6 +157,7 @@ export const foundationStyles = `
     --evcc-surface-input:  rgba(255,255,255,0.06);
     --evcc-surface-overlay: rgba(0,0,0,0.4);
     --evcc-surface-subtle: rgba(255,255,255,0.04);
+    --evcc-surface-hover:  rgba(255,255,255,0.08);
     --evcc-surface-chip:   rgba(255,255,255,0.09);
     --evcc-surface-action: rgba(255,255,255,0.10);
     --evcc-surface-action-hover: rgba(255,255,255,0.18);
@@ -195,6 +196,9 @@ export const foundationStyles = `
     --evcc-radius-chip:  999px;
 
     /* Spacing */
+    /* xs was referenced before it existed; 4px is the value that was already
+       falling back, so the scale gains its missing member and nothing moves. */
+    --evcc-space-xs: 4px;
     --evcc-space-sm: 8px;
     --evcc-space-md: 12px;
     --evcc-space-lg: 16px;

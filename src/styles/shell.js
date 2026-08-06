@@ -225,7 +225,7 @@ export const shellStyles = `
     background:    var(--evcc-surface-raised);
     border:        1px solid var(--evcc-border-subtle);
     border-radius: var(--evcc-radius-card, 10px);
-    box-shadow:    var(--evcc-shadow-overlay, 0 8px 24px rgba(0, 0, 0, 0.28));
+    box-shadow:    0 8px 24px rgba(0, 0, 0, 0.28);
   }
 
   .evcc-lang-menu-heading {

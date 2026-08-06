@@ -461,10 +461,10 @@ export const mapStyles = `
     flex:          1;
     padding:       5px 8px;
     font-size:     12px;
-    border:        1px solid var(--evcc-border, #2d333b);
+    border:        1px solid var(--evcc-border-default);
     border-radius: 6px;
     background:    var(--evcc-surface-raised, #232a31);
-    color:         var(--evcc-text, #e6edf3);
+    color:         var(--evcc-text-primary);
     cursor:        pointer;
   }
   .evcc-map-hide-btn--on {

@@ -257,7 +257,7 @@ export const runProfileStyles = `
   }
 
   .evcc-run-profiles-step-btn--remove {
-    color: var(--evcc-danger, #ff6b6b);
+    color: var(--evcc-sem-error);
   }
 
   .evcc-run-profiles-steps-actions {
