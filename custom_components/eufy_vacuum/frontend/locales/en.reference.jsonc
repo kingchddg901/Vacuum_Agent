@@ -1617,6 +1617,9 @@
     "badge_errors": "Errors",  // fallback when the count is unknown
     "badge_errors_count": {"one":"1 error","other":"{count} errors"},
     "badge_errors_seconds": "{seconds}s spent in an error state during this run",
+    "badge_errors_from_dock": "{seconds}s from the dock",
+    "badge_errors_from_robot": "{seconds}s from the robot",
+    "badge_errors_unattributed": "{seconds}s not attributed to specific hardware",
     "badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
     "badge_single_room": "Single Room",
     "badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning
