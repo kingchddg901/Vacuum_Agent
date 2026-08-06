@@ -1,1 +1,18 @@
-[]
+[
+ {
+  "finding_id": "#18:A7-ROBORO-4",
+  "credited_to": "RP-049 (4fbb530)",
+  "reopened_at": "2026-08-05",
+  "evidence": "mapping/roborock_raw_map.py still emits ro_dx/ro_dy as literal 0 at :203-204. 4fbb530 closed the half that was a DEFECT -- the IMAGE block's top/left were decoded and then silently dropped, so nothing downstream could discover an offset existed. They are now emitted. APPLYING them is untouched.",
+  "why": "OPEN, 1 of 2 complete - blocked -> hardware: an S6 bench capture confirming device-frame overlay registration (robot/dock anchors, no-go quads, saved zones). Per charter 2b the surviving half is a sub-item with a NAMED, TYPED blocker, not a closure. I credited it as whole in RP-049, which is the A3-REC-3 forgery that section exists to abolish -- committed, with no irony intended, in a message that quoted the charter. Applying the offset against an unverified assumption would trade a POSSIBLE misalignment for a CERTAIN one, so the deferral is right; recording it as done was not.",
+  "not_fixable_by": "reading the code -- this needs a Roborock S6 on the bench. Ivy can answer it; batch it into the gate-12 hardware session."
+ },
+ {
+  "finding_id": "#7:DQ-ACT-6",
+  "credited_to": "RP-049 (4fbb530)",
+  "reopened_at": "2026-08-05",
+  "evidence": "Global pre-calls now run AFTER _resolve_live_dispatch_payload, pinned by [GPC-11] reading the real start path via inspect.getsource. That closes the TRIGGER. A failure inside dispatch itself still leaves the pre-call applied, and the code comment says so.",
+  "why": "OPEN, 1 of 2 complete, 1 wontfix -- the transactional restore is WONTFIX per Chris's ack at the RP-031 review (it needs a read-back per pre-call plus a concurrent-edit policy, and every pre-call here is Roborock-only and UNVERIFIED on-device). Charter 2b requires wontfix to render SEPARATELY in the x-of-y header, not to disappear inside a plain closure. Reopened to carry the adjudication visibly rather than to reverse it.",
+  "not_fixable_by": "nothing -- this is adjudicated, not outstanding. It is here so the ledger states the disposition instead of implying completeness."
+ }
+]
