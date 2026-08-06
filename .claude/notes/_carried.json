@@ -29,7 +29,9 @@
   "note": "`common.service_failed`, `learning.room_skipped`, `learning.run_incomplete_toast` are English-only across the 17 non-English locales.",
   "subsystem": "frontend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "closed": "2026-08-05",
+  "closed_evidence": "The translation pass landed; `[CARD4-1]` (src/i18n/card4-untranslated-strings.test.mjs) asserts all three keys are present in every one of the 17 shipped packs and PASSES. Verified by running the test, not by grep -- two of my greps were wrong first (the packs are de-bundled to frontend/locales/, and that JSON is NESTED, so a flat \"common.service_failed\" pattern can never match)."
  },
  {
   "key": "failure_renders_success",
@@ -61,7 +63,9 @@
   "note": "Contract settled — English-only gate, one token override, glyph coverage proven per locale before offering another. No code written.",
   "subsystem": "frontend",
   "blocked_by": null,
-  "note_recovery": "verbatim"
+  "note_recovery": "verbatim",
+  "closed": "2026-08-05",
+  "closed_evidence": "Shipped across dfff15f (P1+P2: font asset, token override, preference), 818ad37 (P3: the picker, wired end to end), dd2ec11 (P4: harness, gallery, user guide). ec83cd7 even refreshed the ledger saying so -- and this hand-maintained Tier-3 line still read 'No code written'."
  },
  {
   "key": "roborock_edge_mopping",
@@ -69,6 +73,8 @@
   "note": "RE-SCOPED 2026-08-01 — the earlier framing ('the card renders a control the adapter declares unsupported, so gate or remove it') is BACKWARDS and must not be actioned as written. Two facts, both in the Roborock adapter: (1) supports_edge_mopping is a HARDCODED brand-wide False at adapter.py:177 and :580 — flat literals, NO model gating, unlike the Eufy adapter which asks `model_family in {...}` for its per-model capabilities. That is the brand-vs-model conflation pattern: a per-model fact frozen at brand level. (2) the adapter's OWN vocabulary already disagrees — vocabulary.py:148, the `vacuum_mop_deep` room profile, ships `edge_mopping: True`. So the adapter requests a capability it declares absent. Chris confirms his S6 cannot edge mop, but correctly notes that is a MODEL fact, not a brand fact — other Roborock models plausibly can. CONSEQUENCE: gating the card on supports_edge_mopping would hide the control on every Roborock including models that can do it, and would leave vacuum_mop_deep requesting an absent capability. RECOMMENDED (consistent with Q12's 'unsupported and unsurfaced until verified... add an independently validated declaration' precedent): leave the declaration False, FIX vacuum_mop_deep to stop requesting edge_mopping (the near-one-liner), and treat model-gating as a SEPARATE change requiring verified per-model device facts. Do not invent hardware capabilities. Deferred by Chris 2026-08-01: patch later, it is near a one-liner.",
   "subsystem": "frontend",
   "blocked_by": "needs verified per-model Roborock device facts before any model-gating; the vocabulary contradiction itself is unblocked",
-  "note_recovery": "reconstructed_from_source"
+  "note_recovery": "reconstructed_from_source",
+  "closed": "2026-08-05",
+  "closed_evidence": "Closed by 162e391 exactly as re-scoped: the declaration stays False and the REQUEST goes away. vocabulary.py:164 now has vacuum_mop_deep edge_mopping False; all five profiles + CUSTOM_ROOM_PROFILE agree. Card gating was deliberately NOT done (it would hide the control on every Roborock including models that can edge mop -- a per-model fact frozen at brand level). Chris re-approved this same shape 2026-08-05 before it was found already done."
  }
 ]

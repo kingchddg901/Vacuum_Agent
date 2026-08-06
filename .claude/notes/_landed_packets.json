@@ -656,5 +656,13 @@
   ],
   "landed_at": "2026-08-05",
   "note": "SETUP-REJ-2 wired at the write boundary. save_managed_rooms now passes the MAP-SCOPED rejection set to build_managed_rooms, so the CRUD-5 exclusion that had never executed does. Closes the direct-service-call bypass: the protection that actually worked was the new_rooms drift filter, which is UI-path only, so a hand-written call with explicit enabled_room_ids could create a room the user rejected. Map-scoped is load-bearing -- the vacuum-wide union would drop a real room on one map because an unrelated id was rejected on another, which is A4-SETUP-6 at a new site and destructive rather than merely blocking. Not wireable before 56af6b1: the rejection set had no map dimension, so there was nothing correct to pass. rejected_room_ids_for reads without creating the record, so a save does not materialise setup-progress state. [DRD-18..20]; removing the argument fails DRD-18."
+ },
+ {
+  "packet_id": "RP-052",
+  "commits": [
+   "93953fa"
+  ],
+  "landed_at": "2026-08-05",
+  "note": "DEPLOY-PURGE-1. deploy-live.ps1 gains /PURGE, authorized by Chris before the edit because the flag makes the script delete from a live Home Assistant config dir. Dry-run showed exactly 2 files / 0 dirs; exclusions (/XD __pycache__, /XF *.pyc) apply to purging too, so HA's compiled cache is untouched. Both orphans removed; repo and live now match with no EXTRA and no Newer. The two files were repairs.py and adapters/eufy/discovery.py, BOTH deleted by RP-040 -- an audit closing batch -- so two findings the ledger called closed had been closed in git and open on the machine ever since. repairs.py is off disk but HA loaded it at startup and it stays resident until a restart."
  }
 ]

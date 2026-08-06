@@ -272,10 +272,20 @@ if APPLIED_ROWS:
     A("")
 A("## TIER 3 -- carried over from before audit #7, never closed")
 A("")
-CARRIED = [(c["title"], c["note"]) for c in json.loads(
-    pathlib.Path(".claude/notes/_carried.json").read_text(encoding="utf-8"))]
-for t, d in CARRIED:
-    A(f"- [ ] **{t}** -- {d}")
+# A carried item can CLOSE. Rendered struck-through with its evidence rather than
+# dropped, for the same reason APPLIED is: a finding that disappears is
+# indistinguishable from one that was never found. Three of the nine were closed
+# by work that landed weeks ago and nobody updated this list -- the Tier-3 section
+# is hand-maintained, so it drifts silently while the generated sections stay true.
+_CARRIED_ALL = json.loads(
+    pathlib.Path(".claude/notes/_carried.json").read_text(encoding="utf-8"))
+CARRIED = [(c["title"], c["note"]) for c in _CARRIED_ALL if not c.get("closed")]
+_CARRIED_CLOSED = [c for c in _CARRIED_ALL if c.get("closed")]
+for c in _CARRIED_ALL:
+    if c.get("closed"):
+        A(f"- [x] ~~**{c['title']}**~~ CLOSED {c['closed']} -- {c.get('closed_evidence', '')}")
+    else:
+        A(f"- [ ] **{c['title']}** -- {c['note']}")
 A("")
 A("---")
 A("")
@@ -351,4 +361,5 @@ print(f"wrote {out} ({out.stat().st_size:,} bytes)")
 print(f"applied: {len(APPLIED_ROWS)} findings via {len(_landed)} packets")
 print(f"clusters: {len(CLUSTERS)} covering {len(clustered)} ids "
       f"({len(_fully_closed_clusters)} fully applied)")
-print(f"singles: {len(singles)}   carried: {len(CARRIED)}")
+print(f"singles: {len(singles)}   carried: {len(CARRIED)} open"
+      f" + {len(_CARRIED_CLOSED)} closed")

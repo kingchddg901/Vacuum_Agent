@@ -9,25 +9,20 @@ machine loss.** Copy it somewhere backed up if that matters to you.
 | | |
 |---|---|
 | Fixes SHIPPED | audits #1-#6 + the adapter remainder, all deployed |
-| Fixes APPLIED (landed packets) | **461** findings via 64 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050, RP-051) |
+| Fixes APPLIED (landed packets) | **462** findings via 65 packets (CARD-1, CARD-2, CARD-3, CARD-4, CARD-5, CARD-6, CARD-7, CARD-8, CARD-9, RP-001, RP-002, RP-003, RP-004, RP-005, RP-006, RP-007, RP-008, RP-009, RP-010, RP-011, RP-012, RP-013a, RP-013b, RP-013c, RP-013d, RP-013e, RP-013f, RP-014, RP-015, RP-016, RP-018, RP-019, RP-020, RP-021a, RP-021b, RP-021c, RP-023a, RP-022, RP-024, RP-025, RP-026, RP-027, RP-028, RP-029, RP-030, RP-031, RP-032, RP-033, RP-034, RP-035, RP-036, RP-037, RP-038, RP-039, RP-040, RP-042, RP-043, RP-044, RP-045, RP-046, RP-048, RP-049, RP-050, RP-051, RP-052) |
 | Audits covered here | #7 dispatch+queue, #8 profiles+planning, #9 jobs execution, #10 rooms identity, #11 map source lifecycle, #12 listeners input, #13 services (public API), #14 core/manager hub, #15 integration script, #16 learning consumers, #17 themes manager, #18 mapping services |
-| Open findings | **3** -- 0 open clusters (29 fully applied) + 3 singles |
-| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 2 / LOW 1 |
+| Open findings | **2** -- 0 open clusters (29 fully applied) + 2 singles |
+| By severity | CRITICAL 0 / HIGH 0 / MEDIUM 1 / LOW 1 |
 | Hardware validation | **5 packets** validated on hardware (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f) across 2 brand(s): eufy (alfred, T2351); roborock (ivy, S6). Evidence in `_frozen/baseline/` |
 
 
-> ### 2 REOPENED finding(s) — a landed packet was credited with a fix that
+> ### 1 REOPENED finding(s) — a landed packet was credited with a fix that
 > does not hold. Closure is binary; findings are not.
 >
 > **#18:A7-ROBORO-4** — credited to RP-049 (4fbb530), reopened 2026-08-05
 > - **Evidence:** mapping/roborock_raw_map.py still emits ro_dx/ro_dy as literal 0 at :203-204. 4fbb530 closed the half that was a DEFECT -- the IMAGE block's top/left were decoded and then silently dropped, so nothing downstream could discover an offset existed. They are now emitted. APPLYING them is untouched.
 > - **Why:** OPEN, 1 of 2 complete - blocked -> hardware: an S6 bench capture confirming device-frame overlay registration (robot/dock anchors, no-go quads, saved zones). Per charter 2b the surviving half is a sub-item with a NAMED, TYPED blocker, not a closure. I credited it as whole in RP-049, which is the A3-REC-3 forgery that section exists to abolish -- committed, with no irony intended, in a message that quoted the charter. Applying the offset against an unverified assumption would trade a POSSIBLE misalignment for a CERTAIN one, so the deferral is right; recording it as done was not.
 > - **NOT fixable by:** reading the code -- this needs a Roborock S6 on the bench. Ivy can answer it; batch it into the gate-12 hardware session.
->
-> **#7:DQ-ACT-6** — credited to RP-049 (4fbb530), reopened 2026-08-05
-> - **Evidence:** Global pre-calls now run AFTER _resolve_live_dispatch_payload, pinned by [GPC-11] reading the real start path via inspect.getsource. That closes the TRIGGER. A failure inside dispatch itself still leaves the pre-call applied, and the code comment says so.
-> - **Why:** OPEN, 1 of 2 complete, 1 wontfix -- the transactional restore is WONTFIX per Chris's ack at the RP-031 review (it needs a read-back per pre-call plus a concurrent-edit policy, and every pre-call here is Roborock-only and UNVERIFIED on-device). Charter 2b requires wontfix to render SEPARATELY in the x-of-y header, not to disappear inside a plain closure. Reopened to carry the adjudication visibly rather than to reverse it.
-> - **NOT fixable by:** nothing -- this is adjudicated, not outstanding. It is here so the ledger states the disposition instead of implying completeness.
 
 `verified` = I personally opened the file and confirmed the mechanism at source. Everything
 else was reported by a finder and confirmed by both adversarial verifiers, but not
@@ -277,11 +272,8 @@ audit is a snapshot, not a ledger.
 
 ## TIER 2 -- singles, by corrected severity
 
-### MEDIUM (2)
+### MEDIUM (1)
 
-- [ ] **DQ-ACT-6** `core/manager.py:5005` [roborock]  
-  A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
-  -> A failed start silently reconfigures the robot's global mop intensity and leaves it there. On a mixed-batch start that means water is now OFF for whatever the user does next from the vendor app.
 - [ ] **A7-ROBORO-4** `mapping/roborock_raw_map.py:171` [roborock]  
   ro_dx/ro_dy are hardcoded 0 and the decoded top/left are discarded — the payload cannot express any offset between the raw IMAGE-block frame and the parser's rendered frame  
   -> IF the frames differ: the card draws the raster full-bleed at 0..1 while every overlay it composites on top — room bboxes, robot/dock anchors, no-go and no-mop quads, saved zones — comes from map_state_source in the pars
@@ -294,7 +286,7 @@ audit is a snapshot, not a ledger.
 
 ---
 
-## APPLIED -- 461 findings closed by a landed packet
+## APPLIED -- 462 findings closed by a landed packet
 
 Not open work. Kept here (rather than removed) so the audit trail stays intact --
 a disappeared finding is indistinguishable from one never found.
@@ -1223,6 +1215,8 @@ a disappeared finding is indistinguishable from one never found.
   path_blockers spawns unbounded concurrent `_process` tasks; a second blocker event inside the 30s cancel-confirm window double-cancels and the loser deterministically nulls the run's finalize_summary
 - [x] **SETUP-REJ-2** `rooms/room_manager.py:51` [both] -- **RP-051** (`2a283eb`, 2026-08-05)  
   build_managed_rooms' rejected_rooms= exclusion (CRUD-5) has no production caller
+- [x] **DEPLOY-PURGE-1** `scripts/deploy-live.ps1:61` [both] -- **RP-052** (`93953fa`, 2026-08-05)  
+  deploy-live.ps1 never purges — every file the audit ever DELETED is still running live
 
 ---
 
@@ -1231,12 +1225,12 @@ a disappeared finding is indistinguishable from one never found.
 - [ ] **`active_boundaries` round-trip (SEG-1)** -- Deferred deliberately: it changes a persisted record field and warrants separate scrutiny.
 - [ ] **Pose sampler predicates** -- Two call sites were deliberately not re-pointed at the shared in-flight helper, because doing so would silently add `paused` to what gets sampled. Wants its own change.
 - [ ] **Roborock room migration** -- Room *creation* now takes brand-correct defaults. Rooms created before that still carry the old values. Stored user data, so repairing it is a product decision.
-- [ ] **Three card strings untranslated** -- `common.service_failed`, `learning.room_skipped`, `learning.run_incomplete_toast` are English-only across the 17 non-English locales.
+- [x] ~~**Three card strings untranslated**~~ CLOSED 2026-08-05 -- The translation pass landed; `[CARD4-1]` (src/i18n/card4-untranslated-strings.test.mjs) asserts all three keys are present in every one of the 17 shipped packs and PASSES. Verified by running the test, not by grep -- two of my greps were wrong first (the packs are de-bundled to frontend/locales/, and that JSON is NESTED, so a flat "common.service_failed" pattern can never match).
 - [ ] **Card: the two failure-renders-as-success paths (FE-ERR-1 / MZ-2)** -- Blocked on a backend `supports_response` change.
 - [ ] **Card: the qualification gap (CC-5)** -- Surface provenance, truncation and absent data honestly rather than as confident values.
 - [ ] **Card: surface captured run errors (`run_errors`)** -- The backend now carries app-started-run error evidence end to end. Nothing displays it.
-- [ ] **OpenDyslexic font support** -- Contract settled — English-only gate, one token override, glyph coverage proven per locale before offering another. No code written.
-- [ ] **Roborock edge-mopping: the adapter contradicts itself (was: control removal)** -- RE-SCOPED 2026-08-01 — the earlier framing ('the card renders a control the adapter declares unsupported, so gate or remove it') is BACKWARDS and must not be actioned as written. Two facts, both in the Roborock adapter: (1) supports_edge_mopping is a HARDCODED brand-wide False at adapter.py:177 and :580 — flat literals, NO model gating, unlike the Eufy adapter which asks `model_family in {...}` for its per-model capabilities. That is the brand-vs-model conflation pattern: a per-model fact frozen at brand level. (2) the adapter's OWN vocabulary already disagrees — vocabulary.py:148, the `vacuum_mop_deep` room profile, ships `edge_mopping: True`. So the adapter requests a capability it declares absent. Chris confirms his S6 cannot edge mop, but correctly notes that is a MODEL fact, not a brand fact — other Roborock models plausibly can. CONSEQUENCE: gating the card on supports_edge_mopping would hide the control on every Roborock including models that can do it, and would leave vacuum_mop_deep requesting an absent capability. RECOMMENDED (consistent with Q12's 'unsupported and unsurfaced until verified... add an independently validated declaration' precedent): leave the declaration False, FIX vacuum_mop_deep to stop requesting edge_mopping (the near-one-liner), and treat model-gating as a SEPARATE change requiring verified per-model device facts. Do not invent hardware capabilities. Deferred by Chris 2026-08-01: patch later, it is near a one-liner.
+- [x] ~~**OpenDyslexic font support**~~ CLOSED 2026-08-05 -- Shipped across dfff15f (P1+P2: font asset, token override, preference), 818ad37 (P3: the picker, wired end to end), dd2ec11 (P4: harness, gallery, user guide). ec83cd7 even refreshed the ledger saying so -- and this hand-maintained Tier-3 line still read 'No code written'.
+- [x] ~~**Roborock edge-mopping: the adapter contradicts itself (was: control removal)**~~ CLOSED 2026-08-05 -- Closed by 162e391 exactly as re-scoped: the declaration stays False and the REQUEST goes away. vocabulary.py:164 now has vacuum_mop_deep edge_mopping False; all five profiles + CUSTOM_ROOM_PROFILE agree. Card gating was deliberately NOT done (it would hide the control on every Roborock including models that can edge mop -- a per-model fact frozen at brand level). Chris re-approved this same shape 2026-08-05 before it was found already done.
 
 ---
 
@@ -1259,7 +1253,7 @@ Ordered by (verified) x (blast radius) x (cost), not by severity label.
 10. **C4** -- per-phase attribution. Touches the shape of learning data.
 11. Tier 2 HIGHs, then MEDIUMs. LOWs only when the file is already open for another reason.
 
-**Hardware gate: 5 of 64 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 59 are green in CI only -- treat an unvalidated packet as unshipped.
+**Hardware gate: 5 of 65 landed packets validated on a real vacuum** (RP-013a, RP-013b, RP-013d, RP-013e, RP-013f). The remaining 60 are green in CI only -- treat an unvalidated packet as unshipped.
 
 ## Campaign cost, for calibration
 
@@ -1396,6 +1390,10 @@ Marker-independent by method: the check was whether the finding's described MECH
 EVIDENCE: The described mechanism (dragged area label in a map-level `area_label_anchors` side-table keyed by device room id, unpruned on rebuild) is gone. The anchor now lives ON the room record: `_LABEL_ANCHOR_KEY = "label_anchor"` at custom_components/eufy_vacuum/mapping/mapping_services.py:1644; the write path `_handle_set_area_label_anchor` calls `_migrate_area_label_anchors(map_bucket)` (mapping_services.py:2478, write-path only) then sets `room[_LABEL_ANCHOR_KEY] = anchor` (2509), falling back to the side-table only for rooms with no managed record; `resolve_area_label_anchors` (1647-1677) derives the wire dict from the rooms with the room-record value winning over any legacy entry. Carry-forward is real: rooms/reconciliation.py:274 `carried = dict(source)` re-keys the whole record to the new id after slug matching, so the anchor rides a re-import. RESIDUAL, and the reason for medium: the impact's last sentence extends the finding to `companion_anchors` and each custom layout's furnished `rooms` map — those are still id-keyed dicts (mapping_services.py:1809 `map_bucket.setdefault("companion_anchors", {})`, layout `rooms` at 1830) and the apply-reconciliation path (rooms/room_crud.py:310-335) remaps only rule-status snapshots and floor-type confirmations, never those two. Nothing in custom_components/ prunes or remaps companion_anchors (grep: only mapping_services.py + const.py). So the titled seam is fixed; the two siblings named in the impact are not, and no other finding in _open_findings.json/_direct_reads.json covers them.
 
 Marker-independent by method: the check was whether the finding's described MECHANISM is still present, not whether the code cites its id. That distinction is why this is trustworthy — the 2026-08-04 pass used id-citation as its test and put two already-fixed findings back on the board.
+
+- **DQ-ACT-6** (#7 dispatch+queue) `core/manager.py:5005`  
+  A pre-call leaves the device in a modified state (and the stashed run steps consumed) when the clean then fails to start  
+  -> WONTFIX -- TRIGGER FIXED, TRANSACTIONAL RESTORE DECLINED (CHRIS RE-CONFIRMED) (2026-08-05) -- TWO HALVES, both settled. The TRIGGER is fixed: global pre-calls now run AFTER _resolve_live_dispatch_payload (4fbb530), pinned by [GPC-11] which reads the real start path with inspect.getsource rather than sequencing mocks -- a mock-ordering test passes just as happily when production order is wrong. The RESIDUAL -- restoring device state after a failure INSIDE dispatch -- is declined: it needs a read-back per pre-call plus a policy for concurrent user edits, and every pre-call on this path is Roborock-only and marked UNVERIFIED on-device. Chris acked it at the RP-031 review and re-confirmed 2026-08-05 when walking the open list. Recorded as adjudicated rather than reopened, because 'reopened' means a credited fix does not hold; this one holds, and the rest is a decision. Charter 2b: wontfix is shown separately, never folded into a plain closure.
 
 - **A5-PP-RP-2** (#8 profiles+planning) `planning/run_plan.py:1379`  
   Any plan whose FIRST surviving phase is a zone is refused with "Room-clean payload is missing or invalid" — and a live blocker rule can push a plan into that state  

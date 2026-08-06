@@ -920,5 +920,13 @@
    "live:SETUP-REJ-2"
   ],
   "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
+ },
+ {
+  "packet_id": "RP-052",
+  "repair_family": null,
+  "finding_ids": [
+   "live:DEPLOY-PURGE-1"
+  ],
+  "source_doc": ".claude/notes/synthesis/AUDIT-2-CHARTER.md"
  }
 ]

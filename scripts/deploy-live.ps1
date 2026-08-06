@@ -58,7 +58,24 @@ else {
 }
 
 Write-Host "[2/3] Copying integration to $dst (excluding __pycache__/*.pyc)..."
-& robocopy $src $dst /E /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS /R:1 /W:1 | Out-Null
+# /PURGE (live:DEPLOY-PURGE-1, authorized by Chris 2026-08-05). Without it robocopy
+# COPIES BUT NEVER REMOVES, so a file deleted from the repo runs on the live box
+# forever. Found by diffing the repo against Z: during an audit-closure check, not
+# by any gate: repairs.py and adapters/eufy/discovery.py were both deleted by
+# RP-040 -- an AUDIT CLOSING BATCH -- and were still on the box weeks later. Two
+# findings the ledger called closed were closed in git and open on the machine.
+#
+# repairs.py is the instructive one: Home Assistant auto-loads it BY FILENAME for
+# the repairs platform, no import required, which is exactly why the audit's
+# importer grep found nothing and called it unreachable. Meanwhile the same deploy
+# overwrote strings.json, so the live box was left running a repair flow whose
+# `issues` translation keys no longer existed.
+#
+# SAFE because the exclusions apply to purging too: /XD __pycache__ and /XF *.pyc
+# are skipped for deletion as well as for copy, so HA's compiled cache survives.
+# Dry-run before changing this line or its scope:
+#   robocopy $src $dst /E /PURGE /XD __pycache__ /XF *.pyc /L
+& robocopy $src $dst /E /PURGE /XD __pycache__ /XF *.pyc /NFL /NDL /NJH /NJS /R:1 /W:1 | Out-Null
 $rc = $LASTEXITCODE
 if ($rc -ge 8) { throw "robocopy failed (exit $rc)." }   # robocopy: <8 == success
 
