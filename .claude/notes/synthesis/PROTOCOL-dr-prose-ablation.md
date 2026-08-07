@@ -687,3 +687,46 @@ raises it.
 - **A flag is never a veto.** False flags do not void or delay closure beyond the audit
   itself. Post-closure suspicions feed rule-11 re-sampling (which owns retroactive
   claw-back), not direct reopening.
+
+## AMENDMENT (2026-08-06): rule 12b — escrow, participant-zero, and the payout table
+*(three-agent convergence: Chris + secondary reviewer + coordinator)*
+
+- **Escrow, not payment-and-claw-back.** Every role score is PROVISIONAL until the chain
+  closes AND the random-audit window expires. Nothing pays early; claw-back exists only
+  for post-window discoveries via rule-11 re-sampling.
+- **A whistleblower who materially participated in creating the violation gets ZERO.**
+  The forensic reviewer distinguishes OBSERVED contamination from CAUSED/ASSISTED
+  contamination. You cannot hand the builder an answer and then report the builder.
+  (Honest observers keep the 12a made-whole cap; participants get nothing.)
+- **Duplicate flags do not multiply.** The first materially independent report earns the
+  whistleblower credit; later reports strengthen evidence but add no bounty unless they
+  expose a DISTINCT mechanism.
+- **Flagger reliability is quality-scored, not raw-rate-scored.** The fixed 1-in-3
+  precision threshold is replaced: base rates swing wildly in a mostly-clean system, and
+  an evidenced flag with an innocent explanation is not spam. Score on: specificity of
+  evidence, whether the alleged mechanism was actually possible, severity, and whether
+  misses were reasonable suspicions versus garbage. Chronic garbage still loses the
+  auto-trigger (12a's de-weaponization).
+- **Reciprocal-whistleblowing pattern detection.** The made-whole cap already makes the
+  basic A-contaminates/B-flags swap net-negative (lose a chain, recover at most one), but
+  rule-11 forensics additionally query CROSS-CHAIN coupling: repeated paired reporting,
+  reciprocal timing, shared unusual artifacts, agents whose reports disproportionately
+  involve one another. A flag can be individually legitimate while the pattern is
+  collusive.
+- **Whistleblower credit is delayed like everything else** — it pays when the forensic
+  review ESTABLISHES the contamination mechanism, not when something "looks suspicious."
+
+**The payout table:**
+
+```text
+Clean honest closure:                         role points earned normally
+Confirmed contamination, no whistleblower:    contaminated chain's points void
+Confirmed contamination, honest whistleblower: chain void; flagger recovers <= honest-role maximum
+Contamination caused/assisted by whistleblower: chain void; flagger gets 0
+Unsupported but evidenced flag:               chain continues; no reward; reliability record updated
+Evidence-free flag:                           rejected without consuming a forensic audit
+```
+
+The design goal, stated plainly: not trustworthy agents — an economy where betraying the
+experiment is unattractive, hiding a betrayal is less attractive than exposing it, and
+manufacturing a betrayal is unprofitable.
