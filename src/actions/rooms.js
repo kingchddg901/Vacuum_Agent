@@ -555,8 +555,8 @@ export function applyRoomsActions(proto) {
       "eufy_vacuum",
       "set_room_access_graph",
       {
-        vacuum_entity_id: this.selectedVacuum(),
-        map_id: this.activeMapId(),
+        vacuum_entity_id: this.state.vacuumEntityId(),
+        map_id: this.state.activeMapId(),
       },
       true
     );

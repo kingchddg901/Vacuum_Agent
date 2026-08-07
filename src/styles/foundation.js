@@ -270,26 +270,23 @@ export const foundationStyles = `
   }
 
   /* =========================================================
-     CARD SHELL
-     ========================================================= */
+     CARD SHELL — deliberately absent. Do not re-add .evcc-card.
+     =========================================================
+     R2-DEAD-4. There was a .evcc-card block here and NO element ever carried the
+     class — the shell frame emits .evcc-shell (main.js). Every declaration in it
+     was silently inert for the life of the block, so deleting it changes nothing
+     that renders.
 
-  .evcc-card {
-    background: var(--evcc-surface-card);
-    border-radius: var(--evcc-radius-card);
-    color: var(--evcc-text-primary);
-    /* --evcc-font-family FIRST, or the accessibility typeface is inert. This is
-       the card shell every surface inherits from, and it used to name the HA paper
-       font directly — so styles/fonts.js set the token on :host and nothing in the
-       card ever read it. The two rules that DID read it are the modal and toast
-       hosts, which live on document.body and cannot inherit a token set on :host,
-       so the feature was broken in both directions and OpenDyslexic never applied
-       anywhere. The fallback chain is unchanged for the default typeface. */
-    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
-    font-size: 14px;
-    line-height: 1.5;
-    position: relative;
-    isolation: isolate;
-  }
+     It cost two fix rounds during live:FONT-1: the typeface read sat here, on a
+     selector that matches nothing, which is why the faces stayed "unloaded" — no
+     rendered text ever asked for the family. The real read now lives on
+     .evcc-shell in styles/shell.js, pinned by TF-1 (the chain, a11y-first) and
+     TF-7 (the markup side: main.js must still emit the class).
+
+     Five declarations died with it and were never in effect: color, font-size
+     14px, line-height 1.5, position relative, isolation isolate. If the shell
+     SHOULD carry any of them, that is a deliberate visual change to make on
+     .evcc-shell and eyeball — not a silent restore of this block. */
 
   /* =========================================================
      HEADER

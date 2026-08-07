@@ -1733,6 +1733,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
     }
 
     const closers = [
+      // R2-BUG-3: job-summary was missing from this list, so Escape closed every
+      // modal EXCEPT this one. Listed first because it is a leaf surface launched
+      // from a job row — if it is open at all, it is the top of the stack.
+      ["job-summary",   "isJobSummaryOpen",           "closeJobSummary"],
       ["maintenance",   "activeMaintenanceModalItem", "closeMaintenanceModal"],
       ["room-estimate", "isRoomEstimateModalOpen",    "closeRoomEstimateModal"],
       ["room-access",   "isRoomAccessOpen",           "closeRoomAccess"],

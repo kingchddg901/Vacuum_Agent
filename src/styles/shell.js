@@ -213,7 +213,9 @@ export const shellStyles = `
     /* fixed = clipped to the VIEWPORT, not the overflow:hidden card box, so the
        outside-click target covers the whole screen. Assumes no ancestor sets
        transform / filter / contain (which would make this its containing block
-       and re-clip it) — true today (.evcc-card uses only isolation:isolate). */
+       and re-clip it) — true today: .evcc-shell sets none of the three. (This
+       used to cite .evcc-card, a block that matched no element and has since
+       been removed — R2-DEAD-4. The claim held, but not for the stated reason.) */
     position:   fixed;
     inset:      0;
     z-index:    1;            /* below the button + menu, above everything else */
