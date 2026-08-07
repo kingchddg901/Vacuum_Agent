@@ -33,6 +33,16 @@ get his answer, nothing rots silently. Updated as workflow clusters land.**
    root cause the dev docs drifted; fix the in-file docstrings with the doc pass or they
    re-poison the next transcription (orphan 01/02 report, signal 4).
 
+## OPEN — needs a DOC ticket (the section above is code-only)
+
+1. **`docs/dev/frontend/` was not in the batch-1 reconciliation** — three docs known-stale
+   against the 2026-08-06 card work, and two subsystems (the accessibility typeface, the
+   fault-label seam) have **no DR section at all**. Full table + rationale in
+   `docs/dev/deltas/README.md` § "Epoch 1 coverage caveat". Treat that region as
+   unreconciled baseline until a batch-2 pass closes it. The typeface omission is not
+   academic: nothing in prose said a font token is subject to the shadow/body split, which
+   is how `live:FONT-1` shipped inert for two days.
+
 ## QUESTIONS FOR CHRIS — intent, not defects
 
 1. **`discovery.py` trigger semantics:** the doc said auto-discovery fires on "first non-idle
