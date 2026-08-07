@@ -275,7 +275,7 @@ trigger:
 
 ### When it fires
 
-Fires on a fixed 5-second interval from the job-progress listener (`listeners/job_progress.py`) for every managed vacuum/map that has an active job. The tick fires only while the active job's status is `started` or `paused` — it stops once the job is finalized. On each tick the listener recomputes the job progress snapshot (the same path that can fire `eufy_vacuum_stall_detected`) and then emits this event so dashboards and automations can refresh on a heartbeat rather than polling a service.
+Fires on a fixed 5-second interval from the job-progress listener (`listeners/job_progress.py`) for every managed vacuum/map that has a run in flight — active-job status `started`, `paused`, or `external` (an app-started run being captured) — and stops once the job is finalized. On each tick the listener recomputes the job progress snapshot (the same path that can fire `eufy_vacuum_stall_detected`) and then emits this event so dashboards and automations can refresh on a heartbeat rather than polling a service.
 
 The payload deliberately carries no job state — it is a pull signal. Use it as a trigger to call `get_job_progress_snapshot`, `get_dashboard_snapshot`, or another state-inspection service for the current values.
 
@@ -318,14 +318,19 @@ action:
 
 ### When it fires
 
-Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`), which `get_job_progress_snapshot()` invokes on every dashboard poll / progress tick. The event fires when both of the following are true:
+Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`). The anomaly fields (`stall_detected`, `elapsed_minutes`, `expected_minutes`, `stall_ratio`) are recomputed fresh on **every** call to this method — including a pure `get_job_progress_snapshot()` read triggered by a card poll — but the event fire and the per-room dedup bookkeeping only happen when the caller passes `emit=True`. The **only** caller that does is `EufyVacuumManager.apply_job_progress_tick`, invoked once per vacuum/map by the 5-second [`eufy_vacuum_job_progress_tick`](#eufy_vacuum_job_progress_tick) ticker — a card polling `get_job_progress_snapshot` directly sees the same computed fields but fires nothing and persists no dedup state.
 
-1. The integration is already in `awaiting_bounds_exit` state for the current room — meaning the room's timing threshold was met but it has not yet rolled over (no counter plateau or native-signal completion has advanced past it)
-2. The robot has been in the room for **at least 2× the learned timing threshold** for that room (`_STALL_RATIO`)
+The event fires when all of the following are true:
 
-The tracker records which rooms have already triggered this event per job via `_stall_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many dashboard polls occur.
+1. The vacuum's adapter honors dispatched clean order (`adapter_honors_clean_order`) — true for Eufy; false for a path-optimizing brand (Roborock). This is a static per-adapter capability declaration (`capabilities.honors_clean_order` in the adapter config) — a job's `strict_order` flag does not change it. The whole stall/`running_long` branch below is skipped for an adapter that doesn't honor order — such a run never fires this event.
+2. The integration is already in `awaiting_bounds_exit` state for the current room — meaning the room's timing threshold was met but it has not yet rolled over (no counter plateau or native-signal completion has advanced past it)
+3. The robot has been in the room for **at least the stall ratio × the learned timing threshold** for that room — the ratio comes from the adapter's `anomaly.stall_ratio`, default **2.0×**
 
-This event requires the learning system to have timing data for the room. If no learned threshold exists, the stall check is skipped.
+On a **grouped** phase (multiple rooms dispatched together as one phase, with no per-room rollover), the threshold in condition 3 is the **sum** of the group members' individual learned thresholds rather than just the current room's — a group's first room stays "current" for the whole phase, so comparing it against a single-room threshold would false-positive by an order of magnitude. Members with no timing entry contribute nothing to the sum.
+
+The tracker records which rooms have already triggered this event per job via `_stall_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many ticks occur while it stays stalled.
+
+This event does **not** require learned timing data — an unlearned room still gets a timeline entry via the ~6-minute default estimate (`source: "default"`), and the threshold calculation runs the same either way. The stall check is skipped only when the current room (or, for a grouped phase, every member of the group) has no timeline entry at all — i.e. it isn't part of the active job's resolved rooms.
 
 ### Payload fields
 
@@ -336,8 +341,8 @@ This event requires the learning system to have timing data for the room. If no 
 | `room_id` | `int` | ID of the stalled room (integer, not a string) |
 | `room_name` | `str` | Human-readable name of the stalled room |
 | `elapsed_minutes` | `float` | How long the robot has been in the room, rounded to 1 decimal place |
-| `expected_minutes` | `float` | The learned timing threshold for the room, rounded to 1 decimal place |
-| `stall_ratio` | `float` | `elapsed_minutes / expected_minutes`, rounded to 2 decimal places — always >= 2.0 when this event fires |
+| `expected_minutes` | `float` | The learned timing threshold for the room, rounded to 1 decimal place. On a grouped phase this is the **sum** of the group members' thresholds, not one room's — see above. |
+| `stall_ratio` | `float` | `elapsed_minutes / expected_minutes`, rounded to 2 decimal places — always >= the configured stall ratio (default 2.0) when this event fires |
 
 ### Example trigger
 
@@ -482,3 +487,11 @@ action:
         Affected rooms:
         {{ trigger.event.data.affected_remaining_room_names | join(', ') }}
 ```
+
+---
+
+## eufy_vacuum_boundary_saved
+
+### When it fires
+
+**Never, in current builds.** The event name is still defined (`EVENT_BOUNDARY_SAVED` in `mapping/tracker.py`), but no code in the repo fires it — the room-boundary derivation mechanism that once produced it was removed with the mapping split. It is listed here only so you do not build an automation on it: an automation triggered on this event will never run.

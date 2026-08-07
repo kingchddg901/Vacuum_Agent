@@ -139,7 +139,7 @@ Cleans a single saved zone. Resolves the zone's geometry to its normalized bound
 | `zone_id` | Yes | The zone to clean. |
 | `clean_times` | No | Number of passes. Minimum `1`. Default `1`. |
 
-Supports response. Returns `{"cleaned": true, "zone_id", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, or `map_not_active`.
+Supports response. Returns `{"cleaned": true, "zone_id", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, `map_not_active`, or `active_map_indeterminate` (the active map could not be resolved).
 
 #### `clean_saved_zones`
 
@@ -152,7 +152,7 @@ Cleans several saved zones together in **one** dispatch — the selected set is 
 | `zone_ids` | Yes | List of zone IDs to clean together (minimum one). |
 | `clean_times` | No | Number of passes. Minimum `1`. Default `1`. |
 
-Supports response. Returns `{"cleaned": true, "zone_ids", "zone_count", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, `no_zones`, or `map_not_active`.
+Supports response. Returns `{"cleaned": true, "zone_ids", "zone_count", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, `no_zones`, `map_not_active`, or `active_map_indeterminate` (the active map could not be resolved).
 
 ---
 
@@ -179,6 +179,19 @@ Builds the resolved per-room cleaning payload — the exact per-room settings as
 |---|---|
 | `vacuum_entity_id` | Yes |
 | `map_id` | No |
+
+### `add_queue_zone`
+
+Inserts a **zone step** into the live queue — the named [saved zones](#saved-zones) are cleaned together as one phase, positioned between rooms. Unlike `clean_saved_zones` (an immediate dispatch, not part of the queue), a queued zone step runs as part of the job the next `start_selected_rooms` launches.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | |
+| `after_index` | Yes | Number of enabled rooms before the zone step. Clamped to `1`–room count: a zone may sit between rooms or trail after the last room (`after_index` = room count), but never leads — a run always opens with a room. |
+| `zone_ids` | Yes | List of saved-zone IDs to clean together in this step. Zone existence and the per-brand zone count/size caps are enforced at dispatch time, not at insert time. |
+
+Supports response. Requires at least two enabled rooms in the queue. Returns `{"added": true}` merged with the live stepped-queue state, or `{"added": false, "reason": ...}` on `invalid_zone` (empty or unusable `zone_ids`) or `needs_two_rooms` (fewer than two enabled rooms).
 
 ### `start_run_profile`
 
@@ -254,7 +267,12 @@ Persists the current room discovery result as the managed room configuration. Eq
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
 | `map_id` | No | Defaults to the currently active map. |
-| `enabled_room_ids` | No | List of integer room IDs to enable. Omit to keep all rooms enabled. |
+| `enabled_room_ids` | No | List of integer room IDs to save as managed rooms. **Omit the key to keep the current selection unchanged.** `null` and an empty list are rejected with a validation error rather than being treated as "delete every room" — removing rooms goes through per-room enabled flags or map deletion. |
+| `floor_types` | No | Dict mapping room ID to floor type. Valid values: `hardwood`, `laminate`, `tile`, `marble`, `granite`, `concrete`, `carpet_low_pile`, `carpet_high_pile` — carpet pile is part of the compound value, not a separate field (legacy stored `carpet` values are migrated to `carpet_<pile>` at load). A room enabled in this call **without** a floor-type entry is saved but leaves the room record's own `is_configured` flag unset unless a prior save already set it. |
+
+Every room passed here — regardless of whether it has a `floor_types` entry — also has the separate onboarding `floor_types_confirmed` flag stamped for it, so this call always clears the onboarding floor-type-confirmation gate for these rooms even when `is_configured` stays unset.
+
+Room IDs rejected via `setup_reject_rooms` on this map are refused re-creation (skipped) unless the room is already configured.
 
 ### `get_vacuum_maps`
 
@@ -268,15 +286,17 @@ Supports response.
 
 ### `reconcile_room`
 
-The apply/dismiss control for room-identity reconciliation reviews — id-reuse, renamed-room, and floor-type mismatches surfaced by `discover_rooms`. `migrate` carries the room's durable per-room settings onto the new IDs by name slug and rewrites the access-graph grants; `ignore` dismisses the review without changing anything.
+The apply/dismiss control for the room-identity reconciliation reviews surfaced by `discover_rooms` — a known room whose segment ID changed (a brand re-segment renumbering, e.g. Roborock), a known ID whose name changed, or both at once. A re-segment renumbers many rooms together, so this is one per-map decision, not a per-room prompt. `migrate` atomically rebuilds the saved rooms onto the new IDs, carrying each room's durable settings by name slug and rewriting the access-graph grants; `ignore` dismisses the reviews without changing anything (the dismissal is fingerprinted, so a later genuinely-different review still surfaces).
 
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
 | `map_id` | Yes | Required — not auto-resolved. |
 | `action` | No | One of `migrate` or `ignore`. Default `migrate`. |
+| `plan_token` | For `migrate` | The opaque fingerprint of the reviews you are confirming — read it from the cached discovery's `reconciliation.plan_token`, surfaced per-vacuum by `setup_get_status`. Round-trip it, never parse it. Optional at the schema level (`ignore` needs none), but a `migrate` without it is refused. |
+| `force` | No | Default `false`. Only meaningful with `migrate`: a migration is refused with `skipped: "partial_discovery_refused"` when the new discovery is both smaller than what is stored **and** would drop more than half the stored rooms — that usually means a stale or bad discovery, not a real re-map. Set `true` to proceed for a genuine re-map that really did shrink the room count. |
 
-Supports response.
+Supports response. A `migrate` whose token is missing or no longer matches the current discovery raises a `ServiceValidationError` (`plan_token_required` / `plan_changed`) — re-run `discover_rooms` and review again before retrying. A `migrate` against an empty cached discovery returns `skipped: "no_discovery"` without touching saved rooms.
 
 ---
 
@@ -294,7 +314,7 @@ The `segmentation_mode` flag (`cv` or `custom`) selects which segmentation a map
 
 **Custom** is now a *named collection*. A map can hold many `custom_layouts` side by side — each a fully self-contained authoring surface keyed by `layout_id`, with its own backdrop image (variant `custom_<layout_id>`), authored `custom_segments`, `segment_room_links`, and `companion_anchors` (including the reserved `dock` mascot spot). A per-map `active_custom_layout_id` names which layout custom mode currently serves. Because room links are per-layout, two layouts can each carry a segment `living` linked to *different* rooms — impossible under the old single-store model.
 
-Reads and writes in custom mode are scoped to the **active** custom layout; in CV mode they use the map-bucket stores. The integration resolves this once (`_resolve_active_scope`) so `get_map_segments`, `set_segment_room_link`, `set_companion_anchor`, and `set_custom_segments` all route to the right place and CV/custom never drift. The legacy single `custom_segments` key from before named layouts is folded **lazily and non-destructively** into a default `Custom` layout on first touch — the old key is kept, never deleted, and the migration is idempotent.
+Reads and writes in custom mode are scoped to the **active** custom layout; in CV mode they use the map-bucket stores. The integration resolves this once (`_resolve_active_scope`) so `get_map_segments`, `set_segment_room_link`, and `set_companion_anchor` all route to the right place and CV/custom never drift. `set_custom_segments` is the deliberate exception: as a destructive replace-all it names its target layout explicitly via a required `layout_id` instead of following the active pointer. The legacy single `custom_segments` key from before named layouts is folded **lazily and non-destructively** into a default `Custom` layout on first touch — the old key is kept, never deleted, and the migration is idempotent.
 
 ### Image Management
 
@@ -373,7 +393,7 @@ Supports response. Returns `{"saved": true, "mode": ..., "segment_count": N}` wh
 
 #### `set_custom_segments`
 
-Authors no-CV map segments from primitive shapes — **replace-all**. Rebuilds the **active** custom layout's `custom_segments` store from the supplied list (auto-creating and activating a default layout first if the map has none). Each segment's primitives are rasterised server-side (via `rasterize_primitives` → `mask_to_polygon`, the same polygon tracer the CV path uses) onto a `1`-bit mask, scaled to the active layout's backdrop pixel dimensions, and wrapped in the same segment shape the CV segmenter produces — so room-linking and dispatch treat custom and CV segments identically. Requires the active layout's backdrop to be uploaded (for the canvas dimensions), **or** explicit `backdrop_width`/`backdrop_height` for a live-pinned layout that has no uploaded backdrop. Never runs the segmenter.
+Authors no-CV map segments from primitive shapes — **replace-all** into **one named custom layout**. Rebuilds the `layout_id` layout's `custom_segments` store from the supplied list. The target layout must be named explicitly and must already exist — there is no active-layout fallback and no auto-create, precisely because a destructive replace-all must never land on whichever layout happened to be active. Each segment's primitives are rasterised server-side (via `rasterize_primitives` → `mask_to_polygon`, the same polygon tracer the CV path uses) onto a `1`-bit mask, scaled to the target layout's backdrop pixel dimensions, and wrapped in the same segment shape the CV segmenter produces — so room-linking and dispatch treat custom and CV segments identically. Requires the target layout's backdrop to be uploaded (for the canvas dimensions), **or** explicit `backdrop_width`/`backdrop_height` for a live-pinned layout that has no uploaded backdrop. Never runs the segmenter.
 
 One segment is one room. Multiple primitives in a segment merge into a single room; a primitive with `op: subtract` carves material away (an edge cut yields a concave simple polygon; an interior hole cannot be represented by one polygon). Primitives are applied in list order. Degenerate segments (nothing drawn, or the result collapses) are dropped.
 
@@ -381,6 +401,7 @@ One segment is one room. Multiple primitives in a segment merge into a single ro
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
 | `map_id` | Yes | Required — not auto-resolved. |
+| `layout_id` | Yes | The custom layout whose segments to replace. A blank value returns `{"saved": false, "reason": "layout_id_required"}`; an unknown ID returns `{"saved": false, "reason": "layout_not_found"}` — nothing is auto-created. |
 | `segments` | Yes | List of `{id?, primitives: [...]}`. Extra keys are allowed and ignored. A stable `id` is preserved across re-saves (auto `custom_N` otherwise) so segment-room links survive. |
 | `backdrop_width` | No | Rasterise-canvas width in pixels. For a live-pinned layout (no uploaded backdrop) the card sends the rendered live image's natural pixel size here so the writer has a canvas to rasterise against. |
 | `backdrop_height` | No | Rasterise-canvas height in pixels. Same use as `backdrop_width`. |
@@ -393,7 +414,7 @@ Each primitive is `{type: rect|circle|polygon, op?: subtract, ...coords}` with c
 
 Primitives without `op` fill (union); `op: subtract` clears.
 
-Supports response. Returns `{"saved": true, "segment_count": N, "skipped": N, "segment_ids": [...]}`, or `{"saved": false, "reason": "no_custom_backdrop"}` when the active layout's backdrop has not been uploaded.
+Supports response. Returns `{"saved": true, "segment_count": N, "skipped": N, "segment_ids": [...]}`, or `{"saved": false, "reason": ...}` on `layout_id_required`, `layout_not_found`, or `no_custom_backdrop` (the target layout has no uploaded backdrop and no `backdrop_width`/`backdrop_height` were supplied).
 
 ### Custom Layouts
 
@@ -534,6 +555,18 @@ Persists a display-only rotation for the live map — surfaced as `live_map_rota
 | `rotation` | Yes | One of `0`, `90`, `180`, or `270` (degrees clockwise). |
 
 Supports response.
+
+#### `acknowledge_map_frame`
+
+Force-clears the post-map-switch coordinate-frame gate for one vacuum — the backend behind the card's "Enable drawing anyway" control. After the active map switches, the map raster and room list update immediately but the robot's coordinate frame stays on the **old** map until the robot moves and re-localizes; while that gate is armed the card pauses zone drawing and map-tap room select, because any screen-to-device coordinate op would land in the wrong place. The gate clears itself once the robot's raw position moves past a movement threshold or the vacuum enters a `cleaning`/`returning` state; this service clears it immediately for a user who knows the robot is grounded (or accepts the risk). The override lasts until the **next** map switch re-arms the gate. Saved zones and the room list are never affected.
+
+> **Exception to this section's `map_id`-required rule:** vacuum-scoped — takes only `vacuum_entity_id`, no `map_id`.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+
+Supports response. Returns `{"acknowledged": true, "vacuum_entity_id": ...}`.
 
 #### `set_map_overlay_visibility`
 
@@ -1007,11 +1040,14 @@ Updates the display name and/or backend key of a custom room profile. Cannot tar
 
 #### `delete_room_profile`
 
-Deletes a custom room profile from the library. Cannot target built-in profiles.
+Deletes a custom room profile from the library. Cannot target built-in profiles. Refused when rooms still reference the profile unless `force` is set.
 
-| Parameter | Required |
-|---|---|
-| `profile_name` | Yes |
+| Parameter | Required | Notes |
+|---|---|---|
+| `profile_name` | Yes | |
+| `force` | No | Default `false`. Without it, the delete is refused with `reason: "has_referrers"` and a `referring_rooms` list when any room still uses this profile. With `force: true` the profile is deleted anyway — the referring rooms keep pointing at the now-gone name and profile resolution falls back silently. |
+
+Supports response. Returns `{"deleted": true, "profile_name", "referring_rooms"}` on success, or `{"deleted": false, "reason": ...}` on `protected_profile`, `profile_not_found`, or `has_referrers`.
 
 ---
 
@@ -1071,6 +1107,22 @@ Persists a custom maintenance interval for one component, overriding the adapter
 | `interval_hours` | Yes | Replacement interval in hours. The backend handler trusts its caller and does **not** clamp this against any declared maximum — range validation against the adapter's default/max is done card-side in the UI before the service is called. (The backing number entity does clamp to its own min/max.) |
 
 Supports response.
+
+---
+
+## Battery
+
+### `battery_rebaseline`
+
+Clears the battery-health baseline anchor so the next qualifying recharge re-anchors it — call this after physically replacing the battery. Only the health comparison state is cleared: the charge-speed baseline, the health %, and the retained qualifying-session set it is compared against. Cycle count, per-job metrics, session history, and aggregates are untouched. A fresh baseline seeds itself automatically on the next qualifying recharge.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+
+Fire-and-forget — no response payload. If no battery record exists for the vacuum yet, the call logs a warning and changes nothing.
+
+> The service form in Developer Tools also shows a `pause_timeout_minutes_override` field for this service. That is a stray `services.yaml` entry: the registered schema accepts only `vacuum_entity_id`, so passing it fails validation. Do not use it.
 
 ---
 
@@ -1337,7 +1389,8 @@ Returns a card-friendly snapshot of learned history including recent jobs, room 
 | `profile_key` | No | Filter by room profile signature. |
 | `status` | No | Filter by job status: `completed`, `cancelled`, `failed`, or `interrupted`. |
 | `used_for_learning` | No | Filter to only jobs included in or excluded from learned stats. |
-| `limit` | No | Maximum recent jobs to return. Default `50`, max `500`. |
+| `origin` | No | Filter by how the run started: `external` (app-started, captured by external-run ingestion) or `internal` (dispatched by this integration). |
+| `limit` | No | Maximum recent jobs to return. Default `50`, floored to `1`. The `500` max in the Developer Tools form is UI-only — the schema itself sets no upper bound. |
 
 **Returns:** History snapshot with recent jobs and aggregated room statistics.
 
@@ -1515,8 +1568,8 @@ Saves a set of room IDs as managed rooms for a vacuum and map, optionally settin
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
 | `map_id` | No | |
-| `enabled_room_ids` | No | List of integer room IDs to save. Omit to keep existing. |
-| `floor_types` | No | Dict mapping room ID to floor type. Valid values: `hardwood`, `laminate`, `tile`, `marble`, `granite`, `concrete`, `carpet`. |
+| `enabled_room_ids` | No | List of integer room IDs to save as managed rooms. **Omit the key to keep the current selection unchanged.** `null` and an empty list are rejected with a validation error rather than being treated as "delete every room" — removing rooms goes through per-room enabled flags or map deletion. |
+| `floor_types` | No | Dict mapping room ID to floor type. Valid values: `hardwood`, `laminate`, `tile`, `marble`, `granite`, `concrete`, `carpet_low_pile`, `carpet_high_pile` — carpet pile is part of the compound value, not a separate field (legacy stored `carpet` values are migrated to `carpet_<pile>` at load). |
 
 **Returns:** `{"status": "success", "room_count": N}` on success.
 
@@ -1538,7 +1591,7 @@ Delete operations are protection-gated. Maps with significant data (active jobs,
 
 ### `setup_reject_rooms`
 
-Marks one or more discovered room IDs as rejected — they will never surface again in the new-rooms drift list even if the vacuum continues to report them. Also removes them from managed rooms across all maps so their HA entities are torn down.
+Marks one or more discovered room IDs as rejected **on one map** — they never surface again in that map's new-rooms drift list even if the vacuum continues to report them. Rejected IDs that were configured are also removed from that map's managed rooms so their HA entities are torn down. Room IDs are reissued per map, so both the rejection and the managed-room strip are confined to the one map: an ID rejected downstairs must not block (or delete) a real room upstairs.
 
 Use this for phantom rooms that your vacuum reports but that do not correspond to real cleaned spaces (firmware artifacts, stairwells, etc.).
 
@@ -1546,8 +1599,23 @@ Use this for phantom rooms that your vacuum reports but that do not correspond t
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
 | `room_ids` | Yes | List of integer room IDs to reject. |
+| `map_id` | No | The map the phantom was seen on. Defaults to the currently active map; if no active map can be resolved, a single-map vacuum uses its only map and a multi-map vacuum is **refused** with `reason: "map_ambiguous"` (naming the candidate `map_ids`) rather than guessing. |
 
-**Returns:** `{"status": "success", "rejected": [...], "removed_from_managed": [...], "affected_map_ids": [...]}`.
+**Returns:** `{"status": "success", "rejected": [...], "removed_from_managed": [...], "affected_map_ids": [...], "map_id": ...}`, or a `{"status": "error", "reason": "map_ambiguous", "map_ids": [...]}` refusal that writes nothing.
+
+### `setup_unreject_rooms`
+
+Undoes a room rejection so the room can be discovered and configured again — the escape hatch for a mistaken `setup_reject_rooms`. Clears the rejection on the given map **and** any legacy vacuum-global rejection recorded before rejections were per-map (those applied to every map, so an ID rejected on one floor could block a real room on another). The room does not reappear instantly: it resurfaces on the next discovery pass that sees it, through the normal new-rooms confirmation cadence.
+
+Map resolution is the same as `setup_reject_rooms`, and an unresolvable multi-map call is refused with `reason: "map_ambiguous"` for the same cause pointed the other way — an unqualified un-reject would un-hide an ID on every floor at once.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `room_ids` | Yes | List of integer room IDs to un-reject. |
+| `map_id` | No | Defaults to the currently active map; refused when ambiguous on a multi-map vacuum. |
+
+**Returns:** `{"status": "success", "unrejected": [...], "still_rejected_on": {...}, "map_id": ...}` — `still_rejected_on` maps any **other** map ID that still rejects one of these room IDs to the affected IDs, so a clean sweep is never implied.
 
 ### `setup_force_remove_room`
 
@@ -1782,6 +1850,6 @@ These events are fired by the integration. Use them as automation triggers.
 | `eufy_vacuum_room_completed` | The tracker confirmed a room exit, resolved from the device's native current-room signal and debounced by a confidence/dwell threshold. Informational per-room dwell only — distinct from the timing-rollover `eufy_vacuum_room_finished`. |
 | `eufy_vacuum_room_skipped` | The live job queue advanced past a queued room that was never cleaned (a non-sequential advance). Conservative and live/mid-run — fires at most once per room per job; almost never seen on Eufy. See [Events Reference](02-events.md) §eufy_vacuum_room_skipped. |
 | `eufy_vacuum_path_blocked` | Blocker rules changed mid-run and remaining rooms became inaccessible. |
-| `eufy_vacuum_stall_detected` | The robot has been in a room for 2× its learned timing threshold. Payload includes `elapsed_minutes`, `expected_minutes`, and `stall_ratio`. Fires at most once per room per job. |
-| `eufy_vacuum_job_progress_tick` | Fixed 5-second heartbeat while an active job is `started` or `paused`. Carries no job state — use it as a trigger to pull `get_job_progress_snapshot` or `get_dashboard_snapshot`. See [Events Reference](02-events.md) §eufy_vacuum_job_progress_tick. |
+| `eufy_vacuum_stall_detected` | The robot has been in a room for the stall ratio (default 2×) of its learned timing threshold. Payload includes `elapsed_minutes`, `expected_minutes`, and `stall_ratio`. Fires at most once per room per job. |
+| `eufy_vacuum_job_progress_tick` | Fixed 5-second heartbeat while a run is in flight (active-job status `started`, `paused`, or `external`). Carries no job state — use it as a trigger to pull `get_job_progress_snapshot` or `get_dashboard_snapshot`. See [Events Reference](02-events.md) §eufy_vacuum_job_progress_tick. |
 | `eufy_vacuum_external_run_pending` | An app-started (external) clean finished and was captured as a pending review record. Payload includes `record_path`, `segment_count`, and `detection_ts`. Use with `get_external_pending_runs`. See [Events Reference](02-events.md) §eufy_vacuum_external_run_pending. |
