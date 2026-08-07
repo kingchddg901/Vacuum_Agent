@@ -62,6 +62,22 @@ What "disaster" means, exactly — the scenario every DR doc is sized against:
   **docs-only rebuild drill** (the doc-as-spec cold run — measured ~90% at last
   execution; the ablation campaign exists to close that gap section by section).
 
+- **Why any of this can work at all (Chris, 2026-08-07): recovery is verifiable
+  because the architecture is incrementally testable.** Stand up the atom — test:
+  it cleans. Attach one ring — test: the ring works AND the atom still cleans. Every
+  attachment is a small falsifiable proof against a green baseline, so a full
+  rebuild is N bounded verifications instead of one unboundable act of faith. This
+  property comes from the architecture, not the prose: the absence-tolerant seams
+  are what let a partial system RUN, and a running partial system is what makes
+  each increment testable. **DR-grade documentation presupposes DR-grade
+  architecture** — a welded monolith cannot be made recoverable by writing better
+  docs, because nothing in it is testable until all of it exists. (This is the
+  extractability-proves-the-layer principle read in reverse: the same seams that
+  let a subsystem leave cleanly are the ones that let it return.) The rebuild
+  drill's procedure follows directly: atom first, its behavioural suite green; then
+  per ring — the ring's own behavioural tests plus a re-run of the atom's suite as
+  the did-I-break-the-core regression gate.
+
 A doc's scope line states this contract's per-section form; it never claims
 document-alone sufficiency and never treats the *original* source as a legitimate
 dependency — its dependencies are the corpus and the framework, full stop.
