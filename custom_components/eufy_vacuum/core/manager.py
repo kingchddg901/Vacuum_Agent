@@ -567,10 +567,52 @@ class EufyVacuumManager:
                     )
 
         self._clear_orphaned_finalize_claims()
-        self._reap_stranded_phased_jobs()
+        # R2-BUG-7: the reap is blocking filesystem work — two mkdir via get_paths, a
+        # directory glob, a JSON read per parent, and an atomic temp-write + os.replace
+        # per close — and this method runs in the event loop, so HA flags it and asks
+        # the user to file a bug report. Only the READ was reported; wrapping just that
+        # would have left the write (the slowest of them) in the loop and kept the
+        # warning. Snapshot self.data here, in the loop that owns it, and hand the whole
+        # sync method to the executor. See _phased_reap_snapshot for why the split is
+        # required rather than merely tidy.
+        await self.hass.async_add_executor_job(
+            self._reap_stranded_phased_jobs, *self._phased_reap_snapshot()
+        )
 
-    def _reap_stranded_phased_jobs(self) -> int:
+    def _phased_reap_snapshot(self) -> tuple[set[tuple[str, str]], list[str]]:
+        """Take the in-memory state the reaper needs, on the EVENT LOOP.
+
+        ``self.data`` belongs to the loop. ``rearm_dock_phase_if_needed`` re-spawns dock
+        pollers a few lines before the reap is scheduled, and those can mutate
+        ``active_jobs``; walking that dict from a worker thread is a "dictionary changed
+        size during iteration" race. Its only symptom would be the reaper's own blanket
+        ``except`` swallowing the error into a SILENT no-reap — parents accumulating
+        forever, which is the exact failure the reaper exists to prevent. So the loop
+        copies what the thread needs, and the thread touches only the filesystem.
+        """
+        active = self.data.get("active_jobs") or {}
+        live = {
+            (str(v), str(j.get("phased_job_id") or ""))
+            for v, jobs in active.items()
+            if isinstance(jobs, dict)
+            for j in jobs.values()
+            if isinstance(j, dict) and not j.get("finalized")
+        }
+        return live, [str(v) for v in active]
+
+    def _reap_stranded_phased_jobs(
+        self,
+        live: set[tuple[str, str]],
+        vac_ids: list[str],
+    ) -> int:
         """Close Phased Job parents left "running" by a crash, restart or power loss.
+
+        Runs in an executor thread (R2-BUG-7) — every call in here is blocking I/O.
+        ``live``/``vac_ids`` are REQUIRED and come from :meth:`_phased_reap_snapshot`,
+        taken on the event loop. They are not optional-with-a-fallback on purpose: a
+        default that reads ``self.data`` from this thread would reintroduce exactly the
+        race the split exists to remove, and would be reachable only by a caller that
+        forgot to snapshot.
 
         This is what makes writing the parent at RUN START safe. That choice was made so
         an abnormal end leaves a REAPABLE parent instead of children pointing at a parent
@@ -587,14 +629,7 @@ class EufyVacuumManager:
             from ..learning.history_store import LearningHistoryStore
 
             store = LearningHistoryStore(self.hass)
-            live = {
-                (str(v), str(j.get("phased_job_id") or ""))
-                for v, jobs in (self.data.get("active_jobs") or {}).items()
-                if isinstance(jobs, dict)
-                for j in jobs.values()
-                if isinstance(j, dict) and not j.get("finalized")
-            }
-            for vac_id in list((self.data.get("active_jobs") or {}).keys()) or []:
+            for vac_id in vac_ids:
                 paths = store.get_paths(vacuum_entity_id=str(vac_id))
                 if not paths.phased_jobs_dir.exists():
                     continue
@@ -6101,10 +6136,13 @@ class EufyVacuumManager:
         active_job["job_metadata"] = build_job_metadata_from_payload(payload_state)
         active_job["job_id"] = job_id
         # Phased Jobs wave 0: the DTG anchor, stamped ONLY on a phased run.
-        # See synthesis/DESIGN-phased-jobs.md. The finalized child record does NOT
-        # carry a phase key yet: today a phased run still produces ONE merged record,
-        # so stamping it would claim it IS phase N when it is all of them, and a field
-        # that lies is the defect class this design repairs.
+        # See synthesis/DESIGN-phased-jobs.md. R2-STALE-2: this used to add that the
+        # finalized child "does NOT carry a phase key yet — a phased run still produces
+        # ONE merged record". Wave 1 landed; phase_runner._finalize_phase_as_child mints
+        # per-phase children keyed f"{phased_job_id}.phase{idx}". The reasoning it was
+        # defending still holds and is why the key is minted per phase rather than
+        # stamped on a merged record: a field that claims to be phase N when it is all
+        # of them is the defect class this design repairs.
         if active_job.get("phases"):
             active_job["phased_job_id"] = phased_job_id_for(job_id)
             self._open_phased_job_parent(

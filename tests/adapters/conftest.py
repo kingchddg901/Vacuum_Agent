@@ -75,7 +75,10 @@ ADAPTER_BUILDERS: dict[str, Callable[[Any], dict[str, Any]]] = {
 
 @pytest.fixture(params=sorted(ADAPTER_BUILDERS))
 async def adapter(request, hass):
-    """Yield (brand_name, registered_config) for each known adapter.
+    """Return (brand_name, registered_config) for each known adapter.
+
+    R2-STALE-8: said "Yield". It returns — there is no teardown, so a reader looking
+    for cleanup after the yield would find none and wonder what was missing.
 
     Parametrized over ADAPTER_BUILDERS so every contract test runs once per
     brand. Registry is cleared first for isolation.

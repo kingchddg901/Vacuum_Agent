@@ -19,8 +19,13 @@ maintenance status works natively with no framework recompute.
 
 REMOVED — ``remaining_is_state``. Every component carried it, and nothing read
 it: the flag was documented as "consumed by the framework's parallel remaining
-model (core seam — Wave 1b)", and that consumer never shipped. Thirteen copies of
-a declaration defended by a comment rather than by a reader is the exact pattern
+model (core seam — Wave 1b)", and that consumer never shipped. FOUR of the twelve
+components declared it (main_brush, side_brush, filter, sensor); the adapter's
+projection then defaulted it to False on all twelve, so it reached every component
+whether or not its source asked for it. (R2-STALE-5: this said "Thirteen copies",
+which was wrong twice — there are twelve components, and it conflated the four
+DECLARATIONS with the twelve PROJECTED copies.) A declaration
+defended by a comment rather than by a reader is the exact pattern
 the 2026-07-30 adapter audit was looking for, so it is pruned rather than left to
 read as working configuration. Re-add it WITH its consumer if Wave 1b lands; the
 shape note above is the part that was actually load-bearing.

@@ -536,9 +536,10 @@ class PhaseRunner:
         contributes wall-clock and nothing else, so the parent can subtract a planned
         hold from a boundary instead of teaching it as travel time.
 
-        A CLEAN phase records ``record_id: None``, which is the truth today — the phased
-        run still finalizes as ONE merged record, so no per-phase child exists to point
-        at. Wave 2 splits the children and fills this in; nothing else here changes.
+        A CLEAN phase records the child's ``record_id`` — ``f"{phased_job_id}.phase{idx}"``,
+        minted below by ``_finalize_phase_as_child``. (R2-STALE-1: this said children did
+        not exist yet and ``record_id`` was always ``None``, describing the pre-Wave-1
+        shape while the body sixty lines down already wrote them.)
 
         Best-effort by design: the parent is review telemetry, and failing to write it
         must never stop the next phase from dispatching.

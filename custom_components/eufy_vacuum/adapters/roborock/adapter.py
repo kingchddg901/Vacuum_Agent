@@ -600,8 +600,10 @@ def register_roborock_adapter_for_vacuum(
             # reverts to the dock room when parked; task_status → charging on dock nulls it (the
             # dwell/swept-area separate cleaned from transit) — see reference_roborock_ivy_signals.
             #
-            # DORMANT until the consumption wire (W3): the sampler buffers pose_samples but nothing
-            # attributes them yet. Declared now so the source + engine selection are explicit + validated.
+            # LIVE. R2-STALE-4 sibling — not in the original finding, found by diffing this
+            # claim against its Eufy copy: this said "DORMANT until the consumption wire (W3):
+            # the sampler buffers pose_samples but nothing attributes them yet". They are
+            # attributed — room_attribution_engines._segment_by_room consumes the buffer.
             "engine": "eufy_anchor_winding_v1",
             "source": "native_current_room",
             "tuning": {
@@ -668,8 +670,9 @@ def register_roborock_adapter_for_vacuum(
             # to 0. label/icon are mandatory (bare-deref'd).
             #
             # `remaining_is_state` used to be projected here with a False default, which
-            # put it on ALL 13 components — nothing read it on any of them. Pruned with
-            # its source declarations; see maintenance_components.py.
+            # put it on all 12 components though only 4 declared it — and nothing read it
+            # on any of them. Pruned with its source declarations; see
+            # maintenance_components.py. (R2-STALE-5: said 13; there are 12.)
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
                 "proxy_for": component.get("proxy_for"),

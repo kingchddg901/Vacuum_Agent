@@ -753,8 +753,9 @@ def register_eufy_adapter_for_vacuum(
             # job_segmenter (which owns time/area boundaries); this owns room identity.
             # Looked up in learning.room_attribution_engines._ROOM_ATTRIBUTION_ENGINES;
             # absent/unknown falls back to eufy_anchor_winding_v1 (NOT noop).
-            # DORMANT until the run-active pose sampler (W5b) + finalize wiring (W5c) land
-            # — declared now so the engine selection is validated + explicit.
+            # LIVE. R2-STALE-4: this said "DORMANT until the run-active pose sampler (W5b)
+            # + finalize wiring (W5c) land". Both landed — listeners/pose_sampler.py feeds
+            # the buffer and room_attribution_engines._segment_by_room consumes it.
             # eufy_anchor_winding_v1 segments by current_room, drops transit by
             # path-winding, and separates cleaned vs parked-dock by the cleaning_area
             # (swept m²) delta. See docs/dev/eufy-native-transition.md.

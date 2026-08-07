@@ -470,7 +470,15 @@ def test_reaper_closes_a_stranded_parent_and_spares_a_live_one():
     fake.hass = hass
     fake.data = {"active_jobs": {_VAC: {_MAP: {"phased_job_id": "pj_live"}}}}
 
-    assert EufyVacuumManager._reap_stranded_phased_jobs(fake) == 1
+    # R2-BUG-7 split the reaper: the loop takes the snapshot, the executor thread does
+    # the I/O. Drive BOTH halves with the real unbound methods — letting the MagicMock
+    # answer _phased_reap_snapshot() would hand the reaper a mock that unpacks to
+    # nothing, and a mock agrees with its caller rather than with the code under test.
+    live_set, vac_ids = EufyVacuumManager._phased_reap_snapshot(fake)
+    assert live_set == {(_VAC, "pj_live")}, "the live run must be recognised as live"
+    assert vac_ids == [_VAC]
+
+    assert EufyVacuumManager._reap_stranded_phased_jobs(fake, live_set, vac_ids) == 1
     dead = store.load_phased_job(vacuum_entity_id=_VAC, phased_job_id="pj_dead")
     live = store.load_phased_job(vacuum_entity_id=_VAC, phased_job_id="pj_live")
     assert dead["status"] == "interrupted"

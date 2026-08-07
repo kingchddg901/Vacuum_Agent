@@ -440,8 +440,10 @@ def build_active_job_state(
 def phased_job_id_for(job_id: Any) -> str:
     """Derive the Phased Job's DTG anchor from the run's job id.
 
-    WAVE 0 of the Phased Jobs design (synthesis/DESIGN-phased-jobs.md). Written here,
-    read by nothing yet -- Wave 1 gives it consumers.
+    WAVE 0 of the Phased Jobs design (synthesis/DESIGN-phased-jobs.md). Wave 1 gave it
+    consumers: imported and stamped onto the active job in ``core/manager.py``
+    (``active_job["phased_job_id"] = phased_job_id_for(job_id)``). R2-STALE-3 — this
+    said "read by nothing yet" long after that landed.
 
     The anchor is the RUN's start, so phase 0's child shares its timestamp with the
     parent. That is intended: the relationship is visible from a directory listing with

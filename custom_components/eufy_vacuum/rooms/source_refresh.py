@@ -290,14 +290,19 @@ async def async_refresh_room_source(
     """Refresh the cached room source for one vacuum if it uses a service source.
 
     RP-007 (SRC-1): returns {"ok": bool, "reason": str|None, "refreshed_at": iso|None}
-    so callers can tell the five exits apart instead of every path returning None:
+    so callers can tell the SEVEN exits apart instead of every path returning None:
 
       ok=True,  reason "not_service_source"       - nothing to refresh (always-live)
       ok=False, reason "no_maps_service"          - misdeclared adapter
       ok=False, reason "entity_unavailable"       - device offline/asleep
       ok=False, reason "service_call_failed"      - upstream call raised
       ok=False, reason "empty_response_kept_cache"- flattened to nothing; cache kept
+      ok=True,  reason "superseded_by_newer_refresh" - a newer commit won the race (SRC-4)
       ok=True,  reason None                       - refreshed and committed
+
+    (R2-STALE-6: this said "five", listed six, and implemented seven —
+    superseded_by_newer_refresh was undocumented. A caller enumerating reasons from
+    this list would have treated a legitimate ok=True as an unknown state.)
 
     (SRC-4) Concurrent callers coalesce onto one in-flight refresh, and a commit
     generation guarantees a slow stale response never replaces a newer commit.
