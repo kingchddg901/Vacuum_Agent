@@ -63,6 +63,35 @@ export const shellStyles = `
   }
 
   /* =========================================================
+     TEMPORARY LAYOUT PROBE (layout_probe: true)
+     =========================================================
+     Diagnostic readout for a layout fault that only reproduces on a device with
+     no devtools. Hidden unless the card opts in. DELETE with the fix — see
+     main.js::_updateLayoutProbe for what the fields mean.
+
+     position:sticky bottom:0 so it stays readable while the view scrolls, and
+     order:99 so it lands last in the shell's flex column WITHOUT changing the
+     order of anything above it — a probe that shifts the layout it is measuring
+     is worse than no probe. All-tokenised so check-styles stays green. */
+  .evcc-layout-probe,
+  [data-evcc-layout-probe]:not([hidden]) {
+    order:        99;
+    position:     sticky;
+    bottom:       0;
+    z-index:      50;
+    flex:         0 0 auto;
+    padding:      4px 8px;
+    font-family:  ui-monospace, SFMono-Regular, Menlo, monospace;  /* literal: no mono token exists, and a probe should not mint one */
+    font-size:    10px;
+    line-height:  1.4;
+    color:        var(--evcc-text-primary);
+    background:   var(--evcc-surface-panel);
+    border-top:   1px solid var(--evcc-border-default);
+    overflow-x:   auto;
+    white-space:  nowrap;
+  }
+
+  /* =========================================================
      HEADER
      ========================================================= */
 

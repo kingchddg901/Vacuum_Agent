@@ -2,6 +2,7 @@
 
 import { CARD_NAME, CARD_VERSION }            from "./constants.js";
 import { VacuumCardState }                    from "./state/index.js";
+import { VIEWPORT_MOBILE_MAX_WIDTH }          from "./state/viewport.js";  // temp layout probe
 import { VacuumCardRenderers }                from "./renderers/index.js";
 import { VacuumCardBindings }                 from "./bindings/index.js";
 import { VacuumCardActions }                  from "./actions/index.js";
@@ -134,6 +135,55 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * laid out yet (first-mount race). Used for initial viewport
    * detection before the ResizeObserver fires.
    */
+  /* =========================================================
+     TEMPORARY LAYOUT PROBE — `layout_probe: true` in the card YAML.
+     =========================================================
+     Exists because the companion app has no devtools, so the one datum that
+     separates the two candidate causes of "header/footer chrome is missing on
+     mobile" was unreadable on the device it happens on:
+
+       * viewport MISDETECTED -> data-viewport=desktop, and there is simply no
+         sticky header or bottom nav in that shell to begin with;
+       * viewport correct but the host gives no definite HEIGHT -> the shell
+         collapses to content, so the nav sits after the content and the view
+         stage never becomes the scroll container the sticky header needs.
+
+     Both look identical to a user. `h` vs `sh` below tells them apart: equal
+     means content fits (nothing to stick to), and a shell height that tracks
+     content rather than the host is the height-chain case.
+
+     DELETE THIS with the fix — it is diagnostic scaffolding, not a feature.
+     Deliberately not i18n'd: the output is identifiers and numbers, not prose,
+     and translating a debug readout would make it harder to compare against
+     source, not easier to read.
+     ========================================================= */
+  _updateLayoutProbe() {
+    const slot = this.shadowRoot?.querySelector("[data-evcc-layout-probe]");
+    if (!slot) return;
+    if (this._config?.layout_probe !== true) {
+      if (!slot.hidden) { slot.hidden = true; slot.textContent = ""; }
+      return;
+    }
+    const shell = this.shadowRoot?.querySelector(".evcc-shell");
+    const host = this.getBoundingClientRect?.();
+    const parent = this.parentElement?.getBoundingClientRect?.();
+    const sRect = shell?.getBoundingClientRect?.();
+    const r = (n) => (Number.isFinite(n) ? Math.round(n) : "?");
+    const parts = [
+      `measured=${r(this._measureCardWidth())}`,
+      `bp=${VIEWPORT_MOBILE_MAX_WIDTH}`,
+      `viewport=${this._state?.viewport?.() ?? "?"}`,
+      `cfg=${String(this._config?.mobile_shell ?? "auto")}`,
+      `win=${typeof window !== "undefined" ? r(window.innerWidth) : "?"}`,
+      `host=${r(host?.width)}x${r(host?.height)}`,
+      `parentH=${r(parent?.height)}`,
+      `shellH=${r(sRect?.height)}`,
+      `shellScroll=${r(shell?.scrollHeight)}`,
+    ];
+    slot.hidden = false;
+    slot.textContent = parts.join("  ");
+  }
+
   _measureCardWidth() {
     const rect = this.getBoundingClientRect?.();
     if (rect && rect.width > 0) return rect.width;
@@ -1503,6 +1553,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // Inside the shadow root we couldn't out-stack a sibling div
     // appended to document.body, hence the external host.
     this._updateToastHost(ctx);
+    this._updateLayoutProbe();   // temp — see _updateLayoutProbe; delete with the fix
 
     frame.viewStage.dataset.view = ctx.view;
 
@@ -1559,6 +1610,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
             </div>
             <div data-evcc-bottom-nav-root></div>
             <div data-evcc-mobile-overlay-root></div>
+            <div data-evcc-layout-probe hidden></div>
           </div>
         </ha-card>
       `;
