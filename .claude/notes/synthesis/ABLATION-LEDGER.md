@@ -8,7 +8,7 @@ bookkept by the coordinator's script, never by agents.
 
 | # | doc §  | invariant (the meaning that proved load-bearing) | the misreading it prevents | closure evidence | round |
 |---|--------|--------------------------------------------------|----------------------------|------------------|-------|
-| — | (none yet — calibration on doc 23 in progress) | | | | |
+| 1 | 23 §4.3 | `error_label_key` returns a declared label only when the adapter's label map stores a non-empty string for that code; any other stored value (number, empty string, nested structure) resolves to `None`, exactly as an absent entry does — a label is never manufactured from a non-conforming entry. | §4.3's bare `dict` typing + `-> str | None` signature reads `str(value)` as conformance; the build brief's no-defensive-padding rule then forbids guessing stricter. | PROVISIONAL (escrow) — pends round-2 2-of-2 fresh-builder green | CAL-23 R1, provenance NEVER-PRESENT (original doc equally silent; survived two truth passes) |
 
 ## Round log
 
@@ -42,3 +42,26 @@ bookkept by the coordinator's script, never by agents.
   reject any correct reimplementation, i.e. they assert the wrong contract (verdict-C at
   population scale). Alternatives: (b) run all 43 and drown review in C verdicts;
   (c) pause CAL-23 behind the hardening. Recommendation: (a).
+
+#### CAL-23 round-1 ADJUDICATION (Opus, 2026-08-07) — precedents
+
+- Verdicts: RED-1 C (flag read by nothing repo-wide — pin asserts non-contract; honest
+  fallback recorded: if overruled -> D/NEVER-PRESENT), RED-2 C (defensive floor's side
+  effect, not a semantic), RED-3 **D / NEVER-PRESENT** -> earned invariant #1, RED-4 C
+  (verbatim pin asserts an absence with no consumer).
+- PRECEDENT (C-class): a mutation-certified pin proves DETECTION, not CONTRACT; reds pay
+  only on a consumer / invariant / stated design. PIN-11 flagged as the farmable shape
+  (pins an undocumented absence; survives on consequence only).
+- APPARATUS after adjudication: 8 behavioral legacy + 9 surviving certified pins (3
+  C-verdict pins retired; the RED-3 pin STAYS as invariant #1's pin).
+- TRIM-FIDELITY: (a) the trim ADDED §3.1's `acknowledged` row unlogged — the addition
+  likely INDUCED RED-1; manifest blind spot -> protocol amended (additions logged);
+  (b) trimmer's §7.2 correction beat the repo fix but overshot ("fully supported" vs
+  source's DEPRECATED) -> round-2 fix.
+- SCORE STATE (escrow): trim burned ZERO confirmed meaning in 66 removed lines; builder
+  recovered peek/commit, identity-gated commit, deep-copy, re-arm guard,
+  replaces-not-merges, explicit-0, limit=0, listener arity, thread-safe save from prose
+  alone. All balances PROVISIONAL pending round-2 closure.
+- ROUND 2 (surgical, trim submission 2/3): add invariant #1 to §4.3; restore §6.2
+  harvest DEPRECATED status; manifest gains an ADDITIONS section. Then 2-of-2 fresh
+  blind builders per the discovery rule.

@@ -767,3 +767,13 @@ forensics for free.
   2. ONE review pass over the doc-23 calibration round's outcome — the
      precedent-setter — before fan-out.
   Fable spend is measured in rulings, not rounds.
+
+## AMENDMENT (CAL-23 R1 finding, 2026-08-07): the manifest logs ADDITIONS too
+
+Round 1's review caught trimmed prose that ADDED an unlogged row — and the addition
+likely induced a builder divergence. A trimmer's additions/rewrites are exactly as
+capable of steering a blind builder as its removals (and are the natural smuggling
+channel rule 4 polices). The removal manifest therefore gains an ADDITIONS section:
+every sentence the trimmer introduces that has no counterpart in the original is
+listed with its justification. Unlogged additions are a rejected trim, same class as
+an unrouted removal.
