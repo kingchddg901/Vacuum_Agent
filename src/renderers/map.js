@@ -514,7 +514,7 @@ export function applyMapRenderers(proto) {
         if (!o || !Array.isArray(o.pos) || o.pos.length !== 2) continue;
         const cls = o.has_photo ? " evcc-map-ov-obstacle--photo" : "";
         out += `<div class="evcc-map-ov-obstacle${cls}" style="left:${f(tx(o.pos[0]))}%;top:${f(ty(o.pos[1]))}%" `
-             + `title="${o.type != null ? this.escapeHtml(String(o.type)) : this.t("map.obstacle")}"></div>`;
+             + `title="${o.type != null ? this.escapeHtml(this.tVocabRaw("obstacle_type", o.type, String(o.type))) : this.t("map.obstacle")}"></div>`;
       }
     }
     if (vis("room_area")) {

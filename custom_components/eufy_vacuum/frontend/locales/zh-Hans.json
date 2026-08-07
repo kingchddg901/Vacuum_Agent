@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "矩形",
       "circle": "圆形"
+    },
+    "obstacle_type": {
+      "cable": "电线",
+      "pet_waste": "宠物排泄物",
+      "shoes": "鞋子",
+      "poop": "粪便",
+      "pedestal": "底座",
+      "extension_cord": "延长线",
+      "weighing_scale": "体重秤",
+      "clothes": "衣物",
+      "dustpan": "簸箕",
+      "furniture_crossbar": "带横杆的家具",
+      "pet": "宠物",
+      "fabric_paper_balls": "织物或纸团"
     }
   },
   "map": {

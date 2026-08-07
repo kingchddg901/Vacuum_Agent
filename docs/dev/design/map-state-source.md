@@ -136,6 +136,13 @@ space, so the card can OVERLAY them on the device-rendered backdrop (never our o
   robot `path` (decimated), `dock_anchor`/`robot_anchor`.
 - **Roborock also:** `robot_heading`, `no_go`/`no_mop` (4-pt polygons), `walls` (segments), `zones`
   (rects), `obstacles` (`{pos,type,has_photo}`) — all via the shared `_mapdata_projector`.
+  Obstacle metadata sits on `Obstacle.details` in vacuum-map-parser-base (`type` is an **int**);
+  `_proj_obstacles` normalizes the known ints to stable slugs (`cable`, `pet_waste`, …, see
+  `_OBSTACLE_TYPE_SLUGS`) that the card translates via `vocab.obstacle_type.*`; unknown ints pass
+  through as the number string. (The first cut read a flat `o.type`/`o.photo` that the parser never
+  had — every marker shipped `type=None`, fixed 2026-08-06.) Note the local S6 has no obstacle
+  camera, so this layer stays empty on the reference device — value set verified against
+  vacuum-map-parser-roborock 0.1.5 (the HA 2026.8.0 pin), not live data.
 - **Eufy hazards** (`forbidden_zones`/`ban_mop_zones`/`virtual_walls`) are DEFERRED — empty on the
   live device, so their populated coordinate frame is unverified; wired when a live map carries them.
 

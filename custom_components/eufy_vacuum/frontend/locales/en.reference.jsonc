@@ -297,6 +297,20 @@
       "rect": "rectangle",
       "circle": "circle"
     },
+    "obstacle_type": {
+      "cable": "cable",
+      "pet_waste": "pet waste",
+      "shoes": "shoes",
+      "poop": "poop",
+      "pedestal": "pedestal",
+      "extension_cord": "extension cord",
+      "weighing_scale": "weighing scale",
+      "clothes": "clothes",
+      "dustpan": "dustpan",
+      "furniture_crossbar": "furniture with a crossbar",
+      "pet": "pet",
+      "fabric_paper_balls": "fabric or paper balls"
+    },
     "token_type": {
       "color": "color",
       "text": "text",

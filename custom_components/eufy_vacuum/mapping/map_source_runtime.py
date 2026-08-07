@@ -739,20 +739,52 @@ def _proj_path(path_obj: Any, proj, *, max_points: int = 160) -> list[list[float
     return out
 
 
+# vacuum-map-parser-roborock's obstacle-type ints (its KNOWN_OBSTACLE_TYPES),
+# normalized to stable slugs the card translates via vocab.obstacle_type.*.
+# Unknown ints pass through as the number string — locale-neutral, never an
+# English leak into the tooltip sink.
+_OBSTACLE_TYPE_SLUGS = {
+    0: "cable", 48: "cable",
+    1: "pet_waste",
+    2: "shoes",
+    3: "poop",
+    4: "pedestal",
+    5: "extension_cord",
+    9: "weighing_scale",
+    10: "clothes", 34: "clothes",
+    25: "dustpan",
+    26: "furniture_crossbar", 27: "furniture_crossbar",
+    49: "pet", 50: "pet",
+    51: "fabric_paper_balls",
+}
+
+
 def _proj_obstacles(obstacles: Any, proj) -> list[dict[str, Any]]:
-    """Project Obstacles (Point + type) to {pos, type, has_photo} markers."""
+    """Project Obstacles to {pos, type, has_photo} markers.
+
+    The parser keeps obstacle metadata on ``Obstacle.details`` (ObstacleDetails:
+    ``type`` int, ``photo_name``) — there is no flat ``o.type``/``o.photo``;
+    the flat reads are kept only as a degrade path for other parser shapes.
+    """
     out: list[dict[str, Any]] = []
     for o in obstacles or []:
         q = proj(getattr(o, "x", None), getattr(o, "y", None))
         if not q:
             continue
-        t = getattr(o, "type", None)
-        out.append({
-            "pos": q,
-            "type": str(t) if t is not None else None,
-            "has_photo": bool(getattr(o, "photo", None)
-                              or getattr(o, "photo_status", None)),
-        })
+        details = getattr(o, "details", None)
+        t = getattr(details, "type", None)
+        if t is None:
+            t = getattr(o, "type", None)
+        slug: str | None = None
+        if t is not None:
+            if isinstance(t, int) and not isinstance(t, bool):
+                slug = _OBSTACLE_TYPE_SLUGS.get(t) or str(t)
+            else:
+                slug = str(t)
+        photo = (getattr(details, "photo_name", None)
+                 or getattr(o, "photo", None)
+                 or getattr(o, "photo_status", None))
+        out.append({"pos": q, "type": slug, "has_photo": bool(photo)})
     return out
 
 

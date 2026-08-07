@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "מלבן",
       "circle": "עיגול"
+    },
+    "obstacle_type": {
+      "cable": "כבל",
+      "pet_waste": "צואת חיית מחמד",
+      "shoes": "נעליים",
+      "poop": "צואה",
+      "pedestal": "בסיס",
+      "extension_cord": "כבל מאריך",
+      "weighing_scale": "משקל",
+      "clothes": "בגדים",
+      "dustpan": "יעה",
+      "furniture_crossbar": "רהיט עם קורה",
+      "pet": "חיית מחמד",
+      "fabric_paper_balls": "כדורי בד או נייר"
     }
   },
   "map": {

@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "prostokąt",
       "circle": "okrąg"
+    },
+    "obstacle_type": {
+      "cable": "kabel",
+      "pet_waste": "odchody zwierzęcia",
+      "shoes": "buty",
+      "poop": "odchody",
+      "pedestal": "cokół",
+      "extension_cord": "przedłużacz",
+      "weighing_scale": "waga",
+      "clothes": "ubrania",
+      "dustpan": "szufelka",
+      "furniture_crossbar": "mebel z poprzeczką",
+      "pet": "zwierzę domowe",
+      "fabric_paper_balls": "kulki z tkaniny lub papieru"
     }
   },
   "map": {

@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "dikdörtgen",
       "circle": "daire"
+    },
+    "obstacle_type": {
+      "cable": "kablo",
+      "pet_waste": "evcil hayvan dışkısı",
+      "shoes": "ayakkabı",
+      "poop": "dışkı",
+      "pedestal": "kaide",
+      "extension_cord": "uzatma kablosu",
+      "weighing_scale": "tartı",
+      "clothes": "kıyafet",
+      "dustpan": "faraş",
+      "furniture_crossbar": "alt çubuklu mobilya",
+      "pet": "evcil hayvan",
+      "fabric_paper_balls": "kumaş veya kağıt topları"
     }
   },
   "map": {

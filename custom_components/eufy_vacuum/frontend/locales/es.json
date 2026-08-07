@@ -2570,6 +2570,20 @@
     "compose_shape": {
       "rect": "rectángulo",
       "circle": "círculo"
+    },
+    "obstacle_type": {
+      "cable": "cable",
+      "pet_waste": "excrementos de mascota",
+      "shoes": "zapatos",
+      "poop": "excrementos",
+      "pedestal": "pedestal",
+      "extension_cord": "cable alargador",
+      "weighing_scale": "báscula",
+      "clothes": "ropa",
+      "dustpan": "recogedor",
+      "furniture_crossbar": "mueble con travesaño",
+      "pet": "mascota",
+      "fabric_paper_balls": "bolas de tela o papel"
     }
   },
   "order_modal": {

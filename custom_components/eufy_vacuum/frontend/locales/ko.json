@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "직사각형",
       "circle": "원"
+    },
+    "obstacle_type": {
+      "cable": "케이블",
+      "pet_waste": "반려동물 배설물",
+      "shoes": "신발",
+      "poop": "배설물",
+      "pedestal": "받침대",
+      "extension_cord": "연장 코드",
+      "weighing_scale": "체중계",
+      "clothes": "옷",
+      "dustpan": "쓰레받기",
+      "furniture_crossbar": "가로대가 있는 가구",
+      "pet": "반려동물",
+      "fabric_paper_balls": "천이나 종이 뭉치"
     }
   },
   "map": {

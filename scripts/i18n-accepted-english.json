@@ -927,5 +927,13 @@
    "cs"
   ]
  },
- "pending": {}
+ "pending": {
+  "vocab.obstacle_type.cable": [
+   "es"
+  ],
+  "vocab.obstacle_type.pedestal": [
+   "es",
+   "pt"
+  ]
+ }
 }

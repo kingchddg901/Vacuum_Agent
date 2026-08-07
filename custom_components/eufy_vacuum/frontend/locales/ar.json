@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "مستطيل",
       "circle": "دائرة"
+    },
+    "obstacle_type": {
+      "cable": "كابل",
+      "pet_waste": "فضلات حيوان أليف",
+      "shoes": "أحذية",
+      "poop": "براز",
+      "pedestal": "قاعدة",
+      "extension_cord": "سلك تمديد",
+      "weighing_scale": "ميزان",
+      "clothes": "ملابس",
+      "dustpan": "مجرفة الغبار",
+      "furniture_crossbar": "أثاث بعارضة",
+      "pet": "حيوان أليف",
+      "fabric_paper_balls": "كرات قماش أو ورق"
     }
   },
   "map": {

@@ -2652,6 +2652,20 @@
     "compose_shape": {
       "rect": "прямоугольник",
       "circle": "круг"
+    },
+    "obstacle_type": {
+      "cable": "кабель",
+      "pet_waste": "экскременты животного",
+      "shoes": "обувь",
+      "poop": "экскременты",
+      "pedestal": "подставка",
+      "extension_cord": "удлинитель",
+      "weighing_scale": "весы",
+      "clothes": "одежда",
+      "dustpan": "совок",
+      "furniture_crossbar": "мебель с перекладиной",
+      "pet": "домашнее животное",
+      "fabric_paper_balls": "комки ткани или бумаги"
     }
   },
   "order_modal": {

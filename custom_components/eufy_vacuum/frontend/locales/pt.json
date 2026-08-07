@@ -2569,6 +2569,20 @@
     "compose_shape": {
       "rect": "retângulo",
       "circle": "círculo"
+    },
+    "obstacle_type": {
+      "cable": "cabo",
+      "pet_waste": "dejetos de animal de estimação",
+      "shoes": "sapatos",
+      "poop": "fezes",
+      "pedestal": "pedestal",
+      "extension_cord": "extensão elétrica",
+      "weighing_scale": "balança",
+      "clothes": "roupas",
+      "dustpan": "pá de lixo",
+      "furniture_crossbar": "móvel com travessa",
+      "pet": "animal de estimação",
+      "fabric_paper_balls": "bolas de tecido ou papel"
     }
   },
   "order_modal": {

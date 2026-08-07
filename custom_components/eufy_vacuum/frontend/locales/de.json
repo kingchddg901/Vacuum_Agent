@@ -2554,6 +2554,20 @@
     "compose_shape": {
       "rect": "Rechteck",
       "circle": "Kreis"
+    },
+    "obstacle_type": {
+      "cable": "Kabel",
+      "pet_waste": "Tierkot",
+      "shoes": "Schuhe",
+      "poop": "Kot",
+      "pedestal": "Sockel",
+      "extension_cord": "Verlängerungskabel",
+      "weighing_scale": "Waage",
+      "clothes": "Kleidung",
+      "dustpan": "Kehrschaufel",
+      "furniture_crossbar": "Möbel mit Querstrebe",
+      "pet": "Haustier",
+      "fabric_paper_balls": "Stoff- oder Papierknäuel"
     }
   },
   "order_modal": {

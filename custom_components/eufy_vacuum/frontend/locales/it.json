@@ -2557,6 +2557,20 @@
     "compose_shape": {
       "rect": "rettangolo",
       "circle": "cerchio"
+    },
+    "obstacle_type": {
+      "cable": "cavo",
+      "pet_waste": "escrementi di animale",
+      "shoes": "scarpe",
+      "poop": "escrementi",
+      "pedestal": "piedistallo",
+      "extension_cord": "prolunga",
+      "weighing_scale": "bilancia",
+      "clothes": "vestiti",
+      "dustpan": "paletta",
+      "furniture_crossbar": "mobile con traversa",
+      "pet": "animale domestico",
+      "fabric_paper_balls": "palline di tessuto o carta"
     }
   },
   "order_modal": {

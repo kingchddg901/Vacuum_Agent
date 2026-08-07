@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "persegi panjang",
       "circle": "lingkaran"
+    },
+    "obstacle_type": {
+      "cable": "kabel",
+      "pet_waste": "kotoran hewan peliharaan",
+      "shoes": "sepatu",
+      "poop": "kotoran",
+      "pedestal": "dudukan",
+      "extension_cord": "kabel ekstensi",
+      "weighing_scale": "timbangan",
+      "clothes": "pakaian",
+      "dustpan": "pengki",
+      "furniture_crossbar": "furnitur dengan palang",
+      "pet": "hewan peliharaan",
+      "fabric_paper_balls": "gumpalan kain atau kertas"
     }
   },
   "map": {

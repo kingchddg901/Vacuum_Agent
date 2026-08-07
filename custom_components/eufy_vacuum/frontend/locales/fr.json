@@ -2570,6 +2570,20 @@
     "compose_shape": {
       "rect": "rectangle",
       "circle": "cercle"
+    },
+    "obstacle_type": {
+      "cable": "câble",
+      "pet_waste": "déjections d'animal",
+      "shoes": "chaussures",
+      "poop": "excréments",
+      "pedestal": "socle",
+      "extension_cord": "rallonge",
+      "weighing_scale": "balance",
+      "clothes": "vêtements",
+      "dustpan": "pelle à poussière",
+      "furniture_crossbar": "meuble avec traverse",
+      "pet": "animal de compagnie",
+      "fabric_paper_balls": "boules de tissu ou de papier"
     }
   },
   "order_modal": {

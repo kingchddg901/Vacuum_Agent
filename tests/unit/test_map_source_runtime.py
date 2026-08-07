@@ -230,9 +230,19 @@ class _Path:
         self.path = segments
 
 
+class _ObstacleDetails:
+    """vacuum-map-parser-base ObstacleDetails: type is an INT, photo_name a str."""
+
+    def __init__(self, type_=None, photo_name=None):
+        self.type, self.photo_name = type_, photo_name
+
+
 class _Obstacle:
-    def __init__(self, x, y, type_):
-        self.x, self.y, self.type = x, y, type_
+    """Real parser shape: metadata on .details — no flat .type/.photo attrs."""
+
+    def __init__(self, x, y, type_=None, photo_name=None):
+        self.x, self.y = x, y
+        self.details = _ObstacleDetails(type_, photo_name)
 
 
 def test_overlays_from_mapdata_full():
@@ -247,7 +257,7 @@ def test_overlays_from_mapdata_full():
         walls=[_Seg(500, 500, 1500, 1500)],
         zones=[_Seg(500, 500, 1500, 1500)],
         path=_Path([[_VPoint(500, 500), _VPoint(1500, 1500)]]),
-        obstacles=[_Obstacle(500, 500, "cable")],
+        obstacles=[_Obstacle(500, 500, 0)],
     )
     ov = overlays_from_mapdata(md)
     assert ov["image_size"] == [100, 100]   # for the card's letterbox correction
@@ -267,6 +277,45 @@ def test_overlays_from_mapdata_empty_layers_omitted():
     ov = overlays_from_mapdata(_mapdata({16: _Room(0, 0, 100, 100, 16)}))
     assert "no_go" not in ov and "path" not in ov and "obstacles" not in ov
     assert "robot_anchor" not in ov   # no vacuum_position on this fake
+
+
+def test_obstacle_types_normalized_from_details():
+    """[MSR-2n] obstacle metadata lives on Obstacle.details (type INT, photo_name)
+    — the flat o.type/o.photo reads never matched vacuum-map-parser-base and
+    shipped type=None/has_photo=False for every marker. Known ints become the
+    stable vocab.obstacle_type slugs; unknown ints pass through as the number
+    string (locale-neutral); photo_name drives has_photo."""
+    md = _mapdata(
+        {16: _Room(0, 0, 100, 100, 16)},
+        obstacles=[
+            _Obstacle(500, 500, 1),                       # known int -> slug
+            _Obstacle(500, 500, 26),                      # crossbar alias id
+            _Obstacle(500, 500, 999),                     # unknown -> "999"
+            _Obstacle(500, 500, None),                    # untyped marker
+            _Obstacle(500, 500, 49, photo_name="p.jpg"),  # photo via details
+        ],
+    )
+    ov = overlays_from_mapdata(md)
+    assert [(o["type"], o["has_photo"]) for o in ov["obstacles"]] == [
+        ("pet_waste", False),
+        ("furniture_crossbar", False),
+        ("999", False),
+        (None, False),
+        ("pet", True),
+    ]
+
+
+def test_obstacle_flat_type_degrade_path():
+    """A parser shape carrying a flat .type and no .details still yields a
+    typed marker (the degrade path, not the primary read)."""
+    class _FlatObstacle:
+        def __init__(self, x, y, type_):
+            self.x, self.y, self.type = x, y, type_
+
+    md = _mapdata({16: _Room(0, 0, 100, 100, 16)},
+                  obstacles=[_FlatObstacle(500, 500, 2)])
+    ov = overlays_from_mapdata(md)
+    assert ov["obstacles"][0]["type"] == "shoes"
 
 
 def test_roborock_targets_rooms_not_no_go():
@@ -721,7 +770,7 @@ def test_a_dead_projector_is_distinguishable_from_empty_layers():
         no_go_areas=[_Quad([(500, 500), (1500, 500), (1500, 1500), (500, 1500)])],
         walls=[_Seg(500, 500, 1500, 1500)],
         zones=[_Seg(500, 500, 1500, 1500)],
-        obstacles=[_Obstacle(500, 500, "cable")],
+        obstacles=[_Obstacle(500, 500, 0)],
     )
     md.image.dimensions = _BrokenDims()
 

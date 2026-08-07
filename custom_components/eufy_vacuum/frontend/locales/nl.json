@@ -2554,6 +2554,20 @@
     "compose_shape": {
       "rect": "rechthoek",
       "circle": "cirkel"
+    },
+    "obstacle_type": {
+      "cable": "kabel",
+      "pet_waste": "uitwerpselen van huisdier",
+      "shoes": "schoenen",
+      "poop": "uitwerpselen",
+      "pedestal": "sokkel",
+      "extension_cord": "verlengsnoer",
+      "weighing_scale": "weegschaal",
+      "clothes": "kleding",
+      "dustpan": "stofblik",
+      "furniture_crossbar": "meubel met dwarsbalk",
+      "pet": "huisdier",
+      "fabric_paper_balls": "proppen stof of papier"
     }
   },
   "order_modal": {

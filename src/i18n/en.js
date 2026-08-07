@@ -2010,6 +2010,19 @@ export const en = {
   // --- vocab: compose_shape (custom-segment composer shape types) ---
   "vocab.compose_shape.rect": "rectangle",
   "vocab.compose_shape.circle": "circle",
+  // --- vocab: obstacle_type (Roborock AI obstacle markers; backend normalizes the parser's type ints to these slugs — unknown ints arrive as the number string and fall back raw) ---
+  "vocab.obstacle_type.cable": "cable",
+  "vocab.obstacle_type.pet_waste": "pet waste",
+  "vocab.obstacle_type.shoes": "shoes",
+  "vocab.obstacle_type.poop": "poop",
+  "vocab.obstacle_type.pedestal": "pedestal",
+  "vocab.obstacle_type.extension_cord": "extension cord",
+  "vocab.obstacle_type.weighing_scale": "weighing scale",
+  "vocab.obstacle_type.clothes": "clothes",
+  "vocab.obstacle_type.dustpan": "dustpan",
+  "vocab.obstacle_type.furniture_crossbar": "furniture with a crossbar",
+  "vocab.obstacle_type.pet": "pet",
+  "vocab.obstacle_type.fabric_paper_balls": "fabric or paper balls",
   // --- Wave-2 theme-editor vocabulary (token labels / groups / facets / tags) ---
   // --- vocab: token_type (the small type chip on every theme-editor token row) ---
   "vocab.token_type.color": "color",

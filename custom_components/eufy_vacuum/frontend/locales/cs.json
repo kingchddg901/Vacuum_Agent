@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "obdélník",
       "circle": "kruh"
+    },
+    "obstacle_type": {
+      "cable": "kabel",
+      "pet_waste": "zvířecí exkrementy",
+      "shoes": "boty",
+      "poop": "exkrementy",
+      "pedestal": "podstavec",
+      "extension_cord": "prodlužovací kabel",
+      "weighing_scale": "váha",
+      "clothes": "oblečení",
+      "dustpan": "lopatka",
+      "furniture_crossbar": "nábytek s příčkou",
+      "pet": "domácí zvíře",
+      "fabric_paper_balls": "kuličky z látky nebo papíru"
     }
   },
   "map": {

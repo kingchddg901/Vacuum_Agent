@@ -731,6 +731,20 @@
     "compose_shape": {
       "rect": "長方形",
       "circle": "円"
+    },
+    "obstacle_type": {
+      "cable": "ケーブル",
+      "pet_waste": "ペットの排泄物",
+      "shoes": "靴",
+      "poop": "フン",
+      "pedestal": "台座",
+      "extension_cord": "延長コード",
+      "weighing_scale": "体重計",
+      "clothes": "衣類",
+      "dustpan": "ちりとり",
+      "furniture_crossbar": "横木のある家具",
+      "pet": "ペット",
+      "fabric_paper_balls": "布や紙の玉"
     }
   },
   "map": {
