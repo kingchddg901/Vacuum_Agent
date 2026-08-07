@@ -66,6 +66,22 @@ test("[TF-8] accessibility rides its OWN token, read ahead of the theme's", () =
   }
 });
 
+test("[TF-10] no fallback-less var() inside typeface values", () => {
+  // The guaranteed-invalid trap (found by local reproduction 2026-08-06):
+  // var(--paper-font-body1_-_font-family) with NO fallback, on a setup where
+  // the legacy paper var is unset, makes the ENTIRE declaration guaranteed-
+  // invalid — the a11y token computes to unset and the whole chain silently
+  // falls through to the theme. The rule parses, the selector matches, and
+  // nothing anywhere reports an error. Every inner var() in a typeface value
+  // must carry a fallback (a comma after the name).
+  for (const file of ["./fonts.js", "./index.js", "./shell.js", "./foundation.js", "./theme-preview.js"]) {
+    const src = read(file);
+    const bare = src.match(/var\(--paper-font-body1_-_font-family\)/g) ?? [];
+    assert.equal(bare.length, 0,
+      `${file}: var(--paper-font-body1_-_font-family) without a fallback — on a paper-var-less HA this poisons the whole declaration to guaranteed-invalid`);
+  }
+});
+
 test("[TF-9] the a11y token is NOT a theme token", () => {
   // THEME_TOKEN_REGISTRY is exactly the set applyDynamicTheme writes INLINE
   // from a theme. Registering --evcc-a11y-font-family would hand themes the

@@ -127,7 +127,7 @@ export const MODAL_HOST_STYLES = `
     /* The a11y token, not --evcc-font-family: the theme token is written
        INLINE on this host by applyDynamicTheme (Target 2); precedence lives in
        the read's fallback chain — see styles/fonts.js. */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
   }
   * {
     box-sizing: border-box;
@@ -921,7 +921,7 @@ export const TOAST_HOST_STYLES = `
      typeface and its toasts do not. */
   .evcc-toast-host[data-evcc-font="opendyslexic"] {
     /* Same a11y-token pattern as the modal host above. */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
   }
   * {
     box-sizing: border-box;

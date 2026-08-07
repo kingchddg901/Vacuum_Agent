@@ -6168,7 +6168,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
        \u2014 accessibility first, theme second, HA default last. Unset (default,
        and every non-English locale via the glyph-coverage gate) this falls
        straight through to the theme (live:FONT-1 remainder #2, 2026-08-06). */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
   }
 
   /* The picker's own option renders IN the font it offers, so the user can see
@@ -6176,7 +6176,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
      apply regardless of the current setting. Not the token: this option must
      stay OpenDyslexic even while the card is on the default. */
   .evcc-font-sample-opendyslexic {
-    font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
   }
 `;var Kl=`
   .evcc-base-station-view {
@@ -17212,7 +17212,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
     /* The a11y token, not --evcc-font-family: the theme token is written
        INLINE on this host by applyDynamicTheme (Target 2); precedence lives in
        the read's fallback chain \u2014 see styles/fonts.js. */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
   }
   * {
     box-sizing: border-box;
@@ -17994,7 +17994,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
      typeface and its toasts do not. */
   .evcc-toast-host[data-evcc-font="opendyslexic"] {
     /* Same a11y-token pattern as the modal host above. */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
   }
   * {
     box-sizing: border-box;
