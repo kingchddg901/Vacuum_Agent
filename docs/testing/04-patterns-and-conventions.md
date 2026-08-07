@@ -178,6 +178,36 @@ never awaited" against whichever test the GC happened to interrupt.
 that unknown attributes raise, that bad signatures raise, and (as a control) that
 a bare `MagicMock` accepts both.
 
+## Pin discipline: test the contract, not the shape
+
+The mirror image of the mock rule above, discovered by the CAL-23 blind-reconstruction
+calibration (2026-08-07). The two diseases:
+
+| | what lies | failure mode | constrains |
+|---|---|---|---|
+| **Mock disease** | a fake collaborator agrees with the caller | test PASSES while the code is broken | under-constrains behavior |
+| **Pin disease** | a real-code test asserts private internals by name | test FAILS while the code is correct | over-constrains implementation |
+
+A test that drives `t._record_rising_edge(...)` or asserts `t._grace_cancels == {}` is
+pinning the implementation's *shape*: any correct reimplementation that names or
+structures its internals differently fails, while behaving identically. The acid
+question for every new test: **would this test accept a correct reimplementation?**
+If no, it asserts the wrong contract. Prefer the public surface — the constructor,
+the public methods, the emitted state/attributes, the injected-closure seams — and
+treat any direct `._name` access as a deliberate exception that needs a comment
+saying why the public surface can't force the behavior.
+
+Over-pinning also steers production: `core/error_tracker.py` keeps the deprecated
+`harvest_active_run` alive solely because tests assert its semantic (its docstring
+says so) — the suite driving the code instead of guarding it.
+
+**Current, honestly stated:** `tests/integration/test_core_error_tracker.py` is the
+known worst case — 35 of its 43 tests touch private names (census 2026-08-07).
+They guard real behavior today and are NOT being rewritten opportunistically
+(suite-freeze ruling); they are quarantined from blind-reconstruction verdicts and
+queued as a hardening class. New tests follow this section from now on — the
+ratchet direction is: white-box count may only shrink.
+
 ## Assertions: prefer presence over exact equality
 
 Because the integration `hass` shares its `config_dir` across tests in a run

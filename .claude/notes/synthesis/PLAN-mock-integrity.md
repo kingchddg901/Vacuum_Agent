@@ -198,3 +198,13 @@ section documents two verbatim (mgr.learning phantom attribute; the
 _collect_finalization_inputs missing-kwargs TypeError that cost two live runs);
 `git log --grep=autospec --grep=spec_manager` and the RF-16/RP-0xx fix commits
 carry the rest. Do NOT invent incidents — the ledger records only what bit.
+
+## 10. W0 EXTENSION (Chris, 2026-08-07): the census also counts PINS
+
+CAL-23 diagnosed the mock disease's mirror: WHITE-BOX PINNING — real-code tests
+asserting private internals by name (worst case: test_core_error_tracker.py, 35/43).
+Invisible to the mock census (no mocks involved); doctrine now in
+docs/testing/04 "Pin discipline". W0's generated Mocking column gains a sibling
+metric from the same derivation: per-file count of tests touching a `._private`
+name on a production object. Same shrink-only ratchet, same generated freshness.
+The 35 stay frozen until their own hardening wave — count first, rewrite later.
