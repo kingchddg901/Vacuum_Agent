@@ -2,9 +2,10 @@
 
 The live map view (`renderers/map.js` → `renderMapRoomView`, used by BOTH the sidebar panel
 and the embedded `vacuum-map-host` card) is a **stack of independently-authored layers** that
-grew up over several waves. They do NOT share a single fill mechanism, and they use **two
-different room-id spaces**. This doc is the map — read it before touching room fills, overlays,
-or per-room theming, so you don't re-derive it from code (it has bitten us).
+grew up over several waves. They do NOT share a single fill mechanism, and they touch **several
+room-id spaces whose relationship is not fully settled — see §2**. This doc is the map — read it
+before touching room fills, overlays, or per-room theming, so you don't re-derive it from code
+(it has bitten us).
 
 ## 1. The layer stack (bottom → top = DOM order = paint order)
 
@@ -21,9 +22,15 @@ Inside `.evcc-map-content-rotator`, in order (later paints ON TOP; most rely on 
    at **full opacity, exactly over the backdrop**. ⚠️ **In furnished (blend/art) mode this covers
    the live map — including room colors.** That's by design: furnished replaces the live render.
    Room colors are a **live-map** feature; see the gotcha in §4.
-3. **Selection scrim** — `<canvas class="evcc-map-selection-canvas">` (`_renderSelectionScrim` +
-   `_bindSelectionScrim`). A subtractive **dark** dim over UN-selected rooms; only present on a
-   *partial* selection. It dims, it does not recolor.
+3. **Selection scrim** — `<canvas class="evcc-map-image evcc-map-selection-canvas">`
+   (`_renderSelectionScrim` + `_bindSelectionScrim`; it shares `.evcc-map-image` purely for
+   LAYOUT — width/height 100% + `object-fit:contain` letterbox parity with the backdrop, and
+   "positioned like the backdrop; just needs to be click-through" (`styles/map.js:93-100,938-940`)).
+   A subtractive **dark** dim over UN-selected rooms; only present on a *partial* selection. It
+   dims, it does not recolor. This scrim keys its selection set directly by managed `room.id`
+   against the raster's own `rid` (see §2's disagreement note) — `selected = new Set(
+   rooms.filter(r => r.enabled).map(r => Number(r.id)))`, tested with `if (selected.has(rid))
+   continue` (`bindings/map.js:269-288`).
 4. **`<svg class="evcc-map-svg">`** — contains, in order:
    - floor-texture `<defs>` (`_buildFloorTextureDefs`);
    - **room polygons** (`_renderMapSegmentPolygon`) — `fill: transparent` unless selected, so they
@@ -39,19 +46,47 @@ Inside `.evcc-map-content-rotator`, in order (later paints ON TOP; most rely on 
 opaque above it (furnished art, floor texture) will hide a raster recolor. The SVG room polygons
 do NOT provide the fill — they're transparent except as a selection tint.
 
-## 2. Two room-id spaces (do not conflate)
+## 2. Room-id spaces — a live, UNRESOLVED disagreement (do not conflate blindly)
 
 | id | Where | What it is |
 |---|---|---|
-| **raster `rid`** | `room_pixels` byte `>> 2` (`rid_shift`) in `_drawVaRender` | the device's native room id |
-| **managed `room.id`** | `Number(attrs.room_id)`, from the device `segments[].id` | the device's native room id |
+| **raster `rid`** | `room_pixels` byte `>> 2` (`rid_shift`) in `_drawVaRender` | the raster's own per-pixel room id |
+| **managed `room.id`** | `Number(attrs.room_id)`, from the device `segments[].id` | the device's declared segment id (`rooms/room_discovery.py:discover_rooms_for_vacuum`, keyed by the adapter's `room_id_key`) |
 | **`room_names[rid]`** | render payload `{str(rid): name}` (`map_source.py`) | device's per-rid name |
 | **CV `segment_id`** | `"segment_N"` (area-ranked) from the CV segmenter | a **separate** id space |
 
-- **`rid == room.id == room_names` key** — all three derive from the same device segment id.
-  Verified on Alfred (Kitchen=5, Office=9, Dining=8, Entryway=6). So the raster override map is
-  keyed by rid, resolved rid → name (`rd.room_names`) → our room (by name) → `room.color`. Keying
-  a raster override by the CV `segment_id` is WRONG (different space, and it's a string → `NaN`).
+**The codebase disagrees with itself about whether raster `rid` and managed `room.id` are the
+same number.** Verified on Alfred all three (rid / `room.id` / `room_names` key) coincided
+(Kitchen=5, Office=9, Dining=8, Entryway=6) — the one concrete dataset behind this doc. But two
+different generations of code encode two different beliefs about whether that's a *guarantee*:
+
+- **Treats them as the SAME number, no bridging (older, load-bearing feature code):**
+  - `_bindSelectionScrim` builds `selected = new Set(rooms.filter(r => r.enabled).map(r =>
+    Number(r.id)))` and tests it directly against the decoded raster `rid`
+    (`bindings/map.js:269-288`) — if they ever diverge for a device, the scrim dims the wrong
+    rooms.
+  - `_renderRoomSelection`'s clean-order badges look up `order.get(Number(room.number))`, where
+    `order` is keyed by `Number(r.id)` and `room.number` is the raw `rid` `rooms_from_room_pixels`
+    emits (`map_source.py:336`, `"number": rid`); the function's own docstring says "Keyed by
+    device room number (== managed room id)" (`renderers/map.js:654`).
+  - `current_room_for_pixel` returns the raw raster `rid` (`map_source.py:473-502`), and
+    `learning/room_attribution_engines.py:61-62` documents that return value as **"the MANAGED
+    room id"** outright.
+- **Treats them as POSSIBLY DIFFERENT spaces, and bridges defensively (newer, Phase-2 palette
+  code):** `_drawVaRender`'s per-room override resolves a raster pixel's `rid` → `rd.room_names[rid]`
+  → our room *by matching name* (trimmed + lowercased) → `room.color` — it deliberately does NOT
+  key by `room.id` directly. The comment at the point of the choice
+  (`bindings/map.js:327-329`) states this as an asserted, already-confirmed finding, not a
+  hedge: *"Keying by room.id directly is WRONG — the raster rid and our stored room.id are
+  DIFFERENT id spaces on real devices (empirically verified), so a room.id key lands on no
+  pixels (or, worse, another room's)."* The name-bridge itself is at `bindings/map.js:333-345`.
+- **We have not resolved which belief is correct** — or, if the comment above is accurate, the
+  three identity-assuming paths (scrim, clean-order badges, current-room attribution) are not a
+  hypothetical risk but already broken on any device where rid and room.id diverge. Don't harden
+  either side in this doc; the two beliefs coexisting unexamined, on a codebase that ships a
+  comment calling divergence "empirically verified," is what needs resolving next. Keying a
+  raster override by the CV `segment_id` is WRONG regardless (different space, and it's a
+  string → `NaN`).
 - **CV `segment_id` ↔ room** is indirect: `state.roomIdForSegment(seg.segment_id)` → `seg.room_id`.
   The SVG polygons + labels use this; the raster does not (it has no segments, just rid pixels).
 
@@ -65,7 +100,10 @@ Single source of truth: **`src/cards/map-room-color.js`**. Cascade, resolved the
   `var(--evcc-room-fill-N, default)` (rides the live CSS cascade). Idx = render order.
 - **Raster** can't take CSS vars, so `_drawVaRender` resolves RGBs: the palette once per slot
   (`roomFillRgb`, one `getComputedStyle` read), plus a per-rid override map
-  (`roomOverrideRgb` via `rd.room_names`). An `overrideSig` in the `_vaImageCache` key repaints on
+  (`roomOverrideRgb` via `rd.room_names`, bridged by name — see §2). An un-overridden pixel takes
+  palette slot **`(rid − 1) mod N`** — rid-derived, NOT render order (render order is the SVG
+  path's index rule instead; `bindings/map.js:376-377`, `ROOM_FILL_N` = 12,
+  `cards/map-room-color.js:19-26`). An `overrideSig` in the `_vaImageCache` key repaints on
   a recolor, like `paletteSig` does for a theme change.
 - **Floor texture** is suppressed for an overridden room (see layer 4) so the override is the fill.
 - `room.color` is a `#rrggbb` string or `null`, stored per-room (`update_room_fields`, models

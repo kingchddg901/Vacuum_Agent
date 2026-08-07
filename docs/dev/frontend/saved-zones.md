@@ -51,24 +51,36 @@ data["maps"][v][m]["saved_zones"]: dict[zone_id_str, SavedZone]   # {} until fir
 
 ```python
 SavedZone = {
-    "id":            str,            # generated, like layout_id
-    "name":          str,            # USER string ("the couch") — data, never i18n (see §7)
-    "geometry":      [[x,y],...],    # normalized 0–1 quad — THE zone; dispatch works off this ALONE
-    "area_m2":       float,          # computed from map dims at author time (display + validation)
+    "id":            str,            # "sz_<YYYYMMDDTHHMMSS>_<seq>" (_generate_saved_zone_id;
+                                     #   monotonic seq, ignores deletions)
+    "name":          str,            # USER string ("the couch") — data, never i18n (see §7);
+                                     #   stripped, "Zone" fallback if empty at mint
+    "geometry":      [[x,y],...],    # normalized 0–1 point list (min 3 points) — THE zone;
+                                     #   dispatch works off this ALONE. Each coord is schema-
+                                     #   sanitized: non-numeric/bool/NaN/inf rejected, clamped
+                                     #   to 0–1, rounded to 5 dp (_saved_zone_coord)
+    "area_m2":       float | None,   # computed from map dims at author time (display + validation);
+                                     #   None until computed — self-healed on read (§5, backfill)
     "room_number":   int | None,     # FILING ONLY (§4): auto-set at author by ≥90% dominance, else
                                      #   None ("Unassigned"); user-editable; NEVER affects dispatch
     "kind":          str,            # "clean" (default, and the only value the schema
                                      #   currently accepts -- neither clean handler reads
                                      #   kind, so a wider value would silently dispatch as
                                      #   a clean anyway; RP-032/A6-ZONE-C-7)
-    "map_version":   ...,            # invalidation key (§6)
+    "created_at":    str,            # ISO UTC at mint (utc_now_iso)
+    "updated_at":    str,            # ISO UTC, touched by rename / set-room / backfill
 }
 ```
 
+There is **no stored map-version key** — the §10 invalidation described below is design intent,
+not an implemented mechanism (grep confirms `map_version` appears nowhere in
+`custom_components/` or `src/`).
+
 There is deliberately **no** persisted `rooms[]` breakdown and **no** separate `room_override` — the
-dominance % is a transient author-time compute, and since a re-map invalidates the zone (§10) there
-is no re-compute that a stored override would need to survive. `SavedZone` is **lighter than a
-`CustomLayout`** — one box + name, not a whole segmentation.
+dominance % is a transient author-time compute, and under the §10 invalidation *intent* (a re-map
+would invalidate the zone, were that wired up) there is no re-compute that a stored override would
+need to survive. `SavedZone` is **lighter than a `CustomLayout`** — one box + name, not a whole
+segmentation.
 Brand-agnostic: it mirrors the custom-layout *storage pattern* but is **not** part of the Eufy
 CV/segmentation system; it feeds the per-brand zone-clean dispatch and works on Roborock too.
 
@@ -111,18 +123,38 @@ filing action with **zero** effect on the clean.
 
 In `mapping/mapping_services.py`, mirroring `_handle_{create,rename,delete}_custom_layout`:
 
-- `create_saved_zone` — `(vacuum_entity_id, map_id, name, geometry)` → computes `area_m2` +
-  `room_number` (≥90%-of-floor dominance, filing only), stores, returns the `SavedZone`.
+- `create_saved_zone` — `(vacuum_entity_id, map_id, name, geometry[, kind])` → stores, then
+  best-effort computes `area_m2` + `room_number` (≥90%-of-floor dominance, filing only; never
+  fails the create), returns `{saved, zone_id, zone}`. **Create-time refuse gates:** blank name →
+  `missing_name`; unknown map → `map_not_found` (+ `known_maps`); and the schema itself rejects a
+  **degenerate geometry** — a bbox with either side `< 0.01` normalized
+  (`_reject_degenerate_zone_geometry`, the same `_MIN_SIDE` as `dispatch_zone_clean`'s own guard,
+  so a zone that saves can never fail degenerate at clean time; RP-032/A1-SERVIC-4). The
+  membership compute is **active-map-guarded**: it runs when the active map matches the zone's
+  `map_id` *or is indeterminate*; a definite mismatch leaves `area_m2`/`room_number` `None`.
+  Un-sized zones are **self-healed on the `get_map_segments` read**
+  (`_backfill_saved_zone_area`: same guard, sizes + files any `area_m2 is None` zone, persists).
 - `rename_saved_zone` — `(…, zone_id, name)`.
 - `delete_saved_zone` — `(…, zone_id)`.
 - `set_saved_zone_room` — `(…, zone_id, room_number | null)` → sets/clears `room_number` (filing
   only; null = Unassigned; **no effect on dispatch**).
-- `clean_saved_zone` — `(…, zone_id, clean_times?)` → converts `geometry` → device coords **at call
-  time** (§6) and fires the existing zone-clean dispatch. `clean_times` is the optional number of
-  cleaning passes (min 1).
-- `clean_saved_zones` — `(vacuum_entity_id, map_id, zone_ids[], clean_times?)` → fires the whole
-  selected set as one ad-hoc zone clean (fire-and-forget; per-brand caps: Eufy up to 10 zones/side
-  0.5–10 m, Roborock up to 5 zones/1 ft²–3.05 m² each; JS wrapper `cleanSavedZones`).
+- `clean_saved_zone` — `(…, zone_id, clean_times?)` → takes the geometry's normalized **bbox
+  rect** and fires the shared `dispatch_zone_clean` (which owns the per-brand coordinate
+  conversion, §6) at call time. `clean_times` is the optional number of cleaning passes (min 1) —
+  **but Eufy declares `supports_zone_repeat: false`, so any `clean_times > 1` there is normalized
+  to 1 with a logged warning, not honored** (`dispatch/manager.py`, the non-`device_mm` branch).
+  **Clean-time refuse gates:** `zone_not_found`; the **active-map guard** — a zone's geometry is
+  only valid on ITS map, so a different active map refuses with `map_not_active` (+
+  `active_map_id`), and an **unreadable/indeterminate active map also refuses**
+  (`active_map_indeterminate` — indeterminate ≠ match, RP-029/ZONE-C-1); `bad_geometry` (< 3
+  valid points). Fire-and-forget: no job/queue/learning.
+- `clean_saved_zones` — `(vacuum_entity_id, map_id, zone_ids[], clean_times?)` → resolves every
+  zone to its bbox rect and fires the whole set as ONE `dispatch_zone_clean` call (same
+  active-map + indeterminate refusals + Eufy repeat-normalization above; per-brand caps enforced
+  inside the dispatch: Eufy up to 10 zones / 0.5–10 m per side, Roborock up to 5 zones /
+  1 ft²–3.05 m² each; JS wrapper `cleanSavedZones`). **Atomic:** any missing zone
+  (`zone_not_found` + the id list) or bad-geometry zone (`bad_geometry` + the id list) refuses the
+  whole batch.
 
 Each runs `_migrate_saved_zones` first, degrades safely, and the snapshot carries a
 `SavedZoneSummary` catalog (like `custom_layouts`) for the card.
@@ -130,11 +162,23 @@ Each runs `_migrate_saved_zones` first, degrades safely, and the snapshot carrie
 ## 6. Dispatch + drift-safety (the one hard rule)
 
 **Store normalized, convert at clean-time — never persist absolute cm.** The provider re-origins
-its coordinate frame per session; the map-relative (normalized) frame is stable, but a cached cm
-quad is not. So `clean_saved_zone` converts `geometry` → device coords from the **current**
-session's map geometry (`normalized_rects_to_quads_cm`) each time, exactly as live zone-drawing
-already does, then routes to the per-brand zone-clean path. Saved zones must not shortcut this by
-caching a quad.
+its coordinate frame per session; the map-relative (normalized) frame is stable, but a cached
+device-coordinate quad is not. So `clean_saved_zone`/`clean_saved_zones` hand the stored 0–1 bbox
+rect(s) to the shared `dispatch_zone_clean` (`dispatch/manager.py:145+`) each time, which converts
+**per brand, at call time, from the current session's live map**, exactly as live zone-drawing
+already does — never persist absolute coordinates. The conversion itself is brand-branched on the
+adapter's `zone_coords` capability, not a single shared helper:
+
+- **`zone_coords: device_mm`** (Roborock) — converted to world millimetres via
+  `zone_dispatch.normalized_rects_to_mm`, using `map_source_runtime.correspondences_from_mapdata`;
+  a validation failure **refuses** the dispatch rather than risk cleaning the wrong area.
+- **Everything else** (Eufy) — the 0–1 rects ship **verbatim**; the fork de-normalizes them on its
+  own side (`SelectZonesClean`). Size-bound checks (when the adapter declares any) still convert
+  to metres locally for validation only, using the live map's own `width`/`height`/`resolution`
+  (the same math as `map_source.zone_membership`'s footprint calc) — that conversion never leaves
+  the service, the dispatched payload stays normalized.
+
+Saved zones must not shortcut this by caching a converted quad.
 
 **Map-flip property (hypothesis to validate — Chris, 2026-07-02):** because a saved zone is stored
 map-relative and converted at call time from the **current** map's geometry — which updates ~0.5s
@@ -163,18 +207,30 @@ through i18n.
 - **Clean:** tap a saved zone → `clean_saved_zone`. Multi-select → `clean_saved_zones` batch
   (respecting the zone cap).
 
-## 9. Validation (free, from the size calc)
+## 9. Validation (author-time + clean-time)
 
-The m² calc doubles as the device-limit gate: reject/auto-tile a too-big zone, block a too-small
-one, cap total zones per clean (~≤10, ~0.5–10 m² per zone — confirm per brand). Enforced at author
-+ at clean-time.
+- **Author time:** the create schema rejects bad coords (`_saved_zone_coord`) and a degenerate
+  bbox (either side `< 0.01` normalized — `_MIN_SIDE`, deliberately equal to the dispatch-side
+  guard so nothing saves that can't clean); the card caps drawn boxes at the brand zone cap
+  (snapshot `zone_max` via `zoneMax()`, fallback 10 — `src/state/map.js`).
+- **Clean time:** `dispatch_zone_clean` re-checks degenerate rects and enforces the per-brand
+  capability caps — zone **count** (`zone_max`) plus per-zone **size bounds**
+  (`zone_min_area_m2` / `zone_max_area_m2` / `zone_min_side_m` / `zone_max_side_m`; absent =
+  unconstrained for that brand). Eufy: 10 zones, 0.5–10 m per side. Roborock: 5 zones,
+  1 ft²–3.05 m² area. There is **no auto-tiling** of an oversize zone — it refuses with an error.
 
 ## 10. Invalidation
 
-Saved zones are keyed to the **map version**. A genuine **re-map** changes the `room_pixels`
-raster → the stored geometry no longer means the same thing → the map's saved zones invalidate
-(same as phantom rooms / the other per-map dicts handle a re-map). Within a map version, zones +
-overrides are stable across sessions (the normalized frame doesn't drift).
+**Design intent, NOT yet implemented:** the intent is that a genuine **re-map** (the
+`room_pixels` raster changes meaning) invalidates the map's saved zones. Today **no code does
+this** — the record stores no map-version key (§3) and no writer CLEARS `saved_zones` on a
+re-map (`maps/map_manager.py:rebuild_map_bucket` rewrites rooms/summary/metadata only; the other
+writers — `_create_saved_zone`, `_backfill_saved_zone_area`, `_handle_rename_saved_zone`,
+`_handle_set_saved_zone_room`, `_handle_delete_saved_zone` — insert, mutate, or remove individual
+zone entries, none of them invalidate the collection on a re-map), so zones survive a re-map with
+silently re-interpreted geometry. The active-map guard (§5) only protects against cleaning while a
+*different* map is loaded, not against the same map being re-mapped. Within an unchanged map,
+zones + overrides are stable across sessions (the normalized frame doesn't drift).
 
 ## 11. Waves (each shippable, additive)
 
@@ -193,8 +249,10 @@ overrides are stable across sessions (the normalized frame doesn't drift).
 - **Not** map editing (no-go zones, virtual walls) — the app owns that.
 - **Not** voice ("clean under the couch") — that's the back-burnered wizard; saved names would be a
   natural vocabulary *if* it's ever revived, but no dependency here.
-- **Confirm** the per-brand zone limits (count + m²) and whether Roborock exposes the same size
-  bounds as Eufy. *(still open — Wave 3 validation gate)*
+- ~~**Confirm** the per-brand zone limits (count + m²) and whether Roborock exposes the same size
+  bounds as Eufy.~~ **RESOLVED** — declared per adapter (capabilities: `zone_max` + the
+  `zone_min/max_area_m2` / `zone_min/max_side_m` quartet) and enforced in `dispatch_zone_clean`
+  (§9); Eufy caps per *side*, Roborock per *area*.
 - ~~Decide the exact snapshot shape of `SavedZoneSummary` (heavy `geometry` in or out).~~
   **RESOLVED (W1):** the full zone (geometry included) rides in the `get_map_segments` read — a
   point list is negligible beside the base64 map image already in that payload (the "unbounded
@@ -211,10 +269,13 @@ save) and **out-of-range** coords. Fixed by `_saved_zone_coord`: reject non-nume
 memory→`.storage`, Eufy-only, degrade-to-None) + best-effort compute in `create_saved_zone` +
 `set_saved_zone_room` filing override. **Review → 1 finding (map-mismatch):** the compute read the
 *current* map's raster with no check it matched the zone's `map_id` — could file wrong-map
-membership on a multi-map device. **Fixed:** only compute when `map_id` == the active map
-(`get_active_map_id`), else leave `None` — mirroring the dispatch-path `map_mismatch` guard. Locked
-by a test. (LOW severity — unreachable via the card's author-on-active-map flow + the fork can't read
-a non-active raster until PR #150, but the guard makes it correct-by-construction.)
+membership on a multi-map device. **Fixed:** compute only when the active map
+(`get_active_map_id`) matches `map_id` **or is indeterminate**; a definite mismatch leaves `None`
+— mirroring the dispatch-path `map_mismatch` guard. (Note the asymmetry vs the CLEAN path, which
+refuses on indeterminate rather than proceeding — RP-029: a wrong *filing* is recoverable by
+re-editing `room_number`, a wrong *clean* is not.) Locked by a test. (LOW severity — unreachable
+via the card's author-on-active-map flow + the fork can't read a non-active raster until PR #150,
+but the guard makes it correct-by-construction.)
 
 ## Cross-links
 

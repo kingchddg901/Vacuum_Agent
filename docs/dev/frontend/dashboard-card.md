@@ -33,7 +33,9 @@
 > both cards; **strict-order** toggle (Roborock); Eufy scene **"None"** filter; pinned
 > **pan/zoom** across reloads (per-device, per-context); **drag-to-move room-name
 > labels** (per-device). Locale files de-bundled + cache-busted; `vacuum_card.*` keys
-> translated into all 7 shipped locales.
+> translated into every shipped locale (17 non-English packs listed in
+> `custom_components/eufy_vacuum/frontend/locales/index.json` + English = 18 today,
+> up from 7 at W3-ship time).
 >
 > **Verified:** frontend `node --test` + backend pytest green; i18n + styles gates
 > clean; multi-agent adversarial review at each wave (notably: a first-load
@@ -205,7 +207,8 @@ Editor: extend the `EufyRoomCardEditor` pattern — a `vacuum_entity_id` picker 
 ## 9. i18n
 
 New `vacuum_card.*` keys for the new labels (Rooms / Your profiles / App scenes /
-Clean / Clean all / Dock / "scene runs immediately" hint / etc.) — keyed at creation per, +7 locales drafted as usual. Slot *values*
+Clean / Clean all / Dock / "scene runs immediately" hint / etc.) — keyed at creation, drafted
+across every shipped locale as usual (see §W3 status above for the current count). Slot *values*
 (modes/suction/etc.) reuse the existing `vocab.*`. The card runtime-loads non-English
 locales the same way the room-card does (a card on a view with no main panel is the only
 thing that triggers the loader).
