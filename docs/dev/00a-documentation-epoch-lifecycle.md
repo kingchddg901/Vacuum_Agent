@@ -440,3 +440,16 @@ The entire model can be reduced to the following rules:
 > **After that reconciliation, nothing important from the closed epoch should exist only in development documentation.**
 
 That gives Vacuum Agent a documentation lifecycle instead of an ever-growing document that must simultaneously represent present truth, active thought, and historical scar tissue.
+
+---
+
+## 12. The plain-language key
+
+> **Design — this is why.**
+> **DR — this is how.**
+> **Dev deltas — this is what I'm changing right now.**
+> **Audit record — this is what happened, and what it cost to learn.**
+
+Every document answers exactly one of these questions. If a passage answers a different
+question than the document it lives in, it belongs somewhere else — that is the entire
+routing rule, compressed.
