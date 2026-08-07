@@ -3,7 +3,10 @@
 A third map render mode that paints each room with its floor **material** (wood, tile,
 marble, concrete, granite, carpet…) as **one continuous floor**, not a per-room patchwork.
 Toggle: the **▨** button next to the VA-render (**▦**) toggle, once the VA raster canvas is
-active. Works on any brand with a room raster (Eufy CV + the Roborock raw-map decode).
+active — `isFloorRenderActive()` is literally `isVaRenderActive() && useFloorTexture()`, and
+both buttons are suppressed when the map is embedded in a card (`embeddedInCard()`). The ▨
+choice persists per vacuum in `localStorage`. Works on any brand with a room raster (Eufy CV
++ the Roborock raw-map decode).
 
 This doc is the render + material side. For where the floor layer sits in the map paint
 order see [map-render-layers.md](map-render-layers.md); for the theme editor groups that
@@ -17,14 +20,33 @@ instead of a flat colour. Continuous by construction: the material is sampled in
 so adjacent same-type rooms line up. The output ImageData is cached and re-stamped on
 zoom/select (see [Caches](#caches)).
 
+Two things happen before any material is touched:
+
+- **rid → material.** The raster's per-pixel `rid` is bridged to a managed room through the
+  same device-authoritative `rd.room_names` (`{rid: name}`) map `_drawVaRender` uses for
+  colours; the room's `floor_type` / `carpet_type` go through `resolveFloorType()`
+  (`src/textures/floor-texture-resolver.js`). A type only enters `presentTypes` if it is
+  **not** `"default"` **and** `getPrimaryTextureUrl(ft)` returns a URL — every other room
+  falls back to the flat palette fill, in the same pass. So "no floor type set" and "type
+  with no assets" degrade identically and silently to the flat render.
+- **Supersample.** The ~360 px raster is drawn at `S = clamp(round(1200 / max(W,H)), 1, 4)`,
+  so the canvas is `CW×CH = W·S × H·S` and the mask detail survives. Every cache key below
+  is in CW×CH, not W×H.
+
 Each material is built by `compositeFloorTexture` (`src/textures/floor-texture-compositor.js`
 — pure, unit-tested) from the `FLOOR_TEXTURE_REGISTRY` entry — layers composited
 **bottom → top over an opaque base**:
 
 ```
-layerAlpha(texel) = (mask luminance / 255) × layerOpacity × colorAlpha   // white reveals
-out = layerColour × layerAlpha + out × (1 − layerAlpha)                  // stays opaque
+layerAlpha(texel) = (mask luminance / 255) × layerOpacity   // white reveals
+out = layerColour × layerAlpha + out × (1 − layerAlpha)     // alpha stays 255
 ```
+
+The compositor itself takes only `(width, height, baseColor, layers[{lum, color, opacity}])`
+and knows nothing about tokens: the **caller** (`_ensureFloorTextures`) folds the resolved
+colour's own alpha into `opacity` before handing the layer over, which is what keeps the
+canvas tones matching the card's CSS. A layer is skipped outright when its `lum` array is
+missing or shorter than `W×H`, or its effective opacity is `≤ 0`.
 
 The buffer is **seeded with the base-role layer's colour** (`resolved[baseIdx].color`, else
 layer 0), then every layer composites over it. Keep that seed in mind — it drives the single
@@ -34,8 +56,17 @@ biggest gotcha below.
 
 A material is an ordered list of layers in `FLOOR_TEXTURE_REGISTRY` (`src/textures/floor-texture-registry.js`).
 Each layer is `{ url (mask PNG), role, colorToken, colorDefault, opacityToken, opacityDefault }`
-(veins add `blurToken`/`blurDefault`). The mask is a grayscale PNG: **white reveals the
-layer colour, black hides it.**
+(veins add `blurToken`/`blurDefault`, which **only the card path reads** — the canvas
+compositor has no blur). The mask is a grayscale PNG: **white reveals the layer colour, black
+hides it.** Layer order is bottom → top; `role` is free-form (`base` / `grout` / `grain` /
+`accent` / `micro` / `vein-major` / `vein-minor`) and only `"base"` is load-bearing — it
+picks the seed colour.
+
+Alongside `layers[]` each entry also carries `opacityDefault` (the material's card-opacity
+fallback), `masks[]` and `baseTexture`. Those last two are **not** the map path: they feed
+`getPrimaryTextureUrl(floorType)` (preference order `baseTexture` → first layer → first mask
+→ `null`), which the SVG polygon renderer uses and which the raster path calls only as the
+"does this type have assets" gate described above.
 
 > ### ⚠ A layer whose colour equals the base colour is INVISIBLE on the map
 > The map seeds the buffer with the base-role layer's colour, then composites each layer
@@ -54,10 +85,20 @@ layer colour, black hides it.**
 ### Colour resolution (matches the card's CSS)
 
 `_resolveFloorColor` resolves each token **on a hidden probe element beside the map canvas**
-(so it inherits the theme vars), by applying the value as a real `color` property and reading
-the computed rgb. That's what lets `var()`, `oklch(from var(...) …)` (the marble minor-vein
-default), and 8-digit hex all become real rgb — a bare hex parser returns grey for anything
-but 3/6-digit hex. The colour's own alpha is folded into the layer opacity.
+(`_floorColorProbe` — an `aria-hidden`, zero-size `<span>` appended to the canvas's parent, so
+it inherits the theme vars and colour resolution never mutates the render canvas). It reads
+the token off that probe, applies the value — or the registry default when the token is unset
+— as a real `color` property, and reads the *computed* rgb back. That element context is the
+whole point: `_parseCssColor` (a cached 1×1 scratch canvas using the browser's own `fillStyle`
+parser) handles hex 3/6/8, `rgb()`, `hsl()`, `oklch()` and named colours, but it cannot
+resolve a `var()` or `oklch(from var(…) …)` — the marble minor-vein default — with no element
+to inherit from, and those were painting black. Last resort after both is grey
+`[128,128,128,1]`. The colour's own alpha is folded into the layer opacity by the caller.
+
+`_resolveFloorOpacity` is the asymmetric twin: it reads its token off the **host canvas**, not
+the probe, and `parseFloat`s the raw text (clamped `[0,1]`, default `1` on a non-number). It
+never evaluates CSS. That matters for exactly one material — see the marble-vein note under
+[Theme-editor tokens](#theme-editor-tokens--the-seed).
 
 ## Mask decode — reliability
 
@@ -69,14 +110,25 @@ array. Two hard-won robustness features:
   `img.decode()` rejects a **random** couple per load with *"The source image cannot be
   decoded"* — the file is valid and served 200; the decoder (or the static server under the
   burst) just drops some. `createImageBitmap` is the purpose-built off-DOM decode and is far
-  less flaky; `Image`+`decode` is kept only as a fallback.
+  less flaky; `Image`+`decode` is kept only as a fallback. The fetch is
+  `{cache: "force-cache"}` — the `?v=` bust below is what makes a changed mask reload, so the
+  request itself should never re-hit the network.
 - **Concurrency cap + retry.** `_enqueueMaskDecode` / `_pumpMaskDecodeQueue` cap concurrent
   decodes at **3** so the burst can't overwhelm the decoder/server; each decode **retries up
-  to 4×** with backoff so a transient loss recovers instead of caching a blank.
+  to 4×**, sleeping `70 × attempt` ms between tries, so a transient loss recovers instead of
+  caching a blank. The bitmap is `close()`d in a `finally` on every attempt.
 
-A decode that still fails caches a **zero-luminance sentinel** (that layer reveals nothing →
-base shows through) rather than never caching — otherwise it re-kicks every render (infinite
-loop). So a broken mask degrades to flat base colour, it doesn't hang.
+The mask is drawn as a `createPattern(src, "repeat")` fill at **native** resolution — never
+downscaled to the canvas size, which averaged the 1–3 px grain/seam detail away to flat — and
+luminance is Rec. 601 (`0.299 R + 0.587 G + 0.114 B`).
+
+`_decodeMaskLum` itself *throws* after the last attempt; the **caller** is what guarantees a
+cache write. `_ensureFloorTextures` holds a `_floorMaskPending` set so only one decode per key
+is ever in flight, and both its `.then` and `.catch` write a **zero-luminance sentinel** on
+failure (that layer reveals nothing → base shows through) rather than leaving the key
+uncached — otherwise it re-kicks every render (infinite loop). Its `.finally` schedules the
+re-render that stamps the finished texture. So a broken mask degrades to flat base colour, it
+doesn't hang.
 
 > **Debugging a flat material:** temporary `[EVCC-FLOOR-DIAG]` console logs in
 > `_decodeMaskLum` / `_ensureFloorTextures` report resolved colours + decoded `lumMean`/`lit%`.
@@ -99,9 +151,23 @@ exactly what it should:
 floor colour repaint the map** — `paletteSig` is the room-fill palette, and the ready list is
 just type names, so without `texSig` a recolour left the outer image stale until a resize.
 
-**Asset cache-bust:** every mask URL carries `?v=<hash>` where the hash is `hashDir(textures)`
-(`scripts/build-card.mjs`). Change any mask's bytes → new hash → new URL → the browser/service-
-worker refetch. Re-running the build after `gen_floor_masks.py` does this automatically.
+A fourth, non-cache guard sits alongside them: `_floorMaskPending`, a `Set` of in-flight mask
+keys, so a re-render during a decode doesn't enqueue the same job twice.
+
+Note the outer draw path is deliberately **unguarded**: `_bindMapRender` re-runs
+`_drawVaFloorRender` on every render in floor mode (unlike the flat raster, which short-circuits
+on a `version|mode` draw key), because a decode completing or a theme recolour changes what
+should be on the canvas without changing the version. `_vaFloorImageCache` is what makes that
+cheap — an unchanged key just re-stamps the cached ImageData.
+
+**Asset cache-bust:** every registry URL (layer, mask, and `baseTexture` alike) gets `?v=<ver>`
+appended once at module load. `ver` is `__ASSET_VER__`, an esbuild `--define` constant injected
+by `scripts/build-card.mjs` as `hashDir("custom_components/eufy_vacuum/textures")` — a SHA-1
+over every file's *name and bytes*, truncated to 10 hex chars. Change any mask's bytes → new
+hash → new URL → the browser/service-worker refetch; change nothing → same URL → assets stay
+cached. Re-running the build after `gen_floor_masks.py` does this automatically. Unbundled runs
+(`build:dev`, `watch`, `node --test`) have no define and fall back to the literal `dev`, so
+every unbundled session shares one URL — regenerate a mask there and you must hard-reload.
 
 ## Per-material feature scale
 
@@ -157,9 +223,24 @@ layers (oklch/calc defaults) are skipped. Net-zero on render — the seed equals
 `var()` fallback.
 
 > **Do NOT seed the per-material `-opacity-card` token.** It sits *above* the global
-> `--evcc-floor-texture-opacity-card` master in the render's `var()` fallback chain, so seeding
-> the per-material level would shadow (break) that global for anyone who set it. The layer
-> color/opacity tokens have no such intermediate, so they're safe to seed.
+> `--evcc-floor-texture-opacity-card` master in the render's `var()` fallback chain
+> (`var(--evcc-floor-<type>-opacity-card, var(--evcc-floor-texture-opacity-card, <entry
+> opacityDefault>))`, `renderers/floor-texture-surface.js`), so seeding the per-material level
+> would shadow (break) that global for anyone who set it. The layer color/opacity tokens have
+> no such intermediate, so they're safe to seed.
+
+> ### ⚠ Marble's two vein layers do not honour their opacity sliders **on the map**
+> Both vein layers point `opacityToken` at a computed `…-opacity-eff` token that nothing
+> defines in CSS, with a `clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + var(…-major/
+> minor-opacity,…)),1)` **string** as `opacityDefault`. The card path bakes that straight into
+> `var(token, default)` and CSS evaluates it. The map path does not: `_resolveFloorOpacity`
+> reads an empty token, `parseFloat`s the `clamp(…)` literal, gets `NaN`, and returns its `1`
+> fallback. So on the map both veins composite at **full strength**, and the three editor
+> controls that feed the clamp — *Marble Vein Opacity (master)* and the two ± offsets — move
+> the card swatch and nothing else. The colour side of the same pair works, because
+> `_resolveFloorColor` hands its value to the browser to evaluate. The vein **blur** tokens are
+> card-only by design (the canvas compositor has no blur), but this opacity gap is not by
+> design — tracked as `FTX-VEIN-1` in `.claude/notes/synthesis/DOC-PASS-TRIAGE.md`.
 
 ## Material authoring — the rule, and the procedural generator
 
@@ -191,20 +272,26 @@ nothing), then `npm run build:deploy` (bumps the asset hash → cache-bust). Gen
   `SIZE/plank_w`). The grain + seam layers use the **dark accent** colour so they define the
   planks on the opaque map floor (per the invisible-on-map rule above).
 
-## Card vs map — two render models (why they differ)
+## Three surfaces read the registry (why they differ)
 
-They will never match pixel-for-pixel, by design:
+`FLOOR_TEXTURE_REGISTRY` feeds three renderers, not two. Edit the registry and all three move
+— but they will never match pixel-for-pixel, by design:
 
-| | Card (`floor-texture-surface.js`) | Map (`_drawVaFloorRender`) |
-|---|---|---|
-| Composite | CSS `mask-image` spans over the **card surface** | canvas `compositeFloorTexture` over the **base colour** |
-| Tiling | one swatch, `mask-size: cover` | mask tiled at the per-material scale |
-| Opacity | × the per-material `-opacity-card` (~0.85) | full strength (opaque floor) |
-| Gaps show | card background | the base colour |
+| | Room card (`_renderFloorTextureLayer`) | VA raster map (`_drawVaFloorRender`) | SVG polygon map (`_buildFloorTextureDefs`) |
+|---|---|---|---|
+| Reads | every layer | every layer | `getPrimaryTextureUrl(ft)` only |
+| Composite | CSS `mask-image` spans over the **card surface** | canvas `compositeFloorTexture` over the **base colour** | one `<pattern>` `<image>` as the polygon `fill` |
+| Tiling | one swatch, `mask-size: cover` | mask tiled at the per-material scale | 8×8 userSpaceOnUse tile |
+| Opacity | × `--evcc-floor-<type>-opacity-card` › `--evcc-floor-texture-opacity-card` › the entry's own `opacityDefault` | full strength (opaque floor) | pattern as-is |
+| Blur | per-layer, veins only | none | none |
+| Gaps show | card background | the base colour | — |
+| Gate | `roomFloorTextureEnabled()` | `isFloorRenderActive()` | `mapFloorTextureEnabled()` |
 
-A card is a labelled tile with a texture *hint*; the map is a to-scale floor. This is why a
-material can look bolder/softer on the card, and why same-as-base detail layers vanish on the
-map but not the card.
+The entry-level `opacityDefault` is per material (tile/concrete/granite `1`, wood `0.99`,
+marble/carpet `0.9`) — `0.85` is only the `default` entry's, i.e. what an unrecognised floor
+type gets. A card is a labelled tile with a texture *hint*; the raster map is a to-scale floor.
+This is why a material can look bolder/softer on the card, and why same-as-base detail layers
+vanish on the map but not the card.
 
 ## Tuning cheat-sheet
 
@@ -213,7 +300,7 @@ map but not the card.
 | Bigger/smaller features on the map | `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[<type>]` (or `--evcc-floor-<type>-map-scale`) |
 | Rotate the grain/plank/grout direction | `--evcc-floor-texture-map-rotate` (editor) |
 | Material colour(s) | the material's colour tokens (editor: Floor Textures — <Material>) |
-| A detail layer stronger/fainter | that layer's `-opacity` token (editor) |
+| A detail layer stronger/fainter | that layer's `-opacity` token (editor) — **except marble's veins, card-only today** |
 | Wider/narrower wood planks | `gen_wood_planks` `plank_w` param → regen → build |
 | A flat material to actually read | re-author as multi-mask with a **distinct-colour** bold layer |
 

@@ -235,3 +235,84 @@ just detail — NOT a code regression. Held sections unfrozen. Original question
 drift.py:98); old doc said "first non-idle state" (run start). Choice: (a) docked-on-purpose
 (fresh-data rationale — the edge filtering reads deliberate) -> doc gets the rationale;
 (b) run-start was the intent -> regression ticket. Dependent doc sections stay HELD.
+
+
+---
+
+# ROUND 3 — the Epoch-1 frontend residual (2026-08-07)
+
+Reconciling the three docs named as the residual in `docs/dev/deltas/README.md`
+(`frontend/architecture-overview`, `frontend/furnished-render`,
+`frontend/floor-texture-map-view` remainder) against source. Two doc-vs-code
+disagreements where the CODE is the wrong side. Neither was papered over — the docs
+now state the shipped behaviour and point here.
+
+## R3-BUG-1 [fe-architecture] — every service-failure / service-refusal toast is inert
+
+`src/actions/core.js` raises user-facing toasts from **two** paths: the `catch` at
+:112-121 (`common.service_failed`) and `showServiceRefusalToast` at :147-162
+(`common.service_refused` + the whole `service_reasons.*` namespace). Both call
+`this.showToast?.(this.t?.(...))`.
+
+`this` is a `VacuumCardActions` instance. Its constructor (`src/actions/index.js`:27-30)
+sets **only** `this.hass` and `this.state`; no action module mixes in `showToast` or `t`,
+and nothing assigns them onto the instance anywhere in `src/`. So both are `undefined`,
+`?.()` swallows the call, and the toast never renders. The i18n keys are reachable to
+`check-i18n` (they are quoted in source) so the miss is invisible there too.
+
+Confirmed by grep across `src/` for `_actions.showToast =` / any assignment onto the
+actions instance: zero hits. The only objects that own `t` are `VacuumCardRenderers`
+(`renderers/shared.js`) and `VacuumCardBindings` (delegating to `card._renderers`).
+
+**Why it read as done:** `src/actions/core-service-failure.test.mjs` (CSF-1..6) and the
+three sibling refusal tests build their subject with `Object.create(proto)` and then
+attach `card.showToast` / `card.t` directly. The mock agrees with the caller, not with
+the real callee — the exact trap in `feedback_mock_agrees_with_caller`. CSF-5 even
+asserts the no-toast-host path "does not throw", which is production's only path.
+
+Scope: the panel card. The standalone cards call `hass.callService` directly and never
+reach this helper.
+
+Fix shape (not applied — needs Chris's call on the receiver): either give
+`VacuumCardActions` a `card` reference at construction and delegate `t`/`showToast` to it
+(mirrors what `VacuumCardBindings` already does), or have `main.js`/`setConfig` wire the
+two methods onto the instance. Whichever lands, the tests must be repaired to construct a
+**real** `VacuumCardActions` so they can never re-certify an inert path.
+
+## R3-BUG-2 (`FTX-VEIN-1`) [fe-visual] — marble vein opacity sliders don't reach the map
+
+`FLOOR_TEXTURE_REGISTRY`'s two marble vein layers set `opacityToken` to
+`--evcc-floor-marble-vein-{major,minor}-opacity-eff` — tokens **nothing defines in CSS**
+— with a CSS `clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + var(…,…)),1)`
+*string* as `opacityDefault` (`floor-texture-registry.js`:142-156).
+
+- Card path: `renderers/floor-texture-surface.js`:111 bakes `var(token, default)` into the
+  style attribute and **CSS evaluates the clamp** → 0.5 / 0.38 as intended.
+- Map path: `bindings/map.js` `_resolveFloorOpacity` (:772-782) reads the empty token, then
+  `parseFloat`s the raw `clamp(…)` literal → `NaN` → returns its `1` fallback.
+
+Net: on the map both veins composite at **full strength**, and the three editor controls
+that feed the clamp — `--evcc-floor-marble-vein-opacity` (master) and the two ± offsets,
+all registered in `theme-tokens/floor-textures.js`:83-86 — move the card swatch and
+nothing else.
+
+The colour half of the same layer pair works, and that asymmetry is the diagnosis:
+`_resolveFloorColor` hands its value to the browser (`el.style.color = want` on the probe),
+so `oklch(from var(…) …)` resolves; `_resolveFloorOpacity` never evaluates CSS.
+
+Fix shape (not applied): resolve opacity the same way colour is — set the value on the
+probe element as a real property and read the computed number back — or pre-flatten the
+vein defaults to plain numbers and drop the `-eff` indirection on the map side. Note the
+vein **blur** tokens are legitimately card-only (the canvas compositor has no blur); only
+the opacity gap is unintended.
+
+## Non-defect notes from the same pass (recorded so they aren't re-filed)
+
+- `disconnectedCallback` (`main.js`:1961-2001) clears 8 of 11 debounce timers —
+  `_savedZonesTimer`, `_incompleteRunLogTimer`, `_troubleRoomsLogTimer` are not cleared.
+  All three are ≤500 ms `setTimeout`s whose callbacks null-guard on `this._state`, so the
+  leak window is sub-second and harmless. Hygiene, not a bug.
+- `src/bindings/index.js`'s class docstring still says "the DOM is fully replaced on each
+  render". It is not — `_render` diffs against `dataset.renderedHtml` and only swaps on a
+  change, which is precisely why `_on`/`_onAll` are idempotent. Stale prose in the R2-STALE
+  family; the reconciled `architecture-overview` now states the diffed behaviour.

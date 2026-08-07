@@ -49,7 +49,7 @@ local patch. That makes it delta-shaped rather than hotfix-shaped.
 
 ---
 
-## Epoch 1 reconciliation residue — the honest remainder (rewritten 2026-08-07)
+## Epoch 1 reconciliation residue — CLOSED 2026-08-07
 
 The original caveat here ("`docs/dev/frontend/` was not in the reconciliation pass") was
 overtaken by events and has been replaced by the evidence-derived state below. The
@@ -61,24 +61,37 @@ sections same-commit (`ecbe77f`, `d3f81e6`, `cefc688`, `12e3b63`). Both previous
 (23-error-tracker §4.5 read-time tables incl. the `None`→raw-code rule, i18n-system
 `faultLabel`, and the 22/25/29 adapter blocks — reconciled post-`RB-ERR-2`).
 
-Coverage is claimed from evidence, not diffs — a clean doc produces no diff. The
-remaining classes:
+Coverage is claimed from evidence, not diffs — a clean doc produces no diff. The classes,
+now all closed:
 
 **Reconciled without a diff, verification recorded** (audit `clean[]` entries, Opus
 spot-checked): `frontend/animal-svg` (no drift found, left untouched);
-`frontend/floor-texture-map-view` (named sections verified; remainder below).
+`frontend/floor-texture-map-view` (named sections verified; its remainder closed below).
 
 **Verified since the pass:** `frontend/render-cycle` — read in full during the FONT-1
 work, its cache-bust section exercised against `build-card.mjs`, and its one recorded
 unverifiable claim (VIEW_ORDER-mismatch frame reset) since confirmed at `main.js:1602`.
 
-**The real residual — unreconciled, named as the exclusion:**
+**The former residual — RECONCILED 2026-08-07, closed:**
 
-| doc | evidence state |
+All three were walked statement-by-statement against source per
+[00 §4–§5](../00-disaster-recovery-standard.md), source-only (no commit messages), and the
+pass is gated by a green `mkdocs build --strict`.
+
+| doc | evidence |
 |---|---|
-| `frontend/architecture-overview` | no recorded verification in any pass |
-| `frontend/furnished-render` | auditor's own record: "read in full but not line-by-line cross-checked" |
-| `frontend/floor-texture-map-view` (remainder) | sections beyond the verified toggle/render chain unchecked |
+| `frontend/architecture-overview` | Verified against `main.js`, `render-cycle.js`, the four `*/index.js` combiners, `bindings/core.js`, `bindings/nav.js`, `controllers/learning-controller.js`, `renderers/mobile-shell.js`. Fixed **confidently-wrong**: "they reference `this.card._state`" — actions hold `this.hass`/`this.state` and have **no card reference** (the receiver asymmetry behind R2-BUG-1), now a four-constructor table; the controller's "room started/finished, job finished" → the real **five** subscriptions (`room_completed` + `run_incomplete` were missing) plus `loadRoomEstimates`; "all `hass.callService` calls live here" scoped to the panel card (the two standalone cards call `hass` directly); "everything renders into one shadow root" qualified with the two `document.body` portals. Corrected the data-flow diagram to the **diffed** `dataset.renderedHtml` swap (the reason `_on`/`_onAll` are idempotent). Add-a-panel recipe brought to current idiom: `VIEW_ORDER` is what pre-creates the view roots (and why `MAPPING_ARCHIVE` is `VIEWS`-only), i18n'd tab + empty-state labels instead of English literals, the `isViewAvailable` capability gate, the mobile-shell nav (`PRIMARY_MOBILE_TABS` / `OVERFLOW_MOBILE_TABS`) a panel is unreachable without, `_onAll` over raw `addEventListener`, and the real `refresh*()` / `_schedule*Refresh()` scheduler split. |
+| `frontend/furnished-render` | Line-by-line against `mapping/map_source.py` `resolve_furnished_render`, the three `mapping_services.py` handlers + `upload_map_image` + `delete_custom_layout` + `_clear_layout_references_to_variant`, and card-side `renderers/map.js`, `state/map.js`, `bindings/map.js`, `styles/map.js`. Added the collapse-zone material: the full projection **return shape** and its three-part `None` gate, the uniform `{saved, reason}` service envelope + every refusal code, the per-field clamp/rounding table (`viewport.cx/cy` `[0,100]`, `zoom` `[0.05,20]` — the doc named only `scale`), the FURNIS-6 empty-`home_art` asymmetry, `upload_map_image`'s `layout_id`-scoped (not active-layout) contract incl. the post-write `layout_not_found` recheck, the `get_map_segments` fixed whitelist, the POSE-6 no-geometry-stamp limitation. Card side: the **`isFurnishedLayoutActive` triple gate** (`backdrop_source === "live"` — strictly narrower than the backend projection, previously undocumented), the `--editable` / `--passthrough` modifier classes (the latter load-bearing for compose placement), exact opacity values `0.45`/`0.02` as classes on the live `<img>` only, the natural-frame transform storage, the absolute (non-compounding) rotation-trim slider, the 2048-px pre-upload fit + auto-flip to `blend`, and the export button's real Content-Type-then-path extension pick. Qualified §5's zone-draw claim with the `frameUngrounded()` suppression. |
+| `frontend/floor-texture-map-view` (remainder) | Everything past the previously-verified toggle/render chain, against `bindings/map.js`, `textures/{compositor,registry,resolver}.js`, `renderers/floor-texture-surface.js`, `state/theme.js`, `theme-tokens/floor-textures.js`, `scripts/{build-card,gen_floor_masks}`. Added the missing front half of the pipeline — the rid→material bridge via `rd.room_names` + `resolveFloorType`, the `"default"`/no-assets exclusion, the `S = clamp(round(1200/max(W,H)),1,4)` supersample the cache keys are already stated in. Pinned the composite formula to the real split (the compositor takes `(lum/255)×opacity`; the **caller** folds colour alpha) plus the layer-skip conditions, the `_floorMaskPending` guard and where the zero-luminance sentinel is actually written, the native-res `createPattern` fill and Rec. 601 luminance, `force-cache` + `70×attempt` backoff, and the `__ASSET_VER__` esbuild-define mechanism with its `"dev"` unbundled fallback. Fixed the stale "bare hex parser returns grey" line to the current `_parseCssColor` behaviour, and the "two render models" table to the **three** surfaces that read the registry (the SVG `<pattern>` path was missing) with the real three-level `-opacity-card` chain instead of a flat "~0.85". |
+
+Two doc-vs-code disagreements where the **code** is the wrong side were surfaced rather
+than papered over, and are filed as `R3-BUG-1` / `R3-BUG-2` in
+`.claude/notes/synthesis/DOC-PASS-TRIAGE.md`: the panel card's service-failure and
+service-refusal toasts are inert in production (raised on `VacuumCardActions`, which owns
+neither `showToast` nor `t`; the tests attach both to a hand-built mock), and marble's two
+vein layers ignore their opacity sliders on the map (`_resolveFloorOpacity` `parseFloat`s a
+CSS `clamp(…)` string to `NaN` and falls back to `1`). Neither is fixed here — this was a
+documentation pass, and both want a receiver/resolution decision.
 
 **Open questions that hold dependent sections** (need Chris, tracked in
 `DOC-PASS-TRIAGE.md`): `discovery.py` trigger semantics; Phased-Jobs doc depth — the §13
