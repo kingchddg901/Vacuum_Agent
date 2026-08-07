@@ -343,16 +343,45 @@ def test_atomic_run_writes_nothing(store, runner, tmp_path):
 
 
 def test_a_store_failure_cannot_block_the_next_phase(store, runner, monkeypatch):
-    """The parent is review telemetry. A run must keep cleaning without it."""
+    """The parent is review telemetry. A run must keep cleaning without it.
+
+    The injected OSError is only evidence if it was REACHED: a version of
+    _record_phase_to_parent that never calls save_phase_record survives this test
+    just as quietly as one that survives the fault, and "did not raise" cannot tell
+    the two apart. So this asserts the fault fired, that the swallowed write left no
+    half-truth behind, and that the NEXT phase still lands.
+    """
     job = _job()
     _open(store, job)
-    monkeypatch.setattr(
-        LearningHistoryStore, "save_phase_record",
-        MagicMock(side_effect=OSError("disk full")),
-    )
+    failing_save = MagicMock(side_effect=OSError("disk full"))
+    monkeypatch.setattr(LearningHistoryStore, "save_phase_record", failing_save)
     job["current_phase_index"] = 1
     job["phases"][1]["_timing_end_t"] = "2026-08-02T18:11:40+00:00"
     runner._record_phase_to_parent(_VAC, _MAP, job)  # must not raise
+
+    # 1. the fault was actually hit -- the break write really did go to the store.
+    assert failing_save.call_count == 1, (
+        "the break write never reached save_phase_record, so the injected OSError "
+        "proved nothing"
+    )
+    assert failing_save.call_args.kwargs["record_id"] == f"{_PJ}.phase1"
+    # 2. swallowed, not papered over: record_phase_outcome runs AFTER the save, so a
+    #    failed break must leave the slot un-attached rather than claim "completed"
+    #    against a record that was never written.
+    slot = _slots(store)[1]
+    assert slot["outcome"] is None, "the parent claimed a break it never stored"
+    assert slot["record_id"] is None
+    assert not list(store.get_paths(vacuum_entity_id=_VAC).phases_dir.glob("*.json"))
+
+    # 3. the actual claim in the name: the run keeps going. The next phase attaches
+    #    normally once the store is healthy again.
+    monkeypatch.undo()
+    runner._manager.get_active_job = lambda **kw: job
+    job["current_phase_index"] = 2
+    job["phases"][2]["_timing_end_t"] = "2026-08-02T18:20:00+00:00"
+    runner._record_phase_to_parent(_VAC, _MAP, job)
+    assert _slots(store)[2]["outcome"] == "completed"
+    assert _slots(store)[2]["record_id"] == _CHILD2
 
 
 # --------------------------------------------------------------------------

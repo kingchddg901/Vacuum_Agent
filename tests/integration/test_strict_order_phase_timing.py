@@ -340,9 +340,25 @@ async def test_a_brand_that_reorders_is_not_segmented(hass, manager, monkeypatch
 
         manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
         rt = job["phases"][0]["room_timing"]
+        # Falling back must still APPORTION — not abandon the capture. An empty
+        # rt satisfies an unguarded all(...) identically to a correct split, and
+        # a gate that returned [] here would stop every Roborock group phase from
+        # feeding room learning with nothing in the suite noticing.
+        assert [t["room_id"] for t in rt] == [4, 5]
         # The differential: [SOPT-11] segments this EXACT slice. Only the
         # capability declaration differs, so this asserts the gate and nothing else.
         assert all(t["allocated"] is True and t["allocation_group_size"] == 2 for t in rt)
+        # The even split's own numbers, against [SOPT-11]'s measured 60/90 s,
+        # 4.5/3.0 m² and 30/60 s walls off this same slice. Segmentation cannot
+        # produce these, so this pins WHICH arm ran, not merely that one did.
+        assert [t["cleaning_seconds"] for t in rt] == [75, 75]
+        assert [t["area_m2"] for t in rt] == [3.75, 3.75]
+        assert [t["cleaning_wall_seconds"] for t in rt] == [240, 240]
+        # ...and the apportionment is exact-sum-preserving, like every other
+        # allocated path: it splits the group's measured totals, not a guess.
+        whole = manager.phase_runner._phase_room_timing(None, None, job["counter_samples"])
+        assert sum(t["cleaning_seconds"] for t in rt) == whole["cleaning_seconds"]
+        assert round(sum(t["area_m2"] for t in rt), 3) == round(whole["area_m2"], 3)
     finally:
         # No autouse fixture clears the registry — leaving this registered would
         # silently apply "this brand reorders" to every later test in the module.

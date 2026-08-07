@@ -163,6 +163,77 @@ def test_local_support_full_body_runs():
     assert isinstance(result, list)  # connected re-flood -> [] but body covered
 
 
+def _support_scored_blobs():
+    """Three disjoint blobs: two room-like (sat/val 220), one dim (sat/val 40).
+
+    Disjoint on purpose -- ``binary_propagation`` is bounded by the input mask, so
+    each seed regrows only inside its own blob and stays under the
+    ``grown_area > active_area*0.8`` upper guard. That is the only geometry in
+    which ``_split_component_via_local_support`` can actually ACCEPT, so it is the
+    only geometry in which its percentile scoring is observable.
+    """
+    bright_a = np.zeros((200, 200), dtype=bool)
+    bright_a[20:70, 20:80] = True        # 3000 px
+    bright_b = np.zeros((200, 200), dtype=bool)
+    bright_b[120:170, 20:80] = True      # 3000 px
+    dim_c = np.zeros((200, 200), dtype=bool)
+    dim_c[120:170, 120:180] = True       # 3000 px, unsupported
+    comp = bright_a | bright_b | dim_c   # active_area 9000, above the 3200 floor
+    sat = np.zeros((200, 200), dtype=np.uint8)
+    val = np.zeros((200, 200), dtype=np.uint8)
+    sat[bright_a | bright_b] = 220
+    val[bright_a | bright_b] = 220
+    sat[dim_c] = 40                      # below the 42nd/38th percentile floors
+    val[dim_c] = 40
+    return comp, bright_a, bright_b, dim_c, sat, val
+
+
+def test_local_support_splits_supported_blobs():
+    """[SP-local] the ACCEPT path: percentile scoring keeps the two room-like blobs
+    and rejects the dim one, and the label+grow loop returns one mask per survivor."""
+    comp, bright_a, bright_b, dim_c, sat, val = _support_scored_blobs()
+
+    result = S._split_component_via_local_support(comp, sat, val, None, None, _MIN)
+
+    assert len(result) == 2                                   # a real split, not []
+    # each returned mask is exactly one of the two supported blobs ...
+    recovered = sorted(result, key=lambda m: int(np.flatnonzero(np.any(m, axis=1))[0]))
+    assert np.array_equal(recovered[0], bright_a)
+    assert np.array_equal(recovered[1], bright_b)
+    # ... and the dim blob, which failed the sat/value score, is in neither.
+    assert not any(bool(np.any(mask & dim_c)) for mask in result)
+    # nothing leaks outside the component the caller handed in.
+    assert not any(bool(np.any(mask & ~comp)) for mask in result)
+
+
+def test_local_support_assist_channels_raise_required_score():
+    """[SP-local] the required_score 2-vs-3 rule: with both assist channels present a
+    blob must be supported by the ASSIST image too, so assist that disagrees on one
+    blob demotes it below the score and collapses the split."""
+    comp, bright_a, bright_b, dim_c, sat, val = _support_scored_blobs()
+
+    # Control: assist channels that agree with the primary keep the same 2-way split
+    # (so the demotion below is attributable to disagreement, not to assist per se).
+    agreeing = S._split_component_via_local_support(
+        comp, sat, val, sat.copy(), val.copy(), _MIN
+    )
+    assert len(agreeing) == 2
+
+    # Assist reads blob B as dim: B now scores 2 (primary only) against a
+    # required_score of 3, leaving a single supported component -> no split.
+    assist_sat = np.zeros((200, 200), dtype=np.uint8)
+    assist_value = np.zeros((200, 200), dtype=np.uint8)
+    assist_sat[bright_a | dim_c] = 220
+    assist_value[bright_a | dim_c] = 220
+    assist_sat[bright_b] = 20
+    assist_value[bright_b] = 20
+
+    disagreeing = S._split_component_via_local_support(
+        comp, sat, val, assist_sat, assist_value, _MIN
+    )
+    assert disagreeing == []
+
+
 # --- color distance ---------------------------------------------------------
 
 
@@ -399,6 +470,12 @@ def test_reclaim_no_support_returns_input():
     out = S._reclaim_localized_child_mask(local, parent, primary_sat=sat, primary_value=val)
     # nothing room-like below -> no growth
     assert int(np.count_nonzero(out)) <= int(np.count_nonzero(local))
+    # "returns input" means EXACTLY the input: this fixture reaches the
+    # `if not np.any(reclaimed): return local_mask` branch (the support band below
+    # the child is non-empty but propagation adds nothing), so the child must come
+    # back untouched -- an emptied / eroded mask is a regression, not a pass.
+    assert np.array_equal(out, local)
+    assert int(np.count_nonzero(out)) == int(np.count_nonzero(local)) > 0
 
 
 def test_reclaim_grows_downward_into_support():
@@ -418,7 +495,19 @@ def test_reclaim_grows_downward_into_support():
 
 
 def test_reclaim_with_assist_channels():
-    """[SP-reclaim] the assist-channel support branch is exercised."""
+    """[SP-reclaim] the assist-channel support branch NARROWS where reclaim may grow.
+
+    ``support_mask &= assist_support`` is an intersection, so it can only ever
+    remove support. Asserted as a three-way contrast over one geometry:
+
+      * no assist              -> the child grows down into the room-like support;
+      * assist == primary      -> identical result (the intersection is a no-op);
+      * assist dark below      -> growth is blocked entirely, child returned as-is.
+
+    The third case is the one with teeth: it fails if the assist block is deleted
+    (growth returns) or if its comparisons are inverted (dark assist would then
+    read as support).
+    """
     parent = np.zeros((200, 200), dtype=bool)
     parent[20:180, 40:160] = True
     local = np.zeros((200, 200), dtype=bool)
@@ -433,6 +522,31 @@ def test_reclaim_with_assist_channels():
         assist_sat=sat, assist_value=val,
     )
     assert out.shape == local.shape
+
+    # Baseline: with no assist channels the child grows down past its own bottom.
+    no_assist = S._reclaim_localized_child_mask(
+        local, parent, primary_sat=sat, primary_value=val
+    )
+    assert int(np.count_nonzero(no_assist)) > int(np.count_nonzero(local))
+    assert int(np.count_nonzero(no_assist[80:])) > 0  # reclaimed below the child
+
+    # Agreeing assist channels intersect to nothing new -> identical to baseline.
+    assert np.array_equal(out, no_assist)
+
+    # Disagreeing assist channels (dark from row 77 down, i.e. across the whole
+    # support band) remove that support, so reclaim finds nothing to grow into.
+    dark_sat = sat.copy()
+    dark_value = val.copy()
+    dark_sat[77:, :] = 0
+    dark_value[77:, :] = 0
+    narrowed = S._reclaim_localized_child_mask(
+        local, parent,
+        primary_sat=sat, primary_value=val,
+        assist_sat=dark_sat, assist_value=dark_value,
+    )
+    assert int(np.count_nonzero(narrowed[80:])) == 0        # nothing reclaimed below
+    assert int(np.count_nonzero(narrowed)) < int(np.count_nonzero(no_assist))
+    assert np.array_equal(narrowed, local)                  # child returned unchanged
 
 
 # --- _localize_oversized_component positive path ----------------------------
@@ -1019,3 +1133,4 @@ def test_suspicious_erosion_wins():
     comp = _dumbbell(neck_width=6)
     masks, method, debug = S._split_suspicious_component(comp, _MIN)
     assert method == "erosion_seeds" and len(masks) >= 2
+

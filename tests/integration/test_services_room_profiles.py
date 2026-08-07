@@ -258,3 +258,25 @@ async def test_apply_room_profile_service_writes_to_rooms(hass, manager_with_ser
         return_response=True,
     )
     assert isinstance(result, dict)
+    assert result["updated_room_ids"] == [1, 2]
+    assert result["room_count"] == 2
+
+    # The SUBJECT: the rooms on the map actually carry the profile's settings now.
+    # Without reading manager.data back, a handler that reports success and writes
+    # nothing ships green — the user presses Apply Profile, sees no error, and the
+    # rooms keep their old fan/water settings.
+    rooms = manager_with_services.data["maps"][_VAC][_MAP]["rooms"]
+    for room_key in ("1", "2"):
+        room = rooms[room_key]
+        assert room["profile_name"] == "p_apply"
+        assert room["fan_speed"] == "quiet"          # the field this profile changed
+        assert room["clean_mode"] == "vacuum"
+        assert room["water_level"] == "Off"
+        assert room["clean_intensity"] == "Quick"
+        assert room["clean_passes"] == 1
+        assert room["edge_mopping"] is False
+
+    # ...and ONLY the targeted rooms: room 3 keeps the setup default it was saved
+    # with, so a write loop that ignored room_ids and stamped the whole map fails too.
+    assert rooms["3"]["profile_name"] == "vacuum_quick"
+    assert rooms["3"]["fan_speed"] == "Standard"

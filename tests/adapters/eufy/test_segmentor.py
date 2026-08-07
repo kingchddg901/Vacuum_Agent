@@ -25,6 +25,7 @@ Coverage targets
 [ECV-16] detect_room_segments: flat dark image with no room pixels → no_room_pixels_detected miss.
 [ECV-17] detect_room_segments: expected_room_count recovery rescues a deferred region (deficit marker + confidence floor).
 [ECV-18] detect_room_segments: per-region scoring block populates every derived key (role/state/confidence/edit_readiness).
+[ECV-19] detect_room_segments: accepted split child masks are APPLIED to the emitted segments, not discarded in favour of the parent.
 [SEG-1]  _issue_quality: issue/confidence → quality label.
 [SEG-2]  _structural_role: geometry → role label.
 [SEG-3]  _segmentation_state: issues/fill/compactness → state label.
@@ -196,7 +197,22 @@ def test_detect_room_segments_on_real_fused_map():
 
 
 def test_detect_segments_with_assist_image(tmp_path):
-    """[ECV-5] supplying an assist variant runs the registration/wall-cut path."""
+    """[ECV-5] supplying an assist variant runs the registration/wall-cut path.
+
+    Asserted against a no-assist baseline on the *same* primary image, so every
+    claim below is attributable to the assist branch (segmentor.py 983-1055)
+    rather than to the primary pipeline:
+
+    * registration solved (identical geometry => scale 1.0) and reported;
+    * the aligned assist room mask overlaps the primary one
+      (``agreement_pixel_count`` > 0, zero without assist);
+    * the light-theme wall mask produced seam pixels that were actually
+      SUBTRACTED from the room mask (``room_mask = base & ~seam_wall_mask``,
+      line 1041) — so the reconciled room mask is strictly smaller than the
+      base mask and than the no-assist run;
+    * the agreement score reaches per-segment scoring: ``variant_agreement`` /
+      ``variant_support`` flip from 0.0/"primary_only" to >0/"both".
+    """
     primary = _map_png(str(tmp_path), saturated=True)
     assist = _light_map_png(str(tmp_path))
     result = detect_room_segments(
@@ -204,10 +220,74 @@ def test_detect_segments_with_assist_image(tmp_path):
         assist_image_path=assist,
         min_area_pixels=200,
     )
+    baseline = detect_room_segments(image_path=primary, min_area_pixels=200)
+
     # The branch must complete and still produce a valid result envelope.
     assert result["available"] is True
     assert isinstance(result["segments"], list)
     assert "summary" in result
+    assert baseline["available"] is True
+
+    # --- registration actually ran (segmentor.py 989, 1047-1055) ------------
+    registration = result["segmentation"]["registration"]
+    assert isinstance(registration, dict)
+    assert registration["enabled"] is True
+    # Same 240x240 geometry, rooms at identical coordinates => identity align.
+    assert float(registration["scale"]) == pytest.approx(1.0)
+    assert int(registration["shift_x"]) == 0
+    assert int(registration["shift_y"]) == 0
+    # ...and the assist-aware message variant is selected (line 1503-1504).
+    assert "primary and assist image variants" in result["message"]
+    assert baseline["segmentation"]["registration"] is None
+    assert "primary and assist image variants" not in baseline["message"]
+
+    recon = result["segmentation"]["stages"]["variant_reconciliation"]
+    base_stage = result["segmentation"]["stages"]["base_mask_generation"]
+    base_recon = baseline["segmentation"]["stages"]["variant_reconciliation"]
+
+    assert recon["assist_enabled"] is True
+    assert base_recon["assist_enabled"] is False
+
+    # --- the aligned assist ROOM mask exists and overlaps the primary -------
+    assert recon["agreement_pixel_count"] > 0
+    assert base_recon["agreement_pixel_count"] == 0
+
+    # --- the wall-cut branch removed real pixels (segmentor.py 1027-1045) ---
+    assert recon["wall_pixel_count"] > 0, "white background must register as wall"
+    assert recon["seam_wall_pixel_count"] > 0, "seam zone must intersect the walls"
+    removed = recon["removed_by_wall_cut_pixel_count"]
+    assert removed > 0, "the seam cut must actually subtract room pixels"
+    # The cut narrows the room mask: reconciled == base - removed, and the
+    # no-assist run keeps every base pixel.
+    assert recon["reconciled_room_pixel_count"] < base_stage["room_pixel_count"]
+    assert (
+        recon["reconciled_room_pixel_count"]
+        == base_stage["room_pixel_count"] - removed
+    )
+    assert base_recon["removed_by_wall_cut_pixel_count"] == 0
+    assert (
+        base_recon["reconciled_room_pixel_count"]
+        == baseline["segmentation"]["stages"]["base_mask_generation"]["room_pixel_count"]
+    )
+    # The cut is symmetric on this symmetric fixture — both rooms were trimmed.
+    left_right = recon["removed_by_wall_cut_left_right"]
+    assert left_right["left"] > 0 and left_right["right"] > 0
+
+    # --- assist agreement reaches per-segment scoring (segmentor.py 1250) ---
+    assert len(result["segments"]) >= 1
+    assert all(seg["variant_agreement"] > 0.0 for seg in result["segments"]), [
+        seg["variant_agreement"] for seg in result["segments"]
+    ]
+    assert all(seg["variant_support"] == "both" for seg in result["segments"])
+    # Without assist the very same rooms score zero agreement, proving the
+    # numbers above come from the assist image and not from the primary.
+    assert all(seg["variant_agreement"] == 0.0 for seg in baseline["segments"])
+    assert all(seg["variant_support"] == "primary_only" for seg in baseline["segments"])
+    # Agreement feeds the confidence bonus (line 1285), so the assisted run
+    # scores strictly higher on the identical rooms.
+    assert max(seg["confidence"] for seg in result["segments"]) > max(
+        seg["confidence"] for seg in baseline["segments"]
+    )
 
 
 def test_detect_segments_max_segments_caps(tmp_path):
@@ -289,12 +369,140 @@ def test_detect_segments_oversized_region(tmp_path):
 
 
 def test_detect_segments_dumbbell_split(tmp_path):
-    """[ECV-15] a suspicious dumbbell component is split inside the pipeline."""
+    """[ECV-15] a suspicious dumbbell component runs the full split cascade.
+
+    MEASURED FACT (probed 2026-08-07, not an aspiration): this 16px-neck
+    dumbbell is *flagged* suspicious and every strategy in the cascade is
+    tried, but none of them accepts — the parent is emitted merged. The
+    assertions below therefore pin what the pipeline demonstrably does:
+
+    * the component trips ``suspicious_merge`` (segmentor.py:1170-1173) —
+      exactly one split candidate is logged;
+    * the cascade runs and records a per-strategy verdict for that candidate
+      (``debug[*]['methods']``), each entry naming its method and its
+      accept/reject decision;
+    * the split-APPLY accounting is self-consistent: emitted ``split_*`` issue
+      tags (segmentor.py:1259) appear if and only if >= 2 child masks were
+      generated and applied (segmentor.py:1204-1206);
+    * everything emitted stays inside the dumbbell's own footprint.
+
+    The positive side of that iff — split children actually reaching the
+    emitted segments — is covered by [ECV-19], which uses the real fused map
+    (the only fixture in this suite whose split is accepted).
+    """
     path = _dumbbell_map_png(str(tmp_path))
     result = detect_room_segments(image_path=path, min_area_pixels=200)
     assert result["available"] is True
     assert isinstance(result["segments"], list)
     assert "summary" in result
+
+    split_pass = result["segmentation"]["stages"]["suspicious_region_split_pass"]
+    # The dumbbell trips the suspicious-merge predicate: exactly one candidate.
+    assert split_pass["split_candidates"] == 1
+
+    # The cascade ran and recorded a verdict for every strategy it tried.
+    debug = split_pass["debug"]
+    assert len(debug) == 1, debug
+    methods = debug[0]["methods"]
+    assert methods, "the split cascade must record per-strategy verdicts"
+    assert all("method" in entry for entry in methods), methods
+    assert all(isinstance(entry.get("accepted"), bool) for entry in methods), methods
+    assert int(debug[0]["area_pixels"]) > 0
+
+    # Split-apply accounting: child masks are emitted iff >= 2 were generated.
+    generated = split_pass["split_generated_regions"]
+    split_tags = {
+        tag
+        for seg in result["segments"]
+        for tag in (seg.get("issues") or [])
+        if str(tag).startswith("split_")
+    }
+    accepted_methods = {
+        str(entry["method"]) for entry in methods if entry.get("accepted")
+    }
+    if generated >= 2:
+        assert split_tags, (generated, result["segments"])
+        assert split_tags <= {f"split_{name}" for name in accepted_methods}
+    else:
+        assert not split_tags, (generated, split_tags)
+        assert not accepted_methods, accepted_methods
+
+    # Whatever came back is a piece of the dumbbell, not something invented:
+    # the shape spans x 30..110, y 40..230 in the source image.
+    assert result["segments"]
+    for seg in result["segments"]:
+        box = seg["bbox"]
+        assert box["x"] >= 30 and box["y"] >= 40, box
+        assert box["x"] + box["width"] <= 111, box
+        assert box["y"] + box["height"] <= 231, box
+    assert sum(int(seg["area_pixels"]) for seg in result["segments"]) <= int(
+        debug[0]["area_pixels"]
+    )
+
+
+def test_detect_split_children_reach_emitted_segments():
+    """[ECV-19] accepted split masks are APPLIED, not discarded.
+
+    The wiring between ``_split_suspicious_component`` and the emit loop
+    (segmentor.py 1203-1208) is what turns a merged blob into separate rooms.
+    Every synthetic fixture in this file has its split cascade REJECT, so the
+    apply path only runs on the real fused map: its single >400k-pixel blob is
+    accepted by ``localized_bins`` and the children carry a ``split_<method>``
+    issue tag into the emitted segments.
+
+    If the returned masks were dropped on the floor and the parent emitted
+    instead, the parent would be rejected as ``oversized_region`` and those
+    rooms would silently vanish — with the stage counters still reporting a
+    successful split. That is what this test detects.
+    """
+    here = os.path.dirname(__file__)
+    result = detect_room_segments(
+        image_path=os.path.join(here, "fixtures", "localized_map_dark.png"),
+        assist_image_path=os.path.join(here, "fixtures", "localized_map_light.png"),
+        image_variant="dark",
+        assist_variant="light",
+        min_area_pixels=1200,
+    )
+    assert result["available"] is True
+
+    split_pass = result["segmentation"]["stages"]["suspicious_region_split_pass"]
+    assert split_pass["split_candidates"] >= 1
+    # A strategy accepted and produced >= 2 child masks.
+    assert split_pass["split_generated_regions"] >= 2
+    accepted = [
+        entry
+        for record in split_pass["debug"]
+        for entry in record["methods"]
+        if entry.get("accepted")
+    ]
+    assert accepted, split_pass["debug"]
+    accepted_tags = {f"split_{entry['method']}" for entry in accepted}
+
+    # THE SUBJECT: those child masks reached the emitted segments.
+    split_children = [
+        seg
+        for seg in result["segments"]
+        if any(str(tag).startswith("split_") for tag in (seg.get("issues") or []))
+    ]
+    assert split_children, (
+        "accepted split masks were generated but no emitted segment carries a "
+        "split_* tag — the children were discarded and the parent emitted",
+        [seg["issues"] for seg in result["segments"]],
+    )
+    emitted_tags = {
+        tag
+        for seg in split_children
+        for tag in seg["issues"]
+        if str(tag).startswith("split_")
+    }
+    assert emitted_tags <= accepted_tags, (emitted_tags, accepted_tags)
+
+    # Each emitted child is a strict piece of its parent, not the parent again.
+    parent_area = max(int(record["area_pixels"]) for record in split_pass["debug"])
+    assert all(int(seg["area_pixels"]) < parent_area for seg in split_children)
+    assert sum(int(seg["area_pixels"]) for seg in split_children) < parent_area
+    # ...and the merged parent never survives to the caller.
+    assert all(float(seg["area_percent"]) <= 0.45 for seg in result["segments"])
 
 
 def test_detect_segments_no_room_pixels(tmp_path):
@@ -310,13 +518,41 @@ def test_detect_segments_no_room_pixels(tmp_path):
 
 
 def test_detect_segments_expected_room_count(tmp_path):
-    """[ECV-10] expected_room_count drives the deferred-region recovery loop."""
+    """[ECV-10] expected_room_count drives the deferred-region recovery loop.
+
+    This fixture has an EMPTY deferred pile (both rooms are kept outright, so
+    ``dropped_regions == 0``), which is precisely the case the sibling
+    [ECV-17] cannot cover: the recovery loop is entered with nothing to rescue
+    and must report the residual shortfall rather than inventing segments.
+    Asserted against a no-expectation baseline on the same image so the deficit
+    accounting is attributable to the parameter (segmentor.py 1434-1435, 1569).
+    """
     path = _map_png(str(tmp_path), saturated=True)
     result = detect_room_segments(
         image_path=path, min_area_pixels=200, expected_room_count=5
     )
+    baseline = detect_room_segments(image_path=path, min_area_pixels=200)
     assert result["available"] is True
     assert isinstance(result["segments"], list)
+    assert baseline["available"] is True
+
+    # The parameter reaches the pipeline and is echoed on the envelope.
+    assert result["segmentation"]["expected_room_count"] == 5
+    assert baseline["segmentation"]["expected_room_count"] == 0
+
+    recovery = result["segmentation"]["stages"]["recovery_pass"]
+    base_recovery = baseline["segmentation"]["stages"]["recovery_pass"]
+
+    # Nothing was deferred, so the recovery loop had no candidate to promote...
+    assert result["segmentation"]["stages"]["candidate_scoring"]["dropped_regions"] == 0
+    assert recovery["recovered_regions"] == 0
+    assert len(result["segments"]) == len(baseline["segments"])
+
+    # ...and the shortfall is reported as a derived value off the parameter.
+    assert recovery["count_deficit_after_recovery"] == 5 - len(result["segments"])
+    assert recovery["count_deficit_after_recovery"] > 0
+    # Without an expectation there is no deficit to report at all.
+    assert base_recovery["count_deficit_after_recovery"] == 0
 
 
 def _l_shaped_map_png(tmp_path) -> str:

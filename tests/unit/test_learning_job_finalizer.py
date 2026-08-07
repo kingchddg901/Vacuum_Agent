@@ -510,13 +510,22 @@ def test_collect_inputs_cancel_likely_marks_cancelled(finalizer, monkeypatch):
 # durable record exists. Wave 2 of the exactly-once finalization work.
 # ---------------------------------------------------------------------------
 
-def _finalizer_with_sink(tmp_path, pushes, *, save_raises=False):
-    """A finalizer wired to a recording battery sink, optionally with a failing store."""
+def _finalizer_with_sink(tmp_path, pushes, *, save_raises=False, calls=None, saved=None):
+    """A finalizer wired to a recording battery sink, optionally with a failing store.
+
+    ``calls`` (when given) collects the sink's full kwargs, and ``saved`` collects the
+    kwargs handed to save_completed_job — both so a test can witness WHAT crossed the
+    commit point, not merely that something did.
+    """
     hass = MagicMock()
     hass.config.config_dir = str(tmp_path)
 
     def _sink(*, vacuum_entity_id, metrics, job_id):
         pushes.append(job_id)
+        if calls is not None:
+            calls.append(
+                {"vacuum_entity_id": vacuum_entity_id, "metrics": metrics, "job_id": job_id}
+            )
 
     fin = LearningJobFinalizer(hass, battery_sink=_sink)
 
@@ -525,12 +534,44 @@ def _finalizer_with_sink(tmp_path, pushes, *, save_raises=False):
     # fail on JSON encoding for reasons unrelated to what is under test.)
     if save_raises:
         def _save(**kwargs):
+            if saved is not None:
+                saved.append(kwargs)
             raise OSError("disk full")
     else:
         def _save(**kwargs):
+            if saved is not None:
+                saved.append(kwargs)
             return "/tmp/job.json"
     fin.store.save_completed_job = _save
     return fin
+
+
+def _battery_eligible_manager():
+    """A manager whose active job actually EARNS a battery push.
+
+    `_inputs_manager()` resolves to zero rooms, so build_completed_job_payload stamps
+    learning_blockers ['invalid_room_count', 'missing_resolved_rooms'] and
+    used_for_learning=False — which means `pending_battery_push` is never set and the
+    push is skipped for a reason that has nothing to do with commit ordering. Under that
+    manager a test asserting `pushes == []` measures nothing: it would stay green if the
+    push were DELETED rather than deferred.
+
+    Two rooms (not one) keeps the cancel-likely probe on its `not_single_room` early
+    exit, so the outcome stays `completed` / used_for_learning=True.
+    """
+    m = _inputs_manager()
+    m.get_active_job.return_value = {
+        "job_id": "job_battery_push",
+        "resolved_rooms": [
+            {"room_id": 1, "name": "Kitchen", "slug": "kitchen",
+             "clean_mode": "vacuum", "fan_speed": "max", "water_level": "medium"},
+            {"room_id": 2, "name": "Hall", "slug": "hall",
+             "clean_mode": "vacuum", "fan_speed": "max", "water_level": "medium"},
+        ],
+        "queue_room_ids": [1, 2],
+        "last_cleaning_time_seconds": 1200,
+    }
+    return m
 
 
 def _finalize(fin, manager):
@@ -554,6 +595,39 @@ def _finalize(fin, manager):
     )
 
 
+def test_battery_push_happens_after_a_successful_save(tmp_path):
+    """[JF-commit] The positive half of the ordering pair: on the happy path the push
+    must actually FIRE, with the run's real metrics.
+
+    Without this, "deferred past the commit point" is indistinguishable from "deleted" —
+    the failed-save test below asserts an absence, and an absence is satisfied by a push
+    that never happens at all.
+    """
+    pushes: list[str] = []
+    calls: list[dict] = []
+    saved: list[dict] = []
+    fin = _finalizer_with_sink(tmp_path, pushes, calls=calls, saved=saved)
+
+    out = _finalize(fin, _battery_eligible_manager())
+
+    # Eligibility witness: the push is gated on a learning-eligible completed outcome.
+    outcome = out["completed_job"]["outcome"]
+    assert outcome["status"] == "completed"
+    assert outcome["used_for_learning"] is True
+
+    assert pushes == ["job_battery_push"], "the battery aggregate was never pushed"
+    assert len(saved) == 1, "the push must follow exactly one durable save"
+    pushed = calls[0]
+    assert pushed["vacuum_entity_id"] == "vacuum.fin_test"
+    # battery_start=90 → battery_end=60 across a 20-minute run.
+    assert pushed["metrics"]["battery_used_pct"] == 30
+    assert pushed["metrics"]["duration_min"] == pytest.approx(20.0)
+    assert pushed["metrics"]["drain_per_min"] == pytest.approx(1.5)
+    # The pushed block is the same one written onto the record — one computation,
+    # two consumers; an aggregate disagreeing with its own record is unreconcilable.
+    assert pushed["metrics"] is saved[0]["payload"]["job"]["battery_metrics"]
+
+
 def test_battery_push_does_not_happen_when_the_record_fails_to_save(tmp_path):
     """[JF-commit] A failed save must leave NO cumulative side effect behind.
 
@@ -561,26 +635,28 @@ def test_battery_push_does_not_happen_when_the_record_fails_to_save(tmp_path):
     counting a run whose record never landed is unrepairable — it cannot be reconciled
     against jobs/ because there is nothing there to reconcile against. The push therefore
     waits for save_completed_job to succeed.
+
+    Runs on `_battery_eligible_manager()` deliberately: under the roomless manager the
+    push is skipped for lack of eligibility, so `pushes == []` would hold even if the
+    push had been DELETED rather than deferred. The eligibility witness below pins that
+    open — if the fixture ever stops earning a push, this test fails loudly instead of
+    quietly going vacuous again.
     """
     pushes: list[str] = []
-    fin = _finalizer_with_sink(tmp_path, pushes, save_raises=True)
+    saved: list[dict] = []
+    fin = _finalizer_with_sink(tmp_path, pushes, save_raises=True, saved=saved)
 
     with pytest.raises(OSError):
-        _finalize(fin, _inputs_manager())
+        _finalize(fin, _battery_eligible_manager())
+
+    payload = saved[0]["payload"]
+    assert payload["outcome"]["used_for_learning"] is True, (
+        "fixture regression: this run no longer earns a battery push, so the "
+        "assertion below would pass vacuously"
+    )
+    assert payload["job"]["battery_metrics"]["battery_used_pct"] == 30
 
     assert pushes == [], "a battery aggregate was recorded for a run with no record"
-
-
-# KNOWN GAP (pre-existing, not introduced by the commit-point change): the SUCCESSFUL
-# battery push is not covered. `battery_sink` appears in no test in this repo, and driving
-# it here needs realistic battery inputs — with the MagicMock manager used above,
-# compute_job_battery_metrics raises and its `except` swallows the failure, so the push is
-# skipped for a reason unrelated to ordering.
-#
-# Consequence to be honest about: the test above would still pass if someone DELETED the
-# push entirely rather than deferring it. Closing this needs a fixture with real
-# battery_start/battery_end/duration/resolved_rooms — worth doing when the battery
-# subsystem is next touched, and tracked as a coverage gap rather than silently ignored.
 
 
 def test_error_latch_is_not_cleared_when_the_record_fails_to_save(tmp_path):

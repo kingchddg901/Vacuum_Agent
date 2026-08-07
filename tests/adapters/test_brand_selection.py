@@ -98,8 +98,15 @@ def test_shipped_table_is_well_formed():
     assert all(r.detect is None or callable(r.detect) for r in BRAND_REGISTRARS)
 
     # The default arm must be reachable by no-match, which means it cannot be shadowed by
-    # its own detector claiming everything.
-    assert defaults[0].detect is None or True  # documented: Eufy declares no detector
+    # its own detector claiming everything. Eufy declares no detector at all — deliberately
+    # (module docstring: there is no honest positive test to write for it). A brand-3 PR
+    # that marks an entry is_default=True AND gives it a detector destroys the very
+    # distinction this module exists for: every vacuum would resolve as "detected" and
+    # source would stop carrying information.
+    assert defaults[0].detect is None, (
+        f"the default arm ({defaults[0].brand_id!r}) declares a detector; the terminal arm "
+        "must have detect=None or it shadows the no-match route it exists to serve"
+    )
 
 
 def test_shipped_table_still_covers_both_brands():

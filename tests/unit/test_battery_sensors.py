@@ -221,9 +221,27 @@ def test_unique_and_object_id():
 
 async def test_on_manager_update_dispatches_state_write(hass):
     """[BS-12] _on_manager_update for the matching vacuum schedules a threadsafe
-    state write; a mismatched vacuum returns early without error."""
+    state write; a mismatched vacuum returns early without writing.
+
+    The write itself is stubbed on the instance — an entity that was never added to
+    hass cannot really write state, and the subject here is the SCHEDULING, not the
+    write. Both directions are asserted: without the mismatch arm a deleted guard
+    would pass, and without the match arm a deleted call_soon_threadsafe (every
+    battery sensor silently freezing in HA) would pass.
+    """
     s = ChargeCyclesSensor(manager=_mgr(), vacuum_entity_id=_VAC)
     s.hass = hass
+    writes: list[str] = []
+    s.async_write_ha_state = lambda: writes.append("write")
+
     s._on_manager_update(_VAC)             # matching vacuum → schedules _write
+    # DEFERRED, not inline: the manager notifies from whatever thread triggered the
+    # sample (the job finalizer runs in an executor), so the write must be handed to
+    # the loop rather than called on the notifying thread.
+    assert writes == [], "the state write ran inline instead of being scheduled"
+    await hass.async_block_till_done()
+    assert writes == ["write"], "the matching vacuum's update scheduled no state write"
+
     s._on_manager_update("vacuum.other")   # mismatch → early return
     await hass.async_block_till_done()
+    assert writes == ["write"], "another vacuum's update wrote this entity's state"

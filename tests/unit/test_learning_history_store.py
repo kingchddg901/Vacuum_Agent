@@ -449,6 +449,19 @@ def test_build_payload_atomic_no_pose_unchanged(tmp_path):
         battery_start=90, battery_end=60, queue_state={}, payload_state={},
         active_job_state={"queue_room_ids": [8], "counter_samples": counter},  # no pose_samples
     )
+    # The positional path must still RUN. Without this the loop below is vacuous: a
+    # production guard that required pose_samples before counter segmentation would
+    # emit room_timings=[], teach the learner nothing on every dispatched run that
+    # carries no pose stream, and leave the "unchanged" assertions iterating zero
+    # times. Same guard the pose sibling above (line ~429) already carries.
+    timings = payload["job"]["room_timings"]
+    assert timings, "the no-pose dispatched run must still produce room_timings"
+    # "the counter's queue-room assignment stands" — stated, not assumed.
+    assert timings[0]["room_id"] == 8
+    assert timings[0]["cleaning_seconds"] == 60
+    assert timings[0]["area_m2"] == 4.0
+    # The job-level rollup agrees: no reconcile ran, so nothing disagreed.
+    assert payload["job"]["has_attribution_disagreement"] is False
     for rt in payload["job"]["room_timings"]:
         assert "pose_confidence" not in rt and "pose_correction" not in rt
         assert "attribution_disagreement" not in rt

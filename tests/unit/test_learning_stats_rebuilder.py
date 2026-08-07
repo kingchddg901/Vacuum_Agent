@@ -453,6 +453,18 @@ def test_build_room_stats_area_excludes_multiroom(tmp_path):
     payload = rebuilder.build_room_stats_payload(
         vacuum_entity_id="vacuum.alfred", jobs=jobs
     )
+    # The exclusion is scoped to AREA, and only to area. Both rooms must still be
+    # ENUMERATED — a job-level skip (`if room_count > 1: continue`) would empty both
+    # lists, delete kitchen and bedroom from room stats outright, and leave the two
+    # loops below iterating zero times while green.
+    assert {e["room_slug"] for e in payload["room_stats"]} == {"bedroom", "kitchen"}
+    assert {b["room_slug"] for b in payload["room_baselines"]} == {"bedroom", "kitchen"}
+    # ...and everything that IS legitimately per-room split still teaches.
+    kitchen = next(e for e in payload["room_stats"] if e["room_slug"] == "kitchen")
+    assert kitchen["sample_count"] == 1
+    assert kitchen["timing_sample_count"] == 1
+    assert kitchen["avg_minutes"] == 15.0        # 30 min job / 2 rooms
+    assert kitchen["avg_battery_used"] == 12.5   # 25 % / 2 rooms
     for entry in payload["room_stats"]:
         assert entry["area_sample_count"] == 0
         assert entry["avg_area_m2"] == 0.0
@@ -1005,10 +1017,26 @@ def test_baseline_pass_and_edge_buckets_exclude_allocated_timings(tmp_path):
         vacuum_entity_id="vacuum.alfred", jobs=[_grouped(job_id="g1")],
     )
     office = _baseline(payload, "home_office")
+    assert office is not None
+    # The buckets must EXIST, under these exact names and keyed by the settings the
+    # estimator matches within — the `.get(..., {})` defaults below tolerate their
+    # absence, so a rename (by_clean_times -> by_pass_count) or a finalizer that drops
+    # an empty-minutes bucket would make the loop iterate nothing and stay green.
+    assert set(office["by_clean_times"]) == {"1"}, "the pass bucket was renamed or dropped"
+    assert set(office["by_edge_mopping"]) == {"off"}, "the edge bucket was renamed or dropped"
     for bucket in list(office.get("by_clean_times", {}).values()) + list(
         office.get("by_edge_mopping", {}).values()
     ):
         assert bucket["sample_count"] == 0, "an allocated split reached a setting bucket"
+
+    # Positive control: sample_count == 0 above means EXCLUDED, not "this bucket can
+    # never fill". The same two buckets on an unallocated solo run do reach 1.
+    solo_payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=[_solo(67, job_id="s1")],
+    )
+    entryway = _baseline(solo_payload, "entryway")
+    assert entryway["by_clean_times"]["1"]["sample_count"] == 1
+    assert entryway["by_edge_mopping"]["off"]["sample_count"] == 1
 
 
 def test_global_inter_room_refuses_a_degenerate_divisor():

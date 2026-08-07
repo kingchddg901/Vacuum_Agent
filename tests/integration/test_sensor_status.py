@@ -175,11 +175,32 @@ def test_active_job_callbacks():
 
 async def test_active_job_update_real_dispatch(hass):
     """[LC-3b] with a real hass, _on_active_job_update actually schedules and runs
-    the _write closure (the threadsafe state-write body)."""
+    the _write closure (the threadsafe state-write body).
+
+    [LC-3] pins the SCHEDULING against a MagicMock hass. This one is here for the
+    other half — that what gets scheduled actually writes state. A `_write` body
+    that did nothing (it swallows every exception, so nothing else would notice)
+    passes a did-not-raise test identically.
+    """
     s = _job_sensor({"status": "idle"})
+    # A counter, not a MagicMock. Only call_count is needed here, and the file is
+    # on the shrink-only mock allowlist at 11 — a twelfth bare mock for something a
+    # two-line closure does exactly as well is debt bought for nothing.
+    writes: list[int] = []
+    s.async_write_ha_state = lambda: writes.append(1)
     s.hass = hass
     s._on_active_job_update(_VAC, _MAP)  # matching → schedules real _write
+    # Not yet: call_soon_threadsafe only queues it on the loop.
+    assert writes == []
     await hass.async_block_till_done()
+    assert writes == [1]
+
+    # ...and the vacuum/map filter still holds on the real loop, not just the stub.
+    writes.clear()
+    s._on_active_job_update("vacuum.other", _MAP)
+    s._on_active_job_update(_VAC, "999")
+    await hass.async_block_till_done()
+    assert writes == []
 
 
 # ---------------------------------------------------------------------------

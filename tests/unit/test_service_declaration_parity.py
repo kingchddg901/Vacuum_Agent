@@ -49,7 +49,17 @@ literal directly in the call (five in services/adapter_config.py, one in
 __init__.py's battery_rebaseline) -- these still count for assertions 1/2,
 but are skipped for 3 since resolving an arbitrary inline AST expression to a
 live object is out of scope for this gate. None of RP-032's known findings
-touch those six.
+touch those six. (The five in adapter_config.py are INTERNAL_SERVICES, so
+they never reach the schema step at all; battery_rebaseline is the only
+DOCUMENTED service the schema step itself has to skip.)
+
+THE GAP IS PINNED, NOT TOLERATED (2026-08-07): assertion 3 used to `continue`
+past every skip silently and assert only on the violations it found, so a
+tree where NOTHING resolved -- every named schema converted to an inline
+literal, or one constant renamed out from under `getattr` -- compared zero
+services against services.yaml and still passed green. FIELD_PARITY_UNRESOLVED
+below names the exact skips that are allowed; anything else leaving the
+checked set now fails, and so does an entry here that starts resolving again.
 
 EXPECTED_FAILURES is a seeded, dated escape hatch for violations found but
 not yet fixed -- each entry names the specific (service, field) or (kind, id)
@@ -119,6 +129,24 @@ INTERNAL_SERVICES: dict[str, str] = {
     "analyze_map_image": "mapping_services.py: geometry/segment payload -- handshake.",
     "get_map_segments": "mapping_services.py: card-consumed response only -- handshake.",
     "adjust_map_segment": "mapping_services.py: geometry payload -- handshake.",
+}
+
+# ---------------------------------------------------------------------------
+# FIELD_PARITY_UNRESOLVED -- the DOCUMENTED services (they have a
+# services.yaml entry) that assertion 3 cannot field-check, because their
+# `schema=` argument is not a plain module-level name this gate can resolve to
+# a live voluptuous object, or resolves to something that is not a
+# dict-shaped vol.Schema. See "THE GAP IS PINNED" in the module docstring:
+# this list is the gate's own coverage measurement, not an excuse list. Adding
+# an entry means the (service, field) pairs behind it are UNCHECKED by every
+# assertion in this file -- prefer hoisting the schema to a module-level
+# constant, which makes it checkable, over adding a line here.
+# ---------------------------------------------------------------------------
+FIELD_PARITY_UNRESOLVED: dict[str, str] = {
+    "battery_rebaseline": (
+        "__init__.py: schema= is an inline vol.Schema({...}) literal in the "
+        "register call, so there is no named constant to resolve."
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -456,17 +484,31 @@ def test_services_yaml_field_parity():
     registrations = _find_registrations()
     yaml_data = _load_services_yaml()
     unexpected = []
+    # WHAT THIS GATE ACTUALLY LOOKED AT. Every `continue` below is a service
+    # whose fields nothing in this file compares against services.yaml, and a
+    # gate that skips everything reports the same clean result as a gate that
+    # finds nothing wrong. Both sets are asserted on at the bottom.
+    checked: set[str] = set()
+    unresolved: dict[str, str] = {}
 
     for reg in registrations:
         name = reg.service_name
         if name is None or name not in yaml_data:
-            continue
+            continue  # undocumented/internal -- assertions 2 and 3b own that gate
         schema_obj = _resolve_schema_object(reg)
         if schema_obj is None:
-            continue  # inline schema literal -- documented gate scope limit, see module docstring
+            # inline schema literal / getattr miss -- documented gate scope limit
+            unresolved[name] = (
+                f"schema= is not a resolvable module-level name ({reg.file}:{reg.lineno})"
+            )
+            continue
         schema_fields = _schema_field_requiredness(schema_obj)
         if schema_fields is None:
-            continue  # not a plain dict-shaped schema this gate introspects
+            unresolved[name] = (
+                f"schema is not a plain dict-shaped vol.Schema ({reg.file}:{reg.lineno})"
+            )
+            continue
+        checked.add(name)
 
         yaml_fields = (yaml_data[name] or {}).get("fields") or {}
         yaml_required = {
@@ -498,6 +540,26 @@ def test_services_yaml_field_parity():
 
     assert not unexpected, "services.yaml <-> schema field parity violations:\n" + "\n".join(
         sorted(unexpected)
+    )
+
+    # --- the gate measured SOMETHING (mirrors assertion 1's `assert registrations`) ---
+    assert checked, (
+        "field parity compared ZERO services against services.yaml -- every "
+        "registration was skipped, so this assertion proves nothing. Skips: "
+        f"{sorted(unresolved)}"
+    )
+    # --- and it measured everything it is supposed to ---
+    newly_unresolved = sorted(set(unresolved) - set(FIELD_PARITY_UNRESOLVED))
+    assert not newly_unresolved, (
+        "these DOCUMENTED services dropped out of field parity and are now "
+        "unchecked in both directions -- hoist the schema to a module-level "
+        "constant, or add it to FIELD_PARITY_UNRESOLVED with a reason:\n"
+        + "\n".join(f"  {n}: {unresolved[n]}" for n in newly_unresolved)
+    )
+    rotted = sorted(set(FIELD_PARITY_UNRESOLVED) - set(unresolved))
+    assert not rotted, (
+        "FIELD_PARITY_UNRESOLVED entries that now resolve fine -- remove them, "
+        f"otherwise they mask the day the schema goes un-introspectable again: {rotted}"
     )
 
 

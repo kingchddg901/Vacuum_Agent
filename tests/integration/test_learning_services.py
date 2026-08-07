@@ -197,6 +197,31 @@ def _seed_active_job(manager, vacuum_entity_id: str, map_id: str, **extra) -> No
     }
 
 
+def _listen_job_finished(hass) -> list:
+    """Collect EVENT_JOB_FINISHED events so a finalize's record can be read back.
+
+    ``finalize_learning_job`` is a fire-and-forget service (no supports_response),
+    so the only handle on WHICH record it just wrote is the job_id it publishes on
+    the finished event. Pair with :func:`_load_finalized_job`.
+    """
+    from custom_components.eufy_vacuum.const import EVENT_JOB_FINISHED
+
+    events: list = []
+    hass.bus.async_listen(EVENT_JOB_FINISHED, lambda e: events.append(e))
+    return events
+
+
+def _load_finalized_job(hass, events: list, vacuum_entity_id: str = _VAC) -> dict:
+    """Read back the completed-job record the finalize service just archived."""
+    assert events, "finalize fired no EVENT_JOB_FINISHED — nothing was archived"
+    job_id = events[-1].data["job_id"]
+    record = LearningHistoryStore(hass).load_completed_job(
+        vacuum_entity_id=vacuum_entity_id, job_id=job_id
+    )
+    assert isinstance(record, dict), f"no completed-job record on disk for {job_id!r}"
+    return record
+
+
 # ---------------------------------------------------------------------------
 # Fixture: manager + learning services registered
 # ---------------------------------------------------------------------------
@@ -1073,6 +1098,7 @@ async def test_finalize_with_active_job_covers_wall_clock_and_trace(hass, learni
         recharge_seconds_accumulated=0,
     )
 
+    finished = _listen_job_finished(hass)
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
@@ -1084,6 +1110,17 @@ async def test_finalize_with_active_job_covers_wall_clock_and_trace(hass, learni
         },
         blocking=True,
     )
+    await hass.async_block_till_done()
+
+    record = _load_finalized_job(hass, finished)
+    # Wall-clock fallback: no cleaning_time sensor state and no
+    # last_cleaning_time_seconds on the active job, so the finalizer derives
+    # 09:00 -> 09:30 minus 0 paused / 0 recharge / 0 commanded-break = 1800 s.
+    # Without the derivation the key is never written at all (the payload
+    # builder does not emit a default), so the read alone is the guard.
+    assert record["job"]["cleaning_time_seconds"] == 1800
+    # The active job's trace_run_id is stamped onto the archived record.
+    assert record["trace_run_id"] == "trace-wc-001"
 
 
 # ---------------------------------------------------------------------------
@@ -1121,7 +1158,16 @@ async def test_finalize_service_refusal_raises_service_validation_error(hass, le
 # ---------------------------------------------------------------------------
 
 async def test_finalize_single_room_with_trace_covers_boundary_derivation(hass, learning_services):
-    """[LS-22] Single resolved room + trace_run_id on a completed job exercises _auto_derive_room_boundary gates."""
+    """[LS-22] A single-room run + trace_run_id archives that room and the trace stamp.
+
+    Named for `_auto_derive_room_boundary`, which no longer exists — the
+    trace->room-boundary derivation was removed with the mapping shelve (see
+    docs/testing/subsystems/06-learning.md "Retired"). What this case still
+    covers, and what is asserted below, is the single-room finalize path: the
+    active job's frozen resolved_rooms snapshot is what lands in the archived
+    record (not the live payload/queue), room_count follows it, and the trace
+    stamp rides along.
+    """
     from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
 
     _seed_active_job(
@@ -1131,6 +1177,7 @@ async def test_finalize_single_room_with_trace_covers_boundary_derivation(hass, 
         resolved_rooms=[{"room_id": 1, "slug": "kitchen", "name": "Kitchen"}],
     )
 
+    finished = _listen_job_finished(hass)
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
@@ -1142,6 +1189,15 @@ async def test_finalize_single_room_with_trace_covers_boundary_derivation(hass, 
         },
         blocking=True,
     )
+    await hass.async_block_till_done()
+
+    record = _load_finalized_job(hass, finished)
+    rooms = record["resolved_rooms"]
+    assert [r["room_id"] for r in rooms] == [1]
+    assert rooms[0]["slug"] == "kitchen"
+    assert record["job"]["room_count"] == 1
+    assert record["job_profile"]["room_slugs"] == ["kitchen"]
+    assert record["trace_run_id"] == "trace-boundary-001"
 
 
 # ---------------------------------------------------------------------------
@@ -1680,21 +1736,36 @@ async def test_save_snapshot_with_rooms_covers_access_graph_loop(hass, learning_
         learning_services.data
         .get("maps", {}).get(_VAC, {}).get(_MAP, {}).get("rooms", {})
     )
-    if "1" in rooms_bucket:
-        rooms_bucket["1"]["grants_access_to"] = [2]
+    # Unconditional on purpose: this used to be `if "1" in rooms_bucket`, so a
+    # change in how setup_map keys rooms would have silently skipped the edge
+    # wiring and left the test measuring nothing at all.
+    assert "1" in rooms_bucket, f"setup_map no longer keys rooms by str id: {list(rooms_bucket)}"
+    rooms_bucket["1"]["grants_access_to"] = [2]
 
     learning_services.build_queue(vacuum_entity_id=_VAC, map_id=_MAP)
 
-    await hass.services.async_call(
+    result = await hass.services.async_call(
         DOMAIN, SERVICE_SAVE_LEARNING_SNAPSHOT,
         {
             "vacuum_entity_id": _VAC, "map_id": _MAP,
             "started_at": "2026-01-01T09:00:00+00:00",
             "battery_start": 85,
         },
-        blocking=True,
+        blocking=True, return_response=True,
     )
     await hass.async_block_till_done()
+
+    # The access-graph context built for the queue order is what the snapshot
+    # carries into finalization — assert the loop body actually ran over the
+    # 1 -> 2 edge rather than trusting a no-crash call.
+    ctx = result["snapshot"]["access_graph_context"]
+    assert ctx["present"] is True
+    assert ctx["edge_count"] == 1
+    assert ctx["queue_room_ids"] == [1, 2]
+    assert ctx["pair_count"] == 1
+    assert ctx["graph_transition_count"] == 1   # 1 -> 2 is a granted edge
+    assert ctx["graph_jump_count"] == 0
+    assert ctx["graph_coherence_score"] == 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -1914,19 +1985,34 @@ async def test_finalize_sensor_fallback_via_adapter_entity(hass, learning_servic
     hass.states.async_set(_CT, "1800")   # 1800 s of cleaning time
     hass.states.async_set(_CA, "25.5")   # 25.5 m² cleaned
 
-    # RP-001/GATE4 Q1: finalize requires a stored active-job record.
+    # RP-001/GATE4 Q1: finalize requires a stored active-job record. It carries
+    # NO last_cleaning_time_seconds / last_cleaning_area_m2, so the sensor
+    # fallback is the only thing that can populate either value.
     _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
+    finished = _listen_job_finished(hass)
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
             "vacuum_entity_id": _VAC, "map_id": _MAP,
             "battery_start": 85, "battery_end": 60,
             "started_at": "2026-01-01T09:00:00+00:00",
-            "ended_at": "2026-01-01T09:30:00+00:00",
+            # A 10-MINUTE window against an 1800 s sensor reading, deliberately:
+            # the wall-clock fallback below the sensor one would derive 600, so
+            # 1800 can only have come from the sensor. With a 30-minute window
+            # the two paths agree and the assertion proves nothing.
+            "ended_at": "2026-01-01T09:10:00+00:00",
             "used_for_learning": True, "rebuild_stats": False,
         },
         blocking=True,
     )
+    await hass.async_block_till_done()
+
+    job = _load_finalized_job(hass, finished)["job"]
+    assert job["cleaning_time_seconds"] == 1800
+    # The wall clock can never produce an area — this pins the second half of
+    # the fallback (cleaning_area sensor -> m2, unit-normalized).
+    assert job["cleaning_area_m2"] == 25.5
+    assert job["cleaning_area_sensor_m2"] == 25.5
 
 
 # ---------------------------------------------------------------------------
@@ -2295,6 +2381,28 @@ async def test_finalize_with_snapshot_estimate_enriches_rooms_and_records_accura
         last_cleaning_time_seconds=1200,
     )
 
+    def _safe_count(rec: dict) -> int:
+        try:
+            return int(rec.get("sample_count") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _kitchen_accuracy_samples() -> int:
+        """Total accuracy samples recorded against kitchen on this map."""
+        stats = LearningHistoryStore(hass).load_accuracy_stats(vacuum_entity_id=_VAC) or {}
+        return sum(
+            _safe_count(rec)
+            for rec in (stats.get("rooms") or {}).values()
+            if isinstance(rec, dict)
+            and rec.get("slug") == "kitchen"
+            and rec.get("map_id") == _MAP_INT
+        )
+
+    # Delta, not absolute: the test config dir is shared, so a sibling test may
+    # legitimately have recorded kitchen samples already.
+    samples_before = _kitchen_accuracy_samples()
+
+    finished = _listen_job_finished(hass)
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
@@ -2307,7 +2415,24 @@ async def test_finalize_with_snapshot_estimate_enriches_rooms_and_records_accura
         blocking=True,
     )
     await hass.async_block_till_done()
-    # No assertion needed beyond no-crash; the enrichment + accuracy record are internal.
+
+    record = _load_finalized_job(hass, finished)
+
+    # 1. The snapshot's room_timeline entry is folded onto the resolved room.
+    room = record["resolved_rooms"][0]
+    assert room["slug"] == "kitchen"
+    assert room["estimated_minutes"] == 20.0
+    assert room["estimated_battery"] == 5.0
+    assert room["estimate_confidence_score"] == 0.8
+    assert room["estimate_confidence_label"] == "good"
+    assert room["estimate_source"] == "learned"
+    # job_profile.rooms is repointed at the SAME enriched list (this is the copy
+    # _auto_record_accuracy reads, so a half-applied enrichment would break it).
+    assert record["job_profile"]["rooms"][0]["estimated_minutes"] == 20.0
+
+    # 2. That enrichment is what makes _auto_record_accuracy have something to
+    #    record: estimated 20.0 vs an actual 20-minute single-room run.
+    assert _kitchen_accuracy_samples() == samples_before + 1
 
 
 # ---------------------------------------------------------------------------
@@ -2473,8 +2598,17 @@ async def test_finalize_rebuild_csv(hass, learning_services):
     from custom_components.eufy_vacuum.const import DOMAIN
     from custom_components.eufy_vacuum.learning.services import SERVICE_FINALIZE_LEARNING_JOB
 
+    store = LearningHistoryStore(hass)
+    jobs_csv = store.jobs_csv_path(vacuum_entity_id=_VAC)
+    rooms_csv = store.rooms_csv_path(vacuum_entity_id=_VAC)
+    # Delete first: the test config dir persists, so an already-present CSV from
+    # an earlier run would make "the file exists" true no matter what this call does.
+    jobs_csv.unlink(missing_ok=True)
+    rooms_csv.unlink(missing_ok=True)
+
     # RP-001/GATE4 Q1: finalize requires a stored active-job record.
     _seed_active_job(learning_services, _VAC, _MAP, started_at="2026-01-01T09:00:00+00:00")
+    finished = _listen_job_finished(hass)
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
@@ -2489,6 +2623,19 @@ async def test_finalize_rebuild_csv(hass, learning_services):
         blocking=True,
     )
     await hass.async_block_till_done()
+
+    assert finished, "finalize fired no EVENT_JOB_FINISHED"
+    job_id = finished[-1].data["job_id"]
+
+    # rebuild_csv=True must actually rewrite BOTH flat exports, and the job just
+    # finalized must be in the jobs export (the CSV rebuild is unfiltered — it
+    # walks every archived record, learning-eligible or not).
+    assert jobs_csv.exists(), "rebuild_csv=True wrote no jobs_flat.csv"
+    assert rooms_csv.exists(), "rebuild_csv=True wrote no rooms_flat.csv"
+    jobs_text = jobs_csv.read_text(encoding="utf-8")
+    assert jobs_text.splitlines()[0].startswith("job_id,started_at,ended_at,map_id,")
+    assert job_id in jobs_text, f"{job_id} missing from the rebuilt jobs CSV"
+    assert rooms_csv.read_text(encoding="utf-8").splitlines()[0].startswith("job_id,")
 
 
 # ---------------------------------------------------------------------------
@@ -2507,6 +2654,7 @@ async def test_finalize_wall_clock_zero_derived(hass, learning_services):
         paused_duration_seconds=0,
         recharge_seconds_accumulated=0,
     )
+    finished = _listen_job_finished(hass)
     await hass.services.async_call(
         DOMAIN, SERVICE_FINALIZE_LEARNING_JOB,
         {
@@ -2518,6 +2666,18 @@ async def test_finalize_wall_clock_zero_derived(hass, learning_services):
         },
         blocking=True,
     )
+    await hass.async_block_till_done()
+
+    job = _load_finalized_job(hass, finished)["job"]
+    # SKIPPED, not written-as-zero. The payload builder emits no default for
+    # cleaning_time_seconds, so "absent" is the observable signature of the
+    # `derived > 0` guard holding. A regression that drops the guard records a
+    # 0-second (or negative) clean, which reads downstream as a real measurement
+    # of a run that cleaned nothing.
+    assert "cleaning_time_seconds" not in job, (
+        f"a zero wall-clock derivation was written: {job.get('cleaning_time_seconds')!r}"
+    )
+    assert job["wall_clock_duration_minutes"] == 0.0
 
 
 # ---------------------------------------------------------------------------
