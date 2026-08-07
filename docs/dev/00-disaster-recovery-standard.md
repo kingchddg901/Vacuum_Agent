@@ -33,7 +33,12 @@ What "disaster" means, exactly — the scenario every DR doc is sized against:
   rest form one mutually-recursive cluster, so no topological order exists. Phase 1:
   declare every doc-stated interface as a skeleton, corpus-wide. Phase 2: implement
   each section against the skeletons, in any deterministic order. Composition rides
-  the interface statements, not the sequence.
+  the interface statements, not the sequence. **Hub modules rebuild by ACCRETION**
+  (ruled 2026-08-07): `core/manager` is not a build-order node — it grows as each
+  subsystem comes up, that section implementing its own slice of the manager's
+  wiring against the skeleton. The reading order doubles as an existence-proof
+  growth sequence: the doc numbers are landing order, i.e. the sequence in which
+  this system demonstrably grew once, manager accreting alongside.
   Consequence for authors: every doc MUST state the interfaces it PROVIDES and the
   neighbour interfaces it CONSUMES (the rubric's integration-contract row is
   load-bearing for the whole corpus, not local hygiene).
