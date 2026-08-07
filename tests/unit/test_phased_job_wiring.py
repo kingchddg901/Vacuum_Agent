@@ -15,7 +15,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tests._factories import spec_manager
+from tests._factories import spec_learning, spec_manager, spec_rebuilder
 
 from custom_components.eufy_vacuum.jobs.phase_runner import PhaseRunner
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
@@ -108,7 +108,13 @@ def runner(store):
     # is not something the core manager has — a MagicMock manufactures any attribute you
     # ask for, so the tests passed while the live run silently wrote no children at all.
     # Attach to what production actually calls: _get_learning_manager().
-    learning = MagicMock()
+    # W1: spec'd. The comment above records that `mgr.learning` — an attribute the
+    # core manager does not have — was invented by a bare MagicMock and let the live
+    # run write no children while these tests stayed green. The stand-in for what
+    # _get_learning_manager() RETURNS was still bare, so the same invention was
+    # available one level down. spec_learning cannot manufacture a sub-object the
+    # real LearningManager does not declare.
+    learning = spec_learning()
     learning.finalizer._collect_finalization_inputs = _collect
     learning.finalizer.finalize_from_inputs = _finalize
     learning.store = store
@@ -613,7 +619,7 @@ def test_the_merged_run_record_of_a_phased_run_stops_teaching(store):
 
     lm = LearningManager.__new__(LearningManager)
     lm.store = store
-    lm.rebuilder = MagicMock()
+    lm.rebuilder = spec_rebuilder()
     mgr = spec_manager()
     mgr.get_active_job = lambda **kw: {
         "phased_job_id": _PJ,
@@ -646,7 +652,7 @@ def test_an_atomic_run_is_untouched_by_the_supersede_marker(store):
 
     lm = LearningManager.__new__(LearningManager)
     lm.store = store
-    lm.rebuilder = MagicMock()
+    lm.rebuilder = spec_rebuilder()
     mgr = spec_manager()
     mgr.get_active_job = lambda **kw: {"phases": None}
     record = {"record_type": "completed_job", "job_id": "job_a",
@@ -668,7 +674,7 @@ def test_a_phased_run_whose_children_all_failed_keeps_its_merged_record(store):
 
     lm = LearningManager.__new__(LearningManager)
     lm.store = store
-    lm.rebuilder = MagicMock()
+    lm.rebuilder = spec_rebuilder()
     mgr = spec_manager()
     mgr.get_active_job = lambda **kw: {"phased_job_id": _PJ, "phases": [{}, {}, {}]}
     record = {"record_type": "completed_job", "job_id": "job_y",

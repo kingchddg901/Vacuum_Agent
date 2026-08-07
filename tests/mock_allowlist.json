@@ -6,7 +6,7 @@
     "tests/integration/test_core_error_tracker.py": 1,
     "tests/integration/test_init_setup.py": 4,
     "tests/integration/test_learning_real_jobs_golden.py": 2,
-    "tests/integration/test_listeners_active.py": 31,
+    "tests/integration/test_listeners_active.py": 29,
     "tests/integration/test_manager_shutdown.py": 3,
     "tests/integration/test_manager_start_selected.py": 10,
     "tests/integration/test_mapping_tracker_events.py": 1,
@@ -37,7 +37,7 @@
     "tests/unit/test_learning_stats_rebuilder.py": 1,
     "tests/unit/test_mapping_tracker.py": 1,
     "tests/unit/test_phased_job_store.py": 1,
-    "tests/unit/test_phased_job_wiring.py": 8,
+    "tests/unit/test_phased_job_wiring.py": 4,
     "tests/unit/test_pose_sampler.py": 5,
     "tests/unit/test_rmw_tristate.py": 6
   }

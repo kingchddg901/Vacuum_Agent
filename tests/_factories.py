@@ -220,6 +220,35 @@ def spec_tracker(**attrs: Any) -> Any:
     return spec_of(MappingTracker, module_relpath="mapping/tracker.py", **attrs)
 
 
+def spec_learning(**attrs: Any) -> Any:
+    """A ``LearningManager`` stand-in, for the one production fetches from hass.data.
+
+    Extracted from real use: ``core/manager.py::_get_learning_manager()`` reads
+    ``hass.data[DOMAIN][DATA_LEARNING]`` and callers then reach into ``.store``,
+    ``.finalizer``, ``.rebuilder``. That is the SAME defect class as ``mgr.learning``
+    — one of audit 1's four — one indirection further out: a bare MagicMock invents
+    whichever sub-object is asked for, so a test can wire ``learning.finalizer.foo``
+    that production never calls and never notice.
+    """
+    from custom_components.eufy_vacuum.learning.manager import LearningManager
+
+    return spec_of(LearningManager, module_relpath="learning/manager.py", **attrs)
+
+
+def spec_rebuilder(**attrs: Any) -> Any:
+    """A ``LearningStatsRebuilder`` stand-in (``LearningManager.rebuilder``).
+
+    Extracted from real use: the phased-job tests assign ``lm.rebuilder`` and then
+    let production call through it, which is exactly a mock handed INTO our code.
+    """
+    from custom_components.eufy_vacuum.learning.stats_rebuilder import (
+        LearningStatsRebuilder,
+    )
+
+    return spec_of(LearningStatsRebuilder, module_relpath="learning/stats_rebuilder.py",
+                   **attrs)
+
+
 def _consume_coroutine(target: Any, *_args: Any, **_kwargs: Any) -> Any:
     """Close a coroutine handed to a mocked ``hass.async_create_task``.
 

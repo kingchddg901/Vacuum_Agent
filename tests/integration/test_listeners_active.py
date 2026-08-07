@@ -61,6 +61,8 @@ import pytest
 import homeassistant.util.dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
+from tests._factories import spec_tracker
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
     DATA_RUNTIME,
@@ -525,7 +527,7 @@ async def test_lifecycle_refusal_fires_no_event(hass):
     m.finalize_learning_for_active_job = AsyncMock(return_value={
         "vacuum_entity_id": _VAC, "map_id": _MAP,
         "finalized": False, "reason": "already_finalized"})
-    tracker = MagicMock()
+    tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = tracker
     finished = _collect(hass, EVENT_JOB_FINISHED)
     hass.states.async_set(_VAC, "cleaning")
@@ -793,7 +795,7 @@ async def test_lifecycle_finalize_calls_mark_active_job_finalized(hass):
     m.finalize_learning_for_active_job = AsyncMock(return_value={
         "job_id": "j1", "job_path": None,
         "completed_job": {"resolved_rooms": [{"clean_mode": "vacuum"}]}})
-    tracker = MagicMock()
+    tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = tracker
     finished = _collect(hass, EVENT_JOB_FINISHED)
     hass.states.async_set(_VAC, "cleaning")
