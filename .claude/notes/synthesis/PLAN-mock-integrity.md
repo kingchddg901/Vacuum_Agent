@@ -130,3 +130,13 @@ source (bare MagicMock count / spec_manager? / mock-hass vs real hass fixture /
 factory usage) and emit it as a generated "Mocking" column in the subsystem
 tables. Generated = never drifts; the same data writes the W0 shrink-only
 allowlist. One instrument, two consumers: the ratchet and the reader.
+
+## 9. Cold-session execution notes (no Fable required)
+
+Everything below §1-§8 executes from this document alone; Sonnet per-file with
+diff_test_equiv as the gate, Opus at most for W2 per-site classification.
+W4 ledger sources (the audit-1 incidents): docs/testing/04's spec_manager
+section documents two verbatim (mgr.learning phantom attribute; the
+_collect_finalization_inputs missing-kwargs TypeError that cost two live runs);
+`git log --grep=autospec --grep=spec_manager` and the RF-16/RP-0xx fix commits
+carry the rest. Do NOT invent incidents — the ledger records only what bit.
