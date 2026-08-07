@@ -11,7 +11,8 @@ import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js"
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
 import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus, applyDir } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
-import { FONT_DEFAULT, getStoredFont, setStoredFont } from "./i18n/font-store.js";
+import { FONT_DEFAULT, getStoredFont, setStoredFont, registerRuntimeFontSupport } from "./i18n/font-store.js";
+import { loadUserFonts, runtimeShadowFontCss, runtimeFontTokenRules, ensureUserFontFacesInDocument } from "./styles/fonts.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -400,6 +401,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
    */
   _maybeLoadLangOverride() {
     this._maybeLoadFontChoice();   // same trigger, same one-shot contract
+    this._maybeLoadUserFonts();    // drop-in fonts ride the same first-hass trigger
     if (this._langOverrideLoaded) return;
     this._langOverrideLoaded = true; // one-shot, set before the await
     getStoredLang(this._hass).then((code) => {
@@ -436,6 +438,53 @@ class EufyVacuumCommandCenter extends HTMLElement {
       if (this._config?.vacuum_entity_id) this._scheduleRender();
       else this._renderNoVacuumPlaceholder();
     });
+  }
+
+  /**
+   * Load the drop-in font catalog (config/eufy_vacuum/fonts/, built by the
+   * backend at setup) once, and wire everything a catalogued font needs:
+   * document-level faces, the runtime shadow styles (setters + picker
+   * samples), the offering (FONT_SUPPORT, from the catalog's BACKEND-derived
+   * verified locales — the card never render-verifies; the font file was the
+   * evidence, parsed server-side), and a retry of the stored-font read — a
+   * stored drop-in id fails validation until its registration exists, so the
+   * one-shot is re-armed after registration.
+   */
+  _maybeLoadUserFonts() {
+    if (this._userFontsLoaded) return;
+    this._userFontsLoaded = true; // one-shot, set before the await
+    loadUserFonts().then((defs) => {
+      if (!defs.length) return;
+      ensureUserFontFacesInDocument();
+      for (const def of defs) {
+        for (const lang of def.locales) registerRuntimeFontSupport(def.id, lang);
+      }
+      this._ensureRuntimeFontStyles();
+      this._uiFontLoaded = false;      // re-arm: the stored id can validate now
+      this._maybeLoadFontChoice();
+      this._scheduleRender();
+    }).catch(() => { /* best-effort: a broken drop-in never breaks the card */ });
+  }
+
+  /**
+   * The drop-in fonts' shadow-side CSS (faces + :host setters + picker
+   * samples) as a SECOND style node — the primary [data-evcc-style-root] is
+   * written once per frame reset and must stay byte-stable for its own
+   * diffing. Called from _render so a frame reset re-injects it.
+   */
+  _ensureRuntimeFontStyles() {
+    if (!this.shadowRoot) return;
+    const css = runtimeShadowFontCss();
+    if (!css.trim()) return;
+    let node = this.shadowRoot.querySelector("style[data-evcc-runtime-fonts]");
+    if (!node) {
+      node = document.createElement("style");
+      node.setAttribute("data-evcc-runtime-fonts", "");
+      const styleRoot = this.shadowRoot.querySelector("style[data-evcc-style-root]");
+      if (styleRoot?.nextSibling) this.shadowRoot.insertBefore(node, styleRoot.nextSibling);
+      else this.shadowRoot.appendChild(node);
+    }
+    if (node.textContent !== css) node.textContent = css;
   }
 
   /**
@@ -528,6 +577,9 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._languageMenuOpen = false;
     this._scheduleRender();
     setStoredLang(this._hass, code);
+    // Drop-in font offering per language needs no work here: the catalog's
+    // verified-locale sets were registered at load, and availableFonts()
+    // consults them per render.
   }
 
   set narrow(narrow) {
@@ -1391,6 +1443,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     const focusSnapshot = this._captureShadowFocusState();
     const scrollSnapshot = this._captureShadowScrollState();
     const frame = this._ensureShellFrame(STYLES);
+    this._ensureRuntimeFontStyles(); // survives frame resets; no-op without drop-ins
     const isMobile = this._state.isMobileViewport?.() ?? false;
 
     // Tag the shell so CSS can adjust spacing / fixed positioning
@@ -1620,7 +1673,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // here even though the token is not.
     this._applyFontAttributeTo(this._modalHost);
 
-    const modalMarkup = `<style>${MODAL_HOST_STYLES}</style>${html}`;
+    const modalMarkup = `<style>${MODAL_HOST_STYLES}${runtimeFontTokenRules((id) => `.evcc-modal-host[data-evcc-font="${id}"]`)}</style>${html}`;
     if (this._modalHost.dataset.renderedHtml !== modalMarkup) {
       // Preserve each open modal body's scroll across the innerHTML swap. Without
       // this, every in-modal interaction (room pick, setting tap) re-renders and
@@ -1725,7 +1778,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // here even though the token is not.
     this._applyFontAttributeTo(this._toastHost);
 
-    const markup = `<style>${TOAST_HOST_STYLES}</style>${html}`;
+    const markup = `<style>${TOAST_HOST_STYLES}${runtimeFontTokenRules((id) => `.evcc-toast-host[data-evcc-font="${id}"]`)}</style>${html}`;
     if (this._toastHost.dataset.renderedHtml !== markup) {
       this._toastHost.innerHTML = markup;
       this._toastHost.dataset.renderedHtml = markup;

@@ -125,11 +125,210 @@ export const FONT_FACE_CSS = FONT_DEFS.map((def) => def.faces.map((face) => `
  * @returns {string} CSS rules, one per FONT_DEFS entry.
  */
 export function fontTokenRules(selectorFor) {
-  return FONT_DEFS.map((def) => `
+  return tokenRulesFor(FONT_DEFS, selectorFor);
+}
+
+function tokenRulesFor(defs, selectorFor) {
+  return defs.map((def) => `
   ${selectorFor(def.id)} {
     --evcc-a11y-font-family: ${def.stack};
   }
 `).join("");
+}
+
+/* =========================================================
+   USER DROP-IN FONTS (runtime)
+   =========================================================
+   config/eufy_vacuum/fonts/ holds user-supplied typefaces — one SUBDIRECTORY
+   per font: font.json + its woff2 files + its licence. The BACKEND owns
+   discovery, validation, cmap parsing, and per-locale verification
+   (user_fonts.py, fontTools): the descriptor does not even declare which
+   locales it supports — the font FILE is the evidence, and catalog.json is
+   the canonical, backend-derived font-library response. The card consumes
+   the catalog generically: register faces, generate the a11y setters and
+   picker samples, offer per verified locale. No FONT_DEFS edit, no rebuild,
+   no release — drop files, restart HA, refresh.
+
+   The card deliberately does NOT render-verify in the browser: rendered-text
+   checks (document.fonts.check(), canvas width heuristics) can lie through
+   per-glyph fallback — the exact instrument class that false-exonerated
+   live:FONT-1. It DOES still sanitize every catalog field before it becomes
+   CSS (defense in depth; the catalog file rides a user-writable directory).
+
+   Catalog entry shape:
+     { "id": "atkinson", "family": "Atkinson Hyperlegible",
+       "label": "Atkinson Hyperlegible", "dir": "atkinson",
+       "faces": [{ "file": "Atkinson-Regular.woff2", "weight": 400 }],
+       "fallback": ["Arial", "sans-serif"],
+       "locales": ["en", "de"], "status": "verified" } */
+
+const USER_FONT_BASE = "/eufy_vacuum/user_fonts";
+
+const RUNTIME_FONT_DEFS = [];
+
+const ID_RE = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+const DIR_RE = /^[\w-]{1,64}$/;
+const FILE_RE = /^[\w][\w.-]*\.woff2$/;
+const LANG_RE = /^[a-z]{2,3}(-[a-z0-9]{2,8})?$/i;
+const GENERIC_FALLBACKS = new Set(["sans-serif", "serif", "monospace"]);
+const FALLBACK_NAME_RE = /^[A-Za-z][A-Za-z0-9 -]{0,31}$/;
+
+/**
+ * Validate + normalize one CATALOG entry. Returns a def or null; never
+ * throws. Rejections are conservative: an id collision with a shipped font,
+ * a quoted/backslashed family, a face or dir that is not a bare path
+ * segment — anything that could smuggle CSS or a traversal — kills the
+ * whole entry. Mirrors user_fonts.py's validate_descriptor.
+ */
+export function sanitizeUserFontDef(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const id = typeof raw.id === "string" ? raw.id : "";
+  if (!ID_RE.test(id)) return null;
+  if (FONT_DEFS.some((d) => d.id === id)) return null;
+  if (RUNTIME_FONT_DEFS.some((d) => d.id === id)) return null;
+
+  const dir = typeof raw.dir === "string" ? raw.dir : "";
+  if (!DIR_RE.test(dir) || dir.includes("..")) return null;
+
+  const family = typeof raw.family === "string" ? raw.family.trim() : "";
+  if (!family || family.length > 64 || /["\\\n\r{};]/.test(family)) return null;
+
+  const label = typeof raw.label === "string" && raw.label.trim()
+    ? raw.label.trim().slice(0, 64).replace(/[<>"\\\n\r]/g, "")
+    : family;
+
+  const fallback = [];
+  for (const item of Array.isArray(raw.fallback) ? raw.fallback.slice(0, 4) : []) {
+    if (typeof item !== "string") continue;
+    if (GENERIC_FALLBACKS.has(item) || FALLBACK_NAME_RE.test(item)) fallback.push(item);
+  }
+  if (!fallback.length || !GENERIC_FALLBACKS.has(fallback[fallback.length - 1])) {
+    fallback.push("sans-serif");
+  }
+
+  const rawFaces = Array.isArray(raw.faces) ? raw.faces.slice(0, 4) : [];
+  const faces = [];
+  for (const f of rawFaces) {
+    if (!f || typeof f !== "object") continue;
+    const file = typeof f.file === "string" ? f.file : "";
+    if (!FILE_RE.test(file) || file.includes("..")) continue;
+    const weight = Number.isInteger(f.weight) && f.weight >= 100 && f.weight <= 900
+      ? f.weight
+      : 400;
+    faces.push({ file, weight });
+  }
+  if (!faces.length) return null;
+
+  // The backend-verified offering. An unverified font sanitizes to zero
+  // locales — catalogued, renderable in principle, never offered.
+  const locales = [];
+  for (const lang of Array.isArray(raw.locales) ? raw.locales.slice(0, 32) : []) {
+    if (typeof lang === "string" && LANG_RE.test(lang)) locales.push(lang.toLowerCase());
+  }
+
+  return {
+    id,
+    family,
+    label,
+    stack: `"${family}", var(--paper-font-body1_-_font-family, ${fallback.join(", ")})`,
+    faces,
+    locales,
+    base: `${USER_FONT_BASE}/${dir}`,
+    runtime: true,
+  };
+}
+
+/**
+ * Fetch the backend-built catalog and register every valid entry.
+ * Best-effort end to end: any failure (no HA, missing catalog, bad JSON,
+ * bad entry) is a skip, never a throw — the shipped fonts must be untouched
+ * by a broken drop-in. Returns the defs added THIS call.
+ */
+export async function loadUserFonts(fetchFn = globalThis.fetch) {
+  if (typeof fetchFn !== "function") return [];
+  let entries;
+  try {
+    const res = await fetchFn(`${USER_FONT_BASE}/catalog.json`, { cache: "no-store" });
+    if (!res.ok) return [];
+    entries = await res.json();
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(entries)) return [];
+  const added = [];
+  for (const raw of entries.slice(0, 32)) {
+    const def = sanitizeUserFontDef(raw);
+    if (def) {
+      RUNTIME_FONT_DEFS.push(def);
+      added.push(def);
+    }
+  }
+  return added;
+}
+
+/** All fonts the card knows about right now — shipped first, then drop-ins. */
+export function allFontDefs() {
+  return [...FONT_DEFS, ...RUNTIME_FONT_DEFS];
+}
+
+/** Theme-editor chips for the drop-ins (labels verbatim — names). */
+export function runtimeFontPresets() {
+  return RUNTIME_FONT_DEFS.map((def) => ({ id: def.id, label: def.label, stack: def.stack }));
+}
+
+/** @font-face rules for the drop-ins (their files live under def.base). */
+export function runtimeFontFaceCss() {
+  return RUNTIME_FONT_DEFS.map((def) => def.faces.map((face) => `
+  @font-face {
+    font-family: "${def.family}";
+    src: url("${def.base}/${face.file}") format("woff2");
+    font-weight: ${face.weight};
+    font-style: normal;
+    font-display: swap;
+  }
+`).join("")).join("");
+}
+
+/** a11y-token setters for the drop-ins, same seam as fontTokenRules. */
+export function runtimeFontTokenRules(selectorFor) {
+  return tokenRulesFor(RUNTIME_FONT_DEFS, selectorFor);
+}
+
+/**
+ * Everything the card's SHADOW sheet needs for the drop-ins: faces (for
+ * engines that read them there), the :host setters, and the picker samples.
+ * Injected by main.js as a second shadow <style> once drop-ins load.
+ */
+export function runtimeShadowFontCss() {
+  return `
+  ${runtimeFontFaceCss()}
+  ${runtimeFontTokenRules((id) => `:host([data-evcc-font="${id}"]),\n  [data-evcc-font="${id}"]`)}
+  ${RUNTIME_FONT_DEFS.map((def) => `
+  .evcc-font-sample-${def.id} {
+    font-family: ${def.stack};
+  }
+`).join("")}
+`;
+}
+
+const USER_FONT_FACE_STYLE_ID = "eufy-vacuum-user-font-faces";
+
+/**
+ * Document-level registration for the drop-in faces — same Chromium
+ * shadow-tree rule as the shipped fonts (TF-6). Content-keyed rather than
+ * id-guarded: drop-ins can grow after first injection.
+ */
+export function ensureUserFontFacesInDocument(doc = globalThis.document) {
+  if (!doc || !doc.head) return;
+  const css = runtimeFontFaceCss();
+  if (!css.trim()) return;
+  let style = doc.getElementById(USER_FONT_FACE_STYLE_ID);
+  if (!style) {
+    style = doc.createElement("style");
+    style.id = USER_FONT_FACE_STYLE_ID;
+    doc.head.appendChild(style);
+  }
+  if (style.textContent !== css) style.textContent = css;
 }
 
 const FONT_FACE_STYLE_ID = "eufy-vacuum-font-faces";

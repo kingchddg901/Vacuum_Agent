@@ -8,6 +8,6 @@
   "integration_type": "service",
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/kingchddg901/Vacuum_Agent/issues",
-  "requirements": [],
+  "requirements": ["fonttools[woff2]>=4.47.0"],
   "version": "1.11.0"
 }

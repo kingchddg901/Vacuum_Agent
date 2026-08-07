@@ -35,6 +35,7 @@ from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_call_later
 
 from ._frontend_url import cards_module_url, panel_js_url
+from .user_fonts import build_catalog
 from .panels import (
     DEFAULT_PANEL_TITLE,
     PANEL_ICON,
@@ -186,15 +187,31 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             ) as fh:
                 json.dump(shipped_locale_files, fh)
 
+        # Drop-in fonts: user-supplied typefaces in config/eufy_vacuum/fonts/
+        # (persistent across HACS updates) — one SUBDIRECTORY per font holding
+        # font.json + its woff2 files + its licence. build_catalog() validates
+        # each descriptor, parses each face's cmap (fontTools), derives which
+        # locales the font PROVABLY covers (against the shipped locale
+        # catalogues above + the English reference), and writes catalog.json —
+        # the canonical font-library response the card consumes. The card
+        # never trusts a descriptor's claims and never render-verifies in the
+        # browser (rendered-text checks lie through per-glyph fallback): the
+        # font file is the evidence. Runs AFTER the shipped-locales index so
+        # the requirements it verifies against are current.
+        user_fonts_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "fonts")
+        os.makedirs(user_fonts_dir, exist_ok=True)
+        build_catalog(user_fonts_dir, shipped_locales_dir)
+
         return (
             maps_dir,
             os.path.join(integration_dir, "textures"),
             frontend_dir,
             locales_dir,
+            user_fonts_dir,
         )
 
-    maps_dir, textures_dir, frontend_dir, locales_dir = await hass.async_add_executor_job(
-        _prepare_static_dirs
+    maps_dir, textures_dir, frontend_dir, locales_dir, user_fonts_dir = (
+        await hass.async_add_executor_job(_prepare_static_dirs)
     )
     fonts_dir = os.path.join(frontend_dir, "fonts")
 
@@ -209,6 +226,11 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             # be re-fetched on every page load. Same directory tree, shipped in the
             # same HACS package — this is not an external asset.
             StaticPathConfig("/eufy_vacuum/fonts", fonts_dir, cache_headers=True),
+            # User drop-in fonts: cache OFF like the other drop-in dirs — a
+            # user iterating on a descriptor must see the edit on refresh; the
+            # woff2 files ride heuristic caching, which is acceptable churn for
+            # a user-supplied asset that can change under the same name.
+            StaticPathConfig("/eufy_vacuum/user_fonts", user_fonts_dir, cache_headers=False),
             StaticPathConfig("/eufy_vacuum/locales", locales_dir, cache_headers=False),
         ]
     )

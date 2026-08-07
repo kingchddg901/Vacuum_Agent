@@ -22,6 +22,7 @@
 
 import { listLocales } from "../i18n/index.js";
 import { FONT_DEFAULT, availableFonts } from "../i18n/font-store.js";
+import { allFontDefs } from "../styles/fonts.js";
 
 /** Minimal HTML escape — labels come from our own endonym table, escaped for defence in depth. */
 function esc(s) {
@@ -127,12 +128,20 @@ export function renderLanguageControl(renderers, { langOverride, currentLang, op
     ? `<div class="evcc-lang-menu-heading evcc-lang-menu-heading--sub">${t("font.heading")}</div>
        ${fonts.map((fontId) => {
          const isActive = fontId === activeFont;
+         // Every non-default font has a generated .evcc-font-sample-<id>
+         // (shipped: fontStyles; drop-ins: the runtime shadow style) — the
+         // option previews itself. Labels: shipped fonts have a font.<id>
+         // locale key; drop-ins carry their descriptor label, a typeface
+         // name rendered verbatim in every locale.
+         const sampleCls = fontId !== FONT_DEFAULT ? ` evcc-font-sample-${esc(fontId)}` : "";
+         const def = allFontDefs().find((d) => d.id === fontId);
+         const label = def?.runtime ? esc(def.label) : t(`font.${fontId}`);
          return `
         <button type="button" role="menuitemradio" aria-checked="${isActive}"
                 class="evcc-lang-option${isActive ? " is-active" : ""}"
                 data-action="set-font" data-font="${esc(fontId)}">
           <span class="evcc-lang-check" aria-hidden="true">${isActive ? "✓" : ""}</span>
-          <span class="evcc-lang-label${fontId === "opendyslexic" ? " evcc-font-sample-opendyslexic" : ""}">${t(`font.${fontId}`)}</span>
+          <span class="evcc-lang-label${sampleCls}">${label}</span>
         </button>`;
        }).join("")}`
     : "";
