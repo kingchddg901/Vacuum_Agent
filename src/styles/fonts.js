@@ -46,6 +46,51 @@
 /** Where __init__.py serves frontend/fonts/. Kept in one place. */
 const FONT_BASE = "/eufy_vacuum/fonts";
 
+/**
+ * THE font table — everything CSS-side about a selectable font, one entry per
+ * font. Adding a font = add its woff2 files to frontend/fonts/, add one entry
+ * here, and add its verified locales to i18n/font-store.js FONT_SUPPORT (the
+ * ids must match — TF-11 pins that) + a `font.<id>` label key. Every rule
+ * below (@font-face, the a11y-token setters, the picker sample class) is
+ * GENERATED from this table, so there is no hand-written per-font CSS to
+ * forget (live:FONT-1 was three copies of exactly that class of miss).
+ *
+ * `stack` MUST be a full fallback chain, and every inner var() MUST carry a
+ * fallback — a fallback-less var() on a setup where that var is unset poisons
+ * the whole declaration to guaranteed-invalid (TF-10).
+ */
+export const FONT_DEFS = [
+  {
+    id: "opendyslexic",
+    family: "OpenDyslexic",
+    stack: `"OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif)`,
+    /* Regular + Bold only. Italic and Bold-Italic are deliberately not
+       shipped: the card renders no italic body text, and each face is another
+       ~115KB the browser might fetch for nothing. */
+    faces: [
+      { file: "OpenDyslexic-Regular.woff2", weight: 400 },
+      { file: "OpenDyslexic-Bold.woff2", weight: 700 },
+    ],
+  },
+];
+
+/**
+ * Curated stacks the theme editor offers as CHIPS on the Font Family token —
+ * instead of a bare text entry (the text input stays as the escape hatch).
+ * Labels are typeface/product NAMES, rendered verbatim in every locale by
+ * Chris's ruling — names are not translated, so no i18n keys. Every FONT_DEFS
+ * font is appended automatically (TF-13), so a newly added card font shows up
+ * as a theme chip with zero extra wiring. Every var() in every stack MUST
+ * carry a fallback (TF-10 — the guaranteed-invalid trap).
+ */
+export const FONT_STACK_PRESETS = [
+  { id: "system", label: "System UI", stack: `system-ui, "Segoe UI", Roboto, sans-serif` },
+  { id: "ha", label: "Home Assistant", stack: `var(--paper-font-body1_-_font-family, sans-serif)` },
+  { id: "georgia", label: "Georgia", stack: `Georgia, "Times New Roman", serif` },
+  { id: "mono", label: "Consolas", stack: `ui-monospace, Consolas, "Cascadia Mono", monospace` },
+  ...FONT_DEFS.map((def) => ({ id: def.id, label: def.family, stack: def.stack })),
+];
+
 /* The face declarations, alone. Injected into document.head by
    ensureFontFacesInDocument() below — Chromium does NOT register @font-face
    rules that live only inside a shadow tree, so a shadow-stylesheet copy of
@@ -54,31 +99,38 @@ const FONT_BASE = "/eufy_vacuum/fonts";
    the gap because check() returns true for a family with no registered faces
    at all). The rules also remain part of fontStyles for engines that do read
    them from shadow sheets — duplicate registration of an identical face is a
-   no-op. */
-export const FONT_FACE_CSS = `
-  /* Regular + Bold only. Italic and Bold-Italic are deliberately not shipped:
-     the card renders no italic body text, and each face is another ~115KB the
-     browser might fetch for nothing. Synthetic oblique is an acceptable
-     degradation for the rare emphasis; two unused faces are not. */
+   no-op.
+   font-display: swap — show the fallback immediately and re-render when the
+   face arrives. On an accessibility typeface, invisible text while a 115KB
+   file loads is the worst possible failure mode. */
+export const FONT_FACE_CSS = FONT_DEFS.map((def) => def.faces.map((face) => `
   @font-face {
-    font-family: "OpenDyslexic";
-    src: url("${FONT_BASE}/OpenDyslexic-Regular.woff2") format("woff2");
-    font-weight: 400;
+    font-family: "${def.family}";
+    src: url("${FONT_BASE}/${face.file}") format("woff2");
+    font-weight: ${face.weight};
     font-style: normal;
-    /* swap: show the fallback immediately and re-render when the face arrives.
-       On an accessibility typeface, invisible text while a 115KB file loads is
-       the worst possible failure mode. */
     font-display: swap;
   }
+`).join("")).join("");
 
-  @font-face {
-    font-family: "OpenDyslexic";
-    src: url("${FONT_BASE}/OpenDyslexic-Bold.woff2") format("woff2");
-    font-weight: 700;
-    font-style: normal;
-    font-display: swap;
+/**
+ * The a11y-token setter rules for one host selector pattern. Used for the
+ * card's shadow sheet below and re-used by styles/index.js for the modal and
+ * toast hosts (document.body children cannot inherit a token declared on the
+ * card's :host, and applyDynamicTheme writes THEME tokens inline on those
+ * hosts — the a11y token stays a SEPARATE, sheet-declared token that every
+ * font-family read consults FIRST; see the chain comment below).
+ *
+ * @param {(id: string) => string} selectorFor - font id -> full selector.
+ * @returns {string} CSS rules, one per FONT_DEFS entry.
+ */
+export function fontTokenRules(selectorFor) {
+  return FONT_DEFS.map((def) => `
+  ${selectorFor(def.id)} {
+    --evcc-a11y-font-family: ${def.stack};
   }
-`;
+`).join("");
+}
 
 const FONT_FACE_STYLE_ID = "eufy-vacuum-font-faces";
 
@@ -99,35 +151,40 @@ export function ensureFontFacesInDocument(doc = globalThis.document) {
 export const fontStyles = `
   ${FONT_FACE_CSS}
 
-  /* The override. Set on the shell ROOT so it beats a theme that also sets
-     --evcc-font-family: the user's accessibility choice must win over a theme's
-     aesthetic one, and a theme cannot reach inside this attribute selector.
-     Every surface already reads the token (styles/index.js, theme-preview.js),
-     so this one declaration switches the whole card.
+  /* The override — one generated rule per FONT_DEFS entry, set on the shell
+     ROOT. A SEPARATE token, deliberately not --evcc-font-family: the theme's
+     Font Family token is written INLINE by applyDynamicTheme and inline beats
+     any sheet rule — so instead of fighting the cascade, precedence lives in
+     the fallback chain. Every font-family read is
+       var(--evcc-a11y-font-family, var(--evcc-font-family, …))
+     — accessibility first, theme second, HA default last. Unset (default, and
+     every non-verified locale via the glyph-coverage gate) it falls straight
+     through to the theme (live:FONT-1 remainder #2, 2026-08-06).
 
-     The stack stays a real fallback CHAIN. A glyph OpenDyslexic lacks — a
-     Cyrillic room name the user typed, a CJK label — falls through to the theme
-     font rather than rendering as tofu. That is required robustness, not a
-     failure: the coverage gate promises the card's own translated CHROME
-     renders in the font, never that arbitrary user data does. */
-  :host([data-evcc-font="opendyslexic"]),
-  [data-evcc-font="opendyslexic"] {
-    /* A SEPARATE token, deliberately not --evcc-font-family: the theme's Font
-       Family token is written INLINE by applyDynamicTheme and inline beats any
-       sheet rule — so instead of fighting the cascade, precedence lives in the
-       fallback chain. Every font-family read is
-         var(--evcc-a11y-font-family, var(--evcc-font-family, …))
-       — accessibility first, theme second, HA default last. Unset (default,
-       and every non-English locale via the glyph-coverage gate) this falls
-       straight through to the theme (live:FONT-1 remainder #2, 2026-08-06). */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
+     Each stack stays a real fallback CHAIN. A glyph the font lacks — a
+     Cyrillic room name the user typed, a CJK label — falls through to the
+     theme font rather than rendering as tofu. That is required robustness:
+     the coverage gate promises the card's own translated CHROME renders in
+     the font, never that arbitrary user data does. */
+  ${fontTokenRules((id) => `:host([data-evcc-font="${id}"]),\n  [data-evcc-font="${id}"]`)}
+
+  /* FORM CONTROLS DO NOT INHERIT FONTS. input/select/textarea/button default
+     to the UA font, so without this every text box ignores the selected
+     typeface (and the theme font) — found live: the theme-search placeholder
+     rendered the system font under OpenDyslexic. Element-level specificity, so
+     any feature rule that sets its own font still wins. */
+  input, textarea, select, button {
+    font-family: inherit;
   }
 
   /* The picker's own option renders IN the font it offers, so the user can see
      what they are choosing before choosing it — the one place the font must
      apply regardless of the current setting. Not the token: this option must
-     stay OpenDyslexic even while the card is on the default. */
-  .evcc-font-sample-opendyslexic {
-    font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
+     stay in its own face even while the card is on the default. Generated per
+     FONT_DEFS entry as .evcc-font-sample-<id>. */
+  ${FONT_DEFS.map((def) => `
+  .evcc-font-sample-${def.id} {
+    font-family: ${def.stack};
   }
+`).join("")}
 `;

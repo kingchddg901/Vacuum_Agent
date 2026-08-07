@@ -20,7 +20,7 @@
  */
 
 import { foundationStyles, sharedChipStyles } from "./foundation.js";
-import { fontStyles                          } from "./fonts.js";
+import { fontStyles, fontTokenRules          } from "./fonts.js";
 import { baseStationStyles                   } from "./base-station.js";
 import { metricsStyles                       } from "./metrics.js";
 import { reviewStyles                        } from "./review.js";
@@ -123,12 +123,7 @@ export const MODAL_HOST_STYLES = `
      branch of the document. The @font-face itself is registered document-wide, so
      only the token needs restating, not the face. Without this the card switches
      typeface and its modals do not. */
-  .evcc-modal-host[data-evcc-font="opendyslexic"] {
-    /* The a11y token, not --evcc-font-family: the theme token is written
-       INLINE on this host by applyDynamicTheme (Target 2); precedence lives in
-       the read's fallback chain — see styles/fonts.js. */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
-  }
+  ${fontTokenRules((id) => `.evcc-modal-host[data-evcc-font="${id}"]`)}
   * {
     box-sizing: border-box;
     margin: 0;
@@ -141,6 +136,12 @@ export const MODAL_HOST_STYLES = `
     cursor: pointer;
     font: inherit;
     color: inherit;
+  }
+
+  /* Form controls default to the UA font — inherit the host's (typeface-aware)
+     family instead; feature rules with their own font still win. */
+  input, textarea, select {
+    font-family: inherit;
   }
 
   /* =========================================================
@@ -919,10 +920,7 @@ export const TOAST_HOST_STYLES = `
      branch of the document. The @font-face itself is registered document-wide, so
      only the token needs restating, not the face. Without this the card switches
      typeface and its toasts do not. */
-  .evcc-toast-host[data-evcc-font="opendyslexic"] {
-    /* Same a11y-token pattern as the modal host above. */
-    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family, sans-serif);
-  }
+  ${fontTokenRules((id) => `.evcc-toast-host[data-evcc-font="${id}"]`)}
   * {
     box-sizing: border-box;
     margin: 0;

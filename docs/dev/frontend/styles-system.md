@@ -120,8 +120,19 @@ There is **no single default source.** When `applyDynamicTheme` removes/never-se
 The accessibility typeface (OpenDyslexic, the theme/paper default is the other option — see
 [i18n-system.md](i18n-system.md#the-language-control) for the per-user store) shipped once
 already **inert**: every rule involved was individually valid CSS/JS, and nothing caught that the
-rules didn't connect. `styles/typeface-wiring.test.mjs` (tests `TF-1`…`TF-6`) now asserts the
-*connections*, not just that each piece parses. The chain, in order:
+rules didn't connect. `styles/typeface-wiring.test.mjs` (tests `TF-1`…`TF-13`) now asserts the
+*connections*, not just that each piece parses.
+
+**All per-font CSS is GENERATED from `FONT_DEFS`** (`styles/fonts.js`) — the one table carrying
+each font's id, family, stack, and woff2 faces. `@font-face` blocks, the a11y-token setter rules
+(via `fontTokenRules(selectorFor)`, reused by `styles/index.js` for the modal/toast hosts), the
+picker sample classes, and the theme editor's Font Family preset chips all derive from it. Adding
+a font = drop the woff2 files in `frontend/fonts/`, add one `FONT_DEFS` entry, add its verified
+locales to `FONT_SUPPORT` (`i18n/font-store.js` — ids must match, `TF-11`) and a `font.<id>`
+label key. `TF-13` proves the new font surfaces as a theme chip automatically. Form controls
+(`input`/`textarea`/`select`/`button`) get an explicit `font-family: inherit` on both the shadow
+side and the modal host (`TF-12`) — they default to the UA font and silently ignore the typeface
+(and the theme font) otherwise. The chain, in order:
 
 1. **`@font-face` is registered on the DOCUMENT, not the shadow tree.** Chromium does not honour
    `@font-face` rules that live only inside a shadow root — `document.fonts.check()` still returns

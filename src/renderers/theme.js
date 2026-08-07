@@ -15,6 +15,7 @@ import {
   THEME_GROUPS,
 } from "../theme-tokens/index.js";
 import { floorTypeNames } from "../theme-tokens/floor-scope.js";
+import { FONT_STACK_PRESETS } from "../styles/fonts.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 import { FACETS, orderTags, facetOf, SUGGESTED_VIBE_TAGS } from "../theme-tags/index.mjs";
 
@@ -1004,6 +1005,26 @@ export function applyThemeRenderers(proto) {
   };
 
   proto._renderThemeTextTokenRow = function (token, value, isDraft) {
+    // The Font Family token gets preset CHIPS (curated stacks + every shipped
+    // card font, from FONT_STACK_PRESETS) above the text input — the input
+    // stays as the free-form escape hatch. Keyed on the TOKEN, not the
+    // "typography" type: font-weight tokens share the type and must not grow
+    // font chips. Labels are typeface names, rendered verbatim (never
+    // translated). Each chip previews ITSELF via --evcc-font-preview (set as a
+    // custom property so the inline-style rule stays within the sanctioned
+    // data->CSS escape hatch).
+    const fontPresets = token.key === "--evcc-font-family" ? `
+        <div class="token-control-row token-control-row--font-presets">
+          ${FONT_STACK_PRESETS.map((preset) => `
+            <button
+              class="evcc-chip evcc-font-preset${value === preset.stack ? " is-active" : ""}"
+              style="--evcc-font-preview: ${this.escapeHtml(preset.stack)}"
+              data-theme-font-preset="${this.escapeHtml(preset.stack)}"
+              data-theme-font-target="${this.escapeHtml(token.key)}"
+            >${this.escapeHtml(preset.label)}</button>
+          `).join("")}
+        </div>` : "";
+
     return `
       <div class="evcc-token-row evcc-token-row--text ${isDraft ? "is-draft" : ""}">
         <div class="token-head">
@@ -1024,7 +1045,7 @@ export function applyThemeRenderers(proto) {
             ` : ""}
           </div>
         </div>
-
+${fontPresets}
         <div class="token-control-row token-control-row--text">
           <input
             type="text"

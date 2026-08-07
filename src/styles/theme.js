@@ -728,6 +728,27 @@ export const themeStyles = `
     width: 100%;
   }
 
+  /* Font Family preset chips — each previews ITSELF via the custom property
+     the renderer sets inline (the sanctioned data->CSS escape hatch). The
+     text input below them stays the free-form escape hatch. */
+  .token-control-row--font-presets {
+    display:   flex;
+    flex-wrap: wrap;
+    gap:       6px;
+    width:     100%;
+  }
+
+  .evcc-font-preset {
+    font-family: var(--evcc-font-preview, inherit);
+    cursor:      pointer;
+  }
+
+  .evcc-font-preset.is-active {
+    background:  color-mix(in srgb, var(--evcc-accent) 18%, transparent);
+    color:       var(--evcc-accent);
+    font-weight: 600;
+  }
+
   /* =========================================================
      UNIFIED COLOR CONTROL
      ========================================================= */

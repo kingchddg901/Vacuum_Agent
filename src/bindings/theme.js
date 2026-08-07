@@ -598,6 +598,30 @@ export function applyThemeBindings(proto) {
      ========================================================= */
 
   proto._bindThemeTokenEdits = function () {
+    // Font Family preset chips — one click commits a curated stack through the
+    // exact same draft path as a settled text entry (payload -> persist ->
+    // patch -> apply -> deferred render), so the chips and the text input can
+    // never diverge in behavior.
+    this.card._onAll("[data-theme-font-preset]", "click", async (e) => {
+      const token = e.currentTarget.dataset.themeFontTarget;
+      const tokenDef = THEME_TOKEN_MAP[token];
+      if (!tokenDef) return;
+
+      const value = e.currentTarget.dataset.themeFontPreset || "";
+      this.card._state.setThemeFocusedGroup(tokenDef.group);
+
+      const payload = this._buildDraftPayload(token, value, tokenDef);
+      if (!Object.keys(payload).length) return;
+
+      await this.card._actions.updateWorkingDraft(
+        this.card._config.vacuum_entity_id,
+        payload
+      );
+      this.card._state.applyThemeDraftPatch(payload);
+      applyThemeToCard(this.card);
+      this.card._scheduleDeferredRender?.();
+    });
+
     this.card._onAll("[data-theme-token]", "input", async (e) => {
       const token = e.currentTarget.dataset.themeToken;
       const tokenDef = THEME_TOKEN_MAP[token];
