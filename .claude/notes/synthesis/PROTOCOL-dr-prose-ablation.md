@@ -609,3 +609,11 @@ Consequence for the current reconciliation: user-guide cluster patches apply ONL
 they document real interface changes from this epoch (Job Summary modal, per-map
 reject/unreject, the typeface setting, run-list truncation notice, access-graph issue
 explanations); cosmetic or mechanism-tracking rewrites are dropped at apply time.
+
+## AMENDMENT (Chris, 2026-08-06): advanced guides sequence AFTER disaster recovery
+
+The advanced guides need real work, but none of it happens until the DR set is done.
+The in-flight adv-contract / adv-guides patches finish their workflow runs and PARK —
+applied only after the DR reconciliation completes. (adv-contract's mechanical
+services/events fixes ride the same hold; copy-paste correctness matters, but a stable
+DR baseline matters first.)
