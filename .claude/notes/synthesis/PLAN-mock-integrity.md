@@ -113,3 +113,16 @@ sibling ratchet: enumerate the 34 into their subsystem pages, and add a
 completeness check (update_test_docs.py or a standalone gate) that fails on any
 test file absent from the docs — so this class dies with the mock class.
 "How to run" is fully documented (02-running-tests) — no gap there.
+
+## 8. Chris's actual question: do the docs SAY which tests are magic-mocked? — No.
+
+Verified: the subsystem pages carry coverage maps (module / stmts / % / files /
+layer) and behavior prose, but no per-file mock strategy — 19 incidental "mock"
+mentions across 18 pages, and the unit-vs-integration Layer column does not
+distinguish bare-MagicMock from spec'd from real-fixture, which is the axis that
+bites. AMENDMENT to W0: the census and the documentation are ONE derivation —
+extend scripts/update_test_docs.py to compute each test file's mock profile from
+source (bare MagicMock count / spec_manager? / mock-hass vs real hass fixture /
+factory usage) and emit it as a generated "Mocking" column in the subsystem
+tables. Generated = never drifts; the same data writes the W0 shrink-only
+allowlist. One instrument, two consumers: the ratchet and the reader.
