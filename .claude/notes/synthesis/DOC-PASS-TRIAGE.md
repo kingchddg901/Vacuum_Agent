@@ -133,3 +133,13 @@ open item.
 Header battery: nav.battery label (18 locales) + low/critical bands wired (<=20/<=10);
 HB-1/2 pins. Ratchet repinned same push (684b605): 57 accepted-class pairs from the
 job-summary + typeface features, all within Chris's adjudicated categories.
+
+### Drop-in fonts SHIPPED (cefc688 + 12e3b63, 2026-08-06) + one new bug signal
+Backend-verified user fonts: config/eufy_vacuum/fonts/<id>/ + user_fonts.py (fontTools cmap
+-> catalog.json); manifest now REQUIRES fonttools[woff2] (install verified live). OpenDyslexic
+FONT_SUPPORT widened en->12 locales by cmap evidence (the missing-l/r/i judgement was false).
+testdrop demo font live on Chris's box (delete config/eufy_vacuum/fonts/testdrop + restart to
+remove).
+- **R2-BUG-7 [live log]** history_store.py:411 read_json does a BLOCKING file read in the event
+  loop via _reap_stranded_phased_jobs (core/manager.py:602) at startup — HA flags it and asks
+  for a bug report. Wrap in async_add_executor_job.
