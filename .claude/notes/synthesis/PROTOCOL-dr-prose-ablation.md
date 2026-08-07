@@ -68,9 +68,26 @@ It may:
 - replace long failure histories with a concise current invariant;
 - remove implementation archaeology that belongs in the audit record;
 - rewrite prose for precision;
-- preserve exact boundary conditions and required behavior.
+- preserve exact boundary conditions and required behavior;
+- make corrective or clarifying additions where the original prose is wrong, silent, or ambiguous — correcting a known falsehood in place is **required**, not optional, since a trim that faithfully preserves a falsehood fails the disaster-recovery standard it serves.
 
 It must not weaken a contract merely to make the document shorter.
+
+## The removal manifest
+
+The trim agent has authority over **location**, never over meaning. Every removed passage — and every added sentence with no counterpart in the original — gets a destination tag in a **removal manifest** submitted with the candidate:
+
+- `dr` — stays (invariant).
+- `delta` — still actively reasoned about → docs/dev/deltas/.
+- `audit` — failures, disproofs, provenance → the audit record (the scars wing).
+- `lore` — true, valuable, but not rebuild-critical → the lore wing: still-true design rationale → docs/dev/design/ (never-rewrite conventions); agent-facing operational lore → .claude/notes/ knowledge base.
+- `discard` — requires a stated justification: redundant, false, or valueless.
+
+Additions are logged in the manifest's ADDITIONS section with a one-line justification and pass the same coupling scan (hardening rule 4) as everything else — additions are the natural smuggling channel, since the trimmer sees the implementation and authors the blind builder's only input. Unlogged additions are a rejected trim, the same class as an unrouted removal.
+
+Both removals and additions are held inside the net-shrink budget (hardening rule 1): the section total must still shrink, so additions cannot be used to pad the specification back up for points.
+
+The reviewer spot-checks the manifest; unrouted valuable prose is a rejected trim, the same class as a weakened contract. The manifest is also a handoff artifact — it feeds hardening-rule-11 forensics for free.
 
 ### Trim-agent scoring
 
@@ -101,9 +118,7 @@ Its purpose is to answer:
 
 > **Could somebody rebuild this subsystem correctly if the original implementation were gone?**
 
-The build agent must be **blind**.
-
-An isolated worktree is not sufficient if the original target implementation remains readable.
+The build agent must be **blind**. A merely isolated worktree does not satisfy this boundary if the original target implementation remains reachable from it — the concrete sandbox construction that does satisfy it is hardening rule 10.
 
 ## The blindness boundary
 
@@ -139,7 +154,7 @@ Once a builder has:
 
 that builder is contaminated for the purpose of certifying the revised DR section.
 
-**Every revised candidate must be tested by a fresh blind builder.**
+**Every revised candidate must be tested by a fresh blind builder.** Hardening rule 3 sets how many independent fresh builders a discovery-round closure requires.
 
 ### Build-agent scoring
 
@@ -470,7 +485,7 @@ Development reasoning
 
 The ablation protocol determines how much of the surviving current behavior actually needs to remain in DR.
 
-Long historical explanations may leave DR because their provenance now has a durable home in the audit record.
+Long historical explanations may leave DR because their provenance has a durable home in the audit record.
 
 Only their surviving reconstructive meaning remains.
 
@@ -539,349 +554,100 @@ It is there because the system was experimentally worse without its meaning.
 
 ---
 
-# ADOPTED SCORING HARDENING (audited 2026-08-06, Chris-approved)
+# Scoring Hardening Rules
 
-The incentive audit found seven exploit classes in the scoring surface. These rules close
-them and are PART OF THE PROTOCOL from the first run:
+The following rules close exploit and collusion classes in the scoring surface and are part of the protocol from the first run:
 
-1. **Net-shrink per closure.** Every closed round leaves the section strictly smaller than
-   it started. Kills reviewer invariant-inflation structurally — a document that must
-   shrink to close cannot be regrown for points.
-2. **A/B/C verdicts pay on their own closures.** A (builder error) closes when a fresh
-   builder greens with UNCHANGED prose; B (experiment error) when the repaired boundary
-   yields a green; C (test error) when the repaired test is shown to bite. Without this,
-   every ambiguous failure bends toward D.
-3. **2-of-2 fresh builders on discovery rounds** (escalate 2-of-3 on disagreement). A
-   single-sample closure is a coin-flip certification and re-litigating churn is revenue.
-   Clean first-pass trims may close on one builder.
-4. **Implementation-coupling is a rejection class.** Trimmed prose carrying information not
-   derivable from the public contract (internal names, incidental structure, test-expected
-   magic values) is rejected before any build — the trimmer sees the implementation and
-   authors the blind builder's only input, so answer-smuggling is the protocol's worst
-   failure mode and it needs no collusion, only optimization pressure.
-5. **D verdicts require a misreading artifact.** The reviewer must reproduce, from the
-   trimmed prose ALONE, the chain of reasonable readings that yields the wrong
-   implementation. Cannot articulate it → classify A. Blocks sandbagged-build farming.
-6. **Trim budget.** N candidate submissions per section (start N=3). A failed trim burns
-   the three most expensive roles; gambling must cost the gambler.
-7. **B-repair cap.** Two boundary repairs per section; after that the boundary spec itself
-   is the defect and escalates to Chris.
-8. **Biting-pin bounty.** Testers earn a small immediate bounty (outside the chain) for
-   novel pins certified to kill a deliberate breakage of the guarded behavior — otherwise
-   the tester's rational strategy is to run only the existing suite and never risk a C.
-9. **Closed-invariant ledger.** Each closure records the invariant AND its misreading.
-   Reopening a ledgered invariant needs new evidence; re-proving one pays nothing.
-10. **The sandbox generator is a prerequisite, not a detail.** Blind builds run in a
-    constructed directory containing ONLY the trimmed section + allowed interfaces +
-    dependency stubs. No repo checkout, no .claude/notes, no project memory. An isolated
-    worktree is NOT blind — the target implementation and its tests are one grep away.
+1. **Net-shrink per closure.** Every closed round leaves the section strictly smaller than it started. This kills reviewer invariant-inflation structurally — a document that must shrink to close cannot be regrown for points. Corrective or clarifying additions (see the removal manifest under Trim Agent) count against the same budget: they must fit inside the shrink, which keeps invariant-inflation and addition-padding equally unprofitable.
+2. **A/B/C verdicts pay on their own closures.** Verdict A (builder error) closes when a fresh builder greens with unchanged prose; verdict B (experiment error) closes when the repaired boundary yields a green; verdict C (test error) closes when the repaired test is shown to bite. Without this, every ambiguous failure bends toward D.
+3. **2-of-2 fresh builders on discovery rounds**, escalating to 2-of-3 on disagreement. A single-sample closure is a coin-flip certification, and re-litigating churn is revenue. Clean first-pass trims may still close on one builder.
+4. **Implementation-coupling is a rejection class.** Trimmed prose carrying information not derivable from the public contract — internal names, incidental structure, test-expected magic values — is rejected before any build by the **coupling scan**. The trimmer sees the implementation and authors the blind builder's only input, so answer-smuggling is the protocol's worst failure mode, and it needs no collusion, only optimization pressure.
+5. **D verdicts require a misreading artifact.** The reviewer must reproduce, from the trimmed prose alone, the chain of reasonable readings that yields the wrong implementation. If it cannot be articulated, the verdict is A instead. This blocks sandbagged-build farming.
+6. **Trim budget.** N candidate submissions per section (start N=3). A failed trim burns the three most expensive roles; gambling must cost the gambler.
+7. **B-repair cap.** Two boundary repairs per section; after that the boundary spec itself is the defect and escalates for a ruling.
+8. **Biting-pin bounty.** Testers earn a small immediate bounty, outside the chain, for novel pins certified to kill a deliberate breakage of the guarded behavior — otherwise the tester's rational strategy is to run only the existing suite and never risk a C.
+9. **Closed-invariant ledger.** Each closure records the invariant and its misreading. Reopening a ledgered invariant needs new evidence; re-proving one pays nothing.
+10. **The sandbox generator is a prerequisite, not a detail.** Blind builds run in a constructed directory containing only the trimmed section, allowed interfaces, and dependency stubs — no repo checkout, no `.claude/notes`, no project memory. An isolated worktree is not blind: the target implementation and its tests are one grep away.
+11. **Statistical handoff audits.** Per-artifact checks (rules 4 and 5) catch clumsy smuggling; a careful smuggler stays under any single-artifact threshold. The control for that lives at the population level:
+    - **Score ledger per agent-instance and per pair.** Track closures, discovery rounds, green rates, and verdict distributions — individually and per trimmer×builder pair, because collusion is invisible in individual stats and shows up as one pair's anomaly.
+    - **Two audit triggers:** a **random baseline** — a fixed fraction of closures (start 1 in 5) gets a handoff audit unconditionally, so staying under statistical thresholds is never safe — and a **statistical trigger** — any agent or pair whose points, green rate, or verdict mix departs the cohort norm (the outlier you would notice on a scoreboard). Signature patterns worth standing queries: a trimmer whose large deletions always green on the first build (coupling suspect); a builder whose greens concentrate on one trimmer's prose (pair suspect); a reviewer whose D-rate is an outlier (inflation suspect).
+    - **The audit itself** re-examines the handoff artifacts forensically. The measurable smoking gun is **incidental similarity**: a blind reconstruction that matches the original implementation's incidental choices — private helper names, internal structure, ordering the contract does not force — beyond chance is carrying smuggled answers, whatever the prose looks like. Trimmed prose gets the coupling scan; new tests get the over-pinning scan.
+    - **Consequences:** a confirmed smuggle voids the closure (points clawed back, ledger entry reopened, the section re-runs with fresh agents), and the implicated agent's or pair's prior closures get re-sampled — fraud clusters, and one confirmed case is never treated as isolated.
+12. **A confirmed smuggle voids the whole class, with an escrowed whistleblower carve-out.** A confirmed smuggled answer invalidates the entire chain, not just the smuggler: the loop's agent group for that section (trimmer, builder(s), tester, reviewer) is one class, and if one member cheated, the class fails — nobody scores, the closure is void, and the section re-runs with an entirely fresh class. There is no "I didn't smuggle, I just benefited" position: benefiting from a tainted chain costs you the chain. Collective liability makes every member a stakeholder in every other member's honesty — the builder has reason to refuse suspiciously helpful prose, the reviewer has reason to run the coupling scan hard, the tester has reason to probe a reconstruction that greens too easily.
 
-# ROLLOUT PLAN (the rest of the documents)
+    Collective punishment alone would align a tainted class around concealment, so an agent that flags a teammate's suspected smuggle before the audit finds it keeps its own earned credit and earns a capped detection bounty, even though the chain still voids. Inside a class, reporting must always dominate covering up.
 
-Sequencing constraint: **ablation only runs on truth-passed docs** — trimming a stale
-baseline confuses missing invariants with unapplied fixes.
+    **Whistleblower mechanics:**
+    - **Escrow, not payment-and-clawback.** Every role score is provisional until the chain closes *and* the random-audit window (rule 11) expires; nothing pays early, and claw-back for post-window discoveries runs through rule-11 re-sampling.
+    - **Reward = made-whole + capped bounty.** A confirmed flag pays the flagger exactly what their role would have earned on clean closure, plus a small fixed bounty. The cap is load-bearing: any surplus over honest closure invents entrapment farming (smuggle deliberately, confederate flags, split the take). Flagging must beat sitting in a tainted chain and must never beat honest work.
+    - **A whistleblower who materially participated in creating the violation gets zero.** The forensic review distinguishes OBSERVED contamination from CAUSED/ASSISTED contamination — handing the builder an answer and then reporting the builder earns nothing; honest observers keep the made-whole cap.
+    - **Filing requires evidence.** A flag names the artifact and the specific suspected leakage. Evidence-free flags are rejected without triggering an audit — composing evidence is the filing cost that prevents flag-spam-as-insurance.
+    - **A single false flag is unpunished.** A clean audit lets the chain close normally and costs the flagger nothing; every flag is ledgered regardless of outcome, so honest suspicion is never chilled.
+    - **Duplicate flags do not multiply.** The first materially independent report earns the whistleblower credit; later reports strengthen evidence but add no bounty unless they expose a distinct mechanism.
+    - **Flagger reliability is quality-scored, not raw-rate-scored:** specificity of evidence, whether the alleged mechanism was actually possible, severity, and whether misses were reasonable suspicions versus noise — because base rates swing wildly in a mostly-clean system and an evidenced flag with an innocent explanation is not spam. Chronic low-quality flagging still loses the auto-trigger: below a quality threshold, an agent's flags stop auto-triggering forensic audits and demote to rule-11 statistical signals; confirmed flags rebuild the record immediately, so a good flagger cannot be silenced by the mechanism.
+    - **Reciprocal-whistleblowing pattern detection.** Rule-11 forensics additionally query cross-chain coupling: repeated paired reporting, reciprocal timing, shared unusual artifacts, agents whose reports disproportionately involve one another. A flag can be individually legitimate while the pattern is collusive — the made-whole cap already makes the basic swap-flags-for-mutual-cover net-negative, but the pattern query catches subtler versions.
+    - **A flag is never a veto.** False flags do not void or delay closure beyond the audit itself. Post-closure suspicions feed rule-11 re-sampling, which owns retroactive claw-back, not direct reopening.
+    - **Whistleblower credit is delayed like everything else** — it pays when the forensic review establishes the contamination mechanism, not when something looks suspicious.
 
-1. **Calibration: doc 23 (error tracker).** Self-contained module, invariant-dense,
-   biting tests, cheap sandbox. Full loop, Chris eyeballs the result before anything else.
-2. **Confirmation: doc 18 (onboarding manager)** once dev-core's truth patch lands —
-   cleanest sandbox in the corpus (data+hass ctor). Run only if calibration leaves doubts
-   about generality; otherwise optional.
-3. **Fan-out top-down in READING ORDER — corrected rationale (Chris's check,
-   2026-08-07).** The doc numbers are LANDING order and the module graph is mutually
-   recursive (measured: 5 of 26 dependency-free, the rest one cluster —
-   `DOC-DEPENDENCY-MAP.md`), so a topological ablation order DOES NOT EXIST. Proof
-   composition does not need one: closures lean on other docs' INTERFACE STATEMENTS,
-   which all exist from day one. The fleet therefore runs ATOM-FIRST, then the README's
-   reading order (Chris's core-stands-alone check, doc 32): the atom's sections —
-   03 (spine/data), 21/22 (adapter), 07 (queue/dispatch), 08 (rooms), 06
-   (active_job) — close first, because with just those proven a rebuilt system
-   CLEANS; then the remainder top-to-bottom (01 → 02 → 04 → 05 → 30 → 09…15/31 →
-   16-18 → 25/26/29 → 28), with the compensating
-   rule that replaces sequencing: **any closure that alters a doc's PROVIDES surface
-   flags every dependent doc's closure provisional** (dependents per
-   DOC-DEPENDENCY-MAP.md). Trims must preserve interface statements regardless — they
-   are contract.
-   Invariant-density now only decides LOOP DEPTH per doc (full discovery loop vs
-   trim+single-build vs schema-reconstruction for shapes docs like 03/22), never
-   sequence. Doc 23 closed out of order as the calibration; the docs-only rebuild
-   drill re-validates it in its proper position. FRONTEND docs get the TRIM stage +
-   coupling check only — blind reconstruction of UI prose has no biting test surface
-   and would certify nothing. USER GUIDES are EXEMPT from ablation entirely — not
-   even trim+coupling.
+    **The payout table:**
 
-   **Three sequences share the atom-first principle without being the same sequence
-   — do not collapse them (GPT review, 2026-08-07):**
+    ```text
+    Clean honest closure:                          role points earned normally
+    Confirmed contamination, no whistleblower:      contaminated chain's points void
+    Confirmed contamination, honest whistleblower:  chain void; flagger recovers <= honest-role maximum
+    Contamination caused/assisted by whistleblower: chain void; flagger gets 0
+    Unsupported but evidenced flag:                 chain continues; no reward; reliability record updated
+    Evidence-free flag:                             rejected without consuming a forensic audit
+    ```
+
+    The design goal is not trustworthy agents — it is an economy where betraying the experiment is unattractive, hiding a betrayal is less attractive than exposing it, and manufacturing a betrayal is unprofitable.
+13. **Base revisions.** The protocol produces a whole-file replacement built from a snapshot of the DR section and the target source, so applying a closed candidate needs an explicit base to compare against — without one, applying is a silent overwrite of a file that may have moved since the snapshot was taken.
+
+    Mechanism:
+    - At trim submission, record two base revisions in the manifest header: the git blob hash of the DR section and of the target source module (cheap via `git rev-parse HEAD:<path>`; both are handoff artifacts rule-11 forensics get for free).
+    - At apply time, recompute both hashes.
+      - **DR section hash unchanged** → apply directly.
+      - **DR section hash changed** → the apply is **blocked** pending three-way reconciliation (base, live, candidate). Every live hunk with no counterpart in the candidate is either re-applied onto it or discarded with a stated justification in the manifest, under the same routing discipline as a removal. An unreconciled apply is a rejected closure, the same class as an unrouted removal or an unlogged addition — the failure it causes is identical (meaning silently leaves the corpus), and it is worse in one respect: it reverts work that was already proven and shipped.
+      - **Target source hash changed** → the closure is **provisional**. The builders were certified against behavior that may no longer exist, so the examination re-runs against the current source's behavioral tests before escrow releases — the same shape as the suspension rule for a pin later found toothless (see Important Interaction with the Test Audit): the apparatus moved, so the proof is only as current as the thing it measured.
+      - A candidate whose base is more than one epoch-edge commit stale is re-trimmed, not merged. Beyond a small drift, three-way reconciliation stops being bookkeeping and becomes an unreviewed rewrite by the coordinator, who is not a trim agent, has seen everything, and is exactly the actor rule 4 exists to keep out of the prose.
+      - A stale base is never silently overwritten.
+
+    This mechanism belongs to the protocol rather than to operator care: the coordinator applying a patch has read the original, the trimmed candidate, every build, and the adjudication — the most contaminated position in the entire loop. Assuming the coordinator will simply notice a drifted base is the same assumption rule 4 refuses to make about the trimmer, and it is less safe here, not more.
+14. **One live statement per rule.** A normative collision — two authoritative statements each individually followable and jointly unsatisfiable — is a doc-defect class of its own. An amendment that changes a rule rewrites the rule where it lives, or explicitly strikes it — never merely appends an override. One live statement per rule; superseded text survives in git and the audit record, not in the living document. Reviewers include a collision sweep in their checklist: any "supersedes/amendment" language triggers a check that the overridden text was actually neutralized. This matters because the protocol's readers are retrieval-based agents that may load either statement without the other — for them a collision is nondeterministic behavior, not an ambiguity a human resolves by "newer wins."
+
+---
+
+# Rollout Plan
+
+Sequencing constraint: **ablation only runs on truth-passed docs** — trimming a stale baseline confuses missing invariants with unapplied fixes.
+
+1. **Calibration: doc 23 (error tracker).** Self-contained module, invariant-dense, biting tests, cheap sandbox. Runs the full loop before anything else.
+2. **Confirmation: doc 18 (onboarding manager),** once its truth patch lands — the cleanest sandbox in the corpus (data + hass constructor). Run only if calibration leaves doubts about generality; otherwise optional.
+3. **Fan-out order.** The doc numbers are landing order; the module graph is mutually recursive (5 of 26 dependency-free, the rest one cluster — see `DOC-DEPENDENCY-MAP.md`), so no topological ablation order exists. Proof composition does not need one: closures lean on other docs' interface statements, which all exist from day one. The fleet runs atom-first, then the README's reading order (doc 32): the atom's sections — 03 (spine/data), 21/22 (adapter), 07 (queue/dispatch), 08 (rooms), 06 (active_job) — close first, because with just those proven a rebuilt system CLEANS; then the remainder top-to-bottom (01 → 02 → 04 → 05 → 30 → 09…15/31 → 16-18 → 25/26/29 → 28). The compensating rule that replaces sequencing: **any closure that alters a doc's PROVIDES surface flags every dependent doc's closure provisional** (dependents per `DOC-DEPENDENCY-MAP.md`). Trims must preserve interface statements regardless — they are contract.
+
+   Invariant-density decides LOOP DEPTH per doc only (full discovery loop vs trim+single-build vs schema-reconstruction for shapes docs like 03/22) — never sequence.
+
+   FRONTEND docs get the TRIM stage + coupling scan only — blind reconstruction of UI prose has no biting test surface and would certify nothing.
+
+   **User guides are exempt from ablation entirely — not even trim+coupling.** They are the most abstract layer, and their standing update policy is separate from ablation: touched only when an actual interface changes — a new surface, control, flow, or setting the user can see. Internal-mechanism changes, phrasing accuracy, and doc-hygiene churn never propagate to them.
+
+   Three sequences share the atom-first principle without being the same sequence — do not collapse them:
    - *Ablation order* (this section): which docs get experimentally minimized first.
    - *Reading order* (the README): how a maintainer best learns the existing system.
-   - *Recovery progression* (00 §0): which CAPABILITIES come online — spine, then
-     adapter/dispatch/rooms/job capability with the manager accreting wiring, then
-     rings against a working core. The numbered docs are EVIDENCE PACKAGES for those
-     capabilities, not one-file-at-a-time build instructions; "03 → 21/22 → 07 → 08
-     → 06 then rings" names the ablation priority, never the literal executable
-     reconstruction sequence.
-4. **Per-doc outputs:** the trimmed DR section (net-smaller), migrated history into the
-   audit record with provenance tags, ledger entries for every earned invariant, and the
-   section's §7 status row updated.
-5. **Suspension rule:** any test-audit finding that a relied-upon pin was toothless marks
-   the affected sections provisional and re-eligible, per the protocol's own apparatus
-   clause.
+   - *Recovery progression* (00 §0): which capabilities come online — spine, then adapter/dispatch/rooms/job capability with the manager accreting wiring, then rings against a working core. The numbered docs are evidence packages for those capabilities, not one-file-at-a-time build instructions; "03 → 21/22 → 07 → 08 → 06 then rings" names the ablation priority, never the literal executable reconstruction sequence.
+4. **Per-doc outputs:** the trimmed DR section (net-smaller), migrated history into the audit record with provenance tags, ledger entries for every earned invariant, and the section's status row updated.
+5. **Suspension rule:** any test-audit finding that a relied-upon pin was toothless marks the affected sections provisional and re-eligible, per the protocol's own apparatus clause (see Important Interaction with the Test Audit).
+6. **Advanced guides sequence after disaster recovery.** Advanced-guide patches (adv-contract, adv-guides) do not apply until the DR reconciliation completes: in-flight workflow runs finish and then park, applied only once DR is done. Mechanical fixes (adv-contract's services/events corrections) ride the same hold — copy-paste correctness matters, but a stable DR baseline matters first.
 
-## AMENDMENT (Chris, 2026-08-06): user guides are exempt
+---
 
-User-guide docs are the most abstract layer and are EXEMPT from ablation entirely (not
-even trim+coupling). Their standing update policy: **touched only when an actual
-interface changes** — a new surface, control, flow, or setting the user can see. Internal
-mechanism changes, phrasing accuracy, and doc-hygiene churn never propagate to them.
-Consequence for the current reconciliation: user-guide cluster patches apply ONLY where
-they document real interface changes from this epoch (Job Summary modal, per-map
-reject/unreject, the typeface setting, run-list truncation notice, access-graph issue
-explanations); cosmetic or mechanism-tracking rewrites are dropped at apply time.
+# Staffing and Model Fit
 
-## AMENDMENT (Chris, 2026-08-06): advanced guides sequence AFTER disaster recovery
+- **Trim / Blind Build / Test: Sonnet.** Per-artifact loops. The builder especially: an over-strong builder compensates for an underspecified doc and weakens the ablation test — competent-but-ordinary is the honest instrument.
+- **Review/adjudication: Opus (high).** Causal-chain judgement, one section's evidence at a time.
+- **The economy is a script, never a model:** escrow ledger, trim budget (N=3), B-repair cap (2), contamination tracking, random handoff sampling, outlier statistics — mechanical workflow bookkeeping. Agents never compute their own scores; sampling cannot be predicted or persuaded. The protocol assumes gamed incentives; the counter is arithmetic that does not listen, not a smarter referee.
+- **Fable is used at exactly two points, by escalation rather than by staffing:**
+  1. contested forensic rulings (void/no-void decisions with payout consequences that survive the Opus forensic audit);
+  2. one review pass over the doc-23 calibration round's outcome — the round every other closure calibrates against — before fan-out.
 
-The advanced guides need real work, but none of it happens until the DR set is done.
-The in-flight adv-contract / adv-guides patches finish their workflow runs and PARK —
-applied only after the DR reconciliation completes. (adv-contract's mechanical
-services/events fixes ride the same hold; copy-paste correctness matters, but a stable
-DR baseline matters first.)
-
-## AMENDMENT (Chris, 2026-08-06): hardening rule 11 — statistical handoff audits
-
-Per-artifact checks (rules 4, 5) catch clumsy smuggling; a careful smuggler stays under
-any single-artifact threshold. The control for that lives at the POPULATION level:
-
-- **Score ledger per agent-instance and per PAIR.** Track closures, discovery rounds,
-  green rates, and verdict distributions — individually AND per trimmer×builder pair,
-  because collusion is invisible in individual stats and shows as one pair's anomaly.
-- **Two audit triggers:** (a) a RANDOM baseline — a fixed fraction of closures (start 1
-  in 5) gets a handoff audit unconditionally, so staying under statistical thresholds is
-  never safe; (b) STATISTICAL — any agent or pair whose points/green-rate/verdict mix
-  departs the cohort norm (rule of thumb: the outlier you would notice on a scoreboard).
-  Signature patterns worth standing queries: a trimmer whose LARGE deletions always green
-  first-build (coupling suspect); a builder whose greens concentrate on one trimmer's
-  prose (pair suspect); a reviewer whose D-rate is an outlier (inflation suspect).
-- **The audit itself** re-examines the handoff artifacts forensically. The measurable
-  smoking gun is INCIDENTAL SIMILARITY: a blind reconstruction that matches the original
-  implementation's incidental choices — private helper names, internal structure,
-  ordering the contract does not force — beyond chance is carrying smuggled answers,
-  whatever the prose looks like. Trimmed prose gets the coupling scan; new tests get the
-  over-pinning scan.
-- **Consequences:** a confirmed smuggle VOIDS the closure (points clawed back, ledger
-  entry reopened, the section re-runs with fresh agents), and the implicated agent/pair's
-  PRIOR closures get re-sampled — fraud clusters; one confirmed case is never treated as
-  isolated.
-
-## AMENDMENT (Chris, 2026-08-06): rule 12 — a smuggle voids the whole class
-
-A confirmed smuggled answer invalidates the ENTIRE chain, not just the smuggler: the
-loop's agent group (trimmer, builder(s), tester, reviewer) is one CLASS, and if one
-member cheated, the class fails — nobody gets points, the closure is void, the section
-re-runs with an entirely fresh class. No "I didn't smuggle, I just benefited" position
-exists: benefiting from a tainted chain costs you the chain.
-
-Why: collective liability makes every member a stakeholder in every other member's
-honesty. The builder has reason to refuse suspiciously helpful prose; the reviewer has
-reason to run the coupling scan hard; the tester has reason to probe a reconstruction
-that greens too easily.
-
-**Whistleblower carve-out (required complement):** collective punishment alone aligns a
-tainted class around CONCEALMENT — if all lose on discovery, all gain from hiding it. So:
-an agent that flags a teammate's suspected smuggle BEFORE the audit finds it keeps its
-own earned credit (and earns the detection bounty) while the chain still voids. Inside a
-class, reporting must always dominate covering up. A flag that proves false costs the
-flagger nothing beyond the wasted audit — honest suspicion is never punished, or nobody
-raises it.
-
-## AMENDMENT (2026-08-06): rule 12a — whistleblower mechanics, exact
-
-- **Reward = made-whole + capped bounty.** A CONFIRMED flag pays the flagger exactly what
-  their role would have earned on clean closure, plus a small fixed bounty. The cap is
-  load-bearing: any surplus over honest closure invents entrapment farming (smuggle
-  deliberately, confederate flags, split the jackpot). Flagging must beat sitting in a
-  tainted chain and must never beat honest work.
-- **Filing requires evidence.** A flag names the artifact and the specific suspected
-  leakage (the whistle's misreading-artifact). Evidence-free flags are rejected WITHOUT
-  triggering an audit — composing evidence is the filing cost that prevents
-  flag-spam-as-insurance.
-- **A single false flag is unpunished.** Clean audit → chain closes normally, flagger
-  loses nothing. Punishing a first honest miss chills the reporting the rule exists for.
-  Every flag is LEDGERED regardless of outcome.
-- **Habitual false flagging is de-weaponized, not fined.** Per-agent flag precision is
-  tracked; below threshold (start: <1-in-3 confirmed, rolling window) the agent's flags
-  stop auto-triggering forensic audits and demote to rule-11 statistical signals.
-  Precision recovers → privilege recovers. Confirmed flags rebuild precision immediately,
-  so a good flagger cannot be silenced by the mechanism.
-- **A flag is never a veto.** False flags do not void or delay closure beyond the audit
-  itself. Post-closure suspicions feed rule-11 re-sampling (which owns retroactive
-  claw-back), not direct reopening.
-
-## AMENDMENT (2026-08-06): rule 12b — escrow, participant-zero, and the payout table
-*(three-agent convergence: Chris + secondary reviewer + coordinator)*
-
-- **Escrow, not payment-and-claw-back.** Every role score is PROVISIONAL until the chain
-  closes AND the random-audit window expires. Nothing pays early; claw-back exists only
-  for post-window discoveries via rule-11 re-sampling.
-- **A whistleblower who materially participated in creating the violation gets ZERO.**
-  The forensic reviewer distinguishes OBSERVED contamination from CAUSED/ASSISTED
-  contamination. You cannot hand the builder an answer and then report the builder.
-  (Honest observers keep the 12a made-whole cap; participants get nothing.)
-- **Duplicate flags do not multiply.** The first materially independent report earns the
-  whistleblower credit; later reports strengthen evidence but add no bounty unless they
-  expose a DISTINCT mechanism.
-- **Flagger reliability is quality-scored, not raw-rate-scored.** The fixed 1-in-3
-  precision threshold is replaced: base rates swing wildly in a mostly-clean system, and
-  an evidenced flag with an innocent explanation is not spam. Score on: specificity of
-  evidence, whether the alleged mechanism was actually possible, severity, and whether
-  misses were reasonable suspicions versus garbage. Chronic garbage still loses the
-  auto-trigger (12a's de-weaponization).
-- **Reciprocal-whistleblowing pattern detection.** The made-whole cap already makes the
-  basic A-contaminates/B-flags swap net-negative (lose a chain, recover at most one), but
-  rule-11 forensics additionally query CROSS-CHAIN coupling: repeated paired reporting,
-  reciprocal timing, shared unusual artifacts, agents whose reports disproportionately
-  involve one another. A flag can be individually legitimate while the pattern is
-  collusive.
-- **Whistleblower credit is delayed like everything else** — it pays when the forensic
-  review ESTABLISHES the contamination mechanism, not when something "looks suspicious."
-
-**The payout table:**
-
-```text
-Clean honest closure:                         role points earned normally
-Confirmed contamination, no whistleblower:    contaminated chain's points void
-Confirmed contamination, honest whistleblower: chain void; flagger recovers <= honest-role maximum
-Contamination caused/assisted by whistleblower: chain void; flagger gets 0
-Unsupported but evidenced flag:               chain continues; no reward; reliability record updated
-Evidence-free flag:                           rejected without consuming a forensic audit
-```
-
-The design goal, stated plainly: not trustworthy agents — an economy where betraying the
-experiment is unattractive, hiding a betrayal is less attractive than exposing it, and
-manufacturing a betrayal is unprofitable.
-
-## AMENDMENT (Chris, 2026-08-06): nothing is deleted — everything is routed
-
-The trim agent has authority over LOCATION, never over meaning. Every removed passage
-gets a destination tag in a **removal manifest** the trim submits with its candidate:
-
-- `dr`       — stays (invariant).
-- `delta`    — still actively reasoned about → docs/dev/deltas/.
-- `audit`    — failures, disproofs, provenance → the audit record (the SCARS wing).
-- `lore`     — true, valuable, but not rebuild-critical → the LORE wing:
-               still-true design rationale → docs/dev/design/ (never-rewrite conventions);
-               agent-facing operational lore → .claude/notes/ knowledge base.
-- `discard`  — requires stated justification: redundant, false, or valueless.
-
-The reviewer spot-checks the manifest; unrouted valuable prose is a REJECTED trim, same
-class as a weakened contract. The manifest is also a handoff artifact — it feeds rule-11
-forensics for free.
-
-## STAFFING / MODEL FIT (Chris's token constraint, 2026-08-06)
-
-- **Trim / Blind Build / Test: Sonnet.** Per-artifact loops. The builder
-  especially: an over-strong builder compensates for an underspecified doc and
-  WEAKENS the ablation test — competent-but-ordinary is the honest instrument.
-- **Review/adjudication: Opus (high).** Causal-chain judgement, one section's
-  evidence at a time.
-- **The economy is a SCRIPT, never a model:** escrow ledger, trim budget (N=3),
-  B-repair cap (2), contamination tracking, 1-in-5 random handoff sampling,
-  outlier statistics — mechanical workflow bookkeeping. Agents never compute
-  their own scores; sampling cannot be predicted or persuaded. The protocol
-  assumes gamed incentives; the counter is arithmetic that does not listen,
-  not a smarter referee.
-- **Fable at exactly two points, by escalation not by staffing:**
-  1. contested forensic rulings (void/no-void with payout consequences that
-     survive the Opus forensic audit);
-  2. ONE review pass over the doc-23 calibration round's outcome — the
-     precedent-setter — before fan-out.
   Fable spend is measured in rulings, not rounds.
-
-## AMENDMENT (CAL-23 R1 finding + Chris ruling, 2026-08-07): additions are ALLOWED — and logged
-
-The trim role explicitly INCLUDES corrective and clarifying additions where the
-original prose is wrong, silent, or ambiguous — round 1 proved both faces: the
-trimmer's best moment was an addition (correcting §7.2's wiring before the repo's
-own fix landed) and its one induced divergence was an addition too (an unlogged
-field-table row whose phrasing implied lifecycle behavior the code doesn't have).
-The rule is therefore license + ledger, not suspicion:
-
-- Additions are legitimate trim output; when the original is wrong, correcting it
-  in place is REQUIRED, not optional (a trim that faithfully preserves a falsehood
-  fails the DR standard it serves).
-- Every sentence with no counterpart in the original is logged in the manifest's
-  ADDITIONS section with a one-line justification, and passes the same rule-4
-  coupling scan as everything else — additions are the natural smuggling channel.
-- Net-shrink per closure (hardening rule 1) still governs the section TOTAL:
-  additions live inside the shrink budget, which keeps invariant-inflation and
-  addition-padding structurally unprofitable.
-- Unlogged additions remain a rejected trim, same class as an unrouted removal.
-
-## AMENDMENT (CAL-23 apply-step finding, 2026-08-07): rule 13 — BASE REVISIONS, because the loop has no merge base
-
-The protocol produces a **whole-file replacement** built from a snapshot taken hours
-earlier, and until now had no notion of a base revision for either artifact. Applying a
-closed candidate is therefore a silent `cp` over a file that may have moved. Nothing in
-rules 1-12 detects it.
-
-This is not an edge case. It is the DEFAULT path for any round that draws first blood,
-because the two rules COLLIDE by design:
-
-- lifecycle §13 REQUIRES a corrected DR statement to land in the same commit as the fix;
-- the ablation loop is meanwhile holding a frozen copy of that same section.
-
-CAL-23 is the worked example. The trim's baseline was doc 23 at **475** lines
-(`31edf3b`). Round 1's first blood — §7.2 documented the deprecated `harvest_active_run`
-as the live finalizer wiring — was applied to the LIVE doc immediately and correctly,
-taking it to **488** (`e649b9e`). The closed candidate was 415 lines built from the 475
-snapshot. It was applied by hand-diffing first and found benign (round 2 had restored the
-same correction), but the check was ad-hoc, performed by the coordinator, and is nowhere
-in this document. On a nine-section fan-out against an actively developed tree it will
-not stay benign.
-
-**The mechanism (mechanical, no judgement, belongs in the coordinator's script):**
-
-1. **At trim submission, record two base revisions in the manifest header** — the git
-   blob hash of the DR section AND of the target source module. Cheap
-   (`git rev-parse HEAD:<path>`), and both are handoff artifacts rule-11 forensics get
-   for free.
-
-2. **At apply time, recompute both.**
-
-   - **DR section hash UNCHANGED** → apply directly. This is the clean case.
-   - **DR section hash CHANGED** → application is **BLOCKED**. Reconcile three-way
-     (base, live, candidate). Every live hunk with no counterpart in the candidate is
-     either re-applied onto it or discarded with a stated justification in the manifest,
-     under the same routing discipline as a removal. An unreconciled apply is a REJECTED
-     closure, same class as an unrouted removal or an unlogged addition — the failure it
-     causes is identical (meaning silently leaves the corpus) and it is worse in one
-     respect: it reverts work that was already proven and shipped.
-   - **TARGET SOURCE hash CHANGED** → the closure is **PROVISIONAL**. The builders were
-     certified against behaviour that no longer exists, so the examination must re-run
-     against the current source's behavioural tests before escrow releases. This is the
-     same shape as the existing suspension rule for a pin later found toothless: the
-     apparatus moved, so the proof is only as current as the thing it measured.
-
-3. **A candidate whose base is more than one epoch-edge commit stale is re-trimmed, not
-   merged.** Beyond a small drift, three-way reconciliation stops being bookkeeping and
-   becomes an unreviewed rewrite by the coordinator — who is not a trim agent, has seen
-   everything, and is exactly the actor rule 4 exists to keep out of the prose.
-
-**Why this belongs to the protocol and not to operator care:** the coordinator applying
-the patch is the one actor who has read the original, the trimmed candidate, every build,
-and the adjudication. That is the maximally contaminated position in the entire loop.
-"The coordinator will notice" is precisely the assumption rule 4 refuses to make about
-the trimmer, and it is less safe here, not more.
-
-## AMENDMENT (GPT review + agent follow-up, 2026-08-07): rule 14 — one live statement per rule
-
-A NORMATIVE COLLISION — two authoritative statements each individually followable and
-jointly unsatisfiable — is a doc-defect class of its own, and an append-amendment
-style is its natural breeding ground. Discipline:
-
-- An amendment that changes a rule REWRITES the rule where it lives (or explicitly
-  strikes it), never merely appends an override. One live statement per rule; the
-  superseded text survives in git and the audit record, not in the living doc.
-- Reviewers add a collision sweep to their checklist: any "supersedes/amendment"
-  language triggers a check that the overridden text was actually neutralized.
-- Rationale (the agent-trap): the fleet's readers are retrieval-based agents that may
-  load either statement without the other — for them a collision is nondeterministic
-  behaviour, not ambiguity a human resolves by "newer wins."
