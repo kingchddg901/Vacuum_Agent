@@ -598,3 +598,14 @@ baseline confuses missing invariants with unapplied fixes.
 5. **Suspension rule:** any test-audit finding that a relied-upon pin was toothless marks
    the affected sections provisional and re-eligible, per the protocol's own apparatus
    clause.
+
+## AMENDMENT (Chris, 2026-08-06): user guides are exempt
+
+User-guide docs are the most abstract layer and are EXEMPT from ablation entirely (not
+even trim+coupling). Their standing update policy: **touched only when an actual
+interface changes** — a new surface, control, flow, or setting the user can see. Internal
+mechanism changes, phrasing accuracy, and doc-hygiene churn never propagate to them.
+Consequence for the current reconciliation: user-guide cluster patches apply ONLY where
+they document real interface changes from this epoch (Job Summary modal, per-map
+reject/unreject, the typeface setting, run-list truncation notice, access-graph issue
+explanations); cosmetic or mechanism-tracking rewrites are dropped at apply time.
