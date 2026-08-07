@@ -604,9 +604,22 @@ baseline confuses missing invariants with unapplied fixes.
    Invariant-density now only decides LOOP DEPTH per doc (full discovery loop vs
    trim+single-build vs schema-reconstruction for shapes docs like 03/22), never
    sequence. Doc 23 closed out of order as the calibration; the docs-only rebuild
-   drill re-validates it in its proper position. Frontend and user-guide docs still
-   get the TRIM stage + coupling check only — blind reconstruction of UI prose has no
-   biting test surface and would certify nothing.
+   drill re-validates it in its proper position. FRONTEND docs get the TRIM stage +
+   coupling check only — blind reconstruction of UI prose has no biting test surface
+   and would certify nothing. USER GUIDES are EXEMPT from ablation entirely — not
+   even trim+coupling — per Chris's amendment below (this sentence previously
+   contradicted it; GPT's review caught the conflict, the amendment is normative).
+
+   **Three sequences share the atom-first principle without being the same sequence
+   — do not collapse them (GPT review, 2026-08-07):**
+   - *Ablation order* (this section): which docs get experimentally minimized first.
+   - *Reading order* (the README): how a maintainer best learns the existing system.
+   - *Recovery progression* (00 §0): which CAPABILITIES come online — spine, then
+     adapter/dispatch/rooms/job capability with the manager accreting wiring, then
+     rings against a working core. The numbered docs are EVIDENCE PACKAGES for those
+     capabilities, not one-file-at-a-time build instructions; "03 → 21/22 → 07 → 08
+     → 06 then rings" names the ablation priority, never the literal executable
+     reconstruction sequence.
 4. **Per-doc outputs:** the trimmed DR section (net-smaller), migrated history into the
    audit record with provenance tags, ledger entries for every earned invariant, and the
    section's §7 status row updated.
