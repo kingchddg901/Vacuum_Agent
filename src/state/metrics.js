@@ -17,6 +17,7 @@ export function applyMetricsState(proto) {
         filters: {
           room_slug: "",
           profile_key: "",
+          profile_name: "",
           status: "",
           used_for_learning: "",
         },
@@ -41,6 +42,7 @@ export function applyMetricsState(proto) {
       metricsState.filters = {
         room_slug: incomingFilters.room_slug == null ? "" : String(incomingFilters.room_slug),
         profile_key: incomingFilters.profile_key == null ? "" : String(incomingFilters.profile_key),
+        profile_name: incomingFilters.profile_name == null ? "" : String(incomingFilters.profile_name),
         status: incomingFilters.status == null ? "" : String(incomingFilters.status),
         used_for_learning:
           typeof incomingFilters.used_for_learning === "boolean"
@@ -167,6 +169,17 @@ export function applyMetricsState(proto) {
   proto._isAmbiguousProfileLabel = function (label) {
     return !!(this._ambiguousProfileLabels && this._ambiguousProfileLabels.has(String(label)));
   };
+  proto.metricsFilterProfileNameOptions = function () {
+    /* R2-BUG-2. Saved-profile chip options for the Metrics tab. get_metrics_snapshot
+       passes filter_options straight through from the history snapshot, so this is the
+       same list the Review tab shows and the two tabs cannot drift apart. */
+    const options = this.metricsSnapshot()?.filter_options?.profile_names;
+    if (!Array.isArray(options)) return [];
+    return options
+      .filter((option) => String(option?.value ?? "").trim() !== "")
+      .map((option) => ({ value: String(option.value), label: String(option?.label ?? option.value) }));
+  };
+
   proto.metricsFilterProfileOptions = function () {
     const options = this.metricsSnapshot()?.filter_options?.profiles;
     // Return raw backend options; disambiguation is done LOCALIZED at render

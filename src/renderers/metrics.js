@@ -86,9 +86,11 @@ export function applyMetricsRenderers(proto) {
 
             <div class="evcc-metrics-filters">
               ${this._renderMetricsChipFilter(this.t("metrics.filter_room"), "room_slug", state.metricsFilterRoomOptions?.(), state.metricsFilters?.().room_slug, this.t("metrics.filter_all_rooms"))}
-              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_key",
-                this._localizedProfileOptions(state.metricsFilterProfileOptions?.() ?? []),
-                state.metricsFilters?.().profile_key, this.t("metrics.filter_all_profiles"))}
+              ${/* R2-BUG-2 — saved profile, not the per-room settings signature. Same
+                    change as the Review tab's row; see state.metricsFilterProfileNameOptions. */ ""}
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_name",
+                state.metricsFilterProfileNameOptions?.() ?? [],
+                state.metricsFilters?.().profile_name, this.t("metrics.filter_all_profiles"))}
               ${this._renderMetricsChipFilter(this.t("metrics.filter_status"), "status", state.metricsFilterStatusOptions?.(), state.metricsFilters?.().status, this.t("metrics.filter_all_statuses"))}
               ${this._renderMetricsChipFilter(this.t("metrics.filter_learning_use"), "used_for_learning", state.metricsFilterUsedOptions?.().map((option) => ({
                 value: option?.value_key ?? option?.value,

@@ -784,7 +784,17 @@ get_metrics_snapshot:
         text: {}
     profile_key:
       name: Profile key
-      description: Optional observed room-profile filter.
+      description: >-
+        Optional observed room-profile SIGNATURE filter (one room cleaned one way).
+        Room-scoped by construction; use profile_name to filter by saved profile.
+      required: false
+      selector:
+        text: {}
+    profile_name:
+      name: Profile name
+      description: >-
+        Optional SAVED PROFILE filter, for example vacuum_quick. Room-independent, so it
+        composes with room_slug rather than implying it.
       required: false
       selector:
         text: {}

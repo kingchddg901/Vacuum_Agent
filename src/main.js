@@ -1010,6 +1010,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: this._state.vacuumEntityId?.(),
       room_slug: filters.room_slug || undefined,
       profile_key: filters.profile_key || undefined,
+      profile_name: filters.profile_name || undefined,  // R2-BUG-2
       status: filters.status || undefined,
       used_for_learning:
         filters.used_for_learning === "true"

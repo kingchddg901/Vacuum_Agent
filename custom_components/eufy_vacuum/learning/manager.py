@@ -2380,9 +2380,18 @@ class LearningManager:
         # Built from the same source rather than from the profile catalogue: a name only
         # appears if some run actually used it, so the row never offers a chip that filters
         # to nothing. Both selected and resolved are collected, matching _profile_matches.
+        # Sourced from the UNFILTERED index, narrowed only by ROOM — deliberately NOT from
+        # profile_filter_source. That list has already had _profile_matches applied, which
+        # now includes profile_name, so building the options from it made the row delete
+        # every chip except the selected one: you could never switch profiles without
+        # clearing first. A filter must not narrow its own option list. (Room DOES narrow
+        # it, and should — those are different axes, and "profiles seen in this room" is
+        # the useful reading.)
         _profile_name_values: set[str] = set()
-        for item in profile_filter_source:
+        for item in index_room_profiles:
             if not isinstance(item, dict):
+                continue
+            if room_slug_filter and str(item.get("room_slug", "")).strip().lower() != room_slug_filter:
                 continue
             for _key in ("selected_profile_name", "resolved_profile_name"):
                 _name = str(item.get(_key, "")).strip().lower()
@@ -2443,6 +2452,12 @@ class LearningManager:
             "filters": {
                 "room_slug": room_slug_filter,
                 "profile_key": profile_key_filter,
+                # R2-BUG-2. Echoed back so the card can re-derive which chip is active from
+                # the response rather than trusting its own optimistic local state — the
+                # same contract every other filter here has. Missing, the Metrics tab (which
+                # reads its filters from this dict) would show no chip selected however
+                # correctly the filter had been applied.
+                "profile_name": profile_name_filter,
                 "status": status_filter,
                 "used_for_learning": used_for_learning,
                 "origin": origin_filter,
@@ -2502,14 +2517,22 @@ class LearningManager:
         vacuum_entity_id: str,
         room_slug: str | None = None,
         profile_key: str | None = None,
+        profile_name: str | None = None,
         status: str | None = None,
         used_for_learning: bool | None = None,
     ) -> dict[str, Any]:
-        """Return a metrics-focused snapshot without the job review list."""
+        """Return a metrics-focused snapshot without the job review list.
+
+        R2-BUG-2 applies here too: the Metrics tab carries the same Profile chip row, so
+        it takes the same saved-profile axis. Everything below delegates, and
+        ``filter_options`` is passed through wholesale, so the ``profile_names`` options
+        arrive without further work — only the FILTER had to be threaded.
+        """
         snapshot = self.get_learning_history_snapshot(
             vacuum_entity_id=vacuum_entity_id,
             room_slug=room_slug,
             profile_key=profile_key,
+            profile_name=profile_name,
             status=status,
             used_for_learning=used_for_learning,
             limit=1,
@@ -2528,6 +2551,7 @@ class LearningManager:
             "filters": {
                 "room_slug": snapshot.get("filters", {}).get("room_slug"),
                 "profile_key": snapshot.get("filters", {}).get("profile_key"),
+                "profile_name": snapshot.get("filters", {}).get("profile_name"),
                 "status": snapshot.get("filters", {}).get("status"),
                 "used_for_learning": snapshot.get("filters", {}).get("used_for_learning"),
             },

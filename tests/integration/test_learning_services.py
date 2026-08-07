@@ -3961,3 +3961,49 @@ async def test_profile_name_chip_options_are_room_independent(hass, learning_ser
     assert values.count("vacuum_quick") == 1, (
         f"same profile in two rooms should be ONE chip, got {values}"
     )
+
+
+async def test_metrics_snapshot_takes_the_same_profile_name_axis(hass, learning_services):
+    """[LS-62] R2-BUG-2, Metrics half. The Metrics tab carries the same Profile chip row,
+    so it takes the same saved-profile filter — and because get_metrics_snapshot delegates
+    and passes filter_options through wholesale, the two tabs cannot drift apart on either
+    the options or the filtering."""
+    _seed_completed_job(hass, _VAC, "j-mx-quick", room_slugs=["kitchen"],
+                        profile_name="vacuum_quick")
+    _seed_completed_job(hass, _VAC, "j-mx-deep", room_slugs=["dining_room"],
+                        profile_name="vacuum_deep")
+    LearningHistoryStore(hass).save_jobs_index(vacuum_entity_id=_VAC, payload={"jobs": []})
+
+    snap = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_METRICS_SNAPSHOT,
+        {"vacuum_entity_id": _VAC, "profile_name": "vacuum_deep"},
+        blocking=True, return_response=True,
+    )
+
+    # Echoed back, so the chip can render as selected from the RESPONSE rather than from
+    # optimistic local state — without this the filter applied and no chip lit up.
+    assert snap.get("filters", {}).get("profile_name") == "vacuum_deep"
+    # The options list arrives via the passthrough, identical to the Review tab's — and
+    # crucially it still offers the OTHER profiles while one is selected. Building it from
+    # the already-filtered list left only the active chip, so the row became a dead end.
+    values = [o.get("value") for o in snap.get("filter_options", {}).get("profile_names", [])]
+    assert "vacuum_deep" in values and "vacuum_quick" in values, (
+        f"a filter must not narrow its own option list, got {values}"
+    )
+    # And it actually narrowed. The SIGNATURE list (filter_options.profiles) runs through
+    # _profile_matches, so under a saved-profile filter it must contain only signatures
+    # whose profile is that one — compared against the unfiltered call, so the assertion
+    # cannot pass just because the store happens to be small.
+    unfiltered = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_METRICS_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    all_sigs = unfiltered.get("filter_options", {}).get("profiles", [])
+    deep_sigs = snap.get("filter_options", {}).get("profiles", [])
+    assert len(deep_sigs) < len(all_sigs), (
+        f"profile_name did not narrow the metrics snapshot ({len(deep_sigs)} of {len(all_sigs)})"
+    )
+    assert all(
+        "vacuum_deep" in {sig.get("selected_profile_name"), sig.get("resolved_profile_name")}
+        for sig in deep_sigs
+    ), f"a signature from another profile survived: {deep_sigs}"
