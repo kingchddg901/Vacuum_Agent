@@ -290,18 +290,31 @@ cancels its grace timer, and drops it from the lookup maps. **In-memory only**: 
 `error_tracker` record is dropped separately by `EufyVacuumManager.remove_vacuum_record` (both are
 called from `__init__.py` on device removal).
 
-### 7.2 Harvest
+### 7.2 Harvest — the peek/commit pair
 
 ```python
-tracker.harvest_active_run(vacuum_entity_id: str, job_id: str | None) -> dict | None
+tracker.peek_active_run(vacuum_entity_id: str, job_id: str | None) -> dict | None
+tracker.commit_active_run(vacuum_entity_id: str, peeked: dict | None) -> bool
 ```
-Returns the single `active_run_error` latch dict for the given vacuum and nulls it out (sets it back to `None`). Returns `None` if no latch was formed. A mismatched `job_id` is logged at debug and the latch is returned anyway — losing history is worse than attaching it to the wrong job. (The debug log fires only when **both** the latch's `active_job_id` and the passed `job_id` are non-`None` and differ.)
+Two-phase by design: **peek** returns a snapshot of the single `active_run_error` latch
+WITHOUT clearing it (`None` if no latch formed); **commit** clears the latch peek returned,
+and runs only AFTER `save_completed_job` succeeds — so a failed save leaves the run's error
+history intact and recoverable instead of destroyed. A mismatched `job_id` on peek is logged
+at debug and the latch is returned anyway — losing history is worse than attaching it to the
+wrong job. (The debug log fires only when **both** the latch's `active_job_id` and the passed
+`job_id` are non-`None` and differ.)
+
+`harvest_active_run(...)` (single destructive read-and-clear) is **DEPRECATED** with zero
+production callers — retained only because existing tests assert its semantic; a one-shot
+destructive read cannot be made safe against a persistence failure. Do not add callers.
 
 **Injection + payload contract.** The finalizer does **not** import the tracker.
-`learning/manager.py::_make_error_source(hass)` builds a closure
-`error_source(vacuum_entity_id, job_id) -> tracker.harvest_active_run(...)` and injects it into
-`LearningJobFinalizer(error_source=…)`; the finalizer calls `self._error_source(...)` (the §9.3
-host contract in [10](10-learning-system.md)). The harvested latch is folded into the completed
+`learning/manager.py::_make_error_source(hass)` builds a closure over
+`tracker.peek_active_run(...)` and `_make_error_commit(hass)` one over
+`tracker.commit_active_run(...)`; both are injected into
+`LearningJobFinalizer(error_source=…, error_commit=…)`; the finalizer calls
+`self._error_source(...)` before building the record and `self._error_commit(...)` after the
+durable write (the §9.3 host contract in [10](10-learning-system.md)). The harvested latch is folded into the completed
 job's `outcome` under four keys: `had_errors` (bool, `error_count > 0`), `error_count` (int),
 `errors` (the **full latch dict verbatim**), `total_error_seconds` (int). `total_error_seconds` is
 derived from the latch's `errors[]` — each treated as a half-open `[captured_at, recovered_at)`
@@ -467,7 +480,7 @@ Two comparisons are deliberately **not** adapter-configurable:
 |---|---|---|
 | `__init__.py` `async_setup_entry` | `ErrorTracker(...)` + `tracker.start(vacuum_entity_ids)` | Integration load |
 | `__init__.py` `async_unload_entry` | `tracker.stop()` | Integration unload |
-| `learning/job_finalizer.py` (via injected `error_source`, wired in `learning/manager.py`) | `tracker.harvest_active_run(vacuum_entity_id, job_id)` | Job finalization — folds the latch into `outcome.errors` / `had_errors` / `error_count` / `total_error_seconds` (§7.2) |
+| `learning/job_finalizer.py` (via injected `error_source` + `error_commit`, wired in `learning/manager.py`) | `tracker.peek_active_run(...)` before the record is built; `tracker.commit_active_run(...)` after the durable write | Job finalization — folds the latch into `outcome.errors` / `had_errors` / `error_count` / `total_error_seconds`; a failed save leaves the latch intact (§7.2) |
 | `sensor/error.py` entities | `tracker.get_active_run_latch(...)` / `tracker.get_last_device_latch(...)` | Entity state read |
 | `binary_sensor.py` (`ActiveRunHasErrorBinarySensor`) | `tracker.get_active_run_latch(...)` | Entity state read (`is_on` = `error_count > 0`, sticky through `recovered`) |
 | `__init__.py` (device removal) | `tracker.unregister_vacuum(...)` + `manager.remove_vacuum_record(...)` | A managed vacuum's device is deleted |
