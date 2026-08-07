@@ -46,6 +46,25 @@ Constant-voltage phase ("CV taper"). Voltage is held at maximum while current de
 
 The integration updates `sensor.<vacuum>_charge_rate_high_zone` only when battery is in this range.
 
+### Rate guards
+
+Two guards protect the instantaneous rate sensors:
+
+- **Gap guard** (`MAX_RATE_INTERVAL_SEC` = 600): a rate is only computed when the
+  previous sample is at most 10 minutes old — a longer gap (an HA restart, the
+  integration unloaded for a while) would produce a meaningless average over the
+  gap. The drain still counts toward cumulative cycles, since drain is
+  independent of time.
+- **Plausibility ceiling** (`MAX_PLAUSIBLE_RATE_PCT_PER_MIN` = 2.5): the battery
+  level is quantised to whole percent, so `delta / elapsed` inflates without
+  limit as the interval shrinks — a 1 % tick landing 18 s after the previous
+  sample reads as 3.33 %/min whatever the pack is really doing. A computed rate
+  above 2.5 %/min (a 40-minute 0→100 charge, far beyond any dock these adapters
+  serve) is discarded rather than published; the rejected value is retained on
+  the in-memory/stored record only (not on a sensor attribute, `samples.jsonl`
+  column, or diagnostics), and the integration logs a WARNING naming the
+  rejected rate at the point of discard.
+
 ### Mid-job recharge — 15→75 %
 
 Not a zone of the charge curve but a *type* of session. When the X10 Pro Omni runs a multi-room job and battery drops to ~15 %, it returns to the dock for a partial recharge to ~75 %, then resumes. Other Eufy models use similar logic.
@@ -88,7 +107,7 @@ The integration exposes both:
 - `sensor.<vacuum>_cv_charge_speed` — resistance proxy (CV regime). Drops as internal resistance rises.
 - `sensor.<vacuum>_battery_health` — headline. Alias of `cv_charge_speed`. Kept under this entity_id for continuity with installs that pre-date the regime split, since CV-side slowdown is what most users mean by "battery health".
 
-Both regime sensors use the same scale: 100 % matches your install baseline, below 100 % is slower than baseline, above 100 % is faster (rare but not a malfunction).
+Both regime sensors use the same scale: 100 % matches your install baseline, below 100 % is slower than baseline, above 100 % is faster (rare but not a malfunction). The headline `_battery_health` sensor is additionally **capped at 100 %** for display — a battery is never "healthier than new" — while the raw uncapped value stays on `_cv_charge_speed` and in the headline's `uncapped_pct` attribute.
 
 ### Baseline
 
@@ -97,7 +116,9 @@ A "qualifying recharge" is a session where:
 - `start_battery ≤ 50 %` (`HEALTH_QUALIFY_START_MAX`)
 - `end_battery ≥ 90 %` (`HEALTH_QUALIFY_END_MIN`)
 
-The baseline is anchored on the **first** qualifying session that has *both* regimes populated (`BASELINE_SAMPLE_COUNT = 1`). The baseline storage block carries one anchor value per regime, plus shared metadata:
+That both-sides window is the **anchor** criterion. For the ongoing comparison the two regimes qualify independently — but the threshold alone is not sufficient, the regime also has to have actually been *traversed*: a session contributes a CC-side sample when it *starts* at or below 50 % **and** its `cc_min_per_pct` was actually populated (a 45→48 top-up starts low enough but never crosses into the 50→80 window, so it produces no CC attribution and is correctly excluded), and a CV-side sample when it *ends* at or above 90 % **and** its `cv_min_per_pct` was populated (a 96→100 top-up satisfies the end threshold by never crossing 80→90, so it is excluded from CV too). With both guards, ordinary partial recharges that do cross the relevant window keep both signals fed. Qualifying sessions are retained in a dedicated store (`health_qualifying_sessions`, capped at 500) separate from the 50-session display ring, so a baseline's anchor session can never rotate out from under it.
+
+The baseline is anchored on the **first** fully qualifying session that has *both* regimes populated (`BASELINE_SAMPLE_COUNT = 1`). The baseline storage block carries one anchor value per regime, plus shared metadata:
 
 ```python
 "baseline": {
@@ -109,6 +130,8 @@ The baseline is anchored on the **first** qualifying session that has *both* reg
 ```
 
 Until the baseline is anchored, both regime sensors and the headline return None and the at-a-glance chip in the card shows "Building baseline". A session that qualifies on overall window (50→90) but only crosses one regime (e.g. 51→89, which has no CV span) does **not** anchor the baseline — the integration waits for a session that crosses both, so both anchors come from the same physical recharge.
+
+Once there is session history, the headline also explains an unavailable reading through paired `health_unavailable_reason` / `health_unavailable_reason_text` attributes: `insufficient_discharge_data` when no completed charge has ever qualified, or `implausible_regime_ratio` when a CV-side value was computed but rejected by the plausibility gate (see [Formula](#formula)).
 
 > **Why 50→90, not the textbook 30→95?** A robot vacuum on single-room jobs rarely drains far enough for the strict window to fire. The 30→95 window left baselines unseeded for months on real installs. The 50→90 window covers both the CC region (50→80) and the CV taper (80→90), so a single qualifying recharge populates both regime anchors at once.
 
@@ -122,7 +145,7 @@ The same constant-rate-within-a-sample assumption that `rate_per_min` makes is u
 
 ### Current
 
-A 14-day (`CURRENT_WINDOW_DAYS`) rolling window of qualifying sessions. If no sessions fall in the window, the most recent qualifying session is used as a fallback so the sensor never gets stuck at None after baseline is set.
+A 14-day (`CURRENT_WINDOW_DAYS`) rolling window over the retained qualifying sessions, computed per regime (a session feeds the CC mean when it CC-qualifies, the CV mean when it CV-qualifies). If no sessions fall in the window, the most recent qualifying session with that regime populated is used as a fallback so the sensor never gets stuck at None after baseline is set.
 
 The 14-day window (vs. the more conventional 7) is sized to match real-world recharge frequency: a vacuum running mostly single-room jobs may go several days between sessions that hit even the relaxed 50→90 window. A 7-day window risked spending most of its time on the fallback (= comparing baseline to a single recent session); 14 days reliably has multiple samples to average over.
 
@@ -136,7 +159,7 @@ To anchor the baseline immediately rather than waiting for organic use, run one 
 - **Narrow path or 2 passes** — doubles minutes-per-m².
 - **Edge cleaning on** — adds a perimeter pass.
 
-After the job, dock for an uninterrupted charge to ≥ 90 %. On session-close, `_update_health` sees one qualifying session in `session_history_recent` with both regimes populated and anchors `baseline.cc_min_per_pct`, `baseline.cv_min_per_pct`, `baseline.session_count = 1`, `baseline.anchored_at = end_ts` in one shot.
+After the job, dock for an uninterrupted charge to ≥ 90 %. On session-close, `_update_health` sees one fully qualifying session in the retained qualifying-session store with both regimes populated and anchors `baseline.cc_min_per_pct`, `baseline.cv_min_per_pct`, `baseline.session_count = 1`, `baseline.anchored_at = end_ts` in one shot.
 
 Don't try to bleed the battery down by leaving the vacuum off the dock idle — standby draw is too low to hit 50 % in any reasonable time. The high-power cleaning configuration is the only practical way to force a deep cycle.
 
@@ -152,7 +175,7 @@ data:
   vacuum_entity_id: vacuum.alfred
 ```
 
-This sets `baseline.cc_min_per_pct`, `baseline.cv_min_per_pct`, `baseline.session_count`, `baseline.anchored_at`, and all three stat fields (`stats.cc_charge_speed_pct`, `stats.cv_charge_speed_pct`, `stats.health_pct`) to None. The next qualifying recharge re-anchors all of them in one go. Cycles, cumulative drain, per-job aggregates, mid-job rate, and session history are not touched — those still reflect the *vacuum's* lifetime telemetry, which doesn't reset on a battery swap.
+This sets `baseline.cc_min_per_pct`, `baseline.cv_min_per_pct`, and `baseline.anchored_at` to None, resets `baseline.session_count` to `0`, and sets all three stat fields (`stats.cc_charge_speed_pct`, `stats.cv_charge_speed_pct`, `stats.health_pct`) to None. It also clears the retained qualifying-session store — otherwise the very next health update would re-anchor off an old, pre-swap session still sitting in it. The next qualifying recharge re-anchors everything in one go. Cycles, cumulative drain, per-job aggregates, mid-job rate, and session history are not touched — those still reflect the *vacuum's* lifetime telemetry, which doesn't reset on a battery swap.
 
 ### Formula
 
@@ -164,7 +187,9 @@ cv_charge_speed_pct = round(baseline.cv_min_per_pct / current_cv_min_per_pct * 1
 health_pct          = cv_charge_speed_pct   # alias
 ```
 
-Where `current_<regime>_min_per_pct` is the mean of that regime's `min_per_pct` across qualifying sessions whose `end_ts` falls within `CURRENT_WINDOW_DAYS` (14). Falls back to the most recent qualifying session that has the regime populated when the rolling window is empty.
+Where `current_<regime>_min_per_pct` is the mean of that regime's `min_per_pct` across that regime's qualifying sessions whose `end_ts` falls within `CURRENT_WINDOW_DAYS` (14). Falls back to the most recent qualifying session that has the regime populated when the rolling window is empty.
+
+The computed ratio is unbounded by construction, so each regime is checked for plausibility independently before publishing: a value outside **25–150 %** is rejected — that regime's sensor reads unknown (None) and the raw figure is retained on the internal record only (`stats.cc_charge_speed_rejected_pct` / `stats.cv_charge_speed_rejected_pct` — not exposed on any sensor attribute, `samples.jsonl`, or diagnostics), with a WARNING logged at the point of rejection. (A regime measured over a very short span drives the divisor toward zero and the ratio explodes; and a cell cannot genuinely charge much faster than its own install baseline, so a large reading is a measurement artefact, not electricity.) Because the headline `health_pct` is the CV alias, `health_unavailable_reason` only ever reads `implausible_regime_ratio` when the **CV-side** value was the one rejected — a CC-only rejection (CV still fine) leaves the headline populated and `health_unavailable_reason` at `None`, with the rejection visible only in the integration's log, not on the `_cc_charge_speed` sensor (whose attributes stay limited to `baseline_min_per_pct`, `baseline_session_count`, `baseline_anchored_at`).
 
 Interpretation (assuming the baseline was anchored when the battery was healthy):
 
@@ -174,7 +199,7 @@ Interpretation (assuming the baseline was anchored when the battery was healthy)
 | 85-95 % | Slower than baseline. Could be environmental drift or early aging — track the trend. |
 | 70-85 % | Substantially slower than baseline. Meaningful drift in this regime. |
 | < 70 % | End-of-life relative to your baseline for this regime. |
-| Above 105 % | Briefly possible — cooler ambient, looser charge cycle, or noise on a small dataset. Not a malfunction. |
+| Above 105 % | Briefly possible on the CC/CV sensors — cooler ambient, looser charge cycle, or noise on a small dataset. Not a malfunction. (The capped `_battery_health` headline never reads above 100; check `uncapped_pct` or `_cv_charge_speed`.) |
 
 A drop in *both* CC and CV over the same horizon is the strongest replacement signal — capacity loss and resistance rise both worsening together is the textbook end-of-life profile. A drop in only one warrants more data before acting; environmental drift can move either independently for weeks.
 
@@ -262,7 +287,7 @@ All twelve sensors are pre-fixed with the vacuum's object_id (e.g. `sensor.alfre
 | `_charge_rate_high_zone` | last rate when ≥ 80 % | %/min | as above |
 | `_mid_job_recharge_rate` | rolling mean of mid-job rates | %/min | sample_count, last_rate_per_min, last_recorded_at |
 | `_last_charge_duration` | minutes for last completed session | min | last_charge_delta_pct |
-| `_battery_health` | headline; alias of `_cv_charge_speed` | % | baseline_cv_min_per_pct, baseline_cc_min_per_pct, baseline_session_count, baseline_anchored_at, completed_sessions |
+| `_battery_health` | headline; alias of `_cv_charge_speed`, capped at 100 % | % | uncapped_pct, baseline_cv_min_per_pct, baseline_cc_min_per_pct, baseline_session_count, baseline_anchored_at, completed_sessions, health_unavailable_reason, health_unavailable_reason_text |
 | `_cc_charge_speed` | CC regime (50→80) speed vs baseline | % | baseline_min_per_pct, baseline_session_count, baseline_anchored_at |
 | `_cv_charge_speed` | CV regime (80→90) speed vs baseline | % | baseline_min_per_pct, baseline_session_count, baseline_anchored_at |
 | `_last_job_drain_per_min` | drain rate of last job | %/min | (see below) |
@@ -286,11 +311,12 @@ The three `_last_job_*` sensors carry the same rich attribute payload, including
 
 - `job_id`, `recorded_at`, `duration_min`, `area_m2`, `battery_used_pct`
 - `single_clean_mode`, `single_fan_speed`, `single_water_level` — null when mixed
-- `mid_job_recharge` — True if the run recharged mid-clean (excluded from the per-config drain means)
 - `weighted_by` — how per-room weights were computed
 - `post_job_charge` — the linked recharge session (null if not yet observed)
 - `all_jobs_mean`, `all_jobs_count` — running mean across all jobs
 - `by_clean_mode_mean`, `by_fan_speed_mean`, `by_water_level_mean` — per-bucket means and counts (only fed by single-bucket jobs)
+
+The stored last-job record also carries a `mid_job_recharge` flag — True if the run recharged mid-clean, which keeps it out of the per-config drain means — but that flag is internal bookkeeping only and is not surfaced in the sensor's attribute payload above.
 
 ---
 
@@ -333,7 +359,7 @@ One row per completed charge session, header on first write:
 start_ts,end_ts,duration_min,start_battery,end_battery,delta_pct,avg_rate_per_min,min_rate_per_min,max_rate_per_min,samples,ended_reason
 ```
 
-`ended_reason` is `full` (battery hit 100 %) or `stopped` (charging ended early). Open in any spreadsheet for trend charting.
+`ended_reason` is `full` (battery hit 100 %) or `stopped` (charging ended early). An open session older than 12 hours (`SESSION_MAX_HOURS`) is force-closed and discarded rather than logged. Open the CSV in any spreadsheet for trend charting.
 
 ---
 

@@ -106,6 +106,7 @@ Tokens are organized into the following groups, in this order:
 | Modals & Overlays | Modal backdrop, modal surface, modal header and footer |
 | Animal Companion | Parent group of the map companion: global mascot tokens shared by every animal |
 | Animal Companion — &lt;Name&gt; | One sub-group per registered animal (Cat, Dog, Raccoon, …) holding that animal's colors; generated from the registered animal list, not hand-listed |
+| Rainbow Bridge / Rainbow Bridge — &lt;Name&gt; | Memorial companions — animals registered with the memorial flag render as a tribute section after the everyday companions, with the same parent/sub-group nesting. Only present when a memorial animal is registered |
 | Shared Foundations | Cross-cutting values: gap, radius, font scale, hover lift, transition speed |
 
 The Floor Texture sub-groups (Tile, Wood, Marble, etc.) are nested visually under the parent Floor Textures group. Their headers display the sub-group name without the parent prefix, so "Floor Textures — Tile" appears as just "Tile" when expanded. The Animal Companion sub-groups follow the same parent/sub-group nesting, and their list grows automatically as new mascot files are registered.
@@ -164,7 +165,7 @@ The footer bar at the bottom of the editor always shows the full set of save and
 
 The save button in the footer changes label depending on whether a theme is currently active:
 
-- If an active theme is set, the button reads **Save Changes** and calls `overwrite_theme` to write the current draft back into that theme.
+- If an active theme is set, the button reads **Save Changes** and — after a confirmation dialog that names the target theme — calls `overwrite_theme`. The overwrite layers only the keys your draft actually touched onto the target theme's own stored values; anything on the target your draft never touched survives unchanged.
 - If no theme is active (you are working against defaults without a named theme selected), the button reads **Save as New** and prompts you for a name. It then calls `save_theme_as_new` with that name.
 
 After a successful save, the draft is cleared and the saved theme becomes the active theme.
@@ -175,7 +176,7 @@ Renaming a theme uses the `rename_theme` service. There is no inline rename cont
 
 ### Delete
 
-Click the close-circle button on any custom preset card in the Themes tab. A browser confirmation prompt appears before the `delete_theme` service is called. The default theme cannot be deleted (it has no delete button).
+Click the close-circle button on any custom preset card in the Themes tab. A confirmation dialog appears before the `delete_theme` service is called. The default theme cannot be deleted (it has no delete button).
 
 ### Discard
 
@@ -239,10 +240,23 @@ Outlier / Excluded / Baseline) each carry a distinct **shape mark** —
 ✓ ◐ ! ✕ – ◆ — that reads in flat grayscale, so the states are identifiable
 without relying on hue. The marks are always on, in every theme.
 
-How the palette is validated (the CVD simulation matrices — Machado 2009
-protan/deutan plus Brettel 1997 tritan — the CIEDE2000 ≥ 15 separation gate over
-the ten group pairs, and the shape-mark grayscale check) is covered in
+How the *preset's own* palette is validated at authoring time (the CVD
+simulation matrices — Machado 2009 protan/deutan plus Brettel 1997 tritan —
+the CIEDE2000 ≥ 15 separation gate over the ten group pairs, and the
+shape-mark grayscale check) is covered in
 [frontend/render-harness](../dev/frontend/render-harness.md).
+
+That dev-time harness check is separate from the **live `colorblind-safe`
+tag**. For every theme in your library — this preset, an edited copy of it,
+or anything else — that tag is re-derived from the theme's own palette
+whenever the library changes, and is never stored, so it cannot go stale.
+The tag runs a lighter, faster verification over only the four
+status semantics (success / warning / error / info — `muted` is not part of
+this pass): Machado 2009 simulation for all three CVD types (no separate
+tritan model), CIELab ΔE (CIE76) across the six status pairs, floor **ΔE ≥
+19**. The tag is stripped — with a reason naming the failing pair, the CVD
+type, and the measured ΔE — the moment a theme fails it, so `colorblind-safe`
+is always a live, verified claim rather than a label that can go stale.
 
 ---
 

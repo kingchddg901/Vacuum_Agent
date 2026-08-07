@@ -89,7 +89,7 @@ The step-by-step Eufy-app capture procedure — clearing floor types, 2D mode, h
 
 CV variants are uploaded from the **Image Variants** section (Auto (CV) mode), then analysed — walkthrough in the [user guide](../user-guide/16-making-your-own-maps.md#upload-and-analyse). CV variants are sent **as-is** (an oversized one is rejected, never silently shrunk), so prefer a **PNG** at a modest resolution; see [Image size, resolution & format](#image-size-resolution--format). For reference:
 
-The backend converts non-PNG uploads to PNG before saving. It stores the file at `eufy_vacuum/maps/<vacuum_id>/map_<map_id>_<suffix>.png` (the dark variant uses the suffix `_dark`, light uses `_light`, default has no suffix). The browser URL for the stored file is recorded and used to render the map image in the card.
+The backend converts non-PNG uploads to PNG before saving. It stores the file at `eufy_vacuum/maps/<object_id>/map_<map_id>_<suffix>.png` (the `<object_id>` is the vacuum's object id; the dark variant uses the suffix `_dark`, light uses `_light`, default has no suffix). The browser URL for the stored file is recorded and used to render the map image in the card.
 
 After a successful upload and analysis cycle, the variant row updates to show the measured pixel dimensions of the saved file.
 

@@ -8,7 +8,7 @@ names, and payload fields used in the integration — nothing here is invented.
 
 ## The automation surface (what you can call)
 
-The integration exposes ~60 services, but most are dashboard-card getters and one-time
+The integration exposes ~125 services, but most are dashboard-card getters and one-time
 setup CRUD. For **automations** you touch a small, high-level surface — you say *what* and
 *when*, and the integration owns *how* (payload assembly, room ordering, availability
 gating, mixed-mode water safety). There are deliberately **no per-setting entities to poke**;
@@ -223,12 +223,24 @@ saved run profile; use the `id` field from the profile you want.
   run.
 - To define a stepped profile programmatically, call
   `eufy_vacuum.set_run_profile_steps` with the `profile_id` and an ordered
-  `steps` list. Each step is a room group
-  (`{type: room_group, rooms: [...]}`), a charge stop
-  (`{type: charge_wait, target_battery_percent: 95}`, clamped 1–100), or a
-  dry/hold stop (`{type: wait, wait_minutes: 20}`, clamped 1–1440). Leading and
-  trailing stops are dropped and consecutive same-type stops collapse; the list
-  must contain at least one room group.
+  `steps` list. A step is a room group (`{type: room_group, rooms: [...]}`), a
+  charge stop (`{type: charge_wait, target_battery_percent: 95}`, valid 1–100),
+  a dry/hold stop (`{type: wait, wait_minutes: 20}`, valid 1–1440), or a zone
+  step (`{type: zone, zone_ids: [...]}`, naming saved zones cleaned together in
+  one phase). The write is strict, not forgiving: the list must contain at
+  least one room group, a sequence may not start or end with a charge/wait
+  stop, and an out-of-range or malformed step is refused rather than silently
+  dropped or clamped. **Unlike the other services in this recipe, a refusal
+  here is a raised error, not a returned payload** — the service call fails
+  with `ServiceValidationError` (aborting the automation action if you don't
+  guard it) and the reason (`invalid_steps`, `no_room_group`,
+  `leading_break_unsupported`, `trailing_break_unsupported`, …) is only
+  available as free text inside the exception message. The manager computes a
+  richer refusal internally — including a `rejected_steps` list naming each
+  bad entry by index and reason — but the service wrapper discards it before
+  raising, so that detail is not exposed by this service today; you'll need to
+  fix the malformed step(s) by inspecting your own `steps` payload rather than
+  reading it back from the integration.
 - To watch the charge/wait phase from an automation, read
   `eufy_vacuum.get_job_progress_snapshot`. It exposes `charge_phase_active`,
   `charge_target_percent`, `charge_eta_minutes` (and `charge_eta_source`), plus
@@ -246,8 +258,10 @@ saved run profile; use the `id` field from the profile you want.
   `started == false` and `reason == "confirmation_required"` — there is no
   `status` field. Set `confirm_reduced_run: true` for fully automated
   schedules.
-- `start_run_profile` requires the vacuum to be docked and idle. It will return
-  an error if a job is already in progress.
+- `start_run_profile` requires the vacuum to be docked and idle. If a job is
+  already in progress (or the start is otherwise blocked), it returns a
+  structured refusal — `{"started": false, "reason": ..., "message": ...}` —
+  rather than raising an error.
 
 ---
 
@@ -303,6 +317,13 @@ automation:
 | `duration_minutes` | float or null | Total wall-clock duration of the job in minutes |
 | `actual_cleaning_minutes` | float or null | Minutes the vacuum spent actively cleaning |
 | `job_path` | string or null | Path to the archived job file |
+
+> **One payload asymmetry:** `duration_minutes` and `actual_cleaning_minutes`
+> ride the listener-fired paths (normal auto-finalization, pause-timeout
+> cancel, path-block cancel). A job finalized manually via the
+> `finalize_learning_job` service fires a reduced payload **without** those two
+> keys — they are absent, not null — so guard with `is defined` if you
+> finalize manually.
 
 **Customization points:**
 
@@ -371,7 +392,9 @@ automation:
 | `requires_attention` | bool | Always `true` when this event fires |
 | `event_scope` | string | Always `"active_job_path_blocked"` |
 | `path_block_action` | string | The `path_block_action` that was configured for this run |
-| `action_taken` | string | What the integration actually did: `event_only`, `already_paused`, `paused`, `pause_failed`, `cancelled`, `cancel_failed` |
+| `action_taken` | string | What the integration actually did: `event_only`, `already_paused`, `paused`, `pause_failed`, `cancelled`, `cancel_failed`, or `cancel_suppressed_recheck` (a cancel was configured, but at action time the triggering rule no longer matched with a known entity state, so the irreversible cancel was suppressed) |
+| `indeterminate_rules` | list of dicts | Blocker rules whose entity read `unavailable`/`unknown` at evaluation time — held (neither blocking nor clearing), listed for diagnostics as `{rule_id, entity_id, room_id}` |
+| `action_result` | dict | Present only when a pause/cancel was attempted — the raw result of that call |
 
 **Customization points:**
 
@@ -454,14 +477,16 @@ the room):
   `{"started": false, "reason": "confirmation_required", "confirm_token": ...}` instead of
   starting, so a supervised automation can inspect the response and decide.
 - `update_room_fields` changes **only** the fields you pass; unset fields keep their stored
-  values. It sets `profile_name` to `custom` to mark the room as diverged from a preset.
+  values. It re-derives `profile_name` after the change — snapping it to the preset that
+  matches the resulting fields, or `custom` when the room no longer matches any preset.
 - **Water-on-carpet is enforced at payload time** regardless of what you pass — a carpet
   room is never wet-mopped even if you set a `water_level`.
 - Add `strict_order: true` to `start_selected_rooms` to force the vacuum to honor the
   `number.<room>_order` sequence instead of path-optimizing.
-- `start_selected_rooms` needs the vacuum docked/idle and returns an error if a job is
-  already running. Guard with a `condition` on
-  `states('vacuum.alfred') in ['docked','idle']` if the trigger might fire mid-run.
+- `start_selected_rooms` needs the vacuum docked/idle; if a job is already running it
+  returns `{"started": false, "reason": ..., "message": ...}` instead of starting. Guard
+  with a `condition` on `states('vacuum.alfred') in ['docked','idle']` if the trigger
+  might fire mid-run.
 
 **Finding a `room_id`:** call `eufy_vacuum.get_vacuum_maps` (or `get_queue_state`) with a
 `response_variable` — the response lists each room's `room_id` and name. These are the

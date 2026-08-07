@@ -64,7 +64,7 @@ The device's own run-total area is the sanity ceiling: attributed per-room area 
 
 ## Data Collected Per Room
 
-The stats rebuilder aggregates learning jobs into per-room stat entries. Each entry is keyed by room slug, map ID, clean mode, clean passes, carpet flag, and clean intensity — so a room vacuumed once versus vacuumed twice with a mop gets separate learned entries.
+The stats rebuilder aggregates learning jobs into per-room stat entries. Each entry is keyed by room slug, map ID, clean mode, clean passes, carpet flag, clean intensity, and edge mopping — so a room vacuumed once versus vacuumed twice with a mop (or with edge mopping on versus off) gets separate learned entries.
 
 Each entry stores:
 
@@ -140,7 +140,7 @@ The learned time is keyed by **`(zone_id, mode)`**, where mode is the coarse **m
 - **Completed runs only.** A cancelled or partial zone would under-count, so only a completed phase folds into the average.
 - **Single-zone steps only.** A [zone step](../user-guide/04a-zones.md#add-a-zone-to-a-run-a-zone-step) that cleans several saved zones at once can't attribute its one wall-clock time to a single `zone_id`, so it is *estimated* (as the sum of its zones) but not *learned*. A step with exactly one zone is what teaches that zone.
 
-Each qualifying observation folds into a running mean, so history is never re-scanned. The per-zone data lives on the map bucket (`learned_zones[zone_id][mop|vacuum]`) and is persisted with the map — a re-map that invalidates a saved zone drops its learned times too.
+Each qualifying observation folds into a running mean, so normal operation never re-scans history (a manual `rebuild_learning_stats` does recompute the zone averages from the archived runs — see [Rebuilding Stats](#rebuilding-stats)). The per-zone data lives on the map bucket (`learned_zones[zone_id][mop|vacuum]`) and is persisted with the map — a re-map that invalidates a saved zone drops its learned times too.
 
 ### How a zone is estimated
 
@@ -164,7 +164,7 @@ Stats go stale if the vacuum has not been run for a month, or if the rebuild pro
 
 ## Trouble Rooms
 
-After every job finalization the system updates a per-room miss counter. A room is counted as missed when the job ended as `cancelled`, `failed`, or `interrupted` and that room's ID was in the queue but not in the completed rooms list.
+After every job finalization the system updates a per-room miss counter. A room is counted as missed when the job ended as `failed` or `interrupted` and that room's ID was in the queue but not in the completed rooms list. Runs you cancel are skipped entirely — a user cancel says nothing about the rooms the vacuum had not reached yet, so a cancelled run moves neither the run count nor the miss count.
 
 A room is flagged `is_trouble` when both of these conditions are true:
 
@@ -209,7 +209,7 @@ data:
   vacuum_entity_id: vacuum.alfred
 ```
 
-This re-reads every archived completed job, recomputes per-room averages and job aggregates, and writes fresh `room_stats.json` and `job_stats.json` files. The stats cache is invalidated and the new data is loaded automatically.
+This re-reads every archived completed job, recomputes per-room averages and job aggregates, and writes fresh `room_stats.json` and `job_stats.json` files. It also recomputes the incremental accumulators that per-run processing normally maintains — learned zone times, per-room accuracy stats, and the battery drain aggregates — so a bad sample can't survive a rebuild. (The chronic trouble-rooms counter is the one exception: it's a self-correcting rate over an always-growing denominator, so it isn't touched by a rebuild.) The stats cache is invalidated and the new data is loaded automatically.
 
 The optional `rebuild_csv: true` flag also regenerates flat CSV exports of all jobs and rooms if you use those for external analysis.
 
