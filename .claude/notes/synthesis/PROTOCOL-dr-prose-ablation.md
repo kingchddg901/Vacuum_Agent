@@ -664,3 +664,26 @@ own earned credit (and earns the detection bounty) while the chain still voids. 
 class, reporting must always dominate covering up. A flag that proves false costs the
 flagger nothing beyond the wasted audit — honest suspicion is never punished, or nobody
 raises it.
+
+## AMENDMENT (2026-08-06): rule 12a — whistleblower mechanics, exact
+
+- **Reward = made-whole + capped bounty.** A CONFIRMED flag pays the flagger exactly what
+  their role would have earned on clean closure, plus a small fixed bounty. The cap is
+  load-bearing: any surplus over honest closure invents entrapment farming (smuggle
+  deliberately, confederate flags, split the jackpot). Flagging must beat sitting in a
+  tainted chain and must never beat honest work.
+- **Filing requires evidence.** A flag names the artifact and the specific suspected
+  leakage (the whistle's misreading-artifact). Evidence-free flags are rejected WITHOUT
+  triggering an audit — composing evidence is the filing cost that prevents
+  flag-spam-as-insurance.
+- **A single false flag is unpunished.** Clean audit → chain closes normally, flagger
+  loses nothing. Punishing a first honest miss chills the reporting the rule exists for.
+  Every flag is LEDGERED regardless of outcome.
+- **Habitual false flagging is de-weaponized, not fined.** Per-agent flag precision is
+  tracked; below threshold (start: <1-in-3 confirmed, rolling window) the agent's flags
+  stop auto-triggering forensic audits and demote to rule-11 statistical signals.
+  Precision recovers → privilege recovers. Confirmed flags rebuild precision immediately,
+  so a good flagger cannot be silenced by the mechanism.
+- **A flag is never a veto.** False flags do not void or delay closure beyond the audit
+  itself. Post-closure suspicions feed rule-11 re-sampling (which owns retroactive
+  claw-back), not direct reopening.
