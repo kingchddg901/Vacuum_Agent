@@ -121,3 +121,10 @@ Tail items (LOW, open):
 - HDR-BATT-1: header battery is a bare percent (no label/icon, since v0.9.0) and the
   .evcc-battery.low/.critical classes are never applied by the renderer (dead styling).
   Chris flagged the missing label; offer stands.
+
+### Typeface mechanism FINISHED (ec30b11, 2026-08-06) — FONT-TAIL-1 CLOSED
+All per-font CSS generates from FONT_DEFS (faces/setters/sample/theme chip); form controls
+inherit on both surfaces; theme Font Family = preset chips (names verbatim, no i18n) + text
+escape hatch; wiring tests assert BUILT CSS, 13 pins; 911 logic tests green; deployed live.
+HDR-BATT-1 (header battery label + dead low/critical classes) remains the only font-adjacent
+open item.
