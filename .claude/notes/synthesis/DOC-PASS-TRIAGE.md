@@ -152,6 +152,14 @@ Backend-verified user fonts: config/eufy_vacuum/fonts/<id>/ + user_fonts.py (fon
 FONT_SUPPORT widened en->12 locales by cmap evidence (the missing-l/r/i judgement was false).
 testdrop demo font live on Chris's box (delete config/eufy_vacuum/fonts/testdrop + restart to
 remove).
+- **Test reconciliation (2026-08-06, Opus): FS-3 / FS-4 / LCF-2 were left RED by the widening.**
+  They encoded the disproven premise (pl/cs/tr unsupported). Re-verified the widening
+  independently before touching them — read the cmap out of both shipped woff2 directly: 1586
+  codepoints, all 12 claimed locales fully covered incl. ł ą ř ů ı İ ğ, all 6 excluded locales at
+  ZERO glyphs. The widening is correct; the tests were stale. Repaired to keep the DOCTRINE rather
+  than to go green: FS-3 now uses sv/hu/vi — Latin-script locales the font *would* render fine
+  (cmap carries å ä ö, ő ű, ơ ư ạ) but nobody has proven, which states "proof, not coverage" more
+  sharply than the original ever did. JS suite 919/919.
 - **R2-BUG-7 [live log]** history_store.py:411 read_json does a BLOCKING file read in the event
   loop via _reap_stranded_phased_jobs (core/manager.py:602) at startup — HA flags it and asks
   for a bug report. ~~Wrap in async_add_executor_job.~~

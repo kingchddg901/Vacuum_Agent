@@ -36,9 +36,15 @@ test("[LCF-1] English renders the typeface section with both options", () => {
 });
 
 test("[LCF-2] an unverified locale renders no typeface section", () => {
-  // pl/cs/tr are Latin-script but OpenDyslexic lacks ł ą ř ů ı İ ğ, so they are
-  // NOT offered. The gate lives in FONT_SUPPORT, not in this markup.
-  for (const lang of ["pl", "cs", "tr", "de", "ja"]) {
+  // These are the SHIPPED locales OpenDyslexic genuinely cannot serve: he/ja/ko/
+  // zh have zero glyphs in the cmap, and ar additionally needs shaping. The gate
+  // lives in FONT_SUPPORT, not in this markup — the picker is absent because the
+  // store refuses the locale, not because the renderer special-cases it.
+  //
+  // pl/cs/tr used to stand here on the belief that OpenDyslexic lacked their
+  // diacritics. Cmap verification (2026-08-06) disproved that; they are now
+  // supported and would correctly FAIL this assertion. See FS-3.
+  for (const lang of ["he", "ja", "ko", "ar"]) {
     const html = render({ lang });
     assert.doesNotMatch(html, /set-font/, `${lang} was offered the font picker`);
     assert.doesNotMatch(html, /T:font\.heading/, `${lang} rendered a typeface heading`);

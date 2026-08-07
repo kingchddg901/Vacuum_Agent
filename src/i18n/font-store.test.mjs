@@ -46,17 +46,32 @@ test("[FS-2] a region tag resolves against its base", () => {
 });
 
 test("[FS-3] an unverified locale is refused even when it is Latin-script", () => {
-  // The whole point of the gate. OpenDyslexic lacks glyphs Polish (ł ą), Czech
-  // (ř ů) and Turkish (ı İ ğ) need, so "looks Latin" is not evidence — those
-  // must be proven and deliberately enabled, never inferred.
-  for (const lang of ["pl", "cs", "tr", "de", "fr", "ja", "ar"]) {
+  // The whole point of the gate: FONT_SUPPORT is a WHITELIST of locales whose
+  // shipped catalogue has been PROVEN covered, never an inference from script
+  // family.
+  //
+  // This test used to make that point with pl/cs/tr on the premise that
+  // OpenDyslexic lacked ł ą ř ů ı İ ğ. That premise was measured against the
+  // wrong release and is false — the shipped Regular/Bold carry all of them
+  // (1586 codepoints), so those three are now proven and supported.
+  //
+  // The doctrine outlived its example. These locales make the same point more
+  // sharply: sv/hu/vi are Latin-script AND the font would render them fine (the
+  // cmap carries å ä ö, ő ű, ơ ư ạ) — they are refused purely because nobody has
+  // proven them against a shipped catalogue. Coverage is not the criterion;
+  // proof is. ja/ar are the easy case: absent from the cmap outright.
+  for (const lang of ["sv", "hu", "vi", "ja", "ar"]) {
     assert.equal(fontSupportsLang("opendyslexic", lang), false, `${lang} was offered unverified`);
   }
 });
 
 test("[FS-4] availableFonts always includes the default", () => {
+  // pl is on the proven list as of the 2026-08-06 cmap verification — it takes
+  // the both-options branch now. he is the genuinely-absent case (zero Hebrew
+  // codepoints in the shipped font), so it must fall back to default-only.
   assert.deepEqual(availableFonts("en"), [FONT_DEFAULT, "opendyslexic"]);
-  assert.deepEqual(availableFonts("pl"), [FONT_DEFAULT]);
+  assert.deepEqual(availableFonts("pl"), [FONT_DEFAULT, "opendyslexic"]);
+  assert.deepEqual(availableFonts("he"), [FONT_DEFAULT]);
   assert.deepEqual(availableFonts(""), [FONT_DEFAULT]);
 });
 
