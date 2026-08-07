@@ -1,5 +1,26 @@
 # FINDING — live:RB-ERR-2: the Roborock error enum never enters the `code` field
 
+> ## CLOSED 2026-08-07 — fixed, end-to-end verified
+>
+> `error_tracking.message_is_code` (adapter-declared) + `_read_error_code_for_message()`
+> in the tracker. Roborock declares it; Eufy does not and keeps attribute-only capture.
+> The fix shape below was followed as written, including the gating.
+>
+> Verified against the REAL adapter tables, not a fixture — driving the three seams with
+> the code the tracker now captures:
+>
+> | code | label | source | class |
+> |---|---|---|---|
+> | `bumper_stuck` | `fault.roborock.bumper_stuck` | robot | invalidating |
+> | `wheels_suspended` | `fault.roborock.wheels_suspended` | robot | invalidating |
+> | *(previously `None`)* | None | unknown | unclassified |
+>
+> Pinned by ET-24 (enum reaches `code`), ET-25 (Eufy prose must NOT become a pseudo-code —
+> the gate, and the reason it is a declaration), ET-26 (numeric attribute still wins).
+> Docs 22/23/29 reconciled: `code` is `int | str | None`, and doc 23 §4.4 documents the
+> second capture route. Legacy records keep `code = None` and are NOT migrated — read-time
+> resolution names them as soon as capture writes one.
+
 **Found 2026-08-06 during the DR-doc reconciliation (doc 23 pass), by §5.2 discipline: the
 reconstruction disagreed with the shipped claim, so it was investigated before patching.**
 Status: OPEN, unfixed, report-only (error tracker is shared territory; a doc pass does not

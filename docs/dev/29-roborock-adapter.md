@@ -217,9 +217,15 @@ reconciliation review surfaces ambiguous shifts. See
   and the profile picker survive a brand switch; only the VALUES differ.
 - **`error_tracking`** — `task_status_error_value: "error"`, `grace_window_seconds: 5`,
   `error_code_attribute_names: ["error_code","code","errorCode"]`, `unknown_error_message:
-  "Unknown error during run"`. Dual-channel (`_status` and `vacuum.state` both flip `error`);
-  the code rides an **enum string** on `_vacuum_error`, so the numeric-attr list usually
-  misses → code `None`, message = the code string.
+  "Unknown error during run"`, **`message_is_code: True`**. Dual-channel (`_status` and
+  `vacuum.state` both flip `error`); the code rides an **enum string** on `_vacuum_error`, so
+  the numeric-attr list usually misses.
+
+  `message_is_code` is what makes the classification blocks below actually reachable. Without
+  it the attribute miss left `code = None` on every Roborock fault, so all five tables matched
+  nothing at runtime and the 49 shipped fault labels never resolved — `live:RB-ERR-2`. The
+  tracker now carries the entity state into `code`; Eufy declares nothing here and keeps
+  attribute-only capture, because its message is prose and would mint pseudo-codes.
 
   Roborock also declares all five error-**classification** blocks doc
   [22 §9](22-adapter-config-reference.md#9-error_tracking--error-tracker-configuration)

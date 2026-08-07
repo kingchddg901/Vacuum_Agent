@@ -960,3 +960,78 @@ def test_int_guards_survive_the_string_support():
     assert et.error_source_for_code(_VAC, True) == "unknown"   # bool is not code 1
     assert et.classify_error_code(_VAC, 3.7) == "unclassified"
     assert et.error_source_for_code(_VAC, "") == "unknown"     # empty is absence, not a code
+
+
+# ---------------------------------------------------------------------------
+# live:RB-ERR-2 — the CAPTURE half of the enum-code seam.
+# ---------------------------------------------------------------------------
+
+
+async def test_message_is_code_carries_the_enum_into_code(tracker, hass):
+    """[ET-24] A brand whose error_message state IS the code gets it into `code`.
+
+    live:RB-ERR-1 taught the three classification seams to COMPARE enum-string codes;
+    nothing ever WROTE one. Every writer fed off _read_error_code_attr (int-only), so
+    Roborock's `code` was always None and all five of its declared tables were
+    unreachable at runtime — the shipped fault labels never resolved for any Roborock
+    fault, and no test could see it because comparison-without-capture has no symptom.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "error_tracking": {"message_is_code": True},
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.ivy_err", "task_status": None}
+
+    t._handle_error_message_change(_VAC, "none", "bumper_stuck")
+    await hass.async_block_till_done()
+
+    err = t.get_record(_VAC)["active_run_error"]
+    assert err["current_code"] == "bumper_stuck", "the enum never reached `code`"
+    assert err["current_message"] == "bumper_stuck"
+
+
+async def test_prose_message_is_never_minted_into_a_code(tracker, hass):
+    """[ET-25] The gate, and the reason it is a DECLARATION rather than a sniff.
+
+    Eufy's error_message is prose — "Robot is stuck" — not a code. Without the adapter
+    flag the same fallback would mint `robot is stuck` as a pseudo-code, put an
+    unmatchable key into every classification table, and persist it into the record
+    where read-time label resolution would then chase it forever.
+    """
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "error_tracking": {},  # no message_is_code — the Eufy shape
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err", "task_status": None}
+
+    t._handle_error_message_change(_VAC, "none", "Robot is stuck")
+    await hass.async_block_till_done()
+
+    err = t.get_record(_VAC)["active_run_error"]
+    assert err["current_code"] is None, "prose was minted into a pseudo-code"
+    assert err["current_message"] == "Robot is stuck"
+
+
+async def test_numeric_attribute_still_wins_over_the_message(tracker, hass):
+    """[ET-26] Attribute first — a brand may carry both, and the number is the more
+    specific signal. Declaring message_is_code must not demote it."""
+    t, mgr = tracker
+    _seed_active_job(mgr)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "error_tracking": {
+            "message_is_code": True,
+            "error_code_attribute_names": ["error_code"],
+        },
+    })
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.dual_err", "task_status": None}
+    hass.states.async_set("sensor.dual_err", "bumper_stuck", {"error_code": 6013})
+
+    t._handle_error_message_change(_VAC, "none", "bumper_stuck")
+    await hass.async_block_till_done()
+
+    assert t.get_record(_VAC)["active_run_error"]["current_code"] == 6013

@@ -20,11 +20,18 @@ enough for the next epoch-closing audit to adjudicate it.
 | epoch | closed | closing operation |
 |---|---|---|
 | **Epoch 1** | **2026-08-06** | The hostile-audit campaign (464 findings / 67 packets, cleared) + the DR reconciliation pass that established this baseline. Provenance: the audit record (`.claude/notes/synthesis/`, closure ledgers, the postmortem corpus). |
-| Epoch 2 | open | Accumulating. First known delta candidates: the Phased Jobs rebuild; `live:FONT-1`'s unresolved remainder; `live:RB-ERR-2`'s capture fix. |
+| Epoch 2 | open | Accumulating. First known delta candidates: the Phased Jobs rebuild; `live:FONT-1`'s unresolved remainder. |
 
 ### Epoch 2 delta candidates — detail
 
-**`live:RB-ERR-2` — Roborock error capture.** Chain and fix shape:
+**`live:RB-ERR-2` — CLOSED 2026-08-07, folded into Epoch 1 instead.** Chris pulled it into
+the epoch-closing release: shipping "clean" meant shipping the capture, not documenting it
+as a known gap while 48 keys and 816 translated strings sat unreachable for every Roborock
+user. `error_tracking.message_is_code` + `_read_error_code_for_message()`; docs 22/23/29
+reconciled in the same change, so DR describes the shipped system rather than carrying a
+delta. The note below is kept as the reasoning that predicted its shape.
+
+**Original entry —** Chain and fix shape:
 `.claude/notes/synthesis/FINDING-roborock-error-code-carrier.md`; queued as
 `DOC-PASS-TRIAGE.md` open item 2.
 

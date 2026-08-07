@@ -303,7 +303,16 @@ def register_roborock_adapter_for_vacuum(
             # both flip to `error` on the same tick, with sensor.{id}_vacuum_error
             # carrying the code string (bumper_stuck, wheels_suspended). The code lives
             # in the enum string, not a numeric attr, so error_code_attribute_names
-            # usually misses -> code None, message = the code string (acceptable).
+            # usually misses.
+            #
+            # live:RB-ERR-2 — that used to end "-> code None, message = the code string
+            # (acceptable)". It was NOT acceptable: code None meant every seam below
+            # (classify_error_code, error_source_for_code, error_label_key) returned
+            # unclassified/unknown/None for every Roborock fault, so all five tables in
+            # vocabulary.py were unreachable at runtime and the shipped fault labels
+            # never resolved. message_is_code closes it: the tracker carries the entity
+            # state into `code` when the attribute route yields nothing.
+            "message_is_code": True,
             "task_status_error_value": "error",
             "grace_window_seconds": 5,
             "error_code_attribute_names": ["error_code", "code", "errorCode"],

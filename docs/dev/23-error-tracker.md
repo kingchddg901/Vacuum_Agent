@@ -79,7 +79,7 @@ dispatched finalizer doing it. See [03-data-model](03-data-model.md) §5a / §9b
 | `first_seen_job_elapsed_seconds` | int | Seconds into the run when the first error fired (`_job_elapsed_seconds`: clamped ≥ 0; **0** when there is no run in flight or `started_at` is missing/unparseable; a tz-naive `started_at` is read as UTC rather than raising) |
 | `error_count` | int | Number of rising edges accumulated into this latch |
 | `current_message` | str | Latest error message (`""` after recovery) |
-| `current_code` | int \| None | Latest error code as captured (`None` after recovery) — the attribute route writes ints only today (§4.4); the classification seams accept enum-string codes too (§4.5) |
+| `current_code` | int \| str \| None | Latest error code as captured (`None` after recovery). An **int** from the attribute route, or the brand's **enum string** when the adapter declares `message_is_code` (§4.4). Both normalize through `_code_key()` for the §4.5 seams |
 | `errored_room_id` | str \| None | `current_room_id` of the active job at first error |
 | `recovered` | bool | `True` once the message clears mid-run; flips back to `False` on a fresh rising edge |
 | `errors` | list[dict] | Per-edge sub-records (shape below), capped at `_LATCH_ERRORS_LIMIT` (50) |
@@ -89,7 +89,7 @@ dispatched finalizer doing it. See [03-data-model](03-data-model.md) §5a / §9b
 | Field | Type | Description |
 |---|---|---|
 | `message` | str | Error string for this edge — for a brand whose error entity state IS the code enum (Roborock), the enum string lands here (§4.4) |
-| `code` | int \| None | Code for this edge as captured (§4.4) |
+| `code` | int \| str \| None | Code for this edge as captured (§4.4) — int, enum string, or `None` |
 | `captured_at` | str | ISO-8601 timestamp |
 | `job_elapsed_seconds` | int | Seconds into the job at this edge |
 | `room_id` | str \| None | Active-job room at this edge |
@@ -102,7 +102,7 @@ A single dict (or `None`), overwritten on every rising edge regardless of run co
 | Field | Type | Description |
 |---|---|---|
 | `message` | str | Human-readable error string |
-| `code` | int \| None | Numeric error code (see §4.4 for extraction) |
+| `code` | int \| str \| None | Error code, int or enum string (see §4.4 for extraction) |
 | `captured_at` | str | ISO-8601 timestamp |
 | `vacuum_state_at_capture` | str \| None | `vacuum.state` value at capture |
 | `was_during_active_run` | bool | True if a job was in flight |
@@ -115,7 +115,7 @@ Each entry in the `recent_errors` list:
 | Field | Type | Description |
 |---|---|---|
 | `message` | str | Human-readable error string |
-| `code` | int \| None | Numeric error code |
+| `code` | int \| str \| None | Error code, int or enum string |
 | `captured_at` | str | ISO-8601 timestamp |
 | `active_job_id` | str \| None | Job ID at capture, if any |
 | `vacuum_state` | str \| None | `vacuum.state` value at capture |
@@ -133,14 +133,28 @@ non-int values are skipped). A code of `0` is treated as "no code captured" (ups
 per-model error protos all start `E0000_NONE = 0`, so `0` is the no-error sentinel) and
 recorded as `None`.
 
-**Brand reality.** Eufy surfaces numeric codes on the vacuum entity's attributes — the route
-above captures them. Roborock's code IS the enum-string **state** of its error entity
-(`bumper_stuck`, `wheels_suspended`): the attribute route finds no int, so a Roborock edge
-records `code = None` with the enum string in `message`. Consequence: the §4.5 classification
-seams currently receive `None` for every Roborock fault, so the adapter's declared code
-tables cannot match at runtime — **open finding `live:RB-ERR-2`**
-(`.claude/notes/synthesis/FINDING-roborock-error-code-carrier.md`); the capture-side bridge
-is not yet built, and this doc records what capture writes today.
+**Brand reality, and the second capture route.** Eufy surfaces numeric codes on the vacuum
+entity's attributes — the route above captures them. Roborock's code IS the enum-string
+**state** of its error entity (`bumper_stuck`, `wheels_suspended`), where the attribute route
+finds no int.
+
+`_read_error_code_for_message()` closes that gap on the message channel: attribute route
+first, and when it yields `None` **and the adapter declares
+`error_tracking.message_is_code`**, the message value is carried into `code` via `_code_key()`.
+Attribute always wins when present — a brand may carry both, and the number is the more
+specific signal.
+
+The gate is a **declaration, never a sniff**, and that is the whole design. Roborock's error
+entity reports `bumper_stuck`; Eufy's reports prose — "Robot is stuck". Without the flag the
+same fallback would mint `robot is stuck` as a pseudo-code, put an unmatchable key into every
+classification table, and persist it where read-time label resolution would chase it forever.
+A brand that declares nothing keeps the attribute-only behaviour exactly as before.
+
+This resolves `live:RB-ERR-2`. Before it, the §4.5 seams received `None` for **every** Roborock
+fault, so all five of the adapter's declared tables were unreachable at runtime and the shipped
+fault labels never resolved for that brand. Legacy records keep `code = None` and are not
+migrated — read-time resolution names them the moment capture writes a code, per the
+derived-at-read design in §4.5.
 
 ### 4.5 Code normalization + classification seams
 

@@ -610,8 +610,32 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
     "error_tracking": {
         "type": "dict",
         "required": False,
-        "description": "Error tracker configuration.",
+        "description": (
+            "Error tracker configuration.\n\n"
+            "CODE TYPE (R2-TYPE-1): the five classification tables below are keyed "
+            "`int|str`, not `int`. A brand's error code is whatever its firmware "
+            "reports — Eufy sends numbers, Roborock sends enum strings "
+            "(`bumper_stuck`), and `core.error_tracker._code_key` normalises both into "
+            "one comparable key. The annotations used to say `int`, describing what "
+            "Eufy ships rather than what the seams accept, which read as a rule that "
+            "string-keyed tables were malformed when they are the supported shape."
+        ),
         "fields": {
+            "message_is_code": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "TRUE when this brand's error_message entity STATE is itself the "
+                    "error code, rather than prose about it. Roborock's "
+                    "sensor.<id>_vacuum_error reports `bumper_stuck`; Eufy's reports "
+                    "'Robot is stuck'. Declared, never sniffed: with it the tracker "
+                    "carries the message value into `code` when the attribute route "
+                    "yields nothing, and without it that same fallback would mint "
+                    "pseudo-codes like `robot is stuck` out of Eufy prose and pollute "
+                    "every classification table with garbage keys. Default: False — a "
+                    "brand that says nothing keeps the attribute-only behaviour."
+                ),
+            },
             "task_status_error_value": {
                 "type": "str",
                 "required": False,
@@ -649,7 +673,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "evidence_invalidating_error_codes": {
-                "type": "list[int]",
+                "type": "list[int|str]",
                 "required": False,
                 "description": (
                     "Error codes after which the run's cleaning evidence "
@@ -660,7 +684,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "error_label_keys": {
-                "type": "dict[int, str]",
+                "type": "dict[int|str, str]",
                 "required": False,
                 "description": (
                     "Maps this brand's error codes to i18n keys for the card's "
@@ -671,7 +695,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "evidence_safe_error_codes": {
-                "type": "list[int]",
+                "type": "list[int|str]",
                 "required": False,
                 "description": (
                     "Error codes that leave the floor work valid — station "
@@ -685,7 +709,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "dock_sourced_error_codes": {
-                "type": "list[int]",
+                "type": "list[int|str]",
                 "required": False,
                 "description": (
                     "Error codes raised by the BASE STATION. A SECOND, "
@@ -699,7 +723,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "robot_sourced_error_codes": {
-                "type": "list[int]",
+                "type": "list[int|str]",
                 "required": False,
                 "description": (
                     "Error codes raised by the ROBOT itself. Companion to "

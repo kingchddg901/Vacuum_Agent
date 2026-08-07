@@ -816,13 +816,43 @@ class ErrorTracker:
             self._record_rising_edge(
                 vacuum_entity_id,
                 message=str(new_state),
-                code=self._read_error_code_attr(vacuum_entity_id),
+                code=self._read_error_code_for_message(vacuum_entity_id, new_state),
                 attribute_code=None,
             )
             return
 
         if was_error and not is_error:
             self._record_falling_edge(vacuum_entity_id)
+
+    def _read_error_code_for_message(
+        self, vacuum_entity_id: str, message_value: str | None
+    ) -> Any | None:
+        """The code for a message-channel rising edge: attribute first, then the message.
+
+        live:RB-ERR-2 — THE CAPTURE HALF. ``_code_key`` (live:RB-ERR-1) taught the three
+        classification seams to COMPARE enum-string codes, but nothing ever wrote one:
+        every writer of ``code`` fed off ``_read_error_code_attr``, which is int-only, so
+        for Roborock ``code`` was always None and its five declared tables could never
+        match at runtime. The enum was sitting in ``message`` the whole time. Comparison
+        without capture is half a seam, and the half that shows no symptom.
+
+        GATED ON THE ADAPTER, never sniffed. Only a brand whose error_message entity state
+        IS the code may take this path (``error_tracking.message_is_code``). Roborock's
+        reports ``bumper_stuck``; Eufy's reports "Robot is stuck", and minting
+        ``robot is stuck`` as a pseudo-code would put unmatchable garbage keys into every
+        table and into the persisted record. Absent declaration = attribute-only, exactly
+        as before.
+
+        Attribute wins when present: a brand may legitimately carry both, and the numeric
+        attribute is the more specific signal. Returns None when neither yields anything,
+        which stays a valid ``code`` — unclassified/unknown, no label.
+        """
+        attr_code = self._read_error_code_attr(vacuum_entity_id)
+        if attr_code is not None:
+            return attr_code
+        if not _error_tracking_cfg(vacuum_entity_id).get("message_is_code"):
+            return None
+        return _code_key(message_value)
 
     def _read_error_code_attr(self, vacuum_entity_id: str) -> int | None:
         """Pull the upstream error_code attribute if the entity exposes one.
