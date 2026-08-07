@@ -61,3 +61,43 @@ get his answer, nothing rots silently. Updated as workflow clusters land.**
 - RP-047(b): shipped, then REVERTED on live evidence — surviving design now documented in 06.
 - The 06/07/30 orphan patches + 5 orphan reports: quarantined in scratchpad/docpass as
   apply-time cross-checks; tree never accepted unverified edits after the reset.
+
+
+---
+
+# ROUND 2 — repair-round bug signals (2026-08-06, runs wf_c3085752-b7b + wf_16fa0e1a-3f3)
+
+Doc-vs-code disagreements where the CODE side looks wrong, surfaced during the
+repaired truth pass. Docs were NOT papered over these. Highest-priority first.
+
+## Live bugs (code defects, users can hit)
+
+- **R2-BUG-1 [fe-architecture]** `src/actions/rooms.js` clearRoomAccessGraph (~:553-563) reads `this.selectedVacuum()` / `this.activeMapId()` — neither exists on VacuumCardActions; throws TypeError when invoked. Every sibling uses `this.state.vacuumEntityId()` / `this.state.activeMapId()`.
+- **R2-BUG-2 [ug-review]** `learning/manager.py` `_job_matches` (:1765-1784) never checks `profile_key_filter` — the Filters-row Profile chip and Profile Matcher chip set `profile_key` and refetch, but Jobs count + Runs list ignore it. (Carried from round 1, still live.)
+- **R2-BUG-3 [ug-review]** `main.js` `_handleGlobalKeydown` closers (~:1668-1700) omit job-summary — Escape closes every other modal but not the Job Summary modal. Doc describes the buggy behavior accurately.
+- **R2-BUG-4 [dev-rooms-maps]** `label_anchor` silently dropped by both room writers (rooms/room_manager.py build_managed_rooms, maps/map_manager.py rebuild_map_bucket) — neither builds through a RoomConfig carrying the field; only plan_migration's raw-dict carry preserves it.
+- **R2-BUG-5 [fe-visual]** Two contradictory beliefs about raster `rid` == managed `room.id`: `_bindSelectionScrim` (bindings/map.js:269-288) vs clean-order badge lookup (renderers/map.js:626-668). Needs one canonical answer.
+- **R2-BUG-6 [dev-core]** `async_shutdown` registered via entry.async_on_unload BEFORE async_initialize — first action awaits storage; on a never-initialized manager that path is not the documented no-op. Verify + guard.
+
+## Stale source prose (docstrings/comments contradicting their own code)
+
+- **R2-STALE-1 [dev-jobs]** phase_runner.py:539-541 — _record_phase_to_parent docstring claims no per-phase child exists; wave-1 body writes full child records with record_id + phase_key.
+- **R2-STALE-2 [dev-jobs]** core/manager.py:6103-6107 — 'wave 0' comment repeats the same disproven claim.
+- **R2-STALE-3 [dev-jobs]** queue_engine.py:443-444 — phased_job_id_for 'read by nothing yet'; read at core/manager.py:6109.
+- **R2-STALE-4 [dev-adapters]** eufy/adapter.py:756 — room_attribution 'DORMANT until W5b/W5c land'; both shipped and wired.
+- **R2-STALE-5 [dev-adapters]** roborock maintenance_components.py:22-24 + adapter.py:670 — 'Thirteen copies' comments for a field removed 2026-07-30 (and only 4/12 ever declared it).
+- **R2-STALE-6 [dev-rooms-maps]** source_refresh.py:292-303 — docstring says five exits, lists six, implements SEVEN (superseded_by_newer_refresh uncounted).
+- **R2-STALE-7 [ug-daily]** src/renderers/rooms.js:428-429 — comment claims no 'included' suffix; render always appends it.
+- **R2-STALE-8 [testing-docs]** tests/adapters/conftest.py:78 — docstring says Yield, body returns.
+
+## Contract / typing mismatches
+
+- **R2-TYPE-1 [dev-adapters]** config_schema error_tracking blocks typed list[int]/dict[int,str] (eufy/config_schema.py:610-712) but shipping Roborock declares all five STRING-keyed (roborock/vocabulary.py:224+). Known from RB-ERR-2 family; the type annotations are the wrong side.
+
+## Dead / unread / uncovered code
+
+- **R2-DEAD-1 [dev-adapters]** external_run.py _extract_return_overhead (:272-322) stamps return_overhead_s/return_intervals (:425-426); NOTHING reads either field anywhere.
+- **R2-DEAD-2 [ug-setup]** harness mapping-badges gallery fixture targets removed mapping_review view; every theme detail page renders a dead 'Unknown view' tile (harness/preview.mjs FULL_GALLERIES).
+- **R2-DEAD-3 [ug-setup]** src/renderers/badge-marks.js — six shape marks, zero importers (retired Map Bounds tab leftover).
+- **R2-COV-1 [testing-docs]** services/queue.py queue-break/step handlers (:202-244) + register closures (:266-281) have zero test coverage.
+- **R2-TEST-1 [testing-docs]** tests/adapters/test_brand_selection.py::test_register_brand_adapter_falls_back_and_says_so reproducibly fails (empty caplog) under exactly `tests/unit tests/integration tests/adapters` — order-dependent test defect.
