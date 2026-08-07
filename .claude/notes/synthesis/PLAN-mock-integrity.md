@@ -1,6 +1,10 @@
 # PLAN — Mock Integrity (audit-1 remainder: "the MagicMock is killing us")
 
-Status: AWAITING CHRIS'S GO. Nothing executes from this document until approved.
+Status: APPROVED IN SHAPE, EXECUTION HELD (Chris 2026-08-06): starts ONLY after the
+audit-1 R2 fix wave (Opus session) is in, and ONLY on Chris's explicit start signal —
+"i will tell you when to start". The W3 decision (mock-hass shape) is still open and
+will be taken at start time. Scale note, his framing: 86 bare mocks is a rounding
+error against ~3,900 tests — this is done right, not urgently.
 Grounding: docs/testing/03 + 04 read in full; every claim below re-verified against
 tests/ on 2026-08-06 (post doc-truth-pass, so the docs are current).
 
