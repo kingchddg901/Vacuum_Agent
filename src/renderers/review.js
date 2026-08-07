@@ -140,7 +140,15 @@ export function applyReviewRenderers(proto) {
 
               ${this._renderReviewChipFilter(this.t("review.filter_origin"), "origin", state.learningHistoryOriginOptions?.(), state.learningHistoryFilters?.().origin, this.t("review.filter_all_origins"))}
 
-              ${this._renderReviewChipFilter(this.t("review.filter_sort"), "sort", state.learningHistorySortOptions?.(), state.learningHistorySort?.(), this.t("review.sort_newest"), "", true)}
+              ${/* NO fallback chip here, unlike every other filter in this row. Sort is not
+                    a filter: learningHistorySort() defaults to NEWEST and never returns "",
+                    and setLearningHistorySort("") is rejected by the REVIEW_SORTS membership
+                    check — so an empty-valued "all" chip could never be active and clicking
+                    it did nothing. It also rendered the SAME label as the real Newest option
+                    (both resolve through tVocab), so the row showed "Newest" twice with the
+                    second one selected. The options list is already complete and exactly one
+                    is always selected. */ ""}
+              ${this._renderReviewChipFilter(this.t("review.filter_sort"), "sort", state.learningHistorySortOptions?.(), state.learningHistorySort?.(), "", "", false)}
             </div>
           </section>
 
