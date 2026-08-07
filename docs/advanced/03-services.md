@@ -499,20 +499,6 @@ Persists or clears the map position of the animated companion sprite for one roo
 
 Supports response. Returns `{"saved": true, "room_id", "action": "set"|"cleared", "companion_anchors": {...}}`.
 
-#### `set_area_label_anchor`
-
-Persists or clears the position of one room's m² area-label chip, so it can be dragged off the room-name label. Stored at the **map** level (rooms are segmentation-mode-independent), keyed by room ID, as `{pct_x, pct_y}` in the same 0–100 content-box frame the companion anchor uses. Pass `null`/omit **both** `pct_x` and `pct_y` to reset to the default (room centre).
-
-| Parameter | Required | Notes |
-|---|---|---|
-| `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
-| `room_id` | Yes | Target room ID. |
-| `pct_x` | No | X position (0–100%). Clear both to reset. |
-| `pct_y` | No | Y position (0–100%). |
-
-Supports response. Returns `{"saved": true, "room_id", "action": "set"|"cleared", "area_label_anchors": {...}}`.
-
 #### `set_hidden_regions`
 
 Replace-all the per-map hidden regions — normalized `[x0, y0, x1, y1]` rects (0–1 of the rendered image, top-left origin) drawn to mask map noise (e.g. porch noise off a room). Hidden regions are physical, so they are stored at the **map** level (not per CV/custom scope) and follow the map regardless of segmentation mode. Each entry is sanitised server-side — four finite numbers, clamped 0–1, ordered min < max, degenerate rects dropped. An empty or omitted `regions` clears them all.

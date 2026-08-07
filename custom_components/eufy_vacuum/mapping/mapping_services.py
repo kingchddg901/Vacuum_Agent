@@ -30,7 +30,6 @@ from ..const import (
     SERVICE_COMPARE_MAP_SOURCES,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_HIDDEN_REGIONS,
-    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_ACKNOWLEDGE_MAP_FRAME,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
@@ -109,7 +108,6 @@ ALL_MAPPING_SERVICES = (
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_HIDDEN_REGIONS,
-    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_ACKNOWLEDGE_MAP_FRAME,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
@@ -450,18 +448,6 @@ SET_HIDDEN_REGIONS_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
         vol.Optional("regions", default=list): list,
-    }
-)
-
-# Per-room AREA-LABEL position (the m² chip), so the user can drag it off the room-name label.
-# Same shape as the companion anchor; null pct_x AND pct_y resets to the default (room centre).
-SET_AREA_LABEL_ANCHOR_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Optional("map_id"): cv.string,
-        vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
-        vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
-        vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
     }
 )
 
@@ -1677,51 +1663,6 @@ def resolve_area_label_anchors(map_bucket: dict) -> dict[str, dict]:
     return out
 
 
-def _migrate_area_label_anchors(map_bucket: dict) -> int:
-    """One-time move of the legacy side-table onto the room records.
-
-    Idempotent, and NON-DESTRUCTIVE: an entry whose room id does not resolve to a
-    managed room is LEFT WHERE IT IS, not dropped. This cannot tell "the room was
-    deleted" from "the room was never managed", and the card can drag a label on
-    an unmanaged room — it renders these chips from the live map source's room
-    list (`mss.rooms`), not from the managed records. Deleting on that ambiguity
-    would destroy a user's dragged position to tidy a store.
-
-    The finding's orphaning is still fixed: only MANAGED rooms get renumbered by
-    a rebuild, and those are exactly the ones whose anchor now lives on the
-    record and rides the rebuild via reconciliation's slug matching.
-
-    Runs on the WRITE paths, never on a read: a read that mutates storage is the
-    defect RP-029/POLYGO-3 exists to prevent. Un-migrated records stay readable
-    through ``resolve_area_label_anchors`` until something writes.
-    """
-    legacy = map_bucket.get("area_label_anchors")
-    if not isinstance(legacy, dict):
-        return 0
-
-    rooms = map_bucket.get("rooms")
-    moved = 0
-    if isinstance(rooms, dict):
-        for room_id in list(legacy):
-            anchor = legacy.get(room_id)
-            room = rooms.get(str(room_id))
-            if not isinstance(room, dict) or not isinstance(anchor, dict):
-                continue
-            # An anchor already on the room is newer; never overwrite it, but the
-            # legacy copy is now redundant either way.
-            if not isinstance(room.get(_LABEL_ANCHOR_KEY), dict):
-                room[_LABEL_ANCHOR_KEY] = {
-                    "pct_x": anchor.get("pct_x"),
-                    "pct_y": anchor.get("pct_y"),
-                }
-                moved += 1
-            legacy.pop(room_id, None)
-
-    if not legacy:
-        map_bucket.pop("area_label_anchors", None)
-    return moved
-
-
 def _migrate_custom_layouts(map_bucket: dict) -> None:
     """Lazily fold a legacy single ``custom_segments`` store into the named
     ``custom_layouts`` collection. Idempotent + non-destructive: returns at once
@@ -2356,7 +2297,7 @@ async def _handle_set_room_viewport(
         # FURNIS-3: clamp zoom to the same [0.05, 20] range set_furnished_art_
         # placement's `scale` already enforces (a degenerate/absurd zoom is the same
         # class of bug there). cx/cy are documented "pct" (services.yaml: "Center X
-        # (pct)"), matching the 0-100 clamp set_companion_anchor/set_area_label_anchor
+        # (pct)"), matching the 0-100 clamp set_companion_anchor uses
         # already apply to their own pct_x/pct_y — NOT a 0-1 fraction (this field is
         # never normalized 0-1; existing stored viewports commonly exceed 1, e.g. a
         # room centred at pct 20 or 50).
@@ -2445,82 +2386,6 @@ async def _handle_set_hidden_regions(
         "set_hidden_regions: %d region(s) on %s/%s", len(cleaned), vacuum_entity_id, map_id,
     )
     return {"saved": True, "hidden_regions": list(regions)}
-
-
-async def _handle_set_area_label_anchor(
-    hass: HomeAssistant, call: ServiceCall,
-) -> dict:
-    """Persist or clear the per-room AREA-LABEL position (the m² chip), so it can be dragged off
-    the room-name label. Stored MAP-LEVEL (the device rooms are segmentation-mode-independent),
-    keyed by room id, as ``{pct_x, pct_y}`` (0-100 of the map content box — the same frame the
-    mascot anchor uses). Null both pct_x and pct_y to reset to the default (room centre).
-    Returns the updated map."""
-    vacuum_entity_id: str = call.data["vacuum_entity_id"]
-    map_id = call.data.get("map_id")
-    room_id: str = str(call.data["room_id"]).strip()
-    pct_x = call.data.get("pct_x")
-    pct_y = call.data.get("pct_y")
-
-    if not room_id:
-        return {"saved": False, "reason": "missing_room_id"}
-
-    manager = hass.data[DOMAIN][DATA_RUNTIME]
-    resolved = await _resolve_write_map_bucket(
-        hass, manager, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
-    )
-    if resolved.refusal is not None:
-        return {"saved": False, **resolved.refusal}
-    map_id, map_bucket = resolved.map_id, resolved.map_bucket
-    # A5-FURNIS-4: the anchor lives ON the room record, so it rides a re-import
-    # through reconciliation's slug matching instead of being stranded in a
-    # parallel id-keyed table nobody prunes. Migrate any legacy entries first —
-    # on the write path, never on a read.
-    _migrate_area_label_anchors(map_bucket)
-    rooms = map_bucket.get("rooms")
-    room = rooms.get(room_id) if isinstance(rooms, dict) else None
-
-    # PREFER the room record; fall back to the map-level table when there is no
-    # managed room to hang it on.
-    #
-    # An earlier draft REFUSED with room_not_found here, on the assumption that
-    # every room whose label can be dragged has a managed record. It does not:
-    # the card renders these chips from `mss.rooms` — the live MAP-SOURCE room
-    # list (src/renderers/map.js, keyed by r.number) — which can contain rooms
-    # that were never configured. Refusing would have broken dragging a label on
-    # a discovered-but-unmanaged room. [MSH-7e] caught it.
-    #
-    # The fallback is not a regression: only MANAGED rooms are renumbered (a
-    # rebuild rewrites map_bucket["rooms"]), so the orphaning this finding is
-    # about is exactly the case the room record now covers. What stays in the
-    # side-table is anchors for rooms the rebuild never touches.
-    if pct_x is None and pct_y is None:
-        action = "cleared"
-        if isinstance(room, dict):
-            room.pop(_LABEL_ANCHOR_KEY, None)
-        legacy = map_bucket.get("area_label_anchors")
-        if isinstance(legacy, dict):
-            legacy.pop(room_id, None)
-    else:
-        x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
-        y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
-        anchor = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
-        action = "set"
-        if isinstance(room, dict):
-            room[_LABEL_ANCHOR_KEY] = anchor
-        else:
-            map_bucket.setdefault("area_label_anchors", {})[room_id] = anchor
-
-    await manager.async_save()
-    _LOGGER.debug(
-        "set_area_label_anchor: %s on %s/%s room %s",
-        action, vacuum_entity_id, map_id, room_id,
-    )
-    return {
-        "saved": True, "room_id": room_id, "action": action,
-        # Wire format unchanged — the card still reads
-        # mapSegmentsData().area_label_anchors and does not move.
-        "area_label_anchors": resolve_area_label_anchors(map_bucket),
-    }
 
 
 async def _handle_set_live_map_rotation(
@@ -3101,9 +2966,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_hidden_regions(call: ServiceCall) -> dict:
         return await _handle_set_hidden_regions(hass, call)
 
-    async def set_area_label_anchor(call: ServiceCall) -> dict:
-        return await _handle_set_area_label_anchor(hass, call)
-
     async def set_live_map_rotation(call: ServiceCall) -> dict:
         return await _handle_set_live_map_rotation(hass, call)
 
@@ -3209,10 +3071,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_HIDDEN_REGIONS, set_hidden_regions,
         schema=SET_HIDDEN_REGIONS_SCHEMA, supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_SET_AREA_LABEL_ANCHOR, set_area_label_anchor,
-        schema=SET_AREA_LABEL_ANCHOR_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,

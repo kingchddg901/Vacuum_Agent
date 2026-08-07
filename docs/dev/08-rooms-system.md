@@ -496,7 +496,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
 | `color` | str \| None | Per-room map fill override, a canonical `"#rrggbb"` (lowercased), or `None`/absent to use the themeable room-fill palette. Purely presentational; preserved across re-save (`room_manager.py`) and rebuild (`map_manager.py`). See [themeable-map-palette.md](frontend/themeable-map-palette.md). |
-| `label_anchor` | dict | Optional `{pct_x, pct_y}` (0-100, 4 dp) — the dragged position of the room's m² label chip. Lives **on the room record** (A5-FURNIS-4) so it rides a re-import through reconciliation's slug matching (`plan_migration`'s `carried = dict(source)` preserves it); written by `mapping_services.py::_handle_set_area_label_anchor`, absent until first dragged, `null` both `pct_x`/`pct_y` to clear. The legacy map-level `area_label_anchors` side-table is migrated onto rooms lazily on the write path only (never on read) via `_migrate_area_label_anchors`, and stays as a fallback for rooms with no managed record (e.g. a discovered-but-unmanaged room the card renders from the live map source). **Not a `RoomConfig` field** — see the note below. |
+| `label_anchor` | dict | **LEGACY, read-only.** The dragged position of a room's m² label chip, on records written before 2026-08-07. Nothing writes it any more: the chip's position is now stored device-locally by the card, in the same store the room-NAME label already used. It is still READ once per device, by `resolve_area_label_anchors`, to seed that local store so a pre-existing layout is not reset — after which the field is vestigial and a rebuild shedding it is harmless. Not a `RoomConfig` field; see the note below. |
 
 **Defaults** (new room, from `RoomConfig` + the brand's default profile via
 `rooms/room_defaults.py` — see §3.1): `enabled=<True on first import, False on incremental
@@ -519,9 +519,14 @@ writer: the save path is an explicit user approval (`is_configured` per the CRUD
 `configured_at` stamped `_iso_now()` when new); the rebuild path **preserves** whatever
 approval already existed (`True` for pre-field data or a carried-forward room, `False` for a
 genuinely new room — a rebuild must neither un-approve nor silently auto-approve). Neither
-writer emits `label_anchor` — it is not a `RoomConfig` field, so a re-save or rebuild **drops**
-it unless the room came from `plan_migration`'s carry (which copies the raw dict, not through
-`RoomConfig`).
+writer emits `label_anchor` — it is not a `RoomConfig` field, so a re-save or rebuild drops it
+unless the room came from `plan_migration`'s carry (which copies the raw dict, not through
+`RoomConfig`). **This no longer loses anything (R2-BUG-4).** It used to: the field was the only
+copy of a user's dragged m² chip position, so a room re-save silently reset it. The chip is now
+stored device-locally by the card, alongside the room-name label it sits next to, and the field
+survives only as a one-shot seed for devices that predate the change. The lesson is worth
+keeping even though the symptom is gone — a room-record field outside `RoomConfig` is dropped by
+both writers, silently, and nothing flags it.
 
 - A **load-time backfill** in `EufyVacuumManager.__init__` (`core/manager.py`) still runs on
   every construction: `setdefault` for `path_type=None`, `is_dock_room=False`,

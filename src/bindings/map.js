@@ -1988,6 +1988,12 @@ export function applyMapBindings(proto) {
         const roomKey = el.dataset.room;
         if (roomKey == null || roomKey === "") return;
 
+        // The AUTO placement, for the snap-back check on release (same contract as the
+        // room-name label's data-cx/cy). NaN when the renderer omits them, which
+        // Number.isFinite in the release handler treats as "no snap-back", not a crash.
+        const homeX = parseFloat(el.dataset.cx);
+        const homeY = parseFloat(el.dataset.cy);
+
         el.setPointerCapture(e.pointerId);
         el.classList.add("evcc-map-ov-area--dragging");
 
@@ -2024,8 +2030,20 @@ export function applyMapBindings(proto) {
           el.removeEventListener("pointercancel", finish);
           el.classList.remove("evcc-map-ov-area--dragging");
           if (!moved) return;   // a tap (no drag) shouldn't pin the chip at its default spot
-          this.card._state.setAreaLabelAnchorLocal?.(roomKey, livePctX, livePctY);
-          this.card._actions?.setAreaLabelAnchor?.(roomKey, livePctX, livePctY);
+          // Persist device-locally, exactly like the room-NAME label beside it. The
+          // backend round trip (setAreaLabelAnchor -> set_area_label_anchor service ->
+          // a `label_anchor` field on the room record) is gone: it was a second
+          // implementation of one job, and the fragile one — neither room writer
+          // carried the field through RoomConfig, so a room re-save or map rebuild
+          // silently dropped the position (R2-BUG-4).
+          //
+          // Snap-back matches the name label too: dragged back within 3% of the
+          // default centroid, clear the anchor rather than pin it there, so "put it
+          // back" is a drag and not a hunt for a reset control.
+          const nearHome = Number.isFinite(homeX) && Number.isFinite(homeY)
+            && Math.abs(livePctX - homeX) < 3 && Math.abs(livePctY - homeY) < 3;
+          if (nearHome) this.card._state.clearAreaLabelAnchor?.(roomKey);
+          else          this.card._state.setAreaLabelAnchorLocal?.(roomKey, livePctX, livePctY);
           this.card._scheduleRender();
         };
 

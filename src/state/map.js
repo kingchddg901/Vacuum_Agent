@@ -822,74 +822,124 @@ export function applyMapState(proto) {
 
   /* =========================================================
      AREA-LABEL ANCHORS — per-room position for the m² chip, so it
-     can be dragged off the room-name label. Map-level (the device
-     rooms are mode-independent), keyed by room number, {pct_x,pct_y}
-     in map-content-box % (same frame as the mascot anchor). Rides on
-     get_map_segments as `area_label_anchors`. null => default (centre).
+     can be dragged off the room-name label. Now served from the SAME
+     device-local store as the room-name label (see below); the
+     backend `area_label_anchors` payload is read once to seed a
+     device and is otherwise unused.
+
+     Returns the {pct_x, pct_y} shape the renderer already consumes,
+     so the drag/render path is untouched by the storage change.
+     null => default (room centre).
      ========================================================= */
-  proto._areaLabelOverlay = null;
   proto.areaLabelAnchor = function (roomKey) {
-    const k = String(roomKey);
-    if (this._areaLabelOverlay && this._areaLabelOverlay[k]) return this._areaLabelOverlay[k];
-    // Editor fetch (get_map_segments) when present, else the dashboard snapshot — the m² chips
-    // render on the plain dashboard (overlaysAligned) where segments are NOT fetched, so the
-    // saved positions must ride the snapshot too (mirrors map_overlay_visibility). Without the
-    // snapshot fallback a dragged label reverts to centre on reload off the editor.
-    // Empty-aware: get_map_segments ALWAYS emits area_label_anchors:{} and the editor cache
-    // isn't cleared on leaving the editor, so a `??` chain would let a present-but-empty {}
-    // shadow a populated snapshot. Only treat the editor set as authoritative when non-empty.
-    const seg = this.mapSegmentsData?.()?.area_label_anchors;
-    const anchors = (seg && Object.keys(seg).length)
-      ? seg
-      : this.dashboardSnapshot?.()?.area_label_anchors;
-    return (anchors && anchors[k]) || null;
-  };
-  proto.setAreaLabelAnchorLocal = function (roomKey, pctX, pctY) {
-    if (!this._areaLabelOverlay) this._areaLabelOverlay = {};
-    this._areaLabelOverlay[String(roomKey)] = { pct_x: pctX, pct_y: pctY };
+    const a = this._labelAnchor("area", roomKey);
+    return a ? { pct_x: a.x, pct_y: a.y } : null;
   };
 
   /* =========================================================
-     ROOM-NAME LABEL ANCHORS — per room, localStorage (per-device).
-     Lets the user drag the room-NAME label off its centroid; the
-     position is in map-content-box % (container-independent, so it
-     rides across the panel + card maps). Unlike the area-label (m²)
-     anchors, these are device-local (user choice) — see the action
-     layer's backend anchors for the cross-device variant.
-     {key -> {x,y}} keyed per vacuum + active map.
+     MAP LABEL ANCHORS — per room, per label KIND, localStorage.
+     =========================================================
+     Where the user dragged a map label off its default centroid, in
+     map-content-box % (container-independent, so a position rides
+     across the panel and card maps).
+
+     ONE implementation for both label kinds. The m² area chip used to
+     persist through a BACKEND service instead (set_area_label_anchor ->
+     a `label_anchor` field on the room record), so the same gesture on
+     two adjacent labels stored two ways, synced differently, and failed
+     differently — and the backend one was the fragile half: neither room
+     writer carries `label_anchor` through RoomConfig, so any room re-save
+     or map rebuild silently dropped it (R2-BUG-4).
+
+     Chris's call: the two paths were one job built twice. Collapsed onto
+     this one, which makes R2-BUG-4 disappear rather than get fixed —
+     there is no persisted room field left for a writer to drop.
+
+     Device-local is the right default for label layout: placement is a
+     function of YOUR screen, so a phone and a desktop legitimately want
+     different ones.
+
+     Keyed per vacuum + active map + kind.
      ========================================================= */
-  proto._roomNameAnchors = null;       // {key:{x,y}} | null = not yet loaded
-  proto._roomNameAnchorsFor = null;    // the storage key the cache was loaded for
-  proto._roomNameStorageKey = function () {
-    return `evcc_map_room_names_${(this.vacuumObjectId() || "")}_${this.activeMapId?.() ?? "main"}`;
+  proto._labelAnchors = {};        // storageKey -> {roomKey:{x,y}}
+  proto._labelAnchorSeeded = {};   // storageKey -> true, one-shot backend seed
+
+  proto._labelStorageKey = function (kind) {
+    // "name" keeps the ORIGINAL key so existing dragged room-name positions
+    // survive this refactor untouched; "area" gets its own namespace.
+    const base = kind === "area" ? "evcc_map_room_areas" : "evcc_map_room_names";
+    return `${base}_${(this.vacuumObjectId() || "")}_${this.activeMapId?.() ?? "main"}`;
   };
-  proto._loadRoomNameAnchors = function () {
-    const key = this._roomNameStorageKey();
-    if (this._roomNameAnchors !== null && this._roomNameAnchorsFor === key) return this._roomNameAnchors;
-    this._roomNameAnchorsFor = key;
+
+  proto._loadLabelAnchors = function (kind) {
+    const key = this._labelStorageKey(kind);
+    if (this._labelAnchors[key]) return this._labelAnchors[key];
+    let parsed = null;
     try {
       const raw = localStorage.getItem(key);
-      const parsed = raw ? JSON.parse(raw) : null;
-      this._roomNameAnchors = (parsed && typeof parsed === "object") ? parsed : {};
-    } catch (_) {
-      this._roomNameAnchors = {};
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch (_) { /* quota, private mode, corrupt JSON — fall through to empty */ }
+    const anchors = (parsed && typeof parsed === "object") ? parsed : {};
+
+    // ONE-SHOT SEED (area only). Positions dragged before this refactor live in
+    // the backend snapshot. Adopt them the first time each device loads the map,
+    // so nobody's layout resets under them — then this device is local forever.
+    // Read-only: nothing is written back, and the backend copy simply goes
+    // vestigial as room rebuilds shed it.
+    // The seeded marker is PERSISTED, not per-session. An in-memory guard resets on
+    // every reload, so a user who dragged a chip back to centre (clearing the local
+    // anchor) would have the stale backend value re-adopted on their next page load —
+    // an undo that silently undoes itself.
+    let seeded = this._labelAnchorSeeded[key];
+    if (kind === "area" && !seeded) {
+      try { seeded = localStorage.getItem(`${key}__seeded`) === "1"; } catch (_) {}
     }
-    return this._roomNameAnchors;
+    if (kind === "area" && !seeded) {
+      this._labelAnchorSeeded[key] = true;
+      try { localStorage.setItem(`${key}__seeded`, "1"); } catch (_) {}
+      const legacy = this.mapSegmentsData?.()?.area_label_anchors
+        ?? this.dashboardSnapshot?.()?.area_label_anchors;
+      if (legacy && typeof legacy === "object") {
+        let adopted = false;
+        for (const [roomKey, a] of Object.entries(legacy)) {
+          if (anchors[roomKey]) continue;  // a local drag always wins
+          const x = Number(a?.pct_x);
+          const y = Number(a?.pct_y);
+          if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+          anchors[roomKey] = { x, y };
+          adopted = true;
+        }
+        if (adopted) {
+          try { localStorage.setItem(key, JSON.stringify(anchors)); } catch (_) {}
+        }
+      }
+    }
+
+    this._labelAnchors[key] = anchors;
+    return anchors;
   };
-  proto.roomNameAnchor = function (roomKey) {
-    const a = this._loadRoomNameAnchors()[String(roomKey)];
+
+  proto._labelAnchor = function (kind, roomKey) {
+    const a = this._loadLabelAnchors(kind)[String(roomKey)];
     return (a && Number.isFinite(a.x) && Number.isFinite(a.y)) ? a : null;
   };
-  proto.setRoomNameAnchorLocal = function (roomKey, pctX, pctY) {
-    const anchors = this._loadRoomNameAnchors();
+  proto._setLabelAnchor = function (kind, roomKey, pctX, pctY) {
+    const anchors = this._loadLabelAnchors(kind);
     anchors[String(roomKey)] = { x: pctX, y: pctY };
-    try { localStorage.setItem(this._roomNameStorageKey(), JSON.stringify(anchors)); } catch (_) {}
+    try { localStorage.setItem(this._labelStorageKey(kind), JSON.stringify(anchors)); } catch (_) {}
   };
-  proto.clearRoomNameAnchor = function (roomKey) {
-    const anchors = this._loadRoomNameAnchors();
+  proto._clearLabelAnchor = function (kind, roomKey) {
+    const anchors = this._loadLabelAnchors(kind);
     delete anchors[String(roomKey)];
-    try { localStorage.setItem(this._roomNameStorageKey(), JSON.stringify(anchors)); } catch (_) {}
+    try { localStorage.setItem(this._labelStorageKey(kind), JSON.stringify(anchors)); } catch (_) {}
   };
+
+  proto.roomNameAnchor = function (roomKey) { return this._labelAnchor("name", roomKey); };
+  proto.setRoomNameAnchorLocal = function (roomKey, x, y) { this._setLabelAnchor("name", roomKey, x, y); };
+  proto.clearRoomNameAnchor = function (roomKey) { this._clearLabelAnchor("name", roomKey); };
+
+  proto.setAreaLabelAnchorLocal = function (roomKey, x, y) { this._setLabelAnchor("area", roomKey, x, y); };
+  proto.clearAreaLabelAnchor = function (roomKey) { this._clearLabelAnchor("area", roomKey); };
 
   /* =========================================================
      MAP_STATE_SOURCE OVERLAYS (Wave 3c) — the VA's read of the

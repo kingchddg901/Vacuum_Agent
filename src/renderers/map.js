@@ -526,8 +526,13 @@ export function applyMapRenderers(proto) {
         const anchor = state.areaLabelAnchor?.(r.number);
         const lx = anchor ? Number(anchor.pct_x) : tx((x0 + x1) / 2);
         const ly = anchor ? Number(anchor.pct_y) : ty((y0 + y1) / 2);
+        // data-cx/cy = the AUTO placement (room-bbox centre) the drag can snap back to,
+        // mirroring the room-name label. Always the default, never the dragged position.
+        const hx = tx((x0 + x1) / 2);
+        const hy = ty((y0 + y1) / 2);
         out += `<div class="evcc-map-ov-area" data-action="area-label-drag" `
              + `data-room="${this.escapeHtml(String(r.number))}" `
+             + `data-cx="${f(hx)}" data-cy="${f(hy)}" `
              + `style="left:${f(lx)}%;top:${f(ly)}%">`
              + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
       }
