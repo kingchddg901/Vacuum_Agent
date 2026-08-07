@@ -4,6 +4,11 @@ Regenerate: the script lives in git history of this file's generating commit.
 PURPOSE: the interface-change re-validation rule — a closure that alters a doc's
 PROVIDES surface flags every doc listing it below as provisional.
 
+CAVEAT (Chris, 2026-08-07): these are REFERENCE edges, not REQUIREMENT edges — doc 32
+measured that most are optional consumption through absence-tolerant seams; the atom
+(adapter+dispatch+rooms+spine+active_job) runs with all rings absent. Use this map for
+interface-change re-validation fan-out, NEVER as a build-requirement graph.
+
 MEASURED: only 5 of 26 docs are dependency-free; the remainder is one mutually-
 recursive cluster — a topological ablation order DOES NOT EXIST for this corpus.
 

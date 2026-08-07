@@ -591,9 +591,12 @@ baseline confuses missing invariants with unapplied fixes.
    recursive (measured: 5 of 26 dependency-free, the rest one cluster —
    `DOC-DEPENDENCY-MAP.md`), so a topological ablation order DOES NOT EXIST. Proof
    composition does not need one: closures lean on other docs' INTERFACE STATEMENTS,
-   which all exist from day one. The fleet therefore runs the README's reading order
-   top-to-bottom (deterministic, auditable, comprehension-first: 01 → 02 → 03 → 04 →
-   05 → 06 → 07 → 30 → 08…15/31 → 16-18 → 21/22/25/26/29 → 28), with the compensating
+   which all exist from day one. The fleet therefore runs ATOM-FIRST, then the README's
+   reading order (Chris's core-stands-alone check, doc 32): the atom's sections —
+   03 (spine/data), 21/22 (adapter), 07 (queue/dispatch), 08 (rooms), 06
+   (active_job) — close first, because with just those proven a rebuilt system
+   CLEANS; then the remainder top-to-bottom (01 → 02 → 04 → 05 → 30 → 09…15/31 →
+   16-18 → 25/26/29 → 28), with the compensating
    rule that replaces sequencing: **any closure that alters a doc's PROVIDES surface
    flags every dependent doc's closure provisional** (dependents per
    DOC-DEPENDENCY-MAP.md). Trims must preserve interface statements regardless — they

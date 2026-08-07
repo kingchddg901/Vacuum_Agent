@@ -39,9 +39,21 @@ What "disaster" means, exactly — the scenario every DR doc is sized against:
   wiring against the skeleton. The reading order doubles as an existence-proof
   growth sequence: the doc numbers are landing order, i.e. the sequence in which
   this system demonstrably grew once, manager accreting alongside.
+  **Reference edges are not requirement edges (Chris's check, 2026-08-07):** the
+  import graph's mutual-recursion cluster mostly measures OPTIONAL consumption. The
+  architecture is atom + rings ([32](32-core-minimality-and-deconstruction.md), the
+  measured map): the ATOM (adapter + dispatch + rooms + spine + active_job) fires a
+  clean with everything else ABSENT — most rings attach through absence-tolerant
+  seams (`if learning is None: …`, the model to copy), which is stronger than
+  skeletons: the core tolerates a ring's nonexistence, not merely its stubbing.
+  Recovery therefore runs ATOM-OUT: rebuild the atom's sections first (a system that
+  CLEANS exists at that point), then attach rings in any order, each restoring its
+  feature slice; phase-1 skeletons are only genuinely needed across the WELDED edges
+  32 maps as refactor debt.
   Consequence for authors: every doc MUST state the interfaces it PROVIDES and the
-  neighbour interfaces it CONSUMES (the rubric's integration-contract row is
-  load-bearing for the whole corpus, not local hygiene).
+  neighbour interfaces it CONSUMES — and whether each consumed seam is
+  absence-tolerant or welded (the rubric's integration-contract row is load-bearing
+  for the whole corpus, not local hygiene).
 - **Test-harness honesty:** blind-reconstruction experiments (the ablation loop) give
   builders the real surrounding source as a practical stand-in for rebuilt neighbours.
   That is an OVER-approximation — call-site bodies teach more than documented
