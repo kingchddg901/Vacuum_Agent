@@ -41,6 +41,9 @@ _MAP = "6"
 # ---------------------------------------------------------------------------
 
 def _active_err(latch):
+    # W2: SANCTIONED. Drives the error SENSOR entity against a partial tracker
+    # stub (04-patterns: buttons/switches/numbers/sensors). The entity is the
+    # subject; the stub is scenery.
     t = MagicMock()
     t.get_active_run_latch.return_value = latch
     t.add_update_listener.return_value = lambda: None
@@ -109,6 +112,7 @@ async def test_error_sensor_listener_and_callback():
 # ---------------------------------------------------------------------------
 
 def _job_sensor(job):
+    # W2: SANCTIONED, same reason as _active_err above.
     m = MagicMock()
     m.get_active_job.return_value = job
     return EufyVacuumActiveJobSensor(manager=m, vacuum_entity_id=_VAC, map_id=_MAP)

@@ -242,6 +242,14 @@ async def test_run_profile_button_reconciliation_adds_exposed(hass, manager):
     manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
     setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
 
+    # W2 classification: this is a CONFIG ENTRY stand-in handed into
+    # async_setup_entry — production code, but neither a manager nor an entity,
+    # so neither spec_manager nor the sanctioned partial-stub pattern fits. The
+    # right upgrade is the real MockConfigEntry (already a fixture in
+    # tests/conftest.py), not spec_of. Left as-is deliberately: the test captures
+    # async_on_unload by assigning over it, so switching to a real entry is a
+    # rewrite of the assertion mechanics rather than a swap, and behaviour-
+    # preserving conversion is the wave's whole contract.
     entry = MagicMock()
     entry.async_on_unload = MagicMock()
     captured: list = []

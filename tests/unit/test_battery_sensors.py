@@ -79,6 +79,10 @@ _RECORD = {
 
 
 def _mgr(record=None) -> MagicMock:
+    # W2: SANCTIONED bare stub. The subject is the battery SENSOR entity being
+    # driven against a deliberately partial manager (docs/testing/04-patterns).
+    # Not handed into non-entity production code, so spec_manager is the wrong
+    # tool here — it would add ceremony without adding a check.
     m = MagicMock()
     m.get_record.return_value = record if record is not None else _RECORD
     m.add_update_listener.return_value = lambda: None

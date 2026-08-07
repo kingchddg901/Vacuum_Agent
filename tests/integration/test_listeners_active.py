@@ -61,7 +61,7 @@ import pytest
 import homeassistant.util.dt as dt_util
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from tests._factories import spec_tracker
+from tests._factories import spec_manager, spec_tracker
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
@@ -85,8 +85,15 @@ _MAP = "1"
 
 
 def _mgr(hass):
-    """Wire a fresh mock manager at DATA_RUNTIME with the common defaults."""
-    m = MagicMock()
+    """Wire a fresh mock manager at DATA_RUNTIME with the common defaults.
+
+    W2: spec'd, not bare. This manager is wired into hass.data[DATA_RUNTIME] and the
+    LISTENERS pull it back out and call it — production code, not a platform entity,
+    so the sanctioned partial-stub pattern (04-patterns) does not apply here. A bare
+    MagicMock answers to any attribute and any argument list, which is the exact
+    defect class audit 1 traced through this very module.
+    """
+    m = spec_manager()
     m.async_save = AsyncMock()
     m.get_known_vacuum_ids.return_value = [_VAC]
     m.get_known_map_ids.return_value = [_MAP]
