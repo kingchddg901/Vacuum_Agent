@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "إعداد Vacuum Agent",
+        "description": "اختر كيان المكنسة الذي يجب أن يديره هذا التكامل. حقل «المكنسة» اختياري أثناء الإعداد الأولي — يمكنك تركه فارغًا وتعبئته لاحقًا عبر «تهيئة → خيارات».",
+        "data": {
+          "tested_model": "الطراز المختبَر",
+          "notes": "ملاحظات",
+          "vacuum_entity_id": "المكنسة"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "تم إعداد Vacuum Agent بالفعل."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "إعدادات Vacuum Agent",
+        "description": "اختر كيان المكنسة الذي يجب أن يديره هذا التكامل. تغيير قيمة «المكنسة» يعيد تحميل التكامل بحيث تظهر لوحة المكنسة الجديدة في الشريط الجانبي.",
+        "data": {
+          "vacuum_entity_id": "المكنسة",
+          "notes": "ملاحظات"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "كيان المكنسة هذا لم يعد موجودًا — ربما أُزيل أثناء فتح هذا الحوار. اختر مكنسة متاحة حاليًا."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "لا يمكن أن يبدأ ملف التشغيل باستراحة شحن/انتظار."
+    },
+    "trailing_break_unsupported": {
+      "message": "لا يمكن أن ينتهي ملف التشغيل باستراحة شحن/انتظار."
+    },
+    "theme_operation_failed": {
+      "message": "فشل {operation}: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "رفض finalize_learning_job: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "حالة الإعداد الأولي"
+      },
+      "map_overlays": {
+        "name": "طبقات الخريطة"
+      },
+      "dock_events": {
+        "name": "أحداث المحطة"
+      },
+      "theme_state": {
+        "name": "حالة السمة"
+      },
+      "available_profiles": {
+        "name": "الملفات المتاحة"
+      },
+      "active_job": {
+        "name": "المهمة النشطة"
+      },
+      "active_run_error": {
+        "name": "خطأ التنظيف النشط"
+      },
+      "last_device_error": {
+        "name": "آخر خطأ في الجهاز"
+      },
+      "charge_cycles": {
+        "name": "دورات الشحن"
+      },
+      "charge_rate": {
+        "name": "معدل الشحن"
+      },
+      "charge_rate_low_zone": {
+        "name": "معدل الشحن (النطاق المنخفض)"
+      },
+      "charge_rate_high_zone": {
+        "name": "معدل الشحن (النطاق المرتفع)"
+      },
+      "last_charge_duration": {
+        "name": "مدة آخر شحن"
+      },
+      "battery_health": {
+        "name": "صحة البطارية"
+      },
+      "cc_charge_speed": {
+        "name": "سرعة الشحن CC"
+      },
+      "cv_charge_speed": {
+        "name": "سرعة الشحن CV"
+      },
+      "last_job_drain_rate": {
+        "name": "معدل استنزاف آخر مهمة"
+      },
+      "last_job_drain_per_hour": {
+        "name": "استنزاف آخر مهمة في الساعة"
+      },
+      "last_job_drain_per_m2": {
+        "name": "استنزاف آخر مهمة لكل م²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "معدل إعادة الشحن أثناء المهمة"
+      },
+      "maintenance_remaining": {
+        "name": "الصيانة المتبقية: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "سجلّ تنظيف {room}"
+      },
+      "room_rule_status": {
+        "name": "حالة قواعد {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "التنظيف النشط به خطأ"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "إعادة ضبط صيانة {component}"
+      },
+      "run_profile": {
+        "name": "تشغيل {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "فترة صيانة {component}"
+      },
+      "room_order": {
+        "name": "ترتيب {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} محددة للتنظيف"
+      }
+    }
+  }
+}

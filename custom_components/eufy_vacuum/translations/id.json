@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Siapkan Vacuum Agent",
+        "description": "Pilih entitas penyedot debu yang harus dikelola integrasi ini. Kolom \"Penyedot debu\" opsional saat penyiapan awal — Anda bisa membiarkannya kosong dan mengisinya nanti lewat Konfigurasi → Opsi.",
+        "data": {
+          "tested_model": "Model teruji",
+          "notes": "Catatan",
+          "vacuum_entity_id": "Penyedot debu"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent sudah dikonfigurasi."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Pengaturan Vacuum Agent",
+        "description": "Pilih entitas penyedot debu yang harus dikelola integrasi ini. Mengubah nilai \"Penyedot debu\" memuat ulang integrasi sehingga panel penyedot debu baru muncul di bilah samping.",
+        "data": {
+          "vacuum_entity_id": "Penyedot debu",
+          "notes": "Catatan"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Entitas penyedot debu itu sudah tidak ada — mungkin dihapus saat dialog ini terbuka. Pilih penyedot debu yang tersedia saat ini."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Profil jalan tidak bisa dimulai dengan jeda isi daya/tunggu."
+    },
+    "trailing_break_unsupported": {
+      "message": "Profil jalan tidak bisa diakhiri dengan jeda isi daya/tunggu."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} gagal: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job ditolak: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "Status Penyiapan Awal"
+      },
+      "map_overlays": {
+        "name": "Lapisan Peta"
+      },
+      "dock_events": {
+        "name": "Peristiwa Dok"
+      },
+      "theme_state": {
+        "name": "Status Tema"
+      },
+      "available_profiles": {
+        "name": "Profil Tersedia"
+      },
+      "active_job": {
+        "name": "Tugas Aktif"
+      },
+      "active_run_error": {
+        "name": "Kesalahan Pembersihan Aktif"
+      },
+      "last_device_error": {
+        "name": "Kesalahan Perangkat Terakhir"
+      },
+      "charge_cycles": {
+        "name": "Siklus Pengisian"
+      },
+      "charge_rate": {
+        "name": "Laju Pengisian"
+      },
+      "charge_rate_low_zone": {
+        "name": "Laju Pengisian (Zona Rendah)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Laju Pengisian (Zona Tinggi)"
+      },
+      "last_charge_duration": {
+        "name": "Durasi Pengisian Terakhir"
+      },
+      "battery_health": {
+        "name": "Kesehatan Baterai"
+      },
+      "cc_charge_speed": {
+        "name": "Kecepatan Pengisian CC"
+      },
+      "cv_charge_speed": {
+        "name": "Kecepatan Pengisian CV"
+      },
+      "last_job_drain_rate": {
+        "name": "Laju Pengurasan Tugas Terakhir"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Pengurasan Tugas Terakhir per Jam"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Pengurasan Tugas Terakhir per m²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Laju Isi Ulang di Tengah Tugas"
+      },
+      "maintenance_remaining": {
+        "name": "Sisa Perawatan {component}"
+      },
+      "room_cleaning_history": {
+        "name": "Riwayat Pembersihan {room}"
+      },
+      "room_rule_status": {
+        "name": "Status Aturan {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "Pembersihan Aktif Bermasalah"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "Reset Perawatan {component}"
+      },
+      "run_profile": {
+        "name": "Jalankan {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "Interval Perawatan {component}"
+      },
+      "room_order": {
+        "name": "Urutan {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} Dipilih untuk Dibersihkan"
+      }
+    }
+  }
+}

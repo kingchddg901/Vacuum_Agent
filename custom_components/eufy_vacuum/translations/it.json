@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configura Vacuum Agent",
+        "description": "Scegli l'entità dell'aspirapolvere che questa integrazione deve gestire. Il campo «Aspirapolvere» è facoltativo durante la configurazione iniziale — puoi lasciarlo vuoto e compilarlo in seguito da Configura → Opzioni.",
+        "data": {
+          "tested_model": "Modello testato",
+          "notes": "Note",
+          "vacuum_entity_id": "Aspirapolvere"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent è già configurato."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Impostazioni di Vacuum Agent",
+        "description": "Scegli l'entità dell'aspirapolvere che questa integrazione deve gestire. Cambiare il valore «Aspirapolvere» ricarica l'integrazione così il pannello del nuovo aspirapolvere compare nella barra laterale.",
+        "data": {
+          "vacuum_entity_id": "Aspirapolvere",
+          "notes": "Note"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Quell'entità aspirapolvere non esiste più — potrebbe essere stata rimossa mentre questa finestra era aperta. Scegli un aspirapolvere attualmente disponibile."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Un profilo di esecuzione non può iniziare con una pausa di ricarica/attesa."
+    },
+    "trailing_break_unsupported": {
+      "message": "Un profilo di esecuzione non può terminare con una pausa di ricarica/attesa."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} non riuscito: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job rifiutato: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "Stato configurazione iniziale"
+      },
+      "map_overlays": {
+        "name": "Livelli mappa"
+      },
+      "dock_events": {
+        "name": "Eventi base"
+      },
+      "theme_state": {
+        "name": "Stato tema"
+      },
+      "available_profiles": {
+        "name": "Profili disponibili"
+      },
+      "active_job": {
+        "name": "Attività attiva"
+      },
+      "active_run_error": {
+        "name": "Errore pulizia attiva"
+      },
+      "last_device_error": {
+        "name": "Ultimo errore dispositivo"
+      },
+      "charge_cycles": {
+        "name": "Cicli di carica"
+      },
+      "charge_rate": {
+        "name": "Velocità di carica"
+      },
+      "charge_rate_low_zone": {
+        "name": "Velocità di carica (zona bassa)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Velocità di carica (zona alta)"
+      },
+      "last_charge_duration": {
+        "name": "Durata ultima carica"
+      },
+      "battery_health": {
+        "name": "Salute batteria"
+      },
+      "cc_charge_speed": {
+        "name": "Velocità di carica CC"
+      },
+      "cv_charge_speed": {
+        "name": "Velocità di carica CV"
+      },
+      "last_job_drain_rate": {
+        "name": "Scarica ultima attività"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Scarica ultima attività all'ora"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Scarica ultima attività per m²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Ricarica a metà attività"
+      },
+      "maintenance_remaining": {
+        "name": "Manutenzione residua: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "Cronologia pulizie: {room}"
+      },
+      "room_rule_status": {
+        "name": "Stato regole: {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "La pulizia attiva ha un errore"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "Azzera manutenzione: {component}"
+      },
+      "run_profile": {
+        "name": "Esegui {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "Intervallo manutenzione: {component}"
+      },
+      "room_order": {
+        "name": "Ordine: {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} selezionata per la pulizia"
+      }
+    }
+  }
+}

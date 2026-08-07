@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nastavení Vacuum Agent",
+        "description": "Vyberte entitu vysavače, kterou má tato integrace spravovat. Pole „Vysavač“ je při prvotním nastavení volitelné — můžete je nechat prázdné a doplnit později přes Konfigurovat → Možnosti.",
+        "data": {
+          "tested_model": "Testovaný model",
+          "notes": "Poznámky",
+          "vacuum_entity_id": "Vysavač"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent je již nastaven."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nastavení Vacuum Agent",
+        "description": "Vyberte entitu vysavače, kterou má tato integrace spravovat. Změna hodnoty „Vysavač“ znovu načte integraci, takže se panel nového vysavače objeví v postranním panelu.",
+        "data": {
+          "vacuum_entity_id": "Vysavač",
+          "notes": "Poznámky"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Tato entita vysavače už neexistuje — mohla být odstraněna, když bylo toto okno otevřené. Vyberte vysavač, který je aktuálně dostupný."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Profil úklidu nemůže začínat přestávkou na nabíjení/čekání."
+    },
+    "trailing_break_unsupported": {
+      "message": "Profil úklidu nemůže končit přestávkou na nabíjení/čekání."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} selhalo: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job odmítnuto: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "Stav prvotního nastavení"
+      },
+      "map_overlays": {
+        "name": "Vrstvy mapy"
+      },
+      "dock_events": {
+        "name": "Události doku"
+      },
+      "theme_state": {
+        "name": "Stav motivu"
+      },
+      "available_profiles": {
+        "name": "Dostupné profily"
+      },
+      "active_job": {
+        "name": "Aktivní úloha"
+      },
+      "active_run_error": {
+        "name": "Chyba aktivního úklidu"
+      },
+      "last_device_error": {
+        "name": "Poslední chyba zařízení"
+      },
+      "charge_cycles": {
+        "name": "Nabíjecí cykly"
+      },
+      "charge_rate": {
+        "name": "Rychlost nabíjení"
+      },
+      "charge_rate_low_zone": {
+        "name": "Rychlost nabíjení (nízké pásmo)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Rychlost nabíjení (vysoké pásmo)"
+      },
+      "last_charge_duration": {
+        "name": "Doba posledního nabíjení"
+      },
+      "battery_health": {
+        "name": "Zdraví baterie"
+      },
+      "cc_charge_speed": {
+        "name": "Rychlost nabíjení CC"
+      },
+      "cv_charge_speed": {
+        "name": "Rychlost nabíjení CV"
+      },
+      "last_job_drain_rate": {
+        "name": "Vybíjení poslední úlohy"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Vybíjení poslední úlohy za hodinu"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Vybíjení poslední úlohy na m²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Dobíjení během úlohy"
+      },
+      "maintenance_remaining": {
+        "name": "Zbývající údržba: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "Historie úklidu: {room}"
+      },
+      "room_rule_status": {
+        "name": "Stav pravidel: {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "Aktivní úklid má chybu"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "Resetovat údržbu: {component}"
+      },
+      "run_profile": {
+        "name": "Spustit {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "Interval údržby: {component}"
+      },
+      "room_order": {
+        "name": "Pořadí: {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} vybrána k úklidu"
+      }
+    }
+  }
+}

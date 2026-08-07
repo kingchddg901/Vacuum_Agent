@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Agent einrichten",
+        "description": "Wählen Sie die Saugroboter-Entität, die diese Integration verwalten soll. Das Feld „Saugroboter“ ist bei der Ersteinrichtung optional — Sie können es leer lassen und später über Konfigurieren → Optionen nachtragen.",
+        "data": {
+          "tested_model": "Getestetes Modell",
+          "notes": "Notizen",
+          "vacuum_entity_id": "Saugroboter"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vacuum Agent Einstellungen",
+        "description": "Wählen Sie die Saugroboter-Entität, die diese Integration verwalten soll. Eine Änderung des Werts „Saugroboter“ lädt die Integration neu, sodass das Panel des neuen Saugroboters in der Seitenleiste erscheint.",
+        "data": {
+          "vacuum_entity_id": "Saugroboter",
+          "notes": "Notizen"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Diese Saugroboter-Entität existiert nicht mehr — sie wurde möglicherweise entfernt, während dieser Dialog geöffnet war. Wählen Sie einen aktuell verfügbaren Saugroboter."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Ein Ausführungsprofil kann nicht mit einer Lade-/Wartepause beginnen."
+    },
+    "trailing_break_unsupported": {
+      "message": "Ein Ausführungsprofil kann nicht mit einer Lade-/Wartepause enden."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} fehlgeschlagen: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job abgelehnt: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "Onboarding-Status"
+      },
+      "map_overlays": {
+        "name": "Kartenebenen"
+      },
+      "dock_events": {
+        "name": "Dock-Ereignisse"
+      },
+      "theme_state": {
+        "name": "Theme-Status"
+      },
+      "available_profiles": {
+        "name": "Verfügbare Profile"
+      },
+      "active_job": {
+        "name": "Aktiver Auftrag"
+      },
+      "active_run_error": {
+        "name": "Fehler der aktiven Reinigung"
+      },
+      "last_device_error": {
+        "name": "Letzter Gerätefehler"
+      },
+      "charge_cycles": {
+        "name": "Ladezyklen"
+      },
+      "charge_rate": {
+        "name": "Laderate"
+      },
+      "charge_rate_low_zone": {
+        "name": "Laderate (niedriger Bereich)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Laderate (hoher Bereich)"
+      },
+      "last_charge_duration": {
+        "name": "Letzte Ladedauer"
+      },
+      "battery_health": {
+        "name": "Akkuzustand"
+      },
+      "cc_charge_speed": {
+        "name": "CC-Ladegeschwindigkeit"
+      },
+      "cv_charge_speed": {
+        "name": "CV-Ladegeschwindigkeit"
+      },
+      "last_job_drain_rate": {
+        "name": "Entladung des letzten Auftrags"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Entladung des letzten Auftrags pro Stunde"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Entladung des letzten Auftrags pro m²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Nachladen während des Auftrags"
+      },
+      "maintenance_remaining": {
+        "name": "Verbleibende Wartung: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "Reinigungsverlauf: {room}"
+      },
+      "room_rule_status": {
+        "name": "Regelstatus: {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "Aktive Reinigung hat einen Fehler"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "Wartung zurücksetzen: {component}"
+      },
+      "run_profile": {
+        "name": "{profile} ausführen"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "Wartungsintervall: {component}"
+      },
+      "room_order": {
+        "name": "Reihenfolge: {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} zur Reinigung ausgewählt"
+      }
+    }
+  }
+}

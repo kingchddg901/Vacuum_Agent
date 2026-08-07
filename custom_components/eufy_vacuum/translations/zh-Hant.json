@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "設定 Vacuum Agent",
+        "description": "選擇此整合要管理的掃地機實體。「掃地機」欄位在初始設定時為選填 — 可以留空，之後透過「設定 → 選項」填寫。",
+        "data": {
+          "tested_model": "已測試型號",
+          "notes": "備註",
+          "vacuum_entity_id": "掃地機"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent 已設定。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vacuum Agent 設定",
+        "description": "選擇此整合要管理的掃地機實體。變更「掃地機」的值會重新載入整合，新掃地機的面板會出現在側邊欄。",
+        "data": {
+          "vacuum_entity_id": "掃地機",
+          "notes": "備註"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "該掃地機實體已不存在 — 可能在此對話框開啟期間被移除。請選擇目前可用的掃地機。"
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "執行設定檔不能以充電/等待休息開始。"
+    },
+    "trailing_break_unsupported": {
+      "message": "執行設定檔不能以充電/等待休息結束。"
+    },
+    "theme_operation_failed": {
+      "message": "{operation} 失敗：{reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job 已拒絕：{reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "引導狀態"
+      },
+      "map_overlays": {
+        "name": "地圖疊加層"
+      },
+      "dock_events": {
+        "name": "基站事件"
+      },
+      "theme_state": {
+        "name": "主題狀態"
+      },
+      "available_profiles": {
+        "name": "可用設定檔"
+      },
+      "active_job": {
+        "name": "目前任務"
+      },
+      "active_run_error": {
+        "name": "目前清潔錯誤"
+      },
+      "last_device_error": {
+        "name": "最近裝置錯誤"
+      },
+      "charge_cycles": {
+        "name": "充電循環次數"
+      },
+      "charge_rate": {
+        "name": "充電速率"
+      },
+      "charge_rate_low_zone": {
+        "name": "充電速率（低區）"
+      },
+      "charge_rate_high_zone": {
+        "name": "充電速率（高區）"
+      },
+      "last_charge_duration": {
+        "name": "上次充電時長"
+      },
+      "battery_health": {
+        "name": "電池健康度"
+      },
+      "cc_charge_speed": {
+        "name": "CC 充電速度"
+      },
+      "cv_charge_speed": {
+        "name": "CV 充電速度"
+      },
+      "last_job_drain_rate": {
+        "name": "上次任務耗電速率"
+      },
+      "last_job_drain_per_hour": {
+        "name": "上次任務每小時耗電"
+      },
+      "last_job_drain_per_m2": {
+        "name": "上次任務每 m² 耗電"
+      },
+      "mid_job_recharge_rate": {
+        "name": "任務中回充速率"
+      },
+      "maintenance_remaining": {
+        "name": "{component}剩餘維護"
+      },
+      "room_cleaning_history": {
+        "name": "{room}清潔紀錄"
+      },
+      "room_rule_status": {
+        "name": "{room}規則狀態"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "目前清潔有錯誤"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "重設{component}維護"
+      },
+      "run_profile": {
+        "name": "執行 {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "{component}維護間隔"
+      },
+      "room_order": {
+        "name": "{room}順序"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room}已選擇清潔"
+      }
+    }
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Настройка Vacuum Agent",
+        "description": "Выберите сущность пылесоса, которой должна управлять эта интеграция. Поле «Пылесос» необязательно при первичной настройке — его можно оставить пустым и заполнить позже через «Настроить → Параметры».",
+        "data": {
+          "tested_model": "Проверенная модель",
+          "notes": "Заметки",
+          "vacuum_entity_id": "Пылесос"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent уже настроен."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки Vacuum Agent",
+        "description": "Выберите сущность пылесоса, которой должна управлять эта интеграция. Изменение значения «Пылесос» перезагружает интеграцию, и панель нового пылесоса появляется в боковой панели.",
+        "data": {
+          "vacuum_entity_id": "Пылесос",
+          "notes": "Заметки"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Эта сущность пылесоса больше не существует — возможно, её удалили, пока это окно было открыто. Выберите доступный сейчас пылесос."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Профиль запуска не может начинаться с паузы на зарядку/ожидание."
+    },
+    "trailing_break_unsupported": {
+      "message": "Профиль запуска не может заканчиваться паузой на зарядку/ожидание."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} не выполнено: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job отклонено: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "Состояние первичной настройки"
+      },
+      "map_overlays": {
+        "name": "Слои карты"
+      },
+      "dock_events": {
+        "name": "События док-станции"
+      },
+      "theme_state": {
+        "name": "Состояние темы"
+      },
+      "available_profiles": {
+        "name": "Доступные профили"
+      },
+      "active_job": {
+        "name": "Активное задание"
+      },
+      "active_run_error": {
+        "name": "Ошибка текущей уборки"
+      },
+      "last_device_error": {
+        "name": "Последняя ошибка устройства"
+      },
+      "charge_cycles": {
+        "name": "Циклы зарядки"
+      },
+      "charge_rate": {
+        "name": "Скорость зарядки"
+      },
+      "charge_rate_low_zone": {
+        "name": "Скорость зарядки (нижняя зона)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Скорость зарядки (верхняя зона)"
+      },
+      "last_charge_duration": {
+        "name": "Длительность последней зарядки"
+      },
+      "battery_health": {
+        "name": "Здоровье батареи"
+      },
+      "cc_charge_speed": {
+        "name": "Скорость зарядки CC"
+      },
+      "cv_charge_speed": {
+        "name": "Скорость зарядки CV"
+      },
+      "last_job_drain_rate": {
+        "name": "Разряд последнего задания"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Разряд последнего задания в час"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Разряд последнего задания на м²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Подзарядка во время задания"
+      },
+      "maintenance_remaining": {
+        "name": "Оставшееся обслуживание: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "История уборки: {room}"
+      },
+      "room_rule_status": {
+        "name": "Статус правил: {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "В текущей уборке есть ошибка"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "Сбросить обслуживание: {component}"
+      },
+      "run_profile": {
+        "name": "Запустить {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "Интервал обслуживания: {component}"
+      },
+      "room_order": {
+        "name": "Порядок: {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} выбрана для уборки"
+      }
+    }
+  }
+}

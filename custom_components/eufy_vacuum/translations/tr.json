@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Agent kurulumu",
+        "description": "Bu entegrasyonun yöneteceği robot süpürge varlığını seçin. \"Robot süpürge\" alanı ilk kurulumda isteğe bağlıdır — boş bırakıp daha sonra Yapılandır → Seçenekler üzerinden doldurabilirsiniz.",
+        "data": {
+          "tested_model": "Test edilen model",
+          "notes": "Notlar",
+          "vacuum_entity_id": "Robot süpürge"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent zaten yapılandırılmış."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vacuum Agent ayarları",
+        "description": "Bu entegrasyonun yöneteceği robot süpürge varlığını seçin. \"Robot süpürge\" değerini değiştirmek entegrasyonu yeniden yükler; yeni robot süpürgenin paneli kenar çubuğunda görünür.",
+        "data": {
+          "vacuum_entity_id": "Robot süpürge",
+          "notes": "Notlar"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Bu robot süpürge varlığı artık yok — bu pencere açıkken kaldırılmış olabilir. Şu anda kullanılabilir bir robot süpürge seçin."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Bir çalıştırma profili şarj/bekleme molasıyla başlayamaz."
+    },
+    "trailing_break_unsupported": {
+      "message": "Bir çalıştırma profili şarj/bekleme molasıyla bitemez."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} başarısız: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job reddedildi: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "İlk Kurulum Durumu"
+      },
+      "map_overlays": {
+        "name": "Harita Katmanları"
+      },
+      "dock_events": {
+        "name": "İstasyon Olayları"
+      },
+      "theme_state": {
+        "name": "Tema Durumu"
+      },
+      "available_profiles": {
+        "name": "Kullanılabilir Profiller"
+      },
+      "active_job": {
+        "name": "Etkin Görev"
+      },
+      "active_run_error": {
+        "name": "Etkin Temizlik Hatası"
+      },
+      "last_device_error": {
+        "name": "Son Cihaz Hatası"
+      },
+      "charge_cycles": {
+        "name": "Şarj Döngüleri"
+      },
+      "charge_rate": {
+        "name": "Şarj Hızı"
+      },
+      "charge_rate_low_zone": {
+        "name": "Şarj Hızı (Düşük Bölge)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Şarj Hızı (Yüksek Bölge)"
+      },
+      "last_charge_duration": {
+        "name": "Son Şarj Süresi"
+      },
+      "battery_health": {
+        "name": "Batarya Sağlığı"
+      },
+      "cc_charge_speed": {
+        "name": "CC Şarj Hızı"
+      },
+      "cv_charge_speed": {
+        "name": "CV Şarj Hızı"
+      },
+      "last_job_drain_rate": {
+        "name": "Son Görev Tüketim Hızı"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Son Görev Saatlik Tüketim"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Son Görev m² Başına Tüketim"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Görev Sırasında Şarj Hızı"
+      },
+      "maintenance_remaining": {
+        "name": "{component} Kalan Bakım"
+      },
+      "room_cleaning_history": {
+        "name": "{room} Temizlik Geçmişi"
+      },
+      "room_rule_status": {
+        "name": "{room} Kural Durumu"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "Etkin Temizlikte Hata Var"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "{component} Bakımını Sıfırla"
+      },
+      "run_profile": {
+        "name": "{profile} Çalıştır"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "{component} Bakım Aralığı"
+      },
+      "room_order": {
+        "name": "{room} Sırası"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} Temizlik İçin Seçildi"
+      }
+    }
+  }
+}

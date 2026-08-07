@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Agent instellen",
+        "description": "Kies de stofzuiger-entiteit die deze integratie moet beheren. Het veld 'Stofzuiger' is optioneel bij de eerste installatie — je kunt het leeg laten en later invullen via Configureren → Opties.",
+        "data": {
+          "tested_model": "Getest model",
+          "notes": "Notities",
+          "vacuum_entity_id": "Stofzuiger"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vacuum Agent instellingen",
+        "description": "Kies de stofzuiger-entiteit die deze integratie moet beheren. Het wijzigen van de waarde 'Stofzuiger' herlaadt de integratie zodat het paneel van de nieuwe stofzuiger in de zijbalk verschijnt.",
+        "data": {
+          "vacuum_entity_id": "Stofzuiger",
+          "notes": "Notities"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "Die stofzuiger-entiteit bestaat niet meer — mogelijk verwijderd terwijl dit venster open stond. Kies een stofzuiger die nu beschikbaar is."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "Een uitvoerprofiel kan niet beginnen met een laad-/wachtpauze."
+    },
+    "trailing_break_unsupported": {
+      "message": "Een uitvoerprofiel kan niet eindigen met een laad-/wachtpauze."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} mislukt: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job geweigerd: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "Onboardingstatus"
+      },
+      "map_overlays": {
+        "name": "Kaartlagen"
+      },
+      "dock_events": {
+        "name": "Dockgebeurtenissen"
+      },
+      "theme_state": {
+        "name": "Themastatus"
+      },
+      "available_profiles": {
+        "name": "Beschikbare profielen"
+      },
+      "active_job": {
+        "name": "Actieve taak"
+      },
+      "active_run_error": {
+        "name": "Fout actieve schoonmaakbeurt"
+      },
+      "last_device_error": {
+        "name": "Laatste apparaatfout"
+      },
+      "charge_cycles": {
+        "name": "Laadcycli"
+      },
+      "charge_rate": {
+        "name": "Laadsnelheid"
+      },
+      "charge_rate_low_zone": {
+        "name": "Laadsnelheid (lage zone)"
+      },
+      "charge_rate_high_zone": {
+        "name": "Laadsnelheid (hoge zone)"
+      },
+      "last_charge_duration": {
+        "name": "Duur laatste laadbeurt"
+      },
+      "battery_health": {
+        "name": "Batterijgezondheid"
+      },
+      "cc_charge_speed": {
+        "name": "CC-laadsnelheid"
+      },
+      "cv_charge_speed": {
+        "name": "CV-laadsnelheid"
+      },
+      "last_job_drain_rate": {
+        "name": "Ontlading laatste taak"
+      },
+      "last_job_drain_per_hour": {
+        "name": "Ontlading laatste taak per uur"
+      },
+      "last_job_drain_per_m2": {
+        "name": "Ontlading laatste taak per m²"
+      },
+      "mid_job_recharge_rate": {
+        "name": "Bijladen tijdens taak"
+      },
+      "maintenance_remaining": {
+        "name": "Resterend onderhoud: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "Schoonmaakgeschiedenis: {room}"
+      },
+      "room_rule_status": {
+        "name": "Regelstatus: {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "Actieve schoonmaakbeurt heeft een fout"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "Onderhoud resetten: {component}"
+      },
+      "run_profile": {
+        "name": "{profile} uitvoeren"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "Onderhoudsinterval: {component}"
+      },
+      "room_order": {
+        "name": "Volgorde: {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} geselecteerd voor schoonmaak"
+      }
+    }
+  }
+}

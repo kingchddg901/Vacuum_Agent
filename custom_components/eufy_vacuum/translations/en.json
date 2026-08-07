@@ -12,9 +12,6 @@
         }
       }
     },
-    "error": {
-      "no_rooms_selected": "Please select at least one room to create."
-    },
     "abort": {
       "already_configured": "Vacuum Agent is already configured."
     }
@@ -32,6 +29,20 @@
     },
     "error": {
       "vacuum_not_found": "That vacuum entity no longer exists — it may have been removed while this dialog was open. Pick a vacuum that is currently available."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "A run profile cannot start with a charge/wait break."
+    },
+    "trailing_break_unsupported": {
+      "message": "A run profile cannot end with a charge/wait break."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} failed: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job refused: {reason}"
     }
   },
   "entity": {

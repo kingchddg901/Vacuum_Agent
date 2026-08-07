@@ -139,6 +139,9 @@ def _raise_if_failed(result: dict, *, operation: str) -> None:
             f"{operation} failed: {reason}",
             translation_domain=DOMAIN,
             translation_key="theme_operation_failed",
+            # The exceptions catalog message is "{operation} failed: {reason}" —
+            # without these placeholders HA renders the key's braces verbatim.
+            translation_placeholders={"operation": operation, "reason": reason},
         )
 
 

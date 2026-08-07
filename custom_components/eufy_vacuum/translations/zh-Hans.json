@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "设置 Vacuum Agent",
+        "description": "选择此集成要管理的扫地机器人实体。“扫地机器人”字段在初始设置时可选 — 可以留空，稍后通过“配置 → 选项”填写。",
+        "data": {
+          "tested_model": "已测试型号",
+          "notes": "备注",
+          "vacuum_entity_id": "扫地机器人"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent 已配置。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vacuum Agent 设置",
+        "description": "选择此集成要管理的扫地机器人实体。更改“扫地机器人”的值会重新加载集成，新扫地机器人的面板将出现在侧边栏。",
+        "data": {
+          "vacuum_entity_id": "扫地机器人",
+          "notes": "备注"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "该扫地机器人实体已不存在 — 可能在此对话框打开期间被移除。请选择当前可用的扫地机器人。"
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "运行配置文件不能以充电/等待休息开始。"
+    },
+    "trailing_break_unsupported": {
+      "message": "运行配置文件不能以充电/等待休息结束。"
+    },
+    "theme_operation_failed": {
+      "message": "{operation} 失败：{reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job 已拒绝：{reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "引导状态"
+      },
+      "map_overlays": {
+        "name": "地图叠加层"
+      },
+      "dock_events": {
+        "name": "基站事件"
+      },
+      "theme_state": {
+        "name": "主题状态"
+      },
+      "available_profiles": {
+        "name": "可用配置文件"
+      },
+      "active_job": {
+        "name": "当前任务"
+      },
+      "active_run_error": {
+        "name": "当前清扫错误"
+      },
+      "last_device_error": {
+        "name": "最近设备错误"
+      },
+      "charge_cycles": {
+        "name": "充电循环次数"
+      },
+      "charge_rate": {
+        "name": "充电速率"
+      },
+      "charge_rate_low_zone": {
+        "name": "充电速率（低区）"
+      },
+      "charge_rate_high_zone": {
+        "name": "充电速率（高区）"
+      },
+      "last_charge_duration": {
+        "name": "上次充电时长"
+      },
+      "battery_health": {
+        "name": "电池健康度"
+      },
+      "cc_charge_speed": {
+        "name": "CC 充电速度"
+      },
+      "cv_charge_speed": {
+        "name": "CV 充电速度"
+      },
+      "last_job_drain_rate": {
+        "name": "上次任务耗电速率"
+      },
+      "last_job_drain_per_hour": {
+        "name": "上次任务每小时耗电"
+      },
+      "last_job_drain_per_m2": {
+        "name": "上次任务每 m² 耗电"
+      },
+      "mid_job_recharge_rate": {
+        "name": "任务中回充速率"
+      },
+      "maintenance_remaining": {
+        "name": "{component}剩余维护"
+      },
+      "room_cleaning_history": {
+        "name": "{room}清扫历史"
+      },
+      "room_rule_status": {
+        "name": "{room}规则状态"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "当前清扫有错误"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "重置{component}维护"
+      },
+      "run_profile": {
+        "name": "运行 {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "{component}维护间隔"
+      },
+      "room_order": {
+        "name": "{room}顺序"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room}已选择清扫"
+      }
+    }
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "הגדרת Vacuum Agent",
+        "description": "בחרו את ישות השואב שהאינטגרציה הזו תנהל. שדה «שואב» הוא אופציונלי בהגדרה הראשונית — אפשר להשאיר אותו ריק ולמלא מאוחר יותר דרך הגדרה ← אפשרויות.",
+        "data": {
+          "tested_model": "דגם שנבדק",
+          "notes": "הערות",
+          "vacuum_entity_id": "שואב"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent כבר מוגדר."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "הגדרות Vacuum Agent",
+        "description": "בחרו את ישות השואב שהאינטגרציה הזו תנהל. שינוי ערך «שואב» טוען מחדש את האינטגרציה כך שלוח השואב החדש יופיע בסרגל הצד.",
+        "data": {
+          "vacuum_entity_id": "שואב",
+          "notes": "הערות"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "ישות השואב הזו כבר לא קיימת — ייתכן שהוסרה בזמן שהחלון היה פתוח. בחרו שואב שזמין כעת."
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "פרופיל הפעלה לא יכול להתחיל בהפסקת טעינה/המתנה."
+    },
+    "trailing_break_unsupported": {
+      "message": "פרופיל הפעלה לא יכול להסתיים בהפסקת טעינה/המתנה."
+    },
+    "theme_operation_failed": {
+      "message": "{operation} נכשל: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job נדחה: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "מצב הגדרה ראשונית"
+      },
+      "map_overlays": {
+        "name": "שכבות מפה"
+      },
+      "dock_events": {
+        "name": "אירועי עגינה"
+      },
+      "theme_state": {
+        "name": "מצב ערכת נושא"
+      },
+      "available_profiles": {
+        "name": "פרופילים זמינים"
+      },
+      "active_job": {
+        "name": "משימה פעילה"
+      },
+      "active_run_error": {
+        "name": "שגיאת הניקוי הפעיל"
+      },
+      "last_device_error": {
+        "name": "שגיאת המכשיר האחרונה"
+      },
+      "charge_cycles": {
+        "name": "מחזורי טעינה"
+      },
+      "charge_rate": {
+        "name": "קצב טעינה"
+      },
+      "charge_rate_low_zone": {
+        "name": "קצב טעינה (טווח נמוך)"
+      },
+      "charge_rate_high_zone": {
+        "name": "קצב טעינה (טווח גבוה)"
+      },
+      "last_charge_duration": {
+        "name": "משך הטעינה האחרונה"
+      },
+      "battery_health": {
+        "name": "בריאות הסוללה"
+      },
+      "cc_charge_speed": {
+        "name": "מהירות טעינה CC"
+      },
+      "cv_charge_speed": {
+        "name": "מהירות טעינה CV"
+      },
+      "last_job_drain_rate": {
+        "name": "קצב פריקה של המשימה האחרונה"
+      },
+      "last_job_drain_per_hour": {
+        "name": "פריקת המשימה האחרונה לשעה"
+      },
+      "last_job_drain_per_m2": {
+        "name": "פריקת המשימה האחרונה למ״ר"
+      },
+      "mid_job_recharge_rate": {
+        "name": "קצב טעינה באמצע משימה"
+      },
+      "maintenance_remaining": {
+        "name": "תחזוקה שנותרה: {component}"
+      },
+      "room_cleaning_history": {
+        "name": "היסטוריית ניקוי: {room}"
+      },
+      "room_rule_status": {
+        "name": "מצב כללים: {room}"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "לניקוי הפעיל יש שגיאה"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "איפוס תחזוקת {component}"
+      },
+      "run_profile": {
+        "name": "הפעלת {profile}"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "מרווח תחזוקת {component}"
+      },
+      "room_order": {
+        "name": "סדר: {room}"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} נבחר לניקוי"
+      }
+    }
+  }
+}

@@ -1,0 +1,147 @@
+{
+  "title": "Vacuum Agent",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Vacuum Agent のセットアップ",
+        "description": "この統合が管理するロボット掃除機のエンティティを選択してください。「ロボット掃除機」欄は初回セットアップでは省略可能です — 空のままにして、後から「設定 → オプション」で入力できます。",
+        "data": {
+          "tested_model": "テスト済みモデル",
+          "notes": "メモ",
+          "vacuum_entity_id": "ロボット掃除機"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "Vacuum Agent はすでに設定されています。"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Vacuum Agent の設定",
+        "description": "この統合が管理するロボット掃除機のエンティティを選択してください。「ロボット掃除機」の値を変更すると統合が再読み込みされ、新しいロボット掃除機のパネルがサイドバーに表示されます。",
+        "data": {
+          "vacuum_entity_id": "ロボット掃除機",
+          "notes": "メモ"
+        }
+      }
+    },
+    "error": {
+      "vacuum_not_found": "そのロボット掃除機エンティティは存在しません — このダイアログを開いている間に削除された可能性があります。現在利用可能なロボット掃除機を選択してください。"
+    }
+  },
+  "exceptions": {
+    "leading_break_unsupported": {
+      "message": "実行プロファイルは充電/待機ブレークで始められません。"
+    },
+    "trailing_break_unsupported": {
+      "message": "実行プロファイルは充電/待機ブレークで終われません。"
+    },
+    "theme_operation_failed": {
+      "message": "{operation} が失敗しました: {reason}"
+    },
+    "finalize_learning_job_refused": {
+      "message": "finalize_learning_job が拒否されました: {reason}"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "onboarding_state": {
+        "name": "オンボーディング状態"
+      },
+      "map_overlays": {
+        "name": "マップオーバーレイ"
+      },
+      "dock_events": {
+        "name": "ドックイベント"
+      },
+      "theme_state": {
+        "name": "テーマ状態"
+      },
+      "available_profiles": {
+        "name": "利用可能なプロファイル"
+      },
+      "active_job": {
+        "name": "アクティブジョブ"
+      },
+      "active_run_error": {
+        "name": "実行中の掃除のエラー"
+      },
+      "last_device_error": {
+        "name": "最後のデバイスエラー"
+      },
+      "charge_cycles": {
+        "name": "充電サイクル"
+      },
+      "charge_rate": {
+        "name": "充電速度"
+      },
+      "charge_rate_low_zone": {
+        "name": "充電速度（低域）"
+      },
+      "charge_rate_high_zone": {
+        "name": "充電速度（高域）"
+      },
+      "last_charge_duration": {
+        "name": "前回の充電時間"
+      },
+      "battery_health": {
+        "name": "バッテリー健全性"
+      },
+      "cc_charge_speed": {
+        "name": "CC充電速度"
+      },
+      "cv_charge_speed": {
+        "name": "CV充電速度"
+      },
+      "last_job_drain_rate": {
+        "name": "前回ジョブの消費率"
+      },
+      "last_job_drain_per_hour": {
+        "name": "前回ジョブの毎時消費"
+      },
+      "last_job_drain_per_m2": {
+        "name": "前回ジョブのm²あたり消費"
+      },
+      "mid_job_recharge_rate": {
+        "name": "ジョブ中の再充電速度"
+      },
+      "maintenance_remaining": {
+        "name": "{component} の残りメンテナンス"
+      },
+      "room_cleaning_history": {
+        "name": "{room} の清掃履歴"
+      },
+      "room_rule_status": {
+        "name": "{room} のルール状態"
+      }
+    },
+    "binary_sensor": {
+      "active_run_has_error": {
+        "name": "実行中の掃除にエラーあり"
+      }
+    },
+    "button": {
+      "maintenance_reset": {
+        "name": "{component} のメンテナンスをリセット"
+      },
+      "run_profile": {
+        "name": "{profile} を実行"
+      }
+    },
+    "number": {
+      "maintenance_interval": {
+        "name": "{component} のメンテナンス間隔"
+      },
+      "room_order": {
+        "name": "{room} の順序"
+      }
+    },
+    "switch": {
+      "room_selected": {
+        "name": "{room} を清掃対象に選択"
+      }
+    }
+  }
+}
