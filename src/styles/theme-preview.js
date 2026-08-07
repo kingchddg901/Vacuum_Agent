@@ -118,7 +118,7 @@ export const themePreviewStyles = `
   }
 
   .evcc-theme-preview-heading {
-    font-family: var(--evcc-font-family, inherit);
+    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, inherit));
     font-size: 1.2rem;
     line-height: 1.15;
     color: var(--evcc-text-primary, #f0f2f5);

@@ -47,6 +47,14 @@ export const shellStyles = `
     background:    var(--evcc-surface-card);
     border-radius: var(--evcc-radius-card);
     box-shadow:    var(--evcc-shadow-card, 0 6px 14px rgba(0, 0, 0, 0.14));
+    /* THE typeface read (live:FONT-1 remainder). This selector must be one the
+       shell frame actually emits: foundation's .evcc-card carries the same
+       font-family read but NO element has that class, so on the shadow side the
+       token was set and never read — the faces stayed "unloaded" because no
+       rendered text ever asked for the family. .evcc-shell is the real root
+       every card surface inherits from (main.js shell frame). Chain order is
+       the accessibility contract: a11y token > theme token > HA default. */
+    font-family:   var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     overflow:      hidden;
     display:       flex;
     flex-direction: column;

@@ -284,7 +284,7 @@ export const foundationStyles = `
        hosts, which live on document.body and cannot inherit a token set on :host,
        so the feature was broken in both directions and OpenDyslexic never applied
        anywhere. The fallback chain is unchanged for the default typeface. */
-    font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     font-size: 14px;
     line-height: 1.5;
     position: relative;

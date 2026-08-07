@@ -20,15 +20,58 @@ import { readFileSync } from "node:fs";
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf-8");
 
-test("[TF-1] the card shell reads --evcc-font-family", () => {
-  // The one that was wrong. .evcc-card is what every surface inherits from, so
-  // if it names a font directly the typeface setting is inert card-wide.
-  const src = read("./foundation.js");
-  const rule = src.slice(src.indexOf(".evcc-card {"), src.indexOf(".evcc-card {") + 900);
-  assert.match(rule, /font-family:\s*var\(--evcc-font-family/,
-    ".evcc-card no longer reads the typeface token — the setting is inert again");
+test("[TF-1] the card shell reads --evcc-font-family — on a selector that EXISTS", () => {
+  // Twice wrong now. First the rule named a font directly (never read the token).
+  // Then the token-read was put on .evcc-card — a class NO element carries; the
+  // shell frame emits .evcc-shell (main.js). A source-regex test on the rule text
+  // passed while the selector matched nothing, so the faces stayed "unloaded"
+  // forever: no rendered text ever asked for the family. The read lives on
+  // .evcc-shell now; TF-7 asserts the selector is actually emitted.
+  const src = read("./shell.js");
+  const rule = src.slice(src.indexOf(".evcc-shell {"), src.indexOf(".evcc-shell {") + 900);
+  assert.match(rule, /font-family:\s*var\(--evcc-a11y-font-family,\s*var\(--evcc-font-family/,
+    ".evcc-shell no longer reads the typeface chain a11y-first — the setting is inert or theme-overridable again");
   // The fallback chain must survive for the default typeface.
   assert.match(rule, /--paper-font-body1_-_font-family/);
+});
+
+test("[TF-8] accessibility rides its OWN token, read ahead of the theme's", () => {
+  // --evcc-font-family is a THEME_TOKEN_REGISTRY entry ("Font Family") that
+  // applyDynamicTheme writes as an INLINE style — inline beats any sheet rule,
+  // so a setter targeting the same token loses to the theme no matter where it
+  // sits in the STYLES array (found on-device 2026-08-06: a theme carrying
+  // Segoe UI/Inter kept OpenDyslexic inert after every other link was fixed).
+  // The design: setters write --evcc-a11y-font-family, and every read chains
+  // a11y-first — precedence lives in the var() fallback order, no !important.
+  const fonts = read("./fonts.js");
+  const setter = fonts.slice(fonts.indexOf('[data-evcc-font="opendyslexic"]'));
+  assert.match(setter, /--evcc-a11y-font-family:\s*"OpenDyslexic"/,
+    "the card-host setter no longer writes the a11y token");
+  assert.ok(!/--evcc-font-family:\s*"OpenDyslexic"/.test(fonts),
+    "a setter writes the THEME token — inline theme values will override it");
+
+  const idx = read("./index.js");
+  for (const host of ["evcc-modal-host", "evcc-toast-host"]) {
+    const i = idx.indexOf(`.${host}[data-evcc-font="opendyslexic"]`);
+    assert.ok(i > -1, `${host} setter vanished`);
+    assert.match(idx.slice(i, i + 500), /--evcc-a11y-font-family:\s*"OpenDyslexic"/,
+      `${host} setter no longer writes the a11y token`);
+  }
+  // Every read that consults the theme token must consult the a11y token FIRST.
+  for (const file of ["./index.js", "./foundation.js", "./shell.js", "./theme-preview.js"]) {
+    const src = read(file);
+    const bare = src.match(/font-family:\s*var\(--evcc-font-family/g) ?? [];
+    assert.equal(bare.length, 0,
+      `${file}: a font-family read consults the theme token without the a11y token first`);
+  }
+});
+
+test("[TF-7] the reading selector matches an element the shell frame emits", () => {
+  // The reachability half TF-1 was missing: a rule can read the token perfectly
+  // and be dead because nothing carries its class. Assert the markup side.
+  const main = read("../main.js");
+  assert.match(main, /class="evcc-shell"/,
+    "the shell frame no longer emits .evcc-shell — the typeface read (and the shell styling) is dead");
 });
 
 test("[TF-2] the token is declared for BOTH the shadow host and the body hosts", () => {

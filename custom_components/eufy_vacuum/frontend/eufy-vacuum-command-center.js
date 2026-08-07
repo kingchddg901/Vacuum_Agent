@@ -6045,7 +6045,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
        hosts, which live on document.body and cannot inherit a token set on :host,
        so the feature was broken in both directions and OpenDyslexic never applied
        anywhere. The fallback chain is unchanged for the default typeface. */
-    font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     font-size: 14px;
     line-height: 1.5;
     position: relative;
@@ -6160,7 +6160,15 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
      renders in the font, never that arbitrary user data does. */
   :host([data-evcc-font="opendyslexic"]),
   [data-evcc-font="opendyslexic"] {
-    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    /* A SEPARATE token, deliberately not --evcc-font-family: the theme's Font
+       Family token is written INLINE by applyDynamicTheme and inline beats any
+       sheet rule \u2014 so instead of fighting the cascade, precedence lives in the
+       fallback chain. Every font-family read is
+         var(--evcc-a11y-font-family, var(--evcc-font-family, \u2026))
+       \u2014 accessibility first, theme second, HA default last. Unset (default,
+       and every non-English locale via the glyph-coverage gate) this falls
+       straight through to the theme (live:FONT-1 remainder #2, 2026-08-06). */
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
 
   /* The picker's own option renders IN the font it offers, so the user can see
@@ -6815,6 +6823,14 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
     background:    var(--evcc-surface-card);
     border-radius: var(--evcc-radius-card);
     box-shadow:    var(--evcc-shadow-card, 0 6px 14px rgba(0, 0, 0, 0.14));
+    /* THE typeface read (live:FONT-1 remainder). This selector must be one the
+       shell frame actually emits: foundation's .evcc-card carries the same
+       font-family read but NO element has that class, so on the shadow side the
+       token was set and never read \u2014 the faces stayed "unloaded" because no
+       rendered text ever asked for the family. .evcc-shell is the real root
+       every card surface inherits from (main.js shell frame). Chain order is
+       the accessibility contract: a11y token > theme token > HA default. */
+    font-family:   var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     overflow:      hidden;
     display:       flex;
     flex-direction: column;
@@ -12829,7 +12845,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
   }
 
   .evcc-theme-preview-heading {
-    font-family: var(--evcc-font-family, inherit);
+    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, inherit));
     font-size: 1.2rem;
     line-height: 1.15;
     color: var(--evcc-text-primary, #f0f2f5);
@@ -17193,7 +17209,10 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
      only the token needs restating, not the face. Without this the card switches
      typeface and its modals do not. */
   .evcc-modal-host[data-evcc-font="opendyslexic"] {
-    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    /* The a11y token, not --evcc-font-family: the theme token is written
+       INLINE on this host by applyDynamicTheme (Target 2); precedence lives in
+       the read's fallback chain \u2014 see styles/fonts.js. */
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
   * {
     box-sizing: border-box;
@@ -17311,7 +17330,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
     padding:         16px;
     z-index:         9999;
 
-    font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     font-size:   14px;
     color:
       var(--evcc-modal-text-primary,
@@ -17974,7 +17993,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
      only the token needs restating, not the face. Without this the card switches
      typeface and its toasts do not. */
   .evcc-toast-host[data-evcc-font="opendyslexic"] {
-    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    /* Same a11y-token pattern as the modal host above. */
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
   * {
     box-sizing: border-box;
@@ -18001,7 +18021,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
     align-items:     center;
     pointer-events:  none;
     z-index:         10000;
-    font-family:     var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-family:     var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     font-size:       14px;
   }
 

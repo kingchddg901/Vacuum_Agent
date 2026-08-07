@@ -133,14 +133,28 @@ rules didn't connect. `styles/typeface-wiring.test.mjs` (tests `TF-1`…`TF-6`) 
    them can be the only bundle a given surface loads. `FONT_FACE_CSS` (`fonts.js:58-81`) also stays
    part of `fontStyles` for engines that do read `@font-face` from a shadow sheet; the duplicate
    registration is a no-op where it isn't needed.
-2. **`:host([data-evcc-font="opendyslexic"])` sets the token** (`fonts.js:113-116`), on the shell
-   root so it beats a theme that also sets `--evcc-font-family` — `fontStyles` is FIRST in the
-   `STYLES` array (§1) precisely so this rule's specificity/position wins.
-3. **`.evcc-card` reads the token** (`foundation.js:287`, inside the `.evcc-card` block starting
-   `:276`) — `font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif))`.
-   This is the rule that was wrong when it shipped (`TF-1`): it named a font directly instead of
-   reading the token, so the setting was inert card-wide even though every other link in the chain
-   was correct.
+2. **`:host([data-evcc-font="opendyslexic"])` sets `--evcc-a11y-font-family` — a SEPARATE token
+   from the theme's** (`fonts.js`, the `[data-evcc-font]` rule; mirrored on the modal/toast hosts
+   in `styles/index.js`). The old claim that being FIRST in the `STYLES` array made a
+   `--evcc-font-family` setter beat a theme was wrong: the theme's Font Family token
+   (`--evcc-font-family` is in `THEME_TOKEN_REGISTRY`) is written as an **inline style** by
+   `applyDynamicTheme`, and inline beats any sheet rule regardless of array position
+   (live:FONT-1 remainder #2, found on-device 2026-08-06 against a theme carrying Segoe UI/Inter).
+   Precedence therefore lives in the **read's fallback chain**, not the cascade: every
+   `font-family` read is `var(--evcc-a11y-font-family, var(--evcc-font-family, …))` — the user's
+   accessibility choice first, the theme's aesthetic choice second, the HA default last, with no
+   `!important` anywhere. `TF-8` pins both halves: setters write only the a11y token, and no read
+   consults the theme token without the a11y token ahead of it.
+3. **`.evcc-shell` reads the token** (`styles/shell.js`, the `.evcc-shell` base rule) —
+   `font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif))`.
+   This link has now been wrong twice (`TF-1`): first the rule named a font directly instead of
+   reading the token; then (the live:FONT-1 remainder, found on-device 2026-08-06) the token-read
+   sat on `foundation.js`'s `.evcc-card` block — a selector **no element carries**; the shell frame
+   emits `.evcc-shell` (`main.js`). Every source-regex assertion passed while the rule matched
+   nothing, and the faces reported `unloaded` forever because no rendered text ever requested the
+   family. `TF-7` now asserts the markup side: the shell frame must emit the class the reading rule
+   targets. (`foundation.js:276`'s `.evcc-card` block is dead code — cleanup tracked in
+   DOC-PASS-TRIAGE.)
 4. **The modal and toast hosts re-declare the token**, because a `document.body` child cannot
    inherit a custom property declared on the card's `:host` (`TF-2`): `.evcc-modal-host[data-evcc-font="opendyslexic"]`
    (`styles/index.js:126-128`) and `.evcc-toast-host[data-evcc-font="opendyslexic"]`

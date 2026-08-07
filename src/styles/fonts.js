@@ -112,7 +112,15 @@ export const fontStyles = `
      renders in the font, never that arbitrary user data does. */
   :host([data-evcc-font="opendyslexic"]),
   [data-evcc-font="opendyslexic"] {
-    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    /* A SEPARATE token, deliberately not --evcc-font-family: the theme's Font
+       Family token is written INLINE by applyDynamicTheme and inline beats any
+       sheet rule — so instead of fighting the cascade, precedence lives in the
+       fallback chain. Every font-family read is
+         var(--evcc-a11y-font-family, var(--evcc-font-family, …))
+       — accessibility first, theme second, HA default last. Unset (default,
+       and every non-English locale via the glyph-coverage gate) this falls
+       straight through to the theme (live:FONT-1 remainder #2, 2026-08-06). */
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
 
   /* The picker's own option renders IN the font it offers, so the user can see

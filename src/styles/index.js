@@ -124,7 +124,10 @@ export const MODAL_HOST_STYLES = `
      only the token needs restating, not the face. Without this the card switches
      typeface and its modals do not. */
   .evcc-modal-host[data-evcc-font="opendyslexic"] {
-    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    /* The a11y token, not --evcc-font-family: the theme token is written
+       INLINE on this host by applyDynamicTheme (Target 2); precedence lives in
+       the read's fallback chain — see styles/fonts.js. */
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
   * {
     box-sizing: border-box;
@@ -242,7 +245,7 @@ export const MODAL_HOST_STYLES = `
     padding:         16px;
     z-index:         9999;
 
-    font-family: var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-family: var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     font-size:   14px;
     color:
       var(--evcc-modal-text-primary,
@@ -917,7 +920,8 @@ export const TOAST_HOST_STYLES = `
      only the token needs restating, not the face. Without this the card switches
      typeface and its toasts do not. */
   .evcc-toast-host[data-evcc-font="opendyslexic"] {
-    --evcc-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
+    /* Same a11y-token pattern as the modal host above. */
+    --evcc-a11y-font-family: "OpenDyslexic", var(--paper-font-body1_-_font-family), sans-serif;
   }
   * {
     box-sizing: border-box;
@@ -944,7 +948,7 @@ export const TOAST_HOST_STYLES = `
     align-items:     center;
     pointer-events:  none;
     z-index:         10000;
-    font-family:     var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-family:     var(--evcc-a11y-font-family, var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)));
     font-size:       14px;
   }
 
