@@ -764,9 +764,15 @@ localization out of the recording path.
 
 Open design questions for the round:
 
-1. ALWAYS-ON RING. Receipts (~tens of bytes/checkpoint) make a small permanently-armed
-   receipts ring feasible — would retire the arming gap (the 2026-08-01 stepped-run loss).
-   Reconcile with invariant 6: unarmed = shallow always-on receipts, armed = depth.
+1. ALWAYS-ON RING — EMPIRICAL, DECIDE IN PRACTICE (Chris, 2026-08-06). Always-on is
+   "really iffy"; flushing is the concern. Working sketch: AUTO-ARM AT JOB START, flush
+   the job's receipts to a file stored alongside job history (a persisted sibling of the
+   job JSON — covers the class where the real losses happened, e.g. the 2026-08-01
+   stepped run); continuous capture for non-job activity remains open. FACT (verified
+   debug_capture.py:280-284): unarmed installs intercept NOTHING — DEBUG level +
+   propagate=False + handlers exist only between start() and stop(); dormant receipt call
+   sites cost a level check. True always-on = holding armed config forever: technically
+   trivial, but converts zero-cost-for-everyone into small-nonzero-for-everyone.
 2. RUNTIME EXPECTATIONS AS FACTS — RESOLVED (Chris, 2026-08-06): the expectation is just
    ANOTHER RECEIPT whose payload is a catalog ID: `EXPECT | <id of job_started> | n=1`.
    Static grammar (sec 12: what MAY follow) and runtime expectations (what SHOULD follow
@@ -776,17 +782,24 @@ Open design questions for the round:
    (`0/1 observed`). Emission split keeps invariant 10 honest: the expectation is emitted
    by the boundary holding the model (dispatch), fulfillment by the boundary observing it
    — disagreement between two code sites is what makes the signal mean something.
-3. NEVER-INSTRUMENTED NEW CODE. Sec 13 tests catch removed emissions, not absent ones.
-   Decide the gate for new causally-important paths (declaration-proving, like the
-   expansion-seam doctrine).
-4. BUILD SHAPE = THE I18N PIPELINE. keys<->catalog<->renderer + check script + ratchet;
-   check-i18n.mjs is the template. Code emits via NAMED CONSTANTS resolving to opaque IDs;
-   the check proves both directions (emitted-in-catalog, catalog-is-emitted-or-deprecated).
-5. DECODER HOME. Localization is frontend-only (no Python t()) -> decoder/narrative view in
-   the card (import-a-trace), catalog as a single-source data file consumed by frontend +
-   a CLI engineer view; codegen per the generated-reference convention.
-6. PILOT unchanged from 2026-08-02: phase-advance -> child-finalize chain; success = the
-   dump alone localizes the missing-child bug without reading source. Naming: avoid
+3. NEVER-INSTRUMENTED NEW CODE — DECIDED (Chris, 2026-08-06). Two rules, enforced in
+   LOCAL tests (keep CI lean, sole-maintainer discipline):
+   (a) MECHANICAL: any DEBUG emission without a catalog key fails locally — no bare
+       prose debug lines once the system exists.
+   (b) AUTHORING: writing a causally-important item requires writing its debug/receipt —
+       a review-checklist rule (not mechanically lintable; "causal" is a judgement).
+4. ID SHAPE — DECIDED (Chris, 2026-08-06). The opaque 15-char hash was illustrative for a
+   quick dump only. IDs must be SOMEWHAT VIEWABLE in the raw dump (readable dotted keys,
+   i18n-key style); full details come from catalog lookup or passing the dump through the
+   tool. Stability by discipline + the check script, not by opacity. Named constants in
+   code stand.
+5. DECODER HOME — DECIDED (Chris, 2026-08-06). LOCAL repo tool only for now — he is the
+   sole maintainer. Promote to a CLI (and possibly a card surface) only if more
+   maintainers appear.
+6. PILOT SCOPE — DEFERRED (Chris, 2026-08-06). The 2026-08-02 testbed ruling
+   (phase-advance -> child-finalize chain; success = dump alone localizes the
+   missing-child bug) carries forward unchanged; whether the pilot builds minimal catalog
+   machinery or fakes the decoder first is specifically not decided yet. Naming: avoid
    trace_* (taken by pose capture).
 
 Related: memory project_debug_flight_recorder + project_semantic_trace_deferred (treat as
