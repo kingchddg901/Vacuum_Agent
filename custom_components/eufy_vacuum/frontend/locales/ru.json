@@ -951,6 +951,7 @@
     "vacuum_status_label": "Статус пылесоса:"
   },
   "nav": {
+    "battery": "Батарея",
     "dock_status": "Статус дока:",
     "tab_base_station": "Базовая станция",
     "tab_learning_review": "Обзор обучения",

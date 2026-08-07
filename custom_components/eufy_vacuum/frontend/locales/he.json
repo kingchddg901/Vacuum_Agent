@@ -2578,6 +2578,7 @@
     "auto_draft_note": "{lang} עדיין בטיוטה, ולכן אוטומטי מציג אנגלית — בחר אותה למטה כדי להשתמש בה."
   },
   "nav": {
+    "battery": "סוללה",
     "dock_status": "מצב תחנה:",
     "tab_base_station": "תחנת עגינה",
     "tab_learning_review": "סקירת למידה",

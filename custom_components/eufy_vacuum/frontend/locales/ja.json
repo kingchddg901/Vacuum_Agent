@@ -2452,6 +2452,7 @@
     "auto_draft_note": "{lang}はまだドラフト版のため、自動では英語が表示されます。使用するには下から選択してください。"
   },
   "nav": {
+    "battery": "バッテリー",
     "dock_status": "ドックの状態：",
     "tab_base_station": "ベースステーション",
     "tab_learning_review": "学習レビュー",

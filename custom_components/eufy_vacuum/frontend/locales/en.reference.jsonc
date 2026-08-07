@@ -1578,6 +1578,7 @@
     "vacuum_status_label": "Vacuum Status:"  // Status-line prefix before the robot's state value; 'Vacuum'=the robot (noun); keep colon
   },
   "nav": {
+    "battery": "Battery",  // header label before the battery percent on the vacuum-status line, e.g. 'Battery 100%'
     "dock_status": "Dock Status:",  // header status-line prefix shown before the dock's state value, e.g. 'Dock Status: Charging'
     "tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
     "tab_learning_review": "Learning Review",  // Nav tab label. 'Learning' = the system's learned per-room timing data (a feature noun, not the act of learning); view reviews those estimates. Keep short.

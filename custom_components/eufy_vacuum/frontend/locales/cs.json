@@ -2272,6 +2272,7 @@
     "water_ml": "~{ml} ml"
   },
   "nav": {
+    "battery": "Baterie",
     "dock_status": "Stav doku:",
     "tab_base_station": "Základnová stanice",
     "tab_learning_review": "Přehled učení",

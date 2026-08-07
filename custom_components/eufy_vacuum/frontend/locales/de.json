@@ -903,6 +903,7 @@
     "vacuum_status_label": "Saugroboterstatus:"
   },
   "nav": {
+    "battery": "Akku",
     "dock_status": "Stationsstatus:",
     "tab_base_station": "Basisstation",
     "tab_learning_review": "Lernüberprüfung",

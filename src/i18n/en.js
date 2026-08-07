@@ -940,6 +940,7 @@ export const en = {
   "mobile.vacuum_status_label": "Vacuum Status:",  // Status-line prefix before the robot's state value; 'Vacuum'=the robot (noun); keep colon
 
   // --- nav (desktop shell: header + tab bar + view-router empty states) ---
+  "nav.battery": "Battery",  // header label before the battery percent on the vacuum-status line, e.g. 'Battery 100%'
   "nav.dock_status": "Dock Status:",  // header status-line prefix shown before the dock's state value, e.g. 'Dock Status: Charging'
   "nav.tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
   "nav.tab_learning_review": "Learning Review",  // Nav tab label. 'Learning' = the system's learned per-room timing data (a feature noun, not the act of learning); view reviews those estimates. Keep short.

@@ -905,6 +905,7 @@
     "vacuum_status_label": "Stato aspirapolvere:"
   },
   "nav": {
+    "battery": "Batteria",
     "dock_status": "Stato base:",
     "tab_base_station": "Stazione base",
     "tab_learning_review": "Revisione apprendimento",

@@ -903,6 +903,7 @@
     "vacuum_status_label": "Stofzuigerstatus:"
   },
   "nav": {
+    "battery": "Accu",
     "dock_status": "Dockstatus:",
     "tab_base_station": "Basisstation",
     "tab_learning_review": "Leerbeoordeling",

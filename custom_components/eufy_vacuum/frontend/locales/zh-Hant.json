@@ -2452,6 +2452,7 @@
     "auto_draft_note": "{lang} 仍為草稿，因此自動會顯示英文——請在下方選取以使用該語言。"
   },
   "nav": {
+    "battery": "電池",
     "dock_status": "基站狀態：",
     "tab_base_station": "基站",
     "tab_learning_review": "學習檢閱",

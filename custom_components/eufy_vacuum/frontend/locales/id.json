@@ -2272,6 +2272,7 @@
     "water_ml": "~{ml} ml"
   },
   "nav": {
+    "battery": "Baterai",
     "dock_status": "Status Dok:",
     "tab_base_station": "Stasiun Pangkalan",
     "tab_learning_review": "Tinjauan Pembelajaran",

@@ -153,6 +153,12 @@ export function renderHeader(ctx) {
           langOverride, currentLang, languageMenuOpen, autoInfo, uiFont } = ctx;
 
   const batteryText = battery != null ? `${battery}%` : "";
+  // Low/critical thresholds for the header tint (.evcc-battery.low/.critical
+  // shipped in v0.9.0 and were never applied by any renderer until now).
+  // 20/10 match the usual HA warning bands; the status word (Charging/Docked)
+  // stays the authority on whether that matters right now.
+  const batteryClass =
+    battery == null ? "" : battery <= 10 ? " critical" : battery <= 20 ? " low" : "";
 
   // Prefer the backend-provided label (server-side _display_label) so
   // adapter vocabulary stays the source of truth. Title-case fallback
@@ -179,7 +185,7 @@ export function renderHeader(ctx) {
           <span class="evcc-status-prefix">${renderers.t("nav.vacuum_status")}</span>
           <span>${renderers.escapeHtml(vacuumText)}</span>
           ${batteryText
-            ? `<span class="evcc-battery">${renderers.escapeHtml(batteryText)}</span>`
+            ? `<span class="evcc-battery${batteryClass}"><span class="evcc-status-prefix">${renderers.t("nav.battery")}</span>${renderers.escapeHtml(batteryText)}</span>`
             : ""}
         </div>
 

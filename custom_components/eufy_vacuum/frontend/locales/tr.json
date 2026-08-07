@@ -2272,6 +2272,7 @@
     "water_ml": "~{ml} ml"
   },
   "nav": {
+    "battery": "Pil",
     "dock_status": "İstasyon Durumu:",
     "tab_base_station": "Şarj İstasyonu",
     "tab_learning_review": "Öğrenme İncelemesi",

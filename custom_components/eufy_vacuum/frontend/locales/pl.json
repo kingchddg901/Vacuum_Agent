@@ -2272,6 +2272,7 @@
     "water_ml": "~{ml} ml"
   },
   "nav": {
+    "battery": "Bateria",
     "dock_status": "Stan stacji dokującej:",
     "tab_base_station": "Stacja bazowa",
     "tab_learning_review": "Przegląd uczenia",
