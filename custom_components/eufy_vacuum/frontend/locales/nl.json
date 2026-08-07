@@ -2509,6 +2509,17 @@
     "origin": {
       "external": "Extern",
       "internal": "Verzonden"
+    },
+    "token_type": {
+      "color": "kleur",
+      "text": "tekst",
+      "shadow": "schaduw",
+      "size": "grootte",
+      "number": "getal",
+      "duration": "duur",
+      "motion": "beweging",
+      "typography": "typografie",
+      "easing": "easing"
     }
   },
   "order_modal": {

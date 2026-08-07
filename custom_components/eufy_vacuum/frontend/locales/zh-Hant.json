@@ -705,6 +705,17 @@
       "community": "社群",
       "generated": "自動產生",
       "manual": "手動"
+    },
+    "token_type": {
+      "color": "顏色",
+      "text": "文字",
+      "shadow": "陰影",
+      "size": "大小",
+      "number": "數值",
+      "duration": "時長",
+      "motion": "動效",
+      "typography": "排版",
+      "easing": "緩動"
     }
   },
   "map": {

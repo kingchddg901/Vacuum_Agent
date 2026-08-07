@@ -282,6 +282,17 @@
       "interrupted_run": "This run appears to have been interrupted.",
       "extreme_idle_wall": "Held from learning — an unusually long idle stretch off the dock, so it does not define a room baseline. Restore it if the run was legitimate."
     },
+    "token_type": {
+      "color": "color",
+      "text": "text",
+      "shadow": "shadow",
+      "size": "size",
+      "number": "number",
+      "duration": "duration",
+      "motion": "motion",
+      "typography": "typography",
+      "easing": "easing"
+    },
     "theme_token": {
       "evcc_accent": "Accent",
       "evcc_accent_soft": "Accent Soft",

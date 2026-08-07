@@ -705,6 +705,17 @@
       "community": "komunitní",
       "generated": "generovaná",
       "manual": "ruční"
+    },
+    "token_type": {
+      "color": "barva",
+      "text": "text",
+      "shadow": "stín",
+      "size": "velikost",
+      "number": "číslo",
+      "duration": "doba",
+      "motion": "pohyb",
+      "typography": "typografie",
+      "easing": "easing"
     }
   },
   "map": {

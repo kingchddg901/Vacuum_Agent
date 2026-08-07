@@ -705,6 +705,17 @@
       "community": "komunitas",
       "generated": "dihasilkan",
       "manual": "manual"
+    },
+    "token_type": {
+      "color": "warna",
+      "text": "teks",
+      "shadow": "bayangan",
+      "size": "ukuran",
+      "number": "angka",
+      "duration": "durasi",
+      "motion": "gerakan",
+      "typography": "tipografi",
+      "easing": "easing"
     }
   },
   "map": {

@@ -2605,6 +2605,17 @@
     "origin": {
       "external": "Внешний",
       "internal": "Запущен"
+    },
+    "token_type": {
+      "color": "цвет",
+      "text": "текст",
+      "shadow": "тень",
+      "size": "размер",
+      "number": "число",
+      "duration": "длительность",
+      "motion": "движение",
+      "typography": "типографика",
+      "easing": "плавность"
     }
   },
   "order_modal": {

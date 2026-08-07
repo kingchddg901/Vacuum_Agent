@@ -705,6 +705,17 @@
       "community": "커뮤니티",
       "generated": "생성됨",
       "manual": "수동"
+    },
+    "token_type": {
+      "color": "색상",
+      "text": "텍스트",
+      "shadow": "그림자",
+      "size": "크기",
+      "number": "숫자",
+      "duration": "지속 시간",
+      "motion": "모션",
+      "typography": "타이포그래피",
+      "easing": "이징"
     }
   },
   "map": {

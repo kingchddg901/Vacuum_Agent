@@ -705,6 +705,17 @@
       "community": "społeczność",
       "generated": "wygenerowany",
       "manual": "ręczny"
+    },
+    "token_type": {
+      "color": "kolor",
+      "text": "tekst",
+      "shadow": "cień",
+      "size": "rozmiar",
+      "number": "liczba",
+      "duration": "czas trwania",
+      "motion": "ruch",
+      "typography": "typografia",
+      "easing": "easing"
     }
   },
   "map": {

@@ -705,6 +705,17 @@
       "community": "קהילה",
       "generated": "נוצר אוטומטית",
       "manual": "ידני"
+    },
+    "token_type": {
+      "color": "צבע",
+      "text": "טקסט",
+      "shadow": "צל",
+      "size": "גודל",
+      "number": "מספר",
+      "duration": "משך",
+      "motion": "תנועה",
+      "typography": "טיפוגרפיה",
+      "easing": "easing"
     }
   },
   "map": {

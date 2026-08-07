@@ -2512,6 +2512,17 @@
     "origin": {
       "external": "Esterno",
       "internal": "Inviato"
+    },
+    "token_type": {
+      "color": "colore",
+      "text": "testo",
+      "shadow": "ombra",
+      "size": "dimensione",
+      "number": "numero",
+      "duration": "durata",
+      "motion": "movimento",
+      "typography": "tipografia",
+      "easing": "easing"
     }
   },
   "order_modal": {

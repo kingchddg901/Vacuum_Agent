@@ -2509,6 +2509,17 @@
     "origin": {
       "external": "Extern",
       "internal": "Beauftragt"
+    },
+    "token_type": {
+      "color": "Farbe",
+      "text": "Text",
+      "shadow": "Schatten",
+      "size": "Größe",
+      "number": "Zahl",
+      "duration": "Dauer",
+      "motion": "Bewegung",
+      "typography": "Typografie",
+      "easing": "Easing"
     }
   },
   "order_modal": {

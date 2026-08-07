@@ -953,7 +953,7 @@ export function applyThemeRenderers(proto) {
         <div class="token-head">
           <div class="token-label">
             ${this.tVocab("theme_token", token.key, token.label)}
-            <span class="evcc-chip">${this.escapeHtml(token.type)}</span>
+            <span class="evcc-chip">${this.tVocab("token_type", token.type, token.type)}</span>
           </div>
 
           <div class="token-head-actions">
@@ -1030,7 +1030,7 @@ export function applyThemeRenderers(proto) {
         <div class="token-head">
           <div class="token-label">
             ${this.tVocab("theme_token", token.key, token.label)}
-            <span class="evcc-chip">${this.escapeHtml(token.type)}</span>
+            <span class="evcc-chip">${this.tVocab("token_type", token.type, token.type)}</span>
             ${isDraft ? `<span class="evcc-chip evcc-chip--custom">${this.t("theme.token_draft")}</span>` : ""}
           </div>
 

@@ -705,6 +705,17 @@
       "community": "topluluk",
       "generated": "oluşturulmuş",
       "manual": "manuel"
+    },
+    "token_type": {
+      "color": "renk",
+      "text": "metin",
+      "shadow": "gölge",
+      "size": "boyut",
+      "number": "sayı",
+      "duration": "süre",
+      "motion": "hareket",
+      "typography": "tipografi",
+      "easing": "easing"
     }
   },
   "map": {

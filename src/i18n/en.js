@@ -1985,6 +1985,16 @@ export const en = {
   "rooms.trouble_missed": { one: "Missed {miss}× of {count} run", other: "Missed {miss}× of {count} runs" },
 
   // --- Wave-2 theme-editor vocabulary (token labels / groups / facets / tags) ---
+  // --- vocab: token_type (the small type chip on every theme-editor token row) ---
+  "vocab.token_type.color": "color",
+  "vocab.token_type.text": "text",
+  "vocab.token_type.shadow": "shadow",
+  "vocab.token_type.size": "size",
+  "vocab.token_type.number": "number",
+  "vocab.token_type.duration": "duration",
+  "vocab.token_type.motion": "motion",
+  "vocab.token_type.typography": "typography",
+  "vocab.token_type.easing": "easing",
   "vocab.theme_token.evcc_accent": "Accent",
   "vocab.theme_token.evcc_accent_soft": "Accent Soft",
   "vocab.theme_token.evcc_text_muted": "Text Muted",

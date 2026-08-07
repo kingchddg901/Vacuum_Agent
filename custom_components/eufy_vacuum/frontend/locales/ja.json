@@ -705,6 +705,17 @@
       "community": "コミュニティ",
       "generated": "生成",
       "manual": "手動"
+    },
+    "token_type": {
+      "color": "色",
+      "text": "テキスト",
+      "shadow": "影",
+      "size": "サイズ",
+      "number": "数値",
+      "duration": "時間",
+      "motion": "モーション",
+      "typography": "タイポグラフィ",
+      "easing": "イージング"
     }
   },
   "map": {

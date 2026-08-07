@@ -705,6 +705,17 @@
       "community": "مجتمعي",
       "generated": "مُولَّد",
       "manual": "يدوي"
+    },
+    "token_type": {
+      "color": "لون",
+      "text": "نص",
+      "shadow": "ظل",
+      "size": "حجم",
+      "number": "رقم",
+      "duration": "مدة",
+      "motion": "حركة",
+      "typography": "أسلوب الخط",
+      "easing": "تخفيف"
     }
   },
   "map": {

@@ -906,6 +906,22 @@
   "vocab.theme_token.evcc_sem_info": [
    "de",
    "id"
+  ],
+  "vocab.token_type.color": [
+   "es"
+  ],
+  "vocab.token_type.easing": [
+   "cs",
+   "fr",
+   "he",
+   "id",
+   "it",
+   "nl",
+   "pl",
+   "tr"
+  ],
+  "vocab.token_type.text": [
+   "cs"
   ]
  },
  "pending": {}
