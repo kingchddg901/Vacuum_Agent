@@ -617,3 +617,29 @@ The in-flight adv-contract / adv-guides patches finish their workflow runs and P
 applied only after the DR reconciliation completes. (adv-contract's mechanical
 services/events fixes ride the same hold; copy-paste correctness matters, but a stable
 DR baseline matters first.)
+
+## AMENDMENT (Chris, 2026-08-06): hardening rule 11 — statistical handoff audits
+
+Per-artifact checks (rules 4, 5) catch clumsy smuggling; a careful smuggler stays under
+any single-artifact threshold. The control for that lives at the POPULATION level:
+
+- **Score ledger per agent-instance and per PAIR.** Track closures, discovery rounds,
+  green rates, and verdict distributions — individually AND per trimmer×builder pair,
+  because collusion is invisible in individual stats and shows as one pair's anomaly.
+- **Two audit triggers:** (a) a RANDOM baseline — a fixed fraction of closures (start 1
+  in 5) gets a handoff audit unconditionally, so staying under statistical thresholds is
+  never safe; (b) STATISTICAL — any agent or pair whose points/green-rate/verdict mix
+  departs the cohort norm (rule of thumb: the outlier you would notice on a scoreboard).
+  Signature patterns worth standing queries: a trimmer whose LARGE deletions always green
+  first-build (coupling suspect); a builder whose greens concentrate on one trimmer's
+  prose (pair suspect); a reviewer whose D-rate is an outlier (inflation suspect).
+- **The audit itself** re-examines the handoff artifacts forensically. The measurable
+  smoking gun is INCIDENTAL SIMILARITY: a blind reconstruction that matches the original
+  implementation's incidental choices — private helper names, internal structure,
+  ordering the contract does not force — beyond chance is carrying smuggled answers,
+  whatever the prose looks like. Trimmed prose gets the coupling scan; new tests get the
+  over-pinning scan.
+- **Consequences:** a confirmed smuggle VOIDS the closure (points clawed back, ledger
+  entry reopened, the section re-runs with fresh agents), and the implicated agent/pair's
+  PRIOR closures get re-sampled — fraud clusters; one confirmed case is never treated as
+  isolated.
