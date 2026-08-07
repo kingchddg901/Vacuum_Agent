@@ -76,7 +76,19 @@ repaired truth pass. Docs were NOT papered over these. Highest-priority first.
 - **R2-BUG-2 [ug-review]** `learning/manager.py` `_job_matches` (:1765-1784) never checks `profile_key_filter` — the Filters-row Profile chip and Profile Matcher chip set `profile_key` and refetch, but Jobs count + Runs list ignore it. (Carried from round 1, still live.)
 - **R2-BUG-3 [ug-review]** `main.js` `_handleGlobalKeydown` closers (~:1668-1700) omit job-summary — Escape closes every other modal but not the Job Summary modal. Doc describes the buggy behavior accurately.
 - **R2-BUG-4 [dev-rooms-maps]** `label_anchor` silently dropped by both room writers (rooms/room_manager.py build_managed_rooms, maps/map_manager.py rebuild_map_bucket) — neither builds through a RoomConfig carrying the field; only plan_migration's raw-dict carry preserves it.
-- **R2-BUG-5 [fe-visual]** Two contradictory beliefs about raster `rid` == managed `room.id`: `_bindSelectionScrim` (bindings/map.js:269-288) vs clean-order badge lookup (renderers/map.js:626-668). Needs one canonical answer.
+- ~~**R2-BUG-5 [fe-visual]** Two contradictory beliefs about raster `rid` == managed `room.id`~~
+  **RESOLVED 2026-08-06 — NOT a code defect. No code changed.** It was one verified observation
+  against one unsourced assertion, not two findings in tension. (a) The raster `rid` space is
+  **Eufy-only** — `rooms_from_room_pixels` is the "Eufy storage backend" per its own docstring and
+  `map_source.py:373` says Roborock has no per-pixel raster — so the comment's "DIFFERENT id spaces
+  on real devices" cannot mean Roborock, and the only brand with a raster is the one where all
+  three ids were observed to coincide. (b) `c4207b9`, the commit that wrote both the name-bridge
+  and the "empirically verified" claim, describes its own doc change as "rid==room.id==room_names
+  identity" — identity in the message, divergence in the comment, same commit.
+  Fix was to the CLAIM, not the code: comment downgraded to defensive-not-required, doc §2
+  rewritten as RESOLVED. The three identity paths were left alone deliberately — rewriting working
+  code to satisfy an unsourced comment is the 00a §9 failure. Name-bridge kept (costs one lookup,
+  cannot miscolor, safe side if unseen firmware ever diverges).
 - **R2-BUG-6 [dev-core]** `async_shutdown` registered via entry.async_on_unload BEFORE async_initialize — first action awaits storage; on a never-initialized manager that path is not the documented no-op. Verify + guard.
 
 ## Stale source prose (docstrings/comments contradicting their own code)

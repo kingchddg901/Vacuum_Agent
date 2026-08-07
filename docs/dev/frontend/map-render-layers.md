@@ -46,7 +46,7 @@ Inside `.evcc-map-content-rotator`, in order (later paints ON TOP; most rely on 
 opaque above it (furnished art, floor texture) will hide a raster recolor. The SVG room polygons
 do NOT provide the fill — they're transparent except as a selection tint.
 
-## 2. Room-id spaces — a live, UNRESOLVED disagreement (do not conflate blindly)
+## 2. Room-id spaces — RESOLVED 2026-08-06 (was a live disagreement)
 
 | id | Where | What it is |
 |---|---|---|
@@ -55,10 +55,10 @@ do NOT provide the fill — they're transparent except as a selection tint.
 | **`room_names[rid]`** | render payload `{str(rid): name}` (`map_source.py`) | device's per-rid name |
 | **CV `segment_id`** | `"segment_N"` (area-ranked) from the CV segmenter | a **separate** id space |
 
-**The codebase disagrees with itself about whether raster `rid` and managed `room.id` are the
-same number.** Verified on Alfred all three (rid / `room.id` / `room_names` key) coincided
-(Kitchen=5, Office=9, Dining=8, Entryway=6) — the one concrete dataset behind this doc. But two
-different generations of code encode two different beliefs about whether that's a *guarantee*:
+The codebase used to disagree with itself about whether raster `rid` and managed `room.id` are
+the same number. Verified on Alfred all three (rid / `room.id` / `room_names` key) coincided
+(Kitchen=5, Office=9, Dining=8, Entryway=6) — the one concrete dataset behind this doc. Two
+different generations of code encoded two different beliefs about whether that's a *guarantee*:
 
 - **Treats them as the SAME number, no bridging (older, load-bearing feature code):**
   - `_bindSelectionScrim` builds `selected = new Set(rooms.filter(r => r.enabled).map(r =>
@@ -80,13 +80,31 @@ different generations of code encode two different beliefs about whether that's 
   hedge: *"Keying by room.id directly is WRONG — the raster rid and our stored room.id are
   DIFFERENT id spaces on real devices (empirically verified), so a room.id key lands on no
   pixels (or, worse, another room's)."* The name-bridge itself is at `bindings/map.js:333-345`.
-- **We have not resolved which belief is correct** — or, if the comment above is accurate, the
-  three identity-assuming paths (scrim, clean-order badges, current-room attribution) are not a
-  hypothetical risk but already broken on any device where rid and room.id diverge. Don't harden
-  either side in this doc; the two beliefs coexisting unexamined, on a codebase that ships a
-  comment calling divergence "empirically verified," is what needs resolving next. Keying a
-  raster override by the CV `segment_id` is WRONG regardless (different space, and it's a
-  string → `NaN`).
+- **RESOLUTION (R2-BUG-5, 2026-08-06): the identity-assuming paths are the supported reading;
+  the divergence claim has no dataset behind it.** Two facts settle it:
+  1. **The raster `rid` space is Eufy-only.** `rooms_from_room_pixels` is the *"Eufy storage
+     backend"* by its own docstring, and `map_source.py:373` states that Roborock has no
+     per-pixel raster (`room_number` stays `None` there). So "DIFFERENT id spaces **on real
+     devices**" cannot be describing Roborock — there is no Roborock `rid` to differ. The only
+     brand with a raster is the one brand where all three ids were *observed* to coincide.
+  2. **The claim contradicts its own commit.** `c4207b9`, which introduced both the name-bridge
+     and the "empirically verified" comment, describes its own doc changes as
+     *"map-render-layers.md (the layer stack, **rid==room.id==room_names identity**, …)"*.
+     Identity in the message, divergence in the code comment, same commit.
+
+  So this was never two findings in tension — it was one verified observation against one
+  unsourced assertion. **No code changed.** The three identity paths (scrim, clean-order badges,
+  current-room attribution) are consistent with all available evidence, and rewriting working
+  code to satisfy an unsourced comment is the exact failure
+  [00a §9](../00a-documentation-epoch-lifecycle.md) warns about — docs are part of the
+  measurement apparatus, and a wrong one makes an auditor "fix" correct code.
+
+  The name-bridge is **kept**, relabelled defensive-not-required: it costs one lookup, it can
+  never miscolor (a name miss falls through to the palette), and it is the safe side if some
+  firmware we have never seen does diverge. What we cannot rule out is that the original author
+  saw divergence on an Eufy firmware there is no record of and wrote the commit body carelessly —
+  hence keeping the bridge rather than deleting it. Keying a raster override by the CV
+  `segment_id` is WRONG regardless (different space, and it's a string → `NaN`).
 - **CV `segment_id` ↔ room** is indirect: `state.roomIdForSegment(seg.segment_id)` → `seg.room_id`.
   The SVG polygons + labels use this; the raster does not (it has no segments, just rid pixels).
 

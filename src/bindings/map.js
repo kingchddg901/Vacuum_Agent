@@ -324,11 +324,23 @@ export function applyMapBindings(proto) {
     // (override > token > default) holds on the raster too — an exact per-pixel recolor, not an
     // overlay. Bridge the raster's per-pixel rid to a room via the DEVICE-AUTHORITATIVE rid->name
     // map the render payload already ships (rd.room_names = {rid: name}); our rooms carry that same
-    // name (it's what the labels show). Keying by room.id directly is WRONG — the raster rid and our
-    // stored room.id are DIFFERENT id spaces on real devices (empirically verified), so a room.id
-    // key lands on no pixels (or, worse, another room's). Name-mismatch just falls through to the
-    // palette — it never miscolors. Sparse array keyed by numeric rid so the hot pixel loop is a
-    // plain index read; an overrideSig busts the cache so a recolor repaints, like paletteSig.
+    // name (it's what the labels show). The name bridge is DEFENSIVE, not required — read on before
+    // "simplifying" it, and before trusting it as proof that the two ids differ.
+    //
+    // R2-BUG-5. This comment used to assert that raster rid and our stored room.id are "DIFFERENT
+    // id spaces on real devices (empirically verified)". That claim has no dataset behind it, and
+    // three separate code paths (selection scrim, clean-order badges, current-room attribution)
+    // assume the opposite — so the codebase read as self-contradictory for two months. The raster
+    // rid space is EUFY-ONLY (map_source.py:373 — Roborock has no per-pixel raster at all), so
+    // "on real devices" can only ever have meant Eufy; and on the one Eufy device we hold data
+    // for, rid == room.id == room_names key (Kitchen=5, Office=9, Dining=8, Entryway=6). c4207b9,
+    // the very commit that wrote the divergence claim, documented "rid==room.id==room_names
+    // identity" in its own message.
+    //
+    // Kept anyway: it costs one Map lookup, and it is the safe side if some firmware we have never
+    // seen does diverge. Name-mismatch falls through to the palette, so it can never miscolor.
+    // Sparse array keyed by numeric rid so the hot pixel loop is a plain index read; an overrideSig
+    // busts the cache so a recolor repaints, like paletteSig.
     const state = this.card._state;
     const rooms = state?.getRoomsForActiveMap?.() ?? [];
     const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
