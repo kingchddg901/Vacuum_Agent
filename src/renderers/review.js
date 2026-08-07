@@ -128,11 +128,14 @@ export function applyReviewRenderers(proto) {
                 label: room?.room_name ?? room?.label ?? room?.slug ?? this.t("review.room_fallback"),
               })), state.learningHistoryFilters?.().room_slug, this.t("review.filter_all_rooms"))}
 
-              ${this._renderReviewChipFilter(this.t("review.filter_profile"), "profile_key", this._localizedProfileOptions(state.learningHistoryProfiles?.() ?? []).map((profile) => ({
-                value: profile?.profile_key ?? "",
-                label: profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback"),
-                title: profile?.title ?? profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback"),
-              })), state.learningHistoryFilters?.().profile_key, this.t("review.filter_all_profiles"))}
+              ${/* R2-BUG-2. Keyed on the SAVED PROFILE, not the per-room settings signature.
+                    The old row mapped profile_key, whose label reads "Dining Room Vacuum
+                    Quick · Quick · Quiet" — the room name inside the profile chip. That
+                    made the ROOM row above redundant (picking a signature already pins the
+                    room), grew the column as rooms × profiles × settings so it needed
+                    scroll arrows, and could not filter jobs at all: a job spans rooms, so
+                    _job_matches ignored it while the chip still rendered active. */ ""}
+              ${this._renderReviewChipFilter(this.t("review.filter_profile"), "profile_name", state.learningHistoryProfileNames?.() ?? [], state.learningHistoryFilters?.().profile_name, this.t("review.filter_all_profiles"))}
 
               ${this._renderReviewChipFilter(this.t("review.filter_status"), "status", state.learningHistoryStatusOptions?.(), state.learningHistoryFilters?.().status, this.t("review.filter_all_statuses"))}
 

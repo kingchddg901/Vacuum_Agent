@@ -12,6 +12,7 @@ export function applyReviewActions(proto) {
    * @param {string} [opts.vacuum_entity_id]
    * @param {string} [opts.room_slug]
    * @param {string} [opts.profile_key]
+   * @param {string} [opts.profile_name]
    * @param {string} [opts.status]
    * @param {boolean} [opts.used_for_learning]
    * @param {string} [opts.origin] external | internal
@@ -22,6 +23,7 @@ export function applyReviewActions(proto) {
     vacuum_entity_id,
     room_slug,
     profile_key,
+    profile_name,
     status,
     used_for_learning,
     origin,
@@ -33,6 +35,10 @@ export function applyReviewActions(proto) {
     const data = { vacuum_entity_id: vacuumEntityId };
     if (room_slug) data.room_slug = String(room_slug);
     if (profile_key) data.profile_key = String(profile_key);
+    // R2-BUG-2. Separate axis from profile_key (a per-room settings signature); this is
+    // the saved-profile name. Unlisted params are silently dropped by this destructure,
+    // so a new filter that is not named here reaches the service as nothing at all.
+    if (profile_name) data.profile_name = String(profile_name);
     if (status) data.status = String(status);
     if (typeof used_for_learning === "boolean") data.used_for_learning = used_for_learning;
     if (origin) data.origin = String(origin);

@@ -1528,6 +1528,7 @@ class LearningManager:
         vacuum_entity_id: str,
         room_slug: str | None = None,
         profile_key: str | None = None,
+        profile_name: str | None = None,
         status: str | None = None,
         used_for_learning: bool | None = None,
         origin: str | None = None,
@@ -1536,6 +1537,18 @@ class LearningManager:
         """Return a card-friendly learning history snapshot from rebuilt files."""
         room_slug_filter = str(room_slug or "").strip().lower() or None
         profile_key_filter = str(profile_key or "").strip().lower() or None
+        # R2-BUG-2. SAVED-PROFILE filter, a separate axis from profile_key.
+        #
+        # profile_key is a per-room SETTINGS SIGNATURE (see _room_profile_key) — it embeds
+        # the room slug, so it names one room cleaned one way. That makes it a legitimate
+        # key for the per-room profile table, and a nonsense one for jobs: a job spans many
+        # rooms, so `_job_matches` could never honour it and silently ignored it, leaving
+        # the Jobs count and Runs list unfiltered while the chip looked active. It also made
+        # the ROOM filter redundant, since picking a signature already pins the room.
+        #
+        # profile_name is room-independent, so all three lists mean the same thing under it
+        # and Room x Profile finally compose instead of nesting.
+        profile_name_filter = str(profile_name or "").strip().lower() or None
         status_filter = str(status or "").strip().lower() or None
         # Origin filter is BINARY: "external" (app-started, captured) vs "internal"
         # (dispatched by us — origin is None/absent on those records). Normalized so a
@@ -1561,6 +1574,12 @@ class LearningManager:
         #     multi-room area SUM fallback (build_jobs_index_payload) — an index that predates
         #     this key also predates that area fallback, so requiring it back-fills BOTH.
         #   - "area_over_attributed": the cleaning_area sensor-total sanity fields.
+        #   - "profile_names": the saved-profile filter axis (R2-BUG-2). Without this marker
+        #     an index built before that change carries no profile names, so `_job_matches`
+        #     can match nothing and the whole Profile chip row filters to an empty list —
+        #     silently, on every existing install, until something else happened to force a
+        #     rebuild. Caught by its own test failing only in a full-file run, where an
+        #     earlier test had already written an index in the old shape.
         _index_is_new_format = (
             isinstance(_index_jobs, list)
             and bool(_index_jobs)
@@ -1569,6 +1588,7 @@ class LearningManager:
             and "origin" in _index_jobs[0]
             and "has_attribution_disagreement" in _index_jobs[0]
             and "area_over_attributed" in _index_jobs[0]
+            and "profile_names" in _index_jobs[0]
         )
         if archived_jobs and not _index_is_new_format:
             try:
@@ -1781,6 +1801,21 @@ class LearningManager:
                 )
                 if entry_origin != origin_filter:
                     return False
+            # R2-BUG-2. A job matches when ANY of its rooms ran the named profile —
+            # the only reading that stays true for a multi-room run. Requiring EVERY
+            # room to match would make the filter almost always empty (rooms routinely
+            # differ), and ignoring it entirely is what shipped: the chip rendered
+            # active while the Jobs count and Runs list quietly stayed unfiltered.
+            #
+            # profile_names is emitted per job by the rebuilder; an index written before
+            # that (or a job whose rooms carry no profile) has no list and simply cannot
+            # match, rather than matching everything.
+            if profile_name_filter:
+                names = entry.get("profile_names", [])
+                if not isinstance(names, list) or profile_name_filter not in {
+                    str(item or "").strip().lower() for item in names
+                }:
+                    return False
             return True
 
         def _room_matches(entry: dict[str, Any]) -> bool:
@@ -1791,6 +1826,16 @@ class LearningManager:
                 return False
             if profile_key_filter and str(entry.get("profile_key", "")).strip().lower() != profile_key_filter:
                 return False
+            # R2-BUG-2. Matches EITHER name: `selected` is what the user picked, `resolved`
+            # is what applied after overrides, and a chip labelled with a profile name
+            # should find the row under either reading rather than silently pick one.
+            if profile_name_filter:
+                names = {
+                    str(entry.get("selected_profile_name", "")).strip().lower(),
+                    str(entry.get("resolved_profile_name", "")).strip().lower(),
+                }
+                if profile_name_filter not in names:
+                    return False
             if status_filter:
                 counts = entry.get("status_counts", {})
                 if not isinstance(counts, dict) or _safe_int(counts.get(status_filter), 0) <= 0:
@@ -2325,6 +2370,39 @@ class LearningManager:
             ),
         )
 
+        # R2-BUG-2. The SAVED-PROFILE chip row. profile_filter_options above is one entry
+        # per room-x-settings signature, so it grew as rooms x profiles x settings and its
+        # labels read "Dining Room Vacuum Quick · Quick · Quiet" — the room name inside the
+        # profile chip, which made the ROOM row above it redundant and forced the column to
+        # scroll for what is really three or four choices. This list is room-independent
+        # and deduped, so Room x Profile compose.
+        #
+        # Built from the same source rather than from the profile catalogue: a name only
+        # appears if some run actually used it, so the row never offers a chip that filters
+        # to nothing. Both selected and resolved are collected, matching _profile_matches.
+        _profile_name_values: set[str] = set()
+        for item in profile_filter_source:
+            if not isinstance(item, dict):
+                continue
+            for _key in ("selected_profile_name", "resolved_profile_name"):
+                _name = str(item.get(_key, "")).strip().lower()
+                if _name:
+                    _profile_name_values.add(_name)
+        profile_name_filter_options = sorted(
+            (
+                {
+                    "value": name,
+                    # English fallback only — the card localizes via tVocab on the value,
+                    # same as every other chip row. Built-ins get a proper name; an
+                    # observed/custom profile keeps its stored slug prettified.
+                    "label": name.replace("_", " ").title(),
+                    "is_builtin": name in built_in_profile_names,
+                }
+                for name in _profile_name_values
+            ),
+            key=lambda item: (not item["is_builtin"], item["value"]),
+        )
+
         status_filter_options = sorted(
             [
                 {
@@ -2373,6 +2451,7 @@ class LearningManager:
             "filter_options": {
                 "rooms": room_filter_options,
                 "profiles": profile_filter_options,
+                "profile_names": profile_name_filter_options,  # R2-BUG-2
                 "statuses": status_filter_options,
                 "used_for_learning": used_for_learning_filter_options,
             },

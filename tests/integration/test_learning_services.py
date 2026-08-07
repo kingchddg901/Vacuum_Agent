@@ -123,6 +123,7 @@ def _seed_completed_job(
     origin: str | None = None,
     room_timings: list[dict] | None = None,
     outcome_extra: dict | None = None,
+    profile_name: str | None = None,
 ) -> dict:
     """Seed a minimal completed job directly via LearningHistoryStore."""
     if room_slugs is None:
@@ -136,6 +137,12 @@ def _seed_completed_job(
             "clean_intensity": "standard",
             "clean_times": clean_times,
             "is_carpet": False,
+            # R2-BUG-2: rooms carry the SAVED PROFILE name; the rebuilder collects these
+            # per job into `profile_names`, which is what makes a job filterable by profile.
+            **(
+                {"selected_profile_name": profile_name, "resolved_profile_name": profile_name}
+                if profile_name else {}
+            ),
         }
         for i, slug in enumerate(room_slugs)
     ]
@@ -3883,3 +3890,74 @@ def test_review_payload_states_its_own_truncation(manager):
         assert summary["returned_job_count"] == 2
     else:
         assert summary["jobs_truncated"] is False
+
+
+# ---------------------------------------------------------------------------
+# [LS-60] R2-BUG-2 — the saved-profile filter actually filters JOBS
+# ---------------------------------------------------------------------------
+
+async def test_profile_name_filters_jobs_and_composes_with_room(hass, learning_services):
+    """[LS-60] The filter the old chip row could not honour.
+
+    profile_key is a per-room settings SIGNATURE — it embeds the slug, so `_job_matches`
+    had nothing to compare it against and ignored it outright: the chip rendered active
+    while the Jobs count and Runs list stayed unfiltered. profile_name is room-independent,
+    so it filters jobs, and it COMPOSES with room_slug instead of nesting under it.
+    """
+    _seed_completed_job(hass, _VAC, "j-pn-quick", room_slugs=["kitchen"],
+                        profile_name="vacuum_quick")
+    _seed_completed_job(hass, _VAC, "j-pn-deep", room_slugs=["dining_room"],
+                        profile_name="vacuum_deep")
+    _seed_completed_job(hass, _VAC, "j-pn-multi", room_slugs=["kitchen", "hallway"],
+                        profile_name="vacuum_deep")
+
+    # _seed_completed_job writes the ARCHIVE only; the index is rebuilt lazily and just
+    # once, when it looks stale. Run in isolation there is no index yet so the rebuild
+    # fires — but after any earlier test in this file there IS one, in the current shape,
+    # so it does not, and these jobs stay invisible. Clear it so this test states its own
+    # precondition instead of inheriting whatever ran before it.
+    LearningHistoryStore(hass).save_jobs_index(vacuum_entity_id=_VAC, payload={"jobs": []})
+
+    async def _snap(**filters):
+        return await hass.services.async_call(
+            DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+            {"vacuum_entity_id": _VAC, **filters}, blocking=True, return_response=True,
+        )
+
+    unfiltered = await _snap()
+    all_ids = {j.get("job_id") for j in unfiltered.get("jobs", [])}
+    assert {"j-pn-quick", "j-pn-deep", "j-pn-multi"} <= all_ids, "seeding did not take"
+
+    deep = await _snap(profile_name="vacuum_deep")
+    deep_ids = {j.get("job_id") for j in deep.get("jobs", [])}
+    assert deep_ids == {"j-pn-deep", "j-pn-multi"}, (
+        "profile_name did not filter jobs — the exact defect R2-BUG-2 describes"
+    )
+
+    # ...and it COMPOSES with the room filter rather than being implied by it. The
+    # multi-room job matches on `kitchen`; the single dining_room job does not.
+    both = await _snap(profile_name="vacuum_deep", room_slug="kitchen")
+    assert {j.get("job_id") for j in both.get("jobs", [])} == {"j-pn-multi"}
+
+    # A profile nothing ran matches nothing, rather than everything.
+    none = await _snap(profile_name="no_such_profile")
+    assert none.get("jobs", []) == []
+
+
+async def test_profile_name_chip_options_are_room_independent(hass, learning_services):
+    """[LS-61] The option list is the saved profiles actually used — deduped across rooms,
+    not one entry per room x settings combination."""
+    _seed_completed_job(hass, _VAC, "j-opt-a", room_slugs=["kitchen"],
+                        profile_name="vacuum_quick")
+    _seed_completed_job(hass, _VAC, "j-opt-b", room_slugs=["dining_room"],
+                        profile_name="vacuum_quick")
+    LearningHistoryStore(hass).save_jobs_index(vacuum_entity_id=_VAC, payload={"jobs": []})
+
+    snap = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    values = [o.get("value") for o in snap.get("filter_options", {}).get("profile_names", [])]
+    assert values.count("vacuum_quick") == 1, (
+        f"same profile in two rooms should be ONE chip, got {values}"
+    )

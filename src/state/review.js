@@ -28,6 +28,7 @@ export function applyReviewState(proto) {
         filters: {
           room_slug: "",
           profile_key: "",
+          profile_name: "",
           status: "",
           used_for_learning: "",
           origin: "",
@@ -57,6 +58,7 @@ export function applyReviewState(proto) {
       reviewState.filters = {
         room_slug: incomingFilters.room_slug == null ? "" : String(incomingFilters.room_slug),
         profile_key: incomingFilters.profile_key == null ? "" : String(incomingFilters.profile_key),
+        profile_name: incomingFilters.profile_name == null ? "" : String(incomingFilters.profile_name),
         status: incomingFilters.status == null ? "" : String(incomingFilters.status),
         used_for_learning:
           typeof incomingFilters.used_for_learning === "boolean"
@@ -141,6 +143,24 @@ export function applyReviewState(proto) {
     return Array.from(merged.values()).sort((a, b) =>
       String(a.room_name ?? a.room_slug).localeCompare(String(b.room_name ?? b.room_slug))
     );
+  };
+
+  proto.learningHistoryProfileNames = function () {
+    /* R2-BUG-2. The SAVED-PROFILE chip options — room-independent, so this list is short
+       and stable (roughly the built-ins plus whatever customs exist) instead of growing as
+       rooms × profiles × settings the way learningHistoryProfiles below does.
+
+       Kept as a SEPARATE reader rather than reshaping that one: the signature list still
+       drives the per-room profile TABLE and the profile matcher, which legitimately want
+       one row per room-and-settings. Only the filter row moves. */
+    const options = this.learningHistorySnapshot?.()?.filter_options?.profile_names;
+    if (!Array.isArray(options)) return [];
+    return options
+      .filter((option) => String(option?.value ?? "").trim() !== "")
+      .map((option) => ({
+        value: String(option.value),
+        label: String(option?.label ?? option.value),
+      }));
   };
 
   proto.learningHistoryProfiles = function () {

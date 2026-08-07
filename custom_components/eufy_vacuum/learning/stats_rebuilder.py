@@ -934,6 +934,26 @@ class LearningStatsRebuilder:
                 for room in rooms
                 if isinstance(room, dict) and str(room.get("slug", "")).strip()
             ]
+            # R2-BUG-2. The SAVED PROFILE names this run used, deduped, order-stable.
+            # Deliberately NOT _room_profile_key: that is a per-room SETTINGS SIGNATURE
+            # (slug::profile::mode::intensity::fan::water::passes::carpet::edge) whose job
+            # is pooling learned timings, and it embeds the slug — so it can only ever
+            # describe one room, which is why filtering JOBS by it matched nothing. A saved
+            # profile name is room-independent, so a job can honestly claim several.
+            #
+            # Both names are collected: `selected` is what the user picked, `resolved` is
+            # what actually applied after overrides, and a filter labelled with a profile
+            # name should find the run under either reading rather than silently pick one.
+            profile_names = sorted({
+                name
+                for room in rooms
+                if isinstance(room, dict)
+                for name in (
+                    str(room.get("selected_profile_name", "")).strip().lower(),
+                    str(room.get("resolved_profile_name", "")).strip().lower(),
+                )
+                if name
+            })
             room_count = _safe_int(job_info.get("room_count"), len(room_slugs))
             _room_cleaning = job_info.get("room_cleaning_minutes")
             _actual_cleaning = job_info.get("actual_cleaning_minutes")
@@ -1018,6 +1038,7 @@ class LearningStatsRebuilder:
                     "duration_minutes": duration_minutes,
                     "room_count": room_count,
                     "room_slugs": room_slugs,
+                    "profile_names": profile_names,  # R2-BUG-2
                     "zone_count": zone_count,
                     "zone_names": zone_names,
                     "status": str(outcome.get("status", "unknown")).strip().lower(),

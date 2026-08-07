@@ -163,6 +163,10 @@ GET_LEARNING_HISTORY_SNAPSHOT_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("room_slug"): cv.string,
         vol.Optional("profile_key"): cv.string,
+        # R2-BUG-2 — saved-profile filter, a separate axis from profile_key (which is a
+        # per-room settings signature). Additive: profile_key keeps its meaning so any
+        # existing caller is untouched.
+        vol.Optional("profile_name"): cv.string,
         vol.Optional("status"): cv.string,
         vol.Optional("used_for_learning"): cv.boolean,
         vol.Optional("origin"): vol.In(["external", "internal"]),
@@ -676,6 +680,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
                 vacuum_entity_id=call.data["vacuum_entity_id"],
                 room_slug=call.data.get("room_slug"),
                 profile_key=call.data.get("profile_key"),
+                profile_name=call.data.get("profile_name"),
                 status=call.data.get("status"),
                 used_for_learning=call.data.get("used_for_learning"),
                 origin=call.data.get("origin"),

@@ -1044,6 +1044,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: this._state.vacuumEntityId?.(),
       room_slug: filters.room_slug || undefined,
       profile_key: filters.profile_key || undefined,
+      // R2-BUG-2. Fourth place this had to be named: chip -> filters -> here -> the
+      // action's destructure -> the service schema. Any one of them omitting it drops
+      // the filter silently, which is exactly how the old one looked applied and wasn't.
+      profile_name: filters.profile_name || undefined,
       status: filters.status || undefined,
       used_for_learning:
         filters.used_for_learning === "true"

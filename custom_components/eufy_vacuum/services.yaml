@@ -2425,7 +2425,20 @@ get_learning_history_snapshot:
         text: {}
     profile_key:
       name: Profile key
-      description: Optional room profile signature from the learning index.
+      description: >-
+        Optional room profile SIGNATURE from the learning index — one room cleaned one
+        way (slug + profile + settings). Filters the per-room profile table. It cannot
+        filter jobs, because a job spans several rooms; use profile_name for that.
+      required: false
+      selector:
+        text: {}
+    profile_name:
+      name: Profile name
+      description: >-
+        Optional SAVED PROFILE filter, for example vacuum_quick. Room-independent, so it
+        filters jobs, rooms and profiles consistently and composes with room_slug. Matches
+        a run when any of its rooms used that profile, under either the selected or the
+        resolved name.
       required: false
       selector:
         text: {}
