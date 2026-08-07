@@ -607,8 +607,7 @@ baseline confuses missing invariants with unapplied fixes.
    drill re-validates it in its proper position. FRONTEND docs get the TRIM stage +
    coupling check only — blind reconstruction of UI prose has no biting test surface
    and would certify nothing. USER GUIDES are EXEMPT from ablation entirely — not
-   even trim+coupling — per Chris's amendment below (this sentence previously
-   contradicted it; GPT's review caught the conflict, the amendment is normative).
+   even trim+coupling.
 
    **Three sequences share the atom-first principle without being the same sequence
    — do not collapse them (GPT review, 2026-08-07):**
@@ -875,9 +874,8 @@ the trimmer, and it is less safe here, not more.
 ## AMENDMENT (GPT review + agent follow-up, 2026-08-07): rule 14 — one live statement per rule
 
 A NORMATIVE COLLISION — two authoritative statements each individually followable and
-jointly unsatisfiable — is a doc-defect class of its own, and this document's
-append-amendment style is its natural breeding ground (the user-guide-exemption
-collision was found live). Discipline from here:
+jointly unsatisfiable — is a doc-defect class of its own, and an append-amendment
+style is its natural breeding ground. Discipline:
 
 - An amendment that changes a rule REWRITES the rule where it lives (or explicitly
   strikes it), never merely appends an override. One live statement per rule; the
