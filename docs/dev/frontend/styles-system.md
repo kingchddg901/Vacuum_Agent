@@ -198,6 +198,27 @@ until the toggle is on and cached after (`fonts.js:13-29`).
 full licence text travels beside the woff2 files at `frontend/fonts/OFL.txt` and must not be
 removed (`fonts.js:31-41`).
 
+### 4b. Drop-in fonts (user-supplied, no release)
+
+`config/eufy_vacuum/fonts/<id>/` holds `font.json` + its woff2 files + its licence. The **backend
+owns the trust chain** (`user_fonts.py`, run at setup): descriptor validation, cmap parsing via
+fontTools (`manifest.json` requirement `fonttools[woff2]`), and per-locale verification against
+the shipped locale catalogues — letters/marks/digits only; symbols (`✓ → ·`) legitimately ride
+the fallback chain. Shaping locales (`ar`) additionally require a GSUB table. The verdicts land
+in `catalog.json`, the canonical font-library response served at `/eufy_vacuum/user_fonts/`. The
+descriptor **cannot claim locales — the font file is the evidence**; without fontTools a drop-in
+is catalogued `unverified` with zero locales (present, never offered).
+
+The card consumes the catalog generically (`fonts.js` runtime section + `_maybeLoadUserFonts` in
+`main.js`): sanitize every entry (defense in depth — catalog fields become CSS), register faces on
+the document, inject the runtime shadow styles (a second `<style data-evcc-runtime-fonts>` node,
+re-injected per `_render` so frame resets can't drop it), append the modal/toast host setters at
+injection time, register per-locale offering (`registerRuntimeFontSupport`; shipped verified sets
+are immutable at runtime), and re-arm the stored-font read so a persisted drop-in choice restores.
+The card **never render-verifies** — rendered-text checks lie through per-glyph fallback (the
+live:FONT-1 instrument class). Pins: `UF-1`…`UF-6` (frontend), `tests/unit/test_user_fonts.py`
+(backend).
+
 ---
 
 ## 5. Styles-in-styles-only + the CI gates

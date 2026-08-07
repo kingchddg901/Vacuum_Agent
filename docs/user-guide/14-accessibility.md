@@ -88,18 +88,56 @@ change what anyone else sees.
 
 **Two things worth knowing:**
 
-- It is offered in **English only** for now. That isn't an oversight: a typeface
-  is only offered for a language once we've checked it actually contains every
-  character that language's translations need. OpenDyslexic is missing some
-  accented letters that Polish, Czech and Turkish require, so offering it there
-  would give you a patchy half-translated screen rather than a readable one.
-  Other languages get it as they're verified.
+- It is offered in **twelve languages** (English, German, French, Spanish,
+  Italian, Dutch, Portuguese, Polish, Czech, Turkish, Indonesian, Russian). A
+  typeface is only offered for a language once the font file has been checked
+  to actually contain every letter that language's translations need — the
+  check reads the font itself, so it can't be fooled. OpenDyslexic doesn't
+  carry Hebrew, Arabic or CJK letters, so it isn't offered there; offering it
+  would give you a patchy half-rendered screen rather than a readable one.
 - Text the **font doesn't cover falls back** to your normal font — a room you
   named in Cyrillic, for example. That's deliberate. The alternative is empty
   boxes where the letters should be.
 
 Selecting **Default** returns the card to whatever your Home Assistant theme
 uses.
+
+## Add your own typeface
+
+You can add any font you have the right to use — no update or rebuild needed.
+Create a folder under `config/eufy_vacuum/fonts/`, one per font, holding the
+font's `.woff2` files, its licence file, and a small `font.json` describing it:
+
+```
+config/eufy_vacuum/fonts/
+    atkinson/
+        font.json
+        AtkinsonHyperlegible-Regular.woff2
+        AtkinsonHyperlegible-Bold.woff2
+        OFL.txt
+```
+
+```json
+{
+  "id": "atkinson",
+  "family": "Atkinson Hyperlegible",
+  "faces": [
+    { "file": "AtkinsonHyperlegible-Regular.woff2", "weight": 400 },
+    { "file": "AtkinsonHyperlegible-Bold.woff2", "weight": 700 }
+  ]
+}
+```
+
+Restart Home Assistant and refresh the dashboard: the font appears in the
+globe menu's **Typeface** section and as a chip on the Theme tab's **Font
+Family** token. You don't tell the card which languages the font supports —
+it reads the font file itself and only offers it where the letters are
+actually there. A font that can't be verified is simply not offered, and a
+broken descriptor can never break the card.
+
+Notes: the font's licence must permit this use (keep the licence file in the
+folder); `id` is lowercase letters/digits/hyphens; the woff2 format is the
+only one accepted.
 
 ## Other niceties
 
