@@ -586,12 +586,18 @@ baseline confuses missing invariants with unapplied fixes.
 2. **Confirmation: doc 18 (onboarding manager)** once dev-core's truth patch lands —
    cleanest sandbox in the corpus (data+hass ctor). Run only if calibration leaves doubts
    about generality; otherwise optional.
-3. **Fan-out, invariant-first.** Not corpus-wide by default: a discovery round costs ~7
-   agent runs. Priority order = DR docs guarding behavioral invariants (06, 30, 07, 04,
-   05, 15, 28, 14, 12) → adapter/reference docs (lighter loops, trim + single build) →
-   shapes/schema docs (03, 22) where the "build" is a schema reconstruction. Frontend and
-   user-guide docs get the TRIM stage + coupling check only — blind reconstruction of UI
-   prose has no biting test surface and would certify nothing.
+3. **Fan-out in BOOTSTRAP ORDER (Chris ruling, 2026-08-07 — supersedes invariant-first).**
+   The test has to start at the top: under the self-hosting availability contract
+   (00 §0), a section's closure composes only if the docs it depends on are already
+   proven — so the fleet runs the README's reading order top-to-bottom (00/00a excluded
+   as meta; 01 → 02 → 03 → 04 → 05 → 06 → 07 → 30 → subsystems 08…15/31 → managers
+   16-18 → adapters 21/22/25/26/29 → 28), each closure resting on closed foundations.
+   Invariant-density now only decides LOOP DEPTH per doc (full discovery loop vs
+   trim+single-build vs schema-reconstruction for shapes docs like 03/22), never
+   sequence. Doc 23 closed out of order as the calibration; the docs-only rebuild
+   drill re-validates it in its proper position. Frontend and user-guide docs still
+   get the TRIM stage + coupling check only — blind reconstruction of UI prose has no
+   biting test surface and would certify nothing.
 4. **Per-doc outputs:** the trimmed DR section (net-smaller), migrated history into the
    audit record with provenance tags, ledger entries for every earned invariant, and the
    section's §7 status row updated.
@@ -787,3 +793,59 @@ The rule is therefore license + ledger, not suspicion:
   additions live inside the shrink budget, which keeps invariant-inflation and
   addition-padding structurally unprofitable.
 - Unlogged additions remain a rejected trim, same class as an unrouted removal.
+
+## AMENDMENT (CAL-23 apply-step finding, 2026-08-07): rule 13 — BASE REVISIONS, because the loop has no merge base
+
+The protocol produces a **whole-file replacement** built from a snapshot taken hours
+earlier, and until now had no notion of a base revision for either artifact. Applying a
+closed candidate is therefore a silent `cp` over a file that may have moved. Nothing in
+rules 1-12 detects it.
+
+This is not an edge case. It is the DEFAULT path for any round that draws first blood,
+because the two rules COLLIDE by design:
+
+- lifecycle §13 REQUIRES a corrected DR statement to land in the same commit as the fix;
+- the ablation loop is meanwhile holding a frozen copy of that same section.
+
+CAL-23 is the worked example. The trim's baseline was doc 23 at **475** lines
+(`31edf3b`). Round 1's first blood — §7.2 documented the deprecated `harvest_active_run`
+as the live finalizer wiring — was applied to the LIVE doc immediately and correctly,
+taking it to **488** (`e649b9e`). The closed candidate was 415 lines built from the 475
+snapshot. It was applied by hand-diffing first and found benign (round 2 had restored the
+same correction), but the check was ad-hoc, performed by the coordinator, and is nowhere
+in this document. On a nine-section fan-out against an actively developed tree it will
+not stay benign.
+
+**The mechanism (mechanical, no judgement, belongs in the coordinator's script):**
+
+1. **At trim submission, record two base revisions in the manifest header** — the git
+   blob hash of the DR section AND of the target source module. Cheap
+   (`git rev-parse HEAD:<path>`), and both are handoff artifacts rule-11 forensics get
+   for free.
+
+2. **At apply time, recompute both.**
+
+   - **DR section hash UNCHANGED** → apply directly. This is the clean case.
+   - **DR section hash CHANGED** → application is **BLOCKED**. Reconcile three-way
+     (base, live, candidate). Every live hunk with no counterpart in the candidate is
+     either re-applied onto it or discarded with a stated justification in the manifest,
+     under the same routing discipline as a removal. An unreconciled apply is a REJECTED
+     closure, same class as an unrouted removal or an unlogged addition — the failure it
+     causes is identical (meaning silently leaves the corpus) and it is worse in one
+     respect: it reverts work that was already proven and shipped.
+   - **TARGET SOURCE hash CHANGED** → the closure is **PROVISIONAL**. The builders were
+     certified against behaviour that no longer exists, so the examination must re-run
+     against the current source's behavioural tests before escrow releases. This is the
+     same shape as the existing suspension rule for a pin later found toothless: the
+     apparatus moved, so the proof is only as current as the thing it measured.
+
+3. **A candidate whose base is more than one epoch-edge commit stale is re-trimmed, not
+   merged.** Beyond a small drift, three-way reconciliation stops being bookkeeping and
+   becomes an unreviewed rewrite by the coordinator — who is not a trim agent, has seen
+   everything, and is exactly the actor rule 4 exists to keep out of the prose.
+
+**Why this belongs to the protocol and not to operator care:** the coordinator applying
+the patch is the one actor who has read the original, the trimmed candidate, every build,
+and the adjudication. That is the maximally contaminated position in the entire loop.
+"The coordinator will notice" is precisely the assumption rule 4 refuses to make about
+the trimmer, and it is less safe here, not more.
