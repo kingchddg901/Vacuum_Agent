@@ -716,6 +716,21 @@
       "motion": "תנועה",
       "typography": "טיפוגרפיה",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "מצב ניקוי",
+      "fan_speed": "עוצמת שאיבה",
+      "water_level": "כמות מים",
+      "clean_intensity": "מסלול ניקוי",
+      "clean_passes": "מעברי ניקוי",
+      "edge_mopping": "שטיפת קצוות"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "אין עדיין היסטוריית למידה זמינה."
+    },
+    "compose_shape": {
+      "rect": "מלבן",
+      "circle": "עיגול"
     }
   },
   "map": {
@@ -1417,7 +1432,9 @@
       "rooms_blocked": "חדרים מסוימים חסומים על ידי הכללים שלהם וידולגו.",
       "confirmation_required": "נדרש אישור לפני התחלת הניקוי המצומצם הזה.",
       "job_paused": "משימה במעקב מושהית. חדשו או בטלו אותה לפני התחלת משימה חדשה.",
-      "onboarding_required": "השלימו את הגדרת המפה הזו לפני התחלת ניקוי."
+      "onboarding_required": "השלימו את הגדרת המפה הזו לפני התחלת ניקוי.",
+      "rule_blocked": "נחסם על ידי כלל חדר.",
+      "access_blocked": "חסום - המסלול אל החדר הזה עובר דרך חדר חסום."
     },
     "blocked_fallback": "חסום",
     "blocked_rooms": "חדרים חסומים",
@@ -1716,7 +1733,14 @@
     "value_list_help": "רשימת ערכים מופרדים בפסיקים.",
     "value_multi_help": "בחר ערך מותר אחד או יותר מהישות עצמה.",
     "value_placeholder_list": "ערך1, ערך2, ...",
-    "value_placeholder_text": "לדוגמה: home, 25, true"
+    "value_placeholder_text": "לדוגמה: home, 25, true",
+    "op_is_on": "מופעל",
+    "op_is_off": "כבוי",
+    "op_exists": "קיים",
+    "op_missing": "חסר",
+    "effect_exclude": "החרגת החדר",
+    "effect_exclude_reason": "החרגה - {reason}",
+    "effect_modify": "שינוי הגדרות"
   },
   "room_access": {
     "accessed_from_help": "החדר שמעניק גישה לחדר זה. לקריאה בלבד — נקבע מעורך החדר האחר.",
@@ -2244,7 +2268,17 @@
       "many": "עודכנו {count} חדרים.",
       "other": "עודכנו {count} חדרים."
     },
-    "reconcile_updating": "מעדכן…"
+    "reconcile_updating": "מעדכן…",
+    "protection_reason": {
+      "only_map": "זו המפה המיובאת היחידה של שואב זה.",
+      "has_active_job": "משימת ניקוי פועלת או הייתה פעילה לאחרונה במפה זו.",
+      "has_learning_data": {
+        "one": "למפה זו יש היסטוריית ניקוי לחדר אחד.",
+        "other": "למפה זו יש היסטוריית ניקוי ל-{count} חדרים."
+      },
+      "has_rules": "לחדר אחד או יותר מוגדרים כללי אוטומציה.",
+      "has_access_graph": "חדר אחד או יותר הם חלק מגרף גישה."
+    }
   },
   "external_jobs": {
     "back": "חזרה",

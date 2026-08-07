@@ -716,6 +716,21 @@
       "motion": "動效",
       "typography": "排版",
       "easing": "緩動"
+    },
+    "setting_field": {
+      "clean_mode": "清潔模式",
+      "fan_speed": "吸力",
+      "water_level": "水量",
+      "clean_intensity": "清潔路徑",
+      "clean_passes": "清潔遍數",
+      "edge_mopping": "邊緣拖地"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "尚無學習紀錄。"
+    },
+    "compose_shape": {
+      "rect": "矩形",
+      "circle": "圓形"
     }
   },
   "map": {
@@ -1411,7 +1426,9 @@
       "rooms_blocked": "部分房間被其規則阻斷，將被略過。",
       "confirmation_required": "開始這次縮減的清掃前需要確認。",
       "job_paused": "有一個已追蹤的工作處於暫停狀態。請先繼續或取消，再開始新的工作。",
-      "onboarding_required": "請先完成此地圖的設定，再開始清掃。"
+      "onboarding_required": "請先完成此地圖的設定，再開始清掃。",
+      "rule_blocked": "已被房間規則封鎖。",
+      "access_blocked": "已封鎖 - 通往此房間的路線經過被封鎖的房間。"
     },
     "blocked_fallback": "已封鎖",
     "blocked_rooms": "已封鎖房間",
@@ -1680,7 +1697,14 @@
     "value_list_help": "以逗號分隔的值清單。",
     "value_multi_help": "從實體本身選擇一個或多個允許的值。",
     "value_placeholder_list": "值1, 值2, ...",
-    "value_placeholder_text": "例如：home, 25, true"
+    "value_placeholder_text": "例如：home, 25, true",
+    "op_is_on": "為開啟",
+    "op_is_off": "為關閉",
+    "op_exists": "存在",
+    "op_missing": "不存在",
+    "effect_exclude": "排除房間",
+    "effect_exclude_reason": "排除 - {reason}",
+    "effect_modify": "修改設定"
   },
   "room_access": {
     "accessed_from_help": "授予此房間通行權的房間。唯讀 — 請從另一個房間的編輯器設定。",
@@ -2148,7 +2172,16 @@
     "reconcile_updated_count": {
       "other": "已更新 {count} 個房間。"
     },
-    "reconcile_updating": "更新中…"
+    "reconcile_updating": "更新中…",
+    "protection_reason": {
+      "only_map": "這是此掃地機唯一匯入的地圖。",
+      "has_active_job": "此地圖上有清潔任務正在進行或最近處於使用中。",
+      "has_learning_data": {
+        "other": "此地圖有 {count} 個房間的清潔紀錄。"
+      },
+      "has_rules": "一個或多個房間已設定自動化規則。",
+      "has_access_graph": "一個或多個房間屬於通行關係圖。"
+    }
   },
   "external_jobs": {
     "back": "返回",

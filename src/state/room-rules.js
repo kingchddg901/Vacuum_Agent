@@ -591,16 +591,25 @@ export function applyRoomRulesState(proto) {
   /**
    * Build a plain-text summary of a rule condition for display
    * in the rule list (e.g. "is ON", "= home", "> 25").
+   *
+   * `t` is the card's RAW translator (like access-issue-label: state stays
+   * DOM-free, the caller supplies language). Omitted -> English, so nothing
+   * regresses for a caller that predates the parameter. The sink escapes.
    */
-  proto.ruleConditionSummary = function (rule) {
+  proto.ruleConditionSummary = function (rule, t) {
+    const L = (key, fallback, vars) => {
+      if (typeof t !== "function") return fallback;
+      const out = t(key, vars);
+      return out && out !== key ? out : fallback;
+    };
     const op = rule.operator ?? "";
     const value = formatRuleValueSummary(rule.value);
 
     switch (op) {
-      case "is_on":      return "is ON";
-      case "is_off":     return "is OFF";
-      case "exists":     return "exists";
-      case "missing":    return "is missing";
+      case "is_on":      return L("room_rules.op_is_on", "is ON");
+      case "is_off":     return L("room_rules.op_is_off", "is OFF");
+      case "exists":     return L("room_rules.op_exists", "exists");
+      case "missing":    return L("room_rules.op_missing", "is missing");
       case "equals":     return `= ${value ?? ""}`;
       case "not_equals": return `!= ${value ?? ""}`;
       case "gt":         return `> ${value ?? ""}`;
@@ -615,21 +624,41 @@ export function applyRoomRulesState(proto) {
 
   /**
    * Build a plain-text summary of a rule's effect for display.
+   *
+   * Same translator contract as ruleConditionSummary. Setting names route
+   * through `vocab.setting_field.*` and stored enum VALUES (vacuum_mop,
+   * turbo, …) through their existing vocab families, so the card never
+   * shows a raw internal identifier in a translated UI.
    */
-  proto.ruleEffectSummary = function (rule) {
+  proto.ruleEffectSummary = function (rule, t) {
+    const L = (key, fallback, vars) => {
+      if (typeof t !== "function") return fallback;
+      const out = t(key, vars);
+      return out && out !== key ? out : fallback;
+    };
+    // vocab.<family>.<slug> with raw-value fallback — tVocabRaw's contract,
+    // reimplemented here because state has no renderer proto to borrow it from.
+    const V = (family, value) => {
+      const raw = String(value ?? "");
+      const slug = raw.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+      return slug ? L(`vocab.${family}.${slug}`, raw) : raw;
+    };
+
     if (rule.kind === "blocker") {
       const reason = rule.effect?.reason;
-      return reason ? `Exclude - ${reason}` : "Exclude room";
+      return reason
+        ? L("room_rules.effect_exclude_reason", `Exclude - ${reason}`, { reason })
+        : L("room_rules.effect_exclude", "Exclude room");
     }
 
     const changes = rule.effect?.changes ?? {};
     const parts = [];
-    if (changes.clean_mode) parts.push(`mode: ${changes.clean_mode}`);
-    if (changes.fan_speed) parts.push(`fan: ${changes.fan_speed}`);
-    if (changes.water_level) parts.push(`water: ${changes.water_level}`);
-    if (changes.clean_intensity) parts.push(`intensity: ${changes.clean_intensity}`);
-    if (changes.clean_passes != null) parts.push(`passes: ${changes.clean_passes}`);
-    if (changes.edge_mopping != null) parts.push(`edge mop: ${changes.edge_mopping ? "on" : "off"}`);
-    return parts.length ? parts.join(", ") : "Modify settings";
+    if (changes.clean_mode) parts.push(`${V("setting_field", "clean_mode")}: ${V("clean_mode", changes.clean_mode)}`);
+    if (changes.fan_speed) parts.push(`${V("setting_field", "fan_speed")}: ${V("fan_speed", changes.fan_speed)}`);
+    if (changes.water_level) parts.push(`${V("setting_field", "water_level")}: ${V("water_level", changes.water_level)}`);
+    if (changes.clean_intensity) parts.push(`${V("setting_field", "clean_intensity")}: ${V("clean_intensity", changes.clean_intensity)}`);
+    if (changes.clean_passes != null) parts.push(`${V("setting_field", "clean_passes")}: ${changes.clean_passes}`);
+    if (changes.edge_mopping != null) parts.push(`${V("setting_field", "edge_mopping")}: ${changes.edge_mopping ? L("common.on", "on") : L("common.off", "off")}`);
+    return parts.length ? parts.join(", ") : L("room_rules.effect_modify", "Modify settings");
   };
 }

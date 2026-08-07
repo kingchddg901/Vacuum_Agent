@@ -716,6 +716,21 @@
       "motion": "ruch",
       "typography": "typografia",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Tryb sprzątania",
+      "fan_speed": "Siła ssania",
+      "water_level": "Poziom wody",
+      "clean_intensity": "Intensywność sprzątania",
+      "clean_passes": "Przejścia sprzątania",
+      "edge_mopping": "Mopowanie krawędzi"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Historia uczenia nie jest jeszcze dostępna."
+    },
+    "compose_shape": {
+      "rect": "prostokąt",
+      "circle": "okrąg"
     }
   },
   "map": {
@@ -1400,7 +1415,9 @@
       "rooms_blocked": "Niektóre pomieszczenia są zablokowane przez swoje reguły i zostaną pominięte.",
       "confirmation_required": "Przed uruchomieniem tego ograniczonego przebiegu wymagane jest potwierdzenie.",
       "job_paused": "Śledzone zadanie jest wstrzymane. Wznów je lub anuluj, zanim uruchomisz nowe.",
-      "onboarding_required": "Dokończ konfigurację tej mapy przed rozpoczęciem sprzątania."
+      "onboarding_required": "Dokończ konfigurację tej mapy przed rozpoczęciem sprzątania.",
+      "rule_blocked": "Zablokowano przez regułę pomieszczenia.",
+      "access_blocked": "Zablokowano - trasa do tego pomieszczenia prowadzi przez zablokowane pomieszczenie."
     },
     "blocked_fallback": "Zablokowano",
     "blocked_rooms": "Zablokowane pokoje",
@@ -1826,7 +1843,19 @@
       "one": "Zaktualizowano {count} pokój.",
       "other": "Zaktualizowano {count} pokoi."
     },
-    "reconcile_updating": "Aktualizowanie…"
+    "reconcile_updating": "Aktualizowanie…",
+    "protection_reason": {
+      "only_map": "To jedyna zaimportowana mapa tego odkurzacza.",
+      "has_active_job": "Na tej mapie trwa sprzątanie lub było niedawno aktywne.",
+      "has_learning_data": {
+        "one": "Ta mapa ma historię sprzątania dla 1 pomieszczenia.",
+        "few": "Ta mapa ma historię sprzątania dla {count} pomieszczeń.",
+        "many": "Ta mapa ma historię sprzątania dla {count} pomieszczeń.",
+        "other": "Ta mapa ma historię sprzątania dla {count} pomieszczenia."
+      },
+      "has_rules": "Co najmniej jedno pomieszczenie ma skonfigurowane reguły automatyzacji.",
+      "has_access_graph": "Co najmniej jedno pomieszczenie należy do grafu dostępu."
+    }
   },
   "theme": {
     "alpha_aria_label": "Krycie {label}",
@@ -1948,7 +1977,14 @@
     "value_list_help": "Lista wartości oddzielonych przecinkami.",
     "value_multi_help": "Wybierz jedną lub więcej dozwolonych wartości z samej encji.",
     "value_placeholder_list": "wartość1, wartość2, ...",
-    "value_placeholder_text": "np. home, 25, true"
+    "value_placeholder_text": "np. home, 25, true",
+    "op_is_on": "jest wł.",
+    "op_is_off": "jest wył.",
+    "op_exists": "istnieje",
+    "op_missing": "brak",
+    "effect_exclude": "Wyklucz pomieszczenie",
+    "effect_exclude_reason": "Wyklucz - {reason}",
+    "effect_modify": "Zmień ustawienia"
   },
   "external_jobs": {
     "back": "Wstecz",

@@ -716,6 +716,21 @@
       "motion": "动效",
       "typography": "排版",
       "easing": "缓动"
+    },
+    "setting_field": {
+      "clean_mode": "清扫模式",
+      "fan_speed": "吸力",
+      "water_level": "水量",
+      "clean_intensity": "清扫路径",
+      "clean_passes": "清扫遍数",
+      "edge_mopping": "沿边拖地"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "尚无学习历史。"
+    },
+    "compose_shape": {
+      "rect": "矩形",
+      "circle": "圆形"
     }
   },
   "map": {
@@ -1411,7 +1426,9 @@
       "rooms_blocked": "部分房间被其规则阻断，将被跳过。",
       "confirmation_required": "开始这次缩减的清扫前需要确认。",
       "job_paused": "有一个已跟踪的任务处于暂停状态。请先继续或取消它，再开始新的任务。",
-      "onboarding_required": "请先完成此地图的设置，再开始清扫。"
+      "onboarding_required": "请先完成此地图的设置，再开始清扫。",
+      "rule_blocked": "已被房间规则阻止。",
+      "access_blocked": "已阻止 - 通往该房间的路线经过被阻止的房间。"
     },
     "blocked_fallback": "已阻止",
     "blocked_rooms": "已阻止的房间",
@@ -1680,7 +1697,14 @@
     "value_list_help": "以逗号分隔的值列表。",
     "value_multi_help": "从实体本身选择一个或多个允许的值。",
     "value_placeholder_list": "值1, 值2, ...",
-    "value_placeholder_text": "例如：home, 25, true"
+    "value_placeholder_text": "例如：home, 25, true",
+    "op_is_on": "为开",
+    "op_is_off": "为关",
+    "op_exists": "存在",
+    "op_missing": "不存在",
+    "effect_exclude": "排除房间",
+    "effect_exclude_reason": "排除 - {reason}",
+    "effect_modify": "修改设置"
   },
   "room_access": {
     "accessed_from_help": "授予此房间访问权限的房间。只读 — 需在另一房间的编辑器中设置。",
@@ -2148,7 +2172,16 @@
     "reconcile_updated_count": {
       "other": "已更新 {count} 个房间。"
     },
-    "reconcile_updating": "更新中…"
+    "reconcile_updating": "更新中…",
+    "protection_reason": {
+      "only_map": "这是该扫地机器人唯一导入的地图。",
+      "has_active_job": "该地图上有清扫任务正在进行或最近处于活动状态。",
+      "has_learning_data": {
+        "other": "该地图有 {count} 个房间的清扫历史。"
+      },
+      "has_rules": "一个或多个房间配置了自动化规则。",
+      "has_access_graph": "一个或多个房间属于通行关系图。"
+    }
   },
   "external_jobs": {
     "back": "返回",

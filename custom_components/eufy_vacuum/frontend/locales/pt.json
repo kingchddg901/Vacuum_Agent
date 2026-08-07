@@ -1241,7 +1241,14 @@
     "value_list_help": "Lista de valores separados por vírgulas.",
     "value_multi_help": "Escolha um ou mais valores permitidos a partir da própria entidade.",
     "value_placeholder_list": "valor1, valor2, ...",
-    "value_placeholder_text": "ex.: home, 25, true"
+    "value_placeholder_text": "ex.: home, 25, true",
+    "op_is_on": "está ligado",
+    "op_is_off": "está desligado",
+    "op_exists": "existe",
+    "op_missing": "está em falta",
+    "effect_exclude": "Excluir divisão",
+    "effect_exclude_reason": "Excluir - {reason}",
+    "effect_modify": "Modificar definições"
   },
   "rooms": {
     "access_not_set": "Acesso não definido",
@@ -1366,7 +1373,9 @@
       "rooms_blocked": "Algumas divisões estão bloqueadas pelas suas regras e serão ignoradas.",
       "confirmation_required": "É necessária confirmação antes de iniciar esta execução reduzida.",
       "job_paused": "Há um trabalho registado em pausa. Retome-o ou cancele-o antes de iniciar um novo.",
-      "onboarding_required": "Termine a configuração deste mapa antes de iniciar uma limpeza."
+      "onboarding_required": "Termine a configuração deste mapa antes de iniciar uma limpeza.",
+      "rule_blocked": "Bloqueada por uma regra da divisão.",
+      "access_blocked": "Bloqueada - o caminho para esta divisão passa por uma divisão bloqueada."
     },
     "charge_time_varies": "O tempo de carga varia com o nível de bateria ao chegar à base.",
     "chip_charge_label": "Carregar até",
@@ -1527,7 +1536,17 @@
       "one": "Foi atualizada {count} divisão.",
       "other": "Foram atualizadas {count} divisões."
     },
-    "reconcile_updating": "A atualizar…"
+    "reconcile_updating": "A atualizar…",
+    "protection_reason": {
+      "only_map": "Este é o único mapa importado para este aspirador.",
+      "has_active_job": "Uma limpeza está em curso ou esteve recentemente ativa neste mapa.",
+      "has_learning_data": {
+        "one": "Este mapa tem histórico de limpeza de 1 divisão.",
+        "other": "Este mapa tem histórico de limpeza de {count} divisões."
+      },
+      "has_rules": "Uma ou mais divisões têm regras de automação configuradas.",
+      "has_access_graph": "Uma ou mais divisões fazem parte de um grafo de acesso."
+    }
   },
   "shell": {
     "setup_add_title": "Adicione o seu aspirador",
@@ -2535,6 +2554,21 @@
       "motion": "movimento",
       "typography": "tipografia",
       "easing": "suavização"
+    },
+    "setting_field": {
+      "clean_mode": "Modo de limpeza",
+      "fan_speed": "Velocidade da ventoinha",
+      "water_level": "Nível de água",
+      "clean_intensity": "Trajeto de limpeza",
+      "clean_passes": "Passagens de limpeza",
+      "edge_mopping": "Mopa de bordas"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Ainda não há histórico de aprendizagem disponível."
+    },
+    "compose_shape": {
+      "rect": "retângulo",
+      "circle": "círculo"
     }
   },
   "order_modal": {

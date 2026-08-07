@@ -1231,7 +1231,14 @@
     "value_list_help": "Elenco di valori separati da virgola.",
     "value_multi_help": "Scegli uno o più valori consentiti dall'entità stessa.",
     "value_placeholder_list": "valore1, valore2, ...",
-    "value_placeholder_text": "es. home, 25, true"
+    "value_placeholder_text": "es. home, 25, true",
+    "op_is_on": "è ON",
+    "op_is_off": "è OFF",
+    "op_exists": "esiste",
+    "op_missing": "manca",
+    "effect_exclude": "Escludi stanza",
+    "effect_exclude_reason": "Escludi - {reason}",
+    "effect_modify": "Modifica impostazioni"
   },
   "rooms": {
     "access_not_set": "Accesso non impostato",
@@ -1354,7 +1361,9 @@
       "rooms_blocked": "Alcune stanze sono bloccate dalle loro regole e verranno saltate.",
       "confirmation_required": "È necessaria una conferma prima di avviare questa esecuzione ridotta.",
       "job_paused": "Un lavoro tracciato è in pausa. Riprendilo o annullalo prima di avviarne uno nuovo.",
-      "onboarding_required": "Completa la configurazione di questa mappa prima di avviare una pulizia."
+      "onboarding_required": "Completa la configurazione di questa mappa prima di avviare una pulizia.",
+      "rule_blocked": "Bloccata da una regola della stanza.",
+      "access_blocked": "Bloccata - il percorso verso questa stanza passa per una stanza bloccata."
     },
     "charge_time_varies": "Il tempo di carica varia in base al livello della batteria quando torna alla base.",
     "chip_charge_label": "Carica fino al",
@@ -1515,7 +1524,17 @@
       "one": "Aggiornata {count} stanza.",
       "other": "Aggiornate {count} stanze."
     },
-    "reconcile_updating": "Aggiornamento…"
+    "reconcile_updating": "Aggiornamento…",
+    "protection_reason": {
+      "only_map": "Questa è l'unica mappa importata per questo aspirapolvere.",
+      "has_active_job": "Una pulizia è in corso o è stata attiva di recente su questa mappa.",
+      "has_learning_data": {
+        "one": "Questa mappa ha una cronologia di pulizia per 1 stanza.",
+        "other": "Questa mappa ha una cronologia di pulizia per {count} stanze."
+      },
+      "has_rules": "Una o più stanze hanno regole di automazione configurate.",
+      "has_access_graph": "Una o più stanze fanno parte di un grafo di accesso."
+    }
   },
   "shell": {
     "setup_add_title": "Aggiungi il tuo aspirapolvere",
@@ -2523,6 +2542,21 @@
       "motion": "movimento",
       "typography": "tipografia",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Modalità di pulizia",
+      "fan_speed": "Velocità ventola",
+      "water_level": "Livello acqua",
+      "clean_intensity": "Percorso di pulizia",
+      "clean_passes": "Passaggi di pulizia",
+      "edge_mopping": "Mop bordi"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Nessuna cronologia di apprendimento ancora disponibile."
+    },
+    "compose_shape": {
+      "rect": "rettangolo",
+      "circle": "cerchio"
     }
   },
   "order_modal": {

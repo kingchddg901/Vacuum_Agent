@@ -1241,7 +1241,14 @@
     "value_list_help": "Liste de valeurs séparées par des virgules.",
     "value_multi_help": "Choisissez une ou plusieurs valeurs autorisées depuis l'entité elle-même.",
     "value_placeholder_list": "valeur1, valeur2, ...",
-    "value_placeholder_text": "ex. home, 25, true"
+    "value_placeholder_text": "ex. home, 25, true",
+    "op_is_on": "est activé",
+    "op_is_off": "est désactivé",
+    "op_exists": "existe",
+    "op_missing": "est absent",
+    "effect_exclude": "Exclure la pièce",
+    "effect_exclude_reason": "Exclure - {reason}",
+    "effect_modify": "Modifier les réglages"
   },
   "rooms": {
     "access_not_set": "Accès non défini",
@@ -1367,7 +1374,9 @@
       "rooms_blocked": "Certaines pièces sont bloquées par leurs règles et seront ignorées.",
       "confirmation_required": "Une confirmation est requise avant de lancer ce nettoyage réduit.",
       "job_paused": "Une tâche suivie est en pause. Reprenez-la ou annulez-la avant d'en démarrer une nouvelle.",
-      "onboarding_required": "Terminez la configuration de cette carte avant de lancer un nettoyage."
+      "onboarding_required": "Terminez la configuration de cette carte avant de lancer un nettoyage.",
+      "rule_blocked": "Bloquée par une règle de pièce.",
+      "access_blocked": "Bloquée - l'itinéraire vers cette pièce passe par une pièce bloquée."
     },
     "charge_time_varies": "Le temps de charge varie selon le niveau de batterie au retour à la station.",
     "chip_charge_label": "Charger jusqu'à",
@@ -1528,7 +1537,17 @@
       "one": "{count} pièce mise à jour.",
       "other": "{count} pièces mises à jour."
     },
-    "reconcile_updating": "Mise à jour…"
+    "reconcile_updating": "Mise à jour…",
+    "protection_reason": {
+      "only_map": "C'est la seule carte importée pour cet aspirateur.",
+      "has_active_job": "Un nettoyage est en cours ou a été récemment actif sur cette carte.",
+      "has_learning_data": {
+        "one": "Cette carte a un historique de nettoyage pour 1 pièce.",
+        "other": "Cette carte a un historique de nettoyage pour {count} pièces."
+      },
+      "has_rules": "Une ou plusieurs pièces ont des règles d'automatisation configurées.",
+      "has_access_graph": "Une ou plusieurs pièces font partie d'un graphe d'accès."
+    }
   },
   "shell": {
     "setup_add_title": "Ajoutez votre aspirateur",
@@ -2536,6 +2555,21 @@
       "motion": "mouvement",
       "typography": "typographie",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Mode de nettoyage",
+      "fan_speed": "Vitesse d'aspiration",
+      "water_level": "Niveau d'eau",
+      "clean_intensity": "Trajet de nettoyage",
+      "clean_passes": "Passages de nettoyage",
+      "edge_mopping": "Serpillière des bords"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Aucun historique d'apprentissage disponible pour le moment."
+    },
+    "compose_shape": {
+      "rect": "rectangle",
+      "circle": "cercle"
     }
   },
   "order_modal": {

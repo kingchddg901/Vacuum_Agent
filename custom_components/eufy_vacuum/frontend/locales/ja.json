@@ -716,6 +716,21 @@
       "motion": "モーション",
       "typography": "タイポグラフィ",
       "easing": "イージング"
+    },
+    "setting_field": {
+      "clean_mode": "清掃モード",
+      "fan_speed": "吸引力",
+      "water_level": "給水量",
+      "clean_intensity": "清掃パス",
+      "clean_passes": "清掃回数",
+      "edge_mopping": "縁の水拭き"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "学習履歴はまだありません。"
+    },
+    "compose_shape": {
+      "rect": "長方形",
+      "circle": "円"
     }
   },
   "map": {
@@ -1411,7 +1426,9 @@
       "rooms_blocked": "一部の部屋はルールによりブロックされ、スキップされます。",
       "confirmation_required": "この縮小された掃除を開始するには確認が必要です。",
       "job_paused": "追跡中のジョブが一時停止しています。新しく開始する前に再開するかキャンセルしてください。",
-      "onboarding_required": "掃除を開始する前に、このマップの設定を完了してください。"
+      "onboarding_required": "掃除を開始する前に、このマップの設定を完了してください。",
+      "rule_blocked": "部屋のルールによりブロックされています。",
+      "access_blocked": "ブロック - この部屋への経路がブロックされた部屋を通ります。"
     },
     "blocked_fallback": "ブロック",
     "blocked_rooms": "ブロックされた部屋",
@@ -1680,7 +1697,14 @@
     "value_list_help": "カンマ区切りの値のリスト。",
     "value_multi_help": "エンティティ自体から許可する値を1つ以上選択してください。",
     "value_placeholder_list": "値1, 値2, ...",
-    "value_placeholder_text": "例: home, 25, true"
+    "value_placeholder_text": "例: home, 25, true",
+    "op_is_on": "がオン",
+    "op_is_off": "がオフ",
+    "op_exists": "が存在する",
+    "op_missing": "が存在しない",
+    "effect_exclude": "部屋を除外",
+    "effect_exclude_reason": "除外 - {reason}",
+    "effect_modify": "設定を変更"
   },
   "room_access": {
     "accessed_from_help": "この部屋へのアクセスを許可する部屋です。読み取り専用 — 相手の部屋のエディターから設定します。",
@@ -2148,7 +2172,16 @@
     "reconcile_updated_count": {
       "other": "{count} 個の部屋を更新しました。"
     },
-    "reconcile_updating": "更新中…"
+    "reconcile_updating": "更新中…",
+    "protection_reason": {
+      "only_map": "このロボット掃除機で唯一インポートされたマップです。",
+      "has_active_job": "このマップで清掃ジョブが実行中か、最近実行されていました。",
+      "has_learning_data": {
+        "other": "このマップには {count} 部屋分の清掃履歴があります。"
+      },
+      "has_rules": "1つ以上の部屋に自動化ルールが設定されています。",
+      "has_access_graph": "1つ以上の部屋がアクセスグラフに含まれています。"
+    }
   },
   "external_jobs": {
     "back": "戻る",

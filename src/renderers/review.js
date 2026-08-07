@@ -78,7 +78,12 @@ export function applyReviewRenderers(proto) {
       return `
         <div class="evcc-review-view">
           <div class="evcc-empty">
-            ${this.escapeHtml(snapshot.message || snapshot.reason || this.t("review.unavailable"))}
+            ${this.escapeHtml(
+              // Same code->vocab routing as the metrics view: reason is a
+              // backend CODE, message the English fallback. Escaped once here.
+              this.tVocabRaw("snapshot_reason", snapshot.reason,
+                snapshot.message || snapshot.reason || this.tRaw("review.unavailable"))
+            )}
           </div>
         </div>
       `;
@@ -278,7 +283,7 @@ export function applyReviewRenderers(proto) {
               data-review-filter-chip="${this.escapeHtml(key)}"
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 && includeFallback ? `data-all-chip="true"` : ""}
-              title="${this.escapeHtml(opt.title)}"
+              title="${this.escapeHtml(this.tVocabRaw(key, opt.value, opt.title))}"
             >${this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>

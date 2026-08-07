@@ -282,6 +282,21 @@
       "interrupted_run": "This run appears to have been interrupted.",
       "extreme_idle_wall": "Held from learning — an unusually long idle stretch off the dock, so it does not define a room baseline. Restore it if the run was legitimate."
     },
+    "setting_field": {
+      "clean_mode": "Clean Mode",
+      "fan_speed": "Fan Speed",
+      "water_level": "Water Level",
+      "clean_intensity": "Cleaning Path",  // Matches the established UI name for clean_intensity (path density), see external_jobs.setting_cleaning_path
+      "clean_passes": "Cleaning Passes",
+      "edge_mopping": "Edge Mopping"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "No learned history is available yet."
+    },
+    "compose_shape": {
+      "rect": "rectangle",
+      "circle": "circle"
+    },
     "token_type": {
       "color": "color",
       "text": "text",
@@ -1907,6 +1922,13 @@
     "label_field": "Label",
     "label_placeholder": "e.g. Skip when door is open",
     "no_rules_for_room": "No rules configured for {name}.",
+    "op_is_on": "is ON",  // Rule-card condition summary for the is_on operator; reads as '<entity> is ON'
+    "op_is_off": "is OFF",  // Rule-card condition summary for the is_off operator
+    "op_exists": "exists",  // Rule-card condition summary: the entity/attribute exists
+    "op_missing": "is missing",  // Rule-card condition summary: the entity/attribute is absent
+    "effect_exclude": "Exclude room",  // Rule-card effect summary for a blocker rule with no reason text
+    "effect_exclude_reason": "Exclude - {reason}",  // Rule-card effect summary; {reason}=the user's free-text reason. Keep the dash separator.
+    "effect_modify": "Modify settings",  // Rule-card effect summary for a modifier rule with no specific changes
     "optional": "(optional)",
     "reason": "Reason",
     "reason_placeholder_blocker": "e.g. Door open",
@@ -1942,7 +1964,9 @@
       "rooms_blocked": "Some rooms are blocked by their rules and will be skipped.",  // preflight WARNING (not a block): a reduced run is offered for confirmation.
       "confirmation_required": "Confirmation is required before starting this reduced run.",  // start warning: the reduced-run confirm flow.
       "job_paused": "A tracked job is paused. Resume or cancel it before starting a new one.",  // start blocked: a paused job owns the vacuum.
-      "onboarding_required": "Finish setting up this map before starting a clean."  // start blocked: onboarding (e.g. floor types) is incomplete.
+      "onboarding_required": "Finish setting up this map before starting a clean.",  // start blocked: onboarding (e.g. floor types) is incomplete.
+      "rule_blocked": "Blocked by a room rule.",  // per-room preflight reason CODE: a blocker rule matched but carries no user reason text
+      "access_blocked": "Blocked - the route to this room passes through a blocked room."  // per-room preflight reason CODE: the room is unreachable because a room on its access path is blocked
     },
     "blocked_fallback": "Blocked",
     "blocked_rooms": "Blocked Rooms",
@@ -2176,6 +2200,13 @@
     "no_rooms_for_map": "No rooms found for this map.",
     "no_rooms_selected_hint": "Select at least one room to save. To remove this map entirely, use Delete Map instead.",
     "no_step_handler": "No handler for step \"{id}\".",  // Internal error fallback; {id}=setup-step id; 'handler' is dev jargon, keep terse
+    "protection_reason": {
+      "only_map": "This is the only imported map for this vacuum.",  // Map-delete protection badge; reason CODE only_map from the backend
+      "has_active_job": "A cleaning job is running or was recently active on this map.",  // Map-delete protection badge; reason CODE has_active_job
+      "has_learning_data": {"one":"This map has cleaning history for {count} room.","other":"This map has cleaning history for {count} rooms."},
+      "has_rules": "One or more rooms have automation rules configured.",  // Map-delete protection badge; reason CODE has_rules
+      "has_access_graph": "One or more rooms are part of an access graph."  // Map-delete protection badge; reason CODE has_access_graph
+    },
     "panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
     "panel_name_title": "Panel name",  // Heading for renaming this vacuum's Home Assistant sidebar entry ('Panel'=HA sidebar item)
     "ready_banner": "✓ Setup complete — switch to the Rooms tab to start cleaning.",

@@ -718,6 +718,9 @@
    "fr",
    "it"
   ],
+  "vocab.compose_shape.rect": [
+   "fr"
+  ],
   "vocab.device_status.error": [
    "es"
   ],

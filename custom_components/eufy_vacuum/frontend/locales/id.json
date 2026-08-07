@@ -716,6 +716,21 @@
       "motion": "gerakan",
       "typography": "tipografi",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Mode Pembersihan",
+      "fan_speed": "Daya isap",
+      "water_level": "Tingkat Air",
+      "clean_intensity": "Jalur Pembersihan",
+      "clean_passes": "Lintasan Pembersihan",
+      "edge_mopping": "Pengepelan Tepi"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Belum ada riwayat pembelajaran yang tersedia."
+    },
+    "compose_shape": {
+      "rect": "persegi panjang",
+      "circle": "lingkaran"
     }
   },
   "map": {
@@ -1400,7 +1415,9 @@
       "rooms_blocked": "Beberapa ruangan diblokir oleh aturannya dan akan dilewati.",
       "confirmation_required": "Konfirmasi diperlukan sebelum memulai pembersihan yang dikurangi ini.",
       "job_paused": "Ada tugas terlacak yang dijeda. Lanjutkan atau batalkan sebelum memulai yang baru.",
-      "onboarding_required": "Selesaikan penyiapan peta ini sebelum memulai pembersihan."
+      "onboarding_required": "Selesaikan penyiapan peta ini sebelum memulai pembersihan.",
+      "rule_blocked": "Diblokir oleh aturan ruangan.",
+      "access_blocked": "Diblokir - rute ke ruangan ini melewati ruangan yang diblokir."
     },
     "blocked_fallback": "Terhalang",
     "blocked_rooms": "Ruangan Terhalang",
@@ -1826,7 +1843,16 @@
       "one": "{count} ruangan diperbarui.",
       "other": "{count} ruangan diperbarui."
     },
-    "reconcile_updating": "Memperbarui…"
+    "reconcile_updating": "Memperbarui…",
+    "protection_reason": {
+      "only_map": "Ini satu-satunya peta yang diimpor untuk penyedot debu ini.",
+      "has_active_job": "Tugas pembersihan sedang berjalan atau baru saja aktif di peta ini.",
+      "has_learning_data": {
+        "other": "Peta ini memiliki riwayat pembersihan untuk {count} ruangan."
+      },
+      "has_rules": "Satu ruangan atau lebih memiliki aturan otomasi.",
+      "has_access_graph": "Satu ruangan atau lebih merupakan bagian dari grafik akses."
+    }
   },
   "theme": {
     "alpha_aria_label": "Opasitas {label}",
@@ -1948,7 +1974,14 @@
     "value_list_help": "Daftar nilai yang dipisahkan koma.",
     "value_multi_help": "Pilih satu atau beberapa nilai yang diizinkan dari entitas itu sendiri.",
     "value_placeholder_list": "nilai1, nilai2, ...",
-    "value_placeholder_text": "mis. home, 25, true"
+    "value_placeholder_text": "mis. home, 25, true",
+    "op_is_on": "aktif",
+    "op_is_off": "nonaktif",
+    "op_exists": "ada",
+    "op_missing": "tidak ada",
+    "effect_exclude": "Kecualikan ruangan",
+    "effect_exclude_reason": "Kecualikan - {reason}",
+    "effect_modify": "Ubah pengaturan"
   },
   "external_jobs": {
     "back": "Kembali",

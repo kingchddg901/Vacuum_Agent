@@ -27,6 +27,8 @@
  * ============================================================
  */
 
+import { resolveCodedLabel } from "../state/coded-label.js";
+
 const FLOOR_TYPE_OPTIONS = [
   { value: "hardwood",         label: "Hardwood"         },
   { value: "laminate",         label: "Laminate"         },
@@ -577,7 +579,14 @@ export function applySetupRenderers(proto) {
 
       const reasonBadgesHtml = reasons.length
         ? `<div class="evcc-setup-delete-badges">
-             ${reasons.map((r) => `<span class="evcc-setup-protection-badge">${this.escapeHtml(r.message)}</span>`).join("")}
+             ${reasons.map((r) => `<span class="evcc-setup-protection-badge">${this.escapeHtml(
+               // Each reason is a backend {code, message} pair — resolve the
+               // CODE through setup.protection_reason.* (the message is the
+               // English fallback for codes this card build doesn't know).
+               resolveCodedLabel(r, (k, v) => this.tRaw(k, v), {
+                 prefixes: ["setup.protection_reason."],
+               })
+             )}</span>`).join("")}
            </div>`
         : "";
 

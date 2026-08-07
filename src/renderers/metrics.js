@@ -37,7 +37,14 @@ export function applyMetricsRenderers(proto) {
       return `
         <div class="evcc-metrics-view">
           <div class="evcc-empty">
-            ${this.escapeHtml(snapshot.message || snapshot.reason || this.t("metrics.unavailable"))}
+            ${this.escapeHtml(
+              // snapshot.reason is a backend CODE (no_learning_data);
+              // localize it via vocab.snapshot_reason, falling back to the
+              // backend's English message so an unknown code still says
+              // something. tVocabRaw/tRaw: this sink escapes exactly once.
+              this.tVocabRaw("snapshot_reason", snapshot.reason,
+                snapshot.message || snapshot.reason || this.tRaw("metrics.unavailable"))
+            )}
           </div>
         </div>
       `;
@@ -397,7 +404,7 @@ export function applyMetricsRenderers(proto) {
               data-metrics-filter-chip="${this.escapeHtml(key)}"
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 ? `data-all-chip="true"` : ""}
-              title="${this.escapeHtml(opt.title)}"
+              title="${this.escapeHtml(this.tVocabRaw(key, opt.value, opt.title))}"
             >${this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>

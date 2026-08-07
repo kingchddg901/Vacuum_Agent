@@ -716,6 +716,21 @@
       "motion": "حركة",
       "typography": "أسلوب الخط",
       "easing": "تخفيف"
+    },
+    "setting_field": {
+      "clean_mode": "وضع التنظيف",
+      "fan_speed": "قوة الشفط",
+      "water_level": "مستوى المياه",
+      "clean_intensity": "مسار التنظيف",
+      "clean_passes": "تمريرات التنظيف",
+      "edge_mopping": "مسح الحواف"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "لا يوجد سجلّ تعلّم متاح بعد."
+    },
+    "compose_shape": {
+      "rect": "مستطيل",
+      "circle": "دائرة"
     }
   },
   "map": {
@@ -1421,7 +1436,9 @@
       "rooms_blocked": "بعض الغرف محظورة بواسطة قواعدها وسيتم تخطيها.",
       "confirmation_required": "التأكيد مطلوب قبل بدء عملية التنظيف المختصرة هذه.",
       "job_paused": "هناك مهمة متتبَّعة متوقفة مؤقتًا. استأنفها أو ألغِها قبل بدء مهمة جديدة.",
-      "onboarding_required": "أكمل إعداد هذه الخريطة قبل بدء التنظيف."
+      "onboarding_required": "أكمل إعداد هذه الخريطة قبل بدء التنظيف.",
+      "rule_blocked": "محظورة بواسطة قاعدة غرفة.",
+      "access_blocked": "محظورة - المسار إلى هذه الغرفة يمر عبر غرفة محظورة."
     },
     "blocked_fallback": "محظور",
     "blocked_rooms": "الغرف المحظورة",
@@ -1740,7 +1757,14 @@
     "value_list_help": "قائمة قيم مفصولة بفواصل.",
     "value_multi_help": "اختر قيمة واحدة أو أكثر من القيم المسموح بها من الكيان نفسه.",
     "value_placeholder_list": "قيمة1، قيمة2، ...",
-    "value_placeholder_text": "مثال: home، 25، true"
+    "value_placeholder_text": "مثال: home، 25، true",
+    "op_is_on": "قيد التشغيل",
+    "op_is_off": "قيد الإيقاف",
+    "op_exists": "موجود",
+    "op_missing": "غير موجود",
+    "effect_exclude": "استبعاد الغرفة",
+    "effect_exclude_reason": "استبعاد - {reason}",
+    "effect_modify": "تعديل الإعدادات"
   },
   "room_access": {
     "accessed_from_help": "الغرفة التي تمنح الوصول إلى هذه الغرفة. للقراءة فقط — يتم تعيينها من محرّر الغرفة الأخرى.",
@@ -2306,7 +2330,17 @@
       "many": "تم تحديث {count} غرفة.",
       "other": "تم تحديث {count} غرفة."
     },
-    "reconcile_updating": "جارٍ التحديث…"
+    "reconcile_updating": "جارٍ التحديث…",
+    "protection_reason": {
+      "only_map": "هذه هي الخريطة الوحيدة المستوردة لهذه المكنسة.",
+      "has_active_job": "توجد مهمة تنظيف قيد التشغيل أو كانت نشطة مؤخرًا على هذه الخريطة.",
+      "has_learning_data": {
+        "one": "تحتوي هذه الخريطة على سجلّ تنظيف لغرفة واحدة.",
+        "other": "تحتوي هذه الخريطة على سجلّ تنظيف لـ {count} غرفة."
+      },
+      "has_rules": "غرفة واحدة أو أكثر لديها قواعد أتمتة مضبوطة.",
+      "has_access_graph": "غرفة واحدة أو أكثر جزء من مخطط الوصول."
+    }
   },
   "external_jobs": {
     "back": "رجوع",

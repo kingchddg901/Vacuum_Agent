@@ -1285,6 +1285,13 @@ export const en = {
   "room_rules.label_field": "Label",
   "room_rules.label_placeholder": "e.g. Skip when door is open",
   "room_rules.no_rules_for_room": "No rules configured for {name}.",
+  "room_rules.op_is_on": "is ON",  // Rule-card condition summary for the is_on operator; reads as '<entity> is ON'
+  "room_rules.op_is_off": "is OFF",  // Rule-card condition summary for the is_off operator
+  "room_rules.op_exists": "exists",  // Rule-card condition summary: the entity/attribute exists
+  "room_rules.op_missing": "is missing",  // Rule-card condition summary: the entity/attribute is absent
+  "room_rules.effect_exclude": "Exclude room",  // Rule-card effect summary for a blocker rule with no reason text
+  "room_rules.effect_exclude_reason": "Exclude - {reason}",  // Rule-card effect summary; {reason}=the user's free-text reason. Keep the dash separator.
+  "room_rules.effect_modify": "Modify settings",  // Rule-card effect summary for a modifier rule with no specific changes
   "room_rules.optional": "(optional)",
   "room_rules.reason": "Reason",
   "room_rules.reason_placeholder_blocker": "e.g. Door open",
@@ -1327,6 +1334,8 @@ export const en = {
   "rooms.block_reason.confirmation_required": "Confirmation is required before starting this reduced run.",  // start warning: the reduced-run confirm flow.
   "rooms.block_reason.job_paused": "A tracked job is paused. Resume or cancel it before starting a new one.",  // start blocked: a paused job owns the vacuum.
   "rooms.block_reason.onboarding_required": "Finish setting up this map before starting a clean.",  // start blocked: onboarding (e.g. floor types) is incomplete.
+  "rooms.block_reason.rule_blocked": "Blocked by a room rule.",  // per-room preflight reason CODE: a blocker rule matched but carries no user reason text
+  "rooms.block_reason.access_blocked": "Blocked - the route to this room passes through a blocked room.",  // per-room preflight reason CODE: the room is unreachable because a room on its access path is blocked
   "rooms.blocked_fallback": "Blocked",
   "rooms.blocked_rooms": "Blocked Rooms",
   "rooms.cancel_run": "Cancel Run",
@@ -1562,6 +1571,11 @@ export const en = {
   "setup.no_rooms_for_map": "No rooms found for this map.",
   "setup.no_rooms_selected_hint": "Select at least one room to save. To remove this map entirely, use Delete Map instead.",
   "setup.no_step_handler": "No handler for step \"{id}\".",  // Internal error fallback; {id}=setup-step id; 'handler' is dev jargon, keep terse
+  "setup.protection_reason.only_map": "This is the only imported map for this vacuum.",  // Map-delete protection badge; reason CODE only_map from the backend
+  "setup.protection_reason.has_active_job": "A cleaning job is running or was recently active on this map.",  // Map-delete protection badge; reason CODE has_active_job
+  "setup.protection_reason.has_learning_data": { one: "This map has cleaning history for {count} room.", other: "This map has cleaning history for {count} rooms." },
+  "setup.protection_reason.has_rules": "One or more rooms have automation rules configured.",  // Map-delete protection badge; reason CODE has_rules
+  "setup.protection_reason.has_access_graph": "One or more rooms are part of an access graph.",  // Map-delete protection badge; reason CODE has_access_graph
   "setup.panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
   "setup.panel_name_title": "Panel name",  // Heading for renaming this vacuum's Home Assistant sidebar entry ('Panel'=HA sidebar item)
   "setup.ready_banner": "✓ Setup complete — switch to the Rooms tab to start cleaning.",
@@ -1984,6 +1998,18 @@ export const en = {
   "order_modal.move_to_position": "Move to position",
   "rooms.trouble_missed": { one: "Missed {miss}× of {count} run", other: "Missed {miss}× of {count} runs" },
 
+  // --- vocab: setting_field (per-room SETTING names — preflight "settings adjusted" list, rule-card effect summaries) ---
+  "vocab.setting_field.clean_mode": "Clean Mode",
+  "vocab.setting_field.fan_speed": "Fan Speed",
+  "vocab.setting_field.water_level": "Water Level",
+  "vocab.setting_field.clean_intensity": "Cleaning Path",  // Matches the established UI name for clean_intensity (path density), see external_jobs.setting_cleaning_path
+  "vocab.setting_field.clean_passes": "Cleaning Passes",
+  "vocab.setting_field.edge_mopping": "Edge Mopping",
+  // --- vocab: snapshot_reason (metrics/review unavailable-state CODES from the backend) ---
+  "vocab.snapshot_reason.no_learning_data": "No learned history is available yet.",
+  // --- vocab: compose_shape (custom-segment composer shape types) ---
+  "vocab.compose_shape.rect": "rectangle",
+  "vocab.compose_shape.circle": "circle",
   // --- Wave-2 theme-editor vocabulary (token labels / groups / facets / tags) ---
   // --- vocab: token_type (the small type chip on every theme-editor token row) ---
   "vocab.token_type.color": "color",

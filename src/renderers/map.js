@@ -1664,7 +1664,7 @@ export function applyMapRenderers(proto) {
         data-action="compose-step" data-step="${n}">${label}</button>`;
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">${this.t("map.compose_selected")} <em>${s.type}</em></div>
+        <div class="evcc-map-config-section-title">${this.t("map.compose_selected")} <em>${this.tVocab("compose_shape", s.type, s.type)}</em></div>
         <div class="evcc-compose-tools">
           ${stepBtn(1, this.t("map.compose_step_fine"))}${stepBtn(3, this.t("map.compose_step_med"))}${stepBtn(7, this.t("map.compose_step_coarse"))}
         </div>

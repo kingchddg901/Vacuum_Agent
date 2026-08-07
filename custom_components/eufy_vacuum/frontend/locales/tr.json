@@ -716,6 +716,21 @@
       "motion": "hareket",
       "typography": "tipografi",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Temizleme Modu",
+      "fan_speed": "Emiş gücü",
+      "water_level": "Su Seviyesi",
+      "clean_intensity": "Temizleme Yolu",
+      "clean_passes": "Temizleme Geçişleri",
+      "edge_mopping": "Kenar Paspaslama"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Henüz öğrenilmiş geçmiş yok."
+    },
+    "compose_shape": {
+      "rect": "dikdörtgen",
+      "circle": "daire"
     }
   },
   "map": {
@@ -1400,7 +1415,9 @@
       "rooms_blocked": "Bazı odalar kuralları nedeniyle engellendi ve atlanacak.",
       "confirmation_required": "Bu kısaltılmış çalıştırma başlatılmadan önce onay gerekiyor.",
       "job_paused": "İzlenen bir iş duraklatıldı. Yeni bir tane başlatmadan önce sürdürün veya iptal edin.",
-      "onboarding_required": "Temizliğe başlamadan önce bu haritanın kurulumunu tamamlayın."
+      "onboarding_required": "Temizliğe başlamadan önce bu haritanın kurulumunu tamamlayın.",
+      "rule_blocked": "Bir oda kuralı tarafından engellendi.",
+      "access_blocked": "Engellendi - bu odaya giden yol engellenmiş bir odadan geçiyor."
     },
     "blocked_fallback": "Engellendi",
     "blocked_rooms": "Engellenen Odalar",
@@ -1826,7 +1843,16 @@
       "one": "{count} oda güncellendi.",
       "other": "{count} oda güncellendi."
     },
-    "reconcile_updating": "Güncelleniyor…"
+    "reconcile_updating": "Güncelleniyor…",
+    "protection_reason": {
+      "only_map": "Bu robot süpürgenin içe aktarılmış tek haritası.",
+      "has_active_job": "Bu haritada bir temizlik görevi çalışıyor veya kısa süre önce etkindi.",
+      "has_learning_data": {
+        "other": "Bu haritada {count} oda için temizlik geçmişi var."
+      },
+      "has_rules": "Bir veya daha fazla odada otomasyon kuralları yapılandırılmış.",
+      "has_access_graph": "Bir veya daha fazla oda erişim grafiğinin parçası."
+    }
   },
   "theme": {
     "alpha_aria_label": "{label} opaklığı",
@@ -1948,7 +1974,14 @@
     "value_list_help": "Virgülle ayrılmış değer listesi.",
     "value_multi_help": "Varlığın kendisinden bir veya daha fazla izin verilen değer seçin.",
     "value_placeholder_list": "değer1, değer2, ...",
-    "value_placeholder_text": "örn. home, 25, true"
+    "value_placeholder_text": "örn. home, 25, true",
+    "op_is_on": "açık",
+    "op_is_off": "kapalı",
+    "op_exists": "mevcut",
+    "op_missing": "eksik",
+    "effect_exclude": "Odayı hariç tut",
+    "effect_exclude_reason": "Hariç tut - {reason}",
+    "effect_modify": "Ayarları değiştir"
   },
   "external_jobs": {
     "back": "Geri",

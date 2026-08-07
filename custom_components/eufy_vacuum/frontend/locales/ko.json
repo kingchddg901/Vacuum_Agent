@@ -716,6 +716,21 @@
       "motion": "모션",
       "typography": "타이포그래피",
       "easing": "이징"
+    },
+    "setting_field": {
+      "clean_mode": "청소 모드",
+      "fan_speed": "흡입 세기",
+      "water_level": "물 양",
+      "clean_intensity": "청소 경로",
+      "clean_passes": "청소 횟수",
+      "edge_mopping": "가장자리 물걸레"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "아직 학습 기록이 없습니다."
+    },
+    "compose_shape": {
+      "rect": "직사각형",
+      "circle": "원"
     }
   },
   "map": {
@@ -1411,7 +1426,9 @@
       "rooms_blocked": "일부 방은 규칙에 의해 차단되어 건너뜁니다.",
       "confirmation_required": "축소된 이 청소를 시작하기 전에 확인이 필요합니다.",
       "job_paused": "추적 중인 작업이 일시정지되었습니다. 새로 시작하기 전에 재개하거나 취소하세요.",
-      "onboarding_required": "청소를 시작하기 전에 이 지도의 설정을 완료하세요."
+      "onboarding_required": "청소를 시작하기 전에 이 지도의 설정을 완료하세요.",
+      "rule_blocked": "방 규칙에 의해 차단되었습니다.",
+      "access_blocked": "차단됨 - 이 방으로 가는 경로가 차단된 방을 지나갑니다."
     },
     "blocked_fallback": "차단됨",
     "blocked_rooms": "차단된 방",
@@ -1680,7 +1697,14 @@
     "value_list_help": "쉼표로 구분된 값 목록입니다.",
     "value_multi_help": "엔터티에서 허용된 값을 하나 이상 선택하세요.",
     "value_placeholder_list": "값1, 값2, ...",
-    "value_placeholder_text": "예: home, 25, true"
+    "value_placeholder_text": "예: home, 25, true",
+    "op_is_on": "켜짐",
+    "op_is_off": "꺼짐",
+    "op_exists": "있음",
+    "op_missing": "없음",
+    "effect_exclude": "방 제외",
+    "effect_exclude_reason": "제외 - {reason}",
+    "effect_modify": "설정 변경"
   },
   "room_access": {
     "accessed_from_help": "이 방으로의 접근을 허용하는 방입니다. 읽기 전용 — 다른 방의 편집기에서 설정합니다.",
@@ -2148,7 +2172,16 @@
     "reconcile_updated_count": {
       "other": "{count}개 방을 업데이트했습니다."
     },
-    "reconcile_updating": "업데이트 중…"
+    "reconcile_updating": "업데이트 중…",
+    "protection_reason": {
+      "only_map": "이 로봇청소기에서 가져온 유일한 지도입니다.",
+      "has_active_job": "이 지도에서 청소 작업이 실행 중이거나 최근에 실행되었습니다.",
+      "has_learning_data": {
+        "other": "이 지도에는 방 {count}개의 청소 기록이 있습니다."
+      },
+      "has_rules": "하나 이상의 방에 자동화 규칙이 설정되어 있습니다.",
+      "has_access_graph": "하나 이상의 방이 접근 그래프에 포함되어 있습니다."
+    }
   },
   "external_jobs": {
     "back": "뒤로",

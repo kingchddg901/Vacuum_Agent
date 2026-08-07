@@ -1241,7 +1241,14 @@
     "value_list_help": "Lista de valores separados por comas.",
     "value_multi_help": "Elige uno o más valores permitidos de la propia entidad.",
     "value_placeholder_list": "valor1, valor2, ...",
-    "value_placeholder_text": "p. ej. home, 25, true"
+    "value_placeholder_text": "p. ej. home, 25, true",
+    "op_is_on": "está activado",
+    "op_is_off": "está desactivado",
+    "op_exists": "existe",
+    "op_missing": "no existe",
+    "effect_exclude": "Excluir habitación",
+    "effect_exclude_reason": "Excluir - {reason}",
+    "effect_modify": "Modificar ajustes"
   },
   "rooms": {
     "access_not_set": "Acceso no configurado",
@@ -1367,7 +1374,9 @@
       "rooms_blocked": "Algunas habitaciones están bloqueadas por sus reglas y se omitirán.",
       "confirmation_required": "Es necesario confirmar antes de iniciar esta ejecución reducida.",
       "job_paused": "Hay un trabajo en pausa. Reanúdelo o cancélelo antes de iniciar uno nuevo.",
-      "onboarding_required": "Termine de configurar este mapa antes de iniciar una limpieza."
+      "onboarding_required": "Termine de configurar este mapa antes de iniciar una limpieza.",
+      "rule_blocked": "Bloqueada por una regla de habitación.",
+      "access_blocked": "Bloqueada - la ruta a esta habitación pasa por una habitación bloqueada."
     },
     "charge_time_varies": "El tiempo de carga varía según el nivel de batería al llegar a la base.",
     "chip_charge_label": "Cargar al",
@@ -1528,7 +1537,17 @@
       "one": "Se actualizó {count} habitación.",
       "other": "Se actualizaron {count} habitaciones."
     },
-    "reconcile_updating": "Actualizando…"
+    "reconcile_updating": "Actualizando…",
+    "protection_reason": {
+      "only_map": "Este es el único mapa importado para este aspirador.",
+      "has_active_job": "Hay una limpieza en curso o recientemente activa en este mapa.",
+      "has_learning_data": {
+        "one": "Este mapa tiene historial de limpieza de 1 habitación.",
+        "other": "Este mapa tiene historial de limpieza de {count} habitaciones."
+      },
+      "has_rules": "Una o más habitaciones tienen reglas de automatización configuradas.",
+      "has_access_graph": "Una o más habitaciones forman parte de un gráfico de acceso."
+    }
   },
   "shell": {
     "setup_add_title": "Añade tu aspirador",
@@ -2536,6 +2555,21 @@
       "motion": "movimiento",
       "typography": "tipografía",
       "easing": "suavizado"
+    },
+    "setting_field": {
+      "clean_mode": "Modo de limpieza",
+      "fan_speed": "Velocidad del ventilador",
+      "water_level": "Nivel de agua",
+      "clean_intensity": "Trayectoria de limpieza",
+      "clean_passes": "Pasadas de limpieza",
+      "edge_mopping": "Mopa de bordes"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Aún no hay historial de aprendizaje disponible."
+    },
+    "compose_shape": {
+      "rect": "rectángulo",
+      "circle": "círculo"
     }
   },
   "order_modal": {

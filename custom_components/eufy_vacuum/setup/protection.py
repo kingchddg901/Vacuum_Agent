@@ -22,7 +22,8 @@ def evaluate_map_protection(
     {
         "protection_level":           "normal" | "elevated" | "high",
         "reasons": [
-            {"code": str, "message": str}
+            {"code": str, "message": str}   # has_learning_data also carries
+                                            # "params": {"count": int}
         ],
         "requires_typed_confirmation": bool,   # True only for a NAMED high map
         "requires_confirmation":       bool,   # one-click confirm (elevated, or unnamed high)
@@ -75,6 +76,10 @@ def evaluate_map_protection(
     if map_history:
         reasons.append({
             "code":    "has_learning_data",
+            # params ride alongside so the card can localize the sentence with
+            # the count (setup.protection_reason.has_learning_data); message
+            # stays the non-card / older-card fallback.
+            "params":  {"count": len(map_history)},
             "message": f"This map has cleaning history for {len(map_history)} room(s).",
         })
 

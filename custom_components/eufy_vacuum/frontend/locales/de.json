@@ -1229,7 +1229,14 @@
     "value_list_help": "Kommagetrennte Liste von Werten.",
     "value_multi_help": "Wähle einen oder mehrere zulässige Werte aus der Entität selbst.",
     "value_placeholder_list": "Wert1, Wert2, ...",
-    "value_placeholder_text": "z. B. home, 25, true"
+    "value_placeholder_text": "z. B. home, 25, true",
+    "op_is_on": "ist EIN",
+    "op_is_off": "ist AUS",
+    "op_exists": "vorhanden",
+    "op_missing": "fehlt",
+    "effect_exclude": "Raum ausschließen",
+    "effect_exclude_reason": "Ausschließen - {reason}",
+    "effect_modify": "Einstellungen ändern"
   },
   "rooms": {
     "access_not_set": "Zugang nicht festgelegt",
@@ -1352,7 +1359,9 @@
       "rooms_blocked": "Einige Räume werden durch ihre Regeln blockiert und übersprungen.",
       "confirmation_required": "Dieser reduzierte Lauf muss vor dem Start bestätigt werden.",
       "job_paused": "Ein erfasster Auftrag ist pausiert. Setzen Sie ihn fort oder brechen Sie ihn ab, bevor Sie einen neuen starten.",
-      "onboarding_required": "Schließen Sie die Einrichtung dieser Karte ab, bevor Sie eine Reinigung starten."
+      "onboarding_required": "Schließen Sie die Einrichtung dieser Karte ab, bevor Sie eine Reinigung starten.",
+      "rule_blocked": "Durch eine Raumregel blockiert.",
+      "access_blocked": "Blockiert - der Weg in diesen Raum führt durch einen blockierten Raum."
     },
     "charge_time_varies": "Die Ladezeit hängt vom Akkustand beim Andocken ab.",
     "chip_charge_label": "Laden auf",
@@ -1512,7 +1521,17 @@
       "one": "{count} Raum aktualisiert.",
       "other": "{count} Räume aktualisiert."
     },
-    "reconcile_updating": "Wird aktualisiert…"
+    "reconcile_updating": "Wird aktualisiert…",
+    "protection_reason": {
+      "only_map": "Dies ist die einzige importierte Karte dieses Saugroboters.",
+      "has_active_job": "Auf dieser Karte läuft gerade eine Reinigung oder war kürzlich aktiv.",
+      "has_learning_data": {
+        "one": "Diese Karte hat Reinigungsverlauf für 1 Raum.",
+        "other": "Diese Karte hat Reinigungsverlauf für {count} Räume."
+      },
+      "has_rules": "In einem oder mehreren Räumen sind Automatisierungsregeln konfiguriert.",
+      "has_access_graph": "Ein oder mehrere Räume sind Teil eines Zugangsgraphen."
+    }
   },
   "shell": {
     "setup_add_title": "Füge deinen Saugroboter hinzu",
@@ -2520,6 +2539,21 @@
       "motion": "Bewegung",
       "typography": "Typografie",
       "easing": "Easing"
+    },
+    "setting_field": {
+      "clean_mode": "Reinigungsmodus",
+      "fan_speed": "Saugkraft",
+      "water_level": "Wasserstand",
+      "clean_intensity": "Reinigungspfad",
+      "clean_passes": "Reinigungsdurchgänge",
+      "edge_mopping": "Kantenwischen"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Noch kein Lernverlauf verfügbar."
+    },
+    "compose_shape": {
+      "rect": "Rechteck",
+      "circle": "Kreis"
     }
   },
   "order_modal": {

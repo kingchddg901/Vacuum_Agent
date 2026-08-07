@@ -716,6 +716,21 @@
       "motion": "pohyb",
       "typography": "typografie",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Režim úklidu",
+      "fan_speed": "Sací výkon",
+      "water_level": "Množství vody",
+      "clean_intensity": "Dráha úklidu",
+      "clean_passes": "Čisticí průchody",
+      "edge_mopping": "Vytírání okrajů"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Zatím není k dispozici žádná naučená historie."
+    },
+    "compose_shape": {
+      "rect": "obdélník",
+      "circle": "kruh"
     }
   },
   "map": {
@@ -1400,7 +1415,9 @@
       "rooms_blocked": "Některé místnosti jsou blokovány svými pravidly a budou přeskočeny.",
       "confirmation_required": "Před spuštěním tohoto zkráceného úklidu je nutné potvrzení.",
       "job_paused": "Sledovaná úloha je pozastavena. Než spustíte novou, obnovte ji nebo zrušte.",
-      "onboarding_required": "Než spustíte úklid, dokončete nastavení této mapy."
+      "onboarding_required": "Než spustíte úklid, dokončete nastavení této mapy.",
+      "rule_blocked": "Zablokováno pravidlem místnosti.",
+      "access_blocked": "Zablokováno - cesta do této místnosti vede přes blokovanou místnost."
     },
     "blocked_fallback": "Zablokováno",
     "blocked_rooms": "Zablokované místnosti",
@@ -1826,7 +1843,18 @@
       "one": "Aktualizována {count} místnost.",
       "other": "Aktualizováno {count} místností."
     },
-    "reconcile_updating": "Aktualizuje se…"
+    "reconcile_updating": "Aktualizuje se…",
+    "protection_reason": {
+      "only_map": "Toto je jediná importovaná mapa tohoto vysavače.",
+      "has_active_job": "Na této mapě právě probíhá nebo nedávno probíhal úklid.",
+      "has_learning_data": {
+        "one": "Tato mapa má historii úklidu pro 1 místnost.",
+        "few": "Tato mapa má historii úklidu pro {count} místnosti.",
+        "other": "Tato mapa má historii úklidu pro {count} místností."
+      },
+      "has_rules": "Jedna nebo více místností má nastavená pravidla automatizace.",
+      "has_access_graph": "Jedna nebo více místností je součástí grafu přístupu."
+    }
   },
   "theme": {
     "alpha_aria_label": "Krytí {label}",
@@ -1948,7 +1976,14 @@
     "value_list_help": "Seznam hodnot oddělených čárkami.",
     "value_multi_help": "Vyberte jednu nebo více povolených hodnot přímo z entity.",
     "value_placeholder_list": "hodnota1, hodnota2, ...",
-    "value_placeholder_text": "např. home, 25, true"
+    "value_placeholder_text": "např. home, 25, true",
+    "op_is_on": "je zapnuto",
+    "op_is_off": "je vypnuto",
+    "op_exists": "existuje",
+    "op_missing": "chybí",
+    "effect_exclude": "Vyloučit místnost",
+    "effect_exclude_reason": "Vyloučit - {reason}",
+    "effect_modify": "Upravit nastavení"
   },
   "external_jobs": {
     "back": "Zpět",

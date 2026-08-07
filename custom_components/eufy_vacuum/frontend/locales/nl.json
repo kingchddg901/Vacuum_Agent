@@ -1229,7 +1229,14 @@
     "value_list_help": "Door komma's gescheiden lijst van waarden.",
     "value_multi_help": "Kies een of meer toegestane waarden uit de entiteit zelf.",
     "value_placeholder_list": "waarde1, waarde2, ...",
-    "value_placeholder_text": "bijv. home, 25, true"
+    "value_placeholder_text": "bijv. home, 25, true",
+    "op_is_on": "is AAN",
+    "op_is_off": "is UIT",
+    "op_exists": "bestaat",
+    "op_missing": "ontbreekt",
+    "effect_exclude": "Kamer uitsluiten",
+    "effect_exclude_reason": "Uitsluiten - {reason}",
+    "effect_modify": "Instellingen aanpassen"
   },
   "rooms": {
     "access_not_set": "Toegang niet ingesteld",
@@ -1352,7 +1359,9 @@
       "rooms_blocked": "Sommige kamers worden door hun regels geblokkeerd en worden overgeslagen.",
       "confirmation_required": "Deze verkorte run moet worden bevestigd voordat hij start.",
       "job_paused": "Er is een gevolgde taak gepauzeerd. Hervat of annuleer die voordat je een nieuwe start.",
-      "onboarding_required": "Rond het instellen van deze kaart af voordat je gaat schoonmaken."
+      "onboarding_required": "Rond het instellen van deze kaart af voordat je gaat schoonmaken.",
+      "rule_blocked": "Geblokkeerd door een kamerregel.",
+      "access_blocked": "Geblokkeerd - de route naar deze kamer loopt door een geblokkeerde kamer."
     },
     "charge_time_varies": "De laadtijd hangt af van het accuniveau bij het dockken.",
     "chip_charge_label": "Opladen tot",
@@ -1512,7 +1521,17 @@
       "one": "{count} kamer bijgewerkt.",
       "other": "{count} kamers bijgewerkt."
     },
-    "reconcile_updating": "Bijwerken…"
+    "reconcile_updating": "Bijwerken…",
+    "protection_reason": {
+      "only_map": "Dit is de enige geïmporteerde kaart voor deze stofzuiger.",
+      "has_active_job": "Op deze kaart loopt een schoonmaakbeurt of was er onlangs een actief.",
+      "has_learning_data": {
+        "one": "Deze kaart heeft schoonmaakgeschiedenis voor 1 kamer.",
+        "other": "Deze kaart heeft schoonmaakgeschiedenis voor {count} kamers."
+      },
+      "has_rules": "Een of meer kamers hebben automatiseringsregels ingesteld.",
+      "has_access_graph": "Een of meer kamers maken deel uit van een toegangsgraaf."
+    }
   },
   "shell": {
     "setup_add_title": "Voeg je stofzuiger toe",
@@ -2520,6 +2539,21 @@
       "motion": "beweging",
       "typography": "typografie",
       "easing": "easing"
+    },
+    "setting_field": {
+      "clean_mode": "Schoonmaakmodus",
+      "fan_speed": "Zuigsnelheid",
+      "water_level": "Waterniveau",
+      "clean_intensity": "Schoonmaakpad",
+      "clean_passes": "Schoonmaakbeurten",
+      "edge_mopping": "Randdweilen"
+    },
+    "snapshot_reason": {
+      "no_learning_data": "Nog geen leergeschiedenis beschikbaar."
+    },
+    "compose_shape": {
+      "rect": "rechthoek",
+      "circle": "cirkel"
     }
   },
   "order_modal": {

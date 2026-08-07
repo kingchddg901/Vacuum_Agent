@@ -348,7 +348,10 @@ export function applyBaseStationRenderers(proto) {
   proto._formatBaseStationWaterLevel = function (value) {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return `${Math.round(numeric)}%`;
-    return this._formatBaseStationLabel(value);
+    // String keys ("low", "medium", …) are backend vocabulary — localize via
+    // the existing vocab.water_level family; unknown values keep the
+    // title-cased fallback. Raw: the stat sink escapes.
+    return this.tVocabRaw("water_level", value, this._formatBaseStationLabel(value));
   };
 
   /**

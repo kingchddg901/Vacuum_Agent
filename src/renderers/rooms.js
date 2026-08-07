@@ -676,8 +676,19 @@ proto.renderRoomsActionBar = function (
               <div class="evcc-start-preflight-list">
                 ${blockedRooms.map((room) => `
                   <div class="evcc-start-preflight-item">
-                    <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? this.t("rooms.room_fallback"))}</span>
-                    <span class="evcc-start-preflight-reason">${this.escapeHtml(room.reason ?? this.t("rooms.blocked_fallback"))}</span>
+                    <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? this.tRaw("rooms.room_fallback"))}</span>
+                    <span class="evcc-start-preflight-reason">${this.escapeHtml(
+                      // The reason is user text (rule reason / rule label /
+                      // entity_id) EXCEPT the backend's two fallback CODES
+                      // ("rule_blocked", "access_blocked") — resolve those via
+                      // the block-reason namespace like the warnings below;
+                      // unmatched strings pass through verbatim.
+                      room.reason
+                        ? resolveCodedLabel({ code: room.reason }, (k, v) => this.tRaw(k, v), {
+                            prefixes: [BLOCK_REASON_PREFIX],
+                          })
+                        : this.tRaw("rooms.blocked_fallback")
+                    )}</span>
                   </div>
                 `).join("")}
               </div>
@@ -689,15 +700,22 @@ proto.renderRoomsActionBar = function (
               <div class="evcc-start-preflight-title">${this.t("rooms.modified_rooms")}</div>
               <div class="evcc-start-preflight-list">
                 ${modifiedRooms.map((room) => {
-                  const changeLabel = Object.keys(room.changes ?? {}).join(", ") || this.t("rooms.settings_adjusted");
+                  // The change keys are internal setting identifiers
+                  // (fan_speed, clean_mode, …) — localize each via
+                  // vocab.setting_field. tVocabRaw: the sink escapes.
+                  const changeLabel = Object.keys(room.changes ?? {})
+                    .map((key) => this.tVocabRaw("setting_field", key, key))
+                    .join(", ") || this.tRaw("rooms.settings_adjusted");
                   // Fan-out attribution: when this entry was created
                   // purely by a rule fan-out (no direct rule on this
                   // room contributed), the backend flags it with
                   // derived: true and source_* fields. Surface the
                   // source rule name so users see why a room they
                   // didn't author a rule for is being modified.
+                  // tRaw: the sink below escapeHtml's changeLabel + derivedNote
+                  // once — t() here would double-escape the catalog string.
                   const derivedNote = room.derived && room.source_rule_name
-                    ? ` ${this.t("rooms.derived_via", { room: room.source_room_name ?? this.t("rooms.another_room"), rule: room.source_rule_name })}`
+                    ? ` ${this.tRaw("rooms.derived_via", { room: room.source_room_name ?? this.tRaw("rooms.another_room"), rule: room.source_rule_name })}`
                     : "";
                   return `
                     <div class="evcc-start-preflight-item">

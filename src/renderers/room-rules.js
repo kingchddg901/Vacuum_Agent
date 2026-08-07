@@ -113,8 +113,10 @@ export function applyRoomRulesRenderers(proto) {
   };
 
   proto._renderRuleCard = function (state, rule) {
-    const condition = state.ruleConditionSummary?.(rule) ?? "";
-    const effect = state.ruleEffectSummary?.(rule) ?? "";
+    // tRaw, not t: both summaries land in escapeHtml sinks below — t() would
+    // double-escape (see reference_i18n_double_escape).
+    const condition = state.ruleConditionSummary?.(rule, (k, v) => this.tRaw(k, v)) ?? "";
+    const effect = state.ruleEffectSummary?.(rule, (k, v) => this.tRaw(k, v)) ?? "";
     const label = rule.label || rule.entity_id || this.t("room_rules.unnamed_rule");
     const isBlocker = rule.kind === "blocker";
 
