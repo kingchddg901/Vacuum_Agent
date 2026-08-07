@@ -5,7 +5,6 @@
     "tests/integration/test_button_entity.py": 7,
     "tests/integration/test_core_error_tracker.py": 1,
     "tests/integration/test_init_setup.py": 4,
-    "tests/integration/test_jobs_active_job.py": 7,
     "tests/integration/test_learning_real_jobs_golden.py": 2,
     "tests/integration/test_listeners_active.py": 31,
     "tests/integration/test_manager_shutdown.py": 3,

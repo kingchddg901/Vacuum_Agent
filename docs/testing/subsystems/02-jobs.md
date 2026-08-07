@@ -17,7 +17,7 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer | Mocking |
 |---------------|------:|----:|--------------|-------|-------|
 | `job_monitor.py` | 146 | 98% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) | clean |
-| `active_job.py` | 1099 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration | **bare x10** in 2 files |
+| `active_job.py` | 1099 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration | **bare x3** |
 | `phase_runner.py` | 731 | 88% | `tests/integration/test_strict_order_phase_timing.py` | integration | clean |
 
 ---

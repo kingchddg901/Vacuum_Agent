@@ -52,7 +52,7 @@ Coverage targets
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from tests._factories import spec_tracker
 
 import pytest
 
@@ -533,7 +533,7 @@ def test_recharge_starts_and_pauses(hass, tracker, manager, monkeypatch):
     _seed(manager)
     monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: True)
     monkeypatch.setattr(tracker, "_is_charging", lambda v: True)
-    fake_tracker = MagicMock()
+    fake_tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
 
     result = tracker.update_active_job_recharge_observation(
@@ -556,7 +556,7 @@ def test_terminal_dock_does_not_count_as_a_recharge(hass, tracker, manager, monk
     _seed(manager)
     monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: True)
     monkeypatch.setattr(tracker, "_is_charging", lambda v: True)
-    hass.data[DOMAIN]["mapping_tracker"] = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = spec_tracker()
 
     result = tracker.update_active_job_recharge_observation(
         vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
@@ -577,7 +577,7 @@ def test_recharge_count_and_accumulator_agree_by_construction(hass, tracker, man
         recharge_seconds_accumulated=0,
     )
     monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
-    hass.data[DOMAIN]["mapping_tracker"] = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = spec_tracker()
 
     result = tracker.resolve_mid_job_recharge_resumed(
         vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
@@ -605,7 +605,7 @@ def test_recharge_ends_accumulates(hass, tracker, manager, monkeypatch):
         recharge_seconds_accumulated=0,
     )
     monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
-    fake_tracker = MagicMock()
+    fake_tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
 
     result = tracker.resolve_mid_job_recharge_resumed(
@@ -652,7 +652,7 @@ def test_resolve_recharge_resumed_skips_commanded_dock_phase(hass, tracker, mana
         recharge_seconds_accumulated=0,
     )
     monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
-    fake_tracker = MagicMock()
+    fake_tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
 
     result = tracker.resolve_mid_job_recharge_resumed(
@@ -676,7 +676,7 @@ def test_resolve_recharge_resumed_still_accrues_on_room_group_phase(hass, tracke
         recharge_seconds_accumulated=0,
     )
     monkeypatch.setattr(tracker, "_is_charging", lambda _v: False)
-    fake_tracker = MagicMock()
+    fake_tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
 
     result = tracker.resolve_mid_job_recharge_resumed(
@@ -824,7 +824,7 @@ def test_mark_finalized_ends_mapping_tracker_job(hass, tracker, manager):
     lifecycle finalize path's own finally block, so before this the tracker
     was stuck holding a cancelled/stranded job's state for the NEXT run."""
     _seed(manager)
-    fake_tracker = MagicMock()
+    fake_tracker = spec_tracker()
     hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
 
     tracker.mark_active_job_finalized(

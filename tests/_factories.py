@@ -176,6 +176,50 @@ def spec_manager(**attrs: Any) -> Any:
     return manager
 
 
+def spec_of(cls: type, *, module_relpath: str | None = None, **attrs: Any) -> Any:
+    """A spec'd stand-in for ANY of our collaborator classes.
+
+    The generalisation of ``spec_manager`` (PLAN-mock-integrity W1). Same recipe,
+    parameterised: ``create_autospec`` for the declared surface — which rejects
+    unknown attribute names AND wrong call signatures — plus, optionally, the
+    runtime ``self.<name> =`` attributes scraped from the module, because autospec
+    only knows what the CLASS declares and our objects assign plenty in __init__.
+
+    Use this wherever a stand-in is handed INTO production code. The manager was
+    never the only thing production reaches for through a mock: the same class of
+    lie sits behind every collaborator pulled out of ``hass.data``, and until now
+    only the manager had a factory.
+
+    ``module_relpath`` is optional and costs a file read; pass it when the test
+    touches instance attributes rather than methods.
+    """
+    from unittest.mock import create_autospec
+
+    obj = create_autospec(cls, instance=True)
+    if module_relpath:
+        for name in _scraped_instance_attrs(module_relpath):
+            if name not in attrs:
+                setattr(obj, name, MagicMock())
+    for name, value in attrs.items():
+        setattr(obj, name, value)
+    return obj
+
+
+def spec_tracker(**attrs: Any) -> Any:
+    """A ``MappingTracker`` stand-in, for the one that lives in ``hass.data``.
+
+    Extracted from real use, not invented (03-fixtures): production reaches for
+    ``hass.data[DOMAIN]["mapping_tracker"]`` in three places in ``jobs/active_job.py``
+    and one in ``listeners/lifecycle.py``, and calls methods on whatever it finds. A
+    bare MagicMock there accepts any method name with any signature — so a renamed
+    or re-signatured tracker method keeps every one of those tests green while
+    production breaks. This is the manager's defect class, one collaborator over.
+    """
+    from custom_components.eufy_vacuum.mapping.tracker import MappingTracker
+
+    return spec_of(MappingTracker, module_relpath="mapping/tracker.py", **attrs)
+
+
 def _consume_coroutine(target: Any, *_args: Any, **_kwargs: Any) -> Any:
     """Close a coroutine handed to a mocked ``hass.async_create_task``.
 
