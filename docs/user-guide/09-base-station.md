@@ -44,7 +44,7 @@ The **Pause Timeout** section lets you set the default number of minutes a run m
 
 ### Dock Actions
 
-The **Dock Actions** section shows four controls for triggering dock-side operations. Each action is shown as a button card:
+The **Dock Actions** section shows up to four controls for triggering dock-side operations — only the ones your vacuum's dock supports are listed. Each action is shown as a button card:
 
 | Action | What it does |
 |---|---|

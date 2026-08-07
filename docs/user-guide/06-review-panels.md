@@ -21,23 +21,23 @@ At the top of the panel, four counters give you a snapshot of what is currently 
 
 | Stat | Meaning |
 |------|---------|
-| **Jobs** | Number of jobs shown after applying the current filters. |
-| **Rooms** | Number of distinct room-run pairs in the filtered set. |
-| **Profiles** | Number of distinct cleaning profiles in the filtered set. |
+| **Jobs** | Number of jobs matching the Room, Status, Learning Use, and Origin filters. (When more match than the list shows, a note in the Runs section says so. The Profile filter does not currently narrow this count — see the note on the **Profile** filter below.) |
+| **Rooms** | Number of distinct rooms in the history (narrowed by the Room filter only — the other filters don't affect this count). |
+| **Profiles** | Number of room + settings-variant combinations matching the Room, Profile, Status, and Learning Use filters. This is keyed on the room plus its full settings signature (profile name, mode, intensity, fan speed, water level, passes, carpet, edge mopping), so the same room and profile name can count more than once if it was ever run with different settings — this isn't the same as a count of distinct profile names. |
 | **Updated** | When the history snapshot was last fetched from the integration. |
 
 ---
 
 ## Filters
 
-Below the stats, a row of chip-button filters lets you narrow the job list to exactly what you need. Selecting a filter chip immediately re-fetches the history from the integration with the new parameters applied — results update automatically.
+Below the stats, a row of chip-button filters lets you narrow the job list to exactly what you need. Selecting a filter chip immediately re-fetches the history from the integration with the new parameters applied — results update automatically (with one exception, noted under **Profile** below).
 
 | Filter | Options |
 |--------|---------|
 | **Room** | One chip per room present in the history, plus "All Rooms". |
-| **Profile** | One chip per cleaning profile present in the history, plus "All Profiles". Profile chips show a tooltip with the profile subtitle when one is available. |
+| **Profile** | One chip per cleaning profile present in the history, plus "All Profiles". Profile chips show a tooltip with the profile subtitle when one is available. A small search box above the profile chips filters the chip row as you type (the "All Profiles" chip always stays visible). Selecting a profile chip highlights it and re-fetches, but — unlike the other filters — it does not currently narrow the Runs list below. |
 | **Status** | All Statuses / Completed / Canceled / Failed / Interrupted. |
-| **Learning Use** | All Learning Use / Used For Learning / Not Used For Learning. |
+| **Learning Use** | All Learning Use / Used For Learning / Excluded From Learning. |
 | **Origin** | All Origins / External / Dispatched. **External** runs were started from your robot's own app; **Dispatched** runs were started by this integration. |
 | **Sort** | Newest / Highest Outlier / Suggested Exclude / Excluded Only. |
 
@@ -77,7 +77,7 @@ The pass and mode choices follow your vacuum's own vocabulary, so the exact opti
 
 1. Set the fields to the combination you want to look up.
 2. The **Matched Profiles** section updates immediately to show any profiles that are an exact match for those settings.
-3. Click a matched profile chip to apply it as a filter — the job list below updates to show only runs that used that profile.
+3. Click a matched profile chip to select it as the active **Profile** filter (the same filter described above) — the chip highlights, though the Runs list below is not currently narrowed by it.
 4. Click **Reset Matcher** to return all fields to their defaults.
 
 If no profiles match, the panel says "No exact profile matches for the current settings." Adjust one or more fields until you find a match.
@@ -86,7 +86,9 @@ If no profiles match, the panel says "No exact profile matches for the current s
 
 ## Runs list
 
-The Runs section lists individual cleaning jobs as cards. Each card contains:
+The Runs section lists individual cleaning jobs as cards. When the filtered set is larger than what the integration returns in one snapshot, a note under the section header says how many of the matching runs are shown — narrow the filters to see the rest.
+
+**Clicking anywhere on a job card opens the [Run Summary modal](#the-run-summary-modal)** for that run (the card's own buttons — Exclude, Restore, and the reason chips — still do their own thing and do not open it). Each card contains:
 
 ### Header
 
@@ -105,6 +107,7 @@ One or more coloured badges can appear on a job card:
 | Non-"completed" status | The job did not finish normally (e.g. Canceled, Failed, Interrupted). |
 | **Sanity Failed** | The job failed an internal data-quality check. External runs never show this badge — being externally captured is not a data-quality failure. |
 | **Recharge** | A mid-job battery recharge was observed during this run. |
+| **Errors** / **N errors** | The robot (or its dock) raised one or more errors during the run. This badge carries a small warning triangle, and its tooltip adds the total time spent in an error state (when measured) and which hardware it came from — the dock, the robot, or "not attributed to specific hardware". Clicking the badge opens the same [Run Summary modal](#the-run-summary-modal) as clicking the card, where each fault is named. |
 | **Single Room** | The job covered only one room. |
 | **Multi Room** | The job covered more than one room. |
 | **Room Mismatch** | On a dispatched run, the robot's live room signal disagreed with the room the run was assigned for part of the clean. The run is flagged for review — the assignment is kept, never silently overridden. Open the run to check which room was actually cleaned. |
@@ -125,7 +128,50 @@ Each card shows the following fields:
 
 ### Notes
 
-If the integration provides a reason text for the job (an exclude suggestion reason, a learning blocker explanation, a sanity flag, or a cancellation reason), it appears as a plain-text note below the key-value grid.
+If the integration provides a reason text for the job (an exclude suggestion reason, a manual exclude or restore reason, a status reason, a learning blocker explanation, a sanity flag, or a cancellation reason), it appears as a plain-text note below the key-value grid.
+
+---
+
+## The Run Summary modal
+
+Clicking a job card — or its error badge — opens the **Run summary** modal: one surface that shows what the run was asked to do, what happened in each room, and what went wrong. The modal header shows the job ID; close it with the **Close** button, the **X**, or by clicking outside it. (Escape also closes it, but only once focus has moved inside the modal — opening it by clicking the row or badge does not move focus there by itself, so Escape has no effect until you've tabbed to a control inside.)
+
+A run captured from your robot's own app shows a short note at the top explaining that some details are unavailable for runs this card did not start.
+
+Throughout the modal, **a value the run did not record is simply omitted** — the card never shows "0" for something it did not measure.
+
+### Overall
+
+The top section lists whatever the record carries of:
+
+| Field | Meaning |
+|-------|---------|
+| **Started** | When the run began. |
+| **Elapsed** | Wall-clock time from start to finish, *including* docking/washing overhead. |
+| **Cleaning time** | Time actually spent cleaning. Deliberately shown as its own number — the difference from Elapsed is the run's overhead. |
+| **Area cleaned** | Total floor area for the run, in m². |
+| **Battery used** | Job-level battery consumption. |
+| **Rooms** | How many rooms the run covered. |
+
+If the robot recharged mid-run, a **recharge line** appears below the grid — "Recharged once mid-run · 25 min" (or just "Recharged N× mid-run" when the charge duration is unknown). This matters because the battery figure is start-minus-end and cannot see the pack going back up: a run that drew 55% across a recharge would otherwise read as a small number.
+
+### Per room
+
+Each room the run touched (or was queued to touch) gets a row showing:
+
+- The room name.
+- The **settings dispatched for that room**, as chips — mode, suction, cleaning path, water level, extra passes, edge mopping. These localize into your card language.
+- The **result**: time spent cleaning, elapsed wall-clock time in the room (only when it differs from the cleaning time), and area cleaned.
+
+A room with settings but the result **"Not reached"** is normal, not an error — it was queued but the run never got to it, so there was nothing to measure.
+
+### Errors
+
+When the run hit no faults, this section is absent entirely. Otherwise an **"Errors — N"** section lists each fault:
+
+- **The fault's name**, translated into your card language when the integration knows the code (e.g. "Bumper stuck"). A code the card has no label for is shown as `Error <code>` — honest and searchable, rather than a guess.
+- **Which hardware raised it** — Dock, Robot, or "Source unknown" when the brand's tables don't classify it.
+- **Recovered** or **Not recovered** — whether the fault cleared during the run. The card deliberately never says a fault *stopped* the run; the record cannot establish that.
 
 ---
 
@@ -160,7 +206,7 @@ When you start a clean from your robot's own app instead of from this card, the 
 
 ### The pending list
 
-Each waiting run appears as a card showing roughly when it ran, its total cleaned area, and how many segments were detected. Two buttons sit on the card:
+Each waiting run appears as a card showing roughly when it ran, its estimated room count, its total cleaned area, and how many segments were detected. Two buttons sit on the card:
 
 - **Review** — opens the two-step review wizard for that run.
 - **Discard** — drops the run entirely. Use this for a run you don't want to keep (a quick test, a mis-detection). Discarding cannot be undone.
@@ -190,16 +236,16 @@ Step 2 shows one panel per room (in cleaning order) so you can identify it and c
 
 | Field | What it does |
 |-------|--------------|
-| **Which room?** | Pick the room this segment belongs to. The integration's top suggestions appear as chips (with their learned area, when known). If the right room isn't shown, use the **… pick another room** dropdown to choose from every room on that map. |
-| **Mode** | Vacuum, Vac & Mop, or Mop — when your vacuum exposes a per-room mode. Some vacuums (e.g. Roborock S6) don't, so this field may be absent. |
+| **Which room?** | Pick the room this segment belongs to. The integration's top suggestions appear as chips (with their learned area, when known), and its best guess is tagged **suggested** — but a guess is never pre-selected: you must tap a chip (or the suggestion) to choose. If the right room isn't shown, use the **… pick another room** dropdown to choose from every room on that map. |
+| **Mode** | Vacuum, Vac & Mop, or Mop. This field is always the same three fixed choices — it does not depend on your vacuum model, so it also appears on vacuums (like the Roborock S6) whose room editor has no per-room mode field. |
 | **Passes** | Choose 1× or 2×. This field is always 1×/2×; it does not vary by vacuum. |
 | **Suction** | Suction level, using your vacuum's available options. |
 | **Cleaning Path** | Cleaning path / intensity, using your vacuum's available options. |
 | **Water** | Water level. Only shown when the mode involves mopping. |
 | **Edge mop?** | On or Off. This isn't detected from an app-started run, so set it yourself. |
 
-The mode, passes, and per-setting options come straight from your vacuum's own vocabulary — the same choices you'd see in the room editor — and whatever the integration captured from the run is pre-selected, so most rooms only need a confirmation. The dropdown of all rooms is pinned to a dark, readable style so the list stays legible.
+Unlike Mode and Passes (always the same fixed choices), Suction, Cleaning Path, and Water come straight from your vacuum's own vocabulary — the same options you'd see in the room editor. Whatever the integration captured from the run is pre-selected, so most rooms only need a confirmation. The dropdown of all rooms is pinned to a dark, readable style so the list stays legible.
 
 If a picked room's area looks very different from what was actually cleaned, the wizard warns you at the bottom: *"N rooms don't match the picked area — re-pick, or keep anyway."* Either re-pick the room or, if you're confident, click **Keep anyway** to confirm regardless.
 
-Click **Confirm** to save. The button shows "Saving…" while it works. You must pick a room for every panel first. Use **← Back** to return to Step 1, or **Cancel** to close without saving. Once confirmed, the run leaves the pending list and the count on the subtab drops.
+Click **Confirm** to save. The button shows "Saving…" while it works. You must pick a room for every panel first — Confirm stays disabled and a note counts how many rooms still need picking. Use **← Back** to return to Step 1, or **Cancel** to close without saving. Once confirmed, the run leaves the pending list and the count on the subtab drops.

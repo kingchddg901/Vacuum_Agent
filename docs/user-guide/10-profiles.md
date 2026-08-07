@@ -67,22 +67,20 @@ Built-in profiles cannot be overwritten. The **Save Over** button is disabled wh
 
 ### How to rename a room profile
 
-1. Open the room editor for any room.
-2. Click **Rename** in the Cleaning Profile row.
-3. If the editor is linked to a custom profile, that profile is the target. Otherwise a prompt asks you to choose from your custom profiles.
-4. A prompt asks for a new display label.
-5. A second prompt lets you change the internal backend key if you want. You can accept the suggested key or leave it unchanged.
+1. Open the room editor for a room linked to that profile (apply the profile first if needed).
+2. Click **Rename** in the Cleaning Profile row. The linked custom profile is the target.
+3. A prompt asks for a new display label.
+4. A second prompt lets you change the internal backend key if you want. You can accept the suggested key or leave it unchanged.
 
-The **Rename** button is disabled when no custom profile is active in the editor.
+The **Rename** button is disabled unless a custom profile is active in the editor — built-in profiles and Custom mode leave it greyed out.
 
 ### How to delete a room profile
 
-1. Open the room editor for any room.
-2. Click **Delete** (shown in red) in the Cleaning Profile row.
-3. If the editor is linked to a custom profile, that profile is the target. Otherwise a prompt asks you to choose.
-4. Confirm the deletion when asked.
+1. Open the room editor for a room linked to that profile (apply the profile first if needed).
+2. Click **Delete** (shown in red) in the Cleaning Profile row. The linked custom profile is the target.
+3. Confirm the deletion when asked.
 
-Deletion cannot be undone. Built-in profiles cannot be deleted. The **Delete** button is disabled when only built-in profiles are available.
+Deletion cannot be undone. Built-in profiles cannot be deleted. Like Rename, the **Delete** button is disabled unless a custom profile is active in the editor.
 
 ---
 
@@ -162,9 +160,13 @@ Two things worth knowing:
 
     The card does **not** show a predicted duration for a charge step before the run. How long a charge takes depends entirely on how low the battery is when the vacuum docks, which varies every run — so rather than show a number it hasn't earned, the card just notes that "Charge time varies with the battery level when it docks," and shows a live countdown once the charge is actually under way.
 
-### Building a stepped profile
+### Adding a break straight to the queue
 
-Steps live in the run-profile **editor**, so open a profile for editing first (select it, then **Edit**). The **Run steps** section has three controls:
+The quickest way to make a run stepped needs no editor at all. With at least two rooms in the queue (and no run active), the Rooms view shows **+ Charge break** and **+ Wait break** chips — click one to drop a stop into the queue between rooms. The break appears in the queue as a chip of its own (type the target percent or minutes directly into it), each break chip has a remove control and a move handle, and a **Clear breaks** chip removes them all and returns you to a flat clean. Breaks added this way are captured into a profile when you **Save This Setup**.
+
+### Building a stepped profile in the editor
+
+Steps also live in the run-profile **editor**, so open a profile for editing first (select it, then **Edit**). A profile with no steps yet shows just an **Add a charge step** button under **Run steps** — clicking it opens the full steps editor, which has three controls:
 
 | Button | What it does |
 |---|---|
@@ -172,16 +174,18 @@ Steps live in the run-profile **editor**, so open a profile for editing first (s
 | **Add a wait** | Inserts a "Wait X min" stop. Set the minutes in the field on the step row. |
 | **Add current rooms as a group** | Snapshots the rooms currently set up in the **Rooms** view as the next room group in the sequence. |
 
-The typical flow is: set up the first batch of rooms in the Rooms view → **Add current rooms as a group** → **Add a charge step** (or a wait) → change the Rooms view to the next batch → **Add current rooms as a group** again, and so on. Each step row has up/down arrows to reorder it and a control to remove it.
+A charge or wait always sits **between** two other steps — a stop at the very start or end of a run has nothing to bracket, so once the editor is open, clicking **Add a charge step** or **Add a wait** before there are at least two steps to put it between only shows an error toast: "Add a room group first — a charge or wait needs one before and after it." (On a brand-new, empty draft, that first click also opens the steps editor itself — it just doesn't add anything.) Once there are enough steps, a new stop is inserted just before the last one; use the up/down arrows on each row to reorder, and the ✕ to remove.
 
-A charge or wait stop at the very start or end of the sequence is dropped automatically (there is nothing to bracket), and two of the same kind in a row collapse to the later one.
+The typical flow is: set up the first batch of rooms in the Rooms view → **Add current rooms as a group** → change the Rooms view to the next batch → **Add current rooms as a group** again → **Add a charge step** (or a wait), which lands between the two groups → reorder if needed.
+
+An older profile saved before this rule can still carry a stop at the start or end of its sequence. The editor shows such a step struck through with a "Will be skipped (unsupported position)" note, and it is removed when you save.
 
 !!! note "Zone steps are added from the queue, not the editor"
     The editor's three controls add charge, wait, and room-group steps. A **zone step** is added a different way — on the queue, with the **+ Zone** chip (see [Zones](04a-zones.md#add-a-zone-to-a-run-a-zone-step)) — and is captured into the profile when you save your setup. In the editor a zone step then appears in the step list (🎯) and can be reordered or removed like the others; it just isn't created here.
 
-### The "This run" preview
+### The "This Job" preview
 
-When a stepped profile is applied, the Rooms view shows a **"This run"** block — a collapsible preview that lays out the exact sequence the vacuum will follow: each room group, each ⚡ charge stop with its target, and each ⏱ wait stop with its duration. It is the read-only mirror of the steps you built, so you can confirm the order before pressing **Run**. The saved-profile detail card shows the same sequence under a **"Runs as"** heading — as does the standalone **Profile card** you can drop on any dashboard (see [Dashboard & Room cards](20-dashboard-and-room-cards.md#the-profile-card)), which surfaces one saved profile's **Runs As** list plus a **Run** button without opening the panel.
+When a stepped profile is applied — or when the queue carries its own charge/wait breaks — the Rooms view shows a **"This Job"** block: a collapsible preview that lays out the exact sequence the vacuum will follow: each room group, each ⚡ charge stop with its target, and each ⏱ wait stop with its duration. It is the read-only mirror of the steps you built, so you can confirm the order before pressing **Run**. The saved-profile detail card shows the same sequence under a **"Runs in this order"** heading — as does the standalone **Profile card** you can drop on any dashboard (see [Dashboard & Room cards](20-dashboard-and-room-cards.md#the-profile-card)), which surfaces one saved profile's step sequence plus a **Run** button without opening the panel.
 
 ### Editing a charge or wait inline
 

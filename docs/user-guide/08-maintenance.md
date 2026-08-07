@@ -61,14 +61,16 @@ The card background fill reflects how much life remains, so you can see at a gla
 
 #### Station Water card
 
-At the end of the Maintenance Items list, the **Station Water** card shows the current water level in the base station reservoir. The level can be a numeric percentage or a text label (such as "Low" or "Full"). The card maps these values to four status levels:
+At the end of the Maintenance Items list, the **Station Water** card shows the current water level in the base station reservoir. The level can be a numeric percentage or a text label (such as "Low" or "Full"). A numeric level maps to four status levels:
 
 | Condition | Status |
 |---|---|
 | 70% or above | High |
 | 35–69% | Medium |
 | 1–34% | Low |
-| 0% or empty | Empty |
+| 0% | Empty |
+
+A text label maps onto only three of those buckets — `Full`/`High`/`Good`/`Ok`/`Normal` reads as High, `Medium`/`Mid` reads as Medium, and `Low`/`Empty`/`None` all read as **Low** (there is no text route to Empty — only a literal 0% gets that status). Any other text reads as Unknown. For a text level, the status word shown next to the fill is your device's own label when it sent one; otherwise it falls back to a generic status name for that bucket, which for the Low bucket reads "Replace Soon" rather than "Low". A numeric level always shows the generic High/Medium/Low/Empty word for its bucket.
 
 If the integration has calculated an available clean tank volume, the card also shows that figure in millilitres.
 

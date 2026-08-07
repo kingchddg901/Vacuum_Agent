@@ -23,6 +23,8 @@ Every profile is you turning three knobs around a moment:
 
 You build the steps in the Rooms view and save the sequence — the mechanics are all in [Profiles](10-profiles.md). This page is only about *what* to put in them.
 
+One mechanical limit worth knowing before you build: a stepped run can't *open* (or close) with a wait or a charge stop — there has to be another step on both sides to bracket it, ordinarily a room group. When the moment itself starts with waiting (you kick things off, then wait), put that wait in the **trigger** instead — a delayed automation, or a timer already offset by the wait — and let the profile itself start with the first room group. Two of the worked examples below do exactly that.
+
 ## Worked examples
 
 These are **mine** — my rooms, my house, my dog. Copy the *thinking*, not the rooms; yours will look nothing like mine, and that's exactly the point.
@@ -31,13 +33,13 @@ These are **mine** — my rooms, my house, my dog. Copy the *thinking*, not the 
 Vacuum the kitchen and dining room → **wait 60 min** → vacuum-and-mop the same rooms. Clean before I cook, and then the wait simply *is* dinner, and the mop cleans up after we eat. One decision covers the whole meal.
 
 ### Wash Dog — *the rooms trace the path*
-**Wait 45 min** while I'm out drying the dog → vacuum-and-mop the exit route, bathroom → hallway → living → dining (that leg is water, so it needs the mop) → **wait 60 min** while the dog finishes drying, shakes off, and wanders → clean the return route back through the living areas into the bedrooms, for the muddy paws and shed fur. The room *order* is the dog's actual path through the house.
+The first wait — while I'm out drying the dog — lives in the trigger, not the profile (see the note above): the automation delays before kicking the run off, so the profile itself opens straight into the rooms → vacuum-and-mop the exit route, bathroom → hallway → living → dining (that leg is water, so it needs the mop) → **wait 60 min** while the dog finishes drying, shakes off, and wanders → clean the return route back through the living areas into the bedrooms, for the muddy paws and shed fur. The room *order* is the dog's actual path through the house.
 
 ### Post-visitor — *the run is the message*
 When a guest arrives I flip a switch, and five hours later the vacuum heads out. It tidies up after them, sure — but the real job is the *gentle*, deniable signal that the evening's winding down, the thing you'd rather not say out loud. The dirt is the cover story.
 
 ### Bedtime — *the wait protects your sleep*
-Kick it off at bedtime → **wait 2 hours** → clean the common areas. The wait isn't for the floor, it's for *you* — long enough that you're asleep before the noise starts, so the robot never wakes anyone.
+The wait lives in the trigger rather than the profile (see the note above) — the automation waits out a stretch past bedtime before kicking things off, so the profile itself just cleans → the common areas. The gap isn't for the floor, it's for *you* — long enough that you're asleep before the noise starts, so the robot never wakes anyone.
 
 ### Rain / Wind — *the mode diagnoses the cause*
 When the weather turns, the profile answers what it *does* to the house. **Rain** brings in leaves and drips → a **low-water** clean, because the floor's already damp and high water would only add to it. **Wind**, out in the country, blows in dry field dust → a plain vacuum, no water at all. Same rooms, different *how*, because the cause is different.
