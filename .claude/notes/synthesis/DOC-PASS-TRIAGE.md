@@ -102,3 +102,22 @@ repaired truth pass. Docs were NOT papered over these. Highest-priority first.
 - **R2-COV-1 [testing-docs]** services/queue.py queue-break/step handlers (:202-244) + register closures (:266-281) have zero test coverage.
 - **R2-TEST-1 [testing-docs]** tests/adapters/test_brand_selection.py::test_register_brand_adapter_falls_back_and_says_so reproducibly fails (empty caplog) under exactly `tests/unit tests/integration tests/adapters` — order-dependent test defect.
 - **R2-DEAD-4 [live-debug 2026-08-06]** `src/styles/foundation.js:276` — the whole `.evcc-card` block is dead: no element carries the class (shell frame emits `.evcc-shell`). It hid the typeface read for two fix rounds (live:FONT-1 remainder, ecbe77f). Delete the block or retarget deliberately; TF-7 now guards the typeface read specifically but the rest of the block (background/radius/color) is still silently inert.
+
+## live:FONT-1 — RESOLVED, USER-CONFIRMED 2026-08-06 (screenshot, OpenDyslexic rendering)
+
+Three stacked bugs, each masking the next; all fixed + pinned (TF-1..TF-10):
+1. @font-face never registered on the document (41a9735).
+2. Token read on phantom selector .evcc-card + theme inline token overriding — a11y-token
+   chain design, Chris's call (ecbe77f). Dead .evcc-card block = R2-DEAD-4.
+3. Fallback-less var(--paper-font-body1_-_font-family) made the setter guaranteed-invalid
+   on paper-var-less HA (d3f81e6) — found via headless-Chrome reproduction with the exact
+   shipped CSS; probe lives in session scratchpad, technique worth reusing.
+Deploy gotcha that cost two false deploys: npm run build writes dist/, NOT
+custom_components/frontend/ — copy dist/ artifacts or use build:deploy.
+
+Tail items (LOW, open):
+- FONT-TAIL-1: form controls don't inherit font-family — "Search themes..." placeholder
+  renders system font under OpenDyslexic; inputs/selects need font: inherit.
+- HDR-BATT-1: header battery is a bare percent (no label/icon, since v0.9.0) and the
+  .evcc-battery.low/.critical classes are never applied by the renderer (dead styling).
+  Chris flagged the missing label; offer stands.
