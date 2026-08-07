@@ -81,7 +81,11 @@ Things that delegate to subsystems:
 ```
 async_initialize()
 ├── await self.storage.async_load()          → self.data populated from disk
-├── self.data.setdefault(...)                → seed top-level keys
+├── self.data.setdefault(...)                → seed top-level keys (vacuums,
+│                                              capabilities, room_history,
+│                                              room_rule_status,
+│                                              learning_processing_enabled=True,
+│                                              learning_pending_runs) — 6 keys
 ├── release stale _phase_dispatch_pending    → clear the guard on loaded room-group
 │                                              jobs (a restart lost the watchdog);
 │                                              dock (charge_wait/wait) phases are
@@ -104,9 +108,15 @@ async_initialize()
 ├── room field backfills (setdefault loop)   → existing rooms get new fields
 ├── discovery shape migration                → old flat → per-map-id dict
 ├── _migrate_setup_progress()                → stamps existing installs complete
-├── callback lists + cache sets initialised
-└── phase_runner.rearm_dock_phase_if_needed  → re-spawn a lost charge_wait/wait
-                                               poller for any 'started' dock job
+├── callback lists + cache sets initialised  → incl. _vacuum_added_callbacks (§5)
+│                                              and the _map_frame_gate dict (per-vacuum
+│                                              post-map-switch coordinate-frame gate)
+├── phase_runner.rearm_dock_phase_if_needed  → re-spawn a lost charge_wait/wait
+│                                              poller for any 'started' dock job
+├── _clear_orphaned_finalize_claims()        → release finalize claims a crash stranded
+└── _reap_stranded_phased_jobs()             → close Phased-Job parents left "running"
+                                               by a crash/restart (parents are written at
+                                               run start, so an abnormal end must be reaped)
 ```
 
 All subsystem managers are constructed with a reference to the manager and are
@@ -191,9 +201,10 @@ and the shared caches/helpers each subsystem reads back through `self._manager`:
   SHARED room-history ingestion helpers (`_ingest_*_into_room_history`, also
   driven by the normal completed-job finalize) and `resolve_active_map_id` /
   `start_external_capture` stay in core and are reached via `self._manager`.
-  `learning/__init__` exposes `ExternalRunManager` through a lazy `__getattr__`
-  (its module imports two constants from `core.manager` at load time — deferring
-  the import avoids the cycle during `core.manager`'s own module load).
+  `learning/__init__` imports `ExternalRunManager` **directly** (no lazy
+  `__getattr__`) — the old import cycle is gone: the grace-timer constants
+  moved to `learning/constants.py`, and `external_run.py`'s only
+  `core.manager` import is `TYPE_CHECKING`-guarded.
 
 ---
 
@@ -219,7 +230,7 @@ after the subsystem call, not inside the subsystem.
 
 ## 5. Callback System
 
-The manager is the central notification hub for HA entity refresh. Five
+The manager is the central notification hub for HA entity refresh. Six
 callback channels are maintained as plain Python lists.
 
 | Channel | List name | `_notify_*` method | Subscribers |
@@ -228,7 +239,12 @@ callback channels are maintained as plain Python lists.
 | Run profile changed | `_run_profile_update_callbacks` | `_notify_run_profiles_updated` | button platform |
 | Room history updated | `_room_history_update_callbacks` | `_notify_room_history_updated` | sensor platform (room history sensors) |
 | Rule status updated | `_room_rule_status_update_callbacks` | `_notify_room_rule_status_updated` | sensor platform (rule status sensors) |
+| Vacuum added | `_vacuum_added_callbacks` | `_notify_vacuum_added` | sensor platform (SN-1 — fires the first time `ensure_vacuum_record` creates a NEW managed-vacuum record, so per-vacuum sensors build immediately instead of waiting for a reload; `add_vacuum` / `discover_rooms` / config-entry setup all route through `ensure_vacuum_record`) |
 | Theme updated | (owned by ThemeManager) | — | sensor platform (theme sensor) |
+
+The vacuum-added notification passes only `vacuum_entity_id` (no `map_id`) —
+unlike the four room/profile/history/rule channels above, which pass both; the
+theme channel also passes only `vacuum_entity_id`.
 
 ### Registration lifecycle
 
@@ -278,12 +294,48 @@ orchestrate multiple subsystems or span too many data keys to belong to one.
 
 ### `update_room_fields`
 
-The most cross-cutting write in the system. Accepts a room update, applies it
-to `data["maps"]`, collapses the `floor_type` + `carpet_type` legacy shape,
-applies the appropriate profile, enforces carpet/mop protection rules, updates
-the summary, rebuilds derived queue/payload, and fires room update callbacks —
-all synchronously, in memory. It does **not** save: like every subsystem write
-(§3), the `await manager.async_save()` is the calling service handler's job.
+The most cross-cutting write in the system (`manager.py:1553`). Accepts a room
+update (`enabled`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`,
+`clean_passes`, `edge_mopping`, `color`, `is_dock_room`, `is_transition`,
+`grants_access_to`, `rules` — keyword-only, all optional), applies it to
+`data["maps"]`, applies the appropriate profile + carpet/mop protection rules
+(via `_finalize_room_update`), updates the summary, rebuilds derived
+queue/payload, and fires room update callbacks — all synchronously, in memory.
+It does **not** save: like every subsystem write (§3), the
+`await manager.async_save()` is the calling service handler's job.
+
+It has **no `floor_type` / `carpet_type` parameters** — floor type is not
+settable through this method (it changes via `save_managed_rooms`'
+`floor_types` argument), and the legacy `floor_type="carpet"` + `carpet_type`
+collapse happens only in the `async_initialize` room-field backfill (§2), not
+here.
+
+**Access-graph validation is half the method.** Two refusal gates run before
+the write commits, both rolling `rooms[room_key]` back to the pre-edit record
+and returning `ok=False`:
+
+- **Delta-scoped structural validation (A6-AGX-2).** The post-edit graph is
+  validated (`_validate_room_access_graph` → `_structural_access_graph_issues`),
+  but the edit is refused (`error`/`reason = "invalid_access_graph"`, with a
+  formatted `issues` list) only for issues **this edit introduced** — a
+  baseline issue-key set is captured from the same validator *before* the
+  mutation, and any issue whose key was already present is tolerated. A
+  structural violation can genuinely pre-exist (reconciliation rewrites grants
+  through an id remap without re-checking the cross-room single-inbound
+  constraint), and it must not block an unrelated fan-speed / enable / colour
+  edit.
+- **`no_dock_room` (A5-DOCK-1).** A `grants_access_to` edit that *changes the
+  links* on a map with **no** dock room is refused (`error`/`reason =
+  "no_dock_room"`) — links without a root make every room trip
+  `missing_dependency` at queue-build. Deliberately **not** delta-scoped ("no
+  dock yet" is a baseline condition by definition); two escape hatches keep it
+  workable: a save that *sets* the dock passes (dock + first children in one
+  save), and a save that changes no links passes (so releasing the dock stays
+  possible). Non-access edits are never gated by this rule.
+
+On success returns `{ok: True, vacuum_entity_id, map_id, room_id, updated:
+True, profile_name, room}`; a missing room returns `error`/`reason =
+"room_not_found"`.
 
 It also accepts a per-room `color` override. Unlike the `bool|None` /
 `str|None`-defaulted params (where `None` means "not provided"), `color`
@@ -291,38 +343,61 @@ defaults to the module-level `_UNSET = object()` sentinel because `None` is
 meaningful for this field: `_UNSET` leaves the existing override untouched,
 `None` or an empty string clears the override (empty string coalesces to `None`
 so a cleared field is never stored as `""`), and any other value stores the
-schema-canonicalized hex. Ref: `manager.py:1261` (param), `manager.py:53`
-(`_UNSET` sentinel), `manager.py:1319-1323` (three-way apply logic).
+schema-canonicalized hex. Ref: `manager.py:1566` (param), `manager.py:60`
+(`_UNSET` sentinel), `manager.py:1627-1628` (three-way apply logic).
 
 ### `start_selected_rooms` (and the `start_run_profile` delegator)
 
 `start_selected_rooms` orchestrates job start: build effective start plan
-(run_plan), write active job state (active_job), call upstream vacuum service
-(via the `DispatchManager` delegators — `_run_global_pre_calls` →
-`_resolve_live_dispatch_payload` → `_dispatch_clean_payload`), clear room
-selections post-start, persist. Returns a structured start summary. It stays on
-the manager and is reached from `ProfileManager` via `self._manager`.
+(run_plan), dispatch to the upstream vacuum (via the `DispatchManager`
+delegators — **`_resolve_live_dispatch_payload` → `_run_global_pre_calls` →
+`_dispatch_clean_payload`**; pre-calls deliberately run AFTER resolution,
+immediately before the wire send — DQ-ACT-6: resolution can raise on a
+re-segmented map, and firing the pre-calls first left the device's global mop
+intensity rewritten by a start that then aborted), write active job state,
+clear room selections post-start. It does **not** call `async_save()` — like
+every other mutation, the save is the calling service handler's job. Returns a
+structured start summary. It stays on the manager and is reached from
+`ProfileManager` via `self._manager`.
 
 `start_run_profile` now lives in `ProfileManager` (next to `apply_run_profile`);
 the manager keeps only a thin delegator for its service + button-entity callers.
 It applies the profile, builds queue/payload, and calls `start_selected_rooms`.
 It also stashes the profile's ordered `steps` sequence into
-`data["_pending_run_steps"]` before starting, but only when the steps carry a
-`charge_wait` or `wait` stop. The plan builder
-(`run_plan._build_effective_start_plan`) consumes that stash and materializes a
-multi-phase `[clean, charge_wait, clean, …]` job via `_build_steps_phases`
-(which now `_safe_int`-coerces each `room_id`, so a bad id no longer crashes
-dispatch); absent the stash it builds the single atomic phase as before. A
-stepped run with stops is a deliberate sequence, so the plan builder forces
-`strict_order=True` (a no-op for order-honoring brands like Eufy, which fold it
-back to `False`; on a path-optimizing brand like Roborock it pins each group's
-rooms to the shown order). Profiles with no stops (a plain room list) still start
+`data["_pending_run_steps"]` before starting — gated on
+`step_requires_stepped_execution` over `STEPPED_STEP_TYPES =
+{"charge_wait", "wait", "zone"}` (`step_types.py:38`): a **zone** step counts
+too, because a rooms→zone profile is a real multi-phase run (only
+`charge_wait`/`wait` are *dock-polled*, a distinct vocabulary). The plan
+builder (`run_plan._build_effective_start_plan`) consumes that stash and
+materializes a multi-phase `[clean, charge_wait, clean, …]` / `[clean, zone]`
+job via `_build_steps_phases` (which `_safe_int`-coerces each `room_id`,
+resolves each zone step's saved-zone ids to dispatch rects at **build** time,
+and trims leading/trailing *dock* breaks only — never a leading zone); absent
+the stash it builds the single atomic phase as before. A stepped run with
+stops is a deliberate sequence, so the plan builder forces `strict_order=True`
+(a no-op for order-honoring brands like Eufy, which fold it back to `False`;
+on a path-optimizing brand like Roborock it pins each group's rooms to the
+shown order). Profiles with no stops (a plain room list) still start
 atomically.
 
-The stash is popped deep in `_build_effective_start_plan`, which an early return
-(blocked / confirmation-required-without-token / vacuum missing) never reaches —
-so `start_run_profile` deletes the leaked stash on any NON-started return, or the
-next plain Start on that map would silently pop it and become a charge/wait run.
+**Consume-vs-peek.** `_build_effective_start_plan` takes a
+`consume_pending_steps` flag: only the real dispatch (`start_selected_rooms`)
+passes `True` and **pops** the stash; preflight callers (`get_start_status`,
+the path-block report) peek, so a preflight can never eat the stash before the
+real dispatch builds its plan. The pop happens deep in
+`_build_effective_start_plan`, so an early return (blocked /
+confirmation-required-without-token / vacuum missing) never reaches it — hence
+`start_run_profile` deletes the leaked stash on any NON-started return, or the
+next plain Start on that map would silently pop it and become a charge/wait
+run.
+
+**Ad-hoc stepped fallback (plain Start).** When no profile stash exists, the
+plan builder falls back to the LIVE QUEUE's own breaks (`get_queue_steps` —
+derived, not consumed, so preflight and dispatch agree): if the queue's steps
+carry a `charge_wait`/`wait`/`zone` entry, a plain Start also materializes a
+stepped, strict-order multi-phase job. An explicit `start_run_profile` stash
+takes precedence over the queue breaks.
 
 ### `_run_global_pre_calls` (delegated to `DispatchManager`)
 
@@ -377,8 +452,25 @@ intentional "Charging to X% — ~N min" / "Waiting" state rather than a hung job
 `charge_phase_active` + `charge_target_percent` + `charge_eta_minutes` +
 `charge_eta_source` (the ETA from `battery/manager.py`
 `compute_time_to_target_pct`, which returns `None` — meaning the card falls back
-to a live wall-clock — on a cold-start install rather than fabricating a number),
-and `wait_phase_active` + `wait_minutes`.
+to a live wall-clock — on a cold-start install rather than fabricating a number)
++ `charge_from_battery` / `charge_started_at` (read from the current phase
+record), and `wait_phase_active` + `wait_minutes` + `wait_started_at`.
+
+**Liveness gate.** charge/wait/zone used to be derived purely from
+`current_phase_index` + the phase's `phase_type`, so a run cancelled during a
+wait left the index pointing at that wait forever and the card kept counting
+down a hold that had already been torn down. The fix is a liveness check —
+`_phase_state_live = status == "started" and not finalized` — that nulls the
+phase list out entirely before any of the charge/wait/zone branches run, so
+none of them can activate once the job is no longer live.
+
+The snapshot also carries `current_room_ids` + `current_phase` (RP-047): a
+`room_group` phase is ONE dispatch, so no per-room rollover exists inside it
+and `current_room_id` pins to the group's first room for the phase's whole
+duration. `current_room_ids` lists every room of the current phase (falling
+back to the single anchor room), and `current_phase` is a small block
+`{index, phase_type, room_ids, is_group}` — `current_room_id` is unchanged and
+stays the map's anchor; the card just stops treating it as the whole answer.
 
 A **`zone` phase** is surfaced the same way (`zone_phase_active` +
 `zone_phase_ids` / `zone_phase_names` + `zone_phase_eta_minutes`), but with one
@@ -412,7 +504,8 @@ maintenance / attention state), `planned_job_estimate`, and `queue_steps`, then
 layers on a large **adapter-capability hint block** the editor reads to shape
 itself (`adapter_vocabulary`, `max_clean_passes`, `mop_active`,
 `supports_room_profiles`, `passes_is_global`, `supports_base_station`,
-`supports_map_bounds`, `supports_zone_clean`, `zone_max`, `honors_clean_order`,
+`supports_map_bounds`, `supports_zone_clean`, `zone_max`, `zone_bounds`,
+`supports_water_control`, `supports_edge_mopping`, `honors_clean_order`,
 `supports_va_render`, `setting_entities`, `scene_select`, `cv_available` /
 `cv_missing`) and a **live-map block** (`live_map_image_entity`, `map_switcher`,
 `live_map_rotation`, `map_overlay_visibility`, `area_label_anchors`,
@@ -468,6 +561,40 @@ HA's `Store` helper. Writes are atomic (HA writes to a temp file and renames).
 
 `_async_save_logged()` is a variant used in fire-and-forget contexts (e.g.
 background callbacks) that logs exceptions instead of raising them.
+
+**`async_save_delayed()` (DRAFT-5)** schedules a **coalesced** write via
+`Store.async_delay_save` instead of writing immediately — for high-frequency,
+low-stakes updates (theme draft edits / card slider drags), where the thing
+being avoided is one full integration-data disk write per edit. The debounce
+window is `DRAFT_SAVE_DELAY_SECONDS = 2.0` (`core/storage.py`); rapid callers
+collapse into one write after the last call, and a crash mid-drag loses at
+most that window. It is a callback, not a coroutine (mirroring HA's own
+`Store.async_delay_save`), and the data getter (`lambda: self.data`) is
+invoked at *write* time.
+
+**Shutdown seam (RP-003/INIT-1).** A reloaded entry's previous manager must
+neither run nor write:
+
+- `async_shutdown()` — idempotent, registered via
+  `entry.async_on_unload(manager.async_shutdown)` *before* `async_initialize`
+  runs (so a mid-setup failure still tears down). It first **flushes any
+  pending debounced write directly via storage** (`await
+  self.storage.async_save(self.data)`, not `self.async_save()` — HA's `Store`
+  only guards a full-hass final write, not an integration unload/reload, and
+  routing the flush through the `_closed`-gated `async_save()` would drop an
+  in-flight DRAFT-5 window right here), then sets `_closed = True` and cancels
+  the phase runner's dock pollers (`phase_runner.cancel_all()`), the
+  external-run grace timers (`external_run.cancel_timers()`), and everything
+  in the generic `_background_tasks` / `_timers` ledgers. Returns
+  `{timers_cancelled, tasks_cancelled}`.
+- `_closed` gates both `async_save()` and `async_save_delayed()` —
+  belt-and-braces: a stale, unloaded manager can never clobber the store a
+  newer manager (from a reload) already owns; a post-shutdown save attempt
+  logs a warning and no-ops.
+- The subsystem-owned spawn sites (dock pollers, grace timers) are ledgered on
+  their **owning subsystem** per the bundled-subsystem pattern and exposed via
+  `cancel_all()`/`cancel_timers()`; `_background_tasks`/`_timers` are the
+  generic reserved ledgers for future spawn sites.
 
 The manager never reads the **storage file** after `async_initialize()` — every
 `self.data` read is in-memory, and the storage file is just the mirror of what

@@ -60,7 +60,8 @@ async def add_vacuum(hass, vacuum_entity_id) -> ActionResult
 **On success (in order):**
 1. Calls `manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)`.
 2. Calls `manager.async_save()`.
-3. Registers a per-vacuum sidebar panel at `/eufy-vacuum-{object_id}` via `panels.async_register_vacuum_panel(hass, vacuum_entity_id, title=effective_panel_title(record))`. The panel is registered with `config={"vacuum_entity_id": vacuum_entity_id}` and a per-vacuum sidebar title — `effective_panel_title(record)` returns the vacuum record's `panel_title` field when set, else the `"Vacuum Agent"` default — so two vacuums no longer show two identical sidebar entries once renamed. A `ValueError` (panel already registered) is caught and logged.
+3. Registers a per-vacuum sidebar panel at `/eufy-vacuum-{object_id}` via `panels.async_register_vacuum_panel(hass, vacuum_entity_id, title=effective_panel_title(record))`. The panel is registered with `config={"vacuum_entity_id": vacuum_entity_id}` and a per-vacuum sidebar title — `effective_panel_title(record)` returns the vacuum record's `panel_title` field when set, else the `"Vacuum Agent"` default — so two vacuums no longer show two identical sidebar entries once renamed. A `ValueError` (panel already registered) is caught and logged, and the url is still returned.
+4. Appends the returned panel url to the config entry's teardown ledger via `panels.append_to_panel_ledger(hass, entry_id, panel_url)` (RP-039/RF-16 — the singleton domain's first/only entry is the owning entry). Without this, a panel registered mid-session (outside `async_setup_entry`'s own ledgering) was untracked and never cleanly removed by `async_unload_entry`.
 
 The sidebar title is live-renamable via the `eufy_vacuum.setup_set_panel_title` service: it stores `panel_title` on the vacuum record (a blank title reverts to the default), persists it, then re-registers the panel with `replace=True` (which removes the existing panel first, since `panel_custom.async_register_panel` raises on a duplicate url) so the sidebar entry renames without a restart.
 
@@ -134,14 +135,24 @@ SETUP_STEP_IDS: frozenset = frozenset({
 
 ```
 data["setup_progress"][vacuum_entity_id] = {
-    "completed_steps":    list[str],   # step IDs that have been marked complete
-    "last_advanced_at":   str | None,  # ISO timestamp of last step completion
-    "rejected_rooms":     list[int],   # room IDs explicitly rejected by user
-    "room_drift_history": dict,        # {str(room_id): entry} — entry schema in §4.5
+    "completed_steps":       list[str],   # step IDs that have been marked complete
+    "last_advanced_at":      str | None,  # ISO timestamp of last step completion
+    "rejected_rooms":        list[int],   # LEGACY flat, vacuum-wide rejection list — read-only from now on (§4.6)
+    "rejected_rooms_by_map": dict,        # {str(map_id): list[int]} — every rejection written from now on (§4.6)
+    "room_drift_history":    dict,        # {str(room_id): entry} — entry schema in §4.5
 }
 ```
 
-`_get_progress_record` (`drift.py`) creates this **4-key** record on first touch (and `setdefault`s the last three keys for older records). **Divergent writer:** `_migrate_setup_progress` (§4.7) writes a **5-key** variant that adds `"migrated_at": str` (ISO) — present *only* on records backfilled for a legacy install. (`migrated_at` is currently write-only — no reader — see code-flag CS-1.)
+`_get_progress_record` (`drift.py`) creates this record with the 4-key
+literal above minus `rejected_rooms_by_map` on first touch, then
+unconditionally `setdefault`s `room_drift_history`, `rejected_rooms`,
+`rejected_rooms_by_map`, and `completed_steps` — so every record this helper
+returns carries **5 keys** (`rejected_rooms_by_map` included), whether freshly
+created or an older record being read back. **Divergent writer:**
+`_migrate_setup_progress` (§4.7) writes directly (bypassing
+`_get_progress_record`) a **6-key** variant that adds `"migrated_at": str`
+(ISO) — present *only* on records backfilled for a legacy install.
+(`migrated_at` is currently write-only — no reader — see code-flag CS-1.)
 
 ```python
 record_step_completed(manager, vacuum_entity_id, step_id) -> None
@@ -169,7 +180,7 @@ Drift = difference between the rooms the adapter currently reports and the rooms
 | `discovery.removal_confirmation_passes` | 3 | `max(1, int(...))` behind an `is not None` guard — an explicit low value is honored; `0`/negative clamps to **1** |
 | `discovery.new_room_confirmation_passes` | 1 | same — `max(1, int(...))`, `is not None` guard |
 | `discovery.auto_refresh_interval_seconds` | 21600 (6h) | `int(...)` behind an `is not None` guard — `0` is preserved |
-| `discovery.auto_refresh_on` | `["vacuum_docked", "active_map_changed", "config_entry_reload"]` | `list(... or DEFAULT)` |
+| `discovery.auto_refresh_on` | `["vacuum_docked", "active_map_changed", "config_entry_reload"]` | `list(...)` behind an `is not None` guard (DR-SETUP-2, matching the other keys) — an adapter declaring `auto_refresh_on: []` to wire NO auto-discovery triggers is honored rather than silently reverted to the default |
 
 The two pass-count keys are **floored at 1**: a literal `0` would make `missing_passes >= n_remove` a tautology (every configured room flagged removed, even present ones), so `0`/negative means "as aggressive as valid" = 1, not the surprising default. (This was code-flag CS-2 — the old `or` coercion silently reverted a configured `0` to the default; fixed + regression-tested DR-15.)
 
@@ -183,14 +194,14 @@ The two pass-count keys are **floored at 1**: a literal `0` would make `missing_
  "first_seen_at":  str | None} # ISO of the first-ever sighting (set once, never cleared)
 ```
 
-**`update_drift_history(manager, vacuum_entity_id, discovered_room_ids: set[int])`** — called on every discovery pass. For each room in `(configured_ids | discovered_ids) - rejected_ids`:
+**`update_drift_history(manager, vacuum_entity_id, discovered_room_ids: set[int], map_id: str | None = None)`** — called on every discovery pass. `map_id` is the map `discovered_room_ids` was read from — it selects which rejections apply (A4-SETUP-6, §4.6): the live room list always describes whichever map is currently loaded, so a real pass always has one; omitting it falls back to the union of every map's rejections (the pre-A4-SETUP-6 behaviour, and what a single-map install has always seen). For each room in `(configured_ids | discovered_ids) - rejected_ids` (`rejected_ids` resolved for that `map_id`):
 
 - **Sighted** (in `discovered_room_ids`): set `first_seen_at` if `None`; `seen_passes += 1`; `missing_passes = 0`; `last_seen_at = now`; **`first_missed_at = None`** (clear the miss-streak).
 - **Missed** (not in `discovered_room_ids`): `missing_passes += 1`; set `first_missed_at` if `None`; **`seen_passes = 0`** (the sighting streak restarts — load-bearing for the `seen_passes >= n_new` new-room gate).
 
 Stale entries (rooms not in the relevant set) are then pruned to prevent unbounded growth.
 
-**`compute_room_drift(manager, vacuum_entity_id, discovered_room_ids: set[int] | None = None) -> dict`**
+**`compute_room_drift(manager, vacuum_entity_id, discovered_room_ids: set[int] | None = None, map_id: str | None = None) -> dict`** — `map_id` scopes which rejections apply (A4-SETUP-6, same contract as `update_drift_history` above); omitted, the snapshot unions every map's rejections, which is the right answer for a whole-vacuum status read not scoped to one map.
 
 ```python
 {
@@ -213,10 +224,67 @@ The `new_rooms` / `transiently_missing` derivation has **two branches** — and 
 
 ### 4.6 Additional drift operations
 
+**Rejection is MAP-SCOPED (A4-SETUP-6).** Eufy reissues room ids 1..N from
+scratch on every map, so id 3 downstairs is a different physical room than id
+3 upstairs. Rejecting a ghost id 3 on one map used to make the REAL id 3 on
+another map unconfigurable — permanently and silently, since a rejected id
+never surfaces in `new_rooms` for the user to notice. Two backings now exist,
+deliberately:
+
+- `rejected_rooms_by_map[str(map_id)]` — every rejection written from now on,
+  scoped to its own map.
+- `rejected_rooms` — the LEGACY flat list, applied to every map because the
+  id genuinely carries no map and inventing one would be a guess. Read but
+  never appended to again, so the ambiguity stops growing.
+
+`rejected_room_ids(record, *, map_id=None, include_unscoped=True)` is the single
+reader that resolves both backings together; `include_unscoped=False` (used
+at the `save_managed_rooms` write boundary, §3.2) drops the legacy flat list —
+an unattributable rejection may suppress a *suggestion*, but must never
+*delete* a real, currently-configured room on a later map.
+
+`_resolve_rejection_map(manager, vacuum_entity_id, map_id)` is what every
+write path (`reject_rooms`, `unreject_rooms`) routes an omitted `map_id`
+through — it never guesses "every map":
+
+- **0 maps carrying rooms** → resolves to the single stored bucket if exactly
+  one exists (still unambiguous), else `None` — nothing to scope to.
+- **1 map carrying rooms** → resolves to that map, unambiguous.
+- **2+ maps carrying rooms** → **refuses**, `{"status": "error", "reason":
+  "map_ambiguous", "message": ..., "map_ids": [...]}`, naming the maps so the
+  caller can re-issue with one. Writes nothing.
+
 ```python
-reject_rooms(manager, vacuum_entity_id, room_ids: list[int]) -> dict
+reject_rooms(manager, vacuum_entity_id, room_ids: list[int], map_id: str | None = None) -> dict
+# → {"rejected": [...], "removed_from_managed": [...], "affected_map_ids": [...], "map_id": str | None}
+# or the map_ambiguous refusal above (writes nothing)
 ```
-Moves room IDs into `rejected_rooms`. Removes them from managed_rooms across all maps. Drops their drift history entries. Returns `{rejected, removed_from_managed, affected_map_ids}`.
+Moves room IDs into the rejected set for the resolved map. If they were
+configured, also removes them from managed_rooms **on that map only** (their
+HA entities get torn down by the platform-level room-update callbacks), and
+drops their drift-history entries. `rejected` is the list of **newly-added**
+ids from *this* call, not the cumulative rejected set. Callers should call
+`manager._notify_rooms_updated` for each id in `affected_map_ids`.
+
+```python
+unreject_rooms(manager, vacuum_entity_id, room_ids: list[int], map_id: str | None = None) -> dict
+# → {"unrejected": [...], "still_rejected_on": {map_id: [...]}, "map_id": str | None}
+# or the map_ambiguous refusal (writes nothing)
+```
+Undoes a rejection so the room can be discovered and configured again — the
+recovery path for a wrong `reject_rooms` call, previously impossible short of
+hand-editing `.storage`. Clears the id from **both** backings: the per-map
+list for the resolved `map_id`, and the legacy flat list (the flat entry is
+the one that cannot say which map it meant, so it is the one blocking a real
+room on a second floor — clearing it is the documented way out). The room
+does not reappear instantly; it resurfaces on the next discovery pass through
+the normal `new_rooms` confirmation cadence. `still_rejected_on` names any
+*other* map that still rejects one of the given ids, so the caller doesn't
+imply a clean sweep. `map_id` is subject to the same ambiguity refusal as
+`reject_rooms` — an unqualified un-reject on a multi-map vacuum would clear
+the vacuum-global legacy entry and un-hide the id on every floor at once, so
+it refuses rather than guesses. No standalone service caller before
+`setup_unreject_rooms` (§9) was added — undocumented until this audit.
 
 ```python
 force_remove_room(manager, vacuum_entity_id, room_id: int) -> dict
@@ -226,10 +294,13 @@ Bypasses the missing-pass counter — sets `missing_passes = max(existing, remov
 
 ```python
 run_discovery_pass(hass, manager, vacuum_entity_id) -> dict
+# → {"vacuum_entity_id": str, "discovered_room_ids": list[int], "map_id": str | None, "updated_at": str}
 ```
-Runs a live discovery probe, calls `update_drift_history()`, and returns `{vacuum_entity_id, discovered_room_ids, updated_at}`.
-
-> `reject_rooms`'s `rejected` key is the list of **newly-added** ids from *this* call (not the cumulative `rejected_rooms` set).
+Runs a live discovery probe, resolves the vacuum's active map id
+(`manager.resolve_active_map_id`, best-effort — `None` if the adapter can't
+name one), calls `update_drift_history(..., map_id=active_map_id)`, and
+returns the result including `map_id` — the map this pass's ids belong to and
+whose rejections applied.
 
 ### 4.7 Configured-room flags & legacy migration
 
@@ -272,6 +343,14 @@ Called by the panel on load. Returns:
             ],
             "next_step":   str | None,   # first incomplete step ID
             "room_drift":  dict,         # compute_room_drift() result (no live probe)
+            "reconciliation": {          # last-cached identity-shift reconciliation, or None
+                "reviews":     list,     # review dicts (rooms/reconciliation.py) — id_changed /
+                                          # renamed / renamed_and_renumbered shapes
+                "has_changes": bool,
+                "plan_token":  str,      # opaque; round-trips to reconcile_room, never parse
+                "map_id":      str,      # the vacuum's active map this review was cached for
+                "dismissed":   bool,     # optional, present only when a dismissal suppressed it
+            } | None,
             "maps":        list[dict],   # per-map summaries with protection info
             # Legacy backward-compat:
             "has_imported_map": bool,
@@ -288,7 +367,9 @@ Called by the panel on load. Returns:
 
 **`next_step` and the sticky `save_rooms` re-open.** `next_step` is the first incomplete step ID — but a *completed* `save_rooms` is flipped back to incomplete when `active_map_configured(...)` returns **`False`** (§4.7: the active map has no configured rooms, e.g. after a factory reset / new map id). `None` (active map indeterminate) leaves the sticky flag set. So `next_step` can point back at `save_rooms` even though it was completed earlier.
 
-**Drift probe:** `compute_room_drift()` is called **without** a live discovery probe — reflects the latest stored history. Discovery passes update history out-of-band via listener triggers.
+**Drift probe:** `compute_room_drift()` is called **without** a live discovery probe, scoped to the vacuum's currently-resolved active map (`resolve_active_map_id`, A4-SETUP-6 — leaving the map unset here would filter `new_rooms` by the union of every map's rejections, so a room rejected downstairs would never be offered upstairs) — reflects the latest stored history. Discovery passes update history out-of-band via listener triggers.
+
+**Reconciliation (CARD-7/RP-019):** `reconciliation` is a **passive read only** — it never calls `discover_rooms` or recomputes anything itself. It reads whatever `RoomMapManager.discover_rooms` already cached at `data["discovery"][vacuum][map_id]["reconciliation"]` the last time discovery actually ran for the vacuum's currently-active map (`get_active_map_id`), same "as of the last pass" contract as `room_drift` above. Opening or polling Setup never itself triggers a new discovery pass. `None` when the active map can't be resolved or nothing has been cached yet.
 
 **Maps list:** Each entry carries `map_id` (str), `display_name` (`str | None`), `room_count` (int), `imported` (bool), and a `protection` sub-dict from `evaluate_map_protection()` for imported maps. `display_name` is the raw stored name or **`None`** when the map is unnamed — `status.py` no longer fabricates an English `"Map {map_id}"`; the **card** renders the localized `setup.map_n` ("Map {id}") fallback.
 
@@ -357,16 +438,24 @@ The `code` field (delete's `ActionResult` extension, §2) takes one of: `manager
 `delete.py` uses a safe `display_label` (stored name or `"Map {id}"`) for response messages and log lines **only** — never as the wire token (which stays the raw stored name, non-`None` only when `requires_typed_confirmation`).
 
 **On confirmed delete:**
-1. `manager.remove_map(vacuum_entity_id, map_id_str)` — removes all data for the map.
-2. `manager._notify_rooms_updated(vacuum, map_id)` — triggers entity-platform cleanup.
-3. `manager._notify_run_profiles_updated(vacuum, map_id)` — triggers run-profile cleanup.
-4. Entity registry sweep: removes any `eufy_vacuum`-platform entities whose `unique_id` starts with `{vacuum_entity_id with '.'->'_'}_{map_id}_` (e.g. `vacuum_alfred_6_`) to catch stragglers missed by platform teardown callbacks.
-5. `manager.async_save()`.
+1. The map's room ids are captured **before** the removal (needed to reconstruct ownership below, and the bucket is gone after step 2).
+2. `manager.remove_map(vacuum_entity_id, map_id_str)` — removes all data for the map.
+3. `manager._notify_rooms_updated(vacuum, map_id)` — triggers entity-platform cleanup.
+4. `manager._notify_run_profiles_updated(vacuum, map_id)` — triggers run-profile cleanup.
+5. **Entity registry sweep, by a CLOSED SET (RP-009/DR-SETUP-1)** — `unique_ids_for_map(vacuum_entity_id, map_id, room_ids)` forward-reconstructs the exact unique_ids this map's rooms would have owned, and only entities whose `unique_id` is in that set are removed. The registry is **never** swept by string prefix anymore: the old prefix scan (`{vacuum with '.'->'_'}_{map_id}_`) was proven to delete every entity of a *sibling* vacuum whose entity_id happened to be that prefix plus a suffix (e.g. deleting map "2" of `vacuum.alfred` swept all of `vacuum.alfred_2`'s entities). Entries the legacy prefix *would* have matched but the closed set does not are **enumerated and reported as `orphan_candidates`, never deleted** — pre-fix orphans (rooms removed before this repair) or an older id scheme cannot be safely re-derived, so what cannot be reconstructed is not destroyed.
+6. `manager.async_save()`.
 
 Returns `"success"` (`code="map_deleted"`) with:
 
 ```python
-data = {"removed": <remove_map result>, "entities_removed": int, "remaining_map_count": int}
+data = {
+    "removed": <remove_map result>,
+    "entities_removed": int,
+    "orphan_candidates": [{"entity_id": str, "unique_id": str}, ...],  # matched the legacy
+                                                                        # prefix but not the
+                                                                        # closed set — left untouched
+    "remaining_map_count": int,
+}
 next_actions = ["import_active_map"] if no maps remain else []
 warnings = ["This vacuum now has no imported maps. Import a new map to resume cleaning."]  # only when none remain
 ```
@@ -381,7 +470,8 @@ warnings = ["This vacuum now has no imported maps. Import a new map to resume cl
 | `data["setup_progress"][vacuum_entity_id]["last_advanced_at"]` | ISO of last step completion (or `None`) |
 | `data["setup_progress"][vacuum_entity_id]["migrated_at"]` | ISO — **present only on migrated (legacy) records** (§4.3/§4.7); write-only (CS-1) |
 | `data["setup_progress"][vacuum_entity_id]["room_drift_history"][str(room_id)]` | Per-room 5-field drift entry (`missing_passes`, `seen_passes`, `last_seen_at`, `first_missed_at`, `first_seen_at` — §4.5) |
-| `data["setup_progress"][vacuum_entity_id]["rejected_rooms"]` | Room IDs the user has explicitly rejected |
+| `data["setup_progress"][vacuum_entity_id]["rejected_rooms"]` | LEGACY flat, vacuum-wide rejected-room ids (read-only from now on) |
+| `data["setup_progress"][vacuum_entity_id]["rejected_rooms_by_map"][str(map_id)]` | Room IDs rejected on that map (A4-SETUP-6, §4.6) — the current write target |
 | `data["vacuums"][vacuum_entity_id]` | Vacuum record (created by `ensure_vacuum_record`); holds `panel_title`, `live_map_image_entity` |
 | `data["maps"][vacuum_entity_id][str(map_id)]` | Map bucket (created by `import_active_map`) |
 | `…[str(map_id)]["rooms"][str(room_id)]["is_configured"]` / `["configured_at"]` | Setup-approval flags (§4.7); gate entity creation + drift's "configured" set |
@@ -406,3 +496,18 @@ Two more setup services write vacuum-record fields (no step):
 
 - **`setup_set_panel_title`** — stores `panel_title` on the vacuum record (blank reverts to default), persists, re-registers the panel with `replace=True` (§3.1). The `title` field is `vol.Length(max=48)`.
 - **`setup_set_map_camera`** — writes `live_map_image_entity` on the vacuum record (the §5 field); a **blank value clears it** (`record.pop`), falling back to the adapter's `live_map_image_entity_pattern`. Returns `{... "live_map_image_entity": raw_entity or None}`.
+
+Two more services drive the map-scoped rejection state (§4.6, A4-SETUP-6) and record no setup step:
+
+- **`setup_reject_rooms`** / **`setup_unreject_rooms`** — call `drift.reject_rooms` /
+  `drift.unreject_rooms` with `map_id` resolved by `_rejection_map_id(manager,
+  call)`: the caller's explicit `map_id` field if given, else the vacuum's
+  currently **active** map (the card does not send `map_id` today, and the
+  map the user was looking at when they clicked is the active one). `None`
+  (no active-map resolver, or an adapter that can't say) falls through to the
+  legacy every-map rejection rather than silently no-opping. `setup_reject_rooms`
+  also fires `manager._notify_rooms_updated` for every entry in
+  `affected_map_ids` so the platform-level entity teardown runs. Both `await
+  manager.async_save()` and return `{"status": "success", **result}` — a
+  `map_ambiguous` refusal (§4.6) is *not* re-wrapped, so its own `status:
+  "error"` passes through unchanged.

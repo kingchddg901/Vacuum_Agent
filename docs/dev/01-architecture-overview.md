@@ -151,7 +151,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `manager.live_room_refresh` | `live_refresh/manager.py` | Lever B contiguous-run live current-room refresh (rate-limit + sticky-disable + local-connection pulse) |
 | `manager.map_source` | `mapping/map_source_coordinator.py` | `map_state_source` backend dispatch (provider segmentation + live-pose reads) |
 | `manager.dispatch` | `dispatch/manager.py` | Send-side wire dispatch: `_dispatch_clean_payload`, `dispatch_zone_clean`, `_resolve_live_dispatch_payload`, `_run_global_pre_calls` (all four moved out of core; the manager keeps a thin delegator for each) |
-| `manager.external_run` | `learning/external_run.py` | External (app-started) run capture/finalize: `maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `discard_external_run`, `resegment_external_run`, the `_external_grace_*` timers/checks/finalize, `_extract_return_overhead` (the manager keeps a thin delegator for each). The `_ingest_*_into_room_history` helpers STAY in core — they are shared with the normal finalize path. Exposed from `learning/__init__` via a lazy `__getattr__` to avoid an import cycle |
+| `manager.external_run` | `learning/external_run.py` | External (app-started) run capture/finalize: `maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `discard_external_run`, `resegment_external_run`, the `_external_grace_*` timers/checks/finalize, `_extract_return_overhead` (the manager keeps a thin delegator for each). The `_ingest_*_into_room_history` helpers STAY in core — they are shared with the normal finalize path. `learning/__init__` imports `ExternalRunManager` **directly** — the old import-cycle-driven lazy `__getattr__` is gone: the grace-timer constants moved to `learning/constants.py`, and `external_run.py`'s only `core.manager` import is `TYPE_CHECKING`-guarded |
 
 ### Entry-point singletons (constructed in `__init__.async_setup_entry()`)
 
@@ -174,7 +174,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `rooms/` | `room_manager.py` (incl. `build_managed_rooms`), `room_discovery.py`, `reconciliation.py` (name-slug identity reconcile), `source_refresh.py` (service-response room cache), `rooms/utils.py` — stateless |
 | `models/` | `TypedDict` definitions (`VacuumRuntimeState`, `LiveRuleState`, etc.) |
 | `mapping/` | Image-based room segmentation, custom named layouts, the live map source, `point_in_polygon` zone membership, and the native current-room tracker |
-| `learning/` | Job finalization pipeline, history store, ETA estimator; also `external_run.py` — the `ExternalRunManager` subsystem (a stateful bundled subsystem, not stateless; see the subsystem-managers table above) |
+| `learning/` | Job finalization pipeline, history store, ETA estimator; also `external_run.py` — the `ExternalRunManager` subsystem (a stateful bundled subsystem, not stateless; see the subsystem-managers table above) — and `constants.py` (grace-timer constants) |
 | `setup/` | Setup workflow, drift detection, protection rules, protected map delete, status response |
 | `jobs/job_monitor.py` | Lifecycle state machine (pure function) |
 | `timestamp_utils.py` | `parse_timestamp`, `utc_now_iso` |
@@ -198,15 +198,22 @@ module (flat file) or a subsystem package. Here is the full map:
    registration so `get_adapter_config` lookups route through the coordinator,
    not the fallback module-level dict.
 
-2. **`EufyVacuumManager` construction + `async_initialize()`** — loads
-   `.storage`, seeds top-level keys, runs schema migrations, constructs all
-   subsystem manager objects (themes through `external_run` — in construction
-   order: themes, maintenance, dock, onboarding, profiles, access_graph,
-   active_job, phase_runner, run_plan, room_map, live_room_refresh, map_source,
-   dispatch, external_run), initialises callback lists. It then re-arms any
-   `charge_wait` / `wait` dock phase whose in-memory poller the restart lost
+2. **`EufyVacuumManager` construction + `async_initialize()`** — the manager's
+   `async_shutdown` is registered via `entry.async_on_unload` *immediately
+   after construction, before* `async_initialize()` runs (RP-003/INIT-1), so a
+   mid-setup failure after this point still tears down (`async_shutdown` is
+   idempotent — a never-initialized manager has empty ledgers and cancels
+   nothing). `async_initialize()` loads `.storage`, seeds top-level keys, runs
+   schema migrations, constructs all subsystem manager objects (themes through
+   `external_run` — in construction order: themes, maintenance, dock,
+   onboarding, profiles, access_graph, active_job, phase_runner, run_plan,
+   room_map, live_room_refresh, map_source, dispatch, external_run),
+   initialises callback lists. It then re-arms any `charge_wait` / `wait` dock
+   phase whose in-memory poller the restart lost
    (`phase_runner.rearm_dock_phase_if_needed`, called for every `status=='started'`
-   active job).
+   active job), and releases orphaned finalize claims / reaps stranded
+   phased-job parents left `running` by a crash (see [05 §2](05-core-manager.md)).
+   An `async_initialize()` failure raises `ConfigEntryNotReady` (HA retries).
 
    > **All subsystems are constructed unconditionally here — but only a few are
    > load-bearing to actually fire a room clean.** For which of these are the
@@ -219,10 +226,29 @@ module (flat file) or a subsystem package. Here is the full map:
    from the entity registry if found (silent no-op on clean installs).
 
 4. **Adapter registration** — `load_stored_adapter_configs` reads
-   `data["adapter_configs"]`; then `register_eufy_adapter_for_vacuum` registers
-   code adapters for each known vacuum (code adapters always win over stored).
+   `data["adapters"]` (user-built stored configs); then `register_brand_adapter`
+   (the ordered `BRAND_REGISTRARS` table in `adapters/brands.py`) registers the
+   matching brand's code adapter for each known vacuum — resolution order:
+   explicit per-vacuum override (`data["brand_overrides"]`) → first positive
+   `detect` (Roborock's `is_roborock_vacuum`) → the declared default arm (Eufy,
+   which carries no `detect`). Code adapters always win over stored.
 
-5. **Singletons construction** — `LearningManager`, `BatteryHealthManager`,
+   > **From immediately before this step onward** (the ledger is created just
+   > before it, in `__init__.async_setup_entry`), every resource this and the
+   > following steps register is pushed onto a local mid-setup unwind ledger
+   > (`_unwind_stack`, RP-039/RF-16), walked in reverse (LIFO) if a later step
+   > raises. Adapter registration itself pushes nothing to the ledger (a failed
+   > attempt's `AdapterCoordinator` is simply replaced by a fresh one on the
+   > next attempt) — the first entries appear once the manager is stored at
+   > `DATA_RUNTIME`, at the start of the next step. See
+   > [02-ha-integration §1](02-ha-integration.md#1-integration-entry-points).
+
+5. **Singletons construction** — `LearningManager` constructed, then the
+   learning read-caches (`room_stats.json` / `accuracy_stats.json` /
+   `job_stats.json`) are warmed off-loop per vacuum
+   (`LearningHistoryStore.warm_estimate_caches` via executor) so the
+   loop-bound dashboard-snapshot estimate never blocks on disk — not even on
+   the first snapshot after a restart. Then `BatteryHealthManager`,
    `ErrorTracker` constructed and started. `BatteryHealthManager` is built in
    `__init__.py` and stored at `hass.data[DOMAIN][DATA_BATTERY]`
    (`DATA_BATTERY = "battery"`, `const.py`); it is torn down on unload.
@@ -246,8 +272,13 @@ module (flat file) or a subsystem package. Here is the full map:
 9. **Panel registration** — one sidebar panel registered per managed vacuum
    (`eufy-vacuum-{object_id}`), serving the compiled card JS.
 
-On unload the sequence reverses: services unregistered, listeners removed,
-platforms unloaded, singletons shut down, coordinator torn down.
+On unload, platforms unload first (everything else runs only if that
+succeeds), then panels are removed, listeners removed, services unregistered,
+singletons shut down, coordinator torn down — and, separately, HA runs the
+`entry.async_on_unload` callbacks registered in step 2, including
+`manager.async_shutdown()`, which flushes any pending debounced save and
+cancels the manager's background tasks/timers. See
+[02-ha-integration](02-ha-integration.md) for the exact order.
 
 > **See also:** [02-ha-integration](02-ha-integration.md) for the full config-entry lifecycle, platform setup, and entity registration detail; [04-listeners](04-listeners.md) for the listener registration and unsubscription pattern.
 
@@ -272,11 +303,19 @@ core/manager.py — start_selected_rooms()
      ├── Runs preflight rule evaluation (per-room blockers/modifiers)
      ├── Calls manager._update_room_rule_status_snapshot() → data["room_rule_status"]
      └── Returns queue, payload, preflight summary
-  3. Calls active_job.record_active_job_transition(...)
+  3. Dispatches via the DispatchManager delegators, in order:
+     ├── _resolve_live_dispatch_payload (slug → live segment id, wire-only)
+     ├── _run_global_pre_calls (device-global settings; runs AFTER resolution
+     │    — DQ-ACT-6: resolution can raise on a re-segmented map, and firing
+     │    the pre-calls first left a failed start with the device's global
+     │    setting already rewritten)
+     └── _dispatch_clean_payload → hass.services.async_call(domain, service, data)
+         (dispatch/manager.py — the adapter's wire envelope, command default "room_clean")
+  4. Builds the active-job record (build_active_job_state + job_metadata/job_id)
      └── Writes data["active_jobs"][vacuum][map_id]
-  4. Calls hass.services.async_call("vacuum", "send_command", payload)
-     └── Sends room_clean payload to upstream vacuum entity
   5. Returns start summary to service caller → card displays result
+     (the calling service handler saves; start_selected_rooms itself never
+     calls async_save)
   │
   ▼  (vacuum hardware begins cleaning)
   │
@@ -320,7 +359,7 @@ core/manager.py — _ingest_completed_job_into_room_history()
   → Room history sensors refresh
   │
   ▼
-core/manager.py — fires EVENT_JOB_FINISHED on HA event bus
+listeners/lifecycle.py — fires EVENT_JOB_FINISHED on HA event bus
   → Card receives event, refreshes dashboard
 ```
 
@@ -341,19 +380,30 @@ Top-level keys in `manager.data`:
 
 | Key | Content |
 |---|---|
-| `"vacuums"` | Per-vacuum config record (name, notes) |
+| `"vacuums"` | Per-vacuum record — `vacuum_entity_id`, `detected_model`, `is_managed` (set by `ensure_vacuum_record`); `pause_timeout_minutes_default` (get/set_pause_timeout_settings); optional `panel_title` / `live_map_image_entity` when the user has overridden them via the setup services |
 | `"capabilities"` | Discovered entity IDs and feature flags per vacuum |
-| `"maps"` | Per-vacuum, per-map bucket: rooms, summary, queue, payload, segment links |
+| `"maps"` | Per-vacuum, per-map bucket: rooms, summary, metadata, segment links |
+| `"queue"` / `"payloads"` | Per-vacuum, per-map derived queue / payload snapshots |
 | `"active_jobs"` | Per-vacuum, per-map active job state (status, queue, progress) |
 | `"room_history"` | Per-vacuum, per-map, per-room last clean timestamps |
 | `"room_rule_status"` | Per-vacuum, per-map, per-room last rule evaluation result |
-| `"profiles"` | Room profiles library and run profiles library |
+| `"profiles"` | Room profiles library (`profiles.room_profiles`) |
+| `"run_profiles"` | Saved run profiles, per vacuum per map |
 | `"theme"` | Theme library (built-in + user), active theme ID, working draft |
 | `"maintenance"` | Per-vacuum, per-component reset snapshots and intervals |
-| `"onboarding"` | Discovery payloads (pre-approval room data) |
-| `"setup_progress"` | Per-vacuum setup state machine (completed steps) |
-| `"adapter_configs"` | User-built adapter overrides (stored adapter configs) |
+| `"onboarding"` | Per-vacuum, per-map onboarding flags (`rooms_discovered`, floor-type confirmations) |
+| `"discovery"` | Raw discovery cache per vacuum per map |
+| `"setup_progress"` | Per-vacuum setup state machine (completed steps, rejections, drift history) |
+| `"adapters"` | User-built adapter overrides (stored adapter configs) |
+| `"brand_overrides"` | Explicit per-vacuum brand choice, read by the brand registrar; no writer yet |
+| `"battery"` | Battery-health records, nested one level down per vacuum under `battery.vacuums` (written by `battery/manager.py`) |
 | `"dock_events"` | Recent dock event log per vacuum |
+| `"error_tracker"` | Per-vacuum error state (`active_run_error`, `last_device_error`, `recent_errors`); in the storage default, backfilled unconditionally on load (`core/storage.py`) |
+| `"learning_processing_enabled"` / `"learning_pending_runs"` | Box-level learning toggle + per-vacuum pending-run counters |
+
+(This is the working inventory; [03-data-model](03-data-model.md) is the
+authoritative schema for whatever it documents, but as of this audit that doc
+covers only a subset of the keys above.)
 
 ### Learning history files
 
@@ -417,25 +467,34 @@ lookup chain is:
 2. Module-level `_REGISTRY` fallback (legacy shim; stays empty in normal operation)
 
 The coordinator's registry is populated in two ways:
-- **Code adapters** — `adapters/eufy/adapter.py` registers the hardcoded Eufy
-  config at startup for each known Eufy vacuum.
-- **Stored adapters** — `adapters/config_loader.py` reads `data["adapter_configs"]`
+- **Code adapters** — `register_brand_adapter` (`adapters/brands.py`) resolves
+  and runs one brand's registrar for each known vacuum, per the ordered
+  `BRAND_REGISTRARS` table: an explicit per-vacuum override
+  (`data["brand_overrides"]`, read-path only today — no writer yet) → the
+  first registrar whose `detect` returns `True` (Roborock's
+  `is_roborock_vacuum`) → the declared default arm (Eufy, which carries no
+  `detect` at all — there is no honest positive test for it, so an
+  unidentified vacuum resolves via `default` and `resolve_brand` reports
+  which of the three routes was taken).
+- **Stored adapters** — `adapters/config_loader.py` reads `data["adapters"]`
   and registers user-built configs. Code adapters always win if both exist for
   the same vacuum.
 
 ### Adding a new brand
 
 Roborock is already shipped as a worked second-brand adapter
-(`adapters/roborock/`, registered via `register_roborock_adapter_for_vacuum` in
-`__init__.async_setup_entry`, brand-gated by `is_roborock_vacuum`) — see
+(`adapters/roborock/`, a `BrandRegistrar` row pairing
+`register_roborock_adapter_for_vacuum` with `is_roborock_vacuum`) — see
 [29-roborock-adapter](29-roborock-adapter.md) for that walkthrough.
 
 To add a *third* brand (e.g. Dreame), you would:
 
 1. Create `adapters/dreame/` with `adapter.py`, `const.py`, and vocabulary
    files mirroring the Eufy / Roborock structure.
-2. Register it in `__init__.async_setup_entry` (a `register_dreame_adapter_for_vacuum`
-   call, brand-gated like the Roborock branch) for each known Dreame vacuum.
+2. Add one `BrandRegistrar` row to `BRAND_REGISTRARS` in `adapters/brands.py`
+   (`register_dreame_adapter_for_vacuum` + a positive `detect`). Integration
+   core (`__init__.py`) is untouched — this is the whole point of the
+   registrar table.
 3. The rest of the codebase calls `get_adapter_config(vacuum_entity_id)` — no
    other files change.
 

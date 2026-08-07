@@ -66,19 +66,19 @@ Five rings *are* load-bearing on the current path. Decoded, they are not five de
 | Ring | Reach-in (as of audit) | What it really is |
 |---|---|---|
 | **run_plan** | `_build_effective_start_plan` → `run_plan._build_effective_start_plan` | **IS "the input for dispatch."** The dispatch engine is invoked *through* it. Atom-adjacent. |
-| **access_graph** | `core/manager.py:1626` `_normalized_managed_rooms_with_automation` → `self.access_graph.*` | the **room-config normalizer** that feeds the payload. A dumb vac has no access rules — but the normalizing *primitive* was housed in the graph ring. |
-| **profiles** | `core/manager.py:1250-1254` `_protected_room_config` / `_match_profile_from_fields` → `self.profiles.*` | the **effective-room shaper**. A dumb vac has no profiles — but the shaping *primitive* was housed in the profiles ring. |
-| **onboarding** | `core/manager.py:2490` `if not onboarding["floor_types_complete"]:` → blocks start `onboarding_required` | a **self-satisfiable VA gate**, *not a weld*. Floor type is pure VA state — `floor_types_confirmed` is a VA-owned dict in `data["onboarding"]` (`onboarding/manager.py:99`), `confirm_floor_type` just flips a boolean; **the adapter is never consulted.** VA owns the room list *and* the flags, so it can always complete this itself. It blocks today only because it waits for a human confirm — a step that earns its keep for **mopping** (don't mop an unclassified carpet), and is cosmetic for a non-mopping vac. |
+| **access_graph** | `core/manager.py:2557` `_normalized_managed_rooms_with_automation` → `self.access_graph.*` | the **room-config normalizer** that feeds the payload. A dumb vac has no access rules — but the normalizing *primitive* was housed in the graph ring. |
+| **profiles** | `core/manager.py:1545`/`:1548` `_protected_room_config` / `_match_profile_from_fields` → `self.profiles.*` | the **effective-room shaper**. A dumb vac has no profiles — but the shaping *primitive* was housed in the profiles ring. |
+| **onboarding** | `core/manager.py:3481` `if not onboarding["floor_types_complete"]:` → blocks start `onboarding_required` | a **self-satisfiable VA gate**, *not a weld*. Floor type is pure VA state — `floor_types_confirmed` is a VA-owned dict in `data["onboarding"]` (`onboarding/manager.py:38`, `_default_map_onboarding`), `confirm_floor_type` just flips a boolean; **the adapter is never consulted.** VA owns the room list *and* the flags, so it can always complete this itself. It blocks today only because it waits for a human confirm — a step that earns its keep for **mopping** (don't mop an unclassified carpet), and is cosmetic for a non-mopping vac. |
 | **active_job** | `jobs/` paused-gate + post-wire live settings | run tracking. **Legit atom member — keep.** |
 
 **The verb stayed tiny; the noun got rich.** The *calling* is unchanged (one `async_call`). What inflated is *"which rooms, shaped how"* — ALFRED's helper-string became `run_plan → access_graph → profiles`. Every mis-homed weld is room-**definition**; the onboarding gate is about **when** a room may be called — and since floor type is VA-owned, VA can answer that itself. None of them is about the call.
 
-**The seam is already there.** The core holds thin *delegators* — `_normalized_managed_rooms_with_automation` (`:1626`), `_protected_room_config` (`:1250`) — whose signatures live in core but whose **bodies just forward into the ring**. Giving those bodies a ring-free default is most of B.
+**The seam is already there.** The core holds thin *delegators* — `_normalized_managed_rooms_with_automation` (`:2557`), `_protected_room_config` (`:1545`) — whose signatures live in core but whose **bodies just forward into the ring**. Giving those bodies a ring-free default is most of B.
 
 ## 6. "How much can you pull off?" — a two-layer answer
 
-- **Functionally, today: it still cleans.** `async_initialize` constructs all subsystems unconditionally, so nothing is ever `None`; a rooms-only brand's send *fires* — **once it clears the onboarding floor-type gate** (`:2490`). That gate is brand-independent and self-satisfiable (VA owns the flags); it surprises only because it currently waits for a human confirm.
-- **Structurally: not yet.** Remove the rings and the path raises `AttributeError` *before* the wire send, at: `run_plan` (`_build_effective_start_plan`), `access_graph` (`:1626`), `profiles` (`:1250`/`:1254`), `active_job` (paused-gate), `onboarding` (`:2490`/`:3740`).
+- **Functionally, today: it still cleans.** `async_initialize` constructs all subsystems unconditionally, so nothing is ever `None`; a rooms-only brand's send *fires* — **once it clears the onboarding floor-type gate** (`get_start_status`, `core/manager.py:3481`). That gate is brand-independent and self-satisfiable (VA owns the flags); it surprises only because it currently waits for a human confirm.
+- **Structurally: not yet.** Remove the rings and the path raises `AttributeError` *before* the wire send, at: `run_plan` (`_build_effective_start_plan`), `access_graph` (`:2557`), `profiles` (`:1545`/`:1548`), `active_job` (paused-gate), `onboarding` (`:3481`, the single gate anchor).
 
 The distance between those two layers **is** the deconstruction work. Answered plainly: *pull off everything and you are back at ALFRED — and it still calls a room.*
 
@@ -123,30 +123,31 @@ For each subsystem, ask in order — the first "yes" sets the verdict:
 
 Signals to score it on: **import** (hard = spine candidate / lazy = ring candidate) · **ctor** (`manager=self` back-ref = can reach into core, tighter / `data`+`hass` = already loose) · **core reach-ins** (count of `self.X.` in `core/`, the weave; all currently originate in `manager.py`).
 
-### The checklist (reach-ins as of 2026-07-11 audit)
+### The checklist (reach-ins re-counted against current source; verdicts as of the 2026-07-11 audit)
 
 | Subsystem | Imp | Ctor | Reach-ins | Verdict / status |
 |---|---|---|---|---|
-| `active_job` | lazy | mgr | 36 | **KEEP** — run tracking (paused-gate + live settings). Atom member. ✅ walked |
-| `profiles` | lazy | mgr | 20 | **SPLIT (relocate 4 / leave 16)** — relocate the effective-room shaper (`_protected_room_config` :1251, `_match_profile_from_fields` :1254, `_finalize_room_update` :1257, `get_effective_room_details` :1219) to core; leave 15 profile/run CRUD + `start_run_profile` orchestration as the ring. Shaper is live on **two** atom paths (`build_room_payload` :2184, `run_plan.py:1284-85`) + the room-write path. ✅ walked |
-| `themes` | lazy | data | 13 | **LEAVE** — the cleanest ring; **no manager back-ref at all** (ctor `data` only), owns `data["theme"]` + its own callback list. The reference for a fully detached ring. ✅ walked |
-| `access_graph` | lazy | data+hass | 12 | **RELOCATE** — `_normalized_managed_rooms_with_automation` (room-normalizer) belongs in core; graph augments with rules/grants. ✅ walked |
+| `active_job` | lazy | mgr | 39 | **KEEP** — run tracking (paused-gate + live settings). Atom member. ✅ walked |
+| `profiles` | lazy | mgr | 26 | **SPLIT (relocate 4 / leave 22)** — relocate the effective-room shaper (`_protected_room_config` :1545, `_match_profile_from_fields` :1548, `_finalize_room_update` :1551, `get_effective_room_details` :1513) to core; leave the rest as profile/run CRUD + `start_run_profile` orchestration in the ring. Shaper is live on **two** atom paths (`build_room_payload` :3159, `run_plan.py:1442-1443`) + the room-write path (`update_room_fields` :1553). ✅ walked |
+| `themes` | lazy | data | 14 | **LEAVE** — the cleanest ring; **no manager back-ref at all** (ctor `data` only), owns `data["theme"]` + its own callback list. The reference for a fully detached ring. ✅ walked |
+| `access_graph` | lazy | data+hass | 14 | **RELOCATE** — `_normalized_managed_rooms_with_automation` (room-normalizer, `core/manager.py:2557`) belongs in core; graph augments with rules/grants. ✅ walked |
 | `run_plan` | lazy | mgr | 12 | **KEEP/absorb** — *is* the input pipeline for dispatch. Atom-adjacent. ✅ walked |
-| `external_run` (learning) | lazy | mgr | 12 | **EXTRACT** — mapped in §9.3; already `if … is None`-guarded; the portable one. ✅ walked |
+| `external_run` (learning) | lazy | mgr | 13 | **EXTRACT** — mapped in §9.3; already `if … is None`-guarded; the portable one. ✅ walked |
 | `dock` | lazy | mgr | 9 | **LEAVE** — clean ring; reaches back into core read-only to *gate* actions (capabilities/lifecycle/active-job). Confirmed **home for maintenance-level actions**: self-clean/empty/descale slot into its generic `action_buttons` map + a `supports_*` gate, no structural change. ✅ walked |
 | `maintenance` | lazy | mgr | 7 | **LEAVE** — dead import clipped (3dc2a06); now lazy-only, detachable. 7 live reach-ins are legit upkeep delegators. ✅ walked |
-| `room_map` | lazy | mgr | 7 | **LEAVE** — atom-adjacency **disproven**: active-map resolution for the atom is already core-owned (`_resolve_active_map_id` :2712 → pure `rooms.room_discovery.get_active_map_id`). A discovery/save/reconcile CRUD ring; its heavy back-reach is core *plumbing*, no trapped logic. ✅ walked |
+| `room_map` | lazy | mgr | 7 | **LEAVE** — atom-adjacency **disproven**: active-map resolution for the atom is already core-owned (`resolve_active_map_id` `core/manager.py:3749` → pure `rooms.room_discovery.get_active_map_id`). A discovery/save/reconcile CRUD ring; its heavy back-reach is core *plumbing*, no trapped logic. ✅ walked |
 | `onboarding` | lazy | data+hass | 6 | **DEFAULT → opt-in curation** — a self-satisfiable gate (floor type is VA-owned), and really an *optional curation feature* (floor types + room review). Began as Eufy's phantom-0 m² filter; the core path can auto-import + default floor types, curation opt-in. Not core. ✅ walked |
 | `map_source` | lazy | mgr | 5 | **LEAVE** — live-map backdrop reader (provider segmentation + live-pose), off the room-clean path. Reaches back via **two deliberate shared seams** (`_map_state_source_cache`, `_resolve_live_map_image_entity`) — formalize as host contract, don't dissolve the ring. ✅ walked |
-| `dispatch` | lazy | mgr | 4 | **KEEP** — the caller; reads only adapter cfg + `hass`. Ring-free. ✅ walked |
-| `phase_runner` | lazy | mgr | 3 | **KEEP (conditional)** — needed only for strict-order / charge-step runs; atomic path never enters it. ✅ walked |
-| `live_room_refresh` | lazy | mgr | 1 | **LEAVE** — the cleanest: one reach-in (`maybe_pulse` :3949), reaches back only for `hass`; all config/rate-limit/local-gate self-contained. No-op for Eufy. Already extracted from core for this reason. ✅ walked |
+| `dispatch` | lazy | mgr | 4 | **KEEP** — the caller; reads only adapter cfg + `hass`. Ring-free (`dispatch_zone_clean` is the one dispatch entry point that also reaches into `map_source` for zone-rect resolution — a room-clean path never touches it). ✅ walked |
+| `phase_runner` | lazy | mgr | 4 | **KEEP (conditional)** — needed only for strict-order / charge-step runs; atomic path never enters it. ✅ walked |
+| `live_room_refresh` | lazy | mgr | 1 | **LEAVE** — the cleanest: one reach-in (`maybe_pulse_live_room_refresh` → `maybe_pulse`, `core/manager.py:5959`), reaches back only for `hass`; all config/rate-limit/local-gate self-contained. No-op for Eufy. Already extracted from core for this reason. ✅ walked |
 
 ### Out of the ring set
 
 - **Singletons** (constructed in `__init__.async_setup_entry`, not the manager): `LearningManager`, `BatteryHealthManager`, `ErrorTracker`, `MappingTracker`. Battery/water are the **cheap siblings** — same estimation engine as learning; walk them *after* the learning extraction lands the shared host contract.
 - **Atom / spine** (hard-imported, the thing that stands): `adapters`, `queue` (engine + dispatch_engines), `maps`, `models`, `rooms` (identity), `jobs`, and `core` (`storage`/`capabilities`/`charging`). Not pulled — this *is* the core.
 - **HA glue** (platform wiring, not detachment candidates): `listeners`, `services`, `sensor`, `setup`, `frontend`, `translations`, `textures`.
+- **Not a ring at all** — `contract_versions.py`: a small top-level registry of mechanism-contract version numbers for the proof-harness (declared via `Proof.require_contract`), unrelated to the manager/subsystem graph this document walks. A footnote, not a checklist row.
 
 ### Result
 
@@ -162,12 +163,12 @@ Plan now, work later. The complete walk reduces B to **making three optional fea
 Move `_normalized_managed_rooms_with_automation`'s body into core (or `run_plan`); core produces a plain normalized-rooms payload with no access rules, and `access_graph` becomes a self-contained optional overlay — configured in full or not at all. It is already loosely built (`data`+`hass`, no back-ref), so this is a clean lift. *Test:* room-payload build + a no-graph path. *Risk:* low–moderate.
 
 **B2 · Relocate the effective-room shaper** (`profiles` → core).
-Move the 4 shaper primitives (`_protected_room_config`, `_match_profile_from_fields`, `_finalize_room_update`, `get_effective_room_details`) into core; profiles becomes a pure opt-in preset feature that supplies the *catalog* (`get_room_profiles`) when present. The 15 CRUD + `start_run_profile` orchestration stay in the ring and consume the relocated shaper via core. This is the **highest-value cut** — the shaper is live on two atom paths (`build_room_payload` :2184, `run_plan.py:1284-85`) plus the room-write path (`update_room_fields` :1351). *Test:* payload-build + room-update + profile-apply suites. *Risk:* moderate (hot path + write path).
+Move the 4 shaper primitives (`_protected_room_config`, `_match_profile_from_fields`, `_finalize_room_update`, `get_effective_room_details`) into core; profiles becomes a pure opt-in preset feature that supplies the *catalog* (`get_room_profiles`) when present. The remaining CRUD + `start_run_profile` orchestration stay in the ring and consume the relocated shaper via core. This is the **highest-value cut** — the shaper is live on two atom paths (`build_room_payload` :3159, `run_plan.py:1442-1443`) plus the room-write path (`update_room_fields` :1553). *Test:* payload-build + room-update + profile-apply suites. *Risk:* moderate (hot path + write path).
 
 > B1 and B2 are the same job — reclaiming the room-definition mechanism — and should land together. After them the atom builds a plain rooms payload with `access_graph`/`profiles` absent entirely.
 
 **B3 · Make onboarding optional curation, not a gate** (independent).
-Onboarding began as data hygiene — it kept Eufy's phantom **0 m² "non-room"** from being created (the human review excluded it; there is no automatic area filter — `room_crud.py:238` keys only on `map_id`). But that one real need is a cheap import-time rule (auto-drop degenerate / 0 m² segments); everything else it does — floor-type confirmation, room naming / enable review — is opt-in polish. So the core path becomes fully automatic: **import map → import rooms (skip phantoms) → default floor types → clean**, with the start-gate (`:2490`) removed from the core path entirely. Curation is then a feature a user opts into; floor-type confirmation still matters for mopping, so surface it as a *recommendation*, not a block. *Test:* auto-import path + a phantom-segment fixture. *Risk:* runs previously blocked now proceed → design pass (the floor-type default is mop-cosmetic for non-moppers).
+Onboarding began as data hygiene — it kept Eufy's phantom **0 m² "non-room"** from being created (the human review excluded it; there is no automatic area filter — `room_crud.py:238` keys only on `map_id`). But that one real need is a cheap import-time rule (auto-drop degenerate / 0 m² segments); everything else it does — floor-type confirmation, room naming / enable review — is opt-in polish. So the core path becomes fully automatic: **import map → import rooms (skip phantoms) → default floor types → clean**, with the start-gate (`:3481`) removed from the core path entirely. Curation is then a feature a user opts into; floor-type confirmation still matters for mopping, so surface it as a *recommendation*, not a block. *Test:* auto-import path + a phantom-segment fixture. *Risk:* runs previously blocked now proceed → design pass (the floor-type default is mop-cosmetic for non-moppers).
 
 **Not B (separate tracks):**
 - **EXTRACT learning** behind its §9.3 host contract → `battery`/`water`/`bounds` fall out as cheap siblings on the shared engine.

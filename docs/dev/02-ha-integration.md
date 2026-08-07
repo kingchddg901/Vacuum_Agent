@@ -29,12 +29,29 @@ Called once when the domain is first loaded. It:
   The `frontend` and `textures` directories are package-relative — they ship
   inside the installed integration and are not created under `config_dir` (the
   shipped/default `frontend/locales` directory is likewise package-relative).
-- Registers four static HTTP paths via `hass.http.async_register_static_paths`:
+  The `locales` index only lists real, regular `.json` files (never
+  `index.json` itself and never a symlink) — the directory is served
+  statically, so keeping the index that narrow means a stray symlink placed
+  there is never advertised or auto-loaded by the card.
+- Registers **five** static HTTP paths via `hass.http.async_register_static_paths`:
   - `/eufy_vacuum/maps` → persisted map image files (`cache_headers=False`)
   - `/eufy_vacuum/textures` → shipped floor-texture assets (`cache_headers=True`)
   - `/eufy_vacuum/frontend` → the compiled card JS bundle (`cache_headers=False`)
+  - `/eufy_vacuum/fonts` → shipped webfonts (`frontend/fonts/`,
+    `cache_headers=True`) — its own path purely for caching: the bundle path
+    deliberately disables caching so a redeploy is picked up, while a woff2
+    never changes between releases and must not be re-fetched on every page
+    load
   - `/eufy_vacuum/locales` → user-supplied drop-in translation JSON files (from
     `config/eufy_vacuum/locales/`, `cache_headers=False`)
+- Registers the cards bundle as a **global frontend module**
+  (`frontend.add_extra_js_url`, ES module) so the room card and dashboard card
+  are defined on every HA page — including a cold dashboard that never opens
+  the sidebar panel. Two guards: the bundle file must exist (an older deploy
+  skips registration rather than advertise a 404) and the frontend component
+  must be set up (absent in headless/test contexts). The full panel bundle
+  also defines these cards; a `defineCard` guard makes the resulting double
+  registration a no-op.
 
 ### `async_setup_entry` (`__init__.py`)
 
@@ -45,22 +62,44 @@ The main entry point. Called when the config entry is loaded. In order:
    **before** the manager so that all subsequent adapter registration (stored
    adapter configs + per-vacuum code adapters) lands in the coordinator's
    registry rather than the fallback module-level dict.
-2. Instantiates `EufyVacuumManager` and calls `manager.async_initialize()` to
-   load persisted storage.
-3. Stores the manager at `hass.data[DOMAIN][DATA_RUNTIME]`.
-4. Instantiates `LearningManager` and stores it at `hass.data[DOMAIN][DATA_LEARNING]`.
-5. Instantiates `BatteryHealthManager` and calls its `start(...)`; stores at
+2. Instantiates `EufyVacuumManager`, registers `manager.async_shutdown` via
+   `entry.async_on_unload` (**before** `async_initialize()`, so a mid-setup
+   failure still tears down — RP-003/INIT-1; `async_shutdown` is idempotent),
+   then calls `manager.async_initialize()` to load persisted storage. An
+   initialization failure raises `ConfigEntryNotReady` (HA retries). If the
+   entry carries a `vacuum_entity_id` (config or options), `ensure_vacuum_record`
+   makes it a managed vacuum; an options-update listener reloads the entry on
+   change; a one-time registry pass removes orphaned icon-select entities.
+3. Loads stored adapter configs (`load_stored_adapter_configs`, from
+   `data["adapters"]`), then registers the brand code adapter for each known
+   vacuum via `register_brand_adapter` (`adapters/brands.py` registrar table —
+   override → detect → default arm; code adapters overwrite stored for the
+   same vacuum). A local mid-setup unwind ledger (`_unwind_stack`,
+   RP-039/RF-16) is created just before this step; adapter registration itself
+   pushes nothing onto it (a failed attempt's coordinator is simply replaced
+   by a fresh one next attempt). **From the next step on**, every newly
+   registered resource IS pushed onto that ledger, walked in reverse if a
+   later step raises — deliberately separate from `entry.async_on_unload`,
+   which also fires on every normal unload and would run each undo twice.
+4. Stores the manager at `hass.data[DOMAIN][DATA_RUNTIME]` and at
+   `entry.runtime_data` (first ledger entries pushed here).
+5. Instantiates `LearningManager`, stores it at
+   `hass.data[DOMAIN][DATA_LEARNING]`, then warms the learning estimate
+   read-caches per vacuum off-loop (`LearningHistoryStore.warm_estimate_caches`
+   via executor — so the loop-bound dashboard-snapshot estimate never blocks on
+   disk, not even on the first snapshot after restart).
+6. Instantiates `BatteryHealthManager` and calls its `start(...)`; stores at
    `hass.data[DOMAIN][DATA_BATTERY]`.
-6. Instantiates `ErrorTracker` and calls `error_tracker.start(known_vacuum_ids)`;
+7. Instantiates `ErrorTracker` and calls `error_tracker.start(known_vacuum_ids)`;
    stores at `hass.data[DOMAIN][DATA_ERROR_TRACKER]`.
-7. Registers the inline `battery_rebaseline` service.
-8. Instantiates `MappingTracker` (last of the subsystems); stores it at
+8. Registers the inline `battery_rebaseline` service.
+9. Instantiates `MappingTracker` (last of the subsystems); stores it at
    `hass.data[DOMAIN]["mapping_tracker"]`. Registers position entities for
    vacuums whose capability map includes `robot_position_x`/`robot_position_y`.
-9. Calls the remaining service registration functions: `async_register_services`,
+10. Calls the remaining service registration functions: `async_register_services`,
    `async_register_learning_services`, `async_register_theme_services`,
    `async_register_mapping_services`.
-10. Registers background listeners by calling each listener module's
+11. Registers background listeners by calling each listener module's
    `register(hass)`: `lifecycle.register(hass)`, `job_metrics.register(hass)`,
    `dock_events.register(hass)`, `path_blockers.register(hass)`,
    `pause_timeout.register(hass)`, `job_progress.register(hass)`,
@@ -68,23 +107,45 @@ The main entry point. Called when the config entry is loaded. In order:
    samples external-run robot pose while a run is active, feeding room
    auto-attribution.) See the `listeners/` package for the per-group
    implementations.
-11. Forwards setup to the **six** entity platforms: `binary_sensor`, `button`,
+12. Forwards setup to the **six** entity platforms: `binary_sensor`, `button`,
    `switch`, `select`, `number`, `sensor` (`PLATFORMS` in `__init__.py`).
-12. Registers one sidebar panel per managed vacuum via
+13. Registers one sidebar panel per managed vacuum via
    `panels.async_register_vacuum_panel`. Panel URLs are stored at
-   `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
+   `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]` — the entry's panel
+   teardown ledger. Panels registered *after* startup (setup workflow's
+   `add_vacuum`, the `setup_set_panel_title` rename) join the same ledger via
+   `panels.append_to_panel_ledger` (RP-039/RF-16), so they are cleanly removed
+   on unload too.
+
+If no vacuum is managed yet, steps 4–13 still run, but step 13 registers a
+single fallback panel at url `eufy-vacuum` (the shared `DEFAULT_PANEL_TITLE`
+constant, `"Vacuum Agent"`, rather than a per-vacuum title; empty `config={}`)
+instead of a per-vacuum panel.
 
 ### `async_unload_entry` (`__init__.py`)
 
-1. Unloads all entity platforms.
-2. Removes each registered sidebar panel.
-3. Removes all background listeners by calling each listener module's
+1. Unloads all entity platforms. Everything below runs only if that succeeds.
+2. Invalidates the room-source cache (`invalidate_room_source_cache`,
+   RP-007/SRC-5) — a reloaded entry must not serve the previous life's cache
+   as fresh.
+3. Removes each registered sidebar panel (from the `_panels_{entry_id}` ledger).
+4. Removes all background listeners by calling each listener module's
    `remove(hass)` (including `pose_sampler.remove(hass)`).
-4. Calls all service unregistration functions.
-5. Calls `error_tracker.stop()` (and `battery_manager.stop()`).
-6. Unregisters adapter configs, then pops `DATA_ADAPTER_COORDINATOR` and calls
+5. Calls all service unregistration functions, and removes the inline
+   `battery_rebaseline` service.
+6. Stops any active debug flight-recorder capture (`get_capture().stop()`) so a
+   reload doesn't inherit a `propagate=False` / DEBUG logger.
+7. Pops and stops `mapping_tracker` (`unregister_all()`), the battery manager
+   (`stop()`), and the error tracker (`stop()`).
+8. Unregisters adapter configs, then pops `DATA_ADAPTER_COORDINATOR` and calls
    `coordinator.shutdown()` (wrapped in `try/finally` so shutdown always runs).
-7. Clears the remaining runtime keys from `hass.data[DOMAIN]`.
+9. Clears the remaining runtime keys from `hass.data[DOMAIN]` (dropping the
+   whole domain dict when it is left empty).
+
+Separately, HA runs the `entry.async_on_unload` callbacks — including
+`manager.async_shutdown()`, which flushes any pending debounced save directly
+via storage and cancels the manager's background tasks/timers (dock pollers,
+external-run grace timers). See [05 §7](05-core-manager.md).
 
 ### `async_remove_entry` (`__init__.py`)
 
@@ -103,7 +164,7 @@ The HA hook that turns the device page's "Delete" into a **per-vacuum** teardown
 | Key constant | Type | Description |
 |---|---|---|
 | `DATA_ADAPTER_COORDINATOR` (`"adapter_coordinator"`) | `AdapterCoordinator` | Per-entry adapter registry; constructed first (before the manager) and popped + `shutdown()` on unload |
-| `DATA_RUNTIME` (`"runtime"`) | `EufyVacuumManager` | Core manager — all services and entities resolve through this key |
+| `DATA_RUNTIME` (`"runtime"`) | `EufyVacuumManager` | Core manager — all services and entities resolve through this key (also mirrored at `entry.runtime_data`) |
 | `DATA_LEARNING` (`"learning"`) | `LearningManager` | Learning subsystem orchestrator |
 | `DATA_ERROR_TRACKER` (`"error_tracker"`) | `ErrorTracker` | Active-run error latching and device error history |
 | `DATA_BATTERY` (`"battery"`) | `BatteryHealthManager` | Battery-health tracking and per-job battery metrics |
@@ -303,6 +364,7 @@ handlers:
 | `services/adapter_config.py` | Capability / adapter config reads |
 | `services/_common.py` | Shared helpers (`_get_manager`, schema fragments, etc.) |
 | `services/errors.py` | Error acknowledgement services |
+| `services/debug.py` | Debug flight-recorder capture (start/stop/status) — backs the `select` platform's capture target (§3) |
 
 ### Pattern
 
@@ -404,9 +466,10 @@ or integration services. Direct edits produce `.corrupt` backup files.
 }
 ```
 
-On top of that, `async_initialize` (`core/manager.py`) `setdefault`s the
+On top of that, `async_initialize` (`core/manager.py`) `setdefault`s **six**
 top-level keys it depends on — `vacuums` (already present), `capabilities`,
-`room_history`, and `room_rule_status`. Every other key is created lazily by its
+`room_history`, `room_rule_status`, `learning_processing_enabled` (default
+`True`), and `learning_pending_runs`. Every other key is created lazily by its
 owning subsystem the first time it writes. (`analytics` is present in the
 default but currently unused.) Do not assume a key exists on a fresh boot unless
 it is in the storage default above or one of the keys the manager seeds.
@@ -437,7 +500,6 @@ locally in `mapping/tracker.py`.
 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | `jobs/active_job.py` — timing rollover / bounds exit, **and** the native-signal path (`source="native_signal"`) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source`, `actual_duration_minutes`, `confidence` (rollover only, 4dp; **the native-signal variant omits `confidence`** — 06 §10), `completed_room_ids` |
 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `listeners/lifecycle.py`, `listeners/pause_timeout.py`, `listeners/path_blockers.py` (forced cancel on a path block), `services/job_control.py`, `learning/services.py` | **Two shapes (06 §10):** the 11-key form (`vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `duration_minutes`, `actual_cleaning_minutes`, `job_path`) from the `_common.py` builders; the `finalize_learning_job` **service** path fires an inline **9-key** payload that **omits `duration_minutes` / `actual_cleaning_minutes`** (CS-2). |
 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | The full `get_runtime_path_block_report(...)` dict (`trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, …) **augmented** with `path_block_action`, `action_taken`, and — only when a pause/cancel action ran — `action_result`. |
-| `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | `vacuum_entity_id`, `map_id`, `trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, `path_block_action`, `action_taken` |
 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | `jobs/active_job.py` — `ActiveJobTracker.detect_run_anomalies` (called by the manager's `get_job_progress_snapshot`; deduped once per room per job) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | `jobs/active_job.py` — `ActiveJobTracker.detect_run_anomalies` (non-sequential advance, ~never for Eufy; the manager only delegates to it from the snapshot composer) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | **Five** finalize paths (06 §10 / finding B1): `learning/services.py`, `services/job_control.py` (manual cancel), `listeners/path_blockers.py` (rule cancel), `listeners/pause_timeout.py` (paused reap **and** stranded reap) | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` (no `map_id`) |
@@ -550,9 +612,20 @@ has been exceeded, it calls `manager.async_cancel_active_job(...)` and fires
 
 ## 9. Dock Event Listeners
 
-`listeners/dock_events.py` (`dock_events.register(hass)`) watches
-`sensor.{object_id}_dock_status`. The trigger values are read from the adapter
-config at `dock_events.triggers` rather than a module-level constant — by
+`listeners/dock_events.py` (`dock_events.register(hass)`) watches a managed
+vacuum's dock-status entity **only when both** hold: the adapter's
+`dock_events.enabled` flag is truthy — `config_schema.py` declares the field
+with no enforced default (its `description` documents the intent, "Default:
+False", but the schema has no `"default"` key for it); the actual default is
+the call-site `get_adapter_value(..., "dock_events", "enabled", fallback=False)`
+(`listeners/dock_events.py:58`, REG-4), checked first, before anything else
+runs for that vacuum — **and** the adapter declares `entities.dock_status`. Declaring
+`entities.dock_status` alone is not sufficient — an adapter that declares the
+entity but leaves `dock_events.enabled` unset gets no listener at all. The
+watched entity ID itself is adapter-config-sourced
+(`entities.dock_status`), not a fixed `sensor.{object_id}_dock_status` naming
+convention. The trigger values are read from the adapter config at
+`dock_events.triggers` rather than a module-level constant — by
 default they map roughly as:
 
 ```python
