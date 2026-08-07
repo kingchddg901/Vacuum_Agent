@@ -208,3 +208,26 @@ remove).
   during iteration" race. The method's blanket `except Exception` (:621, "startup housekeeping
   must never block setup") would swallow that into a **silent no-reap** — parents accumulate
   forever, which is the exact failure the reaper was written to prevent.
+
+## D-6 RULINGS (Chris, 2026-08-07)
+
+**Q2 RULED — FULL DEPTH.** The phased-job parent/child finalize schema becomes a real DR
+section (docs 06/30), and the queue-break services get real documentation in
+docs/advanced/03-services.md — retiring their entries from _check_advanced_doc_drift.py's
+by-design exempt list (document, then unexempt; the list may only shrink).
+WORK ORDER (SONNET-TIER — do not run on Fable): document get_queue_steps,
+add_queue_break, remove_queue_break, clear_queue_breaks, set_queue_breaks,
+add_queue_zone from services/queue.py:202-281 source (params, clamps, step_types
+STEPPED_STEP_TYPES vocabulary); author the phased-job record schema section in doc 06
+(parent/child completed_job records, phase_key stamping, phased_job_id, merge/reap
+lifecycle — sources jobs/phase_runner.py _finalize_phase_as_child + _record_phase_to_parent,
+learning/history_store, core/manager reapers) + doc 30 cross-ref; verify every field
+against source per DR standard 4-5; run the drift checker to 0/0 with the queue-break
+exempts REMOVED; mkdocs --strict; private-index commit to master. NOTE: R2-COV-1 (queue
+handler test coverage) is SEPARATE and stays in the held test queue — docs only here.
+
+**Q1 — detail provided, AWAITING RULING:** code fires discovery on transition-INTO-docked
+(+ map-change/reload/6h timer, adapter-declared via discovery.auto_refresh_on, default set
+drift.py:98); old doc said "first non-idle state" (run start). Choice: (a) docked-on-purpose
+(fresh-data rationale — the edge filtering reads deliberate) -> doc gets the rationale;
+(b) run-start was the intent -> regression ticket. Dependent doc sections stay HELD.
