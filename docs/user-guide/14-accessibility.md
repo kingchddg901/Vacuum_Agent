@@ -19,30 +19,12 @@ with simulation, not eyeballed), while keeping the card legible for everyone.
 
 ## Shapes, not just colors
 
-Color is never the only cue. On the **Map Bounds** tab, each status badge also
-carries a distinct shape so you can tell them apart without relying on color at
-all:
-
-| Badge | Shape | Meaning |
-|---|:--:|---|
-| OK | ✓ | enough confident runs |
-| Likely | ◐ | a few runs — bounds are forming |
-| No bounds | ! | nothing learned yet |
-| Outlier | ✕ | a run that disagrees with the others |
-| Excluded | – | a run you've removed from the bounds |
-| Baseline | ◆ | the protected reference run |
-
-These marks are **always on**, in every theme — the Colorblind Safe theme just
-adds the matching color tuning on top. They're chosen to stay distinguishable
-even in pure grayscale, so they also cover full color blindness (monochromacy).
-
-!!! info "Only on models with CV map bounds"
-
-    The **Map Bounds** tab — and the shaped status badges above — is a learned-bounds
-    feature that appears on Eufy. Brands that track the current room natively
-    (Roborock S6) don't build CV map bounds, so the tab is hidden there and these
-    badges won't appear. All the color and Colorblind Safe guidance on this page
-    is brand-agnostic and applies everywhere.
+Color is never the only cue for state. In **Learning Review**, a job that hit
+errors carries a warning **triangle** on its errors badge in addition to the
+amber color, so a faulted run can be picked out of a long list without reading
+— and without relying on color at all. The triangle is the ISO 7010 warning
+shape, inherits the badge's theme color, and never carries meaning alone: the
+badge's translated text stays the accessible name for screen readers.
 
 ## The badge is earned, not claimed
 
