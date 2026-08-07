@@ -87,3 +87,25 @@ bookkept by the coordinator's script, never by agents.
 - TIER VERDICT (the calibration's second question): everything after round-1's
   adjudication was templatable coordination. Fleet = Opus coordinator + scripted economy
   + Sonnet loops; Fable by escalation only (contested rulings), per the staffing section.
+
+#### CAL-23 APPLIED 2026-08-07 — eyeball passed, product is live
+
+- `candidate-doc23-CLOSED.md` now IS `docs/dev/23-error-tracker.md` (415 lines).
+  `mkdocs build --strict` green; doc-00 §7 status row rewritten to say
+  *demonstrated sufficient* rather than *reviewed and believed*.
+- PRE-APPLY DIFF CHECK (the live file had moved to 488 lines since the trim's 475
+  baseline, so a blind overwrite could have reverted same-day work): verified the
+  candidate carries the RB-ERR-2 capture contract (§4.1 `message_is_code`
+  declared-only, never sniffed; attribute route wins; grace-expiry edges carry
+  `code = None`), the peek/commit pair WITH `harvest_active_run` marked deprecated
+  and reasoned, the module-fixed 50-entry cap, and the `recent_errors(..., limit=)`
+  accessor. The only content that vanished was source line-number citations —
+  implementation coupling the trim is meant to strip. Nothing owed was lost.
+- The private helper name `_read_error_code_for_message` is absent from the applied
+  doc BY DESIGN, not by omission: rule 4 forbids prose carrying internal names, and
+  the behavior it implements is fully specified in §4.1. A future reader diffing
+  against source should not "restore" it.
+- FAN-OUT remains gated on Chris's scope call, not on this application. The
+  arithmetic he needs: ~1.5–2M subagent tokens per invariant-dense section with a
+  discovery round, ~700K for a clean trim; the invariant-first priority list
+  (06, 30, 07, 04, 05, 15, 28, 14, 12) is therefore ~10–15M tokens if run whole.
