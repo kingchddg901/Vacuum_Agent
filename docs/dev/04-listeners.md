@@ -38,7 +38,12 @@ Reads a list/set value from the adapter config and returns it as a `frozenset`. 
 ```python
 get_adapter_value(vacuum_entity_id, *path, fallback) -> Any
 ```
-Traverses nested adapter config dicts by the given key path. Returns fallback on any missing key or type error.
+Traverses nested adapter config dicts by the given key path. Returns fallback on any missing key or type error. Delegates to `adapters/registry.py`'s own `get_adapter_value` (COMMON-5 — one lookup implementation, not two independently-drifting copies; a fix or semantic change there now reaches every listener that routes through this module).
+
+```python
+is_dock_trigger_edge(old_state_value, new_state_value, trigger_vocabulary) -> bool
+```
+The shared "is this a genuine dock-event edge" test (RP-038/LIFE-3 — one definition for both `dock_events.py`'s `_handle_dock_event` and `lifecycle.py`'s inline mop-wash detector). Three refusals, checked in order — any one means "not an edge": (1) `new_state_value` is `None`; (2) `old_state_value` is not a real, previously-known value — missing entirely (`None`, e.g. HA restart or first sighting) or currently `unavailable`/`unknown` (a fresh sighting after a restart must not count as a new dock cycle, REG-1/GUARD-3); (3) the normalized `old`/`new` values are equal (dedup). Otherwise: an edge iff the normalized `new_state_value` is in `trigger_vocabulary`. Values are compared case-insensitively after stripping.
 
 ### 2.2 Entity watch helpers
 
@@ -68,7 +73,7 @@ Reads current state and returns a **4-key** snapshot used in completion checks: 
 ```python
 completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
 ```
-The adapter-driven secondary-clear check used in the completion gate (§3.4). When the brand declares `completion.require_job_active_clear` (Roborock), the sentinel check is bypassed (returns `True`) — the job-active binary clearing is the completion signal instead, enforced separately by `is_job_active`. Otherwise (default, Eufy) it requires the snapshot's `active_target` to read one of `clear_sentinels`.
+The adapter-driven secondary-clear check used in the completion gate (§3.4). When the brand declares `completion.require_job_active_clear` (Roborock) **and actually declares `entities.job_active`** (RP-033/COMMON-2 — the flag names the entity supplying the real signal; a config that sets the flag without declaring the entity used to short-circuit to `True` unconditionally with nothing backing it, and registration now warns on this combination via `adapters/registry.py._warn_completion_gate_orphan`), the sentinel check is bypassed (returns `True`) — the job-active binary clearing is the completion signal instead, enforced separately by `is_job_active`. Without `entities.job_active` declared, it falls through to the default sentinel check below instead (behaves as if the flag were never set). Otherwise (default, Eufy) it requires the snapshot's `active_target` to read one of `clear_sentinels`.
 
 ### 2.3 Event payload builders
 
@@ -100,17 +105,23 @@ Watches all lifecycle-watch entities across all managed vacuums. Drives job star
 
 ### 3.2 What it watches
 
-`async_track_state_change_event` on every entity returned by `get_lifecycle_watch_entities()` for every managed vacuum.
+`async_track_state_change_event` on every entity returned by `get_lifecycle_watch_entities()` for every managed vacuum. Every spawned `_process()` task is tracked in `hass.data[DOMAIN]["_job_lifecycle_tasks"]` and cancelled by `remove(hass)` (RP-039/RF-16 — unload used to cancel only the state-change-event subscription, leaving an in-flight `_process()` task free to keep running — and possibly finalize a job / write manager state — against a torn-down `hass`).
 
 ### 3.3 Processing pipeline
 
-On each state change, the `_process()` coroutine runs:
+On each state change, the `_process()` coroutine first calls
+`manager.maybe_handle_external_run(vacuum_entity_id=...)` **per matched
+vacuum, before the per-map loop below** — an app-started run has no dispatched
+job, so it would never be seen by the per-map loop, which only looks at maps
+carrying a `started`/`paused` active job (see the External-run detection note
+below). Then, for each map with a `started`/`paused` job, it runs:
 
 1. `record_active_job_transition(vacuum_entity_id, new_state)` — records state machine transitions.
-2. `update_active_job_recharge_observation(vacuum_entity_id)` — tracks mid-job recharge events.
-3. If dock entity changed: check for mop-wash trigger, call `update_active_job_mop_wash_observation()` if applicable.
-4. `record_active_lifecycle_observed(vacuum_entity_id)` — sets `has_observed_active_lifecycle = True` when task_status enters an active lifecycle state. For brands declaring `completion.require_job_active_clear`, arming additionally requires `is_job_active(hass, vacuum_entity_id)` (strict `"on"`, so an indeterminate binary at start can't arm the flag).
-5. Completion check.
+2. `resolve_mid_job_recharge_resumed(...)` **then** `update_active_job_recharge_observation(...)` (RP-012/RF-31, A4-AJ-1/TRK-2 — a recharge that has ENDED is resolved first, because this tick can observe a charging state that differs from the tick that set the observed flag; the resolver is where the recharge count increments and the sampler resumes — see [06 §5](06-job-lifecycle.md)).
+3. If the adapter's `dock_status` entity changed: mop-wash edge detection via the shared `is_dock_trigger_edge` (§2.1) against `dock_events.triggers.last_mop_wash` (LIFE-3 — adapter-driven only, no hardcoded Eufy-literal fallback; an adapter that declares no trigger vocabulary gets no wash detection), then `update_active_job_mop_wash_observation()`.
+4. `observe_job_active(...)` (`job_active_signal.py`) — the ISSUE #46 passive observation trace: emits a decision-log record of the raw "recharge dock or finish?" inputs beside the job-active binary's own reading. Strictly passive; no gate consults it. Placed above the arming gate so a run that never arms is still traced.
+5. `record_active_lifecycle_observed(vacuum_entity_id)` — sets `has_observed_active_lifecycle = True` when task_status enters an active lifecycle state. For brands declaring `completion.require_job_active_clear`, arming additionally requires `is_job_active(hass, vacuum_entity_id)` (strict `"on"`, so an indeterminate binary at start can't arm the flag — without this a batch job created against a stale previous-run `charging` state would arm at t=0 and finalize in ~1 s).
+6. Completion check.
 
 ### 3.4 Completion check
 
@@ -122,23 +133,25 @@ active_target in clear_sentinels               (from adapter "completion.seconda
 has_observed_active_lifecycle == True          (set when task_status entered an active lifecycle state)
 ```
 
-Even when all three hold, finalization is then suppressed by two guards:
+Even when all three hold, finalization is then suppressed by three guards:
 
 - **Recharge-resume guard.** If `is_job_active(hass, vacuum_entity_id, unavailable_is_active=True)` is `True`, finalization is skipped. A brand may dock and report `task_status=charging` mid-job to recharge, then resume; while the job-active binary stays on (or transiently `unavailable`/`unknown`), the resumed half stays the same job. No-op for brands without `entities.job_active` (e.g. Eufy).
 - **Strict-order dispatch guard.** If the active job has `_phase_dispatch_pending` set (a just-advanced sequenced phase whose watchdog hasn't yet confirmed the device started the new room), finalization is skipped so the prior room's lingering completion signals don't finalize the next phase before it starts. No-op for non-sequenced jobs.
+- **Cancel-in-flight guard (RP-010/RF-06).** If `_cancel_in_flight` is set, the cancel path owns finalization — its own return-to-base dock reads as completion here and would otherwise race the cancel's finalize.
 
-A sequenced (multi-phase) job that passes both guards does **not** finalize: `manager.maybe_advance_phase()` advances to the next phase (re-dispatch) and returns `True`, skipping finalization. Atomic jobs — every adapter today — return `False` and fall through to the finalization steps below; each phase finalizes only when it is the last.
+A sequenced (multi-phase) job that passes the guards does **not** finalize: `manager.maybe_advance_phase()` advances to the next phase (re-dispatch) and returns `True`, skipping finalization. Atomic jobs — and a sequenced job's final phase — return `False` and fall through to the finalization steps below.
 
 On completion:
-1. `finalize_learning_for_active_job(vacuum_entity_id)` — awaited directly (async).
-2. `mark_active_job_finalized(vacuum_entity_id)` — closes the active job slot.
-3. Fires `eufy_vacuum_job_finished` event with payload from `job_finished_event_data()`.
-4. If job was a mop job: `register_post_job_water_amendment()` — wires the water amendment watcher.
+1. `finalize_learning_for_active_job(vacuum_entity_id)` — awaited directly (async), wrapped so a raise doesn't kill the pass.
+2. **Branch on `finalize_result_succeeded(result)`** (RP-002/RF-01 — a refusal dict `{"finalized": False, "reason": ...}` is also not-`None`; re-running the terminal steps on it would fire an all-null duplicate event — see [06-job-lifecycle §6a](06-job-lifecycle.md)):
+   - **Succeeded** → `mark_active_job_finalized(...)` (closes the slot; also releases the mapping tracker's hold — TRK-1) → fires `eufy_vacuum_job_finished` with `job_finished_event_data()` → if the completed job had a mop room and the adapter allows it (`post_job_wash_amendment.enabled`, default `True`): `register_post_job_water_amendment()` with the adapter's `debounce_seconds` (default 60) / `timeout_seconds` (default 180).
+   - **Raised** → `mark_active_job_finalized(finalize_result=None)` — the slot and the tracker hold can never strand, but no event fires and no summary is fabricated.
+   - **Refused** (`already_finalized` / `finalize_in_flight` / `no_active_job_record`) → nothing; the entrant that actually succeeded owns the terminal steps.
 
 ### 3.5 MappingTracker integration
 
-- On first active lifecycle observation: `MappingTracker.start_job()` called via executor (starts position recording).
-- On job finalization: `MappingTracker.end_job()` called via executor (stops recording).
+- On first active lifecycle observation: `MappingTracker.start_job()` — a **plain synchronous call** (TRK-7: it is in-memory bookkeeping — a confidence-state reset + an `_active_job` entry — with no disk I/O, so the old executor hop was pure overhead), scoped to the job's own rooms (`queue_room_ids`-filtered; falls back to all rooms when the job has none, so a single-room job always takes the unconditional single-room path).
+- On job finalization: the tracker's hold is released by `mark_active_job_finalized` itself (TRK-1 — the terminal chokepoint every path reaches: cancel, strand, success; this also may flush a confidence-cleared held room first — TRK-4 — which fires an HA event and so must run on the event loop, not from an executor thread). See [06-job-lifecycle §9](06-job-lifecycle.md).
 
 ---
 
@@ -154,13 +167,12 @@ Watches dock status entities and records dock cycle events via `DockManager`.
 
 **Module:** `listeners/dock_events.py`
 
-Builds `watched: dict[str, str]` mapping dock_entity_id → vacuum_entity_id for all managed vacuums.
+Builds `watched: dict[str, str]` mapping dock_entity_id → vacuum_entity_id — only for vacuums whose adapter sets **`dock_events.enabled`** (REG-4; schema default `False` — a brand that declares `dock_status` but opts out gets no listener).
 
 On dock_status state change:
-1. **Dedup guard** — `if new_val == old_val: return` (ignores attribute-only same-value updates).
-2. Reads `dock_events.triggers` from adapter config; normalizes the new state (`.strip().lower()`).
-3. For each `event_type` in the triggers dict: if normalized state matches any trigger string, call `manager.record_dock_event(vacuum_entity_id, event_type, dry_duration)` — which **delegates** to `DockManager.record_dock_event` (§14) — then `manager._async_save_logged()` to persist.
-4. For `last_dry_start` events: reads dry duration from the entity at `adapter_config["entities"]["dry_duration"]`.
+1. Reads `dock_events.triggers` from adapter config.
+2. For each `event_type` in the triggers dict: the shared **`is_dock_trigger_edge`** test (§2.1) decides — not an edge when `old_state` is missing/`unavailable`/`unknown` (REG-1/GUARD-3: a fresh sighting after an HA restart is not a new dock cycle), not an edge when old == new (dedup), else an edge iff the normalized new state is in that event type's trigger set. On an edge: `manager.record_dock_event(vacuum_entity_id, event_type, dry_duration)` — which **delegates** to `DockManager.record_dock_event` (§14) — then `manager._async_save_logged()` to persist.
+3. For `last_dry_start` events: reads dry duration from the entity at `adapter_config["entities"]["dry_duration"]`.
 
 ---
 
@@ -172,10 +184,12 @@ Watches binary sensors configured as path blockers for rooms and fires `eufy_vac
 
 Builds `watch_map: dict[str, list[tuple[str, str]]]` mapping entity_id → [(vacuum_entity_id, map_id)]. Re-registers itself via `register_room_update_callback` whenever rooms change, so newly added blocker sensors are picked up without an integration restart.
 
-On **any** watched-entity state change (dedup-guarded `old != new` — it does **not** gate on the literal `"on"`): whether a change is actually a *block* is decided by `manager.get_runtime_path_block_report(..., trigger_entity_state=new_state)` returning a dict — that logic is owned by [09-room-rules](09-room-rules-system.md). On a block, the `path_block_action` for the active job drives:
+On **any** watched-entity state change (dedup-guarded `old != new` — it does **not** gate on the literal `"on"`), with one refusal first (RP-008/GUARD-1): a transition **into or out of a dropout sentinel** (`unavailable` / `unknown` / `none` / `""` on either side) is logged and ignored for rule evaluation — a dying door-sensor battery once cancelled a live run. Whether a remaining change is actually a *block* is decided by `manager.get_runtime_path_block_report(..., trigger_entity_state=new_state)` returning a dict — that logic is owned by [09-room-rules](09-room-rules-system.md). On a block, the `path_block_action` for the active job drives:
 - `"event_only"` (default): fires `eufy_vacuum_path_blocked` only.
-- `"pause_and_event"`: pauses the job and fires the event.
-- `"cancel_and_event"`: cancels the job, fires `eufy_vacuum_job_finished`, then `eufy_vacuum_run_incomplete` (when rooms were missed), then `eufy_vacuum_path_blocked`.
+- `"pause_and_event"`: pauses the job (`action_taken`: `paused` / `pause_failed`, or `already_paused` without re-pausing) and fires the event.
+- `"cancel_and_event"`: **before the irreversible cancel, re-checks that the triggering rule still matches with a KNOWN state** (RP-008 step 4 — the report was computed from a snapshot; the sensor may have dropped out or cleared since). If not, the cancel is suppressed and the event fires with `action_taken: "cancel_suppressed_recheck"`. Otherwise cancels the job and — only when the cancel actually succeeded — fires `eufy_vacuum_job_finished`, then `eufy_vacuum_run_incomplete` (when rooms were missed), then `eufy_vacuum_path_blocked`.
+
+**Single-flight (RP-008/GUARD-2).** A burst of blocker edges used to spawn one unbounded task per event; now one evaluation runs at a time, and later arrivals coalesce into a single queued re-check after it.
 
 The `eufy_vacuum_path_blocked` payload is the **`get_runtime_path_block_report` dict augmented** with `path_block_action`, `action_taken`, and (only when a pause/cancel ran) `action_result` (consistent with [02 §7](02-ha-integration.md)).
 
@@ -183,11 +197,11 @@ The `eufy_vacuum_path_blocked` payload is the **`get_runtime_path_block_report` 
 
 ## 6. Stale-Job Reaper (`pause_timeout.py`)
 
-A **two-reap** stale-job reaper (not just a pause watchdog). **Module:** `listeners/pause_timeout.py`. **Timer:** `async_track_time_interval` fires every **1 minute**. On each tick, for each managed (vacuum, map) pair it runs two independent reaps:
+A **two-reap** stale-job reaper (not just a pause watchdog). **Module:** `listeners/pause_timeout.py`. **Timer:** `async_track_time_interval` fires every **1 minute**. Ticks never overlap (an `in_flight` box skips a tick while the previous one still runs). On each tick, for each managed (vacuum, map) pair (maps named `"unknown"` skipped) it runs `_reap_one_slot` — each slot isolated in its own try/except (RP-011/RF-07, STR-2/GUARD-4: one slot's exception must not kill the whole tick, or every later slot would go unprocessed this tick and every future one) — with two independent reaps:
 
-**Reap 1 — paused-timeout.** `get_paused_job_timeout_report()` returns a report only once a job has been paused past the configured timeout (`None` otherwise — the common case). On a report: `async_cancel_active_job()`, then fires `eufy_vacuum_job_finished` **and** — when rooms were left uncleaned — `eufy_vacuum_run_incomplete` (via `run_incomplete_event_data`).
+**Reap 1 — paused-timeout.** `get_paused_job_timeout_report()` returns a report only once a job has been paused past the configured timeout (`None` otherwise — the common case). On a report: `async_cancel_active_job(...)` with the report's forced lifecycle state/message + `cancel_reason`; only when it reports `cancelled` does the tick fire `eufy_vacuum_job_finished` **and** — when rooms were left uncleaned — `eufy_vacuum_run_incomplete` (via `run_incomplete_event_data`).
 
-**Reap 2 — stranded-`started` (FN-1).** Independent of the paused check (a stranded run is never paused). `poll_stranded_started_job(...)` stamps/clears a `stranded_since` marker and returns a report only once a dispatched `started` run has gone past its grace window without hitting its brand's completion terminal (power-loss / HA-restart / app-cancel-without-terminal). On a report: `async_finalize_stranded_job(..., ended_at=stranded_since)` finalizes it as **`interrupted`** (making the run Restore-able instead of stranding), and on `finalized` fires `eufy_vacuum_job_finished` **and** `eufy_vacuum_run_incomplete` (the "if it strands it is incomplete" case, so `retry_missed_rooms` can act). See [06-job-lifecycle](06-job-lifecycle.md) (`async_finalize_stranded_job`).
+**Reap 2 — stranded-`started` (FN-1).** Independent of the paused check (a stranded run is never paused). `poll_stranded_started_job(...)` stamps/clears a `stranded_since` marker and returns a report only once a dispatched `started` run has gone past its grace window without hitting its brand's completion terminal (power-loss / HA-restart / app-cancel-without-terminal; the verdict is `is_stranded_started`, [06 §6f](06-job-lifecycle.md)). On a report: `async_finalize_stranded_job(..., ended_at=stranded_since)` finalizes it as **`interrupted`** (making the run Restore-able instead of stranding), and only on `finalized: True` fires `eufy_vacuum_job_finished` **and** `eufy_vacuum_run_incomplete` (the "if it strands it is incomplete" case, so `retry_missed_rooms` can act). A refusal leaves the slot for the next tick. See [06-job-lifecycle](06-job-lifecycle.md) (`async_finalize_stranded_job`).
 
 ---
 
@@ -199,30 +213,31 @@ Pushes periodic progress snapshots for active jobs.
 
 **Timer:** `async_track_time_interval` fires every **5 seconds**.
 
-On each tick:
-- Only processes vacuums with active jobs in `{"started", "paused"}` status.
-- For **non-phased (contiguous) active jobs only**, calls `manager.maybe_pulse_live_room_refresh(vacuum_entity_id)` (Lever B) *before* the snapshot, keeping the brand's live current-room/map fresh so per-room rollover + live fan track the adapter's interval rather than the device's slower native map cadence. Strict-order phased runs (those carrying `phases`, which advance one room per dispatched phase and dock between rooms) are excluded — they already get a free refresh on each state flip. The pulse is a no-op unless the adapter declares `dispatch.live_room_refresh`; per-vacuum rate-limiting and local-gating live inside the `live_refresh` subsystem (`LiveRoomRefreshManager` in `live_refresh/manager.py`, reached via the `maybe_pulse_live_room_refresh` manager delegator).
-- Calls `get_job_progress_snapshot()` for its **side effects** (stall detection + bounds-exit derivation, which themselves fire `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED`); the returned snapshot is **discarded**, not attached to the event.
+On each tick (maps named `"unknown"` skipped):
+- Processes any run that is **in flight on the floor** — `run_is_in_flight(active_job)` (`jobs/active_job.py`): status in `{"started", "paused", "external"}`. RP-014/A5-METRICS-1: the old `{started, paused}` gate asked the *dispatched* question and excluded app-started (`external`) runs — the single case Lever B was built for (on Roborock an external run's `current_room` only advances at the device's slow native cadence, collapsing consecutive rooms — the EXT-1 shape).
+- For **non-phased (contiguous) active jobs only**, calls `manager.maybe_pulse_live_room_refresh(vacuum_entity_id)` (Lever B) *before* the tick, keeping the brand's live current-room/map fresh so per-room rollover + live fan track the adapter's interval rather than the device's slower native map cadence. Strict-order phased runs (those carrying `phases`, which advance one room per dispatched phase and dock between rooms) are excluded — they already get a free refresh on each state flip. The pulse is a no-op unless the adapter declares `dispatch.live_room_refresh`; per-vacuum rate-limiting and local-gating live inside the `live_refresh` subsystem (`LiveRoomRefreshManager` in `live_refresh/manager.py`, reached via the `maybe_pulse_live_room_refresh` manager delegator).
+- Calls **`manager.apply_job_progress_tick(...)`** — SNAP-2: this ticker is the ONE production caller of the side-effecting compose (`get_job_progress_snapshot(apply_side_effects=True)`, [06 §3](06-job-lifecycle.md)): the room rollover, `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` emission, and the anomaly dedup persistence all happen here, on the ticker's cadence. A card poll (`get_dashboard_snapshot` / `get_job_control_state`) only ever reads whatever this tick last persisted. The returned snapshot is **discarded**, not attached to the event.
 - Fires `eufy_vacuum_job_progress_tick` with a payload of **`{vacuum_entity_id, map_id}` only** (a lightweight polling signal — consistent with [02 §7](02-ha-integration.md)), **not** the snapshot.
 
 ---
 
 ## 8. Job Metrics Listener (`job_metrics.py`)
 
-Tracks cleaning time, cleaning area, and station water during active jobs.
+Tracks cleaning time, cleaning area, battery, and station water during active jobs.
 
 **Module:** `listeners/job_metrics.py`
 
-Watches three entities per vacuum from two different sources: `cleaning_time` and `cleaning_area` come from the adapter `entities` block, while the station-water entity is resolved from the capabilities snapshot via `manager.get_vacuum_capabilities(vacuum_entity_id, refresh=False)` (`capabilities.entities.water_level` with a `capabilities.entities.station_water` fallback), not the adapter `entities` block.
+Watches up to **four** entities per vacuum from two different sources: `cleaning_time`, `cleaning_area`, and `battery` come from the adapter `entities` block, while the station-water entity is resolved from the capabilities snapshot via `manager.get_vacuum_capabilities(vacuum_entity_id, refresh=False)` — and is wired **only when the snapshot declares `supports_station_water`** (METRICS-4; previously wired on an entity-key guess with any lookup failure silently swallowed; a failed capability lookup now logs a warning and leaves the watcher unwired for that vacuum).
 
 | Entity key | Active-job field written |
 |---|---|
 | `cleaning_time` (adapter `entities`) | `last_cleaning_time_seconds` (int) |
 | `cleaning_area` (adapter `entities`) | `last_cleaning_area_m2` (float) |
-| `capabilities.entities.water_level` (fallback `capabilities.entities.station_water`) | `last_station_water_percent` (float) |
+| `battery` (adapter `entities`) | `last_battery_percent` (int) — RP-013e/METRICS-2: previously **no writer existed** although both shipped adapters declare the entity, so every counter sample carried `battery=None` (the null per-room `battery_delta` at source) |
+| `capabilities.entities.water_level` (fallback `capabilities.entities.station_water`), gated on `supports_station_water` | `last_station_water_percent` (float) |
 
 On state change: validates the new value is numeric, **normalizes units**, and calls `record_active_job_sensor_value(vacuum_entity_id, key, value)`. The conversions are load-bearing (§4.1/§4.3):
-- **cleaning_time → seconds** (`_duration_state_to_seconds`): ms/min/hr → seconds. The entity's `unit_of_measurement` wins; the adapter's `cleaning_time_unit` is the **fallback** for a bare-number sensor (Roborock reports minutes → `"min"`; absent → treated as seconds — the 60× learning-corruption guard, see [29](29-roborock-adapter.md)).
+- **cleaning_time → seconds** (`_duration_state_to_seconds`): ms/min/hr → seconds. The entity's `unit_of_measurement` wins; the adapter's `cleaning_time_unit` is the **fallback** for a bare-number sensor (Roborock reports minutes → `"min"`; absent → treated as seconds — the 60× learning-corruption guard, see [29](29-roborock-adapter.md)). An unrecognized unit is assumed seconds and **warned once per distinct unit** (METRICS-3), not once per event (a plateau-sampling counter can fire this path many times a minute).
 - **cleaning_area → m²** (`cleaning_area_to_m2`): normalizes ft² → m² by the entity's unit. When the changed key is `last_cleaning_time_seconds` or `last_cleaning_area_m2`, the handler additionally calls `manager.record_counter_sample(vacuum_entity_id=...)`, appending one time-stamped counter sample (carrying the last-seen cleaning_time + cleaning_area + battery already pushed into the active-job state) to each in-flight job's `counter_samples` buffer, feeding `counter_segmentation.segment_counters()` for counter-plateau per-room segmentation at finalization.
 
 ---
@@ -245,7 +260,7 @@ Triggers room discovery on lifecycle events and periodic intervals.
 
 On trigger: each pass runs three steps in order — (1) `await async_refresh_room_source(hass, vacuum_entity_id)` (from `rooms/source_refresh.py`), which refreshes the Roborock `get_maps` service-response source into the flattened cache before the sync pass reads it (a no-op for Eufy's entity-attribute source); (2) `run_discovery_pass(hass, manager, vacuum_entity_id)` from `setup/drift.py`; (3) `await manager.async_save()` to persist.
 
-Uses `_make_run_pass(vid)` closure-binding pattern to avoid late-binding bugs in loop registration.
+Uses `_make_run_pass(vid)` closure-binding pattern to avoid late-binding bugs in loop registration. Unsubs are keyed **per vacuum** and the module additionally exposes `remove_vacuum(hass, vacuum_entity_id)` (RP-039/RF-16) so deleting one managed vacuum tears down exactly its triggers without disturbing the others.
 
 ---
 
@@ -255,7 +270,7 @@ Records the per-tick robot pose time-series during an **active** run — both **
 
 **Module:** `listeners/pose_sampler.py`
 
-**Timer:** `async_track_time_interval`. The period is the **smallest declared `room_attribution.tuning.interval_s` across all configured vacuums** (one ticker samples them all). The value is resolved from the adapter — never hardcoded: adapter `room_attribution.tuning.interval_s` → else the resolved engine's `DEFAULT_TUNING['interval_s']` → else a last-resort `_FALLBACK_INTERVAL_S` of 2 s. No adapter declaring `room_attribution` ⇒ no ticker is registered at all.
+**Timer:** `async_track_time_interval`. The period is the **smallest declared `room_attribution.tuning.interval_s` across all configured vacuums** (one ticker samples them all). The value is resolved from the adapter — never hardcoded: adapter `room_attribution.tuning.interval_s` → else the resolved engine's `DEFAULT_TUNING['interval_s']` → else a last-resort `_FALLBACK_INTERVAL_S` of 2 s. No adapter declaring `room_attribution` ⇒ no ticker is registered at all. On the shared ticker, each vacuum is still sampled only at its **own** declared interval (POSE-1 — a slower vacuum's samples would otherwise be over-weighted by the engine's dwell = n×interval_s math, measured 2.5× against a faster brand sharing the same ticker), a per-vacuum in-flight guard stops a slow live-pose await overlapping that same vacuum's next tick (POSE-2), and one vacuum's sampling failure doesn't stop the tick reaching the rest (POSE-5).
 
 **Gating** (a vacuum is skipped this tick unless all hold):
 - **Active runs only** — `status ∈ {external, started}` (`_SAMPLED_STATUSES`). An **external** run recovers its unknown cleaned-room set; a **dispatched (`started`)** run feeds the atomic-finalize positional-identity reconcile (strict-order phase jobs buffer samples but ignore them at finalize).
@@ -264,7 +279,9 @@ Records the per-tick robot pose time-series during an **active** run — both **
 
 On each qualifying tick it reads the declared `entities.cleaning_area` value and records one sample via `manager.record_pose_sample(...)` (`current_room`, `anchor`, `cleaning_area`, `heading`). While the robot is parked/docked — detected primarily from the MQTT `task_status` not being one of the adapter's `vocabulary.active_run_task_states` (more reliable than eufy-clean's pose `robot_docked` flag), with the pose flag as a fallback — `current_room` and `anchor` are nulled so a dock-sitting tick is not mis-attributed to the dock's room.
 
-**Capture-only / inert** — nothing consumes `pose_samples` yet; the engine wiring is W5c.
+**Consumed — no longer inert.** The W5c engine wiring landed: the buffered `pose_samples` drive which rooms an external run is recorded as having cleaned (`learning/room_attribution_engines.py` → `external_ingest.build_pending_record`), the per-room durations on the learning record, and — via `reconcile_dispatched_identity`'s "rescued" branch — the room identity stamped on a **dispatched** atomic run's timings ([06-job-lifecycle](06-job-lifecycle.md)).
+
+**24-hour pose ring.** Each sample is also appended (executor-offloaded via `hass.async_add_executor_job`, failures swallowed and only debug-logged) to a parallel on-disk ring (`pose_store.append_sample`, keyed by vacuum) that outlives the job — the live `pose_samples` buffer is job-scoped and never reaches the finalized record. The ring append is deliberately **not** gated on `record_pose_sample`'s return: the ring wants the sample regardless of whether a job slot accepted it.
 
 ---
 
@@ -276,7 +293,7 @@ On each qualifying tick it reads the declared `entities.cleaning_area` value and
 | `dock_events.py` | State change (dock entities) | — | Dock cycle recording via DockManager |
 | `path_blockers.py` | State change (binary sensors) | — | `eufy_vacuum_path_blocked` event, optional pause/cancel |
 | `pause_timeout.py` | Time interval | 1 min | **Two reaps**: timed-out paused jobs + stranded-`started` jobs (FN-1) → both fire `job_finished` (+`run_incomplete` when rooms missed) |
-| `job_progress.py` | Time interval | 5 sec | `eufy_vacuum_job_progress_tick` event (+ Lever B live-room refresh pulse on contiguous runs) |
-| `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/water into active job (+ counter-sample append on time/area change) |
+| `job_progress.py` | Time interval | 5 sec | `apply_job_progress_tick` (SNAP-2: the sole side-effecting snapshot caller — rollover + stall/skip events) + `eufy_vacuum_job_progress_tick` event (+ Lever B live-room refresh pulse on contiguous runs); covers `external` runs too (`run_is_in_flight`) |
+| `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/battery/water into active job (+ counter-sample append on time/area change) |
 | `discovery.py` | State change + time interval | 6 hr | Run discovery pass, update drift history |
-| `pose_sampler.py` | Time interval | min adapter `room_attribution.tuning.interval_s` (fallback 2 s) | Record per-tick pose sample (`record_pose_sample`) on **active** runs (`external`+`started`), dual-source (`live_pose` / `native_current_room`) |
+| `pose_sampler.py` | Time interval | min adapter `room_attribution.tuning.interval_s` (fallback 2 s); per-vacuum own-interval gating | Record per-tick pose sample (`record_pose_sample`) on **active** runs (`external`+`started`), dual-source (`live_pose` / `native_current_room`) + 24 h pose-ring append |

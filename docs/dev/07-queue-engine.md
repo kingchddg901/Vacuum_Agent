@@ -387,8 +387,14 @@ when it completes. The generic `sequenced` machinery still exists: an engine's
 `phases` / `current_phase_index`, and `advance_active_job_phase(active_job)`
 swaps to the next phase (resetting per-phase progress) or returns `None` on the
 final/atomic case. The completion hook calls `manager.maybe_advance_phase` to
-advance + re-dispatch instead of finalizing; each phase finalizes as its own
-job record. See [06-job-lifecycle](06-job-lifecycle.md) for the completion path.
+advance + re-dispatch instead of finalizing; each **clean** phase additionally
+finalizes as its own child `completed_job` record (Phased Jobs wave 1) —
+separately from the whole-run lifecycle finalize, which still fires once, on
+the atomic job or the sequenced run's final phase. See
+[06-job-lifecycle §4](06-job-lifecycle.md) for the completion path and the
+"Phased Jobs recording" note, and
+[30-phase-runner §4a](30-phase-runner.md#4a-phased-jobs-recording--attaching-finishing-phases-to-the-parent-wave-1)
+for the per-phase recording mechanics.
 
 A phase list is no longer always all-room-groups: a **stepped run** (§9)
 interleaves room-group phases with `charge_wait` / `wait` **break phases** that

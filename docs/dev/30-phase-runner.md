@@ -82,6 +82,8 @@ reads/writes the same `manager.data["active_jobs"]` store.
 | Coarse "is it cleaning at all" fallback | **PhaseRunner** | `_vacuum_started_cleaning` |
 | Per-phase timing/area snapshot | **PhaseRunner** | `_capture_finishing_phase_timing` → `_phase_room_timing` / `_wall_seconds` / `_learned_room_area_m2` |
 | Per-ROOM timing inside a multi-room group phase | **PhaseRunner** | `_split_group_room_timing` → `_segment_group_room_timing` (observed) else even apportioning (§5.2a) |
+| Attach each finishing phase to its Phased Job parent (child record or break record + outcome) | **PhaseRunner** | `_record_phase_to_parent` → `_finalize_phase_as_child` / `_break_record_payload` (§4a) |
+| Open / close the Phased Job parent record | `core/manager.py` / `learning/manager.py` | `_open_phased_job_parent`, `LearningHistoryStore.open_phased_job` / `close_phased_job` |
 | Build the per-room phase list | queue engine | `GenericRoomIdsEngine.build_phases` |
 | Materialize a run profile's `steps` into a phase list (clean groups + stops) | run plan | `RunPlanManager._build_steps_phases` |
 | Advance the stored job to the next phase | queue engine | `advance_active_job_phase` |
@@ -196,12 +198,36 @@ because production (`listeners/lifecycle.py`) and the listener tests reference
 The completion hook in `listeners/lifecycle.py` calls it right before it would
 finalize a completed phase. Behavior of `PhaseRunner.maybe_advance_phase`:
 
+**Two refusal guards run first**, before any capture/advance — each returns
+`False` immediately:
+- **Cancel-in-flight (RP-010/RF-06).** `active_job["_cancel_in_flight"]` set →
+  refuse. A cancel's own return-to-base dock can read as phase completion
+  (`_phase_dispatch_pending` is released before the terminal confirm, by
+  design); while a cancel is in flight the cancel path owns finalization, so
+  this function must not advance or snapshot timing for a phase the cancel is
+  about to tear down.
+- **Not live.** `active_job["finalized"]` truthy, or `status != "started"`
+  (covers `paused` too — resume re-arms the phase) → refuse. `_cancel_in_flight`
+  above only covers the window *while* a cancel runs; `mark_active_job_finalized`
+  deliberately clears that latch, so once a cancel completes the flag is back to
+  `False` while `status` is `"completed"` and `finalized` is `True`. Without this
+  guard a late caller (a wait poller crossing its deadline the same tick, or the
+  completion event from the cancel's own return-to-base dock) could still
+  advance a cancelled job and dispatch its next phase.
+
+For a job that passes both guards:
+
 1. **Capture the finishing phase's timing FIRST** —
    `_capture_finishing_phase_timing(...)` snapshots the just-completed phase's
    room timing from its own counter slice (§5). This must run before
    `advance_active_job_phase` resets the queue, and it also runs for the **final**
    phase (advance returns `None` immediately after, but the capture already ran).
-2. Call `advance_active_job_phase(active_job)`.
+2. **Record the finishing phase to its Phased Job parent** —
+   `_record_phase_to_parent(...)` (§4a). Runs after the capture (it reads the
+   `_timing_end_t` the capture just stamped) and before the advance below (it
+   reads `current_phase_index`, which the advance moves). Also runs for the
+   final phase — recorded before advance returns `None`.
+3. Call `advance_active_job_phase(active_job)`.
    - Returns `None` → an atomic job or the final phase → return **`False`** (the
      caller finalizes as today).
    - Returns the advanced dict → stamp `current_room_started_at`, persist it to
@@ -220,6 +246,119 @@ finalize a completed phase. Behavior of `PhaseRunner.maybe_advance_phase`:
 
 **Return contract:** `True` = job advanced to a next phase, caller must skip
 finalization; `False` = atomic job or final phase, caller finalizes normally.
+
+---
+
+## 4a. Phased Jobs recording — attaching finishing phases to the parent (wave 1)
+
+A phased run gets a **parent record** (`phased_job_id`, opened at run start by
+`core/manager.py::start_selected_rooms` — see [06-job-lifecycle §2a](06-job-lifecycle.md)).
+This section is what attaches each *finishing* phase onto that parent as
+`maybe_advance_phase` runs — separate from, and in addition to, the whole-run
+lifecycle finalize (`mark_active_job_finalized` / `EVENT_JOB_FINISHED`), which
+still fires exactly once, on the atomic job or the sequenced run's final phase.
+
+### `_record_phase_to_parent`
+
+```python
+runner._record_phase_to_parent(vacuum_entity_id, map_id, active_job) -> None
+```
+
+Called from `maybe_advance_phase` (§4 step 2) after the timing capture and
+before the advance. No-op (with a debug trace) when the job carries no
+`phased_job_id`, is atomic (no `phases`), or `current_phase_index` is out of
+range. Otherwise, for the phase at `current_phase_index`:
+
+1. **Refuses to write an orphan.** Loads the parent via
+   `LearningHistoryStore.load_phased_job(...)`; if it's missing (the open at
+   run start is itself best-effort) this logs a warning and returns *without*
+   writing a break/child record — a record written anyway would point at a
+   parent nothing can find.
+2. **Stamps per-phase battery bounds** on the phase dict:
+   `_battery_end` from a live read (`core/charging.py::get_battery_level`,
+   `None` when unreadable — never `0`, which would read as a phase that
+   drained to nothing), and `_battery_start` from the previous phase's
+   `_battery_end` (or the run's own `battery_start` for phase 0).
+3. **Routes on phase kind:**
+   - A **break** phase (`charge_wait` / `wait`, tested via
+     `is_dock_polled_phase`) → `store.save_phase_record(...)` with the payload
+     from `_break_record_payload` (below) under `record_id =
+     "{phased_job_id}.phase{idx}"`.
+   - A **clean** phase (`room_group` or `zone`) → `_finalize_phase_as_child`
+     (below), which returns the child's record id or `None`.
+4. **Appends the outcome to the parent** — `store.record_phase_outcome(...)`
+   (`learning/history_store.py`) is a read-modify-write that appends
+   `{phase_index, phase_type, outcome: "completed", record_id}` onto the
+   parent; the parent is an aggregate cache over its children (never a
+   recomputed number) — a clean phase's `record_id: None` here means "recorded
+   as completed on the parent but its own child write failed", distinguishable
+   from a phase never reached at all.
+
+Best-effort by design throughout: any exception is caught, logged, and traced
+(`_dlog("phase.parent.error", ...)`) — a parent-recording failure must never
+block the next phase's dispatch.
+
+### `_finalize_phase_as_child`
+
+```python
+runner._finalize_phase_as_child(*, vacuum_entity_id, map_id, active_job,
+    phases, idx, phase) -> str | None
+```
+
+Finalizes **one clean phase** as its own child `completed_job` record —
+returns the child's record id, or `None` if nothing was written.
+
+- **Idempotent** via `phase["_child_record_id"]` — a re-arm (e.g. after a
+  restart) that reaches this phase again returns the already-written id
+  without re-finalizing.
+- **Not through the run-level exactly-once claim**
+  ([06-job-lifecycle §7](06-job-lifecycle.md#the-exactly-once-claim-async_finalize_completed_job)).
+  That claim guards the *run* (`finalize_claimed_at` on the active job); a
+  per-phase call through it would mark the whole run finalized at phase 0, and
+  every later phase — including the real final one — would come back
+  `already_finalized` and write nothing. Idempotency here is the phase's own
+  `_child_record_id` instead.
+- **Scopes the metrics to this phase only.** Calls
+  `finalizer._collect_finalization_inputs(...)` with `started_at`/`ended_at`
+  bounded to this phase's slice (the previous phase's `_timing_end_t` through
+  this phase's own), then narrows a **copy** of the active-job state to
+  `phases: [phase]` (never mutates the live active job — that would corrupt
+  the run) before calling `finalizer.finalize_from_inputs(...)`. The
+  finalizer's own `cleaning_time_seconds` / `cleaning_area_m2` derivation sums
+  across *every* phase on whatever state it's handed (correct for the
+  whole-run finalize, RP-013f — a stepped run resets the device's time counter
+  per phase, so the sum is the only correct run total); handed the narrowed
+  copy it would still sum only one phase's rows, so `_finalize_phase_as_child`
+  additionally **recomputes and overrides**
+  `inputs["cleaning_time_seconds"]` / `inputs["cleaning_area_m2"]` from this
+  phase's own `room_timing` (and `zone_timing.wall_seconds` for a zone) —
+  otherwise each child inherits every earlier phase's seconds too (measured:
+  phase 2 recording its own timing *plus* phase 0's).
+- Saved under `job_id = "{active_job['job_id']}.phase{idx}"`, via
+  `learning.store.save_completed_job(...)`, and **stamped with `phase_key =
+  {phased_job_id, phase_index, phase_type}`** directly on the saved record —
+  set on the input state alone is not enough, since the record payload is
+  built from named fields and drops unrecognised keys.
+- Requires the learning manager (`self._manager._get_learning_manager()`); a
+  `None` learning manager is a clean skip (`record_id: None`), not a raised
+  error.
+
+### `_break_record_payload`
+
+```python
+runner._break_record_payload(*, phased_job_id, map_id, active_job, phases,
+    idx, phase, phase_type) -> dict
+```
+
+Builds one `record_type: "phase_break"` record — **never** the `completed_job`
+schema, so a planned dock is never taught as cleaning time. Carries both what
+was **planned** (`hold_seconds` for a `wait`, `target_battery_percent` for a
+`charge_wait`) and what **actually** elapsed (`started_at`/`ended_at`/`seconds`,
+sliced the same way the timing capture is — from the previous phase's
+`_timing_end_t`, or the run's own `started_at` for phase 0). Saved via
+`store.save_phase_record(...)` (`learning/history_store.py`) to a dedicated
+phase-records directory, not the `jobs/` directory `completed_job` records live
+in.
 
 ---
 
@@ -706,6 +845,8 @@ See
 | `queue/queue_engine.py` | `advance_active_job_phase()` | Swap the stored job to the next phase |
 | `learning/history_store.py` | concat `phases[*]["room_timing"]` | Finalize per-phase timings into the run record |
 | `core/manager.py::_phase_timing` | (read by the watchdog) | Resolve brand timing overrides |
+| `PhaseRunner.maybe_advance_phase` | `_record_phase_to_parent(...)` (§4a) | Attach the just-finished phase (child record or break record + outcome) to its Phased Job parent |
+| `learning/history_store.py` | `open_phased_job` / `close_phased_job` | Open the parent at run start ([06-job-lifecycle §2a](06-job-lifecycle.md)); close it at run finalize |
 
 ---
 
@@ -738,6 +879,12 @@ See
   watchdog stops and logs; the user recovers via Cancel Run.
 - **The final phase's timing is still captured.** `maybe_advance_phase` captures
   before `advance_active_job_phase` returns `None`, so the last room is recorded.
+- **Phased Jobs parent-recording (§4a) is best-effort and off the exactly-once
+  path.** A missing parent, a learning-manager lookup failure, or any other
+  exception inside `_record_phase_to_parent` is caught and logged, never raised
+  — it must not block the next phase's dispatch. It runs outside the run-level
+  finalize claim ([06-job-lifecycle §7](06-job-lifecycle.md)), so it cannot be
+  refused by that claim and cannot itself mark the run finalized.
 
 ---
 

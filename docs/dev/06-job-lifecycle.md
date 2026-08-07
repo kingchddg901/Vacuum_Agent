@@ -7,7 +7,8 @@ be able to follow the entire flow from source code using this document.
 **Primary source files:**
 - `custom_components/eufy_vacuum/core/manager.py`
 - `custom_components/eufy_vacuum/jobs/active_job.py`
-- `custom_components/eufy_vacuum/jobs/job_monitor.py`
+- `custom_components/eufy_vacuum/jobs/job_monitor.py` — `evaluate_job_lifecycle`,
+  `build_start_blocker_from_lifecycle`, `is_stranded_started` + the reaper constants
 - `custom_components/eufy_vacuum/jobs/phase_runner.py`
 - `custom_components/eufy_vacuum/__init__.py`
 - `custom_components/eufy_vacuum/learning/job_finalizer.py`
@@ -65,7 +66,18 @@ room rules against live HA states), `get_lifecycle_state`, and
 `vacuum_entity_id`, `map_id`, `selected_map_id`, `active_map_id`, `queue_room_ids`,
 `payload_room_count`, `lifecycle_state`, `lifecycle_state_label`, `lifecycle_message`,
 `reason`, `reason_label`, `message`, `blocked`, `warning`, `onboarding_status`,
-`preflight` (the reduced-run branch adds `requires_confirmation` + `confirm_token`).
+`preflight`. Three further keys are present only on SOME of the six return
+branches (`core/manager.py::get_start_status`) — do not assume any of them:
+
+| Branch | `reason_params` | `requires_confirmation` / `confirm_token` |
+|---|---|---|
+| `job_paused` | `{}` | **absent** |
+| `onboarding_required` | **absent** | **absent** |
+| `all_selected_rooms_blocked` | **absent** | present |
+| lifecycle-blocked (the `reason` table below) | `{}` | present |
+| preflight-blocked | present (the preflight's own `reason_params`) | present |
+| ready (not blocked) | present (empty unless a preflight reason won) | present |
+
 It returns with `blocked: True` and the following `reason` strings in priority order:
 
 | `reason` | Condition |
@@ -76,7 +88,7 @@ It returns with `blocked: True` and the following `reason` strings in priority o
 | `"no_target_map"` | `selected_map_id` is empty |
 | `"map_mismatch"` | `selected_map_id` != vacuum's active map |
 | `"no_rooms_selected"` | Queue is empty |
-| `"invalid_payload"` | Payload room count is 0 |
+| `"invalid_payload"` | **No phase in the whole plan actually cleans anything** (A5-PP-RP-2): `get_start_status` counts `clean_phase_count` = phases with `room_count > 0` OR a `zone` phase with resolved `zones`, and `build_start_blocker_from_lifecycle` blocks when it is 0. (The old first-phase-only `payload_room_count <= 0` check refused a runnable rooms-then-zone plan whose first surviving phase was a zone; it remains the fallback only for callers that pass no `clean_phase_count`.) |
 | `"mid_job_service"` | Dock or task status is in a hard service state (washing, recycling, emptying) |
 | `"active_job_running"` | A room-clean job is already active |
 | `"vacuum_busy"` | Vacuum is busy and not dockable/idle |
@@ -86,6 +98,11 @@ It returns with `blocked: True` and the following `reason` strings in priority o
 
 The lifecycle state `"dock_drying"` is a non-blocking warning — it sets
 `blocked: False` with `warning: True` and `reason: "dock_drying"`.
+
+The lifecycle evaluation (`evaluate_job_lifecycle`) and the blocker assembly
+(`build_start_blocker_from_lifecycle`) live in `jobs/job_monitor.py`, along with
+the `PreflightResult` / `BlockedRoomEntry` TypedDicts (a blocked room's `source`
+is `"direct_rule"` or `"access_dependency"` — PRE-4).
 
 #### Preflight rule evaluation (`_build_effective_start_plan`)
 
@@ -134,15 +151,23 @@ room (sequenced job model, see §4); it is a no-op for order-honoring brands.
    changed since `get_start_status`) and writes the final queue/payload.
 4. **Vacuum entity check** — if the HA state object is missing, returns
    `{"started": False, "reason": "vacuum_missing"}`.
-5. **Global pre-calls** — calls `_run_global_pre_calls` to push global device
+5. **Live-id resolution** — calls `_resolve_live_dispatch_payload` to map
+   stored (slug-tagged) room ids to the current **live** segment ids before
+   dispatch, for brands whose ids renumber on re-segment (Roborock). Wire-only:
+   the active job below keeps the stored ids.
+6. **Global pre-calls** — calls `_run_global_pre_calls` to push global device
    settings (fan/mop) for brands that expose them only globally (Roborock:
    per-room fan/water can't ride `app_segment_clean`), derived max-wins from
    the selected rooms. No-op when no adapter declares
    `dispatch.global_pre_calls` (e.g. Eufy, which carries fan/water per-room).
-6. **Live-id resolution** — calls `_resolve_live_dispatch_payload` to map
-   stored (slug-tagged) room ids to the current **live** segment ids before
-   dispatch, for brands whose ids renumber on re-segment (Roborock). Wire-only:
-   the active job below keeps the stored ids.
+   **Order is deliberate (DQ-ACT-6):** the pre-calls run *after* live-id
+   resolution, immediately before dispatch — resolution is a real failure path
+   (it raises when the map has been re-segmented and the stored slugs no
+   longer resolve), and running the pre-calls first once left the device's
+   global mop intensity rewritten by a start that then aborted, with nothing
+   to put it back (a settings change that outlived the job it was made for).
+   Reordering closes that window; it does not make the start transactional —
+   a failure inside the dispatch call itself still leaves the pre-call applied.
 7. **Command dispatch** — calls `_dispatch_clean_payload` with the resolved
    wire payload (`vacuum.send_command`, `command="room_clean"`, blocking).
 8. **Active job initialisation** — calls `build_active_job_state` then enriches.
@@ -161,7 +186,26 @@ room (sequenced job model, see §4); it is a no-op for order-honoring brands.
    The start plan's phase sequence is attached to the active job (`phases=`)
    **only when it holds more than one phase** — i.e. a genuine sequenced
    strict-order run. An atomic job leaves the phase keys absent, keeping the
-   active-job snapshot byte-identical to pre-sequencing.
+   active-job snapshot byte-identical to pre-sequencing. A phased run
+   additionally gets **`phased_job_id`** (`phased_job_id_for(job_id)`,
+   `queue/queue_engine.py` — `job_2026-…` → `pj_2026-…`; the key's presence *is*
+   the "this run is phased" signal, there is deliberately no separate boolean),
+   and its Phased Job parent record is opened right here
+   (`_open_phased_job_parent` → `LearningHistoryStore.open_phased_job`,
+   best-effort — a failed write never blocks the dispatch). Opening the parent
+   at *start* rather than at close is what makes an abnormal end leave a
+   *reapable* parent: `async_initialize` runs `_reap_stranded_phased_jobs` at
+   startup, sealing any parent still `"running"` with no live active job as
+   `interrupted`. See §4's "Phased Jobs recording" note for what gets written
+   onto this parent as each phase finishes.
+
+   Two more start-time seeds run here **for every job, phased or not**:
+   `self.active_job.reopen_current_room_noncleaning(...)` opens room one's
+   non-cleaning interval (the robot is on the dock right now — undock + transit
+   must not be charged to the room), and `self.active_job.seed_counter_baseline(...)`
+   records the run's counter floor (`live:PHASE-ATTR-1` — a counter sample only
+   lands on a *change*, so without this seed the opening phase/room's first
+   increment would be credited to nothing).
 9. **Storage write** — saves to `self.data["active_jobs"][vacuum_entity_id][map_id]`.
 10. **Phase-watchdog spawn (sequenced runs only)** — if the active job has
     `phases`, sets `_phase_dispatch_pending = True` and spawns
@@ -240,12 +284,12 @@ frozen into the learning snapshot at finalize. `_default_active_job_state`
 
 | Added by | Fields |
 |---|---|
-| Job start (§2a step 8) | `job_id`, `started_at`, `battery_start`, `job_metadata`; **sequenced runs only:** `phases`, `current_phase_index`, `_phase_dispatch_pending` |
+| Job start (§2a step 8) | `job_id`, `started_at`, `battery_start`, `job_metadata`; **sequenced runs only:** `phases`, `current_phase_index`, `phase_count`, `phased_job_id`, `_phase_dispatch_pending` |
 | Job-metrics listener (§5) | `last_cleaning_time_seconds`, `last_cleaning_area_m2`, `last_station_water_percent`, `last_battery_percent` |
 | Pose sampler (`started` / `external` runs) | `pose_samples` (cap 3000; shape in §5) |
-| Rollover / anomaly | `_native_current_room_id`, `_pending_fast_rollover` (dormant), `_stall_notified_room_ids`, `_skipped_notified_room_ids` |
-| Cancel / stranded reaper | `_cancel_in_flight`, `stranded_since` |
-| Finalize (§9) | `finalized`, `finalized_at`, `finalize_summary`, `ended_at`, `trace_run_id` |
+| Rollover / anomaly | `_native_current_room_id`, `_pending_fast_rollover` (dormant), `_stall_notified_room_ids` / `_skipped_notified_room_ids` (both capped at `max(len(queue_room_ids) + 1, 20)`) |
+| Cancel / stranded reaper | `_cancel_in_flight` (also the cancel single-flight latch), `stranded_since` |
+| Finalize (§9) | `finalize_claimed_at` (transient exactly-once claim — popped on success/failure, force-cleared at startup by `_clear_orphaned_finalize_claims`), `finalized`, `finalized_at`, `finalize_summary` |
 
 The whole record is persisted to `.storage` on `async_save()`; nothing here is runtime-only.
 
@@ -255,9 +299,20 @@ The whole record is persisted to `.storage` on `async_save()`; nothing here is r
 
 ### `get_job_progress_snapshot`
 
-`EufyVacuumManager.get_job_progress_snapshot(vacuum_entity_id, map_id)` is the
-main polling endpoint for the card. It does not mutate storage unless a timing
-rollover occurs. Each call:
+`EufyVacuumManager.get_job_progress_snapshot(vacuum_entity_id, map_id,
+apply_side_effects=False)` is the main polling endpoint for the card.
+
+**SNAP-2 — a card poll is a pure read by default.** With `apply_side_effects=False`
+(every card/dashboard path — direct polls, `get_dashboard_snapshot`,
+`get_job_control_state`) step 7 (timing rollover) is skipped and the anomaly
+detector's one-shot event firing + dedup-set persistence (step 10) are suppressed —
+the anomaly *fields* are still computed fresh so the card can display them, but
+calling the snapshot any number of times returns identical output with zero side
+effects. The **only** caller that passes `apply_side_effects=True` is
+`apply_job_progress_tick` (a thin wrapper), whose only production caller is the
+5-second ticker in `listeners/job_progress.py` ([04-listeners §7](04-listeners.md)) —
+so the room rollover and the one-shot anomaly events fire on the ticker's cadence,
+not on however often a card happens to be polling. Each call:
 
 1. Loads and normalises `active_job` via `_normalize_active_job`.
 2. Calls `get_lifecycle_state` for the current lifecycle context.
@@ -290,61 +345,117 @@ rollover occurs. Each call:
    is `core/run_state.is_non_cleaning_vacuum_state`, which **fails open**: an
    unreadable state subtracts nothing rather than subtracting unboundedly and
    stalling the room.
-7. **Timing rollover** — delegates to
+7. **Timing rollover** — **only when `apply_side_effects=True`** (a plain read
+   reflects whatever the last tick already persisted) — delegates to
    `active_job._maybe_roll_current_room_by_timing` (the manager's `active_job`
    attribute is the `ActiveJobTracker`; method defined at
    `jobs/active_job.py`, reached via the `manager.py` delegator). See §4.
-8. **Bounds-exit detection** (`awaiting_bounds_exit`).
-9. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
-   `skipped` (conservative). See below.
+8. **Current-phase derivation (RP-047a)** — resolves the current phase
+   (`phases[current_phase_index]`) and derives **`current_room_ids`**: every
+   room id in that phase's own `resolved_rooms` (the same source
+   `advance_active_job_phase` swaps), deduped, in encounter order. An atomic
+   run, or a phase with no resolved rooms (a break), falls back to
+   `[current_room_id]` (or `[]` with none). This is **not** a "the phase has no
+   per-room rollover" workaround — §4 below shows a `room_group` phase's rooms
+   *do* roll individually via the counter/timing paths — `current_room_ids` exists
+   so the group-level anomaly and bounds-exit math (steps 9–10) can sum a
+   threshold over the whole dispatched group rather than judging it against a
+   single room's estimate. Also exposed as **`current_phase`** =
+   `{index, phase_type, room_ids, is_group}` (`is_group` = `len(current_room_ids) > 1`;
+   `None` for an atomic run). A follow-up (RP-047b) tried marking *every* room in
+   `current_room_ids` as the card's "current" room, on the premise that a group
+   phase never rolls per-room — a live run disproved that premise (completions
+   were firing inside the group) and the change was reverted; the card still
+   reads the single `current_room_id`/`current` flag per room, `current_room_ids`
+   is consumed only for the threshold sums below.
+9. **Bounds-exit detection** (`awaiting_bounds_exit`) — the threshold is the
+   **sum over `current_room_ids`** of each member's timing-completion threshold
+   (a single-room threshold would engage almost immediately on a multi-room group
+   and hold for the whole phase), and the flag is **forced `False` for
+   path-optimizing brands** (`adapter_honors_clean_order(...)` is `False` — timing
+   order is meaningless there).
+10. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
+    `skipped` (conservative). See below.
 
 ### `awaiting_bounds_exit` logic
 
 After the timing rollover attempt, if the room did *not* roll (i.e.
 `current_room_id` is unchanged), the snapshot checks whether elapsed time has
-passed the timing completion threshold. If so, `awaiting_bounds_exit = True`.
-This signals the card to switch to a short poll interval (~5 s) because the
-robot is still physically inside the room and the rollover gate is blocked by
-bounds.
+passed the timing completion threshold summed over `current_room_ids` (step 9
+above — a single-room member sum reduces to the plain per-room threshold, so an
+atomic run is unaffected). If so, `awaiting_bounds_exit = True`. This signals the
+card to switch to a short poll interval (~5 s) because the robot is still
+physically inside the room/group and the rollover gate is blocked by bounds.
+Forced `False` outright for a path-optimizing brand (`adapter_honors_clean_order`
+is `False`), since timing order is meaningless there.
 
 ### Anomaly detection
 
 The three disjoint anomaly tiers (and the one-shot `EVENT_STALL_DETECTED` /
 `EVENT_ROOM_SKIPPED` emission) are computed by
 `ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py`), which
-`get_job_progress_snapshot` calls (`manager.py`) and whose returned fields
-it merges into the snapshot. Both ratios are read from the adapter's `anomaly`
-block (`running_long_ratio`, `stall_ratio`), each falling back to the Eufy
-default if absent. The `_STALL_RATIO` / `_RUNNING_LONG_RATIO` locals live inside
-`detect_run_anomalies` (`active_job.py`), not in the snapshot composer.
+`get_job_progress_snapshot` calls with `emit=apply_side_effects` (`manager.py`)
+and whose returned fields it merges into the snapshot — the fields are always
+computed; the event fire + dedup-set persistence happen only when `emit=True`
+(the 5s ticker, SNAP-2 above). **All three tiers are additionally gated on
+`adapter_honors_clean_order`** — a path-optimizing brand (Roborock) reports no
+anomalies from this heuristic at all; `detect_run_anomalies` receives
+`current_room_ids` and uses it the same way the bounds-exit check does: the stall
+threshold sums `_timing_completion_threshold_minutes` over every id in
+`current_room_ids` (members with no timeline entry contribute nothing, which
+keeps the sum conservative rather than inventing a default). Both ratios are read
+from the adapter's `anomaly` block (`running_long_ratio`, `stall_ratio`), each
+falling back to the Eufy default if absent. The `_STALL_RATIO` /
+`_RUNNING_LONG_RATIO` locals live inside `detect_run_anomalies` (`active_job.py`),
+not in the snapshot composer.
 
 ```
 _STALL_RATIO        = anomaly.stall_ratio        or 2.0
 _RUNNING_LONG_RATIO = anomaly.running_long_ratio  or 1.5
 ```
 
-**Stall (hard).** A stall is detected when:
+**Stall (hard).** Gated on `_honors_clean_order` (no-op for a path-optimizing
+brand). A stall is detected when:
 - `awaiting_bounds_exit` is already `True` (timing threshold exceeded), **and**
-- `current_room_elapsed_minutes >= threshold * _STALL_RATIO` (≥2× by default)
+- `current_room_elapsed_minutes >= threshold * _STALL_RATIO` (≥2× by default),
+  where `threshold` is the **sum of `_timing_completion_threshold_minutes` over
+  `current_room_ids`** (step 8 above) — on a single-room dispatch this is just
+  that room's own threshold; on a multi-room `room_group` phase it is the
+  group's combined estimate, so the bar reflects the work actually dispatched
+  rather than firing at ~1× on the group's first member alone. A member with no
+  timeline entry contributes nothing (conservative: an under-counted threshold
+  can still stall, an invented one cannot be reasoned about).
 
-`EVENT_STALL_DETECTED` fires at most once per room per job. Already-notified
-rooms are tracked in `active_job["_stall_notified_room_ids"]` — owned and
-written back to storage by the tracker (`active_job.py`). Subsequent
-calls suppress the event for those rooms.
+`EVENT_STALL_DETECTED` fires at most once per room per job (only from the
+tick, `emit=True` — SNAP-2). Already-notified rooms are tracked in
+`active_job["_stall_notified_room_ids"]` (capped at
+`max(len(queue_room_ids) + 1, 20)`, oldest dropped) — owned and written back
+to storage by the tracker (`active_job.py`). Subsequent calls suppress the
+event for those rooms.
 
 **Running-long (soft).** The tier *below* the stall band — set when the room is
 genuinely overrunning but not yet stalled, and there is no pending live
-transition (so it is overrunning *in* the room, not a missed roll). Conditions:
+transition (so it is overrunning *in* the room, not a missed roll). Unlike
+stall/bounds-exit, this tier's threshold is **per the single `current_room_id`
+only** (`_rl_entry`/`_rl_threshold`), not summed over `current_room_ids`.
+Conditions:
 - not already stalled, status `started`, valid `current_room_id`, **and**
+- the room is not **unlearned** (issue #40): a timeline entry with
+  `source == "default"` and `sample_count <= 0` is excluded — an unlearned
+  room falls back to the ~6-minute default estimate, so any normal new-setup
+  room would trip the 1.5× band on its very first run with no real baseline to
+  judge against (stall needs no such gate — it is already bounds-gated), **and**
 - no pending counter transition
   (`active_job._live_boundary_count(...) <= len(completed_room_ids)`), **and**
 - `_RUNNING_LONG_RATIO * threshold <= current_room_elapsed_minutes < _STALL_RATIO * threshold`
   (1.5×–2× by default — a half-open band disjoint from stall).
 
-Running-long is **snapshot-only — it fires no event.** It surfaces only on the
-returned snapshot (`running_long`, `running_long_room_id`, `running_long_ratio`,
-and per-room `running_long` on the current timeline entry) so the card can draw
-a warning ring on the chip.
+Running-long is **snapshot-only — it fires no event, and is always computed**
+regardless of `apply_side_effects` (SNAP-2 only gates stall/skipped's one-shot
+emission, not this tier). It surfaces only on the returned snapshot
+(`running_long`, `running_long_room_id`, `running_long_ratio`, and per-room
+`running_long` on the current timeline entry) so the card can draw a warning
+ring on the chip.
 
 **Skipped (conservative).** `skipped_room_ids` = queued rooms strictly *before*
 `current_room_id` in queue order that are not in `completed_room_ids`. Because
@@ -354,9 +465,10 @@ from the counters, so the reliable "missed rooms" signal stays the post-run
 `incomplete_run_log` (§8). The hook fires only on a genuinely non-sequential
 advance (position-reliable brands / transition detection); there is no
 false-positive heuristic. When new skips appear, `EVENT_ROOM_SKIPPED` fires once
-per room (deduped via `active_job["_skipped_notified_room_ids"]`), and the
-skipped rooms are flagged per-entry on the timeline (`skipped`) and excluded
-from `remaining_room_ids`.
+per room (only from the tick, `emit=True`; deduped via
+`active_job["_skipped_notified_room_ids"]`, same `max(len(queue_room_ids) + 1, 20)`
+cap as the stall set), and the skipped rooms are flagged per-entry on the
+timeline (`skipped`) and excluded from `remaining_room_ids`.
 
 ### `has_observed_active_lifecycle`
 
@@ -392,8 +504,11 @@ The dispatch engine (`queue/dispatch_engines.py`) may instead declare
 phases (e.g. sweep-all → mop-all), each its own dispatch.
 `engine.build_phases()` produces the sequence; at the completion hook
 `manager.maybe_advance_phase` swaps to the next phase
-(`advance_active_job_phase`) and re-dispatches instead of finalizing —
-each phase finalizes as its own job record.
+(`advance_active_job_phase`) and re-dispatches instead of finalizing — each
+**clean** phase finalizes as its own child `completed_job` record (Phased Jobs
+wave 1, below), separately from the whole-run lifecycle finalize
+(`mark_active_job_finalized` / `EVENT_JOB_FINISHED`), which fires once, on the
+atomic job or the sequenced run's *final* phase (§6a).
 
 No engine declares `job_model = "sequenced"` at the *class* level, but
 sequenced runs are nonetheless produced **per-run** by the strict-order
@@ -410,13 +525,41 @@ re-dispatches at each completion (`PhaseRunner.maybe_advance_phase`,
 `jobs/phase_runner.py`, reached via the `manager.py` delegator; the
 advance step itself is `advance_active_job_phase` in
 `queue/queue_engine.py`; the per-run phase build is
-`planning/run_plan.py`; the completion-hook call is `lifecycle.py`),
-and each phase finalizes
-as its own job record. The advance/finalize machinery is wired into both
-the start and completion paths (`maybe_advance_phase` runs in the
-completion hook, see §6a; the start-side spawn and per-phase watchdog are
-in §2a and §4a). See [07-queue-engine.md](07-queue-engine.md) and
+`planning/run_plan.py`; the completion-hook call is `lifecycle.py`), and each
+clean phase finalizes as its own child record the same way. The advance/finalize
+machinery is wired into both the start and completion paths (`maybe_advance_phase`
+runs in the completion hook, see §6a; the start-side spawn and per-phase watchdog
+are in §2a and §4a). See [07-queue-engine.md](07-queue-engine.md) and
 [22-adapter-config-reference.md](22-adapter-config-reference.md) §13.
+
+**Phased Jobs recording (wave 1).** A phased run's parent record (opened at
+start, §2a) is what makes the per-phase child records below addressable.
+Immediately before each advance — inside `PhaseRunner.maybe_advance_phase`,
+*after* `_capture_finishing_phase_timing` (it reads the `_timing_end_t` the
+capture just stamped) and *before* `advance_active_job_phase` (which moves
+`current_phase_index`) — `_record_phase_to_parent` (`jobs/phase_runner.py`)
+attaches the finishing phase to the parent, best-effort (a failed write never
+blocks the next phase's dispatch):
+- A **clean** phase (`room_group` or `zone`) is finalized as its own child
+  `completed_job` record under `{job_id}.phase{N}` via `_finalize_phase_as_child`
+  — a copy of the active-job state narrowed to that one phase (so the finalizer's
+  cross-phase sums don't leak an earlier phase's seconds into this child), run
+  through the same `LearningJobFinalizer` the whole-run finalize uses but
+  **outside** the run-level exactly-once claim (that claim guards the *run*;
+  a per-phase call through it would mark the whole run finalized at phase 0).
+  Idempotent via the phase's own `_child_record_id`. The saved child is stamped
+  with `phase_key = {phased_job_id, phase_index, phase_type}`.
+- A **break** phase (`charge_wait` / `wait`) gets a `phase_break` record instead
+  (planned hold/target-battery vs. actual elapsed) via `_break_record_payload` —
+  never the `completed_job` schema, so a planned dock is never taught as
+  cleaning time.
+- Either way, `record_phase_outcome` (`learning/history_store.py`) appends the
+  phase's outcome + record id onto the parent (a read-modify-write; the parent
+  is a cache over its children, never a recomputed number).
+
+See [30-phase-runner §4a](30-phase-runner.md#4a-phased-jobs-recording--attaching-finishing-phases-to-the-parent-wave-1)
+for the full per-phase recording mechanics, and §2a above for where the parent
+itself is opened / reaped.
 
 **Phase record + non-room phase types.** A `phases` entry is a dict tagged by
 `phase_type`; a clean phase also carries the same room fields an atomic job has.
@@ -494,19 +637,37 @@ Defined in `ActiveJobTracker` (`jobs/active_job.py`). Called from
 `get_job_progress_snapshot`. Every counter/timing rollover funnels through the
 shared `_apply_room_rollover(...)` helper, which records the completed room and
 fires the `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` pair with a `source` tag
-distinguishing the path. There are **four rollover sources** — but a **sequenced (phased) job never reaches
-any of them**: `_maybe_roll_current_room_by_timing` returns at the very top on
-`if active_job.get("phases")` (`jobs/active_job.py`), because phased runs advance one
-room per dispatched phase via the §4a watchdog, not by live rollover. For an
-**atomic** job, the native-signal path is checked first; the remaining three are the
-counter/timing paths, checked in this order:
+distinguishing the path. There are **four rollover sources**.
+
+**A phased job is NOT categorically excluded from rollover.** An earlier build
+opened this method with a blanket `if active_job.get("phases"): return active_job`,
+which disabled all four sources for every phased job. That guard's own premise —
+"a sequenced job advances one room per dispatched *phase*" — is true for a
+native-signal brand (Roborock, one room per phase by construction) but **false**
+for Eufy: `EufyRoomCleanEngine` ignores `strict_order` and a `room_group` phase can
+hold **N** rooms in one dispatch, so the guard was the sole reason rooms never
+advanced inside an Eufy group (fixed by commit `40cbaac`, "rooms must advance
+inside a group"). The guard now lives **only inside the native-signal branch**
+below — it blocks rollover for a phased job **only when
+`live_transition.native_transition_source` is truthy** (Roborock); it does not
+run at all for Eufy. For an **atomic** job, or a **phased job on a
+non-native-transition-source brand**, the native-signal path is skipped and the
+remaining three counter/timing paths apply *scoped to the current phase's own
+`resolved_rooms` / counter slice* exactly as they would for a single-room atomic
+job — a room_group phase's rooms roll one at a time as their own
+`completed_room` events fire. Checked in this order:
 
 **Native-signal path (device's live current room, checked first):**
 1. For adapters that declare `live_transition.native_transition_source=True`
    (Roborock), `_maybe_roll_current_room_by_timing` short-circuits to
    `_maybe_roll_current_room_by_native_signal` (`active_job.py`) — checked
    **before** the `current_room_id is None` guard and the three counter/timing
-   sources (`active_job.py`).
+   sources (`active_job.py`). Inside this branch only, a phased job
+   (`active_job.get("phases")` truthy) returns immediately without rolling —
+   this is where the phases guard now lives (the 0.55-minute phantom
+   completion it exists to prevent — a Roborock docked in the target room's
+   name, adopted as current before it was ever cleaned — is a native-branch-only
+   failure; counter/timing rollover can't reproduce it).
 2. Rollover **follows** the device's native live current-room signal (filtered to
    job targets, matched by name slug, **order-agnostic**) rather than the
    sequential counter/timing heuristic.
@@ -637,7 +798,9 @@ slack_minutes = max(0.75, estimated_minutes * overrun_ratio)
 slack_minutes is capped at max(4.0, estimated_minutes * 0.35)
 ```
 
-The stall threshold is `2 × _timing_completion_threshold_minutes`.
+The stall threshold is `_STALL_RATIO × _timing_completion_threshold_minutes`
+(adapter-tunable via `anomaly.stall_ratio`, default `2.0` — see Anomaly
+detection above), summed over `current_room_ids` on a multi-room phase.
 
 ### `reanchor_learning_timeline`
 
@@ -729,7 +892,7 @@ not a hardcoded sentinel set**: it requires `task_status` to equal the
 adapter's `completion.task_status_value`, the secondary signals to be
 satisfied via `completion_secondary_satisfied` (which consults
 `completion.secondary_clear_sentinels` and `completion.require_job_active_clear`),
-and `has_observed_active_lifecycle == True`. Two further guards then run *on
+and `has_observed_active_lifecycle == True`. Three further guards then run *on
 top of* that base condition before finalization can proceed:
 
 - **Recharge-resume guard.** A brand may dock and report
@@ -747,11 +910,33 @@ top of* that base condition before finalization can proceed:
   charging between phases — precisely its completion signal) must not finalize
   the new phase. No-op for non-sequenced jobs (the flag is only set on a phase
   advance / the initial sequenced spawn).
+- **Cancel-in-flight guard.** If `active_job["_cancel_in_flight"]` is set, the
+  cancel path (§6b) owns finalization for this job — its own return-to-base
+  dock can otherwise read as completion here, which would race the cancel's
+  own finalize. `_cancel_in_flight` is released before the cancel's terminal
+  confirm poll completes, by design, so this guard is what keeps the two paths
+  from colliding in that window.
 
-When all three pass, it first calls `manager.maybe_advance_phase` — for a
+When all four pass, it first calls `manager.maybe_advance_phase` — for a
 **sequenced** job this advances to the next phase + re-dispatches instead of
-finalizing (see §4). Otherwise: `finalize_learning_for_active_job` →
-`mark_active_job_finalized` → `EVENT_JOB_FINISHED`.
+finalizing (see §4). Otherwise it calls `finalize_learning_for_active_job` and
+branches on `finalize_result_succeeded(finalize_result)` (RP-002/RF-01 — a
+refusal dict `{"finalized": False, "reason": ...}` is also not `None`, so the
+branch cannot be `finalize_result is not None`):
+- **Succeeded** → `mark_active_job_finalized` → fires `EVENT_JOB_FINISHED` with
+  `job_finished_event_data()` → if the completed job had a mop room and the
+  adapter allows it (`post_job_wash_amendment.enabled`, default `True`):
+  `register_post_job_water_amendment()` with the adapter's `debounce_seconds`
+  (default 60) / `timeout_seconds` (default 180).
+- **Raised** (the finalize call itself threw) → `mark_active_job_finalized(...,
+  finalize_result=None)` still runs, so the active-job slot and the mapping
+  tracker's hold can never strand — but no event fires and no summary is
+  fabricated.
+- **Refused** (`missing_started_at` from `finalize_learning_for_active_job`
+  itself, §7; or `already_finalized` / `finalize_in_flight` / `no_active_job_record`
+  from the exactly-once claim inside `async_finalize_completed_job`, §7) →
+  nothing further runs here; the entrant that actually succeeded (earlier, or
+  concurrently) owns the terminal steps.
 
 ### 6b. Manual cancel (service call)
 
@@ -772,10 +957,13 @@ service handler (`services/job_control.py`) fires `EVENT_JOB_FINISHED`, plus
 beyond the configured limit.
 
 **Code path:** `listeners/pause_timeout.py` (`pause_timeout.register(hass)`)
-sets a 1-minute `async_track_time_interval` tick. On each tick,
+sets a 1-minute `async_track_time_interval` tick (ticks never overlap; this is
+one of the reaper's **two** independent per-slot reaps, the other being §6f —
+see [04-listeners §6](04-listeners.md)). On each tick,
 `get_paused_job_timeout_report` is called for each known job. If it returns a
-report, `async_cancel_active_job` is called with
-`forced_lifecycle_state="pause_timeout_cancelled"`. The tick then fires
+report (`forced_lifecycle_state="pause_timeout_cancelled"`,
+`cancel_reason="pause_timeout"`), `async_cancel_active_job` is called with
+those values; only when it reports `cancelled` does the tick fire
 `EVENT_JOB_FINISHED`, plus `EVENT_RUN_INCOMPLETE` when the auto-cancel stranded
 rooms (§8).
 
@@ -785,12 +973,17 @@ rooms (§8).
 `path_block_action == "cancel_and_event"`.
 
 **Code path:** `listeners/path_blockers.py` (`path_blockers.register(hass)`)
-watches all rule entities. On state change, `get_runtime_path_block_report`
-re-evaluates rules. Behaviour by
+watches all rule entities (dropout-sentinel transitions ignored, single-flight
+per burst — see [04-listeners §5](04-listeners.md) for both). On state change,
+`get_runtime_path_block_report` re-evaluates rules. Behaviour by
 `path_block_action`:
 - `"event_only"` — fires `EVENT_PATH_BLOCKED` only.
 - `"pause_and_event"` — `async_pause_active_job` + `EVENT_PATH_BLOCKED`.
-- `"cancel_and_event"` — `async_cancel_active_job` + `EVENT_JOB_FINISHED` +
+- `"cancel_and_event"` — re-checks the triggering rule still matches with a
+  known state immediately before the irreversible cancel ([04-listeners §5](04-listeners.md));
+  if it no longer does, the cancel is suppressed
+  (`action_taken: "cancel_suppressed_recheck"`) and only `EVENT_PATH_BLOCKED`
+  fires. Otherwise `async_cancel_active_job` + `EVENT_JOB_FINISHED` +
   `EVENT_PATH_BLOCKED`, **plus `EVENT_RUN_INCOMPLETE` when the cancel stranded
   rooms** (a rule-driven cancel is involuntary; §8).
 
@@ -829,8 +1022,25 @@ pause-timeout reaper also calls `manager.poll_stranded_started_job`
 (`ActiveJobTracker`, independent of the paused check — a stranded run is never
 paused). The verdict is brand-agnostic: it reads the same completion signals +
 secondary + job-active as the completion gate (§6a) and defers to
-`is_stranded_started` (suppressed while `_phase_dispatch_pending` is set or the
-status is a mid-run service state). On the first tick the strand holds it stamps
+`is_stranded_started` (`jobs/job_monitor.py`). Two cases bypass the normal
+ended-looking checks entirely:
+- **STR-4 — never armed.** A run that never observed an active lifecycle at all
+  (`has_observed_active_lifecycle` still `False`) can't be judged by the
+  docked/idle + secondary-satisfied checks below (they all assume a real run
+  happened) — it's reapable once `dispatched_seconds_ago >= NEVER_STARTED_SECONDS`
+  (600s / 10 min), independent of vacuum_state or docked signals.
+- **A sequenced phase mid-dispatch.** `_phase_dispatch_pending` set is **no
+  longer an unconditional exclusion** (RP-011/RF-07 WD-2/STR-3) — it only
+  excludes the reaper while the per-phase watchdog is presumed live; a watchdog
+  explicitly marked dead (`phase_watchdog_dead`), or one whose
+  `phase_dispatch_pending_since` stamp has aged past its liveness margin with no
+  dead-flag update, is reapable like any other stranded phase.
+
+For a run that observed an active lifecycle and isn't excluded by either of
+those, `is_stranded_started` also refuses while the job-active binary is on or
+`task_status` is a mid-run service state, unless the vacuum reads
+docked/idle with its completion secondary satisfied and `task_status` has not
+yet reached the brand's completion value. On the first tick the strand holds it stamps
 `active_job["stranded_since"]` and waits; a resume clears the stamp so a transient
 dock never accrues grace. Once the strand has held past
 `STRANDED_REAP_GRACE_MINUTES` (5 min), `poll_*` returns a reap report and the tick
@@ -869,6 +1079,42 @@ self.learning_processing_enabled`; collection (the per-job save) always happens.
 Delegates to `learning.async_finalize_completed_job`, then calls
 `_ingest_completed_job_into_room_history` and fires the room-history-updated
 notification if anything was ingested.
+
+### The exactly-once claim (`async_finalize_completed_job`)
+
+Multiple entry points can race to finalize the same (vacuum, map) slot — the
+lifecycle listener's completion check (§6a), a manual cancel (§6b), the
+pause-timeout / stranded reapers (§6c/§6f), and the `finalize_learning_job`
+service can all reach `learning.async_finalize_completed_job`
+(`learning/manager.py`) for the same job around the same tick. It guards itself
+with a synchronous claim written into the **stored** active-job dict (not the
+normalized copy `get_active_job()` returns) before the first `await`, which is
+atomic on HA's single event loop:
+
+1. No stored record at all → refuse: `{"finalized": False, "reason": "no_active_job_record"}`.
+2. `finalized` already `True` → refuse: `{"finalized": False, "reason": "already_finalized"}`.
+3. `finalize_claimed_at` already set (a claim is in flight) → refuse:
+   `{"finalized": False, "reason": "finalize_in_flight"}`.
+4. Otherwise, stamp `finalize_claimed_at = <now>` and proceed.
+
+On a raised exception the claim is popped so a retry stays possible. On success,
+`finalized = True` is written **inside the still-claimed window, before
+release** — not left to the caller's own `mark_active_job_finalized` — because
+two concurrent listener tasks (from two physical HA state-change events
+arriving close together) can each be awaiting their own call into this
+function; an older release-then-let-the-caller-set-`finalized` ordering left a
+gap where a second entrant could find the claim already released and
+`finalized` not yet written, and run the whole finalize body again
+(hardware-proven, `OBS-IVY-1`/`HW-FINAL-1`). Writing the gate here closes that
+window; the caller's `mark_active_job_finalized` remains a safe idempotent
+second writer for its own bookkeeping (§9).
+`finalize_claimed_at` cannot legitimately survive a process restart — if the
+process is starting, nothing is mid-finalize — so `core/manager.py`'s
+`_clear_orphaned_finalize_claims` pops it unconditionally from every stored
+active job at startup (`async_initialize`); no age heuristic needed. Callers
+branch on `finalize_result_succeeded(result)` (`isinstance(result, dict) and
+isinstance(result.get("completed_job"), dict)`) rather than "is the result not
+`None`", since every refusal above is also a non-`None` dict — see §6a.
 
 ### `finalize_from_manager_state` / `finalize_from_inputs` (LearningJobFinalizer)
 
@@ -1052,7 +1298,12 @@ only the most recent incomplete run is kept.
 ## 9. State Cleanup
 
 After finalization, `mark_active_job_finalized` updates the active job record
-in-place (on `ActiveJobTracker`) rather than clearing it:
+in-place (on `ActiveJobTracker`) rather than clearing it. Before touching the
+active-job fields it also releases the `MappingTracker`'s hold on this job
+(`tracker.end_job(...)`, if a tracker is registered) — this is the terminal
+chokepoint every path reaches (success, cancel, strand), unlike the lifecycle
+finalize path's own `finally`, which a cancel/strand never goes through (see
+[04-listeners §3.5](04-listeners.md)):
 
 ```python
 active_job["status"]   = "completed"
@@ -1060,6 +1311,7 @@ active_job["finalized"] = True
 active_job["paused_at"] = None
 active_job["has_observed_active_lifecycle"] = False   # reset
 active_job["_phase_dispatch_pending"] = False          # clear strict-order guard
+active_job["_cancel_in_flight"] = False                # clear the cancel single-flight latch
 active_job["finalized_at"] = <from completed_job>
 active_job["finalize_summary"] = {
     "job_id", "job_path", "used_for_learning",
