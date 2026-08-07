@@ -316,25 +316,32 @@ export const maintenanceStyles = `
     border-color: var(--evcc-border-strong);
   }
 
+  /* STACKED, not side-by-side (Chris, 2026-08-07). The title and the status used
+     to share one row, which only works while both happen to be short. On a
+     ~165px mobile card a long localized status starves the title: German cut
+     "Warnung" to "Warn", Dutch "Binnenkort vervangen" is 128px on its own, and
+     Russian "Заменить сейчас" squeezed "Фильтр" to 5px -- under one glyph -- so
+     it rendered as a vertical one-character-per-line column.
+     Two side-by-side fixes were tried and both were conditional on the strings
+     fitting: min-width:0 + overflow-wrap:anywhere (which CAUSED the RU column),
+     then flex-wrap + a min-width floor (correct, but the layout then depends on
+     whether a given translation happens to cross the threshold). Stacking is
+     unconditional: the title always gets the full card width, in every locale
+     at every width, so neither failure can recur. */
   .evcc-maintenance-card-header {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 12px;
+    gap: 2px;
   }
 
   .evcc-maintenance-card-title {
     font-size: 0.92rem;
     font-weight: 700;
     color: var(--evcc-text-primary);
-    /* The status beside this is flex-shrink:0 and the card is overflow:hidden,
-       so without these the title's min-content width wins and the STATUS gets
-       clipped away -- German "Seitenbuerste" is one unbreakable token, which
-       cut "Warnung" to "Warn" on a 390px phone. "anywhere" (not "break-word")
-       is required: only "anywhere" reduces the intrinsic min-content size, so
-       the flex item can actually shrink. Affects English too -- "Cliff & Wall
-       Sensors" lost 4.5px before this. */
-    min-width: 0;
+    /* Full width now, so this is only a backstop for a single token longer than
+       the whole card. "anywhere" rather than "break-word" because only
+       "anywhere" reduces intrinsic min-content size. */
     overflow-wrap: anywhere;
   }
 

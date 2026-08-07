@@ -405,7 +405,7 @@ export function applyMaintenanceRenderers(proto) {
     const secondaryValue = this._maintenanceSecondaryValue(item);
     const dueInLabel = this._maintenanceDueInLabel(item);
     const guide = this._localizedGuide(item);
-    const guideSummary = guide?.frequency || this._formatMaintenanceFrequency(guide?.frequency);
+    const guideSummary = this._formatMaintenanceFrequency(guide?.frequency);
 
     return `
       <button
@@ -925,18 +925,45 @@ export function applyMaintenanceRenderers(proto) {
   };
 
   /**
-   * Format a frequency key as a title-cased display string.
+   * Present a guide frequency for display: sentence case, slug-tolerant.
    *
-   * @param {string|null} value - Raw frequency key.
-   * @returns {string} Formatted string, or empty string for blank input.
+   * This ran on nothing until 2026-08-07. The one call site read
+   * `guide?.frequency || _formatMaintenanceFrequency(guide?.frequency)`, so the
+   * formatter was only ever reached when its own input was falsy, and it
+   * returns "" for falsy input — dead by construction, while the truthy branch
+   * printed the value raw. Visible on Chris's box: EN cards read "weekly" /
+   * "monthly" lowercase while de/pl/ru read "Einmal pro Woche" / "Co tydzień" /
+   * "Раз в неделю", because the bundled English guide data stores lowercase
+   * fragments and the other catalogues store capitalised ones.
+   *
+   * TITLE case would be wrong here, which is why it is not what this does:
+   * "Раз в неделю" -> "Раз В Неделю" and "Einmal pro Woche" -> "Einmal Pro
+   * Woche" are both incorrect in their own language. Only the first character
+   * is raised, which is a no-op on already-capitalised prose and on scripts
+   * without case (ja/ko/zh/ar/he).
+   *
+   * Hyphens are LEFT ALONE. The old `[_-]+` class would have turned the real
+   * value "every 3-6 months" into "every 3 6 months" — latent only because
+   * nothing called this. Underscores still collapse, for a backend that sends
+   * a code ("every_3_months") instead of prose.
+   *
+   * @param {string|null} value - Guide frequency: localized prose, or a slug.
+   * @returns {string} Display string, or empty string for blank input.
    */
   proto._formatMaintenanceFrequency = function (value) {
     const raw = String(value ?? "").trim();
     if (!raw) return "";
 
-    return raw
-      .replace(/[_-]+/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase());
+    const text = raw.includes("_") ? raw.replace(/_+/g, " ") : raw;
+    // Locale-aware: Turkish dotless i means "iki haftada bir" must raise to
+    // "İki", not "Iki". toUpperCase() would get that wrong for tr, which ships.
+    //
+    // Default AFTER stringifying, not before. `_i18nLanguage() || "en"` is the
+    // obvious form and it is wrong: a hass stand-in can be TRUTHY yet stringify
+    // to "", so `||` never fires and toLocaleUpperCase("") throws RangeError —
+    // which took out the whole maintenance render for the default locale.
+    const lang = String(this._i18nLanguage() || "").split("-")[0] || "en";
+    return text.charAt(0).toLocaleUpperCase(lang) + text.slice(1);
   };
 
   /**

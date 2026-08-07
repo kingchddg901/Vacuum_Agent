@@ -128,9 +128,14 @@ test.describe("i18n layout gate: Cyrillic room data", () => {
 // that reason: silencing a synthetic red without adding a real check would have
 // traded a noisy gate for no gate. Measured green on all nine views before being
 // committed as a gate, so it lands active rather than red.
-const DE = JSON.parse(
-  readFileSync("custom_components/eufy_vacuum/frontend/locales/de.json", "utf8"),
-);
+const LOCALE_DIR = "custom_components/eufy_vacuum/frontend/locales";
+const CATALOGUES = {};
+function catalogue(code) {
+  if (!CATALOGUES[code]) {
+    CATALOGUES[code] = JSON.parse(readFileSync(`${LOCALE_DIR}/${code}.json`, "utf8"));
+  }
+  return CATALOGUES[code];
+}
 
 // Seeding returns the catalogue size so callers can PROVE the locale landed.
 // This gate shipped broken on 2026-08-07: it read `.clean` off flattenLocale,
@@ -138,19 +143,21 @@ const DE = JSON.parse(
 // ENGLISH on all nine views, and passed green for exactly that reason. The
 // repo's other two seed sites (i18n-rtl.spec.mjs, shoot-locales.mjs) both
 // destructure `.flat`; this was the only one that didn't.
-async function seedGerman(page) {
+async function seedLocale(page, code) {
   const keys = await page.evaluate(
-    (cat) => {
+    ([c, cat]) => {
       const { flat } = window.__evcc.flattenLocale(cat, window.__evcc.en);
-      window.__evcc.registerLocale("de", flat);
+      window.__evcc.registerLocale(c, flat);
       return Object.keys(flat || {}).length;
     },
-    DE,
+    [code, catalogue(code)],
   );
   // A silently-empty catalogue is the failure mode that made this gate a no-op,
   // so assert the seed itself rather than trusting the render to notice.
-  expect(keys, "German catalogue failed to flatten (gate would render English)").toBeGreaterThan(2000);
+  expect(keys, `${code} catalogue failed to flatten (gate would render English)`).toBeGreaterThan(2000);
 }
+
+const seedGerman = (page) => seedLocale(page, "de");
 
 test.describe("i18n layout gate: REAL German @390px (mobile)", () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -194,14 +201,23 @@ test.describe("i18n layout gate: REAL German @390px (mobile)", () => {
 // so drive it the way the Cyrillic gate above does. Both locales, because this
 // was never German-only: at 390px English clipped "Replace Soon" by 4.5px and
 // German clipped "Warnung" -> "Warn" by 7.4px and "Niedrig" by 15.9px.
-// Fixed by min-width:0 + overflow-wrap:anywhere on .evcc-maintenance-card-title.
+// Fixed by letting .evcc-maintenance-card-header WRAP, with a min-width floor on
+// the title. The first attempt (min-width:0 + overflow-wrap:anywhere, no wrap)
+// fixed the clip and introduced a worse regression — see the RU note below.
 test.describe("i18n layout gate: maintenance CARDS @390px (mobile)", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  for (const lang of [null, "de"]) {
+  // RU and NL are here for a reason, not for coverage theatre: NL has the
+  // longest status in any shipped locale ("Binnenkort vervangen", 128px on a
+  // 165px card) and RU is where the first fix REGRESSED -- min-width:0 let the
+  // title shrink to 5px and overflow-wrap:anywhere rendered "Фильтр" as a
+  // one-character-per-line vertical column. probeLayout reported that as CLEAN,
+  // because a character column overflows nothing. So this gate asserts the
+  // TITLE BOX, not just overflow -- the assertion probeLayout cannot make.
+  for (const lang of [null, "de", "nl", "ru"]) {
     test(`maintenance cards survive ${lang ?? "english"}`, async ({ page }) => {
       await mountHarness(page);
-      if (lang) await seedGerman(page);
+      if (lang) await seedLocale(page, lang);
       const res = await page.evaluate(
         (o) => window.__evcc.renderGallery("maintenance", o),
         { width: 390, freeze: true, lang, mobile: true },
@@ -214,6 +230,26 @@ test.describe("i18n layout gate: maintenance CARDS @390px (mobile)", () => {
           .querySelectorAll(".evcc-maintenance-card").length);
       expect(cards, "gallery fixture rendered no maintenance cards").toBeGreaterThan(3);
       assertNoOverflow(`maintenance-cards [${lang ?? "en"}]`, await probeLayout(page));
+
+      // The title box itself. A starved flex item plus overflow-wrap:anywhere
+      // degrades into a vertical character column that overflows NOTHING, so
+      // assertNoOverflow above is blind to it by construction.
+      const titles = await page.evaluate(() => {
+        const root = document.getElementById("evcc-host").shadowRoot;
+        return [...root.querySelectorAll(".evcc-maintenance-card-title")].map((t) => {
+          const cs = getComputedStyle(t);
+          const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2;
+          const r = t.getBoundingClientRect();
+          return { text: t.textContent.trim().slice(0, 24), w: Math.round(r.width), lines: Math.round(r.height / lh) };
+        });
+      });
+      // Assert the SYMPTOM, not the CSS rule. A width threshold here would be
+      // tautological — min-width:7ch guarantees it — so it would only re-state
+      // the implementation. Line count is implementation-independent: "Фильтр"
+      // rendered as six stacked characters is six lines, and no sane title in
+      // any language needs more than three on a 165px card.
+      const towers = titles.filter((t) => t.lines > 3);
+      expect(towers, `title collapsed into a character column: ${JSON.stringify(towers)}`).toEqual([]);
     });
   }
 });

@@ -222,3 +222,76 @@ test("[PCT-4] indeterminate -> null: missing denom, non-finite, or non-positive 
   assert.equal(r._maintenanceRemainingPercent({}), null);
   assert.equal(r._maintenanceRemainingPercent(null), null);
 });
+
+/* ============================================================
+   _formatMaintenanceFrequency — [FREQ-*]
+   ============================================================
+   Ran on nothing until 2026-08-07: the single call site was
+   `guide?.frequency || _formatMaintenanceFrequency(guide?.frequency)`, so it
+   was only ever invoked with a value it had already established was falsy, and
+   it returns "" for falsy input. Dead by construction, while the live branch
+   printed the value raw — English cards read lowercase "weekly"/"monthly"
+   while de/pl/ru read properly-cased prose from the guide catalogue.
+   These pin the real function, not a transcription of it.
+*/
+
+// The `lang` the formatter reads. A hass stand-in that is TRUTHY but stringifies
+// to "" is the shape that crashed the render, so it is a first-class case here.
+const freqHost = (lang) => {
+  const r = makeRenderers();
+  r._i18nLanguage = () => lang;
+  return r;
+};
+
+test("[FREQ-1] a lowercase English fragment is raised to sentence case", () => {
+  const r = freqHost("en");
+  assert.equal(r._formatMaintenanceFrequency("weekly"), "Weekly");
+  assert.equal(r._formatMaintenanceFrequency("monthly"), "Monthly");
+});
+
+test("[FREQ-2] already-cased prose is returned unchanged — NOT title-cased", () => {
+  // Title-casing every word is wrong in the target language: "Раз В Неделю" and
+  // "Einmal Pro Woche" are both incorrect. Only char 0 may be raised.
+  assert.equal(freqHost("de")._formatMaintenanceFrequency("Einmal pro Woche"), "Einmal pro Woche");
+  assert.equal(freqHost("ru")._formatMaintenanceFrequency("Раз в неделю"), "Раз в неделю");
+  assert.equal(freqHost("pl")._formatMaintenanceFrequency("Co tydzień"), "Co tydzień");
+});
+
+test("[FREQ-3] hyphens survive; only underscores collapse", () => {
+  const r = freqHost("en");
+  // The real bundled value. The old `[_-]+` class would have produced
+  // "Every 3 6 months" — latent only because nothing called the function.
+  assert.equal(r._formatMaintenanceFrequency("every 3-6 months"), "Every 3-6 months");
+  // A backend that sends a CODE instead of prose still reads correctly.
+  assert.equal(r._formatMaintenanceFrequency("every_3_months"), "Every 3 months");
+});
+
+test("[FREQ-4] blank input stays blank (the card omits the line entirely)", () => {
+  const r = freqHost("en");
+  for (const v of ["", "   ", null, undefined]) {
+    assert.equal(r._formatMaintenanceFrequency(v), "");
+  }
+});
+
+test("[FREQ-5] a truthy language that stringifies to \"\" must not throw", () => {
+  // REGRESSION PIN. `String(_i18nLanguage() || "en")` looks correct and is not:
+  // the harness hass null-object is truthy, so `||` never fires, String() gives
+  // "", and toLocaleUpperCase("") throws RangeError — which took out the whole
+  // maintenance render for the default locale. Defaulting must happen AFTER
+  // stringifying.
+  // The load-bearing shape is exactly "truthy, but String() gives empty" —
+  // which is what the harness hass null-object does at the end of a miss chain.
+  const emptyish = { toString: () => "", valueOf: () => "" };
+  assert.ok(emptyish, "the fake must be TRUTHY or it does not reproduce the bug");
+  assert.equal(String(emptyish), "");
+  assert.equal(freqHost(emptyish)._formatMaintenanceFrequency("weekly"), "Weekly");
+  assert.equal(freqHost("")._formatMaintenanceFrequency("weekly"), "Weekly");
+  assert.equal(freqHost(undefined)._formatMaintenanceFrequency("weekly"), "Weekly");
+});
+
+test("[FREQ-6] Turkish raises dotless i correctly", () => {
+  // tr ships. toUpperCase() would give "Iki"; the locale-aware form gives "İki".
+  assert.equal(freqHost("tr")._formatMaintenanceFrequency("iki haftada bir"), "İki haftada bir");
+  // and a regional tag still resolves to the base language
+  assert.equal(freqHost("tr-TR")._formatMaintenanceFrequency("iki haftada bir"), "İki haftada bir");
+});

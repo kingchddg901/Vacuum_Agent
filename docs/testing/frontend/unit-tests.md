@@ -6,7 +6,7 @@ with Node's built-in test runner, no browser and no build.
 
 - **Run them all:** `npm run test:units` (`node --test "src/**/*.test.mjs"`).
 - **Run one file:** `node --test src/state/rooms-logic.test.mjs`.
-- **904 cases across 91 files**, currently all green. Node ≥ 21 (native glob).
+- **935 cases across 91 files**, currently all green. Node ≥ 21 (native glob).
   (The `node --test` summary line is the authority for these numbers — rerun
   `npm run test:units` rather than trusting this doc's total.)
 
@@ -123,7 +123,7 @@ now delegate) so they could be unit-tested off the render path.
 |------|------:|----------------|
 | `theme-parsers.test.mjs` | 28 | `_parseColorMix` / `parseScalarThemeValue` / `alphaPercentFromHex` (+ serialize/clamp) — the CSS `color-mix` + scalar + alpha-hex parsers behind the theme editor. |
 | `map-geometry.test.mjs` | 20 | `_polygonCentroid` (signed-area + degenerate fallback), `_savedZoneBbox`, `_overlayTransform` (object-fit:contain letterbox). |
-| `maintenance-derive.test.mjs` | 18 | `maintenanceDueInBucket(item, now, t)` (due-in projection with 3-day / 0.1-h-per-day guards; `now`/`t` injected), needs-attention verdict, remaining-percent branch. |
+| `maintenance-derive.test.mjs` | 24 | `maintenanceDueInBucket(item, now, t)` (due-in projection with 3-day / 0.1-h-per-day guards; `now`/`t` injected), needs-attention verdict, remaining-percent branch. Plus `[FREQ-1..6]` on `_formatMaintenanceFrequency` (added 2026-08-07, when it was found to be dead code its one call site could never reach): sentence case not title case (`Раз в неделю` and `Einmal pro Woche` must survive unchanged), hyphens preserved while underscores collapse (`every 3-6 months` is a real bundled value the old `[_-]+` class would have mangled), Turkish dotless i (`İki`, not `Iki`), and `[FREQ-5]` — a language value that is TRUTHY but stringifies to `""` must not throw, which is the shape that made `String(x \|\| "en")` crash the whole view via `toLocaleUpperCase("")`. These drive the REAL function through `applyMaintenanceRenderers`, not a transcription of it. |
 | `job-summary.test.mjs` | 15 | The **Job Summary modal** — the surface that closes the gap between the job JSON and what the user is told about a run. |
 | `review-error-badge.test.mjs` | 14 | The review list's captured-run-errors (`run_errors`) badge — surfacing the backend's harvested error rows. |
 | `setup-reconciliation.test.mjs` | 12 | `CARD-7`/RP-019 — the reconciliation review banner (`renderReconciliationPanel`, driven through the whole `renderSetupView()` since it's a closure, not a proto method). |

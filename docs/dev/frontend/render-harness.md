@@ -71,7 +71,7 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 | `ingestTheme(envelope)` | The intake gate (§6). |
 | `registerLocale(lang, catalog)` | Inject a foreign/pseudo locale catalog into the in-page i18n registry (`src/i18n/index.js`) before rendering with `opts.lang`; used by the i18n-locale / i18n-layout / i18n-rtl gates. |
 | `makePseudoLong(base)` | Build the layout-stress (pseudo-long) catalog in-page (`harness/lib/pseudo-locale.mjs`), avoiding a Node-side `en.js` import. |
-| `en`, `flattenLocale` | The English manifest + the flatten function, exposed so a Node-side spec can flatten a shipped locale JSON in-page — Playwright's Node-side loader treats a typeless `.js` as CJS and can't reparse `en.js`/`flatten.js`'s ESM exports directly, so specs read the locale file in Node and hand the raw object to the page instead. |
+| `en`, `flattenLocale` | The English manifest + the flatten function, exposed so a Node-side spec can flatten a shipped locale JSON in-page — Playwright's Node-side loader treats a typeless `.js` as CJS and can't reparse `en.js`/`flatten.js`'s ESM exports directly, so specs read the locale file in Node and hand the raw object to the page instead. **`flattenLocale` returns `{ flat, coverage }` — seed with `.flat`.** Any other property yields `undefined`, and `registerLocale(code, undefined)` does not throw: it registers an empty catalog, the render silently falls back to English, and a gate named "survives real German" passes green while rendering English. That shipped on 2026-08-07 (`.clean`, which never existed) and went unnoticed for exactly that reason. A seeding helper should assert the returned key count, not trust the render to notice. |
 | `semanticTokens` | The registry-derived semantic-color token set (§3). |
 | `badgeMarks`, `markViewBox` | The shape-mark SVGs (§5). |
 | `tokenMap`, `VIEWS`, `VIEW_ORDER` | Registry + view constants for tests. |
@@ -92,6 +92,39 @@ empties for all of them would be throwaway work. The null-object lets the smoke
 test prove the **pure-renderer contract** (a throw means a renderer reached
 outside `state`/`ctx`) without realistic data, and records the accessor surface
 each tab touches (`harness/census.mjs`) as the seed for real fixtures.
+
+#### The stub renders EMPTY STATES — do not gate content on it
+
+The same property that makes the null-object safe makes it **contentless**: an
+absorbed accessor yields nothing to iterate, so a view driven by a collection
+renders its empty state. Measured 2026-08-07 at width 500, five of the nine
+views in `VIEW_ORDER` render a placeholder rather than content:
+
+| view | under the stub | populated fixture that exists |
+|---|---|---|
+| `rooms` | empty state, 269 chars | `rooms-active` |
+| `maintenance` | "No upkeep items need attention", **0 cards** | `maintenance` |
+| `metrics` | partial (stat tiles, empty panel) | `metrics-overview` |
+| `learning_review` | 2 empty states, 0 cards | `review-badges` |
+| `room_rules` | empty state, 277 chars | `room-rules` |
+
+`base_station`, `theme`, `map_config` and `setup` render real content because
+they are driven by config and capability rather than by collections.
+
+**Consequence for gates.** A spec that loops `VIEW_ORDER` through `renderTab`
+and asserts a layout property is, for those five, asserting it about a
+placeholder — and reports zero findings, which is indistinguishable from a
+clean pass. This is how a card-header clipping bug reached a user's phone with
+a fully green i18n suite: the densest text component in the panel had never
+been rendered under any gate. Coverage must be derived from the SCOPES actually
+exercised, never from the finding count.
+
+So: gate *chrome* properties (tab strip, header, nav) through `renderTab`, and
+gate *content* properties through `renderGallery` with the fixture named above.
+The Cyrillic and maintenance-cards passes in `i18n-layout.spec.mjs` are the
+worked examples. When you do, assert the fixture produced rows
+(`expect(cards).toBeGreaterThan(n)`) — otherwise an emptied fixture silently
+restores the very hole you closed.
 
 ---
 
@@ -372,7 +405,7 @@ PR (also documented in the workflow header):
 | `harness/preview-animals.mjs` | Renders the `/animals` gallery from `gallery/animals/*.json` (real animal-svg framework, all six poses, detail page + faceted index). |
 | `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
 | `harness/preview.mjs` | Builds the theme gallery: per-theme detail pages, thumbnails, contact sheets, and the themes index. |
-| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · i18n-layout · i18n-locale · i18n-rtl (the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px, i18n-locale asserts the `renderers.t` wiring actually switches the UI, i18n-rtl asserts a real Arabic/Hebrew catalog under `dir="rtl"` also survives the layout probe and that the host actually carries `dir="rtl"`). |
+| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · i18n-layout · i18n-locale · i18n-rtl (the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px **plus a real-German pass @390px and a maintenance-CARDS pass in en/de/nl/ru**, i18n-locale asserts the `renderers.t` wiring actually switches the UI, i18n-rtl asserts a real Arabic/Hebrew catalog under `dir="rtl"` also survives the layout probe and that the host actually carries `dir="rtl"`). |
 | `src/renderers/badge-marks.js` | The six per-state shape marks (ships). |
 | `gallery/themes/*.json` | Theme exports published to the gallery (one JSON per theme). |
 | `.github/ISSUE_TEMPLATE/theme-submission.yml` | Submission issue form (the "Submit a theme" target). |

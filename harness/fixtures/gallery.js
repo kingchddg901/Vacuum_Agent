@@ -516,8 +516,18 @@ const MAINTENANCE = {
       maintenance_items: [
         { kind: "maintenance", component: "rolling_brush", entity_id: "sensor.alfred_rolling_brush_life", label: "Rolling Brush", status: "good", remaining_percent: 78, remaining_hours: 234, interval_hours: 300, used_since_reset_hours: 66, guide: { display: { frequency: "every_2_weeks" } } },
         { kind: "maintenance", component: "side_brush", entity_id: "sensor.alfred_side_brush_life", label: "Side Brush", status: "warning", remaining_percent: 18, remaining_hours: 36, interval_hours: 200, used_since_reset_hours: 164, guide: { display: { frequency: "monthly" } } },
-        { kind: "maintenance", component: "filter", entity_id: "sensor.alfred_filter_life", label: "Dust Filter", status: "good", remaining_percent: 64, remaining_hours: 96, interval_hours: 150, used_since_reset_hours: 54, guide: { display: { frequency: "every_3_months" } } },
-        { kind: "maintenance", component: "sensors", entity_id: "sensor.alfred_sensor_cleaning", label: "Cliff & Wall Sensors", status: "replace_soon", remaining_percent: 9, remaining_hours: 8, interval_hours: 90, used_since_reset_hours: 82, guide: { display: { frequency: "weekly" } } },
+        // status:"replace_now" @0% mirrors Chris's actual box (2026-08-07) and is
+        // the ONLY state the all-states gallery was missing. It matters beyond
+        // colour coverage: "replace_now" is the LONGEST status string in most
+        // locales ("Заменить сейчас", "Binnenkort vervangen"), and pairing a long
+        // status with a short title is exactly what starved the title box into a
+        // one-character-per-line column on his phone. With filter:"good" the
+        // fixture could not produce that failure at all.
+        { kind: "maintenance", component: "filter", entity_id: "sensor.alfred_filter_life", label: "Dust Filter", status: "replace_now", remaining_percent: 0, remaining_hours: 0, interval_hours: 150, used_since_reset_hours: 150, guide: { display: { frequency: "every_3_months" } } },
+        // component was "sensors" (plural) — no such vocab key, so this title fell
+        // back to the raw English label and never translated in ANY locale, in a
+        // fixture whose job is i18n coverage. His box reports "sensor".
+        { kind: "maintenance", component: "sensor", entity_id: "sensor.alfred_sensor_cleaning", label: "Cliff & Wall Sensors", status: "replace_soon", remaining_percent: 9, remaining_hours: 8, interval_hours: 90, used_since_reset_hours: 82, guide: { display: { frequency: "weekly" } } },
       ],
       replacement_items: [
         { kind: "replacement", component: "mop_pads", entity_id: "sensor.alfred_mop_pad_life", label: "Mop Pads", status: "good", remaining_percent: 72, usage_hours: 84, max_life_hours: 300, guide: { display: { frequency: "every_2_months" } } },
