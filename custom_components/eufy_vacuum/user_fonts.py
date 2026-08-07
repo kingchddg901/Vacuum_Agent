@@ -159,6 +159,12 @@ def _face_codepoints(path: str) -> tuple[set[int], bool] | None:
             return set(cmap.keys()), "GSUB" in font
         finally:
             font.close()
+    except ImportError:
+        # fontTools present but its woff2 DECODER dependency (brotli) is not —
+        # newer fonttools dropped the [woff2] extra, so declare brotli
+        # explicitly (manifest does). This is "cannot verify", never "covers
+        # nothing": the two verdicts must not be conflated.
+        return None
     except Exception as err:  # noqa: BLE001 - a broken drop-in must not break setup
         _LOGGER.warning("user font face %s is unreadable: %s", path, err)
         return set(), False
