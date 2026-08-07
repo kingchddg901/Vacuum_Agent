@@ -768,16 +768,40 @@ export function applyMapBindings(proto) {
     return this._parseCssColor(dflt) || [128, 128, 128, 1];
   };
 
-  /* Resolve a floor layer's opacity token (0..1), falling back to the registry default. */
+  /* Resolve a floor layer's opacity token (0..1), falling back to the registry default.
+
+     Resolved THE SAME WAY _resolveFloorColor resolves colour, and for the same reason:
+     apply the value to a real CSS property on the hidden probe (which inherits the theme
+     vars) and read the COMPUTED result, so the browser evaluates it — exactly what the
+     card's CSS does with `var(opacityToken, opacityDefault)`.
+
+     `opacity` is the right carrier: it takes a <number>, and it accepts calc()/clamp()/
+     var(), which a plain parseFloat cannot. That gap was a live bug (FTX-VEIN-1): marble's
+     two vein layers point at computed `--…-opacity-eff` tokens that nothing defines in CSS,
+     with a `clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + …),1)` STRING as the
+     registry default. parseFloat("clamp(...)") is NaN, so the map fell back to 1 and
+     composited both veins at full strength while the card rendered them at 0.5/0.38 — and
+     the three editor sliders feeding that clamp moved the card swatch and nothing else.
+
+     Net effect elsewhere is zero: a plain numeric default computes to itself. A percentage
+     ("90%") now resolves to 0.9 instead of clamping to 1, which is also the card's answer. */
   proto._resolveFloorOpacity = function (token, dflt, host) {
-    let raw = dflt;
     try {
-      if (host && typeof getComputedStyle === "function") {
-        const v = getComputedStyle(host).getPropertyValue(token).trim();
-        if (v) raw = v;
+      const el = this._floorColorProbe(host);
+      if (el && typeof getComputedStyle === "function") {
+        const tokenVal = getComputedStyle(el).getPropertyValue(token).trim();
+        const want = tokenVal || dflt;
+        el.style.opacity = "";
+        el.style.opacity = want;                        // invalid CSS is ignored -> stays ""
+        const resolved = el.style.opacity ? getComputedStyle(el).opacity : "";
+        el.style.opacity = "";                          // never leave the probe tinted
+        const n = parseFloat(resolved);
+        if (Number.isFinite(n)) return Math.max(0, Math.min(1, n));
       }
-    } catch (_e) { /* keep default */ }
-    const n = parseFloat(raw);
+    } catch (_e) { /* fall through to the raw default */ }
+    // No probe (no DOM / detached canvas): the pre-existing numeric read, which still
+    // handles every plain-number default in the registry.
+    const n = parseFloat(dflt);
     return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
   };
 

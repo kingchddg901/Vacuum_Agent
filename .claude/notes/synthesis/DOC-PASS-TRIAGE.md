@@ -247,7 +247,7 @@ Reconciling the three docs named as the residual in `docs/dev/deltas/README.md`
 disagreements where the CODE is the wrong side. Neither was papered over — the docs
 now state the shipped behaviour and point here.
 
-## R3-BUG-1 [fe-architecture] — every service-failure / service-refusal toast is inert
+## R3-BUG-1 [fe-architecture] — every service-failure / service-refusal toast is inert. **FIXED**
 
 `src/actions/core.js` raises user-facing toasts from **two** paths: the `catch` at
 :112-121 (`common.service_failed`) and `showServiceRefusalToast` at :147-162
@@ -279,7 +279,7 @@ Fix shape (not applied — needs Chris's call on the receiver): either give
 two methods onto the instance. Whichever lands, the tests must be repaired to construct a
 **real** `VacuumCardActions` so they can never re-certify an inert path.
 
-## R3-BUG-2 (`FTX-VEIN-1`) [fe-visual] — marble vein opacity sliders don't reach the map
+## R3-BUG-2 (`FTX-VEIN-1`) [fe-visual] — marble vein opacity sliders don't reach the map. **FIXED**
 
 `FLOOR_TEXTURE_REGISTRY`'s two marble vein layers set `opacityToken` to
 `--evcc-floor-marble-vein-{major,minor}-opacity-eff` — tokens **nothing defines in CSS**

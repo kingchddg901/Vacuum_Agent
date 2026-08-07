@@ -37,30 +37,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { applyCoreActions } from "./core.js";
-import { applyRoomsActions } from "./rooms.js";
+import { makeActions } from "./_test-host.mjs";
 
+// Real VacuumCardActions + a fake host, so the toast delegation is under test rather
+// than supplied by the harness — see _test-host.mjs (R3-BUG-1).
 function makeCard({ startResponse, getStartStatusResponse = { blocked: false, reason: "ready" } } = {}) {
-  const proto = {};
-  applyCoreActions(proto);
-  applyRoomsActions(proto);
-  const card = Object.create(proto);
-
-  card.toasts = [];
-  card.showToast = (message, opts) => card.toasts.push({ message, ...opts });
-  card.t = (key, vars) => `T:${key}:${vars?.reason ?? vars?.service ?? ""}`;
-
   const hassCalls = [];
-  card.hass = {
-    callService: async (domain, service, data, target, notifyOnError, returnResponse) => {
-      hassCalls.push({ domain, service, data, returnResponse });
-      if (service === "get_start_status") return getStartStatusResponse;
-      if (service === "start_selected_rooms") return startResponse;
-      return undefined;
-    },
-  };
-
   const stateCalls = { setStartConfirmation: 0, clearStartConfirmation: 0 };
+
+  const card = makeActions({
+    hass: {
+      callService: async (domain, service, data, target, notifyOnError, returnResponse) => {
+        hassCalls.push({ domain, service, data, returnResponse });
+        if (service === "get_start_status") return getStartStatusResponse;
+        if (service === "start_selected_rooms") return startResponse;
+        return undefined;
+      },
+    },
+  });
+
   card.state = {
     vacuumEntityId: () => "vacuum.alfred",
     activeMapId: () => "1",

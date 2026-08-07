@@ -85,7 +85,7 @@ No state.         service results.  effects.          update state.
                   No DOM.
 ```
 
-**Actions** (`src/actions/`) — every service call the *panel card* makes goes through one place: `proto.callService(domain, service, data = {}, returnResponse = false)` in `src/actions/core.js`, which the domain modules all wrap. (The two standalone Lovelace cards are outside this object and call `hass.callService` directly — see [card-topology-and-bundles.md](card-topology-and-bundles.md).) No action method may touch the DOM or mutate state except by returning data that the caller (main.js or a binding) stores into state.
+**Actions** (`src/actions/`) — every service call the *panel card* makes goes through one place: `proto.callService(domain, service, data = {}, returnResponse = false)` in `src/actions/core.js`, which the domain modules all wrap. (The two standalone Lovelace cards are outside this object and call `hass.callService` directly — see [card-topology-and-bundles.md](card-topology-and-bundles.md).) That wrapper also owns *reporting*: it catches throws into an error toast, and inspects a non-throwing payload for the two backend refusal shapes (`{success: false, reason}` and `{started: false, reason}`, the latter exempting `confirmation_required`) so an operational refusal can't read as a success. No action method may touch the DOM or mutate state except by returning data that the caller (main.js or a binding) stores into state; surfacing a message is done by delegating to the host, never by rendering.
 
 **State** (`src/state/`) — holds two kinds of data. The first is derived from `hass.states` (vacuum entity, switch entities, number entities, sensor attributes). The second is transient UI state stored as plain properties on the instance (e.g. `_startStatus`, `_dockActionStatus`, editor open/close flags). State modules expose read methods; main.js writes to them by calling named setters or assigning directly to well-known properties.
 
@@ -95,16 +95,20 @@ No state.         service results.  effects.          update state.
 
 ### Who holds what — the four constructors
 
-The four objects do **not** share a receiver shape, and the difference is load-bearing: an action reaching for `this.card` gets `undefined`, which is how a real bug (`clearRoomAccessGraph` calling `this.selectedVacuum()`) shipped.
+The four objects do **not** share a receiver shape, and the difference is load-bearing: `this.state` on an action and `this.card._state` on a binding are the same object reached two different ways, and using the wrong one is how a real bug (`clearRoomAccessGraph` calling `this.selectedVacuum()`) shipped.
 
-| Object | Constructed in | Signature | Reaches the rest via |
-|---|---|---|---|
-| `VacuumCardState` | `setConfig` | `(hass, config)` | `this.hass`, `this.config` — nothing else |
-| `VacuumCardActions` | `setConfig` | `(hass, state)` | `this.hass`, `this.state` — **no `this.card`** |
-| `VacuumCardRenderers` | `setConfig` | `(card)` | `this.card._state`, `this.card._actions`, … |
-| `VacuumCardBindings` | `setConfig` | `(card)` | `this.card._state`, `this.card._actions`, … |
+| Object | Constructed in | Signature | Reaches state via | Reaches the host via |
+|---|---|---|---|---|
+| `VacuumCardState` | `setConfig` | `(hass, config)` | — (`this.hass`, `this.config`) | — |
+| `VacuumCardActions` | `setConfig` | `(hass, state, card)` | `this.state` **directly** | `this.card` (optional) |
+| `VacuumCardRenderers` | `setConfig` | `(card)` | `this.card._state` | `this.card` |
+| `VacuumCardBindings` | `setConfig` | `(card)` | `this.card._state` | `this.card` |
 
-`state` and `actions` are re-pointed on every HA update by `sync()` (`this._state.sync(hass, config)` / `this._actions.sync?.(hass, this._state)` in the `hass` setter); `renderers` and `bindings` hold the card itself, so they need no re-sync in the normal path (each still exposes a `sync(card)` for a re-created card instance). Bindings have no `t` of their own — `t` / `tRaw` / `esc` on `VacuumCardBindings` delegate to `card._renderers`.
+Actions are the odd one out: they hold `state` directly *and* a card reference, because they need both — `this.state.vacuumEntityId()` to build a payload, and the host to surface the result. Their `card` is the last parameter and optional, so a bare `new VacuumCardActions(hass, state)` still constructs; it just cannot talk to the user.
+
+`state` and `actions` are re-pointed on every HA update by `sync()` (`this._state.sync(hass, config)` / `this._actions.sync?.(hass, this._state)` in the `hass` setter) — `sync` deliberately does **not** re-take `card`, which is fixed for the object's lifetime. `renderers` and `bindings` hold the card itself, so they need no re-sync in the normal path (each still exposes a `sync(card)` for a re-created card instance).
+
+Neither actions nor bindings own an i18n implementation: `t` / `esc` on `VacuumCardActions` and `t` / `tRaw` / `esc` on `VacuumCardBindings` both delegate to `card._renderers`, so every user-facing string in the card resolves through one translator. Actions additionally delegate `showToast` to the host. That delegation is not optional decoration — when it was absent, `core.js`'s `this.showToast?.(this.t?.(…))` silently no-opped and the entire service-failure / service-refusal toast surface was dead in production while its tests passed against a hand-attached mock. It is pinned by `CSF-7` in `actions/core-service-failure.test.mjs`.
 
 **A fifth object — the controller.** Beyond the four render-cycle layers, `LearningController` (`src/controllers/learning-controller.js`, constructed in `setConfig` and driven by `connectedCallback` / `disconnectedCallback` → `connect()` / `disconnect()`) centralizes the event-driven live-job logic. It subscribes to **five** HA events for the configured vacuum — `eufy_vacuum_room_completed`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_job_finished`, `eufy_vacuum_run_incomplete` — and owns ETA reanchoring, the 5 s bounds-exit poll, the 1 s job-progress ticker, the per-room progress snapshot read by the renderers, and the queue-independent `loadRoomEstimates()` fetch. Every handler drops events whose `data.vacuum_entity_id` isn't this card's. `connect()` is idempotent (early-returns if any subscription is live); `disconnect()` unsubscribes all five and clears all three timers. The `learning` state module holds the data; the controller drives the updates.
 
@@ -127,7 +131,7 @@ user action → binding handler → action.callService() + state mutator → _sc
 
 The innerHTML step is **diffed, not unconditional**: the header, bottom nav, mobile overlay, active view root, and modal host each cache their last markup in `dataset.renderedHtml` and skip the swap when it is unchanged. `bindEvents()` still runs on every render, which is why the `_on` / `_onAll` helpers are idempotent — a same-markup render keeps its live elements, so a raw `addEventListener` would stack a duplicate listener each time. (The modal host is the exception that proves it: it binds *only* inside the swap branch.)
 
-State modules never call each other. If module A needs data that module B owns, it goes through the card instance, which owns all four layer objects — bindings and renderers reach it as `this.card._state` / `this.card._actions`; actions hold `this.state` directly and have no card reference at all (see the constructor table above).
+State modules never call each other. If module A needs data that module B owns, it goes through the card instance, which owns all four layer objects — bindings and renderers reach it as `this.card._state` / `this.card._actions`; actions hold `this.state` directly and use `this.card` only to reach the host's i18n and toast stack (see the constructor table above).
 
 ---
 

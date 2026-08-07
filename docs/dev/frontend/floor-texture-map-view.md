@@ -95,9 +95,13 @@ resolve a `var()` or `oklch(from var(…) …)` — the marble minor-vein defaul
 to inherit from, and those were painting black. Last resort after both is grey
 `[128,128,128,1]`. The colour's own alpha is folded into the layer opacity by the caller.
 
-`_resolveFloorOpacity` is the asymmetric twin: it reads its token off the **host canvas**, not
-the probe, and `parseFloat`s the raw text (clamped `[0,1]`, default `1` on a non-number). It
-never evaluates CSS. That matters for exactly one material — see the marble-vein note under
+`_resolveFloorOpacity` works the same way, on the same probe: read the token, apply the token
+value (or the registry default) to a real `opacity` property, read the computed number, clamp to
+`[0,1]`. `opacity` is the right carrier because it takes a `<number>` and accepts
+`calc()`/`clamp()`/`var()`. A value CSS rejects leaves `style.opacity` empty, which the guard
+treats as "unresolvable" and falls back to `parseFloat`-ing the registry default — so a junk
+theme value can never beat the material's own default. Only marble's veins have a non-numeric
+default; every other layer computes to exactly its literal. See
 [Theme-editor tokens](#theme-editor-tokens--the-seed).
 
 ## Mask decode — reliability
@@ -229,18 +233,23 @@ layers (oklch/calc defaults) are skipped. Net-zero on render — the seed equals
 > would shadow (break) that global for anyone who set it. The layer color/opacity tokens have
 > no such intermediate, so they're safe to seed.
 
-> ### ⚠ Marble's two vein layers do not honour their opacity sliders **on the map**
-> Both vein layers point `opacityToken` at a computed `…-opacity-eff` token that nothing
-> defines in CSS, with a `clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + var(…-major/
-> minor-opacity,…)),1)` **string** as `opacityDefault`. The card path bakes that straight into
-> `var(token, default)` and CSS evaluates it. The map path does not: `_resolveFloorOpacity`
-> reads an empty token, `parseFloat`s the `clamp(…)` literal, gets `NaN`, and returns its `1`
-> fallback. So on the map both veins composite at **full strength**, and the three editor
-> controls that feed the clamp — *Marble Vein Opacity (master)* and the two ± offsets — move
-> the card swatch and nothing else. The colour side of the same pair works, because
-> `_resolveFloorColor` hands its value to the browser to evaluate. The vein **blur** tokens are
-> card-only by design (the canvas compositor has no blur), but this opacity gap is not by
-> design — tracked as `FTX-VEIN-1` in `.claude/notes/synthesis/DOC-PASS-TRIAGE.md`.
+> ### Computed `-eff` tokens: why opacity is resolved through CSS, not `parseFloat`
+> Marble's two vein layers are the only layers whose `opacityDefault` is not a number. They
+> point `opacityToken` at a computed `…-opacity-eff` token that nothing defines in CSS, and
+> carry a `clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + var(…-major/minor-opacity,
+> …)),1)` **string** as the default — the master-plus-offset model that lets one slider ride
+> both tiers. The card bakes that into `var(token, default)` and CSS evaluates it.
+>
+> The map has to do the same thing deliberately, and for a while it did not: `_resolveFloorOpacity`
+> used to `parseFloat` the raw text, get `NaN` from `clamp(…)`, and return its `1` fallback — so
+> both veins composited at full strength on the map while the card showed 0.5 / 0.38, and the
+> three editor controls feeding the clamp moved the card swatch and nothing else (`FTX-VEIN-1`).
+> It now resolves the value the same way `_resolveFloorColor` resolves colour: assign it to a real
+> `opacity` property on the probe and read the computed number back. Verified in Chromium — major
+> `0.5`, minor `0.38` untouched; `0.8` / `0.68` with the master themed to `0.8`. Pinned by
+> `bindings/floor-opacity-resolve.test.mjs` (FVO-1..6).
+>
+> The vein **blur** tokens remain card-only by design — the canvas compositor has no blur.
 
 ## Material authoring — the rule, and the procedural generator
 
@@ -300,7 +309,8 @@ vanish on the map but not the card.
 | Bigger/smaller features on the map | `FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[<type>]` (or `--evcc-floor-<type>-map-scale`) |
 | Rotate the grain/plank/grout direction | `--evcc-floor-texture-map-rotate` (editor) |
 | Material colour(s) | the material's colour tokens (editor: Floor Textures — <Material>) |
-| A detail layer stronger/fainter | that layer's `-opacity` token (editor) — **except marble's veins, card-only today** |
+| A detail layer stronger/fainter | that layer's `-opacity` token (editor) |
+| Both marble vein tiers at once, keeping their delta | `--evcc-floor-marble-vein-opacity` (master); the per-tier `± ` offsets ride it |
 | Wider/narrower wood planks | `gen_wood_planks` `plank_w` param → regen → build |
 | A flat material to actually read | re-author as multi-mask with a **distinct-colour** bold layer |
 

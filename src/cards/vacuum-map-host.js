@@ -110,7 +110,7 @@ class EufyVacuumMap extends HTMLElement {
     this._state = new VacuumCardState(this._hass, this._config);
     this._state._mapCtx = "card";  // pin pan/zoom under a key separate from the sidebar panel
     this._renderers = new VacuumCardRenderers(this);
-    this._actions = new VacuumCardActions(this._hass, this._state);
+    this._actions = new VacuumCardActions(this._hass, this._state, this);
     this._bindings = new VacuumCardBindings(this);
     // The embedded map is ALWAYS the active map view — force it instance-locally so
     // the map gates fire, WITHOUT writing the panel's per-vacuum localStorage key.

@@ -33,23 +33,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { applyCoreActions } from "./core.js";
+import { makeActions } from "./_test-host.mjs";
 
-function makeCard({ response = undefined, withToast = true, withT = true } = {}) {
-  const proto = {};
-  applyCoreActions(proto);
-  const card = Object.create(proto);
-  card.toasts = [];
-  card.hass = {
-    callService: async () => response,
-  };
-  if (withToast) {
-    card.showToast = (message, opts) => card.toasts.push({ message, ...opts });
-  }
-  if (withT) {
-    card.t = (key, vars) => `T:${key}:${vars?.reason ?? vars?.service ?? ""}`;
-  }
-  return card;
+// Real VacuumCardActions + a fake host, so the toast delegation is under test rather
+// than supplied by the harness — see _test-host.mjs (R3-BUG-1).
+function makeCard({ response = undefined, withHost = true } = {}) {
+  return makeActions({
+    host: withHost ? undefined : null,
+    hass: { callService: async () => response },
+  });
 }
 
 test("[CRS-1] a structured refusal raises an error toast naming the reason", async () => {

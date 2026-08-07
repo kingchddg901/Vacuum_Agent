@@ -111,9 +111,12 @@ export function applyCoreActions(proto) {
       // so every existing null-check keeps working — this only adds the missing signal.
       try {
         const label = `${domain}.${service}`;
-        this.showToast?.(
-          this.t?.("common.service_failed", { service: label }) ||
-            `Could not complete ${label}`,
+        // Direct calls, not `?.` — `t`/`showToast` are real methods on
+        // VacuumCardActions now. Optional-chaining them is what let this whole path
+        // no-op silently for as long as it did; if the delegation is ever removed
+        // again, this should be loud rather than quiet.
+        this.showToast(
+          this.t("common.service_failed", { service: label }),
           { kind: "error", ttl: 6000 }
         );
       } catch (toastErr) {
@@ -147,13 +150,19 @@ export function applyCoreActions(proto) {
   proto.showServiceRefusalToast = function (reason) {
     const code = String(reason ?? "");
     const reasonKey = SERVICE_REASON_KEYS[code];
+    // A known code resolves to an escaped catalog string. An UNKNOWN one interpolates
+    // the raw backend value, and t() inserts interpolated values raw (trust model B) —
+    // so esc() it here, at the point it enters the chain, exactly as the bindings do
+    // for backend `reason`/`message` text. The toast sink does not escape.
     const reasonText = reasonKey
-      ? (this.t?.(reasonKey) ?? code)
-      : (this.t?.("service_reasons.unknown", { reason: code }) ?? `(${code})`);
+      ? this.t(reasonKey)
+      : this.t("service_reasons.unknown", { reason: this.esc(code) });
     try {
-      this.showToast?.(
-        this.t?.("common.service_refused", { reason: reasonText }) ||
-          `Refused: ${reasonText}`,
+      // `reasonText` is already escaped (either a t() catalog string or an esc()'d raw
+      // code), and t() inserts interpolated values raw — so this is single-escaped, not
+      // double. Direct calls for the same reason as the failure path above.
+      this.showToast(
+        this.t("common.service_refused", { reason: reasonText }),
         { kind: "error", ttl: 6000 }
       );
     } catch (toastErr) {

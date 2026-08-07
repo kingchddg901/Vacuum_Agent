@@ -39,13 +39,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { applyRoomsActions } from "./rooms.js";
-import { applyCoreActions } from "./core.js";
+import { makeActions } from "./_test-host.mjs";
 
 function makeCard({ activeMapId, activeMapRooms }) {
-  const proto = {};
-  applyCoreActions(proto);
-  applyRoomsActions(proto);
-  const card = Object.create(proto);
+  // Real VacuumCardActions + a fake host, so `t`/`showToast` come from the class's own
+  // delegation rather than being attached here — see _test-host.mjs (R3-BUG-1).
+  const card = makeActions({});
   const toggleCalls = [];
   // toggleRoomEnabled lives in the same mixin, on the same prototype -- stub
   // it directly rather than reimplementing the composer-lock logic here (the
@@ -60,12 +59,6 @@ function makeCard({ activeMapId, activeMapRooms }) {
     activeMapId: () => activeMapId,
   };
   card._toggleCalls = toggleCalls;
-  // Same stubbing pattern as rooms-start-refusal-toast.test.mjs's makeCard:
-  // an empty toasts array + showToast pushing onto it, and a template-literal
-  // `t` tagging the key with the reason/service var so assertions can match.
-  card.toasts = [];
-  card.showToast = (message, opts) => card.toasts.push({ message, ...opts });
-  card.t = (key, vars) => `T:${key}:${vars?.reason ?? vars?.service ?? ""}`;
   return card;
 }
 

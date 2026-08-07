@@ -250,7 +250,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     }
 
     if (!this._actions) {
-      this._actions = new VacuumCardActions(this._hass, this._state);
+      this._actions = new VacuumCardActions(this._hass, this._state, this);
     } else {
       this._actions.sync?.(this._hass, this._state);
     }
