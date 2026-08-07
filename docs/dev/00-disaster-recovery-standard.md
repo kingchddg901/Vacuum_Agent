@@ -194,6 +194,15 @@ Grouped by the failure modes above; use as a checklist.
    record, exactly as with code. "Readable" and "agent-executable" are different
    standards; a discovered collision is fixed before the doc is consumed by an
    agent.
+5. **Canonical text is never evidence that the author paid attention.** Names,
+   dates, attributions, "as discussed", discovery stories, and callbacks to a
+   conversation are metadata about the author, not information about the system —
+   the same distinction the coupling rule draws for implementations. Attention is
+   demonstrated in the commit message, the manifest, the review response, and the
+   audit record; the artifact demonstrates attention by being correct. The filter
+   for any phrase: would it still serve a competent reader who has never seen the
+   project's conversations and does not care who discovered the rule? If not, it
+   belongs in the audit record.
 
 ## 6. Acceptance test
 
