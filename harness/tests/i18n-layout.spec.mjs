@@ -132,20 +132,88 @@ const DE = JSON.parse(
   readFileSync("custom_components/eufy_vacuum/frontend/locales/de.json", "utf8"),
 );
 
+// Seeding returns the catalogue size so callers can PROVE the locale landed.
+// This gate shipped broken on 2026-08-07: it read `.clean` off flattenLocale,
+// which returns {flat, coverage} — so it registered `undefined`, rendered
+// ENGLISH on all nine views, and passed green for exactly that reason. The
+// repo's other two seed sites (i18n-rtl.spec.mjs, shoot-locales.mjs) both
+// destructure `.flat`; this was the only one that didn't.
+async function seedGerman(page) {
+  const keys = await page.evaluate(
+    (cat) => {
+      const { flat } = window.__evcc.flattenLocale(cat, window.__evcc.en);
+      window.__evcc.registerLocale("de", flat);
+      return Object.keys(flat || {}).length;
+    },
+    DE,
+  );
+  // A silently-empty catalogue is the failure mode that made this gate a no-op,
+  // so assert the seed itself rather than trusting the render to notice.
+  expect(keys, "German catalogue failed to flatten (gate would render English)").toBeGreaterThan(2000);
+}
+
 test.describe("i18n layout gate: REAL German @390px (mobile)", () => {
   test.use({ viewport: { width: 390, height: 844 } });
+
+  // The seed assertion above catches an EMPTY catalogue; this catches a
+  // catalogue that registers but never reaches the renderer (a resolve/pin
+  // regression). Together they mean this describe cannot silently degrade
+  // into a second English run again.
+  test("the gate actually renders German", async ({ page }) => {
+    await mountHarness(page);
+    await seedGerman(page);
+    const read = () => page.evaluate(() =>
+      document.getElementById("evcc-host").shadowRoot
+        .querySelector(".evcc-maintenance-panel-title")?.textContent.trim());
+
+    await renderTab(page, "maintenance", { width: 390, freeze: true, mobile: true });
+    expect(await read()).toBe("Maintenance Overview");
+    await renderTab(page, "maintenance", { width: 390, freeze: true, lang: "de", mobile: true });
+    expect(await read()).toBe("Wartungsübersicht");
+  });
 
   for (const view of VIEW_ORDER) {
     test(`${view} survives real German`, async ({ page }) => {
       await mountHarness(page);
-      await page.evaluate(
-        (cat) => window.__evcc.registerLocale(
-          "de", window.__evcc.flattenLocale(cat, window.__evcc.en).clean),
-        DE,
-      );
+      await seedGerman(page);
       const res = await renderTab(page, view, { width: 390, freeze: true, lang: "de", mobile: true });
       expect(res.ok, res.error).toBe(true);
       assertNoOverflow(`${view} [de]`, await probeLayout(page));
+    });
+  }
+});
+
+// THE CARD GRID. renderTab mounts the generic stub, whose maintenance data is
+// EMPTY — so every gate above walks a "No upkeep items need attention" empty
+// state and the densest text component in the panel had never been measured in
+// any locale. That is how the German clip below reached a user's phone with a
+// full-green i18n suite: an unmeasured scope reports zero culprits and reads
+// exactly like a clean one.
+//
+// The gallery fixture already carries four real items + the station-water card,
+// so drive it the way the Cyrillic gate above does. Both locales, because this
+// was never German-only: at 390px English clipped "Replace Soon" by 4.5px and
+// German clipped "Warnung" -> "Warn" by 7.4px and "Niedrig" by 15.9px.
+// Fixed by min-width:0 + overflow-wrap:anywhere on .evcc-maintenance-card-title.
+test.describe("i18n layout gate: maintenance CARDS @390px (mobile)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  for (const lang of [null, "de"]) {
+    test(`maintenance cards survive ${lang ?? "english"}`, async ({ page }) => {
+      await mountHarness(page);
+      if (lang) await seedGerman(page);
+      const res = await page.evaluate(
+        (o) => window.__evcc.renderGallery("maintenance", o),
+        { width: 390, freeze: true, lang, mobile: true },
+      );
+      expect(res.ok, res.error).toBe(true);
+      // Guard the fixture itself: if the gallery entry ever loses its items
+      // this gate would go quietly green on an empty grid — the exact bug above.
+      const cards = await page.evaluate(() =>
+        document.getElementById("evcc-host").shadowRoot
+          .querySelectorAll(".evcc-maintenance-card").length);
+      expect(cards, "gallery fixture rendered no maintenance cards").toBeGreaterThan(3);
+      assertNoOverflow(`maintenance-cards [${lang ?? "en"}]`, await probeLayout(page));
     });
   }
 });

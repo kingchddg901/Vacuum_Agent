@@ -327,6 +327,15 @@ export const maintenanceStyles = `
     font-size: 0.92rem;
     font-weight: 700;
     color: var(--evcc-text-primary);
+    /* The status beside this is flex-shrink:0 and the card is overflow:hidden,
+       so without these the title's min-content width wins and the STATUS gets
+       clipped away -- German "Seitenbuerste" is one unbreakable token, which
+       cut "Warnung" to "Warn" on a 390px phone. "anywhere" (not "break-word")
+       is required: only "anywhere" reduces the intrinsic min-content size, so
+       the flex item can actually shrink. Affects English too -- "Cliff & Wall
+       Sensors" lost 4.5px before this. */
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .evcc-maintenance-card-status {
