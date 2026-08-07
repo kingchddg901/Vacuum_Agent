@@ -254,55 +254,6 @@ function boundsRun(jobId, recordedAt, box, extra = {}) {
   return { job_id: jobId, recorded_at: recordedAt, excluded: false, sample_count: 45, ...box, ...extra };
 }
 
-const MAPPING_REVIEW = {
-  id: "mapping-badges",
-  view: "mapping_review",
-  label: "Mapping Review — ok / likely / warn / outlier / excluded / baseline badges",
-  tokens: [
-    "--evcc-sem-success", "--evcc-sem-warning", "--evcc-sem-error", "--evcc-sem-info",
-    "--evcc-text-muted",
-  ],
-  state: {
-    mappingBoundsFilter: () => "all",
-    mappingBoundsFilterOptions: () => [
-      { value: "all", label: "All Rooms" },
-      { value: "has_bounds", label: "Has Bounds" },
-      { value: "no_bounds", label: "No Bounds" },
-    ],
-    mappingBoundsSnapshot: () => ({
-      available: true,
-      rooms: {
-        // 4 active runs (+1 excluded) => room badge OK; per-run shows
-        // OK / Outlier / Excluded / Baseline.
-        "1": {
-          name: "Living Room",
-          bounds: { min_x: 1000, max_x: 5000, min_y: 2000, max_y: 6000, sample_count: 48, updated_at: "2026-06-05T10:00:00Z" },
-          has_archive: false,
-          job_bounds_history: [
-            boundsRun("job_2026-06-05T08-45", "2026-06-05T08:45:00Z", { min_x: 1000, max_x: 5000, min_y: 2000, max_y: 6000 }),
-            boundsRun("job_2026-06-04T18-30", "2026-06-04T18:30:00Z", { min_x: 1000, max_x: 8200, min_y: 2000, max_y: 6000 }), // outlier (max X +60%)
-            boundsRun("job_2026-06-03T09-10", "2026-06-03T09:10:00Z", { min_x: 980, max_x: 5050, min_y: 1980, max_y: 6010 }, { excluded: true }), // excluded
-            boundsRun("job_2026-06-02T11-05", "2026-06-02T11:05:00Z", { min_x: 1010, max_x: 4990, min_y: 2010, max_y: 5990 }),
-            boundsRun("job_2026-06-01T07-20", "2026-06-01T07:20:00Z", { min_x: 1000, max_x: 5000, min_y: 2000, max_y: 6000 }), // oldest => baseline
-          ],
-        },
-        // 2 active runs => room badge LIKELY.
-        "2": {
-          name: "Kitchen",
-          bounds: { min_x: 500, max_x: 3000, min_y: 1000, max_y: 4000, sample_count: 22, updated_at: "2026-06-04T19:00:00Z" },
-          has_archive: false,
-          job_bounds_history: [
-            boundsRun("job_2026-06-04T19-00", "2026-06-04T19:00:00Z", { min_x: 500, max_x: 3000, min_y: 1000, max_y: 4000 }),
-            boundsRun("job_2026-06-02T08-30", "2026-06-02T08:30:00Z", { min_x: 510, max_x: 2990, min_y: 1010, max_y: 3990 }),
-          ],
-        },
-        // no bounds => room badge WARN.
-        "3": { name: "Bedroom", bounds: null, has_archive: true, job_bounds_history: [] },
-      },
-    }),
-  },
-};
-
 /* =========================================================
    STATUS DOTS — real header dot, one render per state
    =========================================================
@@ -756,7 +707,6 @@ export const GALLERY = [
   ROOMS_OPENDYSLEXIC,
   ROOMS_CYRILLIC,
   LEARNING_REVIEW,
-  MAPPING_REVIEW,
   EXTERNAL_JOBS,
   EXTERNAL_WIZARD_STEP1,
   EXTERNAL_WIZARD_STEP2,

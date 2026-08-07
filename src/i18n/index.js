@@ -441,8 +441,10 @@ const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
  *    wrong); an EXTRA placeholder is a warning (it renders literally, harmless).
  *  - a key not present in English is kept but warned (dead until en adds it).
  *  - PLURAL detection is by typeof===object, NOT a source comment — `// plural`
- *    is stripped at build, and a deliberate plural-but-string key
- *    (mapping_review.badge_runs_samples) must validate as the string it is.
+ *    is stripped at build, so a key that merely READS as plural must still
+ *    validate as the string it is. (The example here used to cite
+ *    mapping_review.badge_runs_samples; that view and its strings are gone —
+ *    R2-DEAD-2 — and the rule is what mattered, not the specimen.)
  *
  * @param {Record<string, unknown>} catalog - the parsed locale to validate.
  * @param {Record<string, unknown>} [base] - the English base (default CATALOGS.en).

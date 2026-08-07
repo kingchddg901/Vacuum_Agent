@@ -29,7 +29,12 @@ test("cvd-safe theme separates every semantic group under protan/deutan/tritan",
 
   const probe = await page.evaluate(({ bundle, groupToken }) => {
     // Apply the bundle to the real card (sets --evcc-* inline on the host).
-    window.__evcc.render("mapping_review", { bundle });
+    // The VIEW is incidental — this probe reads custom properties off the host, not
+    // anything the view renders. It used to name "mapping_review", a view deleted from
+    // the card, so it was probing an "Unknown view" placeholder and still passing:
+    // the tokens resolve either way (R2-DEAD-2). "rooms" is a view that exists, so a
+    // future render failure can actually surface here instead of being absorbed.
+    window.__evcc.render("rooms", { bundle });
     const host = document.getElementById("evcc-host");
     const el = document.createElement("span");
     host.shadowRoot.appendChild(el); // inherits the host's custom properties

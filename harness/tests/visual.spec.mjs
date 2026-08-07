@@ -33,7 +33,6 @@ const GALLERY_IDS = [
   // would have frozen the broken render, where the case showed the default face.
   "rooms-opendyslexic",
   "review-badges",
-  "mapping-badges",
   "external-jobs",
   "external-wizard-step1",
   "external-wizard-step2",

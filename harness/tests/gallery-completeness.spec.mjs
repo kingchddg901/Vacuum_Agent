@@ -22,6 +22,16 @@ const ALLOWLIST = {
   "--evcc-status-cleaning-text": "status pill variant not surfaced by the gallery tabs",
   "--evcc-learning-reanchor-border": "re-anchor learning UI state not exercised by the active-job fixture",
   "--evcc-learning-reanchor-highlight": "re-anchor learning UI state not exercised by the active-job fixture",
+  // R2-DEAD-2. The mapping-badges entry was this token's ONLY claimant and its view
+  // (mapping_review) no longer exists in the card. The token is still live — external
+  // jobs' suggested-room chip, the room-access modal, setup, theme preview, the job
+  // summary — but none of those surfaces is a gallery case, so nothing renders it today.
+  // Deliberately allowlisted rather than re-claimed: the obvious candidate
+  // (external-wizard-step2) is SKIPPED by the visual spec, so a claim there would assert
+  // coverage that never renders in CI — the same "declaration reads as coverage" trap
+  // this gate exists to catch. Claim it properly when a sem-info surface gets a real
+  // gallery entry.
+  "--evcc-sem-info": "sole claimant (mapping-badges) removed with the deleted mapping_review view; no current gallery case renders a sem-info surface",
 };
 
 test("every semantic-color token is represented by a gallery entry", async ({ page }) => {

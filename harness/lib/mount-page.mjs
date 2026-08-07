@@ -147,6 +147,5 @@ export const VIEW_ORDER = [
   "room_rules",
   "theme",
   "map_config",
-  "mapping_review",
   "setup",
 ];

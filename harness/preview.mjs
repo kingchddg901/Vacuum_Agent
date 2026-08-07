@@ -36,7 +36,6 @@ const OUT = join(repo, "harness", "out", "preview", "themes");
 const FULL_GALLERIES = [
   "rooms-active",
   "review-badges",
-  "mapping-badges",
   "external-jobs",
   "external-wizard-step1",
   "external-wizard-step2",
@@ -49,7 +48,6 @@ const FULL_GALLERIES = [
 const GALLERY_TAB_IDS = new Set([
   "rooms",
   "learning_review",
-  "mapping_review",
   "metrics",
   "maintenance",
   "room_rules",
