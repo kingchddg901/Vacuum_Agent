@@ -6,6 +6,16 @@ brief: do not summarize the audit; reconstruct it as an evidence-backed causal h
 > raw engineering exhaust → normalized evidence → causal graph → adversarial verification
 > → human-readable narrative
 
+**EPOCH ALIGNMENT (2026-08-07):** the compiler's output is now the doctrine-defined
+**audit record** — body 3 of `docs/dev/00a-documentation-epoch-lifecycle.md` (§4 even
+carries this design's chain vocabulary: finding → premise → evidence → interpretation →
+correction). AUDIT-2 as chartered is DEFERRED; audits are redefined as epoch-closing
+reconciliation operations, so this compiler serves every future epoch close, not one
+campaign: it is the machinery that moves an epoch's failures, rejected theories, and
+provenance into the permanent record while DR takes only surviving truth. Epoch 1 closed
+2026-08-06 (ledger: `docs/dev/deltas/README.md`); the PM docs are the audit record's
+first population, and PM-4's "later audit" concretely means the Epoch-2-closing audit.
+
 **Supersession note:** `AUDIT-1-CLOSEOUT.md` (9d6d0dc) stays as the executive record, but the
 postmortem this system compiles supersedes it as the campaign's history. The closeout doc
 is itself a demonstration of the problem: it is prose written from ledgers and commit
