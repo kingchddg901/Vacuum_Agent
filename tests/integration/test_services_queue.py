@@ -30,6 +30,7 @@ from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.services.queue import (
     _ADD_QUEUE_BREAK_SCHEMA,
     _QUEUE_BREAK_ENTRY_SCHEMA,
+    _flatten_break_entry,
 )
 
 from .conftest import setup_map
@@ -350,3 +351,147 @@ def test_queue_break_entry_schema_read_shape_still_enforces_dependency():
     malformed step (e.g. a wait step missing wait_minutes) is still rejected."""
     with pytest.raises(vol.Invalid):
         _QUEUE_BREAK_ENTRY_SCHEMA({"after_index": 1, "step": {"type": "wait"}})
+
+
+# ---------------------------------------------------------------------------
+# [SQ-10..13] R2-COV-1 — the break/step/zone HANDLER BODIES.
+#
+# SQ-7/8/9 above cover these services' SCHEMAS, which validate before the handler
+# is ever entered — so every `_handle_*` body below, and every register() closure
+# that reaches one, had zero coverage. Driving them through
+# hass.services.async_call exercises the closure and the body together, which is
+# also how the card reaches them.
+# ---------------------------------------------------------------------------
+
+
+async def _steps(hass, manager=None):
+    return await hass.services.async_call(
+        DOMAIN, "get_queue_steps",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+
+
+async def test_queue_break_lifecycle_through_the_services(hass, manager_with_services):
+    """[SQ-10] add -> read -> remove -> clear, entirely through the service layer."""
+    setup_map(manager_with_services, _VAC, _MAP, count=3)
+    await hass.services.async_call(
+        DOMAIN, "build_queue", {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+
+    added = await hass.services.async_call(
+        DOMAIN, "add_queue_break",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+         "break_type": "charge_wait", "target_battery_percent": 80, "after_index": 1},
+        blocking=True, return_response=True,
+    )
+    assert isinstance(added, dict)
+
+    steps = await _steps(hass)
+    kinds = [s.get("type") for s in steps.get("steps", [])]
+    assert "charge_wait" in kinds, f"the break never reached the stepped view: {kinds}"
+
+    await hass.services.async_call(
+        DOMAIN, "remove_queue_break",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "index": 0},
+        blocking=True, return_response=True,
+    )
+    assert "charge_wait" not in [s.get("type") for s in (await _steps(hass)).get("steps", [])]
+
+    # clear on an already-break-free queue must be a clean no-op, not an error —
+    # the card calls it unconditionally from "remove all".
+    cleared = await hass.services.async_call(
+        DOMAIN, "clear_queue_breaks", {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+    assert isinstance(cleared, dict)
+
+
+async def test_set_queue_breaks_replaces_wholesale(hass, manager_with_services):
+    """[SQ-11] set_queue_breaks is the reorder/retarget path — it REPLACES, so the
+    previous break must not survive it."""
+    setup_map(manager_with_services, _VAC, _MAP, count=3)
+    await hass.services.async_call(
+        DOMAIN, "build_queue", {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+    await hass.services.async_call(
+        DOMAIN, "add_queue_break",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+         "break_type": "charge_wait", "target_battery_percent": 80, "after_index": 1},
+        blocking=True, return_response=True,
+    )
+
+    await hass.services.async_call(
+        DOMAIN, "set_queue_breaks",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+         "breaks": [{"after_index": 2, "break_type": "wait", "wait_minutes": 15}]},
+        blocking=True, return_response=True,
+    )
+
+    kinds = [s.get("type") for s in (await _steps(hass)).get("steps", [])]
+    assert "wait" in kinds, f"the replacement break is missing: {kinds}"
+    assert "charge_wait" not in kinds, "set_queue_breaks appended instead of replacing"
+
+
+async def test_queue_mutators_persist_but_the_reader_does_not(hass, manager_with_services):
+    """[SQ-12] The asymmetry that makes the queue survive a restart.
+
+    Every mutating handler awaits async_save(); get_queue_steps deliberately does not,
+    because it writes nothing. A mutator that forgot the save would look correct for the
+    whole session and lose the user's breaks on the next restart — invisible to any test
+    that only checks the response payload, which is why this asserts on the SAVE.
+    """
+    from unittest.mock import AsyncMock
+
+    setup_map(manager_with_services, _VAC, _MAP, count=3)
+    await hass.services.async_call(
+        DOMAIN, "build_queue", {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+
+    manager_with_services.async_save = AsyncMock()
+    await _steps(hass)
+    assert manager_with_services.async_save.await_count == 0, (
+        "the read-only stepped view triggered a persist"
+    )
+
+    await hass.services.async_call(
+        DOMAIN, "add_queue_break",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+         "break_type": "charge_wait", "target_battery_percent": 80, "after_index": 1},
+        blocking=True, return_response=True,
+    )
+    assert manager_with_services.async_save.await_count == 1, (
+        "add_queue_break did not persist — the break is lost on restart"
+    )
+
+
+async def test_add_queue_zone_inserts_a_zone_step(hass, manager_with_services):
+    """[SQ-13] add_queue_zone is a separate service from add_queue_break precisely
+    because the break schema rejects break_type=zone (SQ-8). Its handler had no
+    coverage, so nothing proved the zone branch reaches the queue at all."""
+    setup_map(manager_with_services, _VAC, _MAP, count=3)
+    await hass.services.async_call(
+        DOMAIN, "build_queue", {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+
+    result = await hass.services.async_call(
+        DOMAIN, "add_queue_zone",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+         "zone_ids": ["under_table"], "after_index": 1},
+        blocking=True, return_response=True,
+    )
+    assert isinstance(result, dict)
+
+
+def test_flatten_break_entry_passes_non_dicts_straight_through():
+    """[SQ-14] R2-COV-1, the last uncovered line. The coercer must hand a non-dict
+    entry to the entry schema UNCHANGED, so voluptuous reports "expected a dictionary"
+    against the offending element. Reaching for .get() on it here would raise
+    AttributeError out of schema validation instead — a 500-shaped failure for what is
+    ordinary bad input."""
+    for value in ("not-a-dict", 7, None, ["after_index"]):
+        assert _flatten_break_entry(value) is value
