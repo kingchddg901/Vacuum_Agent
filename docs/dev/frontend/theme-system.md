@@ -233,7 +233,7 @@ CVD gate validates.
 
 **How they're distinguished:** Preloaded theme IDs use the `theme_` prefix followed by a short slug (e.g. `theme_core_slate`). User-saved themes use the `theme_` prefix followed by a timestamp (e.g. `theme_20240612T103045123456`). There is no explicit `is_preloaded` flag.
 
-**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI only hides the delete button for the current default theme (`src/renderers/theme.js:492`, `id !== state.defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
+**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI only hides the delete button for the current default theme (`src/renderers/theme.js:510`, `id !== state.defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
 
 **The `theme_follow_ha` default:** If `default_theme_id` is missing or points to a nonexistent entry, it is reset to `theme_follow_ha` at seeding time. `theme_follow_ha` has empty `colors` and `tokens`, which means no `--evcc-` variables are injected — the card's CSS falls through to its static defaults.
 
@@ -257,7 +257,7 @@ The draft uses the same three-bucket shape as a theme entry. Null or empty-strin
 
 The card's `resolvedTheme()` method in `state/theme.js` builds the final token map used for CSS injection:
 
-0. **Seed — room-fill palette defaults:** before the active-theme base, iterate `ROOM_FILL_PALETTE` (`theme.js:384-388`) and for each hex set `colorMap["--evcc-room-fill-" + (i + 1)]` to that hex and tag `sources[key] = "default"`. The room-fill tokens carry no default in `styles/index.js`, so this seed guarantees every `--evcc-room-fill-N` token has a resolvable value for the editor's color picker. The seed equals the render's own default palette, so a themeless card is net-zero; an active theme or working draft still overrides these below.
+0. **Seed — room-fill palette defaults:** before the active-theme base, iterate `ROOM_FILL_PALETTE` (`theme.js:385-389`) and for each hex set `colorMap["--evcc-room-fill-" + (i + 1)]` to that hex and tag `sources[key] = "default"`. The room-fill tokens carry no default in `styles/index.js`, so this seed guarantees every `--evcc-room-fill-N` token has a resolvable value for the editor's color picker. The seed equals the render's own default palette, so a themeless card is net-zero; an active theme or working draft still overrides these below. (A sibling seed for floor-texture material defaults follows immediately after, `theme.js:409-428` — see [floor-texture-map-view.md](floor-texture-map-view.md) for how those per-material defaults are authored.)
 
 1. **Base — active theme:** iterate `activeTheme.colors` → populate `colorMap`; iterate `activeTheme.alpha` → populate `alphaMap`; iterate `activeTheme.tokens` → populate `tokens`. All sources tagged `"theme"`.
 
@@ -621,20 +621,20 @@ Sections 4–5 cover the runtime CSS bridge and the working-draft lifecycle; thi
 
 ### Live preview — `applyThemeToCard` on every mutation
 
-Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js:65` import; ~15 call sites — preset `:202/:225`, mode `:242`, token `:570/:613`, color `:591`, alpha `:642/:655`, colormix `:851/:865`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
+Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js:65` import; 14 call sites — preset `:251/:288`, mode `:305/:324/:331`, token `:633/:676`, color `:654`, alpha `:705/:718`, colormix `:914/:928/:945`, backend refresh `:1543`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
 
 ### Live-vs-commit — `input` applies, `change` persists
 
 Each token control binds **both** events (the canonical live-vs-commit split — see [event-binding-and-modal-host.md](event-binding-and-modal-host.md)):
 
-- **`input`** (`:538` sliders, `:627` alpha, `:838` colormix-ratio) — writes the draft + `applyThemeToCard` for the live preview, but **no persist, no render**. A range slider fires `input` every drag pixel; persisting/rendering there would thrash.
-- **`change`** (`:595` sliders, `:573` color pickers, `:645` alpha, `:855` colormix) — commits to the working draft **and** calls `_scheduleDeferredRender()` (`:592/:618/:656/:866`) — the 600 ms debounce ([render-cycle.md](render-cycle.md)'s `_scheduleDeferredRender`), so the modified-badge / full re-render lands only after the gesture settles.
+- **`input`** (`:601` `[data-theme-token]` sliders, `:690` alpha, `:901` colormix-ratio) — writes the draft + `applyThemeToCard` for the live preview, but **no persist, no render**. A range slider fires `input` every drag pixel; persisting/rendering there would thrash.
+- **`change`** (`:658` `[data-theme-token]` sliders, `:636` color pickers, `:708` alpha, `:918`/`:934` colormix) — commits to the working draft **and** calls `_scheduleDeferredRender()` (`:655` color / `:681` token / `:719` alpha / `:929` colormix-ratio / `:947` colormix color1-2) — the 600 ms debounce ([render-cycle.md](render-cycle.md)'s `_scheduleDeferredRender`), so the modified-badge / full re-render lands only after the gesture settles.
 
 Invert this (render on `input`) and you swap the `<input>` node mid-drag and drop the value — the exact trap [event-binding-and-modal-host.md](event-binding-and-modal-host.md) documents.
 
 ### The color picker opens at the cursor
 
-A theme color swatch is a hidden native `<input type="color">`; double-tapping the token opens it. Before `picker.click()` (`:1114`) the handler positions the picker at the click point, measured against its `offsetParent` (`:1108-1110`) so it stays correct through the card's transforms/scroll — `offsetParent` is `null` for a shadow-DOM-hosted element, which is why the measurement is anchored rather than absolute. (Fixed the "picker opens low / unusable" bug.)
+A theme color swatch is a hidden native `<input type="color">`; double-tapping the token opens it. Before `picker.click()` (`:1177`) the handler positions the picker at the click point, measured against its `offsetParent` (`:1167-1171`) so it stays correct through the card's transforms/scroll — `offsetParent` is `null` for a shadow-DOM-hosted element, which is why the measurement is anchored rather than absolute. (Fixed the "picker opens low / unusable" bug.)
 
 ### The editor action map
 
@@ -642,13 +642,13 @@ Non-token controls are plain click / input bindings → state mutators:
 
 | Control | Selector · line | Does |
 |---|---|---|
-| Tabs (Themes / Palette / Tokens) | `[data-theme-tab]` `:182` | switch editor tab |
-| Preset swatch | `[data-theme-preset]` `:194` | apply a palette preset to the draft |
-| Mode (light / dark) | `[data-theme-mode]` `:240` | flip the draft's scheme |
-| Group filter / toggle / search | `[data-theme-group-*]` `:474/:490/:523` | filter the token list |
-| Search / modified-only | `[data-theme-search]` `:505`, `[data-theme-modified-only]` `:511` | narrow to matching / changed tokens |
-| Reset token / group | `[data-theme-reset]` `:931`, `[data-theme-group-reset]` `:973` | clear draft overrides back to default |
-| Save theme | `[data-action='save-theme']` `:1174` | persist the draft as a named theme (§5) |
+| Tabs (Themes / Palette / Tokens) | `[data-theme-tab]` `:231` | switch editor tab |
+| Preset swatch | `[data-theme-preset]` `:243` | apply a palette preset to the draft |
+| Mode (light / dark) | `[data-theme-mode]` `:303` | flip the draft's scheme |
+| Group filter / toggle / search | `[data-theme-group-*]` `:537/:553/:586` | filter the token list |
+| Search / modified-only | `[data-theme-search]` `:568`, `[data-theme-modified-only]` `:574` | narrow to matching / changed tokens |
+| Reset token / group | `[data-theme-reset]` `:994`, `[data-theme-group-reset]` `:1036` | clear draft overrides back to default |
+| Save theme | `[data-action='save-theme']` `:1237` | persist the draft as a named theme (§5) |
 | Delete / import / export | later handlers in `bindings/theme.js` | the import/export data flow is §7 |
 
 All editor UI state (open groups, search query, group filter, the working draft + dirty flag) lives in `state/theme.js` (§5); these bindings only read/write it and re-apply. Editor labels route through i18n like everything else ([i18n-system.md](i18n-system.md)) — the token-name labels resolve from `vocab.theme_token.*`.

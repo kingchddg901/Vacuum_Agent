@@ -69,13 +69,14 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 | `renderGallery(id, opts)` | Render an all-states gallery entry (§3). |
 | `renderThemePresets(themes, opts)` | Render the Themes-tab presets grid driven by **real** state — a `VacuumCardState` seeded with the theme library, the facet filter / search / Browse-gallery UI, so the picker is captured on genuine state (the null-object stub can't exercise the filter). Backs `shoot-theme-picker.mjs`. |
 | `ingestTheme(envelope)` | The intake gate (§6). |
-| `registerLocale(lang, catalog)` | Inject a foreign/pseudo locale catalog into the in-page i18n registry (`src/i18n/index.js`) before rendering with `opts.lang`; used by the i18n-locale / i18n-layout / pseudo gates. |
+| `registerLocale(lang, catalog)` | Inject a foreign/pseudo locale catalog into the in-page i18n registry (`src/i18n/index.js`) before rendering with `opts.lang`; used by the i18n-locale / i18n-layout / i18n-rtl gates. |
 | `makePseudoLong(base)` | Build the layout-stress (pseudo-long) catalog in-page (`harness/lib/pseudo-locale.mjs`), avoiding a Node-side `en.js` import. |
+| `en`, `flattenLocale` | The English manifest + the flatten function, exposed so a Node-side spec can flatten a shipped locale JSON in-page — Playwright's Node-side loader treats a typeless `.js` as CJS and can't reparse `en.js`/`flatten.js`'s ESM exports directly, so specs read the locale file in Node and hand the raw object to the page instead. |
 | `semanticTokens` | The registry-derived semantic-color token set (§3). |
 | `badgeMarks`, `markViewBox` | The shape-mark SVGs (§5). |
 | `tokenMap`, `VIEWS`, `VIEW_ORDER` | Registry + view constants for tests. |
 | `VacuumCardState` | The real `src/state/index.js` state class, exposed so tooling can drive genuine state (e.g. per-device theme, driven by `device-theme.spec.mjs`). |
-| `gallery` | The gallery-entry metadata list (`id`, `view`, `label`, `tokens`, `clip`, `modal`) for tests. |
+| `gallery` | The gallery-entry metadata list (`id`, `view`, `label`, `tokens`, `clip`, `modal`, `font`) for tests. |
 | `version` | Surface version (`1`). |
 
 ### The stub state
@@ -246,17 +247,32 @@ recolored by it — the config is the seed, the render is the deliverable.
   theme → the all-states galleries, the populated single-tab fixtures (so the
   theme shows on real content, not empty stubs), and a tour of the remaining tabs;
   a texture-scoped export → the rooms gallery. It also writes a single-room-card **thumbnail** per
-  theme and a lobby `index.html` that grids those thumbnails (each linking its
-  detail page) under a **"+ Submit a theme"** button (§8). A per-theme
+  theme and a themes index (`harness/out/preview/themes/index.html`) that grids those thumbnails
+  (each linking its detail page) under a **"+ Submit a theme"** button (§8). A per-theme
   `_contact-sheet.png` is produced too — the submission bot embeds it inline in
-  the PR (§8).
+  the PR (§8). The published Pages site fronts the galleries with a landing hub
+  (`harness/build-landing.mjs` + `lib/landing-html.mjs`/`lib/site-nav.mjs`, live theme/animal
+  counts read from the committed `gallery/*` sources) linking `/themes/`, `/animals/` (the
+  animal-gallery counterpart, `harness/preview-animals.mjs`, driven by `gallery/animals/*.json`),
+  and the docs.
 - **Trigger** (`.github/workflows/theme-intake.yml`) — `workflow_dispatch` for a
-  one-off, or `push`/`pull_request` on `gallery/themes/*.json` for a versioned
-  gallery. PRs and manual dispatches come back as workflow artifacts; on **push
-  to master** the rendered gallery — the lobby `index.html` plus the per-theme
-  detail pages and images — is **published to GitHub Pages**
-  (`actions/deploy-pages`) at the repo's Pages URL. One-time setup: enable Pages
-  with the *GitHub Actions* source in repo settings.
+  one-off theme render, or `push`/`pull_request` on `gallery/themes/*.json`,
+  `gallery/animals/*.json`, the animal-svg source tree, `docs/**`, or
+  `mkdocs.yml` (`:31-33`/`:40-42`, `:35-36`/`:43-44`). `push` additionally
+  watches `harness/**` and the workflow file itself (`:34`/`:37`) — `pull_request`
+  does not (`:39-44`), so a harness-only PR does not trigger this workflow at
+  all; only a push (e.g. a merge to master) picks up a harness-only change. A
+  `gallery` job renders the theme preview(s) + the `/animals`
+  gallery + the landing page; a separate `docs` job builds the MkDocs site
+  (`--strict`, so a broken link/anchor fails CI) — they run in parallel and both
+  upload their output as workflow artifacts. **This one Pages site serves both**
+  the gallery (theme render *or* docs change) and the docs (gallery change), so a
+  docs-only push still rebuilds the (unchanged) gallery and vice versa, keeping
+  the combined deploy internally consistent. PRs and manual dispatches build +
+  validate only; only on **push to master** does a `publish` job assemble both
+  artifacts into one tree (gallery at `/`, docs at `/docs/`) and a `deploy` job
+  ships it to **GitHub Pages** (`actions/deploy-pages`) at the repo's Pages URL.
+  One-time setup: enable Pages with the *GitHub Actions* source in repo settings.
 
 ---
 
@@ -344,16 +360,23 @@ PR (also documented in the workflow header):
 | `harness/cvd/` | `simulate.mjs` (Machado+Brettel), `color.mjs` (CIEDE2000), `report.mjs` (matrix), `tune.mjs` (palette scratchpad). |
 | `harness/bundles/` | Flat `--evcc-*` maps: `default`, `cvd-safe`. |
 | `harness/lib/mount-page.mjs` | Node helpers: load bundle into a page, render. |
+| `harness/lib/pseudo-locale.mjs` | Builds the layout-stress (pseudo-long) catalog (backs `makePseudoLong`). |
 | `harness/lib/gallery-html.mjs` | Playwright-free gallery HTML generator (index filter bar + per-theme pages) shared by `preview.mjs` and the dry-run; owns the author-URL XSS-escaping contract. |
 | `harness/lib/gallery-html.test.mjs` | `node --test` unit tests for the gallery HTML escaping / author-URL contract. |
+| `harness/lib/animal-gallery-html.mjs` (+`.test.mjs`) | The animal-gallery counterpart of `gallery-html.mjs` (per-animal pages + faceted index). |
+| `harness/lib/landing-html.mjs` (+`.test.mjs`) · `harness/lib/site-nav.mjs` | Pages-site landing hub (live gallery counts) + the shared depth-aware nav bar linking landing / themes / animals / docs. |
 | `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `shoot-theme-picker.mjs` · `census.mjs` | esbuild + capture CLIs (`shoot-theme-picker.mjs` shoots the Themes picker with a real-state fixture). |
+| `harness/shoot-locales.mjs` | Renders every tab in each real bundled locale (de/fr/es/nl/it/pt/ru) next to English, plus a per-language contact sheet and an overflow probe, via `opts.lang` pinned as the explicit `config.i18n.locale` override — which bypasses the draft-gate, i.e. it shows what a user sees after picking that language from the editor. |
+| `harness/shoot-pseudo.mjs` | English-vs-pseudo-long side-by-side per tab + horizontal-overflow probe. |
+| `harness/build-landing.mjs` | Writes the Pages landing page after the galleries render. |
+| `harness/preview-animals.mjs` | Renders the `/animals` gallery from `gallery/animals/*.json` (real animal-svg framework, all six poses, detail page + faceted index). |
 | `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
-| `harness/preview.mjs` | Builds the gallery: lobby `index.html`, per-theme detail pages, thumbnails, contact sheets. |
-| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · i18n-layout · i18n-locale (the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px, i18n-locale asserts the `renderers.t` wiring actually switches the UI). |
+| `harness/preview.mjs` | Builds the theme gallery: per-theme detail pages, thumbnails, contact sheets, and the themes index. |
+| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · i18n-layout · i18n-locale · i18n-rtl (the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px, i18n-locale asserts the `renderers.t` wiring actually switches the UI, i18n-rtl asserts a real Arabic/Hebrew catalog under `dir="rtl"` also survives the layout probe and that the host actually carries `dir="rtl"`). |
 | `src/renderers/badge-marks.js` | The six per-state shape marks (ships). |
 | `gallery/themes/*.json` | Theme exports published to the gallery (one JSON per theme). |
 | `.github/ISSUE_TEMPLATE/theme-submission.yml` | Submission issue form (the "Submit a theme" target). |
-| `.github/workflows/card-visual.yml` · `theme-intake.yml` · `theme-submission.yml` | CI: visual regression · gallery publish · submission bot. |
+| `.github/workflows/card-visual.yml` · `theme-intake.yml` · `theme-submission.yml` | CI: visual regression · gallery+animals+landing+docs Pages publish · submission bot. |
 
 ---
 

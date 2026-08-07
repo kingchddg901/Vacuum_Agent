@@ -3,7 +3,7 @@
 Home Assistant localizes an integration's config flow and entity names, but it
 gives a custom Lovelace card **nothing** for its own markup — every literal in
 the card's renderers is English regardless of the user's HA language. This
-subsystem is the seam that closes that gap: ~2,100 UI strings, plural-correct in
+subsystem is the seam that closes that gap: ~2,500 UI strings, plural-correct in
 any language, switchable per-user, with community translations loadable at
 runtime behind a security gate.
 
@@ -28,6 +28,7 @@ src/i18n/
 ├── flatten.js            nested authoring JSON → flat catalog (+ commons/plurals)
 ├── sanitize-locale.js    the intake GATE (sanitize-or-quarantine untrusted drop-ins)
 ├── lang-store.js         per-user language choice, persisted via HA frontend user-data
+├── font-store.js         per-user typeface choice (`ui_font`), same user-data object
 └── guide-translations.js generated upkeep-guide content (see "Guide on the card")
 ```
 
@@ -142,6 +143,36 @@ sees every `vocab.*` key — a `this.t(varKey)` would read as a dead key. Standa
 components that don't use the renderers prototype (the room-card classes) carry
 their own `tVocab` method using the same pattern.
 
+### faultLabel — brand fault codes
+
+Hardware faults follow the same backend-hands-a-key contract, with their own
+seam. The backend never sends fault *text*: the adapter maps a vendor's numeric
+code to an i18n **key** (`adapters/eufy/vocabulary.py` `EUFY_ERROR_LABEL_KEYS`,
+Roborock likewise), and the card resolves it at render time via
+`this.faultLabel(key, code)` (`src/state/faults.js`, mixed onto the state by
+`applyFaultState`):
+
+- Keys on **`fault.<brand>.<slug>`** — the English base carries the per-brand
+  tables (`en.js`, the `fault.eufy.*` / `fault.roborock.*` blocks), so locales
+  translate fault labels like any other key. 237 keys total (189 Eufy + 48
+  Roborock).
+- The resolution is one inline template — `this.t(\`fault.${brand}.${slug}\`)`
+  (`faults.js:37`) — which is what proves all 237 `fault.*` keys reachable to
+  [check:i18n](#checki18n) instead of reporting them dead; that single-template
+  property is a stated design reason for the seam existing at all.
+- **Fallback is the raw code, deliberately.** A key with no entry (a brand that
+  declares nothing, or a code the vendor shipped after the table was written)
+  falls to `faults.unknown_code` ("Error 6013" — honest and searchable), or
+  `faults.unknown` when there is no code either. A translator echoing the key
+  back (`label === key`) is treated as no-entry, so a dotted key is never
+  printed at the user.
+- The Job Summary modal's fault list (`renderers/job-summary.js`
+  `_renderJobSummaryFaults`) calls `faultLabel` directly per fault, alongside
+  `source`/`recovered` fields the label alone doesn't carry. A sibling helper,
+  `faultRows(errors)` (same file), maps a run's captured error list to a
+  reduced `{index, code, capturedAt, label}` shape — but it has no production
+  caller today; only `faultLabel` is wired into a renderer.
+
 ## The language control
 
 The header **globe** lets a user pick a language for *their* view, independent of
@@ -152,6 +183,16 @@ source in `resolveLang` and bypasses the draft-gate (a deliberate opt-in).
 
 Because this lives in *frontend* user-data, the **backend cannot read it** — a
 constraint that drives the [guide-on-card](#guide-on-the-card) design.
+
+The same `eufy_vacuum_card` user-data object also carries the per-user
+**typeface** choice (`ui_font`, `font-store.js`) — both writers read-then-merge
+the stored object rather than clobber it, so the two preferences coexist. The
+typeface chain itself is [styles-system §4](styles-system.md); the font
+*offering* is language-gated (`fontSupportsLang`, `font-store.js`) — a font is
+offered for a locale only after its glyph coverage has been verified against
+that locale's shipped catalogue, not assumed from "looks Latin" (OpenDyslexic
+is missing glyphs Polish/Czech/Turkish need). It ships one entry:
+`opendyslexic: {en}`.
 
 ## Locales: bundled, shipped, and drop-in
 
@@ -231,20 +272,42 @@ step. `getLocaleQuarantineReport()` exposes the record for diagnostics.
 ## check:i18n
 
 `npm run check:i18n` (`scripts/check-i18n.mjs`, framework-free Node) is the
-contract gate, run after every wave:
+contract gate, run after every wave. Four sections:
 
-- **Contract** — exercises `translate()`: the fallback chain, interpolation,
-  plural selection, and Trust-Model-B *adversarially* (a `<script>` catalog value
-  must come back escaped) — the real security assertion the visual harness can't
-  make.
-- **Keys** — every literal `t("…")`/`tRaw("…")` in `src/` must exist in `en.js`
-  (an orphan renders a raw key — FATAL); every defined key must be **reachable**
-  from source (a literal call, a quoted key-as-data-value, or a `t(\`…${…}…\`)`
-  template — this is why `tVocab` inlines its template). Source-derived, no
-  allowlist.
-- **Locale validation** — each shipped locale validated against the manifest
-  (placeholder parity, plural forms, no unsafe keys), reporting its `→ en`
-  fallback count.
+- **A. `translate()` contract** — exercises `translate()`: the fallback chain,
+  interpolation, plural selection, `resolveLang`, `validateLocale`,
+  `loadLocale`/`loadDroppedLocales`, and Trust-Model-B *adversarially* (a
+  `<script>` catalog value must come back escaped) — the real security
+  assertion the visual harness can't make.
+- **B. Key cross-check** — every literal `t("…")`/`tRaw("…")` in `src/` must
+  exist in `en.js` (an orphan renders a raw key — FATAL); every defined key
+  must be **reachable** from source, one of three provable forms: (1) a
+  literal `t("…")`/`tRaw("…")` call, (2) the full key appearing as a quoted
+  string anywhere in `src/` (a data value handed to `t()` through a variable),
+  or (3) a `t(\`…${…}…\`)` **template**, each `${…}` segment matched
+  generically — this is why `tVocab` and `faultLabel` inline their templates.
+  Source-derived, no allowlist; a template whose leading literal segment has
+  no `.` is rejected, so a pathologically dynamic `${a}.${b}` can never
+  silently exempt the whole catalog. A key defined but never reachable is
+  reported as a dead key (warning, not a failure).
+- **C. Shipped locale validation** — each served locale JSON is flattened
+  against the English manifest and validated (placeholder parity, plural
+  forms, no unsafe keys), reporting its `→ en` fallback count. A broken
+  committed translation fails the build, not the user's render.
+- **D. English-identical ratchet** — a locale value byte-identical to its
+  English value is either legitimately universal (cognate, unit, symbol,
+  product term) or untranslated leakage, and telling them apart needs a human
+  exactly once. `scripts/i18n-accepted-english.json` is the reviewed snapshot
+  (`accepted`: key → locale list or `"*"`; `pending`: provisionally tolerated
+  but listed so entries can't rot invisibly — currently empty). Only **NEW**
+  English-identical values not in the snapshot are flagged; comparison is
+  language-blind by design (no dictionaries; plural objects compared by
+  key-sorted serialization).
+
+**`--strict-coverage`** is release-gate mode: NEW English-identical values and
+any untranslated key become **failures** instead of a printed list (the
+"@100%" claim is an enforced invariant at release time). A plain `check:i18n`
+run stays permissive — an en-first mid-wave tree is a legitimate state.
 
 The **intake gate** has its own real-Chromium adversarial suite
 (`scripts/sanitize-locale.test.mjs`) — jsdom would test a *different* parser than
