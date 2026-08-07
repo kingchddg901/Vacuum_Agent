@@ -13,7 +13,7 @@ straight onto your own Lovelace dashboards**, next to your lights and thermostat
 - **Vacuum Agent — Profile Card** (`vacuum-agent-profile-card`) — one card per saved run
   profile: shows exactly what that routine will do (its step sequence) and a **Run** button.
 
-Both are served by the integration itself — there's **nothing to register**. No HACS
+All three are served by the integration itself — there's **nothing to register**. No HACS
 frontend repository, no Lovelace *Resources* entry. Once the integration is installed the
 cards are available everywhere, even on a dashboard that never opens the sidebar panel.
 
@@ -55,8 +55,12 @@ A compact stack you can keep on a wall tablet or your phone dashboard. Top to bo
 - **Map** — the same live/render map as the panel, in a collapsible section (see
   [The map](#the-map) below). Tap a room on the map to include it in the next run.
 - **Rooms** — a collapsing list. Tap a room's row to expand it and set **that room's** own
-  cleaning mode, suction, water, cleaning path, and passes. The checkbox (or the room name)
-  includes the room in the next run.
+  cleaning mode, suction, cleaning path, and passes (plus water level and edge mopping, on
+  rooms whose cleaning mode is a mop mode and that aren't marked carpet). The checkbox (or
+  the room name) includes the room in the next run. With the Rooms list expanded, on brands
+  that path-optimize and ignore your order (Roborock) a **Force this exact order** chip
+  appears once two or more rooms are selected — once enabled it relabels to
+  **Strict order: ON**.
 - **Your profiles** — a dropdown of your saved run profiles, if you have any. A profile
   can be a plain room queue **or** a stepped run that docks to recharge (or waits) partway
   through and then keeps cleaning — either way you just pick it and press **Start**, and the
@@ -107,9 +111,9 @@ So a Room card always starts a **single-room** clean of its own room. Edit a set
 A run profile can grow into a whole routine — room groups, per-room settings, a charge-to-%
 stop partway through, wait steps, strict ordering. Once it does, the profile's *name* alone
 may not tell you what pressing it will do. The **Profile card** puts one saved profile on your
-dashboard: its name, how many rooms, whether it's exposed as a button, and a read-only **Runs
-As** list of every step in order — ⏱ waits, cleans (with each group's mode), ⚡ charge stops —
-then a single **Run** button.
+dashboard: its name, how many rooms, whether it's exposed as a button, and a read-only
+**Runs in this order** list of every step — ⏱ waits, cleans (with each group's mode),
+⚡ charge stops — then a single **Run** button.
 
 Pick the vacuum, map, and profile in the editor (three dropdowns, no YAML). It's
 **inspect-and-run only** — there's no save, edit, or delete here; you build and manage profiles
@@ -122,7 +126,8 @@ search **"Vacuum Agent Profile"**.
 
 ## The map
 
-Both cards (and the sidebar panel) share the same map. A few things you can do with it:
+The Dashboard card and the sidebar panel share the same map (the Room and Profile cards
+don't carry one). A few things you can do with it:
 
 - **Collapse it** — click the **Map** header (the chevron) to fold the map away and keep the
   card compact. Click again to bring it back.
@@ -130,17 +135,24 @@ Both cards (and the sidebar panel) share the same map. A few things you can do w
   the **⤢** button to fit the whole map. **Your pan and zoom are remembered between
   reloads**, per device — so the map stays where you left it. (Hit **⤢** to reset.)
 - **Rotate** — the **↻** button rotates the map to match how your home is actually oriented.
+- **Zone clean** — if your vacuum brand supports it, you can draw zone boxes right on the
+  card's map and clean just those areas — see [Zones](04a-zones.md). (The zone panel stacks
+  under the map here, rather than sitting in a side column like it does in the panel.)
 - **Layers & mascot** — open the layers panel to toggle overlays (rooms, robot, dock, paths,
-  no-go zones, …) and to pick / scale / hide the map [companion](18-furnished-render.md).
+  no-go zones, …) and to pick / scale / hide the map
+  [companion](16-making-your-own-maps.md#the-mascot-and-floor-textures).
 - **Move room names** — drag a room's **name label** to reposition it anywhere on the map
   (handy when a name sits awkwardly over a doorway or another room). The position is saved
   on your device. To put a name back, **drag it back onto its room's centre** and it returns
   to automatic placement.
 
-!!! tip "Each card keeps its own map view"
-    Pan/zoom and moved room names are remembered separately for the sidebar panel and for a
-    dashboard card, and per device — so a tight zoom on your phone's card doesn't disturb the
-    panel on your desktop.
+!!! tip "The panel and cards keep separate map views"
+    Pan/zoom is remembered separately for the sidebar panel and for a dashboard card, and
+    per device — so a tight zoom on your phone's card doesn't disturb the panel on your
+    desktop. (Two dashboard cards for the same vacuum on the same device share one saved
+    view — the split is panel-vs-card, not per card.) Moved room names are per device too,
+    but shared between the panel and the card (they're stored per vacuum and map, not per
+    view).
 
 ## Panel or cards — which?
 

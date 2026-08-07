@@ -83,12 +83,16 @@ read in pure grayscale. The full accessibility guide is
 
 ## Import, export, and sharing
 
-The Theme tab's footer has four transport buttons:
+The Theme tab's footer always has four transport buttons:
 
 - **Export** / **Import** — open a small JSON window to copy a theme out of, or
   paste one into (quick and one-session).
 - **Download** / **Upload** — save a theme to, or load one from, a `.json` file
   (backups, sharing as a file attachment, moving between Home Assistant installs).
+
+On a desktop-width screen the footer adds two more: a floor-type picker with
+**Download Floor** (export just one floor-texture type as a shareable preset)
+and a marble-preset picker with **Apply Preset**.
 
 A downloaded theme is a plain file with no reference to your rooms or vacuum, so
 it loads cleanly anywhere. The mechanics — and the floor-only "just my marble"
@@ -101,6 +105,10 @@ To pull a theme from, or publish one to, the **public gallery**, see
 
 Two tabs beside Themes — **Palette** (four headline tokens) and **Tokens**
 (everything else) — let you build a theme from any starting point and save it.
+The Palette and Tokens tabs need a desktop-width screen — under 600px wide the
+Theme tab drops both editors and their tab strip. Everything else on the
+Themes tab — the device/everywhere mode row, the filter bar, the grid, and the
+Export/Import/Download/Upload buttons — still works at any width.
 The token editor itself is documented in the
 [advanced theme reference](../advanced/05-theme-system.md).
 
