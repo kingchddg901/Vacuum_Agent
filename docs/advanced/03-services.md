@@ -1373,6 +1373,7 @@ Returns a card-friendly snapshot of learned history including recent jobs, room 
 | `vacuum_entity_id` | Yes | |
 | `room_slug` | No | Filter to a single room slug, e.g. `kitchen`. |
 | `profile_key` | No | Filter by room profile signature. |
+| `profile_name` | No | Filter by the profile's display name (the Review panel's Profile chip sends this). |
 | `status` | No | Filter by job status: `completed`, `cancelled`, `failed`, or `interrupted`. |
 | `used_for_learning` | No | Filter to only jobs included in or excluded from learned stats. |
 | `origin` | No | Filter by how the run started: `external` (app-started, captured by external-run ingestion) or `internal` (dispatched by this integration). |
@@ -1398,6 +1399,7 @@ Returns a metrics-focused slice of learned history for the card, with the same o
 | `vacuum_entity_id` | Yes | |
 | `room_slug` | No | Filter to a single room slug. |
 | `profile_key` | No | Filter by room profile signature. |
+| `profile_name` | No | Filter by the profile's display name (the Review panel's Profile chip sends this). |
 | `status` | No | Filter by job status. |
 | `used_for_learning` | No | Filter to jobs included in or excluded from learned stats. |
 

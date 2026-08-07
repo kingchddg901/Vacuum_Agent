@@ -19,8 +19,8 @@ enough for the next epoch-closing audit to adjudicate it.
 
 | epoch | closed | closing operation |
 |---|---|---|
-| **Epoch 1** | **2026-08-06** | The hostile-audit campaign (464 findings / 67 packets, cleared) + the DR reconciliation pass that established this baseline. Provenance: the audit record (`.claude/notes/synthesis/`, closure ledgers, the postmortem corpus). |
-| Epoch 2 | open | Accumulating. First known delta candidates: the Phased Jobs rebuild; `live:FONT-1`'s unresolved remainder. |
+| **Epoch 1** | **2026-08-06** | The hostile-audit campaign (464 findings / 67 packets, cleared) + the DR reconciliation passes that established this baseline: batch 1 (`5940830` + siblings) and the 17-cluster adversarially-verified workflow pass (runs `wf_c3085752-b7b` + `wf_16fa0e1a-3f3`, applied 2026-08-06). Includes the rebuilt Phased Jobs (docs 06/30 reconciled + Opus-verified in `6a87c13`, per the §13 epoch-edge ruling) and the full `live:FONT-1` resolution (fix `ecbe77f`/`d3f81e6`, user-confirmed; typeface mechanism + drop-in fonts documented same-commit, styles-system §4/§4b). Provenance: the audit record (`.claude/notes/synthesis/`, closure ledgers, the postmortem corpus). |
+| Epoch 2 | open | Accumulating. **No known code-vs-DR deltas at open** — every epoch-edge change landed with its DR statement in the same commit (§13). What remains open is *reconciliation residue*, listed below, not divergence. |
 
 ### Epoch 2 delta candidates — detail
 
@@ -49,33 +49,44 @@ local patch. That makes it delta-shaped rather than hotfix-shaped.
 
 ---
 
-## Epoch 1 coverage caveat — `docs/dev/frontend/` was not in the reconciliation pass
+## Epoch 1 reconciliation residue — the honest remainder (rewritten 2026-08-07)
 
-Recorded rather than carried silently. The batch-1 pass re-verified six backend docs
-(03, 10, 12, 22, 23, 29) plus the dev-reference / design / contributing clusters. It did
-**not** cover `docs/dev/frontend/`. That region is therefore **unreconciled baseline, not
-reconciled truth**, and the Epoch 1 row above should be read with this exclusion.
+The original caveat here ("`docs/dev/frontend/` was not in the reconciliation pass") was
+overtaken by events and has been replaced by the evidence-derived state below. The
+workflow pass covered all three frontend clusters: 13 frontend docs were diffed and
+Opus-verified (`fcb0c4d`, `b8b1a9d`, `c11954b`), and the font-era fixes updated their DR
+sections same-commit (`ecbe77f`, `d3f81e6`, `cefc688`, `12e3b63`). Both previously
+"absent" DR sections now exist and were verified in place: the **typeface mechanism**
+(styles-system §4 chain + §4b drop-ins, TF-1..13 pinned) and the **fault-label seam**
+(23-error-tracker §4.5 read-time tables incl. the `None`→raw-code rule, i18n-system
+`faultLabel`, and the 22/25/29 adapter blocks — reconciled post-`RB-ERR-2`).
 
-Known-stale against the 2026-08-06 card work:
+Coverage is claimed from evidence, not diffs — a clean doc produces no diff. The
+remaining classes:
 
-| doc | what changed under it |
+**Reconciled without a diff, verification recorded** (audit `clean[]` entries, Opus
+spot-checked): `frontend/animal-svg` (no drift found, left untouched);
+`frontend/floor-texture-map-view` (named sections verified; remainder below).
+
+**Verified since the pass:** `frontend/render-cycle` — read in full during the FONT-1
+work, its cache-bust section exercised against `build-card.mjs`, and its one recorded
+unverifiable claim (VIEW_ORDER-mismatch frame reset) since confirmed at `main.js:1602`.
+
+**The real residual — unreconciled, named as the exclusion:**
+
+| doc | evidence state |
 |---|---|
-| `frontend/module-reference` | four new modules — `state/`, `renderers/`, `bindings/`, `styles/job-summary.js` (`bea6d3e`) |
-| `frontend/styles-system` | the token build gate — every `var(--evcc-*)` must resolve, `KNOWN_DANGLING` may only shrink (`94bc18a`, `8ee6fb9`) |
-| `frontend/event-binding-and-modal-host` | the job card is now a `role="button"` launch surface, with in-card controls guarded against double-firing (`bea6d3e`) |
+| `frontend/architecture-overview` | no recorded verification in any pass |
+| `frontend/furnished-render` | auditor's own record: "read in full but not line-by-line cross-checked" |
+| `frontend/floor-texture-map-view` (remainder) | sections beyond the verified toggle/render chain unchecked |
 
-Absent entirely — no DR section exists for either:
-
-- **The accessibility typeface.** Nothing under `docs/dev/frontend/` mentions `@font-face`,
-  `OpenDyslexic`, or the shadow-vs-document registration rule, though `styles-system.md`
-  documents the shadow/body split meticulously elsewhere. That omission is what let the
-  feature ship inert for two days: no prose said a font token is subject to the split, and
-  `live:FONT-1` is still open.
-- **The fault-label seam.** `error_label_keys`, `ROBOROCK_ERROR_LABEL_KEYS`,
-  `fault.<brand>.*` and the card's fallback-to-raw-code rule appear in zero docs.
+**Open questions that hold dependent sections** (need Chris, tracked in
+`DOC-PASS-TRIAGE.md`): `discovery.py` trigger semantics; Phased-Jobs doc depth — the §13
+ruling makes the phased-job record schema DR material, which also decides whether the
+drift-checker's queue-break exempt list gets retired by documenting those services.
 
 Why this is logged in the ledger and not just a TODO: per
 [00a §9](../00a-documentation-epoch-lifecycle.md), the documentation is part of the
 measurement apparatus. An epoch row that overstates its own coverage tells the next
 auditor that a stale region is trustworthy prose — which is the same failure class as a
-confidently-wrong DR statement, one level up. The exclusion is the honest baseline.
+confidently-wrong DR statement, one level up. The named residual is the honest baseline.
