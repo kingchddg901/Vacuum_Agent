@@ -20,20 +20,29 @@ What "disaster" means, exactly — the scenario every DR doc is sized against:
   structure, and incidental choices are explicitly NOT part of the contract. (Corollary,
   proven by CAL-23: only behavioural tests can examine a rebuild — a test that asserts
   private internals demands byte identity the contract never promised.)
-- **Per-section sufficiency is defined inductively.** One section is sufficient when a
-  competent blind implementer can rebuild its subsystem from that section **plus the
-  correctly-rebuilt rest of the system** — because in a real total-loss recovery the
-  neighbours are rebuilt from *their own* sections, in dependency order. Section proofs
-  therefore compose: every section sufficient-given-neighbours ⇒ the corpus rebuilds
-  from docs alone. A single doc is NOT required to restate its neighbours' interfaces.
-- **Test harness legitimacy:** blind-reconstruction experiments may use the real
-  surrounding source as a stand-in for "correctly-rebuilt neighbours" — functional
-  identity makes the stand-in exact for that purpose. The experiment's target section
-  itself is always removed.
+- **The corpus is SELF-HOSTING — neighbours are supplied as documentation, not code.**
+  One section is sufficient when a competent blind implementer can rebuild its
+  subsystem from that section plus the **interfaces the OTHER sections' docs state**
+  (and public framework knowledge). No source appears anywhere in this contract — that
+  is what gives the recovery a start point. Naive "rebuilt-neighbours" induction has no
+  base case and the dependency graph is not even acyclic (`error_tracker → active_job →
+  learning → error_tracker` is real); doc-stated interfaces dissolve both: mutual
+  dependents each publish their surface on paper, and the bootstrap is topological
+  order over documented interfaces — surfaces first, implementations behind them.
+  Consequence for authors: every doc MUST state the interfaces it PROVIDES and the
+  neighbour interfaces it CONSUMES (the rubric's integration-contract row is
+  load-bearing for the whole corpus, not local hygiene).
+- **Test-harness honesty:** blind-reconstruction experiments (the ablation loop) give
+  builders the real surrounding source as a practical stand-in for rebuilt neighbours.
+  That is an OVER-approximation — call-site bodies teach more than documented
+  interfaces would — so a sandbox pass is **necessary but not sufficient** evidence of
+  the corpus contract. The corpus-level acceptance test is the periodic full
+  **docs-only rebuild drill** (the doc-as-spec cold run — measured ~90% at last
+  execution; the ablation campaign exists to close that gap section by section).
 
 A doc's scope line states this contract's per-section form; it never claims
-document-alone sufficiency (untested, and measured incomplete by the doc-as-spec run)
-and never treats the *original* source as a legitimate dependency.
+document-alone sufficiency and never treats the *original* source as a legitimate
+dependency — its dependencies are the corpus and the framework, full stop.
 
 ---
 
