@@ -301,3 +301,107 @@ and cannot be here: `spec_manager` legitimately assigns the runtime `self.<name>
 attributes it scrapes from `core/manager.py`, which a class-derived spec does not
 know about. If a test needs `mgr.learning`, that is the signal it is testing against
 a shape production does not have.
+
+## The mock-failure ledger
+
+Every defect below **reached running hardware with the suite green**. Each is here
+because a test double answered a question the real object would have refused.
+
+This is the audit record's test wing: it exists to make old mistakes expensive to
+repeat, not to catalogue every mock we dislike. **Only incidents that actually bit are
+listed.** A hardening we applied pre-emptively is not an incident and does not belong
+here — that distinction is the ledger's whole value, because a list padded with
+near-misses stops being evidence of anything.
+
+Append when the next one bites. Do not append hypotheticals.
+
+### ML-1 · A mock invented an attribute production does not have
+
+**What lied.** `mgr.learning`. The core manager reaches the learning manager through
+`_get_learning_manager()` (via `hass.data`), and genuinely never assigns `.learning`.
+A `MagicMock` manufactured it on demand.
+
+**What it cost.** The first real phased run — kitchen → 2 min wait → Entryway + Home
+Office — produced a correct parent, a correct break record, and **not one child**. The
+`AttributeError` was swallowed by a best-effort handler, so every clean phase recorded
+`record_id: null`.
+
+**Why the test could not catch it.** The fixture written to make wave 2 execute did
+`mgr.learning.finalizer = …` on a bare mock. *The fixture built the illusion it was
+written to dispel.*
+
+**Guarded by.** `spec_manager()` — autospec cannot invent an attribute the class does
+not declare, so reading `mgr.learning` now raises. Reintroducing the bug fails 6 tests
+instead of 0. (`6790952`, `e665db7`)
+
+### ML-2 · A bare mock silently disabled the code path under test
+
+**What lied.** `finalize_from_inputs` returned a `MagicMock`, so
+`isinstance(result, dict)` was `False` and `_finalize_phase_as_child` bailed returning
+`None`.
+
+**What it cost.** Every "a clean phase has no child" assertion passed **for the wrong
+reason**, and wave 2 went completely unexercised while appearing tested.
+
+**Guarded by.** The fixture now stubs the finalizer with **real dicts**, so the child
+path actually runs. (`b49818d`)
+
+### ML-3 · A permissive stub swallowed a required-argument mismatch
+
+**What lied.** `def _collect(**kw)` accepts anything.
+`_collect_finalization_inputs` requires three keyword-only args with no defaults
+(`forced_outcome_status`, `forced_lifecycle_state`, `forced_lifecycle_message`); the
+call omitted all three.
+
+**What it cost.** Every child raised `TypeError` immediately. **Two live runs wrote no
+child records; three deploy cycles to find.**
+
+**Guarded by.** The stub is now derived from the function it stands in for —
+`inspect.signature(...).bind()` — so it rejects exactly what production rejects.
+(`4adcac9`)
+
+### ML-4 · A fake agreed with the caller about where a value lives
+
+**What lied.** `finalize_from_inputs` reads `inputs["job_id"]`; only
+`active_job_state["job_id"]` was being set. The fake finalizer read from the same wrong
+key the caller wrote to, so the two agreed with each other and not with production.
+
+**What it cost.** Past the ML-3 `TypeError`, every child would have been written under
+the **run's own id** — overwriting the run's record instead of landing beside it, and
+silently, because the write itself succeeds.
+
+**Guarded by.** The stub reads `inputs`, as production does. (`4adcac9`)
+
+### ML-5 · A sync mock hid a missing `await` — and shipped to a user
+
+The only one here that escaped to someone else's house.
+
+**What lied.** A shared manager mock stubbed `start_run_profile` as a **sync**
+`MagicMock`. `EufyVacuumSavedRunProfileButton.async_press` called the coroutine without
+awaiting it, so its body never ran — but the un-awaited call still *recorded*, and
+`assert_called_once` passed.
+
+**What it cost.** Every exposed profile button silently no-oped, on every brand.
+Reported from the outside on an Omni E28 (issue #42). The only runtime signal was a
+`coroutine was never awaited` RuntimeWarning, invisible in `home-assistant.log`. The UI
+"Start Cleaning" worked, because the service handler awaits the same call — so the
+failure looked like a button problem rather than a missing `await`.
+
+**Guarded by.** `AsyncMock` + `assert_awaited_once_with`, and the fix **measured the
+break**: the test was verified to FAIL when the `await` is removed. (`9ff783d`)
+
+### What the five have in common
+
+Four of the five are the same sentence: *the double agreed with the caller.* Not one
+was a wrong assertion — every test asserted the right thing about an object that was
+not behaving like the real one.
+
+Two structural lessons, both cheap:
+
+**A green test proves nothing until you have seen it fail.** ML-5's fix measured the
+break; ML-1's records that reintroducing the bug now costs 6 failures. The other three
+were found by hardware.
+
+**Suspect the fixture that makes a new path "work".** ML-1 and ML-2 were both
+introduced by fixtures written to exercise wave 2. A stub authored to make code run
+will make it *appear* to run.

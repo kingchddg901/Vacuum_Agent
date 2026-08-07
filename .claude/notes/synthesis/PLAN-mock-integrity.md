@@ -1,7 +1,26 @@
 # PLAN — Mock Integrity (audit-1 remainder: "the MagicMock is killing us")
 
-Status: EXECUTING (started 2026-08-07 on Chris's go, after the audit-1 R2 fix wave
-landed). W0 COMPLETE, W1 mechanism + first file in, W3 decided (see §5). Scale note, his framing: 86 bare mocks is a rounding
+Status: **COMPLETE 2026-08-07** — all four waves landed in one session on Chris's go,
+after the audit-1 R2 fix wave. W0 (ratchet + generated Mocking column + doc ratchet),
+W1 (spec_of/spec_tracker/spec_learning/spec_rebuilder + conversions), W2 (F1 residuals
+classified per site), W3 (decided (a)+(b), see §5), W4 (the ledger, docs/testing/05).
+
+Bare-mock census over the campaign: **170 -> 147** across 40 -> 39 files. Every
+conversion gated by `diff_test_equiv` => EQUIVALENT; suite 3940 green throughout.
+
+Two scoping corrections the waves produced, both from measuring rather than counting:
+
+* **W0** — the plan's "86 bare MagicMock in 27 files" counted only bare `MagicMock()`.
+  Including parameterised constructions and `AsyncMock` (identical defect class), the
+  real exposure was **170 across 40**, roughly double.
+* **W3** — the plan called mock-hass "the mass". Reference count is not lie surface: 11
+  of the 14 files use hass only as a `config_dir` PATH CARRIER, and suite-wide exactly
+  **two** sites returned a MagicMock state. W3 was ~a twentieth of its estimate.
+
+And one finding the plan does not name, now in docs/testing/05: **assigning over a
+spec'd method silently discards its signature check** (`x.m = Mock(...)` vs
+`x.m.return_value = ...`), plus the bound that attribute protection is bypassable by
+assignment because `create_autospec` is not `spec_set=True` and cannot be here. Scale note, his framing: 86 bare mocks is a rounding
 error against ~3,900 tests — this is done right, not urgently.
 Grounding: docs/testing/03 + 04 read in full; every claim below re-verified against
 tests/ on 2026-08-06 (post doc-truth-pass, so the docs are current).
