@@ -5,8 +5,12 @@ lifecycle (auto-finalize), job-progress ticks, job-metrics watch maps,
 dock-events, path-blockers (mid-job rule re-evaluation), discovery passes,
 pause-timeout escalation, and pose sampling (external-run pose time-series
 capture for room auto-attribution) — plus the registration/teardown plumbing.
-Covered by **80 tests across 7 integration files**, with the pose sampler
-covered separately by `tests/unit/test_pose_sampler.py` (14 tests).
+Covered by **167 tests across 7 integration files**, with the pose sampler
+covered separately by `tests/unit/test_pose_sampler.py` (24 tests) — 191
+cases total.
+
+<!-- The two bold counts above are HAND-MAINTAINED (same reason as 15-adapters:
+the integration/unit split can't be computed by the single-header model). -->
 
 Source: `custom_components/eufy_vacuum/listeners/`
 Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
@@ -17,15 +21,15 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `lifecycle.py` | 121 | 95% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration |
-| `path_blockers.py` | 106 | 99% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration |
-| `job_metrics.py` | 88 | 89% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
-| `dock_events.py` | 64 | 90% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration |
-| `discovery.py` | 72 | 99% | `test_listeners_timers.py` | integration |
-| `pause_timeout.py` | 59 | 93% | `test_listeners_timers.py` | integration |
-| `_common.py` | 78 | 94% | `test_listeners_common.py` | integration |
-| `job_progress.py` | 43 | 95% | `test_listeners_active.py` | integration |
-| `pose_sampler.py` | 137 | 89% | `test_pose_sampler.py` (unit) | unit |
+| `lifecycle.py` | 144 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration |
+| `path_blockers.py` | 142 | 95% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration |
+| `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
+| `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration |
+| `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration |
+| `pause_timeout.py` | 74 | 92% | `test_listeners_timers.py` | integration |
+| `_common.py` | 80 | 93% | `test_listeners_common.py` | integration |
+| `job_progress.py` | 44 | 95% | `test_listeners_active.py` | integration |
+| `pose_sampler.py` | 159 | 89% | `test_pose_sampler.py` (unit) | unit |
 
 ---
 
@@ -68,36 +72,36 @@ are intentionally left uncovered (`# pragma: no cover` on the unsubscribe
 excepts), early-return guards on malformed/duplicate events, and a few
 adapter-config sub-branches:
 
-- **`lifecycle.py` (95%)** — the remaining misses are early-return guards
-  (no manager / no matched vacuum) and the executor-job wrapper around the
-  tracker's `end_job` (defensive). The mid-job `mapping_tracker.start_job`
-  branch and the post-job mop-water amendment registration (gated on a
-  finalized mop job) are now covered by `test_listeners_active.py`. The
-  auto-finalize except is `# pragma: no cover - best-effort auto-finalize`.
-- **`path_blockers.py` (99%)** — watcher-build filter branches that drop
-  malformed/disabled/non-blocker rules (73, 76, 78, 81) and event-dedup guards
-  (109, 111, 115, 131, 139: empty/unwatched entity, no new_state, unchanged
-  state, non-dict report, already-paused). All defensive filtering.
-- **`dock_events.py` (90%)** — event-dedup guards (69 no new_state, 75
-  unchanged value, 79 unwatched entity, 83 manager gone). The `last_dry_start`
-  dry-duration capture sub-branch (98-105) is now covered by
-  `test_listeners_state_driven.py`; the remaining misses are the defensive
-  dedup guards.
-- **`job_metrics.py` (97%)** — the metrics-change handler's value-parse path
-  (94-95 capability-read except, 106/110/113 entry-miss / no-state /
-  unavailable guards, 118/122-123 manager-gone and `ValueError` guards). The
-  happy-path record-and-counter-sample below is covered; the misses are guards.
-- **`_common.py` (94%)** — the broad-except fallbacks in `get_adapter_vocab`
-  (45-46) and `get_adapter_value` (72-73), plus the non-dict traversal guard
-  (67). Defensive registry-lookup safety nets.
-- **`pause_timeout.py` (94%)** — two guards inside the tick (56 manager gone,
-  63 skip "unknown" map_id).
-- **`discovery.py` (99%)** — only line 150, the body of the periodic
-  safety-net `_on_tick` callback (`_run_pass()`); the timer fires it but no test
-  advances the adapter-configured interval. Trivial.
-- **`job_progress.py` (95%)** — only line 68, the `continue` that skips the
+Every module in this subsystem grew this campaign (`lifecycle.py` 121→144
+statements, `path_blockers.py` 106→142, `job_metrics.py` 88→98, `pause_timeout.py`
+59→74, `pose_sampler.py` 137→159, smaller growth elsewhere), so the specific
+line numbers below are freshly pulled from a `--cov-report=term-missing` run
+against this revision rather than re-verified item-by-item for every module —
+spot checks on `lifecycle.py` and `path_blockers.py` confirm the *shape*
+(early-return / defensive guards) still holds:
+
+- **`lifecycle.py` (94%)** — missing lines 115, 126, 129, 144, 516, 521: the
+  no-manager early return, the unmatched-vacuum debug-log-and-return, and
+  guards inside the finalize/mark-finalized flow. Same defensive shape as
+  before this campaign's growth.
+- **`path_blockers.py` (95%)** — missing lines 179, 250-251, 256-257: a
+  non-dict-room skip inside the watcher-build rule walk, and event-dedup
+  guards.
+- **`dock_events.py` (92%)** — missing lines 77, 81, 85: event-dedup guards.
+- **`job_metrics.py` (94%)** — missing lines 44, 48, 206: capability-read /
+  value-parse guards in the metrics-change handler.
+- **`_common.py` (93%)** — missing lines 50-51, 73-74, 106, 114: broad-except
+  fallbacks in the adapter-vocab/value readers plus a non-dict traversal guard.
+- **`pause_timeout.py` (92%)** — missing lines 161, 175, 182-183: guards
+  inside the tick (manager gone, unknown map_id, and one new arm not yet
+  itemized by name).
+- **`discovery.py` (99%)** — only line 190: the body of the periodic
+  safety-net `_on_tick` callback; the timer fires it but no test advances the
+  adapter-configured interval. Trivial.
+- **`job_progress.py` (95%)** — only line 75: the `continue` that skips the
   "unknown" map_id during a tick.
-- **`pose_sampler.py` (90%)** — the misses are the no-`task_status` /
+- **`pose_sampler.py` (89%)** — missing lines 93-94, 155, 173, 176, 185,
+  193-194, 210-212, 262, 339, 372, 379: the no-`task_status` /
   unreadable-state fallback to the pose `robot_docked` flag and the
   not-attribution / no-live-map vacuum skips (defensive gating). The
   external-only sampling and the parked/docked nulling happy paths are

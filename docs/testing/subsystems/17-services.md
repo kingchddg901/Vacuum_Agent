@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **191 tests across 14 files**.
+contract). Covered by **224 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -26,18 +26,18 @@ docs, not here:
 
 | Source module | Stmts | Cov | Test file |
 |---------------|------:|----:|-----------|
-| `job_control.py` | 133 | 95% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
-| `run_profiles.py` | 103 | 98% | `test_services_run_profiles.py` |
-| `adapter_config.py` | 96 | 94% | `test_services_adapter_config.py` |
-| `setup.py` | 128 | 91% | `test_services_errors_setup.py` |
+| `job_control.py` | 142 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
+| `run_profiles.py` | 104 | 98% | `test_services_run_profiles.py` |
+| `adapter_config.py` | 101 | 96% | `test_services_adapter_config.py` |
+| `setup.py` | 159 | 86% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
-| `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
-| `rooms.py` | 95 | 96% | `test_services_rooms.py` |
+| `room_profiles.py` | 81 | 100% | `test_services_room_profiles.py` |
+| `rooms.py` | 108 | 98% | `test_services_rooms.py` |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
-| `queue.py` | 97 | 70% | `test_services_queue.py` |
+| `queue.py` | 121 | 77% | `test_services_queue.py` |
 | `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py` |
-| `access_graph.py` | 25 | 100% | `test_services_access_graph.py` |
+| `access_graph.py` | 34 | 88% | `test_services_access_graph.py` |
 | `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py` |
 
 ---
@@ -71,27 +71,34 @@ manager method to raise and assert the wrapped exception type.
 
 ## Known gaps
 
-The remaining misses are almost all defensive, not untested behavior:
+`queue.py` (77%) is now the real gap in this subsystem, not a defensive tail —
+this campaign added the queue **breaks/steps** service handlers
+(`_handle_get_queue_steps`, `_handle_add_queue_break`,
+`_handle_remove_queue_break`, `_handle_clear_queue_breaks`,
+`_handle_set_queue_breaks`, `_handle_add_queue_zone`, missing lines 202-244)
+and their `register()` closures (missing lines 266-281) — none of them are
+exercised by `test_services_queue.py`. The handler bodies are thin delegators
+to the manager (`get_manager(hass).<method>(**resolved_call_data(...))` +
+`async_save()`), so this is closer to an untested wrapper than untested logic,
+but it is a real gap, not a documented-defensive one — flagged here rather
+than characterized as intentional. (Line 62 is a genuinely defensive
+`isinstance` guard in a payload-normalization helper, unrelated to the above.)
+
+The remaining misses elsewhere are still almost all defensive, not untested
+behavior, though line numbers have shifted with the campaign's growth:
 
 - **`manager is None` early-returns (defensive)** — the runtime-not-available
-  guards at the top of `setup.py`'s `setup_get_map_rooms` / `setup_save_rooms` /
-  `setup_reject_rooms` / `setup_force_remove_room` / `setup_set_panel_title` /
-  `setup_set_map_camera` handlers, plus `adapter_config.py`'s
-  `_handle_save_adapter_config` / `_handle_delete_adapter_config`, return a
-  `{"status": "error"}` stub or log-and-return. Unreachable in the
+  guards at the top of several `setup.py` handlers (missing lines 64, 114,
+  187, 190, 237, 264, 303, 335-338, 344-345, 356, 375, 425), plus
+  `adapter_config.py`'s missing lines 67, 116. Unreachable in the
   fixture-registered service set, intentionally uncovered.
-- **Parse / shape fallbacks (defensive)** — `errors.py:84-85` (`limit` int-parse
-  `except` → default 20). (`_common.py`'s non-dict `completed_job` guard and its
-  `finalize_result`-shaped `job_path` extraction are now both covered.)
-- **Registered-wrapper closures (trivial)** — `rooms.py:234`/`246`, the
-  `discover_rooms` / `reconcile_room` inner async wrappers; the `_handle_*` they
-  delegate to are exercised directly. (The two remaining `rooms.py` branch edges are
-  the `vol.Required` `vacuum_entity_id` false-arms the registered service can't reach.)
+- **`access_graph.py` (88%)** — missing lines 89-91, 104: defensive guards,
+  not yet re-itemized by name this pass.
+- **Registered-wrapper closures (trivial)** — `rooms.py` missing line 270 (a
+  wrapper/`vol.Required` false-arm the registered service can't reach).
+- **`_common.py` (96%)** — missing line 138, a single defensive guard.
 
-Note `adapter_config.py:68-78` (missing `adapter_id` / missing `dispatch.template`
-guards) are `# pragma: no cover` by design and so are excluded from the miss list.
-
-Module coverage: `setup.py` 90%, `adapter_config.py` 94%, `errors.py` 95%,
-`rooms.py` 96%; the remaining nine modules (including `run_profiles.py` and
-`_common.py`, now at 100%) are at 100%. The handler success + error contracts
-are covered.
+Module coverage: `queue.py` 77% (see above), `setup.py` 86%,
+`access_graph.py` 88%, `adapter_config.py` 96%, `_common.py` 96%,
+`errors.py` 95%, `rooms.py` 98%; `dock.py`, `room_profiles.py`,
+`maintenance.py`, and `snapshots.py` are at 100%.

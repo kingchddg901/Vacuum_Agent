@@ -3,7 +3,7 @@
 The onboarding subsystem tracks per-map setup completeness: whether rooms have
 been discovered and whether every enabled room has a confirmed floor type. It
 feeds the start-status `onboarding_required` gate and the onboarding sensor.
-Covered by **7 tests in 1 file** (plus the onboarding sensor in
+Covered by **11 tests in 1 file** (plus the onboarding sensor in
 [18 — platforms](18-platforms.md)).
 
 Source: `custom_components/eufy_vacuum/onboarding/`
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/18-onboarding-manager.md](../../dev/18-onboard
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 81 | 95% | `test_onboarding_manager.py` | integration |
+| `manager.py` | 92 | 98% | `test_onboarding_manager.py` | integration |
 
 ---
 
@@ -52,15 +52,13 @@ tests, but not this one.)
 
 ## Known gaps
 
-`manager.py` (98%) has one uncovered line, narrow:
+`manager.py` (98%, grown from 81 to 92 statements) has one uncovered line,
+narrow:
 
-- **Non-list segments guard** (`check_for_new_rooms`, line 211) — the
+- **Non-list segments guard** (`check_for_new_rooms`, line 288) — the
   `return False` when the source entity's segments attribute isn't a list.
-  The no-state path (line 207) is tested; this is the malformed-attribute
-  defensive guard. Defensive-by-design, intentionally uncovered.
+  This is the malformed-attribute defensive guard. Defensive-by-design,
+  intentionally uncovered.
 
-`get_rooms_onboarding_summary` (lines 218-241) is statement-covered
-(`test_summary`, OB-4) but not 100% branch-covered — the all-complete loop
-continuation (`234->228`, the per-map `if not state["onboarding_complete"]:`
-falling through to the next iteration) is unexercised because the test seeds
-only an incomplete map.
+`get_rooms_onboarding_summary` (line 295) is fully statement- and
+branch-covered — no gap here.

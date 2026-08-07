@@ -33,12 +33,20 @@ docker run --rm ^
 ### Examples
 
 ```
-scripts\test.bat                                          REM whole suite (unit + integration)
+scripts\test.bat                                          REM default testpaths (unit + integration)
 scripts\test.bat tests/integration/test_config_flow.py -v
 scripts\test.bat --no-cov -k test_setup_flow
 scripts\test.bat tests/unit                               REM just the unit layer
 scripts\test.bat tests/adapters                           REM the adapter suite (not in default testpaths)
+scripts\test.bat tests/replay                             REM the recorder-replay harness (not in default testpaths)
+scripts\test.bat tests --no-cov -p no:cacheprovider --tb=short   REM the exact CI behavior gate
 ```
+
+CI (`.github/workflows/tests.yml`) runs
+`python -m pytest tests --no-cov -p no:cacheprovider --tb=short`, which collects
+**all four** directories — `tests/unit`, `tests/integration`, `tests/adapters`,
+and `tests/replay` — so the two paths outside the default `testpaths` are still
+gated on every push.
 
 ## Running it by hand (and the two Windows traps)
 

@@ -6,11 +6,13 @@ with Node's built-in test runner, no browser and no build.
 
 - **Run them all:** `npm run test:units` (`node --test "src/**/*.test.mjs"`).
 - **Run one file:** `node --test src/state/rooms-logic.test.mjs`.
-- **524 cases across 38 files**, currently all green. Node ≥ 21 (native glob).
+- **904 cases across 91 files**, currently all green. Node ≥ 21 (native glob).
+  (The `node --test` summary line is the authority for these numbers — rerun
+  `npm run test:units` rather than trusting this doc's total.)
 
 This is one of three separate frontend test tracks — see [the three tracks](#the-three-tracks).
 
-!!! note "How this set got big (2026-07-04)"
+!!! note "How this set got big (2026-07-04, then the 2026-08 audit campaign)"
     It started as 13 files / 102 cases (mostly map/coordinate helpers). A
     frontend-logic coverage audit then found that most of `src/` is genuinely
     plumbing (renderers, event-binding, hass-orchestration — correctly not
@@ -20,7 +22,12 @@ This is one of three separate frontend test tracks — see [the three tracks](#t
     geometry, floor-scope, and a few computations that had leaked inline into
     renderers. Those were closed in three waves; the later floor-texture map view
     then added the compositor + material-resolver engines (`src/textures/`),
-    taking the suite to 524 cases.
+    taking the suite to 524 cases. The 2026-08 audit campaign added the next
+    tier: per-defect **regression files** across `src/actions/` (service-failure
+    and refusal surfacing), `src/bindings/` (confirm dialogs, rejected-import
+    surfacing), `src/renderers/` (the review modal, job summary, live
+    charge/zone banners), the steps editors under `src/state/`, and the
+    i18n/font wiring — now 904 cases across 91 files.
 
 ---
 
@@ -38,29 +45,44 @@ derivations — no DOM, no hass.
 
 | File | Cases | What it guards |
 |------|------:|----------------|
-| `rooms-logic.test.mjs` | 28 | The **room access-graph validator** (`validateRoomAccessUpdate` + DFS cycle / self-reference / duplicate-edge / missing-ref / single-inbound rules → issue codes) and the **start-button readiness** reason-code precedence (`no_rooms_included` > `already_cleaning` > `returning_to_dock` > `vacuum_error`); `orphanedRooms`. |
+| `rooms-logic.test.mjs` | 29 | The **room access-graph validator** (`validateRoomAccessUpdate` + DFS cycle / self-reference / duplicate-edge / missing-ref / single-inbound rules → issue codes) and the **start-button readiness** reason-code precedence (`no_rooms_included` > `already_cleaning` > `returning_to_dock` > `vacuum_error`); `orphanedRooms`. |
 | `order-engine.test.mjs` | 24 | The **reorder engine** — `_sortOrderedItems` (numeric order + id tiebreak; the `Number(null)===0` sort-to-front footgun is pinned), move-to-position clamp+splice, swap-by-id, 1-based reindex, and the scope-preview wrappers. Drives room drag-and-drop → backend number entities. |
 | `room-rules-logic.test.mjs` | 28 | `ruleEntityDescriptor` (domain → category + allowed-operator set), `roomRulesDraftIsValid` (Save-enabled gate incl. the clean_passes 1\|2 rule), scored entity search tiers, operator-group filtering. |
 | `theme-resolve.test.mjs` | 27 | `resolvedTheme` — the deterministic **4-layer merge** (room-fill palette defaults **+ floor-texture material defaults seeded from `FLOOR_TEXTURE_REGISTRY`, incl. the map-rotate token; computed `-eff` layers excluded** → active theme → working draft), plus `filteredThemeTokens` / `filteredPresetIds` (facet AND/OR + search filtering). |
 | `map-compose-and-viewport.test.mjs` | 25 | `composeToSegments` (custom-segment draft → save payload: subtract-ordering, group/room_id resolution, rotated-rect → polygon trig), `clampMapTransform` (off-screen-recovery clamp), `applyMapZoom` (focal-point), `loadComposeDraftFromSegments` (id-counter advance). |
-| `learning-derive.test.mjs` | 33 | `endLearningJob` (actual-vs-predicted summary with the `>0` guards), `_dashboardJobIsActive` (terminal-status gate for the whole live-job UI), room count / timeline / banner fallbacks, estimate keying. |
-| `room-editor-matching.test.mjs` | 19 | Preset **snap-back** matcher (`_editorFieldsMatchProfile`), option-list builder (omit → hide picker), clean-mode / intensity canonicalization, carpet gate. |
+| `learning-derive.test.mjs` | 37 | `endLearningJob` (actual-vs-predicted summary with the `>0` guards), `_dashboardJobIsActive` (terminal-status gate for the whole live-job UI), room count / timeline / banner fallbacks, estimate keying. |
+| `room-editor-matching.test.mjs` | 22 | Preset **snap-back** matcher (`_editorFieldsMatchProfile`), option-list builder (omit → hide picker), clean-mode / intensity canonicalization, carpet gate. |
+| `run-profiles-steps.test.mjs` | 20 | The run-profile **STEPS editor** draft state (charge-step / room-group authoring buffer): draft wiring, the "capture current room setup" snapshot, and editing an existing profile **clones** (never mutates) the stored steps. |
+| `steps-order.test.mjs` | 20 | The pure step-mutation helpers in `steps-order.js` — immutable derive-next-array primitives the steps editor rides on; mirrors the backend normalize for save. |
 | `saved-zones-group.test.mjs` | 17 | `savedZonesGrouped` (group under room, live map order, trailing "Unassigned" bucket) and `selectedSavedZoneIds`. |
-| `external-jobs-group.test.mjs` | 12 | `externalWizardGroups` (v1/v2 segment grouping) + wizard split-map / default-room seeding. |
+| `access-graph-model.test.mjs` | 16 | `access-graph-model.js` — `normalizeRefs` (scalar / null / mixed / blanks) + the graph-model derivations. |
+| `steps-manifest.test.mjs` | 15 | `renderStepsManifest` — the pure "Runs As" step→HTML helper **shared** by the run-profiles panel and the standalone profile card (per-step-type rendering, room-name lookup + fallback, single-vs-mixed clean-mode hint). |
+| `room-access-logic.test.mjs` | 15 | `accessEditableRooms` (exclude self/dock, hide rooms claimed by another under the single-inbound rule). |
+| `zone-draft.test.mjs` | 15 | `_rectToNormalized` zone coord conversion + multi-zone draft list, and `canDrawZone` — draw-gate lights up over the live backdrop **or** an active VA raster (Roborock cv-mode path), still gated by `supportsZoneClean`. |
+| `external-jobs-group.test.mjs` | 13 | `externalWizardGroups` (v1/v2 segment grouping) + wizard split-map / default-room seeding. |
 | `run-profiles-normalize.test.mjs` | 12 | `_normalizeRunProfilesPayload` (unwrap bare array / `profiles` / `saved_run_profiles` fallback; library guard). |
-| `zone-draft.test.mjs` | 12 | `_rectToNormalized` zone coord conversion + multi-zone draft list, and `canDrawZone` — draw-gate lights up over the live backdrop **or** an active VA raster (Roborock cv-mode path), still gated by `supportsZoneClean`. |
+| `coded-label.test.mjs` | 10 | The shared code→translated-label resolver (namespace lookup with params, fallback rules). |
+| `mascot-facing.test.mjs` | 10 | `mascotFacingSign` — screen-space facing from content motion under map rotation, with a sub-threshold deadband (hold last facing). |
 | `room-profiles-name.test.mjs` | 10 | `makeRoomProfileName` (slug + `custom_` prefix + `_2/_3` collision suffix) + sorted profile lists. |
+| `core-battery.test.mjs` | 9 | `batteryState` — 5-band classifier with charging override + ordered thresholds, incl. the absent-vs-zero guard. |
 | `maintenance-logic.test.mjs` | 9 | `findUpkeepItem` (case-insensitive kind+component match) and `canInvokeMaintenanceReset`. |
 | `metrics-logic.test.mjs` | 9 | `findMetricsSaveCandidate` (match on profile_key AND room_slug across the selected source). |
-| `room-access-logic.test.mjs` | 9 | `accessEditableRooms` (exclude self/dock, hide rooms claimed by another under the single-inbound rule). |
+| `steps-queue-order.test.mjs` | 9 | The steps-queue order adapter — reordering the live ad-hoc queue (rooms + charge/wait breaks) as ONE list → room-order writes + recomputed `after_index` per break. |
+| `affordance-and-warning.test.mjs` | 8 | Regression (`CENSUS-2`): `canPauseRun` / `canResumeRun` must not trust a prepended data source that doesn't carry the field. |
+| `clean-mode-options.test.mjs` | 8 | Issue #48 card half: the stored DISPLAY label and the adapter TOKEN resolve to one clean-mode option. |
+| `fault-label.test.mjs` | 7 | Fault-label resolution (`CARD-3`): backend sends a KEY, never text; an unrecognised fault falls back to the **raw vendor code** (honest) rather than blank. |
 | `live-map-url.test.mjs` | 7 | `_liveMapImageUrl` — backdrop URL + camera cache-bust. |
 | `live-pose-overlay.test.mjs` | 7 | Live-pose merge — fresh pose overrides only the moving fields; static segmentation preserved. |
+| `access-issue-label.test.mjs` | 6 | Backend access-issue codes resolve to translated sentences with params; unknown codes degrade safely. |
+| `live-trail.test.mjs` | 6 | The live pose trail — accumulates anchors while cleaning, de-dups stationary repeats, freezes docked then continues the SAME trace on resume (recharge case), bounded length. |
+| `mascot-dwell.test.mjs` | 6 | Dwell-debounced mascot room tracker (state machine). |
 | `room-hit-test.test.mjs` | 6 | `roomIdAtContentPct` — pixel-exact room hit-test (Y-flip + contain letterbox). |
 | `area-label-anchor.test.mjs` | 5 | Per-room draggable m² chip anchor. |
 | `map-rotation.test.mjs` | 5 | `unrotatePct` — pointer → content frame on a rotated map. |
-| `mascot-dwell.test.mjs` | 5 | Dwell-debounced mascot room tracker (state machine). |
-| `core-battery.test.mjs` | 5 | `batteryState` — 5-band classifier with charging override + ordered thresholds. |
+| `review-exclude-reason.test.mjs` | 5 | The review exclude-reason resolver — preset chip passes its value, "custom" passes the user's trimmed text (falls back to the literal `custom`). |
 | `hidden-regions.test.mjs` | 4 | Per-map user-drawn masks — accessor, draw gate, rect conversion. |
+| `map-stale.test.mjs` | 4 | `CARD-2` clause 1: the map-stale selectors driving the dim treatment + "last seen" badge (no snapshot → not stale; fresh source → not stale). |
+| `steps-order-leading-break.test.mjs` | 3 | Regression (`CARD-6` clause 1): `insertChargeStep` / `insertWaitStep` refuse a leading/trailing break (unsupported positions). |
 | `map-room-labels.test.mjs` | 2 | Per-vacuum map room-label visibility toggle. |
 
 ### `src/cards/` — standalone-card logic
@@ -70,6 +92,8 @@ derivations — no DOM, no hass.
 | `dashboard-dispatch.test.mjs` | 23 | The dashboard card's pure run-launcher logic. |
 | `zone-geometry.test.mjs` | 14 | The card's pure zone-clean geometry (verified vs the real X10 camera). |
 | `map-room-color.test.mjs` | 9 | Map room-fill colour resolution (`roomFillTokenName` / palette / override, `normalizeHex`) — the frontend mirror of the backend `_hex_color_or_none`. |
+| `card-suggestions.test.mjs` | 5 | Managed-vacuum detection for the card-config suggestions (companion entities carrying a `vacuum_entity_id` attribute pointing back at the vacuum). |
+| `zone-repeat.test.mjs` | 5 | `canZoneRepeat` (`CARD-6` clause 2) — the zone-repeat capability gate. |
 
 ### `src/theme-tokens/` — token-shape + floor-scoping logic
 
@@ -100,7 +124,53 @@ now delegate) so they could be unit-tested off the render path.
 | `theme-parsers.test.mjs` | 28 | `_parseColorMix` / `parseScalarThemeValue` / `alphaPercentFromHex` (+ serialize/clamp) — the CSS `color-mix` + scalar + alpha-hex parsers behind the theme editor. |
 | `map-geometry.test.mjs` | 20 | `_polygonCentroid` (signed-area + degenerate fallback), `_savedZoneBbox`, `_overlayTransform` (object-fit:contain letterbox). |
 | `maintenance-derive.test.mjs` | 18 | `maintenanceDueInBucket(item, now, t)` (due-in projection with 3-day / 0.1-h-per-day guards; `now`/`t` injected), needs-attention verdict, remaining-percent branch. |
-| `mapping-review-outlier.test.mjs` | 7 | `computeJobBoundsOutlier` — leave-one-out bounds-outlier detection (union bbox + 10% per-axis tolerance). |
+| `job-summary.test.mjs` | 15 | The **Job Summary modal** — the surface that closes the gap between the job JSON and what the user is told about a run. |
+| `review-error-badge.test.mjs` | 14 | The review list's captured-run-errors (`run_errors`) badge — surfacing the backend's harvested error rows. |
+| `setup-reconciliation.test.mjs` | 12 | `CARD-7`/RP-019 — the reconciliation review banner (`renderReconciliationPanel`, driven through the whole `renderSetupView()` since it's a closure, not a proto method). |
+| `progress-and-format.test.mjs` | 6 | Regression (`FE-LRN-1` +1): two renderers that showed a plainly wrong thing — the live-progress list's completed/current dispatch fall-through. |
+| `maintenance-census6.test.mjs` | 6 | `CENSUS-6` — server-baked English reached the user in all 18 locales; the maintenance renderer must translate, not pass through. |
+| `language-control-font.test.mjs` | 5 | The typeface picker inside the language control (P3 of the OpenDyslexic accessibility feature). |
+| `review-matcher-clean-mode.test.mjs` | 5 | `CC-5` — the review profile-matcher's clean-mode chip row comparison. |
+| `review-absent-battery.test.mjs` | 4 | `REV-6` — an externally-captured run with **absent** battery must not render "Battery 0". |
+| `review-truncation-note.test.mjs` | 4 | `REV-5` — the run list is cut to `limit` (50) while the headline stat counts all runs; the truncation must be said. |
+| `rooms.test.mjs` | 4 | `confidenceTooltip` (`CARD-2` clause 3) — finite sample counts fold into the tooltip; a count of 0 still renders; numeric strings coerce. |
+| `i18n-escaping-contract.test.mjs` | 4 | `live:I18N-1` — the `tRaw` escaping contract in `renderers/shared.js` (what escapes, what must not double-escape). |
+| `learning-charge-status.test.mjs` | 3 | The live charge banner gates ONLY on `liveChargeStatus()` — a `charge_wait` phase has an empty room timeline, so the old queue-gated placement never rendered it. |
+| `learning-zone-status.test.mjs` | 3 | The live zone banner — same shape as the charge banner: gated on `liveZoneStatus()`, never on the room queue. |
+| `run-profiles-unsupported-position.test.mjs` | 3 | `CARD-6` clause 1 display half — an EXISTING saved profile with a leading/trailing break renders the unsupported-position notice. |
+| `room-estimate-allocated.test.mjs` | 2 | `CARD-2` clause 2 — the room-estimate modal's ALLOCATED-source labeling (not just `default`). |
+| `metrics-edge-mopping-capability.test.mjs` | 2 | `CARD-8` — the "Edge Mopping" subtitle chip must be capability-gated, not shown whenever `edge_mopping` is truthy. |
+
+### `src/actions/` — service-call wrappers (failure/refusal surfacing)
+
+The audit campaign's `CARD-1` family: a failed or refused service call must
+reach the **user**, not just the console. `callService` passes
+`notifyOnError: false` (suppressing HA's own error toast), so these wrappers
+are responsible for telling the user — and the two shapes (a **throwing** call
+vs a normal response carrying `{success: false, reason}`, the operational-
+refusal contract) are pinned separately.
+
+| File | Cases | What it guards |
+|------|------:|----------------|
+| `rooms-clear-applied.test.mjs` | 8 | Defect #8 — post-apply room mutations (`updateRoomFields`, `persistRoomOrdering`) drop the pending applied stepped run profile so Start runs the just-edited FLAT selection, not the saved step sequence. |
+| `core-refusal-shape.test.mjs` | 6 | `CRS-*` — the generic `callService` wrapper toasts a non-throwing `{success: false, reason}` response. |
+| `core-service-failure.test.mjs` | 6 | A **throwing** service call surfaces as a toast (was: console.error + resolve `null`). |
+| `rooms-cancel-through-seam.test.mjs` | 6 | The card-cancel bypass — Cancel must call the integration's `cancel_active_job`, never stock `vacuum.return_to_base` (which left the tracker believing the job was live). |
+| `fetch-failure-tristate.test.mjs` | 5 | A FAILED fetch is not rendered as a confident empty result — "never loaded" / "failed" / "genuinely empty" stay distinct. |
+| `theme-refusal-toast.test.mjs` | 5 | `CARD-9` — `_callThemeService`, the single funnel of all ~11 theme actions, toasts the theme services' own refusal shape. |
+| `map-zone-clean-refusal-toast.test.mjs` | 4 | `MZ-2` — the zone-clean call site routes through the refusal-toasting wrapper (e.g. `job_in_progress`). |
+| `rooms-start-refusal-toast.test.mjs` | 4 | `FE-ERR-1` — `startCleaning` itself routes through the refusal-surfacing wrapper. |
+| `review-snapshot-origin.test.mjs` | 3 | `getLearningHistorySnapshot` forwards EVERY filter param (the `origin` chip was a silent no-op — destructured away). |
+| `rooms-retry-missed-map-scope.test.mjs` | 3 | `CARD-5` — `retryMissedRooms` refuses (`map_mismatch`) when the incomplete-run log's map disagrees with the active map. |
+
+### `src/i18n/` and `src/styles/`
+
+| File | Cases | What it guards |
+|------|------:|----------------|
+| `i18n/rtl.test.mjs` | 10 | `isRTL` (ar/he/fa/ur/iw/ps) + `applyDir` + the bidi-isolate (`FSI`/`PDI`) behavior of `translate` — the logic half of the RTL gates. |
+| `i18n/font-store.test.mjs` | 8 | `FS-*` — the per-user typeface store: the coverage gate reads `FONT_SUPPORT` (never a hardcoded `"en"`), region tags resolve to their base, unverified locales are refused even when Latin-script, scalar clamps. |
+| `i18n/card4-untranslated-strings.test.mjs` | 1 | `CARD-4` — the three base-catalog strings that were missing from every shipped locale pack stay present everywhere. |
+| `styles/typeface-wiring.test.mjs` | 6 | `live:FONT-1` — the `--evcc-font-family` token is SET by a rule the shadow tree reads and READ where it resolves (the token was set by a rule nothing read, for two days). |
 
 ### `src/bindings/` and `src/controllers/`
 
@@ -108,6 +178,13 @@ now delegate) so they could be unit-tested off the render path.
 |------|------:|----------------|
 | `controllers/learning-controller-progress.test.mjs` | 19 | `getRoomProgressSnapshot` (per-room progress flags/percent) and `_computeProgressPercent`. |
 | `bindings/room-rules-payload.test.mjs` | 9 | `_buildRulePayload` — rule draft → persisted payload (modifier/blocker action, clean_passes 1\|2 gate, fan-out filter). |
+| `bindings/setup-reconciliation.test.mjs` | 9 | `CARD-7`/RP-019 — the reconcile-room Update/Dismiss bindings (bare-proto mixin + recorded `_onAll` handlers). |
+| `bindings/theme-import-rejected.test.mjs` | 8 | `CARD-9(3)` — rejected-keys surfacing at BOTH theme-import entry points. |
+| `bindings/theme-overwrite-confirm.test.mjs` | 7 | `CARD-9(2)` — the Save button's overwrite-confirm dialog (no silent overwrite). |
+| `bindings/map-segments-staleness.test.mjs` | 5 | The map-segments slice follows the ACTIVE MAP — not fetched once for the life of the element. |
+| `bindings/room-editor-save-rejection.test.mjs` | 4 | `_roomEditorSaveWasRejected` — a rejected room-editor save is detected and surfaced. |
+| `bindings/rooms-queue-missed-map-scope.test.mjs` | 4 | `CARD-5` binding side — the missed-rooms retry binding passes the recorded map id into the map-scoped action. |
+| `bindings/theme-preset-confirm.test.mjs` | 3 | `CARD-9` — preset-chip clicks confirm before discarding a dirty working draft, and re-clicking the already-active theme is a no-op. |
 
 ---
 

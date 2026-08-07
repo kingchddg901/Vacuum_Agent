@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **453 tests across 13 files** (442 test functions, expanded by
+is exercised by **624 tests across 17 files** (605 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -19,17 +19,21 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
-| `utils.py` | 80 | 98% | `tests/unit/test_learning_utils.py` | unit (pure) |
-| `estimator.py` | 409 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
-| `history_store.py` | 428 | 95% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
-| `stats_rebuilder.py` | 478 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 555 | 94% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 822 | 94% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
-| `services.py` | 260 | 92% | `tests/integration/test_learning_services.py` | integration |
-| `external_ingest.py` | 419 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
+| `utils.py` | 109 | 94% | `tests/unit/test_learning_utils.py` | unit (pure) |
+| `estimator.py` | 535 | 93% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
+| `history_store.py` | 733 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
+| `stats_rebuilder.py` | 501 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
+| `job_finalizer.py` | 631 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
+| `manager.py` | 939 | 93% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
+| `services.py` | 268 | 91% | `tests/integration/test_learning_services.py` | integration |
+| `external_ingest.py` | 433 | 96% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
 | `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) |
-| `counter_segmentation.py` | 171 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
+| `counter_segmentation.py` | 202 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
+| `brand_facts.py` | 49 | 92% | `tests/unit/test_learning_brand_facts.py` | unit (pure) |
+| `external_run.py` | 302 | 89% | `tests/integration/test_manager_external_finalize.py` + `tests/integration/test_manager_lifecycle_status.py` | integration |
+| `zone_learning.py` | 90 | 83% | `tests/unit/test_zone_learning.py` | unit (pure) |
+| `constants.py` | 3 | 100% | (exercised via `external_run.py` / `test_manager_external_finalize.py`) | unit (pure) |
 
 `counter_segmentation.py` lives at the package root (not under `learning/`) — it
 is the shared counter-plateau segmentation primitive used here and by the jobs
@@ -38,7 +42,7 @@ subsystem's live rollover, tabled here alongside the engine that wraps it.
 ¹ `room_attribution_engines.py` reads low in the *learning* run because the real
 `eufy_anchor_winding_v1` classifier (winding/swept-area math) is exercised in
 `tests/adapters/eufy/test_room_attribution.py` (Eufy-specific, run with the
-adapter suite, not these 11 files); the learning-run number only reflects the
+adapter suite, not these other files); the learning-run number only reflects the
 seam-level registry/tuning tests in `tests/unit/test_room_attribution_engines.py`.
 
 Numbers are line coverage with branch coverage enabled, measured by running all
@@ -193,6 +197,48 @@ not its *time/area* boundary). Split across two files:
   `current_room`, drop transit by path-winding, separate cleaned-vs-parked-dock by
   swept `cleaning_area`, and the anchor-only fallback when area is absent.
   Validated on the three adversarial external runs (9/9 cleaned-room calls).
+
+### `brand_facts.py` — the BrandFacts contract learning reads instead of the adapter
+`EufyBrandFacts` surfaces each adapter fact faithfully (entity ids, alias maps,
+mid-run + cancel vocab, engine specs — `BF-1`); `cancel_service_exclusion_states`
+is normalized, stripped/lowered, matching the caller that used to do it inline
+(`BF-2`); empty/absent adapter config degrades to safe defaults — `None` / `{}`
+/ empty set (`BF-3`); `brand_facts_for()` resolves an adapter-registry-backed
+`EufyBrandFacts` (`BF-4`). This is the seam a host re-hosting the learning
+engine swaps to port a new brand without learning ever importing the adapter
+directly — see docs/dev/10-learning-system.md §9.3.
+
+### `external_run.py` — app-started (external) run capture + review, on the manager
+`ExternalRunManager` owns the whole external-run lifecycle: detect + open/close
+the capture slot, the grace-timer machinery that defers finalize while the
+robot stays docked mid-run (task_status-driven re-checks), booking a mid-run
+dock as overhead, segmenting the buffered samples into a pending review
+record, and the review-wizard server side (confirm / list-pending / discard /
+resegment). It was extracted from `core/manager.py`, which keeps thin
+delegators for every moved method, so its tests live under the manager's own
+suites: `tests/integration/test_manager_external_finalize.py` drives the
+grace-timer finalize end-to-end (`EXT-FIN-1`), the pose-only stand-up record
+when the counter segmenter finds nothing (`EXT-FIN-2`), and the
+slot-clears-on-build-error guard (`EXT-FIN-3`); `test_manager_lifecycle_status.py`
+covers the capture-open path. `EXTERNAL_FINALIZE_GRACE_S` /
+`EXTERNAL_GRACE_MAX_RECHECKS` (`constants.py`) size the grace window and its
+recheck cap.
+
+### `zone_learning.py` — saved-zone TIME learning (pure, `ZL-1..ZL-10`)
+A deliberately tiny parallel to room learning: a saved zone has a stable
+`zone_id`, a deterministic (never-learned) area, and cleans in one
+uninterrupted pass, so the only thing learned is a **wall-clock time average**
+keyed by `(zone_id, clean_mode)` (the `"mop"`/`"vacuum"` bucket).
+`collect_zone_observations` pulls a single-zone phase's timing into one
+observation and skips multi-zone steps (time isn't attributable to one
+`zone_id`) and non-zone/malformed input; `update_learned_zone` seeds
+`avg=wall, count=1` on the first sample then runs a running mean, keeping mop
+and vacuum (and different zone ids) in separate buckets;
+`record_observations` folds a batch and returns the applied count;
+`estimate_zone_seconds` prefers the learned average once a sample exists,
+falls back to area × a per-mode rate before any sample, and clamps the
+estimate to a sane band. Store lives on the map bucket
+(`map_bucket["learned_zones"]`), persisted with the map.
 
 ### `counter_segmentation.py` — counter-plateau segmentation primitives
 `find_candidates` / `select_active` / `build_segments` — the frame-invariant

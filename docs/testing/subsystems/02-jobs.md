@@ -5,7 +5,7 @@ The jobs subsystem owns active-job state and the start-time lifecycle gate:
 `active_job.py` tracks an in-flight job (room rollover, recharge/mop-wash
 observations, transition-room detection, live run-anomaly detection), and
 `phase_runner.py` runs strict-order (sequenced) per-room phase execution +
-per-phase timing capture. Covered by **185 tests across 5 files**.
+per-phase timing capture. Covered by **256 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/jobs/`
 Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycle.md)
@@ -16,9 +16,9 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
-| `job_monitor.py` | 130 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 905 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration |
-| `phase_runner.py` | 398 | 92% | `tests/integration/test_strict_order_phase_timing.py` | integration |
+| `job_monitor.py` | 146 | 98% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
+| `active_job.py` | 1099 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration |
+| `phase_runner.py` | 731 | 88% | `tests/integration/test_strict_order_phase_timing.py` | integration |
 
 ---
 
@@ -39,8 +39,8 @@ The whole module is pure, so coverage is near-total:
   invalid payload) and the canned-message fallback.
 
 ### `active_job.py` — active-job tracking (prefixes `AJ` unit, `AJI` integration)
-`active_job.py` is a 2,283-line file that is mostly the `ActiveJobTracker` class
-(lines 117-2283), bound to the manager and hass. Two layers:
+`active_job.py` is a 3,211-line file that is mostly the `ActiveJobTracker` class
+(starting line 231), bound to the manager and hass. Two layers:
 - **`AJ` (unit, `MagicMock` manager)** — module helpers (`_safe_int`,
   `_normalize_path_block_action`, …) and the pure tracker methods:
   `_default_active_job_state`, `_derive_active_job_current_room_id`,
@@ -57,7 +57,7 @@ The whole module is pure, so coverage is near-total:
   `record_active_lifecycle_observed`, `record_active_job_sensor_value`,
   `add_update_listener`/`_notify`, and `update_active_job_recharge_observation`.
 
-`ActiveJobTracker` also owns **`detect_run_anomalies`** (`active_job.py:628`) —
+`ActiveJobTracker` also owns **`detect_run_anomalies`** (`active_job.py:1013`) —
 the live stall / running-long / skipped detection that emits
 `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` (once per room per job) for the
 progress snapshot, moved out of the manager snapshot composer because the tracker
@@ -143,7 +143,7 @@ delegates.
 
 ## Known gaps
 
-`active_job.py` (92%) is considered **done** for this subsystem. The spatial
+`active_job.py` (93%) is considered **done** for this subsystem. The spatial
 surface — `_get_robot_position`, `_robot_outside_room_bounds`, the access-graph
 walk (`_access_graph_path` via `_detect_transition_room_from_position`), and the
 `_maybe_roll_current_room_by_timing` slow / fast / counter-plateau / transit /
@@ -172,9 +172,27 @@ covered directly by AJ-21/22/23 in `tests/unit/test_jobs_active_job.py`.)
 
 Not worth chasing — see the project note on coverage vs. bug-find rate.
 
-`job_monitor.py` (99%) — the only miss is the `typing_extensions` `TypedDict`
-import fallback (lines 19–20), a Python-version compatibility shim that never
-runs under the supported interpreters.
+`job_monitor.py` (98%) has two misses: the `typing_extensions` `TypedDict`
+import fallback (lines 19–20, a Python-version compatibility shim that never
+runs under the supported interpreters), and line 384 in
+`_phase_pending_still_live` — an unparseable
+`phase_dispatch_pending_since` timestamp is treated as still-live (`return
+True`), a real behavior arm (malformed persisted state fails open, presumed
+alive) rather than defensive plumbing.
+
+`phase_runner.py` (88%) nearly doubled in size this campaign (398→731
+statements) and is now the subsystem's thinnest module — thinner than
+`active_job.py`. Its 69 missing lines are spread mostly across the
+lower-level timing/aggregation helpers, not concentrated in the watchdog
+retry/re-dispatch path: `_segment_group_room_timing` (9),
+`_finalize_phase_as_child` (7), `_phase_progress_samples` (6),
+`_capture_finishing_phase_timing` (5), `_last_counter_value` and
+`_record_phase_to_parent` (4 each) and several smaller helpers account for
+49 of the 69 misses, all below line 1448. `_run_advanced_phase` itself has
+11 of the remaining misses, `_await_phase_started` has 1, and
+`_dispatch_active_phase` has none. Not yet broken down line-by-line the way
+`active_job.py`'s gap is above — the natural next pass for this subsystem is
+a `--cov-report=term-missing` sweep of this module specifically.
 
 ---
 

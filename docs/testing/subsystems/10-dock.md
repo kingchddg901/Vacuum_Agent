@@ -3,7 +3,7 @@
 The dock subsystem owns mop-wash / mop-dry / dust-empty actions: it resolves the
 upstream button entity per action, **gates** each action against capability,
 dock state, and job state, dispatches the gated action, and records dock-event
-timestamps + debounced counters. Covered by **26 tests in 1 file**.
+timestamps + debounced counters. Covered by **30 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/dock/`
 Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.md)
@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.
 
 | Source module | Stmts | Cov | Test file | Layer |
 |---------------|------:|----:|-----------|-------|
-| `manager.py` | 167 | 97% | `tests/integration/test_dock_manager.py` | integration |
+| `manager.py` | 172 | 98% | `tests/integration/test_dock_manager.py` | integration |
 
 (`__init__.py` is trivial; the dock *services* layer is covered separately by
 `tests/integration/test_services_dock.py`.)

@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **196 tests across 9 files**.
+engine that gates/modifies rooms at start). Covered by **276 tests across 10 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.md), [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
@@ -13,12 +13,13 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `access_graph.py` | 404 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration |
-| `room_crud.py` | 116 | 99% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
-| `room_discovery.py` | 97 | 94% | `test_room_discovery.py` | integration |
-| `reconciliation.py` | 112 | 86% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration |
-| `source_refresh.py` | 94 | 91% | `test_rooms_source_refresh.py` (unit) | unit |
-| `room_manager.py` | 40 | 100% | `test_room_manager.py` (unit) | unit |
+| `access_graph.py` | 460 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration |
+| `room_crud.py` | 153 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
+| `room_discovery.py` | 125 | 93% | `test_room_discovery.py` | integration |
+| `reconciliation.py` | 148 | 78% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration |
+| `source_refresh.py` | 139 | 88% | `test_rooms_source_refresh.py` (unit) | unit |
+| `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit |
+| `room_defaults.py` | 21 | 96% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit |
 | `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit |
 
 (Room-facing services live in [17 — services](17-services.md):
@@ -49,6 +50,13 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
   confirmed review applies (the manager owns the dict mutation; this module is
   pure). New/removed rooms are deliberately out of scope (owned by
   `setup/drift.py`).
+- **New-room defaults** (`room_defaults.py`, via `test_room_manager.py` +
+  the adapter contract suite) — `resolve_new_room_defaults` is THE single
+  answer for what a freshly-created room starts with (it replaced four
+  independently hand-maintained copies of the Eufy literals), resolved through
+  the adapter so a Roborock room is not created with Eufy display vocabulary;
+  `build_managed_rooms` takes the result as a **required** `new_room_defaults`
+  argument (a permissive default there would re-open the hole).
 - **Source refresh** (`SR`) — the `service_response` discovery source (Roborock
   `get_maps`): `flatten_maps_response` normalizes `{segment_id: name}` into the
   same list-of-dicts shape the attribute source carries (keyed by map name),
@@ -69,25 +77,46 @@ manager for pure CRUD and the real `manager` fixture where discovery needs live
 
 ## Known gaps
 
-`access_graph.py` (94%) and `room_discovery.py` (94%) leave mostly
+`reconciliation.py` (78%) is currently the thin spot in this subsystem — well
+below the others. Its uncovered branches (missing lines 44-45, 93, 118, 123,
+175-177, 190-192, 226, 258, 262, 295-305, 317, plus the paired branch misses at
+those same sites) are concentrated in three real behavior arms, not defensive
+plumbing:
+- the `renamed_and_renumbered` single-unmatched-pair review (the
+  `len(unmatched_existing) == 1 and len(unmatched_discovered) == 1` branch
+  around line 175),
+- the matching single-pair settings **carry-forward** in `plan_migration`
+  (the `leftover_existing_slugs`/`unmatched_discovered` single-match branch
+  around line 295 — the old id's durable settings moving onto the new id),
+- and the dismissed-plan-token short-circuit (`dismissed_at is not None and
+  reviews and dismissed_plan_token is not None`, line 190).
+These are the natural next tests for this subsystem — run
+`--cov-report=term-missing` on `rooms/reconciliation.py` for the current line
+list before adding them, since the exact numbers will keep moving as the file
+changes.
+
+`access_graph.py` (94%) and `room_discovery.py` (93%) leave mostly
 type-coercion fallbacks and duplicated skip-bad-row branches — the `(TypeError,
 ValueError)` `except` blocks themselves are covered; what is not is the
-*fallback* arms that replace a non-list / non-dict input with `[]` / `{}`
-(`access_graph.py` 120, 126, 177, 687) and the `continue` skip-bad-row guards
-repeated across the four graph walkers (`access_graph.py` 212, 246/249, 430/433,
-678/681/693; `room_discovery.py` 152, 158, 163, 165, 172). These are normalization plumbing,
-not behavior. Also uncovered: a defensive missing-room-id skip
-(`access_graph.py` 451), one effectively-unreachable cycle-DFS artifact
-(`access_graph.py` 793, the `cycle_chain = [room_id]` else branch), and the
-`# pragma: no cover` missing-entity return in `room_discovery.py` (133).
+*fallback* arms that replace a non-list / non-dict input with `[]` / `{}` and
+the `continue` skip-bad-row guards repeated across the graph walkers
+(`access_graph.py` missing lines 154, 160, 211, 246, 287, 290, 500, 503, 521,
+849, 852, 858, 864, 1100, 1112; `room_discovery.py` missing lines 147, 235,
+240, 248, 252, 264, 280, 286). These are normalization plumbing, not behavior.
 
 One genuine but minor behavior branch remains untested:
-`access_graph.py` 573/575/577/579 — the per-issue-type editable-target reason
-strings (duplicate / missing / self-reference / multiple-inbound) in
+`access_graph.py` around lines 685-698 — the per-issue-type editable-target
+reason strings (duplicate / missing / self-reference / multiple-inbound) in
 `get_room_access_editor`. The editor is tested for the loop reason and the
 generic legality fallback (see "What's tested"); the four named per-type reason
 strings are deliberately left unexercised — they are unreachable elif-arms
-already covered by the generic-fallback test. (The full-entity-id room-list
-resolution path in `room_discovery.py` 126–130 — an adapter declaring a
-`room_list_entity` other than `"vacuum_entity"` — is now covered by RD-6 in
-`test_room_discovery.py`.)
+already covered by the generic-fallback test. Also uncovered: one
+effectively-unreachable cycle-DFS artifact (`access_graph.py` ~964, the
+`cycle_chain = [room_id]` else branch) and the `_single_cached_map_id`
+non-list-of-dicts-segments guard (`return None`) in `room_discovery.py`
+(147) — part of the issue-#46 single-map anchor fallback, not
+pragma-excluded.
+
+(Exact line numbers above are from a fresh coverage run against this
+worktree's revision and will drift as the modules change — treat the
+*shape* of each gap, not the line number, as the durable fact.)

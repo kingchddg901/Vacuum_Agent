@@ -2,7 +2,7 @@
 
 The battery subsystem tracks cell wear: it accumulates battery samples into
 charge cycles, summarizes charge sessions, derives a CC/CV regime health proxy
-vs. an install baseline, and records per-job drain metrics. Covered by **97 tests across the 4 core files**, plus a service-level test for `battery_rebaseline`.
+vs. an install baseline, and records per-job drain metrics. Covered by **114 tests across the 4 core files**, plus a service-level test for `battery_rebaseline`.
 
 Source: `custom_components/eufy_vacuum/battery/`
 Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-system.md)
@@ -15,8 +15,8 @@ Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-sys
 |---------------|------:|----:|-----------|-------|
 | `job_metrics.py` | 77 | 98% | `tests/unit/test_battery_metrics.py` | unit (pure) |
 | `store.py` | 40 | 100% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) |
-| `sensors.py` | 167 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
-| `manager.py` | 455 | 93% | `tests/integration/test_battery_manager.py` | integration |
+| `sensors.py` | 166 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
+| `manager.py` | 532 | 93% | `tests/integration/test_battery_manager.py` | integration |
 | `__init__.py` (service) | — | 100% | `tests/integration/test_init_battery_rebaseline_service.py` | integration (service) |
 
 ---
@@ -85,39 +85,32 @@ Five patterns:
 
 ## Known gaps
 
-`manager.py` (91%) is mostly covered, including the HA wiring and the
-charging/session-classification paths that earlier revisions of this doc
-listed as gaps. The HA-wiring path (`start`/`stop`, `_wire_vacuum`,
-`_on_state_event`, `_sample_now`, and the `_is_charging` substring fallback)
-is exercised by `test_wire_and_state_event` [BM-18] and
-`test_is_charging_delegates_and_fallback` [BM-14]; `_classify_session_kind`
-and `_attach_post_job_charge_if_pending` by [BM-17]/[BM-19]/[BM-20].
+`manager.py` (93%, grown from 455 to 532 statements this campaign — the
+recharge-derivation work noted in [12-battery-system](../../dev/12-battery-system.md))
+is mostly covered, including the HA wiring and the charging/session-classification
+paths that earlier revisions of this doc listed as gaps. The HA-wiring path
+(`start`/`stop`, `_wire_vacuum`, `_on_state_event`, `_sample_now`, and the
+`_is_charging` substring fallback) is exercised by `test_wire_and_state_event`
+[BM-18] and `test_is_charging_delegates_and_fallback` [BM-14];
+`_classify_session_kind` and `_attach_post_job_charge_if_pending` by
+[BM-17]/[BM-19]/[BM-20].
 
-What's left is defensive-by-design or low-value edge branches, intentionally
-left uncovered under the ~90% meaningful-coverage ceiling:
+What's left is still, on spot-check, the same defensive-by-design shape as
+before — the `except ValueError` in the listener-unsub, the `_wire_vacuum`
+already-wired re-entry guard, the `_has_active_job` non-dict guard, sanity-timeout
+stale-session handling, `HISTORY_LIMIT` ring-buffer trims, and
+`_parse_iso`/dedup non-dict guards — but the file's growth has shifted every
+line number and likely added/removed some specific arms, so the exact list
+below should be treated as a fresh coverage snapshot, not a re-verified
+item-by-item breakdown: missing lines 347-348, 544, 608, 857-859, 982, 991,
+1011, 1022, 1109, 1112, 1117, 1171-1172, 1212, 1276, 1373, 1490-1491, 1495,
+1601, 1606-1607 (`--cov-report=term-missing` for the current mapping).
 
-- **Defensive guards** — the `except ValueError` in the listener-unsub
-  (manager.py:269-270), the `_wire_vacuum` already-wired re-entry guard
-  (:328), the `_has_active_job` non-dict guards (:390, :393), the legacy
-  `min_per_pct` clear in `rebaseline` (:896), the `_attach_post_job` malformed
-  `recorded_ts` / opened-before-job drops (:1039-1040, :1044), and the
-  `_parse_iso` passthrough/except branches (:1112, :1117-1118).
-- **Sanity-timeout & ring-buffer trims** — the 12 h stale-session force-close
-  (:585-586) and the `HISTORY_LIMIT` history truncation (:695); both need a
-  long-gap or 50+-session fixture to reach.
-- **`_close_session` kind-specific branches** — the `mid_job` rate-stat call
-  (:704), the `post_job` linkage call (:724), and the `mid_job` return in
-  `_classify_session_kind` (:735). The underlying helpers are unit-tested
-  directly ([BM-15], [BM-17]); only the in-`_close_session` dispatch for those
-  kinds is uncovered (the `_feed`-driven session tests close `idle` sessions).
-- **`_compute_regime_pct` fallback paths** — the within-window skip/append and
-  the no-recent / non-positive-current fallbacks (:849, :852, :862, :866).
-
-Other modules are at the ceiling: `job_metrics.py` (98%) — only the
-`(TypeError, ValueError)` est-parse guard (:156-157); `sensors.py` (97%) —
-the no-`hass` write-state guard (:166) and the non-dict bucket skip (:485);
-`store.py` and `__init__.py` at 100%. The core wear/health/session math is
-fully covered.
+Other modules are near the ceiling: `job_metrics.py` (98%) — only the
+`(TypeError, ValueError)` est-parse guard (156-157, unchanged); `sensors.py`
+(97%) — the no-`hass` write-state guard (161) and the non-dict bucket skip
+(500); `store.py` and `__init__.py` at 100%. The core wear/health/session math
+is fully covered.
 
 ---
 

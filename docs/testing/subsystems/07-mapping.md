@@ -23,8 +23,9 @@ end to end against a synthetic image.
 > derivation, and image-segment *suggestion* — was retired, and `MappingManager`
 > and the learned bounding-box store `room_bounds.py` (`RoomBoundsStore`) were removed;
 > room tracking now reads the device's native current-room. The
-> module table and coverage counts below are re-stamped by
-> `scripts/update_test_docs.py` on the next digest and may lag this structural change.
+> module table below is re-stamped by `scripts/update_test_docs.py` and is
+> current; the hand-written **Known gaps** breakdown further down is not
+> re-stamped by that tool and has fallen behind — see the note there.
 
 Source: `custom_components/eufy_vacuum/mapping/`
 Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-system.md)
@@ -36,14 +37,14 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | Source module | Stmts | Cov | Test file | Layer |
 |---------------|------:|----:|-----------|-------|
 | `boundary.py` | 15 | 90% | via `zone_membership` in `tests/integration/test_mapping_services.py` (only `point_in_polygon` survives) | integration (pure geometry) |
-| `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
+| `segment_primitives.py` | 277 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
-| `tracker.py` | 232 | 85% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `mapping_services.py` | 1201 | 84% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
-| `map_source.py` | 422 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
-| `map_source_runtime.py` | 509 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
-| `map_source_coordinator.py` | 279 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
-| `roborock_raw_map.py` | 142 | 90% | `tests/unit/test_roborock_raw_map.py` | unit (pure) |
+| `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `mapping_services.py` | 1375 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
+| `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) |
+| `map_source_runtime.py` | 570 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
+| `map_source_coordinator.py` | 287 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
+| `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) |
 
 ---
 
@@ -206,29 +207,32 @@ the mapping split.)
 
 ## Known gaps
 
-Every module sits at 92–100%. The genuinely-untested *behaviours* were closed in
-the 2026-06 gap pass (legacy-calibration migration, dock optional-field writes,
-assist-image selection, delete-variant retain + already-gone paths, the
-adjust-segment vertex-merge / reset-to-zero branches, the short/similar-segment
-merge branches, the RDP fallback / non-unit zoom / alignment-recovery primitives,
-the degraded `_reshape` diagnostics, and the sliver area guard). What remains is
-uncovered **on purpose**,
-per the ~90% held-ceiling policy — defensive guards, not coverage debt:
+The module table above is current (regenerated against this revision by
+`scripts/update_test_docs.py`); the itemized breakdown below is **not** —
+`tracker.py` (84%, down from a described 93%) and `mapping_services.py` (88%,
+down from a described 91%) have grown real new coverage gaps this campaign
+that are not yet itemized here (134 missed lines in `mapping_services.py`
+alone; run `--cov-report=term-missing` on both modules for the current line
+list before treating either bullet below as exhaustive). The other three
+modules' bullets below still track close to what they described:
 
-- **`mapping_services.py`** (91%) — the `_handle_analyze_map_image` tuning-override /
+- **`mapping_services.py`** (88%) — the `_handle_analyze_map_image` tuning-override /
   light-assist wiring (the `tuning` dict + `assist_image_path` block inside that handler)
-  is **deferred**: a robust test fights the filesystem-probing image store plus phac's
-  shared config dir — not worth a fragile test. The rest is defensive (the `OSError`
-  delete branch in `_handle_delete_map_image`, non-dict guards, the tracker-absent else,
-  and the schema-unreachable coerce guards in `_build_segments_response`).
-- **`tracker.py`** (93%) — `# pragma: no cover` capabilities-read / dock-drift
-  JSONL I/O except-blocks, malformed-line resilience, and trivial early-return
-  guards. The transition-room skip in `_detect_current_room` is a redundant
-  defensive short-circuit (its normal path is covered by
-  `test_room_completed_event`), deliberately left.
-- **`segment_primitives.py`** (94%) — empty-mask divide-by-zero returns,
+  was **deferred**: a robust test fights the filesystem-probing image store plus phac's
+  shared config dir — not worth a fragile test. Beyond that previously-described
+  defensive tail (the `OSError` delete branch in `_handle_delete_map_image`,
+  non-dict guards, the tracker-absent else, the schema-unreachable coerce
+  guards in `_build_segments_response`), the module now carries substantially
+  more uncovered surface than before — not yet re-triaged.
+- **`tracker.py`** (84%) — previously-described gaps: `# pragma: no cover`
+  capabilities-read / dock-drift JSONL I/O except-blocks, malformed-line
+  resilience, and trivial early-return guards; the transition-room skip in
+  `_detect_current_room` is a redundant defensive short-circuit (its normal
+  path is covered by `test_room_completed_event`), deliberately left. The
+  module has grown a further ~9 points of gap this campaign not yet itemized.
+- **`segment_primitives.py`** (93%) — empty-mask divide-by-zero returns,
   optional-dependency guards, and unreachable malformed-edge artifacts.
-- **`map_source_coordinator.py`** (95%, up from 45%) — `_stat_mtime`'s real `os.stat`
+- **`map_source_coordinator.py`** (90%) — `_stat_mtime`'s real `os.stat`
   (monkeypatched in the dispatch tests), the `except OSError` stat-failure guard, the
   memory-backend diagnostics-log branch, and a few `->` partials in the candidate loop /
   render / geom-cache edges. Defensive guards + real-IO; the dispatch, cache, and

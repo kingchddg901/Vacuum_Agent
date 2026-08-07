@@ -5,8 +5,8 @@ A separate test track from the Python suite: JS/Playwright tests that render the
 distinguishability, and theme-intake safety. Architecture lives in
 [frontend/render-harness](../../dev/frontend/render-harness.md); this is how to run it.
 
-The harness is where the **rendered card** is tested — the ~1,900 Python cases
-stop at the backend contract; these pick up at the shadow-DOM boundary. (A small
+The harness is where the **rendered card** is tested — the Python suite stops
+at the backend contract; these pick up at the shadow-DOM boundary. (A small
 set of pure-JS tooling units — the gallery-submission bot and the gallery-HTML
 builder — are tested separately with `node --test`; see [CI](#ci).)
 
@@ -39,6 +39,7 @@ builder — are tested separately with `node --test`; see [CI](#ci).)
 | `tab-gating.spec.mjs` | capability tab gating: `renderHeader` hides the Base Station nav tab when `supportsBaseStation()` is false (the S6 no-dock case), default-shown otherwise (Eufy-safe) | everywhere |
 | `i18n-locale.spec.mjs` | the renderers resolve the *user's* language: a tab rendered under a registered foreign catalog switches its strings (the rest of the harness only ever renders English); no-language still renders English | everywhere |
 | `i18n-layout.spec.mjs` | a translated locale must not break the layout — **property**-based, not pixel-pinned: under a pseudo-lengthened catalog assert nothing escapes its box, at desktop @500px and mobile @390px | everywhere |
+| `i18n-rtl.spec.mjs` | an RTL locale must flip cleanly: each tab rendered under the **real Arabic and Hebrew catalogs** with the host stamped `dir="rtl"` (via `applyDir`, as `src/main.js` does) — same property-based probe as the pseudo-long gate (nothing escapes its box, no horizontal scroll), plus an assertion the host actually carries `dir="rtl"` so the gate can't pass by rendering LTR | everywhere |
 
 `npm run test:harness` runs all of them (visual auto-skips off-CI). The i18n
 strings + intake security gate are covered separately — see [i18n system](../../dev/frontend/i18n-system.md)

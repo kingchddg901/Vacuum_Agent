@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **122 tests across 12 files**.
+timestamp utils, models, map manager). Covered by **134 tests across 13 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`,
@@ -16,26 +16,26 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 
 | Source module | Stmts | Cov | Test files |
 |---------------|------:|----:|------------|
-| `sensor/error.py` | 84 | 96% | `test_sensor_status.py` |
-| `sensor/lifecycle.py` | 91 | 90% | `test_sensor_status.py` |
-| `sensor/maintenance.py` | 55 | 93% | `test_sensor_status.py` |
-| `sensor/onboarding.py` | 31 | 95% | `test_sensor_entities.py` |
+| `sensor/error.py` | 82 | 96% | `test_sensor_status.py` |
+| `sensor/lifecycle.py` | 91 | 91% | `test_sensor_status.py` |
+| `sensor/maintenance.py` | 55 | 95% | `test_sensor_status.py` |
+| `sensor/onboarding.py` | 39 | 96% | `test_sensor_entities.py` |
 | `sensor/profile.py` | 27 | 100% | `test_sensor_entities.py` |
 | `sensor/theme.py` | 39 | 95% | `test_sensor_entities.py` |
 | `sensor/dock_event.py` | 24 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` |
-| `sensor/map_overlays.py` | 54 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) |
-| `button.py` | 130 | 93% | `test_button_entity.py` |
-| `number.py` | 121 | 97% | `test_number_entity.py` |
-| `switch.py` | 65 | 98% | `test_switch_entity.py` |
-| `binary_sensor.py` | 67 | 92% | `test_platform_files.py` |
-| `room_entities.py` | 74 | 98% | `test_platform_files.py` |
-| `config_flow.py` | 38 | 94% | `test_config_flow.py` |
-| `timestamp_utils.py` | 37 | 98% | `test_timestamp_utils.py` (unit) |
-| `models/models.py` | 134 | 99% | `test_models.py` (unit) |
-| `maps/map_manager.py` | 44 | 100% | `test_maps_map_manager.py` (unit) |
-| `entity_helpers.py` | 26 | 97% | `test_platform_files.py` |
+| `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) |
+| `button.py` | 139 | 89% | `test_button_entity.py` |
+| `number.py` | 129 | 98% | `test_number_entity.py` |
+| `switch.py` | 64 | 98% | `test_switch_entity.py` |
+| `binary_sensor.py` | 65 | 91% | `test_platform_files.py` |
+| `room_entities.py` | 85 | 98% | `test_platform_files.py` |
+| `config_flow.py` | 48 | 94% | `test_config_flow.py` |
+| `timestamp_utils.py` | 38 | 98% | `test_timestamp_utils.py` (unit) |
+| `models/models.py` | 121 | 98% | `test_models.py` (unit) |
+| `maps/map_manager.py` | 93 | 94% | `test_maps_map_manager.py` (unit) |
+| `entity_helpers.py` | 43 | 98% | `test_platform_files.py` |
 | `_frontend_url.py` | 18 | 89% | `test_platform_files.py` |
 
 ---
@@ -84,20 +84,34 @@ hourly safety-net tick — are now exercised end-to-end by INIT-6/7/8 in
 `tests/integration/test_init_setup.py` via the full-boot harness (adding a room
 and firing the update callback registers new sensors; the rule-status + theme
 refreshes push observable state; the hourly tick refreshes history sensors).
-What remains uncovered is on the *other* platforms: `button.py` (93%, lines
-107–108) leaves the run-profile **existing-write** branch, and `number.py`
-(97%) / `switch.py` (98%) leave the `_on_rooms_updated` add-new-entities path. These call `async_remove()` /
-`async_write_ha_state()` on **registered** entities, so exercising them needs a
-**full entity-platform registration** harness (a registered entity on a real
-platform) rather than the recording `async_add_entities` the current tests use;
-only white-box spies are otherwise possible. Display-only, low severity.
+What remains uncovered is now concentrated on `button.py` (89%, missing lines
+100, 111-120, 164, 169, 283) rather than spread evenly. Line 100 is the
+run-profile **rename-detection** condition (`if existing.profile_name !=
+entity.profile_name:`) as before. Lines 111-120 are new this campaign and
+are the more interesting gap: the profile-**rename swap**
+(`_swap_renamed`) — when a reconciled button's `profile_name` changed, the
+platform removes the stale entity object and adds a fresh one instead of
+writing state onto it (the comment identifies this as the button platform's
+missing counterpart to the sensor platform's SN-4 rename fix). Lines 164 and
+283 are non-dict `library`/`profile` guards. These all call `async_remove()` /
+`async_write_ha_state()` / need a reconciled entity registry on **registered**
+entities, so exercising them needs a **full entity-platform registration**
+harness (a registered entity on a real platform) rather than the recording
+`async_add_entities` the current tests use; only white-box spies are otherwise
+possible. `number.py` (98%, missing 258-259) has a small residual gap;
+`switch.py` and `entity_helpers.py` now have every *statement* covered (0
+missing lines) — the `_on_rooms_updated` add-new-entities path and the
+floor-guidance map previously described here are exercised now — but each
+still carries one partial branch pair (`switch.py` 83->85 and 86->81;
+`entity_helpers.py` 162->167) that keeps their combined Cov column at 98% in
+the table above, not 100%. Display-only, low severity.
 
 **Defensive guards and `# pragma: no cover` branches (intentional).** The rest
 is defensive and deliberately uncovered: the `hass is None` / wrong-vacuum /
 wrong-map early returns in the tracker/event callbacks
-(`binary_sensor.py` 43/103/106, `sensor/lifecycle.py` 127/130/155/166/168),
-the `# pragma: no cover` `except` blocks and fallback branches in the top-level
-`__init__.py` (88% — exercised end-to-end by `test_init_setup`, not per-unit),
-and trivial leaf lines (`entity_helpers.py` floor-guidance map, `config_flow.py`
-119 options-flow no-vacuum branch, `models/models.py` 10–11, the `isinstance`
-guards in `button.py` 152/157/247). Not worth covering.
+(`binary_sensor.py` 43, 101, 104; `sensor/lifecycle.py` 125, 128, 153, 164,
+166), the `# pragma: no cover` `except` blocks and fallback branches in the
+top-level `__init__.py` (92%, grown from 193 to 317 statements — exercised
+end-to-end by `test_init_setup`, not per-unit), and trivial leaf lines
+(`config_flow.py` 144, 167; `_frontend_url.py` 47-48; `room_entities.py` 241;
+`sensor/error.py` 67; `models/models.py` 11-12). Not worth covering.

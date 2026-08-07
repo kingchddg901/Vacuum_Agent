@@ -1,7 +1,8 @@
 # 03 — Fixtures and Helpers
 
-Two `conftest.py` files supply everything. Know what each gives you before
-writing a new test — most scaffolding you might reach to build already exists.
+Three `conftest.py` files (root, integration, adapters) plus the shared
+`_factories.py` supply everything. Know what each gives you before writing a
+new test — most scaffolding you might reach to build already exists.
 
 ## Root: `tests/conftest.py`
 
@@ -91,6 +92,37 @@ The richest example is `test_learning_services.py`:
 
 When you start a new test file for a subsystem, look for an existing file in the
 same domain first — the seeding helper you need has often already been written.
+
+## Adapters: `tests/adapters/conftest.py`
+
+The adapter suite's own fixture layer. Its centerpiece is `ADAPTER_BUILDERS` —
+a `{brand: builder(hass) -> config}` registry with one entry per shipped brand
+(`eufy`, `roborock`), each builder registering the **real** adapter config the
+way `async_setup_entry` would (Eufy: a `detected_model: "T2351"` vacuum state
+drives the real model-family + capability-hint path; Roborock: `vacuum.ivy`
+with `supported_features` 30524 matching the real device, model resolving to
+the catalog `DEFAULT_PROFILE`). The `adapter` fixture is **parametrized over
+that registry** and returns `(brand_name, registered_config)` — so every test
+in `test_adapter_contract.py` runs once per brand, and adding a brand to
+`ADAPTER_BUILDERS` runs the whole conformance suite against it with no new
+test code. The registry is `clear_registry()`-ed per test for isolation.
+
+## Data fixtures: `tests/fixtures/`
+
+Committed data captures (mostly real-device diagnostics) that tests load by
+path, grouped by consumer:
+
+| Directory | Holds | Used by |
+|-----------|-------|---------|
+| `battery/` | a real qualifying-charge session capture | `test_battery_manager.py` |
+| `learning/` | real completed-job records (`alfred_jobs/`) + idle-wall records | `test_learning_real_jobs_golden.py`, `test_idle_wall_guard.py` |
+| `external_run/` | a real app-started run capture | `test_external_ingest_attribution.py` |
+| `replays/` | recorder-save bundles for the replay harness | `tests/replay/test_replay_smoke.py` |
+
+When a diagnosis needed a raw capture, it was persisted here — prefer extending
+these over inventing a synthetic shape. See
+[01 — overview §the replay harness](01-overview.md#the-replay-harness) for how
+replay bundles are minted.
 
 ## Shared factories: `tests/_factories.py`
 
