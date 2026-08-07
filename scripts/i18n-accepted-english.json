@@ -16,6 +16,21 @@
   "common.edit": [
    "id"
   ],
+  "common.list_separator": [
+   "cs",
+   "de",
+   "es",
+   "fr",
+   "he",
+   "id",
+   "it",
+   "ko",
+   "nl",
+   "pl",
+   "pt",
+   "ru",
+   "tr"
+  ],
   "common.no": [
    "es",
    "it"
@@ -36,6 +51,29 @@
   ],
   "common.on": [
    "it"
+  ],
+  "common.percent_value": [
+   "ar",
+   "de",
+   "he",
+   "id",
+   "it",
+   "ja",
+   "ko",
+   "nl",
+   "pl",
+   "pt",
+   "ru",
+   "zh-Hans",
+   "zh-Hant"
+  ],
+  "common.seconds_short": [
+   "de",
+   "es",
+   "it",
+   "nl",
+   "pl",
+   "pt"
   ],
   "external_jobs.card_segments": [
    "fr"
@@ -82,6 +120,37 @@
   ],
   "faults.unknown_code": [
    "es"
+  ],
+  "font.opendyslexic": [
+   "ar",
+   "cs",
+   "de",
+   "es",
+   "fr",
+   "he",
+   "id",
+   "it",
+   "ja",
+   "ko",
+   "nl",
+   "pl",
+   "pt",
+   "ru",
+   "tr",
+   "zh-Hans",
+   "zh-Hant"
+  ],
+  "job_summary.source_dock": [
+   "nl"
+  ],
+  "job_summary.source_robot": [
+   "es",
+   "fr",
+   "id",
+   "it",
+   "nl",
+   "pl",
+   "tr"
   ],
   "learning.chip_water": [
    "nl"
