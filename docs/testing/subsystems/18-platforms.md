@@ -26,7 +26,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` | clean |
 | `sensor/map_overlays.py` | 57 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) | clean |
-| `button.py` | 139 | 89% | `test_button_entity.py` | **bare x7** |
+| `button.py` | 139 | 89% | `test_button_entity.py` | **bare x1** |
 | `number.py` | 129 | 98% | `test_number_entity.py` | clean |
 | `switch.py` | 64 | 98% | `test_switch_entity.py` | clean |
 | `binary_sensor.py` | 65 | 91% | `test_platform_files.py` | **bare x10** |

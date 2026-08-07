@@ -2,7 +2,7 @@
   "_doc": "PLAN-mock-integrity W0 ratchet. Per-file CEILING on bare MagicMock()/AsyncMock() constructions. SHRINK ONLY: lowering a number is the point, raising one or adding a key fails tests/test_mock_ratchet.py. A file not listed here may have ZERO. Regenerate with `python scripts/mock_census.py --write-allowlist` ONLY when the numbers went down.",
   "ceilings": {
     "tests/integration/test_battery_manager.py": 2,
-    "tests/integration/test_button_entity.py": 7,
+    "tests/integration/test_button_entity.py": 1,
     "tests/integration/test_core_error_tracker.py": 1,
     "tests/integration/test_init_setup.py": 4,
     "tests/integration/test_learning_real_jobs_golden.py": 2,

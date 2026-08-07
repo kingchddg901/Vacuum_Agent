@@ -30,6 +30,8 @@ from custom_components.eufy_vacuum.button import (
     EufyVacuumMaintenanceResetButton,
     EufyVacuumSavedRunProfileButton,
 )
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.eufy_vacuum.const import DOMAIN
 
 from tests._factories import VAC as _VAC, MAP as _MAP, make_manager_mock
@@ -242,16 +244,12 @@ async def test_run_profile_button_reconciliation_adds_exposed(hass, manager):
     manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
     setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
 
-    # W2 classification: this is a CONFIG ENTRY stand-in handed into
-    # async_setup_entry — production code, but neither a manager nor an entity,
-    # so neither spec_manager nor the sanctioned partial-stub pattern fits. The
-    # right upgrade is the real MockConfigEntry (already a fixture in
-    # tests/conftest.py), not spec_of. Left as-is deliberately: the test captures
-    # async_on_unload by assigning over it, so switching to a real entry is a
-    # rewrite of the assertion mechanics rather than a swap, and behaviour-
-    # preserving conversion is the wave's whole contract.
-    entry = MagicMock()
-    entry.async_on_unload = MagicMock()
+    # A REAL config entry, not a mock one. async_setup_entry's only use of it is
+    # entry.async_on_unload(...) (button.py:128) — registering an unload callback —
+    # and no test asserts that call, so the mock was pure scaffolding standing in
+    # for behaviour MockConfigEntry actually has.
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
     captured: list = []
 
     def _add(entities, *args, **kwargs):
@@ -279,8 +277,8 @@ async def test_run_profile_button_built_at_setup(hass, manager):
         vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name="Morning")["profile_id"]
     manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid]["expose_as_button"] = True
 
-    entry = MagicMock()
-    entry.async_on_unload = MagicMock()
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
     captured: list = []
     await button_mod.async_setup_entry(
         hass, entry, lambda entities, *a, **k: captured.extend(entities))
@@ -301,8 +299,8 @@ async def test_run_profile_button_reconciliation_removes_stale(hass, manager):
         vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name="Evening")["profile_id"]
     manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid]["expose_as_button"] = True
 
-    entry = MagicMock()
-    entry.async_on_unload = MagicMock()
+    entry = MockConfigEntry(domain=DOMAIN)
+    entry.add_to_hass(hass)
     captured: list = []
     await button_mod.async_setup_entry(
         hass, entry, lambda entities, *a, **k: captured.extend(entities))
