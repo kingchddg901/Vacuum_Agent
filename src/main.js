@@ -1890,7 +1890,17 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // the element is in the document and laid out — getBoundingClientRect
     // returns real numbers, which is more accurate than setConfig's
     // window.innerWidth fallback.
-    if (this._state) {
+    //
+    // ...but NOT when the user forced the shell. setConfig runs BEFORE
+    // connectedCallback in Lovelace, so this re-measure ran after the override was
+    // applied and silently overwrote it — mobile_shell has therefore never worked
+    // on a normal mount, despite being documented as the way to force the mobile
+    // layout "without fighting the HA app's WebView cache", which is exactly the
+    // situation it gets reached for. The other three call sites already guard;
+    // this one was missed. Found by RF-3 the day the real-frame harness landed.
+    if (this._state
+        && this._mobileShellOverride !== true
+        && this._mobileShellOverride !== false) {
       this._state.setViewportFromWidth(this._measureCardWidth());
     }
 

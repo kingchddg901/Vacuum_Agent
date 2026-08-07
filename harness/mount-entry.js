@@ -46,6 +46,10 @@ import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
 import { detectFloorScope, clampThemeScalars } from "../src/theme-tokens/floor-scope.js";
 import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
+// REAL-CARD MOUNT (opt-in): importing main.js for its side effect registers
+// <eufy-vacuum-command-center> with customElements. Everything above renders a
+// SYNTHETIC frame; this is the only path that builds the card's own.
+import "../src/main.js";
 
 /* =========================================================
    GLOBAL STUB: window.AnimalSVG
@@ -470,7 +474,96 @@ function renderThemePresets(themes, opts = {}) {
   return result;
 }
 
+/* ===========================================================
+   REAL-CARD MOUNT — explicitly called, never the default.
+   ===========================================================
+   Everything else in this harness renders a SYNTHETIC frame: stub state straight
+   into VacuumCardRenderers, wrapped in frameHtml(). That is the right default —
+   it lets a fixture drive any state with no `hass` at all, which is most of the
+   gallery's value.
+
+   Its cost is that main.js's OWN frame is never built, so anything main.js owns is
+   invisible to every assertion: the shell construction, viewport detection and the
+   ResizeObserver, sticky mobile chrome, the body-level modal/toast hosts, the
+   typeface chain on the real shell. Three separate bugs in one day traced back to
+   exactly that gap — a gallery case that was byte-identical to its plain twin, a
+   token claim that could not be verified, and a layout probe that shipped unproven.
+
+   So: call this when the thing under test IS the frame. Keep using render()/
+   renderGallery() for everything else — this path needs a hass and cannot inject
+   arbitrary state.
+
+   The HA surface main.js touches is tiny (hass.states/locale/language and one
+   <ha-card>), so the stubs below are the whole adapter.
+   =========================================================== */
+
+if (!customElements.get("ha-card")) {
+  // Passthrough. Real ha-card adds chrome the card does not measure against.
+  customElements.define("ha-card", class extends HTMLElement {
+    connectedCallback() {
+      if (!this.shadowRoot) {
+        this.attachShadow({ mode: "open" }).innerHTML =
+          `<style>:host{display:block;height:100%}</style><slot></slot>`;
+      }
+    }
+  });
+}
+
+function makeStubHass({ states = {}, language = "en", locale } = {}) {
+  return {
+    states,
+    language,
+    locale: locale ?? { language, number_format: "language", time_format: "language" },
+    callService: async () => ({}),
+    callWS: async () => ({}),
+    connection: { subscribeEvents: async () => (() => {}) },
+    localize: (k) => k,
+  };
+}
+
+/**
+ * Mount the REAL custom element and return what the frame actually produced.
+ *
+ * @param {object}  opts
+ * @param {object}  opts.config  card config (layout_probe, mobile_shell, ...)
+ * @param {object}  opts.hass    partial hass; merged over the stub
+ * @param {number}  opts.width   host width in px — drives viewport detection, so
+ *                               this is the knob a mobile-layout test turns
+ */
+async function mountRealCard({ config = {}, hass = {}, width = null } = {}) {
+  const root = document.getElementById("evcc-root") || document.body;
+  root.innerHTML = "";
+
+  const holder = document.createElement("div");
+  holder.id = "evcc-real-holder";
+  // A DEFINITE height, because height:100% on :host resolves against this. Leaving
+  // it auto silently reproduces the collapsed-shell bug in every test, which would
+  // make the harness agree with a fault instead of detecting it.
+  holder.style.cssText = `height:100%;${width == null ? "" : `width:${width}px;`}`;
+  root.appendChild(holder);
+
+  const el = document.createElement("eufy-vacuum-command-center");
+  el.setConfig({ vacuum_entity_id: "vacuum.alfred", ...config });
+  holder.appendChild(el);
+  el.hass = makeStubHass(hass);
+
+  // Two frames: one for the element's own render, one for the ResizeObserver that
+  // decides the viewport. Asserting before this reads the pre-measurement state.
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  const shell = el.shadowRoot?.querySelector(".evcc-shell");
+  return {
+    mounted: Boolean(shell),
+    viewport: shell?.dataset?.viewport ?? null,
+    hostWidth: Math.round(el.getBoundingClientRect().width),
+    shellHeight: Math.round(shell?.getBoundingClientRect?.().height ?? 0),
+    shellScrollHeight: shell?.scrollHeight ?? 0,
+    html: shell?.outerHTML?.slice(0, 400) ?? null,
+  };
+}
+
 window.__evcc = {
+  mountRealCard,      // OPT-IN: builds the card's own frame; see the block above
   version: 1,
   VIEWS,
   VIEW_ORDER,

@@ -149,3 +149,34 @@ export const VIEW_ORDER = [
   "map_config",
   "setup",
 ];
+
+
+/**
+ * Mount the REAL custom element instead of the synthetic frame. OPT-IN.
+ *
+ * Use when the thing under test IS the frame — viewport detection, sticky mobile
+ * chrome, shell construction, the body-level hosts. For everything else keep using
+ * mountHarness + render(): that path can inject arbitrary stub state, this one
+ * needs a hass and cannot.
+ *
+ * `width` drives the ResizeObserver, so it is the knob a mobile-layout test turns.
+ */
+export async function mountRealCard(page, { config = {}, hass = {}, width = null, viewport = null } = {}) {
+  if (viewport) await page.setViewportSize(viewport);
+
+  // A REAL ORIGIN first. setContent() alone leaves the page on an opaque origin,
+  // where localStorage throws SecurityError — and the card reads it during mount
+  // (map view state, label anchors, floor textures). The synthetic path never
+  // noticed because it drives the renderers directly and never mounts the element.
+  // Routed, not served: no port, no teardown, and the origin is stable per run so
+  // localStorage persists across mounts within one test the way it does in HA.
+  await page.route("https://evcc.harness.test/**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: "<!doctype html><html><body></body></html>" }));
+  await page.goto("https://evcc.harness.test/", { waitUntil: "domcontentloaded" });
+
+  await mountHarness(page);
+  return page.evaluate(
+    (o) => window.__evcc.mountRealCard(o),
+    { config, hass, width },
+  );
+}
