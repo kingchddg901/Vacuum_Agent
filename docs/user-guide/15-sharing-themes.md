@@ -56,7 +56,7 @@ otherwise it's shown as plain text.
 Click a theme to open its detail page, which shows the *real card* recolored by
 that theme:
 
-- **All-states galleries** — room cards and the review / map-bounds badges in
+- **All-states galleries** — room cards and the Learning Review job badges in
   every colored state at once, so you can check that statuses stay readable.
 - **Card tabs** — the full card across its tabs (maintenance, base station,
   metrics, and so on).

@@ -136,13 +136,19 @@ When you're happy with the include/exclude choices and floor types,
 click **Save Room Configuration**. On success the editor closes, the
 "✓ Configured" badge appears, and global status refreshes.
 
+You can't save a map with *every* room excluded — the save button
+disables and the editor explains: "Select at least one room to save. To
+remove this map entirely, use Delete Map instead."
+
 ---
 
 ## Rename this vacuum's sidebar entry
 
 The Setup tab has a **Panel name** field that renames this vacuum's
-sidebar entry live — type a new name and it updates the sidebar
-immediately, no restart required. The default name is **Vacuum Agent**.
+sidebar entry — type a new name and click **Rename**. The backend
+re-registers the panel right away; refresh the page to see the new name
+in the sidebar (no restart required). Leave the field blank to reset to
+the default name, **Vacuum Agent**.
 
 This matters most when you run more than one vacuum: each gets its own
 sidebar entry, and giving them distinct names (for example "Upstairs"
@@ -178,7 +184,8 @@ tap-selectable rooms on top of it, see
 The Setup tab does not become useless once every step has its ✓.
 The integration runs room discovery automatically in the background
 (every time the vacuum returns to its dock, every time the active map
-changes, and once every six hours as a safety net). If discovery
+changes, after a config reload, and once every six hours as a safety
+net). If discovery
 detects a difference between what the vacuum currently reports and
 what you've configured, a **room drift** panel appears inside the
 Configure Rooms step.
@@ -198,10 +205,28 @@ shows the room name, its map, and two affordances:
 
 - **Configure** (use the matching map's Configure / Reconfigure
   button above to include it with the right floor type), or
-- **Reject as phantom**, which permanently suppresses the room. Once
-  rejected, it never appears in this list again even if the vacuum
-  keeps reporting it. Use this for ghost rooms the firmware
+- **Reject as phantom**, which suppresses the room *on that map*. Once
+  rejected, it never appears in this list again for that map, even if
+  the vacuum keeps reporting it. Use this for ghost rooms the firmware
   occasionally invents.
+
+Rejections are stored **per map** — Eufy reissues room IDs from scratch
+on every map, so ID 3 on one floor is a different physical room from
+ID 3 on another. Rejecting a ghost on one floor never hides a real room
+on a different floor.
+
+If you reject the wrong room, there's an escape hatch: call the
+**`eufy_vacuum.setup_unreject_rooms`** service (Developer Tools →
+Actions) with the vacuum and room IDs. The room doesn't reappear
+immediately — it resurfaces on the next discovery pass that sees it,
+through the normal confirmation cadence. It clears the rejection on
+the given map, and also clears any older rejection recorded before
+rejections were per-map (those applied to every map, so a stale entry
+could still be blocking a real room on another floor). The service
+takes an optional **Map ID**: leave it blank to use the current active
+map; if the active map can't be determined and the vacuum has more
+than one map, the call is refused rather than guessing, since a bare
+room ID doesn't identify a room across maps.
 
 ### Rooms no longer reported
 
@@ -227,6 +252,45 @@ framework doesn't surface them as a hard removal yet. Two paths:
   confirmation window and immediately moves the entry into "Rooms no
   longer reported." The room stays in the integration's stored data
   with its history intact; only the drift signal flips.
+
+---
+
+## Renumbered and renamed rooms
+
+Re-mapping can shuffle the vacuum's room numbering or names. When the
+integration detects that the current map's rooms no longer line up with
+what you saved, a review panel appears inside the Configure Rooms step
+with up to two groups:
+
+- **Rooms renumbered** — the vacuum reassigned these room numbers after
+  re-mapping. Informational only: your saved settings follow the rooms
+  automatically, no action needed. Each row shows the old → new number.
+- **Renamed rooms** — same room number, different name. Either you
+  renamed the room in the app, or re-mapping reused that number for a
+  different space. The integration can't tell those apart
+  automatically, so review the list before updating.
+
+The decision is per map, not per room. **Update saved rooms** migrates
+your saved settings onto the new room identities; **Dismiss** leaves
+everything as it is. Dismissing is not permanent — the same review can
+resurface after a later discovery pass. After a successful update the
+panel reports how many rooms were updated, and names any room that was
+removed from the map and had its settings discarded.
+
+If the map changes while you're reviewing, the panel refreshes itself
+and says so. If that automatic refresh fails, a **Re-discover rooms**
+button appears so you can retry manually.
+
+---
+
+## Adding another vacuum
+
+Below the setup steps, an **Add another vacuum** section lists any
+`vacuum.*` entities in Home Assistant that aren't managed yet, each
+with an **Add** button. Adding one registers it with the integration
+and wires up its own sidebar panel — each panel's setup steps only ever
+manage that panel's own vacuum. When every vacuum is already managed,
+the section says so.
 
 ---
 
