@@ -38,7 +38,22 @@ Multiple modifier rules can match simultaneously. Changes from all matching modi
 
 ## 2. Condition system — all operators
 
-Each rule has a single `entity_id`, one `operator`, and (for most operators) one `value`. The backend evaluates `_room_rule_matches(rule)` against live HA state.
+Each rule has a single `entity_id`, one `operator`, and (for most operators) one `value`. The backend evaluates rules against live HA state through `_room_rule_matches_known(rule) -> (matched, known)` on `AccessGraphManager`, with a boolean compat wrapper `_room_rule_matches(rule)` that returns `matched and known`.
+
+### Indeterminate states (RP-008 / GUARD-1)
+
+`known=False` means **INDETERMINATE**: the rule entity is absent from HA, or its state reads a
+dropout sentinel (`INDETERMINATE_STATE_VALUES = {"unavailable", "unknown"}`, checked
+case/whitespace-insensitively). A rule is a statement about the world and cannot bind to
+ignorance, so **no operator — including the negating ones — matches an indeterminate state**.
+Callers apply two policies:
+
+- **Plan time** (`_build_effective_start_plan`, via the bool wrapper): indeterminate = no match.
+- **Mid-job** (`get_runtime_path_block_report`): indeterminate = **hold-previous** — the
+  evaluation neither blocks nor clears (a blocked run stays blocked, a clear room stays clear);
+  the rule is reported in the `indeterminate_rules` diagnostic list (§7). Treat-as-unmatched
+  would unpause a genuinely-blocked run on a sensor dropout; treat-as-matched once cancelled a
+  live run because a door sensor's battery died.
 
 ### Operand normalisation
 
@@ -66,13 +81,18 @@ No `value` operand needed.
 
 #### `exists`
 Returns `True` when the entity exists in HA (i.e. `hass.states.get(entity_id) is not None`).
-No `value` operand. Evaluated before the state is read.
+No `value` operand. Evaluated before the state is read; presence is an observable fact either
+way, so `exists` is always `known=True`.
 
 #### `missing`
-Returns `True` when the entity does not exist in HA.
+**Never matches** (RP-008): an absent entity is the definition of not-knowing, and a rule must
+not fire on ignorance — so the branch returns `matched=False` with `known = (entity exists)`.
+The operator is retained in the allowlist/UI but is dead by design; fail-closed-on-dropout, if
+ever wanted, arrives as an explicit per-rule `when_unavailable` field, never by matching
+sentinels (GATE4 Q18).
 No `value` operand. Evaluated before the state is read.
 
-If the entity is missing and the operator is anything other than `exists` or `missing`, the rule returns `False` without further evaluation.
+If the entity is missing and the operator is anything other than `exists` or `missing`, the rule returns `(False, known=False)` without further evaluation.
 
 #### `equals`
 ```python
@@ -114,7 +134,8 @@ Logical inverse of `in`. Returns `True` when the normalised state is **not** in 
 
 ### Edge cases
 
-- **Missing entity, non-existence operator**: returns `False`.
+- **Missing entity, non-existence operator**: `(False, known=False)` — indeterminate.
+- **State is `"unavailable"` / `"unknown"`**: `(False, known=False)` for every operator except `exists`/`missing` — indeterminate, never a value match (even for `not_equals`/`not_in`).
 - **Non-numeric state with `gt`/`gte`/`lt`/`lte`**: returns `False`.
 - **Unknown operator string**: falls through all branches and returns `False`.
 - **`value` is `None` for `equals`/`not_equals`**: `_normalize_rule_operand(None)` returns `""` (lowercased empty string), so the comparison is against `""`.
@@ -213,21 +234,27 @@ states change (see section 7).
 
 Rules are never evaluated when a room is toggled, when the user edits settings, or when `build_queue` / `build_room_payload` are called in isolation.
 
-### `_room_rule_matches` (on `AccessGraphManager`): evaluation order
+### `_room_rule_matches_known` (on `AccessGraphManager`): evaluation order
 
 ```
 1. Fetch entity state from hass.states.get(entity_id)
-2. If operator is "exists" → return entity is not None
-3. If operator is "missing" → return entity is None
-4. If entity is None → return False
-5. Normalise state_value via _normalize_rule_operand
-6. If operator is "is_on" → return str(state_value).strip().lower() == "on"
-7. If operator is "is_off" → return str(state_value).strip().lower() == "off"
-8. If operator is "equals"/"not_equals" → normalise both sides, compare
-9. If operator is "in"/"not_in" → normalise each option, check membership
-10. If operator is "gt"/"gte"/"lt"/"lte" → convert both to float, compare
-11. Fall-through → return False
+2. If operator is "exists" → (entity is not None, known=True)
+3. If operator is "missing" → (False, known = entity is not None)   # never matches
+4. If entity is None → (False, known=False)                         # indeterminate
+5. If state ∈ INDETERMINATE_STATE_VALUES ("unavailable"/"unknown")
+   → (False, known=False)                                           # indeterminate
+6. Otherwise → (_room_rule_value_matches(...), known=True), where the
+   value core is:
+   a. Normalise state_value via _normalize_rule_operand
+   b. "is_on"  → str(state_value).strip().lower() == "on"
+   c. "is_off" → str(state_value).strip().lower() == "off"
+   d. "equals"/"not_equals" → normalise both sides, compare
+   e. "in"/"not_in" → normalise each option, check membership
+   f. "gt"/"gte"/"lt"/"lte" → convert both to float, compare
+   g. Fall-through → False
 ```
+
+The bool wrapper `_room_rule_matches` (used at plan time) returns `matched and known`.
 
 ### `_build_effective_start_plan`: full algorithm
 
@@ -241,7 +268,7 @@ selected_room_ids = [int(room.room_id) for room in selected_rooms]
 
 **Step 2 — Access graph guard**
 
-`_access_graph_state` is checked. If it returns `"partial"`, the plan is blocked immediately with `reason: "incomplete_access_graph"` and rule evaluation is skipped. If it returns `"blank"` and any rooms have rules, it is blocked with `reason: "access_graph_required_for_rules"`.
+The graph-block decision is owned by `AccessGraphManager.access_graph_block_code(managed_rooms, validation)` (A6-AGX-1 — the same helper `get_access_graph_health` reports through, so diagnostic and gate cannot drift): `_access_graph_state` `"partial"` → blocked immediately with `reason: "incomplete_access_graph"` and rule evaluation is skipped; `"blank"` while any rooms have rules → blocked with `reason: "access_graph_required_for_rules"`.
 
 Additionally, if any blocker rules exist but no room has a non-empty `grants_access_to`, the plan is blocked with `reason: "access_graph_required"`.
 
@@ -530,9 +557,20 @@ Mid-job re-evaluation is handled by `get_runtime_path_block_report`. It is calle
 
 1. The active job must be in `"started"` or `"paused"` status. Returns `None` otherwise.
 2. Structural access graph issues abort the report (returns `None`).
-3. The remaining room IDs (not yet completed) are extracted from `active_job["queue_room_ids"]` minus `active_job["completed_room_ids"]`.
-4. Blocker rules for all queued rooms are re-evaluated against current HA state using `_room_rule_matches`.
-5. The same accessibility propagation algorithm as `_build_effective_start_plan` is run over the remaining rooms.
+3. The remaining room IDs (not yet completed) are extracted from `active_job["queue_room_ids"]` minus `active_job["completed_room_ids"]`. An empty `queue_room_ids` or an empty remainder returns `None` (the latter also pops `last_path_block_signature`).
+4. Blocker rules for **every room on the map** (not just queued rooms) are re-evaluated against
+   current HA state via `_room_rule_matches_known`. An **indeterminate** rule (entity absent /
+   `unavailable` / `unknown` — §2) is **hold-previous**: it neither blocks nor clears, and is
+   collected into the `indeterminate_rules` diagnostic list.
+5. The same accessibility propagation algorithm as `_build_effective_start_plan` is run over the
+   **full room set** (A6-PP-EST-BLK-1 / A5-AG-1): reachability is a property of the access
+   graph, not of the queue — the robot drives *through* rooms it is not cleaning, so a
+   non-queued room both grants access and can itself be blocked. Only the **reporting** is
+   scoped to the remaining queue rooms. (An earlier version seeded and walked
+   `queue_room_ids` only, which turned a normal partial run into a spurious all-rooms block on
+   the first blocker-entity change.) For an indirectly-blocked room, `blocked_by_room_id` names
+   the parent that is **actually unreachable/blocked** where one exists, falling back to the
+   first parent.
 6. A 16-char SHA-1 **dedup signature** over `trigger_entity_id | trigger_entity_state |
    affected_room_ids | sorted(triggered_rule_ids)` is computed; if it equals the active
    job's stored `last_path_block_signature`, the call returns `None` (no repeat report
@@ -542,16 +580,19 @@ Mid-job re-evaluation is handled by `get_runtime_path_block_report`. It is calle
 The report triggers pause / notify / an automated path-block action (per-job
 `path_block_action`). It **does** persist the `last_path_block_signature` field on the
 active job (popped again on the no-longer-blocked path), but it does **not** change the
-queue or payload. Note the propagation is **queue-scoped** — parents outside
-`queue_room_ids` are ignored and accessibility is seeded from `queue_room_ids` only,
-unlike the start-plan version which uses the full room set. Extra early-`None` guards:
-non-`started`/`paused` status, structural graph issues, blocker rules present but **no**
-`grants_access_to` anywhere, and no affected remaining rooms.
+queue or payload. Extra early-`None` guards: non-`started`/`paused` status, structural
+graph issues, blocker rules present but **no** `grants_access_to` anywhere, and no
+affected remaining rooms.
 
-**Return schema** (14 keys): `vacuum_entity_id, map_id, job_id, trigger_entity_id,
-trigger_entity_state, affected_remaining_room_ids, affected_remaining_room_names,
+**Return schema** (15 keys): `vacuum_entity_id, map_id, job_id, trigger_entity_id,
+trigger_entity_state, indeterminate_rules ([{rule_id, entity_id, room_id: int}, ...]),
+affected_remaining_room_ids, affected_remaining_room_names,
 directly_blocked_room_ids, indirectly_blocked_room_ids, remaining_room_ids, reason_codes,
-affected_rooms, requires_attention (True), event_scope ("active_job_path_blocked")`.
+affected_rooms, requires_attention (True), event_scope ("active_job_path_blocked")`. The four
+`*_room_ids` top-level lists are stringified (`[str(room_id), ...]`); the nested ids are **not**
+— `indeterminate_rules[].room_id` and `affected_rooms[].room_id` /
+`affected_rooms[].blocked_by_room_id` stay plain `int` (`None` for the latter when no parent
+resolves).
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §3 for the monitoring loop (`get_runtime_path_block_report`) that triggers mid-job rule checks and §1 Preflight for the job-start evaluation site; [08-rooms-system](08-rooms-system.md) §6 for the room data model that rules operate on.
 
@@ -649,15 +690,15 @@ Conditions are flat on the rule object itself — `entity_id`, `operator`, and `
 
 ## 9. Adding a new operator
 
-### Backend: `_room_rule_matches` in `rooms/access_graph.py` (`AccessGraphManager`)
+### Backend: `_room_rule_value_matches` in `rooms/access_graph.py` (`AccessGraphManager`)
 
 **Step 0 (mandatory — the load-bearing step):** add `"<new_op>"` to the
 `allowed_operators` set in `_normalize_room_rule` (`rooms/access_graph.py`). Any
 operator **not** in that allowlist is rewritten to `"equals"` **at persist / normalize
 time**, so without this step a rule authored with the new operator is silently stored as
-`equals` and your new `_room_rule_matches` branch is never reached.
+`equals` and your new `_room_rule_value_matches` branch is never reached.
 
-Then add a new `if operator == "<new_op>":` branch on the `_room_rule_matches`
+Then add a new `if operator == "<new_op>":` branch on the `_room_rule_value_matches`
 method. Place it before the final `return False`. The branch receives:
 
 - `state_value` — raw string from `hass.states.get(entity_id).state`
