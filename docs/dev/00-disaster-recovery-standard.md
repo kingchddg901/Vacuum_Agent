@@ -27,8 +27,12 @@ What "disaster" means, exactly — the scenario every DR doc is sized against:
   is what gives the recovery a start point. Naive "rebuilt-neighbours" induction has no
   base case and the dependency graph is not even acyclic (`error_tracker → active_job →
   learning → error_tracker` is real); doc-stated interfaces dissolve both: mutual
-  dependents each publish their surface on paper, and the bootstrap is topological
-  order over documented interfaces — surfaces first, implementations behind them.
+  dependents each publish their surface on paper. The bootstrap is TWO-PHASE, not
+  topological — measured reality: only 5 of 26 sections are dependency-free and the
+  rest form one mutually-recursive cluster, so no topological order exists. Phase 1:
+  declare every doc-stated interface as a skeleton, corpus-wide. Phase 2: implement
+  each section against the skeletons, in any deterministic order. Composition rides
+  the interface statements, not the sequence.
   Consequence for authors: every doc MUST state the interfaces it PROVIDES and the
   neighbour interfaces it CONSUMES (the rubric's integration-contract row is
   load-bearing for the whole corpus, not local hygiene).

@@ -10,10 +10,12 @@ document it lives in, it belongs somewhere else — that's the whole routing rul
 matching delta. No delta file for a subsystem means the DR baseline is authoritative,
 full stop.
 
-The reading order below is also the **bootstrap order**: under the availability contract
-([00 §0](00-disaster-recovery-standard.md)) the corpus rebuilds a functionally identical
-integration from total source loss, section by section in roughly this sequence —
-surfaces first, implementations behind them.
+Under the availability contract ([00 §0](00-disaster-recovery-standard.md)) the corpus
+rebuilds a functionally identical integration from total source loss — **two-phase**:
+every doc-stated interface first as skeletons, then each section implemented against
+them. The reading order below is the COMPREHENSION order, not a dependency order (the
+subsystem graph is mutually recursive; no topological order exists) — read top-down,
+rebuild by interfaces.
 
 The backend integration's architecture, subsystems, and porting contract, in reading order.
 The **frontend / Lovelace-card** docs are their own set — see **[frontend/](frontend/architecture-overview.md)**.

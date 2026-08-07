@@ -586,12 +586,18 @@ baseline confuses missing invariants with unapplied fixes.
 2. **Confirmation: doc 18 (onboarding manager)** once dev-core's truth patch lands —
    cleanest sandbox in the corpus (data+hass ctor). Run only if calibration leaves doubts
    about generality; otherwise optional.
-3. **Fan-out in BOOTSTRAP ORDER (Chris ruling, 2026-08-07 — supersedes invariant-first).**
-   The test has to start at the top: under the self-hosting availability contract
-   (00 §0), a section's closure composes only if the docs it depends on are already
-   proven — so the fleet runs the README's reading order top-to-bottom (00/00a excluded
-   as meta; 01 → 02 → 03 → 04 → 05 → 06 → 07 → 30 → subsystems 08…15/31 → managers
-   16-18 → adapters 21/22/25/26/29 → 28), each closure resting on closed foundations.
+3. **Fan-out top-down in READING ORDER — corrected rationale (Chris's check,
+   2026-08-07).** The doc numbers are LANDING order and the module graph is mutually
+   recursive (measured: 5 of 26 dependency-free, the rest one cluster —
+   `DOC-DEPENDENCY-MAP.md`), so a topological ablation order DOES NOT EXIST. Proof
+   composition does not need one: closures lean on other docs' INTERFACE STATEMENTS,
+   which all exist from day one. The fleet therefore runs the README's reading order
+   top-to-bottom (deterministic, auditable, comprehension-first: 01 → 02 → 03 → 04 →
+   05 → 06 → 07 → 30 → 08…15/31 → 16-18 → 21/22/25/26/29 → 28), with the compensating
+   rule that replaces sequencing: **any closure that alters a doc's PROVIDES surface
+   flags every dependent doc's closure provisional** (dependents per
+   DOC-DEPENDENCY-MAP.md). Trims must preserve interface statements regardless — they
+   are contract.
    Invariant-density now only decides LOOP DEPTH per doc (full discovery loop vs
    trim+single-build vs schema-reconstruction for shapes docs like 03/22), never
    sequence. Doc 23 closed out of order as the calibration; the docs-only rebuild
