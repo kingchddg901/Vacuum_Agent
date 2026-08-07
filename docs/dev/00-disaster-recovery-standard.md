@@ -184,6 +184,16 @@ Grouped by the failure modes above; use as a checklist.
 3. **This depth is intentional — do not trim it as "over-documentation."** The clamps,
    exact columns, and kwarg lists are the load-bearing parts; a normal doc glosses
    precisely what reconstruction needs. Guard them against future cleanup passes.
+4. **No normative collisions — amendments edit the superseded text in place, never
+   merely append an override** (found live 2026-08-07: a rollout rule and a later
+   amendment were each individually followable and jointly unsatisfiable). This
+   corpus's readers are AGENTS: a human resolves "newer/specific wins" by common
+   sense, but a retrieval-based reader may load either statement without its sibling
+   and follow it faithfully — the collision becomes nondeterministic behaviour, not
+   ambiguity. One live statement per rule; history lives in git and the audit
+   record, exactly as with code. A discovered collision is its own defect class
+   ("readable" and "agent-executable" are different standards) and is fixed before
+   the doc is consumed by an agent.
 
 ## 6. Acceptance test
 

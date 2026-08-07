@@ -871,3 +871,19 @@ the patch is the one actor who has read the original, the trimmed candidate, eve
 and the adjudication. That is the maximally contaminated position in the entire loop.
 "The coordinator will notice" is precisely the assumption rule 4 refuses to make about
 the trimmer, and it is less safe here, not more.
+
+## AMENDMENT (GPT review + agent follow-up, 2026-08-07): rule 14 — one live statement per rule
+
+A NORMATIVE COLLISION — two authoritative statements each individually followable and
+jointly unsatisfiable — is a doc-defect class of its own, and this document's
+append-amendment style is its natural breeding ground (the user-guide-exemption
+collision was found live). Discipline from here:
+
+- An amendment that changes a rule REWRITES the rule where it lives (or explicitly
+  strikes it), never merely appends an override. One live statement per rule; the
+  superseded text survives in git and the audit record, not in the living doc.
+- Reviewers add a collision sweep to their checklist: any "supersedes/amendment"
+  language triggers a check that the overridden text was actually neutralized.
+- Rationale (the agent-trap): the fleet's readers are retrieval-based agents that may
+  load either statement without the other — for them a collision is nondeterministic
+  behaviour, not ambiguity a human resolves by "newer wins."
