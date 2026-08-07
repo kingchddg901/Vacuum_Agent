@@ -1,5 +1,20 @@
 # Developer Docs — Reading Order
 
+These are the **Disaster-Recovery baseline** docs — they answer **"this is how it works."**
+The other three questions live elsewhere: **why** → [design/](design/map-state-source.md) ·
+**what I'm changing right now** → [deltas/](deltas/README.md) · **what happened and what it
+cost to learn** → the audit record. If a passage answers a different question than the
+document it lives in, it belongs somewhere else — that's the whole routing rule.
+
+**Reading rule:** read the DR section first, then check [deltas/](deltas/README.md) for a
+matching delta. No delta file for a subsystem means the DR baseline is authoritative,
+full stop.
+
+The reading order below is also the **bootstrap order**: under the availability contract
+([00 §0](00-disaster-recovery-standard.md)) the corpus rebuilds a functionally identical
+integration from total source loss, section by section in roughly this sequence —
+surfaces first, implementations behind them.
+
 The backend integration's architecture, subsystems, and porting contract, in reading order.
 The **frontend / Lovelace-card** docs are their own set — see **[frontend/](frontend/architecture-overview.md)**.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
@@ -13,7 +28,8 @@ files that give you the mental model you need before reading anything else.
 
 | # | File | What it covers |
 |---|---|---|
-| 00 | [disaster-recovery-standard](00-disaster-recovery-standard.md) | The disaster-recovery doc standard: the DR-grade rubric, meta-rules, and the per-subsystem audit-status table |
+| 00 | [disaster-recovery-standard](00-disaster-recovery-standard.md) | The disaster-recovery doc standard: the availability contract (§0 — total source loss, functional identity, self-hosting corpus), the DR-grade rubric, meta-rules, and the per-subsystem audit-status table |
+| 00a | [documentation-epoch-lifecycle](00a-documentation-epoch-lifecycle.md) | The documentation model itself: DR baseline / dev deltas / audit record, epoch open-and-close, the plain-language key, epoch-edge fix rules |
 | 01 | [architecture-overview](01-architecture-overview.md) | The big picture: adapter pattern, data flow, concurrency rules, subsystem map |
 | 02 | [ha-integration](02-ha-integration.md) | Config entry lifecycle, platform setup, entity registration, coordinator pattern |
 | 03 | [data-model](03-data-model.md) | The persistent store schema — every top-level key and what lives under it |
