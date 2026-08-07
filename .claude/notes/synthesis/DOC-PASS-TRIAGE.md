@@ -128,3 +128,8 @@ inherit on both surfaces; theme Font Family = preset chips (names verbatim, no i
 escape hatch; wiring tests assert BUILT CSS, 13 pins; 911 logic tests green; deployed live.
 HDR-BATT-1 (header battery label + dead low/critical classes) remains the only font-adjacent
 open item.
+
+### HDR-BATT-1 CLOSED (d93a971, 2026-08-06)
+Header battery: nav.battery label (18 locales) + low/critical bands wired (<=20/<=10);
+HB-1/2 pins. Ratchet repinned same push (684b605): 57 accepted-class pairs from the
+job-summary + typeface features, all within Chris's adjudicated categories.
