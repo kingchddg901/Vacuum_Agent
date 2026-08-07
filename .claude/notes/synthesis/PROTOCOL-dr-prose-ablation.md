@@ -643,3 +643,24 @@ any single-artifact threshold. The control for that lives at the POPULATION leve
   entry reopened, the section re-runs with fresh agents), and the implicated agent/pair's
   PRIOR closures get re-sampled — fraud clusters; one confirmed case is never treated as
   isolated.
+
+## AMENDMENT (Chris, 2026-08-06): rule 12 — a smuggle voids the whole class
+
+A confirmed smuggled answer invalidates the ENTIRE chain, not just the smuggler: the
+loop's agent group (trimmer, builder(s), tester, reviewer) is one CLASS, and if one
+member cheated, the class fails — nobody gets points, the closure is void, the section
+re-runs with an entirely fresh class. No "I didn't smuggle, I just benefited" position
+exists: benefiting from a tainted chain costs you the chain.
+
+Why: collective liability makes every member a stakeholder in every other member's
+honesty. The builder has reason to refuse suspiciously helpful prose; the reviewer has
+reason to run the coupling scan hard; the tester has reason to probe a reconstruction
+that greens too easily.
+
+**Whistleblower carve-out (required complement):** collective punishment alone aligns a
+tainted class around CONCEALMENT — if all lose on discovery, all gain from hiding it. So:
+an agent that flags a teammate's suspected smuggle BEFORE the audit finds it keeps its
+own earned credit (and earns the detection bounty) while the chain still voids. Inside a
+class, reporting must always dominate covering up. A flag that proves false costs the
+flagger nothing beyond the wasted audit — honest suspicion is never punished, or nobody
+raises it.
