@@ -310,6 +310,10 @@ class EufyVacuumManager:
         self.hass = hass
         self.storage = EufyVacuumStorage(hass)
         self.data: dict[str, Any] = {}
+        # R2-BUG-6: False until async_initialize has actually READ the store. `data` above
+        # is only a seed, and async_shutdown must never flush a seed over real on-disk
+        # data — see the guard there for the failure it prevents.
+        self._loaded = False
         self.runtime: dict[str, VacuumRuntimeState] = {}
         self._room_history_cache_ready: set[str] = set()
         # map_state_source cache (Wave 1): the normalized, VA-owned read of the
@@ -344,7 +348,22 @@ class EufyVacuumManager:
         # shutdown (EVENT_HOMEASSISTANT_FINAL_WRITE), not an integration unload/reload.
         # Flush directly via storage (not self.async_save(), which is gated on
         # _closed) so an in-flight debounce window is never silently dropped here.
-        await self.storage.async_save(self.data)
+        #
+        # R2-BUG-6: NEVER flush a store we never read. __init__ seeds self.data = {}
+        # (:312) and async_initialize only replaces it with the real store at :405, while
+        # __init__.py registers this via entry.async_on_unload BEFORE awaiting
+        # async_initialize — deliberately, so a mid-setup failure still tears down.
+        #
+        # So if async_load() (or anything before it) raises, HA runs this callback with
+        # self.data still the empty seed, and an unguarded flush writes {} over the user's
+        # ENTIRE store: every managed room, map, learned profile and theme. Silent, total,
+        # and triggered by an unrelated setup failure.
+        #
+        # The guard is _loaded, not `data is truthy` — a genuinely empty store on a fresh
+        # install is a legitimate thing to flush, and hasattr() is no guard at all here
+        # because the attribute always exists.
+        if self._loaded:
+            await self.storage.async_save(self.data)
         self._closed = True
 
         cancelled_tasks: list[asyncio.Task] = []
@@ -393,6 +412,9 @@ class EufyVacuumManager:
         the preloaded theme library exactly once so the per-call read path stays fast.
         """
         self.data = await self.storage.async_load()
+        # From here the in-memory dict REPRESENTS the store, so flushing it on unload is
+        # safe (and required — the schema seeding just below is real state). R2-BUG-6.
+        self._loaded = True
         self.data.setdefault("vacuums", {})
         self.data.setdefault("capabilities", {})
         self.data.setdefault("room_history", {})

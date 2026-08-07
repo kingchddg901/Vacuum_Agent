@@ -122,3 +122,55 @@ async def test_double_reload_yields_one_live_manager_writing(hass, mock_config_e
     reloaded = EufyVacuumManager(hass)
     await reloaded.async_initialize()
     assert reloaded.data.get("owner") == "B"
+
+
+async def test_shutdown_before_load_never_flushes_the_seed_over_the_store(hass, mock_config_entry):
+    """[MS-4] R2-BUG-6. __init__.py registers async_shutdown via entry.async_on_unload
+    BEFORE awaiting async_initialize -- deliberately, so a mid-setup failure still tears
+    down. But __init__ seeds self.data = {} and only async_initialize replaces it with the
+    real store, so a failure at (or before) async_load left the EMPTY SEED in place, and an
+    unguarded flush wrote {} over the user's entire store: every managed room, map, learned
+    profile and theme, wiped by an unrelated setup failure.
+
+    Constructed-but-never-initialized is exactly the state HA unloads from when setup
+    fails, so this pins that the flush is skipped there -- and, below, that a real
+    initialized manager DOES still flush (the guard must not disable the save seam)."""
+    from custom_components.eufy_vacuum.adapters.registry import AdapterCoordinator
+    from custom_components.eufy_vacuum.const import DATA_ADAPTER_COORDINATOR, DOMAIN
+    from custom_components.eufy_vacuum.core.manager import EufyVacuumManager
+
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR] = AdapterCoordinator(hass, mock_config_entry)
+
+    manager = EufyVacuumManager(hass)  # NO async_initialize -- setup "failed"
+    assert manager.data == {}, "the seed is what makes this dangerous"
+    manager.storage.async_save = AsyncMock()
+
+    result = await manager.async_shutdown()
+
+    manager.storage.async_save.assert_not_awaited()
+    assert result == {"timers_cancelled": 0, "tasks_cancelled": 0}
+    assert manager._closed is True, "a failed setup must still mark the manager closed"
+    assert await manager.async_shutdown() == {"timers_cancelled": 0, "tasks_cancelled": 0}
+
+
+async def test_shutdown_after_load_still_flushes(hass, mock_config_entry):
+    """[MS-5] The other half of R2-BUG-6's guard: once the store HAS been read, unload must
+    still flush it. A guard that also suppressed the real save would trade data loss on a
+    rare setup failure for data loss on every reload -- strictly worse."""
+    from custom_components.eufy_vacuum.adapters.registry import AdapterCoordinator
+    from custom_components.eufy_vacuum.const import DATA_ADAPTER_COORDINATOR, DOMAIN
+    from custom_components.eufy_vacuum.core.manager import EufyVacuumManager
+
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR] = AdapterCoordinator(hass, mock_config_entry)
+
+    manager = EufyVacuumManager(hass)
+    await manager.async_initialize()
+    manager.data["owner"] = "flush-me"
+    manager.storage.async_save = AsyncMock()
+
+    await manager.async_shutdown()
+
+    manager.storage.async_save.assert_awaited_once()
+    assert manager.storage.async_save.await_args.args[0].get("owner") == "flush-me"

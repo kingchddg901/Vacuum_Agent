@@ -102,6 +102,26 @@ repaired truth pass. Docs were NOT papered over these. Highest-priority first.
 - **R2-STALE-7 [ug-daily]** src/renderers/rooms.js:428-429 — comment claims no 'included' suffix; render always appends it.
 - **R2-STALE-8 [testing-docs]** tests/adapters/conftest.py:78 — docstring says Yield, body returns.
 
+## ROUND 2 ADJUDICATION (2026-08-06, Opus) — every remaining item has a verdict
+
+Each was checked against source before acting. Three of the eight were wrong as filed;
+saying so is the point of the pass.
+
+| id | verdict |
+|---|---|
+| R2-BUG-1/3, R2-DEAD-4 | **FIXED** `c9e0526` |
+| R2-BUG-5 | **RESOLVED, no code change** `3531e02` — unsourced claim vs verified observation |
+| R2-BUG-7 | **FIXED** `54707f8` — ticket named 1 of 5 blocking ops |
+| R2-STALE-1..6, 8 | **FIXED** `54707f8` (+ an unreported Roborock sibling of S4) |
+| R2-STALE-7 | **NOT REPRODUCIBLE** — cited lines are a zone-counting comment; no "included suffix" claim exists anywhere in `src/renderers/rooms.js`. Not touched. |
+| R2-BUG-6 | **REAL, but MISDIAGNOSED — and far worse than filed.** Filed as "first action awaits storage; on a never-initialized manager that path is not the documented no-op", implying an AttributeError. There is none: `__init__` seeds `self.data = {}` at :312. The actual bug is that the seed is *flushable* — `async_initialize` only swaps in the real store at :405, and `__init__.py:277` registers the unload callback BEFORE awaiting init, so a failure at/before `async_load` makes `async_shutdown` write `{}` over the ENTIRE store: every managed room, map, learned profile, theme. Silent total data loss triggered by an unrelated setup failure. Fixed with a `_loaded` flag (NOT `hasattr`, which guards nothing since the attribute always exists; NOT truthiness, since a fresh install's empty store is legitimately flushable). Pinned both ways — MS-4 no-flush-before-load, MS-5 still-flushes-after. |
+| R2-BUG-2 | **NOT a mechanical fix — needs a semantics call.** `profile_key` exists only on ROOM-PROFILE index entries (`stats_rebuilder.py:1098-1107`); job entries have none, because a job spans many rooms which may each use a different profile. So "add the filter to `_job_matches`" would filter on a field that does not exist and return zero jobs. Real options: (a) match a job if ANY of its rooms used that profile, (b) disable the Profile chip for the Jobs count + Runs list. Chris's call. |
+| R2-DEAD-1 | **FALSE as filed.** "NOTHING reads either field anywhere" — `tests/integration/test_manager_external_finalize.py` asserts on both at :245-247, :408, :440-441. Production-dead but test-covered, and the fields are PERSISTED into external-run records, so deleting them is a stored-data shape change, not dead-code removal. Not touched. |
+| R2-DEAD-3 | **FALSE.** `src/renderers/badge-marks.js` has importers — `harness/mount-entry.js:46` imports `BADGE_MARK_PATHS`/`MARK_VIEWBOX`, and `harness/tests/shape-marks.spec.mjs` exists to test it. The finding appears to have grepped only `src/`. Not touched. |
+| R2-DEAD-2 | **REAL, not yet done.** `mapping_review` is gone from the card (`src/` has only an i18n comment) but the harness still registers it — `harness/lib/mount-page.mjs:150`, `harness/preview.mjs:52` — and `harness/tests/cvd.spec.mjs:32` actively renders it, so that spec asserts against a dead view. Touches visual baselines, so it wants its own pass. |
+| R2-TYPE-1 | **DEFER to Epoch 2** — same family as `live:RB-ERR-2`. Making the annotations honest about tables nothing can reach at runtime is half a fix; it should land with the capture change. |
+| R2-COV-1, R2-TEST-1 | Open. |
+
 ## Contract / typing mismatches
 
 - **R2-TYPE-1 [dev-adapters]** config_schema error_tracking blocks typed list[int]/dict[int,str] (eufy/config_schema.py:610-712) but shipping Roborock declares all five STRING-keyed (roborock/vocabulary.py:224+). Known from RB-ERR-2 family; the type annotations are the wrong side.
