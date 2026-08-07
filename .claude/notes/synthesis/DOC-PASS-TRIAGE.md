@@ -142,4 +142,29 @@ testdrop demo font live on Chris's box (delete config/eufy_vacuum/fonts/testdrop
 remove).
 - **R2-BUG-7 [live log]** history_store.py:411 read_json does a BLOCKING file read in the event
   loop via _reap_stranded_phased_jobs (core/manager.py:602) at startup — HA flags it and asks
-  for a bug report. Wrap in async_add_executor_job.
+  for a bug report. ~~Wrap in async_add_executor_job.~~
+
+  **FIX SHAPE CORRECTED 2026-08-06 — the flagged read is 1 of 5 blocking ops, and not the
+  slowest.** Verified at source, current tree. `_reap_stranded_phased_jobs`
+  (core/manager.py:572) blocks on all of:
+  1. `store.get_paths()` → two `mkdir(parents=True, exist_ok=True)` (history_store.py:385-386);
+  2. `paths.phased_jobs_dir.exists()` (:598);
+  3. `paths.phased_jobs_dir.glob("*.json")` (:600) — full directory scan;
+  4. `store.read_json(path)` → `exists` + `is_file` + `read_text` (:411) ← **the one HA caught**;
+  5. `store.close_phased_job()` → `load_phased_job()` read (:884) **plus `write_json()`** —
+     atomic temp-write + `os.replace` (history_store.py:1006).
+
+  Wrapping only the read therefore leaves the **write** — the slowest of the five — in the
+  event loop, and HA keeps warning. The ticket as written would read as fixed and not be.
+
+  Correct fix: the call site is inside `async def async_initialize` (core/manager.py:570), so
+  `await self.hass.async_add_executor_job(...)` is available and idiomatic here (61 existing
+  uses). Hand the **whole sync method** to the executor, not the read.
+
+  **Caveat that must not be skipped:** snapshot `live` and the vac_id list in the event loop
+  and pass them in, rather than letting the executor thread walk `self.data["active_jobs"]`.
+  `rearm_dock_phase_if_needed` runs four lines earlier (:566) and re-spawns dock pollers that
+  can mutate `active_jobs`; iterating it from another thread is a "dictionary changed size
+  during iteration" race. The method's blanket `except Exception` (:621, "startup housekeeping
+  must never block setup") would swallow that into a **silent no-reap** — parents accumulate
+  forever, which is the exact failure the reaper was written to prevent.
