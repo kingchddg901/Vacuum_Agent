@@ -767,10 +767,15 @@ Open design questions for the round:
 1. ALWAYS-ON RING. Receipts (~tens of bytes/checkpoint) make a small permanently-armed
    receipts ring feasible — would retire the arming gap (the 2026-08-01 stepped-run loss).
    Reconcile with invariant 6: unarmed = shallow always-on receipts, armed = depth.
-2. RUNTIME EXPECTATIONS AS FACTS. Catalog successor grammar (sec 12) is static; the
-   "expecting 0 transitions (group dispatch, no per-room signal on this brand)" class is
-   per-run and brand-dependent. Receipts must be able to carry the expectation as a
-   recorded field; the decoder reconciles observed-vs-expected inside the trace.
+2. RUNTIME EXPECTATIONS AS FACTS — RESOLVED (Chris, 2026-08-06): the expectation is just
+   ANOTHER RECEIPT whose payload is a catalog ID: `EXPECT | <id of job_started> | n=1`.
+   Static grammar (sec 12: what MAY follow) and runtime expectations (what SHOULD follow
+   this run) share one vocabulary; the decoder reconciles both with the same matcher.
+   `EXPECT room_transition n=0` IS the brand-model statement in three tokens; an EXPECT
+   with no matching receipt before its correlation scope closes is loud by construction
+   (`0/1 observed`). Emission split keeps invariant 10 honest: the expectation is emitted
+   by the boundary holding the model (dispatch), fulfillment by the boundary observing it
+   — disagreement between two code sites is what makes the signal mean something.
 3. NEVER-INSTRUMENTED NEW CODE. Sec 13 tests catch removed emissions, not absent ones.
    Decide the gate for new causally-important paths (declaration-proving, like the
    expansion-seam doctrine).
