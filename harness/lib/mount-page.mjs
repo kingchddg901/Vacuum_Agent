@@ -51,8 +51,22 @@ async function serveCardFonts(page) {
 
 /** Mount a fresh page with #root and the harness bundle loaded. */
 export async function mountHarness(page) {
+  // A REAL ORIGIN, not setContent's opaque one. This was mountRealCard's fix and
+  // it belongs here: with an opaque origin a RELATIVE asset URL like
+  // `/eufy_vacuum/fonts/X.woff2` cannot be resolved to a routable request at all
+  // — document.fonts.load() rejects with NetworkError — so serveCardFonts above
+  // has never once fired for a mountHarness spec. That is why the OpenDyslexic
+  // visual baseline was byte-identical to the default-font one: the face was
+  // unreachable, so every "typeface" shot rendered the fallback.
+  // Routed, not served: no port, no teardown, stable per run.
+  await page.route("https://evcc.harness.test/**", (route) =>
+    route.fulfill({ status: 200, contentType: "text/html", body: PAGE_HTML }));
+  // AFTER the catch-all on purpose: Playwright matches the most recently
+  // registered route first, so registering the font route second is what lets it
+  // win. Registered first, the catch-all above answers the .woff2 with HTML and
+  // the face fails to parse — the same NetworkError, one layer along.
   await serveCardFonts(page);
-  await page.setContent(PAGE_HTML, { waitUntil: "domcontentloaded" });
+  await page.goto("https://evcc.harness.test/", { waitUntil: "domcontentloaded" });
   await page.addScriptTag({ content: readFileSync(BUNDLE, "utf8") });
   await page.waitForFunction(() => Boolean(window.__evcc));
 }

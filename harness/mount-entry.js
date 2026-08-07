@@ -37,6 +37,7 @@ import {
 } from "../src/render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES } from "../src/styles/index.js";
 import { registerLocale, applyDir } from "../src/i18n/index.js";
+import { ensureFontFacesInDocument } from "../src/styles/fonts.js";
 import { en } from "../src/i18n/en.js";
 import { flattenLocale } from "../src/i18n/flatten.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
@@ -268,7 +269,21 @@ function render(view, opts = {}) {
     // so without the attribute the harness would render the font's STRINGS but
     // never the font itself — exactly the gap applyDir was added to close for
     // RTL layout. src/main.js's _applyFontAttribute does this on the live card.
-    if (font) host.setAttribute("data-evcc-font", font);
+    //
+    // The attribute ALONE was not enough, and the gate said otherwise for three
+    // days. Chromium ignores @font-face declared inside a shadow tree, so the
+    // faces must be registered on the DOCUMENT — every SHIP entry calls
+    // ensureFontFacesInDocument() for exactly this reason (live:FONT-1) and this
+    // entry did not. Measured before the fix: document.fonts.size === 0, zero
+    // network requests for either woff2, and a span styled with the OpenDyslexic
+    // stack measuring identically to plain sans-serif. The consequence was that
+    // gallery-rooms-opendyslexic.png was BYTE-IDENTICAL to gallery-rooms-active.png
+    // (both sha256 16f6440f…), i.e. the typeface gate was pinning the default face
+    // and could never have failed. Idempotent, so calling it per render is free.
+    if (font) {
+      ensureFontFacesInDocument();
+      host.setAttribute("data-evcc-font", font);
+    }
     root.appendChild(host);
 
     const shadow = host.attachShadow({ mode: "open" });

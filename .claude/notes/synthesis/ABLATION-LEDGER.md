@@ -105,6 +105,12 @@ bookkept by the coordinator's script, never by agents.
   doc BY DESIGN, not by omission: rule 4 forbids prose carrying internal names, and
   the behavior it implements is fully specified in §4.1. A future reader diffing
   against source should not "restore" it.
+- The ad-hoc nature of that pre-apply check IS the finding: it is now protocol
+  **rule 13 (base revisions)**. Trim records the DR-section and target-source blob
+  hashes; a changed doc hash BLOCKS the apply pending three-way reconciliation, a
+  changed source hash makes the closure PROVISIONAL. CAL-23's own drift
+  (475 → 488 mid-loop) was caused by round 1's first blood being applied to live
+  per §13 — so every round that draws first blood reproduces it by construction.
 - FAN-OUT remains gated on Chris's scope call, not on this application. The
   arithmetic he needs: ~1.5–2M subagent tokens per invariant-dense section with a
   discovery round, ~700K for a clean trim; the invariant-first priority list

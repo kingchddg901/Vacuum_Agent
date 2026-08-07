@@ -93,6 +93,15 @@ test("[TF-6] the faces are registered on the DOCUMENT, from every bundle entry",
     assert.match(read(entry), /ensureFontFacesInDocument\(\)/,
       `${entry} no longer registers the faces — any surface loaded via that bundle alone renders the fallback forever`);
   }
+  // The HARNESS entry is listed here deliberately, even though it ships nothing.
+  // This assertion covered only the three ship entries, so when mount-entry.js
+  // stamped data-evcc-font WITHOUT registering the faces, nothing complained —
+  // and gallery-rooms-opendyslexic.png was byte-identical to the default-font
+  // baseline (both sha256 16f6440f…), a typeface gate that could never fail.
+  // A measuring instrument that cannot render the thing it measures is the same
+  // defect class as an unregistered face, one level up.
+  assert.match(read("../../harness/mount-entry.js"), /ensureFontFacesInDocument\(\)/,
+    "the render harness no longer registers the faces — every typeface baseline silently becomes a default-font baseline");
 });
 
 test("[TF-7] the reading selector matches an element the shell frame emits", () => {
