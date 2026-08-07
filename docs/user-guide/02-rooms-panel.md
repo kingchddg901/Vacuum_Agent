@@ -25,7 +25,16 @@ Both Select All and Clear Queue are in the action bar at the top.
 
 On path-optimizing brands (Roborock) the action bar also shows a **Strict order / Force this exact order** toggle for the run — see [Queue and order](03-queue-and-order.md) for what it does.
 
-The action bar shows how many rooms are currently included (for example, "3 rooms included") and, once the system has learned timing data, an estimated total run time for the current selection.
+When at least two rooms are queued and no run is active, the action bar also offers **step chips** that turn a plain queue into a stepped, multi-phase run — no run profile needed:
+
+- **+ Charge break** — inserts a charge-to-N% stop between rooms.
+- **+ Wait break** — inserts a timed wait stop.
+- **+ Zone** — opens a picker of your saved zones and inserts the selection as a 🎯 zone step. The chip only appears once you have at least one saved zone. See [Zones](04a-zones.md#add-a-zone-to-a-run-a-zone-step).
+- **Clear breaks** — removes every inserted step, dropping the queue back to a flat clean. This chip only appears once the queue already carries a break or zone step — it isn't offered on a plain two-room queue with nothing to clear.
+
+A queue that carries breaks runs as a stepped job when you press Start — the same phased execution a stepped run profile gets — and a collapsible **"This Job"** preview, below the queue strip and above the room grid, shows the full sequence before you start.
+
+The action bar shows how many rooms are currently included (for example, "3 rooms included", or "2 rooms · 1 zone included" when a zone step is queued) and, once the system has learned timing data, an estimated total run time for the current selection.
 
 ## The queue strip
 
@@ -37,7 +46,7 @@ Below the count and action buttons, the action bar shows a row of chips — one 
 
 During a live run the chips update in real time: the current room shows a percentage progress, completed rooms are marked as done, and remaining rooms stay in their waiting state.
 
-When a stepped run profile is applied, the strip also shows its stops in sequence: a **"Charge to N%"** chip (⚡) for each charge step and a **"Wait N min"** chip (⏱) for each wait step. These stop chips carry an editable field — type a new percent or a new number of minutes right in the chip to adjust the stop without reopening the profile editor. See the Run Profiles section of this guide for how stepped profiles work.
+When the queue carries steps — from an applied stepped run profile, or from breaks you added straight to the queue with the **+ Charge break / + Wait break / + Zone** chips — the strip shows them in place, in sequence: a **"Charge to N%"** chip (⚡) for each charge step, a **"Wait N min"** chip (⏱) for each wait step, and a 🎯 chip naming the saved zone(s) for each zone step. Charge and wait chips carry an editable field — type a new percent or a new number of minutes right in the chip and the change is saved back (to the profile when one is applied, otherwise to the queue's own steps). Chips for steps added on the queue also carry a ⋮⋮ move handle (opens the move-to-position picker) and a ✕ remove control. A zone chip shows a time estimate once available — prefixed "~" while it's still estimated from the zone's size rather than learned. See the Run Profiles section of this guide for how stepped profiles work.
 
 **Queue chip interactions:**
 - **Single click** — opens the room settings editor for that room.
@@ -79,7 +88,7 @@ Each room card shows:
 - Its **queue position number** and a **Move** button for reordering.
 - A drag handle (the `⋮⋮` icon) for drag-to-reorder.
 - A **settings button** (⚙) to open the room editor.
-- **Setting chips** showing any non-default settings at a glance — for example "Vacuum + Mop", "Boost", "Deep", "Edge Mop On", or "2× passes". Default settings (vacuum-only mode, standard suction, standard path, 1 pass) do not show a chip to keep the card clean.
+- **Setting chips** showing the room's settings at a glance — for example "Vacuum", "Vacuum and mop", "Boost", "Deep", "Edge Mop On", or "2× passes". The cleaning-mode chip is always shown, including plain "Vacuum"; the other chips appear only for non-default values — default suction, standard path, 1 pass, water off, and edge mop off show no chip, to keep the card clean.
 - A **time estimate chip** if the learning system has data for the room. Learned estimates show the time directly; fallback (default) estimates are prefixed with "~" to indicate they are approximate.
 - A **confidence chip** indicating how reliable the estimate is: "Reliable", "Learning", or "Uncertain" (or "Unlearned" if no data has been collected yet).
 - A **projected water use chip** when the room is set to a mop mode and the integration can calculate expected water consumption.
@@ -92,7 +101,7 @@ While a job is running, whichever room is *currently being cleaned* is pinned to
 
 ## Room settings editor
 
-Click the ⚙ button on a room card — or click a queue chip once — to open the room settings editor. Changes you make here are not saved until you click **Save**.
+Click the ⚙ button on a room card — or click a queue chip once — to open the room settings editor. A **queue status** row at the top shows whether the room is currently Included or Excluded, and tapping it toggles the room in or out of the queue immediately. The setting fields below are buffered — they are not saved until you click **Save** (the exception is **Transition Space**, which saves as soon as you toggle it).
 
 The editor shows:
 
@@ -145,7 +154,7 @@ If you later change the Cleaning Path and the room already has a learned time es
 
 Two passes are useful for heavily soiled rooms but roughly double the time spent in the room.
 
-The number of pass chips offered follows your vacuum (Eufy exposes 2, Roborock up to 3). On some vacuums passes are not per-room at all but a single whole-run value you set in the robot's own app — in that case the per-room control is omitted and the app's setting applies to the entire run.
+The number of pass chips offered follows your vacuum (Eufy exposes 2, Roborock up to 3). On some vacuums passes are not per-room at all but a single whole-run value you set in the robot's own app — in that case the chips remain, but a note under them warns that the per-room value here may be overridden by the robot's own app-set count.
 
 ### Edge Mopping
 

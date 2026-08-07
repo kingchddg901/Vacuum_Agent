@@ -30,7 +30,7 @@ If the run includes a **charge stop**, a **wait stop**, or a **zone step** betwe
 
 - **Charging to `<target>`%** — during a charge stop, shown with a lightning symbol (⚡). When the integration can estimate how long the charge will take, the subtitle reads "Charging to `<target>`% · ~N min left". A live "N% to go" counter shrinks toward the target as the battery fills.
 - **Waiting · ~N left** — during a wait stop (a timed dock-and-hold, for example a mop-dry pause), shown with a timer symbol (⏱). The countdown updates on its own.
-- **Cleaning zone `<name>`** — during a 🎯 zone step, shown while the vacuum works the saved-zone footprint. If the zone has been learned, an estimated finish time appears; before the first run it shows an "estimated from size" figure instead. The zone chip goes *current* in the live queue below.
+- **Cleaning zone `<name>`** — during a 🎯 zone step, shown while the vacuum works the saved-zone footprint. Once a time estimate is available (learned from past runs, or derived from the zone's size before the first one), the banner reads "Cleaning zone: `<name>` · ~N left" — the "~" appears either way, so the banner text itself doesn't tell you which kind of estimate you're looking at. (The learned-vs-size distinction is only shown pre-run, on the zone's queue chip in the room composer — see [Zones → Learned zone times](04a-zones.md#learned-zone-times).) The zone chip goes *current* in the live queue below, where its ETA is likewise always "~"-prefixed.
 
 Charge and wait stops are docks — the vacuum parks there and the card does **not** treat that as the run finishing or being cancelled. A zone step is active cleaning of its own footprint. In every case the run continues automatically to the next phase, and the whole job is only reported finished once the last phase completes.
 
@@ -45,10 +45,11 @@ Below the banner, a **Live Progress** list shows every room in the current job:
 | ✓ | Room is complete. The actual time taken is shown next to the name. |
 | ▶ | Room is currently being cleaned. Shows percentage done and estimated time remaining, or an ETA wall-clock time if a snapshot is available. The estimated total duration for the room is shown alongside a confidence chip. |
 | ○ | Room is queued but not yet started. An ETA wall-clock time is shown if one is available. |
+| ⤫ | Room was **skipped** — the run advanced past it without cleaning it. The row reads "Skipped" and shows no ETA (an ETA for a room that won't be cleaned would be a false promise). |
 
 The list animates as rooms transition between states — you do not need to refresh the page.
 
-A room that appears to have been **skipped** is not shown as a row in this list — it is marked on the queue chips instead (dashed outline + struck-through name). See [Skipped-room marker](#skipped-room-marker) below.
+A skipped room is also marked on the queue chips (dashed outline + struck-through name). See [Skipped-room marker](#skipped-room-marker) below.
 
 ---
 
@@ -76,7 +77,7 @@ So a stepped run reads at a glance — for example *Kitchen ✓ · ⚡ Charge to
 **Collapse it.** The live queue can be folded to a single summary line when you'd rather watch the map or the banner — tap to collapse or expand it. It's a separate, always-available view: collapsing it doesn't remove it, and it never disturbs the running job.
 
 !!! note "The live queue reads a frozen snapshot"
-    The live queue is drawn from the job's plan as it was **when the run started** — a snapshot frozen at launch. That's why re-queuing rooms mid-run (building your *next* clean while this one finishes) can't disturb the chips you're watching: the live queue reflects the running job, and the editable queue below reflects what you're setting up next. The two are deliberately independent.
+    The live queue is drawn from the job's plan as it was **when the run started** — a snapshot frozen at launch. The editable queue below is a separate thing entirely: it stays [locked while the job runs](03-queue-and-order.md#the-queue-is-locked-during-a-run) — including through a mid-run charge or wait stop — and unlocks once the job is finalized and the vacuum entity is no longer reporting `cleaning`/`paused`. Once it unlocks, the queue you build for your *next* clean can never disturb the chips of the job you just watched.
 
 ---
 
@@ -110,6 +111,8 @@ This is the gentle, earlier tier below the stall notice below. It simply means "
 
 A brand-new room the integration has not yet learned a time for does **not** trigger this warning — with no real baseline to judge against, it would otherwise flag every room on a fresh setup. The warning only appears once the room has a learned estimate to overrun.
 
+Both this warning and the stall notice below depend on strict room-order tracking, so they only appear on order-honoring brands (Eufy). On path-optimizing brands (the Roborock S6), where the robot's actual room sequence isn't tracked the same way, neither one appears — a Strict-order run doesn't change this.
+
 ---
 
 ## Stall detection warning
@@ -130,7 +133,7 @@ The elapsed time and expected time are shown in parentheses when available. "Stu
 
 ## Skipped-room marker
 
-If the live tracking sees the job advance past a queued room without ever cleaning it, that room is marked as **skipped** in the queue: its chip is drawn with a dashed outline and its name is struck through.
+If the live tracking sees the job advance past a queued room without ever cleaning it, that room is marked as **skipped** in the queue: its chip is drawn with a dashed outline and its name is struck through, and its row in the Live Progress list switches to the ⤫ "Skipped" style (no ETA — an ETA for a room that won't be cleaned would be a false promise).
 
 This is a conservative signal — it only appears when the integration can be sure a room was genuinely passed over, not merely cleaned out of order. On most Eufy vacuums, which clean their queue strictly in order, a mid-run skip cannot be detected reliably while the job is still running, so this marker rarely appears live. The authoritative "these rooms were missed" report is the **incomplete run banner** below, which is reconciled after the job ends. The live skipped marker is an early hint for that same situation.
 

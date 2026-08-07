@@ -33,6 +33,8 @@ The card shows a brief reason below the action bar when the Start button is disa
 | `active_job_running` | A room-clean job is already running. |
 | `vacuum_busy` | The vacuum is busy with another task and cannot accept a new room job. |
 
+Room-access-graph problems surface through the same slot when access links are half-configured: `incomplete_access_graph` (names the rooms whose links are missing or broken), `access_graph_required` (blocker rules exist with no access graph at all), and `access_graph_required_for_rules` (rules are set but no complete graph exists to evaluate them against).
+
 Some conditions are **warnings** rather than hard blocks. When the dock is currently drying pads (`dock_drying`), the start button remains enabled but is styled with a warning colour, and a tooltip explains the situation. Similarly, if the planned job is estimated to use most or all of the clean water in the tank, a water warning appears but does not prevent the start.
 
 ---
@@ -50,7 +52,7 @@ Once a job starts, the action bar updates to reflect the live state:
 - The queue is **locked** while the job runs: room toggles, drag-reorder, **Select All**, and **Clear Queue** are disabled so you can't disturb the run in progress — the job follows the snapshot it started with. See [The Queue and Room Order → The queue is locked during a run](03-queue-and-order.md#the-queue-is-locked-during-a-run).
 
 !!! note "Stepped runs dock mid-job on purpose"
-    If you started a [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) — a run profile with **charge** or **wait** stops — the vacuum returns to its dock between room groups to charge or hold. That is expected: the run has not ended, and the card knows the dock is intentional, so it will not report the job as finished or cancelled until the whole sequence is done. During a stop the live panel shows the charge or wait progress instead of a room percentage. See [Steps: charging and waiting mid-run](10-profiles.md#steps-charging-and-waiting-mid-run) for the full walkthrough.
+    If you started a [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) — a run profile with **charge** or **wait** stops, or a plain queue you added breaks to with the **+ Charge break / + Wait break** chips — the vacuum returns to its dock between room groups to charge or hold. That is expected: the run has not ended, and the card knows the dock is intentional, so it will not report the job as finished or cancelled until the whole sequence is done. During a stop the live panel shows the charge or wait progress instead of a room percentage. See [Steps: charging and waiting mid-run](10-profiles.md#steps-charging-and-waiting-mid-run) for the full walkthrough.
 
 ---
 
@@ -74,7 +76,7 @@ A [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) — one with 
 
 ## Pausing a Job
 
-Press the **Pause** button while a job is running. The button is only visible when a job is active and pausing is allowed — its visibility keys off the vacuum entity state being `cleaning`, not the tracked job status. After you press **Pause**:
+Press the **Pause** button while a job is running. The button is only visible when a job is active and pausing is allowed — its visibility keys off the backend's job-control snapshot (`can_pause`, true while the tracked job status is `started`), so Pause stays available even while the robot is docked on a mid-run charge or wait stop, when the vacuum entity itself no longer reads `cleaning`. Only when that snapshot is unavailable (an older backend) does the card fall back to checking the vacuum entity state for `cleaning`. After you press **Pause**:
 
 - The vacuum pauses.
 - The tracked job status changes to `paused`.
@@ -85,7 +87,7 @@ Press the **Pause** button while a job is running. The button is only visible wh
 
 ## Resuming a Job
 
-Press the **Resume** button to send a start command to the vacuum and resume the tracked job. The **Resume** button only appears when the vacuum entity state is `paused` (its visibility keys off the vacuum state, not the tracked job status). After resuming, the job status returns to `started`, the **Pause** button reappears, and the card continues tracking progress where it left off. Paused time is accumulated separately so elapsed-time estimates remain accurate.
+Press the **Resume** button to send a start command to the vacuum and resume the tracked job. The **Resume** button appears when the backend's job-control snapshot reports `can_resume` (true while the tracked job status is `paused`); on an older backend without that snapshot the card falls back to checking the vacuum entity state for `paused`. After resuming, the job status returns to `started`, the **Pause** button reappears, and the card continues tracking progress where it left off. Paused time is accumulated separately so elapsed-time estimates remain accurate.
 
 ---
 
