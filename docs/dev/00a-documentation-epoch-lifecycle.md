@@ -453,3 +453,22 @@ That gives Vacuum Agent a documentation lifecycle instead of an ever-growing doc
 Every document answers exactly one of these questions. If a passage answers a different
 question than the document it lives in, it belongs somewhere else — that is the entire
 routing rule, compressed.
+
+---
+
+## 13. Epoch-edge fixes: the fix and its DR statement move together
+
+The truth pass documents what the code DOES — including its bugs (a bug is flagged as a
+bug signal, never papered over in prose). But when a fix for a pass-found bug lands at the
+epoch edge, the DR statement it disproves is corrected **in the same commit**, verified
+against source like any reconciled statement. Do not bless a description you already know
+is false and queue its correction as a next-epoch delta: that manufactures drift out of
+process.
+
+The delta ledger is a **deferral buffer, not a mandatory queue**. It exists for work whose
+doc-side cannot ride the change — mid-feature churn, no verification capacity, meaning not
+yet settled. If you can update the DR statement with the fix, you must; a delta entry for
+a change whose documentation was ready is a process failure, not compliance.
+
+(Ruled by Chris 2026-08-06, during the epoch-1-edge fix wave; the same-commit pattern was
+already the practice for every fix that wave landed.)
