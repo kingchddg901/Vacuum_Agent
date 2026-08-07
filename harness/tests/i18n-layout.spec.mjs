@@ -22,6 +22,8 @@
  * faithful (bottom nav renders ~2.8k chars) + eyeballed. See project_i18n_rollout.md.
  */
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+
 import { mountHarness, renderTab, probeLayout, VIEW_ORDER } from "../lib/mount-page.mjs";
 
 const registerPseudo = (page) =>
@@ -54,6 +56,21 @@ test.describe("i18n layout gate: pseudo-long @390px (mobile)", () => {
     test(`${view} survives pseudo-long (mobile chrome)`, async ({ page }) => {
       await mountHarness(page);
       await registerPseudo(page);
+      // ACCEPTED RED (2026-08-07): map_config overflows three
+      // `.evcc-map-variant-label` spans by ~10px at 390px under pseudo-long ONLY.
+      // The gate is deliberately harder than any language: expand() inflates a
+      // 4-char word to 13 ("Dark" -> "Dark lAngerer"), a 3.25x stretch. Measured
+      // against REAL catalogues at the same width, every shipped locale is clean
+      // with room to spare -- nl/ru/fr/it/de/tr/pt/es/cs/pl all report
+      // scroll=-2, culprits=0 -- and the longest real string for that label
+      // (nl "Achtergrondafbeelding", 21 chars) still fits. Chris: keep the gate
+      // hard, mark this known. German is the hardest case he will actually run,
+      // and it is pinned GREEN below.
+      // test.fail(), not skip: Playwright errors if it starts PASSING, so fixing
+      // the 10px forces this marker to be removed rather than rotting here.
+      if (view === "map_config") {
+        test.fail(true, "accepted: ~10px on 3 map-variant labels under 3.25x pseudo inflation; every real locale is clean (see the de gate below)");
+      }
       const res = await renderTab(page, view, { width: 390, freeze: true, lang: "xx", mobile: true });
       expect(res.ok, res.error).toBe(true);
       assertNoOverflow(view, await probeLayout(page));
@@ -99,4 +116,36 @@ test.describe("i18n layout gate: Cyrillic room data", () => {
       assertNoOverflow("rooms-cyrillic", await probeLayout(page));
     });
   });
+});
+
+
+// REAL CATALOGUE, hardest shipped language. Chris: "german is the hardest test I
+// will run on it." The pseudo gate above stresses at 3.25x, which nothing human
+// reaches; this asserts the bar that actually matters -- a language people read,
+// at a real phone width, with the real mobile chrome.
+//
+// Added the same day map_config's pseudo case was marked known-failing, and for
+// that reason: silencing a synthetic red without adding a real check would have
+// traded a noisy gate for no gate. Measured green on all nine views before being
+// committed as a gate, so it lands active rather than red.
+const DE = JSON.parse(
+  readFileSync("custom_components/eufy_vacuum/frontend/locales/de.json", "utf8"),
+);
+
+test.describe("i18n layout gate: REAL German @390px (mobile)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  for (const view of VIEW_ORDER) {
+    test(`${view} survives real German`, async ({ page }) => {
+      await mountHarness(page);
+      await page.evaluate(
+        (cat) => window.__evcc.registerLocale(
+          "de", window.__evcc.flattenLocale(cat, window.__evcc.en).clean),
+        DE,
+      );
+      const res = await renderTab(page, view, { width: 390, freeze: true, lang: "de", mobile: true });
+      expect(res.ok, res.error).toBe(true);
+      assertNoOverflow(`${view} [de]`, await probeLayout(page));
+    });
+  }
 });
