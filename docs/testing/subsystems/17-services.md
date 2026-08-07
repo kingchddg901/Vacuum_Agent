@@ -26,7 +26,7 @@ docs, not here:
 
 | Source module | Stmts | Cov | Test file | Mocking |
 |---------------|------:|----:|-----------|-------|
-| `job_control.py` | 142 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x16** |
+| `job_control.py` | 142 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x12** |
 | `run_profiles.py` | 104 | 98% | `test_services_run_profiles.py` | **bare x1** |
 | `adapter_config.py` | 101 | 96% | `test_services_adapter_config.py` | clean |
 | `setup.py` | 159 | 86% | `test_services_errors_setup.py` | **bare x2** |

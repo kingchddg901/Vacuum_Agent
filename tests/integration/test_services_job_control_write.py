@@ -165,7 +165,7 @@ async def test_zone_clean_refuses_when_job_in_progress(jc, reason):
     mgr.get_start_status = MagicMock(
         return_value={"blocked": True, "reason": reason, "message": "busy"}
     )
-    mgr.dispatch_zone_clean = AsyncMock(return_value={"success": True})
+    mgr.dispatch_zone_clean.return_value = {"success": True}
 
     result = await _handle_start_zone_clean(
         hass, _call(zones=[[0, 0, 1, 1]])
@@ -189,7 +189,7 @@ async def test_zone_clean_ignores_non_inflight_block_reasons(jc):
     mgr.get_start_status = MagicMock(
         return_value={"blocked": True, "reason": "onboarding_required", "message": "x"}
     )
-    mgr.dispatch_zone_clean = AsyncMock(return_value={"success": True, "zones_dispatched": 1})
+    mgr.dispatch_zone_clean.return_value = {"success": True, "zones_dispatched": 1}
 
     result = await _handle_start_zone_clean(
         hass, _call(zones=[[0, 0, 1, 1]])
@@ -203,8 +203,8 @@ async def test_zone_clean_proceeds_when_ready(jc):
     """[JCW-14] sanity: a ready (not blocked) start status dispatches normally --
     the documented no-tracking/fire-and-forget semantics are unchanged."""
     hass, mgr = jc
-    mgr.get_start_status = MagicMock(return_value={"blocked": False, "reason": "ready"})
-    mgr.dispatch_zone_clean = AsyncMock(return_value={"success": True, "zones_dispatched": 1})
+    mgr.get_start_status.return_value = {"blocked": False, "reason": "ready"}
+    mgr.dispatch_zone_clean.return_value = {"success": True, "zones_dispatched": 1}
 
     result = await _handle_start_zone_clean(
         hass, _call(zones=[[0, 0, 1, 1]])

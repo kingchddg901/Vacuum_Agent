@@ -18,7 +18,7 @@
     "tests/integration/test_sensor_status.py": 11,
     "tests/integration/test_services_dock.py": 5,
     "tests/integration/test_services_errors_setup.py": 2,
-    "tests/integration/test_services_job_control_write.py": 16,
+    "tests/integration/test_services_job_control_write.py": 12,
     "tests/integration/test_services_queue.py": 1,
     "tests/integration/test_services_rooms.py": 1,
     "tests/integration/test_services_run_profiles.py": 1,

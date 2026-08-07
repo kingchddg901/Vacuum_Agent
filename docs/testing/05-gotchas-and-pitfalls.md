@@ -264,3 +264,40 @@ argument for the loop above rather than a single happy-path case.
 The Python equivalent is milder but real: `float(None)` raises, but
 `_safe_float(value, 0.0)` returns the default and is indistinguishable from a
 genuine `0.0`. Prefer a `None` default and let the caller decide.
+
+## Assigning over a spec'd method throws its protection away
+
+`spec_manager()` / `spec_of()` give every method an autospec child that checks the
+call signature. **Assigning a fresh mock over one silently removes that check** —
+and the assignment usually happens in exactly the tests that most need it.
+
+```python
+mgr = spec_manager()
+mgr.get_start_status(bogus_kwarg=1)          # TypeError — protected
+
+mgr.get_start_status = MagicMock(return_value={"ok": True})
+mgr.get_start_status(bogus_kwarg=1)          # ACCEPTED — protection gone
+
+mgr2 = spec_manager()
+mgr2.get_start_status.return_value = {"ok": True}
+mgr2.get_start_status(bogus_kwarg=1)         # TypeError — protection KEPT
+```
+
+So: **`x.method.return_value = …`, not `x.method = Mock(return_value=…)`.** Same
+stub, same test, signature checking retained.
+
+Two caveats worth knowing rather than guessing at:
+
+**It only matters for methods that HAVE a signature.** Roughly half of
+`EufyVacuumManager`'s public surface (77 of 158) is thin `**kwargs` delegators, where
+autospec has nothing to check and the two forms are equivalent. The conversion is
+worth doing on the strict half, not mechanically everywhere.
+
+**Attribute protection is bypassable by assignment.** Reading `mgr.learning` raises
+`AttributeError` — that is [spec_manager](03-fixtures-and-helpers.md) refusing to
+invent one of audit 1's four defects. But *assigning* `mgr.learning = MagicMock()`
+succeeds, and every later read then works. `create_autospec` is not `spec_set=True`,
+and cannot be here: `spec_manager` legitimately assigns the runtime `self.<name>`
+attributes it scrapes from `core/manager.py`, which a class-derived spec does not
+know about. If a test needs `mgr.learning`, that is the signal it is testing against
+a shape production does not have.
