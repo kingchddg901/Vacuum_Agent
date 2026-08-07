@@ -747,3 +747,23 @@ gets a destination tag in a **removal manifest** the trim submits with its candi
 The reviewer spot-checks the manifest; unrouted valuable prose is a REJECTED trim, same
 class as a weakened contract. The manifest is also a handoff artifact — it feeds rule-11
 forensics for free.
+
+## STAFFING / MODEL FIT (Chris's token constraint, 2026-08-06)
+
+- **Trim / Blind Build / Test: Sonnet.** Per-artifact loops. The builder
+  especially: an over-strong builder compensates for an underspecified doc and
+  WEAKENS the ablation test — competent-but-ordinary is the honest instrument.
+- **Review/adjudication: Opus (high).** Causal-chain judgement, one section's
+  evidence at a time.
+- **The economy is a SCRIPT, never a model:** escrow ledger, trim budget (N=3),
+  B-repair cap (2), contamination tracking, 1-in-5 random handoff sampling,
+  outlier statistics — mechanical workflow bookkeeping. Agents never compute
+  their own scores; sampling cannot be predicted or persuaded. The protocol
+  assumes gamed incentives; the counter is arithmetic that does not listen,
+  not a smarter referee.
+- **Fable at exactly two points, by escalation not by staffing:**
+  1. contested forensic rulings (void/no-void with payout consequences that
+     survive the Opus forensic audit);
+  2. ONE review pass over the doc-23 calibration round's outcome — the
+     precedent-setter — before fan-out.
+  Fable spend is measured in rulings, not rounds.
