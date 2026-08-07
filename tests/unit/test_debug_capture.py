@@ -36,9 +36,35 @@ TEST_AREAS = {"map": (".mapping", ".map_source"), "learning": (".learning",)}
 
 @pytest.fixture(autouse=True)
 def _configured():
-    """Point the (module-global) recorder at a known logger tree for each test."""
+    """Point the (module-global) recorder at a known logger tree for each test, and put
+    every scrap of global state back afterwards.
+
+    R2-TEST-1. PKG is the REAL integration logger, and tests here mutate it directly —
+    test_stop_restores_logger_and_keeps_records sets it to WARNING as its setup, to prove
+    stop() restores a pre-existing level. It never undid that, so the package logger stayed
+    at WARNING for the whole session and every later test that expected an INFO record via
+    caplog got nothing: caplog.set_level() raises the ROOT logger and its own handler, but
+    the record is already discarded at the SOURCE logger, which is upstream of both.
+
+    It surfaced as tests/adapters/test_brand_selection.py failing with an empty caplog under
+    `pytest tests/unit tests/integration tests/adapters` while a bare `pytest tests` stayed
+    green — alphabetical collection runs tests/adapters BEFORE tests/unit gets to poison it.
+    A pass/fail that depends on argument order is worth more than the one assertion it broke.
+
+    `configure()` also writes module globals in the production module (_PACKAGE_LOGGER,
+    _AREAS), retargeting the recorder process-wide; restored here for the same reason."""
+    import custom_components.eufy_vacuum.debug_capture as _dc
+
+    logger = logging.getLogger(PKG)
+    prior_level, prior_propagate = logger.level, logger.propagate
+    prior_pkg, prior_areas = _dc._PACKAGE_LOGGER, _dc._AREAS
     configure(PKG, TEST_AREAS)
-    yield
+    try:
+        yield
+    finally:
+        logger.setLevel(prior_level)
+        logger.propagate = prior_propagate
+        _dc._PACKAGE_LOGGER, _dc._AREAS = prior_pkg, prior_areas
 
 
 class _FakeCall:
