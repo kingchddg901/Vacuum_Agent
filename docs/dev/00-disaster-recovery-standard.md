@@ -1,8 +1,9 @@
 # 00 — Disaster-Recovery Doc Standard
 
 > **Scope:** The bar every `docs/dev/` subsystem doc is measured against. A doc is
-> *disaster-recovery grade* when someone with **only the doc — no source** — can
-> rebuild the subsystem with correct behaviour, API, and data shapes. This file
+> *disaster-recovery grade* when someone with **only the docs — no source** — can
+> rebuild the subsystem with correct behaviour, API, and data shapes (its own section
+> for the subsystem, the neighbouring sections for their interfaces — §0). This file
 > defines what that requires, why, and how to check it. It is grounded in two
 > measured reconstruction runs, not vibes.
 
