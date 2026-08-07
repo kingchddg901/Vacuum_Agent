@@ -46,7 +46,7 @@ coordinator.get_adapter_value(vacuum_entity_id, *path, fallback=None) -> Any
 coordinator.shutdown()               # clears _active_coordinator
 ```
 
-The coordinator owns its own `_registry: dict[str, dict]` dict, separate from the module-level `_REGISTRY` fallback.
+The coordinator owns its own `_registry: dict[str, dict]` dict, separate from the module-level `_REGISTRY` fallback. `get_active_coordinator()` (module level, `registry.py:81-87`) returns the active coordinator or `None`, for code paths that prefer the coordinator API but must handle the pre-setup / test-fixture case.
 
 ### 2.2 Validation
 
@@ -56,7 +56,13 @@ The coordinator owns its own `_registry: dict[str, dict]` dict, separate from th
 _validate_adapter(config: dict) -> list[str]   # returns a list of issue strings
 ```
 
-`_validate_adapter()` returns a list of human-readable issue strings (empty = valid); it does **not** raise. `register_adapter_config()` logs every returned issue as a `warning` and then stores the config anyway — validation issues are advisory, not blocking. The one hard failure is a structurally unusable config: if `config` is not a dict, `register_adapter_config()` raises `TypeError` (and `_validate_adapter()` returns the single issue `"adapter config must be a dict"`).
+`_validate_adapter()` returns a list of human-readable issue strings (empty = valid); it does **not** raise itself. What `register_adapter_config()` does with a non-empty issues list is **source-dependent** (RP-033/RF-32, `registry.py:163-183` on the coordinator method, mirrored at `:570-592` on the bare-function fallback shim):
+
+- **`source == "config"`** (a stored, UI/service-authored config): hard-raises `ServiceValidationError`. A broken stored config used to register cleanly and shadow the live adapter, with every block it omitted silently falling through to that block's own absent-default (Eufy-shaped) behaviour.
+- **`source == "code"`** (the two shipped brand adapters, registered at startup): every issue is logged as a `warning` and the config is stored anyway — both pass validation cleanly today, but a future code-adapter regression must degrade to a warning rather than take every install's startup down with it.
+- A non-dict `config` raises `TypeError` regardless of source (and `_validate_adapter()` returns the single issue `"adapter config must be a dict"`) — always was structurally unusable.
+
+Both the coordinator method and the bare-function fallback shim implement the same source-based behavior. **Only on the non-raising paths** — no issues at all, or issues on a `source == "code"` config — registration goes on to run two standalone **advisories** (warn-only, never raise, both source types): `_warn_eufy_fallbacks` (names each engine block the adapter did not declare and the Eufy default that takes over — see §7.1) and `_warn_completion_gate_orphan` (`registry.py:511-538`, RP-033/COMMON-2: `completion.require_job_active_clear` set without `entities.job_active` declared — the flag has no runtime effect and completion falls back to the sentinel check). On the `source == "config"` hard-raise path, the raise happens before either advisory call — a rejected stored config never gets an advisory, only the raised error.
 
 Current checks:
 
@@ -65,8 +71,9 @@ Current checks:
 - **`room_attribution` block** (when present): must be a dict; `room_attribution.engine` is required and must resolve to a known room-attribution engine (`known_room_attribution_names()` in `learning/room_attribution_engines.py`); `room_attribution.tuning` must pass the resolved engine's own `validate_tuning()`. This mirrors the `job_segmenter` check (deferred import). An absent block falls back to the Eufy engine (`eufy_anchor_winding_v1`); declare `noop_room_attribution` to disable external-run auto-attribution. This is the external-run room-attribution seam (see §2.4).
 - **`room_profiles` block** (when present): must be a dict; `room_profiles.default_profile` (when set) must be a string, and each of `builtins`, `custom_template`, `legacy_aliases`, `floor_type_water_defaults`, `floor_type_fan_defaults`, `normalize_defaults` (when set) must be a dict. The framework merges this block over the in-code defaults per key (`resolve_profile_catalog()`), so a partial block is fine — this rule only catches a malformed declaration.
 - **`dispatch.template`** (when present): must resolve to a registered dispatch engine (`known_dispatch_templates()` in `queue/dispatch_engines.py`). A schema-valid template with no registered engine yet is flagged rather than silently falling back to the Eufy shape.
-
-Additional validation is expected to be added as the schema stabilizes.
+- **`capability_hints` block** (when present, `registry.py:426-440`): must be a dict; every key must be in `core/capabilities.py::KNOWN_CAPABILITY_HINTS` — an unrecognised hint key is a silent no-op at read time (`_hints.get(name)` misses), so a typo is caught here instead of at "why is this control showing?".
+- **`dispatch.phase_timing`** (when present, `registry.py:458-479`, RP-033/WD-5): must be a dict; every numeric value must be **positive** (a 0 poll interval busy-loops; 0 `max_attempts` means the watchdog never tries). This is an earlier check on the same values `core/manager.py::_phase_timing`'s own `_minimums` clamp guards at runtime — the runtime clamp stays as defense-in-depth.
+- **`setup.steps`** (when present, `registry.py:480-506`, RP-033/SETUP-9): every step id must be in the allowed set, which is read from `ADAPTER_CONFIG_SCHEMA["setup"]["fields"]["steps"]["values"]` itself (not re-declared) so the two cannot drift. This makes the schema description's "unknown step IDs reject the adapter at registration" (`config_schema.py:987`) actually true for a stored config; still warn-only for a code config, per the source-based behavior above.
 
 ### 2.3 Legacy shim functions (module level)
 
@@ -82,6 +89,8 @@ get_adapter_value(vacuum_entity_id, *path, fallback=None) -> Any
 ```
 
 `get_adapter_value(*path)` does nested dict traversal: each path segment indexes one level deeper. Returns `fallback` on any `KeyError` or `TypeError`.
+
+**`adapter_honors_clean_order(vacuum_entity_id) -> bool`** (module level, `registry.py:658-692`) is **the one read** of `capabilities.honors_clean_order`. Four modules ask the question, six call sites total: `core/manager.py` (bounds-exit gate, `:4078`; snapshot export, `:5029`), `jobs/active_job.py` (anomaly gates, `:1058`), `jobs/phase_runner.py` (segmented-vs-apportioned per-room timings, `:1234`), `planning/run_plan.py` (advisory-order note, `:756`; strict-order split, `:811`) — one of them used to answer it differently. Contract: **only a literal `False` means "does not honor order"** — absent / `None` / a non-dict `capabilities` block all resolve to the default `True`, because a false "does not honor order" sends confidently-wrong evenly-apportioned per-room baselines into learning.
 
 ### 2.4 Pluggable engine seams
 
@@ -100,7 +109,7 @@ Four brand-specific subsystems are pluggable behind the **same seam shape**: a `
 
 - **Eufy fallback, not noop.** Unlike the map seam (whose `get_segmenter_engine()` falls back to `noop_fallback`), `get_job_segmenter_engine()` falls back to the **Eufy** engine (`_FALLBACK_JOB_ENGINE = "eufy_counter_v1"`) for an absent/unknown name — same policy as the dispatch seam. The framework's historical no-adapter default is Eufy counter segmentation, and live rollover + learned history must keep working byte-for-byte; a noop fallback would silently stop live rollover. `NoopJobSegmenter` (`"noop_job_fallback"`) stays registered for a future brand with no segmentable signal, but it is **not** the fallback.
 - **`select_active` stays a framework function, not on the engine.** The job pipeline is three stages — `find_candidates → select_active → build_segments`. The engine owns the two *brand-specific* stages (`find_candidates`, `build_segments`) plus the legacy one-shot composition `segment_legacy`. `select_active` is pure ranking/filtering over the candidate *shape* (`kind`/`confident`/`strength`/`id`), so it is brand-agnostic and stays a direct framework import (`counter_segmentation.select_active`) — the external-review wizard's count/toggle re-selection logic is then uniform across brands.
-- **Cross-engine contract.** The `JobBoundaryCandidate` and `JobSegment` `TypedDict`s are the canonical shape every engine emits (the exact field union the counter primitives already produce). `EufyCounterSegmenter` delegates verbatim to the `counter_segmentation` primitives, and its `DEFAULT_TUNING` (`gap_delayed_s` 35, `gap_transit_s` 60, `gap_plateau_s` 90, `area_jump_m2` 2.0, `cadence_s` 30) is defined *by reference* to that module's constants, so the Eufy path can't drift.
+- **Cross-engine contract.** The `JobBoundaryCandidate` and `JobSegment` `TypedDict`s are the canonical shape every engine emits (the exact field union the counter primitives already produce). `EufyCounterSegmenter` delegates verbatim to the `counter_segmentation` primitives, and its `DEFAULT_TUNING` (`gap_delayed_s` 35, `gap_transit_s` 60, `gap_plateau_s` 90, `area_jump_m2` 2.0, `cadence_s` 30, `stall_wall_s` 600) is defined *by reference* to that module's constants, so the Eufy path can't drift.
 - **The Eufy `kind` vocabulary** (`"wash_plateau"` / `"transit"` / `"area_jump"` / `"weak"`) is produced by `find_candidates` and referenced at the Eufy-specific call sites (live `rollover_kinds`, the legacy `{"wash_plateau","area_jump"}` filter). A future brand supplies its own engine *and* its own kind literals at those sites — the documented extension point; no kind indirection is built into the seam.
 
 **Dispatch-engine specifics** (`queue/dispatch_engines.py`):
@@ -116,7 +125,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 
 ## 3. Config Schema (`config_schema.py`)
 
-`ADAPTER_CONFIG_SCHEMA` is a single dict defining all valid top-level blocks. The 21 top-level keys:
+`ADAPTER_CONFIG_SCHEMA` is a single dict defining all valid top-level blocks. It has **32** top-level keys. The 21 originally-declared blocks:
 
 | Block | Description |
 |---|---|
@@ -124,7 +133,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `source` | `"code"` or `"config"` |
 | `display_name` | Human-readable adapter name |
 | `brand` | Short brand/app name the card uses in copy (generic phrasing when absent) |
-| `entities` | Entity ID map (18 entity keys) |
+| `entities` | Entity ID map (25 entity keys) |
 | `vocabulary` | State string sets and card dropdown options |
 | `completion` | Completion signal configuration |
 | `charging` | Charging detection configuration |
@@ -142,25 +151,29 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `upkeep_catalog` | Per-model upkeep guide library |
 | `water_model_configs` | Tank capacity and water usage constants |
 
-**Required blocks:** only `adapter_id`, `source`, `entities`, and `dispatch` are `required: True` in the schema; every other block is optional. (Note the validator does not currently *enforce* these — code-flag CS-1, §2.2.)
+— plus **11 late-declared blocks** (RP-033/RF-32 closed the "shipped before declared" gap; `test_no_undeclared_top_level_keys` now asserts a future block cannot ship undeclared):
 
-> **Note:** the 21 keys above are the complete set in `ADAPTER_CONFIG_SCHEMA`.
-> Several blocks the Eufy adapter actually declares are **not** in the schema
-> dict — `mapping`, `job_segmenter`, `room_profiles`, `map_state_source`,
-> `map_render`, `room_attribution`, `anomaly`, `wash_frequency_bounds`, plus
-> **`model_family`** and **`capability_hints`** (stored so `refresh_vacuum_capabilities`
-> can reproduce the startup `detect_capabilities` inputs), and the schema-absent
-> sub-keys `discovery.implicit_map_id`, `dispatch.zone_command`, and `cleaning_time_unit`. The
-> schema walker iterates the *schema's* keys, so extra blocks are simply ignored
-> by the schema (declaring them there is a deferred follow-up). `_validate_adapter()`
-> nonetheless validates `mapping`, `job_segmenter`, `room_attribution`, and
-> `room_profiles` opportunistically *when present* (see §2.2 and §2.4); the
-> remaining schema-absent blocks carry orchestration knobs with no validation rule
-> yet. The Eufy CV map segmenter lives in `adapters/eufy/segmentor.py`; the Eufy
-> counter/run segmenter engine is `eufy_counter_v1` in
-> `learning/job_segmenter_engines.py`.
+| Block | Description |
+|---|---|
+| `mapping` | Pluggable **map** segmenter engine + tuning (interior validated at registration, §2.2) |
+| `map_state_source` | Read the provider's own map segmentation instead of segmenting an image |
+| `map_render` | VA-owned client-side map render; **presence** gates `supports_va_render` (`core/manager.py:5113`) |
+| `job_segmenter` | Pluggable job/run segmenter engine + tuning (absent ≠ noop — Eufy fallback, §2.4) |
+| `room_attribution` | Pluggable external-run room-attribution engine (absent → Eufy anchor-winding fallback) |
+| `room_profiles` | Adapter-declared room-profile catalog / overrides |
+| `anomaly` | Run-anomaly detection thresholds |
+| `wash_frequency_bounds` | Mop-wash cadence bounds in minutes (`default`/`min`/`max` fields) |
+| `cleaning_time_unit` | str — unit of the bare-number cleaning-time counter (`"min"` Roborock, `"s"` Eufy default) |
+| `model_family` | str — coarse hardware family, stored so a capability refresh reproduces startup inputs |
+| `capability_hints` | Hints fed INTO `detect_capabilities` — distinct from `capabilities` (same key names, different dicts/consumers); a hint is authoritative over the derived default |
 
-### 3.1 `entities` block (18 keys)
+The nine engine/open-ended blocks (`settings_selects`, `mapping`, `map_state_source`, `map_render`, `job_segmenter`, `room_attribution`, `room_profiles`, `anomaly`, `capability_hints`) are declared as bare `dict`s with no nested `fields` — their interiors are validated at registration by `_validate_adapter` where a rule exists (§2.2), and enumerating them wrongly in the schema would produce false conformance failures. `discovery.implicit_map_id` and `dispatch.zone_command`/`dispatch.zone_coords` are also schema-declared now (they were once schema-absent).
+
+**Required blocks:** only `adapter_id`, `source`, `entities`, and `dispatch` are `required: True` in the schema. Enforcement is split: `_validate_adapter()` at registration still does **not** check required fields (code-flag CS-1, narrowed), but the **schema walker** now runs at runtime on the stored-config save path — see below.
+
+> **The schema walker is production code now (RP-033/RF-32).** `validate_against_schema(config, schema, path="")` + the bound entry point `validate_adapter_config(config)` live in `config_schema.py` itself (`config_schema.py:1870-1975`; extracted from the test suite's pytest-only `_validate`), and `services/adapter_config.py::_handle_save_adapter_config` calls `validate_adapter_config()` **before** persisting/registering a stored config (`services/adapter_config.py:82-89`) — one implementation backs both the tests and the save path. The walk checks required keys, type families, enum `values` membership, nested `fields`, per-entry `entry_fields`, **and unknown keys** (RC-1) at every level where the schema enumerates a shape — the nine bare-`dict` blocks above are legitimately open-ended and skip the unknown-key check there. Keys whose name starts with `_` are exempt everywhere (RP-033/VAC-3): the code adapters stash adapter-internal bookkeeping there (e.g. Eufy's full `_entity_candidates` probe dict, kept so a capability refresh can re-probe multi-candidate keys).
+
+### 3.1 `entities` block (25 keys)
 
 | Key | Domain | Description |
 |---|---|---|
@@ -182,8 +195,15 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `work_mode` | sensor | Current work/drive mode |
 | `cleaning_intensity` | select | Suction/cleaning intensity |
 | `scene_select` | select | Vendor-app scenes select (eufy-clean `select.<object_id>_scene`); options are saved app scenes and selecting one runs it immediately; surfaced on the dashboard snapshot for the card's App-scenes run-launcher; absent (Roborock) hides the group. |
+| `job_active` | binary_sensor | On while a job runs (Roborock only). Drives `completion.require_job_active_clear` — the brand's terminal signal |
+| `mop_active` | binary_sensor | Mop is attached/active (Roborock only) |
+| `last_clean_end` | sensor | Timestamp the device stamps on a clean-summary write. **Observability only** — never gates completion; read by the issue-#46 observation trace + diagnostics, deliberately absent from the lifecycle watch list |
+| `total_cleaning_area` | sensor | Lifetime cleaned-area counter (diagnostic only) |
+| `total_cleaning_time` | sensor | Lifetime cleaning-time counter (diagnostic only) |
+| `total_cleaning_count` | sensor | Lifetime completed-job counter (diagnostic only) |
+| `dock_firmware_version` | sensor | Dock firmware version (diagnostic only) |
 
-> **The 18 keys are the schema's declared set, not the framework's full read set.** Adapters populate additional entity keys the framework reads but the schema doesn't declare: `job_active` + `mop_active` (Roborock), `total_cleaning_area`/`_time`/`_count` + `dock_firmware_version` (Eufy). Most important, **`entities.job_active` is referenced by the completion schema** (`require_job_active_clear`, §completion) yet absent from this table — a rebuilt brand relying on the job-active completion path must declare it. (Schema entity-keyset drift, code-flag CS-2.)
+> The seven keys at the bottom shipped in the adapters before the schema declared them (former code-flag CS-2, now closed): the schema carries all 25, all optional (neither brand ships the full set), with types read from the adapters. `entities.job_active` in particular is the key `completion.require_job_active_clear` needs — registering that flag without it now triggers the `_warn_completion_gate_orphan` advisory (§2.2).
 
 ### 3.2 `vocabulary` block
 
@@ -227,7 +247,7 @@ Controls how room-clean commands are assembled:
 | `rooms_field` | `"rooms"` | Top-level payload field for rooms array |
 | `room_fields` | dict | Per-room field renames and value_map transforms |
 
-> **Not exhaustive** — the schema declares **15** `dispatch` fields; the 5 omitted here are essentially the Roborock/sequenced dispatch model: `params_as_list`, `passes_is_global`, `resolve_live_ids_by_slug`, `per_room_live_settings`, `global_pre_calls` (plus `phase_timing` + the strict-order keys, §2.4). Also note `map_id_type`'s **schema default is `"str"`** — Eufy's `"int"` above is its own value, not the default. Full field-by-field spec: [22-adapter-config-reference §13](22-adapter-config-reference.md).
+> **Not exhaustive** — the schema declares **20** `dispatch` fields; the 10 omitted here are the Roborock/sequenced dispatch model plus the zone/live knobs: `params_as_list`, `passes_is_global`, `resolve_live_ids_by_slug`, `per_room_live_settings`, `global_pre_calls`, `passes_max`, `zone_command`, `zone_coords`, `phase_timing` (validated positive at registration, §2.2), `live_room_refresh`. Also note `map_id_type`'s **schema default is `"str"`** — Eufy's `"int"` above is its own value, not the default. Full field-by-field spec: [22-adapter-config-reference §13](22-adapter-config-reference.md).
 
 **`room_fields` entry:**
 ```python
@@ -263,7 +283,7 @@ Dict keyed by component_id. Each entry:
 | `reset_button` | dict \| None | Upstream replacement-counter reset button resolution (`entity_suffixes` + `token_sets`); absent = no reset button |
 | `maintenance_only` | bool | (absent → False) Suppresses the Replacement row + attention roll-up; subject to the family gate (see [13-maintenance §4.3](13-maintenance-manager.md)) |
 
-(Roborock additionally declares a non-schema `remaining_is_state`, and coerces `default_interval_hours`/`max_interval_hours` to `0.0` when absent.)
+(Roborock coerces `default_interval_hours`/`max_interval_hours` to `0.0` when absent, and omits `reset_button` entirely for guide-only cleanables. Its former non-schema `remaining_is_state` flag was **removed** 2026-07-30 — it was declared `True` on only 4 of the 12 components, projected (with a `False` default) onto all 12 in the registered config, with zero readers; re-add it *with* its consumer if the "Wave 1b" device-countdown model ever ships.)
 
 ### 3.5 `capabilities` block
 
@@ -281,12 +301,17 @@ Boolean flags set by `detect_capabilities()` at adapter registration time:
 | `supports_robot_position` | Position X/Y sensors are present |
 | `supports_station_water` | Station water level sensor is present |
 
-**Derivation** (`detect_capabilities`, `core/capabilities.py:261-283`). Only **two** of the nine are pure entity-presence; the rest are hint-OR-presence, derived, or hardcoded:
+**Derivation** (`detect_capabilities`, `core/capabilities.py:272-510`). Only **two** of the nine are pure entity-presence; the rest are hint-OR-presence or hint-overridable defaults:
 
 - **hint OR entity present** (True from *either* source): `supports_mop_features` (water-level entity), `supports_mop_wash`, `supports_mop_dry`, `supports_empty_dust`, `supports_path_control` (cleaning-intensity entity). The hint comes from the adapter's `capability_hints` (model-family driven, §5.2 step 3) — so on a **model-known** device these read `True` **even when the entity is absent**.
 - **pure entity presence**: `supports_robot_position` (position X/Y sensors), `supports_station_water` (station water sensor).
-- **special case** — `supports_water_control`: an explicit adapter hint wins; otherwise it **equals `supports_mop_features`** (it is *never* entity-probed). The Roborock S6 passes `False` (unsettable water).
-- **hardcoded `True`** (never probed): `supports_edge_mopping`, plus `supports_passes`, `supports_custom_room_config`, `supports_room_clean` (the latter three aren't in the table above but are in the return).
+- **hint wins, else derived** (`_hint_wins`, `capabilities.py:401-421` — an explicit `capability_hints` entry **overrides** the derived/default value, so a brand can categorically declare `False`; a name absent from the hints dict falls through to the derived value): `supports_water_control` (derived value = `supports_mop_features`; never entity-probed), and the default-`True` group `supports_edge_mopping`, `supports_passes`, `supports_custom_room_config`, `supports_room_clean`, `supports_zone_clean` (the latter four aren't in the table above but are in the return). These were formerly hardcoded `True` — unreachable by any adapter, which is exactly how `supports_edge_mopping` stayed True for a brand declaring it False.
+- **`supports_water_control` is NOT how the Roborock S6 ends up `False`.** Roborock's `capability_hints` dict (`adapters/roborock/adapter.py:174-184`) declares six flags (`supports_mop_features`, `supports_mop_wash`, `supports_mop_dry`, `supports_empty_dust`, `supports_path_control: False`, `supports_edge_mopping: False`) and none of them is `supports_water_control`. `supports_edge_mopping: False` is hinted there *in addition to* the config-block declaration below, because the room-payload gate reads the runtime-detected capabilities payload, not the config block. The S6's `False` is set directly in the adapter's own shipped `capabilities` config block (`adapters/roborock/adapter.py:624`, `"supports_water_control": mop_settable`), which is a separate dict from `detect_capabilities()`'s return and can diverge from it field-by-field.
+- **attribute-mode rooms**: `supports_rooms`/`supports_segments` are True from an `active_map` entity **or** the `has_attribute_rooms` hint (scalar/Tuya devices expose rooms as a vacuum attribute with no map sensor); `supports_active_map` stays strictly entity-gated.
+
+**Entity resolution appends device-registry siblings (live:ENT-1).** Before probing, `detect_capabilities` runs `augment_candidates_from_device(hass, vacuum_entity_id, entity_candidates)` (`capabilities.py:182-269`): for each role, siblings of the vacuum's **device-registry device** whose domain matches and whose object_id ends with the same suffix are appended **behind** the derived candidates. Derived names stay first and `_find` takes the first match, so an install where name-derivation works resolves byte-identically — only a role that would have resolved to **nothing** can now find something (proven on the maintainer's own install, where companions carry an area prefix; GitHub issue #48). Best-effort: an unreadable registry returns the candidates unchanged.
+
+The companion diagnostic is `diagnostics.py`'s `entity_resolution_summary` (`diagnostics.py:490-503`): `{declared, unresolved, device_entity_count, likely_naming_mismatch}`. `likely_naming_mismatch` is `True` only when at least one role is unresolved **and** the vacuum's device has ≥1 sibling entity at all — the shape that means "derivation failed but there was something to find," distinguishing a naming-mismatch install from one that simply has no companion entities registered. `unresolved` folds in pattern-resolved roles too (live:ENT-2, e.g. `mapping.live_map_image_entity_pattern`) — roles that aren't declared `entity_candidates` keys, so without this fold-in an install whose only broken role is a pattern one would read as "no mismatch."
 
 The full `detect_capabilities()` return is **larger** than the nine flags the Eufy config copies out: ~20 `supports_*` flags plus `entities` (resolved ids), `maintenance_sources`, `sources`, `robot_position_status`/`_message`, and `model_family` (defaults to `"generic"` for an unknown model). Its signature is keyword-only after `hass` (§5.2 step 4).
 
@@ -304,9 +329,10 @@ The full `detect_capabilities()` return is **larger** than the nine flags the Eu
 > Do **not** treat `supports_base_station` and `supports_map_bounds` as
 > adapter-literal capability flags — no adapter config sets them. They are computed
 > at snapshot time in `core/manager.py::get_dashboard_snapshot`:
-> `supports_base_station` (`manager.py:3950`) from `dock_events.enabled` OR the mop-wash /
-> mop-dry / empty-dust / station-water caps, and `supports_map_bounds` (`:3961`)
-> from `mapping.segmenter_engine != "noop_fallback"`.
+> `supports_base_station` (`manager.py:4982`) from `dock_events.enabled` OR the mop-wash /
+> mop-dry / empty-dust / station-water caps, and `supports_map_bounds` (`:4993`)
+> from `mapping.segmenter_engine != "noop_fallback"`. The same snapshot also computes
+> `supports_va_render` (`:5113`) from the **presence** of a `map_render` block.
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field documentation of every block (`entities`, `vocabulary`, `dispatch`, `maintenance_components`, `capabilities`, and all sub-schemas).
 
@@ -360,8 +386,8 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 1. Resolve the model code — the **device-registry** model is the primary source (`_registry_model_code`, reads `device_entry.model`); the `vacuum.attributes.detected_model` attribute is only the **fallback** when the registry has none. This matters: scalar/Tuya-transport Eufy devices don't set the attribute, so reading *only* the attribute pinned them to `model_family="generic"` — the registry carries the code either way. Then compute `model_family` via `_detect_model_family()`.
 2. Build `entity_candidates` dict (two naming-variant candidates per entity where robovac_mqtt uses different suffixes between versions).
 3. Build `capability_hints` dict — model-based boolean hints for `detect_capabilities()`.
-4. Call `detect_capabilities(hass, *, vacuum_entity_id, detected_model, entity_candidates, model_family, capability_hints, maintenance_components)` (all args after `hass` are keyword-only) — probes the HA entity registry and state machine; returns capability flags and resolved entity IDs.
-5. Build the full `config` dict from all sub-modules: `entities.py`, `buttons.py`, `vocabulary.py`, `maintenance_components.py`, `upkeep_catalog.py`, `<brand>_upkeep_guides.py`, `water_config.py`, `constants.py`.
+4. Call `detect_capabilities(hass, *, vacuum_entity_id, detected_model, entity_candidates, model_family, capability_hints, maintenance_components)` (all args after `hass` are keyword-only) — augments each candidate list with device-registry siblings (live:ENT-1, §3.5), then probes the HA entity registry and state machine; returns capability flags and resolved entity IDs.
+5. Build the full `config` dict from all sub-modules: `entities.py`, `buttons.py`, `vocabulary.py`, `maintenance_components.py`, `upkeep_catalog.py`, `<brand>_upkeep_guides.py`, `water_config.py`, `constants.py`. The config also stores `model_family` + `capability_hints` (`adapter.py:322-323`, so `refresh_vacuum_capabilities` reproduces the startup `detect_capabilities` inputs) and the full probe dict under `_entity_candidates` (`adapter.py:920`, RP-033/VAC-3 — a refresh used to rebuild candidates from the resolved `entities` alone, silently losing every probe-only, multi-candidate key).
 6. Strip `None` values from the entities dict (absent entities degrade gracefully per the schema).
 7. Call `register_adapter_config(vacuum_entity_id, config)`.
 
@@ -476,13 +502,14 @@ silent wrong default.
 
 ### 7.1 What the framework checks, and what it will not tell you
 
-Three layers, deliberately different in strictness:
+Four layers, deliberately different in strictness (see §2.2 for the full source-based breakdown):
 
 | Layer | When | On failure |
 |---|---|---|
-| `registry._validate_adapter` | Every registration | Logged as a warning; a non-dict config raises. Gates the four engine blocks (`mapping`, `job_segmenter`, `room_attribution`, `room_profiles`), `dispatch.template`, and `capability_hints` key names. |
-| `registry._warn_eufy_fallbacks` | Every registration | Advisory warning only. Names each engine block you did **not** declare, the Eufy default that takes over, and how to opt out. |
-| `tests/adapters/test_adapter_contract.py` | CI | Red. Walks the config against `ADAPTER_CONFIG_SCHEMA` — required keys, types, enum membership, **and any key the schema does not declare**. |
+| `registry._validate_adapter` | Every registration | A stored (`source == "config"`) config **hard-raises** `ServiceValidationError`; a code (`source == "code"`) config just logs a warning; a non-dict config always raises `TypeError`. Gates the four engine blocks (`mapping`, `job_segmenter`, `room_attribution`, `room_profiles`), `dispatch.template`, `capability_hints` key names, `dispatch.phase_timing` positivity, and `setup.steps` ids. |
+| `registry._warn_eufy_fallbacks` + `registry._warn_completion_gate_orphan` | Every registration **except** a hard-raised stored config | Advisory warning only, both source types. `_warn_eufy_fallbacks` names each engine block you did **not** declare, the Eufy default that takes over, and how to opt out. `_warn_completion_gate_orphan` fires when `completion.require_job_active_clear` is set without `entities.job_active` declared. |
+| `config_schema.validate_adapter_config` (via `services/adapter_config.py::_handle_save_adapter_config`) | Every UI/service **save** of a stored config | Raises `ServiceValidationError` before the config is persisted or registered — required keys, types, enum membership, and any key the schema does not declare, at every level the schema enumerates a shape (§3). |
+| `tests/adapters/test_adapter_contract.py` | CI | Red. Calls the **same** `validate_adapter_config` against every code adapter in `ADAPTER_BUILDERS`, plus `test_no_undeclared_top_level_keys` asserting no adapter ships a block the schema doesn't know. |
 
 **Every permissive default in this framework resolves to a concrete *Eufy* answer, not to
 a refusal.** An absent `job_segmenter` runs Eufy's counter-plateau segmenter; an absent

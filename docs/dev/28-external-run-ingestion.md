@@ -173,11 +173,14 @@ them on the server. The pose stream (`pose_samples`) is bounded separately by
       "kind": "transit", "strength": 2000.12, "confident": false, "t": "...Z" },
     ...
   ],
-  "active_boundaries": [ 7 ],          // candidate ids currently producing `segments`
+  "active_boundaries": [ 7 ],          // candidate ids that SURVIVED the trailing-drop (see selected_boundaries)
+  "selected_boundaries": [ 7 ],        // SEG-1/SEG-4: candidate ids the segmenter CHOSE, captured BEFORE the trailing-drop — ADDITIVE (absent on pre-SEG-1 v2 records = "unknown", not "empty"); [] on a pose-only record
   "counter_samples": [ ... ],          // STRIPPED on serve; kept on disk for re-segment
   "settings_samples": [ ... ],         // STRIPPED on serve
   "pose_samples": [ ... ],             // native current_room/anchor stream; STRIPPED on serve, kept for re-attribution
   "cleaning_area_sensor_m2": 8.5,      // device's OWN run total (peak cleaning_area, canonical m²) — the sanity BOUND the attributed sum is checked against (§6)
+  "return_overhead_s": 0,              // sum of recorder-derived returning/docked/paused wall time BETWEEN cleaning spans (§4a) — currently unconsumed downstream
+  "return_intervals": [ ... ],         // [{state, start, seconds}, …] the raw intervals return_overhead_s sums — currently unconsumed downstream
   "segments": [
     {
       "order": 0,
@@ -216,6 +219,31 @@ instead, differing as follows:
 On **both** shapes, a segment the pose named also carries **`pose_mode`** (`robust` /
 `anchor_only`), and each shortlist entry carries **`footprint_area_m2`** (present at
 cold-start, `None` once a learned area exists).
+
+### 4a. Return/dock overhead (recorder-optional, currently write-only)
+
+`_finalize_external_run` calls `_extract_return_overhead(vacuum_entity_id,
+detection_ts, last_counter_sample_t)` before `build_pending_record` and stamps
+the result onto the built record afterward (`external_run.py:425-426`):
+`record["return_overhead_s"]` / `record["return_intervals"]`. It reads the HA
+**recorder**'s `state_changes_during_period` for the vacuum entity over the run
+window, sums the wall time spent in any of `{returning, returning_to_dock,
+docked, paused, idle}` **between** cleaning spans (bounded to the timestamp of
+the **last counter sample**, so the run's true final dock is excluded — only
+*mid-run* docks like a mop prewash or recharge count), and returns
+`{return_overhead_s: int, return_intervals: [{state, start, seconds}, …]}`.
+**Recorder-optional**: the import and the whole call are wrapped in a `try`
+that returns `{"return_overhead_s": 0, "return_intervals": []}` on any failure
+(recorder not loaded, no history, any exception) — a missing/disabled recorder
+degrades to zero overhead rather than blocking the finalize.
+
+**Currently unconsumed.** A full-codebase and full-frontend search finds no
+reader of either field anywhere downstream — not `build_graduated_job`, not the
+rebuilder, not the review card. The fields are computed and written into every
+pending record but nothing acts on them yet; `time_wall_s` (§5's per-segment
+recovery table) is **not** adjusted by this overhead today. Treat this as a
+captured-but-inert diagnostic, not a live timing correction, until a consumer is
+wired.
 
 **W5c — pose attribution.** When a run-active pose stream is captured, the room-attribution
 engine recovers the cleaned-room set and **promotes** each counter segment's identified room to
@@ -404,7 +432,10 @@ served segments could not re-derive area attribution across a wash plateau).
   segment returns an error **without** touching the file — a usable record is
   never blanked (`not_resegmentable` / `empty_segmentation`).
 - The returned record preserves the full `candidates` list + samples on disk and
-  re-computes `active_boundaries` from the kept segments' `boundary_id`.
+  re-computes both `active_boundaries` (from the kept segments' `boundary_id`,
+  post-trailing-drop) **and** `selected_boundaries` (SEG-1, pre-drop) — so a
+  resegmented record stays just as replay-reproducible as a freshly-finalized
+  one.
 - `get_external_pending_runs` flags each served record `resegmentable =
   bool(counter_samples)` *before* stripping the samples, so the card knows whether
   to show the re-segment controls (v2) or fall back to legacy merge-only (v1).
@@ -637,7 +668,7 @@ settings instead of forming a parallel bucket. See
 | Job-segmenter engine seam | `learning/job_segmenter_engines.py` (`EufyCounterSegmenter`/`eufy_counter_v1` delegates to the primitives verbatim; `get_job_segmenter_engine` falls back to Eufy; `JobBoundaryCandidate`/`JobSegment` TypedDicts) |
 | Capture + external slot | `jobs/active_job.py` (`record_counter_sample`, `_snapshot_settings_selects`, `start_external_capture`, `_MAX_COUNTER_SAMPLES`) |
 | Detection trigger | `listeners/lifecycle.py` (`_process` calls `maybe_handle_external_run` per vacuum) |
-| External-run lifecycle | `learning/external_run.py` — **`ExternalRunManager`** (the class; grace-timer state machine `_external_grace_*`; `maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `resegment_external_run`, `discard_external_run`). `core/manager.py` holds only thin **delegators** to `self.external_run` (bundled-subsystem pattern), plus the shared helpers it reaches via `self._manager`: `resolve_active_map_id`, `start_external_capture`, `record_counter_sample`, `record_pose_sample`, `get_managed_rooms`, `async_save` |
+| External-run lifecycle | `learning/external_run.py` — **`ExternalRunManager`** (the class; grace-timer state machine `_external_grace_*`; `maybe_handle_external_run`, `_finalize_external_run`, `_extract_return_overhead` (§4a, recorder-optional), `confirm_external_run`, `get_external_pending_runs`, `resegment_external_run`, `discard_external_run`). `core/manager.py` holds only thin **delegators** to `self.external_run` (bundled-subsystem pattern), plus the shared helpers it reaches via `self._manager`: `resolve_active_map_id`, `start_external_capture`, `record_counter_sample`, `record_pose_sample`, `get_managed_rooms`, `async_save` |
 | Grace constants | `learning/constants.py` (`EXTERNAL_FINALIZE_GRACE_S` = 300, `EXTERNAL_GRACE_MAX_RECHECKS` = 8) |
 | Pending record + re-segment + gate + graduate | `learning/external_ingest.py` (`build_pending_record`, `build_attributed_job`, `_apply_pose_identity`, `resegment_pending_record`, `reconcile_dispatched_identity`, `_resolve_engine_tuning`, `_resolve_attribution`, `_enrich_segments`, `strip_samples`, `_max_cleaning_area_m2`, `gate_segment_identity`, `build_graduated_job`, `load_pending_runs`) |
 | cleaning_area units + area sanity | `learning/utils.py` (`cleaning_area_to_m2`, `_AREA_TO_M2`, `area_sanity`, `AREA_OVER_ATTRIBUTION_TOLERANCE`) |

@@ -58,7 +58,7 @@ factor the brand facts into named files.
 | `model_catalog.py` | `detect_model_family()` — maps a model string to a family key. Two tables: `MODEL_FAMILY_HINTS` (7 substrings: `x10`/`x8`/`l60`/`l50`/`g50`/`g40`/`lr30`) and `MODEL_CODE_FAMILIES` (22 exact T-codes → family, e.g. `T2351`/`T2320`/`T2352`→`x10` (T2352 = Omni E28), `T2280`→`c20`, `T2080`/`T2071`→`s1`, the `T219x`→`lr30` block). `c20`/`s1` exist in the code map but not the hint substrings. Unknown → `"generic"`. |
 | `maintenance_components.py` | `MAINTENANCE_COMPONENTS` — the consumable catalog (sensor suffix, intervals, label, icon, proxy links). |
 | `upkeep_catalog.py` + `eufy_upkeep_guides.py` | Per-model upkeep guide library and the model→family mapping. |
-| `upkeep_guides_i18n/` | `UPKEEP_GUIDE_TRANSLATIONS` — 14 per-language modules; the localized `guide_translations` overlay projected into `upkeep_catalog` (§upkeep_catalog). |
+| `upkeep_guides_i18n/` | `UPKEEP_GUIDE_TRANSLATIONS` — 17 per-language modules (18 languages total counting the English base the overlay falls back to); the localized `guide_translations` overlay projected into `upkeep_catalog` (§upkeep_catalog). |
 | `water_config.py` | `WATER_MODEL_CONFIGS` — tank capacity + flow-rate constants per model. |
 | `segmentor.py` | The CV room segmenter — see [26](26-eufy-segmentor.md). |
 
@@ -89,7 +89,7 @@ the porting template:
 3. **Build `capability_hints`.** Model-family booleans for hardware you *know*
    exists even if the entity isn't live right now. Hints are the confident path;
    entity-presence detection is the fallback for unrecognized models. The exact
-   Eufy sets (`adapter.py:221-228`):
+   Eufy sets (`adapter.py:226-233`):
 
    | Hint | Model families that set it True |
    |---|---|
@@ -128,7 +128,7 @@ State sets (`hard_service_states`, `drying_states`, `active_run_task_states`,
 `not_error_sentinels`, `cancel_service_exclusion_states`) come from
 `vocabulary.py` and are stored **normalized (lowercase)**. The `blocked_*` sets
 are stored **raw** (title-cased firmware strings) because the queue engine
-matches them verbatim — the exact Eufy fills (`adapter.py:373-375`) are
+matches them verbatim — the exact Eufy fills (`adapter.py:378-380`) are
 `blocked_work_mode_states: ["Smart Follow", "Auto", "Room"]`,
 `blocked_task_status_states: ["Cleaning", "Returning", "Washing Mop"]`,
 `blocked_dock_status_states: ["Washing", "Recycling waste water"]`.
@@ -165,8 +165,46 @@ Secondary error channel (`task_status_error_value: "error"`), a
 ordered `error_code_attribute_names` list (first non-zero int wins), and
 `unknown_error_message: "Unknown error during run"` (the placeholder when a code
 fires with no resolvable message).
+
+Five more keys (`adapter.py:478-494`) carry the RF-DOCK error-mining tables, all
+sourced from `vocabulary.py`, all **int**-keyed/valued for Eufy:
+
+- `evidence_invalidating_error_codes` / `evidence_safe_error_codes` — the
+  evidence axis: which faults mean the run's `cleaning_time_seconds` cannot be
+  trusted and must be deducted (`evidence_invalidating`), vs. which faults the
+  robot cleaned straight through (`evidence_safe`). Derived, not hand-declared:
+  `EUFY_EVIDENCE_INVALIDATING_ERROR_CODES = EUFY_ROBOT_SOURCED_ERROR_CODES -
+  EUFY_EVIDENCE_SAFE_ROBOT_CODES`, and `EUFY_EVIDENCE_SAFE_ERROR_CODES =
+  EUFY_DOCK_SOURCED_ERROR_CODES | EUFY_EVIDENCE_SAFE_ROBOT_CODES`
+  (`vocabulary.py:576-584`) — a code in **neither** set is visibly unclassified
+  and preserved rather than silently zeroing a productive run. This exists
+  because five dock-side code-6013 faults once charged 455 s against a 360 s
+  clean (`adapter.py:474-477`, incident `alfred job_2026-08-01T23-23-35`).
+- `dock_sourced_error_codes` / `robot_sourced_error_codes` — a **second,
+  independent** axis (whose hardware raised the fault), reported only, never
+  subtracted. Eufy's "STATION"-prefixed name is not a reliable signal of which
+  set a code belongs to: 7031/7033/7055 are STATION-named but robot-sourced
+  (the robot failed to *return to* the station), while plenty of unprefixed
+  station faults (41, 70, 73, 74, 79, 81, 82, and the 6010–6311 block) are
+  dock-sourced.
+- `error_label_keys` — `EUFY_ERROR_LABEL_KEYS`, 199 entries mapping an int
+  error code to an i18n key, every value prefixed `fault.eufy.` (the frontend
+  locale packs own the actual strings; core only passes the key through, so it
+  never learns Eufy's codes or their meaning).
+
+**Roborock's error codes are strings, not ints** — its `sensor.{id}_vacuum_error`
+carries an enum string (`bumper_stuck`, `wheels_suspended`) rather than a numeric
+attribute, so it declares these same five keys with **string** codes
+(`adapters/roborock/vocabulary.py`, e.g. `ROBOROCK_DOCK_SOURCED_ERROR_CODES:
+frozenset[str]`). `ADAPTER_CONFIG_SCHEMA`'s `error_tracking` fields are still
+typed `list[int]` / `dict[int, str]` for all five — a schema/runtime type
+mismatch on the shipping Roborock adapter, not something this doc's Eufy-focused
+walkthrough can fix; flagged here as a doc-vs-code disagreement to resolve at the
+schema (widen the type or add a variant), not by changing Roborock's data.
+
 **Pattern:** model the firmware's *timing* (grace window) and *attribute
-variance* (name list) in config, not in core.
+variance* (name list) in config, not in core; keep the evidence axis and the
+source axis independent — a fault can be both dock-sourced and evidence-safe.
 
 ### `dock_events`
 `enabled: True`, a `triggers` map (event-type → normalized dock_status strings,
@@ -313,12 +351,19 @@ path-winding, and separates a cleaned room from a parked dock by the swept-area
 (default `"live_pose"`; a brand with only a native current-room NAME entity declares
 `"native_current_room"`) — the sampler's source-dispatch selector, distinct from the
 engine. `tuning` carries `wind_transit: 1.5` / `dwell_min_ticks: 12` /
-`swept_area_min_m2: 0.5` / `interval_s: 2.0`. This block is **declared-but-dormant** — wired
-and validated now, but inert until the run-active pose sampler (W5b) and finalize
-wiring (W5c) land. See [eufy-native-transition](design/eufy-native-transition.md).
-**Pattern:** room-identity recovery for external runs is its own pluggable engine,
-declared up front so the selection is explicit even while the upstream sampler is
-still pending.
+`swept_area_min_m2: 0.5` / `interval_s: 2.0`. **This block is live, not dormant** —
+the adapter's own inline comment (`adapter.py:756`) still reads "DORMANT until the
+run-active pose sampler (W5b) + finalize wiring (W5c) land", but both have shipped
+and are wired end-to-end: `listeners/pose_sampler.py` is registered unconditionally
+at `async_setup_entry` (`__init__.py:491-492`), samples every active EXTERNAL or
+dispatched (`started`) run at the resolved cadence via `manager.record_pose_sample`,
+and Eufy's own `map_state_source.live_pose` block (§`map_state_source` above)
+satisfies the capture-source gate `_can_sample()` checks. The buffered
+`pose_samples` are then read back off the active-job slot
+(`learning/external_run.py:360`) and passed into `build_pending_record` (W5c,
+[28-external-run-ingestion §11](28-external-run-ingestion.md)) on every external
+finalize. See [eufy-native-transition](design/eufy-native-transition.md).
+**Pattern:** room-identity recovery for external runs is its own pluggable engine.
 
 ### `live_transition`
 The **orchestration** half of live current-room rollover (the detection thresholds
@@ -384,21 +429,35 @@ its own profiles/aliases without forking the resolver. See
 
 ### `capabilities`
 Hardware/entity-surface flags are sourced from `detect_capabilities()`
-(`caps.get(...)`) so the registered config matches the install's real entities.
-Three flags are hardcoded literals instead, because they can't be settled by a
-runtime entity probe: `position_lock_reliable = False` (Eufy re-bases the raw
-coordinate frame each session) and `rooms_unique_per_job = True` (no vacuum-then-mop
-whole-home mode, so a room is cleaned at most once per job) describe firmware
-behaviour an entity probe can't see; `supports_zone_clean = True` is a literal
-because no probe distinguishes eufy-clean v1.11.1+ (which accepts `zone_clean` — see
-`dispatch.zone_command`) from older eufy-clean. It is gated **downstream** rather
-than at the probe: the card only shows the zone-draw control when a live-map image
-resolves, and the version (v1.11.0+) that adds `zone_clean` is the same one exposing
-`camera.<device>_map`, so older (no-live-map) installs never see it. The zone-clean
-device limits sit alongside it: `zone_max: 10` zones, and each zone **side**
-`zone_min_side_m: 0.5` / `zone_max_side_m: 10.0` — a **per-SIDE** bound (checked
-against the live-map dims in `dispatch_zone_clean`), **not** Roborock's per-area
-bound (the §4.5 brand-variant distinction). See
+(`caps.get(...)`, `adapter.py:816-833`) so the registered config matches the
+install's real entities — this now includes `supports_zone_clean`
+(`caps.get("supports_zone_clean", True)`, `adapter.py:833`): no runtime probe
+distinguishes eufy-clean v1.11.1+ (which accepts `zone_clean` — see
+`dispatch.zone_command`) from older eufy-clean, so the *derived* default is
+`True` for Eufy, but it is read through `caps` rather than hardcoded so a
+future model-catalog entry can declare it `False` via `capability_hints` and be
+believed (`core/capabilities.py::_hint_wins`, [21 §3.5](21-adapter-system.md)).
+It is additionally gated **downstream**: the card only shows the zone-draw
+control when a live-map image resolves, and the version (v1.11.0+) that adds
+`zone_clean` is the same one exposing `camera.<device>_map`, so older
+(no-live-map) installs never see the control regardless of the flag.
+
+Two flags are hardcoded literals, because they can't be settled by a runtime
+entity probe: `position_lock_reliable = False` (Eufy re-bases the raw
+coordinate frame each session — retained against a possible trace-bounds
+revival; the position/bounds room detector it once gated was removed with the
+mapping split, so **no code reads this flag today**, `adapter.py:847-853`) and
+`rooms_unique_per_job = True` (no vacuum-then-mop whole-home mode, so a room is
+cleaned at most once per job).
+
+The zone-clean device limits sit alongside `supports_zone_clean`: `zone_max: 10`
+zones, each zone **side** `zone_min_side_m: 0.5` / `zone_max_side_m: 10.0` — a
+**per-SIDE** bound (checked against the live-map dims in `dispatch_zone_clean`),
+**not** Roborock's per-area bound (the §4.5 brand-variant distinction) — and
+`supports_zone_repeat: False` (`adapter.py:842-846`, RF-23/Q12): the fork's
+`zone_clean` command has no repeat/passes field at all, so this is declared
+explicitly rather than left to an implicit default, making `dispatch_zone_clean`'s
+normalization a documented adapter decision. See
 [22-adapter-config-reference](22-adapter-config-reference.md).
 
 ### `settings_selects`

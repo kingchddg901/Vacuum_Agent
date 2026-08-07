@@ -47,7 +47,7 @@ else:                    → "good"
 replacement_status(*, remaining_percent: float | None) -> str
 ```
 
-Converts **percent of total service life remaining** to a status bucket. The input is **not** the raw upstream sensor state — `get_upkeep_snapshot` derives it as `round(max(min(remaining_hours / total_life_hours * 100, 100), 0), 2)` (clamped 0–100, 2 dp; `manager.py:381-385`). Percent-based (not absolute hours) so a short-life part isn't pinned to "warning" — the issue #38 refactor a fresh part at 100% always reads "good".
+Converts **percent of total service life remaining** to a status bucket. The input is **not** the raw upstream sensor state — `get_upkeep_snapshot` derives it as `round(max(min(remaining_hours / total_life_hours * 100, 100), 0), 2)` (clamped 0–100, 2 dp; `manager.py:412-416`). Percent-based (not absolute hours) so a short-life part isn't pinned to "warning" — the issue #38 refactor a fresh part at 100% always reads "good".
 
 ```
 if remaining_percent is None: → "unknown"   (no total_life to divide by; also uncoercible → "unknown")
@@ -59,6 +59,14 @@ if pct <= 10: → "replace_soon"
 if pct <= 15: → "warning"
 else:         → "good"
 ```
+
+### 2.3 `_hours_summary` (the overdue-consumable guard)
+
+```python
+_hours_summary(value: Any, suffix: str) -> str | None
+```
+
+Builds the `remaining_summary` / `usage_summary` strings (`"<hours label> <suffix>"`). It guards the **result** of `_hours_text`, not the input: `_hours_text` returns `None` not only for `None` input but also for **negative** numbers and non-numerics. The four snapshot call sites used to read `_hours_text(v) + " suffix" if v is not None else None` — an **overdue consumable reports negative remaining hours**, passed the `is not None` guard, and landed on `None + str` → `TypeError` that took out `get_upkeep_snapshot` entirely (and with it `get_dashboard_snapshot`'s whole data source; found in a Roborock Q5 user's diagnostics, issue #46 thread — `upkeep_snapshot_error: TypeError(...)`). Now: no hours label → the summary is `None`, never a crash. (`manager.py:103-124`.)
 
 ---
 
@@ -89,7 +97,7 @@ Each entry in `adapter_config["maintenance_components"]` defines one trackable c
 | Field | Type | Description |
 |---|---|---|
 | `sensor_suffix` | str \| None | Full suffix appended to `sensor.{object_id}_` to form the counter entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). May be `None`, **or present alongside `proxy_for`** as the fallback source (e.g. `swivel_wheel` has both). |
-| `proxy_for` | str \| None | If set, this component prefers that component's sensor when present, **falling back to its own `sensor_suffix`** (`core/capabilities.py:138-145`: `_resolve(proxy.sensor_suffix) or own`) |
+| `proxy_for` | str \| None | If set, this component prefers that component's sensor when present, **falling back to its own `sensor_suffix`** (`core/capabilities.py:137-146`: `_resolve(proxy.sensor_suffix) or own`) |
 | `maintenance_only` | bool | (absent → `False`) Suppresses the component's **Replacement** row entirely and excludes it from the attention roll-up; subject to the family gate (§4.3) |
 | `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match registry fallbacks. A `token_sets` match is additionally rejected if its resolved `entity_id` contains the substring `"maintenance"` (see note below). Absent → no reset button. |
 | `default_interval_hours` | float | Factory-default cleaning/replacement interval |
@@ -113,18 +121,18 @@ adapter_config["upkeep_catalog"] = {
 
 The upkeep guide library maps per-model-family maintenance schedules (cleaning procedures, photos, replacement tips). It is read by `get_upkeep_snapshot()` but not mutated by the manager.
 
-`guide_translations` is `UPKEEP_GUIDE_TRANSLATIONS` (assembled by `adapters/eufy/upkeep_guides_i18n/__init__.py` from one `<lang>.py` module per language), structured as `[lang][guide_family][component]`. `_get_upkeep_item_guide` (`manager.py:200-261`, translation overlay `226-238`) selects the entry by HA instance language (`self._guide_language()`) and overlays the localized `steps` / `notes` / `clean_frequency` / `replace_frequency` onto the English `guide_library` base **per field** — any absent field (or an unharvested component/language) falls back to English.
+`guide_translations` is `UPKEEP_GUIDE_TRANSLATIONS` (assembled by `adapters/eufy/upkeep_guides_i18n/__init__.py` from one `<lang>.py` module per language — 17 language modules; English is the base with no module of its own), structured as `[lang][guide_family][component]`. `_get_upkeep_item_guide` (`manager.py:224-285`, translation overlay `249-262`) selects the entry by HA instance language (`self._guide_language()`) and overlays the localized `steps` / `notes` / `clean_frequency` / `replace_frequency` onto the English `guide_library` base **per field** — any absent field (or an unharvested component/language) falls back to English.
 
 ### 4.3 Component render gating (`maintenance_only` + the family gate)
 
-Not every declared component yields both rows (or any row). Two gates (`manager.py:336, 344-350, 435-436, 526-529`):
+Not every declared component yields both rows (or any row). Two gates (`manager.py:367, 375-381, 462-463, 551-555`):
 
 - **`maintenance_only` suppresses the Replacement row.** `if not maintenance_only: replacement_items.append(...)` — a `maintenance_only` component never produces a replacement item, and its (absent) replacement status is excluded from the attention roll-up.
 - **The family gate can suppress the Maintenance row too.** A `maintenance_only` component with **no** `sensor_suffix` is `continue`-skipped entirely **unless** the resolved model's guide-family documents it — the four-condition gate `_guide_family and maintenance_only and not sensor_suffix and component not in _family_guide_components`. Consequences: when **no** family resolves (unknown model) everything shows; a **sensor-backed** component is never gated. This is what makes dock/station cleanables appear on station models and hide on a dockless robot.
 
 ### 4.4 Brand dependence
 
-> The two-source model is **Eufy-specific**. The `usage_hours` / `total_life_hours` sensor-attribute contract is Eufy's. On **Roborock**, the life-tracked `*_time_left` sensors expose **neither** attribute, so: every replacement row resolves `total_life_hours=None → remaining_percent=None → replacement_status = "unknown"`, and the integration-maintenance row never decrements (`usage_hours` missing → `current_usage=0.0` → `remaining=interval` always). The Roborock catalog declares `remaining_is_state` to gate a parallel device-countdown model, but it is **declared-but-unconsumed** (no reader — "Wave 1b", code-flag CS-2), so Roborock maintenance rows are non-functional until it ships.
+> The two-source model is **Eufy-specific**. The `usage_hours` / `total_life_hours` sensor-attribute contract is Eufy's. On **Roborock**, the life-tracked `*_time_left` sensors are **device-owned countdowns** exposing **neither** attribute, so: every replacement row resolves `total_life_hours=None → remaining_percent=None → replacement_status = "unknown"` (the raw remaining hours still surface as `remaining_value`/`remaining_hours`), and the integration-maintenance row never decrements (`usage_hours` missing → `current_usage=0.0` → `remaining=interval` always). `default_interval_hours`/`max_interval_hours` are advisory for Roborock — the device, not the framework interval, drives the real countdown, and the device resets itself when its own reset button is pressed. The former `remaining_is_state` flag (declared to gate a parallel device-countdown model, "Wave 1b") was **removed 2026-07-30** — it was `True` on only 4 of the 12 components, projected (with a `False` default) onto all 12 in the registered config, with zero readers (closes code-flag CS-2 by pruning; re-add it *with* its consumer if Wave 1b ships).
 
 ---
 
@@ -136,11 +144,11 @@ Not every declared component yields both rows (or any row). Two gates (`manager.
 manager.get_upkeep_snapshot(*, vacuum_entity_id: str) -> dict
 ```
 
-Keyword-only. Returns a composite snapshot used by the panel's maintenance tab:
+Keyword-only. Capabilities are fetched once via the **read-only** `get_vacuum_capabilities_snapshot` (RF-33 — this collector is on both `diagnostics.py`'s and `get_dashboard_snapshot`'s path, and detection is primed elsewhere well before this runs) and threaded into every `get_maintenance_remaining` call so the per-component loop never re-opens the non-inert `get_vacuum_capabilities(refresh=False)` path. Returns a composite snapshot used by the panel's maintenance tab:
 
 ```python
 {
-    "replacement_items": [   # 24 keys each (manager.py:391-434):
+    "replacement_items": [   # 25 keys each (manager.py:422-461):
         {
             "component": str, "component_label": str, "label": str,
             "kind": str, "kind_label": str, "source": str,
@@ -151,29 +159,35 @@ Keyword-only. Returns a composite snapshot used by the panel's maintenance tab:
             "remaining_unit": str, "usage_hours": float | None,
             "total_life_hours": float | None, "max_life_hours": float | None,  # dup of total_life_hours
             "entity_id": str | None,
-            "can_reset": bool, "reset_kind": str, "reset_kind_label": str,
-            "reset_service": "button.press",      # replacement resets via a device button
-            "reset_service_data": dict,
-            "remaining_summary": str, "usage_summary": str,
+            "available": bool,      # upstream sensor state present
+            "can_reset": bool,
+            # the four reset_* keys are None when no reset button resolved:
+            "reset_kind": "upstream" | None, "reset_kind_label": str | None,
+            "reset_service": "button.press" | None,   # replacement resets via a device button
+            "reset_service_data": dict | None,
+            "remaining_summary": str | None,   # "NN% remaining" or _hours_summary(...); None when overdue/no label (§2.3)
+            "usage_summary": str | None,
             "guide": dict,          # see §5.1 guide shape below
         },
         ...
     ],
-    "maintenance_items": [   # 26 keys each (manager.py:474-522):
+    "maintenance_items": [   # 26 keys each (manager.py:502-548):
         {
             "component": str, "component_label": str, "label": str,
             "kind": str, "kind_label": str, "source": str,
             "status": str, "status_label": str,
             "remaining_hours": float,       # 2 dp
-            "remaining_percent": float, "remaining_unit": str,
+            "remaining_percent": float | None,   # None when interval_hours <= 0 (guide-only/dock cleanables)
             "interval_hours": float, "default_interval_hours": float, "max_interval_hours": float,
             "used_since_reset_hours": float,   # 2 dp
             "current_usage_hours": float,      # 2 dp
-            "reset_at": str | None, "reset_at_usage_hours": float,   # not rounded
-            "can_reset": bool, "reset_kind": str, "reset_kind_label": str,
+            "reset_at": str | None,
+            "entity_id": str | None,           # the source sensor
+            "available": bool,                 # source_available from get_maintenance_remaining
+            "can_reset": True, "reset_kind": "integration", "reset_kind_label": "Integration",
             "reset_service": f"{DOMAIN}.reset_maintenance",   # maintenance resets via the service
             "reset_service_data": dict,
-            "remaining_summary": str, "usage_summary": str,
+            "remaining_summary": str | None, "usage_summary": str | None,
             "guide": dict,
         },
         ...
@@ -206,7 +220,7 @@ Keyword-only. Returns a composite snapshot used by the panel's maintenance tab:
     "dock_status_label":        str | None,
     "dock_status_entity":       str | None,
     "model_meta":               dict,     # see below
-    "attention_summary":        str,      # "N item(s) need attention" text
+    "attention_summary":        str,      # "N upkeep item(s) need attention." / "No upkeep items need attention."
     "updated_at":               str,      # ISO
 }
 ```
@@ -236,12 +250,19 @@ manager.get_maintenance_remaining(
     vacuum_entity_id: str,
     component: str,
     interval_hours: float,
+    capabilities: dict | None = None,
 ) -> dict
 ```
 
 Keyword-only. The effective `interval_hours` is supplied by the **caller** (e.g.
 `get_upkeep_snapshot`, which resolves the override-vs-default precedence — see §6);
-this method does not read the override itself. Computes remaining integration-tracked hours:
+this method does not read the override itself. `capabilities` lets a caller that
+already fetched the capabilities dict (the snapshot, via the read-only
+`get_vacuum_capabilities_snapshot`) pass it through; omitted (the sensor entity
+and service call sites), the method falls back to
+`get_vacuum_capabilities(refresh=False)` — self-heal detection is *wanted* there,
+since a maintenance sensor's poll may be the first thing to run for a
+freshly-added vacuum. Computes remaining integration-tracked hours:
 
 ```
 reset_usage    = data["maintenance"][vacuum][component].get("reset_at_usage_hours", 0.0)
@@ -336,7 +357,7 @@ where `default_interval_hours` comes from `adapter["maintenance_components"][com
 A coercible stored override takes **complete precedence** over the adapter default;
 an absent or uncoercible override falls back to the default.
 
-> **The adapter's `max_interval_hours` is NOT enforced at the backend write path** (code-flag CS-3). It is surfaced in the snapshot for **card-side** validation only. The `set_maintenance_interval` service enforces only `vol.Range(min=0.0)` — **no max** (a direct call can persist e.g. 99999), then rounds to 1 dp. The `EufyVacuumMaintenanceIntervalNumber` entity clamps to the **framework** constants `MAINTENANCE_INTERVAL_MIN = 1.0` / `MAINTENANCE_INTERVAL_MAX = 500.0` (`number.py:22-23`) — independent of the per-component `max_interval_hours`. The service docstring admits "the service trusts its caller."
+> **The adapter's `max_interval_hours` is NOT enforced at the backend service write path** (code-flag CS-3, narrowed). The `set_maintenance_interval` service enforces only `vol.Range(min=0.0)` — **no max** (a direct call can persist e.g. 99999), then rounds to 1 dp; its docstring admits "the service trusts its caller" (card-side validation). The `EufyVacuumMaintenanceIntervalNumber` entity clamps `min` to the framework constant `MAINTENANCE_INTERVAL_MIN = 1.0`, step `0.5`, and — since EP-3 — its **max is the component's own declared `max_interval_hours`** (`meta.get("max_interval_hours", MAINTENANCE_INTERVAL_MAX)`, falling back to the framework `MAINTENANCE_INTERVAL_MAX = 500.0`; `number.py:25-27, 65`), so a component whose ceiling exceeds 500 (e.g. Eufy's `sensor`: 720) can be *restored* via set_value, not just read.
 
 ---
 
@@ -356,7 +377,7 @@ an absent or uncoercible override falls back to the default.
 | Panel reset action | `reset_maintenance(vacuum_entity_id=..., component=...)` | User presses reset |
 | Reset / remaining flow | `get_maintenance_state(vacuum_entity_id=...)` | Read/init reset snapshots |
 | `set_maintenance_interval` service (§5.5) | writes `["interval_hours"]` override, `async_save`s | User edits an interval |
-| `EufyVacuumMaintenanceIntervalNumber` (`number.py`) | reads/writes `["interval_hours"]` (clamp 1.0–500.0, 1 dp) | Number entity set |
+| `EufyVacuumMaintenanceIntervalNumber` (`number.py`) | reads/writes `["interval_hours"]` (native range 1.0 – component `max_interval_hours` (fallback 500.0), step 0.5; written value rounded to 1 dp) | Number entity set |
 | `EufyVacuumMaintenanceRemainingSensor` (`sensor/maintenance.py`) | reads via `get_maintenance_remaining` (override-vs-default fallback) | Sensor state |
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) §maintenance_components for the adapter config that declares component IDs, default intervals, and labels consumed here; [14-dock-manager](14-dock-manager.md) §8 for dock event recording that feeds `get_upkeep_snapshot()`.

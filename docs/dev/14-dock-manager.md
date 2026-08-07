@@ -79,7 +79,7 @@ First candidate present in the HA state machine or entity registry wins.
 ### 5.2 Token fallback — `_find_button_entity_by_tokens`
 
 If no named candidate is found, the `token_sets` for the action are tried
-(`_find_button_entity_by_tokens`, `core/manager.py:902-917`): the manager scans
+(`_find_button_entity_by_tokens`, `core/manager.py:1127-1142`): the manager scans
 **registry entities whose id starts with `button.{object_id}_`** (this vacuum only,
 lowercased) — **not** all `button.*` — and an entity matches a token set when
 **every token is a case-insensitive substring of the full entity_id string**
@@ -109,7 +109,7 @@ Resolves each action's button entity (via the §5.1/§5.2 discovery) **independe
 
 1. **`unsupported_feature`** — adapter capability flag `supports_{...}` is False.
 2. **`missing_action_entity`** — no button entity found via discovery.
-3. **`job_active`** — the tracked job is `started` or `paused`.
+3. **`job_active`** — **any run is in flight** (`run_is_in_flight(active_job)`, `jobs/active_job.py`): status `started`, `paused`, **or `external`**. RP-014 / #14:A6-VAC-1 — this used to ask the *dispatched* question (`{started, paused}`), so an app-started run (which holds the slot at `status="external"` for its whole capture) was invisible: every dock action read `allowed=True` during a mid-run dock (recharge / mop prewash — the case `external_run.py` deliberately holds the slot open through), the card offered Wash Mop, and the resulting dock event bumped `mop_wash_count`, which `water_amendment` consumes as `mop_wash_count_at_finalization` — poisoning the captured run's water actuals.
 4. **`not_docked`** — vacuum state is not `docked`.
 5. **action-specific state check** —
    - `wash_mop` → **`already_washing`** if `dock_status` is in the wash trigger set.
@@ -254,14 +254,16 @@ manager.record_dock_event(
 
 Called by `listeners/dock_events.py` when the dock status transitions through a trigger state. Behavior:
 
-1. Always writes the current ISO timestamp to the `{event_type}` field.
-2. **Debounce check** (counter only) — the cooldown for `event_type` is read from the adapter's `dock_events.debounce_seconds` map; the matching counter increment is skipped when less than that many seconds have elapsed since the last *counted* event of this type (absent key or `0` = no debounce). The timestamp from step 1 is still written regardless.
-3. Increments the matching counter (`mop_wash_count`, `dust_empty_count`, or `dry_start_count`) when not debounced.
+1. **event_type validation (DOCK-2)** — an unknown `event_type` (not in the `last_mop_wash`/`last_dust_empty`/`last_dry_start` counter map) is refused outright: no timestamp write, no counter mutation (the per-vacuum bucket is still `setdefault`-created so `get_dock_events()` readers never see a missing bucket).
+2. **Debounce check (DOCK-1: all-or-nothing)** — the cooldown for `event_type` is read from the adapter's `dock_events.debounce_seconds` map; when less than that many seconds have elapsed since the last *counted* event of this type (absent key or `0` = no debounce), the event is a **complete no-op** — the timestamp is NOT written either. The timestamp only commits together with the counter, so "last seen at" and the count can never disagree about whether an event happened. (An unparseable stored debounce timestamp falls through and counts the event, with a debug log.)
+3. When counted: writes the current ISO timestamp to `{event_type}`, increments the matching counter (`mop_wash_count`, `dust_empty_count`, or `dry_start_count`), and stamps `{event_type}_last_counted_at`.
 4. For `last_dry_start` with a non-`None` `dry_duration`, also stores it (as a string) at `last_dry_duration`.
 
 ### 8.2 Trigger detection
 
-`listeners/dock_events.py` reads the trigger vocabulary for each event type from:
+**Registration gate (REG-4):** `listeners/dock_events.py::register` only watches a vacuum's `dock_status` entity when the adapter's **`dock_events.enabled` is truthy** (`get_adapter_value(..., "dock_events", "enabled", fallback=False)` — schema default `False`). An adapter that declares `dock_status` but opts out gets **no** dock-event listener, not a silently-enabled one.
+
+For each watched vacuum, the listener reads the trigger vocabulary for each event type from:
 
 ```python
 adapter_config["dock_events"]["triggers"] = {
@@ -286,7 +288,7 @@ manager.set_dock_event_count(
 ) -> dict
 ```
 
-Keyword-only. Overwrites a counter to a specific value (clamped `max(int(count), 0)`; `old_count` read via `_safe_int(..., 0)`) and returns a result dict: success `{updated: True, event_type, old_count, new_count}`, or `{updated: False, error}` for an unknown `event_type`. Used by the panel's maintenance tab to let users correct miscounted events (e.g. if the dock cycled before the integration was loaded).
+Keyword-only. Overwrites a counter to a specific value (clamped `max(int(count), 0)`; `old_count` read via `_safe_int(..., 0)`) and **clears the `{event_type}_last_counted_at` debounce marker** (DOCK-3 — otherwise a legitimate event right after the reset could be suppressed by a stale debounce window measured from *before* it). Returns a result dict: success `{updated: True, event_type, old_count, new_count}`, or `{updated: False, error}` for an unknown `event_type`. Used by the panel's maintenance tab to let users correct miscounted events (e.g. if the dock cycled before the integration was loaded).
 
 ---
 
