@@ -161,7 +161,14 @@ export const VIEW_ORDER = [
  *
  * `width` drives the ResizeObserver, so it is the knob a mobile-layout test turns.
  */
-export async function mountRealCard(page, { config = {}, hass = {}, width = null, viewport = null } = {}) {
+export async function mountRealCard(page, {
+  config = {}, hass = {}, width = null, viewport = null,
+  // How the HOST sizes the card. HA panel mode gives a definite height; a normal
+  // dashboard card gives none, and the difference decides whether the mobile shell
+  // can fill and pin its nav. Default models panel mode; pass "auto" to model a
+  // height-less host deliberately.
+  hostHeight = "100dvh",
+} = {}) {
   if (viewport) await page.setViewportSize(viewport);
 
   // A REAL ORIGIN first. setContent() alone leaves the page on an opaque origin,
@@ -177,6 +184,6 @@ export async function mountRealCard(page, { config = {}, hass = {}, width = null
   await mountHarness(page);
   return page.evaluate(
     (o) => window.__evcc.mountRealCard(o),
-    { config, hass, width },
+    { config, hass, width, hostHeight },
   );
 }

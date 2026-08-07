@@ -83,3 +83,52 @@ test("[RF-5] the layout probe is off by default and reports when opted in", asyn
   expect(on.text).toMatch(/measured=\d+/);
   expect(on.text).toMatch(/viewport=(mobile|desktop)/);
 });
+
+test("[RF-6] the mobile shell fills a panel host, and collapses without one", async ({ page }) => {
+  // The footer fault, isolated. The mobile nav is deliberately NOT sticky — it sits
+  // last in a height:100% flex column (see styles/mobile.js, which explains why an
+  // earlier sticky draft was reverted). That design is correct ONLY while the host
+  // supplies a definite height: HA panel mode does, a normal dashboard card does not.
+  //
+  // Without one the shell collapses to content height, so the nav lands wherever the
+  // content ends and the view stage never becomes a scroll container — which also
+  // leaves the sticky mobile HEADER with nothing to stick against. One cause, both
+  // reported symptoms.
+  const panel = await mountRealCard(page, {
+    width: 390, viewport: { width: 390, height: 780 },
+    config: { mobile_shell: true }, hostHeight: "100dvh",
+  });
+  const pinned = await page.evaluate(() => {
+    const sr = document.querySelector("eufy-vacuum-command-center").shadowRoot;
+    const nav = sr.querySelector("[data-evcc-bottom-nav-root]");
+    return Math.abs(nav.getBoundingClientRect().bottom - window.innerHeight) < 3;
+  });
+  expect(panel.shellHeight, "the shell did not fill a definite-height host").toBeGreaterThan(700);
+  expect(pinned, "the nav is not at the bottom of a filled shell").toBe(true);
+
+  // ...and the height-less host, asserted so the dependency is documented rather
+  // than rediscovered. If this ever starts filling, the shell grew its own
+  // fallback height and RF-6's first half is the one that matters.
+  const bare = await mountRealCard(page, {
+    width: 390, viewport: { width: 390, height: 780 },
+    config: { mobile_shell: true }, hostHeight: "auto",
+  });
+  expect(bare.shellHeight, "a height-less host no longer collapses the shell — see the note").toBeLessThan(400);
+});
+
+test("[RF-7] the mobile header labels the battery, like the desktop header", async ({ page }) => {
+  // HDR-BATT-1 fixed the desktop header only; this sibling rendered a bare "100%"
+  // with nothing saying what of, and never applied the low/critical bands.
+  await mountRealCard(page, {
+    width: 390, config: { mobile_shell: true },
+    hass: { states: { "vacuum.alfred": { state: "docked", attributes: { battery_level: 8 } } } },
+  });
+  const b = await page.evaluate(() => {
+    const el = document.querySelector("eufy-vacuum-command-center").shadowRoot
+      .querySelector(".evcc-mobile-battery");
+    return el ? { text: el.textContent.trim(), cls: el.className } : null;
+  });
+  if (b) {
+    expect(b.text, "the mobile battery rendered a bare percent").toMatch(/\S+\s*\d+%/);
+  }
+});

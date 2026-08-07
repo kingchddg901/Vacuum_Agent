@@ -116,7 +116,13 @@ export const MOBILE_STYLES = `
     font-weight: 500;
     color:       var(--evcc-text-primary);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;   /* "Battery 100%" must not wrap between label and value */
   }
+
+  /* Same bands as the desktop header (.evcc-battery.low/.critical). Missing here
+     meant a critical battery read exactly like a full one on mobile. */
+  .evcc-mobile-battery.low      { color: var(--evcc-sem-warning); }
+  .evcc-mobile-battery.critical { color: var(--evcc-sem-error); }
 
   /* ===========================================================
      BOTTOM NAV

@@ -5282,7 +5282,7 @@ ${r}
              ${f}
            </div>`:""}
     </div>
-  `}var pe={ROOMS:"rooms",MAINTENANCE:"maintenance",BASE_STATION:"base_station",METRICS:"metrics",LEARNING_REVIEW:"learning_review",ROOM_RULES:"room_rules",THEME:"theme",MAPPING_ARCHIVE:"mapping",MAP_CONFIG:"map_config",SETUP:"setup"},_f=[pe.ROOMS,pe.MAINTENANCE,pe.BASE_STATION,pe.METRICS,pe.LEARNING_REVIEW,pe.ROOM_RULES,pe.THEME,pe.MAP_CONFIG,pe.SETUP];function Fr(n,e){return n===pe.BASE_STATION?e?.supportsBaseStation?.()!==!1:!0}var Fm=[{id:pe.ROOMS,labelKey:"mobile.tab_rooms",icon:Vm()},{id:pe.MAINTENANCE,labelKey:"mobile.tab_upkeep",icon:Wm()},{id:pe.BASE_STATION,labelKey:"mobile.tab_dock",icon:Gm()},{id:pe.METRICS,labelKey:"mobile.tab_stats",icon:Um()}],zc=[{id:pe.LEARNING_REVIEW,labelKey:"mobile.tab_learning_review"},{id:pe.ROOM_RULES,labelKey:"mobile.tab_room_rules"},{id:pe.THEME,labelKey:"mobile.tab_theme"},{id:pe.MAP_CONFIG,labelKey:"mobile.tab_map_config"},{id:pe.SETUP,labelKey:"mobile.tab_setup"}];function Hm(n){return{cleaning:"cleaning",docked:"docked",returning:"returning",error:"error",paused:"paused"}[n]||""}function Ec(n){return String(n??"").replace(/[_-]+/g," ").replace(/\s+/g," ").trim().replace(/\w\S*/g,e=>e.charAt(0).toUpperCase()+e.slice(1).toLowerCase())}function Bm(n){let e=String(n??"").trim().toLowerCase();return{cleaning:"cleaning",washing:"cleaning",drying:"returning",emptying:"returning",charging:"charging",error:"error",fault:"error",offline:"offline",unavailable:"unavailable",idle:"docked",standby:"docked"}[e]||""}function Tc(n){n.renderMobileHeader=function(e){let{vacuumName:t,vacuumStatus:a,vacuumStatusLabel:r,dockStatus:i,dockStatusLabel:o,battery:s,langOverride:c,currentLang:l,languageMenuOpen:d,autoInfo:u,uiFont:m}=e,p=s!=null?`${s}%`:"",h=this.tVocabRaw("device_status",a,r??Ec(a)),f=i?this.tVocabRaw("device_status",i,o??Ec(i)):"",v=this._renderMapSwitch?.(e.state)??"";return`
+  `}var pe={ROOMS:"rooms",MAINTENANCE:"maintenance",BASE_STATION:"base_station",METRICS:"metrics",LEARNING_REVIEW:"learning_review",ROOM_RULES:"room_rules",THEME:"theme",MAPPING_ARCHIVE:"mapping",MAP_CONFIG:"map_config",SETUP:"setup"},_f=[pe.ROOMS,pe.MAINTENANCE,pe.BASE_STATION,pe.METRICS,pe.LEARNING_REVIEW,pe.ROOM_RULES,pe.THEME,pe.MAP_CONFIG,pe.SETUP];function Fr(n,e){return n===pe.BASE_STATION?e?.supportsBaseStation?.()!==!1:!0}var Fm=[{id:pe.ROOMS,labelKey:"mobile.tab_rooms",icon:Vm()},{id:pe.MAINTENANCE,labelKey:"mobile.tab_upkeep",icon:Wm()},{id:pe.BASE_STATION,labelKey:"mobile.tab_dock",icon:Gm()},{id:pe.METRICS,labelKey:"mobile.tab_stats",icon:Um()}],zc=[{id:pe.LEARNING_REVIEW,labelKey:"mobile.tab_learning_review"},{id:pe.ROOM_RULES,labelKey:"mobile.tab_room_rules"},{id:pe.THEME,labelKey:"mobile.tab_theme"},{id:pe.MAP_CONFIG,labelKey:"mobile.tab_map_config"},{id:pe.SETUP,labelKey:"mobile.tab_setup"}];function Hm(n){return{cleaning:"cleaning",docked:"docked",returning:"returning",error:"error",paused:"paused"}[n]||""}function Ec(n){return String(n??"").replace(/[_-]+/g," ").replace(/\s+/g," ").trim().replace(/\w\S*/g,e=>e.charAt(0).toUpperCase()+e.slice(1).toLowerCase())}function Bm(n){let e=String(n??"").trim().toLowerCase();return{cleaning:"cleaning",washing:"cleaning",drying:"returning",emptying:"returning",charging:"charging",error:"error",fault:"error",offline:"offline",unavailable:"unavailable",idle:"docked",standby:"docked"}[e]||""}function Tc(n){n.renderMobileHeader=function(e){let{vacuumName:t,vacuumStatus:a,vacuumStatusLabel:r,dockStatus:i,dockStatusLabel:o,battery:s,langOverride:c,currentLang:l,languageMenuOpen:d,autoInfo:u,uiFont:m}=e,p=s!=null?`${s}%`:"",h=s==null?"":s<=10?" critical":s<=20?" low":"",f=this.tVocabRaw("device_status",a,r??Ec(a)),v=i?this.tVocabRaw("device_status",i,o??Ec(i)):"",g=this._renderMapSwitch?.(e.state)??"";return`
       <div class="evcc-mobile-header">
         <div class="evcc-mobile-header-lang">
           ${Dr(this,{langOverride:c,currentLang:l,open:d,autoInfo:u,uiFont:m})}
@@ -5290,21 +5290,21 @@ ${r}
         <div class="evcc-mobile-vacuum-name">
           ${this.escapeHtml(t)}
         </div>
-        ${v?`<div class="evcc-mobile-header-mapswitch">${v}</div>`:""}
+        ${g?`<div class="evcc-mobile-header-mapswitch">${g}</div>`:""}
         <div class="evcc-mobile-vacuum-status">
           <span class="evcc-status-dot ${Hm(a)}"></span>
           <span class="evcc-mobile-vacuum-status-label">
             <span class="evcc-status-prefix">${this.t("mobile.vacuum_status_label")}</span>
-            ${this.escapeHtml(h)}
+            ${this.escapeHtml(f)}
           </span>
-          ${p?`<span class="evcc-mobile-battery">${this.escapeHtml(p)}</span>`:""}
+          ${p?`<span class="evcc-mobile-battery${h}"><span class="evcc-status-prefix">${this.t("nav.battery")}</span>${this.escapeHtml(p)}</span>`:""}
         </div>
-        ${f?`
+        ${v?`
           <div class="evcc-mobile-vacuum-status evcc-mobile-dock-status">
             <span class="evcc-status-dot ${Bm(i)}"></span>
             <span class="evcc-mobile-vacuum-status-label">
               <span class="evcc-status-prefix">${this.t("mobile.dock_status_label")}</span>
-              ${this.escapeHtml(f)}
+              ${this.escapeHtml(v)}
             </span>
           </div>
         `:""}
@@ -16155,7 +16155,13 @@ ${r}
     font-weight: 500;
     color:       var(--evcc-text-primary);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;   /* "Battery 100%" must not wrap between label and value */
   }
+
+  /* Same bands as the desktop header (.evcc-battery.low/.critical). Missing here
+     meant a critical battery read exactly like a full one on mobile. */
+  .evcc-mobile-battery.low      { color: var(--evcc-sem-warning); }
+  .evcc-mobile-battery.critical { color: var(--evcc-sem-error); }
 
   /* ===========================================================
      BOTTOM NAV

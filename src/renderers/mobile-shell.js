@@ -128,6 +128,14 @@ export function applyMobileShellRenderer(proto) {
             dockStatus, dockStatusLabel, battery,
             langOverride, currentLang, languageMenuOpen, autoInfo, uiFont } = ctx;
     const batteryText = battery != null ? `${battery}%` : "";
+    // HDR-BATT-1 landed on the DESKTOP header only; this sibling was missed, so on
+    // mobile the percent rendered bare ("100%" with nothing saying what of) and the
+    // low/critical bands never applied. Same 20/10 thresholds and same derivation as
+    // render-cycle.js — kept literal rather than shared because the two headers are
+    // already separate renderers, and a helper that hid the duplication would have
+    // hidden the divergence too.
+    const batteryClass =
+      battery == null ? "" : battery <= 10 ? " critical" : battery <= 20 ? " low" : "";
     // Localize the device-status VALUE via the adapter vocab; fall back to the
     // backend label (then title-cased raw) for unkeyed states. tVocabRaw — sink escapes.
     const vacuumText = this.tVocabRaw("device_status", vacuumStatus, vacuumStatusLabel ?? _fallbackTitleCase(vacuumStatus));
@@ -156,7 +164,7 @@ export function applyMobileShellRenderer(proto) {
             ${this.escapeHtml(vacuumText)}
           </span>
           ${batteryText
-            ? `<span class="evcc-mobile-battery">${this.escapeHtml(batteryText)}</span>`
+            ? `<span class="evcc-mobile-battery${batteryClass}"><span class="evcc-status-prefix">${this.t("nav.battery")}</span>${this.escapeHtml(batteryText)}</span>`
             : ""}
         </div>
         ${dockText ? `

@@ -510,8 +510,24 @@ if (!customElements.get("ha-card")) {
 }
 
 function makeStubHass({ states = {}, language = "en", locale } = {}) {
+  // Normalise to the SHAPE HA actually hands the card. A bare
+  // {state, attributes} is missing entity_id/last_changed, and code that reads
+  // them fails with a TypeError far from the cause -- so a test would look like a
+  // card bug when it is really a malformed fixture.
+  const norm = {};
+  for (const [id, v] of Object.entries(states)) {
+    norm[id] = {
+      entity_id: id,
+      state: "unknown",
+      attributes: {},
+      last_changed: "2026-01-01T00:00:00+00:00",
+      last_updated: "2026-01-01T00:00:00+00:00",
+      context: { id: "stub", parent_id: null, user_id: null },
+      ...v,
+    };
+  }
   return {
-    states,
+    states: norm,
     language,
     locale: locale ?? { language, number_format: "language", time_format: "language" },
     callService: async () => ({}),
@@ -530,7 +546,7 @@ function makeStubHass({ states = {}, language = "en", locale } = {}) {
  * @param {number}  opts.width   host width in px — drives viewport detection, so
  *                               this is the knob a mobile-layout test turns
  */
-async function mountRealCard({ config = {}, hass = {}, width = null } = {}) {
+async function mountRealCard({ config = {}, hass = {}, width = null, hostHeight = "100dvh" } = {}) {
   const root = document.getElementById("evcc-root") || document.body;
   root.innerHTML = "";
 
@@ -539,7 +555,7 @@ async function mountRealCard({ config = {}, hass = {}, width = null } = {}) {
   // A DEFINITE height, because height:100% on :host resolves against this. Leaving
   // it auto silently reproduces the collapsed-shell bug in every test, which would
   // make the harness agree with a fault instead of detecting it.
-  holder.style.cssText = `height:100%;${width == null ? "" : `width:${width}px;`}`;
+  holder.style.cssText = `height:${hostHeight};${width == null ? "" : `width:${width}px;`}`;
   root.appendChild(holder);
 
   const el = document.createElement("eufy-vacuum-command-center");
