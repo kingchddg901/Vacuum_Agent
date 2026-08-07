@@ -520,7 +520,7 @@ any private constants. None of them hold persistent state — they read from
 | `pause_timeout.py` | HA time + vacuum state | Auto-cancel on overlong pause |
 | `job_progress.py` | `EVENT_JOB_PROGRESS_TICK` | Job progress snapshot trigger |
 | `pose_sampler.py` | HA time + vacuum state | Buffers the per-tick pose time-series (`pose_samples`) during an external (app-started) or dispatched run for room auto-attribution, via the adapter-declared `room_attribution.source`; attribution-capable vacuums only |
-| `discovery.py` | Vacuum entity state | Auto-discovery on first non-idle state |
+| `discovery.py` | Vacuum entity state | Auto-discovery once **docked** (map-safe: run over, pose settled) + map-change/reload/6h timer — see [04 §discovery](04-listeners.md) |
 
 Registration pattern (all eight are identical):
 

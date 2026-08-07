@@ -248,6 +248,14 @@ Triggers room discovery on lifecycle events and periodic intervals.
 
 **Module:** `listeners/discovery.py`
 
+**Why docked, not run-start (intended design, ruled 2026-08-07):** discovery reads the
+map only when the map is SAFE — the run is over and the pose has settled. Mid-run the
+map is being mutated (and on a multi-map vacuum may be mid-swap), so a run-start pass
+would read churning or wrong-map data; this is the same protective stance as the
+map-swap guards. The docked edge is therefore the primary trigger by design — an old
+description of this as "first non-idle state" (run start) was wrong about intent, not
+just detail.
+
 **Trigger types** (from adapter config `discovery.auto_refresh_on`):
 
 | Trigger | HA event / condition |

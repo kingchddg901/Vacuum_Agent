@@ -226,7 +226,11 @@ against source per DR standard 4-5; run the drift checker to 0/0 with the queue-
 exempts REMOVED; mkdocs --strict; private-index commit to master. NOTE: R2-COV-1 (queue
 handler test coverage) is SEPARATE and stays in the held test queue — docs only here.
 
-**Q1 — detail provided, AWAITING RULING:** code fires discovery on transition-INTO-docked
+**Q1 RULED (Chris, 2026-08-07): DOCKED-ON-PURPOSE — map-swap-protection semantics.**
+Intended design: discovery fires once the pose has updated and the map is SAFE (run over;
+mid-run maps churn / may be mid-swap). Docs updated same-commit: 01-arch:523 corrected,
+04-listeners sec 9 carries the rationale. "first non-idle" was wrong about intent, not
+just detail — NOT a code regression. Held sections unfrozen. Original question text: code fires discovery on transition-INTO-docked
 (+ map-change/reload/6h timer, adapter-declared via discovery.auto_refresh_on, default set
 drift.py:98); old doc said "first non-idle state" (run start). Choice: (a) docked-on-purpose
 (fresh-data rationale — the edge filtering reads deliberate) -> doc gets the rationale;
