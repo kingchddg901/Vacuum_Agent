@@ -1,9 +1,7 @@
 # PLAN — Mock Integrity (audit-1 remainder: "the MagicMock is killing us")
 
-Status: APPROVED IN SHAPE, EXECUTION HELD (Chris 2026-08-06): starts ONLY after the
-audit-1 R2 fix wave (Opus session) is in, and ONLY on Chris's explicit start signal —
-"i will tell you when to start". The W3 decision (mock-hass shape) is still open and
-will be taken at start time. Scale note, his framing: 86 bare mocks is a rounding
+Status: EXECUTING (started 2026-08-07 on Chris's go, after the audit-1 R2 fix wave
+landed). W0 COMPLETE, W1 mechanism + first file in, W3 decided (see §5). Scale note, his framing: 86 bare mocks is a rounding
 error against ~3,900 tests — this is done right, not urgently.
 Grounding: docs/testing/03 + 04 read in full; every claim below re-verified against
 tests/ on 2026-08-06 (post doc-truth-pass, so the docs are current).
@@ -96,8 +94,49 @@ Options for the mock-hass family, in ascending cost:
   truth, measurable suite-time cost, and blurs the unit/integration boundary
   the docs deliberately keep.
 
-Recommendation: **(a) now, (b) only for files where a hass METHOD call is what's
-under test, never (c)** — the unit tier's speed is a feature.
+**DECIDED 2026-08-07 (Chris): (a) as a general rule, (b) when needed.**
+
+And his correction to the recommendation as originally written: *"C may be needed at
+extreme edges — never is a very strong word."* He is right, and "never (c)" was the
+plan's word. What (c) actually guards against is DRIFT — unit tests reaching for the
+real fixture by default, dissolving the tier boundary and paying suite-time
+everywhere. The legitimate case is when **HA's own runtime semantics are what's under
+test**: event-bus ordering, service registration lifecycle, state-machine behaviour,
+task scheduling. There a stub is not a simplification, it is a worse reimplementation
+of HA that you then test against. So:
+
+> (a) generally · (b) when a hass METHOD is under test · (c) when HA's RUNTIME
+> semantics are — deliberately, with the reason named in the test.
+
+The named reason is what stops (c) becoming the default.
+
+### What the measurement found (2026-08-07) — W3 is ~a twentieth of its estimate
+
+§3 called this family "the mass (e.g. 25 refs in test_learning_estimator.py)". Ref
+COUNT is not lie surface, and that is what was measured. Across the 14 mock-hass
+files, what they actually use hass FOR:
+
+| use | files |
+|---|---|
+| `hass.config` (16 refs, all `config_dir`) | 11 |
+| `hass.data` | 4 |
+| `hass.states.get` | 3 |
+| `hass.async_add_executor_job` | 2 |
+| `hass.services.async_call` | 1 |
+| `hass.bus` / `states.async_set` | 0 |
+
+The dominant use is hass as a PATH CARRIER, and those tests already assign
+`hass.config.config_dir = str(tmp_path)`. No lie surface: a mock returning a mock for
+config_dir fails on the first path operation.
+
+And of the sites that DO stub `states.get`, suite-wide, almost none returned a mock
+state: they return `None` (honest) or `SimpleNamespace` (fails loudly on an
+unmodelled field). **Exactly two sites** in the whole suite returned a MagicMock
+state — both in `test_onboarding_manager.py` — and both are now real `State`
+objects, diff_test_equiv EQUIVALENT.
+
+W3(a) is therefore DONE. The family was largely already honest; prior practice had
+solved it without the plan noticing.
 
 ## 6. Execution fit
 

@@ -10,7 +10,7 @@
     "tests/integration/test_manager_shutdown.py": 3,
     "tests/integration/test_manager_start_selected.py": 10,
     "tests/integration/test_mapping_tracker_events.py": 1,
-    "tests/integration/test_onboarding_manager.py": 3,
+    "tests/integration/test_onboarding_manager.py": 1,
     "tests/integration/test_platform_files.py": 10,
     "tests/integration/test_room_crud.py": 1,
     "tests/integration/test_rooms_reconcile.py": 1,

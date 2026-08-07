@@ -22,6 +22,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from homeassistant.core import State
+
 from custom_components.eufy_vacuum.onboarding.manager import OnboardingManager
 
 
@@ -88,7 +90,12 @@ def test_check_for_new_rooms(hass):
     data: dict = {}
     ob = OnboardingManager(data, hass)
     # 3 segments now, 0 at last check → grown
-    hass.states.get.return_value = MagicMock(attributes={"segments": [1, 2, 3]})
+    # W3(a): a REAL State, not a mock one. Production reads
+    # source_state.attributes.get("segments") — but a MagicMock state also
+    # answers .state, .entity_id, .last_changed and anything else asked of it,
+    # so a production change that began reading a different field would keep
+    # this test green. State raises instead.
+    hass.states.get.return_value = State(_VAC, "docked", {"segments": [1, 2, 3]})
     assert ob.check_for_new_rooms(vacuum_entity_id=_VAC, map_id=_MAP) is True
     # no vacuum state → False
     hass.states.get.return_value = None
@@ -112,7 +119,7 @@ def test_check_for_new_rooms_refuses_a_non_active_map(hass, monkeypatch):
 
     data: dict = {}
     ob = OnboardingManager(data, hass)
-    hass.states.get.return_value = MagicMock(attributes={"segments": [1, 2, 3]})
+    hass.states.get.return_value = State(_VAC, "docked", {"segments": [1, 2, 3]})
 
     monkeypatch.setattr(
         "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
