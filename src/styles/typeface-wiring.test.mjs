@@ -16,7 +16,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 const read = (p) => readFileSync(new URL(p, import.meta.url), "utf-8");
 
@@ -63,6 +63,21 @@ test("[TF-8] accessibility rides its OWN token, read ahead of the theme's", () =
     const bare = src.match(/font-family:\s*var\(--evcc-font-family/g) ?? [];
     assert.equal(bare.length, 0,
       `${file}: a font-family read consults the theme token without the a11y token first`);
+  }
+});
+
+test("[TF-9] the a11y token is NOT a theme token", () => {
+  // THEME_TOKEN_REGISTRY is exactly the set applyDynamicTheme writes INLINE
+  // from a theme. Registering --evcc-a11y-font-family would hand themes the
+  // same inline-override channel TF-8 exists to close — a theme could set the
+  // a11y token and beat the accessibility rule again. It must stay a CSS-only
+  // token, set solely by the [data-evcc-font] rules, invisible to the editor.
+  const dir = new URL("../theme-tokens/", import.meta.url);
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith(".js") || f.endsWith(".test.mjs")) continue;
+    const src = readFileSync(new URL(f, dir), "utf-8");
+    assert.ok(!src.includes("--evcc-a11y-font-family"),
+      `theme-tokens/${f} registers the a11y font token — themes can now override the accessibility choice inline`);
   }
 });
 
