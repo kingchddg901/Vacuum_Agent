@@ -263,6 +263,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
   /** Panel mode setter — ha-panel-custom pushes config through this property. */
   set panel(panel) {
     this._panel = panel;
+    // Stamp it, because a PANEL has to size itself. ha-panel-custom does not give
+    // its child a height (a panel owns its viewport by convention), so the
+    // height:100% chain on :host resolves against an auto-height parent and the
+    // whole shell collapses to content — measured at 209px in a 780px viewport.
+    // The mobile nav then lands wherever the content ends and the sticky header has
+    // no scroll container to stick against: both reported symptoms, one cause.
+    //
+    // _panel was previously stored and never read, so the card knew it was a panel
+    // and did nothing with it. Styling hangs off this attribute (see foundation.js).
+    this.toggleAttribute("data-evcc-panel", Boolean(panel));
     // Note: setConfig now accepts empty config and renders a setup
     // placeholder instead of throwing, so pass through unconditionally.
     if (panel?.config !== undefined) {

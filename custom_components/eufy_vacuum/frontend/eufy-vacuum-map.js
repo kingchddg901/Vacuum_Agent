@@ -5894,6 +5894,22 @@ ${r}
     position: relative;
     height: 100%;
     min-height: 0;
+  }
+
+  /* PANEL MODE. height:100% needs a parent with a definite height, and
+     ha-panel-custom does not give its child one \u2014 a panel is expected to size
+     itself. Without this the shell collapses to content height (measured: 209px in
+     a 780px viewport), which unpins the mobile nav and leaves the sticky header
+     with no scroll container. As a dashboard CARD the host does supply a height, so
+     this is scoped to the panel attribute rather than applied globally.
+
+     --header-height is HA's own toolbar variable; the fallback matches its default
+     so a themed or hidden header degrades to a small gap, never an overflow. */
+  :host([data-evcc-panel]) {
+    height: calc(100dvh - var(--header-height, 56px));
+  }
+
+  :host {
 
     /* =======================================================
        CANONICAL FOUNDATION TOKENS

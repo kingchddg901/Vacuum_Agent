@@ -132,3 +132,41 @@ test("[RF-7] the mobile header labels the battery, like the desktop header", asy
     expect(b.text, "the mobile battery rendered a bare percent").toMatch(/\S+\s*\d+%/);
   }
 });
+
+test("[RF-8] PANEL mode sizes itself; card mode still defers to the host", async ({ page }) => {
+  // ha-panel-custom gives its child NO height — a panel owns its viewport by
+  // convention — so height:100% on :host resolved against an auto parent and the
+  // shell collapsed to content (209px in a 780px viewport). That unpinned the mobile
+  // nav and left the sticky header with no scroll container: both reported symptoms,
+  // one cause. The card already knew it was a panel (`set panel`) and did nothing
+  // with it; the attribute is what makes the knowledge load-bearing.
+  await mountRealCard(page, {
+    width: 390, viewport: { width: 390, height: 780 },
+    config: { mobile_shell: true }, hostHeight: "auto",
+  });
+  const asPanel = await page.evaluate(() => {
+    const el = document.querySelector("eufy-vacuum-command-center");
+    el.panel = { config: { vacuum_entity_id: "vacuum.alfred", mobile_shell: true } };
+    return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => {
+      const sr = el.shadowRoot;
+      const nav = sr.querySelector("[data-evcc-bottom-nav-root]");
+      r({
+        attr: el.hasAttribute("data-evcc-panel"),
+        shellH: Math.round(sr.querySelector(".evcc-shell").getBoundingClientRect().height),
+        navBottom: Math.round(nav.getBoundingClientRect().bottom),
+        viewportH: window.innerHeight,
+      });
+    })));
+  });
+  expect(asPanel.attr, "panel mode is not stamped, so the sizing rule cannot apply").toBe(true);
+  expect(asPanel.shellH, `the shell still collapsed in panel mode (${asPanel.shellH}px)`).toBeGreaterThan(650);
+  expect(Math.abs(asPanel.navBottom - asPanel.shellH), "the nav is not at the shell bottom").toBeLessThan(3);
+
+  // As a dashboard CARD the host DOES supply a height, so the panel rule must not
+  // apply — 100dvh minus a header would be wrong inside a sized grid cell.
+  const asCard = await mountRealCard(page, {
+    width: 390, viewport: { width: 390, height: 780 },
+    config: { mobile_shell: true }, hostHeight: "100dvh",
+  });
+  expect(asCard.shellHeight, "card mode stopped filling its host").toBeGreaterThan(700);
+});
