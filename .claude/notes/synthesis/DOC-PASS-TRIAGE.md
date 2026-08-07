@@ -306,13 +306,50 @@ vein defaults to plain numbers and drop the `-eff` indirection on the map side. 
 vein **blur** tokens are legitimately card-only (the canvas compositor has no blur); only
 the opacity gap is unintended.
 
-## Non-defect notes from the same pass (recorded so they aren't re-filed)
+## R3-BUG-3 [fe-architecture] — stray timers survive teardown. **FIXED**
 
-- `disconnectedCallback` (`main.js`:1961-2001) clears 8 of 11 debounce timers —
-  `_savedZonesTimer`, `_incompleteRunLogTimer`, `_troubleRoomsLogTimer` are not cleared.
-  All three are ≤500 ms `setTimeout`s whose callbacks null-guard on `this._state`, so the
-  leak window is sub-second and harmless. Hygiene, not a bug.
-- `src/bindings/index.js`'s class docstring still says "the DOM is fully replaced on each
-  render". It is not — `_render` diffs against `dataset.renderedHtml` and only swaps on a
-  change, which is precisely why `_on`/`_onAll` are idempotent. Stale prose in the R2-STALE
-  family; the reconciled `architecture-overview` now states the diffed behaviour.
+**Filed first as "hygiene, not a bug" on a wrong premise; corrected on inspection.** The
+original note claimed the three uncleared timers were "≤500 ms `setTimeout`s whose
+callbacks null-guard on `this._state`, so the leak window is sub-second and harmless."
+Both halves are false:
+
+- **The guard is vacuous.** `disconnectedCallback` nulls `_modalHost` and `_toastHost` and
+  `_resizeObserver`, but **not** `_state` / `_actions` / `_config` / `_hass` / `_renderers`.
+  So `if (!this._state) return` — which only ever covered the pre-`setConfig` window —
+  passes on a detached card, and the callback runs its full body.
+- **The window isn't sub-second.** 450 ms (saved zones), 1200 ms (incomplete-run log),
+  1400 ms (trouble-rooms log), and a fourth source the first pass missed entirely:
+  `showToast`'s expiry sweep, a bare untracked `setTimeout(ttl + 80)` — up to ~6 s for the
+  6 000 ms error toasts, and uncancellable because no handle was kept.
+
+What a surviving timer actually does: a real `hass.callService` from a card that is gone,
+then `_scheduleRender()` → `_render()` (whose `!_config || !_hass || !_state || !_renderers`
+guard also passes) → `_updateModalHost` / `_updateToastHost`, both **create-if-missing**,
+re-appending to `document.body` the hosts `disconnectedCallback` just removed. That last
+step is conditional on there being modal/toast content to render at that moment, so the
+orphaned-host outcome needs a modal open (or a live toast) at teardown; the stray service
+call and the full render on a detached card are unconditional.
+
+Fixed in the same pass — the three named handles plus a `_toastSweepTimers` Set for the
+per-toast sweeps (a single shared handle would be wrong: a short toast pushed after a long
+one would cancel the long one's sweep and strand it on screen). Verified by diffing the
+set of `this._*Timer` handles assigned anywhere in `main.js` against the set cancelled in
+`disconnectedCallback` — 15 and 15, identical. That diff is the check the original review
+skipped: eleven `clearTimeout` lines *looked* like a complete teardown
+(`feedback_partial_guard_blind_spot`).
+
+Not pinned by a test: `main.js` is a custom element with no unit-test harness (the 920
+logic tests cover pure modules only), and the real-frame Playwright harness does not
+exercise disconnect. A teardown spec is worth adding when that harness next gets attention.
+
+## R3-STALE-1 [fe-architecture] — `bindings/index.js` class docstring. **FIXED**
+
+Said "bindEvents() is called after every shadowRoot replacement. Because the DOM is fully
+replaced on each render, all previously attached listeners are gone." It is not replaced —
+`_render` diffs each region against its `dataset.renderedHtml` stamp and swaps only on a
+change, which is exactly *why* `_on`/`_onAll` must be idempotent. The docstring described
+the opposite invariant, i.e. it read as licence for a raw `addEventListener`. Rewritten to
+state the diffed behaviour, and to name `bindModalHostEvents` as the deliberate exception
+(body-level host, out of the helpers' reach, so it is called only from inside
+`_updateModalHost`'s innerHTML swap where every element is fresh — same invariant enforced
+at the call site rather than per listener).

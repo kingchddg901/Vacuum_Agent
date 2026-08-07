@@ -22,10 +22,25 @@
  *
  * IMPORTANT DESIGN RULE
  * ---------------------
- * bindEvents() is called after every shadowRoot replacement.
- * Because the DOM is fully replaced on each render, all
- * previously attached listeners are gone. This method
- * reconnects everything cleanly from scratch each time.
+ * bindEvents() is called after EVERY render, but the DOM is NOT
+ * replaced on every render: _render() diffs each region's markup
+ * against a dataset.renderedHtml stamp and only swaps innerHTML
+ * when the string changed. So a re-bind frequently meets the SAME
+ * live elements, still carrying their listeners.
+ *
+ * That is why shadow-root bindings must go through card._on /
+ * _onAll (bindings/core.js), which are idempotent per
+ * element+event: a raw addEventListener stacks one more listener
+ * per render, and the handler then fires N times per click.
+ * Replaced DOM arrives without the marker, so it re-binds
+ * correctly.
+ *
+ * bindModalHostEvents is the deliberate exception — the modal host
+ * lives on document.body, outside the shadow root, so the card's
+ * helpers can't reach it. It uses raw addEventListener and is
+ * therefore called ONLY from inside _updateModalHost's innerHTML
+ * swap, where every element is freshly created. Same invariant,
+ * enforced at the call site instead of per listener.
  *
  * HOW THIS FILE FITS INTO THE SYSTEM
  * -----------------------------------

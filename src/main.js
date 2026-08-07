@@ -43,10 +43,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._metricsTimer = null;
     this._learningHistoryTimer = null;
     this._runProfilesTimer = null;
+    this._savedZonesTimer = null;
     this._incompleteRunLogTimer = null;
     this._incompleteRunLogLoaded = false;
     this._troubleRoomsLogTimer = null;
     this._troubleRoomsLogLoaded = false;
+    // showToast schedules one expiry sweep per toast, so a single handle can't hold
+    // them (a short toast pushed after a long one would cancel the long one's sweep
+    // and leave it on screen). Collect the handles instead; disconnectedCallback
+    // clears the set. See showToast.
+    this._toastSweepTimers = new Set();
     this._themeLibrary = {};
     this._modalHost = null;
     this._lastLoadedRoomEstimateMapId = null;
@@ -1408,11 +1414,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
     const id = this._state.pushToast(message, opts);
     this._scheduleRender();
     const ttl = Number.isFinite(opts?.ttl) ? Math.max(1000, opts.ttl) : 3500;
-    setTimeout(() => {
+    // Tracked so disconnectedCallback can cancel it. Untracked, this fired up to
+    // ~6 s after teardown and drove a full _render() on a detached card — see the
+    // disconnectedCallback note.
+    const sweep = setTimeout(() => {
+      this._toastSweepTimers.delete(sweep);
       // The renderer also filters expired toasts, but we still need a
       // re-render to actually clear them from the DOM.
       this._scheduleRender();
     }, ttl + 80);
+    this._toastSweepTimers.add(sweep);
     return id;
   }
 
@@ -1982,6 +1993,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     this._learningController?.disconnect();
 
+    /* Every pending timer must be cancelled here, and the reason is stronger than
+       "memory leak": teardown does NOT null _state / _actions / _config / _hass /
+       _renderers, so each refresh helper's `if (!this._state) return` guard — which
+       only ever covered the pre-setConfig window — passes on a detached card. A
+       surviving timer therefore runs its full body: a real hass.callService, then
+       _scheduleRender(), whose _render() re-enters _updateModalHost/_updateToastHost
+       and re-appends the document.body hosts this method just removed. Three of these
+       (saved zones, incomplete-run log, trouble-rooms log) plus showToast's expiry
+       sweeps were missing for exactly that reason — the list above looked complete. */
     clearTimeout(this._startStatusTimer);
     clearTimeout(this._dashboardSnapshotTimer);
     clearTimeout(this._dockActionStatusTimer);
@@ -1989,9 +2009,14 @@ class EufyVacuumCommandCenter extends HTMLElement {
     clearTimeout(this._metricsTimer);
     clearTimeout(this._learningHistoryTimer);
     clearTimeout(this._runProfilesTimer);
+    clearTimeout(this._savedZonesTimer);
+    clearTimeout(this._incompleteRunLogTimer);
+    clearTimeout(this._troubleRoomsLogTimer);
     clearTimeout(this._setupStatusTimer);
     clearTimeout(this._deferredRenderTimer);
     this._deferredRenderTimer = null;
+    this._toastSweepTimers.forEach(clearTimeout);
+    this._toastSweepTimers.clear();
     clearInterval(this._liveMapRefreshTimer);
     this._liveMapRefreshTimer = null;
     clearInterval(this._livePosePollTimer);
