@@ -768,12 +768,22 @@ forensics for free.
      precedent-setter — before fan-out.
   Fable spend is measured in rulings, not rounds.
 
-## AMENDMENT (CAL-23 R1 finding, 2026-08-07): the manifest logs ADDITIONS too
+## AMENDMENT (CAL-23 R1 finding + Chris ruling, 2026-08-07): additions are ALLOWED — and logged
 
-Round 1's review caught trimmed prose that ADDED an unlogged row — and the addition
-likely induced a builder divergence. A trimmer's additions/rewrites are exactly as
-capable of steering a blind builder as its removals (and are the natural smuggling
-channel rule 4 polices). The removal manifest therefore gains an ADDITIONS section:
-every sentence the trimmer introduces that has no counterpart in the original is
-listed with its justification. Unlogged additions are a rejected trim, same class as
-an unrouted removal.
+The trim role explicitly INCLUDES corrective and clarifying additions where the
+original prose is wrong, silent, or ambiguous — round 1 proved both faces: the
+trimmer's best moment was an addition (correcting §7.2's wiring before the repo's
+own fix landed) and its one induced divergence was an addition too (an unlogged
+field-table row whose phrasing implied lifecycle behavior the code doesn't have).
+The rule is therefore license + ledger, not suspicion:
+
+- Additions are legitimate trim output; when the original is wrong, correcting it
+  in place is REQUIRED, not optional (a trim that faithfully preserves a falsehood
+  fails the DR standard it serves).
+- Every sentence with no counterpart in the original is logged in the manifest's
+  ADDITIONS section with a one-line justification, and passes the same rule-4
+  coupling scan as everything else — additions are the natural smuggling channel.
+- Net-shrink per closure (hardening rule 1) still governs the section TOTAL:
+  additions live inside the shrink budget, which keeps invariant-inflation and
+  addition-padding structurally unprofitable.
+- Unlogged additions remain a rejected trim, same class as an unrouted removal.
