@@ -19,17 +19,17 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `lifecycle.py` | 144 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration |
-| `path_blockers.py` | 142 | 95% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration |
-| `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
-| `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration |
-| `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration |
-| `pause_timeout.py` | 74 | 92% | `test_listeners_timers.py` | integration |
-| `_common.py` | 80 | 93% | `test_listeners_common.py` | integration |
-| `job_progress.py` | 44 | 95% | `test_listeners_active.py` | integration |
-| `pose_sampler.py` | 159 | 89% | `test_pose_sampler.py` (unit) | unit |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `lifecycle.py` | 144 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration | **bare x31** |
+| `path_blockers.py` | 142 | 95% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration | spec'd |
+| `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration | **bare x31** |
+| `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x31** |
+| `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration | clean |
+| `pause_timeout.py` | 74 | 92% | `test_listeners_timers.py` | integration | clean |
+| `_common.py` | 80 | 93% | `test_listeners_common.py` | integration | clean |
+| `job_progress.py` | 44 | 95% | `test_listeners_active.py` | integration | **bare x31** |
+| `pose_sampler.py` | 159 | 89% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
 
 ---
 

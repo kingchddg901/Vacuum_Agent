@@ -34,17 +34,17 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test file | Layer |
-|---------------|------:|----:|-----------|-------|
-| `boundary.py` | 15 | 90% | via `zone_membership` in `tests/integration/test_mapping_services.py` (only `point_in_polygon` survives) | integration (pure geometry) |
-| `segment_primitives.py` | 277 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
-| `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
-| `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `mapping_services.py` | 1375 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration |
-| `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) |
-| `map_source_runtime.py` | 570 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
-| `map_source_coordinator.py` | 287 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
-| `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) |
+| Source module | Stmts | Cov | Test file | Layer | Mocking |
+|---------------|------:|----:|-----------|-------|-------|
+| `boundary.py` | 15 | 90% | via `zone_membership` in `tests/integration/test_mapping_services.py` (only `point_in_polygon` survives) | integration (pure geometry) | clean |
+| `segment_primitives.py` | 277 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) | clean |
+| `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) | clean |
+| `tracker.py` | 247 | 84% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration | **bare x2** in 2 files |
+| `mapping_services.py` | 1375 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration | clean |
+| `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
+| `map_source_runtime.py` | 570 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
+| `map_source_coordinator.py` | 287 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration | clean |
+| `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 
 ---
 

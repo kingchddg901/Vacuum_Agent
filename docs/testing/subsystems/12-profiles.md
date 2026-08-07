@@ -12,10 +12,10 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `manager.py` | 521 | 96% | `test_profiles_manager.py` | integration |
-| `room_profiles.py` | 196 | 95% | `test_profiles_room_profiles.py` (unit), `test_profile_catalog.py` (unit) | unit |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `manager.py` | 521 | 96% | `test_profiles_manager.py` | integration | spec'd |
+| `room_profiles.py` | 196 | 95% | `test_profiles_room_profiles.py` (unit), `test_profile_catalog.py` (unit) | unit | clean |
 
 (The room-profile *services* are in [17 — services](17-services.md) via
 `test_services_room_profiles.py`.)

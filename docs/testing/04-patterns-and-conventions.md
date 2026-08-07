@@ -248,3 +248,61 @@ Use it surgically, one audited block at a time — never a blanket `_LOGGER.*`
 regex, which would also silence the behavioral excepts above and leave
 half-excluded branches under `--cov-branch`. The full convention is in
 [subsystems/README](subsystems/README.md#coverage-conventions-apply-everywhere).
+
+## The two ratchets (mock debt, doc coverage)
+
+Two committed gates hold ground that the campaign is slowly reclaiming. Both are
+SHRINK-ONLY: the numbers may fall freely, and raising one is meant to be harder
+than fixing the thing it measures.
+
+### Mock ratchet — `tests/test_mock_ratchet.py`
+
+A bare `MagicMock()` / `AsyncMock()` **agrees with the caller, not the callee**:
+every attribute exists, every method returns another mock, every shape assertion
+passes. Audit 1 traced four live failures to exactly that, green all the way to
+hardware. `spec_manager()` and `create_autospec` are the cure (see
+[spec_manager](03-fixtures-and-helpers.md)); this gate measures where they are
+not yet used.
+
+`tests/mock_allowlist.json` records a per-file CEILING for the 40 files that
+currently carry bare mocks. A file **not** on that list may have zero — that is
+the half that matters, because the debt is concentrated and what must be
+prevented is it reappearing in the ~145 files that are clean.
+
+This is **not a ban**. Entity-driving partial stubs are correct and stay (above).
+The doctrine's line is *a mock handed INTO production code must be spec'd*, which
+needs per-site judgement; the gate only holds the total steady while that happens.
+
+```bash
+python scripts/mock_census.py                     # the current profile, worst first
+python scripts/mock_census.py --write-allowlist   # bank progress AFTER converting
+```
+
+### Documentation ratchet — `tests/test_docs_ratchet.py`
+
+A test file that appears nowhere in `docs/testing/` produces no findings and reads
+exactly like a well-covered one — the same shape of lie as the mock, one level up.
+`tests/undocumented_tests.json` lists the current backlog; **a new test file must
+be mentioned in its subsystem page in the same commit that creates it.**
+
+```bash
+python scripts/mock_docs.py --undocumented   # what is still missing
+```
+
+### The generated `Mocking` column
+
+Each subsystem coverage table carries a `Mocking` cell derived from the same
+census that feeds the ratchet — so the docs and the gate cannot disagree. It
+aggregates a row's test files and reports the risk (`bare xN`), not the pedigree:
+`clean` means nothing in that row constructs an unspec'd mock. The `Layer` column
+says unit-vs-integration, which is not the axis that bites.
+
+Generated, so hand edits are overwritten:
+
+```bash
+python scripts/mock_docs.py            # rewrite the column
+python scripts/mock_docs.py --check    # CI-style staleness check, writes nothing
+```
+
+Both ratchets and the column live in `tests/test_mock_ratchet.py`,
+`tests/test_docs_ratchet.py`, `scripts/mock_census.py` and `scripts/mock_docs.py`.

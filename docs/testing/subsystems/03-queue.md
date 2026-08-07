@@ -12,10 +12,10 @@ Architecture reference: [docs/dev/07-queue-engine.md](../../dev/07-queue-engine.
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `queue_engine.py` | 174 | 95% | `test_queue_engine.py` (unit), `test_manager_queue.py` | unit + int |
-| `dispatch_engines.py` | 98 | 95% | `test_dispatch_engines.py` (unit) | unit |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `queue_engine.py` | 174 | 95% | `test_queue_engine.py` (unit), `test_manager_queue.py` | unit + int | clean |
+| `dispatch_engines.py` | 98 | 95% | `test_dispatch_engines.py` (unit) | unit | clean |
 
 (The `build_queue` / `clear_queue` service surface is in
 [17 — services](17-services.md) via `test_services_queue.py`.)

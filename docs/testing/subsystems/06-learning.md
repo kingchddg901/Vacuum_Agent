@@ -17,23 +17,23 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test file(s) | Layer |
-|---------------|------:|----:|--------------|-------|
-| `utils.py` | 109 | 94% | `tests/unit/test_learning_utils.py` | unit (pure) |
-| `estimator.py` | 535 | 93% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
-| `history_store.py` | 733 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
-| `stats_rebuilder.py` | 501 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 631 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 939 | 93% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
-| `services.py` | 268 | 91% | `tests/integration/test_learning_services.py` | integration |
-| `external_ingest.py` | 433 | 96% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
-| `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
-| `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) |
-| `counter_segmentation.py` | 202 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
-| `brand_facts.py` | 49 | 92% | `tests/unit/test_learning_brand_facts.py` | unit (pure) |
-| `external_run.py` | 302 | 89% | `tests/integration/test_manager_external_finalize.py` + `tests/integration/test_manager_lifecycle_status.py` | integration |
-| `zone_learning.py` | 90 | 83% | `tests/unit/test_zone_learning.py` | unit (pure) |
-| `constants.py` | 3 | 100% | (exercised via `external_run.py` / `test_manager_external_finalize.py`) | unit (pure) |
+| Source module | Stmts | Cov | Test file(s) | Layer | Mocking |
+|---------------|------:|----:|--------------|-------|-------|
+| `utils.py` | 109 | 94% | `tests/unit/test_learning_utils.py` | unit (pure) | clean |
+| `estimator.py` | 535 | 93% | `tests/unit/test_learning_estimator.py` | unit (pure + class) | **bare x1** |
+| `history_store.py` | 733 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) | **bare x1** |
+| `stats_rebuilder.py` | 501 | 95% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) | **bare x1** |
+| `job_finalizer.py` | 631 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration | **bare x8** |
+| `manager.py` | 939 | 93% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` + `tests/unit/test_profile_name_filter.py` | integration | clean |
+| `services.py` | 268 | 91% | `tests/integration/test_learning_services.py` | integration | clean |
+| `external_ingest.py` | 433 | 96% | `tests/unit/test_learning_external_ingest.py` | unit (pure) | **bare x1** |
+| `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) | clean |
+| `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) | clean |
+| `counter_segmentation.py` | 202 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) | clean |
+| `brand_facts.py` | 49 | 92% | `tests/unit/test_learning_brand_facts.py` | unit (pure) | clean |
+| `external_run.py` | 302 | 89% | `tests/integration/test_manager_external_finalize.py` + `tests/integration/test_manager_lifecycle_status.py` | integration | clean |
+| `zone_learning.py` | 90 | 83% | `tests/unit/test_zone_learning.py` | unit (pure) | clean |
+| `constants.py` | 3 | 100% | (exercised via `external_run.py` / `test_manager_external_finalize.py`) | unit (pure) | clean |
 
 `counter_segmentation.py` lives at the package root (not under `learning/`) — it
 is the shared counter-plateau segmentation primitive used here and by the jobs

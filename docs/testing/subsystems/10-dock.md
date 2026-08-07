@@ -12,9 +12,9 @@ Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test file | Layer |
-|---------------|------:|----:|-----------|-------|
-| `manager.py` | 172 | 98% | `tests/integration/test_dock_manager.py` | integration |
+| Source module | Stmts | Cov | Test file | Layer | Mocking |
+|---------------|------:|----:|-----------|-------|-------|
+| `manager.py` | 172 | 98% | `tests/integration/test_dock_manager.py` | integration | clean |
 
 (`__init__.py` is trivial; the dock *services* layer is covered separately by
 `tests/integration/test_services_dock.py`.)

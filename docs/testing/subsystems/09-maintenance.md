@@ -12,9 +12,9 @@ Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-mainte
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `manager.py` | 287 | 91% | `test_maintenance_manager.py` | integration |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `manager.py` | 287 | 91% | `test_maintenance_manager.py` | integration | clean |
 
 (The reset / set-interval *services* are in [17 — services](17-services.md) via
 `test_services_maintenance_reset.py`; the remaining-life *sensors* are in

@@ -12,11 +12,11 @@ Architecture reference: [docs/dev/frontend/theme-system.md](../../dev/frontend/t
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `manager.py` | 337 | 95% | `test_themes_manager.py`, `test_themes_manager_deep.py`, `test_themes_import_scoped.py` | integration |
-| `services.py` | 112 | 95% | `test_themes_services.py` | integration |
-| `preloaded.py` | 32 | 98% | `test_themes_preloaded.py` (unit) | unit |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `manager.py` | 337 | 95% | `test_themes_manager.py`, `test_themes_manager_deep.py`, `test_themes_import_scoped.py` | integration | clean |
+| `services.py` | 112 | 95% | `test_themes_services.py` | integration | **bare x1** |
+| `preloaded.py` | 32 | 98% | `test_themes_preloaded.py` (unit) | unit | clean |
 
 ---
 

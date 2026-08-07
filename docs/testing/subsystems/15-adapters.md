@@ -27,34 +27,34 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `registry.py` | 215 | 91% | `test_adapters.py` | integration |
-| `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
-| `config_schema.py` | 64 | 94% | `test_adapters.py` | integration |
-| `brands.py` | 58 | 100% | `test_brand_selection.py` | integration |
-| `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter |
-| `eufy/adapter.py` | 52 | 85% | `tests/adapters/eufy/` | adapter |
-| `eufy/entities.py` | 28 | 100% | `test_buttons_entities.py` | adapter |
-| `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter |
-| `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter |
-| `eufy/vocabulary.py` | 43 | 100% | `test_error_source.py` + `tests/adapters/eufy/` | adapter |
-| `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter |
-| `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/water_config.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/maintenance_components.py` | 1 | 100% | `test_maintenance_config.py` | adapter |
-| `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `registry.py` | 215 | 91% | `test_adapters.py` | integration | clean |
+| `config_loader.py` | 33 | 100% | `test_adapters.py` | integration | clean |
+| `config_schema.py` | 64 | 94% | `test_adapters.py` | integration | clean |
+| `brands.py` | 58 | 100% | `test_brand_selection.py` | integration | clean |
+| `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/adapter.py` | 52 | 85% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/entities.py` | 28 | 100% | `test_buttons_entities.py` | adapter | clean |
+| `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter | clean |
+| `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter | clean |
+| `eufy/vocabulary.py` | 43 | 100% | `test_error_source.py` + `tests/adapters/eufy/` | adapter | clean |
+| `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter | clean |
+| `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/water_config.py` | 3 | 100% | `tests/adapters/eufy/` | adapter | - |
+| `eufy/maintenance_components.py` | 1 | 100% | `test_maintenance_config.py` | adapter | clean |
+| `eufy/eufy_upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter | - |
 | `eufy/upkeep_guides_i18n/*.py` (17 languages) | 19 | 100% | `test_upkeep_guides_i18n.py` | adapter |
-| `roborock/adapter.py` | 46 | 96% | `roborock/test_adapter.py` | adapter |
-| `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter |
-| `roborock/vocabulary.py` | 18 | 100% | `roborock/test_adapter.py` | adapter |
-| `roborock/entities.py` | 22 | 100% | `roborock/test_adapter.py` | adapter |
-| `roborock/const.py` | 6 | 100% | `roborock/test_adapter.py` | adapter |
-| `roborock/upkeep_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter |
-| `roborock/roborock_upkeep_guides.py` | 8 | 100% | `roborock/test_adapter.py` | adapter |
-| `roborock/maintenance_components.py` | 2 | 100% | `roborock/test_adapter.py` | adapter |
+| `roborock/adapter.py` | 46 | 96% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/model_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/vocabulary.py` | 18 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/entities.py` | 22 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/const.py` | 6 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/upkeep_catalog.py` | 7 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/roborock_upkeep_guides.py` | 8 | 100% | `roborock/test_adapter.py` | adapter | - |
+| `roborock/maintenance_components.py` | 2 | 100% | `roborock/test_adapter.py` | adapter | - |
 | `roborock/upkeep_guides_i18n/*.py` (17 languages) | 121 | 100% | `roborock/test_adapter.py` | adapter |
 
 `eufy/discovery.py` no longer exists as a separate module — model detection now

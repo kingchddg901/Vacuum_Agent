@@ -13,9 +13,9 @@ Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rul
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `run_plan.py` | 603 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit) | int + unit |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `run_plan.py` | 603 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit) | int + unit | **bare x1** |
 
 ---
 

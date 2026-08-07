@@ -24,21 +24,21 @@ docs, not here:
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test file |
-|---------------|------:|----:|-----------|
-| `job_control.py` | 142 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
-| `run_profiles.py` | 104 | 98% | `test_services_run_profiles.py` |
-| `adapter_config.py` | 101 | 96% | `test_services_adapter_config.py` |
-| `setup.py` | 159 | 86% | `test_services_errors_setup.py` |
-| `dock.py` | 80 | 100% | `test_services_dock.py` |
-| `room_profiles.py` | 81 | 100% | `test_services_room_profiles.py` |
-| `rooms.py` | 108 | 98% | `test_services_rooms.py` |
-| `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
-| `queue.py` | 121 | 77% | `test_services_queue.py` |
-| `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |
-| `errors.py` | 37 | 95% | `test_services_errors_setup.py` |
-| `access_graph.py` | 34 | 88% | `test_services_access_graph.py` |
-| `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py` |
+| Source module | Stmts | Cov | Test file | Mocking |
+|---------------|------:|----:|-----------|-------|
+| `job_control.py` | 142 | 98% | `test_services_job_control_read.py`, `test_services_job_control_write.py` | **bare x16** |
+| `run_profiles.py` | 104 | 98% | `test_services_run_profiles.py` | **bare x1** |
+| `adapter_config.py` | 101 | 96% | `test_services_adapter_config.py` | clean |
+| `setup.py` | 159 | 86% | `test_services_errors_setup.py` | **bare x2** |
+| `dock.py` | 80 | 100% | `test_services_dock.py` | **bare x5** |
+| `room_profiles.py` | 81 | 100% | `test_services_room_profiles.py` | clean |
+| `rooms.py` | 108 | 98% | `test_services_rooms.py` | **bare x1** |
+| `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` | clean |
+| `queue.py` | 121 | 77% | `test_services_queue.py` | **bare x1** |
+| `snapshots.py` | 43 | 100% | `test_services_snapshots.py` | clean |
+| `errors.py` | 37 | 95% | `test_services_errors_setup.py` | **bare x2** |
+| `access_graph.py` | 34 | 88% | `test_services_access_graph.py` | clean |
+| `_common.py` | 43 | 96% | `test_services_common.py`, `test_services_misc.py` | clean |
 
 ---
 

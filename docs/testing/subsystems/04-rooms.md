@@ -11,16 +11,16 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `access_graph.py` | 460 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration |
-| `room_crud.py` | 153 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
-| `room_discovery.py` | 125 | 93% | `test_room_discovery.py` | integration |
-| `reconciliation.py` | 148 | 78% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration |
-| `source_refresh.py` | 139 | 88% | `test_rooms_source_refresh.py` (unit) | unit |
-| `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit |
-| `room_defaults.py` | 21 | 96% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit |
-| `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `access_graph.py` | 460 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration | clean |
+| `room_crud.py` | 153 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration | **bare x1** |
+| `room_discovery.py` | 125 | 93% | `test_room_discovery.py` | integration | clean |
+| `reconciliation.py` | 148 | 78% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration | **bare x1** |
+| `source_refresh.py` | 139 | 88% | `test_rooms_source_refresh.py` (unit) | unit | clean |
+| `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit | clean |
+| `room_defaults.py` | 21 | 96% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |
+| `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit | clean |
 
 (Room-facing services live in [17 — services](17-services.md):
 `test_services_rooms.py`, `test_services_access_graph.py`.)

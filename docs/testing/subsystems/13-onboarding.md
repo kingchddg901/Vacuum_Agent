@@ -13,9 +13,9 @@ Architecture reference: [docs/dev/18-onboarding-manager.md](../../dev/18-onboard
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test files | Layer |
-|---------------|------:|----:|------------|-------|
-| `manager.py` | 92 | 98% | `test_onboarding_manager.py` | integration |
+| Source module | Stmts | Cov | Test files | Layer | Mocking |
+|---------------|------:|----:|------------|-------|-------|
+| `manager.py` | 92 | 98% | `test_onboarding_manager.py` | integration | **bare x3** |
 
 ---
 
