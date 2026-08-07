@@ -401,3 +401,17 @@ verbatim by the coordinator this round, not authored by the trim agent.
 (Entries 6, 13, 14, 17 are double-tagged, so tag counts sum to more than 23.)
 
 ## ADDITIONS count: 11 (A-1 through A-11)
+
+---
+
+## RETROACTIVE ENTRY (post-closure adjudication, 2026-08-07)
+
+**SCOPE-LINE CHANGE (round 1, pre-additions-rule, unlogged):** the trim changed the doc's
+availability claim from "rebuild from the document alone" to "document plus the rest of
+the integration's source". Adjudicated with Chris: the OLD claim was untested aspiration
+(doc-as-spec run measured docs-alone ~90%); the NEW wording erred the other way (original
+source is not a legitimate dependency). RULING: the contract is total-source-loss /
+functional identity / per-section-inductive — now defined in doc 00 §0; doc 23's scope
+line corrected to conform. Also: the total_error_seconds derivation + RF-DOCK deduction
+rule (routed out of 23 as "downstream machinery") was RESTORED into doc 10 (finalizer
+jurisdiction) — relocation-debt closed; audit copy retained here.

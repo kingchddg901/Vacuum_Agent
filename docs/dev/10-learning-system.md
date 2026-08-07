@@ -82,13 +82,38 @@ returns, in `finalize_from_inputs` (§4.6 provenance):
 
 | Field | Where | When set |
 |---|---|---|
-| `job.cleaning_time_seconds` (+ `cleaning_time_seconds_raw`, `job.total_error_seconds`) | `job` | device cleaning counter; the `_raw` / `total_error_seconds` pair appears **only** when an error window was subtracted |
+| `job.cleaning_time_seconds` (+ `cleaning_time_seconds_raw`, `job.total_error_seconds`) | `job` | device cleaning counter; the `_raw` / `total_error_seconds` pair appears **only** when an error window was subtracted — full derivation + deduction rule below |
 | `job.cleaning_area_m2` + `job.cleaning_area_sensor_m2` | `job` | when `inputs.cleaning_area_m2` is present (a dispatched run stamps the sensor total into **both**) |
 | `job.overhead_observed` | `job` | `compute_overhead_observed(job)` base + per-room transit enrichment (§2.2) |
 | `job.battery_metrics` | `job` | `compute_job_battery_metrics(...)` drain rollup |
 | `outcome.idle_wall_minutes` (+ `extreme_idle_wall` blocker) | `outcome` | **only** when the cold-start idle guard holds the run (§3.2b) |
 | `learning_context` | record top level | `_build_learning_context(...)` — queue shape, estimate snapshot, actuals, estimate delta, access-graph summary |
 | `trace_run_id` | record top level | when the active job carried one |
+
+#### Error-seconds derivation + the RF-DOCK deduction rule
+
+*(Relocated here from doc 23 during CAL-23 — this is finalizer behaviour, this doc's
+jurisdiction; the tracker side of the seam is [23 §6.2](23-error-tracker.md).)*
+
+`total_error_seconds` is derived from the harvested latch's `errors[]` — each entry
+treated as a half-open `[captured_at, recovered_at)` interval (an open interval is
+closed by the next edge's `captured_at`, else the job's `ended_at`; overlaps merged).
+This is why `errors[].captured_at` / `recovered_at` (and the `recovered_at: None`
+semantics) are load-bearing tracker contract.
+
+**RF-DOCK: only evidence-invalidating seconds are deducted.** `total_error_seconds`
+still reports the FULL window, but the finalizer additionally splits it per bucket by
+running the same interval computation filtered through the tracker's
+`classify_error_code`: `invalidating` / `safe` / `unclassified`. Only
+`deductible_error_seconds` (= the invalidating bucket) is **subtracted from
+`cleaning_time_seconds`** (clamped ≥ 0); unclassified seconds are preserved and logged
+at debug — the failure mode degrades toward "trust the run", so a station fault the
+robot worked straight through can no longer zero a productive run (the live incident:
+five dock-side pump faults charged 455 s against a 360 s clean, and the model learned
+that 4 m² takes no time). A parallel `_by_source` split (`error_source_for_code`) is
+computed and **reported, never subtracted** — it exists so a human can see WHERE
+preserved seconds came from. Raw and adjusted cleaning seconds are both stored on the
+record.
 
 ### 2.1 Room stats (`room_stats.json` → `room_stats` array)
 

@@ -9,6 +9,32 @@
 This standard governs the numbered dev docs; [12 — Battery](12-battery-system.md) and
 [10 — Learning](10-learning-system.md) are the worked exemplars.
 
+## 0. The availability contract (ruled 2026-08-07)
+
+What "disaster" means, exactly — the scenario every DR doc is sized against:
+
+- **The disaster is TOTAL loss of source code.** The DR corpus (all numbered docs,
+  together) must suffice to rebuild the integration with no original source at all.
+- **The target is FUNCTIONAL identity, never byte identity.** A rebuild is correct
+  when it satisfies every documented contract and behaviour; private names, internal
+  structure, and incidental choices are explicitly NOT part of the contract. (Corollary,
+  proven by CAL-23: only behavioural tests can examine a rebuild — a test that asserts
+  private internals demands byte identity the contract never promised.)
+- **Per-section sufficiency is defined inductively.** One section is sufficient when a
+  competent blind implementer can rebuild its subsystem from that section **plus the
+  correctly-rebuilt rest of the system** — because in a real total-loss recovery the
+  neighbours are rebuilt from *their own* sections, in dependency order. Section proofs
+  therefore compose: every section sufficient-given-neighbours ⇒ the corpus rebuilds
+  from docs alone. A single doc is NOT required to restate its neighbours' interfaces.
+- **Test harness legitimacy:** blind-reconstruction experiments may use the real
+  surrounding source as a stand-in for "correctly-rebuilt neighbours" — functional
+  identity makes the stand-in exact for that purpose. The experiment's target section
+  itself is always removed.
+
+A doc's scope line states this contract's per-section form; it never claims
+document-alone sufficiency (untested, and measured incomplete by the doc-as-spec run)
+and never treats the *original* source as a legitimate dependency.
+
 ---
 
 ## 1. What "disaster-recovery grade" means

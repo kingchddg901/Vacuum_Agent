@@ -2,7 +2,10 @@
 
 > **Scope:** Behavioral specification for `core/error_tracker.py`. States what must be
 > true — storage shapes, edge-detection rules, timing, and the public API — so the
-> module can be rebuilt from this document plus the rest of the integration's source.
+> module can be rebuilt, **functionally identical**, from this document plus the
+> correctly-rebuilt rest of the integration (the availability contract,
+> [00 §0](00-disaster-recovery-standard.md)). Proven by blind reconstruction (CAL-23,
+> 2-of-2, 2026-08-07).
 
 ---
 
