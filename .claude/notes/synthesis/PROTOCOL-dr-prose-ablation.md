@@ -730,3 +730,20 @@ Evidence-free flag:                           rejected without consuming a foren
 The design goal, stated plainly: not trustworthy agents — an economy where betraying the
 experiment is unattractive, hiding a betrayal is less attractive than exposing it, and
 manufacturing a betrayal is unprofitable.
+
+## AMENDMENT (Chris, 2026-08-06): nothing is deleted — everything is routed
+
+The trim agent has authority over LOCATION, never over meaning. Every removed passage
+gets a destination tag in a **removal manifest** the trim submits with its candidate:
+
+- `dr`       — stays (invariant).
+- `delta`    — still actively reasoned about → docs/dev/deltas/.
+- `audit`    — failures, disproofs, provenance → the audit record (the SCARS wing).
+- `lore`     — true, valuable, but not rebuild-critical → the LORE wing:
+               still-true design rationale → docs/dev/design/ (never-rewrite conventions);
+               agent-facing operational lore → .claude/notes/ knowledge base.
+- `discard`  — requires stated justification: redundant, false, or valueless.
+
+The reviewer spot-checks the manifest; unrouted valuable prose is a REJECTED trim, same
+class as a weakened contract. The manifest is also a handoff artifact — it feeds rule-11
+forensics for free.
