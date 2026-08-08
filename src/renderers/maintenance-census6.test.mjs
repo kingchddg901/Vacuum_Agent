@@ -96,3 +96,43 @@ test("[C6-6] an ABSENT count falls back to the sentence, never 'none'", () => {
   assert.equal(compose({ attention_count: null, attention_summary: "server text" }), "server text");
   assert.equal(compose({}), null);
 });
+
+// [C6-7] SOURCE PIN for C6-5/C6-6 — added 2026-08-07 by the W0 v2 census.
+//
+// C6-5 and C6-6 above assert a `compose` TRANSCRIBED into this file. A
+// transcription proves the intended semantics and nothing about the shipped
+// renderer: the real composition is inline at renderers/maintenance.js and is
+// referenced by no assertion in the suite. C6-4 already pins its half against
+// source; this is the missing sibling.
+//
+// The forbidden shape is not hypothetical — `Number(upkeep.attention_count ?? 0)`
+// EXISTS twelve lines below the real code (the `attentionCount` used for a stat
+// tile, where zero-for-absent is harmless). One copy-paste up and an absent count
+// renders a confident "No upkeep items need attention." on a payload that never
+// said so, which is precisely C6-6's stated failure and the REV-6 bug class.
+test("[C6-7] the SHIPPED attention summary still distinguishes absent from zero", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("./maintenance.js", import.meta.url), "utf-8");
+
+  // The guard must be `!= null` FIRST, then finite — Number(null) is 0 and 0 IS
+  // finite, so testing finiteness alone re-introduces the bug.
+  assert.match(
+    src,
+    /attention_count\s*!=\s*null\s*\?\s*Number\(\s*upkeep\.attention_count\s*\)\s*:\s*NaN/,
+    "the absent-vs-zero guard on attention_count is gone — an absent count will render "
+    + "'No upkeep items need attention.' on a payload that never said so (C6-6)",
+  );
+  assert.match(
+    src,
+    /Number\.isFinite\(\s*_attentionCountRaw\s*\)/,
+    "the finite check that routes an absent count to the server sentence is gone (C6-6)",
+  );
+  // And the summary must still be COMPOSED from the count rather than echoing a
+  // server-baked English sentence when the count is present (C6-5, CENSUS-6).
+  assert.match(
+    src,
+    /this\.t\(\s*["']maintenance\.attention_summary["']\s*,\s*\{\s*count:/,
+    "the attention summary no longer interpolates the count through i18n — "
+    + "server-baked English would reach every locale again (C6-5)",
+  );
+});

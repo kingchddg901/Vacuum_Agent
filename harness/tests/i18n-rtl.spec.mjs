@@ -86,3 +86,66 @@ for (const lang of ["ar", "he"]) {
     }
   });
 }
+
+// ============================================================================
+// POPULATED views under RTL — the same empty-scope hole as i18n-layout, and it
+// bites HARDER here.
+//
+// All 36 gates above render through `renderTab`, i.e. the generic recording
+// null-object stub, so a collection-driven view renders its EMPTY STATE. Six of
+// the nine VIEW_ORDER views are placeholders under it. What this spec exists to
+// catch is a stray PHYSICAL `margin-left` / `padding-right` surviving inside a
+// room card, a rule row, a metrics cell or the preset grid — in its RENDERED
+// consequence, which is the half `check-styles`' source lint cannot see. Those
+// are exactly the components that were never in the DOM.
+//
+// Measured before committing: every fixture below flips to dir="rtl" and reports
+// zero culprits under both ar and he, so nothing is being papered over — but zero
+// findings from an unmeasured scope reads identically to zero from a clean one,
+// which is the whole thesis of the census that produced this.
+//
+// Row selectors are the same measured discriminators as i18n-layout: each is 0
+// under the stub and > 0 with the fixture, so an emptied fixture fails loudly
+// instead of quietly restoring the hole.
+const RTL_POPULATED = [
+  ["rooms-active", ".evcc-room-row"],
+  ["room-rules", ".evcc-rule-card"],
+  ["metrics-overview", ".evcc-metrics-card-header"],
+  ["review-badges", ".evcc-review-job-card"],
+  ["maintenance", ".evcc-maintenance-card"],
+  ["run-profiles-unsupported-break", ".evcc-run-profiles-step"],
+];
+
+for (const lang of ["ar", "he"]) {
+  const nested = nestedFor(lang);
+
+  for (const [width, chrome] of [[390, true], [500, false]]) {
+    test.describe(`i18n RTL layout gate: ${lang} POPULATED @${width}px${chrome ? " (mobile)" : ""}`, () => {
+      if (chrome) test.use({ viewport: { width: 390, height: 844 } });
+
+      for (const [fixture, rowSel] of RTL_POPULATED) {
+        test(`${fixture} flips RTL and survives with real data`, async ({ page }) => {
+          await mountHarness(page);
+          await registerRtl(page, lang, nested);
+          const res = await page.evaluate(
+            ([id, o]) => window.__evcc.renderGallery(id, o),
+            [fixture, { width, freeze: true, lang, mobile: chrome }],
+          );
+          expect(res.ok, res.error).toBe(true);
+
+          const dir = await page.evaluate(() => document.getElementById("evcc-host").getAttribute("dir"));
+          expect(dir, `${fixture} (${lang}): host did not flip to dir="rtl"`).toBe("rtl");
+
+          const rows = await page.evaluate(
+            (sel) => document.getElementById("evcc-host").shadowRoot.querySelectorAll(sel).length,
+            rowSel);
+          expect(rows,
+            `${fixture} rendered no ${rowSel} — the fixture is empty, so this gate measures nothing`)
+            .toBeGreaterThan(0);
+
+          assertNoOverflow(`${fixture} @${width}`, lang, await probeLayout(page));
+        });
+      }
+    });
+  }
+}

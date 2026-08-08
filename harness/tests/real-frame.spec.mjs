@@ -123,14 +123,41 @@ test("[RF-7] the mobile header labels the battery, like the desktop header", asy
     width: 390, config: { mobile_shell: true },
     hass: { states: { "vacuum.alfred": { state: "docked", attributes: { battery_level: 8 } } } },
   });
-  const b = await page.evaluate(() => {
+  // Three defects in the original of this test, all found by the W0 v2 census and
+  // all mine (2026-08-07):
+  //   1. the only assertion sat inside `if (b) {…}`, so DELETING the element — the
+  //      exact HDR-BATT-1 regression this exists for — turned the test into zero
+  //      assertions and a green pass;
+  //   2. `cls` was captured and never asserted, leaving the stated second half
+  //      ("never applied the low/critical bands") entirely unmeasured;
+  //   3. /\S+\s*\d+%/ MATCHES a bare "100%" — `\S+` happily eats the leading "1".
+  //      It rejected a bare percent only because this fixture pins battery_level: 8.
+  const read = () => page.evaluate(() => {
     const el = document.querySelector("eufy-vacuum-command-center").shadowRoot
       .querySelector(".evcc-mobile-battery");
     return el ? { text: el.textContent.trim(), cls: el.className } : null;
   });
-  if (b) {
-    expect(b.text, "the mobile battery rendered a bare percent").toMatch(/\S+\s*\d+%/);
-  }
+
+  const b = await read();
+  expect(b, "the mobile battery element is GONE — that is HDR-BATT-1 itself").not.toBeNull();
+  // The label, digit-independent: strip every digit, percent and space and something
+  // must remain. Rejects a bare "8%" AND a bare "100%", in any language.
+  expect(b.text.replace(/[\d\s%]/g, ""),
+    `the mobile battery rendered a bare percent: "${b.text}"`).not.toBe("");
+  expect(b.text, "the percent value itself is missing").toMatch(/8\s*%/);
+  // The band half. 8 <= 10, so this must be `critical` and not merely present.
+  expect(b.cls, `battery 8% did not get the critical band: "${b.cls}"`).toMatch(/\bcritical\b/);
+
+  // ...and the band is CONDITIONAL, not a constant. Without this, hardcoding
+  // `critical` on every render would satisfy everything above.
+  await mountRealCard(page, {
+    width: 390, config: { mobile_shell: true },
+    hass: { states: { "vacuum.alfred": { state: "docked", attributes: { battery_level: 80 } } } },
+  });
+  const healthy = await read();
+  expect(healthy, "the mobile battery element is GONE at a healthy level").not.toBeNull();
+  expect(healthy.cls, `battery 80% must carry no band: "${healthy.cls}"`).not.toMatch(/\b(critical|low)\b/);
+  expect(healthy.text, "the healthy percent value is missing").toMatch(/80\s*%/);
 });
 
 test("[RF-8] PANEL mode sizes itself; card mode still defers to the host", async ({ page }) => {

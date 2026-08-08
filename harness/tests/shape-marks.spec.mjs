@@ -70,6 +70,21 @@ test("the six state marks are distinguishable in flat grayscale at dot size", as
     { size: SIZE, eps: LUMA_EPS },
   );
 
+  // PIN THE SET, not just the pairs. The matrix is derived from
+  // Object.keys(BADGE_MARK_PATHS), so without this the test asserts a property
+  // of "every pair of whatever happens to exist" — a SMALLER set is a strictly
+  // easier gate. Deleting `warn` and `likely` (the pair the header calls the
+  // whole point, since they deliberately share the same orange) drops the matrix
+  // from 15 pairs to 6, every survivor still clears FLOOR, "ok-outlier" still
+  // exists so the critical assert passes, and the suite goes green while the card
+  // renders no mark for two states.
+  const MARKS = ["ok", "outlier", "warn", "likely", "excluded", "baseline"];
+  const present = await page.evaluate(() => Object.keys(window.__evcc.badgeMarks).sort());
+  expect(present, "the shipped mark set changed — update MARKS and re-verify every pair clears the floor")
+    .toEqual([...MARKS].sort());
+  // n*(n-1)/2 — pinned so a key that is present-but-unrasterised cannot shrink it.
+  expect(Object.keys(matrix).length, "pair matrix is not the full 6-choose-2").toBe(15);
+
   const sorted = Object.entries(matrix).sort((a, b) => a[1] - b[1]);
   console.log(`\nflat-grayscale shape distinguishability @ ${SIZE}px (fraction of pixels differing):`);
   for (const [pair, frac] of sorted) {

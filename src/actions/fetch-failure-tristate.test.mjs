@@ -116,3 +116,57 @@ test("[TS-5] a failed filter refresh rolls the chip back", async () => {
   await applyFilter("room", "kitchen", async () => ({ jobs: [] })); // refresh succeeds
   assert.equal(filters.room, "kitchen");
 });
+
+// [TS-6] SOURCE PINS for the three guards TS-2..TS-5 only model — 2026-08-07, W0 v2.
+//
+// TS-2..TS-5 each build their own local `refresh`/`applyFilter` closure containing
+// the guard and then assert that closure. The header calls them models, which is
+// honest, but the coverage list above reads as though the shipped helpers are
+// covered and they are not: the real guards live on the custom element in
+// src/main.js, and only TS-1 (getSavedZones) touches production code at all.
+//
+// main.js cannot be imported here — it declares `class … extends HTMLElement` and
+// calls customElements.define at module scope, so node has no DOM to load it into,
+// and nothing in src/**/*.test.mjs imports it. Real behavioural coverage would
+// have to run through the harness's mountRealCard (see harness/tests/real-frame).
+// Until it does, pin the guards against source: every kill test for this finding
+// is literally "delete this line", which is exactly what a source pin catches.
+test("[TS-6] the SHIPPED refresh helpers still guard against a failed fetch", async () => {
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../main.js", import.meta.url), "utf-8");
+
+  // Scope each pin to ITS OWN METHOD. A whole-file `includes` is not a
+  // discriminator here: `if (!payload) return null;` appears TWICE, because
+  // refreshRoomProfiles carries the same guard — it is the sibling this file's
+  // header cites as the pattern that already existed. Deleting the run-profiles
+  // one left the room-profiles one behind and a file-wide check stayed green,
+  // measuring nothing. Verified by mutation, not assumed.
+  const methodBody = (name) => {
+    const start = src.indexOf(`async ${name}(`);
+    assert.ok(start > 0, `${name} is gone from main.js`);
+    const next = src.indexOf("\n  async ", start + 1);
+    return src.slice(start, next > 0 ? next : src.length);
+  };
+
+  // FE-ERR-4: a failed saved-zones fetch must not overwrite the library with [].
+  assert.ok(
+    methodBody("refreshSavedZones").includes("if (zones == null) return null;"),
+    "refreshSavedZones lost its null guard — a failed fetch renders 'No saved zones yet.' "
+    + "and the selection badge and Clean-selected button vanish with no error (FE-ERR-4)",
+  );
+  // FE-ERR-5: same for run profiles.
+  assert.ok(
+    methodBody("refreshRunProfiles").includes("if (!payload) return null;"),
+    "refreshRunProfiles lost its falsy guard — a failed fetch wipes the profile library "
+    + "and drops any profile staged for the next run (FE-ERR-5)",
+  );
+  // FE-ERR-6: the trouble-rooms LATCH must be conditional. Unconditional, one failed
+  // fetch permanently suppresses every chronic-trouble warning for the session —
+  // the log stays null, every room card renders healthy, and the latch stops any
+  // re-fetch. This is the subtlest of the three and the easiest to "simplify" away.
+  assert.ok(
+    methodBody("refreshTroubleRoomsLog").includes("if (payload) this._troubleRoomsLogLoaded = true;"),
+    "the trouble-rooms loaded-latch is no longer conditional on a successful payload — "
+    + "one failed fetch silently suppresses every chronic-trouble warning (FE-ERR-6)",
+  );
+});
