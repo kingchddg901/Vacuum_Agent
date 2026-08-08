@@ -186,6 +186,45 @@ anything: plant the fossil, confirm the instrument goes red, remove it. A clean
 result from an unexercised detector is the exact failure this whole campaign
 exists to stop.
 
+## The synthetic brand is also the PORTING GUIDE's proof (Chris, 2026-08-07)
+
+> "if this really does work we can make docs/contributing/porting-guide.md more
+> than aspiration"
+
+Correct, and it upgrades instrument 3 from one proof to two for the same artifact.
+
+The guide (560 lines) already points at the mechanism — §12 tells a porter to add
+their brand to `ADAPTER_BUILDERS` and get the whole contract suite. What is
+aspirational is the claim that FOLLOWING IT YIELDS A WORKING BRAND, and that
+claim currently has no evidence behind it: both shipped brands were written by
+the same author, and one of them (Eufy) predates the abstraction it is now
+supposed to demonstrate. A guide validated only by its own author's two
+implementations is a plausible guide, not a proven one.
+
+**So build the synthetic brand BLIND, from the guide plus the contract alone.**
+Same discipline as the ablation protocol's blind builder: the builder may read
+`porting-guide.md`, `21-adapter-system.md`, `22-adapter-config-reference.md` and
+the contract harness — and may NOT read `adapters/eufy/` or `adapters/roborock/`.
+Then the one artifact answers two independent questions:
+
+| question | answered by |
+|---|---|
+| does core assume Eufy? | core's behavior against a brand adversarially unlike Eufy |
+| is the porting guide SUFFICIENT? | whether a blind builder can produce a contract-valid brand from it |
+
+A failure separates cleanly, which is what makes it worth running as one job: if
+the builder cannot produce a valid adapter, that is a GUIDE defect (and doc 21 §7
+gains the missing statement). If it produces a valid adapter and core then
+mistreats it, that is a CORE fossil. Different owners, different repairs, one run.
+
+**This also makes the porting guide the one contributor-facing doc with a biting
+examination surface.** The ablation rollout gives frontend and user-guide docs
+trim + coupling only, on the grounds that blind reconstruction of UI prose
+certifies nothing. The porting guide is the exception: `test_adapter_contract.py`
+runs 27 tests against whatever a porter declares, so a reconstruction from this
+doc CAN be examined. If the ablation fan-out ever reaches the contributing
+cluster, this doc takes the full loop rather than the light one.
+
 ## The finding batch — `profiles.room_profiles` is the SEED, not a side task
 
 Chris, 2026-08-07: fold the `profiles.room_profiles` removal into this sweep's
