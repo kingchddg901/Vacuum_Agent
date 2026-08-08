@@ -186,6 +186,68 @@ anything: plant the fossil, confirm the instrument goes red, remove it. A clean
 result from an unexercised detector is the exact failure this whole campaign
 exists to stop.
 
+## THE THIRD BRAND IS DREAME, NOT SYNTHETIC — and it is already half-built
+
+Measured 2026-08-07 while scoping instrument 3.
+
+**Ecovacs was the first candidate and does not work.** The integration is loaded
+on Chris's HA but has NO device, so: zero entities, zero vocabulary, and exactly
+one registered service (`ecovacs.raw_get_positions`, no fields). Nothing to
+build an adapter against — it would be a synthetic brand wearing a real name.
+
+**Dreame works, and is a strict upgrade on synthetic.** `dreame_vacuum`
+v1.0.11 (Tasshack) is installed as a custom component with full source readable:
+13 modules, 24 services, `vacuum.py` 29KB. It is genuinely unlike both shipped
+brands — `vacuum_clean_segment` plus `vacuum_set_cleaning_sequence` and
+`vacuum_set_custom_cleaning`, a per-room settings model neither Eufy nor
+Roborock has. That kills the objection to a synthetic brand (I would
+unconsciously build one resembling the two adapters I had read); a real third
+integration cannot be polite.
+
+**And VA already ships the engine.** `DreameSegmentEngine`
+(`template_name = "dreame_room_clean"`) exists, has unit tests, and is documented
+across five docs — but NO BRAND DECLARES IT. Chris wrote it long ago from
+Dreame's contract and never pushed further for lack of hardware; the audit record
+already carries it as `DQ-DE-3 [future_brand_only]`.
+
+### The conformance check — run, and it PASSES
+
+Chris's proposal: rather than hitting hardware, echo the dispatch and compare
+VA's payload against the provider's declared contract. Both artifacts were
+already on disk, so this ran immediately.
+
+| VA emits (per `test_dispatch_engines.py` DE-10/DE-11) | Dreame `services.yaml` declares | |
+|---|---|---|
+| `segments: [3, 2]` | required, `object` | PASS |
+| `suction_level: [0, 3]` | number, min 0 max 3 | PASS |
+| `water_volume: [1, 3]` | number, min 1 max 3 | PASS |
+| `repeats: [1, 2]` | number, min 1 max 3 | PASS |
+| omits `clean_mode` / `clean_intensity` / `edge_mopping` / `path_type` | those fields do not exist in the service | PASS |
+
+**Three-way agreement on the schema:** Chris's original reading == installed
+v1.0.11 == upstream `master` (fetched from Tasshack/dreame-vacuum), byte
+identical — same fields, same bounds, same required flag, no additions. The
+staleness risk recorded against the Dreame candidate is therefore RETIRED for the
+dispatch surface. It still stands for entity attributes, state vocabulary and
+fan-speed names, which were not checked.
+
+### What this relocates rather than clears
+
+The engine is contract-shaped. The remaining exposure is the **`value_map` an
+adapter declares**: the engine faithfully emits whatever `"Turbo" -> N` the
+adapter says. Declare `4` and VA produces a payload HA rejects AT CALL TIME, on
+hardware, in front of a user — the one place that cannot be tested here.
+
+That is statically checkable and appears to exist nowhere today:
+
+> **Assert every adapter's numeric `value_map` range fits inside the provider
+> service's declared selector min/max.**
+
+It generalizes past Dreame to any brand whose dispatch template has bounded
+numeric fields, and it is the form of Chris's echo test that earns its keep —
+not "does the payload look right" (it does) but "can this adapter's declared
+vocabulary ever emit a payload the provider would refuse".
+
 ## The synthetic brand is also the PORTING GUIDE's proof (Chris, 2026-08-07)
 
 > "if this really does work we can make docs/contributing/porting-guide.md more
