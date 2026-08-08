@@ -282,3 +282,71 @@ def test_both_retired_intensity_values_are_repaired(retired):
     data = _data({"1": _room(clean_intensity=retired)})
     migrate_room_vocabulary(data=data, get_config=_getter(eufy_config))
     assert data["maps"][_VAC]["map1"]["rooms"]["1"]["clean_intensity"] == "Quick"
+
+
+def test_mig_10_a_retired_value_keeps_its_meaning_via_a_declared_alias():
+    """[MIG-10] A RETIRED value the brand aliases keeps its MEANING, not the default.
+
+    The case that shipped wrong. Eufy's "Standard" was not a phantom: the original
+    YAML system declared Fast / Standard / Deep with Standard as the INITIAL value —
+    the middle pass density — and robovac_mqtt still maps "standard" to
+    CleanExtent.NORMAL (0), the middle. A 2026-07-26 commit folded it to "quick" on
+    the premise that it "was never a real Eufy value", and this migration inherited
+    that by falling through to the default profile.
+
+    The result was valid-looking and wrong: every affected room moved from the middle
+    density to the FASTEST one. Less cleaning, chosen by nobody, and undetectable
+    afterwards because the stored value was a perfectly legal option.
+    """
+    eufy_config = {
+        "adapter_id": "eufy",
+        "room_profiles": EUFY_BLOCK,
+        "vocabulary": {
+            "clean_intensity_options": [
+                {"value": v, "label": v} for v in ("Quick", "Narrow", "Deep")
+            ],
+            "clean_intensity_aliases": {"fast": "quick", "standard": "narrow",
+                                        "normal": "narrow"},
+        },
+    }
+    data = _data({"1": _room(clean_intensity="Standard")})
+    migrate_room_vocabulary(data=data, get_config=_getter(eufy_config))
+    # The MIDDLE option, not the default profile's Quick.
+    assert data["maps"][_VAC]["map1"]["rooms"]["1"]["clean_intensity"] == "Narrow"
+
+
+def test_mig_10b_without_the_alias_it_still_falls_back_to_the_default():
+    """[MIG-10b] The control. Only an ALIASED value keeps its meaning; a value the
+    brand says nothing about still resolves to the declared default, because there is
+    nothing to preserve."""
+    eufy_config = {
+        "adapter_id": "eufy",
+        "room_profiles": EUFY_BLOCK,
+        "vocabulary": {
+            "clean_intensity_options": [
+                {"value": v, "label": v} for v in ("Quick", "Narrow", "Deep")
+            ],
+            "clean_intensity_aliases": {"standard": "narrow"},
+        },
+    }
+    data = _data({"1": _room(clean_intensity="Bogus")})
+    migrate_room_vocabulary(data=data, get_config=_getter(eufy_config))
+    assert data["maps"][_VAC]["map1"]["rooms"]["1"]["clean_intensity"] == "Quick"
+
+
+def test_mig_10c_an_alias_pointing_at_an_undeclared_option_is_ignored():
+    """[MIG-10c] An alias whose target the brand does not declare is an adapter defect.
+    Honouring it would write an undeliverable value onto a room, so the default wins."""
+    eufy_config = {
+        "adapter_id": "eufy",
+        "room_profiles": EUFY_BLOCK,
+        "vocabulary": {
+            "clean_intensity_options": [
+                {"value": v, "label": v} for v in ("Quick", "Narrow", "Deep")
+            ],
+            "clean_intensity_aliases": {"standard": "does_not_exist"},
+        },
+    }
+    data = _data({"1": _room(clean_intensity="Standard")})
+    migrate_room_vocabulary(data=data, get_config=_getter(eufy_config))
+    assert data["maps"][_VAC]["map1"]["rooms"]["1"]["clean_intensity"] == "Quick"

@@ -165,18 +165,31 @@ CLEAN_MODE_ALIASES: dict[str, str] = {
     "mop and vacuum": "vacuum_mop",
 }
 
-# Canonical cleaning-path codes: quick, narrow, deep. "standard" / "normal" are DEAD —
-# they were never real Eufy device paths (the app offers Quick/Narrow/Deep), only a
-# legacy default that rendered as an empty chip. Fold them to quick so a stored/observed
-# "Standard" or "Normal" normalizes to a real path in learning keys too (the room-field
-# resolver does the same for display/dispatch — see profiles/room_profiles.py).
+# The RETIRED intensity names, mapped to what they MEANT.
+#
+# "Standard" was not a phantom. The original YAML system declared
+# vacuum_clean_intensity as Fast / Standard / Deep with Standard as the INITIAL
+# value — it was the middle pass density, deliberately chosen. robovac_mqtt still
+# accepts it: CLEAN_EXTENT_MAP maps "standard" -> CleanExtent.NORMAL (0), the middle,
+# and lists fast/standard/deep together as "legacy keys" precisely because they are
+# that original vocabulary.
+#
+# A 2026-07-26 commit folded Standard/Normal to "quick" on the premise that they
+# "were never real Eufy cleaning-path values". That premise was wrong, and the fold
+# moved every affected room from the MIDDLE density to the FASTEST one — a real
+# reduction in cleaning, chosen by nobody.
+#
+# Today's names reach those same three device values as:
+#     Quick  -> quick  -> QUICK  (2)   the original "Fast"
+#     Narrow -> normal -> NORMAL (0)   the original "Standard"
+#     Deep   -> narrow -> NARROW (1)   the original "Deep"
+# so a retired "standard"/"normal" belongs on "narrow", not "quick".
 CLEAN_INTENSITY_ALIASES: dict[str, str] = {
-    "standard": "quick",
-    "normal": "quick",
+    "fast": "quick",
+    "standard": "narrow",
+    "normal": "narrow",
 }
 
-# Canonical codes: quiet, gentle, standard, boost, turbo, max.
-# "BoostIQ" is Eufy's auto-boost label -> canonical "boost".
 FAN_SPEED_ALIASES: dict[str, str] = {
     "boost iq": "boost",
     "boostiq": "boost",

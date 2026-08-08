@@ -17,7 +17,8 @@ the stored value came from somewhere else. Roborock is the live case: it omits
 Roborock rooms carry it.
 
 **RESET** — the brand declares an option list for the field and the stored value is not
-in it. The value cannot be selected in the card and is filtered out before dispatch
+in it. A retired value the brand still declares an ALIAS for keeps its meaning
+(``standard`` -> ``narrow``); only a value with no alias falls back to the default. The value cannot be selected in the card and is filtered out before dispatch
 (``jobs/active_job.py`` skips a ``per_room_live_settings`` entry whose value is outside
 its ``options_key``), so the setting silently does nothing. It becomes the brand's
 ``default_profile`` value for that field — a declared, in-vocabulary answer.
@@ -75,6 +76,29 @@ def _option_values(vocabulary: dict[str, Any], field: str) -> set[str] | None:
         return None
     values = {str(o.get("value")) for o in options if isinstance(o, dict) and "value" in o}
     return values or None
+
+
+def _alias_target(
+    vocabulary: dict[str, Any], field: str, value: Any, allowed: set[str]
+) -> str | None:
+    """The declared option a retired value ALIASES to, or None if it aliases to none.
+
+    Alias tables map a lowercased display string to a canonical lowercase code
+    ("standard" -> "narrow"), while the declared options carry the brand's own casing
+    ("Narrow"), so the match is case-insensitive. An alias pointing at something the
+    brand does not declare is ignored rather than written — that is an adapter defect,
+    and honouring it would put an undeliverable value on a room.
+    """
+    aliases = vocabulary.get(f"{field}_aliases")
+    if not isinstance(aliases, dict):
+        return None
+    target = aliases.get(str(value).strip().lower())
+    if target is None:
+        return None
+    for option in allowed:
+        if str(option).strip().lower() == str(target).strip().lower():
+            return option
+    return None
 
 
 def plan_room_vocabulary_migration(
@@ -135,7 +159,18 @@ def plan_room_vocabulary_migration(
                     allowed = _option_values(vocabulary, field)
                     if allowed is None or str(room[field]) in allowed:
                         continue
-                    replacement = default_profile.get(field)
+
+                    # A RETIRED value the brand still declares an alias for keeps its
+                    # MEANING — resolve it before considering the default. Without
+                    # this, Eufy's "Standard" (the original middle pass density, and
+                    # the initial value of the very first setup) fell through to the
+                    # default profile's "Quick", moving every affected room from the
+                    # middle density to the fastest. A reduction in cleaning nobody
+                    # chose, and invisible because the result was a perfectly valid
+                    # value.
+                    replacement = _alias_target(vocabulary, field, room[field], allowed)
+                    if replacement is None:
+                        replacement = default_profile.get(field)
                     if replacement is None or str(replacement) not in allowed:
                         # The brand's own default is not in its own option list. That
                         # is an adapter defect, and guessing past it would hide it.
