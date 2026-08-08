@@ -87,7 +87,7 @@ from .upkeep_catalog import (
 from .eufy_upkeep_guides import UPKEEP_GUIDE_LIBRARY
 from .upkeep_guides_i18n import UPKEEP_GUIDE_TRANSLATIONS
 from .water_config import WATER_MODEL_CONFIGS
-from ...profiles.room_profiles import (
+from .room_profiles import (
     BUILT_IN_ROOM_PROFILES,
     DEFAULT_CUSTOM_ROOM_PROFILE,
     DEFAULT_ROOM_PROFILE_NAME,
@@ -795,13 +795,17 @@ def register_eufy_adapter_for_vacuum(
         },
 
         "room_profiles": {
-            # Default room-profile vocabulary. The in-code catalog
-            # (profiles/room_profiles.py) is the framework DEFAULT + the
-            # _PROTECTED_ROOM_PROFILE_NAMES source; Eufy declares it here BY REFERENCE
-            # (no duplication, byte-identical) so room resolution is adapter-sourced and
-            # a future brand can inline its own catalog / vocabulary. The framework's
-            # resolve_profile_catalog() merges this block over the in-code constants per
-            # key, so any subset can be overridden; an absent block uses the defaults.
+            # THIS brand's room-profile vocabulary, owned here and nowhere else. The
+            # values live in adapters/eufy/room_profiles.py — core holds only the KEY
+            # space (the four protected profile names) and no words at all.
+            #
+            # There is no framework catalog behind this block and no per-key merge. An
+            # undeclared key resolves EMPTY, and an adapter declaring no block at all
+            # fails registration. Until 2026-08-07 these constants lived in
+            # profiles/room_profiles.py and were the framework DEFAULT, so a brand that
+            # declared nothing silently inherited Eufy's words: a Roborock room stored
+            # fan_speed "Max", the card's chips matched nothing, and dispatch dropped
+            # the value before it reached the device.
             "default_profile": DEFAULT_ROOM_PROFILE_NAME,
             "builtins": BUILT_IN_ROOM_PROFILES,
             "custom_template": DEFAULT_CUSTOM_ROOM_PROFILE,

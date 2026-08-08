@@ -23,6 +23,8 @@ from __future__ import annotations
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import DOMAIN
 
+from tests.brand_catalogs import adapter_config
+
 from .conftest import setup_map
 
 
@@ -37,7 +39,7 @@ _ACTIVE_TARGET = "sensor.alfred_active_cleaning_target"
 # Minimal adapter providing all four lifecycle entity names that
 # get_lifecycle_state reads via hass.states.get() — all keys must be
 # present so the lookup never receives None as an entity_id.
-_LIFECYCLE_ADAPTER = {
+_LIFECYCLE_ADAPTER = adapter_config(**{
     "adapter_id": "test",
     "source": "test",
     "entities": {
@@ -46,7 +48,7 @@ _LIFECYCLE_ADAPTER = {
         "active_map": _ACTIVE_MAP,
         "active_cleaning_target": _ACTIVE_TARGET,
     },
-}
+})
 
 
 async def _setup_vacuum_with_adapter(hass, manager, *, count: int = 2) -> None:

@@ -117,7 +117,7 @@ def test_build_string_enabled_room_ids_filter():
     assert set(result.keys()) == {"1"}
 
 
-def test_build_defaults_for_new_room():
+def test_build_defaults_for_new_room(brand):
     """A new room's settings come from the brand's DEFAULT PROFILE.
 
     BEHAVIOUR CHANGE, deliberate and approved. This asserted fan_speed == "Max", which was
@@ -137,40 +137,40 @@ def test_build_defaults_for_new_room():
     is_configured keeps its unconditional True (see test_build_managed_rooms
     _requires_floor_type_when_explicitly_approved for the gated case).
     """
+    defaults = resolve_new_room_defaults(brand)
+    profile = brand["builtins"][brand["default_profile"]]
     result = build_managed_rooms(
-        new_room_defaults=_EUFY_DEFAULTS, discovered_rooms=[_disc(5, name="Hallway")])
+        new_room_defaults=defaults, discovered_rooms=[_disc(5, name="Hallway")])
     room = result["5"]
-    assert room["profile_name"] == "vacuum_quick"
-    assert room["fan_speed"] == "Standard", "must match the profile it claims to be on"
-    assert room["water_level"] == "Off"
-    assert room["clean_intensity"] == "Quick"
-    assert room["clean_passes"] == 1
+    assert room["profile_name"] == brand["default_profile"]
+    assert room["fan_speed"] == profile["fan_speed"], "must match the profile it claims to be on"
+    assert room["water_level"] == profile["water_level"]
+    assert room["clean_intensity"] == profile.get("clean_intensity", "")
+    assert room["clean_passes"] == profile["clean_passes"]
+    assert room["clean_mode"] == profile["clean_mode"]
+    # Framework-owned, brand-independent.
     assert room["enabled"] is True
-    assert room["clean_mode"] == "vacuum"
     assert room["is_configured"] is True
     assert room["floor_type"] == "hardwood"
 
 
-def test_a_new_room_agrees_with_the_profile_it_claims():
+def test_a_new_room_agrees_with_the_profile_it_claims(brand):
     """The invariant behind the change above, stated once so it cannot silently rot.
 
     Whatever the catalog's default profile declares IS what a new room gets — no literal
     in build_managed_rooms gets to disagree with it.
     """
-    from custom_components.eufy_vacuum.profiles.room_profiles import (
-        resolve_profile_catalog,
-    )
-
-    catalog = resolve_profile_catalog(None)
-    profile = catalog["builtins"][catalog["default_profile"]]
+    profile = brand["builtins"][brand["default_profile"]]
 
     room = build_managed_rooms(
-        new_room_defaults=_EUFY_DEFAULTS, discovered_rooms=[_disc(9)],
+        new_room_defaults=resolve_new_room_defaults(brand), discovered_rooms=[_disc(9)],
     )["9"]
 
-    assert room["profile_name"] == catalog["default_profile"]
+    assert room["profile_name"] == brand["default_profile"]
     for key in ("clean_mode", "fan_speed", "water_level", "clean_intensity",
                 "clean_passes", "edge_mopping"):
+        if key not in profile:
+            continue  # a brand may decline an axis entirely (Roborock: clean_intensity)
         assert room[key] == profile[key], f"{key} disagrees with the declared profile"
 
 

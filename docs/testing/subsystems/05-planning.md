@@ -4,7 +4,7 @@ The planning subsystem (`RunPlanManager`) is the authoritative rule-evaluation
 point for a job start: it builds the effective start plan (queue + payload +
 preflight), evaluates blocker/modifier rules and their fan-out, computes the
 confirmation token for a reduced run, and produces the runtime path-block report
-when a rule fires mid-job. Covered by **74 tests across 3 files**.
+when a rule fires mid-job. Covered by **89 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/planning/`
 Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rul
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
 |---------------|------:|----:|------------|-------|-------|
-| `run_plan.py` | 603 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit) | int + unit | **bare x1** |
+| `run_plan.py` | 603 | 93% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit), `test_water_vocabulary_boundary.py` (unit) | int + unit | **bare x1** |
 
 ---
 
@@ -37,6 +37,17 @@ Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rul
   indirectly-blocked; idle job → None.
 - **Water-usage estimation + helpers** (unit) — `estimate_job_water_usage`,
   `_settings_profile_display`, water-rate/level math.
+- **Canonical/provider vocabulary boundary** (`WV`, unit, added 2026-08-07) —
+  `test_water_vocabulary_boundary.py` (15 tests). Core owns the canonical water
+  KEY SPACE (`off/low/medium/high`) that the rate table is keyed on; it may not
+  assume a provider's vocabulary equals it. Both shipped brands hide the
+  difference — Roborock's declared values already ARE the canonical keys, and
+  Eufy's `"Low"` reaches `"low"` through a generic case-folding rule — so
+  neither exercises the declared-alias path, and it could regress unnoticed.
+  These tests use a brand whose water words resemble nothing canonical
+  (`SynthMist`, `SynthFlood`), so aliases are the only possible route, with a
+  mutation control (WV-2) that withdraws them and requires the same values to
+  stop resolving.
 
 ---
 

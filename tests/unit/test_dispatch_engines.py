@@ -22,6 +22,8 @@ Coverage targets
 
 from __future__ import annotations
 
+import pytest
+
 from custom_components.eufy_vacuum.queue.dispatch_engines import (
     DreameSegmentEngine,
     EufyRoomCleanEngine,
@@ -31,6 +33,12 @@ from custom_components.eufy_vacuum.queue.dispatch_engines import (
     known_dispatch_templates,
 )
 from custom_components.eufy_vacuum.queue.queue_engine import build_room_clean_payload
+
+# build_room_clean_payload resolves its own catalog from the ADAPTER REGISTRY, so a
+# synthetic brand is registered for the whole module. These tests are about dispatch
+# SHAPE — payload field names, phase sequencing — not vocabulary. Registering a real
+# brand would let a leaked word satisfy them by coincidence.
+pytestmark = pytest.mark.usefixtures("synthetic_adapter")
 
 
 _VAC = "vacuum.alfred"
@@ -379,12 +387,16 @@ def test_strict_order_false_is_single_batch_phase():
     assert phases[0]["payload"]["segments"] == [1, 2]
 
 
+
+
+
 def test_strict_order_ignored_by_atomic_engine():
     """[DE-15] an atomic engine (Eufy) ignores strict_order -> still one phase."""
     kwargs = dict(
         vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=_managed(),
         queue_room_ids=[1, 2], capabilities={}, dispatch={},
     )
+
     engine = get_dispatch_engine("eufy_room_clean")
     phases = engine.build_phases(strict_order=True, **kwargs)
     assert len(phases) == 1

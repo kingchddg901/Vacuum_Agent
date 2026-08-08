@@ -1,26 +1,42 @@
-"""Phase 10 integration tests — profiles/room_profiles.py pure functions.
+"""profiles/room_profiles.py pure functions — proven against EVERY declared brand.
+
+These tests take the ``brand`` fixture, so each one runs once per catalog in
+``tests/brand_catalogs.py`` (Eufy, Roborock, and a synthetic brand whose words match no
+real device). Every assertion states a RELATIONSHIP — "the resolved value equals what
+THIS catalog declares" — never a literal.
+
+That is the whole point. These tests previously asserted ``water_level == "Off"`` and
+``fan_speed == "Max"`` against no catalog at all, which passed because core carried
+Eufy's vocabulary as the framework default. They were simultaneously testing the resolver
+and pinning one brand's words into it, and could not tell the difference. Rewriting them
+relationally immediately surfaced three live leaks in ``apply_capability_gate``, which
+assigned the literal ``"Off"`` — Eufy's casing, absent from Roborock's declared options
+and therefore dropped before dispatch.
+
+A literal reintroduced here would pass for one brand and fail for the other two.
 
 Coverage targets
 ----------------
-[RP-1]  get_available_profile_names returns vacuum-only list without mop support.
+[RP-1]  get_available_profile_names returns vacuum-only names without mop support.
 [RP-2]  get_available_profile_names returns all 4 with full mop support.
-[RP-3]  get_available_profiles excludes mop profiles for non-mop device.
-[RP-4]  get_available_profiles includes mop profiles for mop+water device.
+[RP-3]  get_available_profiles excludes mop profiles for a non-mop device.
+[RP-4]  get_available_profiles includes mop profiles for a mop+water device.
 [RP-5]  normalize_room_profile applies safe defaults for all fields on empty input.
 [RP-6]  normalize_room_profile preserves provided values.
-[RP-7]  resolve_room_profile_for_room sets water_level=Off on carpet floor.
+[RP-7]  resolve_room_profile_for_room suppresses water on carpet, using the brand's word.
 [RP-8]  Q2/RP-024: the resolved profile's own water_level outranks the hard-floor default.
-[RP-9]  resolve_room_profile_for_room overrides fan_speed for carpet_high_pile.
-[RP-10] resolve_room_profile_for_room mop mode + Off water → applies floor default.
-[RP-11] resolve_room_profile_for_room edge_mopping forced False in vacuum mode.
-[RP-12] apply_capability_gate downgrades mop → vacuum when not supported.
-[RP-13] apply_capability_gate sets water_level=Off in vacuum mode.
-[RP-14] apply_capability_gate adds capability_gated=True.
-[RP-15] resolve_profile_name_for_constraints maps carpet + mop profiles to vacuum equivalents.
-[RP-16] legacy profile names are resolved via LEGACY_PROFILE_ALIASES.
-[RP-17] _normalize_floor_type: granite + concrete are canonical settable floor types (not coerced).
-[RP-18] apply_room_profile_to_config fills omitted fields from the adapter catalog's normalize_defaults, not the in-code Eufy defaults.
-[RP-19] 'Standard'/'Normal' are dead Eufy cleaning-path values → fold to Quick (case-insensitive); real paths pass through unchanged.
+[RP-9]  resolve_room_profile_for_room applies the brand's carpet fan default.
+[RP-10] mop mode with no water on a hard floor takes the brand's floor default.
+[RP-11] edge_mopping is forced False in vacuum mode and otherwise follows the profile.
+[RP-12] apply_capability_gate downgrades mop → vacuum when unsupported.
+[RP-13] apply_capability_gate suppresses water in vacuum mode, using the brand's word.
+[RP-14] apply_capability_gate adds capability_gated=True and does not mutate its input.
+[RP-15] carpet maps mop profiles to their vacuum equivalents.
+[RP-16] a brand's DECLARED legacy aliases resolve; a brand declaring none is unaffected.
+[RP-17] _normalize_floor_type: granite + concrete are canonical (not coerced).
+[RP-18] apply_room_profile_to_config fills omitted fields from the catalog's normalize_defaults.
+[RP-19] coerce_clean_intensity carries no vocabulary — it trims and coerces, rewrites nothing.
+[RP-EDGE-1] no Roborock profile requests a capability its adapter declares absent.
 """
 
 from __future__ import annotations
@@ -31,79 +47,110 @@ from custom_components.eufy_vacuum.profiles.room_profiles import (
     _normalize_floor_type,
     apply_capability_gate,
     apply_room_profile_to_config,
+    coerce_clean_intensity,
     get_available_profile_names,
     get_available_profiles,
-    normalize_clean_intensity,
     normalize_room_profile,
     resolve_profile_name_for_constraints,
     resolve_room_profile_for_room,
 )
 
-
-def test_normalize_clean_intensity_folds_dead_values():
-    """[RP-19] 'Standard' / 'Normal' are dead Eufy cleaning-path values → fold to Quick
-    (case-insensitive); real paths + anything else pass through unchanged."""
-    for dead in ("Standard", "standard", "STANDARD", "Normal", "normal", " Standard "):
-        assert normalize_clean_intensity(dead) == "Quick", dead
-    for keep in ("Quick", "Narrow", "Deep"):
-        assert normalize_clean_intensity(keep) == keep, keep
-    assert normalize_clean_intensity(None) == ""
-    assert normalize_clean_intensity("") == ""
-
-
 _NO_MOP_CAPS = {"supports_mop_features": False, "supports_water_control": False}
 _FULL_CAPS = {"supports_mop_features": True, "supports_water_control": True}
 
 
+def _profile(brand: dict, name: str) -> dict:
+    """The named profile exactly as this brand declares it."""
+    return brand["builtins"][name]
+
+
+def _no_water(brand: dict) -> str:
+    """This brand's word for "no water" — its declared carpet water default.
+
+    Carpet is the one surface the framework guarantees dry, so the brand's declaration
+    for it IS its no-water word. Mirrors ``room_profiles._no_water_value``; asserting
+    against a literal instead is how "Off" survived in core for so long.
+    """
+    return brand["floor_type_water_defaults"]["carpet_low_pile"]
+
+
+def test_coerce_clean_intensity_carries_no_vocabulary():
+    """[RP-19] coercion only — every value passes through trimmed, none is rewritten.
+
+    This deliberately asserts the OPPOSITE of what it used to. The retired Eufy values
+    "Standard"/"Normal" were folded to "Quick" here on every read; that fold is now a
+    one-shot store repair driven by the brand's declared clean_intensity_options
+    (rooms/vocabulary_migration.py). A rewrite happening here again would mean core had
+    re-acquired a brand's vocabulary.
+
+    None → "" is load-bearing, not cosmetic: a brand declaring no intensity axis
+    (Roborock omits it from every profile) yields None, and a bare str() would write the
+    literal "None" into a room.
+    """
+    for value in ("Standard", "standard", "Normal", "Quick", "Narrow", "Deep"):
+        assert coerce_clean_intensity(value) == value, value
+    assert coerce_clean_intensity(" Standard ") == "Standard"
+    assert coerce_clean_intensity(None) == ""
+    assert coerce_clean_intensity("") == ""
+
+
 # ---------------------------------------------------------------------------
-# [RP-1] / [RP-2] get_available_profile_names
+# [RP-1] / [RP-2] get_available_profile_names — framework KEYS, brand-independent
 # ---------------------------------------------------------------------------
 
 def test_available_profile_names_no_mop():
-    """[RP-1] Without mop support, only vacuum_quick and vacuum_deep are returned."""
-    names = get_available_profile_names(capabilities=_NO_MOP_CAPS)
-    assert names == ["vacuum_quick", "vacuum_deep"]
+    """[RP-1] Without mop support, only the vacuum-only keys are returned."""
+    assert get_available_profile_names(capabilities=_NO_MOP_CAPS) == [
+        "vacuum_quick", "vacuum_deep",
+    ]
 
 
 def test_available_profile_names_full_mop():
-    """[RP-2] With full mop support, all 4 built-in profiles are returned."""
-    names = get_available_profile_names(capabilities=_FULL_CAPS)
-    assert set(names) == {"vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep"}
+    """[RP-2] With full mop support, all 4 protected keys are returned."""
+    assert set(get_available_profile_names(capabilities=_FULL_CAPS)) == {
+        "vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep",
+    }
 
 
 def test_available_profile_names_default_no_caps():
     """[RP-1] With no capabilities dict, mop profiles are excluded."""
-    names = get_available_profile_names()
-    assert "vacuum_mop_quick" not in names
+    assert "vacuum_mop_quick" not in get_available_profile_names()
 
 
 # ---------------------------------------------------------------------------
 # [RP-3] / [RP-4] get_available_profiles
 # ---------------------------------------------------------------------------
 
-def test_available_profiles_no_mop_excludes_mop_profiles():
-    """[RP-3] Mop profiles are absent for non-mop device."""
-    profiles = get_available_profiles(capabilities=_NO_MOP_CAPS)
+def test_available_profiles_no_mop_excludes_mop_profiles(brand):
+    """[RP-3] Mop profiles are absent for a non-mop device, whatever the brand."""
+    profiles = get_available_profiles(capabilities=_NO_MOP_CAPS, catalog=brand)
     assert "vacuum_mop_quick" not in profiles
     assert "vacuum_mop_deep" not in profiles
     assert "vacuum_quick" in profiles
     assert "vacuum_deep" in profiles
 
 
-def test_available_profiles_full_caps_includes_mop():
-    """[RP-4] Mop profiles are present for mop+water device."""
-    profiles = get_available_profiles(capabilities=_FULL_CAPS)
+def test_available_profiles_full_caps_includes_mop(brand):
+    """[RP-4] Mop profiles are present for a mop+water device."""
+    profiles = get_available_profiles(capabilities=_FULL_CAPS, catalog=brand)
     assert "vacuum_mop_quick" in profiles
     assert "vacuum_mop_deep" in profiles
 
 
-def test_available_profiles_returns_normalized_dicts():
-    """[RP-4] Each returned profile is a normalized dict with all required keys."""
-    profiles = get_available_profiles(capabilities=_FULL_CAPS)
+def test_available_profiles_carry_the_brands_own_values(brand):
+    """[RP-4] Each returned profile carries THIS brand's declared values.
+
+    The old form asserted only that the keys existed. That passes even when every
+    value is another brand's — which is precisely the failure that shipped.
+    """
+    profiles = get_available_profiles(capabilities=_FULL_CAPS, catalog=brand)
     for name, profile in profiles.items():
-        assert "clean_mode" in profile, f"{name} missing clean_mode"
-        assert "fan_speed" in profile, f"{name} missing fan_speed"
-        assert "water_level" in profile, f"{name} missing water_level"
+        declared = brand["builtins"].get(name)
+        if declared is None:
+            continue  # a stored/custom profile, not one the brand declares
+        for field in ("clean_mode", "fan_speed", "water_level"):
+            if field in declared:
+                assert profile[field] == declared[field], f"{name}.{field}"
 
 
 # ---------------------------------------------------------------------------
@@ -111,13 +158,11 @@ def test_available_profiles_returns_normalized_dicts():
 # ---------------------------------------------------------------------------
 
 def test_normalize_room_profile_defaults_on_none():
-    """[RP-5] normalize_room_profile with None input returns safe defaults.
+    """[RP-5] With NO catalog, display-axis fields are "" — "nobody said".
 
-    Q2/RP-025: with no catalog at all ("brand declares nothing"), the
-    DISPLAY-AXIS fields (fan_speed/water_level) fall back to "" ("nobody
-    said"), not Eufy's own "Max"/"Off" literals — framework canonicals are
-    unaffected. Eufy's own real resolution is unchanged because its adapter
-    explicitly declares normalize_defaults (see RP-18)."""
+    Not Eufy's "Max"/"Off". Framework canonicals (clean_mode, clean_passes) are
+    unaffected because core legitimately owns those.
+    """
     p = normalize_room_profile(None)
     assert p["clean_mode"] == "vacuum"
     assert p["fan_speed"] == ""
@@ -135,8 +180,7 @@ def test_normalize_room_profile_preserves_values():
 
 
 def test_normalize_room_profile_empty_dict():
-    """[RP-5] Empty dict produces all defaults. Q2/RP-025: clean_intensity is a
-    display-axis field too — "" with no catalog, not Eufy's "Quick"."""
+    """[RP-5] Empty dict produces canonical defaults; clean_intensity is display-axis."""
     p = normalize_room_profile({})
     assert p["clean_intensity"] == ""
     assert p["path_type"] == "wide"
@@ -144,22 +188,20 @@ def test_normalize_room_profile_empty_dict():
 
 
 def test_apply_room_profile_threads_adapter_catalog_defaults():
-    """[RP-18] apply_room_profile_to_config fills fields the profile OMITS from the
-    adapter catalog's normalize_defaults, not the in-code Eufy defaults — so a
-    non-Eufy (e.g. Roborock) room-profile apply never gets Eufy's "Max"/"Off"
-    written in. Regression for the catalog-blind call in apply_room_profile_to_config."""
+    """[RP-18] Omitted fields come from the catalog's normalize_defaults.
+
+    Uses an invented catalog on purpose — the values are nobody's, so a leak cannot
+    coincidentally satisfy this.
+    """
     catalog = {"normalize_defaults": {"fan_speed": "Balanced", "water_level": "Low"}}
     profile = {"clean_mode": "vacuum"}  # omits fan_speed / water_level
     updated = apply_room_profile_to_config(
         room_config={}, profile_name="custom", profile=profile, catalog=catalog,
     )
-    assert updated["fan_speed"] == "Balanced"  # adapter default, NOT Eufy "Max"
-    assert updated["water_level"] == "Low"     # adapter default, NOT Eufy "Off"
+    assert updated["fan_speed"] == "Balanced"
+    assert updated["water_level"] == "Low"
 
-    # Q2/RP-025: with genuinely no catalog it falls back to "" ("nobody said"),
-    # not the in-code Eufy defaults — Eufy's OWN adapter explicitly declares its
-    # normalize_defaults (the first half of this test, with an Eufy-equivalent
-    # catalog, is what stays byte-identical for the real Eufy production path).
+    # With genuinely no catalog: "" ("nobody said"), never an in-code brand default.
     no_catalog = apply_room_profile_to_config(
         room_config={}, profile_name="custom", profile=profile,
     )
@@ -171,139 +213,170 @@ def test_apply_room_profile_threads_adapter_catalog_defaults():
 # [RP-7] / [RP-8] / [RP-9] resolve_room_profile_for_room — floor types
 # ---------------------------------------------------------------------------
 
-def test_resolve_carpet_sets_water_off():
-    """[RP-7] Carpet floor type forces water_level=Off."""
+def test_resolve_carpet_suppresses_water(brand):
+    """[RP-7] Carpet suppresses water, using the word THIS brand declares for it."""
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_mop_quick", "floor_type": "carpet_low_pile"}
+        room_config={"profile_name": "vacuum_mop_quick", "floor_type": "carpet_low_pile"},
+        catalog=brand,
     )
-    assert result["water_level"] == "Off"
+    assert result["water_level"] == _no_water(brand)
 
 
-def test_resolve_hard_floor_profile_water_level_wins_over_floor_default():
+def test_resolve_hard_floor_profile_water_level_wins_over_floor_default(brand):
     """[RP-8] Q2/RP-024: the SELECTED PROFILE's own water_level outranks the hard
-    floor's default — vacuum_quick's explicit 'Off' survives on tile rather than
-    being silently overwritten by tile's 'Medium' floor default. Every built-in
-    (and normalize_room_profile-normalized) profile always carries a water_level,
-    so the hard-floor default line now fires only when the room AND the resolved
-    profile both genuinely omit it — which no normal profile-driven room does."""
+    floor's default — the profile's declared value survives on tile rather than being
+    silently overwritten by tile's floor default. Every declared profile carries a
+    water_level, so the hard-floor default fires only when the room AND the profile
+    both genuinely omit it."""
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_quick", "floor_type": "tile"}
+        room_config={"profile_name": "vacuum_quick", "floor_type": "tile"}, catalog=brand,
     )
-    assert result["water_level"] == "Off"
+    assert result["water_level"] == _profile(brand, "vacuum_quick")["water_level"]
 
 
-def test_resolve_hard_floor_explicit_water_level_respected():
-    """[RP-8] Explicit water_level in room_config is not overridden by floor default."""
+def test_resolve_hard_floor_explicit_water_level_respected(brand):
+    """[RP-8] An explicit room water_level is not overridden by the floor default."""
+    explicit = _profile(brand, "vacuum_mop_quick")["water_level"]
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_quick", "floor_type": "tile", "water_level": "High"}
+        room_config={
+            "profile_name": "vacuum_quick", "floor_type": "tile", "water_level": explicit,
+        },
+        catalog=brand,
     )
-    assert result["water_level"] == "High"
+    assert result["water_level"] == explicit
 
 
-def test_resolve_carpet_high_pile_fan_speed():
-    """[RP-9] carpet_high_pile overrides fan_speed to 'Standard'."""
+@pytest.mark.parametrize("floor", ["carpet_high_pile", "carpet_low_pile"])
+def test_resolve_carpet_fan_speed_comes_from_the_catalog(brand, floor):
+    """[RP-9] Carpet overrides fan_speed to the brand's declared carpet default."""
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_quick", "floor_type": "carpet_high_pile"}
+        room_config={"profile_name": "vacuum_quick", "floor_type": floor}, catalog=brand,
     )
-    assert result["fan_speed"] == "Standard"
-
-
-def test_resolve_carpet_low_pile_fan_speed():
-    """[RP-9] carpet_low_pile overrides fan_speed to 'Max'."""
-    result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_quick", "floor_type": "carpet_low_pile"}
-    )
-    assert result["fan_speed"] == "Max"
+    assert result["fan_speed"] == brand["floor_type_fan_defaults"][floor]
 
 
 # ---------------------------------------------------------------------------
-# [RP-10] mop mode + Off water → floor default
+# [RP-10] mop mode + no water → floor default
 # ---------------------------------------------------------------------------
 
-def test_resolve_mop_mode_with_off_water_gets_floor_default():
-    """[RP-10] vacuum_mop mode with water_level=Off (hard floor) falls back to floor default."""
+def test_resolve_mop_mode_with_no_water_gets_floor_default(brand):
+    """[RP-10] Mop mode with water suppressed on a hard floor takes the floor default.
+
+    The guard compares case-insensitively against "off" because that is a FRAMEWORK
+    concept (the absence of water) and brands differ only in casing — a strict
+    == "Off" meant this never fired on Roborock, whose word is "off", so a mop room
+    stayed dry-mopping instead of being corrected.
+    """
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_mop_quick", "floor_type": "hardwood", "water_level": "Off"}
+        room_config={
+            "profile_name": "vacuum_mop_quick",
+            "floor_type": "hardwood",
+            "water_level": _no_water(brand),
+        },
+        catalog=brand,
     )
-    # hardwood default is Low
-    assert result["water_level"] == "Low"
+    assert result["water_level"] == brand["floor_type_water_defaults"]["hardwood"]
 
 
 # ---------------------------------------------------------------------------
-# [RP-11] edge_mopping in vacuum mode
+# [RP-11] edge_mopping
 # ---------------------------------------------------------------------------
 
-def test_resolve_vacuum_mode_forces_edge_mopping_false():
-    """[RP-11] edge_mopping is forced False when clean_mode is vacuum."""
+def test_resolve_vacuum_mode_forces_edge_mopping_false(brand):
+    """[RP-11] edge_mopping is forced False in vacuum mode — a framework invariant."""
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_deep", "floor_type": "tile", "edge_mopping": True}
+        room_config={"profile_name": "vacuum_deep", "floor_type": "tile", "edge_mopping": True},
+        catalog=brand,
     )
     assert result["edge_mopping"] is False
 
 
-def test_resolve_mop_mode_non_carpet_allows_edge_mopping():
-    """[RP-11] edge_mopping is preserved for mop mode on non-carpet floors."""
+def test_resolve_mop_mode_non_carpet_follows_the_profile(brand):
+    """[RP-11] Off carpet, mop mode carries through whatever the PROFILE declares.
+
+    Asserted as agreement rather than True: Roborock declares edge_mopping False on
+    every profile because its adapter declares the capability absent, so a hardcoded
+    True here would fail for a brand that is behaving correctly.
+    """
     result = resolve_room_profile_for_room(
-        room_config={"profile_name": "vacuum_mop_deep", "floor_type": "tile"}
+        room_config={"profile_name": "vacuum_mop_deep", "floor_type": "tile"}, catalog=brand,
     )
-    assert result["edge_mopping"] is True
+    assert result["edge_mopping"] == _profile(brand, "vacuum_mop_deep")["edge_mopping"]
 
 
 # ---------------------------------------------------------------------------
 # [RP-12] / [RP-13] / [RP-14] apply_capability_gate
 # ---------------------------------------------------------------------------
 
-def _base_mop_settings() -> dict:
+def _mop_settings(brand: dict) -> dict:
+    """Settings in THIS brand's vocabulary, as resolution would have produced them."""
+    declared = _profile(brand, "vacuum_mop_quick")
     return {
         "clean_mode": "vacuum_mop",
-        "fan_speed": "Standard",
-        "water_level": "Medium",
-        "clean_intensity": "Quick",
-        "path_type": "wide",
+        "fan_speed": declared["fan_speed"],
+        "water_level": declared["water_level"],
+        "clean_intensity": declared.get("clean_intensity", ""),
+        "path_type": declared.get("path_type", "wide"),
         "clean_passes": 1,
         "edge_mopping": True,
     }
 
 
-def test_capability_gate_downgrades_mop_to_vacuum():
-    """[RP-12] When supports_mop_features=False, mop mode is downgraded to vacuum."""
-    settings = _base_mop_settings()
-    result = apply_capability_gate(settings, _NO_MOP_CAPS)
+def test_capability_gate_downgrades_mop_to_vacuum(brand):
+    """[RP-12] With supports_mop_features False, mop mode downgrades to vacuum."""
+    result = apply_capability_gate(_mop_settings(brand), _NO_MOP_CAPS, catalog=brand)
     assert result["clean_mode"] == "vacuum"
 
 
-def test_capability_gate_sets_water_off_for_vacuum_mode():
-    """[RP-13] Water level is always Off in vacuum mode after gating."""
-    settings = {**_base_mop_settings(), "clean_mode": "vacuum"}
-    result = apply_capability_gate(settings, _NO_MOP_CAPS)
-    assert result["water_level"] == "Off"
+def test_capability_gate_suppresses_water_using_the_brands_word(brand):
+    """[RP-13] Vacuum mode suppresses water — with the brand's word, not a literal.
+
+    This is the regression for the leak this rewrite found: the gate assigned the
+    literal "Off" at three sites. Roborock's word is "off", which is absent from its
+    declared water_level_options, so dispatch filtered the setting out and mop
+    intensity was never applied on a mop-settable model.
+    """
+    settings = {**_mop_settings(brand), "clean_mode": "vacuum"}
+    result = apply_capability_gate(settings, _NO_MOP_CAPS, catalog=brand)
+    assert result["water_level"] == _no_water(brand)
 
 
-def test_capability_gate_adds_capability_gated_flag():
+def test_capability_gate_adds_capability_gated_flag(brand):
     """[RP-14] apply_capability_gate always adds capability_gated=True."""
-    settings = _base_mop_settings()
-    result = apply_capability_gate(settings, _FULL_CAPS)
+    result = apply_capability_gate(_mop_settings(brand), _FULL_CAPS, catalog=brand)
     assert result["capability_gated"] is True
 
 
-def test_capability_gate_does_not_mutate_input():
+def test_capability_gate_does_not_mutate_input(brand):
     """[RP-14] The original settings dict is not modified."""
-    settings = _base_mop_settings()
-    original_mode = settings["clean_mode"]
-    apply_capability_gate(settings, _NO_MOP_CAPS)
-    assert settings["clean_mode"] == original_mode
+    settings = _mop_settings(brand)
+    original = dict(settings)
+    apply_capability_gate(settings, _NO_MOP_CAPS, catalog=brand)
+    assert settings == original
 
 
-def test_capability_gate_mop_deep_downgrade_uses_deep_intensity():
-    """[RP-12] vacuum_mop_deep downgrade sets Deep intensity (distinguishes from quick downgrade)."""
-    settings = _base_mop_settings()
-    result = apply_capability_gate(settings, _NO_MOP_CAPS, resolved_profile_name="vacuum_mop_deep")
+def test_capability_gate_mop_deep_downgrade_uses_the_deep_profile(brand):
+    """[RP-12] A vacuum_mop_deep downgrade adopts the brand's vacuum_deep values.
+
+    Distinguishes the deep downgrade from the quick one without naming any brand's
+    intensity word — Roborock declares no intensity axis at all, so a literal "Deep"
+    here would assert a field that brand deliberately does not have.
+    """
+    # supports_path_control must be ON, or the gate's own path clamp forces "wide" and
+    # the downgrade's choice is unobservable.
+    caps = {**_NO_MOP_CAPS, "supports_path_control": True}
+    result = apply_capability_gate(
+        _mop_settings(brand), caps,
+        resolved_profile_name="vacuum_mop_deep", catalog=brand,
+    )
+    deep = _profile(brand, "vacuum_deep")
     assert result["clean_mode"] == "vacuum"
-    assert result["clean_intensity"] == "Deep"
+    assert result["path_type"] == deep["path_type"]
+    assert result["clean_intensity"] == deep.get("clean_intensity", "")
 
 
 # ---------------------------------------------------------------------------
-# [RP-15] resolve_profile_name_for_constraints
+# [RP-15] resolve_profile_name_for_constraints — framework KEYS
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("profile,floor,expected", [
@@ -313,35 +386,45 @@ def test_capability_gate_mop_deep_downgrade_uses_deep_intensity():
     ("vacuum_deep", "carpet_low_pile", "vacuum_deep"),
     ("vacuum_mop_quick", "hardwood", "vacuum_mop_quick"),
 ])
-def test_resolve_profile_for_constraints(profile, floor, expected):
-    """[RP-15] Carpet floors map mop profiles to vacuum equivalents; others pass through."""
-    result = resolve_profile_name_for_constraints(profile_name=profile, floor_type=floor)
-    assert result == expected
+def test_resolve_profile_for_constraints(brand, profile, floor, expected):
+    """[RP-15] Carpet maps mop profiles to their vacuum equivalents.
+
+    These are protected profile KEYS, which core owns and every brand declares, so the
+    expected values are legitimately literal here.
+    """
+    assert resolve_profile_name_for_constraints(
+        profile_name=profile, floor_type=floor, catalog=brand,
+    ) == expected
 
 
 # ---------------------------------------------------------------------------
-# [RP-16] legacy alias resolution
+# [RP-16] legacy aliases — per brand, including brands that declare none
 # ---------------------------------------------------------------------------
 
-def test_legacy_alias_vacuum_standard_resolves_to_vacuum_quick():
-    """[RP-16] 'vacuum_standard' resolves to 'vacuum_quick' via LEGACY_PROFILE_ALIASES."""
-    result = resolve_profile_name_for_constraints(
-        profile_name="vacuum_standard", floor_type="hardwood"
-    )
-    assert result == "vacuum_quick"
+def test_declared_legacy_aliases_resolve(brand):
+    """[RP-16] Each alias THIS brand declares resolves to its target.
 
+    A brand declaring ``legacy_aliases: {}`` has none to resolve and the loop is empty —
+    which is the correct assertion for it, not a skipped test. Eufy declares
+    ``vacuum_standard`` → ``vacuum_quick``; Roborock declares none, and asserting Eufy's
+    aliases against it would be asserting one brand's history as framework behaviour.
+    """
+    aliases = brand["legacy_aliases"]
+    for old_name, target in aliases.items():
+        assert resolve_profile_name_for_constraints(
+            profile_name=old_name, floor_type="hardwood", catalog=brand,
+        ) == target, old_name
 
-def test_legacy_alias_vacuum_mop_standard_resolves_to_vacuum_mop_quick():
-    """[RP-16] 'vacuum_mop_standard' resolves to 'vacuum_mop_quick'."""
-    result = resolve_profile_name_for_constraints(
-        profile_name="vacuum_mop_standard", floor_type="tile"
-    )
-    assert result == "vacuum_mop_quick"
+    unknown = "definitely_not_a_declared_alias"
+    assert resolve_profile_name_for_constraints(
+        profile_name=unknown, floor_type="hardwood", catalog=brand,
+    ) == unknown
 
 
 # ---------------------------------------------------------------------------
-# [RP-17] _normalize_floor_type: granite/concrete are canonical (not coerced)
+# [RP-17] _normalize_floor_type — framework-owned, brand-independent
 # ---------------------------------------------------------------------------
+
 def test_normalize_floor_type_keeps_granite_and_concrete():
     """[RP-17] granite + concrete are settable (Setup dropdown) and rendered on the
     floor-texture map, so the profile normalizer must NOT coerce them to hardwood.
@@ -349,7 +432,6 @@ def test_normalize_floor_type_keeps_granite_and_concrete():
     downgrading a granite/concrete room to hardwood on any profile apply."""
     assert _normalize_floor_type("granite") == "granite"
     assert _normalize_floor_type("concrete") == "concrete"
-    # the rest of the canonical set is unchanged
     for ft in ("hardwood", "laminate", "tile", "marble", "carpet_low_pile", "carpet_high_pile"):
         assert _normalize_floor_type(ft) == ft
     assert _normalize_floor_type("carpet") == "carpet_low_pile"   # legacy migration kept

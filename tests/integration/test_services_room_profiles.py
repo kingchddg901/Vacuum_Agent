@@ -39,17 +39,27 @@ _PROFILE_FIELDS = {
 # ---------------------------------------------------------------------------
 
 async def test_get_room_profiles_service_returns_builtin_profiles(hass, manager_with_services):
-    """[SRP-1] get_room_profiles returns at least the built-in profiles."""
-    result = await hass.services.async_call(
-        DOMAIN,
-        "get_room_profiles",
-        {},
-        blocking=True,
-        return_response=True,
+    """[SRP-1] Built-ins belong to a BRAND, so naming a vacuum is what returns them.
+
+    Called with no vacuum, the service answers with the user-saved library alone and
+    says so via ``built_ins_included: False`` — it does not fall back to a brand.
+    That distinction is the whole point: this used to return Eufy's built-ins to a
+    Roborock card, whose chip rows then matched nothing.
+    """
+    bare = await hass.services.async_call(
+        DOMAIN, "get_room_profiles", {}, blocking=True, return_response=True,
     )
-    assert isinstance(result, dict)
-    assert "profiles" in result
-    assert result["profile_count"] >= 1
+    assert isinstance(bare, dict)
+    assert bare["built_ins_included"] is False
+    assert bare["profiles"] == {}
+
+    scoped = await hass.services.async_call(
+        DOMAIN, "get_room_profiles", {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True,
+    )
+    assert scoped["built_ins_included"] is True
+    assert scoped["profile_count"] >= 1
+    assert "vacuum_quick" in scoped["profiles"]
 
 
 async def test_overwrite_room_profile_from_room_dispatch(hass, manager_with_services, monkeypatch):

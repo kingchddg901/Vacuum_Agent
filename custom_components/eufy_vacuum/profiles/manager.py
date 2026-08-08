@@ -27,12 +27,13 @@ from ..const import DOMAIN
 from ..entity_helpers import get_floor_type_label
 from ..maps.map_manager import ensure_map_bucket, get_map_bucket
 from ..profiles.room_profiles import (
-    BUILT_IN_ROOM_PROFILES,
+    PROTECTED_ROOM_PROFILE_NAMES,
     apply_room_profile_to_config,
     get_default_room_profiles,
     is_mop_clean_mode,
     merge_profile_dicts,
-    normalize_clean_intensity,
+    no_water_value,
+    coerce_clean_intensity,
     normalize_room_profile,
     resolve_profile_catalog,
     resolve_room_profile_for_room,
@@ -47,7 +48,10 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-_PROTECTED_ROOM_PROFILE_NAMES: frozenset[str] = frozenset(BUILT_IN_ROOM_PROFILES.keys())
+# The canonical profile KEY space, owned by core. Sourced from a brand catalog
+# until 2026-08-07, which made one brand's dict decide what every user could
+# rename — and left core unable to protect a name if that brand stopped shipping.
+_PROTECTED_ROOM_PROFILE_NAMES: frozenset[str] = PROTECTED_ROOM_PROFILE_NAMES
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -84,12 +88,22 @@ class ProfileManager:
     # (also delegated from EufyVacuumManager for planning / room-update code)
     # ------------------------------------------------------------------
 
-    def _protected_room_config(self, room: dict[str, Any]) -> dict[str, Any]:
+    def _protected_room_config(
+        self, room: dict[str, Any], *, vacuum_entity_id: str
+    ) -> dict[str, Any]:
         """Return a room config with impossible mode/surface combinations removed.
 
         Carpet rooms are downgraded away from mop-only modes; any non-mop mode
         clears water_level and edge_mopping regardless of floor type.
+
+        "No water" is a framework concept; the WORD for it belongs to the brand, so
+        ``vacuum_entity_id`` selects whose. This assigned the literal ``"Off"`` — Eufy's
+        casing — which is how every Roborock room on a live install came to store a value
+        absent from that brand's own declared options. It is the THIRD copy of this
+        predicate: ``resolve_room_profile_for_room`` and ``apply_capability_gate`` were
+        each fixed separately, and this one was missed both times.
         """
+        no_water = no_water_value(self._catalog_for(vacuum_entity_id))
         protected = dict(room)
 
         floor_type = str(protected.get("floor_type", "")).lower()
@@ -112,11 +126,11 @@ class ProfileManager:
                 clean_mode = "vacuum"
                 is_mop_mode = False
 
-            protected["water_level"] = "Off"
+            protected["water_level"] = no_water
             protected["edge_mopping"] = False
 
         if not is_mop_mode:
-            protected["water_level"] = "Off"
+            protected["water_level"] = no_water
             protected["edge_mopping"] = False
 
         return protected
@@ -145,7 +159,27 @@ class ProfileManager:
         except (TypeError, ValueError):
             return lowered
 
-    def _match_profile_from_fields(self, room: dict[str, Any]) -> str | None:
+    def _catalog_for(self, vacuum_entity_id: str) -> dict[str, Any]:
+        """Resolve the room-profile catalog DECLARED by this vacuum's adapter.
+
+        Every resolution path goes through here. Core ships no catalog of its own,
+        so a caller that cannot name a vacuum cannot resolve a profile — which is
+        the point: the four call sites that used to omit this were silently
+        resolving every brand's rooms against Eufy's vocabulary, and the omission
+        was invisible precisely because the framework had a default to give them.
+
+        Local import mirrors the other ``get_adapter_config`` call sites and keeps
+        the registry out of this module's import cycle.
+        """
+        from ..adapters.registry import get_adapter_config
+
+        return resolve_profile_catalog(
+            (get_adapter_config(vacuum_entity_id) or {}).get("room_profiles")
+        )
+
+    def _match_profile_from_fields(
+        self, room: dict[str, Any], *, vacuum_entity_id: str
+    ) -> str | None:
         """Return matching profile name if the room's protected fields match a preset.
 
         Both sides run through the SAME resolve -> protect pipeline under the room's
@@ -155,10 +189,15 @@ class ProfileManager:
         water is forced "Off" -> a plain vacuum room never matched its vacuum preset
         and always fell through to "custom". Resolving + protecting the candidate
         under the room's floor closes that asymmetry.
+
+        ``vacuum_entity_id`` selects the catalog both sides resolve against. Matching
+        a room against another brand's presets is how a room silently became
+        "custom" — or worse, matched a preset whose values the device cannot accept.
         """
-        profiles = self.get_room_profiles()["profiles"]
+        catalog = self._catalog_for(vacuum_entity_id)
+        profiles = self.get_room_profiles(vacuum_entity_id=vacuum_entity_id)["profiles"]
         stored_profiles = self._data.get("profiles", {}).get("room_profiles", {})
-        protected_room = self._protected_room_config(room)
+        protected_room = self._protected_room_config(room, vacuum_entity_id=vacuum_entity_id)
         room_floor_type = room.get("floor_type")
 
         for name, profile in profiles.items():
@@ -169,7 +208,9 @@ class ProfileManager:
                 resolve_room_profile_for_room(
                     room_config=candidate_config,
                     stored_profiles=stored_profiles,
-                )
+                    catalog=catalog,
+                ),
+                vacuum_entity_id=vacuum_entity_id,
             )
             if (
                 self._normalize_profile_match_value(protected_room.get("clean_mode"))
@@ -189,21 +230,29 @@ class ProfileManager:
 
         return None
 
-    def _finalize_room_update(self, room: dict[str, Any]) -> dict[str, Any]:
+    def _finalize_room_update(
+        self, room: dict[str, Any], *, vacuum_entity_id: str
+    ) -> dict[str, Any]:
         """Return a fully sanitized room dict produced by the protection → derive → profile-match pipeline.
 
         Applies carpet/mop invariants, syncs ``path_type`` from the resolved profile,
         and snaps ``profile_name`` to the best-matching preset (or ``"custom"``).
         Returns a new dict; does not mutate the input.
+
+        ``vacuum_entity_id`` names whose catalog the room resolves against. It is
+        required rather than defaulted because this runs on EVERY room save: a room
+        finalized against the wrong brand's catalog is written to disk with values
+        the device will not accept, and nothing downstream can tell that happened.
         """
-        result = self._protected_room_config(room)
+        result = self._protected_room_config(room, vacuum_entity_id=vacuum_entity_id)
         _stored_profiles = self._data.get("profiles", {}).get("room_profiles", {})
         _resolved = resolve_room_profile_for_room(
             room_config=result,
             stored_profiles=_stored_profiles,
+            catalog=self._catalog_for(vacuum_entity_id),
         )
         result["path_type"] = _resolved.get("path_type")
-        matched = self._match_profile_from_fields(result)
+        matched = self._match_profile_from_fields(result, vacuum_entity_id=vacuum_entity_id)
         result["profile_name"] = matched if matched else "custom"
         return result
 
@@ -228,18 +277,34 @@ class ProfileManager:
         profile = stored_profiles.get(normalized)
         return normalized, profile if isinstance(profile, dict) else None
 
-    def get_room_profiles(self) -> dict[str, Any]:
-        """Return available room profiles."""
+    def get_room_profiles(self, *, vacuum_entity_id: str | None = None) -> dict[str, Any]:
+        """Return available room profiles — user-saved, plus a brand's built-ins.
+
+        The saved library is global; BUILT-INS belong to a brand. Naming a vacuum
+        is therefore what makes the built-in half answerable, and omitting it
+        returns the saved library ALONE with ``built_ins_included: False`` rather
+        than quietly serving whichever brand core used to carry. The caller gets a
+        smaller answer, never somebody else's vocabulary.
+
+        Optional rather than required only because this backs a shipped service
+        that callers already invoke with no arguments; the flag is what keeps the
+        no-argument answer honest instead of fail-soft.
+        """
         self._data.setdefault("profiles", {})
         stored_profiles = self._data["profiles"].get("room_profiles", {})
+        catalog = (
+            self._catalog_for(vacuum_entity_id) if vacuum_entity_id else resolve_profile_catalog(None)
+        )
         merged = merge_profile_dicts(
-            built_in_profiles=get_default_room_profiles(),
+            built_in_profiles=get_default_room_profiles(catalog=catalog),
             stored_profiles=stored_profiles,
+            catalog=catalog,
         )
         return {
             "profile_count": len(merged),
             "profiles": merged,
             "protected_profile_names": sorted(_PROTECTED_ROOM_PROFILE_NAMES),
+            "built_ins_included": bool(vacuum_entity_id),
         }
 
     def get_effective_room_details(
@@ -268,6 +333,7 @@ class ProfileManager:
         resolved = resolve_room_profile_for_room(
             room_config=room,
             stored_profiles=stored_profiles,
+            catalog=self._catalog_for(vacuum_entity_id),
         )
         protected = self._protected_room_config(
             {
@@ -278,7 +344,8 @@ class ProfileManager:
                 "clean_intensity": resolved.get("clean_intensity"),
                 "clean_passes": resolved.get("clean_passes", room.get("clean_passes", 1)),
                 "edge_mopping": resolved.get("edge_mopping", room.get("edge_mopping", False)),
-            }
+            },
+            vacuum_entity_id=vacuum_entity_id,
         )
         clean_mode = str(protected.get("clean_mode", "")).lower()
 
@@ -332,7 +399,7 @@ class ProfileManager:
         _mop_required = "mop" in _clean_mode_l or "wash" in _clean_mode_l
         _path_type = (
             "narrow"
-            if normalize_clean_intensity(clean_intensity).lower() == "deep"
+            if coerce_clean_intensity(clean_intensity).lower() == "deep"
             else "wide"
         )
         profile = normalize_room_profile(
@@ -469,7 +536,7 @@ class ProfileManager:
             clean_mode=str(effective.get("clean_mode", room.get("clean_mode", "vacuum"))),
             fan_speed=str(effective.get("fan_speed", room.get("fan_speed", "Max"))),
             water_level=str(effective.get("water_level", room.get("water_level", "Off"))),
-            clean_intensity=normalize_clean_intensity(effective.get("clean_intensity", room.get("clean_intensity", "Quick"))),
+            clean_intensity=coerce_clean_intensity(effective.get("clean_intensity", room.get("clean_intensity", "Quick"))),
             clean_passes=int(effective.get("default_clean_passes", room.get("clean_passes", 1))),
             edge_mopping=bool(effective.get("default_edge_mopping", room.get("edge_mopping", False))),
         )
@@ -700,7 +767,7 @@ class ProfileManager:
         profile_name: str,
     ) -> dict[str, Any]:
         """Apply a room profile to one or more rooms on a map."""
-        profiles = self.get_room_profiles()["profiles"]
+        profiles = self.get_room_profiles(vacuum_entity_id=vacuum_entity_id)["profiles"]
         profile = profiles.get(profile_name)
 
         if profile is None:
@@ -723,15 +790,10 @@ class ProfileManager:
         # caller robust — a bad id becomes -1 and is filtered, never admitted or raised.)
         normalized_ids = [rid for rid in (_safe_int(r, -1) for r in room_ids) if rid >= 0]
 
-        # Resolve the adapter's room-profile catalog so a non-Eufy brand fills any
-        # omitted profile field from ITS normalize_defaults, not the in-code Eufy
-        # ones. Local import mirrors the other get_adapter_config call sites and
-        # avoids an import cycle. Absent coordinator/config → Eufy defaults.
-        from ..adapters.registry import get_adapter_config
-
-        catalog = resolve_profile_catalog(
-            (get_adapter_config(vacuum_entity_id) or {}).get("room_profiles")
-        )
+        # The adapter's own catalog fills any omitted profile field from ITS
+        # normalize_defaults. There is no framework catalog behind this: an absent
+        # declaration resolves empty rather than to Eufy's words.
+        catalog = self._catalog_for(vacuum_entity_id)
 
         updated_room_ids: list[int] = []
         for room_id in normalized_ids:
@@ -746,7 +808,8 @@ class ProfileManager:
                     profile_name=profile_name,
                     profile=profile,
                     catalog=catalog,
-                )
+                ),
+                vacuum_entity_id=vacuum_entity_id,
             )
 
             rooms[room_key] = updated_room
@@ -798,7 +861,7 @@ class ProfileManager:
             "clean_mode": str(room.get("clean_mode", "vacuum")),
             "fan_speed": str(room.get("fan_speed", "Max")),
             "water_level": str(room.get("water_level", "Off")),
-            "clean_intensity": normalize_clean_intensity(room.get("clean_intensity", "Quick")),
+            "clean_intensity": coerce_clean_intensity(room.get("clean_intensity", "Quick")),
             "clean_passes": int(room.get("clean_passes", 1)),
             "edge_mopping": bool(room.get("edge_mopping", False)),
             "order": int(room.get("order", 999)),
@@ -1442,6 +1505,16 @@ class ProfileManager:
                     _saved_by_id.setdefault(_sid, _saved)
         _unsnapshotted: list[int] = []
 
+        # Last-resort field values come from the BRAND's declared custom_template,
+        # never from literals here. These read as harmless — the live room almost
+        # always carries every field — but "Max" and "Quick" are Eufy's words, and
+        # a Roborock room reaching this line was written a suction level its device
+        # does not accept. The template is the adapter's own declaration of what an
+        # unspecified field means; a brand that declares none supplies None, and
+        # normalization downstream sees an absent field rather than a foreign one.
+        _catalog = self._catalog_for(vacuum_entity_id)
+        _template = _catalog.get("custom_template") or {}
+
         for index, room_snapshot in enumerate(_profile_rooms, start=1):
             if not isinstance(room_snapshot, dict):
                 continue
@@ -1476,14 +1549,19 @@ class ProfileManager:
                     **current_room,
                     "enabled": True,
                     "order": index,
-                    "profile_name": str(_field("profile_name", "vacuum_quick")),
-                    "clean_mode": str(_field("clean_mode", "vacuum")),
-                    "fan_speed": str(_field("fan_speed", "Max")),
-                    "water_level": str(_field("water_level", "Off")),
-                    "clean_intensity": normalize_clean_intensity(_field("clean_intensity", "Quick")),
+                    "profile_name": str(
+                        _field("profile_name", _catalog.get("default_profile"))
+                    ),
+                    "clean_mode": str(_field("clean_mode", _template.get("clean_mode"))),
+                    "fan_speed": str(_field("fan_speed", _template.get("fan_speed"))),
+                    "water_level": str(_field("water_level", _template.get("water_level"))),
+                    "clean_intensity": coerce_clean_intensity(
+                        _field("clean_intensity", _template.get("clean_intensity"))
+                    ),
                     "clean_passes": int(_field("clean_passes", 1)),
                     "edge_mopping": bool(_field("edge_mopping", False)),
-                }
+                },
+                vacuum_entity_id=vacuum_entity_id,
             )
             updates[room_key] = updated_room
             applied_room_ids.append(room_id)

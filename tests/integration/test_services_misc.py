@@ -166,6 +166,12 @@ async def test_get_vacuum_capabilities_service_with_model_hint(hass, manager_wit
 
 async def test_get_adapter_config_service_no_adapter_registered(hass, manager_with_services):
     """[SM-5] Returns config=None when no adapter is registered for the vacuum."""
+    # The manager fixture registers an adapter (core carries no profile catalog, so
+    # most tests cannot resolve a room without one). This test is about the genuinely
+    # unregistered state, so it opts out explicitly.
+    from custom_components.eufy_vacuum.adapters.registry import unregister_adapter_config
+    unregister_adapter_config(_VAC)
+
     result = await hass.services.async_call(
         DOMAIN,
         "get_adapter_config",

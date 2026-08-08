@@ -89,9 +89,13 @@ ALLOWED_SDK = (
 #
 #   So this entry is expected to persist until that batch lands. It is scheduled
 #   debt with a named owner, which is exactly what an allowlist entry is for.
-KNOWN_LEAKS: dict[str, set[str]] = {
-    "eufy/adapter.py": {"profiles.room_profiles"},
-}
+#: Ratchet: shrink-only. An entry here is a leak that EXISTS and is being tolerated
+#: until it is cut, never a licence to add one. Empty since 2026-08-07, when
+#: ``eufy/adapter.py``'s import of ``profiles.room_profiles`` was cut — Eufy's
+#: vocabulary now lives in ``adapters/eufy/room_profiles.py`` and core holds none.
+#: Adding a row needs a reason a reviewer would accept; ISO-5 proves the detector
+#: still works with this dict empty, so an empty ledger is evidence, not absence.
+KNOWN_LEAKS: dict[str, set[str]] = {}
 
 # Reaching into ANOTHER HA integration's hass.data is the adapter's whole job
 # (robovac_mqtt for Eufy, roborock for Roborock). Only VA's own domain is fenced.
@@ -240,28 +244,46 @@ def test_iso_4_no_runtime_reach_into_a_passed_in_objects_privates():
     )
 
 
-def test_iso_5_the_detector_detects():
-    """[ISO-5] The instrument, exercised against a real leak.
+def test_iso_5_the_detector_detects(tmp_path):
+    """[ISO-5] The instrument, exercised against a leak built for the purpose.
 
-    A gate only ever seen passing has not been tested — the lesson from the
-    typeface baseline that was byte-identical to the default font for three days,
-    and from a suite that stayed 935/935 green while a production property was
-    renamed out from under it.
+    A gate only ever seen passing has not been tested — the lesson from the typeface
+    baseline that was byte-identical to the default font for three days, and from a
+    suite that stayed 935/935 green while a production property was renamed out from
+    under it.
 
-    So: assert the ledgered leak is STILL FOUND by the detector. This test fails
-    two ways, and both are the point. If the detector breaks, it stops finding a
-    leak that is really there. If the leak is fixed, ISO-1 goes green and this goes
-    red, forcing the ledger entry to be removed rather than left to rot.
+    This used to assert that a REAL ledgered leak (``eufy/adapter.py`` importing
+    ``profiles.room_profiles``) was still found, and instructed whoever fixed it to
+    delete the ledger entry and this test together. The leak was cut on 2026-08-07 when
+    Eufy's vocabulary moved into ``adapters/eufy/room_profiles.py``, so the entry is
+    gone. Deleting the self-test with it would have left the detector unexercised, which
+    is the failure mode the test was written to prevent — so it now manufactures its own
+    leak instead of borrowing one. The instrument stays proven with KNOWN_LEAKS empty,
+    which is the state it should stay in.
+
+    Fails two ways, both the point: a broken detector finds nothing, and a detector that
+    flags EVERYTHING would also pass the positive half alone — hence the negative case.
     """
-    rel = "eufy/adapter.py"
-    path = os.path.join(ADAPTERS, "eufy", "adapter.py")
-    modules = {m for _, m in _escaping_imports(path)}
-    assert "profiles.room_profiles" in modules, (
-        "The detector no longer finds the one known leak in eufy/adapter.py.\n\n"
-        "If you REMOVED the import (Eufy now declares its own profile vocabulary the "
-        "way adapters/roborock/vocabulary.py does): delete the KNOWN_LEAKS entry and "
-        "this test together — the debt is paid and the ledger should not outlive it.\n\n"
-        "If you did NOT touch the adapter: the detector is broken. _escaping_imports "
-        "has stopped seeing an import that is still there, and ISO-1 is now green for "
+    leaky = tmp_path / "leaky_adapter.py"
+    leaky.write_text(
+        "from ...profiles.room_profiles import BUILT_IN_ROOM_PROFILES\n"
+        "from ...core.capabilities import something\n",
+        encoding="utf-8",
+    )
+    found = {m for _, m in _escaping_imports(str(leaky))}
+    assert "profiles.room_profiles" in found, (
+        "The detector no longer flags an escaping import. _escaping_imports has stopped "
+        "seeing a relative import that reaches out of adapters/, so ISO-1 is green for "
         "the wrong reason."
+    )
+
+    clean = tmp_path / "clean_adapter.py"
+    clean.write_text(
+        "from .vocabulary import ROOM_PROFILES\n"
+        "import logging\n",
+        encoding="utf-8",
+    )
+    assert not {m for _, m in _escaping_imports(str(clean))}, (
+        "The detector flags a purely LOCAL import as escaping — it would report every "
+        "adapter, and ISO-1's silence would mean nothing."
     )

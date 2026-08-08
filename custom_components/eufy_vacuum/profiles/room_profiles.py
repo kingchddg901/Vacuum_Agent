@@ -11,10 +11,18 @@ except ImportError:
     from typing_extensions import TypedDict  # type: ignore[assignment]
 
 
+class UndeclaredProfileCatalogError(RuntimeError):
+    """Resolution was asked for a profile and the catalog supplies none.
+
+    Deliberately not a ``HomeAssistantError`` — this module is HA-free pure logic
+    and stays testable without a hass fixture. Service layers translate it.
+    """
+
+
 class ProfileRecord(TypedDict):
     """Canonical shape of a stored or built-in room profile dict (documentation-only).
 
-    Exactly the 9 keys ``normalize_room_profile`` produces and ``BUILT_IN_ROOM_PROFILES``
+    Exactly the 9 keys ``normalize_room_profile`` produces and every brand catalog
     declares — all always present. The store key IS the ``profile_name``; the record
     itself carries no ``id`` / ``name`` / ``is_builtin``.
     """
@@ -52,105 +60,74 @@ class EffectiveRoomSettings(TypedDict, total=False):
     edge_mopping: bool
     capability_gated: bool      # added by apply_capability_gate() in Wave 3
 
-# The default profile a newly-discovered room gets. The in-code constants below are
-# the framework DEFAULT catalog AND the source of _PROTECTED_ROOM_PROFILE_NAMES
-# (profiles/manager.py) — they stay authoritative. An adapter's "room_profiles" block
-# OVERRIDES any subset of them per-vacuum via resolve_profile_catalog(); the resolver
-# functions take an optional ``catalog`` (a resolved block) and fall back to these
-# constants when it is None, so every call without a catalog is byte-identical.
+# CORE OWNS THE KEY SPACE. IT DOES NOT OWN ANY BRAND'S WORDS.
+#
+# The profile VALUES that used to live here were Eufy's — Eufy was the first
+# brand, so its vocabulary was written as "the" vocabulary and every other brand
+# inherited it by omission. They now live in ``adapters/eufy/room_profiles.py``,
+# where the brand that speaks them can own them.
+#
+# What legitimately stays is the KEY space: these four names are framework
+# identity, and both shipped brands declare exactly them on purpose so stored
+# rooms and the profile picker survive a brand switch. They are also the source
+# of the protected-name set that stops a user renaming or deleting a built-in.
+#
+# There is NO framework default catalog and no fallback. An adapter declares its
+# own profiles, or declares the contract supported with none (``builtins: {}``).
+# A MISSING key is neither — it is an incomplete declaration, and
+# ``registry._validate_adapter`` reports it. Absent must not quietly mean empty,
+# or "this brand has no profiles" becomes indistinguishable from "the porter
+# forgot", which is the fail-soft ambiguity this change exists to remove.
+PROTECTED_ROOM_PROFILE_NAMES: frozenset[str] = frozenset({
+    "vacuum_quick",
+    "vacuum_deep",
+    "vacuum_mop_quick",
+    "vacuum_mop_deep",
+})
+
+#: The profile a newly-discovered room gets when its adapter names none.
+#: A KEY, not a vocabulary — it says WHICH profile, never what is in it.
 DEFAULT_ROOM_PROFILE_NAME = "vacuum_quick"
 
-BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
-    "vacuum_quick": {
-        "label": "Vacuum Only Quick",
-        "clean_mode": "vacuum",
-        "fan_speed": "Standard",
-        "water_level": "Off",
-        "clean_intensity": "Quick",
-        "path_type": "wide",
-        "clean_passes": 1,
-        "edge_mopping": False,
-        "mop_required": False,
-    },
-    "vacuum_deep": {
-        "label": "Vacuum Only Deep",
-        "clean_mode": "vacuum",
-        "fan_speed": "Max",
-        "water_level": "Off",
-        "clean_intensity": "Deep",
-        "path_type": "narrow",
-        "clean_passes": 2,
-        "edge_mopping": False,
-        "mop_required": False,
-    },
-    "vacuum_mop_quick": {
-        "label": "Quick",
-        "clean_mode": "vacuum_mop",
-        "fan_speed": "Standard",
-        "water_level": "Medium",
-        "clean_intensity": "Quick",
-        "path_type": "wide",
-        "clean_passes": 1,
-        "edge_mopping": False,
-        "mop_required": True,
-    },
-    "vacuum_mop_deep": {
-        "label": "Deep",
-        "clean_mode": "vacuum_mop",
-        "fan_speed": "Max",
-        "water_level": "Medium",
-        "clean_intensity": "Deep",
-        "path_type": "narrow",
-        "clean_passes": 2,
-        "edge_mopping": True,
-        "mop_required": True,
-    },
-}
 
-# clean_intensity "Standard" / "Normal" are DEAD Eufy cleaning-path values. The real
-# device paths are Quick / Narrow / Deep (clean_intensity_options); "Standard" only ever
-# existed as a legacy default and rendered as an EMPTY chip in the card (no matching
-# option). Fold them to Quick on read so a room stored — or defaulted — to them resolves
-# to a real, selectable path for both display and dispatch.
-_DEAD_CLEAN_INTENSITY = {"standard", "normal"}
+def coerce_clean_intensity(value: Any) -> str:
+    """Coerce a stored ``clean_intensity`` to a trimmed string; None becomes "".
+
+    Carries NO vocabulary. This used to be ``normalize_clean_intensity``, which
+    additionally folded the retired Eufy values ``standard``/``normal`` to
+    ``"Quick"`` — a Eufy word in core, executed on every read from nine call
+    sites to repair data written before 2026-07-26. That fold is now a one-shot
+    store repair (``rooms/vocabulary_migration.py``) reached without any
+    retired-value map: ``Standard`` is simply absent from Eufy's declared
+    ``clean_intensity_options``, and the brand's own ``default_profile`` supplies
+    ``"Quick"``. Same answer, from a declaration rather than a constant, computed
+    once instead of forever.
+
+    The coercion itself stays and is load-bearing: a brand that declares no
+    intensity axis (Roborock omits it from every profile) yields None here, and a
+    bare ``str()`` would write the string ``"None"`` into a room.
+    """
+    return str(value if value is not None else "").strip()
 
 
-def normalize_clean_intensity(value: Any) -> str:
-    v = str(value if value is not None else "").strip()
-    return "Quick" if v.lower() in _DEAD_CLEAN_INTENSITY else v
+def no_water_value(catalog: dict[str, Any] | None) -> str:
+    """The word THIS brand uses for "no water", read from its declaration.
 
+    Carpet is the one surface where the framework guarantees water off, so a brand's
+    ``floor_type_water_defaults`` entry for carpet IS its no-water word.
+    ``resolve_room_profile_for_room`` already reads it this way; ``apply_capability_gate``
+    did not, and assigned the literal ``"Off"`` at three sites. Roborock's value is
+    ``"off"``, which is not in its declared ``water_level_options``, so dispatch
+    filtered the setting out and mop intensity was never applied on a mop-settable
+    model. The literal was removed from one function and left in its sibling.
 
-DEFAULT_CUSTOM_ROOM_PROFILE: dict[str, Any] = {
-    "label": "User Profile 1",
-    "clean_mode": "vacuum",
-    "fan_speed": "Max",
-    "water_level": "Off",
-    "clean_intensity": "Quick",
-    "path_type": "wide",
-    "clean_passes": 1,
-    "edge_mopping": False,
-    "mop_required": False,
-}
-
-LEGACY_PROFILE_ALIASES: dict[str, str] = {
-    "vacuum_standard": "vacuum_quick",
-    "vacuum_mop_standard": "vacuum_mop_quick",
-}
-
-FLOOR_TYPE_WATER_DEFAULTS: dict[str, str] = {
-    "hardwood": "Low",
-    "laminate": "Low",
-    "tile": "Medium",
-    "marble": "Low",
-    "carpet_low_pile": "Off",
-    "carpet_high_pile": "Off",
-}
-
-# Carpet suction defaults keyed by pile height encoded in floor_type.
-FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
-    "carpet_low_pile": "Max",
-    "carpet_high_pile": "Standard",
-}
+    Undeclared yields ``""`` rather than a guess — there is no framework word for this.
+    """
+    defaults = (catalog or {}).get("floor_type_water_defaults") or {}
+    for carpet in ("carpet_low_pile", "carpet_high_pile"):
+        if carpet in defaults:
+            return str(defaults[carpet])
+    return ""
 
 
 def _catalog_key(block: dict[str, Any], key: str, default: Any) -> Any:
@@ -168,34 +145,49 @@ def _catalog_key(block: dict[str, Any], key: str, default: Any) -> Any:
 
 
 def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
-    """Merge an adapter ``room_profiles`` block over the in-code defaults, per key.
+    """Resolve an adapter's ``room_profiles`` block. There is NO framework default.
 
-    Returns a catalog dict (builtins / custom_template / legacy_aliases /
+    Returns the seven catalog keys (builtins / custom_template / legacy_aliases /
     default_profile / floor_type_water_defaults / floor_type_fan_defaults /
-    normalize_defaults). A None/empty block yields the in-code defaults verbatim, so
-    a vacuum without the block resolves byte-identically. The in-code constants remain
-    the framework default + the _PROTECTED_ROOM_PROFILE_NAMES source regardless."""
+    normalize_defaults), carrying exactly what the adapter declared.
+
+    Core holds no brand's vocabulary, so an undeclared key resolves EMPTY rather
+    than to somebody else's words. What used to sit here was Eufy's catalog
+    wearing a framework badge: a brand that declared nothing inherited ``"Max"``
+    and ``"Boost"``, the card matched no option, and an unedited room applied no
+    suction at all.
+
+    Absent and declared-empty resolve the SAME WAY here, and that is deliberate —
+    this function's job is resolution, not judgement. The two states are
+    distinguished where the distinction is actionable: ``registry._validate_adapter``
+    reports a missing ``builtins`` as an incomplete declaration, and the brand-
+    agnostic contract suite makes it a hard failure. Were absence quietly
+    equivalent to ``{}`` everywhere, "this brand has no profiles" and "the porter
+    forgot" would be the same state, which is precisely the fail-soft ambiguity
+    removing the fallback was meant to end.
+
+    ``default_profile`` is the one key that still carries a framework value, and
+    it is not vocabulary: it names WHICH profile a new room starts on, never what
+    is inside it.
+    """
     block = block if isinstance(block, dict) else {}
     return {
-        "builtins": _catalog_key(block, "builtins", BUILT_IN_ROOM_PROFILES),
-        "custom_template": _catalog_key(block, "custom_template", DEFAULT_CUSTOM_ROOM_PROFILE),
-        "legacy_aliases": _catalog_key(block, "legacy_aliases", LEGACY_PROFILE_ALIASES),
+        "builtins": _catalog_key(block, "builtins", {}),
+        "custom_template": _catalog_key(block, "custom_template", {}),
+        "legacy_aliases": _catalog_key(block, "legacy_aliases", {}),
         "default_profile": _catalog_key(block, "default_profile", DEFAULT_ROOM_PROFILE_NAME),
-        "floor_type_water_defaults": _catalog_key(
-            block, "floor_type_water_defaults", FLOOR_TYPE_WATER_DEFAULTS
-        ),
-        "floor_type_fan_defaults": _catalog_key(
-            block, "floor_type_fan_defaults", FLOOR_TYPE_FAN_DEFAULTS
-        ),
-        "normalize_defaults": _catalog_key(block, "normalize_defaults", DEFAULT_CUSTOM_ROOM_PROFILE),
+        "floor_type_water_defaults": _catalog_key(block, "floor_type_water_defaults", {}),
+        "floor_type_fan_defaults": _catalog_key(block, "floor_type_fan_defaults", {}),
+        "normalize_defaults": _catalog_key(block, "normalize_defaults", {}),
     }
 
 
 def get_default_room_profiles(catalog: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
     """Return the default room profiles (the built-in catalog).
 
-    ``catalog`` (a resolved ``room_profiles`` block) overrides the built-ins;
-    None uses the in-code constants (byte-identical).
+    ``catalog`` is a resolved ``room_profiles`` block. There are no in-code
+    built-ins to fall back to — an absent or empty catalog yields ``{}``, because
+    core owns no brand's profile vocabulary.
 
     The legacy ``user_1`` "starting custom slot" is intentionally NOT injected
     here. It predated multi-profile "Save as New", and as a *pristine* framework
@@ -206,7 +198,7 @@ def get_default_room_profiles(catalog: dict[str, Any] | None = None) -> dict[str
     data; ``custom_template`` remains in the resolved catalog for callers that want
     the starting-settings template explicitly."""
     cat = catalog or {}
-    return deepcopy(cat.get("builtins") or BUILT_IN_ROOM_PROFILES)
+    return deepcopy(cat.get("builtins") or {})
 
 
 def normalize_room_profile(
@@ -216,7 +208,7 @@ def normalize_room_profile(
 
     Framework-canonical fields (label/clean_mode/path_type/clean_passes/
     edge_mopping/mop_required) fall back to the catalog's ``normalize_defaults``
-    (the adapter's, or the in-code ``DEFAULT_CUSTOM_ROOM_PROFILE`` when ``catalog``
+    (the adapter's ``normalize_defaults``; empty when the adapter declares none, since
     is None — byte-identical).
 
     Q2/RP-025 clause (i): the DISPLAY-AXIS fields (fan_speed/water_level/
@@ -230,7 +222,7 @@ def normalize_room_profile(
     doctrine resolve_room_profile_for_room already follows.
     """
     source = profile or {}
-    d = (catalog or {}).get("normalize_defaults") or DEFAULT_CUSTOM_ROOM_PROFILE
+    d = (catalog or {}).get("normalize_defaults") or {}
     brand_defaults = (catalog or {}).get("normalize_defaults") or {}
 
     return {
@@ -238,7 +230,7 @@ def normalize_room_profile(
         "clean_mode": str(source.get("clean_mode", d.get("clean_mode", "vacuum"))),
         "fan_speed": str(source.get("fan_speed", brand_defaults.get("fan_speed", ""))),
         "water_level": str(source.get("water_level", brand_defaults.get("water_level", ""))),
-        "clean_intensity": normalize_clean_intensity(
+        "clean_intensity": coerce_clean_intensity(
             source.get("clean_intensity", brand_defaults.get("clean_intensity", ""))
         ),
         "path_type": str(source.get("path_type", d.get("path_type", "wide"))),
@@ -273,7 +265,7 @@ def _normalize_profile_name(
     """Normalize profile names and map legacy aliases."""
     cat = catalog or {}
     default_name = cat.get("default_profile") or DEFAULT_ROOM_PROFILE_NAME
-    aliases = cat.get("legacy_aliases") or LEGACY_PROFILE_ALIASES
+    aliases = cat.get("legacy_aliases") or {}
     raw = str(profile_name or default_name).strip()
     return aliases.get(raw, raw)
 
@@ -303,8 +295,13 @@ def get_room_profile(
 ) -> tuple[str, dict[str, Any]]:
     """Return ``(resolved_name, normalized_profile)`` for the given profile name.
 
-    Falls back to the catalog's ``default_profile`` (the in-code ``vacuum_quick`` when
-    ``catalog`` is None) when the name is unknown.
+    An unknown name falls back to the catalog's ``default_profile``. If THAT is not
+    present either, the catalog supplies no usable profile and this raises — an
+    adapter declaring no ``room_profiles.builtins`` cannot resolve a room, and the
+    failure names the declaration rather than the profile that happens to be missing.
+    Registration is where this is normally caught (``registry._validate_room_profiles``);
+    reaching it here means resolution was handed a catalog that never came from a
+    registered adapter.
     """
     merged = merge_profile_dicts(
         built_in_profiles=get_default_room_profiles(catalog=catalog),
@@ -319,8 +316,11 @@ def get_room_profile(
         normalized_name = (catalog or {}).get("default_profile") or DEFAULT_ROOM_PROFILE_NAME
         profile = merged.get(normalized_name)
     if profile is None:
-        normalized_name = DEFAULT_ROOM_PROFILE_NAME
-        profile = merged[normalized_name]
+        raise UndeclaredProfileCatalogError(
+            f"cannot resolve room profile {profile_name!r}: no profile named "
+            f"{normalized_name!r} and the catalog supplies none to fall back on. "
+            f"Declare room_profiles.builtins on the adapter — core holds no catalog."
+        )
 
     return normalized_name, normalize_room_profile(profile, catalog=catalog)
 
@@ -470,8 +470,8 @@ def resolve_room_profile_for_room(
     legacy aliases, and floor-type fan/water defaults; None uses the in-code
     constants (byte-identical)."""
     cat = catalog or {}
-    fan_defaults = cat.get("floor_type_fan_defaults") or FLOOR_TYPE_FAN_DEFAULTS
-    water_defaults = cat.get("floor_type_water_defaults") or FLOOR_TYPE_WATER_DEFAULTS
+    fan_defaults = cat.get("floor_type_fan_defaults") or {}
+    water_defaults = cat.get("floor_type_water_defaults") or {}
 
     selected_profile_name, selected_profile = get_room_profile(
         profile_name=room_config.get("profile_name"),
@@ -498,7 +498,7 @@ def resolve_room_profile_for_room(
     # this module quietly becoming a fourth source of Eufy vocabulary, which is the exact
     # thing rooms/room_defaults.py exists to stop.
     resolved_clean_mode = str(room_config.get("clean_mode", resolved_profile.get("clean_mode", "vacuum")))
-    resolved_clean_intensity = normalize_clean_intensity(
+    resolved_clean_intensity = coerce_clean_intensity(
         room_config.get("clean_intensity", resolved_profile.get("clean_intensity", ""))
     )
     resolved_path_type = str(room_config.get("path_type", resolved_profile.get("path_type", "wide")))
@@ -529,13 +529,20 @@ def resolve_room_profile_for_room(
         resolved_water_level = water_defaults.get(floor_type, "")
 
     # Mop mode with no water is invalid — fall back to the floor's water default.
-    # Compared case-insensitively: "off" is a FRAMEWORK concept (the absence of water),
-    # and brands differ only in how they case the label. A strict == "Off" meant this
-    # guard never fired on Roborock, whose value is "off", so a mop room with water off
-    # stayed dry-mopping instead of being corrected.
+    #
+    # "No water" is a FRAMEWORK concept; the WORD for it belongs to the brand, and is
+    # read from its declaration (the carpet water default) rather than matched against a
+    # literal. This was `in ("", "off")`, which was itself a repair — the original strict
+    # == "Off" never fired on Roborock, whose value is lowercase, so a mop room with
+    # water off stayed dry-mopping. Widening the literal to a case-insensitive pair fixed
+    # the two brands that happen to spell it "off" and left every other brand broken in
+    # exactly the same way. A brand declaring "dry", "none" or "0" was silently
+    # unrecognised, and the correction never ran.
+    no_water = no_water_value(catalog)
+    _absent_water = {"", no_water.strip().lower()}
     if (
         is_mop_clean_mode(resolved_clean_mode)
-        and resolved_water_level.strip().lower() in ("", "off")
+        and resolved_water_level.strip().lower() in _absent_water
         and not floor_type.startswith("carpet")
     ):
         resolved_water_level = water_defaults.get(floor_type, "")
@@ -586,10 +593,12 @@ def apply_capability_gate(
     supports_edge = bool(capabilities.get("supports_edge_mopping", False))
     supports_passes = bool(capabilities.get("supports_passes", True))
 
+    no_water = no_water_value(catalog)
+
     clean_mode = str(settings.get("clean_mode", "vacuum"))
-    fan_speed = str(settings.get("fan_speed", "Max"))
-    water_level = str(settings.get("water_level", "Off"))
-    clean_intensity = normalize_clean_intensity(settings.get("clean_intensity", "Quick"))
+    fan_speed = str(settings.get("fan_speed", ""))
+    water_level = str(settings.get("water_level", no_water))
+    clean_intensity = coerce_clean_intensity(settings.get("clean_intensity", ""))
     path_type = str(settings.get("path_type", "wide"))
     clean_passes = int(settings.get("clean_passes", 1))
     edge_mopping = bool(settings.get("edge_mopping", False))
@@ -602,18 +611,18 @@ def apply_capability_gate(
         fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
         _, fallback = get_room_profile(profile_name=fallback_name, catalog=catalog)
         clean_mode = "vacuum"
-        water_level = "Off"
+        water_level = no_water
         edge_mopping = False
         path_type = fallback.get("path_type", path_type)
         clean_intensity = fallback.get("clean_intensity", clean_intensity)
 
     # Vacuum-only mode — water and edge mopping are irrelevant.
     if clean_mode == "vacuum":
-        water_level = "Off"
+        water_level = no_water
         edge_mopping = False
 
     if not supports_water:
-        water_level = "Off"
+        water_level = no_water
     if not supports_edge:
         edge_mopping = False
     if not supports_path:

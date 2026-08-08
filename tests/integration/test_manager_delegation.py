@@ -32,13 +32,15 @@ from homeassistant.helpers import entity_registry as er
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 
+from tests.brand_catalogs import adapter_config
+
 from .conftest import setup_map
 
 
 _VAC = "vacuum.alfred"
 _MAP = "6"
 
-_ADAPTER = {
+_ADAPTER = adapter_config(**{
     "adapter_id": "t", "source": "t",
     "entities": {
         "task_status": "sensor.alfred_task_status",
@@ -56,7 +58,7 @@ _ADAPTER = {
     "maintenance_components": {"main_brush": {
         "sensor_suffix": "main_brush", "label": "Main Brush", "icon": "mdi:brush",
         "default_interval_hours": 150.0, "max_interval_hours": 300.0}},
-}
+})
 
 
 @pytest.fixture

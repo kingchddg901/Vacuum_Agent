@@ -1280,7 +1280,21 @@ empty_dust:
 
 get_room_profiles:
   name: Get room profiles
-  description: Return all available built-in and user-defined room profiles.
+  description: >-
+    Return the user-defined room profile library, plus a vacuum's built-in
+    profiles when one is given. Built-in profiles are declared by each brand's
+    adapter, so without a vacuum the response contains the saved library only and
+    reports built_ins_included as false.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      description: >-
+        Whose built-in profiles to include. Omit to return only user-saved
+        profiles.
+      required: false
+      selector:
+        entity:
+          domain: vacuum
 
 save_user_room_profile:
   name: Save user room profile

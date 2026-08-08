@@ -26,6 +26,8 @@ from homeassistant.exceptions import ServiceValidationError
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 
+from tests.brand_catalogs import SYNTHETIC_BLOCK
+
 
 _VAC = "vacuum.alfred"
 
@@ -44,6 +46,20 @@ _VALID_CONFIG = {
     "entities": {
         "task_status": "sensor.alfred_task_status",
     },
+    # Required since 2026-08-07: an adapter must DECLARE its profile vocabulary —
+    # core carries no catalog to inherit. A stored config is a full adapter (it is
+    # the sole source for a vacuum with no code adapter), so this is not optional
+    # for it. Declared empty where this brand supplies nothing, which is a
+    # different state from omitting the key.
+    "room_profiles": {
+        "default_profile": "vacuum_quick",
+        "builtins": SYNTHETIC_BLOCK["builtins"],
+        "custom_template": SYNTHETIC_BLOCK["custom_template"],
+        "normalize_defaults": SYNTHETIC_BLOCK["normalize_defaults"],
+        "legacy_aliases": {},
+        "floor_type_water_defaults": SYNTHETIC_BLOCK["floor_type_water_defaults"],
+        "floor_type_fan_defaults": SYNTHETIC_BLOCK["floor_type_fan_defaults"],
+    },
 }
 
 
@@ -53,6 +69,12 @@ _VALID_CONFIG = {
 
 async def test_get_adapter_config_no_adapter_returns_none_config(hass, manager_with_services):
     """[AC-1] get_adapter_config returns config=None when no adapter is registered."""
+    # The manager fixture registers an adapter, because core carries no profile
+    # catalog and most tests cannot resolve a room without one. This test is about
+    # the genuinely-unregistered state, so it opts out explicitly rather than
+    # relying on the fixture happening not to register.
+    from custom_components.eufy_vacuum.adapters.registry import unregister_adapter_config
+    unregister_adapter_config(_VAC)
     result = await hass.services.async_call(
         DOMAIN,
         "get_adapter_config",
@@ -118,7 +140,16 @@ async def test_save_adapter_config_rejects_incomplete(hass, manager_with_service
     or dispatch.template with ServiceValidationError (was a silently-logged
     early return that registered nothing but told the caller nothing either --
     Q9's "success-shaped no-op" class) and registers nothing either way."""
-    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+    from custom_components.eufy_vacuum.adapters.registry import (
+        get_adapter_config,
+        unregister_adapter_config,
+    )
+
+    # This test asserts that a REJECTED save leaves the registry untouched, so it
+    # starts from empty — the manager fixture's adapter would otherwise satisfy the
+    # "is None" checks' opposite and hide a regression where a bad config registered.
+    unregister_adapter_config(_VAC)
+
     # missing adapter_id → ServiceValidationError
     with pytest.raises(ServiceValidationError):
         await hass.services.async_call(

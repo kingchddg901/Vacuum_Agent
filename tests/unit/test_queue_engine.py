@@ -28,6 +28,12 @@ from custom_components.eufy_vacuum.queue.queue_engine import (
     get_enabled_rooms_in_order,
 )
 
+# build_room_clean_payload resolves its own catalog from the ADAPTER REGISTRY, so a
+# synthetic brand is registered for the whole module. These tests are about queue
+# construction, not vocabulary — a real brand's catalog would let a leaked word satisfy
+# them by coincidence, which is how the Eufy default stayed invisible.
+pytestmark = pytest.mark.usefixtures("synthetic_adapter")
+
 
 _VAC = "vacuum.alfred"
 _MAP = "6"
@@ -318,6 +324,9 @@ def test_phased_job_anchor_survives_the_advance():
     assert nxt["phased_job_id"] == "pj_2026-08-02T11-15-51"
 
 
+
+
+
 def test_atomic_job_state_carries_no_phase_keys():
     """[QE-PJ] PRESENCE IS THE SIGNAL — an atomic run must stay byte-identical, so an
     absent anchor is how 'not phased' is expressed. A boolean would be a second source of
@@ -328,5 +337,6 @@ def test_atomic_job_state_carries_no_phase_keys():
         payload_state={"payload": {}, "room_count": 1, "resolved_rooms": [{"room_id": 1}]},
         phases=None,
     )
+
     assert "phases" not in state
     assert "phased_job_id" not in state

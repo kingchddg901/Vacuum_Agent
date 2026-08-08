@@ -58,8 +58,19 @@ from tests._factories import spec_manager
 from custom_components.eufy_vacuum.profiles.manager import ProfileManager
 from custom_components.eufy_vacuum.profiles.room_profiles import (
     resolve_room_profile_for_room,
+    resolve_profile_catalog,
+    no_water_value,
 )
 
+from tests.brand_catalogs import SYNTHETIC_BLOCK
+
+
+# ProfileManager mechanics, not vocabulary — so the catalog is the synthetic brand's.
+# _match_profile_from_fields and get_room_profiles now require a vacuum because core
+# holds no catalog of its own; the synthetic_adapter fixture registers one for _VAC.
+pytestmark = pytest.mark.usefixtures("synthetic_adapter")
+
+_CATALOG = resolve_profile_catalog(SYNTHETIC_BLOCK)
 
 _VAC = "vacuum.alfred"
 _MAP = "6"
@@ -232,7 +243,7 @@ def test_set_run_profile_steps_rejects_leading_break(pm):
 
 def test_get_room_profiles(pm):
     """[PM-1]"""
-    result = pm.get_room_profiles()
+    result = pm.get_room_profiles(vacuum_entity_id=_VAC)
     assert result["profile_count"] >= 1
     assert "vacuum_quick" in result["profiles"]
     assert "vacuum_quick" in result["protected_profile_names"]
@@ -303,7 +314,7 @@ def test_delete_room_profile_refuses_with_referrers(pm):
         {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "1", "name": "Kitchen"}
     ]
     # unforced refusal is non-destructive -- the profile and referrer both survive.
-    assert pm.get_room_profiles()["profiles"]["user_brushes"]
+    assert pm.get_room_profiles(vacuum_entity_id=_VAC)["profiles"]["user_brushes"]
     assert pm._data["maps"][_VAC][_MAP]["rooms"]["1"]["profile_name"] == "user_brushes"
 
     forced = pm.delete_room_profile(profile_name="user_brushes", force=True)
@@ -394,9 +405,11 @@ def test_protected_room_config_carpet_downgrades_mop(pm):
     level and edge mopping forced off (the carpet-protection invariant)."""
     out = pm._protected_room_config({
         "floor_type": "carpet", "clean_mode": "vacuum_mop",
-        "water_level": "High", "edge_mopping": True})
+        "water_level": "High", "edge_mopping": True}, vacuum_entity_id=_VAC)
     assert out["clean_mode"] == "vacuum"
-    assert out["water_level"] == "Off"
+    # The brand's own no-water word, not the literal "Off". This assigned Eufy's
+    # casing for every brand — the third copy of that same defect.
+    assert out["water_level"] == no_water_value(_CATALOG)
     assert out["edge_mopping"] is False
 
 
@@ -481,7 +494,8 @@ def test_match_profile_from_fields(pm):
     # round-trip can actually match (vacuum presets get water forced to Off).
     name = "vacuum_mop_quick"
     eff = resolve_room_profile_for_room(
-        room_config={"profile_name": name}, stored_profiles={})
+        room_config={"profile_name": name}, stored_profiles={},
+        catalog=_CATALOG)
     room = {
         "clean_mode": eff.get("clean_mode"),
         "fan_speed": eff.get("fan_speed"),
@@ -491,10 +505,10 @@ def test_match_profile_from_fields(pm):
         "edge_mopping": eff.get("edge_mopping", False),
         "floor_type": "hardwood",
     }
-    assert pm._match_profile_from_fields(room) == name
+    assert pm._match_profile_from_fields(room, vacuum_entity_id=_VAC) == name
     # an impossible pass count matches no preset → None (would be a false
     # match if normalization were still dropped)
-    assert pm._match_profile_from_fields({**room, "clean_passes": 99}) is None
+    assert pm._match_profile_from_fields({**room, "clean_passes": 99}, vacuum_entity_id=_VAC) is None
 
 
 def test_match_profile_from_fields_vacuum_room_matches_preset(pm):
@@ -507,19 +521,26 @@ def test_match_profile_from_fields_vacuum_room_matches_preset(pm):
     matched a vacuum preset. Resolving + protecting the candidate under the room's
     floor_type closes the asymmetry. Before the fix both asserts returned None.
     """
-    room = {
-        "floor_type": "hardwood",
-        "clean_mode": "vacuum",
-        "fan_speed": "Standard",
-        "water_level": "Off",
-        "clean_intensity": "Quick",
-        "clean_passes": 1,
-        "edge_mopping": False,
-    }
-    assert pm._match_profile_from_fields(room) == "vacuum_quick"
+    fields = ("clean_mode", "fan_speed", "water_level", "clean_intensity",
+              "clean_passes", "edge_mopping")
+
+    def _room_at(profile_name: str) -> dict:
+        """A room set to exactly what the REGISTERED brand declares for that preset.
+
+        Built from the catalog rather than written out, so the test asks "does a room
+        matching a preset match it?" instead of "does a room holding Eufy's words match
+        an Eufy preset?" — the latter passes for one brand and silently stops testing
+        anything the moment the registered adapter is not that brand.
+        """
+        declared = _CATALOG["builtins"][profile_name]
+        return {"floor_type": "hardwood",
+                **{k: declared[k] for k in fields if k in declared}}
+
+    assert pm._match_profile_from_fields(
+        _room_at("vacuum_quick"), vacuum_entity_id=_VAC) == "vacuum_quick"
     # vacuum_deep differs on fan/intensity/passes → matches deep, not quick.
-    deep = {**room, "fan_speed": "Max", "clean_intensity": "Deep", "clean_passes": 2}
-    assert pm._match_profile_from_fields(deep) == "vacuum_deep"
+    assert pm._match_profile_from_fields(
+        _room_at("vacuum_deep"), vacuum_entity_id=_VAC) == "vacuum_deep"
 
 
 # ---------------------------------------------------------------------------
@@ -966,7 +987,7 @@ def test_edge_mopping_survives_the_display_spelling_round_trip():
         "water_level": "Medium", "clean_intensity": "Deep",
         "edge_mopping": True, "clean_passes": 1,
     }
-    resolved = resolve_room_profile_for_room(room_config=room, stored_profiles={})
+    resolved = resolve_room_profile_for_room(room_config=room, stored_profiles={}, catalog=_CATALOG)
     assert resolved["edge_mopping"] is True
 
 
@@ -992,6 +1013,7 @@ def test_edge_mopping_predicate_accepts_every_mop_spelling(clean_mode, expected)
             "floor_type": "hardwood", "edge_mopping": True,
         },
         stored_profiles={},
+        catalog=_CATALOG,
     )
     assert resolved["edge_mopping"] is expected
 

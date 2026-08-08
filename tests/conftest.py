@@ -24,6 +24,9 @@ from custom_components.eufy_vacuum.const import (
     CONF_VACUUM_ENTITY_ID,
     DOMAIN,
 )
+from custom_components.eufy_vacuum.profiles.room_profiles import resolve_profile_catalog
+
+from .brand_catalogs import BRAND_BLOCKS, SYNTHETIC_ADAPTER_CONFIG, SYNTHETIC_BLOCK
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +40,62 @@ from custom_components.eufy_vacuum.const import (
 def auto_enable_custom_integrations(enable_custom_integrations):
     """Enable loading custom integrations from the repo's custom_components/."""
     yield
+
+
+# ---------------------------------------------------------------------------
+# Brand catalogs — see tests/brand_catalogs.py for why these exist.
+# ---------------------------------------------------------------------------
+
+@pytest.fixture(params=sorted(BRAND_BLOCKS), ids=sorted(BRAND_BLOCKS))
+def brand(request):
+    """A declared catalog, one test run per brand.
+
+    Any test using this must assert RELATIONSHIPS — that a resolved value equals what
+    THIS catalog declares — never a literal. A literal passes for one brand and fails
+    for the rest, which is exactly the leak the parameterization exists to catch.
+
+    Returns the resolved catalog (post ``resolve_profile_catalog``), since that is what
+    every consumer in core actually receives.
+    """
+    return resolve_profile_catalog(BRAND_BLOCKS[request.param])
+
+
+@pytest.fixture
+def synthetic_catalog():
+    """A catalog whose words belong to no real brand.
+
+    For tests that need *a* catalog to function but are not about vocabulary —
+    dispatch, queueing, planning. If one of these fails only because a real brand's
+    word is missing, that word is load-bearing somewhere it should not be.
+    """
+    return resolve_profile_catalog(SYNTHETIC_BLOCK)
+
+
+@pytest.fixture
+def synthetic_adapter():
+    """Register the synthetic brand for the test vacuum, and unregister after.
+
+    For pure-unit tests of code that resolves its own catalog from the registry
+    (``queue_engine.build_room_clean_payload`` and the dispatch engines above it)
+    rather than taking one as a parameter. They need an adapter to EXIST; they are not
+    about whose it is, so it must not be a real brand's — a dispatch test that only
+    passes against Eufy is testing Eufy.
+
+    Registers through the module-level shim, which writes to ``registry._REGISTRY``
+    when no coordinator is active. Teardown is not optional: that registry is global,
+    and a leftover entry would silently satisfy a later test that should have failed.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config,
+        unregister_adapter_config,
+    )
+
+    vacuum_entity_id = "vacuum.alfred"
+    register_adapter_config(vacuum_entity_id, dict(SYNTHETIC_ADAPTER_CONFIG))
+    try:
+        yield vacuum_entity_id
+    finally:
+        unregister_adapter_config(vacuum_entity_id)
 
 
 # ---------------------------------------------------------------------------

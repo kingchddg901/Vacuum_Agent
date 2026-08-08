@@ -742,9 +742,12 @@ def register_roborock_adapter_for_vacuum(
             "normalize_defaults": CUSTOM_ROOM_PROFILE,
             "floor_type_water_defaults": RB_FLOOR_TYPE_WATER_DEFAULTS,
             "floor_type_fan_defaults": RB_FLOOR_TYPE_FAN_DEFAULTS,
-            # legacy_aliases deliberately absent — the framework's Eufy-era aliases
-            # (vacuum_standard -> vacuum_quick) are harmless key renames, not vocabulary,
-            # and Roborock has no legacy of its own to map.
+            # DECLARED EMPTY, not absent. Roborock has no retired profile names of
+            # its own to map, and there is no longer a framework catalog to inherit
+            # Eufy's from. Empty says "this brand supports the contract and has
+            # none"; ABSENT would say "the declaration is incomplete" and is a
+            # validation error — the two must not be the same state.
+            "legacy_aliases": {},
         },
 
         # RP-033/VAC-3: the FULL probe-candidate dict built above — a later

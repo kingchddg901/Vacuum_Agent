@@ -12,11 +12,17 @@ import {
 } from "../constants.js";
 
 export function applyRoomProfilesActions(proto) {
-  proto.getRoomProfiles = async function () {
+  // Built-in profiles are declared per brand, so the vacuum decides which are
+  // returned. Omitting it yields the user-saved library alone (the response says
+  // so via built_ins_included) rather than one brand's words standing in for
+  // another's — a Roborock card showing Eufy suction names is how a room ended up
+  // storing a value its device does not accept.
+  proto.getRoomProfiles = async function (vacuumEntityId) {
+    const payload = vacuumEntityId ? { vacuum_entity_id: vacuumEntityId } : {};
     const result = await this.callService(
       DOMAIN,
       SERVICE_GET_ROOM_PROFILES,
-      {},
+      payload,
       true
     );
 

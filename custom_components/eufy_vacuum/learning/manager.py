@@ -2860,7 +2860,8 @@ class LearningManager:
 
             try:
                 # Resolve effective settings through the protection layer.
-                protected = manager.protected_room_config(room_data)
+                protected = manager.protected_room_config(
+                    room_data, vacuum_entity_id=vacuum_entity_id)
 
                 clean_mode = str(protected.get("clean_mode", "vacuum")).strip().lower()
                 clean_passes = _safe_int(protected.get("clean_passes", 1), 1)

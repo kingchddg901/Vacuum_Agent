@@ -2,10 +2,55 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **276 tests across 10 files**.
+engine that gates/modifies rooms at start). Covered by **288 tests across 11 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.md), [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
+
+
+### `vocabulary_migration.py` — the one-shot repair (added 2026-08-07)
+
+Removing the framework's Eufy-shaped profile default is prophylactic: a stored
+per-room field outranks the profile, so rooms already on disk keep the bad value
+indefinitely. This module is the curative half, run once after adapter
+registration (it needs each brand's DECLARATION, which does not exist until
+then, so it cannot be a versioned store migration).
+
+Two rules, both declaration-driven: **DROP** a field no declared profile carries,
+**RESET** a value absent from the brand's declared options to that brand's
+`default_profile` value. No nearest-match — the option lists are declared sets
+with no ordering to be nearest in.
+
+`test_vocabulary_migration.py` (12 tests) weights the refusals as heavily as the
+repairs, because this rewrites real user rooms and an over-reach is silent:
+
+| id | what it holds |
+|---|---|
+| `MIG-1` / `MIG-2` | DROP an undeclared axis; RESET an out-of-vocabulary value |
+| `MIG-2b` | RESET takes the DECLARED default, never the lexically nearest option |
+| `MIG-3` | a correct room comes through byte-identical |
+| `MIG-4` | a vacuum whose adapter declares nothing is skipped, never guessed at |
+| `MIG-5` | **the check that averted a destructive migration** — see below |
+| `MIG-6` | a brand whose own default is invalid is reported, not worked around |
+| `MIG-7` | idempotent; a user's deliberate re-edit is not "repaired" on next boot |
+| `MIG-8` | planning is pure, so the change can be reviewed before it runs |
+| `MIG-9` | the retired-value fold is subsumed with NO retired-value map |
+
+**MIG-5 is the one to read.** An early draft keyed DROP on "the brand declares no
+options for this field". That reads correct and would have stripped `clean_mode`
+and `water_level` from every room on a Roborock S6 — which declares no options for
+them because its mop is not settable, not because the axis does not exist. Absence
+of an OPTION LIST means "cannot judge"; only absence from the brand's own PROFILES
+means "no such axis". Caught by enumerating the live store before the rule was
+written, per [[feedback_adversarial_self_break]].
+
+**MIG-9 is why `normalize_clean_intensity` could be deleted rather than moved.**
+It folded the retired Eufy values `standard`/`normal` to `"Quick"` on every read,
+from nine call sites, to repair data written before 2026-07-26 — and that data was
+still on disk twelve days later, because rooms are only rewritten when edited. The
+migration needs no retired-value map to subsume it: `Standard` is simply absent
+from Eufy's declared `clean_intensity_options`, so the generic RESET catches it and
+Eufy's own `default_profile` supplies `Quick`. Same answer, from a declaration.
 
 ---
 
@@ -21,6 +66,7 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
 | `room_manager.py` | 82 | 96% | `test_room_manager.py` (unit) | unit | clean |
 | `room_defaults.py` | 21 | 96% | `test_room_manager.py` (unit) + `test_adapter_contract.py` | unit | clean |
 | `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit | clean |
+| `vocabulary_migration.py` | 68 | — | `test_vocabulary_migration.py` (unit) | unit | clean |
 
 (Room-facing services live in [17 — services](17-services.md):
 `test_services_rooms.py`, `test_services_access_graph.py`.)

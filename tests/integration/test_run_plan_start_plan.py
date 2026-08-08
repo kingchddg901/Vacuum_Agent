@@ -54,6 +54,8 @@ import pytest
 
 from custom_components.eufy_vacuum.planning.run_plan import RunPlanManager
 
+from tests.brand_catalogs import adapter_config
+
 from tests._factories import VAC as _VAC, set_room_field
 from .conftest import setup_map
 
@@ -597,15 +599,18 @@ def test_mop_carpet_warning(rp, hass):
     )
 
     rp_, mgr = rp
+    # Register BEFORE seeding: creating a room resolves it against the adapter's
+    # declared catalog, and core has none to fall back on. Seeding first left the
+    # rooms unresolvable and the failure looked like a preflight bug.
+    register_adapter_config(_VAC, adapter_config(**{
+        "adapter_id": "rb", "source": "code",
+        "entities": {"mop_active": "binary_sensor.tank"},
+    }))
     rooms = _seed(mgr, "spm12", [
         {"enabled": True, "floor_type": "carpet"},
         {"enabled": True, "floor_type": "hardwood"},
     ])
     carpet_name = rooms["1"]["name"]
-    register_adapter_config(_VAC, {
-        "adapter_id": "rb", "source": "code",
-        "entities": {"mop_active": "binary_sensor.tank"},
-    })
     try:
         # Tank attached -> the caution names the carpet room.
         hass.states.async_set("binary_sensor.tank", "on")
@@ -624,12 +629,20 @@ def test_mop_carpet_warning(rp, hass):
         pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
         assert pf["mop_carpet_warning"] is None
     finally:
-        unregister_adapter_config(_VAC)
+        # A brand declaring NO tank sensor -> never warns, even with a carpet room.
+        # Swapped for a tankless adapter rather than unregistering: with no adapter at
+        # all there is no profile catalog either, so set_room_field below could not
+        # resolve the room and the test would fail for an unrelated reason. "Declares no
+        # mop_active entity" is the condition under test; "has no adapter" is not a state
+        # a vacuum is ever in.
+        register_adapter_config(_VAC, adapter_config(**{
+            "adapter_id": "tankless", "source": "code", "entities": {},
+        }))
 
-    # No tank sensor declared (Eufy) -> never warns, even with a carpet room.
     set_room_field(mgr, 1, map_id="spm12", floor_type="carpet")
     pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
     assert pf["mop_carpet_warning"] is None
+    unregister_adapter_config(_VAC)
 
 
 def test_order_advisory(rp):
@@ -644,16 +657,16 @@ def test_order_advisory(rp):
     rp_, mgr = rp
     try:
         # Default (no capability declared) -> honored -> no advisory (default-REJECT).
-        register_adapter_config(_VAC, {
-            "adapter_id": "e", "source": "code", "capabilities": {}})
+        register_adapter_config(_VAC, adapter_config(**{
+            "adapter_id": "e", "source": "code", "capabilities": {}}))
         _seed(mgr, "spm13a", [{"enabled": True}, {"enabled": True}])
         pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm13a")["preflight"]
         assert pf["order_advisory"] is None
 
         # Path-optimizing brand + 2 rooms -> advisory.
-        register_adapter_config(_VAC, {
+        register_adapter_config(_VAC, adapter_config(**{
             "adapter_id": "rb", "source": "code",
-            "capabilities": {"honors_clean_order": False}})
+            "capabilities": {"honors_clean_order": False}}))
         _seed(mgr, "spm13b", [{"enabled": True}, {"enabled": True}])
         pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm13b")["preflight"]
         assert pf["order_advisory"] is not None
@@ -681,11 +694,11 @@ def test_strict_order_phases(rp):
         {"enabled": True, "order": 1}, {"enabled": True, "order": 2}])
     try:
         # Path-optimizing flat-id brand -> one phase per room, in order.
-        register_adapter_config(_VAC, {
+        register_adapter_config(_VAC, adapter_config(**{
             "adapter_id": "rb", "source": "code",
             "capabilities": {"honors_clean_order": False},
             "dispatch": {"template": "roborock_segment_clean", "passes_max": 3},
-        })
+        }))
         phases = rp_._build_dispatch_phases(
             vacuum_entity_id=_VAC, map_id="spm14",
             managed_rooms=rooms, queue_room_ids=[1, 2], strict_order=True,
@@ -695,11 +708,11 @@ def test_strict_order_phases(rp):
         assert phases[1]["payload"]["segments"] == [2]
 
         # Order-honoring brand -> strict_order ignored (single batch phase).
-        register_adapter_config(_VAC, {
+        register_adapter_config(_VAC, adapter_config(**{
             "adapter_id": "e", "source": "code",
             "capabilities": {"honors_clean_order": True},
             "dispatch": {"template": "roborock_segment_clean"},
-        })
+        }))
         phases = rp_._build_dispatch_phases(
             vacuum_entity_id=_VAC, map_id="spm14",
             managed_rooms=rooms, queue_room_ids=[1, 2], strict_order=True,

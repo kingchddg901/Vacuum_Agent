@@ -59,6 +59,8 @@ from .adapters.registry import (
 )
 from .adapters.brands import register_brand_adapter
 from .adapters.config_loader import load_stored_adapter_configs
+from .adapters.registry import get_adapter_config
+from .rooms.vocabulary_migration import migrate_room_vocabulary
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
 from .core.manager import EufyVacuumManager
@@ -381,6 +383,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     "eufy_vacuum: failed to register adapter config for %s",
                     _vacuum_entity_id,
                 )
+
+        # One-shot repair of rooms written under the framework's former Eufy default
+        # (see rooms/vocabulary_migration.py). It MUST run here and not in
+        # async_initialize: the rules are driven entirely by what each brand DECLARES,
+        # and no adapter is registered until the loop just above. Rooms are only
+        # rewritten when edited, so without this an untouched room keeps a value its
+        # device cannot accept indefinitely — the fallback removal alone stops new
+        # ones, it cannot heal old ones. Failure here must never block setup; an
+        # unrepaired room behaves exactly as it did before.
+        try:
+            _migration = migrate_room_vocabulary(
+                data=manager.data, get_config=get_adapter_config,
+            )
+            if _migration["changes"]:
+                await manager.async_save()
+        except Exception:
+            _LOGGER.exception(  # pragma: no cover
+                "eufy_vacuum: room vocabulary migration failed; rooms left as stored"
+            )
 
         hass.data[DOMAIN][DATA_RUNTIME] = manager
         _unwind_stack.append(lambda: hass.data.get(DOMAIN, {}).pop(DATA_RUNTIME, None))

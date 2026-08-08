@@ -37,7 +37,7 @@ it cannot reach inward.
 | `ISO-2` | the known-leak allowlist is SHRINK-ONLY (same discipline as `mock_allowlist.json`) |
 | `ISO-3` | no dynamic import (`importlib` / `__import__` / `sys.modules`) escapes ISO-1's static read |
 | `ISO-4` | no runtime reach into a passed-in object's privates — the reach an import graph cannot see |
-| `ISO-5` | the detector is exercised against the one real leak, so it cannot silently stop working |
+| `ISO-5` | the detector is exercised against a MANUFACTURED leak (positive + negative), so it cannot silently stop working |
 
 **The SDK is two entries, both adjudicated from measurement:**
 `core.capabilities` (BOTH brands call `detect_capabilities` — a facility every
@@ -46,11 +46,44 @@ adapter needs is API that happens to live in `core/`) and
 `mask_iou`; any brand shipping a map IMAGE needs it, and Roborock supplies
 segments directly so imports none of it).
 
-**One ledgered leak:** `profiles.room_profiles` in `eufy/adapter.py`. The
-framework's in-code profile catalog IS Eufy's — Eufy was the first brand — and
-`adapters/roborock/vocabulary.py` already shows the fix. Removing it is a
-STORED-DATA change, not a refactor: those values are written onto existing rooms
-and the card compares option values strictly.
+**The ledger is now EMPTY.** It held one entry — `profiles.room_profiles` in
+`eufy/adapter.py`, because the framework's in-code profile catalog *was* Eufy's.
+That import was cut on 2026-08-07: Eufy's vocabulary moved to
+`adapters/eufy/room_profiles.py`, core kept only the KEY space, and the framework
+fallback was deleted rather than relocated. As predicted, it was a STORED-DATA
+change and not a refactor — those values were already written onto existing rooms,
+so a one-shot repair ships with it (`rooms/vocabulary_migration.py`).
+
+ISO-5 changed shape with it. It used to assert the real leak was still detected,
+and instructed whoever fixed it to delete the ledger entry and ISO-5 together.
+Deleting the self-test would have left the detector unexercised — the exact failure
+it exists to prevent — so it now manufactures its own leaky and clean modules in a
+tmp dir. The instrument stays proven with the ledger empty, which is the state it
+should stay in.
+
+### `test_declaration_contract.py` — the declaration, in all three of its states
+
+`test_adapter_isolation.py` fences what a brand may TOUCH. This one (12 tests,
+added 2026-08-07) pins what happens when a brand DECLARES — or fails to.
+
+| id | state | what it holds |
+|---|---|---|
+| `DC-1` | declared + populated | every shipped brand's real config resolves ITS words |
+| `DC-1b` | — | Eufy and Roborock actually DIFFER, the premise every relational test rests on |
+| `DC-2` | not declared | resolution RAISES, naming the missing declaration |
+| `DC-2b` | not declared | negative control: the catalog is empty, not another brand's |
+| `DC-2c` | not declared | registration rejects it, so the failure lands on the porter |
+| `DC-3` | declared empty | a declared-empty key is carried, not treated as absent |
+| `DC-3b` | partially declared | undeclared keys resolve EMPTY; the block is the gate, not each key |
+| `DC-3c` | wholly empty block | rejected — a brand with no vocabulary can resolve nothing |
+| `DC-4` | — | the same validator that rejects the bad ACCEPTS every shipped brand |
+| `DC-5` | — | end to end: the REGISTERED config is what resolution actually reads |
+
+State 2 is the one a normal suite never reaches, and it is why this file exists.
+Before the fallback was removed it was indistinguishable from state 1 — an adapter
+declaring nothing silently received Eufy's catalog. DC-5 closes the original
+defect specifically: four call sites in `profiles/manager.py` resolved rooms
+without ever consulting the registry, and the fallback covered for them.
 
 **Why four checks and not one.** A `^from`-anchored grep reported the Roborock
 adapter as reaching nothing; it reaches `core.capabilities` through a DEFERRED

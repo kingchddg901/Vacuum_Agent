@@ -76,6 +76,8 @@ from custom_components.eufy_vacuum.const import (
 )
 from custom_components.eufy_vacuum.learning.constants import EXTERNAL_FINALIZE_GRACE_S
 
+from tests.brand_catalogs import adapter_config
+
 from .conftest import setup_map
 
 
@@ -89,14 +91,14 @@ async def test_dashboard_snapshot_mop_active_and_passes(manager, hass):
     room editor can render S6-correct passes + mop state."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     setup_map(manager, _VAC, _MAP, count=1)
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"mop_active": "binary_sensor.alfred_water_box_attached"},
         "dispatch": {"passes_max": 3, "passes_is_global": True},
         "capabilities": {"supports_room_profiles": False},
         # S6 shape: no dock_events + noop segmenter -> no Base Station / Map Bounds.
         "mapping": {"segmenter_engine": "noop_fallback"},
-    })
+    }))
     try:
         hass.states.async_set("binary_sensor.alfred_water_box_attached", "on")
         await hass.async_block_till_done()
@@ -123,7 +125,7 @@ async def test_dashboard_snapshot_no_tank_sensor_defaults(manager, hass):
     no passes_max -> default 2 (historical Eufy editor)."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     setup_map(manager, _VAC, _MAP, count=1)
-    register_adapter_config(_VAC, {"adapter_id": "eufy", "source": "code", "entities": {}})
+    register_adapter_config(_VAC, adapter_config(adapter_id="eufy", entities={}))
     try:
         await hass.async_block_till_done()
         snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
@@ -150,7 +152,7 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
     setup_map(manager, _VAC, _MAP, count=1)
 
     def _snap(cfg):
-        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        register_adapter_config(_VAC, adapter_config(adapter_id="x", **cfg))
         try:
             return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
         finally:
@@ -203,7 +205,7 @@ async def test_dashboard_snapshot_live_map_override(manager, hass):
     setup_map(manager, _VAC, _MAP, count=1)
 
     def _snap(cfg):
-        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        register_adapter_config(_VAC, adapter_config(adapter_id="x", **cfg))
         try:
             return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
         finally:
@@ -248,7 +250,7 @@ async def test_dashboard_snapshot_setting_entities(manager, hass):
     setup_map(manager, _VAC, _MAP, count=1)
 
     def _snap(cfg):
-        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        register_adapter_config(_VAC, adapter_config(adapter_id="x", **cfg))
         try:
             return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
         finally:
@@ -281,7 +283,7 @@ async def test_dashboard_snapshot_cv_availability(manager, hass, monkeypatch):
     (numpy/Pillow/scipy) is absent — never blocking anything else."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     setup_map(manager, _VAC, _MAP, count=1)
-    register_adapter_config(_VAC, {"adapter_id": "x", "source": "code"})
+    register_adapter_config(_VAC, adapter_config(adapter_id="x"))
     try:
         # The libs are present in the test env -> available, nothing missing.
         snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
@@ -457,7 +459,7 @@ def test_start_status_water_warning(manager, hass, monkeypatch, estimate, reason
 #     cleared, lifecycle metadata is rebuilt from the running job's rooms.
 # ---------------------------------------------------------------------------
 
-_VOCAB_ADAPTER = {
+_VOCAB_ADAPTER = adapter_config(**{
     "adapter_id": "t",
     "source": "t",
     "entities": {
@@ -472,7 +474,7 @@ _VOCAB_ADAPTER = {
         "drying_states": [],
         "active_run_task_states": ["Cleaning"],
     },
-}
+})
 
 
 def test_lifecycle_reads_and_lowercases_adapter_vocabulary(manager, hass):
@@ -581,7 +583,7 @@ def test_lifecycle_falls_back_to_active_job_rooms_after_start(manager, hass):
 # [EXT-4]  a mid-run task_status defers the close → slot stays + timer reschedules.
 # ---------------------------------------------------------------------------
 
-_EXT_ADAPTER = {
+_EXT_ADAPTER = adapter_config(**{
     "adapter_id": "t",
     "source": "t",
     "entities": {
@@ -589,7 +591,7 @@ _EXT_ADAPTER = {
         "task_status": "sensor.alfred_task",
     },
     "external_mid_run_statuses": ["washing mop", "emptying dust"],
-}
+})
 
 
 def _ext_setup(manager):
@@ -750,22 +752,22 @@ async def test_external_grace_finalize_defers_when_mid_run(manager, hass):
 
 # An adapter that declares mid-run statuses but NO task_status entity wiring,
 # for the _external_status_is_mid_run "no entity" guard ([EXT-7]).
-_EXT_ADAPTER_NO_TASK = {
+_EXT_ADAPTER_NO_TASK = adapter_config(**{
     "adapter_id": "t",
     "source": "t",
     "entities": {"active_map": "sensor.alfred_active_map"},
     "external_mid_run_statuses": ["washing mop"],
-}
+})
 
 # An adapter with NO mid-run statuses declared, for the empty-list guard ([EXT-6]).
-_EXT_ADAPTER_NO_MIDRUN = {
+_EXT_ADAPTER_NO_MIDRUN = adapter_config(**{
     "adapter_id": "t",
     "source": "t",
     "entities": {
         "active_map": "sensor.alfred_active_map",
         "task_status": "sensor.alfred_task",
     },
-}
+})
 
 
 async def test_external_run_noop_when_state_neither_cleaning_nor_home(manager, hass):
@@ -977,7 +979,7 @@ async def test_dashboard_snapshot_surfaces_per_room_capabilities_and_zone_bounds
     setup_map(manager, _VAC, _MAP, count=1)
 
     def _snap(cfg):
-        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        register_adapter_config(_VAC, adapter_config(adapter_id="x", **cfg))
         try:
             return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
         finally:

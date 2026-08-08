@@ -1169,7 +1169,9 @@ class EufyVacuumCommandCenter extends HTMLElement {
   async refreshRoomProfiles() {
     if (!this._state || !this._actions) return null;
 
-    const payload = await this._actions.getRoomProfiles();
+    const payload = await this._actions.getRoomProfiles(
+      this._config?.vacuum_entity_id
+    );
     if (!payload) return null;
 
     this._state.setRoomProfilesLibrary?.(payload);

@@ -1561,9 +1561,9 @@ class EufyVacuumManager:
     # Room profiles — delegates to ProfileManager
     # ------------------------------------------------------------------
 
-    def get_room_profiles(self) -> dict[str, Any]:
+    def get_room_profiles(self, *, vacuum_entity_id: str | None = None) -> dict[str, Any]:
         """Return available room profiles — delegates to ProfileManager."""
-        return self.profiles.get_room_profiles()
+        return self.profiles.get_room_profiles(vacuum_entity_id=vacuum_entity_id)
 
     def get_effective_room_details(self, **kwargs):
         """Return resolved room settings — delegates to ProfileManager."""
@@ -1598,14 +1598,20 @@ class EufyVacuumManager:
         return self.profiles.apply_room_profile(**kwargs)
 
     # Private shims: used by update_room_fields and run-planning methods.
-    def protected_room_config(self, room: dict) -> dict:
-        return self.profiles._protected_room_config(room)
+    def protected_room_config(self, room: dict, *, vacuum_entity_id: str) -> dict:
+        return self.profiles._protected_room_config(
+            room, vacuum_entity_id=vacuum_entity_id
+        )
 
-    def _match_profile_from_fields(self, room: dict) -> str | None:
-        return self.profiles._match_profile_from_fields(room)
+    def _match_profile_from_fields(self, room: dict, *, vacuum_entity_id: str) -> str | None:
+        return self.profiles._match_profile_from_fields(
+            room, vacuum_entity_id=vacuum_entity_id
+        )
 
-    def _finalize_room_update(self, room: dict) -> dict:
-        return self.profiles._finalize_room_update(room)
+    def _finalize_room_update(self, room: dict, *, vacuum_entity_id: str) -> dict:
+        return self.profiles._finalize_room_update(
+            room, vacuum_entity_id=vacuum_entity_id
+        )
 
     def update_room_fields(
         self,
@@ -1699,7 +1705,9 @@ class EufyVacuumManager:
         if rules is not None:
             updates["rules"] = self._normalize_room_rules(rules)
 
-        updated_room = self._finalize_room_update({**room, **updates})
+        updated_room = self._finalize_room_update(
+            {**room, **updates}, vacuum_entity_id=vacuum_entity_id
+        )
 
         previous_room = dict(room)
 
@@ -3228,7 +3236,8 @@ class EufyVacuumManager:
 
         # Enforce carpet/mop invariants on every room before passing to the payload builder.
         managed_rooms = {
-            room_id: self.protected_room_config(room_data)
+            room_id: self.protected_room_config(
+                room_data, vacuum_entity_id=vacuum_entity_id)
             for room_id, room_data in map_bucket.get("rooms", {}).items()
         }
 

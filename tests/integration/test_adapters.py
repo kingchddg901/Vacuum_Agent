@@ -108,9 +108,18 @@ def test_coordinator_invalid_and_nondict(hass):
 # _validate_adapter
 # ---------------------------------------------------------------------------
 
+#: The minimum profile declaration a config needs to validate. Since 2026-08-07 an
+#: adapter must DECLARE its profile vocabulary — core carries no catalog to inherit —
+#: so a config that omits the block is an incomplete declaration, not a minimal valid
+#: one. ``builtins: {}`` says "this brand supplies no framework built-ins", which is a
+#: legitimate statement and exactly what a validation fixture wants: present, explicit,
+#: and carrying nobody's words.
+_RP = {"room_profiles": {"builtins": {}}}
+
+
 def test_validate_adapter():
     """[RG-4]"""
-    assert _validate_adapter({"adapter_id": "a"}) == []
+    assert _validate_adapter({"adapter_id": "a", **_RP}) == []
     assert _validate_adapter("nope") == ["adapter config must be a dict"]
     assert "'mapping' must be a dict if present" in _validate_adapter(
         {"mapping": "x"})
@@ -122,7 +131,7 @@ def test_validate_adapter():
         {"mapping": {"segmenter_engine": "bogus_engine"}}))
     # a real engine passes validation
     assert _validate_adapter(
-        {"mapping": {"segmenter_engine": "noop_fallback"}}) == []
+        {"mapping": {"segmenter_engine": "noop_fallback"}, **_RP}) == []
 
 
 def test_validate_adapter_job_segmenter_block():
@@ -145,7 +154,7 @@ def test_validate_adapter_job_segmenter_block():
         {"job_segmenter": {"engine": "bogus_job_engine"}}))
     # the documented disable sentinel passes validation
     assert _validate_adapter(
-        {"job_segmenter": {"engine": "noop_job_fallback"}}) == []
+        {"job_segmenter": {"engine": "noop_job_fallback"}, **_RP}) == []
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +289,7 @@ def test_load_stored_configs(hass):
     """[CL-1]"""
     assert cl.load_stored_adapter_configs(hass, {"adapters": "not-a-dict"}) == 0
     data = {"adapters": {
-        _VAC: {"adapter_id": "a", "source": "config"},
+        _VAC: {"adapter_id": "a", "source": "config", **_RP},
         "vacuum.bad": "malformed",   # non-dict → skipped
     }}
     assert cl.load_stored_adapter_configs(hass, data) == 1
@@ -390,6 +399,7 @@ def test_an_unknown_capability_hint_is_reported_not_ignored():
     issues = _validate_adapter({
         "adapter_id": "brand3", "source": "code", "entities": {}, "dispatch": {},
         "capability_hints": {"supports_zone_cleen": False, "supports_passes": True},
+        **_RP,
     })
     # Exactly one issue, and it names the typo as its SUBJECT. Checked by count rather
     # than by substring: every message also prints the valid-key list, so `"supports_passes"

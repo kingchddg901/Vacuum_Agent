@@ -65,6 +65,8 @@ from homeassistant.core import ServiceCall
 
 from custom_components.eufy_vacuum.const import EVENT_ROOM_STARTED
 
+from tests.brand_catalogs import adapter_config
+
 from tests._factories import VAC as _VAC, MAP as _MAP, set_room_field
 from .conftest import setup_map
 
@@ -293,7 +295,7 @@ async def test_maybe_advance_phase_sets_fan_before_dispatch(manager, hass, monke
     hass.services.async_register("vacuum", "send_command", _send)
     hass.services.async_register("vacuum", "set_fan_speed", _fan)
 
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "vocabulary": {"fan_speed_options": [{"value": "quiet"}, {"value": "turbo"}]},
         "dispatch": {"per_room_live_settings": [
@@ -301,7 +303,7 @@ async def test_maybe_advance_phase_sets_fan_before_dispatch(manager, hass, monke
              "service": {"domain": "vacuum", "service": "set_fan_speed",
                          "value_key": "fan_speed"}},
         ]},
-    })
+    }))
     try:
         phase0 = {"resolved_rooms": [{"room_id": 1, "fan_speed": "quiet"}],
                   "payload": {"segments": [1]}, "room_count": 1}
@@ -384,10 +386,10 @@ async def test_phase_verify_native_on_target_success(manager, hass, monkeypatch)
     hass.states.async_set(_VAC, "cleaning")  # the OLD check would pass here too
     hass.states.async_set("sensor.test_current_room", "Hallway")  # == phase 1 target
     calls = _register_dispatch(hass)
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         _native_phase_job(manager)
         assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
@@ -419,11 +421,11 @@ async def test_phase_verify_native_wrong_room_retries(manager, hass, monkeypatch
     # the real Roborock adapter, which declares it True. Without it, this test
     # would silently fall through to the coarse fallback and stop testing the
     # native verify it documents.
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
         "live_transition": {"native_transition_source": True},
-    })
+    }))
     try:
         _native_phase_job(manager)
         assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
@@ -449,10 +451,10 @@ async def test_phase_verify_dock_room_as_target_not_confirmed(manager, hass, mon
     hass.states.async_set(_VAC, "docked")              # parked, not cleaning
     hass.states.async_set("sensor.test_current_room", "Hallway")  # == phase 1 target
     calls = _register_dispatch(hass)
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         _native_phase_job(manager)
         assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
@@ -479,10 +481,10 @@ async def test_initial_phase_is_verify_only(manager, hass, monkeypatch):
     hass.states.async_set(_VAC, "cleaning")
     hass.states.async_set("sensor.test_current_room", "Kitchen")  # == phase 0 target
     calls = _register_dispatch(hass)
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
             "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
@@ -531,11 +533,11 @@ async def test_phase_verify_requires_sustained_cleaning(manager, hass, monkeypat
     hass.states.async_set(_VAC, "cleaning")
     hass.states.async_set("sensor.test_current_room", "Hallway")
     # RP-011/RF-07 (WD-3): see the sibling comment above -- models real Roborock.
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
         "live_transition": {"native_transition_source": True},
-    })
+    }))
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
             "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
@@ -589,11 +591,11 @@ async def test_phase_verify_tolerates_current_room_dips(manager, hass, monkeypat
     sleep_mock = AsyncMock(side_effect=_tick)
     monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
     # RP-011/RF-07 (WD-3): see the sibling comment above -- models real Roborock.
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
         "live_transition": {"native_transition_source": True},
-    })
+    }))
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
             "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
@@ -667,10 +669,10 @@ async def test_phase_verify_idle_window_retries(manager, hass, monkeypatch):
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     hass.states.async_set(_VAC, "docked")                    # never cleaning
     hass.states.async_set("sensor.test_current_room", "Hallway")  # on target but docked
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
             "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
@@ -749,10 +751,10 @@ async def test_advanced_phase_extends_settle_for_dock_room(manager, hass, monkey
     monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 0)  # confirm on first sample
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     _register_dispatch(hass)
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         _seed_dock_phase(manager, hass, room_id=18, room_name="Dining Room", is_dock=True)
         await manager.phase_runner._run_advanced_phase(
@@ -782,10 +784,10 @@ async def test_advanced_phase_normal_settle_for_non_dock_room(manager, hass, mon
     monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 0)
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     _register_dispatch(hass)
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         _seed_dock_phase(manager, hass, room_id=27, room_name="Kitchen", is_dock=False)
         await manager.phase_runner._run_advanced_phase(
@@ -815,10 +817,10 @@ def test_phase_timing_merges_adapter_over_defaults(manager):
     assert pt["poll_seconds"] == _mgr._PHASE_POLL_SECONDS
     assert pt["max_attempts"] == _mgr._PHASE_MAX_ATTEMPTS
     # Adapter overrides a SUBSET -> those win, the rest stay default (brand-owned).
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "dispatch": {"phase_timing": {"dock_settle_seconds": 20, "max_attempts": 5}},
-    })
+    }))
     try:
         pt = manager._phase_timing(_VAC)
         assert pt["dock_settle_seconds"] == 20                      # overridden
@@ -847,11 +849,11 @@ async def test_start_selected_rooms_strict_order_arms_watchdog(manager, hass, mo
     _register_dispatch(hass)
     # honors_clean_order False -> strict_order is honored and the roborock_segment_clean
     # engine emits one single-segment phase per room (effective_strict path).
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "capabilities": {"honors_clean_order": False},
         "dispatch": {"template": "roborock_segment_clean", "passes_max": 3},
-    })
+    }))
     try:
         result = await manager.start_selected_rooms(
             vacuum_entity_id=_VAC, map_id=_MAP, strict_order=True)
@@ -945,10 +947,10 @@ def test_vacuum_started_cleaning_job_active_fallback(manager, hass):
     )
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     hass.states.async_set(_VAC, "docked")          # HA state lags -> not 'cleaning'
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"job_active": "binary_sensor.ivy_cleaning"},
-    })
+    }))
     try:
         hass.states.async_set("binary_sensor.ivy_cleaning", "on")
         assert manager.phase_runner._vacuum_started_cleaning(_VAC) is True
@@ -988,10 +990,10 @@ async def test_phase_verify_fast_room_confirms_on_idle_exit(manager, hass, monke
             pass
 
     monkeypatch.setattr(_mgr.asyncio, "sleep", AsyncMock(side_effect=_tick))
-    register_adapter_config(_VAC, {
+    register_adapter_config(_VAC, adapter_config(**{
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": "sensor.test_current_room"},
-    })
+    }))
     try:
         manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
             "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",

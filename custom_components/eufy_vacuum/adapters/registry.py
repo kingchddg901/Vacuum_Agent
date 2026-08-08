@@ -296,6 +296,60 @@ def _warn_eufy_fallbacks(vacuum_entity_id: str, config: dict[str, Any]) -> None:
         )
 
 
+#: Keys of ``room_profiles`` that carry BRAND VOCABULARY. Core holds none of it,
+#: so each must be stated explicitly — there is nothing to inherit.
+#: ``default_profile`` is deliberately NOT here: it names WHICH profile a new room
+#: starts on, not what is inside one, and core legitimately owns that key.
+_ROOM_PROFILE_VOCABULARY_KEYS = (
+    "builtins",
+    "custom_template",
+    "normalize_defaults",
+    "legacy_aliases",
+    "floor_type_water_defaults",
+    "floor_type_fan_defaults",
+)
+
+
+def _validate_room_profiles(config: dict[str, Any]) -> list[str]:
+    """An adapter must DECLARE its profile vocabulary. Declaring none fails it.
+
+    The gate is the block, not each key. An adapter that declares nothing at all
+    is a porter who has not reached this part of the port yet, and it cannot
+    resolve a single room — so it fails here rather than at the first clean. An
+    adapter that declares SOME keys has engaged with the contract, and its
+    undeclared keys resolve empty, which is a defined answer rather than an
+    inherited one.
+
+    That asymmetry is the whole design. Before 2026-08-07 an absent key silently
+    inherited the framework catalog, which was Eufy's vocabulary: a Roborock room
+    stored ``fan_speed: "Max"``, a word the device does not use, the card's chips
+    matched nothing, ``per_room_live_settings`` filtered the value out, and an
+    unedited room applied NO SUCTION AT ALL. Nothing here falls back now, so the
+    only state still worth failing on is the one that means "not written yet".
+
+    ``{}`` fails alongside an absent block for the same reason: a brand with zero
+    profile vocabulary can resolve nothing, so it is never a working declaration.
+    "Supplies none" is stated per key (``builtins: {}``), which leaves the rest of
+    the block visible as deliberate.
+    """
+    if "room_profiles" not in config:
+        return [
+            "room_profiles: undeclared — an adapter must state its profile vocabulary; "
+            "there is no framework catalog to inherit. Declare the keys it has and set "
+            f"the rest empty ({{}}): {', '.join(_ROOM_PROFILE_VOCABULARY_KEYS)}."
+        ]
+    block = config.get("room_profiles")
+    if not isinstance(block, dict):
+        return ["room_profiles: must be a dict"]
+    if not block:
+        return [
+            "room_profiles: declared empty — a brand with no profile vocabulary at all "
+            "cannot resolve a room. State emptiness per key (e.g. legacy_aliases: {}) so "
+            "the keys it DOES supply stay visible."
+        ]
+    return []
+
+
 def _validate_adapter(config: dict[str, Any]) -> list[str]:
     """Return a list of validation issue strings; empty = config is valid.
 
@@ -311,6 +365,8 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
 
     if not isinstance(config, dict):
         return ["adapter config must be a dict"]
+
+    issues.extend(_validate_room_profiles(config))
 
     # Segmenter engine check — deferred import keeps the registry module
     # free of mapping dependencies at import time.

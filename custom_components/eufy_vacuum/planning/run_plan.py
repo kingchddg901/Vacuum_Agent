@@ -904,7 +904,8 @@ class RunPlanManager:
                     for field, value in r.items():
                         if field != "room_id":
                             merged[field] = value
-                    group_managed[key] = self._manager.protected_room_config(merged)
+                    group_managed[key] = self._manager.protected_room_config(
+                        merged, vacuum_entity_id=vacuum_entity_id)
                 phases.extend(self._build_dispatch_phases(
                     vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
                     managed_rooms=group_managed, queue_room_ids=group_ids,
@@ -1439,8 +1440,11 @@ class RunPlanManager:
             modifier = modifier_matches.get(room_id)
             if modifier:
                 updates.update(modifier.get("changes", {}))
-            updated_room = self._manager.protected_room_config({**room_data, **updates})
-            matched_profile = self._manager._match_profile_from_fields(updated_room)
+            updated_room = self._manager.protected_room_config(
+                {**room_data, **updates}, vacuum_entity_id=vacuum_entity_id)
+            matched_profile = self._manager._match_profile_from_fields(
+                updated_room, vacuum_entity_id=vacuum_entity_id
+            )
             updated_room["profile_name"] = matched_profile if matched_profile else "custom"
             effective_rooms[room_key] = updated_room
             if modifier:

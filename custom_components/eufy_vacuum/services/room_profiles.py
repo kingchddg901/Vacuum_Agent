@@ -28,7 +28,15 @@ from ._common import get_manager, resolved_call_data
 _LOGGER = logging.getLogger(__name__)
 
 
-_GET_ROOM_PROFILES_SCHEMA = vol.Schema({})
+_GET_ROOM_PROFILES_SCHEMA = vol.Schema(
+    {
+        # Optional so the shipped no-argument callers keep working. Supplying it
+        # is what makes the BUILT-IN half of the answer brand-correct; without it
+        # the response carries the saved library only and says so via
+        # ``built_ins_included: false``.
+        vol.Optional("vacuum_entity_id"): cv.entity_id,
+    }
+)
 
 
 SERVICES = (
@@ -115,8 +123,15 @@ _APPLY_ROOM_PROFILE_SCHEMA = vol.Schema(
 
 
 async def _handle_get_room_profiles(hass: HomeAssistant, call: ServiceCall) -> dict:
-    """Get all available room profiles."""
-    payload = get_manager(hass).get_room_profiles()
+    """Get all available room profiles.
+
+    Built-in profiles belong to a brand, so ``vacuum_entity_id`` selects whose are
+    included. Omitting it returns the user-saved library alone rather than
+    defaulting to a brand — the response flags which it is.
+    """
+    payload = get_manager(hass).get_room_profiles(
+        vacuum_entity_id=call.data.get("vacuum_entity_id")
+    )
     _LOGGER.debug("get_room_profiles complete: %s", payload)
     return payload
 

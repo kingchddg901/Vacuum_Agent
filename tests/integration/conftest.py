@@ -4,9 +4,70 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.eufy_vacuum.adapters.registry import AdapterCoordinator
+from custom_components.eufy_vacuum.adapters.eufy.room_profiles import (
+    BUILT_IN_ROOM_PROFILES,
+    DEFAULT_CUSTOM_ROOM_PROFILE,
+    DEFAULT_ROOM_PROFILE_NAME,
+    FLOOR_TYPE_FAN_DEFAULTS,
+    FLOOR_TYPE_WATER_DEFAULTS,
+    LEGACY_PROFILE_ALIASES,
+)
+from custom_components.eufy_vacuum.adapters.registry import (
+    AdapterCoordinator,
+    register_adapter_config,
+)
 from custom_components.eufy_vacuum.const import DATA_ADAPTER_COORDINATOR, DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.core.manager import EufyVacuumManager
+
+#: The adapter these fixtures have always implicitly run against.
+#:
+#: Until 2026-08-07 this fixture registered NO adapter, and room resolution fell back
+#: to a framework catalog that was Eufy's. So every test here was already asserting
+#: Eufy vocabulary ("Max", "Quick", "vacuum_quick") — it simply never had to say so,
+#: and no test could have caught a missing declaration because the fixture agreed with
+#: the fallback that hid it. Declaring it changes no expectation; it states the one
+#: that was always there.
+#:
+#: Sourced from the Eufy adapter's own constants rather than copied, so this cannot
+#: drift from what the brand actually declares. Tests that should be brand-agnostic
+#: build their own synthetic catalog instead (see tests/unit/test_profile_catalog.py).
+TEST_ADAPTER_CONFIG = {
+    "adapter_id": "test_eufy",
+    "source": "code",
+    "room_profiles": {
+        "default_profile": DEFAULT_ROOM_PROFILE_NAME,
+        "builtins": BUILT_IN_ROOM_PROFILES,
+        "custom_template": DEFAULT_CUSTOM_ROOM_PROFILE,
+        "legacy_aliases": LEGACY_PROFILE_ALIASES,
+        "floor_type_water_defaults": FLOOR_TYPE_WATER_DEFAULTS,
+        "floor_type_fan_defaults": FLOOR_TYPE_FAN_DEFAULTS,
+        "normalize_defaults": DEFAULT_CUSTOM_ROOM_PROFILE,
+    },
+    "vocabulary": {
+        "clean_mode_options": [
+            {"value": "vacuum", "label": "Vacuum"},
+            {"value": "mop", "label": "Mop"},
+            {"value": "vacuum_mop", "label": "Vacuum & Mop"},
+        ],
+        "fan_speed_options": [
+            {"value": "Quiet", "label": "Quiet"},
+            {"value": "Standard", "label": "Standard"},
+            {"value": "Turbo", "label": "Turbo"},
+            {"value": "Max", "label": "Max"},
+        ],
+        "water_level_options": [
+            {"value": "Off", "label": "Off"},
+            {"value": "Low", "label": "Low"},
+            {"value": "Medium", "label": "Medium"},
+            {"value": "High", "label": "High"},
+        ],
+        "clean_intensity_options": [
+            {"value": "Quick", "label": "Quick"},
+            {"value": "Narrow", "label": "Narrow"},
+            {"value": "Deep", "label": "Deep"},
+        ],
+    },
+}
 
 
 @pytest.fixture
@@ -16,12 +77,15 @@ async def manager(hass, mock_config_entry):
     Constructs the manager directly (bypassing async_setup_entry) so tests
     can exercise manager logic without entity listeners, panels, or
     service registration.  The AdapterCoordinator is wired so the
-    module-level adapter-registry shims resolve correctly.
+    module-level adapter-registry shims resolve correctly, and an adapter is
+    REGISTERED — core carries no profile catalog of its own, so a manager with
+    no adapter can resolve no rooms.
     """
     hass.data.setdefault(DOMAIN, {})
 
     coordinator = AdapterCoordinator(hass, mock_config_entry)
     hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR] = coordinator
+    register_adapter_config("vacuum.alfred", dict(TEST_ADAPTER_CONFIG))
 
     m = EufyVacuumManager(hass)
     await m.async_initialize()
