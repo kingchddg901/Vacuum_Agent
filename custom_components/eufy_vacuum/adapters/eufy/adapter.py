@@ -618,7 +618,26 @@ def register_eufy_adapter_for_vacuum(
             "room_fields": {
                 "fan_speed":       {"field_name": "fan_speed",       "value_map": None},
                 "clean_mode":      {"field_name": "clean_mode",      "value_map": None},
-                "clean_intensity": {"field_name": "clean_intensity", "value_map": None},
+                # VA's three intensities must reach the device's THREE distinct
+                # values. Upstream's CLEAN_EXTENT_MAP (robovac_mqtt) is:
+                #   quick|fast -> QUICK(2)   normal|standard -> NORMAL(0)
+                #   narrow|deep -> NARROW(1)
+                # so "narrow" and "deep" are the SAME wire value there. Sending our
+                # names through unmapped collapsed Narrow and Deep onto NARROW and
+                # left NORMAL — the middle pass density, the app's "Medium" —
+                # unreachable from VA entirely.
+                #
+                # Verified against hardware 2026-08-08 (app vs
+                # select.<vac>_cleaning_intensity, cross-checked against the
+                # protobuf enum NORMAL=0/NARROW=1/QUICK=2):
+                #   VA Quick  -> quick  -> QUICK (2)  -> app Low
+                #   VA Narrow -> normal -> NORMAL (0) -> app Medium
+                #   VA Deep   -> narrow -> NARROW (1) -> app High
+                # which is our declared fastest->slowest option order, unchanged.
+                "clean_intensity": {
+                    "field_name": "clean_intensity",
+                    "value_map": {"Narrow": "normal", "Deep": "narrow"},
+                },
                 "water_level":     {"field_name": "water_level",     "value_map": None},
                 "edge_mopping":    {"field_name": "edge_mopping",    "value_map": None},
                 "path_type":       {"field_name": "path_type",       "value_map": None},

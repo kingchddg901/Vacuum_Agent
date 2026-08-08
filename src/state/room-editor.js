@@ -226,40 +226,36 @@ export function applyRoomEditorState(proto) {
   /**
    * The profile <-> editor-entity intensity bridge for Eufy.
    *
-   * VERIFIED AGAINST HARDWARE 2026-08-08. Setting the Eufy app and reading
+   * VERIFIED AGAINST HARDWARE 2026-08-08 — Eufy app vs
    * `select.<vac>_cleaning_intensity`, cross-checked against the protobuf enum in
-   * robovac_mqtt (clean_param_pb2: NORMAL=0, NARROW=1, QUICK=2) and its
-   * CLEANING_INTENSITY_NAMES / CLEAN_EXTENT_MAP:
+   * robovac_mqtt (clean_param_pb2: NORMAL=0, NARROW=1, QUICK=2):
    *
-   *   Eufy app | select | CleanExtent | accepted payload words
-   *   ---------|--------|-------------|-----------------------
-   *   Low      | Quick  |  QUICK  (2) | "quick", "fast"
-   *   Medium   | Normal |  NORMAL (0) | "normal", "standard"
-   *   High     | Narrow |  NARROW (1) | "narrow", "deep"
+   *   VA profile | editor select | CleanExtent | Eufy app
+   *   -----------|---------------|-------------|---------
+   *   Quick      |  Quick        |  QUICK  (2) |  Low      (widest spacing)
+   *   Narrow     |  Normal       |  NORMAL (0) |  Medium
+   *   Deep       |  Narrow       |  NARROW (1) |  High     (densest)
    *
-   * Two things follow, and both are counter-intuitive enough to write down:
+   * Note DPS 154 is an ARBITRARY ENUM, not an ordinal — 0 is the MIDDLE setting.
+   * Nothing here may interpolate or pick a "nearest" value on it.
    *
-   * 1. The enum is NOT ordered by density — 0 is the MIDDLE setting. Nothing may
-   *    interpolate or pick a "nearest" value on it.
-   * 2. "deep" is a legacy ALIAS for "narrow": they are the same protocol value.
-   *    So VA's `Deep` and `Narrow` dispatch identically, and mapping them both to
-   *    the editor's "Narrow" is CORRECT — it matches what the wire does.
+   * The trap: VA's "Narrow" is the MIDDLE density; the select's "Narrow" is the
+   * DENSEST. Same word, opposite ends. This mapped only quick->Quick and
+   * deep->Narrow and let the rest fall through, so VA's "Narrow" passed through
+   * unchanged onto the select's "Narrow" — colliding with Deep and leaving the
+   * middle density unreachable from VA.
    *
-   * The real defect is one layer up and is NOT fixable here: the Eufy adapter
-   * declares `clean_intensity_options` as Quick/Narrow/Deep — three options, two
-   * of which are the same protocol value — and never offers `Normal`. So a VA user
-   * can reach only two of the device's three pass densities, and one of the three
-   * chips is a duplicate. Fixing that means changing the DECLARATION (and migrating
-   * stored `Deep`), not this bridge.
-   *
-   * Do not "complete" this mapping by sending VA's `Narrow` to the editor's
-   * `Normal`: that was tried, and it makes the editor display Medium for a value
-   * the wire sends as High.
+   * The dispatch side carries the matching half: the Eufy adapter's
+   * dispatch.room_fields declares value_map {"Narrow": "normal", "Deep": "narrow"},
+   * because upstream's CLEAN_EXTENT_MAP reads a bare "narrow" as NARROW. Both
+   * halves must agree — if you change one, change the other, or the editor will
+   * display a density the wire does not send.
    */
   proto._profileIntensityToEditorIntensity = function (value) {
     const raw = String(value ?? "").trim().toLowerCase();
 
     if (raw === "quick") return "Quick";
+    if (raw === "narrow") return "Normal";
     if (raw === "deep") return "Narrow";
 
     return value ?? null;
@@ -269,6 +265,7 @@ export function applyRoomEditorState(proto) {
     const raw = String(value ?? "").trim().toLowerCase();
 
     if (raw === "quick") return "quick";
+    if (raw === "normal") return "narrow";
     if (raw === "narrow") return "deep";
 
     return raw;

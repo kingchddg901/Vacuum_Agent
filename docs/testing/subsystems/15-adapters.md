@@ -102,6 +102,38 @@ churn. What actually covers the hazard is the runtime failure: resolution raises
 `UndeclaredProfileCatalogError` naming the missing declaration, so a test that reaches it
 cannot get a quietly wrong answer.
 
+### `tests/adapters/eufy/test_intensity_wire_mapping.py` — three chips, three densities
+
+VA declares three cleaning intensities. The device has three. They were not reaching
+each other (5 tests, added 2026-08-08).
+
+robovac_mqtt resolves the payload string through `CLEAN_EXTENT_MAP`, where
+`"narrow"` and `"deep"` are the SAME value — `deep` is a legacy alias:
+
+| payload word | CleanExtent | Eufy app |
+|---|---|---|
+| `quick` / `fast` | QUICK (2) | Low (widest spacing) |
+| `normal` / `standard` | NORMAL (0) | Medium |
+| `narrow` / `deep` | NARROW (1) | High (densest) |
+
+Sending VA's own names unmapped collapsed `Narrow` and `Deep` onto NARROW and left
+NORMAL unreachable — three chips in the card, two pass densities on the floor, and
+the middle one impossible to select. The fix is a `dispatch.room_fields` value_map
+(`{"Narrow": "normal", "Deep": "narrow"}`), so VA's names are unchanged and no stored
+room moves.
+
+**Verified against hardware**, not inferred: the Eufy app was set to each intensity
+and `select.<vac>_cleaning_intensity` read back, cross-checked against the protobuf
+enum (`clean_param_pb2`: NORMAL=0, NARROW=1, QUICK=2). Note the enum is an ARBITRARY
+ENUM, not an ordinal — 0 is the middle setting — so nothing may interpolate on it.
+That is also why `CIW-3` pins the declared option ORDER: fastest→slowest exists only
+in the declaration and cannot be recovered from the device.
+
+`CIW-1b` is the mutation control — with the value_map removed, two of the three
+collide — because `CIW-1` would otherwise pass if the map were a silent no-op. The
+card carries the matching half in `_profileIntensityToEditorIntensity`; both halves
+must agree or the editor shows a density the wire does not send.
+
 ### `test_declaration_contract.py` — the declaration, in all three of its states
 
 `test_adapter_isolation.py` fences what a brand may TOUCH. This one (12 tests,

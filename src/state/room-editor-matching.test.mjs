@@ -85,8 +85,13 @@ test("[INT-1] _profileIntensityToEditorIntensity: Quick->Quick, Deep->Narrow, No
   assert.equal(c._profileIntensityToEditorIntensity("Quick"), "Quick");
   assert.equal(c._profileIntensityToEditorIntensity("quick"), "Quick");
   assert.equal(c._profileIntensityToEditorIntensity("DEEP"), "Narrow");
-  // "Normal" is manual-only: no preset maps to it, so it passes through unchanged.
-  assert.equal(c._profileIntensityToEditorIntensity("Normal"), "Normal");
+  // The line that was missing. VA's "Narrow" is the MIDDLE density and belongs on
+  // the select's "Normal"; without it, Narrow fell through onto the select's
+  // "Narrow" (the DENSEST), colliding with Deep and leaving Medium unreachable.
+  assert.equal(c._profileIntensityToEditorIntensity("Narrow"), "Normal");
+  // All three profile values must reach DISTINCT editor values.
+  const mapped = ["Quick", "Narrow", "Deep"].map((v) => c._profileIntensityToEditorIntensity(v));
+  assert.equal(new Set(mapped).size, 3, `collision: ${JSON.stringify(mapped)}`);
   // Nullish -> null (value ?? null).
   assert.equal(c._profileIntensityToEditorIntensity(null), null);
   assert.equal(c._profileIntensityToEditorIntensity(undefined), null);
@@ -99,8 +104,15 @@ test("[INT-2] _editorIntensityToComparableProfileIntensity inverts the bridge (N
   // Round-trip: profile Deep -> editor Narrow -> comparable deep.
   const editor = c._profileIntensityToEditorIntensity("Deep");
   assert.equal(c._editorIntensityToComparableProfileIntensity(editor), "deep");
-  // Normal has no preset counterpart -> just lowered.
-  assert.equal(c._editorIntensityToComparableProfileIntensity("Normal"), "normal");
+  // The select's "Normal" DOES have a preset counterpart — VA's middle, "narrow".
+  assert.equal(c._editorIntensityToComparableProfileIntensity("Normal"), "narrow");
+  // Round-trips both ways for all three, which is what "bridge" has to mean.
+  for (const [profileValue, expected] of [["Quick", "quick"], ["Narrow", "narrow"], ["Deep", "deep"]]) {
+    assert.equal(
+      c._editorIntensityToComparableProfileIntensity(c._profileIntensityToEditorIntensity(profileValue)),
+      expected,
+    );
+  }
   assert.equal(c._editorIntensityToComparableProfileIntensity(null), "");
 });
 
