@@ -156,7 +156,7 @@ Dreame (`vacuum_clean_segment`, parallel arrays via a `room_fields` transpose):
     "rooms_field": "segments", "clean_passes_field": "repeats",
     "room_fields": {
         "fan_speed":   {"field_name": "suction_level",
-                        "value_map": {"Quiet": 0, "Standard": 1, "Turbo": 2, "Max": 3}},
+                        "value_map": {"Quiet": 0, "Standard": 1, "Strong": 2, "Turbo": 3}},
         "water_level": {"field_name": "water_volume",
                         "value_map": {"Low": 1, "Medium": 2, "High": 3}},
         "clean_mode": {"field_name": None}, "clean_intensity": {"field_name": None},

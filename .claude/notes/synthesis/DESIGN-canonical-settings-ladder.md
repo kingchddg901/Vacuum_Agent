@@ -36,26 +36,63 @@ that the new brand's options do not contain.
 `DreameSegmentEngine` already sets `field_name: null` for fields Dreame does not
 accept. This extends the same mechanism from FIELDS down to LEVELS.
 
+## CORRECTION (Chris, 2026-08-07): more of these are variables than I classified
+
+I split the settings into ordinal / categorical and got two of them wrong by
+reading the WORD instead of the mechanism — the exact error this whole campaign
+is about.
+
+**`clean_intensity` is ORDINAL.** Its axis is PATH SPACING, not a set of modes:
+`Deep` = closest passes, `Narrow` = medium path, `Quick` = wide path. One ordered
+axis, so it clamps meaningfully. "Narrow" merely SOUNDS like a different
+dimension.
+
+**`path_type` IS `clean_intensity` — the same concept under two canonical field
+names.** Verified: Roborock declares `path_type: "wide" / "narrow"`
+(`adapters/roborock/vocabulary.py`), Eufy declares
+`clean_intensity: "Quick" / "Narrow" / "Deep"`. Same physical property — pass
+density — split into two fields purely by which brand's word arrived first.
+`"narrow"` appears in BOTH vocabularies. And `path_type` has no options list in
+`config_schema.py` at all (only `fan_speed`, `water_level`, `clean_mode` and
+`clean_intensity` have one), so it is undeclared free-form strings.
+
+This is both brands hiding as function at once, and it means the canonicalization
+MERGES two fields rather than re-encoding six. Six canonical per-room fields
+become five.
+
+**`clean_mode` can carry slot numbers too** (Chris: 0 mop, 1 vacuum, 2 vacuum+mop,
+4 vacuum-after-mop — note the deliberately unused 3). So the slot mechanism is
+universal: every setting with a variable gets numbered rungs, unoccupied ones
+null. What is NOT universal is the fallback, below.
+
 ## Decision 1 — the fallback rule follows the setting's KIND
 
 The ladder generalizes to every setting with a variable, but "nearest rung" only
 means something for an ORDERED one. The six canonical per-room fields split three
 ways:
 
-| setting | kind | unmatched resolves to |
+Every setting gets numbered rungs. The FALLBACK differs, and for one of them it
+is a safety rule rather than a distance rule:
+
+| setting | rungs | unmatched resolves to |
 |---|---|---|
-| `fan_speed` | ordinal | nearest occupied rung |
-| `water_level` | ordinal | nearest occupied rung |
+| `fan_speed` | ordinal (Quiet → Max) | nearest occupied rung |
+| `water_level` | ordinal (Low → High) | nearest occupied rung |
 | `clean_passes` / repeats | ordinal | clamped into range |
-| `clean_mode` (vacuum / mop / vacuum_mop) | categorical | the brand's declared default |
-| `clean_intensity` (Quick / Narrow / Deep) | categorical — `Narrow` is path WIDTH, not a level | the brand's declared default |
-| `path_type` | categorical | the brand's declared default |
+| `clean_intensity` **(absorbs `path_type`)** | ordinal — pass density: deep/closest → quick/wide | nearest occupied rung |
+| `clean_mode` | slots: 0 mop · 1 vacuum · 2 vacuum+mop · 4 vacuum-after-mop | **nearest DRY rung — never toward wet** |
 | `edge_mopping` | boolean | capability-gated off |
 
-**Clamping a categorical is worse than the bug being fixed.** Clamp `mop` to its
-"nearest" neighbour and a mop job dry-runs on carpet — a physical wrong action,
-where the current defect is merely an omitted one. So each setting declares its
-kind, and the fallback follows from the kind rather than from one global rule.
+**`clean_mode`'s fallback is directional, not nearest.** The slots are orderable,
+but the risk is not symmetric: falling from `vacuum` down to `mop` puts water on a
+carpet — a wrong PHYSICAL ACTION. Falling from `mop` up to `vacuum` merely
+under-cleans a hard floor. So unmatched must resolve toward the DRY end, and a
+brand with no dry mode at all should refuse rather than substitute.
+
+That asymmetry is why "declare the kind and derive the fallback" is not quite
+enough on its own: `clean_mode` needs a stated safe direction, not just a
+distance metric. It is the one place in this design where the correct answer is
+about consequences rather than about representation.
 
 ## Decision 2 — unmatched CLAMPS, it never DROPS
 
