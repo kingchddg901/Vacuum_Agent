@@ -88,6 +88,36 @@ test("[JS-state] malformed payloads yield empty lists rather than throwing", () 
   }
 });
 
+// W0 v2 (2026-08-07): the HAPPY path of both list accessors was unmeasured across
+// the WHOLE node suite. The two assertion sites above only ever saw an empty list
+// — JS-1 checks `[]` after the job leaves the snapshot, and JS-state's `.every()`
+// is vacuously true on the malformed fixtures' `[]`. Meanwhile the JOB fixture has
+// carried two faults and two rooms all along, asserted nowhere.
+// Measured, not assumed: renaming `run_errors` -> `runErrors` in
+// state/job-summary.js:66 left 935/935 node tests GREEN, with the modal's entire
+// fault section rendering nothing. Same for `room_detail` at :73.
+test("[JS-11] the fault and room lists actually carry the job's rows through", () => {
+  const state = makeState([JOB]);
+  state.openJobSummary("job-1");
+
+  // Faults: both rows, in order, with the fields the modal reads. label_key is
+  // deliberately null on the second — the raw-code fallback (JS-10) depends on
+  // that reaching the renderer rather than being filtered out here.
+  assert.deepEqual(state.jobSummaryFaults(), JOB.run_errors);
+  assert.equal(state.jobSummaryFaults().length, 2);
+  assert.equal(state.jobSummaryFaults()[0].label_key, "fault.eufy.bumper_stuck");
+  assert.equal(state.jobSummaryFaults()[1].label_key, null);
+  assert.equal(state.jobSummaryFaults()[1].source, "dock");
+
+  // Rooms: both rows, including the not-reached one whose absent values JS-4/JS-8
+  // rely on being present-but-null rather than dropped.
+  assert.deepEqual(state.jobSummaryRooms(), JOB.room_detail);
+  assert.deepEqual(state.jobSummaryRooms().map((r) => r.slug), ["kitchen", "hall"]);
+  assert.equal(state.jobSummaryRooms()[0].cleaning_seconds, 1050);
+  assert.equal(state.jobSummaryRooms()[1].has_result, false);
+  assert.equal(state.jobSummaryRooms()[1].area_m2, null);
+});
+
 test("[JS-external] an app-started run is identified so its thinner modal reads as expected", () => {
   const state = makeState([{ job_id: "x", origin: "external" }, { job_id: "y", origin: null }]);
   state.openJobSummary("x");

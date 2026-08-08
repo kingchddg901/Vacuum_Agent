@@ -89,17 +89,18 @@ test.describe("i18n layout gate: pseudo-long @390px (mobile)", () => {
 const renderCyrillic = (page, opts) =>
   page.evaluate((o) => window.__evcc.renderGallery("rooms-cyrillic", o), opts);
 
-// ACCEPTED RED (2026-07-12): both tests below overflow `.evcc-saved-zones-header`
-// by ~5px at <=500px. The chrome renders ENGLISH here (only room DATA is Cyrillic),
-// and the long English `saved_zones.subtitle` ("Named spots you can re-clean any
-// time — filed under the room they're in.") is what spills. Cosmetic only — the real
-// ru subtitle wraps cleanly on-device (eyeballed), and CI (card-visual.yml) doesn't
-// run this spec. Marked test.fail() so the harness reports them as expected/known
-// rather than surprising reds; Playwright will flag them if the overflow is ever
-// fixed (pad-right or shorten the subtitle), at which point drop these two lines.
+// RESOLVED 2026-08-07 — both tests below were marked ACCEPTED RED on 2026-07-12
+// for a ~5px `.evcc-saved-zones-header` overflow blamed on the long English
+// `saved_zones.subtitle`. That diagnosis was wrong in a way worth recording: the
+// overflow was locale-INDEPENDENT (identical +4px in en and de) and had nothing
+// to do with text at all. The collapsed chevron carries `transform: rotate(-90deg)`
+// and a rotated box reports its ROTATED bounding rect, so a 13px-wide glyph
+// measured 20px and pushed past the header's content edge. Fixed by giving it a
+// square 1em rotation target (styles/saved-zones.js), and these two are now
+// ACTIVE gates. Playwright's "Expected to fail, but passed" is what forced the
+// re-look — the self-cleaning property of test.fail() over skip().
 test.describe("i18n layout gate: Cyrillic room data", () => {
   test("rooms @500px (desktop)", async ({ page }) => {
-    test.fail(true, "accepted: English saved_zones.subtitle overflows the header ~5px at <=500px (cosmetic, ungated)");
     await mountHarness(page);
     const res = await renderCyrillic(page, { width: 500, freeze: true });
     expect(res.ok, res.error).toBe(true);
@@ -109,7 +110,6 @@ test.describe("i18n layout gate: Cyrillic room data", () => {
   test.describe("mobile @390px", () => {
     test.use({ viewport: { width: 390, height: 844 } });
     test("rooms (mobile chrome)", async ({ page }) => {
-      test.fail(true, "accepted: English saved_zones.subtitle overflows the header ~5px at 390px (cosmetic, ungated)");
       await mountHarness(page);
       const res = await renderCyrillic(page, { width: 390, freeze: true, mobile: true });
       expect(res.ok, res.error).toBe(true);
@@ -253,3 +253,74 @@ test.describe("i18n layout gate: maintenance CARDS @390px (mobile)", () => {
     });
   }
 });
+
+// ============================================================================
+// POPULATED VIEWS — the hole this whole spec had.
+//
+// Every gate above this line renders through `renderTab`, which mounts the
+// generic stub. That stub is a recording null-object: an absorbed accessor
+// yields nothing to iterate, so a collection-driven view renders its EMPTY
+// STATE. Measured 2026-08-07: SIX of the nine views in VIEW_ORDER are
+// placeholders under it — rooms (269 chars, ".evcc-empty: No rooms yet…"),
+// room_rules (277 chars), theme ("No themes available."), and the data regions
+// of maintenance / metrics / learning_review. The card's PRIMARY view was being
+// measured at 223 chars of markup against 34,072 for the real thing.
+//
+// So 18 pseudo-long assertions and 9 German ones were, for those views,
+// asserting a layout property about an empty box — and reporting zero culprits,
+// which is indistinguishable from a clean pass. That is how a card-header
+// clipping bug reached a user's phone with this suite fully green.
+//
+// Proof the omission hid REAL measurements rather than hypothetical ones: with
+// the fixture data in place, `.evcc-saved-zones-header` reported +4px in every
+// locale, while `rooms survives pseudo-long` reported 0 culprits for the same
+// view at the same width. (That +4px turned out to be the collapsed chevron's
+// rotated bounding box, not text — fixed above.)
+//
+// These drive the SAME assertion through the gallery fixtures instead, at both
+// gate widths, in English and German. All six were measured green before being
+// committed, so they land ACTIVE.
+// Each entry carries a DATA-ROW selector, measured to be 0 under the generic stub
+// and > 0 with the fixture. That measurement is the point: a char-count or
+// "no empty-state blocks" guard is not a discriminator here, because rooms-active
+// legitimately contains empty sub-panels and room-rules is genuinely compact — and
+// `.evcc-metrics-card` renders NINE times under the empty stub, so the obvious
+// selector would have passed on a placeholder. Derived by diffing the class tally
+// of the stub render against the fixture render, not by guessing.
+const POPULATED = [
+  ["rooms", "rooms-active", ".evcc-room-row"],
+  ["room_rules", "room-rules", ".evcc-rule-card"],
+  ["metrics", "metrics-overview", ".evcc-metrics-card-header"],
+  ["learning_review", "review-badges", ".evcc-review-job-card"],
+  ["maintenance", "maintenance", ".evcc-maintenance-card"],
+  ["rooms+profiles", "run-profiles-unsupported-break", ".evcc-run-profiles-step"],
+];
+
+for (const [width, chrome] of [[390, true], [500, false]]) {
+  test.describe(`i18n layout gate: POPULATED views @${width}px${chrome ? " (mobile)" : ""}`, () => {
+    if (chrome) test.use({ viewport: { width: 390, height: 844 } });
+
+    for (const [view, fixture, rowSel] of POPULATED) {
+      for (const lang of [null, "de"]) {
+        test(`${view} [${lang ?? "en"}] survives with real data`, async ({ page }) => {
+          await mountHarness(page);
+          if (lang) await seedLocale(page, lang);
+          const res = await page.evaluate(
+            ([id, o]) => window.__evcc.renderGallery(id, o),
+            [fixture, { width, freeze: true, lang, mobile: chrome }],
+          );
+          expect(res.ok, res.error).toBe(true);
+          // Guard the fixture, not just the layout: an emptied gallery entry would
+          // restore the exact hole this block closes, silently and green.
+          const rows = await page.evaluate(
+            (sel) => document.getElementById("evcc-host").shadowRoot.querySelectorAll(sel).length,
+            rowSel);
+          expect(rows,
+            `${fixture} rendered no ${rowSel} — the fixture is empty, so this gate measures nothing`)
+            .toBeGreaterThan(0);
+          assertNoOverflow(`${fixture} [${lang ?? "en"}] @${width}`, await probeLayout(page));
+        });
+      }
+    }
+  });
+}

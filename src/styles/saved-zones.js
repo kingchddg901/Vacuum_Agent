@@ -63,6 +63,19 @@ export const savedZonesStyles = `
     flex: 0 0 auto;
     color: var(--evcc-text-muted);
     transition: transform 0.15s ease;
+    /* A SQUARE rotation target. The collapsed state rotates this glyph -90deg,
+       and a rotated box reports its ROTATED bounding rect — a 13px-wide, taller
+       span measured 20px once turned, pushing ~4px past the header's content
+       edge and reading as overflow to any layout probe. It was logged twice as
+       "cosmetic English subtitle overflow", which is not what it was: it is
+       locale-independent (identical in en and de) and has nothing to do with the
+       text. A square box rotates inside itself, so the footprint is invariant. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1em;
+    height: 1em;
+    line-height: 1;
   }
   .evcc-saved-zones-chevron.is-collapsed {
     transform: rotate(-90deg);
