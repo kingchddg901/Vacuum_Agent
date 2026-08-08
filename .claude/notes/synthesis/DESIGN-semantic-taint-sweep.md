@@ -130,6 +130,70 @@ Same distinction for provider room IDs: core may carry an opaque provider
 identifier back to the adapter, but it must not know that `5` means Kitchen to
 Eufy, and it must not construct Eufy's room-clean payload itself.
 
+## THREE ORTHOGONAL INSTRUMENTS (design closed 2026-08-07: Chris + GPT + Claude)
+
+I called Chris's provider-substitution idea "a good test pointed the wrong way".
+**That was wrong and is retracted.** It is not misaimed — it tests the OTHER HALF
+of the boundary. Provider mechanics leaking UPWARD and Eufy behavior leaking
+DOWNWARD are orthogonal failures, and neither instrument can see the other's.
+
+### 1. Static sweep — finds fossils to investigate
+The `ADAPTER_CONFIG_SCHEMA`-vs-core diff described above. Produces CANDIDATES,
+not verdicts. Cheapest to start, weakest evidence on its own.
+
+### 2. Provider-under-adapter substitution (Chris) — proves mechanics don't leak UP
+Keep VA's canonical behavior fixed; change what the Eufy adapter believes exists
+beneath it. In a fake provider: `"Turbo"` -> `"Ludicrous"`, service `room_clean`
+-> `clean_segments`, a DPS code changes, provider error `17` -> `903`, state
+`"Cleaning"` -> `"RUNNING_ROOM"`, payload field names change, command ordering
+changes. Then update ONLY the Eufy adapter's translation.
+
+> **Failure criterion: if adapting to the mutated dialect requires touching
+> queue, rooms, profiles, dispatch, learning or UI, Eufy has escaped its adapter.**
+
+**The dispatch-specific form, which is the highest-value version** given dispatch
+is the deepest VA-owned boundary: feed dispatch the SAME canonical job before and
+after a wholesale provider mutation. The observable canonical outcome must be
+equivalent; only the adapter-side wire artifact may differ.
+
+### 3. Synthetic third brand — proves Eufy hasn't leaked DOWN into universal core
+A brand adversarially unlike Eufy: 1-5 pass range, different defaults, no
+`clean_intensity`, unusual capability combinations, vocabulary colliding with
+nothing, features combined in ways neither shipped brand uses. Then ask whether
+core RESPECTS WHAT THE ADAPTER DECLARES or silently supplies Eufy's behavior.
+
+> **Strict constraint (GPT, and it is the important one): adversarially
+> different but CONTRACT-VALID.** Nonsense inputs test whether VA tolerates
+> violations of its own canonical contract — a different and much less
+> interesting question than whether Eufy is hiding inside VA.
+
+## Feasibility and ordering — measured 2026-08-07
+
+| instrument | seam today | attacks a class that has BITTEN? |
+|---|---|---|
+| 3. synthetic brand | **exists** — `ADAPTER_BUILDERS` is a 2-entry dict driving 27 contract tests per brand; its own docstring says adding a brand runs the whole suite with no new test code | **YES, twice** — the profile catalog and the `clean_times` clamp |
+| 1. static sweep | none needed (analysis) | produces candidates only |
+| 2. provider substitution | **none** — no dialect-parameterized fake provider and no service-call recorder exist; only 2 test files reference the provider integration at all | no known instance yet |
+
+**Suggested order is therefore 3 -> 1 -> 2**, on evidence-of-need against cost:
+the synthetic brand is one dict entry, attacks the only class with a proven
+failure history, and leaves a permanent regression gate. The provider-substitution
+harness is genuinely new work attacking a class with no confirmed instance — real
+value, but it should be paid for after the cheap high-yield check, not before.
+
+Every one of the three needs a BITING NEGATIVE CONTROL before its result is worth
+anything: plant the fossil, confirm the instrument goes red, remove it. A clean
+result from an unexercised detector is the exact failure this whole campaign
+exists to stop.
+
+## The claim all three together earn
+
+> Change what is under Eufy and core must not care.
+> Change the brand above the hardware boundary and core must not assume Eufy.
+
+If all three come back clean with biting controls, "Eufy is an adapter rather
+than secretly part of core" is defensible. Any one alone is not.
+
 ## Search surface
 
 Provider-specific strings, enum values, command names, error codes, attribute
