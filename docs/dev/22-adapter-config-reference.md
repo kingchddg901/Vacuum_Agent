@@ -1696,12 +1696,45 @@ key.
 | Field | Type | In-code default | Purpose |
 |-------|------|-----------------|---------|
 | `default_profile` | `str` | `DEFAULT_ROOM_PROFILE_NAME` (`"vacuum_quick"`) | Profile name a newly-discovered room gets, and the fallback when a requested name is unknown. |
-| `builtins` | `dict[str, dict]` | `BUILT_IN_ROOM_PROFILES` | The built-in profile presets (`vacuum_quick`, `vacuum_deep`, `vacuum_mop_quick`, `vacuum_mop_deep`), each a `ProfileRecord`. |
+| `builtins` | `dict[str, ProfileRecord]` | `BUILT_IN_ROOM_PROFILES` | The built-in profile presets (`vacuum_quick`, `vacuum_deep`, `vacuum_mop_quick`, `vacuum_mop_deep`), each a `ProfileRecord`. |
 | `custom_template` | `dict` | `DEFAULT_CUSTOM_ROOM_PROFILE` | Template for the editable user profile slot (`user_1`). |
 | `legacy_aliases` | `dict[str, str]` | `LEGACY_PROFILE_ALIASES` | Maps retired profile names to current ones (e.g. `vacuum_standard → vacuum_quick`). |
 | `floor_type_water_defaults` | `dict[str, str]` | `FLOOR_TYPE_WATER_DEFAULTS` | Per-floor-type water level applied when a room has no explicit override. |
 | `floor_type_fan_defaults` | `dict[str, str]` | `FLOOR_TYPE_FAN_DEFAULTS` | Per-floor-type fan speed (carpet pile heights). |
 | `normalize_defaults` | `dict` | `DEFAULT_CUSTOM_ROOM_PROFILE` | Per-key fallbacks `normalize_room_profile()` uses to fill missing profile fields. |
+
+#### `ProfileRecord` — the shape of ONE entry in `builtins`
+
+Published here because it was documented nowhere: `builtins` was typed
+`dict[str, dict]`, and the only worked example declared the block *by reference
+to the framework constants*, which is the single form that teaches no shape. A
+porter had to open `profiles/room_profiles.py` to learn it — the module doc 21 §7
+tells them not to import. Nine keys, all present on every built-in:
+
+| Key | Type | Notes |
+|-----|------|-------|
+| `label` | `str` | User-facing profile name (e.g. `"Vacuum Only Quick"`). |
+| `clean_mode` | `str` | Must be one of YOUR `clean_mode_options` values. |
+| `fan_speed` | `str` | Must be one of YOUR `fan_speed_options` values. |
+| `water_level` | `str` | Must be one of YOUR `water_level_options` values. |
+| `clean_intensity` | `str` | Must be one of YOUR `clean_intensity_options` values. Omit the axis entirely if your brand lacks it. |
+| `path_type` | `str` | `"wide"` \| `"narrow"`. No options list exists for this field — see the note below. |
+| `clean_passes` | `int` | Passes per room; clamp to your brand's range. |
+| `edge_mopping` | `bool` | Capability-gated; `False` when unsupported. |
+| `mop_required` | `bool` | Whether the profile needs the mop pad fitted. |
+
+**Every string value must come from your own declared option lists.** That is
+what `test_new_room_defaults_use_only_this_brands_declared_vocabulary` and
+`test_floor_type_defaults_use_only_this_brands_declared_vocabulary` enforce, and
+it is the whole reason to declare the block: values from another brand's
+vocabulary are filtered out at dispatch and silently apply nothing.
+
+**Known wart — `path_type` and `clean_intensity` are the same concept.** Eufy
+expresses pass density as `clean_intensity` (`Quick`/`Narrow`/`Deep`), Roborock
+as `path_type` (`wide`/`narrow`), and both fields survive because each brand's
+word was adopted separately. `path_type` alone has no `*_options` list. Declare
+both consistently until they are merged.
+
 
 ### Example (from the Eufy adapter)
 

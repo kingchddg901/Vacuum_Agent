@@ -112,7 +112,7 @@ this is the orientation.
 | `discovery` | no | how the room list is exposed (§7) |
 | `mapping` | no | pluggable **map** segmenter — image → room polygons (§8) |
 | `job_segmenter` + `live_transition` | no | pluggable **job/run** segmenter — counter stream → per-room boundaries — plus live-rollover orchestration (§9) |
-| `room_profiles` | no | adapter-sourced room-profile vocabulary (§10) |
+| `room_profiles` | **effectively yes** | adapter-sourced room-profile vocabulary (§10). Nominally optional, but omitting it inherits the framework catalog — which is EUFY'S — so your rooms are created with another brand's words and apply nothing. See §10. |
 | `dock_events`, `post_job_wash_amendment`, `error_tracking`, `maintenance_components`, `upkeep_catalog`, `water_model_configs` | no | dock/error/maintenance catalogs — graceful degradation when absent |
 
 ---
@@ -564,7 +564,7 @@ Each step is independently testable.
    framework-provided), register it in
    `_JOB_SEGMENTER_ENGINES`, and name it here. To opt out, declare
    `noop_job_fallback`. *(Optional — an absent block falls back to the Eufy
-   engine.)* Optionally declare a `room_profiles` catalog (§10) to override the
+   engine.)* Declare a `room_profiles` catalog (§10) — see §10 for why this is not really optional — to override the
    default profile vocabulary.
 6. **Build the config dict** in `adapters/<brand>/adapter.py` and register it
    from `async_setup_entry`.

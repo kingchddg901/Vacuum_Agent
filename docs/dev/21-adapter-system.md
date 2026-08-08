@@ -482,7 +482,7 @@ still get their turn.
 > |---|---|
 > | `core.capabilities.detect_capabilities` | **Allowed.** Both brands use it. It is adapter-facing API that happens to live in `core/` — entity-presence detection you are expected to call, not a private core internal. |
 > | `mapping.segment_primitives` | **Allowed for CV brands.** Brand-neutral geometry (`rdp`, `polygon_area`, `mask_to_polygon`, `mask_iou`…) with no Eufy semantics. Eufy needs it because Eufy ships a map IMAGE; Roborock supplies segments directly and needs none of it. |
-> | `profiles.room_profiles` | **The one real weld — do not copy it.** The framework's in-code profile catalog *is* Eufy's, and the Eufy adapter imports it to declare its own vocabulary. |
+> | `profiles.room_profiles` | **The one real weld — do not IMPORT it.** The framework's in-code profile catalog *is* Eufy's, and the Eufy adapter imports it to declare its own vocabulary. Reading it to understand the data is fine; what you must not do is depend on it — declare your own values, as `adapters/roborock/vocabulary.py` does. You should not need to open it at all: the `ProfileRecord` shape is published in [22 §13d](22-adapter-config-reference.md). |
 >
 > Roborock shows the correct shape for the third: it declares
 > `FLOOR_TYPE_WATER_DEFAULTS` and its profile vocabulary in its OWN
