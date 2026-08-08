@@ -71,6 +71,66 @@ The ladder generalizes to every setting with a variable, but "nearest rung" only
 means something for an ORDERED one. The six canonical per-room fields split three
 ways:
 
+## REFINEMENT — separate SLOT SPACE from RESOLUTION POLICY
+
+My framing derived the fallback FROM the setting's kind, which forced two
+different mechanisms. The cleaner cut (Chris + GPT, 2026-08-07) is that
+**"represented as slots" and "semantically ordinal" are different properties**,
+and each setting declares them independently:
+
+1. **Slot space** — what canonical intents exist.
+2. **Resolution policy** — what to do when the provider does not occupy the
+   requested slot.
+
+`clean_mode` shows why they must separate. It represents perfectly well as slots
+(0 mop, 1 vacuum, 2 vacuum+mop, 4 vacuum-after-mop) — a provider-independent
+choice space — but those numbers carry no magnitude: mode 2 is not "more" than
+mode 1, and 4 is not "nearest" to 2. So it uses the same slot machinery as
+everything else and simply declares a different resolver.
+
+| concept | slot space | resolution |
+|---|---|---|
+| fan speed | ordered rungs | nearest supported |
+| water level | ordered rungs | nearest supported |
+| pass count | numeric / ordered | clamp to supported range |
+| path density (`clean_intensity`) | ordered rungs | nearest supported |
+| clean mode | enumerated slots | **exact, else the provider's declared default** |
+| edge mopping | boolean | capability gate / off |
+
+One constraint survives from the earlier "directional fallback" note, and it must
+be stated rather than assumed: **the declared default for `clean_mode` must be a
+DRY mode.** "Exact, else provider default" is only safe if that default cannot be
+wet — otherwise an adapter declaring `mop` as its default resolves an
+unsupported intent into water on carpet, which is a wrong physical ACTION rather
+than an omitted one. The safety property moves from the resolver into a
+constraint on the declaration, which is a better place for it.
+
+## The third leak class — brands hiding as SCHEMA
+
+`path_type` vs `clean_intensity` is not vocabulary leakage and not behavioural
+fossilization. It is a third thing:
+
+> **Eufy called the physical axis `clean_intensity`. Roborock called it
+> `path_type`. VA preserved BOTH NAMES AS SEPARATE CONCEPTS.**
+
+One physical property — distance between cleaning passes — became two canonical
+fields because two brands named it differently and neither name was ever
+reconciled. That is a first-brand accretion scar in the SCHEMA, and no amount of
+value-mapping fixes it, because the duplication is at the concept level.
+
+The slot/resolver design removes both classes at once: core owns the abstract
+intent space, adapters declare which points they occupy and how those points
+translate. Core stops needing to know whether the provider calls rung 2 "Quick",
+"Wide", "Fast", or `17`.
+
+**Sequencing, deliberately conservative:** do NOT rename 49 consumers. The
+canonical model should carry ONE axis (`path_density` / `pass_spacing`, or keep
+`clean_intensity` for compatibility), with `path_type` demoted to a
+provider-facing representation rather than an independent concept. The rename is
+optional; the reconciliation is not.
+
+---
+
 Every setting gets numbered rungs. The FALLBACK differs, and for one of them it
 is a safety rule rather than a distance rule:
 
