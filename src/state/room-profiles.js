@@ -20,7 +20,8 @@ export function applyRoomProfilesState(proto) {
       clean_mode: String(profile?.clean_mode ?? "vacuum"),
       fan_speed: String(profile?.fan_speed ?? ""),
       water_level: String(profile?.water_level ?? ""),
-      clean_intensity: String(profile?.clean_intensity ?? "Quick"),
+      // "" — a brand that declares no intensity axis must not be given Eufy's word.
+      clean_intensity: String(profile?.clean_intensity ?? ""),
       clean_passes: Number(profile?.clean_passes ?? 1),
       carpet: Boolean(profile?.carpet),
       edge_mopping: Boolean(profile?.edge_mopping),

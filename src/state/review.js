@@ -11,11 +11,22 @@ const REVIEW_SORTS = {
 };
 
 const DEFAULT_EXCLUDE_REASON = "manual_test_run";
+// The matcher's STARTING tuple. The vocabulary fields are null because the values
+// here were Eufy's — "Vacuum" (a display string), "Standard" and "Quick" — carried
+// verbatim from the one-brand card (state/profile-matcher.js in
+// eufy-vacuum-command-center). On any other brand they match no declared option, so
+// the chip rows opened with nothing highlighted, exactly as the room editor did
+// before the same defect was fixed there.
+//
+// Nulling them regresses nothing: _editorFieldsMatchProfile compares every field
+// strictly and water_level was already null, so this tuple already matched no
+// profile on startup. It now simply starts brand-neutral instead of Eufy-shaped.
+// clean_passes / edge_mopping stay — they carry no vocabulary.
 const DEFAULT_MATCHER_FIELDS = Object.freeze({
-  clean_mode: "Vacuum",
-  fan_speed: "Standard",
+  clean_mode: null,
+  fan_speed: null,
   water_level: null,
-  clean_intensity: "Quick",
+  clean_intensity: null,
   clean_passes: 1,
   edge_mopping: false,
 });

@@ -80,10 +80,13 @@ export function applyRoomEditorState(proto) {
         if (String(value ?? "").trim().toLowerCase() === "off") return null;
         return value;
       })(),
+      // "" not "Quick": a brand may have no intensity axis at all (Roborock omits
+       // it from every profile), and a Eufy word as the universal fallback is the
+       // defect this whole seam exists to remove.
       clean_intensity:
         room.cleanIntensity ??
         room.selected_profile_details?.clean_intensity ??
-        "Quick",
+        "",
       clean_passes: room.cleanPasses ?? 1,
       edge_mopping: room.edgeMopping ?? false,
       // Per-room map fill override ("#rrggbb" or null for the themeable palette). Not a profile
@@ -221,21 +224,37 @@ export function applyRoomEditorState(proto) {
   };
 
   /**
-   * Profile vocabulary uses:
-   * - Quick
-   * - Deep
+   * The profile <-> editor-entity intensity bridge for Eufy.
    *
-   * Real room editor entity uses:
-   * - Quick
-   * - Normal
-   * - Narrow
+   * VERIFIED AGAINST HARDWARE 2026-08-08. Setting the Eufy app and reading
+   * `select.<vac>_cleaning_intensity`, cross-checked against the protobuf enum in
+   * robovac_mqtt (clean_param_pb2: NORMAL=0, NARROW=1, QUICK=2) and its
+   * CLEANING_INTENSITY_NAMES / CLEAN_EXTENT_MAP:
    *
-   * Mapping:
-   * - Quick -> Quick
-   * - Deep  -> Narrow
+   *   Eufy app | select | CleanExtent | accepted payload words
+   *   ---------|--------|-------------|-----------------------
+   *   Low      | Quick  |  QUICK  (2) | "quick", "fast"
+   *   Medium   | Normal |  NORMAL (0) | "normal", "standard"
+   *   High     | Narrow |  NARROW (1) | "narrow", "deep"
    *
-   * Normal is intentionally a custom/manual-only value and
-   * does not correspond to a preset profile.
+   * Two things follow, and both are counter-intuitive enough to write down:
+   *
+   * 1. The enum is NOT ordered by density — 0 is the MIDDLE setting. Nothing may
+   *    interpolate or pick a "nearest" value on it.
+   * 2. "deep" is a legacy ALIAS for "narrow": they are the same protocol value.
+   *    So VA's `Deep` and `Narrow` dispatch identically, and mapping them both to
+   *    the editor's "Narrow" is CORRECT — it matches what the wire does.
+   *
+   * The real defect is one layer up and is NOT fixable here: the Eufy adapter
+   * declares `clean_intensity_options` as Quick/Narrow/Deep — three options, two
+   * of which are the same protocol value — and never offers `Normal`. So a VA user
+   * can reach only two of the device's three pass densities, and one of the three
+   * chips is a duplicate. Fixing that means changing the DECLARATION (and migrating
+   * stored `Deep`), not this bridge.
+   *
+   * Do not "complete" this mapping by sending VA's `Narrow` to the editor's
+   * `Normal`: that was tried, and it makes the editor display Medium for a value
+   * the wire sends as High.
    */
   proto._profileIntensityToEditorIntensity = function (value) {
     const raw = String(value ?? "").trim().toLowerCase();
