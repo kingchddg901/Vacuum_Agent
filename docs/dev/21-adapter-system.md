@@ -473,6 +473,30 @@ still get their turn.
 
 ## 7. Porting to a New Brand
 
+> **Read ROBOROCK as the template, not Eufy.** Eufy was the first brand, so parts
+> of the system were built around it before "core" and "brand" were distinct
+> ideas. Measured by import graph, an adapter package reaches outside itself in
+> exactly three ways, and they are not the same kind of thing:
+>
+> | reach | status |
+> |---|---|
+> | `core.capabilities.detect_capabilities` | **Allowed.** Both brands use it. It is adapter-facing API that happens to live in `core/` — entity-presence detection you are expected to call, not a private core internal. |
+> | `mapping.segment_primitives` | **Allowed for CV brands.** Brand-neutral geometry (`rdp`, `polygon_area`, `mask_to_polygon`, `mask_iou`…) with no Eufy semantics. Eufy needs it because Eufy ships a map IMAGE; Roborock supplies segments directly and needs none of it. |
+> | `profiles.room_profiles` | **The one real weld — do not copy it.** The framework's in-code profile catalog *is* Eufy's, and the Eufy adapter imports it to declare its own vocabulary. |
+>
+> Roborock shows the correct shape for the third: it declares
+> `FLOOR_TYPE_WATER_DEFAULTS` and its profile vocabulary in its OWN
+> `adapters/roborock/vocabulary.py` and imports nothing from `profiles/`. Do that.
+> The framework catalog reading as a neutral default when it is really one brand's
+> vocabulary is the trap described in step 4 below — a brand that omits the block
+> silently inherits Eufy's `"Max"`/`"Off"`/`"Quick"`.
+>
+> The check when porting: if your adapter imports from `profiles/`, `queue/`,
+> `jobs/` or `learning/`, you are reaching for something that should be yours or
+> should be passed to you. Compare against Roborock before concluding you need it.
+> The only legitimate edit outside your brand package is the `BRAND_REGISTRARS`
+> row in step 1b.
+
 To add a new brand adapter:
 
 1. Create `adapters/{brand}/adapter.py` with a `register_{brand}_adapter_for_vacuum(hass, vacuum_entity_id)` function, plus an `is_{brand}_vacuum(hass, vacuum_entity_id)` predicate for positive identification.
