@@ -245,9 +245,29 @@ title-cased firmware strings exactly as they appear in HA.
 | `clean_intensity_aliases` | `dict[str, str]` | Same, for clean intensity → `quick`/`narrow`/`deep`/`normal`/`standard`. May be empty when the brand's display values already slug to the canonical code. |
 | `fan_speed_aliases` | `dict[str, str]` | Same, for suction/fan speed → `quiet`/`gentle`/`standard`/`boost`/`turbo`/`max`. E.g. `{"boostiq": "boost"}`. |
 | `clean_mode_options` | `list[dict]` | User-facing dropdown options for clean mode. Each entry is `{value, label}`. Read by the card's room editor and rule editor to populate the cleaning-mode picker. Eufy: 3 entries (vacuum/mop/vacuum_mop). |
-| `fan_speed_options` | `list[dict]` | User-facing dropdown options for fan speed. Each entry is `{value, label}`. Eufy: 4 entries (Quiet/Standard/Boost/Max). A Roborock adapter with Max+ would declare 5. |
+| `fan_speed_options` | `list[dict]` | User-facing dropdown options for fan speed. **ORDER IS SEMANTIC — declare ascending, index 0 = least effort, index {max} = most** (see below). Each entry is `{value, label}`. Eufy: 4 entries (Quiet/Standard/Boost/Max). A Roborock adapter with Max+ would declare 5. |
 | `water_level_options` | `list[dict]` | User-facing dropdown options for water level (mop-capable models only). Each entry is `{value, label}`. Eufy: 4 entries (Off/Low/Medium/High). |
 | `clean_intensity_options` | `list[dict]` | User-facing dropdown options for cleaning intensity. Each entry is `{value, label}`. Brands without intensity/path-type concept omit this; the card hides the picker. Eufy: 3 entries (Quick/Narrow/Deep). |
+
+> **Option-list ORDER is a VA standard, not a per-brand choice.**
+> Declare every ordered list ascending — **index `0` = LEAST effort, index
+> `{max}` = MOST effort**. `fan_speed_options` quietest→strongest,
+> `water_level_options` driest→wettest, `clean_intensity_options`
+> **fastest→slowest** (widest pass spacing → closest passes, i.e. `Quick` before
+> `Deep`). `{max}` is your brand's own top rung; there is no fixed count — Eufy
+> declares four suction levels, Roborock five, and both are correct, because a
+> canonical setting names a POSITION in your list rather than a fixed integer or
+> another brand's word.
+>
+> `clean_mode_options` is deliberately EXEMPT: it is an enumeration, not a
+> ladder. `vacuum` is not "less" than `mop`, so its order is identity and it
+> resolves by exact match rather than nearest rung.
+>
+> Nothing can enforce this — ordering is semantic, and no test can decide whether
+> `gentle` precedes `balanced`. That is exactly why it is stated as a standard: a
+> list declared high-to-low silently inverts every framework default a room is
+> created with, and the failure is invisible. All shipped brands conform.
+
 
 ### Example
 

@@ -467,6 +467,39 @@ shape reference for a new brand.
 
 ---
 
+## 9a. ORDER YOUR OPTION LISTS — least effort first
+
+**This is a standard VA sets, not a convention inferred from the shipped brands.**
+Declare every ordered option list ascending:
+
+> **index `0` = LEAST effort · index `{max}` = MOST effort**
+
+One sentence covers all of them:
+
+| list | `0` | `{max}` |
+|---|---|---|
+| `fan_speed_options` | quietest | most suction |
+| `water_level_options` | least water (often "off") | most water |
+| `clean_intensity_options` | **fastest** (widest pass spacing) | **slowest** (closest passes, most thorough) |
+
+`{max}` is whatever YOUR brand's top rung happens to be — there is no fixed
+count. Eufy declares four suction levels and Roborock five; both are correct,
+because a canonical setting refers to a POSITION in your list, never to a fixed
+integer and never to another brand's word.
+
+`clean_mode_options` is the exception: it is an ENUMERATION, not a ladder.
+Its order is identity, not magnitude — `vacuum` is not "less" than `mop` — so
+declare the modes your brand supports in any sensible order and expect exact
+matching rather than nearest-rung resolution.
+
+**Why this matters even though nothing enforces it.** Framework defaults refer to
+a position, so a list declared high-to-low silently inverts every default your
+rooms are created with: the "gentle default" becomes maximum suction, and no test
+can catch it — ordering is semantic and unverifiable. The shipped brands all
+conform, so copying their shape keeps you right.
+
+---
+
 ## 10. Room-profile vocabulary (optional)
 
 A brand can override the room-profile vocabulary via a `room_profiles` block.
