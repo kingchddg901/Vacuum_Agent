@@ -216,7 +216,7 @@ Nothing below is forgotten; each item is open because closing it requires a spec
 | **#9:A3-REC-3** (group-phase live display) | REOPENED; mechanism landed (`6831ccd`, snapshot presents the phase) | one fresh group-phase hardware run confirming the card no longer pins to room[0] |
 | **RP-047 remainder** | 1 of 2 complete | same hardware run as above |
 | **A4-SETUP-6** (map-scoped rejection) | deferred by decision | scheduled with the multi-map work; fix shape already in the adjudication |
-| **ENT-1** (HIGH) / **DIAG-1** (MEDIUM) | banked, release-gating | next release; DIAG-1 first — entity-id derivation by string surgery proven incomplete on the builder's own install |
+| **ENT-1** (HIGH) / **DIAG-1** (MEDIUM) | ~~banked, release-gating~~ **BOTH LANDED** — see the v2.0.0 addendum below | — |
 | **A7-ROBORO-4** | landed narrower than filed | offset is preserved but not applied; applying it is pose registration and needs the S6 on a bench |
 | **DR-ONB-2** | fixed, but the method has zero production callers | should be deleted, not maintained as a correct answer nobody asks for |
 | **CV segmentor** | excluded by design | correctness is empirical, not textual; this method cannot falsify it |
@@ -225,6 +225,38 @@ Nothing below is forgotten; each item is open because closing it requires a spec
 Two findings deserve their asterisks in print: A7-ROBORO-4 and DR-ONB-2 are recorded as
 *narrower than filed* rather than as clean fixes — the campaign's value depends on the
 ledger saying what actually happened, not what reads best.
+
+### 8b. Addendum — state at the v2.0.0 ship, 2026-08-08
+
+The table above is the state **at campaign close (`4fbb530`, 2026-08-04)** and is left as
+written: §1–§7's numbers are a frozen-corpus record, re-verified for this addendum against
+`corpus/audit-findings-canonical.jsonl` (516 records / 484 verified / 22 killed — unchanged,
+as a frozen corpus should be). What moved is the open list.
+
+| Item | Then | Now (verified for this addendum) |
+|---|---|---|
+| **ENT-1** (HIGH) | banked, release-gating | **LANDED** `9a37ad6` — companions resolve by DEVICE as well as by derived name |
+| **DIAG-1** (MEDIUM) | banked, release-gating | **LANDED** `20c0ab1` — a failed resolution is now distinguishable from an absent capability |
+| **RF-36** (battery/charge) | worked during the campaign | **CLOSED**, hardware-verified on two real recharges 2026-08-05; one LOW follow-up (`BATT-CV-1`) open |
+| **DR-ONB-2** | fixed, callerless, "should be deleted" | **still callerless** — `check_for_new_rooms` and its manager delegator have zero production callers. Unchanged, and still the right call to delete. |
+| #9:A3-REC-3 / RP-047 remainder · A4-SETUP-6 · A7-ROBORO-4 · CV segmentor · RF-09 | — | **unchanged**, each still open for the reason stated above |
+
+Two defects found *after* close deserve recording here, because both are the campaign's own
+lesson pointed back at itself:
+
+- **A one-shot store migration conflated "could not evaluate yet" with "completed."** It set
+  its done-flag unconditionally, so a cold boot where the vacuum's own integration had not
+  finished loading burned the single repair opportunity on zero rooms — silently, since the
+  skip logged at DEBUG. This is §4's *"absence of evidence consumed as evidence of absence"*
+  invariant in a place the campaign did not look. Found by accident on hardware: two full
+  restarts repaired nothing, a config-entry reload repaired all twenty rooms.
+- **One physical property was declared under two names and dispatched twice** —
+  `clean_intensity` and `path_type`, the second carrying an invalid value on every stored
+  room since the initial release. §4's *vocabulary-owned-by-literals* invariant, surviving
+  the family that was written to close it (RF-18) because the duplicate predated the
+  framework it leaked through.
+
+Neither was reachable from the campaign's scopes as written. Both are AUDIT-2 input.
 
 ## 9. What the campaign taught about auditing itself
 
@@ -258,14 +290,24 @@ as explicit attack instructions, not advice:
 
 ## 10. What happens next
 
+**The order here was written ambiguously and is corrected as of 2026-08-08.** One audit
+closes one epoch, and the release is what closes it — not what follows the next audit:
+
+| | closes | ships as |
+|---|---|---|
+| **AUDIT-1** (this campaign) | **Epoch 1** | **v2.0.0 — the Phoenix Release**, 2026-08-08 |
+| **AUDIT-2** (chartered) | **Epoch 2** | a later release, scope decided at its close |
+
+So Phoenix does **not** wait on AUDIT-2; it is AUDIT-1's shipping point, and AUDIT-2's
+attack surface is what Phoenix ships.
+
 **AUDIT-2 — the differential re-siege — is chartered and signed off** (all four decisions
 decided; mixed-tier fleet, docs-first, manual trigger, Phased Jobs in scope as S4). It fires
 when the 14 readiness gates go green, and its attack surface is precisely this campaign's
 output: every repaired seam, every fix diff, everything new since the freeze, and the
 reconciled docs. The audit that tore the system down gets audited by its successor.
 
-Then the release. It ships as **v2.0.0 — the Phoenix Release**, and the framing is already
-banked because it is simply true of the last six days:
+The release framing was already banked, because it is simply true of the last six days:
 
 > This release was not built by polishing the old system.
 > It was built by auditing it, disproving parts of it, preserving the evidence,
