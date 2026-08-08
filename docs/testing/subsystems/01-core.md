@@ -9,6 +9,42 @@ low-battery-return reads. Covered by **317 tests across 16 files**.
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.md), [docs/dev/23-error-tracker.md](../../dev/23-error-tracker.md)
 
+
+### `vacuum_identity.py` — per-vacuum state needs a real vacuum (added 2026-08-08)
+
+Per-vacuum records are created by `setdefault(vacuum_entity_id, ...)` in a dozen
+places, and none of them asked whether the id referred to anything. Two records
+reached a live install as a result:
+
+| record | how |
+|---|---|
+| `onboarding["vacuum.your_vacuum"]` | the CARD'S OWN PLACEHOLDER (`src/main.js`), persisted because a status QUERY created the record it was asking about — a read that writes |
+| `setup_progress["vacuum.iv"]` | a truncated entity id, carrying a full `completed_steps` / `room_drift_history` record |
+
+Neither corrupted anything, which is why they sat there. The defect is that the set
+only ever grew: every typo, placeholder and renamed entity left a record nothing reaps.
+
+Three parts: reads stopped creating (`OnboardingManager._get_map_onboarding(create=False)`),
+creation is guarded by `is_real_vacuum`, and a one-shot sweep clears what is already
+stored. `test_vacuum_identity.py` (12 tests) pins the shape:
+
+| id | what it holds |
+|---|---|
+| `VI-1` | a vacuum HA knows is REAL even with no stored record — a NEW vacuum must be addable |
+| `VI-2` | a vacuum with a stored record is REAL even if HA forgot it — a rename must not delete history |
+| `VI-3` | a placeholder or typo is not real |
+| `VI-4` | the sweep removes exactly the orphans, nothing else |
+| `VI-5` | **the sweep can never empty `vacuums`** — presence there IS the proof of realness |
+| `VI-6` | it runs once; a deliberate re-creation is not re-reaped |
+| `VI-7` | planning is pure, so a deletion can be reviewed before it happens |
+| `VI-8` | a malformed bucket is skipped rather than taking setup down on boot |
+
+**VI-1 and VI-2 are the pair that matters.** The discriminator is deliberately not
+"already known to the manager" — that would make adding a vacuum impossible — nor
+"HA has the entity", which would delete a renamed vacuum's history. Either proof
+suffices, and VI-5 guards the catastrophic case: if a stored record ever stopped
+counting as proof, this sweep would delete every vacuum on the install.
+
 ---
 
 ## Coverage map

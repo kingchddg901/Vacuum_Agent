@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import HomeAssistant
 
 from ..adapters.registry import get_adapter_config
+from ..core.vacuum_identity import is_real_vacuum
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,9 +75,34 @@ class OnboardingManager:
         *,
         vacuum_entity_id: str,
         map_id: str,
+        create: bool = True,
     ) -> dict:
-        """Return onboarding state for one vacuum/map, creating defaults if absent."""
+        """Return onboarding state for one vacuum/map.
+
+        ``create=False`` returns an EPHEMERAL default instead of persisting one — for
+        callers that are only asking a question. A status query used to create the
+        record it was asking about, so merely enquiring about a vacuum brought it into
+        existence: a live install carried onboarding["vacuum.your_vacuum"], the CARD'S
+        OWN PLACEHOLDER (src/main.js), persisted because something asked about it.
+
+        Creation is additionally refused for an id this install has no vacuum for, so a
+        typo in a WRITE cannot leave a permanent record either. The caller still gets a
+        usable dict; it just never reaches the store.
+        """
         ob = self._get_onboarding_data()
+        existing = ob.get(vacuum_entity_id, {}).get(str(map_id))
+        if existing is not None:
+            return existing
+
+        if not create or not is_real_vacuum(self._hass, self._data, vacuum_entity_id):
+            if create:
+                _LOGGER.warning(
+                    "onboarding: refusing to create state for %r — no such vacuum "
+                    "entity. Nothing is persisted for ids this install does not have.",
+                    vacuum_entity_id,
+                )
+            return _default_map_onboarding()
+
         ob.setdefault(vacuum_entity_id, {})
         ob[vacuum_entity_id].setdefault(str(map_id), _default_map_onboarding())
         return ob[vacuum_entity_id][str(map_id)]
@@ -91,10 +117,11 @@ class OnboardingManager:
         vacuum_entity_id: str,
         map_id: str,
     ) -> dict[str, Any]:
-        """Return full onboarding status for one vacuum/map."""
+        """Return full onboarding status for one vacuum/map. Creates nothing."""
         map_ob = self._get_map_onboarding(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
+            create=False,
         )
 
         map_bucket = (
@@ -261,6 +288,7 @@ class OnboardingManager:
         map_ob = self._get_map_onboarding(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
+            create=False,
         )
 
         # Room list source is adapter-driven (mirrors rooms/room_discovery.py).

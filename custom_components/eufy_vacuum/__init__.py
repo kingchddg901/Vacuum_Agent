@@ -60,6 +60,7 @@ from .adapters.registry import (
 from .adapters.brands import register_brand_adapter
 from .adapters.config_loader import load_stored_adapter_configs
 from .adapters.registry import get_adapter_config
+from .core.vacuum_identity import sweep_orphaned_vacuums
 from .rooms.vocabulary_migration import migrate_room_vocabulary
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
@@ -401,6 +402,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception:
             _LOGGER.exception(  # pragma: no cover
                 "eufy_vacuum: room vocabulary migration failed; rooms left as stored"
+            )
+
+        # One-shot sweep of per-vacuum records naming a vacuum this install does not
+        # have. Two reached a live install: the CARD'S OWN PLACEHOLDER
+        # ("vacuum.your_vacuum"), persisted because a status query created the record
+        # it was asking about, and a truncated entity id carrying a full setup record.
+        # Harmless individually; the problem is the set only ever grew. Guards in
+        # setup/drift.py and onboarding/manager.py stop new ones; this clears the old.
+        # Runs here rather than in async_initialize because is_real_vacuum consults
+        # the entity registry, which needs hass to be up.
+        try:
+            _sweep = sweep_orphaned_vacuums(hass, manager.data)
+            if _sweep["removed"]:
+                for _bucket, _key in _sweep["removed"]:
+                    _LOGGER.info(
+                        "eufy_vacuum: removed orphaned %s record for %r "
+                        "(no such vacuum entity)", _bucket, _key,
+                    )
+                await manager.async_save()
+        except Exception:
+            _LOGGER.exception(  # pragma: no cover
+                "eufy_vacuum: orphaned-vacuum sweep failed; records left as stored"
             )
 
         hass.data[DOMAIN][DATA_RUNTIME] = manager

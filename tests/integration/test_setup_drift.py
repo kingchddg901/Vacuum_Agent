@@ -21,6 +21,8 @@ Coverage targets
 
 from __future__ import annotations
 
+import pytest
+
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.setup.drift import (
     SETUP_STEP_IDS,
@@ -37,6 +39,25 @@ from .conftest import setup_map
 
 _VAC = "vacuum.alfred"
 _MAP = "1"
+
+
+@pytest.fixture(autouse=True)
+def _vacuum_is_added(manager):
+    """Setup progress only exists for a vacuum that has been ADDED.
+
+    Production reaches every one of these paths through
+    ``workflow.add_vacuum_to_manager``, which calls ``ensure_vacuum_record`` BEFORE
+    anything records a step — so ``data["vacuums"]`` always has the vacuum by then.
+    These tests skipped that, recording setup progress for a vacuum the install had
+    never added and Home Assistant did not have.
+
+    That is not a state production can reach, and it is the state that let
+    setup_progress["vacuum.iv"] — a truncated entity id — become a permanent record on
+    a live install. The guard in ``drift._get_progress_record`` now refuses it, so the
+    fixture supplies the step production would already have taken.
+    """
+    manager.data.setdefault("vacuums", {}).setdefault(_VAC, {"vacuum_entity_id": _VAC})
+    return manager
 
 
 # ---------------------------------------------------------------------------

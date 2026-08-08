@@ -46,6 +46,29 @@ _MAP = "1"
 
 
 @pytest.fixture
+def _vacuum_is_added(manager):
+    """Setup progress only exists for a vacuum that has been ADDED.
+
+    Production reaches every one of these paths through
+    ``workflow.add_vacuum_to_manager``, which calls ``ensure_vacuum_record`` BEFORE
+    anything records a step — so ``data["vacuums"]`` always has the vacuum by then.
+    These tests skipped that, recording setup progress for a vacuum the install had
+    never added and Home Assistant did not have.
+
+    NOT autouse in this module: several tests here deliberately exercise the
+    UNMANAGED path (add_vacuum succeeding, import_active_map refusing), and
+    pre-managing the vacuum would quietly turn those into a different test.
+
+    That is not a state production can reach, and it is the state that let
+    setup_progress["vacuum.iv"] — a truncated entity id — become a permanent record on
+    a live install. The guard in ``drift._get_progress_record`` now refuses it, so the
+    fixture supplies the step production would already have taken.
+    """
+    manager.data.setdefault("vacuums", {}).setdefault(_VAC, {"vacuum_entity_id": _VAC})
+    return manager
+
+
+@pytest.fixture
 def _no_panel(monkeypatch):
     """Stub panel registration so add_vacuum doesn't touch the frontend."""
     async def _fake_register_panel(*args, **kwargs):
@@ -369,7 +392,7 @@ async def test_delete_high_typed_mismatch(hass, manager):
 # [SD-1] — [SD-5] drift bookkeeping (setup/drift.py)
 # ---------------------------------------------------------------------------
 
-def test_record_step_completed(manager):
+def test_record_step_completed(_vacuum_is_added, manager):
     """[SD-1]"""
     drift_mod.record_step_completed(manager, _VAC, "add_vacuum")
     drift_mod.record_step_completed(manager, _VAC, "add_vacuum")  # idempotent
@@ -390,7 +413,7 @@ def test_reject_rooms_strips_managed(manager):
     assert 1 not in remaining_ids and 2 not in remaining_ids
 
 
-def test_force_remove_room(manager):
+def test_force_remove_room(_vacuum_is_added, manager):
     """[SD-3] default removal threshold is 3."""
     result = drift_mod.force_remove_room(manager, _VAC, 7)
     assert result["missing_passes"] == 3

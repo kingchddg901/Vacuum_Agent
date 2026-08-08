@@ -51,6 +51,8 @@ Public entry points:
 
 from __future__ import annotations
 
+import logging
+
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -58,6 +60,9 @@ from homeassistant.core import HomeAssistant
 from ..adapters.registry import get_adapter_config
 from ..const import DATA_RUNTIME, DOMAIN
 from ..learning.utils import _iso_now
+from ..core.vacuum_identity import is_real_vacuum
+
+_LOGGER = logging.getLogger(__name__)
 
 # Closed enum of setup step IDs. Adapters must declare a subset of these
 # values; the registry rejects unknown IDs at adapter registration time.
@@ -166,6 +171,29 @@ def _get_progress_record(
     write directly and changes persist on the next manager.async_save().
     """
     root = manager.data.setdefault("setup_progress", {})
+
+    # Only a REAL vacuum gets a persisted record. This used to setdefault against
+    # whatever string arrived, so a typo became permanent: a live install carried
+    # setup_progress["vacuum.iv"] — a truncated entity id with a full
+    # completed_steps / room_drift_history record that nothing would ever reap.
+    # An unreal id still gets a working (ephemeral) record so no caller has to
+    # handle None; it simply never reaches the store.
+    if vacuum_entity_id not in root and not is_real_vacuum(
+        getattr(manager, "hass", None), manager.data, vacuum_entity_id
+    ):
+        _LOGGER.warning(
+            "setup_progress: refusing to create a record for %r — no such vacuum "
+            "entity. State is not persisted for ids this install does not have.",
+            vacuum_entity_id,
+        )
+        return {
+            "completed_steps": [],
+            "last_advanced_at": None,
+            "rejected_rooms": [],
+            "rejected_rooms_by_map": {},
+            "room_drift_history": {},
+        }
+
     record = root.setdefault(
         vacuum_entity_id,
         {
