@@ -411,10 +411,21 @@ def register_eufy_adapter_for_vacuum(
                 {"value": "mop",        "label": "Mop"          },
                 {"value": "vacuum_mop", "label": "Vacuum & Mop" },
             ],
+            # The device's four suction LEVELS, in device order. Verified against
+            # robovac_mqtt 2026-08-08: the room_clean payload resolves fan_speed by
+            # INDEX into EUFY_CLEAN_NOVEL_CLEAN_SPEED (quiet/standard/turbo/max/
+            # boost_iq) and logs "Invalid fan_speed ... ignored" for anything else.
+            #
+            # This declared "Boost" in the third slot, which was wrong twice over:
+            # "boost" is not in that list at all (so the chip silently applied NO
+            # suction), and BoostIQ is not a suction level — it is the auto
+            # carpet-boost SWITCH on DPS 118 (upstream: "BoostIQ is a separate
+            # switch, not a 5th speed"; build_set_boost_iq_command takes a bool).
+            # Meanwhile Turbo — the actual second-highest suction — was unreachable.
             "fan_speed_options": [
                 {"value": "Quiet",    "label": "Quiet"    },
                 {"value": "Standard", "label": "Standard" },
-                {"value": "Boost",    "label": "Boost"    },
+                {"value": "Turbo",    "label": "Turbo"    },
                 {"value": "Max",      "label": "Max"      },
             ],
             "water_level_options": [
