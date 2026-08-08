@@ -13,6 +13,45 @@ parametrization).
 Source: `custom_components/eufy_vacuum/learning/`
 Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-system.md)
 
+
+### Captured settings the mode cannot apply (`CAP`, added 2026-08-08)
+
+External (app-started) runs are captured by reading the vacuum's global setting
+selects per tick — the only window into what the app set, since VA did not dispatch
+the job and has no payload for it. But a select keeps reporting a value whether or
+not the current mode uses it.
+
+Confirmed on hardware: the Eufy app **disables** the suction picker in mop-only mode,
+and `select.<vac>_suction_level` went on reading `Max` throughout. Capturing that
+recorded the run as having used Max suction — a number never applied, entering
+Learning Review and the estimate buckets looking exactly like a measurement.
+Indistinguishable from a real one, which is why it would never have been noticed.
+
+`_drop_settings_the_mode_does_not_use` removes them, symmetrically:
+
+| mode | inert, therefore dropped |
+|---|---|
+| mop-only | `fan_speed` |
+| vacuum-only | `water_level`, `mop_intensity` |
+| vacuum+mop | nothing — both halves apply |
+
+`water_level` and `mop_intensity` are dropped together because they are ONE device
+value under two label sets (upstream maps Quiet/Automatic/Max onto Low/Medium/High);
+dropping one would leave a phantom reading of the same inert setting.
+
+`test_capture_inert_settings.py` (9 tests). The two that stop the filter going wrong
+in opposite directions:
+
+- **CAP-3** — vacuum+mop keeps everything, so a fix cannot "work" by dropping too much.
+- **CAP-4** — an unrecognised mode drops NOTHING. Parameterised over a real Eufy
+  protocol mode the X10 lacks (`Mopping after sweeping`) as well as a recognised alias
+  (`Vacuum and mop`), so a FUTURE mode arriving cannot silently be treated as "these
+  fields do not matter". Retaining is the conservative branch: discarding a real
+  measurement is worse than keeping an inert one, and review lets the user correct it.
+
+Mirrors the dispatch side, where `queue_engine` only writes `water_level` /
+`edge_mopping` for mop modes.
+
 ---
 
 ## Coverage map

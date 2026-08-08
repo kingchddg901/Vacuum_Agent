@@ -27,6 +27,7 @@ from ..adapters.registry import (
     adapter_honors_clean_order,
     get_adapter_config as _get_adapter_config,
 )
+from ..profiles.room_profiles import canonical_clean_mode
 from ..core.charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
@@ -226,6 +227,40 @@ _LIVE_TRANSITION_DEFAULTS: dict[str, Any] = {
     "rollover_kinds": ("wash_plateau", "transit", "area_jump"),
     "native_transition_source": False,
 }
+
+
+
+
+#: Which captured settings a clean mode actually USES. Anything else the device
+#: reports is whatever it happened to be left on, not a fact about the run.
+_INERT_FOR_MODE: dict[str, tuple[str, ...]] = {
+    # Vacuum-only: the mop dials do nothing. (water_level and mop_intensity are two
+    # labelled views of ONE device value — upstream maps Quiet/Automatic/Max onto
+    # Low/Medium/High — so they are inert together.)
+    "vacuum": ("water_level", "mop_intensity"),
+    # Mop-only: the Eufy app DISABLES the suction picker, and the select keeps
+    # reporting whatever it last held. Confirmed on hardware 2026-08-08: mode was
+    # switched to Mop and suction still read "Max".
+    "mop": ("fan_speed",),
+}
+
+
+def _drop_settings_the_mode_does_not_use(captured: dict[str, str]) -> dict[str, str]:
+    """Remove captured settings that the captured clean_mode cannot apply.
+
+    A value that does not apply is worse than a missing one. It is indistinguishable
+    from a real reading, so it flows into Learning Review and the estimate buckets
+    looking exactly like a measurement — a mop-only run recorded as having run at
+    "Max" suction, bucketing its duration under a suction level that was never used.
+
+    Absent says "this mode does not use that", which is true and which downstream can
+    reason about. Mirrors the dispatch side, where queue_engine only writes
+    water_level / edge_mopping for mop modes.
+    """
+    mode = canonical_clean_mode(captured.get("clean_mode"))
+    for inert in _INERT_FOR_MODE.get(mode, ()):
+        captured.pop(inert, None)
+    return captured
 
 
 class ActiveJobTracker:
@@ -2437,7 +2472,8 @@ class ActiveJobTracker:
                 out[key] = value_map.get(str(raw).strip().lower(), str(raw))
             else:
                 out[key] = str(raw)
-        return out
+
+        return _drop_settings_the_mode_does_not_use(out)
 
     def start_external_capture(
         self,
