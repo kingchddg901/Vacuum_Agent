@@ -69,7 +69,9 @@ Current checks:
 - **`mapping` block** (when present): must be a dict; `mapping.segmenter_engine` is required and must resolve to a known engine (`known_engine_names()` in `mapping/segmenter_engines.py`); `mapping.segmenter_tuning` must pass the resolved engine's own `validate_tuning()`.
 - **`job_segmenter` block** (when present): must be a dict; `job_segmenter.engine` is required and must resolve to a known job/run segmenter engine (`known_job_engine_names()` in `learning/job_segmenter_engines.py`); `job_segmenter.tuning` must pass the resolved engine's own `validate_tuning()`. This mirrors the `mapping` check (deferred import). Note this is the **counter/run** segmenter seam, distinct from the **map** segmenter `mapping` block above (see §2.4).
 - **`room_attribution` block** (when present): must be a dict; `room_attribution.engine` is required and must resolve to a known room-attribution engine (`known_room_attribution_names()` in `learning/room_attribution_engines.py`); `room_attribution.tuning` must pass the resolved engine's own `validate_tuning()`. This mirrors the `job_segmenter` check (deferred import). An absent block falls back to the Eufy engine (`eufy_anchor_winding_v1`); declare `noop_room_attribution` to disable external-run auto-attribution. This is the external-run room-attribution seam (see §2.4).
-- **`room_profiles` block** (when present): must be a dict; `room_profiles.default_profile` (when set) must be a string, and each of `builtins`, `custom_template`, `legacy_aliases`, `floor_type_water_defaults`, `floor_type_fan_defaults`, `normalize_defaults` (when set) must be a dict. The framework merges this block over the in-code defaults per key (`resolve_profile_catalog()`), so a partial block is fine — this rule only catches a malformed declaration.
+- **`room_profiles` block** — **REQUIRED**, unlike every other block on this list. An adapter that declares none, or declares an empty one, fails registration: core carries no profile catalog, so such an adapter cannot resolve a single room. The message names the keys. Within the block, `default_profile` (when set) must be a string and each of `builtins`, `custom_template`, `legacy_aliases`, `floor_type_water_defaults`, `floor_type_fan_defaults`, `normalize_defaults` (when set) must be a dict.
+
+  **The gate is the block, not each key.** A porter who declared `builtins` and stopped has engaged with the contract, and their undeclared keys resolve EMPTY — a defined answer, not an inherited one. Only declaring NOTHING means "not written yet", which is the one state worth failing on. Declaring a key empty (`legacy_aliases: {}`, as Roborock does) is a legitimate statement that this brand supplies none, and is deliberately distinguishable from omitting it.
 - **`dispatch.template`** (when present): must resolve to a registered dispatch engine (`known_dispatch_templates()` in `queue/dispatch_engines.py`). A schema-valid template with no registered engine yet is flagged rather than silently falling back to the Eufy shape.
 - **`capability_hints` block** (when present, `registry.py:426-440`): must be a dict; every key must be in `core/capabilities.py::KNOWN_CAPABILITY_HINTS` — an unrecognised hint key is a silent no-op at read time (`_hints.get(name)` misses), so a typo is caught here instead of at "why is this control showing?".
 - **`dispatch.phase_timing`** (when present, `registry.py:458-479`, RP-033/WD-5): must be a dict; every numeric value must be **positive** (a 0 poll interval busy-loops; 0 `max_attempts` means the watchdog never tries). This is an earlier check on the same values `core/manager.py::_phase_timing`'s own `_minimums` clamp guards at runtime — the runtime clamp stays as defense-in-depth.
@@ -482,14 +484,12 @@ still get their turn.
 > |---|---|
 > | `core.capabilities.detect_capabilities` | **Allowed.** Both brands use it. It is adapter-facing API that happens to live in `core/` — entity-presence detection you are expected to call, not a private core internal. |
 > | `mapping.segment_primitives` | **Allowed for CV brands.** Brand-neutral geometry (`rdp`, `polygon_area`, `mask_to_polygon`, `mask_iou`…) with no Eufy semantics. Eufy needs it because Eufy ships a map IMAGE; Roborock supplies segments directly and needs none of it. |
-> | `profiles.room_profiles` | **The one real weld — do not IMPORT it.** The framework's in-code profile catalog *is* Eufy's, and the Eufy adapter imports it to declare its own vocabulary. Reading it to understand the data is fine; what you must not do is depend on it — declare your own values, as `adapters/roborock/vocabulary.py` does. You should not need to open it at all: the `ProfileRecord` shape is published in [22 §13d](22-adapter-config-reference.md). |
+> | `profiles.room_profiles` | **Nothing to import.** This was the one real weld: the framework's in-code catalog *was* Eufy's, and the Eufy adapter imported it to declare its own vocabulary. Cut on 2026-08-07 — those values now live in `adapters/eufy/room_profiles.py`, alongside Roborock's in its own package, and core holds only the four profile KEYS. The `KNOWN_LEAKS` ledger in `tests/adapters/test_adapter_isolation.py` is empty as a result. Declare your own values; the `ProfileRecord` shape is published in [22 §13d](22-adapter-config-reference.md). |
 >
-> Roborock shows the correct shape for the third: it declares
-> `FLOOR_TYPE_WATER_DEFAULTS` and its profile vocabulary in its OWN
-> `adapters/roborock/vocabulary.py` and imports nothing from `profiles/`. Do that.
-> The framework catalog reading as a neutral default when it is really one brand's
-> vocabulary is the trap described in step 4 below — a brand that omits the block
-> silently inherits Eufy's `"Max"`/`"Off"`/`"Quick"`.
+> Both brands now show the correct shape: each declares `FLOOR_TYPE_WATER_DEFAULTS`
+> and its profile vocabulary in its OWN package and imports nothing from `profiles/`.
+> The trap that made this necessary is gone with it — a brand that omits the block no
+> longer inherits Eufy's `"Max"`/`"Off"`/`"Quick"`, it fails registration.
 >
 > The check when porting: if your adapter imports from `profiles/`, `queue/`,
 > `jobs/` or `learning/`, you are reaching for something that should be yours or
@@ -503,16 +503,17 @@ To add a new brand adapter:
 1b. **Add one row to `BRAND_REGISTRARS` in `adapters/brands.py`** pairing the two (see §6.1). Place it before the default arm; detection runs in table order. This is a REGISTRATION at a declared extension point, not a core edit — and so are the three engine registries below (`queue/dispatch_engines.py` §3, `mapping/segmenter_engines.py` and `learning/job_segmenter_engines.py` §4) if your brand needs its own engine rather than a built-in. What "core is not touched" means precisely: **no existing behaviour changes when your brand arrives.** Nothing above the adapter learns your brand's name, vocabulary or limits. Adding a registry entry does not violate that; changing a shared default so your brand fits does.
 2. Build the config dict using `ADAPTER_CONFIG_SCHEMA` as the reference. Every framework-read field must be present; card-only fields (`vocabulary.clean_mode_options`, etc.) are optional.
 3. Set `dispatch.template` to one of the four built-in templates, or add a new template to the dispatch engine.
-4. Pick the two segmenter engines (see §2.4). Declare `mapping.segmenter_engine` (or `noop_fallback` if the brand yields no map image) and `job_segmenter.engine` (or `noop_job_fallback` if the brand emits no per-room run signal). For Eufy these are `eufy_cv_v1` and `eufy_counter_v1`; a brand whose boundary detection differs registers its own engine in the relevant registry and names it here. **Declare `room_profiles`.** This is listed as optional above and in doc 22, and for a
-non-Eufy brand that is misleading: the framework's in-code catalog *is Eufy's* (Eufy
-declares it by reference), so an absent block gives your rooms Eufy display vocabulary —
-`"Max"`, `"Off"`, `"Quick"`. Roborock shipped without it and every Roborock room was
-created with settings the brand does not recognise: the card's chip rows compare option
-values strictly so nothing rendered as selected, and `per_room_live_settings` filters on
-`fan_speed_options` so an unedited room got no suction applied at all.
+4. Pick the two segmenter engines (see §2.4). Declare `mapping.segmenter_engine` (or `noop_fallback` if the brand yields no map image) and `job_segmenter.engine` (or `noop_job_fallback` if the brand emits no per-room run signal). For Eufy these are `eufy_cv_v1` and `eufy_counter_v1`; a brand whose boundary detection differs registers its own engine in the relevant registry and names it here. **Declare `room_profiles`. It is required, and registration fails without it.** That is
+a deliberate change from "optional": core carries no catalog, so an adapter declaring none
+cannot resolve a room at all. Before the rule existed, an absent block silently gave your
+rooms Eufy display vocabulary — `"Max"`, `"Off"`, `"Quick"`. Roborock shipped without it
+and every Roborock room was created with settings the brand does not recognise: the card's
+chip rows compare option values strictly so nothing rendered as selected, and
+`per_room_live_settings` filters on `fan_speed_options`, so `jobs/active_job.py` skipped
+the `set_fan_speed` call entirely and the room ran on whatever fan was last set.
 
-Declare `builtins` + `default_profile` in your own vocabulary, using the same profile KEYS
-as the framework catalog so stored rooms and the card's profile picker survive a brand
+Declare `builtins` + `default_profile` in your own vocabulary, using the same four profile
+KEYS every brand declares so stored rooms and the card's profile picker survive a brand
 switch, and declare `floor_type_water_defaults` / `floor_type_fan_defaults` too — those are
 applied to *every* room, not just new ones, and the resolver reads the carpet entry of the
 water map as your brand's no-water value. Omit an axis your brand does not have (Roborock

@@ -859,7 +859,9 @@ resolving here means every past job gets a name the moment a label ships — no 
 states are deliberately unmapped today because the vendor's own strings contradict their enum
 names; if their meaning is ever established, old records pick up the label for free). Core never
 learns a brand's error codes — the adapter owns the code→label mapping, this function only hands
-the card a key [[feedback_eufy_ism_leak_layers]].
+the card a key. A brand port that fixes core but leaves the interpretive layer (diagnostics,
+presentation, onboarding) still speaking one brand's words is the recurring failure this
+separation prevents.
 
 **`recharge`** (`_job_recharge`, `manager.py` line 119) — whether the run recharged mid-job,
 **re-derived** from the archived record's `battery` block rather than trusted from the stored

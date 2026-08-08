@@ -14,7 +14,14 @@ The profile manager handles two distinct but related concepts:
 
 **Module:** `custom_components/eufy_vacuum/profiles/manager.py`
 
-**Built-in room profiles** (`BUILT_IN_ROOM_PROFILES` in `profiles/room_profiles.py`):
+**Built-in room profiles are declared by each ADAPTER, not by core.** Core owns the four
+profile KEYS (`PROTECTED_ROOM_PROFILE_NAMES` in `profiles/room_profiles.py`) and none of
+the values. Eufy's are in `adapters/eufy/room_profiles.py`, Roborock's in
+`adapters/roborock/vocabulary.py`; every brand declares the same four keys on purpose, so
+a stored room and the profile picker survive a brand switch.
+
+Eufy's, for reference — note that every value below is a EUFY word, which is exactly why
+they no longer live in core:
 
 | Profile key | label | clean_mode | fan_speed | water_level | clean_intensity | path_type | clean_passes | edge_mopping | mop_required |
 |---|---|---|---|---|---|---|---|---|---|
@@ -23,39 +30,74 @@ The profile manager handles two distinct but related concepts:
 | `vacuum_mop_quick` | Quick | vacuum_mop | Standard | Medium | Quick | wide | 1 | False | True |
 | `vacuum_mop_deep` | Deep | vacuum_mop | Max | Medium | Deep | narrow | 2 | True | True |
 
-`get_default_room_profiles()` returns **only** the built-in catalog (`BUILT_IN_ROOM_PROFILES`, or the resolved catalog's `builtins`); it does **not** seed a legacy user slot `user_1`. A pristine framework-default `user_1` was deliberately removed because it surfaced as an undeletable "User Profile 1" chip in the room editor — it lived in no user store, so a delete found nothing (`profile_not_found`) and it reappeared on every fetch. A `user_1` exists only when a user has explicitly saved over it, in which case it lives in the stored profiles and is returned by `merge_profile_dicts()` as real, deletable data. The starting-settings template `DEFAULT_CUSTOM_ROOM_PROFILE` remains available as the resolved catalog's `custom_template` for callers that want it explicitly. Legacy aliases `vacuum_standard`→`vacuum_quick` and `vacuum_mop_standard`→`vacuum_mop_quick` are resolved at lookup time. The framework's default profile name is `DEFAULT_ROOM_PROFILE_NAME = "vacuum_quick"` — a brand can override which profile a newly-discovered room actually gets via `room_profiles.default_profile` (§1.1); see [08-rooms-system](08-rooms-system.md) §3.1 for how the new-room defaulting seam (`rooms/room_defaults.py`) consumes it.
+`get_default_room_profiles()` returns **only** the resolved catalog's `builtins` (empty when the adapter declares none); it does **not** seed a legacy user slot `user_1`. A pristine framework-default `user_1` was deliberately removed because it surfaced as an undeletable "User Profile 1" chip in the room editor — it lived in no user store, so a delete found nothing (`profile_not_found`) and it reappeared on every fetch. A `user_1` exists only when a user has explicitly saved over it, in which case it lives in the stored profiles and is returned by `merge_profile_dicts()` as real, deletable data. The starting-settings template is the resolved catalog's `custom_template`, declared by the adapter. Legacy aliases are resolved at lookup time from the catalog's `legacy_aliases` — those two (`vacuum_standard`→`vacuum_quick`, `vacuum_mop_standard`→`vacuum_mop_quick`) are EUFY's retired names and are declared by the Eufy adapter; Roborock declares `legacy_aliases: {}` because it has none of its own. The framework's default profile name is `DEFAULT_ROOM_PROFILE_NAME = "vacuum_quick"` — a brand can override which profile a newly-discovered room actually gets via `room_profiles.default_profile` (§1.1); see [08-rooms-system](08-rooms-system.md) §3.1 for how the new-room defaulting seam (`rooms/room_defaults.py`) consumes it.
 
-> **Framework default vs. adapter catalog.** The in-code constants (`BUILT_IN_ROOM_PROFILES`, `DEFAULT_CUSTOM_ROOM_PROFILE`, `LEGACY_PROFILE_ALIASES`, `FLOOR_TYPE_*_DEFAULTS`, `DEFAULT_ROOM_PROFILE_NAME`) are the **framework default catalog** AND remain the authoritative source of `_PROTECTED_ROOM_PROFILE_NAMES`. An adapter's optional `room_profiles` block can override any subset of them **per-vacuum** at *resolution* time via `resolve_profile_catalog()` — see §1.1. The Eufy adapter declares `room_profiles` *by reference* to these constants (no duplication), so Eufy output is byte-identical.
+> **There is no framework default catalog.** Until 2026-08-07 those constants lived here
+> and were "the" catalog, so a brand that declared no `room_profiles` block silently
+> inherited them — and they are Eufy's words. A Roborock room then stored
+> `fan_speed: "Max"`, which is absent from that brand's declared options: the card's chip
+> row matched nothing and `jobs/active_job.py` skipped the `set_fan_speed` call entirely,
+> so the room ran on whatever fan was last set. Nothing logged.
+>
+> What core keeps is the KEY space — `PROTECTED_ROOM_PROFILE_NAMES` (a literal frozenset,
+> no longer derived from any brand's catalog) and `DEFAULT_ROOM_PROFILE_NAME`, which names
+> WHICH profile a new room starts on and never what is inside one. An adapter declares its
+> catalog or it fails registration; see §1.1.
 
 ---
 
 ## 1.1 Adapter-Sourced Profile Catalog
 
-`resolve_profile_catalog(block)` (in `profiles/room_profiles.py`) merges an adapter `room_profiles` block over the in-code defaults **per key**, returning a catalog dict:
+`resolve_profile_catalog(block)` (in `profiles/room_profiles.py`) resolves an adapter's
+`room_profiles` block. There is **no merge and no framework default** — it carries exactly
+what the adapter declared, and an undeclared key resolves EMPTY:
 
-| Catalog key | In-code default |
+| Catalog key | Undeclared resolves to |
 |---|---|
-| `builtins` | `BUILT_IN_ROOM_PROFILES` |
-| `custom_template` | `DEFAULT_CUSTOM_ROOM_PROFILE` |
-| `legacy_aliases` | `LEGACY_PROFILE_ALIASES` |
-| `default_profile` | `DEFAULT_ROOM_PROFILE_NAME` (`"vacuum_quick"`) |
-| `floor_type_water_defaults` | `FLOOR_TYPE_WATER_DEFAULTS` |
-| `floor_type_fan_defaults` | `FLOOR_TYPE_FAN_DEFAULTS` |
-| `normalize_defaults` | `DEFAULT_CUSTOM_ROOM_PROFILE` |
+| `builtins` | `{}` |
+| `custom_template` | `{}` |
+| `legacy_aliases` | `{}` |
+| `default_profile` | `DEFAULT_ROOM_PROFILE_NAME` (`"vacuum_quick"`) — a KEY, not vocabulary |
+| `floor_type_water_defaults` | `{}` |
+| `floor_type_fan_defaults` | `{}` |
+| `normalize_defaults` | `{}` |
 
-A `None`/empty block returns the in-code defaults **verbatim**, so a vacuum without the block resolves byte-identically. The catalog is **resolution-only** — it does not touch the `_PROTECTED_ROOM_PROFILE_NAMES` binding (§4), which stays bound to the in-code `BUILT_IN_ROOM_PROFILES` at module load.
+`default_profile` is the one key that still carries a framework value, and it is not
+vocabulary: it names WHICH profile a new room starts on, never what is inside it.
 
-**Optional `catalog` param.** Every resolver function in `room_profiles.py` now takes an optional `catalog` (a resolved block); `None` falls back to the in-code constants. The functions: `get_default_room_profiles`, `normalize_room_profile`, `merge_profile_dicts`, `_normalize_profile_name`, `resolve_profile_name_for_constraints`, `get_room_profile`, `get_available_profiles`, `resolve_room_profile_for_room`, and `apply_capability_gate` (§6.1).
+**Absent and declared-empty resolve identically here, deliberately** — this function's job
+is resolution, not judgement. The two are distinguished where the distinction is
+actionable: `registry._validate_room_profiles` fails an adapter that declares no block at
+all (or an empty one), while accepting `builtins: {}` as a legitimate "this brand supplies
+none". Collapse them everywhere and "this brand has none" becomes indistinguishable from
+"the porter forgot", which is the fail-soft ambiguity removing the fallback was meant to
+end. `tests/adapters/test_declaration_contract.py` pins all three states.
 
-**Where it is wired (deliberate boundary).**
+The catalog is **resolution-only** — it does not touch `PROTECTED_ROOM_PROFILE_NAMES`
+(§4), which is now a literal frozenset rather than being derived from any brand's catalog.
 
-| Site | Catalog source | Rationale |
-|---|---|---|
-| Dispatch — `queue/queue_engine.py:build_room_clean_payload` | adapter (`get_adapter_config(vacuum_entity_id)` → `resolve_profile_catalog` → threaded into `resolve_room_profile_for_room` + `apply_capability_gate`) | has per-vacuum context; per-room dispatch settings must be adapter-catalog-sourced |
-| Bulk apply — `manager.py:apply_room_profile` (→ `apply_room_profile_to_config`) | **adapter** (`get_adapter_config(vacuum_entity_id)` → `resolve_profile_catalog`) | it has a `vacuum_entity_id`, so a non-Eufy brand fills omitted fields from ITS `normalize_defaults` (§5.5) |
-| Global profile editor — `manager.py` (`get_room_profiles`, `_finalize_room_update`, `_match_profile_from_fields`) | framework default (`catalog=None`) | the singleton editor lacks per-vacuum context |
+**`catalog` param.** Every resolver in `room_profiles.py` takes one. It is still typed
+optional for call-site convenience, but `None` no longer means "use the framework
+catalog" — it means an empty one, and resolving a profile against it raises
+`UndeclaredProfileCatalogError` naming the missing declaration.
 
-Byte-identical for Eufy throughout. A second brand's dispatched per-room settings already honor its catalog; its *editor UI* would show framework defaults until those editor methods are threaded — a documented follow-up.
+**Where it is wired.** Every room-resolving path is adapter-sourced. It was not always:
+four sites in `manager.py` resolved rooms without consulting ANY adapter, so room saves,
+profile matching and the profile library ran every brand against Eufy's catalog. That was
+invisible for as long as a fallback existed to answer for them.
+
+| Site | Catalog source |
+|---|---|
+| Dispatch — `queue/queue_engine.py:build_room_clean_payload` | adapter, threaded into `resolve_room_profile_for_room` + `apply_capability_gate` |
+| Bulk apply — `manager.py:apply_room_profile` | adapter, so a brand fills omitted fields from ITS `normalize_defaults` (§5.5) |
+| Room CRUD — `manager.py:_finalize_room_update` / `_match_profile_from_fields` / `_protected_room_config` | adapter, via the required `vacuum_entity_id` parameter |
+| Effective details — `manager.py:get_effective_room_details` | adapter |
+| Profile library — `manager.py:get_room_profiles` | adapter when `vacuum_entity_id` is given; otherwise the SAVED library alone, flagged `built_ins_included: false` |
+
+`get_room_profiles` is the one that cannot simply require a vacuum: it backs a shipped
+service that callers already invoke with no arguments. Rather than defaulting to a brand,
+it returns a strictly smaller and correctly-labelled answer. The card now passes its own
+`vacuum_entity_id`.
 
 **Note — new-room defaulting no longer goes through this table.** `rooms/room_manager.py::build_managed_rooms` (and `maps/map_manager.py::rebuild_map_bucket`) do **not** call any of the catalog-aware resolver functions above with `catalog=None`; "what does a fresh room look like?" is answered by a separate, newer, brand-aware seam — `rooms/room_defaults.py::resolve_new_room_defaults_for_vacuum(vacuum_entity_id)`, which resolves the SAME `resolve_profile_catalog` but is invoked by the (vacuum-scoped) caller (`save_managed_rooms` / `rebuild_map`) rather than by the room-builder itself, and returns setting values directly rather than being threaded through as a `catalog` kwarg. See [08-rooms-system](08-rooms-system.md) §3.1. `build_managed_rooms` still imports the bare `DEFAULT_ROOM_PROFILE_NAME` constant (not `resolve_profile_catalog`) as the last-resort `profile_name` fallback when neither the existing room nor `new_room_defaults` supplies one.
 
@@ -91,7 +133,7 @@ Each stored record is the `normalize_room_profile()` output — exactly **9 keys
 | `clean_mode` | `str` | `"vacuum"` |
 | `fan_speed` | `str` | `"Max"` |
 | `water_level` | `str` | `"Off"` |
-| `clean_intensity` | `str` | `"Quick"` (dead `Standard`/`Normal` folded via `normalize_clean_intensity`) |
+| `clean_intensity` | `str` | `""` when nothing is declared. The retired Eufy values `Standard`/`Normal` are no longer folded on read — that was a one-shot data repair running forever, now `rooms/vocabulary_migration.py`. What remains is `coerce_clean_intensity`, which trims and coerces and carries no vocabulary. |
 | `path_type` | `str` | `"wide"` |
 | `clean_passes` | `int` | `1` |
 | `edge_mopping` | `bool` | `False` |
@@ -99,7 +141,7 @@ Each stored record is the `normalize_room_profile()` output — exactly **9 keys
 
 > **`path_type`/`mop_required` are derived for custom profiles.** The editor/service exposes 7 fields (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`) — not `path_type` or `mop_required`. `save_user_room_profile` **derives** the missing two to mirror the built-ins rather than letting `normalize_room_profile` default both: `mop_required = "mop" in clean_mode or "wash" in clean_mode`, and `path_type = "narrow"` when `clean_intensity` normalizes to `Deep` else `"wide"`. (Was code-flag B2: previously both were left to default `"wide"`/`False`, mis-storing a deep-mop custom profile — fixed.)
 
-Only **user-created** profiles are stored here. The four built-ins are not persisted — `get_room_profiles()` merges them over the stored profiles at read time via `merge_profile_dicts()`. The store key is also the `profile_name`.
+Only **user-created** profiles are stored here, and the store is GLOBAL rather than per-vacuum. The four built-ins are not persisted — `get_room_profiles(vacuum_entity_id=...)` merges that vacuum's declared `builtins` over the stored profiles at read time via `merge_profile_dicts()`. Called without a vacuum it returns the stored library alone and reports `built_ins_included: false`, because built-ins belong to a brand and there is no framework set to stand in. The store key is also the `profile_name`.
 
 ### 3.2 Run profiles
 
@@ -128,11 +170,13 @@ data["run_profiles"][vacuum_entity_id][map_id_str][profile_id] = {
 ## 4. Protected Room Profiles
 
 ```python
-_PROTECTED_ROOM_PROFILE_NAMES = frozenset(BUILT_IN_ROOM_PROFILES.keys())
+PROTECTED_ROOM_PROFILE_NAMES: frozenset[str] = frozenset({
+    "vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep",
+})
 # → frozenset({"vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep"})
 ```
 
-This binds at **module load** to the in-code `BUILT_IN_ROOM_PROFILES` and is **untouched** by the adapter-catalog mechanism (§1.1) — `resolve_profile_catalog()` only affects *resolution*, never the protected-name set.
+A **literal**, not derived from any brand's catalog — it used to be `frozenset(BUILT_IN_ROOM_PROFILES.keys())`, which only worked while core held a catalog to derive it from. These four names are framework identity: every brand declares exactly them on purpose, so a stored room and the profile picker survive a brand switch. Untouched by the adapter-catalog mechanism (§1.1) — `resolve_profile_catalog()` only affects *resolution*, never the protected-name set.
 
 Any operation that would rename, delete, or overwrite a protected profile **returns a result dict** with `reason="protected_profile"` and the relevant action flag set `False` (e.g. `{"deleted": False, "reason": "protected_profile", ...}`). These methods do **not** raise `ValueError`. The check applies to:
 - `delete_room_profile(*, profile_name)`
@@ -322,7 +366,7 @@ if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
     clean_intensity = fallback.get("clean_intensity", clean_intensity)  # was hardcoded "Deep"/"Quick"
 ```
 
-The `resolved_profile_name` argument selects which vacuum profile to mirror: a deep mop profile (`vacuum_mop_deep`) maps to `vacuum_deep`, everything else maps to `vacuum_quick`. The optional `catalog` argument (§1.1) sources that fallback profile from the adapter's catalog when present (the dispatch path threads it in; `None` → in-code built-ins). With today's Eufy built-ins (§1) this yields the same `narrow`/`Deep` and `wide`/`Quick` values the code used to hardcode — so Eufy output is byte-identical — but a future brand whose catalog declares different `path_type`/`clean_intensity` vocabulary gets the right downgrade for free. After the downgrade (or for any room already in `clean_mode == "vacuum"`), `water_level` and `edge_mopping` are forced off. The returned dict carries `capability_gated: True`.
+The `resolved_profile_name` argument selects which vacuum profile to mirror: a deep mop profile (`vacuum_mop_deep`) maps to `vacuum_deep`, everything else maps to `vacuum_quick`. The `catalog` argument (§1.1) sources that fallback profile from the adapter's catalog; with none, there is nothing to downgrade to and resolution raises. A brand whose catalog declares different `path_type`/`clean_intensity` vocabulary gets the right downgrade for free — and Roborock, which declares no intensity axis at all, gets no intensity rather than Eufy's. After the downgrade (or for any room already in `clean_mode == "vacuum"`), `water_level` and `edge_mopping` are forced off. The returned dict carries `capability_gated: True`.
 
 ### 6.2 `get_effective_room_details` — the public resolved-room read
 
@@ -422,7 +466,7 @@ The caller does **not** pass rooms — `save_run_profile` snapshots the **curren
 | `clean_mode` | `str` | `"vacuum"` |
 | `fan_speed` | `str` | `"Max"` |
 | `water_level` | `str` | `"Off"` |
-| `clean_intensity` | `normalize_clean_intensity(...)` | `"Quick"` |
+| `clean_intensity` | `coerce_clean_intensity(...)` | `""` |
 | `clean_passes` | `int` | `1` |
 | `edge_mopping` | `bool` | `False` |
 | `order` | `int` | `999` |

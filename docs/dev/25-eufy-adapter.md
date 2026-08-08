@@ -407,11 +407,10 @@ maps. Eufy declares the whole block **by reference** to the in-code constants in
 `profiles/room_profiles.py` (`BUILT_IN_ROOM_PROFILES`, `DEFAULT_CUSTOM_ROOM_PROFILE`,
 `LEGACY_PROFILE_ALIASES`, `DEFAULT_ROOM_PROFILE_NAME`, `FLOOR_TYPE_*_DEFAULTS`) — no
 duplication, byte-identical. Those in-code constants stay the framework **default**
-catalog *and* the source of `_PROTECTED_ROOM_PROFILE_NAMES` (bound at module load in
-`profiles/manager.py`); this block is **resolution-only**.
-`resolve_profile_catalog()` merges the block over the constants **per key**, so a
-port can override any subset (just its `builtins`, say) and inherit the rest; a
-None/empty block returns the in-code defaults verbatim. The catalog is threaded
+source of the four protected profile KEYS; this block is **resolution-only**.
+`resolve_profile_catalog()` carries exactly what the adapter declared — there is no
+merge and no in-code default, and an undeclared key resolves EMPTY. Eufy's values
+live in `adapters/eufy/room_profiles.py`, not in core. The catalog is threaded
 through the per-room resolvers (`resolve_room_profile_for_room`,
 `apply_capability_gate`, …) on the **dispatch** path
 (`queue/queue_engine.py::build_room_clean_payload`), so per-room dispatch settings

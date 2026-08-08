@@ -226,7 +226,11 @@ def normalize_room_profile(
     brand_defaults = (catalog or {}).get("normalize_defaults") or {}
 
     return {
-        "label": str(source.get("label", d.get("label", "User Profile 1"))),
+        # "" for the same reason as fan_speed/water_level below: "User Profile 1" is
+        # EUFY's custom-template label, declared by its adapter. The invariant gate
+        # cannot see this one — `label` is a display string, not a provider-owned
+        # field — so it is held by convention and by this comment.
+        "label": str(source.get("label", d.get("label", ""))),
         "clean_mode": str(source.get("clean_mode", d.get("clean_mode", "vacuum"))),
         "fan_speed": str(source.get("fan_speed", brand_defaults.get("fan_speed", ""))),
         "water_level": str(source.get("water_level", brand_defaults.get("water_level", ""))),

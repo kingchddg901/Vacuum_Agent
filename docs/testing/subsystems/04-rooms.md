@@ -42,7 +42,8 @@ and `water_level` from every room on a Roborock S6 — which declares no options
 them because its mop is not settable, not because the axis does not exist. Absence
 of an OPTION LIST means "cannot judge"; only absence from the brand's own PROFILES
 means "no such axis". Caught by enumerating the live store before the rule was
-written, per [[feedback_adversarial_self_break]].
+written: a guard that newly activates over existing data must be measured against that
+data first, because passing your own tests says nothing about what is already on disk.
 
 **MIG-9 is why `normalize_clean_intensity` could be deleted rather than moved.**
 It folded the retired Eufy values `standard`/`normal` to `"Quick"` on every read,

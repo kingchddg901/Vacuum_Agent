@@ -112,7 +112,7 @@ this is the orientation.
 | `discovery` | no | how the room list is exposed (§7) |
 | `mapping` | no | pluggable **map** segmenter — image → room polygons (§8) |
 | `job_segmenter` + `live_transition` | no | pluggable **job/run** segmenter — counter stream → per-room boundaries — plus live-rollover orchestration (§9) |
-| `room_profiles` | **effectively yes** | adapter-sourced room-profile vocabulary (§10). Nominally optional, but omitting it inherits the framework catalog — which is EUFY'S — so your rooms are created with another brand's words and apply nothing. See §10. |
+| `room_profiles` | **YES — registration fails without it** | your brand's room-profile vocabulary (§10). Core carries no catalog, so an adapter declaring none cannot resolve a room. It was nominally optional until 2026-08-07, and omitting it inherited the framework catalog — which was EUFY'S — so rooms were created with another brand's words and applied nothing. See §10. |
 | `dock_events`, `post_job_wash_amendment`, `error_tracking`, `maintenance_components`, `upkeep_catalog`, `water_model_configs` | no | dock/error/maintenance catalogs — graceful degradation when absent |
 
 ---
@@ -500,14 +500,14 @@ conform, so copying their shape keeps you right.
 
 ---
 
-## 10. Room-profile vocabulary (optional)
+## 10. Room-profile vocabulary (REQUIRED)
 
-A brand can override the room-profile vocabulary via a `room_profiles` block.
-The in-code catalog in `profiles/room_profiles.py` (`BUILT_IN_ROOM_PROFILES`,
-`DEFAULT_CUSTOM_ROOM_PROFILE`, the floor-type defaults, the legacy aliases, and
-`DEFAULT_ROOM_PROFILE_NAME`) is the framework **default**; `resolve_profile_catalog(block)`
-merges your block over those constants **per key**, so you can override any
-subset and a `None`/empty block yields the defaults verbatim (byte-identical).
+Your brand's room-profile vocabulary. Core carries **no catalog of its own**, so an
+adapter that declares none cannot resolve a single room and fails registration.
+
+What core does own is the four profile KEYS (`PROTECTED_ROOM_PROFILE_NAMES`) and
+`DEFAULT_ROOM_PROFILE_NAME`, which names WHICH profile a new room starts on and never
+what is inside one. Every value is yours.
 
 ```python
 "room_profiles": {
@@ -518,9 +518,24 @@ subset and a `None`/empty block yields the defaults verbatim (byte-identical).
 },
 ```
 
-The Eufy adapter declares this block **by reference** to the in-code constants
-(no duplication). `registry._validate_adapter` applies a light check: the block
-must be a dict, `default_profile` a string, and the catalog sub-keys dicts.
+`resolve_profile_catalog(block)` carries exactly what you declared — no merge, no
+inherited defaults. An undeclared key resolves EMPTY.
+
+**The gate is the block, not each key.** Declaring some and not others is fine: the
+rest resolve empty, which is a defined answer. Declaring one EMPTY (`legacy_aliases: {}`,
+as Roborock does) states "this brand supplies none", and is deliberately distinguishable
+from omitting it — collapse the two and "this brand has none" reads the same as "the
+porter forgot". Only an absent or wholly empty block fails registration.
+
+**Use the same four profile KEYS** every brand declares (`vacuum_quick`, `vacuum_deep`,
+`vacuum_mop_quick`, `vacuum_mop_deep`) so a stored room and the card's profile picker
+survive a brand switch. **Omit an axis your brand does not have** — Roborock omits
+`clean_intensity` from every profile — so nothing inert is written onto its rooms.
+
+Note `floor_type_water_defaults`: the resolver reads its **carpet** entry as your brand's
+no-water word (`no_water_value()`), because carpet is the one surface the framework
+guarantees dry. Get that entry right and every "suppress water" path in core uses your
+word instead of somebody else's.
 
 **Where it's consumed.** The per-vacuum catalog is resolved (via
 `resolve_profile_catalog` on the vacuum's registered `room_profiles` block) at
@@ -528,11 +543,17 @@ three consumers: the **dispatch** path
 (`queue/queue_engine.py::build_room_clean_payload` threads it into per-room
 profile resolution + capability gating), **profile application**
 (`profiles/manager.py::apply_room_profile` resolves the vacuum's catalog so an
-omitted field fills from the brand's `normalize_defaults`, not the in-code Eufy
-ones), and **new-room defaults**
+omitted field fills from the brand's `normalize_defaults`), **room CRUD**
+(`_finalize_room_update` / `_match_profile_from_fields` / `_protected_room_config`, each
+of which now takes a required `vacuum_entity_id`), **the profile library**
+(`get_room_profiles`), and **new-room defaults**
 (`rooms/room_defaults.py::resolve_new_room_defaults_for_vacuum`, used by the
-room-creation call sites). An unregistered adapter or absent block resolves the
-in-code framework catalog — byte-identical to Eufy's.
+room-creation call sites).
+
+An unregistered adapter resolves an EMPTY catalog, and resolving a profile against one
+raises `UndeclaredProfileCatalogError` naming the missing declaration. It used to resolve
+the in-code framework catalog, which was Eufy's — that is the bug this contract exists to
+prevent, not a fallback to rely on.
 
 ---
 

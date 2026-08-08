@@ -209,12 +209,15 @@ reconciliation review surfaces ambiguous shifts. See
   exposes no intensity axis, so a room stores nothing for it rather than an inert `"Quick"`.
 
   This block was originally omitted as "framework defaults suffice", which was wrong: the
-  in-code catalog is *Eufy's*, so every Roborock room was created with `"Max"` / `"Off"` /
+  in-code catalog *was Eufy's*, so every Roborock room was created with `"Max"` / `"Off"` /
   `"Quick"`. The card's chip rows compare option values strictly (nothing rendered as
-  selected) and `per_room_live_settings` filters on `fan_speed_options`, so an unedited room
-  got **no suction applied at all** — the `options_key` filter in that block was a
-  workaround for exactly this. Same profile KEYS as the framework catalog so stored rooms
-  and the profile picker survive a brand switch; only the VALUES differ.
+  selected) and `per_room_live_settings` filters on `fan_speed_options`, so
+  `jobs/active_job.py` skipped the `set_fan_speed` call entirely and the room ran on
+  whatever fan was last set — the `options_key` filter in that block was a workaround for
+  exactly this. The framework catalog was removed on 2026-08-07 and the block is now
+  REQUIRED; a brand declaring none fails registration. Same four profile KEYS as every
+  other brand so stored rooms and the profile picker survive a brand switch; only the
+  VALUES differ.
 - **`error_tracking`** — `task_status_error_value: "error"`, `grace_window_seconds: 5`,
   `error_code_attribute_names: ["error_code","code","errorCode"]`, `unknown_error_message:
   "Unknown error during run"`, **`message_is_code: True`**. Dual-channel (`_status` and

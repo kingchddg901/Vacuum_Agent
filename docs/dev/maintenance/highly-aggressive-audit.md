@@ -1315,14 +1315,25 @@ landed; see `_gen_packet_closure.py` for how a packet resolves to the ids below.
   Applying a built-in room profile to a Roborock room writes EUFY vocabulary onto the room; the fresh room_defaults fix covers creation only
 - [x] **DQ-PAY-6** `profiles/manager.py:108` · roborock — **RP-025** (`71cc479`, 2026-08-02)  
   _protected_room_config stamps the Eufy literal "Off" into every non-mop room's water_level regardless of brand, on the path into the payload builder
-- [x] **A3-PP-CRUD-1** `profiles/manager.py:631` · roborock — **RP-025** (`71cc479`, 2026-08-02)  
+> **Closure caveat (recorded 2026-08-08).** Three findings below name `profiles/manager.py`
+> and were all marked closed against `71cc479` — a commit that never touched that file. One
+> (CRUD-1) was genuinely fixed elsewhere; two (CRUD-4, CRUD-7) were still live six days later
+> and were rediscovered independently while removing the framework profile catalog. A `[x]`
+> in this ledger records that someone believed a finding was addressed, not that the named
+> commit demonstrably addressed it. Where a finding names a FILE, the closing commit should
+> touch that file — a cheap check that would have caught both.
+
+- [x] **A3-PP-CRUD-1** `profiles/manager.py:631` · roborock — **RP-025** (`71cc479`, 2026-08-02) → *fix landed in `0b9c375`, not the commit cited*  
   apply_room_profile writes Eufy vocabulary onto Roborock rooms — the catalog it resolves is inert
-- [x] **A3-PP-CRUD-4** `profiles/manager.py:257` · roborock — **RP-025** (`71cc479`, 2026-08-02)  
-  get_effective_room_details resolves with no catalog — Eufy floor defaults override a Roborock carpet room, and "Quick" is injected where the brand has no intensity axis
+- [x] **A3-PP-CRUD-4** `profiles/manager.py:257` · roborock — **RP-025** (`71cc479`, 2026-08-02) → **REOPENED, actually fixed `ad8c074`, 2026-08-08**  
+  get_effective_room_details resolves with no catalog — Eufy floor defaults override a Roborock carpet room, and "Quick" is injected where the brand has no intensity axis  
+  *Closure was wrong: `71cc479` touched `room_profiles.py` and two test files, never `profiles/manager.py`. The call site still passed no catalog and was rediscovered independently six days later.*
 - [x] **A3-PP-CRUD-6** `profiles/manager.py:47` · future_brand_only — **RP-025** (`71cc479`, 2026-08-02)  
   Protected-profile-name set is frozen from the Eufy in-code catalog, so a brand's own built-ins are unprotected and can be shadowed by a user profile
-- [x] **A3-PP-CRUD-7** `profiles/manager.py:104` · both — **RP-025** (`71cc479`, 2026-08-02)  
-  _protected_room_config is the only writer in the finalize pipeline and it stamps the Eufy literal "Off" onto every non-mop room, on both brands
+- [x] **A3-PP-CRUD-7** `profiles/manager.py:104` · both — **RP-025** (`71cc479`, 2026-08-02) → **REOPENED, actually fixed `ad8c074`, 2026-08-08**  
+  _protected_room_config is the only writer in the finalize pipeline and it stamps the Eufy literal "Off" onto every non-mop room, on both brands  
+  *Closure was wrong, same cause as CRUD-4. This was the THIRD copy of one predicate: the literal was removed from `resolve_room_profile_for_room`, then later from `apply_capability_gate`, and this sibling was marked closed by association both times. A guard that EXISTS reads as
+  complete; diff a predicate against its copies, because the shorter copy is the bug.*
 - [x] **DQ-Q-4** `profiles/room_profiles.py:209` · roborock — **RP-025** (`71cc479`, 2026-08-02)  
   normalize_room_profile re-injects the Eufy literal "Quick" for clean_intensity, defeating Roborock's deliberate omission of the axis
 - [x] **DQ-Q-6** `profiles/room_profiles.py:519` · future_brand_only — **RP-025** (`71cc479`, 2026-08-02)  

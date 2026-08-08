@@ -31,11 +31,14 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
 - **Pure normalization** (unit) — `room_profiles.py` field coercion, protected
   names, and the profile-match resolution used to label a room's current config.
 - **Adapter-sourced catalog seam** (unit, `test_profile_catalog.py`) —
-  `resolve_profile_catalog` per-key merge of an adapter `room_profiles` block over
-  the in-code defaults, catalog-driven resolution (`resolve_room_profile_for_room`
-  honouring a catalog's floor-type water default, `default_profile` fallback, and a
-  custom `builtins` entry), and `None`/empty block staying byte-identical to the
-  in-code defaults (see [16 — profile manager §1.1](../../dev/16-profile-manager.md)).
+  `resolve_profile_catalog` carrying exactly what an adapter declared, catalog-driven
+  resolution (`resolve_room_profile_for_room` honouring a catalog's floor-type water
+  default, `default_profile` fallback, and a declared `builtins` entry), and an
+  undeclared block resolving EMPTY rather than to a brand's words. Every catalog in
+  that file is SYNTHETIC on purpose: if a core test needed a real brand's words to
+  pass, core would still own them. See
+  [16 — profile manager §1.1](../../dev/16-profile-manager.md), and
+  `tests/adapters/test_declaration_contract.py` for the three declaration states.
 
 ---
 

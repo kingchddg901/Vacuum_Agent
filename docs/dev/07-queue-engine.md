@@ -56,7 +56,20 @@ The `payload` sub-object is the exact body sent to the Eufy API via
 
 ## 2. Payload Structure
 
-### Wire format sent to the vacuum
+### Wire format — the `eufy_room_clean` template
+
+**One template's shape, not "the" wire format.** This is the list-of-dicts "rows"
+shape produced by `EufyRoomCleanEngine`, and the field VALUES below are Eufy's
+vocabulary. Three other shapes exist and are equally canonical — the flat id list
+(`GenericRoomIdsEngine` / `RoborockSegmentEngine`) and the positional parallel
+arrays (`DreameSegmentEngine`). All four are enumerated in §7 *Dispatch engines &
+the job model*, with the full author-facing per-template reference in
+[22 §13](22-adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job).
+
+What is shared across all of them is the RESOLVER — `build_room_clean_payload`
+does profile resolution, capability gating and the canonical `resolved_rooms`
+sidecar; each engine only reshapes that. So §4 (Profile Resolution) below applies
+to every brand; this section does not.
 
 ```json
 {
@@ -85,9 +98,9 @@ condition); `water_level` and `edge_mopping` additionally require the room's
 | `map_id` | `int \| str` | Cast by the adapter's `dispatch.map_id_type`: `"int"` forces int, `"str"` forces str, absent = auto-cast (numeric when all-digits, else raw string). When `map_id_type == "int"` but the id can't become an int (a scalar / `"main"` anchor), the field is **omitted entirely** from the wire payload. |
 | `id` | `int` | Room ID from the vacuum firmware |
 | `clean_times` | `int` | Cleaning passes, **clamped to `[1, passes_max]`** on the wire (`dispatch.passes_max`, default 2 — the Eufy cap); `resolved_rooms.clean_passes` keeps the raw resolved value, so learning records intent, not the device clamp. Capability gating also forces `1` when `supports_passes` is false. |
-| `fan_speed` | `str` | `"Quiet"`, `"Standard"`, `"Boost"`, `"Max"` |
+| `fan_speed` | `str` | **Brand vocabulary** — whatever the adapter declares in `vocabulary.fan_speed_options`. Eufy: `"Quiet"`/`"Standard"`/`"Boost"`/`"Max"`; Roborock: `"quiet"`/`"balanced"`/`"turbo"`/`"max"`/`"gentle"`. A value outside the declared list is filtered out before dispatch (`jobs/active_job.py`), so the setting silently does nothing. |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
-| `clean_intensity` | `str` | `"Quick"`, `"Narrow"`, `"Deep"`. Legacy `"Standard"` / `"Normal"` are **dead** values folded to `"Quick"` on read (`normalize_clean_intensity`); nothing emits `"Standard"` on the wire. |
+| `clean_intensity` | `str` | **Brand vocabulary, and may be absent entirely** — Roborock declares no intensity axis and omits it from every profile. Eufy: `"Quick"`/`"Narrow"`/`"Deep"`. The retired Eufy values `"Standard"`/`"Normal"` are no longer folded on read; they are repaired once in the store (`rooms/vocabulary_migration.py`) and nothing emits them on the wire. |
 | `water_level` | `str` | Only when `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `edge_mopping` | `bool` | Only when `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `path_type` | `str` | `"wide"`, `"narrow"` (default `"wide"`); only when `supports_path_control` |
@@ -151,10 +164,11 @@ reads the adapter's `room_profiles` block, and passes it through
 `resolve_profile_catalog` (`profiles/room_profiles.py`). That returns a catalog
 dict (`builtins`, `custom_template`, `legacy_aliases`, `default_profile`,
 `floor_type_water_defaults`, `floor_type_fan_defaults`, `normalize_defaults`),
-merging the adapter block over the in-code constants *per key*. A None/empty
-block yields the in-code defaults verbatim — so for Eufy, whose `room_profiles`
-block is declared by reference to those same constants, the catalog **is** the
-in-code defaults and resolution is byte-identical to pre-refactor.
+carrying exactly what the adapter declared. There is **no merge and no framework
+default**: an undeclared key resolves EMPTY, and an adapter that declares no block
+at all fails registration. Resolving a profile against an empty catalog raises
+`UndeclaredProfileCatalogError` naming the missing declaration rather than
+substituting anyone's words.
 
 The resolved `_catalog` is then threaded into both
 `resolve_room_profile_for_room` and `apply_capability_gate` (the `catalog=`
@@ -169,14 +183,27 @@ For each room, the engine resolves which cleaning settings to use:
    `room_config.get(X)` → `resolved_profile.get(X)` → hardcoded default. The
    room's **own stored field always wins**; the named profile only fills gaps —
    this holds for *every* profile, not just `custom`/not-found. A `custom` or
-   unknown name still resolves through `get_room_profile`, which uses
-   `default_profile` (`vacuum_quick`) as the gap-filler. `clean_intensity` is run
-   through `normalize_clean_intensity` (dead `Standard`/`Normal` → `Quick`).
+   unknown name still resolves through `get_room_profile`, which uses the
+   catalog's `default_profile` as the gap-filler, and raises if that supplies
+   nothing either. `clean_intensity` runs through `coerce_clean_intensity`, which
+   trims and coerces and carries no vocabulary — the retired `Standard`/`Normal`
+   fold that used to live there is now a one-shot store repair
+   (`rooms/vocabulary_migration.py`).
+
+   **The room's field winning is why removing the framework default was not
+   enough on its own.** A room already carrying a brand-foreign value keeps it;
+   the profile is never consulted. That is what the migration exists to repair.
 2. **Floor-type / carpet / mop overrides**, applied on top:
-   - carpet floor → `fan_speed = floor_type_fan_defaults[ft]` (default `Max`),
-     `water_level = "Off"`, `edge_mopping = False`;
-   - non-carpet with **no** explicit `water_level` → `water_level = floor_type_water_defaults[ft]` (default `Low`);
-   - mop mode + `water_level == "Off"` + non-carpet → `water_level = floor_type_water_defaults[ft]` (mop-with-Off is invalid);
+   - carpet floor → `fan_speed = floor_type_fan_defaults[ft]`,
+     `water_level = floor_type_water_defaults[ft]`, `edge_mopping = False`. Both
+     come from the CATALOG; carpet's water entry IS the brand's no-water word
+     (`no_water_value()`). Assigning a literal `"Off"` here wrote Eufy casing into
+     a Roborock resolution, where the value is `"off"`;
+   - non-carpet with **no** explicit `water_level` → `water_level = floor_type_water_defaults[ft]`;
+   - mop mode + no water + non-carpet → `water_level = floor_type_water_defaults[ft]`
+     (mop-without-water is invalid). "No water" is compared against the brand's
+     DECLARED word, not a literal — the check was `in ("", "off")`, which only
+     recognised brands that happen to spell it that way;
    - non-mop mode **or** carpet → `edge_mopping = False`.
 3. **Capability gating** (`apply_capability_gate`, at payload-build time, not during
    resolution): if mop is unsupported and mode is `mop`/`vacuum_mop`, **downgrade**

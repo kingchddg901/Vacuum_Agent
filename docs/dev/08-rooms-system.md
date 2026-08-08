@@ -177,7 +177,7 @@ on the field list.
 
 `new_room_defaults` is **required with no default value** — it comes from
 `rooms/room_defaults.py::resolve_new_room_defaults_for_vacuum(vacuum_entity_id)`, which resolves
-the **brand's `room_profiles.default_profile`** (framework catalog: `vacuum_quick`) and returns
+the **brand's `room_profiles.default_profile`** (core supplies only the KEY `vacuum_quick` when the adapter names none — never the profile's contents) and returns
 `{"profile_name": <name>}` plus whichever of `clean_mode` / `fan_speed` / `water_level` /
 `clean_intensity` / `path_type` / `clean_passes` / `edge_mopping` that profile declares. A field
 the brand's profile omits falls back to the `RoomConfig` field default (`fan_speed` /

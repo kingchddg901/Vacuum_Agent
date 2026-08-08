@@ -431,7 +431,7 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
 | `fan_speed` | `str` | **Brand vocabulary.** Eufy: `"Max"`, `"Boost"`, `"Standard"`, `"Quiet"`. Roborock: `"max"`, `"turbo"`, `"balanced"`, `"quiet"`, `"gentle"`. Values are the brand's declared `vocabulary.fan_speed_options`; casing differs between brands and the card compares strictly. |
 | `water_level` | `str` | **Brand vocabulary.** Eufy: `"Off"`/`"Low"`/`"Medium"`/`"High"`; Roborock the same set lowercased. |
-| `clean_intensity` | `str` | **Brand vocabulary, and may be absent entirely** — Roborock exposes no intensity axis and stores nothing for it. Eufy: `"Quick"`, `"Narrow"`, `"Deep"`; legacy `"Standard"`/`"Normal"` are **dead**, normalized to `"Quick"` by `normalize_clean_intensity` (same as §07/§08). |
+| `clean_intensity` | `str` | **Brand vocabulary, and may be absent entirely** — Roborock exposes no intensity axis and stores nothing for it. Eufy: `"Quick"`, `"Narrow"`, `"Deep"`; the retired `"Standard"`/`"Normal"` are repaired once in the store by `rooms/vocabulary_migration.py` rather than folded on every read (same as §07/§16). |
 
 > **New-room defaults come from the brand's default profile.** `build_managed_rooms` and
 > the map-rebuild path both take a `new_room_defaults` mapping resolved by

@@ -1703,36 +1703,54 @@ pre-fill `1.5` / `2.0`.
 
 ## 13d. `room_profiles` — adapter-sourced room-profile vocabulary
 
-The default room-profile catalog — the built-in profile presets, the
-custom-profile template, legacy-name aliases, and the per-floor-type
-fan/water defaults — that drive per-room dispatch settings. The in-code
-constants in `profiles/room_profiles.py` remain the framework **default**
-catalog (and the source of `_PROTECTED_ROOM_PROFILE_NAMES`, bound at
-module load — untouched by this block); declaring `room_profiles` lets an
-adapter **override any subset** of that vocabulary per-vacuum.
+**This brand's** room-profile vocabulary — the built-in profile presets, the
+custom-profile template, legacy-name aliases, and the per-floor-type fan/water
+defaults — that drive per-room dispatch settings.
 
-`resolve_profile_catalog(block)` (in `profiles/room_profiles.py`) merges
-this block over the in-code constants **per key** — a `None`/empty block
-returns the in-code defaults verbatim, so a vacuum without the block (and
-Eufy, which declares it *by reference* to the in-code constants) resolves
-byte-identically. The Eufy adapter declares it so room resolution is
-adapter-sourced and a future brand can inline its own vocabulary.
+Core owns the four profile KEYS (`PROTECTED_ROOM_PROFILE_NAMES`, a literal
+frozenset) and `DEFAULT_ROOM_PROFILE_NAME`, which says WHICH profile a new room
+starts on and never what is inside one. It owns no values.
 
-> **Effectively required for a non-Eufy brand.** The in-code catalog *is Eufy's*, so an
-> absent block does not mean "neutral defaults" — it means Eufy display vocabulary
-> (`"Max"` / `"Off"` / `"Quick"`) in that brand's rooms. Roborock shipped without this
-> block and every Roborock room was created with values the brand does not recognise: the
-> card's chip rows compare option values strictly (nothing rendered as selected) and
-> `dispatch.per_room_live_settings` filters on `fan_speed_options` (no suction applied at
-> all). Declare at minimum `builtins` + `default_profile`, plus
-> `floor_type_water_defaults` / `floor_type_fan_defaults` — those apply to *every* room,
-> and the resolver reads the carpet entry of the water map as the brand's no-water value.
-> `tests/adapters/test_adapter_contract.py` enforces this for every registered brand.
+`resolve_profile_catalog(block)` (in `profiles/room_profiles.py`) carries exactly
+what you declared. There is **no merge and no framework default**: an undeclared
+key resolves EMPTY, not to another brand's words.
+
+> **REQUIRED. Registration fails without it**, unlike every other block in this
+> document. An adapter declaring no catalog cannot resolve a single room, so the
+> failure belongs at registration where the porter sees it, not at the first clean.
+>
+> Until 2026-08-07 this block was optional and the in-code catalog *was* Eufy's, so
+> an absent block did not mean "neutral defaults" — it meant Eufy display vocabulary
+> (`"Max"` / `"Off"` / `"Quick"`) in that brand's rooms. Roborock shipped without it
+> and every Roborock room was created with values the brand does not recognise: the
+> card's chip rows compare option values strictly (nothing rendered as selected), and
+> `dispatch.per_room_live_settings` filters on `fan_speed_options`, so
+> `jobs/active_job.py` skipped the `set_fan_speed` call entirely and the room ran on
+> whatever fan was last set. Nothing logged.
+>
+> Declare at minimum `builtins` + `default_profile`, plus `floor_type_water_defaults`
+> / `floor_type_fan_defaults` — those apply to *every* room, and the resolver reads
+> the carpet entry of the water map as your brand's no-water value
+> (`no_water_value()`). Omit an axis your brand does not have: Roborock omits
+> `clean_intensity` from every profile, so nothing inert is written onto its rooms.
+
+**The gate is the block, not each key.** Declaring some keys and not others is fine —
+the undeclared ones resolve empty, which is a defined answer. Declaring a key EMPTY
+(`legacy_aliases: {}`, as Roborock does) states "this brand supplies none" and is
+deliberately distinguishable from omitting it: collapse the two and "this brand has
+none" becomes indistinguishable from "the porter forgot". Only an absent or wholly
+empty block fails.
+
+`tests/adapters/test_adapter_contract.py` enforces the declaration for every
+registered brand, and `tests/adapters/test_declaration_contract.py` pins all three
+states — declared, undeclared, and declared-empty.
 
 ### Schema
 
-All keys optional; an absent key inherits the in-code default for that
-key.
+The BLOCK is required (above). Within it, keys are individually optional and an
+absent one resolves EMPTY — there is no in-code default to inherit. Declare a key
+empty (`{}`) to state that this brand supplies none, which is a different thing
+from omitting it.
 
 | Field | Type | In-code default | Purpose |
 |-------|------|-----------------|---------|
