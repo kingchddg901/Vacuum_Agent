@@ -574,6 +574,20 @@ The following rules close exploit and collusion classes in the scoring surface a
     - **Score ledger per agent-instance and per pair.** Track closures, discovery rounds, green rates, and verdict distributions — individually and per trimmer×builder pair, because collusion is invisible in individual stats and shows up as one pair's anomaly.
     - **Two audit triggers:** a **random baseline** — a fixed fraction of closures (start 1 in 5) gets a handoff audit unconditionally, so staying under statistical thresholds is never safe — and a **statistical trigger** — any agent or pair whose points, green rate, or verdict mix departs the cohort norm (the outlier you would notice on a scoreboard). Signature patterns worth standing queries: a trimmer whose large deletions always green on the first build (coupling suspect); a builder whose greens concentrate on one trimmer's prose (pair suspect); a reviewer whose D-rate is an outlier (inflation suspect).
     - **The audit itself** re-examines the handoff artifacts forensically. The measurable smoking gun is **incidental similarity**: a blind reconstruction that matches the original implementation's incidental choices — private helper names, internal structure, ordering the contract does not force — beyond chance is carrying smuggled answers, whatever the prose looks like. Trimmed prose gets the coupling scan; new tests get the over-pinning scan.
+
+      **NAMES SHOULD NOT SURVIVE; IDEAS SHOULD** (Chris, 2026-08-07). This is the usable form of "beyond chance", and it replaces a judgement call with a lookup. Two blind builders solving the same problem against the same contract SHOULD converge on concept, structure and approach — that convergence is the evidence a doc conveyed meaning, and penalising it would punish the protocol's own success. Nothing forces a particular helper name, key ordering, or comment phrasing, so those have no innocent reason to match.
+
+      The cutoff: **a name shared with the original that does NOT appear anywhere in the permitted reading set is a smuggle signal; a name that DOES appear there is legitimate vocabulary.** Mechanical, and it needs no estimate of chance.
+
+      | ideas | names | reading |
+      |---|---|---|
+      | converge | diverge | **the target signature** — the doc carried the concept |
+      | converge | converge, not in the permitted set | **smuggle** — a source that is not the docs |
+      | converge | converge, present in the permitted set | fine — the doc supplied the vocabulary |
+      | diverge | diverge | the doc FAILED to carry the concept — a specification gap, not dishonesty |
+      | diverge | converge | incoherent; investigate before scoring either way |
+
+      Note the fourth row is a D-verdict candidate, not a smuggle: divergent ideas mean the prose under-specified the behavior, which is exactly what the loop exists to find.
     - **Consequences:** a confirmed smuggle voids the closure (points clawed back, ledger entry reopened, the section re-runs with fresh agents), and the implicated agent's or pair's prior closures get re-sampled — fraud clusters, and one confirmed case is never treated as isolated.
 12. **A confirmed smuggle voids the whole class, with an escrowed whistleblower carve-out.** A confirmed smuggled answer invalidates the entire chain, not just the smuggler: the loop's agent group for that section (trimmer, builder(s), tester, reviewer) is one class, and if one member cheated, the class fails — nobody scores, the closure is void, and the section re-runs with an entirely fresh class. There is no "I didn't smuggle, I just benefited" position: benefiting from a tainted chain costs you the chain. Collective liability makes every member a stakeholder in every other member's honesty — the builder has reason to refuse suspiciously helpful prose, the reviewer has reason to run the coupling scan hard, the tester has reason to probe a reconstruction that greens too easily.
 

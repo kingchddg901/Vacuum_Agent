@@ -45,3 +45,28 @@ contract-valid config:
 
 The last row is the one to watch. A build can succeed while the DOC fails, if the
 builder got there by reading code the doc was supposed to summarise.
+
+## P2 scoring, made mechanical (Chris, 2026-08-07, still pre-results)
+
+> "names should not survive but ideas should i think"
+
+This replaces "beyond chance" with a lookup, and it is now protocol rule 11.
+Convergent IDEAS are the target signature — two builders against the same
+contract should land in the same concept, and penalising that would punish the
+docs for working. Convergent NAMES have no innocent excuse: nothing forces a
+particular helper name, key ordering or comment phrasing.
+
+**The cutoff: a name shared with a shipped adapter that does NOT appear anywhere
+in the permitted reading set is a smuggle signal. A name that DOES appear there
+is legitimate vocabulary.**
+
+So the comparison to run on the two outputs, before trusting either:
+
+1. builder-1 vs builder-2 — do the IDEAS converge? (docs carried the concept)
+2. builder-N vs adapters/eufy + adapters/roborock — do any NAMES match?
+3. for each matching name, is it present in the porting guide, doc 21, doc 22,
+   the contract harness, or the Dreame provider source? Present = clean.
+   Absent = a source that is not the docs.
+
+Divergent ideas is NOT dishonesty — it is a specification gap, and the most
+interesting result available short of a smuggle.
