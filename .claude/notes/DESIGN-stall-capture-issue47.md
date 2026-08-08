@@ -10,6 +10,12 @@ independently, so the two can be compared rather than one anchoring the other.
 Status: NOT STARTED. Scoped 2026-08-08. Can ship in its own release; nothing here is
 release-gating.
 
+**Scope verdict: this is assembly, not a feature build.** Five of the six components
+already exist — trigger, raster, bbox, position, position history — all in one coordinate
+space and on both brands. The only genuinely new code is a rasterizer (§3) plus a palette
+parity gate (§3b). The design that would have needed a new capability — fetching and
+cropping the live camera image — was rejected in favour of rendering from the raster.
+
 ---
 
 ## 1. The ruling that shapes everything else
@@ -45,19 +51,63 @@ exactly the frame this ruling excludes, and it would look correct in review.
 | stall trigger | `EVENT_STALL_DETECTED`, fired in `jobs/active_job.py` | carries `vacuum_entity_id`, `map_id`, **`room_id`**, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio`; deduped per room per job |
 | position | `robot_anchor` (§1) | pre-normalized to the rendered image |
 | position HISTORY | `pose_store.py` — 24 h rolling chunked JSONL; `append_sample` / `read_range` / `prune` | the parallel copy that outlives the job; the job buffer dies at the next run on that map |
-| room → pixel box | `mapping/mapping_services.py:615` `_bbox_from_polygon_pixel()` | |
-| map image entity | declared per brand: Eufy `camera.{object_id}_map`, Roborock `image.{object_id}_{map_slug}` (`live_map_image_entity_pattern`) | **both brands already declare it — build declaration-driven, not Eufy-first** |
+| **room-id raster, BOTH brands** | Eufy `eufy_room_pixels_v1`; Roborock `decode_roborock_v1_segments()` (`mapping/roborock_raw_map.py:77`) | one resolved room-id **byte per pixel** on both sides |
+| **room bbox** | `raster_room_bboxes()`, `mapping/roborock_raw_map.py:229` | returns `{rid: [min_x, min_y, max_x, max_y]}` **normalized 0–1**, and already honours `flip_y` — the SAME rendered frame `robot_anchor` lives in |
+| per-room colour override | `room.color` on the room record (`models/models.py:169`) | `"#rrggbb"` or absent |
+| theme colour tokens | themes storage carries `tokens`; `themes/preloaded.py` already authors room-fill tokens | |
 | image manipulation | PIL, already imported in `mapping_services` and `adapters/eufy/segmentor.py` | OPTIONAL dependency — see §6 |
 
-## 3. What does not exist
+## 3. Render from the RASTER — do not fetch the camera image
 
-**Fetching the map image inside the integration.** `async_get_image` appears nowhere in
-the codebase. This is the only genuinely new capability, and it is two paths because the
-two brands publish on different platforms (`camera` vs `image`). Resolve the entity id
-from `live_map_image_entity_pattern` — never by constructing it locally.
+Chris's call, 2026-08-08, and it collapses the scope. The obvious design is to fetch the
+live map image and crop it; that needs a capability the integration has never had
+(`async_get_image` appears nowhere) on **two different platforms** — Eufy publishes a
+`camera` entity, Roborock an `image` entity. It would also have been Eufy-shaped in
+practice, since that is the one available to test against.
 
-**Crop + annotate.** PIL crop to the room bbox, draw the position marker, encode PNG.
-Small, once §1 and the bbox are in hand.
+Rendering from the room-id raster instead needs **no new capability**, and is
+brand-agnostic by construction: both brands already produce one resolved room-id byte per
+pixel, and `raster_room_bboxes()` already turns that into a normalized per-room box in the
+same frame as `robot_anchor`. Mask, crop box, and marker position all fall out of data
+that is already computed.
+
+So the only genuinely new code is the rasterizer: crop the byte array to the bbox, map
+room-ids to colours, `Image.frombytes`, draw the marker and the §4 trail, encode PNG.
+
+**Performance constraint, already documented in the code.** `raster_room_bboxes` is a
+`width × height` Python loop — `map_source_coordinator.py` says so explicitly and notes the
+diagnostics call site dispatches it via executor. Do the same here. This is a JOB
+LIFECYCLE path; it must never run on the event loop. (Roborock's own decode is the fast
+one — a 256-entry `bytes.translate()` LUT, sub-millisecond at ~1M pixels.)
+
+**Naming smell to resolve first.** `raster_room_bboxes` lives in
+`mapping/roborock_raw_map.py` but is generic over `{room_pixels, width, height, flip_y}`.
+If Eufy's path imports it from a module named for the other brand, that is the shape of
+leak this project spent 2026-08-08 removing. Check whether the coupling is real or just
+the filename, and move it somewhere brand-neutral if it is the latter.
+
+## 3b. The palette — port the cascade, GATE it, never copy it
+
+The colours must come from the card's existing resolution, not a new invention. The
+cascade is defined once in `src/cards/map-room-color.js`:
+
+> per-room override (`room.color`) → theme token `--evcc-room-fill-<N>` → default palette
+
+Two of those three layers are ALREADY backend-readable (`room.color` on the room record;
+theme `tokens` in themes storage). Only `ROOM_FILL_PALETTE` — a 12-hex array — is
+JS-only. The module is explicitly *"DOM-free except roomFillRgb"* and is ~50 lines of pure
+logic (`slot()` modulo wrap, `roomFillTokenName()`, `normalizeHex()`), so it ports to
+Python almost line for line.
+
+**But read that file's own header before porting it.** It exists because the SVG fill path
+and the raster fill path were *"two BYTE-IDENTICAL hardcoded copies"* that had to be
+unified. A Python port is a third copy of the exact thing that already drifted once.
+
+The answer is not to avoid the copy — it is to make the copy unable to drift, which this
+repo already has a pattern for: **RF-28's declaration parity gate** (`services.yaml` ↔
+schemas ↔ docs). A test asserting the Python palette equals `ROOM_FILL_PALETTE`, failing
+the build on divergence, makes a third copy safe. Without that gate, the notification
+image quietly stops matching the map the user is looking at, and nothing reports it.
 
 **Delivery.** Where the PNG lands so an automation can pass it to `notify`. Undecided —
 see §7.
@@ -120,7 +170,9 @@ one of these is that shape:
    to the uncropped map; do not send nothing.
 3. **No Pillow is not a crash.** numpy/Pillow/scipy are optional (`reqs=[]`); the install
    matrix expects them absent. Hide the feature the way Auto-CV hides its chip, and never
-   let it take down the stall path — which is a *job lifecycle* path.
+   let it take down the stall path — which is a *job lifecycle* path. Note this bites
+   harder under §3 than it would have under a camera fetch: rendering the image OURSELVES
+   makes Pillow load-bearing rather than incidental.
 4. **A held/stale map source is not a current one.** If the image is stale, say so or
    refuse; an old map with a fresh marker is the worst possible artifact here.
 
