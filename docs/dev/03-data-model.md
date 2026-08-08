@@ -429,7 +429,7 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `profile_name` | `str \| None` | Active preset name; defaults to the brand's `room_profiles.default_profile`. |
 | `floor_type` | `str` | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"granite"`, `"concrete"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
-| `fan_speed` | `str` | **Brand vocabulary.** Eufy: `"Max"`, `"Boost"`, `"Standard"`, `"Quiet"`. Roborock: `"max"`, `"turbo"`, `"balanced"`, `"quiet"`, `"gentle"`. Values are the brand's declared `vocabulary.fan_speed_options`; casing differs between brands and the card compares strictly. |
+| `fan_speed` | `str` | **Brand vocabulary.** Eufy: `"Max"`, `"Turbo"`, `"Standard"`, `"Quiet"`. Roborock: `"max"`, `"turbo"`, `"balanced"`, `"quiet"`, `"gentle"`. Values are the brand's declared `vocabulary.fan_speed_options`; casing differs between brands and the card compares strictly. |
 | `water_level` | `str` | **Brand vocabulary.** Eufy: `"Off"`/`"Low"`/`"Medium"`/`"High"`; Roborock the same set lowercased. |
 | `clean_intensity` | `str` | **Brand vocabulary, and may be absent entirely** — Roborock exposes no intensity axis and stores nothing for it. Eufy: `"Quick"`, `"Narrow"`, `"Deep"`; the retired `"Standard"`/`"Normal"` are repaired once in the store by `rooms/vocabulary_migration.py` rather than folded on every read (same as §07/§16). |
 

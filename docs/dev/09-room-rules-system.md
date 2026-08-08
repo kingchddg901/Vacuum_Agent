@@ -193,7 +193,7 @@ Six room settings can be overridden by a modifier rule. All live in `effect.chan
 | Field | Type | Valid values |
 |---|---|---|
 | `clean_mode` | str | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
-| `fan_speed` | str | `"Quiet"`, `"Standard"`, `"Boost"`, `"Max"` |
+| `fan_speed` | str | `"Quiet"`, `"Standard"`, `"Turbo"`, `"Max"` |
 | `water_level` | str | `"Off"`, `"Low"`, `"Medium"`, `"High"` |
 | `clean_intensity` | str | `"Quick"`, `"Narrow"`, `"Deep"` |
 | `clean_passes` | int | **1 or 2 only** |

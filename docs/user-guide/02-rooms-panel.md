@@ -88,7 +88,7 @@ Each room card shows:
 - Its **queue position number** and a **Move** button for reordering.
 - A drag handle (the `⋮⋮` icon) for drag-to-reorder.
 - A **settings button** (⚙) to open the room editor.
-- **Setting chips** showing the room's settings at a glance — for example "Vacuum", "Vacuum and mop", "Boost", "Deep", "Edge Mop On", or "2× passes". The cleaning-mode chip is always shown, including plain "Vacuum"; the other chips appear only for non-default values — default suction, standard path, 1 pass, water off, and edge mop off show no chip, to keep the card clean.
+- **Setting chips** showing the room's settings at a glance — for example "Vacuum", "Vacuum and mop", "Turbo", "Deep", "Edge Mop On", or "2× passes". The cleaning-mode chip is always shown, including plain "Vacuum"; the other chips appear only for non-default values — default suction, standard path, 1 pass, water off, and edge mop off show no chip, to keep the card clean.
 - A **time estimate chip** if the learning system has data for the room. Learned estimates show the time directly; fallback (default) estimates are prefixed with "~" to indicate they are approximate.
 - A **confidence chip** indicating how reliable the estimate is: "Reliable", "Learning", or "Uncertain" (or "Unlearned" if no data has been collected yet).
 - A **projected water use chip** when the room is set to a mop mode and the integration can calculate expected water consumption.
@@ -133,7 +133,7 @@ Carpet rooms are locked to vacuum-only modes and show a notice in the editor. Mo
 
 ### Suction Level
 
-Selects how hard the vacuum's motor works in this room. The exact options (such as Standard, Boost, Max, or similar) reflect what your vacuum supports. A higher suction level uses more battery and takes longer but picks up more debris.
+Selects how hard the vacuum's motor works in this room. The exact options (such as Quiet, Standard, Turbo, Max, or similar) reflect what your vacuum supports. A higher suction level uses more battery and takes longer but picks up more debris.
 
 ### Water Level
 

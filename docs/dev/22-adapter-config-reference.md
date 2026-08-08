@@ -245,7 +245,7 @@ title-cased firmware strings exactly as they appear in HA.
 | `clean_intensity_aliases` | `dict[str, str]` | Same, for clean intensity → `quick`/`narrow`/`deep`/`normal`/`standard`. May be empty when the brand's display values already slug to the canonical code. |
 | `fan_speed_aliases` | `dict[str, str]` | Same, for suction/fan speed → `quiet`/`gentle`/`standard`/`boost`/`turbo`/`max`. E.g. `{"boostiq": "boost"}`. |
 | `clean_mode_options` | `list[dict]` | User-facing dropdown options for clean mode. Each entry is `{value, label}`. Read by the card's room editor and rule editor to populate the cleaning-mode picker. Eufy: 3 entries (vacuum/mop/vacuum_mop). |
-| `fan_speed_options` | `list[dict]` | User-facing dropdown options for fan speed. **ORDER IS SEMANTIC — declare ascending, index 0 = least effort, index {max} = most** (see below). Each entry is `{value, label}`. Eufy: 4 entries (Quiet/Standard/Boost/Max). A Roborock adapter with Max+ would declare 5. |
+| `fan_speed_options` | `list[dict]` | User-facing dropdown options for fan speed. **ORDER IS SEMANTIC — declare ascending, index 0 = least effort, index {max} = most** (see below). Each entry is `{value, label}`. Eufy: 4 entries (Quiet/Standard/Turbo/Max). A Roborock adapter with Max+ would declare 5. |
 | `water_level_options` | `list[dict]` | User-facing dropdown options for water level (mop-capable models only). Each entry is `{value, label}`. Eufy: 4 entries (Off/Low/Medium/High). |
 | `clean_intensity_options` | `list[dict]` | User-facing dropdown options for cleaning intensity. Each entry is `{value, label}`. Brands without intensity/path-type concept omit this; the card hides the picker. Eufy: 3 entries (Quick/Narrow/Deep). |
 
@@ -316,7 +316,7 @@ title-cased firmware strings exactly as they appear in HA.
     "fan_speed_options": [
         {"value": "Quiet",    "label": "Quiet"   },
         {"value": "Standard", "label": "Standard"},
-        {"value": "Boost",    "label": "Boost"   },
+        {"value": "Turbo",    "label": "Turbo"   },
         {"value": "Max",      "label": "Max"     },
     ],
     "water_level_options": [
@@ -843,7 +843,7 @@ Generates a payload shaped like:
         "map_id": 6,
         "rooms": [
             {"id": 1, "clean_times": 2, "fan_speed": "Standard", ...},
-            {"id": 3, "clean_times": 1, "fan_speed": "Boost", ...},
+            {"id": 3, "clean_times": 1, "fan_speed": "Turbo", ...},
         ],
     },
 }
@@ -1009,7 +1009,7 @@ A Roborock dispatch block illustrates the full feature:
             "field_name": "fan_power",
             "value_map": {
                 "Quiet": 101, "Standard": 102,
-                "Boost": 103, "Max": 104,
+                "Turbo": 103, "Max": 104,
             },
         },
         "clean_mode": {
