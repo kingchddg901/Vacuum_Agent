@@ -23,6 +23,42 @@ hand on adapter test changes — collect-only case counts:
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-system.md), [docs/dev/22-adapter-config-reference.md](../../dev/22-adapter-config-reference.md)
 
+### `test_adapter_isolation.py` — the boundary, not the declarations
+
+`test_adapter_contract.py` asserts what a brand must DECLARE. Nothing asserted
+what a brand may TOUCH, so `test_adapter_isolation.py` (5 tests, added
+2026-08-07) fences the dependency direction: a brand package translates VA's
+meaning into one provider's vocabulary, and that substitutability is only real if
+it cannot reach inward.
+
+| id | what it holds |
+|---|---|
+| `ISO-1` | no brand package imports outside the declared adapter SDK |
+| `ISO-2` | the known-leak allowlist is SHRINK-ONLY (same discipline as `mock_allowlist.json`) |
+| `ISO-3` | no dynamic import (`importlib` / `__import__` / `sys.modules`) escapes ISO-1's static read |
+| `ISO-4` | no runtime reach into a passed-in object's privates — the reach an import graph cannot see |
+| `ISO-5` | the detector is exercised against the one real leak, so it cannot silently stop working |
+
+**The SDK is two entries, both adjudicated from measurement:**
+`core.capabilities` (BOTH brands call `detect_capabilities` — a facility every
+adapter needs is API that happens to live in `core/`) and
+`mapping.segment_primitives` (brand-neutral geometry — `rdp`, `polygon_area`,
+`mask_iou`; any brand shipping a map IMAGE needs it, and Roborock supplies
+segments directly so imports none of it).
+
+**One ledgered leak:** `profiles.room_profiles` in `eufy/adapter.py`. The
+framework's in-code profile catalog IS Eufy's — Eufy was the first brand — and
+`adapters/roborock/vocabulary.py` already shows the fix. Removing it is a
+STORED-DATA change, not a refactor: those values are written onto existing rooms
+and the card compares option values strictly.
+
+**Why four checks and not one.** A `^from`-anchored grep reported the Roborock
+adapter as reaching nothing; it reaches `core.capabilities` through a DEFERRED
+import inside a function, deferred to dodge an import cycle. Hence AST over every
+node in every file. And an import graph cannot see a runtime reach at all, hence
+ISO-4. Both ISO-1 and ISO-4 were mutation-verified when added — a fresh
+non-SDK import and a planted `hass._private_thing` each turn their own check red.
+
 ---
 
 ## Coverage map
