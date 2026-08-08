@@ -25,8 +25,10 @@ from homeassistant.helpers import entity_registry as er
 
 from .utils import slugify_room_name
 from .source_refresh import (
+    SHAPE_PER_MAP_MAPPING,
     SOURCE_SERVICE_RESPONSE,
     get_cached_room_source,
+    select_segments_for_map,
 )
 from ..adapters.registry import get_adapter_config
 from ..entity_helpers import BLANK_STATE_VALUES, is_blank_state
@@ -222,16 +224,11 @@ def discover_rooms_for_vacuum(
         # async boundaries by async_refresh_room_source), keyed by map NAME —
         # the same value entities.active_map reports for these brands.
         per_map = get_cached_room_source(hass, vacuum_entity_id)
-        segments = per_map.get(str(resolved_map_id))
-        if segments is None and len(per_map) == 1 and resolved_map_id == "unknown":
-            # Single-map brand whose active_map was genuinely UNRESOLVABLE (no
-            # explicit map_id and get_active_map_id came back empty) — use the
-            # one map we have rather than discovering nothing. An explicit,
-            # resolved map_id that doesn't match the cached key is NEVER
-            # covered by this (RP-019/ID-2): serving another map's rooms
-            # relabeled with the requested id is exactly the bug this guards.
-            segments = next(iter(per_map.values()))
-        if not isinstance(segments, list):
+        # Selection rule lives in source_refresh.select_segments_for_map so the
+        # attribute branch below shares it verbatim — including the RP-019/ID-2
+        # guard against serving another map's rooms under the requested id.
+        segments = select_segments_for_map(per_map, resolved_map_id)
+        if segments is None:
             _LOGGER.debug(
                 "No cached room source for %s map %s",
                 vacuum_entity_id,
@@ -263,14 +260,34 @@ def discover_rooms_for_vacuum(
             )
             return []
 
-        segments = source_state.attributes.get(room_list_attribute)
-        if not isinstance(segments, list):
-            _LOGGER.debug(
-                "Room list attribute '%s' missing or invalid for %s",
-                room_list_attribute,
-                vacuum_entity_id,
-            )
-            return []
+        raw = source_state.attributes.get(room_list_attribute)
+
+        # SHAPE is declared independently of SOURCE. Until 2026-08-07 this branch
+        # assumed a flat list, so a brand serving {map_name: [rooms]} as a live
+        # attribute (Dreame) fell through to "missing or invalid" and discovered
+        # ZERO rooms — with every other config block then inert. Declaring the
+        # shape is the extension point; an `if brand == ...` here would be core
+        # learning a brand's name, which is the thing the adapter boundary exists
+        # to prevent.
+        if discovery.get("room_list_shape") == SHAPE_PER_MAP_MAPPING:
+            segments = select_segments_for_map(raw, resolved_map_id)
+            if segments is None:
+                _LOGGER.debug(
+                    "Room list attribute '%s' holds no rooms for %s map %s",
+                    room_list_attribute,
+                    vacuum_entity_id,
+                    resolved_map_id,
+                )
+                return []
+        else:
+            segments = raw
+            if not isinstance(segments, list):
+                _LOGGER.debug(
+                    "Room list attribute '%s' missing or invalid for %s",
+                    room_list_attribute,
+                    vacuum_entity_id,
+                )
+                return []
 
     rooms: list[dict[str, Any]] = []
     seen_room_ids: set[int] = set()

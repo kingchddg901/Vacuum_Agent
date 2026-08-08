@@ -877,6 +877,26 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "rooms/source_refresh.py. Absent = 'entity_attribute'."
                 ),
             },
+            "room_list_shape": {
+                "type": "str",
+                "required": False,
+                "values": ["flat_list", "per_map_mapping"],
+                "description": (
+                    "SHAPE of the room list, declared independently of the SOURCE it "
+                    "arrives through. 'flat_list' (default): the rooms for one map, as "
+                    "a list of dicts. 'per_map_mapping': a {map_name: [room, ...]} "
+                    "mapping covering every map, from which the active map's entry is "
+                    "selected. Source and shape were conflated until 2026-08-07 — "
+                    "'entity_attribute' assumed a flat list and 'service_response' "
+                    "assumed per-map keying — which left the diagonal unexpressible: a "
+                    "brand serving a per-map MAPPING as a live ATTRIBUTE (Dreame's "
+                    "vacuum `rooms` attribute is {map_name: [{id, name, icon}, ...]}) "
+                    "read as 'missing or invalid' and discovered ZERO rooms. Declaring "
+                    "the shape is the extension point; branching on a brand name is "
+                    "not. Ignored for source='service_response', whose flattener "
+                    "always produces per-map keying."
+                ),
+            },
             "maps_service": {
                 "type": "dict",
                 "required": False,

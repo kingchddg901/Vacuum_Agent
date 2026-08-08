@@ -60,9 +60,43 @@ REFRESH_TTL_SECONDS = 15 * 60
 _INFLIGHT: dict[str, asyncio.Task] = {}
 _GENERATION: dict[str, int] = {}
 
-#: Discovery source kinds.
+#: Discovery source kinds — WHERE the room list comes from.
 SOURCE_ENTITY_ATTRIBUTE = "entity_attribute"
 SOURCE_SERVICE_RESPONSE = "service_response"
+
+#: Discovery list shapes — WHAT the room list looks like, declared independently
+#: of the source. These were conflated until 2026-08-07: the attribute source
+#: assumed a flat list and the service source assumed per-map keying, so the
+#: diagonal — a per-map MAPPING delivered as a live ATTRIBUTE — could not be
+#: expressed at all, and a brand shaped that way discovered zero rooms.
+SHAPE_FLAT_LIST = "flat_list"
+SHAPE_PER_MAP_MAPPING = "per_map_mapping"
+
+
+def select_segments_for_map(
+    per_map: dict[str, Any] | None,
+    resolved_map_id: str,
+) -> list[Any] | None:
+    """Pick one map's room list out of a {map_name: [rooms]} mapping.
+
+    Shared by both discovery sources so the selection rule cannot drift between
+    them — the per-map service response and a per-map entity attribute are the
+    same question asked of different transports.
+
+    The single-map fallback is deliberate and narrow: a brand with exactly one
+    map whose active map was genuinely UNRESOLVABLE ("unknown") gets that one
+    map rather than discovering nothing. An explicit, resolved map id that does
+    not match a key is NEVER served another map's rooms relabelled with the
+    requested id — that substitution is the RP-019/ID-2 bug this guards, and it
+    is why the fallback checks ``resolved_map_id == "unknown"`` rather than
+    simply falling back whenever the lookup misses.
+    """
+    if not isinstance(per_map, dict):
+        return None
+    segments = per_map.get(str(resolved_map_id))
+    if segments is None and len(per_map) == 1 and resolved_map_id == "unknown":
+        segments = next(iter(per_map.values()))
+    return segments if isinstance(segments, list) else None
 
 
 # ---------------------------------------------------------------------------

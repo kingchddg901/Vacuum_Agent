@@ -267,3 +267,93 @@ def test_discover_rooms_from_other_entity(hass, manager):
     assert ids == [1, 2]                 # sourced from sensor.alfred_rooms
     assert rooms[0]["name"] == "Kitchen"
     assert 99 not in ids                 # vacuum entity's decoy was NOT used
+
+
+# ---------------------------------------------------------------------------
+# [RD-SHAPE-*] room_list_shape — SHAPE declared independently of SOURCE
+#
+# Until 2026-08-07 the two were conflated: the attribute source assumed a flat
+# list and the service source assumed per-map keying, so the diagonal — a
+# per-map MAPPING arriving as a live ATTRIBUTE — was unexpressible. A brand
+# shaped that way read as "missing or invalid" and discovered ZERO rooms, with
+# every other config block then inert. Found by two independent blind ports.
+#
+# The fix is a declared shape, deliberately NOT a brand check: an `if brand ==`
+# in this path would be core learning a brand's name, which is precisely what
+# the adapter boundary exists to prevent.
+# ---------------------------------------------------------------------------
+
+def _per_map_adapter():
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {
+            "room_list_entity": "vacuum_entity",
+            "room_list_attribute": "rooms",
+            "room_list_shape": "per_map_mapping",
+            "room_id_key": "id",
+            "room_name_key": "name",
+        },
+    })
+
+
+def test_rd_shape_1_per_map_attribute_selects_the_active_map(hass, manager):
+    """[RD-SHAPE-1] {map_name: [rooms]} on an attribute resolves via active_map."""
+    _per_map_adapter()
+    hass.states.async_set("sensor.alfred_map", "Downstairs")
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "Downstairs": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+        "Upstairs":   [{"id": 9, "name": "Loft"}],
+    }})
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC)
+    assert [r["room_id"] for r in rooms] == [1, 2], "did not select the active map's rooms"
+    assert all(r["room_id"] != 9 for r in rooms), "leaked another map's rooms"
+
+
+def test_rd_shape_2_flat_list_is_still_the_default(hass, manager):
+    """[RD-SHAPE-2] an adapter that declares no shape keeps the old behaviour.
+
+    The backward-compatibility pin: both shipped brands omit room_list_shape,
+    so a regression here is a regression for every existing install.
+    """
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 4, "name": "Den"}]})
+    assert [r["room_id"] for r in discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC)] == [4]
+
+
+def test_rd_shape_3_a_mapping_without_the_declaration_still_discovers_nothing(hass, manager):
+    """[RD-SHAPE-3] the shape must be DECLARED — it is never sniffed.
+
+    Guessing from the payload's runtime type would make the config a suggestion
+    rather than a contract, and would silently change behaviour for any brand
+    whose attribute happened to arrive as a dict once.
+    """
+    _discovery_adapter()   # declares no shape -> flat_list
+    hass.states.async_set(_VAC, "docked", {"segments": {
+        "Downstairs": [{"id": 1, "name": "Kitchen"}],
+    }})
+    assert discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC) == []
+
+
+def test_rd_shape_4_unresolvable_single_map_falls_back_but_a_resolved_miss_does_not(hass, manager):
+    """[RD-SHAPE-4] the RP-019/ID-2 guard holds on the attribute path too.
+
+    The selection rule is shared with the service-response source precisely so
+    it cannot drift: one map + genuinely unknown active map is served; an
+    explicit map id that does not match is NEVER served another map's rooms
+    relabelled with the requested id.
+    """
+    _per_map_adapter()
+    # No active_map entity value at all -> resolved id "unknown", single map -> served.
+    hass.states.async_set(_VAC, "docked", {"rooms": {"Only": [{"id": 7, "name": "Shed"}]}})
+    assert [r["room_id"] for r in discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC)] == [7]
+
+    # Two maps and an unresolvable active map -> ambiguous, so nothing is served.
+    hass.states.async_set(_VAC, "docked", {"rooms": {
+        "A": [{"id": 1, "name": "Kitchen"}], "B": [{"id": 2, "name": "Hall"}],
+    }})
+    assert discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC) == []
+
+    # A RESOLVED map id that misses is never substituted.
+    hass.states.async_set("sensor.alfred_map", "Missing")
+    assert discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC) == []
