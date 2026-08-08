@@ -23,6 +23,8 @@ Coverage targets
 [MIG-7] idempotent: the second run is a no-op, and an edited-back room stays edited.
 [MIG-8] planning is pure — planning alone mutates nothing.
 [MIG-9] the retired-value fold is subsumed without any retired-value map.
+[MIG-11] a run that saw NO adapter does not latch the one shot; an install with no
+         stored rooms does (nothing to come back for).
 """
 
 from __future__ import annotations
@@ -150,6 +152,82 @@ def test_skips_a_vacuum_whose_adapter_declares_nothing():
 
     assert result["changes"] == []
     assert data["maps"][_VAC]["map1"]["rooms"]["1"]["fan_speed"] == "Max"
+
+
+def test_a_run_that_saw_no_adapter_does_not_burn_the_one_shot():
+    """[MIG-11] The skip in MIG-4 must not also count as the repair having happened.
+
+    Adapters are registered from the vacuum entities of OTHER integrations. On a cold
+    boot those may not have set up yet, so every vacuum is skipped for want of a
+    declaration — the same branch MIG-4 exercises. Latching there marked the repair done
+    having judged nothing, and the rooms kept their bad values forever, silently.
+
+    Observed on hardware before this guard: two full restarts repaired nothing, and a
+    config-entry reload (by which point the vacuums existed) repaired all twenty rooms.
+    """
+    data = _data({"1": _room(fan_speed="Max", clean_intensity="Standard")})
+
+    blind = migrate_room_vocabulary(data=data, get_config=lambda _v: None)
+
+    assert blind["changes"] == []
+    assert blind["latched"] is False
+    assert MIGRATION_KEY not in data.get("migrations", {})
+
+    # The next start, with adapters up, still gets its one shot.
+    ready = migrate_room_vocabulary(data=data, get_config=_getter(_config()))
+
+    assert ready["changes"], "the retry must actually repair"
+    assert ready["latched"] is True
+    assert data["migrations"][MIGRATION_KEY] is True
+
+
+def test_one_ready_adapter_does_not_burn_the_shot_for_a_slower_one():
+    """[MIG-11] The dangerous case is PARTIAL readiness, not total.
+
+    Two vacuums, two providers, independent setup order. A first draft of this guard
+    latched as soon as ANY declaration was found — which on a real two-vacuum install
+    repairs the ready one and abandons the other permanently. Repairing what it can is
+    correct; calling itself finished is not.
+    """
+    data = {
+        "maps": {
+            "vacuum.ready": {"map1": {"rooms": {"1": _room(fan_speed="Max")}}},
+            "vacuum.slow": {"map1": {"rooms": {"2": _room(fan_speed="Max")}}},
+        }
+    }
+    only_ready = lambda v: _config() if v == "vacuum.ready" else None  # noqa: E731
+
+    partial = migrate_room_vocabulary(data=data, get_config=only_ready)
+
+    # It repairs what it legitimately can...
+    assert any(c["vacuum_entity_id"] == "vacuum.ready" for c in partial["changes"])
+    assert not any(c["vacuum_entity_id"] == "vacuum.slow" for c in partial["changes"])
+    # ...but must NOT declare itself done while a target is unevaluated.
+    assert partial["latched"] is False
+    assert MIGRATION_KEY not in data.get("migrations", {})
+
+    # Next start, both up: the slow one still gets its repair, and NOW it latches.
+    both = migrate_room_vocabulary(data=data, get_config=_getter(_config()))
+
+    assert any(c["vacuum_entity_id"] == "vacuum.slow" for c in both["changes"])
+    assert both["latched"] is True
+    assert data["migrations"][MIGRATION_KEY] is True
+
+
+def test_an_install_with_no_stored_rooms_still_latches():
+    """[MIG-11] "Nothing to judge against" and "nothing to repair" are different.
+
+    Without this half, a user with no rooms yet would re-run the scan on every single
+    start forever, since no adapter is ever consulted for a store with no maps. There is
+    nothing to come back for — rooms created later are born under current rules.
+    """
+    data: dict = {"maps": {}}
+
+    result = migrate_room_vocabulary(data=data, get_config=lambda _v: None)
+
+    assert result["changes"] == []
+    assert result["latched"] is True
+    assert data["migrations"][MIGRATION_KEY] is True
 
 
 def test_does_not_judge_a_field_with_no_declared_option_list():

@@ -101,6 +101,36 @@ def _alias_target(
     return None
 
 
+def _unadjudicated_targets(*, data: dict[str, Any], get_config) -> list[str]:
+    """Vacuums that HAVE stored rooms but whose adapter presented no declaration.
+
+    These are targets this repair is responsible for and could not evaluate — as
+    distinct from targets it evaluated and found nothing to do for. The planner skips
+    both (neither licenses an edit), but only the second means the work is finished.
+
+    An absent block reliably means "not registered YET", never "this brand declares
+    nothing": ``registry._validate_room_profiles`` rejects an adapter whose
+    ``room_profiles`` is missing or empty, so a registered adapter always presents one.
+    That is what makes the two states safely distinguishable here.
+
+    Vacuums with no stored rooms are not targets — there is nothing to judge and nothing
+    to come back for, and rooms created later are born under current rules.
+    """
+    pending: list[str] = []
+    for vacuum_entity_id, maps in (data.get("maps") or {}).items():
+        if not isinstance(maps, dict):
+            continue
+        if not any(
+            isinstance(bucket, dict) and (bucket.get("rooms") or {})
+            for bucket in maps.values()
+        ):
+            continue
+        block = (get_config(vacuum_entity_id) or {}).get("room_profiles")
+        if not (isinstance(block, dict) and block):
+            pending.append(vacuum_entity_id)
+    return pending
+
+
 def plan_room_vocabulary_migration(
     *,
     data: dict[str, Any],
@@ -224,7 +254,38 @@ def migrate_room_vocabulary(
         else:
             room[change["field"]] = change["new"]
 
-    migrations[MIGRATION_KEY] = True
+    # LATCH ONLY IF THIS RUN COULD ACTUALLY SEE SOMETHING.
+    #
+    # This used to be unconditional, and a run that repaired nothing still burned the
+    # one shot. That is reachable on a normal cold boot: the adapters are registered
+    # from the vacuum entities of OTHER integrations, and if those have not finished
+    # setting up, every vacuum here is skipped for want of a declaration. The repair
+    # then marked itself done having judged nothing, and the rooms it was written to
+    # heal kept their bad values permanently — silently, because the skip logs at DEBUG.
+    # Observed on hardware: two full restarts changed nothing, and a config-entry
+    # RELOAD (by which point the vacuums existed) repaired all twenty rooms.
+    #
+    # The rule is EVERY target, not "any adapter answered". With two vacuums, one
+    # provider being ready must not burn the opportunity for a provider that starts
+    # later: a first draft latched as soon as a single declaration was found, which on
+    # this very install would have repaired the Eufy and abandoned the Roborock. The
+    # invariant is that a migration is complete only when every target it is responsible
+    # for has reached a terminal disposition; missing runtime information is DEFERRED,
+    # never SUCCESS.
+    #
+    # A vacuum with no stored rooms is not a target, so an install with none latches
+    # vacuously rather than rescanning forever.
+    _pending = _unadjudicated_targets(data=data, get_config=get_config)
+    _latched = not _pending
+    if _latched:
+        migrations[MIGRATION_KEY] = True
+    else:
+        _LOGGER.warning(
+            "vocabulary_migration: %d vacuum(s) with stored rooms had no adapter "
+            "declaration to judge against (%s), so their rooms could not be evaluated; "
+            "NOT recording the migration as done — it will retry on the next start",
+            len(_pending), ", ".join(_pending),
+        )
 
     touched = len({(c["vacuum_entity_id"], c["map_id"], c["room_id"]) for c in changes})
     if changes:
@@ -239,4 +300,10 @@ def migrate_room_vocabulary(
                 f" -> {c['new']!r}" if c["action"] == "reset" else "",
             )
 
-    return {"ran": True, "changes": changes, "rooms_touched": touched}
+    return {
+        "ran": True,
+        "changes": changes,
+        "rooms_touched": touched,
+        # False means this run declined to record itself as done and will retry.
+        "latched": _latched,
+    }

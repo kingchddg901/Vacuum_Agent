@@ -21,7 +21,7 @@ Two rules, both declaration-driven: **DROP** a field no declared profile carries
 `default_profile` value. No nearest-match — the option lists are declared sets
 with no ordering to be nearest in.
 
-`test_vocabulary_migration.py` (12 tests) weights the refusals as heavily as the
+`test_vocabulary_migration.py` (18 tests) weights the refusals as heavily as the
 repairs, because this rewrites real user rooms and an over-reach is silent:
 
 | id | what it holds |
@@ -35,6 +35,10 @@ repairs, because this rewrites real user rooms and an over-reach is silent:
 | `MIG-7` | idempotent; a user's deliberate re-edit is not "repaired" on next boot |
 | `MIG-8` | planning is pure, so the change can be reviewed before it runs |
 | `MIG-9` | the retired-value fold is subsumed with NO retired-value map |
+| `MIG-10a` | a retired value the brand still ALIASES keeps its meaning, not the default |
+| `MIG-10b` | with no alias it still falls back to the brand's default |
+| `MIG-10c` | an alias pointing at an undeclared option is ignored, never written |
+| `MIG-11` | **a run that could not evaluate every target does not latch** — see below |
 
 **MIG-5 is the one to read.** An early draft keyed DROP on "the brand declares no
 options for this field". That reads correct and would have stripped `clean_mode`
@@ -56,6 +60,33 @@ again. `_finalize_room_update` now strips undeclared axes on save using the SAME
 discriminator (`room_profiles.declared_profile_fields`), so the two paths cannot
 diverge again. Pinned by `PM-30` / `PM-30b` in `test_profiles_manager.py`, both
 mutation-verified.
+
+**MIG-11 separates "could not evaluate yet" from "completed", which the one-shot
+originally conflated.** The flag was set unconditionally, so a run that repaired
+nothing still burned the single opportunity. That is reachable on an ordinary cold
+boot: adapters are registered from vacuum entities owned by OTHER integrations, and if
+those have not finished setting up, every vacuum is skipped for want of a declaration —
+the same branch MIG-4 exercises, which pinned the skip but never what the skip did to
+the flag. Found on hardware 2026-08-08: two full restarts repaired nothing, and a
+config-entry reload — by which point the vacuums existed — repaired all twenty rooms.
+
+The invariant is that a migration is complete only when **every** target it is
+responsible for has reached a terminal disposition; missing runtime information is
+DEFERRED, never SUCCESS. `MIG-11` pins all three states, and the middle one is the
+subtle one: with two vacuums on two providers, latching as soon as *any* declaration
+appears repairs the ready brand and abandons the slower one permanently. A vacuum with
+no stored rooms is not a target, so an empty install latches vacuously instead of
+rescanning forever. Both wrong answers are mutation-verified — restoring the
+unconditional latch reddens two of the three, and restoring "latch if any adapter
+answered" reddens the partial-readiness case alone.
+
+Deferral only helps if the work later happens, and HA offers no "after that
+integration" hook to wait on. The call site therefore runs the repair from
+`async_at_started` rather than inline in `async_setup_entry` — it fires once everything
+has set up, and fires immediately when HA is already running, so a live reload still
+repairs promptly. `listeners/discovery.py` already used that primitive for the same
+reason (`get_maps` is not registered at setup time); this call site was its forgotten
+sibling.
 
 **MIG-9 is why `normalize_clean_intensity` could be deleted rather than moved.**
 It folded the retired Eufy values `standard`/`normal` to `"Quick"` on every read,

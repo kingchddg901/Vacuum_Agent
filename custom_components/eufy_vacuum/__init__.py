@@ -33,6 +33,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.start import async_at_started
 
 from ._frontend_url import cards_module_url, panel_js_url
 from .user_fonts import build_catalog
@@ -386,23 +387,44 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 )
 
         # One-shot repair of rooms written under the framework's former Eufy default
-        # (see rooms/vocabulary_migration.py). It MUST run here and not in
-        # async_initialize: the rules are driven entirely by what each brand DECLARES,
-        # and no adapter is registered until the loop just above. Rooms are only
-        # rewritten when edited, so without this an untouched room keeps a value its
-        # device cannot accept indefinitely — the fallback removal alone stops new
-        # ones, it cannot heal old ones. Failure here must never block setup; an
-        # unrepaired room behaves exactly as it did before.
-        try:
-            _migration = migrate_room_vocabulary(
-                data=manager.data, get_config=get_adapter_config,
-            )
-            if _migration["changes"]:
-                await manager.async_save()
-        except Exception:
-            _LOGGER.exception(  # pragma: no cover
-                "eufy_vacuum: room vocabulary migration failed; rooms left as stored"
-            )
+        # (see rooms/vocabulary_migration.py). Rooms are only rewritten when edited, so
+        # without this an untouched room keeps a value its device cannot accept
+        # indefinitely — the fallback removal alone stops new ones, it cannot heal old
+        # ones. Failure here must never block setup; an unrepaired room behaves exactly
+        # as it did before.
+        #
+        # DEFERRED TO HA-STARTED, not run inline here. The rules are driven entirely by
+        # what each brand DECLARES, and adapters are registered from vacuum entities
+        # owned by OTHER integrations. Running at raw setup time only works if those
+        # happened to set up first: on a cold boot they often have not, every vacuum is
+        # skipped for want of a declaration, and the repair does nothing. Waiting is not
+        # available to us — HA gives no "after that integration" hook — but this is the
+        # primitive it gives instead. async_at_started fires once everything has set up,
+        # and fires IMMEDIATELY when HA is already running, so a live config-entry
+        # reload still repairs promptly. Exactly the reasoning and primitive the
+        # discovery listener already uses for its reload pass, where get_maps is not yet
+        # registered at setup time; this call site was its forgotten sibling.
+        #
+        # The migration's own latch is the second half: a run that cannot evaluate every
+        # target no longer records itself as done, so a deferral is retried rather than
+        # silently consumed.
+        @callback
+        def _schedule_vocabulary_migration(_hass: HomeAssistant) -> None:
+            async def _do() -> None:
+                try:
+                    _migration = migrate_room_vocabulary(
+                        data=manager.data, get_config=get_adapter_config,
+                    )
+                    if _migration["changes"]:
+                        await manager.async_save()
+                except Exception:  # pragma: no cover
+                    _LOGGER.exception(
+                        "eufy_vacuum: room vocabulary migration failed; rooms left as stored"
+                    )
+
+            hass.async_create_task(_do())
+
+        entry.async_on_unload(async_at_started(hass, _schedule_vocabulary_migration))
 
         # One-shot sweep of per-vacuum records naming a vacuum this install does not
         # have. Two reached a live install: the CARD'S OWN PLACEHOLDER
