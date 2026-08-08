@@ -259,9 +259,30 @@ title-cased firmware strings exactly as they appear in HA.
 > canonical setting names a POSITION in your list rather than a fixed integer or
 > another brand's word.
 >
-> `clean_mode_options` is deliberately EXEMPT: it is an enumeration, not a
-> ladder. `vacuum` is not "less" than `mop`, so its order is identity and it
-> resolves by exact match rather than nearest rung.
+> `clean_mode_options` is deliberately EXEMPT from the ordering rule: it is an
+> enumeration, not a ladder. `vacuum` is not "less" than `mop`, so its order is
+> identity and it resolves by EXACT MATCH rather than nearest rung.
+>
+> Its slots are fixed, and the space is deliberately wider than either shipped
+> brand:
+>
+> | slot | mode | Eufy | Roborock |
+> |---|---|---|---|
+> | 0 | `vacuum` — vacuum only | yes | yes |
+> | 1 | `mop` — mop only | yes | yes |
+> | 2 | `vacuum_mop` — vacuum and mop TOGETHER, one pass | yes | yes |
+> | 3 | mop AFTER vacuum — two sequential passes | — | — |
+>
+> **Slot 3 is reserved and currently unoccupied.** Neither shipped brand does a
+> sequential sweep-then-mop, but several vacuums do, and a brand that supports it
+> needs a slot that means *that* rather than being forced into `vacuum_mop`,
+> which is a different physical behaviour. An unoccupied slot is simply absent
+> from a brand's list — `null`, the same convention `dispatch.room_fields`
+> already uses for fields a brand does not accept.
+>
+> Declaring the reserved slot now costs nothing and prevents the alternative: the
+> first brand to need it inventing a fourth value that collides with nobody's,
+> and core growing a special case to interpret it.
 >
 > Nothing can enforce this — ordering is semantic, and no test can decide whether
 > `gentle` precedes `balanced`. That is exactly why it is stated as a standard: a
