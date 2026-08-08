@@ -260,25 +260,32 @@ def test_save_user_profile(pm):
     assert blocked["saved"] is False and blocked["reason"] == "protected_profile"
 
 
-def test_save_user_profile_derives_path_type_and_mop_required(pm):
-    """[PM-2b] B2: a custom profile derives path_type (Deep→narrow / else→wide) and
-    mop_required (from clean_mode) instead of normalize defaulting BOTH (wide /
-    not-mop) — which mis-stored a deep-mop custom profile."""
+def test_save_user_profile_derives_mop_required_but_never_path_type(pm):
+    """[PM-2b] B2: a custom profile derives mop_required from clean_mode — and does
+    NOT synthesize path_type.
+
+    The derivation this used to pin (Deep→narrow / else→wide) has been removed. It was
+    core computing one brand's axis out of another brand's word, and the fact that it
+    could be computed at all was the evidence that path_type and clean_intensity are
+    one property under two names. mop_required is a different case and stays: it reads
+    the MODE, which every brand declares, and without it a deep-mop custom profile
+    stored as not-mop.
+    """
     deep_mop = pm.save_user_room_profile(
         label="Deep Mop", clean_mode="vacuum_mop", fan_speed="Max",
         water_level="Medium", clean_intensity="Deep", clean_passes=2,
         edge_mopping=True, profile_name="user_deepmop",
     )["profile"]
-    assert deep_mop["path_type"] == "narrow"   # Deep → narrow (was always "wide")
-    assert deep_mop["mop_required"] is True     # mop mode (was always False)
+    assert deep_mop["mop_required"] is True      # mop mode (was always False)
+    assert not deep_mop.get("path_type")         # nothing synthesized it from "Deep"
 
     quick_vac = pm.save_user_room_profile(
         label="Quick Vac", clean_mode="vacuum", fan_speed="Standard",
         water_level="Off", clean_intensity="Quick", clean_passes=1,
         edge_mopping=False, profile_name="user_quickvac",
     )["profile"]
-    assert quick_vac["path_type"] == "wide"     # Quick → wide
     assert quick_vac["mop_required"] is False    # vacuum-only
+    assert not quick_vac.get("path_type")
 
 
 def test_rename_profile(pm):

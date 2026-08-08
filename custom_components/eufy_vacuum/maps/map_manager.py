@@ -331,7 +331,10 @@ def rebuild_map_bucket(
             clean_intensity=str(_prev_or_brand("clean_intensity", "")),
             clean_passes=int(_prev_or_brand("clean_passes", 1)),
             edge_mopping=bool(_prev_or_brand("edge_mopping", False)),
-            path_type=_prev_or_brand("path_type", None),
+            # ``or ""`` catches a carried-forward None from data written before
+            # RoomConfig stopped defaulting this axis to None — str(None) is "None",
+            # which is not a value any brand declares but is truthy everywhere.
+            path_type=str(_prev_or_brand("path_type", "") or ""),
             is_dock_room=bool(previous.get("is_dock_room", False)),
             is_transition=bool(previous.get("is_transition", False)),
             grants_access_to=list(_prev_grants) if isinstance(_prev_grants, list) else [],

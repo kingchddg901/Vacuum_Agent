@@ -57,6 +57,16 @@ FAN_SPEED_OPTIONS: list[dict] = [
     {"value": "max", "label": "Max"},
 ]
 
+# The per-room path/route axis — Roborock's name for pass density. This is the SAME kind
+# of axis Eufy calls clean_intensity; each brand declares it under its own name and one
+# name only. Whether a given unit OFFERS it is model_catalog.has_path_control; this list
+# is what a stored value is judged against, which is what lets the store repair reset a
+# value no brand declares (the literal "None" that core's old room backfill wrote).
+PATH_TYPE_OPTIONS: list[dict] = [
+    {"value": "wide", "label": "Wide"},
+    {"value": "narrow", "label": "Narrow"},
+]
+
 # water_level from ``select.ivy_mop_intensity`` (off/low/medium/high) — maps 1:1
 # onto the canonical water_level vocabulary (locked decision).
 WATER_LEVEL_OPTIONS: list[dict] = [
@@ -104,9 +114,10 @@ MOP_MODE_OPTIONS: list[dict] = [
 # framework catalog so stored rooms and the card's profile picker keep working across a
 # brand switch; only the VALUES are Roborock's.
 #
-# clean_intensity is OMITTED from every profile on purpose — Roborock exposes no intensity
-# axis (see the adapter's `clean_intensity_options`, deliberately absent). An omitted key
-# means the room stores nothing for it, rather than an inert "Quick" nobody can act on.
+# clean_intensity is OMITTED from every profile on purpose — Roborock spells this axis
+# `path_type` (below), so declaring both would be one property under two names, which is
+# what the Eufy adapter had to be corrected for. An omitted key means the room stores
+# nothing for it, rather than an inert "Quick" nobody can act on.
 ROOM_PROFILES: dict[str, dict] = {
     "vacuum_quick": {
         "label": "Vacuum Only Quick",

@@ -400,8 +400,11 @@ class RunPlanManager:
             slug = str(room.get("slug", "")).strip().lower()
             clean_mode = str(room.get("clean_mode", "")).strip().lower()
             water_level = room.get("water_level")
-            clean_intensity = str(room.get("clean_intensity", "")).strip() or None
-            path_type = str(room.get("path_type", "")).strip() or None
+            clean_intensity = str(room.get("clean_intensity", "") or "").strip() or None
+            # ``or ""`` before str(): a stored None here is a room whose brand has no
+            # path axis, and str(None) would show the plan a literal "None" — a value
+            # that survives the `or None` guard and reaches the run-plan label.
+            path_type = str(room.get("path_type", "") or "").strip() or None
             clean_passes = _safe_int(room.get("clean_passes"), 1)
             edge_mopping = bool(room.get("edge_mopping", False))
             selected_profile_name = str(room.get("selected_profile_name", "")).strip() or None

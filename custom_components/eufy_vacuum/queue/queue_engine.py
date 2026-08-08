@@ -282,7 +282,9 @@ def build_room_clean_payload(
         fan_speed = str(gated["fan_speed"])
         water_level = str(gated["water_level"])
         clean_intensity = str(gated["clean_intensity"])
-        path_type = str(gated["path_type"])
+        # .get, not [] — the gate omits this key entirely for a brand with no path
+        # axis, which is now the normal case rather than an error.
+        path_type = str(gated.get("path_type", ""))
         clean_passes = int(gated["clean_passes"])
         edge_mopping = bool(gated["edge_mopping"])
 
@@ -310,7 +312,14 @@ def build_room_clean_payload(
         if supports_edge and clean_mode in {"mop", "vacuum_mop"}:
             _write_room_field(payload_room, room_fields, "edge_mopping", edge_mopping)
 
-        if supports_path:
+        # The VALUE gates this, not just the capability. An absent room_fields entry
+        # means IDENTITY rename, not omission, so dropping the adapter's declaration
+        # alone would still have emitted `path_type` — as "" instead of "None", which
+        # is a different bad value rather than no field. Also note supports_path_control
+        # is derived from cleaning-intensity presence (core/capabilities.py), so it
+        # reads True on Eufy, which has no path axis at all; the value check is what
+        # keeps that from mattering.
+        if supports_path and path_type:
             _write_room_field(payload_room, room_fields, "path_type", path_type)
 
         payload_rooms.append(payload_room)
@@ -331,7 +340,10 @@ def build_room_clean_payload(
                 "fan_speed": fan_speed,
                 "water_level": water_level,
                 "clean_intensity": clean_intensity,
-                "path_type": path_type,
+                # Carried only when the brand HAS the axis. This is the record learning
+                # buckets against, so an inert "" on every Eufy room would be indexed as
+                # a real setting; absent says "this brand has no such axis".
+                **({"path_type": path_type} if path_type else {}),
                 "clean_passes": clean_passes,
                 "edge_mopping": edge_mopping,
                 "carpet": str(resolved.get("floor_type", "")).startswith("carpet"),

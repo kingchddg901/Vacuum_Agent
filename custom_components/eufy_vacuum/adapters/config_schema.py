@@ -509,8 +509,29 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": (
                     "Valid clean-intensity values for this vacuum. List "
                     "of {value, label} dicts. Eufy: Quick/Narrow/Deep. "
-                    "Most non-Eufy brands omit this — leave the field "
-                    "absent and the card will hide the intensity picker."
+                    "A brand declares this OR path_type_options, never "
+                    "both — they are two names for the same pass-density "
+                    "axis, and declaring both puts one physical property "
+                    "on the wire twice. Omit and the card hides the picker."
+                ),
+                "entry_fields": {
+                    "value": {"type": "str", "required": True},
+                    "label": {"type": "str", "required": True},
+                },
+            },
+            "path_type_options": {
+                "type": "list[dict]",
+                "required": False,
+                "description": (
+                    "Valid path/route values for this vacuum. List of "
+                    "{value, label} dicts. Roborock: wide/narrow. This is "
+                    "the same axis as clean_intensity_options under the "
+                    "other brand's name — declare exactly one of the two. "
+                    "Declaring the list is what makes a stored value "
+                    "judgeable by the store repair, and is required even "
+                    "when no current model exposes the axis: without it a "
+                    "bad value can be neither dropped (the field IS "
+                    "declared) nor reset (nothing to check against)."
                 ),
                 "entry_fields": {
                     "value": {"type": "str", "required": True},

@@ -525,7 +525,19 @@ class EufyVacuumManager:
                 for _room in _map_bucket.get("rooms", {}).values():
                     if not isinstance(_room, dict):
                         continue
-                    _room.setdefault("path_type", None)
+                    # NOTE: `_room.setdefault("path_type", None)` used to head this
+                    # list, from eae291f (the initial release) until it was removed. It
+                    # is a per-brand PROFILE axis and this loop consults no adapter, so
+                    # it stamped `None` — which stringifies to the literal "None"
+                    # downstream — onto every room of every brand, including brands that
+                    # never declared the axis. That is why the fossil appeared on units
+                    # whose adapter has no dispatch path for it at all.
+                    #
+                    # Profile axes arrive via the declared catalog and are stripped by
+                    # _finalize_room_update when undeclared. The keys below are
+                    # framework-owned room METADATA, not brand vocabulary, which is why
+                    # they are safe to default without asking the adapter — that is the
+                    # line this loop must not cross again.
                     _room.setdefault("is_dock_room", False)
                     _room.setdefault("is_transition", False)
                     _room.setdefault("grants_access_to", [])

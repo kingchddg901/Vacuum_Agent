@@ -180,10 +180,15 @@ def test_normalize_room_profile_preserves_values():
 
 
 def test_normalize_room_profile_empty_dict():
-    """[RP-5] Empty dict produces canonical defaults; clean_intensity is display-axis."""
+    """[RP-5] Empty dict produces canonical defaults; the vocabulary axes stay unsaid.
+
+    path_type joins clean_intensity here. It used to default to the literal "wide" with
+    no catalog present, which made every caller — including brands with no path axis —
+    look like it had declared one.
+    """
     p = normalize_room_profile({})
     assert p["clean_intensity"] == ""
-    assert p["path_type"] == "wide"
+    assert p["path_type"] == ""
     assert p["mop_required"] is False
 
 
@@ -362,8 +367,8 @@ def test_capability_gate_mop_deep_downgrade_uses_the_deep_profile(brand):
     intensity word — Roborock declares no intensity axis at all, so a literal "Deep"
     here would assert a field that brand deliberately does not have.
     """
-    # supports_path_control must be ON, or the gate's own path clamp forces "wide" and
-    # the downgrade's choice is unobservable.
+    # supports_path_control ON so the gate does not drop the path axis before the
+    # downgrade's choice can be observed on a brand that has one.
     caps = {**_NO_MOP_CAPS, "supports_path_control": True}
     result = apply_capability_gate(
         _mop_settings(brand), caps,
@@ -371,8 +376,16 @@ def test_capability_gate_mop_deep_downgrade_uses_the_deep_profile(brand):
     )
     deep = _profile(brand, "vacuum_deep")
     assert result["clean_mode"] == "vacuum"
-    assert result["path_type"] == deep["path_type"]
-    assert result["clean_intensity"] == deep.get("clean_intensity", "")
+    # Relational per axis, because the two brands declare DIFFERENT ones: Eufy has no
+    # path_type and Roborock no clean_intensity, they being one property under two
+    # names. A downgrade must carry through whatever this brand declares and must not
+    # grow an axis it does not have — asserting a literal here would demand exactly
+    # that of whichever brand lacks it.
+    for axis in ("path_type", "clean_intensity"):
+        if axis in deep:
+            assert result.get(axis) == deep[axis], axis
+        else:
+            assert not result.get(axis), axis
 
 
 # ---------------------------------------------------------------------------

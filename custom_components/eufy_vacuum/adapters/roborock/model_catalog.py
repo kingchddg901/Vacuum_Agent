@@ -44,6 +44,8 @@ MODEL_PROFILES: dict[str, dict] = {
         # + isReSegmentSupported). Multi-map capable (isMultiFloorSupported) even
         # though the current single-floor setting caps stored maps at 1.
         "supports_segments": True,
+        # No path/route axis on this unit — owner-confirmed on hardware.
+        "has_path_control": False,
     },
     # Settable-mop models. device.model codes are best-effort from python-roborock's
     # model table; if a code is wrong the profile simply never matches and the unit
@@ -58,6 +60,7 @@ MODEL_PROFILES: dict[str, dict] = {
         "has_mop": True,
         "mop_settable": True,
         "supports_segments": True,
+        "has_path_control": False,
     },
     "roborock.vacuum.a70": {  # S8
         "family": "s8",
@@ -66,8 +69,18 @@ MODEL_PROFILES: dict[str, dict] = {
         "has_mop": True,
         "mop_settable": True,
         "supports_segments": True,
+        "has_path_control": False,
     },
 }
+
+# ``has_path_control`` — the per-room path/route axis (``path_type``: wide | narrow).
+# The S6 does not have it; better models do, which is why the axis stays declared in
+# ROOM_PROFILES rather than being deleted brand-wide. It is False on every entry above
+# because no model here has been VERIFIED on hardware, and this flag does not degrade
+# the way ``mop_settable`` does: mop_settable guessing wrong costs a rejected call that
+# is caught and logged, whereas path control guessing wrong puts a picker in the UI for
+# something the device cannot do. Offering a control that does nothing is the worse
+# failure, so this one defaults conservatively and flips per model on evidence.
 
 # Unknown model -> conservative no-dock baseline, but ASSUME a modern Roborock can set
 # its mop ("not all Roborocks are the S6"): mop_settable True is best-effort and
@@ -80,6 +93,7 @@ DEFAULT_PROFILE: dict = {
     "has_mop": True,
     "mop_settable": True,
     "supports_segments": True,
+    "has_path_control": False,
 }
 
 

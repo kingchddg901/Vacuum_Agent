@@ -23,12 +23,17 @@ a stored room and the profile picker survive a brand switch.
 Eufy's, for reference — note that every value below is a EUFY word, which is exactly why
 they no longer live in core:
 
-| Profile key | label | clean_mode | fan_speed | water_level | clean_intensity | path_type | clean_passes | edge_mopping | mop_required |
-|---|---|---|---|---|---|---|---|---|---|
-| `vacuum_quick` | Vacuum Only Quick | vacuum | Standard | Off | Quick | wide | 1 | False | False |
-| `vacuum_deep` | Vacuum Only Deep | vacuum | Max | Off | Deep | narrow | 2 | False | False |
-| `vacuum_mop_quick` | Quick | vacuum_mop | Standard | Medium | Quick | wide | 1 | False | True |
-| `vacuum_mop_deep` | Deep | vacuum_mop | Max | Medium | Deep | narrow | 2 | True | True |
+| Profile key | label | clean_mode | fan_speed | water_level | clean_intensity | clean_passes | edge_mopping | mop_required |
+|---|---|---|---|---|---|---|---|---|
+| `vacuum_quick` | Vacuum Only Quick | vacuum | Standard | Off | Quick | 1 | False | False |
+| `vacuum_deep` | Vacuum Only Deep | vacuum | Max | Off | Deep | 2 | False | False |
+| `vacuum_mop_quick` | Quick | vacuum_mop | Standard | Medium | Quick | 1 | False | True |
+| `vacuum_mop_deep` | Deep | vacuum_mop | Max | Medium | Deep | 2 | True | True |
+
+> **No `path_type` column.** Eufy declared one until 2026-08-08, paired Quick/wide and
+> Deep/narrow — the same axis `clean_intensity` already carries, under Roborock's name for
+> it. Both went on the wire in one room object. A brand declares exactly ONE name for this
+> axis; Roborock's catalog still declares `path_type` and no `clean_intensity`.
 
 `get_default_room_profiles()` returns **only** the resolved catalog's `builtins` (empty when the adapter declares none); it does **not** seed a legacy user slot `user_1`. A pristine framework-default `user_1` was deliberately removed because it surfaced as an undeletable "User Profile 1" chip in the room editor — it lived in no user store, so a delete found nothing (`profile_not_found`) and it reappeared on every fetch. A `user_1` exists only when a user has explicitly saved over it, in which case it lives in the stored profiles and is returned by `merge_profile_dicts()` as real, deletable data. The starting-settings template is the resolved catalog's `custom_template`, declared by the adapter. Legacy aliases are resolved at lookup time from the catalog's `legacy_aliases` — those two (`vacuum_standard`→`vacuum_quick`, `vacuum_mop_standard`→`vacuum_mop_quick`) are EUFY's retired names and are declared by the Eufy adapter; Roborock declares `legacy_aliases: {}` because it has none of its own. The framework's default profile name is `DEFAULT_ROOM_PROFILE_NAME = "vacuum_quick"` — a brand can override which profile a newly-discovered room actually gets via `room_profiles.default_profile` (§1.1); see [08-rooms-system](08-rooms-system.md) §3.1 for how the new-room defaulting seam (`rooms/room_defaults.py`) consumes it.
 
@@ -134,12 +139,14 @@ Each stored record is the `normalize_room_profile()` output — exactly **9 keys
 | `fan_speed` | `str` | `"Max"` |
 | `water_level` | `str` | `"Off"` |
 | `clean_intensity` | `str` | `""` when nothing is declared. The retired Eufy values `Standard`/`Normal` are no longer folded on read — that was a one-shot data repair running forever, now `rooms/vocabulary_migration.py`. What remains is `coerce_clean_intensity`, which trims and coerces and carries no vocabulary. |
-| `path_type` | `str` | `"wide"` |
+| `path_type` | `str` | `""` when nothing is declared — the literal `"wide"` was Roborock vocabulary sitting in the framework default, so every brand acquired it unasked. Eufy's template declares no path axis at all. |
 | `clean_passes` | `int` | `1` |
 | `edge_mopping` | `bool` | `False` |
 | `mop_required` | `bool` | `False` |
 
-> **`path_type`/`mop_required` are derived for custom profiles.** The editor/service exposes 7 fields (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`) — not `path_type` or `mop_required`. `save_user_room_profile` **derives** the missing two to mirror the built-ins rather than letting `normalize_room_profile` default both: `mop_required = "mop" in clean_mode or "wash" in clean_mode`, and `path_type = "narrow"` when `clean_intensity` normalizes to `Deep` else `"wide"`. (Was code-flag B2: previously both were left to default `"wide"`/`False`, mis-storing a deep-mop custom profile — fixed.)
+> **`mop_required` is derived for custom profiles; `path_type` is NOT.** The editor/service exposes 7 fields (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`). `save_user_room_profile` derives `mop_required = "mop" in clean_mode or "wash" in clean_mode`, since without it a deep-mop custom profile stored as not-mop (code-flag B2).
+>
+> The B2 fix also derived `path_type = "narrow"` when `clean_intensity` normalized to `Deep`, else `"wide"`. **That derivation was removed 2026-08-08.** Computing one axis from another brand's word is core owning vocabulary, and the fact that it *could* be computed was the evidence the two are one axis under two names. A brand with a genuine path axis declares it in its own profiles; nothing synthesizes it.
 
 Only **user-created** profiles are stored here, and the store is GLOBAL rather than per-vacuum. The four built-ins are not persisted — `get_room_profiles(vacuum_entity_id=...)` merges that vacuum's declared `builtins` over the stored profiles at read time via `merge_profile_dicts()`. Called without a vacuum it returns the stored library alone and reports `built_ins_included: false`, because built-ins belong to a brand and there is no framework set to stand in. The store key is also the `profile_name`.
 
@@ -324,7 +331,7 @@ The rule is: carpet rooms can never mop (water/edge always cleared on carpet), a
 ```
 1. _protected_room_config(room)            # apply carpet/mop invariants
 2. resolve_room_profile_for_room(room)     # match profile by floor_type
-3. sync path_type from profile             # apply profile's path_type to room
+3. sync path_type from profile             # ONLY when the profile resolved one; else the key is removed
 4. _match_profile_from_fields(room)        # find matching named profile
 5. set profile_name = matched name or "custom"
 ```
@@ -350,7 +357,7 @@ If a match is found `profile_name` is set to it; otherwise `profile_name = "cust
 |---|---|
 | `supports_water_control` | `water_level → "Off"` |
 | `supports_edge_mopping` | `edge_mopping → False` |
-| `supports_path_control` | `path_type → "wide"` |
+| `supports_path_control` | `path_type` **omitted from the gated result** (was clamped to `"wide"` — a value, and a brand's word, asserted onto devices with no path axis; an omitted field is how dispatch already says "this brand does not expose it") |
 | `supports_passes` (default `True`) | `clean_passes → 1` |
 
 **Mop → vacuum downgrade.** When the device lacks `supports_mop_features` and the room is in a mop mode (`clean_mode in {"mop", "vacuum_mop"}`), the room is downgraded to vacuum-only. The downgrade **derives `path_type` and `clean_intensity` from the corresponding vacuum-only built-in profile** (via `get_room_profile`, passed the same `catalog`) rather than hardcoding values, so it follows whatever vocabulary the profile catalog declares:

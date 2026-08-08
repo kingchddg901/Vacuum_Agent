@@ -14,9 +14,10 @@ VALUES.** ``vacuum_quick`` / ``vacuum_deep`` / ``vacuum_mop_quick`` /
 these keys on purpose, so stored rooms and the profile picker survive a brand
 switch — while the settings behind each key are the brand's own words.
 
-Copied VERBATIM from the framework constants, byte-identical, so Eufy resolves
-exactly as it did before. ``tests/unit/test_profile_catalog.py`` pins that
-fidelity.
+Copied from the framework constants so Eufy resolves as it did before, with ONE
+deliberate subtraction since: ``path_type``, which was a second name for the axis
+``clean_intensity`` already carries (see the note under the profiles below).
+``tests/unit/test_profile_catalog.py`` pins the values that remain.
 
 Values only. Nothing here is a framework default for anybody else: a brand
 declares its own catalog, or declares it unused (``builtins: {}``). There is no
@@ -37,7 +38,6 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
         "fan_speed": "Standard",
         "water_level": "Off",
         "clean_intensity": "Quick",
-        "path_type": "wide",
         "clean_passes": 1,
         "edge_mopping": False,
         "mop_required": False,
@@ -48,7 +48,6 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
         "fan_speed": "Max",
         "water_level": "Off",
         "clean_intensity": "Deep",
-        "path_type": "narrow",
         "clean_passes": 2,
         "edge_mopping": False,
         "mop_required": False,
@@ -59,7 +58,6 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
         "fan_speed": "Standard",
         "water_level": "Medium",
         "clean_intensity": "Quick",
-        "path_type": "wide",
         "clean_passes": 1,
         "edge_mopping": False,
         "mop_required": True,
@@ -70,7 +68,6 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
         "fan_speed": "Max",
         "water_level": "Medium",
         "clean_intensity": "Deep",
-        "path_type": "narrow",
         "clean_passes": 2,
         "edge_mopping": True,
         "mop_required": True,
@@ -82,6 +79,20 @@ BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
 # rooms/vocabulary_migration.py resets them to this brand's default_profile value —
 # "Quick" — by the same rule it applies to every out-of-vocabulary setting on every
 # brand. Declaring the real options IS the declaration of what is retired.
+#
+# path_type is DELIBERATELY ABSENT from every profile above. It was a second name for
+# the axis clean_intensity already carries: the built-ins paired Quick/wide and
+# Deep/narrow, and core went as far as DERIVING one from the other. Carrying both meant
+# the same physical property rode the wire twice, and only invalid stored values
+# ("None") kept the device from ever having to choose between them.
+#
+# Provenance, since the pairing makes it look like a brand leak and it is not: the
+# pre-integration YAML system had ONE axis, clean_intensity (Fast/Standard/Deep).
+# path_type appears in eae291f, the initial release, three weeks before adapters or a
+# second brand existed — so it was invented here as a duplicate, not inherited from
+# anyone. The Roborock adapter later declared the field that was already canonical,
+# which is why it reads as Roborock's word today. Eufy declares ONE name for this axis:
+# clean_intensity. Roborock keeps path_type, the only name that adapter uses for it.
 
 
 DEFAULT_CUSTOM_ROOM_PROFILE: dict[str, Any] = {
@@ -90,7 +101,6 @@ DEFAULT_CUSTOM_ROOM_PROFILE: dict[str, Any] = {
     "fan_speed": "Max",
     "water_level": "Off",
     "clean_intensity": "Quick",
-    "path_type": "wide",
     "clean_passes": 1,
     "edge_mopping": False,
     "mop_required": False,

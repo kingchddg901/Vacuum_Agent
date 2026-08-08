@@ -141,6 +141,11 @@ class RoomRecord(TypedDict, total=False):
     Runtime storage uses a plain dict for HA storage compatibility.
     ``floor_type`` encodes carpet pile in the value (e.g. ``"carpet_low_pile"``);
     use ``floor_type.startswith("carpet")`` rather than a separate carpet flag.
+
+    ``total=False`` is load-bearing for the settings axes, not a convenience: a room
+    carries only the axes ITS BRAND declares. ``clean_intensity`` is absent on
+    Roborock and ``path_type`` on Eufy, because those two are one physical property
+    — pass density — under each brand's own name.
     """
 
     room_id: int
@@ -157,7 +162,7 @@ class RoomRecord(TypedDict, total=False):
     clean_intensity: str
     clean_passes: int
     edge_mopping: bool
-    path_type: Optional[str]    # "wide" | "narrow" | None
+    path_type: str              # "wide" | "narrow" — absent on brands with no path axis
     is_dock_room: bool
     grants_access_to: list      # list[int] — room ids this room grants access to
     rules: list                 # list[dict] — scheduling/condition rules
@@ -210,7 +215,15 @@ class RoomConfig:
     edge_mopping: bool = False
 
     # Stored explicitly so callers can read path_type without re-resolving the profile.
-    path_type: Optional[str] = None
+    #
+    # "" — not None — for the same reason as the axes above, and this one had teeth:
+    # ``as_dict`` is ``asdict``, so EVERY room rebuilt through this dataclass wrote
+    # ``path_type: None`` back to storage on every brand, including brands with no
+    # path axis. Read back out through ``str()`` that becomes the literal "None",
+    # which is truthy, in no vocabulary, and was observed on the wire. Empty means
+    # "nobody said" and is falsy, so it stays out of payloads by the same test every
+    # other unset axis uses.
+    path_type: str = ""
 
     is_dock_room: bool = False
     # Transition/pass-through room (a hallway the vacuum crosses rather than dwells in).
@@ -233,8 +246,29 @@ class RoomConfig:
     color: Optional[str] = None
 
     def as_dict(self) -> dict[str, Any]:
-        """Return the room config as a dictionary."""
-        return asdict(self)
+        """Return the room config as a dictionary.
+
+        ``path_type`` is dropped when empty. This dataclass is the REBUILD writer —
+        every room re-created by ``maps/map_manager.rebuild_map_bucket`` and
+        ``rooms/room_manager.build_managed_rooms`` goes through it — and it is the
+        one path that never consults a brand catalog, so an empty axis written here
+        lands on rooms of brands that have no such axis and re-creates the value the
+        one-shot store repair just cleared. Carrying the key only when it holds a
+        real value is the same rule the three catalog-aware writers apply
+        (``_finalize_room_update``, ``apply_capability_gate``,
+        ``apply_room_profile_to_config``); this makes the fourth agree with them.
+
+        Only this axis, deliberately. ``fan_speed`` / ``water_level`` /
+        ``clean_intensity`` are read all over with ``room.get(field, "")``, so
+        dropping their empties would be a behaviour change across many call sites for
+        no defect; ``path_type`` is the axis whose empty value has to be
+        indistinguishable from absent, because "this brand has no path axis" is
+        exactly what it means.
+        """
+        result = asdict(self)
+        if not result.get("path_type"):
+            result.pop("path_type", None)
+        return result
 
 
 @dataclass(slots=True)

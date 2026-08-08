@@ -253,7 +253,14 @@ class ProfileManager:
             stored_profiles=_stored_profiles,
             catalog=self._catalog_for(vacuum_entity_id),
         )
-        result["path_type"] = _resolved.get("path_type")
+        # Guarded: an unconditional write put path_type="" (or None) on rooms of every
+        # brand, including ones with no path axis, before the declaration strip below
+        # could see it. The strip still runs — this just stops the key being created
+        # when nobody declared it, so a catalog-less call cannot mint one either.
+        if _resolved.get("path_type"):
+            result["path_type"] = _resolved["path_type"]
+        else:
+            result.pop("path_type", None)
 
         # A room carries only the axes its brand HAS. normalize_room_profile always
         # emits all nine ProfileRecord keys, and this pipeline writes the result back,
@@ -368,7 +375,9 @@ class ProfileManager:
             "fan_speed": protected.get("fan_speed"),
             "water_level": protected.get("water_level"),
             "clean_intensity": protected.get("clean_intensity"),
-            "path_type": resolved.get("path_type"),
+            # ``or None`` so a brand with no path axis reads as null rather than "",
+            # which is what the card's ``?? `` fallbacks are written against.
+            "path_type": resolved.get("path_type") or None,
             "default_clean_passes": protected.get("clean_passes", 1),
             "default_edge_mopping": protected.get("edge_mopping", False),
             "mop_required": "mop" in clean_mode or "wash" in clean_mode,
@@ -403,19 +412,17 @@ class ProfileManager:
                 "message": "Core built-in room profiles cannot be overwritten.",
             }
 
-        # Custom profiles are authored WITHOUT path_type / mop_required (the editor
-        # exposes neither), so derive them the way the built-ins pair them instead of
-        # letting normalize_room_profile default BOTH (path_type="wide",
-        # mop_required=False) — which mis-stored a deep-mop custom profile as
-        # wide / not-mop. mop_required tracks the mode; path_type mirrors the
-        # built-ins' Deep->narrow / else->wide coupling.
+        # Custom profiles are authored WITHOUT mop_required (the editor does not expose
+        # it), so derive it from the mode rather than letting normalize_room_profile
+        # default it False — which mis-stored a deep-mop custom profile as not-mop.
+        #
+        # path_type is NOT derived here any more. This used to compute it from
+        # clean_intensity ("deep" -> narrow, else wide), which is core deriving one
+        # brand's axis from another brand's word — and the derivation was itself the
+        # proof that the two are one axis under two names. A brand that genuinely has a
+        # separate path axis declares it in its own profiles; nothing synthesizes it.
         _clean_mode_l = str(clean_mode).lower()
         _mop_required = "mop" in _clean_mode_l or "wash" in _clean_mode_l
-        _path_type = (
-            "narrow"
-            if coerce_clean_intensity(clean_intensity).lower() == "deep"
-            else "wide"
-        )
         profile = normalize_room_profile(
             {
                 "label": label,
@@ -425,7 +432,6 @@ class ProfileManager:
                 "clean_intensity": clean_intensity,
                 "clean_passes": clean_passes,
                 "edge_mopping": edge_mopping,
-                "path_type": _path_type,
                 "mop_required": _mop_required,
             }
         )

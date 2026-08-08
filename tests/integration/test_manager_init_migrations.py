@@ -188,7 +188,12 @@ async def test_init_skips_non_dict_bucket_and_room(
     real = rooms["1"]
     assert real["floor_type"] == "hardwood"
     assert real["profile_name"] == "vacuum_quick"
-    assert real["path_type"] is None
+    # path_type is NOT among them, and its absence is the point: this loop asks no
+    # adapter, so backfilling a per-brand settings axis here wrote `None` — the literal
+    # "None" once stringified — onto every room of every brand, including brands with
+    # no path axis at all. The keys asserted here are framework-owned room METADATA,
+    # which is what makes them safe to default without consulting the brand.
+    assert "path_type" not in real
     assert real["is_dock_room"] is False
     assert real["grants_access_to"] == []
     assert real["rules"] == []

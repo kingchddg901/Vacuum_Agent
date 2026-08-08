@@ -640,7 +640,13 @@ def register_eufy_adapter_for_vacuum(
                 },
                 "water_level":     {"field_name": "water_level",     "value_map": None},
                 "edge_mopping":    {"field_name": "edge_mopping",    "value_map": None},
-                "path_type":       {"field_name": "path_type",       "value_map": None},
+                # path_type is NOT declared: it is a second name for the axis
+                # clean_intensity above already carries. Declaring it here put BOTH on
+                # the wire in one room object — verified live, the payload read
+                # {"clean_intensity": "Quick", "path_type": "None"} — and the only
+                # reason the device never had to pick between them is that the stored
+                # value was the invalid string "None". An undeclared canonical field is
+                # simply omitted from the payload, which is the correct wire shape.
             },
         },
 

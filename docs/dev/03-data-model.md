@@ -441,16 +441,23 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 > vocabulary. See [21-adapter-system](21-adapter-system.md) §7.
 | `clean_passes` | `int` | Number of cleaning passes; minimum 1. |
 | `edge_mopping` | `bool` | Whether edge mopping is active. |
-| `path_type` | `str \| None` | `"wide"`, `"narrow"`, or `None`. |
+| `path_type` | `str` | `"wide"` or `"narrow"`. **Brand-conditional — present only on brands that declare the axis, absent otherwise.** It and `clean_intensity` are the same physical property (pass density) under each brand's own name, so a room carries exactly one of the two: Roborock rooms carry `path_type`, Eufy rooms carry `clean_intensity`. Never `None` — a stored `None` stringifies to the literal `"None"`, which is truthy and in no vocabulary. Not backfilled; readers must tolerate absence. |
 | `is_dock_room` | `bool` | Marks the room that contains the dock. Backfilled `False`. |
 | `is_transition` | `bool` | Internal / legacy; seeded `False` by backfill. Not in TypedDict. |
 | `grants_access_to` | `list[str]` | Room slugs this room grants traversal access to. Backfilled `[]`. |
 | `rules` | `list[RuleDefinition]` | Backfilled `[]`. |
 | `color` | `str \| None` | Per-room map-fill override; canonical lowercase `"#rrggbb"`, or `None`/absent to use the themeable room-fill palette. Purely presentational. Validated on write by `_hex_color_or_none` (accepts `#rgb`/`#rrggbb` with or without leading `#`, canonicalizes to lowercase `#rrggbb`; empty/None clears). Not backfilled — readers must tolerate absence. Declared on both the `RoomRecord` TypedDict and `RoomConfig` dataclass (`models/models.py`); written via the `update_room_fields` service (`services/rooms.py`) and preserved across re-save (`rooms/room_manager.py`). |
 
-**Schema migration** in `async_initialize`: `path_type`, `is_dock_room`,
-`is_transition`, `grants_access_to`, `rules`, `floor_type`, `profile_name`, and
-`is_configured` are backfilled with `setdefault`. The old `floor_type="carpet"` +
+**Schema migration** in `async_initialize`: `is_dock_room`, `is_transition`,
+`grants_access_to`, `rules`, `floor_type`, `profile_name`, and `is_configured` are
+backfilled with `setdefault`. These are framework-owned room METADATA, which is what
+makes them safe to default without consulting a brand.
+
+`path_type` was in that list until 2026-08-08 and must never return to it. The loop asks
+no adapter, so it stamped `None` on every room of every brand — including brands with no
+path axis — and `str(None)` is the literal `"None"`, truthy and in no vocabulary. A
+per-brand SETTINGS axis arrives from the declared catalog and is stripped by
+`ProfileManager._finalize_room_update` where undeclared; only metadata belongs here. The old `floor_type="carpet"` +
 `carpet_type` sub-field is collapsed into `"carpet_low_pile"` / `"carpet_high_pile"`
 in place. The derived `carpet` boolean field is removed.
 
@@ -671,7 +678,7 @@ Capability-gated fields are conditionally present.
 | `clean_intensity` | `str` | always |
 | `water_level` | `str` | only if `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `edge_mopping` | `bool` | only if `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
-| `path_type` | `str` | only if `supports_path_control` |
+| `path_type` | `str` | only if `supports_path_control` **and the resolved value is non-empty**. The value gates it, not the capability alone: an absent `room_fields` entry means IDENTITY rename, not omission, so a capability-only check emitted the field as `""` for a brand that declares no path axis. `supports_path_control` is itself derived from cleaning-intensity presence (`core/capabilities.py`), so it reads True on Eufy, which has no such axis. |
 
 ### `ResolvedRoom`
 
@@ -1275,9 +1282,11 @@ Built-in profiles (e.g. `"vacuum_quick"`, `"vacuum_mop_quick"`) are compiled at
 runtime from `profiles/room_profiles.py` and never written to storage — only
 user-created profiles appear in storage.
 
-`data["profiles"]["room_profiles"][profile_name]` — this **9-key** stored record
-(the always-defaulted `path_type` / `mop_required` included) is owned by
-[16-profile-manager](16-profile-manager.md) §3.1.
+`data["profiles"]["room_profiles"][profile_name]` — this stored record is owned by
+[16-profile-manager](16-profile-manager.md) §3.1. It carries **8 framework keys plus
+whichever settings axes the brand declares**, not a fixed 9: `mop_required` is always
+derived from `clean_mode`, but `path_type` and `clean_intensity` are two names for one
+axis and a brand declares exactly one of them.
 
 ```
 {
@@ -1289,7 +1298,7 @@ user-created profiles appear in storage.
   "clean_passes":    int
   "edge_mopping":    bool
   "mop_required":    bool   # derived from clean_mode at save (mop / vacuum_mop -> True)
-  "path_type":       str    # "wide" | "narrow" — always present (derived: Deep -> "narrow", else "wide")
+  "path_type":       str    # "wide" | "narrow" — ONLY on brands declaring the axis; NOT derived
 }
 ```
 

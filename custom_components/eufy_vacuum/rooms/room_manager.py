@@ -203,7 +203,10 @@ def build_managed_rooms(
             clean_intensity=str(_default("clean_intensity", "")),
             clean_passes=int(_default("clean_passes", 1)),
             edge_mopping=bool(_default("edge_mopping", False)),
-            path_type=_default("path_type", None),
+            # ``or ""`` catches a carried-forward None from data written before
+            # RoomConfig stopped defaulting this axis to None — str(None) is "None",
+            # which is not a value any brand declares but is truthy everywhere.
+            path_type=str(_default("path_type", "") or ""),
             is_dock_room=bool(existing.get("is_dock_room", False)),
             is_transition=bool(existing.get("is_transition", False)),  # preserve across a re-save
             grants_access_to=list(existing.get("grants_access_to", [])),

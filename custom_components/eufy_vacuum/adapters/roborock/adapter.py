@@ -58,6 +58,7 @@ from .vocabulary import (
     CANCEL_DETECTION_STATES,
     CUSTOM_ROOM_PROFILE,
     FAN_SPEED_OPTIONS,
+    PATH_TYPE_OPTIONS,
     FLOOR_TYPE_FAN_DEFAULTS as RB_FLOOR_TYPE_FAN_DEFAULTS,
     FLOOR_TYPE_WATER_DEFAULTS as RB_FLOOR_TYPE_WATER_DEFAULTS,
     ROOM_PROFILES,
@@ -176,7 +177,9 @@ def register_roborock_adapter_for_vacuum(
         "supports_mop_wash": profile["has_dock"],
         "supports_mop_dry": profile["has_dock"],
         "supports_empty_dust": profile["has_dock"],
-        "supports_path_control": False,  # no per-room fan/water on the wire
+        # Per-model, not brand-wide: the S6 has no path/route axis, but better models
+        # do — see model_catalog.has_path_control for why every entry is False today.
+        "supports_path_control": profile.get("has_path_control", False),
         # Declared False in the config capabilities block too (see ~:571). It must ALSO be
         # a hint: the room payload gate reads the runtime-detected capabilities payload
         # (manager.get_vacuum_capabilities -> data["capabilities"]), not the config block,
@@ -262,6 +265,16 @@ def register_roborock_adapter_for_vacuum(
             # switch that gates water + drives the mop pre-call; it never hits the wire)
             # and water_level (mop intensity), honored via the mop global_pre_calls below.
             "fan_speed_options": FAN_SPEED_OPTIONS,
+            # DECLARED UNCONDITIONALLY, even though no catalogued model sets
+            # has_path_control yet. This is the option list for path_type, the axis
+            # Roborock keeps and Eufy does not, and declaring it is what makes a stored
+            # value JUDGEABLE: rooms/vocabulary_migration.py can only reset a value it
+            # can check against a list, so while no list existed the fossil string
+            # "None" was un-droppable (the field IS declared by the profiles) and
+            # un-resettable (no options) — the exact gap that left it on every room.
+            # Capability gating decides whether the axis is OFFERED; this decides
+            # whether a value is VALID, and those are different questions.
+            "path_type_options": PATH_TYPE_OPTIONS,
             **(
                 {
                     "clean_mode_options": CLEAN_MODE_OPTIONS,      # vacuum / mop / vacuum_mop
@@ -634,7 +647,9 @@ def register_roborock_adapter_for_vacuum(
             "supports_mop_features": caps.get("supports_mop_features", profile["has_mop"]),
             "supports_water_control": mop_settable,
             # Per-room fan/water do not ride the app_segment_clean wire (global only).
-            "supports_path_control": False,
+            # The path/route axis is per-MODEL though, so read the catalog rather than
+            # baking the S6's answer into the brand.
+            "supports_path_control": profile.get("has_path_control", False),
             "supports_edge_mopping": False,
             # No dock.
             "supports_mop_wash": False,

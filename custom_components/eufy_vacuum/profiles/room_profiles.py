@@ -19,20 +19,26 @@ class UndeclaredProfileCatalogError(RuntimeError):
     """
 
 
-class ProfileRecord(TypedDict):
+class ProfileRecord(TypedDict, total=False):
     """Canonical shape of a stored or built-in room profile dict (documentation-only).
 
-    Exactly the 9 keys ``normalize_room_profile`` produces and every brand catalog
-    declares — all always present. The store key IS the ``profile_name``; the record
-    itself carries no ``id`` / ``name`` / ``is_builtin``.
+    The store key IS the ``profile_name``; the record itself carries no ``id`` /
+    ``name`` / ``is_builtin``.
+
+    ``total=False`` is load-bearing for the SETTINGS axes, not a convenience — this
+    said "all always present" while a brand catalog declares only the axes its devices
+    have. ``clean_intensity`` is absent from every Roborock profile and ``path_type``
+    from every Eufy one, those two being one physical property (pass density) under
+    each brand's own name. ``label`` / ``clean_mode`` / ``clean_passes`` /
+    ``edge_mopping`` / ``mop_required`` are framework-owned and do appear throughout.
     """
 
     label: str
     clean_mode: str
     fan_speed: str
     water_level: str
-    clean_intensity: str
-    path_type: str              # "wide" | "narrow"
+    clean_intensity: str        # brand-conditional — absent on Roborock
+    path_type: str              # "wide" | "narrow" — brand-conditional, absent on Eufy
     clean_passes: int
     edge_mopping: bool
     mop_required: bool
@@ -41,9 +47,12 @@ class ProfileRecord(TypedDict):
 class EffectiveRoomSettings(TypedDict, total=False):
     """Output shape of ``resolve_room_profile_for_room()`` (documentation-only).
 
-    ``path_type`` is always present. ``capability_gated`` is added by
-    ``apply_capability_gate()``. ``floor_type`` encodes material and carpet
-    pile in one value (e.g. ``"carpet_low_pile"``).
+    ``capability_gated`` is added by ``apply_capability_gate()``. ``floor_type``
+    encodes material and carpet pile in one value (e.g. ``"carpet_low_pile"``).
+
+    ``path_type`` is brand-conditional, NOT always present — it is carried only by a
+    brand that declares the axis, and ``apply_capability_gate`` drops the key outright
+    for a device without path control rather than clamping it to a value.
     """
 
     selected_profile_name: str
@@ -90,6 +99,20 @@ PROTECTED_ROOM_PROFILE_NAMES: frozenset[str] = frozenset({
 DEFAULT_ROOM_PROFILE_NAME = "vacuum_quick"
 
 
+def coerce_axis_value(value: Any) -> str:
+    """Coerce any stored per-room axis value to a trimmed string; None becomes "".
+
+    One coercer for the question every axis asks — "what did the room store here,
+    as a string?" — rather than a per-field one. ``clean_intensity`` had it and
+    ``path_type`` did not, and the gap is the whole defect: ``RoomConfig.path_type``
+    was ``Optional[str] = None``, ``asdict`` wrote that None into storage, and a bare
+    ``str()`` on the way back out produced the literal ``"None"``. That string is in
+    no brand's vocabulary, so nothing could match it — and it is TRUTHY, so every
+    downstream "did this room set a path?" test answered yes and put it on the wire.
+    """
+    return str(value if value is not None else "").strip()
+
+
 def coerce_clean_intensity(value: Any) -> str:
     """Coerce a stored ``clean_intensity`` to a trimmed string; None becomes "".
 
@@ -105,9 +128,11 @@ def coerce_clean_intensity(value: Any) -> str:
 
     The coercion itself stays and is load-bearing: a brand that declares no
     intensity axis (Roborock omits it from every profile) yields None here, and a
-    bare ``str()`` would write the string ``"None"`` into a room.
+    bare ``str()`` would write the string ``"None"`` into a room. Kept as its own
+    name because nine call sites read as intensity questions; the coercion is
+    ``coerce_axis_value``, shared with every other axis.
     """
-    return str(value if value is not None else "").strip()
+    return coerce_axis_value(value)
 
 
 #: Per-room settings whose VALUES are a brand's vocabulary. ``clean_passes`` /
@@ -242,7 +267,7 @@ def normalize_room_profile(
 ) -> dict[str, Any]:
     """Return a fully normalized room profile dict with safe defaults for all keys.
 
-    Framework-canonical fields (label/clean_mode/path_type/clean_passes/
+    Framework-canonical fields (label/clean_mode/clean_passes/
     edge_mopping/mop_required) fall back to the catalog's ``normalize_defaults``
     (the adapter's ``normalize_defaults``; empty when the adapter declares none, since
     is None — byte-identical).
@@ -273,7 +298,14 @@ def normalize_room_profile(
         "clean_intensity": coerce_clean_intensity(
             source.get("clean_intensity", brand_defaults.get("clean_intensity", ""))
         ),
-        "path_type": str(source.get("path_type", d.get("path_type", "wide"))),
+        # Same doctrine as the display axes above. "wide" sat here as the framework
+        # default, so every brand acquired it with nobody having declared it — including
+        # brands with no path axis at all. "" means "nobody said"; a brand that HAS the
+        # axis declares it in normalize_defaults, and _finalize_room_update strips it
+        # where undeclared.
+        "path_type": coerce_axis_value(
+            source.get("path_type", brand_defaults.get("path_type", ""))
+        ),
         "clean_passes": int(source.get("clean_passes", d.get("clean_passes", 1))),
         "edge_mopping": bool(source.get("edge_mopping", d.get("edge_mopping", False))),
         "mop_required": bool(source.get("mop_required", d.get("mop_required", False))),
@@ -541,7 +573,12 @@ def resolve_room_profile_for_room(
     resolved_clean_intensity = coerce_clean_intensity(
         room_config.get("clean_intensity", resolved_profile.get("clean_intensity", ""))
     )
-    resolved_path_type = str(room_config.get("path_type", resolved_profile.get("path_type", "wide")))
+    # This line was the one exception to the rule stated directly above: a literal
+    # default, for every brand, on an axis most of them never declared. "" now, like
+    # every other axis here.
+    resolved_path_type = coerce_axis_value(
+        room_config.get("path_type", resolved_profile.get("path_type", ""))
+    )
     resolved_edge_mopping = bool(room_config.get("edge_mopping", resolved_profile.get("edge_mopping", False)))
 
     resolved_fan_speed = str(room_config.get("fan_speed", resolved_profile.get("fan_speed", "")))
@@ -639,22 +676,25 @@ def apply_capability_gate(
     fan_speed = str(settings.get("fan_speed", ""))
     water_level = str(settings.get("water_level", no_water))
     clean_intensity = coerce_clean_intensity(settings.get("clean_intensity", ""))
-    path_type = str(settings.get("path_type", "wide"))
+    path_type = coerce_axis_value(settings.get("path_type", ""))
     clean_passes = int(settings.get("clean_passes", 1))
     edge_mopping = bool(settings.get("edge_mopping", False))
 
     # Mop unsupported — downgrade to the vacuum-only equivalent. Derive path_type /
     # clean_intensity from the corresponding vacuum-only built-in profile rather than
     # hardcoding values, so the downgrade follows whatever vocabulary the profile
-    # catalog declares (today the Eufy built-ins → wide/Quick, narrow/Deep).
+    # catalog declares. A brand that declares only one of the two axes carries only
+    # that one through the downgrade; the other stays "" and is dropped below.
     if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
         fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
         _, fallback = get_room_profile(profile_name=fallback_name, catalog=catalog)
         clean_mode = "vacuum"
         water_level = no_water
         edge_mopping = False
-        path_type = fallback.get("path_type", path_type)
-        clean_intensity = fallback.get("clean_intensity", clean_intensity)
+        path_type = coerce_axis_value(fallback.get("path_type", path_type))
+        clean_intensity = coerce_clean_intensity(
+            fallback.get("clean_intensity", clean_intensity)
+        )
 
     # Vacuum-only mode — water and edge mopping are irrelevant.
     if clean_mode == "vacuum":
@@ -666,7 +706,13 @@ def apply_capability_gate(
     if not supports_edge:
         edge_mopping = False
     if not supports_path:
-        path_type = "wide"
+        # A device without the axis gets the field OMITTED, not clamped to a value.
+        # Clamping to "wide" wrote a value into every payload the gate touched — the
+        # loudest possible answer to "does this device have a path axis?" being asked
+        # of devices that do not. An omitted field is exactly how the dispatch layer
+        # already expresses "this brand does not expose it" (room_fields
+        # field_name=None), so match it.
+        path_type = ""
     if not supports_passes:
         clean_passes = 1
 
@@ -677,12 +723,17 @@ def apply_capability_gate(
             "fan_speed": fan_speed,
             "water_level": water_level,
             "clean_intensity": clean_intensity,
-            "path_type": path_type,
             "clean_passes": clean_passes,
             "edge_mopping": edge_mopping,
             "capability_gated": True,
         }
     )
+    # "" is "nobody declared this axis" — carry the key only when it has a real value,
+    # so absent stays distinguishable from declared-empty downstream.
+    if path_type:
+        gated["path_type"] = path_type
+    else:
+        gated.pop("path_type", None)
     return gated
 
 
@@ -711,7 +762,14 @@ def apply_room_profile_to_config(
     updated["clean_intensity"] = normalized["clean_intensity"]
     updated["clean_passes"] = normalized["clean_passes"]
     updated["edge_mopping"] = bool(normalized["edge_mopping"])
-    updated["path_type"] = normalized.get("path_type")
+    # Only carry the path axis for a brand that actually declares it. This wrote the
+    # key unconditionally, so applying any profile re-stamped path_type onto rooms of
+    # brands that have no such axis — regenerating the very fossil the store repair
+    # clears. normalize_room_profile yields "" when nobody declared it.
+    if normalized.get("path_type"):
+        updated["path_type"] = normalized["path_type"]
+    else:
+        updated.pop("path_type", None)
     # Normalize floor_type on write so legacy "carpet" values are migrated in place.
     updated["floor_type"] = _normalize_floor_type(updated.get("floor_type"))
     return updated
