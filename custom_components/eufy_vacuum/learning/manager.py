@@ -2865,10 +2865,13 @@ class LearningManager:
 
                 clean_mode = str(protected.get("clean_mode", "vacuum")).strip().lower()
                 clean_passes = _safe_int(protected.get("clean_passes", 1), 1)
+                # Defaults are "" — core has no word for an absent setting. "standard"
+                # was doubly wrong: a Eufy word, and one Eufy itself retired, so a room
+                # missing the field was bucketed under a value no device accepts.
                 clean_intensity = str(
-                    protected.get("clean_intensity", "standard")
+                    protected.get("clean_intensity", "")
                 ).strip().lower()
-                water_level = str(protected.get("water_level", "Off"))
+                water_level = str(protected.get("water_level", ""))
                 edge_mopping = bool(protected.get("edge_mopping", False))
                 floor_type = str(room_data.get("floor_type", "hardwood")).lower()
                 is_carpet = floor_type.startswith("carpet")

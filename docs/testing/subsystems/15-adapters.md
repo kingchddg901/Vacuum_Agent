@@ -61,6 +61,47 @@ it exists to prevent — so it now manufactures its own leaky and clean modules 
 tmp dir. The instrument stays proven with the ledger empty, which is the state it
 should stay in.
 
+### `tests/test_vocabulary_invariant.py` — the standing invariant
+
+**Core owns the KEY space. It does not own any brand's WORDS.** Enforced (14 tests,
+added 2026-08-07) by taking two signals together, because either alone is useless:
+
+1. **Syntactic** — the literal is bound to a provider-owned field (`fan_speed`,
+   `water_level`, `clean_intensity`): assigned to it, used as its `.get()` default,
+   compared against it, or passed as it.
+2. **Lexical** — the literal is a value an adapter actually DECLARES, and is not in
+   the explicit `CORE_OWNED` set.
+
+Lexical alone reports every `max`, `off` and `low` in the repo — `wash_frequency_bounds["max"]`
+is a structural key, `confidence == "low"` is a confidence level, `state == "off"` is an
+HA entity state. A gate that screams at those gets ignored. Syntactic alone cannot tell a
+canonical key from a brand's word. `VI-3` pins both classes with a positive and a
+negative row each, so the detector stays proven while `VI-1` sits green.
+
+`CORE_OWNED` is the load-bearing declaration: the written statement of what the framework
+owns (the canonical water estimator keys `off/low/medium/high`, the canonical
+`clean_mode` and `path_type` values, and `""` for "nobody said"). Growing it to silence
+a finding is how the gate dies.
+
+**Case-sensitive on purpose.** Folding case would merge Eufy's `"Off"` with the canonical
+`"off"`, so `"Off"` would be swallowed by `CORE_OWNED` and the five real leaks in
+`apply_capability_gate` and `_protected_room_config` would be invisible. `"Off"` vs
+`"off"` IS the bug. The accepted blind spot is RETIRED values, which no adapter declares —
+that is the store migration's job.
+
+It found seven leaks on its first run, after the manual sweep was thought complete:
+`.get(field, "Max"/"Off"/"Quick")` defaults in `overwrite_room_profile_from_room`,
+`_snapshot_room_for_run_profile`, and the learning ingest path (whose default was
+`"standard"` — a Eufy word Eufy itself had retired). The ledger is empty.
+
+**A second gate was measured and rejected.** "Every test-registered adapter must declare
+a catalog" sounds like the natural sibling, but 208 registrations across 51 test files
+declare none and the suite is green — so those tests provably never resolve a room, and
+the rule is not required. Shipping it would have meant a 208-row allowlist or 51 files of
+churn. What actually covers the hazard is the runtime failure: resolution raises
+`UndeclaredProfileCatalogError` naming the missing declaration, so a test that reaches it
+cannot get a quietly wrong answer.
+
 ### `test_declaration_contract.py` — the declaration, in all three of its states
 
 `test_adapter_isolation.py` fences what a brand may TOUCH. This one (12 tests,

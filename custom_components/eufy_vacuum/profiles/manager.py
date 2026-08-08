@@ -534,9 +534,13 @@ class ProfileManager:
             profile_name=target_profile_name,
             label=clean_label,
             clean_mode=str(effective.get("clean_mode", room.get("clean_mode", "vacuum"))),
-            fan_speed=str(effective.get("fan_speed", room.get("fan_speed", "Max"))),
-            water_level=str(effective.get("water_level", room.get("water_level", "Off"))),
-            clean_intensity=coerce_clean_intensity(effective.get("clean_intensity", room.get("clean_intensity", "Quick"))),
+            # "" is "nobody said", the one value core owns. These read as harmless
+            # last-resort defaults, but the room being saved belongs to SOME brand and
+            # these are Eufy's words — a Roborock room reaching them was saved a suction
+            # level its device does not accept.
+            fan_speed=str(effective.get("fan_speed", room.get("fan_speed", ""))),
+            water_level=str(effective.get("water_level", room.get("water_level", ""))),
+            clean_intensity=coerce_clean_intensity(effective.get("clean_intensity", room.get("clean_intensity", ""))),
             clean_passes=int(effective.get("default_clean_passes", room.get("clean_passes", 1))),
             edge_mopping=bool(effective.get("default_edge_mopping", room.get("edge_mopping", False))),
         )
@@ -859,9 +863,11 @@ class ProfileManager:
             "name": str(room.get("name", "")),
             "profile_name": str(room.get("profile_name", "vacuum_quick")),
             "clean_mode": str(room.get("clean_mode", "vacuum")),
-            "fan_speed": str(room.get("fan_speed", "Max")),
-            "water_level": str(room.get("water_level", "Off")),
-            "clean_intensity": coerce_clean_intensity(room.get("clean_intensity", "Quick")),
+            # A SNAPSHOT records what the room had. A room missing a field should
+            # snapshot as absent, not as one brand's value invented on its behalf.
+            "fan_speed": str(room.get("fan_speed", "")),
+            "water_level": str(room.get("water_level", "")),
+            "clean_intensity": coerce_clean_intensity(room.get("clean_intensity", "")),
             "clean_passes": int(room.get("clean_passes", 1)),
             "edge_mopping": bool(room.get("edge_mopping", False)),
             "order": int(room.get("order", 999)),

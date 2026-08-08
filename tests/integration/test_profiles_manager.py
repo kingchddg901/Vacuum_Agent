@@ -634,10 +634,15 @@ def test_overwrite_run_profile_clears_stale_steps(pm):
     stored = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)[pid]
     assert stored["steps"] == []
     effective = ProfileManager.run_profile_steps(stored)
+    # Room 7 stores none of the vocabulary fields, so the snapshot records them ABSENT.
+    # This asserted "Max"/"Off"/"Quick" — values the room never had, minted by
+    # _snapshot_room_for_run_profile's defaults. Those are Eufy's words, so a Roborock
+    # room missing a field was snapshotted with a value its device does not accept, and
+    # the run profile then replayed it. A snapshot records what was there.
     assert effective == [{"type": "room_group", "rooms": [{"room_id": 7, "name": "Office",
                           "profile_name": "vacuum_quick", "clean_mode": "vacuum",
-                          "fan_speed": "Max", "water_level": "Off",
-                          "clean_intensity": "Quick", "clean_passes": 1,
+                          "fan_speed": "", "water_level": "",
+                          "clean_intensity": "", "clean_passes": 1,
                           "edge_mopping": False, "order": 1}]}]
     # and the enriched view reports the NEW room, not the old 1/2
     assert ok["profile"]["room_ids"] == [7]
