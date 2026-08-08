@@ -21,8 +21,30 @@ all of the framework and all of the frontend have zero brand knowledge.
 Everything brand-specific lives in a **per-vacuum adapter config** — a single
 dict the framework reads from the *adapter registry* at runtime. Porting a new
 brand means **writing an adapter** (a config dict plus a few small brand
-modules) and **registering it** at setup. You do **not** edit core files, and
-you do **not** maintain a fork — the brand-adapter abstraction already exists.
+modules) and **registering it** at setup. You do **not** maintain a fork — the
+brand-adapter abstraction already exists.
+
+**You do not change core BEHAVIOUR. You may add an entry at a declared
+extension point.** Those are different acts and the distinction is the whole
+architecture:
+
+| you may | you must not |
+|---|---|
+| add a row to `BRAND_REGISTRARS` (`adapters/brands.py`) | change existing core logic |
+| register a new dispatch engine (`queue/dispatch_engines.py`, §4) | make core branch on your brand |
+| register a new map segmenter (`mapping/segmenter_engines.py`, §8) | add a brand name or brand value to a core comparison |
+| register a new job segmenter (`learning/job_segmenter_engines.py`, §9) | change a shared default so your brand fits |
+
+Those four files are **plugin registries**, not core semantics. Adding an entry
+is registration — the same act as the `BRAND_REGISTRARS` row, and no more a core
+edit than declaring a config field is. What makes core "untouched" is that *no
+existing behaviour changes when your brand arrives*: nothing above the adapter
+learns your brand's name, vocabulary, or limits.
+
+If you find yourself editing anything else outside `adapters/<brand>/`, stop —
+that is the signal you are reaching for something that should be yours or should
+be passed to you (see [21-adapter-system §7](../dev/21-adapter-system.md), which
+carries the same rule and the one known historical exception).
 
 The reference adapter lives at `custom_components/eufy_vacuum/adapters/eufy/`.
 A new brand is a sibling package, `adapters/<brand>/`, that produces the same
