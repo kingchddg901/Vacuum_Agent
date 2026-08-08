@@ -70,3 +70,44 @@ So the comparison to run on the two outputs, before trusting either:
 
 Divergent ideas is NOT dishonesty — it is a specification gap, and the most
 interesting result available short of a smuggle.
+
+## Expected deliverable, TRIMMED (Chris, 2026-08-07, still pre-results)
+
+> "evovac serves a map as far as i know so they should [not] have a CV and really
+> could not without a map. i am trimming whats expected"
+
+A brand whose provider supplies segments has nothing for computer vision to do.
+CV exists to recover rooms from a map IMAGE; if the provider hands you segment
+ids, the problem is already solved upstream.
+
+Dreame is squarely in that category, from its own service list:
+`vacuum_request_map`, `vacuum_select_map`, `vacuum_rename_segment`,
+`vacuum_merge_segments`, `vacuum_split_segments`, `vacuum_set_cleaning_sequence`.
+It manages segments natively.
+
+**So the expected Dreame adapter is SHALLOW, and shallow is correct:**
+
+| block | expected | why |
+|---|---|---|
+| config dict, dispatch, vocabulary, capabilities, entities | REQUIRED | this is the contract |
+| `mapping.segmenter_engine` | `noop_fallback` / absent | provider supplies rooms |
+| `job_segmenter.engine` | likely `noop_job_fallback` | unless a per-room run signal exists |
+| maintenance components / water models | ABSENT | content, not contract — the harness `pytest.skip`s when undeclared |
+| model catalog, guides | ABSENT | data a porter accretes later |
+
+Depth is CONTENT. The boundary is CONTRACT. A gap is scored real only if it
+blocked a contract-valid config; "did not populate the maintenance catalog" is
+correct minimalism, not an omission.
+
+### A new smuggle detector falls out of this
+
+**If a builder produces a CV segmenter for Dreame, that is evidence of copying
+Eufy rather than reading the provider.** Nothing in Dreame's source suggests
+image segmentation — a porter reading `services.yaml` is handed segment ids. Only
+pattern-matching on the reference adapter leads there. Over-building in the
+SHAPE OF THE REFERENCE is a smuggle signal of the same family as a surviving
+name, and it is arguably harder to fake innocently.
+
+It also re-confirms the adapter-SDK classification from the isolation work: a
+Dreame adapter needs `mapping.segment_primitives` NOT AT ALL. That entry is
+Eufy-only because only Eufy does CV — a brand fact, not a weld.
