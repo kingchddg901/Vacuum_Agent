@@ -67,14 +67,28 @@ ALLOWED_SDK = (
 # SHRINK-ONLY, same discipline as tests/mock_allowlist.json. An entry here is a
 # known architectural debt with a named owner, not a permission.
 #
-#   profiles.room_profiles — the last leak (verified 2026-08-07 across all four
-#   checks below). The framework's in-code profile catalog IS Eufy's: Eufy was the
-#   first brand, so the catalog was written as "the" catalog and the adapter
+#   profiles.room_profiles — the last IMPORT leak (verified 2026-08-07 across all
+#   four checks below). The framework's in-code profile catalog IS Eufy's: Eufy was
+#   the first brand, so the catalog was written as "the" catalog and the adapter
 #   imports it to declare itself. Roborock already demonstrates the fix — it
 #   declares its vocabulary in adapters/roborock/vocabulary.py and imports nothing
-#   from profiles/. Removing it is a STORED-DATA change, not a refactor: the values
-#   are written onto existing rooms and the card compares option values strictly,
-#   so a single differing character silently changes what a saved room means.
+#   from profiles/.
+#
+#   SCHEDULED: folded into the finding batch of the adapter-boundary sweep
+#   (.claude/notes/synthesis/DESIGN-semantic-taint-sweep.md), not fixed
+#   standalone — Chris, 2026-08-07. Two reasons, and the second is the real one:
+#     * removing it is a STORED-DATA change, not a refactor. Those values are
+#       written onto existing rooms and the card compares option values strictly,
+#       so one differing character silently changes what a saved room means.
+#     * it is the SEED of a class, not an isolated defect. This same catalog is
+#       also the known BEHAVIORAL fossil (a brand omitting its own block inherits
+#       Eufy's fan speeds — the Roborock no-suction incident in dev doc 21 §7).
+#       The sweep is expected to surface siblings; fixing them as one
+#       canonicalization change, one docs absorption and one stored-data
+#       migration is safer than three separate touches on room vocabulary.
+#
+#   So this entry is expected to persist until that batch lands. It is scheduled
+#   debt with a named owner, which is exactly what an allowlist entry is for.
 KNOWN_LEAKS: dict[str, set[str]] = {
     "eufy/adapter.py": {"profiles.room_profiles"},
 }

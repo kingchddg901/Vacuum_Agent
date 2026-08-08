@@ -186,6 +186,31 @@ anything: plant the fossil, confirm the instrument goes red, remove it. A clean
 result from an unexercised detector is the exact failure this whole campaign
 exists to stop.
 
+## The finding batch — `profiles.room_profiles` is the SEED, not a side task
+
+Chris, 2026-08-07: fold the `profiles.room_profiles` removal into this sweep's
+findings rather than fixing it standalone.
+
+It is the right call because that leak is one defect wearing two faces. Seen from
+the import side it is the single ledgered entry in
+`tests/adapters/test_adapter_isolation.py`. Seen from the behavior side it is a
+class-2 fossil — the framework catalog IS Eufy's, so a brand omitting its own
+block inherits Eufy's fan speeds, which is the Roborock no-suction incident in
+dev doc 21 §7. Same catalog, same root, two instruments.
+
+Consequences for how the batch runs:
+
+- **It is already the sweep's first confirmed finding.** The sweep does not need
+  to discover it; it needs to find its SIBLINGS. That also makes it a free
+  calibration sample — an instrument that fails to flag the known catalog is not
+  yet working, which is a negative control the sweep gets for nothing.
+- **Repair lands once.** One canonicalization change, one same-commit DR
+  absorption under §13, one stored-data migration — rather than three separate
+  touches on room vocabulary, each carrying the same "a differing character
+  changes what a saved room means" risk.
+- **The ISO ledger entry persists until the batch lands**, and that is correct:
+  a shrink-only allowlist entry is scheduled debt with an owner, not a permission.
+
 ## The claim all three together earn
 
 > Change what is under Eufy and core must not care.
