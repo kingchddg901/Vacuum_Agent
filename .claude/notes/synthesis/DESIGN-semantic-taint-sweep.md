@@ -54,7 +54,57 @@ Eufy "Turbo"  ->  [eufy adapter]  ->  canonical VA term   ->  core
 canonical VA intent  ->  [eufy adapter]  ->  Eufy command/value/payload
 ```
 
-## The invariant — carried vs interpreted
+## RE-AIMED (Chris, 2026-08-07): the word is not the issue
+
+> "if we have vocab leakage that is not horrible but the system cant care if say
+> the suction mode is Turbo or hyper what ever we call it. the word is not the
+> issue but eufy cant be hiding as function"
+
+This corrects the target. A provider string appearing outside the adapter is
+cosmetic — VA does not care whether the suction mode is called Turbo, Max or
+hyper. The defect is **one brand's RULE implemented in core as though it were
+universal**, and you can have zero Eufy strings in core and still have Eufy's
+behavior baked in. So there are two classes, and they are not equally important:
+
+**Class 1 — value interpretation.** Core branches on a provider value
+(`if fan_speed == "Turbo"`). Detectable by AST. A symptom.
+
+**Class 2 — BEHAVIORAL FOSSILIZATION.** Core implements a brand-specific rule,
+default, clamp, threshold, or lifecycle assumption as the universal one. No
+string match will find it. **This is the one that matters.**
+
+Class 2 is not hypothetical here — both known instances already bit:
+
+- **The profile catalog.** The framework's in-code catalog IS Eufy's. A brand
+  omitting its own block inherits Eufy's fan speeds; doc 21 §7 records the
+  result for Roborock — rooms created with settings the brand does not
+  recognise, the card's chip rows matching nothing, and `per_room_live_settings`
+  filtering on `fan_speed_options` so **an unedited room got no suction applied
+  at all.** This is the same `profiles.room_profiles` item ledgered in
+  `test_adapter_isolation.py`, seen from the behavior side rather than the
+  import side.
+- **The `clean_times` clamp.** Eufy caps 2 passes, Roborock allows 1–3. The cap
+  was undocumented and applied as if universal — a real bug, not a doc gap.
+
+### The mechanical detector for class 2
+
+`ADAPTER_CONFIG_SCHEMA` is already an explicit list of everything the
+architecture considers PER-BRAND. So:
+
+> **Any concept a brand can DECLARE that also has a hardcoded counterpart in
+> core is a fossil candidate.**
+
+That is a diff, not a string search: enumerate the declarable surface, then find
+core constants, defaults, clamps and conditionals covering the same concept. Both
+known instances would have been caught by it — `room_profiles` and
+`clean_times` are both declarable AND were hardcoded.
+
+The human check behind it, for anything the diff surfaces:
+**would this still be correct for Roborock?** Roborock is the second brand and
+therefore the natural control; a third brand is the real test but does not exist
+yet.
+
+## The invariant — carried vs interpreted (class 1)
 
 Stronger than "no Eufy words outside Eufy", because some raw provider data
 legitimately must survive for diagnostics and provenance:
