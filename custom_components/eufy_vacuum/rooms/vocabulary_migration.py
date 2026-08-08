@@ -50,6 +50,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from ..profiles.room_profiles import VOCABULARY_FIELDS, declared_profile_fields
+
 _LOGGER = logging.getLogger(__name__)
 
 #: Bumping this re-runs the migration for every install. Only do that if the rules
@@ -57,27 +59,9 @@ _LOGGER = logging.getLogger(__name__)
 #: room is not repaired again after the user deliberately edits it back.
 MIGRATION_KEY = "room_vocabulary_v1"
 
-#: Per-room settings that carry brand vocabulary. ``clean_passes`` / ``edge_mopping``
-#: are numeric/boolean and belong to no vocabulary, so they are never touched.
-_VOCABULARY_FIELDS = (
-    "clean_mode",
-    "fan_speed",
-    "water_level",
-    "clean_intensity",
-    "path_type",
-)
-
-
-def _declared_fields(catalog: dict[str, Any]) -> set[str]:
-    """Every field name appearing in any profile this brand declares."""
-    declared: set[str] = set()
-    template = catalog.get("custom_template")
-    if isinstance(template, dict):
-        declared |= set(template)
-    for profile in (catalog.get("builtins") or {}).values():
-        if isinstance(profile, dict):
-            declared |= set(profile)
-    return declared
+#: Shared with ``ProfileManager._finalize_room_update`` — the repair and the save path
+#: must agree on which axes a brand has, or the repair undoes itself one room at a time.
+_VOCABULARY_FIELDS = VOCABULARY_FIELDS
 
 
 def _option_values(vocabulary: dict[str, Any], field: str) -> set[str] | None:
@@ -121,7 +105,7 @@ def plan_room_vocabulary_migration(
             continue
 
         vocabulary = config.get("vocabulary") or {}
-        declared = _declared_fields(
+        declared = declared_profile_fields(
             {"builtins": block.get("builtins") or {}, "custom_template": block.get("custom_template")}
         )
         if not declared:

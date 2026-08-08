@@ -62,7 +62,9 @@ from custom_components.eufy_vacuum.profiles.room_profiles import (
     no_water_value,
 )
 
-from tests.brand_catalogs import SYNTHETIC_BLOCK
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+from tests.brand_catalogs import SYNTHETIC_BLOCK, adapter_config
 
 
 # ProfileManager mechanics, not vocabulary — so the catalog is the synthetic brand's.
@@ -411,6 +413,59 @@ def test_protected_room_config_carpet_downgrades_mop(pm):
     # casing for every brand — the third copy of that same defect.
     assert out["water_level"] == no_water_value(_CATALOG)
     assert out["edge_mopping"] is False
+
+
+def test_a_save_does_not_re_add_an_axis_the_brand_does_not_have(pm):
+    """[PM-30] A room save must not restore a field its brand declares no axis for.
+
+    LIVE REGRESSION, found on hardware 2026-08-08. The one-shot store repair dropped
+    `clean_intensity` from all ten Roborock rooms — correctly, that brand omits the axis
+    from every profile — and then a plain save of every room put it straight back as `""`.
+    `normalize_room_profile` always emits all nine ProfileRecord keys and this pipeline
+    writes the result back, so the repair was being undone one room at a time.
+
+    Inert on its own (empty, never dispatched, no control rendered), which is exactly why
+    it would have gone unnoticed until the axis quietly existed everywhere again.
+    """
+    no_intensity = {
+        **SYNTHETIC_BLOCK,
+        "builtins": {
+            name: {k: v for k, v in prof.items() if k != "clean_intensity"}
+            for name, prof in SYNTHETIC_BLOCK["builtins"].items()
+        },
+        "custom_template": {
+            k: v for k, v in SYNTHETIC_BLOCK["custom_template"].items()
+            if k != "clean_intensity"
+        },
+    }
+    register_adapter_config(_VAC, adapter_config(room_profiles=no_intensity))
+    try:
+        out = pm._finalize_room_update(
+            {"room_id": 1, "floor_type": "hardwood", "clean_mode": "vacuum",
+             "fan_speed": "SynthMid", "clean_intensity": "SynthClose"},
+            vacuum_entity_id=_VAC,
+        )
+        assert "clean_intensity" not in out, out
+        # ...and the axes the brand DOES declare are untouched.
+        assert out["fan_speed"] == "SynthMid"
+        assert out["clean_mode"] == "vacuum"
+    finally:
+        register_adapter_config(_VAC, adapter_config())
+
+
+def test_a_save_keeps_every_axis_the_brand_does_have(pm):
+    """[PM-30b] The other half — stripping must not reach a declared axis.
+
+    Without this, "strip undeclared fields" could pass by stripping everything, and a
+    brand that declares an intensity axis would silently lose it on every save.
+    """
+    out = pm._finalize_room_update(
+        {"room_id": 1, "floor_type": "hardwood", "clean_mode": "vacuum",
+         "fan_speed": "SynthMid", "clean_intensity": "SynthClose"},
+        vacuum_entity_id=_VAC,
+    )
+    assert out["clean_intensity"] == "SynthClose"
+    assert out["fan_speed"] == "SynthMid"
 
 
 def test_effective_room_details(pm):

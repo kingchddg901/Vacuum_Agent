@@ -45,6 +45,18 @@ means "no such axis". Caught by enumerating the live store before the rule was
 written: a guard that newly activates over existing data must be measured against that
 data first, because passing your own tests says nothing about what is already on disk.
 
+**The DROP must also be durable, and originally was not.** Found on hardware
+2026-08-08: the migration correctly dropped `clean_intensity` from all ten Roborock
+rooms, and then a plain save of every room put it straight back as `""`.
+`normalize_room_profile` always emits all nine `ProfileRecord` keys and
+`_finalize_room_update` writes that result to the room, so the repair was being undone
+one room at a time — inert (empty, never dispatched, no control rendered), which is
+precisely why it would have gone unnoticed until the axis quietly existed everywhere
+again. `_finalize_room_update` now strips undeclared axes on save using the SAME
+discriminator (`room_profiles.declared_profile_fields`), so the two paths cannot
+diverge again. Pinned by `PM-30` / `PM-30b` in `test_profiles_manager.py`, both
+mutation-verified.
+
 **MIG-9 is why `normalize_clean_intensity` could be deleted rather than moved.**
 It folded the retired Eufy values `standard`/`normal` to `"Quick"` on every read,
 from nine call sites, to repair data written before 2026-07-26 — and that data was

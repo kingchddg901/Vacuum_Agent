@@ -32,6 +32,8 @@ from ..profiles.room_profiles import (
     get_default_room_profiles,
     is_mop_clean_mode,
     merge_profile_dicts,
+    VOCABULARY_FIELDS,
+    declared_profile_fields,
     no_water_value,
     coerce_clean_intensity,
     normalize_room_profile,
@@ -252,6 +254,18 @@ class ProfileManager:
             catalog=self._catalog_for(vacuum_entity_id),
         )
         result["path_type"] = _resolved.get("path_type")
+
+        # A room carries only the axes its brand HAS. normalize_room_profile always
+        # emits all nine ProfileRecord keys, and this pipeline writes the result back,
+        # so without this a brand with no intensity axis got clean_intensity restored
+        # as "" on every save — undoing the one-shot store repair one room at a time.
+        # The discriminator is shared with that repair so the two cannot diverge again.
+        _declared = declared_profile_fields(self._catalog_for(vacuum_entity_id))
+        if _declared:
+            for _field in VOCABULARY_FIELDS:
+                if _field in result and _field not in _declared:
+                    result.pop(_field, None)
+
         matched = self._match_profile_from_fields(result, vacuum_entity_id=vacuum_entity_id)
         result["profile_name"] = matched if matched else "custom"
         return result

@@ -110,6 +110,42 @@ def coerce_clean_intensity(value: Any) -> str:
     return str(value if value is not None else "").strip()
 
 
+#: Per-room settings whose VALUES are a brand's vocabulary. ``clean_passes`` /
+#: ``edge_mopping`` are numeric/boolean and belong to no vocabulary.
+VOCABULARY_FIELDS: tuple[str, ...] = (
+    "clean_mode",
+    "fan_speed",
+    "water_level",
+    "clean_intensity",
+    "path_type",
+)
+
+
+def declared_profile_fields(catalog: dict[str, Any] | None) -> set[str]:
+    """Every field name appearing in any profile THIS brand declares.
+
+    The single answer to "does this brand have such an axis at all?", asked in two
+    places that must agree: the one-shot store repair
+    (``rooms/vocabulary_migration.py``) and every room save
+    (``ProfileManager._finalize_room_update``). They diverged once and the result was
+    a repair that undid itself — the migration dropped ``clean_intensity`` from ten
+    Roborock rooms and the next save put it back as ``""``, one room at a time.
+
+    Absence of an OPTION LIST is not absence of an axis: Roborock withholds
+    ``water_level_options`` on models whose mop is not settable, which is a capability
+    statement. Only absence from the brand's own PROFILES means the axis does not
+    exist.
+    """
+    declared: set[str] = set()
+    template = (catalog or {}).get("custom_template")
+    if isinstance(template, dict):
+        declared |= set(template)
+    for profile in ((catalog or {}).get("builtins") or {}).values():
+        if isinstance(profile, dict):
+            declared |= set(profile)
+    return declared
+
+
 def no_water_value(catalog: dict[str, Any] | None) -> str:
     """The word THIS brand uses for "no water", read from its declaration.
 
