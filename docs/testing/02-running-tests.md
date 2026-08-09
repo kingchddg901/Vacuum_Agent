@@ -48,25 +48,37 @@ CI (`.github/workflows/tests.yml`) runs
 and `tests/replay` — so the two paths outside the default `testpaths` are still
 gated on every push.
 
-## Running it by hand (and the two Windows traps)
+## Running it by hand
 
-If you invoke Docker yourself instead of using `test.bat`, two things bite on
-this machine:
+The suite needs Linux: `pytest_homeassistant_custom_component` pulls in
+`homeassistant.runner`, which imports `fcntl`. On Linux or macOS, install
+`requirements_test.txt` and run pytest directly. On Windows, run it in a
+container.
+
+### Linux / macOS
+
+```bash
+pip install -r requirements_test.txt
+python -m pytest tests --no-cov
+```
+
+### Windows — and the two traps
 
 1. **Use PowerShell, not Git Bash.** Git Bash rewrites the `-w /workspace`
    argument (POSIX-path mangling turns `/workspace` into a Windows path), and
-   the container fails to find the working dir. Run Docker from PowerShell.
-2. **Quote the volume mount with the absolute Windows path.**
-
-A known-good PowerShell invocation (against the pre-baked image, no pip install):
+   the container fails to find the working directory.
+2. **Quote the volume mount, and give it an absolute path.**
 
 ```powershell
 docker run --rm `
-  -v "C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager:/workspace" `
+  -v "${PWD}:/workspace" `
   -w /workspace `
   eufy-vacuum-test `
-  python -m pytest tests/ -q --no-header
+  python -m pytest tests -q --no-header --no-cov
 ```
+
+`${PWD}` resolves to the repository root when the command is run from there.
+Substitute the absolute path if you invoke it from anywhere else.
 
 (If you haven't built the image yet, run `scripts\build-test-image.bat` first,
 or swap `eufy-vacuum-test` for `python:3.14-slim` and prefix the command with

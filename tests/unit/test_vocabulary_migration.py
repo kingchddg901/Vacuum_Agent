@@ -321,13 +321,18 @@ def test_planning_mutates_nothing():
 # ---------------------------------------------------------------------------
 
 def test_the_retired_eufy_intensity_fold_is_subsumed_with_no_retired_value_map():
-    """[MIG-9] ``normalize_clean_intensity`` folded "Standard"/"Normal" → "Quick" on
-    every read, from nine call sites, forever.
+    """[MIG-9] The retired-value fold needs no retired-value MAP — the generic RESET
+    plus the brand's own declarations reach the answer.
 
-    It needs no replacement rule. ``Standard`` is simply absent from Eufy's declared
-    ``clean_intensity_options``, so the generic RESET catches it, and Eufy's own
-    ``default_profile`` declares ``"Quick"`` — the identical result, reached from a
-    declaration rather than a constant, computed once instead of on every read.
+    NOTE WHICH PATH THIS IS. The config below declares option lists and NO
+    ``clean_intensity_aliases``, so this exercises the fallback: a retired value the
+    brand aliases nothing for lands on the ``default_profile``. Eufy itself DOES
+    declare ``standard`` -> ``narrow``, so the real adapter's answer is "Narrow", not
+    the "Quick" asserted here — see [MIG-10] directly below, which is the shipped
+    behaviour and the case that shipped wrong once already.
+
+    Kept distinct on purpose: the two paths are different rules, and a test that only
+    ever ran the aliased one would not notice the fallback breaking.
     """
     eufy_config = {
         "adapter_id": "eufy",
@@ -349,7 +354,12 @@ def test_the_retired_eufy_intensity_fold_is_subsumed_with_no_retired_value_map()
 
 @pytest.mark.parametrize("retired", ["Standard", "Normal"])
 def test_both_retired_intensity_values_are_repaired(retired):
-    """[MIG-9b] Both values the old fold knew about, reached without naming either."""
+    """[MIG-9b] Both values the old fold knew about, reached without naming either.
+
+    Same no-alias fallback as [MIG-9] — this config declares no
+    ``clean_intensity_aliases`` either. With Eufy's real declarations both land on
+    "Narrow"; [MIG-10] covers that.
+    """
     eufy_config = {
         "adapter_id": "eufy",
         "room_profiles": EUFY_BLOCK,

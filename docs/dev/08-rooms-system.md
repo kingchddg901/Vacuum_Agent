@@ -486,7 +486,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `clean_mode` | str | `"vacuum"`, `"mop"`, or `"vacuum_mop"` |
 | `fan_speed` | str | `"Quiet"` / `"Standard"` / `"Turbo"` / `"Max"` (Eufy vocabulary); a new room's value comes from the brand's default profile (Eufy: `"Standard"` via `vacuum_quick`), not a hardcoded literal — a brand whose profile omits the axis leaves it `""` (§3.1) |
 | `water_level` | str | e.g. `"Off"`, `"Low"`, `"Medium"`, `"High"` |
-| `clean_intensity` | str | `"Quick"` / `"Narrow"` / `"Deep"`; default `"Quick"` (legacy `"Standard"`/`"Normal"` are dead — folded to `"Quick"`) |
+| `clean_intensity` | str | `"Quick"` / `"Narrow"` / `"Deep"`; default `"Quick"`. The retired `"Standard"`/`"Normal"` are repaired once in the store, not folded on read, and Eufy's declared `clean_intensity_aliases` map them to `"Narrow"` — the MIDDLE density they always meant, not `"Quick"` (see `rooms/vocabulary_migration.py`) |
 | `clean_passes` | int | Number of cleaning passes; minimum 1. (The "1 or 2" cap is a frontend modifier constraint, not a room-model rule.) |
 | `edge_mopping` | bool | Whether edge mopping is enabled |
 | `path_type` | str | From matched profile |

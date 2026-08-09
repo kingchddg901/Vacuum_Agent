@@ -31,11 +31,17 @@ What this replaces
 ------------------
 ``normalize_clean_intensity`` folded the retired Eufy values ``standard``/``normal`` to
 ``"Quick"`` on every read, forever, from nine call sites. It is subsumed here without a
-retired-value map: ``Standard`` is simply absent from Eufy's declared
-``clean_intensity_options``, so RESET catches it, and Eufy's ``default_profile``
-(``vacuum_quick``) declares ``clean_intensity: "Quick"`` — the identical result, reached
-from a declaration rather than a constant. Persisting it is what lets the read-time fold
-be deleted.
+retired-value map: ``Standard`` is absent from Eufy's declared
+``clean_intensity_options``, so RESET catches it, and Eufy's declared
+``clean_intensity_aliases`` (``standard`` -> ``narrow``) then supplies the answer.
+
+NOT the identical result, and deliberately so. The old fold produced ``"Quick"``, the
+FASTEST density. ``Standard`` was the MIDDLE one — the original YAML system declared
+Fast / Standard / Deep with Standard as the initial value, and upstream still maps
+``standard`` to ``CleanExtent.NORMAL`` (0), the middle. Folding it to Quick silently
+moved every affected room to a different density. The alias is what preserves the
+meaning; the default-profile fallback is only for a retired value the brand declares no
+alias for. Persisting the result is what lets the read-time fold be deleted.
 
 Safety
 ------

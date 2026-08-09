@@ -470,6 +470,28 @@ def test_every_service_documented_or_internal():
     )
 
 
+def test_every_services_yaml_entry_is_actually_registered():
+    """The OTHER direction. A services.yaml entry with no handler is a service
+    Home Assistant offers in Developer Tools -> Actions and that fails when called.
+
+    Found live: `debug_log_live_room` survived in services.yaml for a month after
+    its handler was deleted (cb68ece, the mapping split), because every assertion
+    in this file walked registrations -> yaml and none walked yaml -> registrations.
+    A gate whose window closes just short of a failure reads exactly like a gate
+    that passed, and this file's own name promises parity, which is why nobody
+    looked. Deleting a handler is the normal way this arises; the yaml entry is
+    the easiest half to forget.
+    """
+    registered = {
+        reg.service_name for reg in _find_registrations() if reg.service_name is not None
+    }
+    orphaned = sorted(set(_load_services_yaml().keys()) - registered)
+    assert not orphaned, (
+        "services.yaml declares services that nothing registers, so Home Assistant "
+        f"will offer them and they will fail when called: {orphaned}"
+    )
+
+
 def test_every_registration_has_a_resolvable_service_name():
     """A registration whose service-name argument this gate can't resolve to
     a string (neither a literal nor a SERVICE_* const) is invisible to the

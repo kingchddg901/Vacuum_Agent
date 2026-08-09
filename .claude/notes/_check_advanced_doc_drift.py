@@ -50,14 +50,21 @@ DOC_EXAMPLES = ROOT / "docs/advanced/04-automation-examples.md"
 #: reference, and a surface that is mid-rebuild must not be advertised as stable.
 #: Anything here is exempt from the GAP report but NOT from the break checks --
 #: if a doc references one, that is still drift.
-DELIBERATELY_UNDOCUMENTED = {
-    # flight recorder: maintainer tooling, deliberately not user-facing
-    "debug_capture_start", "debug_capture_stop", "debug_capture_status",
-    "debug_capture_dump", "debug_log_live_room",
-    # queue-break plumbing: the Phased Jobs surface, mid-rebuild 2026-08
-    "add_queue_break", "remove_queue_break", "set_queue_breaks",
-    "clear_queue_breaks", "get_queue_steps",
-}
+DELIBERATELY_UNDOCUMENTED: set[str] = set()
+# Emptied 2026-08-08. Everything that was here is now documented in
+# docs/advanced/03-services.md:
+#   - the four debug_capture_* services, under "Diagnostic Capture". They are support
+#     tooling rather than an automation surface, which is a reason to say so on the
+#     page, not a reason to omit them: they are what a user runs to produce a log for
+#     a bug report, so a user has to be able to find them.
+#   - the five queue-break services, which stopped being "mid-rebuild" once the
+#     Phased Jobs surface shipped and the card started calling them.
+# debug_log_live_room is gone entirely — its handler was deleted with the mapping
+# split (cb68ece) and the orphaned services.yaml entry was removed on 2026-08-08.
+#
+# Keep it empty if you can. An exemption is indistinguishable from a clean result in
+# the GAP report, so every name added here is a documented thing this checker will
+# never again tell you is missing.
 
 breaks: list[str] = []
 gaps: list[str] = []

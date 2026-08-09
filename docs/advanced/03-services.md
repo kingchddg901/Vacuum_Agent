@@ -1191,6 +1191,67 @@ Supports response (`supports_response: only`). Returns the payload it fired: `{"
 
 ---
 
+## Diagnostic Capture
+
+Four services that record this integration's own DEBUG logging into an in-memory ring
+and write it out on demand. They exist for one job: producing a log to attach to a bug
+report, without the usual cost of that.
+
+The usual cost is why they are here. Raising this integration to DEBUG in
+`configuration.yaml` floods `home-assistant.log` for everything else, needs a restart to
+turn on, needs another to turn off, and by the time you have reproduced the problem the
+interesting lines have scrolled past whatever your log rotation keeps. Capture attaches
+to this integration's logger only, keeps a bounded ring in memory, and never touches the
+main log file — so you can leave it running, reproduce the fault, and dump only the
+window that matters.
+
+> **Support tooling, not an automation surface.** These are for diagnosing a problem you
+> are going to report. Nothing about their output shape is promised, and an automation
+> built on it will break without notice.
+
+> **This is scaffolding for something better.** The capture is a text ring — it records
+> what the code happened to log, in the words each log line happens to use. The planned
+> Semantic Trace System replaces it with structured, catalogued events that carry the
+> decision rather than a sentence about it, and can be replayed. When that lands, these
+> four go.
+
+### `debug_capture_start`
+
+Begins capturing. Nothing appears in `home-assistant.log`; records accumulate in memory
+until you dump them.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `areas` | No | Restrict to one or more of `map`, `rooms`, `dispatch`, `learning`, `setup`, `themes`, `decisions`. Omit to capture everything. Narrow this when you know roughly where the fault is — the ring holds a fixed number of records, so filtering buys you a longer window rather than a smaller file. |
+| `services` | No | Per-service tracing: capture **only** while the named services run. Call `debug_capture_status` for the list of services flagged as traceable. Omit for a continuous capture. |
+| `size` | No | Ring size in records; oldest are evicted. Default 3000. Raise it if a reproduction takes a long time, at the cost of memory. |
+| `max_minutes` | No | Stop capturing automatically after this many minutes (1–1440). Worth setting: capture left running forever is the thing this feature exists to avoid, and a forgotten capture is a ring quietly holding your logs in memory. |
+| `stop_when_full` | No | Freeze at the ring size — keep the FIRST `size` records instead of the last. Default `false`. Use it when the interesting moment is the **start** of something (a setup failure, the first dispatch after a restart); leave it off when the fault happens at an unknown time and you want the most recent window. Getting this backwards is the usual reason a capture contains everything except the part you needed. |
+
+### `debug_capture_stop`
+
+Stops capturing and restores normal logging. Captured records **survive** the stop, so
+the order is: start, reproduce, stop, dump.
+
+### `debug_capture_dump`
+
+Returns the captured records, and by default also writes them to
+`config/eufy_vacuum/debug/debug-<timestamp>.log`.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `write_file` | No | Also write a timestamped file under `config/eufy_vacuum/debug/`. Default `true`. |
+| `clear` | No | Empty the ring after dumping. Default `false`, so a dump is repeatable — you get a second copy rather than an empty one if the first went astray. |
+
+Read the file before attaching it to a public issue. It is your own DEBUG log: it can
+contain room names, map identifiers and entity IDs from your home.
+
+### `debug_capture_status`
+
+Reports whether capture is running and how much has accumulated, and lists the services
+that support per-service tracing — which is where the `services` values for
+`debug_capture_start` come from.
+
 ## Maintenance
 
 These services write maintenance state. To read current maintenance status use `get_upkeep_snapshot` (State Inspection section).
