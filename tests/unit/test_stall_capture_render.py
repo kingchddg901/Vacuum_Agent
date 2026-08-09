@@ -9,13 +9,14 @@ smaller picture or to None — never to an exception, and never to a fabricated 
 Coverage targets
 ----------------
 [SC-1] the room's own pixels become the crop; other rooms are excluded.
-[SC-2] flip_y flips the RASTER (raw row 0 = image bottom) and nothing else.
+[SC-2] the raster is OFFSET into the main grid and the render flips; points are neither.
 [SC-3] a room with no pixels yields None — absent, not a blank image.
 [SC-4] no anchor draws no dot; it is never treated as (0, 0).
 [SC-5] unparseable trail points are skipped, not collapsed to a corner.
 [SC-6] absent Pillow yields None rather than raising on a lifecycle path.
 [SC-7] the output is a real PNG and honours the max-edge cap.
 [SC-8] the room-name pill draws, is optional, and never costs the render.
+[SC-9] rid_shift is honoured — a raw-byte compare matches nothing on Eufy.
 """
 
 from __future__ import annotations
@@ -29,13 +30,22 @@ from custom_components.eufy_vacuum.mapping import stall_capture_render as scr
 _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
-def _raster(width: int, height: int, blocks: dict[int, tuple[int, int, int, int]]) -> bytes:
-    """A room-id raster: ``{room_id: (x0, y0, x1, y1)}`` inclusive, 0 elsewhere."""
+def _raster(
+    width: int,
+    height: int,
+    blocks: dict[int, tuple[int, int, int, int]],
+    rid_shift: int = 0,
+) -> bytes:
+    """A room-id raster: ``{room_id: (x0, y0, x1, y1)}`` inclusive, 0 elsewhere.
+
+    ``rid_shift`` packs the id the way Eufy does (``id << 2``), so a test can build a
+    real Eufy-shaped raster rather than assuming the byte is the id.
+    """
     buf = bytearray(width * height)
     for rid, (x0, y0, x1, y1) in blocks.items():
         for y in range(y0, y1 + 1):
             for x in range(x0, x1 + 1):
-                buf[y * width + x] = rid
+                buf[y * width + x] = rid << rid_shift
     return bytes(buf)
 
 
@@ -48,41 +58,73 @@ def _png_size(data: bytes) -> tuple[int, int]:
 # bbox / crop
 # ---------------------------------------------------------------------------
 
-def test_bbox_is_the_rooms_own_pixels_only():
+def _bbox(cells):
+    xs = [c[0] for c in cells]
+    ys = [c[1] for c in cells]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+
+def test_cells_are_the_rooms_own_only():
     """[SC-1] A neighbouring room must not widen the crop."""
     rast = _raster(20, 20, {5: (4, 4, 7, 9), 6: (12, 1, 18, 18)})
 
-    assert scr.room_bbox_from_raster(
-        room_pixels=rast, width=20, height=20, room_id=5
-    ) == (4, 4, 7, 9)
+    cells = scr.room_cells(room_pixels=rast, ro_width=20, ro_height=20, room_id=5)
+
+    assert _bbox(cells) == (4, 4, 7, 9)
 
 
-def test_flip_y_flips_the_raster_rows():
-    """[SC-2] flip_y describes the RASTER (raw row 0 is the image bottom).
+def test_rid_shift_is_honoured_not_a_raw_byte_compare():
+    """[SC-9] Eufy packs the id (``byte >> 2``); Roborock's decoder resolves it (shift 0).
 
-    The x range is unchanged; only the y range mirrors. Getting this wrong puts the crop
-    and the (already-rendered-frame) anchor a whole flip apart, which renders a plausible
-    image of the WRONG room.
+    A raw-byte compare works on one brand and silently matches NOTHING on the other —
+    which renders as "this room has no pixels" rather than as an error.
     """
-    rast = _raster(20, 20, {5: (4, 2, 7, 5)})
+    packed = _raster(20, 20, {5: (4, 4, 7, 9)}, rid_shift=2)
 
-    assert scr.room_bbox_from_raster(
-        room_pixels=rast, width=20, height=20, room_id=5, flip_y=False
-    ) == (4, 2, 7, 5)
-    assert scr.room_bbox_from_raster(
-        room_pixels=rast, width=20, height=20, room_id=5, flip_y=True
-    ) == (4, 14, 7, 17)
+    assert scr.room_cells(
+        room_pixels=packed, ro_width=20, ro_height=20, room_id=5, rid_shift=2
+    ), "shift-aware lookup must find the room"
+    assert scr.room_cells(
+        room_pixels=packed, ro_width=20, ro_height=20, room_id=5, rid_shift=0
+    ) == [], "a raw-byte compare must NOT accidentally match"
+
+
+def test_raster_offset_and_flip_place_the_room_in_rendered_space():
+    """[SC-2] The raster is OFFSET into the main grid, and the render flips top-bottom.
+
+    Eufy's raster is ro_w x ro_h at (ro_dx, ro_dy) inside a larger canvas, and the render
+    mirrors. An earlier draft treated the raster AS the canvas and skipped the offset,
+    which produces a perfectly plausible image of the wrong region — the failure most
+    likely to survive a glance, and the reason this is pinned.
+    """
+    rast = _raster(10, 10, {5: (2, 1, 4, 3)})
+    cells = scr.room_cells(room_pixels=rast, ro_width=10, ro_height=10, room_id=5)
+
+    # No offset, no flip: rendered == raster.
+    plain = [scr._to_rendered(x, y, ro_dx=0, ro_dy=0, canvas_height=10, flip_y=False)
+             for x, y in cells]
+    assert _bbox(plain) == (2, 1, 4, 3)
+
+    # Offset only: shifted into the main grid.
+    off = [scr._to_rendered(x, y, ro_dx=30, ro_dy=40, canvas_height=100, flip_y=False)
+           for x, y in cells]
+    assert _bbox(off) == (32, 41, 34, 43)
+
+    # Offset + flip: y mirrors about the CANVAS height, x untouched.
+    both = [scr._to_rendered(x, y, ro_dx=30, ro_dy=40, canvas_height=100, flip_y=True)
+            for x, y in cells]
+    assert _bbox(both) == (32, 100 - 1 - 43, 34, 100 - 1 - 41)
 
 
 def test_a_room_with_no_pixels_is_absent_not_empty():
     """[SC-3] None, never a zero-size box — the caller must fall back to the whole map."""
     rast = _raster(20, 20, {5: (4, 4, 7, 9)})
 
-    assert scr.room_bbox_from_raster(
-        room_pixels=rast, width=20, height=20, room_id=9
-    ) is None
+    assert scr.room_cells(
+        room_pixels=rast, ro_width=20, ro_height=20, room_id=9
+    ) == []
     assert scr.render_room_capture(
-        room_pixels=rast, width=20, height=20, room_id=9
+        room_pixels=rast, ro_width=20, ro_height=20, room_id=9
     ) is None
 
 
@@ -98,7 +140,7 @@ def test_no_anchor_draws_no_dot_and_is_not_the_origin():
     """
     pytest.importorskip("PIL")
     rast = _raster(24, 24, {5: (2, 2, 20, 20)})
-    kw = dict(room_pixels=rast, width=24, height=24, room_id=5, scale=1)
+    kw = dict(room_pixels=rast, ro_width=24, ro_height=24, room_id=5, scale=1)
 
     explicit_none = scr.render_room_capture(anchor=None, **kw)
     omitted = scr.render_room_capture(**kw)
@@ -119,7 +161,7 @@ def test_garbage_trail_points_are_skipped_not_collapsed():
     """
     pytest.importorskip("PIL")
     rast = _raster(24, 24, {5: (2, 2, 20, 20)})
-    kw = dict(room_pixels=rast, width=24, height=24, room_id=5, scale=1)
+    kw = dict(room_pixels=rast, ro_width=24, ro_height=24, room_id=5, scale=1)
 
     clean = [(0.30, 0.30), (0.40, 0.40), (0.50, 0.50)]
     dirty = [(0.30, 0.30), None, "nope", (0.40, 0.40), (float("nan"), 0.1), (0.50, 0.50)]
@@ -139,7 +181,7 @@ def test_absent_pillow_returns_none_rather_than_raising(monkeypatch):
     rast = _raster(20, 20, {5: (4, 4, 7, 9)})
 
     assert scr.render_room_capture(
-        room_pixels=rast, width=20, height=20, room_id=5
+        room_pixels=rast, ro_width=20, ro_height=20, room_id=5
     ) is None
 
 
@@ -153,7 +195,7 @@ def test_output_is_a_png_cropped_to_the_room_with_padding():
     rast = _raster(40, 40, {5: (10, 10, 19, 14)})  # 10 x 5 room
 
     data = scr.render_room_capture(
-        room_pixels=rast, width=40, height=40, room_id=5,
+        room_pixels=rast, ro_width=40, ro_height=40, room_id=5,
         padding_px=2, scale=3,
     )
 
@@ -168,7 +210,7 @@ def test_scale_is_capped_so_a_big_room_cannot_explode():
     rast = _raster(300, 300, {5: (0, 0, 299, 299)})
 
     data = scr.render_room_capture(
-        room_pixels=rast, width=300, height=300, room_id=5,
+        room_pixels=rast, ro_width=300, ro_height=300, room_id=5,
         padding_px=0, scale=8, max_edge_px=600,
     )
 
@@ -186,7 +228,7 @@ def test_label_pill_is_drawn_and_is_optional():
     """
     pytest.importorskip("PIL")
     rast = _raster(60, 60, {5: (5, 5, 54, 54)})
-    kw = dict(room_pixels=rast, width=60, height=60, room_id=5, scale=2)
+    kw = dict(room_pixels=rast, ro_width=60, ro_height=60, room_id=5, scale=2)
 
     plain = scr.render_room_capture(**kw)
     pilled = scr.render_room_capture(label="Kitchen", **kw)
@@ -204,7 +246,7 @@ def test_a_pill_failure_never_costs_the_render(monkeypatch):
     rast = _raster(40, 40, {5: (5, 5, 34, 34)})
 
     data = scr.render_room_capture(
-        room_pixels=rast, width=40, height=40, room_id=5, label="Kitchen", scale=2
+        room_pixels=rast, ro_width=40, ro_height=40, room_id=5, label="Kitchen", scale=2
     )
 
     assert data is not None and data.startswith(_PNG_MAGIC)

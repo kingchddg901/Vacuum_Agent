@@ -17,19 +17,29 @@ PURE. No Home Assistant imports, no I/O, no adapter lookups — bytes in, PNG by
 That is what lets the maintainer dev card exercise it repeatedly and what lets tests cover
 it without a hass fixture.
 
-COORDINATE CONTRACT — the one place bugs will live, so it is stated rather than implied:
+COORDINATE CONTRACT — the one place bugs will live, so it is stated rather than implied.
+A first draft of this module assumed the raster IS the canvas and that a raster byte IS a
+room id. Both are false on Eufy, and the result renders a perfectly plausible image of the
+wrong region — the failure most likely to survive a glance. The authority is
+``map_source.current_room_for_pixel``; these parameters mirror it exactly.
 
-* ``room_pixels`` is one room-id byte per pixel, row-major, ``width * height`` long. Both
-  brands produce this (Eufy ``eufy_room_pixels_v1``; Roborock via
-  ``decode_roborock_v1_segments``).
-* ``flip_y`` describes the RASTER only — raw row 0 being the image BOTTOM. It is applied
-  when building the mask so the mask lands in the rendered frame.
-* ``anchor`` and ``trail`` are already normalized 0–1 **in the rendered frame** — which is
-  what ``map_source.robot_anchor`` gives you (it comes out of ``normalize_rendered``).
-  They are NOT device coordinates and must never be passed through
-  ``vacuum_to_normalized``, which is for hazard layers stored in raw vacuum coords.
+Three distinct spaces:
 
-So: the raster may need flipping, the points never do.
+1. **Raster space** — ``room_pixels`` is ``ro_width * ro_height`` bytes, row-major. A cell
+   holds ``room_id << rid_shift`` (Eufy ``rid_shift=2``; Roborock's decoder resolves ids
+   itself and reports ``rid_shift=0``). So membership is
+   ``(byte >> rid_shift) == room_id`` — never a raw byte compare.
+2. **Main-grid space** — the raster is OFFSET into it: ``main = raster + (ro_dx, ro_dy)``.
+   For Roborock these are 0 and the two spaces coincide; for Eufy they do not.
+3. **Rendered space** — ``canvas_width x canvas_height``, and what ``flip_y`` describes:
+   the render mirrors top-bottom. ``anchor`` and ``trail`` arrive already normalized 0–1
+   **against this space**, because they come from ``normalize_rendered``.
+
+So a raster cell reaches the picture as
+``main = raster + offset`` then ``rendered = flip(main)``, while the points are already
+there and must never be flipped or offset. They are also NOT device coordinates: never
+pass them through ``vacuum_to_normalized``, which serves hazard layers stored in raw
+vacuum coords.
 """
 
 from __future__ import annotations
@@ -110,53 +120,60 @@ def _draw_label_pill(img, draw, text: str, margin: int = 6) -> None:
     )
 
 
-def room_bbox_from_raster(
+def room_cells(
     *,
     room_pixels: bytes,
-    width: int,
-    height: int,
+    ro_width: int,
+    ro_height: int,
     room_id: int,
-    flip_y: bool = False,
-) -> tuple[int, int, int, int] | None:
-    """Pixel bbox ``(min_x, min_y, max_x, max_y)`` of one room, in the RENDERED frame.
+    rid_shift: int = 0,
+) -> list[tuple[int, int]]:
+    """Raster cells belonging to ``room_id``, as ``(rx, ry)`` in RASTER space.
 
-    Returns None when the room has no pixels — ABSENT, not an empty box. A caller must
-    treat that as "cannot crop to this room" and fall back to the whole map, never as a
-    zero-size crop.
+    Membership is ``(byte >> rid_shift) == room_id``. Eufy packs the id (shift 2);
+    Roborock's decoder resolves ids itself and reports shift 0. Comparing raw bytes works
+    on one brand and silently matches nothing on the other.
 
-    ``width * height`` scan. The one other caller of an equivalent scan dispatches it via
-    executor for exactly this reason; do the same on a job-lifecycle path.
+    ``ro_width * ro_height`` scan. The equivalent scan elsewhere in this package is
+    dispatched via executor for exactly that reason — do the same on a lifecycle path.
     """
-    if not room_pixels or width <= 0 or height <= 0:
-        return None
-    if len(room_pixels) < width * height:
-        return None
+    if not room_pixels or ro_width <= 0 or ro_height <= 0:
+        return []
+    if len(room_pixels) < ro_width * ro_height:
+        return []
+    if room_id <= 0:
+        return []
 
-    target = room_id & 0xFF
-    min_x, min_y, max_x, max_y = width, height, -1, -1
+    shift = max(0, int(rid_shift))
+    out: list[tuple[int, int]] = []
 
-    for row in range(height):
-        base = row * width
-        # bytes.find is C-level; skip rows that cannot contribute before scanning them.
-        chunk = room_pixels[base:base + width]
-        if chunk.find(target) == -1:
-            continue
-        y = (height - 1 - row) if flip_y else row
-        col = chunk.find(target)
-        while col != -1:
-            if col < min_x:
-                min_x = col
-            if col > max_x:
-                max_x = col
-            col = chunk.find(target, col + 1)
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+    if shift == 0:
+        # Fast path: the id IS the byte, so bytes.find scans at C level.
+        target = room_id & 0xFF
+        for ry in range(ro_height):
+            base = ry * ro_width
+            chunk = room_pixels[base:base + ro_width]
+            rx = chunk.find(target)
+            while rx != -1:
+                out.append((rx, ry))
+                rx = chunk.find(target, rx + 1)
+        return out
 
-    if max_x < 0 or max_y < 0:
-        return None
-    return (min_x, min_y, max_x, max_y)
+    for ry in range(ro_height):
+        base = ry * ro_width
+        chunk = room_pixels[base:base + ro_width]
+        for rx, byte in enumerate(chunk):
+            if (byte >> shift) == room_id:
+                out.append((rx, ry))
+    return out
+
+
+def _to_rendered(
+    rx: int, ry: int, *, ro_dx: int, ro_dy: int, canvas_height: int, flip_y: bool
+) -> tuple[int, int]:
+    """Raster cell → rendered-space pixel: offset into the main grid, then flip."""
+    px, py = rx + ro_dx, ry + ro_dy
+    return (px, (canvas_height - 1 - py) if flip_y else py)
 
 
 def _norm_to_px(pt: Any, width: int, height: int) -> tuple[float, float] | None:
@@ -175,9 +192,14 @@ def _norm_to_px(pt: Any, width: int, height: int) -> tuple[float, float] | None:
 def render_room_capture(
     *,
     room_pixels: bytes,
-    width: int,
-    height: int,
+    ro_width: int,
+    ro_height: int,
     room_id: int,
+    canvas_width: int | None = None,
+    canvas_height: int | None = None,
+    ro_dx: int = 0,
+    ro_dy: int = 0,
+    rid_shift: int = 0,
     anchor: Any = None,
     trail: Iterable[Any] = (),
     label: str | None = None,
@@ -188,8 +210,13 @@ def render_room_capture(
 ) -> bytes | None:
     """Return PNG bytes for one room, or None when nothing can be drawn.
 
+    Parameters mirror the adapter's render-data block, so a caller passes it through
+    rather than re-deriving geometry (see the module docstring's three spaces). Roborock's
+    raster IS its canvas, so ``ro_dx/ro_dy`` default to 0 and ``canvas_*`` fall back to
+    ``ro_*``; Eufy supplies all of them plus ``rid_shift=2``.
+
     None is returned — never a blank image — when Pillow is absent or the room has no
-    pixels. Absence must stay distinguishable from "an empty room was rendered".
+    cells. Absence must stay distinguishable from "an empty room was rendered".
 
     ``anchor`` may be None (the robot is docked, or the map source is held/stale): the dot
     is then simply not drawn. It is NOT treated as the origin. Same for any unparseable
@@ -201,38 +228,39 @@ def render_room_capture(
     if Image is None or ImageDraw is None:
         return None
 
-    bbox = room_bbox_from_raster(
-        room_pixels=room_pixels, width=width, height=height,
-        room_id=room_id, flip_y=flip_y,
-    )
-    if bbox is None:
+    cvw = int(canvas_width or ro_width)
+    cvh = int(canvas_height or ro_height)
+    if cvw <= 0 or cvh <= 0:
         return None
 
-    min_x, min_y, max_x, max_y = bbox
+    cells = room_cells(
+        room_pixels=room_pixels, ro_width=ro_width, ro_height=ro_height,
+        room_id=room_id, rid_shift=rid_shift,
+    )
+    if not cells:
+        return None
+
+    rendered = [
+        _to_rendered(rx, ry, ro_dx=ro_dx, ro_dy=ro_dy, canvas_height=cvh, flip_y=flip_y)
+        for rx, ry in cells
+    ]
+    xs = [p[0] for p in rendered]
+    ys = [p[1] for p in rendered]
+
     pad = max(0, int(padding_px))
-    cx0, cy0 = max(0, min_x - pad), max(0, min_y - pad)
-    cx1, cy1 = min(width - 1, max_x + pad), min(height - 1, max_y + pad)
+    cx0, cy0 = max(0, min(xs) - pad), max(0, min(ys) - pad)
+    cx1, cy1 = min(cvw - 1, max(xs) + pad), min(cvh - 1, max(ys) + pad)
     cw, ch = (cx1 - cx0 + 1), (cy1 - cy0 + 1)
     if cw <= 0 or ch <= 0:
         return None
 
-    # 1) The room silhouette, at RASTER resolution — one byte per pixel, one pixel each.
+    # 1) The room silhouette, one raster cell per pixel, in RENDERED space.
     img = Image.new("RGBA", (cw, ch), _TRANSPARENT)
     px = img.load()
-
-    target = room_id & 0xFF
     fill = (*FILL_RGB, 255)
-    for row in range(height):
-        y = (height - 1 - row) if flip_y else row
-        if not (cy0 <= y <= cy1):
-            continue
-        base = row * width
-        chunk = room_pixels[base:base + width]
-        col = chunk.find(target)
-        while col != -1:
-            if cx0 <= col <= cx1:
-                px[col - cx0, y - cy0] = fill
-            col = chunk.find(target, col + 1)
+    for x, y in rendered:
+        if cx0 <= x <= cx1 and cy0 <= y <= cy1:
+            px[x - cx0, y - cy0] = fill
 
     # 2) Upscale FIRST. NEAREST keeps the silhouette crisp and blocky rather than smearing
     #    a 40-pixel room, and everything drawn after this lands at final resolution.
@@ -250,15 +278,18 @@ def render_room_capture(
     def _to_final(p: tuple[float, float]) -> tuple[float, float]:
         return ((p[0] - cx0) * factor + factor / 2.0, (p[1] - cy0) * factor + factor / 2.0)
 
+    # anchor/trail are ALREADY in rendered space — normalized against the canvas by
+    # normalize_rendered. They are never offset by (ro_dx, ro_dy) and never flipped;
+    # doing either here is the bug this module's docstring exists to prevent.
     pts: list[tuple[float, float]] = []
     for raw in (trail or ()):
-        p = _norm_to_px(raw, width, height)
+        p = _norm_to_px(raw, cvw, cvh)
         if p is not None:
             pts.append(_to_final(p))
     if len(pts) >= 2:
         draw.line(pts, fill=(*TRAIL_RGB, 255), width=max(1, factor // 2), joint="curve")
 
-    a = _norm_to_px(anchor, width, height)
+    a = _norm_to_px(anchor, cvw, cvh)
     if a is not None:
         ax, ay = _to_final(a)
         r = max(2.5, factor * 1.2)
