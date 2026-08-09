@@ -802,6 +802,57 @@ Open design questions for the round:
    machinery or fakes the decoder first is specifically not decided yet. Naming: avoid
    trace_* (taken by pose capture).
 
+7. FIRST STEP AND ITS COST — NOTED (Chris, 2026-08-09). Before any catalog, any ID
+   scheme or any decoder, the early work is TRACING THE CAUSAL CHAIN FOR ALMOST EVERY
+   PATH IN THE CODEBASE. That is the real shape of this project and the reason it is
+   deferred past 2.0.0.
+
+   Why it cannot be skipped or sampled: §3 requires stable IDs and §20 requires the
+   instrumentation to tell the truth, and both are claims about WHERE a decision is
+   actually made. A receipt emitted at a site that merely passes a value through
+   records a fact and misattributes its cause — which is worse than no receipt,
+   because it reads as evidence. Item 3(b) above already concedes that "causal" is a
+   judgement and not mechanically lintable, so the chain has to be walked by someone
+   who can make that judgement, path by path.
+
+   The consequence for scheduling: this touches near every file, and its expensive
+   half is reading rather than writing. It wants unhurried time and a whole-system
+   view, not a slot between releases. Attempting it incrementally per-subsystem risks
+   the failure this whole document exists to prevent — a catalog whose entries are
+   locally sensible and globally incoherent, where the same decision carries two IDs
+   because two subsystems were traced by different passes.
+
+   Corollary worth stating: the tracing pass has value on its own even if the
+   recorder never ships. A written causal map of the codebase is the artefact the
+   audits kept reconstructing by hand.
+
+   MODEL FIT — the job SPLITS, and "it touches every file" is not the argument.
+   The campaign rule (memory feedback_model_fit_by_campaign_phase) is explicit that
+   collection-shaped work stays on the cheap tier EVEN AT HUGE SCOPE, and that a
+   promotion is never justified by scope or window size. Walking one path and emitting
+   its candidate decision points is exactly that: narrow read, iterate per item,
+   nothing needs the whole map resident.
+
+   What IS expensive is naming: are these two candidates the SAME decision under
+   different names, and is this site the cause or a pass-through that merely carries
+   the value? That is "recognizing architectural equivalence" and refusing to promote
+   a plausible candidate into an accepted catalog entry — and one unit of it genuinely
+   does need the whole corpus, because a set cannot be deduplicated against a map you
+   cannot see. It is also precisely the failure named above: one decision carrying two
+   IDs because two subsystems were traced by different passes.
+
+   So: cheap fan-out to COLLECT, expensive synthesis to NAME — the same shape the
+   audit campaign already proved out. Two riders carried from that campaign:
+
+     * The review gate still applies. An adversarial pass found defects in 4 of 9
+       proofs written by the expensive window; tier does not substitute for
+       verification, so the catalog needs its own falsification pass.
+     * Writing the FIRST receipts is the materialization exception in this project —
+       it looks like cheap per-artifact work and is where a wrong causal attribution
+       gets falsified, by producing a receipt that explains nothing. Cheap window is
+       fine, but only with explicit licence to stop and declare the attribution wrong
+       rather than writing prose around it.
+
 Related: memory project_debug_flight_recorder + project_semantic_trace_deferred (treat as
 ONE item — this doc is now that item's design). The forum post remains the only durable
 spec for debug_capture.py itself; this doc does not change that.

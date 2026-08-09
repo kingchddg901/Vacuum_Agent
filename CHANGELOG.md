@@ -10,7 +10,7 @@ only.
 
 ## [Unreleased]
 
-## [2.0.0] - 2026-08-08
+## [2.0.0] - 2026-08-09
 
 **The Phoenix Release.** A hostile audit campaign ran against the whole tree and
 produced **484 verified findings** — 18 critical, 88 high, 173 medium, 205 low.
@@ -41,6 +41,21 @@ with the specific thing that would close it.
   from `async_setup_entry` to `async_at_started`, and a vacuum whose own
   integration has not finished loading is now **deferred**, not counted as
   repaired — see *Fixed* below.
+- **The paused-job timeout now defaults to 15 minutes, and a stored `0` is
+  raised to 15 once, on update.** `pause_timeout_minutes_default` fell back to
+  `0` — the timeout OFF — and `get_pause_timeout_settings` *persisted* its own
+  fallback on read, so the first time anything asked, a hard `0` was stamped
+  into the store; after that "never configured" and "deliberately disabled" were
+  byte-identical, and no change of default could ever reach the install. A
+  paused job is owned by the pause reaper and nothing else, so with the timeout
+  off a paused run sat open indefinitely. `core/pause_timeout_migration.py` runs
+  one-shot on the `pause_timeout_default_v1` key and lifts an explicit `0` to
+  15; an absent value is left absent, so it inherits the default rather than
+  being stamped again. This knowingly overwrites a `0` somebody may have chosen:
+  after updating, **a run left paused for 15 minutes is cancelled and the robot
+  is sent home.** The control moved out of the capability-gated Base Station tab
+  into the rooms sidebar and gained an explicit Off chip, so `0` is now a
+  visible choice — set it back there, or with `set_pause_timeout_settings`.
 - **`set_area_label_anchor` is removed**, along with its schema, handler,
   registration, `services.yaml` block, card action, and the only writer of the
   `label_anchor` room field. Area-chip positions are now device-local
@@ -49,12 +64,16 @@ with the specific thing that would close it.
   owned locally thereafter. The seed marker is persisted, so clearing an anchor
   is not undone by the next page load. `resolve_area_label_anchors` survives on
   both read paths for that seed.
-- **An adapter that declares no `room_profiles` block now fails registration.**
-  Core owns the key space — the four protected profile names and
-  `default_profile` — and none of a brand's words. There is no framework catalog
-  to inherit and no per-key merge: an undeclared key resolves EMPTY, and
-  resolution raises `UndeclaredProfileCatalogError` naming the missing
-  declaration rather than a bare `KeyError`. Eufy's catalog moved to
+- **An adapter that declares no `room_profiles` block can no longer resolve a
+  single room.** A *stored* adapter config (UI- or service-authored,
+  `source: "config"`) missing the block is refused at registration outright. A
+  *code* adapter — the shipped brands, and a brand port — is reported as a
+  registration validation issue and then fails at first profile resolution
+  rather than degrading. Core owns the key space — the four protected profile
+  names and `default_profile` — and none of a brand's words. There is no
+  framework catalog to inherit and no per-key merge: an undeclared key resolves
+  EMPTY, and resolution raises `UndeclaredProfileCatalogError` naming the
+  missing declaration rather than a bare `KeyError`. Eufy's catalog moved to
   `adapters/eufy/room_profiles.py`. Absent and declared-empty stay
   distinguishable so "this brand has none" and "the porter forgot" cannot
   collapse into one state.
@@ -62,8 +81,12 @@ with the specific thing that would close it.
   into the upstream speed list, `boost` is absent from it, and selecting Boost
   therefore applied no suction at all. BoostIQ is the auto carpet-boost switch on
   DPS 118, not a fifth speed. `Turbo` is the device's real second-highest suction
-  and was unreachable. Verified absent from the live store before the change — no
-  room, saved room profile or run profile carried it — so no migration is needed.
+  and was unreachable. No dedicated migration is needed: the one-shot repair above
+  already covers rooms. `Boost` is absent from the declared options, so any room
+  still carrying it is **reset** to this brand's `default_profile` suction,
+  `Standard` — re-pick `Turbo` on those rooms if that is what you wanted. A `Boost`
+  held in a saved room profile or a run profile is not visited by the repair and
+  continues to be discarded on the wire. The author's own store carried it nowhere.
   `fan_speed_aliases` still folds `boost iq` onto `boost`; that feeds learning
   bucket labels rather than dispatch and is deliberately left for its own look.
 - **Eufy `clean_intensity` reaches the wire through a declared `value_map`** —
@@ -91,7 +114,8 @@ with the specific thing that would close it.
   invisible. New rejections land in `rejected_rooms_by_map` and apply to their
   own map only. Omitting `map_id` now means "the only map" and **refuses** on a
   multi-map vacuum rather than applying vacuum-globally. The legacy flat list is
-  still read and applied to every map, and never appended to again.
+  still read and applied to every map, and once a vacuum has a stored map,
+  nothing is ever appended to it again.
 - **`manifest.json` declares requirements for the first time**: `fonttools>=4.47.0`
   and `brotli>=1.1.0`, which back the drop-in typeface trust chain. The CV stack
   (numpy / Pillow / scipy) remains optional; stall capture degrades to no image
@@ -122,9 +146,11 @@ with the specific thing that would close it.
     the bumper is physically actuated — and a run the integration did not dispatch is
     not its to redirect. Every stuck state gets the same answer: you are told, you go
     get it. (The pause-timeout path still sends a *paused* robot home; a paused robot
-    can move, and that timeout is one the user set.)
-  - Both feed the existing stall-capture consumer, so an armed vacuum gets the room
-    picture, the notification and the event. `eufy_vacuum_stall_detected` now carries
+    can move, and that timeout is one the user can see and change — see *Breaking
+    changes*, where a stored timeout of `0` is raised to 15 minutes once, on update.)
+  - Both feed the existing stall-capture consumer, so an armed vacuum whose run has
+    a resolved current room gets the room picture, the notification and the event.
+    `eufy_vacuum_stall_detected` now carries
     `trigger` (`timing` / `error` / `area`) so an automation can tell them apart.
   - The window is 15 minutes deliberately: the trapped robot freed itself after ~3,
     and a shorter window would report a stall on a robot that was going to be fine.
@@ -190,7 +216,7 @@ with the specific thing that would close it.
   behind three gates, each falling back to the even split: the brand must declare
   `honors_clean_order`, the segmenter must return exactly n bouts, and the
   rebased parts must reconcile to the group's measured totals within a second /
-  5 cm² per member.
+  0.05 m² per member.
 - **Room access graph.** Describe which rooms a vacuum must pass through to reach
   others. `set_room_access_graph` does build, rebuild and clear in one atomic
   replace-all write — clearing is the same call with no dock room and no edges,
@@ -199,9 +225,12 @@ with the specific thing that would close it.
   multiple-inbound, unknown room) and writes nothing; incompleteness is
   *reported* with the rooms named, not refused, so a graph can be built in
   stages. The response carries `block_code_before`/`after`, because clearing does
-  not always unlock. A missing dock room is now refused too: `multiple_dock_rooms`
-  had always been in the structural set while `missing_dock_room` never was, so
-  too many docks refused and zero docks was allowed.
+  not always unlock. A missing dock room is now refused on the per-room access
+  editor: an edit that changes links while no room is marked as the dock is
+  rejected with `no_dock_room` and rolled back. `multiple_dock_rooms` had always
+  been in the structural set while `missing_dock_room` never was, so too many
+  docks refused and zero docks was allowed. `set_room_access_graph` itself still
+  reports a dockless graph through `block_code_after` rather than refusing it.
 - **The estimate panel freezes the plan at dispatch.** `get_planned_job_estimate`
   computes from the payload state and job start clears the payload, so the panel
   went blank exactly when the user most wanted to see what they had asked for.
@@ -220,7 +249,8 @@ with the specific thing that would close it.
   schema, every service is documented or on a reviewed `INTERNAL_SERVICES`
   allowlist, every `services.yaml` field exists in its schema with matching
   required-ness in both directions, and no dead schema constants survive. A fifth
-  test guards the allowlist against rot.
+  test guards the expected-failure list against rot, failing if an allowlisted
+  violation has quietly started passing.
 - **Learning stores are repairable.** `accuracy_stats`, the incremental
   accumulators, the battery drain aggregates and `learned_zones` can all now be
   rebuilt from the completed-job archive; every durable learning store is either
@@ -317,8 +347,8 @@ wrong answers are mutation-verified.
   two lines up uses a substring fold and correctly showed the water level and
   edge mopping rows.
 - **The estimator** (`learning/estimator.py`). Fed a lowercased but
-  un-canonicalized mode, so a 100%-mop job accumulated no `projected_mop_minutes`
-  and reported `overhead.mop_wash` as `0.0`, with the ETA short by the whole wash
+  un-canonicalized mode, so a 100%-mop job accumulated no mop minutes
+  and reported `overhead.mop_wash_minutes` as `0.0`, with the ETA short by the whole wash
   allowance. The file contradicted itself within six lines: the same variable
   goes into `_find_room_match`, whose predicate canonicalizes both sides, so the
   room matched its learned stats and got correct minutes while `is_mop` said it
@@ -340,8 +370,9 @@ wrong answers are mutation-verified.
 - **`learning/utils.py` now genuinely delegates.** The read-path fix documented it
   as delegating to the shared owner; it did not, and the second table was still
   there. Behaviour is identical — both tables and both fallbacks matched — which
-  is exactly how this class starts. The private name stays: four learning modules
-  import it, and its passthrough of unknown brand modes is load-bearing for
+  is exactly how this class starts. The private name stays: three learning modules
+  import it and a fourth defines and uses it, and its passthrough of unknown brand
+  modes is load-bearing for
   bucketing, since two brand modes that both mention mopping are different runs
   with different durations.
 - **`get_effective_room_details`** derived `mop_required` from its own substring
@@ -366,7 +397,7 @@ wrong answers are mutation-verified.
   deliberately narrow — service-response source only, exactly one cached map,
   and that map must carry at least one room-shaped row; two or more maps refuse
   rather than guess. The refusal message is now brand-aware and keyed off the
-  five named exits of the room-source refresh, so a Roborock owner is no longer
+  six named exits of the room-source refresh, so a Roborock owner is no longer
   told to go and check the Eufy app.
 
 #### Per-room settings that never reached the device
@@ -424,12 +455,13 @@ wrong answers are mutation-verified.
   the mobile shell rendered a naked percent and a critical battery read exactly
   like a full one.
 - **The maintenance card header stacks** instead of clipping its own status. The
-  title had no `min-width` and so refused to shrink below its min-content width;
-  German cut "Warnung" to "Warn", and Russian squeezed "Фильтр" to under one
-  glyph and rendered it as a one-character-per-line column. Two width-conditional
-  fixes were tried first and both depended on the strings happening to fit;
-  stacking unconditionally means neither failure can recur in any locale at any
-  width. The maintenance frequency formatter, which had been dead by construction
+  title had no `min-width` and so refused to shrink below its min-content width,
+  so German cut "Warnung" to "Warn". Two side-by-side fixes were tried first:
+  `min-width: 0` plus `overflow-wrap: anywhere`, which *caused* the Russian
+  column — "Фильтр" squeezed under one glyph and rendered one character per
+  line — and then a wrap plus a min-width floor, correct but dependent on whether
+  a given translation crosses the threshold. Stacking unconditionally means
+  neither failure can recur in any locale at any width. The maintenance frequency formatter, which had been dead by construction
   (`guide?.frequency || _format(guide?.frequency)` only reaches the formatter when
   its own input is falsy, and the formatter returns `""` for falsy input), now
   always runs — locale-aware, raising only the first character, and preserving
@@ -443,6 +475,15 @@ wrong answers are mutation-verified.
 
 #### Jobs, dispatch and lifecycle
 
+- **A trapped robot is now reapable as a stranded run.** The strand predicate left
+  an errored robot alone, on the reasoning that it might recover — but neither
+  shipped brand resumes itself after a trap, so that traded every real trap for a
+  rare case. An errored run is now finalized as *interrupted* once the existing
+  five-minute grace elapses. No hardware command is sent. What changes for you:
+  `eufy_vacuum_job_finished` and, where rooms were left, `eufy_vacuum_run_incomplete`
+  now fire on runs whose robot was never freed and never returned to the dock — so
+  a `retry_missed_rooms` automation will see them, and will run against a robot that
+  still cannot move.
 - **A job's paused flag now tracks the robot, not just our own service.** Nothing
   marked the job when the vacuum was paused by any other route — the HA vacuum
   card, the vendor app, the button on the robot — and the pause-timeout report
@@ -548,9 +589,10 @@ wrong answers are mutation-verified.
   misconfiguration as permanent. A failed capability resolution is now
   distinguishable from an absent capability, and the decision log is selectable
   in the flight recorder.
-- **Companion entities resolve by device as well as by derived name**, so a
-  naming scheme the author's own install does not produce no longer fails
-  resolution.
+- **Companion entities resolve by device as well as by derived name.** Resolution
+  derived companion names by string surgery and gave up when they did not match —
+  a scheme the author's own install produces, where companions carry an area
+  prefix, and which had gone unnoticed rather than unbroken.
 - **The accessibility typeface never applied**, through three stacked causes:
   `@font-face` was never registered on the *document*, the typeface read was on a
   phantom selector and then lost to the theme, and a fallback-less paper variable
@@ -590,10 +632,10 @@ wrong answers are mutation-verified.
   indistinguishable and silent.
 - **The backend returns codes and parameters; the card translates.** Backend
   English was leaking into an 18-language product. Home Assistant's own surfaces
-  gained `strings.json` plus 17 locale files for the config flow, entities and
-  exceptions.
+  gained 17 locale files, and `strings.json` gained an `exceptions` block,
+  covering the config flow, entities and exceptions.
 - **Registered services are documented or explicitly internal.** The parity gate's
-  first run found 72 violations, including 26 registered services with no
+  first run found 75 violations, including 27 registered services with no
   `services.yaml` entry; each was either documented or adjudicated onto the
   reviewed `INTERNAL_SERVICES` allowlist. 19 dead schema constants and 4 dead
   `const.py` entries went with them — three of those were service names for

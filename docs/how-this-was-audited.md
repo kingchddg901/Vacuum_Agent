@@ -74,11 +74,12 @@ is an empirical question about pictures, not a textual one about code. This meth
 falsify it, so it did not pretend to.
 
 **Some things need hardware nobody has.** A few findings stay open because closing them
-requires a second vacuum of the same brand, or a specific model on a bench. They are listed
-with exactly what would close them, not quietly aged out.
+requires a second vacuum of the same brand. They are listed with exactly what would close
+them, not quietly aged out — and two that were filed that way were closed by verification
+instead, once it turned out no bench was needed.
 
-**Two fixes landed narrower than they were filed**, and are recorded that way rather than
-as clean wins — because a ledger that says what actually happened is the only kind worth
+**One fix landed narrower than it was filed**, and is recorded that way rather than as a
+clean win — because a ledger that says what actually happened is the only kind worth
 keeping.
 
 ---
