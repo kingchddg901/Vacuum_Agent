@@ -1,6 +1,7 @@
 """Central orchestrator for the eufy_vacuum integration, managing vacuum state, room configuration, job control, queue building, map management, and all service handlers."""
 
 from __future__ import annotations
+from ..profiles.room_profiles import may_wet_floor
 
 import asyncio
 from datetime import datetime
@@ -2914,9 +2915,15 @@ class EufyVacuumManager:
 
     @staticmethod
     def _room_mode_uses_mop(clean_mode: Any) -> bool:
-        """Return whether one room clean mode includes mopping."""
-        mode = str(clean_mode or "").strip().lower()
-        return mode in {"mop", "vacuum_mop"} or "mop" in mode
+        """Return whether one room clean mode includes mopping.
+
+        The exact-set arm this used to carry — ``mode in {"mop", "vacuum_mop"}`` —
+        was DEAD: the substring test beside it subsumed every value the set could
+        match. It was also, character for character, the expression that lost Edge
+        Mopping on the read path in issue #48. A future tidy-up deleting the
+        "redundant" substring half would have reintroduced that bug exactly.
+        """
+        return may_wet_floor(clean_mode)
 
     def _ensure_room_history_cache(self, *, vacuum_entity_id: str) -> None:
         """Schedule a room-history cache preload if one is not already in progress."""

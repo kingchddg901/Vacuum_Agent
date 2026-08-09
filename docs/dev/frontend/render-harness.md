@@ -77,6 +77,10 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 | `tokenMap`, `VIEWS`, `VIEW_ORDER` | Registry + view constants for tests. |
 | `VacuumCardState` | The real `src/state/index.js` state class, exposed so tooling can drive genuine state (e.g. per-device theme, driven by `device-theme.spec.mjs`). |
 | `gallery` | The gallery-entry metadata list (`id`, `view`, `label`, `tokens`, `clip`, `modal`, `font`) for tests. |
+| `mountCard(id, opts)` | **Opt-in.** Mounts one **standalone Lovelace card** (`cards.js` fixtures: `room` / `dashboard` / `profile`) as its real custom element into a width-pinned holder, with a stubbed `callService` served from `CARD_SERVICE_RESPONSES` and a settle pass for the card's one-shot `_ensureData()`. `opts`: `bundle` (flat `--evcc-*` map, applied to the host exactly as `apply-theme.js` does — an EMPTY bundle is the real cold-dashboard look, since the cards read the tokens with literal fallbacks), `freeze`. Returns a serialisable **render report** counted off the LIVE shadow tree (`chips` / `rooms` / `steps` / `text` / heights) — that report is the point, because a card that fails to mount is a small empty box that passes any check asserting only that a file exists. Backs `shoot-cards.mjs`. |
+| `cards` | Standalone-card fixture metadata (`id`, `element`, `file`, `label`, `width`). |
+| `mountRealCard(opts)` | **Opt-in.** Builds the panel card's own frame rather than the harness's recreation of it. |
+| `renderReadmeShot(id, opts)` · `readmeShots` | The committed README panel shots and their metadata (`id`, `file`, `view`, `label`, `clip`, `needsThemes`); gate-measured against the live tree before anything is written. Backs `shoot-readme.mjs`. |
 | `version` | Surface version (`1`). |
 
 ### The stub state
@@ -389,6 +393,8 @@ PR (also documented in the workflow header):
 | `harness/mount-entry.js` | Browser entry; `window.__evcc`. Bundled by `build.mjs`. |
 | `harness/fixtures/stub-state.js` | Recording null-object stub. |
 | `harness/fixtures/gallery.js` | All-states gallery fixtures. |
+| `harness/fixtures/cards.js` | The three standalone-card fixtures (`CARD_FIXTURES`), their seeded state (`CARD_STATES`), and the stubbed service responses (`CARD_SERVICE_RESPONSES`) their `callService` is served from. |
+| `harness/fixtures/readme-shots.js` | Per-shot definitions for the committed README panel captures — view, file, clip, seeded state, and the **floor** each shot must clear against the live tree before its PNG is written. |
 | `harness/semantic-tokens.js` | Registry-derived semantic-color enum. |
 | `harness/cvd/` | `simulate.mjs` (Machado+Brettel), `color.mjs` (CIEDE2000), `report.mjs` (matrix), `tune.mjs` (palette scratchpad). |
 | `harness/bundles/` | Flat `--evcc-*` maps: `default`, `cvd-safe`. |
@@ -401,6 +407,8 @@ PR (also documented in the workflow header):
 | `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `shoot-theme-picker.mjs` · `census.mjs` | esbuild + capture CLIs (`shoot-theme-picker.mjs` shoots the Themes picker with a real-state fixture). |
 | `harness/shoot-locales.mjs` | Renders every tab in each real bundled locale (de/fr/es/nl/it/pt/ru) next to English, plus a per-language contact sheet and an overflow probe, via `opts.lang` pinned as the explicit `config.i18n.locale` override — which bypasses the draft-gate, i.e. it shows what a user sees after picking that language from the editor. |
 | `harness/shoot-pseudo.mjs` | English-vs-pseudo-long side-by-side per tab + horizontal-overflow probe. |
+| `harness/shoot-cards.mjs` (`npm run harness:cards`) | Mounts and shoots the **three standalone Lovelace cards** via `mountCard` / `cardFixtures` (`lib/mount-page.mjs`). Writes `docs/screenshots/card-<id>.png` (committed) + `harness/out/cards/`. `--freeze` is the **default** here, unlike the tab shooters, so a re-run with nothing changed reproduces the same bytes. **Gated**: a card that fails to mount renders as a small empty box, which passes any check that only asserts a file exists — so each shot is gated on what the live shadow tree actually contains (chips / rooms / manifest steps / height) **before** anything is written, and the run exits non-zero on a miss. |
+| `harness/shoot-readme.mjs` (`npm run harness:readme`) | Shoots the committed **README panel screenshots**, one full-tab capture per view, into `docs/screenshots/` + `harness/out/readme/`. Per-shot floors live in `harness/fixtures/readme-shots.js`. **Gated on the same failure it exists to prevent**: a tab that renders its EMPTY state screenshots perfectly — right chrome, right active tab, right theme, nothing in it. Nothing is written until the live shadow tree meets the shot's declared floor (element counts for the selectors that ARE the view, required substrings, a height floor, zero `.evcc-empty` nodes, the expected tab actually marked active, and no `undefined` / `NaN` / `[object Object]` in the rendered text); a miss is reported and skipped with its previous PNG left untouched, and the run exits non-zero. |
 | `harness/build-landing.mjs` | Writes the Pages landing page after the galleries render. |
 | `harness/preview-animals.mjs` | Renders the `/animals` gallery from `gallery/animals/*.json` (real animal-svg framework, all six poses, detail page + faceted index). |
 | `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
@@ -410,6 +418,11 @@ PR (also documented in the workflow header):
 | `gallery/themes/*.json` | Theme exports published to the gallery (one JSON per theme). |
 | `.github/ISSUE_TEMPLATE/theme-submission.yml` | Submission issue form (the "Submit a theme" target). |
 | `.github/workflows/card-visual.yml` · `theme-intake.yml` · `theme-submission.yml` | CI: visual regression · gallery+animals+landing+docs Pages publish · submission bot. |
+
+> **Every shooter renders FROM `src/`, through `harness/build.mjs`** — never from
+> `custom_components/eufy_vacuum/frontend/`. That bundle only changes on
+> `npm run build:deploy`, so pointing a shooter at it would picture the last deploy
+> while every check stayed green.
 
 ---
 

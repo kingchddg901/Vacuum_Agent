@@ -87,9 +87,24 @@ to every brand; this section does not.
 ```
 
 Capability-gated fields are present only when the capabilities dict says the
-vacuum supports them: `path_type` whenever `supports_path_control` (no clean_mode
-condition); `water_level` and `edge_mopping` additionally require the room's
-`clean_mode` to be in `{"mop", "vacuum_mop"}`.
+vacuum supports them. `water_level` and `edge_mopping` additionally require the
+room to be in a mop mode — asked as **`is_mop_clean_mode(clean_mode)`**
+(`profiles/room_profiles.py`), never as a set membership test written out at the
+call site. The value arriving here is whatever the card stored, which is a
+**display label** (`"Vacuum and mop"`), so an exact set test drops both fields off
+the wire while `resolved_rooms` below records them as applied — the wire and the
+job record disagreeing with nothing to report it. The QUESTION is canonicalized,
+not the value: `clean_mode` itself passes through un-lowercased because the
+sibling axis on this path is case-**sensitive** by design (Eufy declares
+`{"Narrow": "normal", "Deep": "narrow"}`, where the two vocabularies share the
+word "narrow" at opposite ends of the scale).
+
+`path_type` is gated on `supports_path_control` **and a non-empty value**. The
+value check is the one that matters: `supports_path_control` is derived from
+cleaning-intensity presence (`core/capabilities.py`) so it reads True on Eufy,
+which has no path axis at all, and an absent `room_fields` entry means IDENTITY
+rename rather than omission — so the capability check alone would still emit
+`path_type` as `""`. Only Roborock carries a value here.
 
 **Field reference**
 
@@ -101,14 +116,15 @@ condition); `water_level` and `edge_mopping` additionally require the room's
 | `fan_speed` | `str` | **Brand vocabulary** — whatever the adapter declares in `vocabulary.fan_speed_options`. Eufy: `"Quiet"`/`"Standard"`/`"Turbo"`/`"Max"`; Roborock: `"quiet"`/`"balanced"`/`"turbo"`/`"max"`/`"gentle"`. A value outside the declared list is filtered out before dispatch (`jobs/active_job.py`), so the setting silently does nothing. |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
 | `clean_intensity` | `str` | **Brand vocabulary, and may be absent entirely** — Roborock declares no intensity axis and omits it from every profile. Eufy: `"Quick"`/`"Narrow"`/`"Deep"`. The retired Eufy values `"Standard"`/`"Normal"` are no longer folded on read; they are repaired once in the store (`rooms/vocabulary_migration.py`) and nothing emits them on the wire. |
-| `water_level` | `str` | Only when `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
-| `edge_mopping` | `bool` | Only when `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
-| `path_type` | `str` | `"wide"`, `"narrow"` (default `"wide"`); only when `supports_path_control` |
+| `water_level` | `str` | Only when `supports_water_control` AND `is_mop_clean_mode(clean_mode)` |
+| `edge_mopping` | `bool` | Only when `supports_edge_mopping` AND `is_mop_clean_mode(clean_mode)` |
+| `path_type` | `str` | **Brand vocabulary, and absent on Eufy** — the same physical pass-density axis `clean_intensity` carries, under the other brand's name. A brand declares `clean_intensity_options` **or** `path_type_options`, never both ([22](22-adapter-config-reference.md)); the Eufy adapter deliberately does not declare `path_type` in `room_fields`, so it never reaches the wire. Roborock: `"wide"`/`"narrow"`, per-profile. Written only when `supports_path_control` AND the resolved value is non-empty. |
 
 Every wire field **name and value** above is renamable per-adapter via the
 `dispatch` block (`map_id_field`, `rooms_field`, `room_id_field`,
 `clean_passes_field`, and the per-room `room_fields` rename/value/omit map); the
-table shows the Eufy defaults. See §7 and [22](22-adapter-config-reference.md) §13.
+table shows the Eufy defaults for the fields Eufy has. See §7 and
+[22](22-adapter-config-reference.md) §13.
 
 The vacuum processes rooms in the order they appear in the `rooms` array.
 
@@ -116,8 +132,9 @@ The vacuum processes rooms in the order they appear in the `rooms` array.
 
 `resolved_rooms` is a parallel list used by the integration for display and job
 tracking (learning / history read it). It is **never sent to the vacuum**. Each
-entry has exactly these 14 fields (`build_room_clean_payload`), using **canonical**
-internal names — note `room_id` / `clean_passes`, not the wire's `id` / `clean_times`:
+entry has 13 fields, plus `path_type` on a brand that has that axis
+(`build_room_clean_payload`), using **canonical** internal names — note
+`room_id` / `clean_passes`, not the wire's `id` / `clean_times`:
 
 | Field | Type | Notes |
 |---|---|---|
@@ -125,7 +142,8 @@ internal names — note `room_id` / `clean_passes`, not the wire's `id` / `clean
 | `name`, `slug` | str | room identity |
 | `selected_profile_name` | str | what the room stored |
 | `resolved_profile_name` | str | what was actually used |
-| `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `path_type` | str | **all present unconditionally** here (unlike the capability-gated wire payload) |
+| `clean_mode`, `fan_speed`, `water_level`, `clean_intensity` | str | **present unconditionally** here (unlike the capability-gated wire payload) |
+| `path_type` | str | the **one** conditional key: carried only when the resolved value is non-empty, i.e. only on a brand that HAS the axis. This is the record learning buckets against, so an inert `""` on every Eufy room would be indexed as a real setting; **absent** is what says "this brand has no such axis" |
 | `clean_passes` | int | canonical (wire uses `clean_times`) |
 | `edge_mopping` | bool | always present |
 | `carpet` | bool | derived: `floor_type` starts with `"carpet"` |
@@ -204,15 +222,22 @@ For each room, the engine resolves which cleaning settings to use:
      (mop-without-water is invalid). "No water" is compared against the brand's
      DECLARED word, not a literal — the check was `in ("", "off")`, which only
      recognised brands that happen to spell it that way;
-   - non-mop mode **or** carpet → `edge_mopping = False`.
+   - non-mop mode **or** carpet → `edge_mopping = False`. "Is this a mop mode?" is
+     `is_mop_clean_mode()` throughout, never a set membership test written out here
+     ([16 §6](16-profile-manager.md)).
 3. **Capability gating** (`apply_capability_gate`, at payload-build time, not during
-   resolution): if mop is unsupported and mode is `mop`/`vacuum_mop`, **downgrade**
+   resolution): if mop is unsupported and `is_mop_clean_mode(clean_mode)`, **downgrade**
    to a vacuum built-in (`vacuum_deep` when `resolved_profile_name == "vacuum_mop_deep"`,
-   else `vacuum_quick`) — set `clean_mode="vacuum"`, `water_level="Off"`,
+   else `vacuum_quick`) — set `clean_mode="vacuum"`, `water_level=no_water_value(catalog)`,
    `edge_mopping=False`, and pull **only** `path_type` + `clean_intensity` from that
-   fallback. Then the flat clamps: `clean_mode=="vacuum"` → water `Off` + edge `False`;
-   `!supports_water` → water `Off`; `!supports_edge` → edge `False`; `!supports_path`
-   → path `"wide"`; `!supports_passes` → passes `1`.
+   fallback. Then the flat clamps: `canonical_clean_mode(clean_mode) == "vacuum"` → water
+   no-water + edge `False`; `!supports_water` → water no-water; `!supports_edge` → edge
+   `False`; `!supports_passes` → passes `1`; `!supports_path` → **`path_type` omitted
+   from the gated result**, not clamped to a value. Clamping it to `"wide"` wrote a
+   value into every payload the gate touched — the loudest possible answer to "does
+   this device have a path axis?" asked of devices that do not — and an omitted field
+   is already how dispatch expresses "this brand does not expose it"
+   (`room_fields` `field_name: null`).
 
 The final `ResolvedRoom` records both the `selected_profile_name` (what the
 room stored) and the `resolved_profile_name` (what was actually used).

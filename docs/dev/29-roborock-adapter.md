@@ -415,8 +415,10 @@ The adapter declares these so the UI never offers a control the firmware ignores
 - **Passes are global** (`passes_is_global`) — one passes value for the run, not
   per room.
 - **No room profiles** on the S6 (`supports_room_profiles` resolves False from
-  `mop_settable: False` — a settable model flips it True, §6b), **no Base Station /
-  Map Bounds tabs** (capability-gated off).
+  `mop_settable: False` — a settable model flips it True, §6b), **no Base Station
+  tab** (capability-gated off). (The Map Bounds tab is not gated off here — it does
+  not exist on any brand; the view was retired in the mapping split. See
+  [11 §7](11-mapping-system.md).)
 - **Carpet + tank caution** — starting with the tank attached over carpet warrants
   a warning (`mop_carpet_warning`).
 

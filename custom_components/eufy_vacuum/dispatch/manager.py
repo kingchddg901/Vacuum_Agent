@@ -22,6 +22,7 @@ production callers — ``start_selected_rooms``, ``jobs/phase_runner.py``,
 """
 
 from __future__ import annotations
+from ..profiles.room_profiles import may_wet_floor
 
 import logging
 from typing import TYPE_CHECKING, Any
@@ -484,7 +485,7 @@ class DispatchManager:
             # carries no water_level field wouldn't lower. Under-mop is accepted over wet-mop.
             _mop_rooms = sum(
                 1 for r in resolved_rooms
-                if "mop" in str(r.get("clean_mode") or "").strip().lower()
+                if may_wet_floor(r.get("clean_mode"))
             )
             _mixed_batch = 0 < _mop_rooms < len(resolved_rooms)
             _use_safest = (

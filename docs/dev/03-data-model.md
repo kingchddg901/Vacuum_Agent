@@ -61,6 +61,7 @@ produce `.corrupt` backup files.
   "learning_processing_enabled": bool                  # box-level learning toggle; default True
   "learning_pending_runs":       dict[vacuum_entity_id, int]   # per-vacuum collected-but-unprocessed run count
   "analytics":        dict                             # storage default; currently unused (always {})
+  "migrations":       dict[migration_key, bool]        # one-shot repair latches; see below
   "queue":            dict[vacuum_entity_id, dict[map_id_str, QueueState]]    # derived snapshot; see §4
   "payloads":         dict[vacuum_entity_id, dict[map_id_str, PayloadState]]  # derived room-clean payload snapshot; see §4
 }
@@ -97,15 +98,44 @@ during `async_initialize()`. It was written by a removed platform and serves no
 purpose. `analytics` is part of the storage default but is currently unused
 (always `{}`).
 
+**`migrations` — one-shot repair latches.** A flat `{key: True}` map, `setdefault`ed by
+whichever repair runs first. Each one-shot store repair owns one key, checks it before
+doing anything, and stamps it when done, so the repair runs once per install and is
+idempotent thereafter. Three keys exist:
+
+| Key | Module | What it repairs |
+|---|---|---|
+| `room_vocabulary_v1` | `rooms/vocabulary_migration.py` | Room settings written under the framework's former Eufy default |
+| `pause_timeout_default_v1` | `core/pause_timeout_migration.py` | A stored `pause_timeout_minutes_default` of `0` → `15` |
+| `orphaned_vacuum_keys_v1` | `core/vacuum_identity.py` | Per-vacuum records naming a vacuum this install does not have |
+
+The two `*_v1` data repairs run from a single `async_at_started` hook in `__init__.py`
+and are **independent of each other** — the vocabulary repair needs an adapter
+declaration to judge a target and can therefore be deferred, while the pause-timeout
+repair needs none and latches unconditionally, so a vocabulary deferral must not skip
+it. A migration that could not evaluate every target it owns **does not stamp its key**
+and retries on the next start; missing runtime information is DEFERRED, never SUCCESS.
+Every plan function is pure (`plan_*`) and mutates nothing; the caller persists `data`.
+
 ### VacuumBucket
 
 `data["vacuums"][vacuum_entity_id]`
 
 ```
 {
-  "pause_timeout_minutes_default": int   # default 0; non-negative
+  "pause_timeout_minutes_default": int   # non-negative; ABSENT on an unconfigured vacuum
 }
 ```
+
+**Absence is the point.** `get_pause_timeout_settings` computes
+`DEFAULT_PAUSE_TIMEOUT_MINUTES` (**15**, the lowest value the UI offers) for an absent
+or unparseable value and **does not write it back** — a read must not write. When it
+did, the first read of an unset vacuum stamped a hard value into the store, after
+which "never configured" and "deliberately set to this" were byte-identical and no
+later change of default could reach the install. Only `set_pause_timeout_settings`
+persists. An **explicit `0` survives unchanged** and means the timeout is off; nothing
+else disables it, and a paused run is owned by the pause reaper alone, so a `0` here is
+a run that never closes.
 
 ### MapBucket
 
@@ -676,8 +706,8 @@ Capability-gated fields are conditionally present.
 | `fan_speed` | `str` | always |
 | `clean_mode` | `str` | always |
 | `clean_intensity` | `str` | always |
-| `water_level` | `str` | only if `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
-| `edge_mopping` | `bool` | only if `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
+| `water_level` | `str` | only if `supports_water_control` AND `is_mop_clean_mode(clean_mode)` (`profiles/room_profiles.py` — the value arriving here is the card's display label, so an exact set test drops the field while `resolved_rooms` records it as applied; see [07 §2](07-queue-engine.md)) |
+| `edge_mopping` | `bool` | only if `supports_edge_mopping` AND `is_mop_clean_mode(clean_mode)` |
 | `path_type` | `str` | only if `supports_path_control` **and the resolved value is non-empty**. The value gates it, not the capability alone: an absent `room_fields` entry means IDENTITY rename, not omission, so a capability-only check emitted the field as `""` for a brand that declares no path axis. `supports_path_control` is itself derived from cleaning-intensity presence (`core/capabilities.py`), so it reads True on Eufy, which has no such axis. |
 
 ### `ResolvedRoom`
@@ -696,7 +726,7 @@ for display, logging, and learning.
   "fan_speed":             str
   "water_level":           str
   "clean_intensity":       str
-  "path_type":             str
+  "path_type":             str     # ABSENT when the resolved value is empty (a brand with no path axis)
   "clean_passes":          int
   "edge_mopping":          bool
   "carpet":                bool    # True when floor_type.startswith("carpet")
@@ -791,7 +821,7 @@ exists for the vacuum/map pair.
   "settings_samples":                      list            # []  external runs only: deduped [{t, settings:{...}}] setting-flip timeline
   "water_estimate":                        None
   "path_block_action":                     str             # "event_only"
-  "pause_timeout_minutes":                 int             # 0
+  "pause_timeout_minutes":                 int             # 0 in the skeleton; stamped at job start from the vacuum's default (15 when unconfigured) or the run's pause_timeout_minutes_override
   "has_observed_active_lifecycle":         bool            # False
 }
 ```

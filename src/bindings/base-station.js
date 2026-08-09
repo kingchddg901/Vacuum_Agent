@@ -3,8 +3,9 @@
  * BINDINGS: BASE STATION
  * ============================================================
  *
- * Wires DOM interactions in the Base Station view — dock action
- * buttons and pause timeout selector.
+ * Wires DOM interactions in the Base Station view — the dock action
+ * buttons. The pause-timeout selector moved to bindings/pause-timeout.js
+ * when its control left this capability-gated tab for the rooms sidebar.
  *
  * ============================================================
  */

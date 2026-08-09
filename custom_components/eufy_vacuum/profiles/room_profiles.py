@@ -524,8 +524,46 @@ def canonical_clean_mode(value: Any) -> str:
 
 
 def is_mop_clean_mode(value: Any) -> bool:
-    """True when this clean_mode wets the floor. THE question, asked once."""
+    """True when this clean_mode IS a mop mode, canonically. THE question, asked once.
+
+    STRICT. Use this to decide what the framework DOES: gate a dispatch payload,
+    downgrade for a device without mop hardware, match a room against a preset.
+    An unrecognised brand mode answers False, which is the right answer for
+    "should I send mop settings to this robot" — do not send settings on a guess.
+
+    For the other question — "might this put water on the floor" — use
+    ``may_wet_floor`` below. They are not the same question and must not be
+    collapsed into one.
+    """
     return canonical_clean_mode(value) in {"mop", "vacuum_mop"}
+
+
+def may_wet_floor(value: Any) -> bool:
+    """True when this clean_mode might involve water. TOLERANT on purpose.
+
+    THE SECOND QUESTION, and it was owned by nobody — which is why it grew five
+    private substring copies (water accounting in planning/run_plan, the safest-water
+    choice for a mixed batch in dispatch/manager, the post-job water amendment in
+    listeners/lifecycle, water allocation in learning/stats_rebuilder, and the
+    has_mop_mode job metadata). All five were spelled ``"mop" in clean_mode``, all
+    five agreed, and none of them was wrong — which is exactly why nobody noticed
+    there were five.
+
+    WHY IT IS DELIBERATELY LOOSER THAN is_mop_clean_mode, and must stay so: every
+    caller uses it to decide how much water to ASSUME. Counting a doubtful mode as
+    wet over-protects — a safest-water choice, a water estimate slightly high, an
+    amendment registered that finds nothing. Missing one under-protects: a wet mop
+    dispatched at a vacuum room's water level, or water silently unaccounted. The
+    asymmetry is the whole point, so an unrecognised brand mode that merely MENTIONS
+    mopping answers True here and False in is_mop_clean_mode.
+
+    ``wash`` counts: a dock wash cycle puts water through the same system, and two
+    callers already carried that tolerance by hand.
+    """
+    if is_mop_clean_mode(value):
+        return True
+    text = str(value or "").strip().lower()
+    return "mop" in text or "wash" in text
 
 
 def resolve_room_profile_for_room(

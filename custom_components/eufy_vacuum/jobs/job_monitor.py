@@ -1,6 +1,7 @@
 """Evaluates vacuum job lifecycle state and builds start-blocker results."""
 
 from __future__ import annotations
+from ..profiles.room_profiles import may_wet_floor
 
 from typing import Any, Optional
 
@@ -134,7 +135,7 @@ def build_job_metadata_from_payload(payload_state: dict[str, Any] | None) -> dic
         "room_ids": room_ids,
         "room_slugs": room_slugs,
         "clean_modes": clean_modes,
-        "has_mop_mode": any("mop" in mode for mode in clean_modes),
+        "has_mop_mode": any(may_wet_floor(mode) for mode in clean_modes),
         "has_vacuum_only_mode": any(mode in {"vacuum", "vacuum only"} for mode in clean_modes),
     }
 

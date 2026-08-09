@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-The `listeners/` package contains eight listener modules that register HA event and state-change subscriptions at integration load time: `lifecycle`, `dock_events`, `path_blockers`, `pause_timeout`, `job_progress`, `job_metrics`, `discovery`, and `pose_sampler`. (`_common.py` is a shared helper module, not a listener — see §2.) Each listener module has a consistent two-function public surface:
+The `listeners/` package contains nine listener modules that register HA event and state-change subscriptions at integration load time: `lifecycle`, `dock_events`, `path_blockers`, `pause_timeout`, `stall_capture`, `job_progress`, `job_metrics`, `discovery`, and `pose_sampler`. (`_common.py` is a shared helper module, not a listener — see §2.) Each listener module has a consistent two-function public surface:
 
 ```python
 register(hass: HomeAssistant) -> None
@@ -201,7 +201,31 @@ A **two-reap** stale-job reaper (not just a pause watchdog). **Module:** `listen
 
 **Reap 1 — paused-timeout.** `get_paused_job_timeout_report()` returns a report only once a job has been paused past the configured timeout (`None` otherwise — the common case). On a report: `async_cancel_active_job(...)` with the report's forced lifecycle state/message + `cancel_reason`; only when it reports `cancelled` does the tick fire `eufy_vacuum_job_finished` **and** — when rooms were left uncleaned — `eufy_vacuum_run_incomplete` (via `run_incomplete_event_data`).
 
-**Reap 2 — stranded-`started` (FN-1).** Independent of the paused check (a stranded run is never paused). `poll_stranded_started_job(...)` stamps/clears a `stranded_since` marker and returns a report only once a dispatched `started` run has gone past its grace window without hitting its brand's completion terminal (power-loss / HA-restart / app-cancel-without-terminal; the verdict is `is_stranded_started`, [06 §6f](06-job-lifecycle.md)). On a report: `async_finalize_stranded_job(..., ended_at=stranded_since)` finalizes it as **`interrupted`** (making the run Restore-able instead of stranding), and only on `finalized: True` fires `eufy_vacuum_job_finished` **and** `eufy_vacuum_run_incomplete` (the "if it strands it is incomplete" case, so `retry_missed_rooms` can act). A refusal leaves the slot for the next tick. See [06-job-lifecycle](06-job-lifecycle.md) (`async_finalize_stranded_job`).
+**Reap 2 — stranded-`started` (FN-1).** Independent of the paused check (a stranded run is never paused). `poll_stranded_started_job(...)` stamps/clears a `stranded_since` marker and returns a report only once a dispatched `started` run has gone past its grace window without hitting its brand's completion terminal (power-loss / HA-restart / app-cancel-without-terminal / a robot trapped in `error`; the verdict is `is_stranded_started`, [06 §6f](06-job-lifecycle.md)). A **trapped robot is a stranded run**: upstream keeps the job-active binary ON for an errored robot and `error` is neither docked nor idle, so before `vacuum_errored` was consulted a trap satisfied no reap condition at all and the run never closed. On a report: `async_finalize_stranded_job(..., ended_at=stranded_since)` finalizes it as **`interrupted`** (making the run Restore-able instead of stranding), and only on `finalized: True` fires `eufy_vacuum_job_finished` **and** `eufy_vacuum_run_incomplete` (the "if it strands it is incomplete" case, so `retry_missed_rooms` can act). A refusal leaves the slot for the next tick. See [06-job-lifecycle](06-job-lifecycle.md) (`async_finalize_stranded_job`).
+
+---
+
+## 6a. Stall Capture (`stall_capture.py`)
+
+An **opt-in consumer of `EVENT_STALL_DETECTED`** — not part of the detector. **Module:** `listeners/stall_capture.py`. **Trigger:** `hass.bus.async_listen(EVENT_STALL_DETECTED)`; no timer. The handler is a `@callback` that hands the work to a task, and every failure path is swallowed and logged — a picture must never kill a run.
+
+**Why a consumer, not a detector branch.** `EVENT_STALL_DETECTED` is not this feature's event: it already feeds `detect_run_anomalies`, which sets the `stall` / `running_long` / `skipped` fields the card's snapshot reads (§7, [06 §3](06-job-lifecycle.md)). Gating the detector on this feature's switch would silently disable anomaly reporting for anyone who turned off stall photos — a regression in a subsystem they never touched. The detector fires unconditionally; the switch arms **this** and nothing else, which also makes the two failure modes distinguishable (with the switch off, an injected stall still fires the event and still reports anomalies, so "no picture" localizes to the consumer).
+
+**Arming.** Per-vacuum, on the vacuum record: `data["vacuums"][<vid>]["stall_capture_enabled"]`. **Absent means OFF** — a feature that writes images of someone's home is opted into, never inherited by an upgrade. Set via the `set_stall_capture` service (`services/stall_capture.py`), which raises `ServiceValidationError` rather than minting a record for a vacuum this install does not manage.
+
+**What one capture does**, in order, each step bailing quietly on absence:
+
+1. Resolve the manager and the armed flag; drop the event unless `vacuum_entity_id` and `room_id` are both present and capture is armed for that vacuum.
+2. `async_get_map_render_data(...)` → the adapter's render block. The geometry is **passed through, not re-derived**: the raster is `ro_*` sized and OFFSET into a `width × height` canvas, and its bytes carry `room_id << rid_shift`. Roborock's raster IS its canvas (`ro_dx`/`ro_dy` 0, `canvas_*` fall back to `ro_*`); Eufy supplies all of them plus `rid_shift=2`.
+3. `async_get_map_live_pose(...)` → `robot_anchor` (may be `None`).
+4. A ±30 s **trail** from the 24-hour pose ring (`pose_store.read_range`, §10), executor-offloaded. Samples with a null anchor are **dropped, not zeroed** — a docked or held tick is a genuine `None`-run, and coercing it would draw a line to the origin. The backward half is free (the ring already holds it) and is what separates "wedged" from "slow": unchanged anchors across the window are no-movement evidence the counters cannot provide.
+5. The map bucket's `live_map_rotation` — the user's own display orientation. A capture at the raw raster angle is correct and unrecognisable, which for a glanced notification is worse than no picture.
+6. `render_room_capture(...)` (`mapping/stall_capture_render.py`), executor-offloaded — the raster scan is a `width × height` Python loop. Returns **`None`, never a blank image**, when Pillow is absent or the room has no cells, so absence stays distinguishable from "an empty room was rendered". On `None` the capture stops: no picture, no noise.
+7. Atomic write (tmp + `os.replace`) to `<config>/eufy_vacuum/learning/<object_id>/stall/<map_id>.png` — one file per (vacuum, map), overwritten each time, so there is no accumulation, no pruning, and a **stable path** an automation can hardcode. The map id is sanitised because Roborock's is a name, not a number. Deliberately **not** under `www/`: that directory is served at `/local/` **without authentication**, so this would otherwise publish a cropped floor-plan of the user's home at a fetchable URL on every stall.
+8. A **persistent notification** (`notification_id = eufy_vacuum_stall_<vid>`, so it replaces rather than accumulates) reading `"<Vacuum> likely stalled in <Room> on map <label>"`. The map label comes from the adapter's declared `entities.active_map` — a name on Roborock (`"Main floor"`), the bare id on Eufy (`"12"`); no entity id is guessed to find a nicer string. "likely" is load-bearing: the detector is an elapsed-vs-estimate ratio, not proof of stillness.
+9. Fires **`eufy_vacuum_stall_captured`** with `{vacuum_entity_id, map_id, room_id, room_name, image_path, message}`. The event carries the PATH because a markdown notification cannot embed a local image — the notification carries the text, the hook carries the path, which is the half a phone actually needs.
+
+A flagged maintainer injector, `dev_inject_stall`, fires the canonical event with the vacuum's **real** current context. It refuses when there is no active map or no `current_room_id`: a stall with no current room has no room to render and the pose ring is empty at the dock by design, so an injected one would exercise the absence path and look like a broken renderer.
 
 ---
 
@@ -300,7 +324,8 @@ On each qualifying tick it reads the declared `entities.cleaning_area` value and
 | `lifecycle.py` | State change (lifecycle entities) | — | Job start/finish detection, learning finalization, event fire |
 | `dock_events.py` | State change (dock entities) | — | Dock cycle recording via DockManager |
 | `path_blockers.py` | State change (binary sensors) | — | `eufy_vacuum_path_blocked` event, optional pause/cancel |
-| `pause_timeout.py` | Time interval | 1 min | **Two reaps**: timed-out paused jobs + stranded-`started` jobs (FN-1) → both fire `job_finished` (+`run_incomplete` when rooms missed) |
+| `pause_timeout.py` | Time interval | 1 min | **Two reaps**: timed-out paused jobs + stranded-`started` jobs (FN-1, including an ERRORED robot) → both fire `job_finished` (+`run_incomplete` when rooms missed) |
+| `stall_capture.py` | Event (`EVENT_STALL_DETECTED`) | — | Opt-in per vacuum: render the stalled room to `<config>/eufy_vacuum/learning/<vacuum>/stall/<map_id>.png`, raise a persistent notification, fire `eufy_vacuum_stall_captured` |
 | `job_progress.py` | Time interval | 5 sec | `apply_job_progress_tick` (SNAP-2: the sole side-effecting snapshot caller — rollover + stall/skip events) + `eufy_vacuum_job_progress_tick` event (+ Lever B live-room refresh pulse on contiguous runs); covers `external` runs too (`run_is_in_flight`) |
 | `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/battery/water into active job (+ counter-sample append on time/area change) |
 | `discovery.py` | State change + time interval | 6 hr | Run discovery pass, update drift history |

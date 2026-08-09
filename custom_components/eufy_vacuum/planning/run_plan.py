@@ -10,6 +10,7 @@ Owns:
 """
 
 from __future__ import annotations
+from ..profiles.room_profiles import may_wet_floor
 
 import hashlib
 import logging
@@ -423,7 +424,7 @@ class RunPlanManager:
             # water_level=off, so robot-water accounting stays self-correcting.
             # Water level is a knob within mop mode, not a gate on whether
             # mop mode is active.
-            is_mop = "mop" in clean_mode
+            is_mop = may_wet_floor(clean_mode)
             room_robot_water_ml = 0.0
             if is_mop:
                 mopping_room_count += 1

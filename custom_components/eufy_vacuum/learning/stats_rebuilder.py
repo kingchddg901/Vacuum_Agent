@@ -37,6 +37,7 @@ Stats model (room stats schema_version 6):
 """
 
 from __future__ import annotations
+from ..profiles.room_profiles import may_wet_floor
 
 import math
 from datetime import datetime
@@ -261,7 +262,7 @@ class LearningStatsRebuilder:
                 slug = str(room.get("slug", "")).strip().lower()
                 clean_mode = str(room.get("clean_mode", room.get("effective_mode", ""))).strip().lower()
                 water_level = str(room.get("water_level", "")).strip().lower()
-                if slug and "mop" in clean_mode and water_level not in {"", "off", "none"}:
+                if slug and may_wet_floor(clean_mode) and water_level not in {"", "off", "none"}:
                     mop_slugs.append(slug)
 
         if not robot_by_slug and mop_slugs and total_robot_water > 0:

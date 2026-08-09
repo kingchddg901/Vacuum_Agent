@@ -61,7 +61,7 @@ Domain subsystems in dependency order (rooms first, everything else builds on th
 | 08 | [rooms-system](08-rooms-system.md) | Room data model, room fields, effective-settings resolution |
 | 09 | [room-rules-system](09-room-rules-system.md) | Per-room rules: blockers, modifiers, rule evaluation at job build time |
 | 10 | [learning-system](10-learning-system.md) | Timing learning: recording runs, ETA estimation, confidence model |
-| 11 | [mapping-system](11-mapping-system.md) | Coordinate tracking, map bounds learning, segmenter engine seam |
+| 11 | [mapping-system](11-mapping-system.md) | Image segment analysis, coordinate system, segment adjustments, custom layouts, the segmenter-engine seam, and the provider map source. §3 and §7 preserve the **retired** trace→bounds design verbatim as a DR reference — the code is gone |
 | 31 | [map-source-coordinator](31-map-source-coordinator.md) | Provider-authoritative map-source reader: storage/memory/introspect backends, the four async readers, live-pose overlay (`MapSourceCoordinator`, `mapping/`) |
 | 12 | [battery-system](12-battery-system.md) | Battery health: cycle counting, zone-aware charge rate tracking, job drain metrics |
 | 13 | [maintenance-manager](13-maintenance-manager.md) | Maintenance tracking: interval overrides, reset snapshots, upkeep snapshot |

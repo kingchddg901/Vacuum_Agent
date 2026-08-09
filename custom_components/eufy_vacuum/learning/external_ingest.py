@@ -42,6 +42,7 @@ from ..counter_segmentation import select_active
 from ..timestamp_utils import parse_timestamp
 from .job_segmenter_engines import get_job_segmenter_engine
 from .room_attribution_engines import get_room_attribution_engine
+from ..profiles.room_profiles import is_mop_clean_mode
 from .utils import _canonical_clean_mode, _safe_bool, _safe_float, _safe_int
 
 # Settings-match is the PRIMARY shortlist signal: a room whose config matches the
@@ -55,7 +56,6 @@ _MATCH_W_FAN = 1.0
 _MATCH_W_WATER = 1.0
 _SHORTLIST_SIZE = 3
 _COLD_ROOM_SCORE = -999.0   # no learned area yet → area tiebreak ranks last
-_MOP_MODES = {"mop", "vacuum_mop"}
 # A stretch that covered less than this much NEW floor is not a room — it is a
 # re-pass, transit-to-dock, or an end-of-run station clean (mop wash / dust empty),
 # e.g. the trailing 0 m² "Returning to Wash" segment. Dropped from the review.
@@ -195,7 +195,11 @@ def _rank_shortlist(
     footprint_by_id = footprint_by_id or {}
     settings = seg_settings or {}
     mode = _canonical_clean_mode(settings.get("clean_mode"))
-    mopped = mode in _MOP_MODES
+    # Asked through the owner rather than `mode in _MOP_MODES`. That set was correct
+    # ONLY because the line above canonicalizes first — the safety lived in the
+    # adjacency, not in the test, so moving or reordering these two lines would have
+    # broken it silently. This form is correct wherever it is put.
+    mopped = is_mop_clean_mode(mode)
     scored: list[tuple[float, float, dict[str, Any]]] = []
     for rid, room in (rooms or {}).items():
         if not isinstance(room, dict):

@@ -587,7 +587,13 @@ export function applyRoomsState(proto) {
     const edgeMoppingLabel    = attrs.edge_mopping_label    ?? null;
 
     const normalizedMode = String(cleanMode ?? "").toLowerCase();
-    const isVacuumOnly = normalizedMode === "vacuum";
+    // Tolerant on BOTH sides, deliberately. isMopCapable below carries two substring
+    // fallbacks while this was exact equality — so a mode spelled any other way
+    // ("vacuum only", a brand's own word) made a room neither vacuum-only NOR
+    // mop-capable, and it rendered as neither. The asymmetry was the bug, not the
+    // strictness: two halves of one question have to tolerate the same spellings.
+    const isVacuumOnly = normalizedMode === "vacuum" || normalizedMode === "vacuum only"
+      || (normalizedMode.includes("vacuum") && !normalizedMode.includes("mop"));
     const isMopCapable =
       normalizedMode === "mop" ||
       normalizedMode === "vacuum_mop" ||

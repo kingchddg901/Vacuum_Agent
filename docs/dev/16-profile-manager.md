@@ -144,7 +144,7 @@ Each stored record is the `normalize_room_profile()` output — exactly **9 keys
 | `edge_mopping` | `bool` | `False` |
 | `mop_required` | `bool` | `False` |
 
-> **`mop_required` is derived for custom profiles; `path_type` is NOT.** The editor/service exposes 7 fields (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`). `save_user_room_profile` derives `mop_required = "mop" in clean_mode or "wash" in clean_mode`, since without it a deep-mop custom profile stored as not-mop (code-flag B2).
+> **`mop_required` is derived for custom profiles; `path_type` is NOT.** The editor/service exposes 7 fields (`label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`). `save_user_room_profile` derives `mop_required = "mop" in clean_mode or "wash" in clean_mode`, since without it a deep-mop custom profile stored as not-mop (code-flag B2). Note this authoring path still spells the mop test as a **substring**, where the read path (`get_effective_room_details`, §6.2) asks `is_mop_clean_mode`. The two agree on every value that exists today and part only on a hypothetical brand mode that merely mentions mopping; the shared predicate (§6 callout) is the intended home if that tolerance is ever wanted.
 >
 > The B2 fix also derived `path_type = "narrow"` when `clean_intensity` normalized to `Deep`, else `"wide"`. **That derivation was removed 2026-08-08.** Computing one axis from another brand's word is core owning vocabulary, and the fact that it *could* be computed was the evidence the two are one axis under two names. A brand with a genuine path axis declares it in its own profiles; nothing synthesizes it.
 
@@ -302,29 +302,53 @@ Applies one profile's settings to each listed room: for each id it runs `apply_r
 
 ## 6. Room Profile Finalization Pipeline
 
+> **"Is this a mop mode?" has exactly one owner: `is_mop_clean_mode`** (`profiles/room_profiles.py`,
+> over `canonical_clean_mode`). Never write the test out at a call site. The value being
+> tested is whatever the card stored, and the card persists a **display label** —
+> `"Vacuum and mop"` — while the framework, the profile catalog and every adapter
+> `value_map` use the **token** `"vacuum_mop"`. A hand-written test therefore fails on
+> exactly one value, the combined mode, because `"Vacuum"` and `"Mop"` both survive
+> lowercasing and only the combined spelling diverges. The two shapes it takes:
+>
+> - **`clean_mode in {"mop", "vacuum_mop"}`** — exact and case-sensitive, so it **under-fires**:
+>   the resolver zeroed a correctly-persisted `edge_mopping` on every read, the carpet
+>   invariant half-applied, the capability gate let a mop payload reach a device with no
+>   mop hardware, and the wire payload dropped `water_level`/`edge_mopping` while
+>   `resolved_rooms` recorded them as applied ([07 §2](07-queue-engine.md)).
+> - **`"mop" in clean_mode`** — a substring test, so it **over-fires** on any brand mode
+>   that merely mentions mopping.
+>
+> The card mirrors the predicate in a dependency-free `src/clean-mode.js`
+> (`isMopCleanMode` / `canonicalCleanMode`). The two are separate languages and cannot
+> share code, so they are pinned to each other by test: an alias added to one is added to
+> the other. The `"wash"` tolerance is **not** in the canonical table — the call sites
+> that want it spell it as an explicit `or "wash" in clean_mode` beside the shared call.
+
 When a room's settings are saved via `update_room_fields()`, the settings pass through a two-stage pipeline:
 
-### Stage 1 — `_protected_room_config(room: dict) -> dict`
+### Stage 1 — `_protected_room_config(room: dict, *, vacuum_entity_id: str) -> dict`
 
-Enforces carpet/mop invariants. Carpet is detected with `floor_type.startswith("carpet")` (canonical values `carpet_low_pile` / `carpet_high_pile`; bare `"carpet"` is a legacy value migrated elsewhere). Mop mode is detected as `"mop" in clean_mode or "wash" in clean_mode`.
+Enforces carpet/mop invariants. Carpet is detected with `floor_type.startswith("carpet")` (canonical values `carpet_low_pile` / `carpet_high_pile`; bare `"carpet"` is a legacy value migrated elsewhere). Mop mode is asked through the shared predicate **`is_mop_clean_mode`** (see the §6 callout above), plus the `"wash"` tolerance this call site carries that the canonical table does not cover.
 
 ```
-is_carpet  = floor_type.startswith("carpet")
-is_mop_mode = ("mop" in clean_mode) or ("wash" in clean_mode)
+is_carpet   = floor_type.startswith("carpet")
+is_mop_mode = is_mop_clean_mode(clean_mode) or ("wash" in clean_mode)
 
 if is_carpet:
-    if clean_mode in {"mop", "vacuum_mop"}:
+    if is_mop_clean_mode(clean_mode):
         clean_mode  = "vacuum"        # downgrade to vacuum-only
         is_mop_mode = False
-    water_level  = "Off"
+    water_level  = no_water_value(catalog)   # the BRAND's word for "no water"
     edge_mopping = False
 
 if not is_mop_mode:                   # applies on ANY floor type
-    water_level  = "Off"
+    water_level  = no_water_value(catalog)
     edge_mopping = False
 ```
 
 The rule is: carpet rooms can never mop (water/edge always cleared on carpet), and **any** non-mop mode — regardless of floor type — clears water and edge mopping.
+
+"No water" is a framework concept but the WORD for it belongs to the brand, so the value is read from the resolved catalog (`no_water_value`), selected by `vacuum_entity_id`. A literal `"Off"` here is Eufy's casing, and writing it is how every Roborock room on a live install came to store a value absent from that brand's own declared options.
 
 ### Stage 2 — `_finalize_room_update(room: dict) -> dict`
 
@@ -355,19 +379,19 @@ If a match is found `profile_name` is set to it; otherwise `profile_name = "cust
 
 | Capability flag | Effect when `False` |
 |---|---|
-| `supports_water_control` | `water_level → "Off"` |
+| `supports_water_control` | `water_level → no_water_value(catalog)` — the **brand's** word for "no water", read from its declared carpet water default, not the literal `"Off"` (Roborock's is `"off"`, which is not in its declared `water_level_options`, so a wrong-cased literal was filtered out at dispatch and mop intensity never applied) |
 | `supports_edge_mopping` | `edge_mopping → False` |
 | `supports_path_control` | `path_type` **omitted from the gated result** (was clamped to `"wide"` — a value, and a brand's word, asserted onto devices with no path axis; an omitted field is how dispatch already says "this brand does not expose it") |
 | `supports_passes` (default `True`) | `clean_passes → 1` |
 
-**Mop → vacuum downgrade.** When the device lacks `supports_mop_features` and the room is in a mop mode (`clean_mode in {"mop", "vacuum_mop"}`), the room is downgraded to vacuum-only. The downgrade **derives `path_type` and `clean_intensity` from the corresponding vacuum-only built-in profile** (via `get_room_profile`, passed the same `catalog`) rather than hardcoding values, so it follows whatever vocabulary the profile catalog declares:
+**Mop → vacuum downgrade.** When the device lacks `supports_mop_features` and the room is in a mop mode (`is_mop_clean_mode(clean_mode)`), the room is downgraded to vacuum-only. The downgrade **derives `path_type` and `clean_intensity` from the corresponding vacuum-only built-in profile** (via `get_room_profile`, passed the same `catalog`) rather than hardcoding values, so it follows whatever vocabulary the profile catalog declares:
 
 ```
-if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
+if not supports_mop and is_mop_clean_mode(clean_mode):
     fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
     _, fallback = get_room_profile(profile_name=fallback_name, catalog=catalog)
     clean_mode      = "vacuum"
-    water_level     = "Off"
+    water_level     = no_water_value(catalog)
     edge_mopping    = False
     path_type       = fallback.get("path_type", path_type)        # was hardcoded "narrow"/"wide"
     clean_intensity = fallback.get("clean_intensity", clean_intensity)  # was hardcoded "Deep"/"Quick"
@@ -397,7 +421,7 @@ The B2 shaper's **public output contract**: resolve the stored room (`resolve_ro
 | `path_type` | `str` | **resolved** (not protected) |
 | **`default_clean_passes`** | `int` | protected `clean_passes` — **renamed** (not `clean_passes`) |
 | **`default_edge_mopping`** | `bool` | protected `edge_mopping` — **renamed** (not `edge_mopping`) |
-| `mop_required` | `bool` | `"mop" in clean_mode or "wash" in clean_mode` |
+| `mop_required` | `bool` | `is_mop_clean_mode(clean_mode) or "wash" in clean_mode` — expressed exactly as `_protected_room_config` expresses it; the two read off the same `protected` dict a few lines apart, so a disagreement between them is the whole bug class in miniature |
 | `selected_profile_name` | `str` | resolved |
 | `resolved_profile_name` | `str` | resolved (may differ from `selected` — floor-type match) |
 | `floor_type` | `str` | raw `room.floor_type` (un-normalized) |
@@ -409,10 +433,16 @@ Returns `None` (not a result dict) when the room id is not on the map.
 
 The field-by-field precedence lives in `profiles/room_profiles.py`; because doc 16 is the profiles subsystem's home, the ladder is stated here authoritatively. Base rule: **the room's own field wins over the profile default** for `clean_mode`, `clean_intensity`, `path_type`, `fan_speed`, `clean_passes`, and `edge_mopping` — but with **floor-type overrides** that are *not* "room always wins":
 
-1. **Carpet overrides the room** — even an explicit value loses: `fan_speed → FLOOR_TYPE_FAN_DEFAULTS[floor_type]` (`carpet_low_pile="Max"`, `carpet_high_pile="Standard"`, else `"Max"`) and `water_level → "Off"`.
-2. **Hard floors fill water only when absent** — `water_level → FLOOR_TYPE_WATER_DEFAULTS[floor_type]` (default `"Low"`) **only when `"water_level" not in room_config`**; an explicit room `water_level` on a hard floor is kept.
-3. **Mop-mode + `Off` + non-carpet** → `water_level → FLOOR_TYPE_WATER_DEFAULTS[floor_type]` (mop with water Off is invalid).
-4. **`edge_mopping` forced `False`** for any non-mop mode **or** carpet.
+Both floor-type default maps come from the **adapter-resolved catalog** —
+`floor_type_fan_defaults` / `floor_type_water_defaults` (§1.1) — never from framework
+constants. The catalog's carpet water entry **is** that brand's no-water word, which is
+why the carpet arm reads it rather than assigning a literal (Eufy `"Off"`, Roborock
+`"off"`); `no_water_value` is the same lookup under a name.
+
+1. **Carpet overrides the room** — even an explicit value loses: `fan_speed → floor_type_fan_defaults[floor_type]` (Eufy: `carpet_low_pile="Max"`, `carpet_high_pile="Standard"`) and `water_level → floor_type_water_defaults[floor_type]`. An undeclared floor type yields `""`, not a guess.
+2. **Hard floors fill water only when absent** — `water_level → floor_type_water_defaults[floor_type]` **only when `water_level` is in neither `room_config` nor the resolved profile** (Q2/RP-024 clause 1: the check used to consult the room's dict alone, so a room relying on its profile — the normal case — always failed it and the floor default silently overwrote an explicit profile `water_level`).
+3. **Mop-mode + no water + non-carpet** → `water_level → floor_type_water_defaults[floor_type]` (mop with water off is invalid). "No water" is matched against the brand's declared word, not a literal or a hardcoded `("", "off")` pair — a brand spelling it `"dry"`, `"none"` or `"0"` was silently unrecognised and the correction never ran.
+4. **`edge_mopping` forced `False`** for any non-mop mode (`is_mop_clean_mode`, §6 callout) **or** carpet.
 
 So the doc-07 shorthand "the room field always wins" holds only for the *unconstrained hard-floor* fields; carpet fan/water and the water-fill-when-absent rule are the exceptions. (Because these floor overrides are asymmetric, §6 Stage 2's profile matcher resolves + protects its candidate under the room's `floor_type` — an earlier version dropped the candidate's floor and mislabeled every vacuum room `"custom"`.)
 

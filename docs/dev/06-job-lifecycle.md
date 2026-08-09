@@ -276,7 +276,8 @@ frozen into the learning snapshot at finalize. `_default_active_job_state`
   "counter_samples": [],                     // cap 2000 (shape in §5)
   "settings_samples": [],                    // external runs only
   "water_estimate": null, "path_block_action": "event_only",
-  "pause_timeout_minutes": 0, "has_observed_active_lifecycle": false
+  "pause_timeout_minutes": 0,                // seed only; stamped at start (§6c)
+  "has_observed_active_lifecycle": false
 }
 ```
 
@@ -954,7 +955,14 @@ service handler (`services/job_control.py`) fires `EVENT_JOB_FINISHED`, plus
 ### 6c. Pause timeout
 
 **Trigger:** A paused job whose `pause_timeout_minutes > 0` has been paused
-beyond the configured limit.
+beyond the configured limit. The value is stamped onto the active job at start
+from the vacuum's `pause_timeout_minutes_default` — **15 minutes when the vacuum
+has none stored** ([03 §1 VacuumBucket](03-data-model.md)) — or from the run's
+`pause_timeout_minutes_override`. A `0` means the timeout is off, and since a
+paused job is owned by this reaper alone, a `0` is a run that never closes: it
+holds its slot and masks whatever runs next. The one-shot
+`pause_timeout_default_v1` migration lifts stored `0`s to 15 for exactly that
+reason.
 
 **Code path:** `listeners/pause_timeout.py` (`pause_timeout.register(hass)`)
 sets a 1-minute `async_track_time_interval` tick (ticks never overlap; this is
@@ -1013,9 +1021,10 @@ When detected, `outcome_status` is overridden to `"cancelled"` with
 
 **Trigger:** A dispatched run left at `status == "started"` that ended *without*
 ever hitting its brand's completion terminal — power loss, an HA restart mid-run,
-a stuck-then-docked run, or an app-cancel that never emitted the terminal status.
-Left alone it strands as `started`: no record, it masks a later external run, and
-a later terminal signal can be mis-attributed to it.
+a stuck-then-docked run, a robot trapped in an error state, or an app-cancel that
+never emitted the terminal status. Left alone it strands as `started`: no record,
+it masks a later external run, and a later terminal signal can be mis-attributed
+to it.
 
 **Code path:** the same 1-minute `listeners/pause_timeout.py` tick that drives the
 pause-timeout reaper also calls `manager.poll_stranded_started_job`
@@ -1035,8 +1044,20 @@ ended-looking checks entirely:
   explicitly marked dead (`phase_watchdog_dead`), or one whose
   `phase_dispatch_pending_since` stamp has aged past its liveness margin with no
   dead-flag update, is reapable like any other stranded phase.
+- **An ERRORED robot** (`vacuum_errored` — the vacuum entity reads the HA
+  platform's standard `error` state, not a brand string). This is checked
+  *before* the job-active and docked/idle gates because **neither can see that
+  the run is over**: upstream keeps the job-active binary ON for an errored
+  robot, and `error` is neither `docked` nor `idle`. A robot trapped mid-run
+  therefore satisfied no reap condition at all and stayed `started` indefinitely
+  with `stranded_since` never even stamped. The reap-on-error rule reverses the
+  predicate's original "an error may recover, leave it alone" stance: neither
+  shipped brand resumes itself after a trap, so the lingering record is every
+  trap rather than a rare one. The recovery allowance still exists — it lives in
+  the caller's grace window (below), which is where a recovery can actually be
+  observed, and an error that clears inside the window costs nothing.
 
-For a run that observed an active lifecycle and isn't excluded by either of
+For a run that observed an active lifecycle and isn't excluded by any of
 those, `is_stranded_started` also refuses while the job-active binary is on or
 `task_status` is a mid-run service state, unless the vacuum reads
 docked/idle with its completion secondary satisfied and `task_status` has not

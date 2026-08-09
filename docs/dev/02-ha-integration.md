@@ -102,11 +102,12 @@ The main entry point. Called when the config entry is loaded. In order:
 11. Registers background listeners by calling each listener module's
    `register(hass)`: `lifecycle.register(hass)`, `job_metrics.register(hass)`,
    `dock_events.register(hass)`, `path_blockers.register(hass)`,
-   `pause_timeout.register(hass)`, `job_progress.register(hass)`,
-   `pose_sampler.register(hass)`, `discovery.register(hass)`. (`pose_sampler`
-   samples external-run robot pose while a run is active, feeding room
-   auto-attribution.) See the `listeners/` package for the per-group
-   implementations.
+   `pause_timeout.register(hass)`, `stall_capture.register(hass)`,
+   `job_progress.register(hass)`, `pose_sampler.register(hass)`,
+   `discovery.register(hass)`. (`pose_sampler` samples external-run robot pose
+   while a run is active, feeding room auto-attribution; `stall_capture` is an
+   opt-in consumer of `EVENT_STALL_DETECTED` and does nothing until armed
+   per-vacuum.) See the `listeners/` package for the per-group implementations.
 12. Forwards setup to the **six** entity platforms: `binary_sensor`, `button`,
    `switch`, `select`, `number`, `sensor` (`PLATFORMS` in `__init__.py`).
 13. Registers one sidebar panel per managed vacuum via
@@ -365,6 +366,7 @@ handlers:
 | `services/_common.py` | Shared helpers (`_get_manager`, schema fragments, etc.) |
 | `services/errors.py` | Error acknowledgement services |
 | `services/debug.py` | Debug flight-recorder capture (start/stop/status) — backs the `select` platform's capture target (§3) |
+| `services/stall_capture.py` | `set_stall_capture` (per-vacuum arming of the stall-capture consumer, [04 §6a](04-listeners.md)) and the flagged maintainer injector `dev_inject_stall` |
 
 ### Pattern
 
@@ -490,9 +492,10 @@ See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 
 ## 7. Event System
 
-The integration fires **ten** events on `hass.bus`. **Most** type-string
-constants live in `const.py`; the exception is `EVENT_ROOM_COMPLETED`, defined
-locally in `mapping/tracker.py`.
+The integration fires **eleven** events on `hass.bus`. **Most** type-string
+constants live in `const.py`; the two exceptions are `EVENT_ROOM_COMPLETED`
+(defined locally in `mapping/tracker.py`) and `EVENT_STALL_CAPTURED` (defined
+locally in `listeners/stall_capture.py`).
 
 | Event constant | String value | Fired from | Key payload fields |
 |---|---|---|---|
@@ -501,6 +504,7 @@ locally in `mapping/tracker.py`.
 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `listeners/lifecycle.py`, `listeners/pause_timeout.py`, `listeners/path_blockers.py` (forced cancel on a path block), `services/job_control.py`, `learning/services.py` | **Two shapes (06 §10):** the 11-key form (`vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `duration_minutes`, `actual_cleaning_minutes`, `job_path`) from the `_common.py` builders; the `finalize_learning_job` **service** path fires an inline **9-key** payload that **omits `duration_minutes` / `actual_cleaning_minutes`** (CS-2). |
 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | The full `get_runtime_path_block_report(...)` dict (`trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, …) **augmented** with `path_block_action`, `action_taken`, and — only when a pause/cancel action ran — `action_result`. |
 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | `jobs/active_job.py` — `ActiveJobTracker.detect_run_anomalies` (called by the manager's `get_job_progress_snapshot`; deduped once per room per job) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
+| `EVENT_STALL_CAPTURED` | `eufy_vacuum_stall_captured` | `listeners/stall_capture.py` — after a capture lands, only when capture is armed for that vacuum (`data["vacuums"][<vid>]["stall_capture_enabled"]`, absent = off). **Constant defined in `listeners/stall_capture.py`, not `const.py`.** | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `image_path`, `message` — the path is on the event because the persistent notification (markdown) cannot embed a local image |
 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | `jobs/active_job.py` — `ActiveJobTracker.detect_run_anomalies` (non-sequential advance, ~never for Eufy; the manager only delegates to it from the snapshot composer) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | **Five** finalize paths (06 §10 / finding B1): `learning/services.py`, `services/job_control.py` (manual cancel), `listeners/path_blockers.py` (rule cancel), `listeners/pause_timeout.py` (paused reap **and** stranded reap) | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` (no `map_id`) |
 | `EVENT_JOB_PROGRESS_TICK` | `eufy_vacuum_job_progress_tick` | `listeners/job_progress.py` periodic tick | `vacuum_entity_id`, `map_id` — lightweight polling signal for automations |

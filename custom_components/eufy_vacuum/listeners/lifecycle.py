@@ -13,6 +13,7 @@ Public surface:
 """
 
 from __future__ import annotations
+from ..profiles.room_profiles import may_wet_floor
 
 import logging
 from collections.abc import Callable
@@ -473,7 +474,7 @@ def register(hass: HomeAssistant) -> None:
                         _job_path = finalize_result.get("job_path")
                         _job_id = finalize_result.get("job_id")
                         _has_mop = any(
-                            "mop" in str(r.get("clean_mode", "")).lower()
+                            may_wet_floor(r.get("clean_mode"))
                             for r in _completed.get("resolved_rooms", [])
                             if isinstance(r, dict)
                         )

@@ -40,6 +40,12 @@ Coverage targets
 [RP-17] _normalize_floor_type: granite + concrete are canonical (not coerced).
 [RP-18] apply_room_profile_to_config fills omitted fields from the catalog's normalize_defaults.
 [RP-19] coerce_clean_intensity carries no vocabulary — it trims and coerces, rewrites nothing.
+[RP-48a] may_wet_floor and is_mop_clean_mode AGREE on every spelling that exists.
+[RP-48b] …and neither wets a vacuum-only room (so a tolerant predicate cannot pass
+        by answering True to everything).
+[RP-48c] …but they DIVERGE on an unrecognised mop-ish mode. That divergence is the
+        reason both exist; collapsing them turns this red.
+[RP-48d] may_wet_floor counts a dock wash cycle.
 [RP-EDGE-1] no Roborock profile requests a capability its adapter declares absent.
 """
 
@@ -50,6 +56,8 @@ import pytest
 from custom_components.eufy_vacuum.profiles.room_profiles import (
     _normalize_floor_type,
     apply_capability_gate,
+    is_mop_clean_mode,
+    may_wet_floor,
     apply_room_profile_to_config,
     coerce_clean_intensity,
     get_available_profile_names,
@@ -564,3 +572,56 @@ def test_roborock_profiles_never_request_an_undeclared_capability():
             "these profiles request edge_mopping while every adapter declaration "
             f"says it is absent: {requesting}"
         )
+
+
+# ---------------------------------------------------------------------------
+# [RP-48] may_wet_floor — the SECOND question, and why it is not the first
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("spelling", _MOP_SPELLINGS)
+def test_rp48a_may_wet_floor_agrees_with_is_mop_on_every_real_spelling(spelling):
+    """[RP-48a] On values that actually exist, the two predicates agree.
+
+    That agreement is what let five private copies of this question live in the tree
+    unnoticed: every one was spelled `"mop" in clean_mode`, all five were correct,
+    and nothing ever disagreed. Pinning the agreement makes the DISAGREEMENT below
+    meaningful rather than looking like an accident.
+    """
+    assert may_wet_floor(spelling) is True
+    assert is_mop_clean_mode(spelling) is True
+
+
+@pytest.mark.parametrize("spelling", ["vacuum", "Vacuum", "VACUUM"])
+def test_rp48b_neither_predicate_wets_a_vacuum_only_room(spelling):
+    """[RP-48b] The guard against a tolerant predicate that just says yes.
+
+    may_wet_floor is deliberately loose, and a loose predicate that answers True for
+    everything would satisfy [RP-48a] while silently putting a water allowance on
+    every vacuum-only run.
+    """
+    assert may_wet_floor(spelling) is False
+    assert is_mop_clean_mode(spelling) is False
+
+
+def test_rp48c_may_wet_floor_and_is_mop_diverge_on_an_unrecognised_mode():
+    """[RP-48c] The divergence is the point, and it must be asserted, not assumed.
+
+    A brand mode that merely MENTIONS mopping — Eufy's protocol carries "Mopping
+    after sweeping" — is not canonically vacuum_mop or mop, so is_mop_clean_mode
+    says False: do not send mop settings on a guess. may_wet_floor says True:
+    assume water might be involved, because counting a doubtful room as wet
+    over-protects while missing one under-protects.
+
+    If a future change makes these two agree here, one of the two questions has been
+    lost — and it will be this one, because the strict predicate has more callers.
+    """
+    exotic = "Mopping after sweeping"
+    assert is_mop_clean_mode(exotic) is False
+    assert may_wet_floor(exotic) is True
+
+
+def test_rp48d_may_wet_floor_counts_a_wash_cycle():
+    """[RP-48d] `wash` counts — a dock wash puts water through the same system, and
+    two call sites carried that tolerance by hand before this owner existed."""
+    assert may_wet_floor("Washing Mop") is True
+    assert may_wet_floor("wash") is True

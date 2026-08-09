@@ -448,8 +448,15 @@ class ProfileManager:
         # brand's axis from another brand's word — and the derivation was itself the
         # proof that the two are one axis under two names. A brand that genuinely has a
         # separate path axis declares it in its own profiles; nothing synthesizes it.
+        # ISSUE #48, the fifth and last copy — and the worst-placed, because
+        # get_effective_room_details forty lines up produces the SAME mop_required
+        # field through the shared owner. Two producers of one field, disagreeing by
+        # construction, in one file. They agree on every value that exists today,
+        # which is exactly how the original defect stayed invisible: a substring test
+        # and a canonical test give the same answer right up until a brand ships a
+        # mode that only one of them recognises.
         _clean_mode_l = str(clean_mode).lower()
-        _mop_required = "mop" in _clean_mode_l or "wash" in _clean_mode_l
+        _mop_required = is_mop_clean_mode(_clean_mode_l) or "wash" in _clean_mode_l
         profile = normalize_room_profile(
             {
                 "label": label,

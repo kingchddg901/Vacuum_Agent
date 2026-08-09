@@ -45,7 +45,6 @@ export function applyBaseStationRenderers(proto) {
     const actionStatus = state.dockActionStatus?.() ?? null;
     const plannedWater = state.dashboardPlannedWaterEstimate?.() ?? null;
     const events = upkeep.dock_events ?? {};
-    const pauseTimeoutMinutes = state.pauseTimeoutMinutesDefault?.();
 
     /* Capability-gated dock action list. The backend's per-action
        gate exposes `supported: bool` reflecting the adapter's

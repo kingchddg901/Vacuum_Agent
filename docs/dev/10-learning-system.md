@@ -131,13 +131,19 @@ changes cleaning time, so edge-on and edge-off runs are learned separately.
 display string `"vacuum and mop"` (and `"vacuum & mop"`, `"vacuum+mop"`, …) folds to
 the token `"vacuum_mop"`, so internal (queue-dispatched) and external (app-started)
 runs of the same physical mode land in **one** bucket instead of splitting on a
-vocabulary artifact. The normalization lives in `learning/utils.py::_canonical_clean_mode`
-and is applied by `_room_key`, `_room_profile_key`, the rebuilder's stored
-`effective_mode`, and the estimator's match lookup. The full `_CLEAN_MODE_CANONICAL`
-alias set is `"vacuum and mop"`, `"vacuum & mop"`, `"vacuum+mop"`, `"vac & mop"`, and
-`"vacmop"` (5 explicit aliases), plus a substring fallback that folds any string
-containing both `"vacuum"` and `"mop"` to `"vacuum_mop"`; all other modes pass through
-lowercased.
+vocabulary artifact. The normalization is **owned by
+`profiles/room_profiles.py::canonical_clean_mode`** — the one fold shared by the
+profile resolver, the capability gate, the wire payload and the card
+([07 §2](07-queue-engine.md)) — and learning reaches it through
+`learning/utils.py::_canonical_clean_mode`, a thin delegate that keeps its private
+name because four learning modules import it. Learning applies it in `_room_key`,
+`_room_profile_key`, the rebuilder's stored `effective_mode`, and the estimator's
+match lookup. The owner's `_CLEAN_MODE_DISPLAY_ALIASES` table is `"vacuum and mop"`,
+`"vacuum & mop"`, `"vacuum+mop"`, `"vac & mop"`, and `"vacmop"` (5 explicit aliases),
+plus a substring fallback that folds any string containing both `"vacuum"` and
+`"mop"` to `"vacuum_mop"`; all other modes pass through lowercased. That passthrough
+is load-bearing **here specifically**: two brand modes that both mention mopping are
+different runs with different durations, and folding them would average unlike things.
 
 **Fields written per entry:**
 

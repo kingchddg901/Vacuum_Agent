@@ -26,11 +26,11 @@ that never closes; and the remedy for someone who did mean it is one service cal
 to set it back. Leaving every install without a pause safety net to preserve a
 preference almost nobody expressed is the worse trade.
 
-The proper fix is to surface the control — including an explicit Off — somewhere
-ungated, so 0 becomes a visible choice rather than an invisible default. It
-currently lives in the Base Station tab, which is capability-gated, so a vacuum
-without a settable dock has no reachable UI for it at all. That is tracked
-separately; this module only repairs the data.
+The data repair is only half of it: a 0 that nobody could see was the symptom of a
+control nobody could reach. The control has since moved out of the capability-gated
+Base Station tab into the rooms sidebar, where every vacuum can see it, and gained an
+explicit Off chip so 0 is now a visible choice rather than an invisible default. This
+module repairs the values that were written while that was not true.
 
 NO ADAPTER DECLARATION IS NEEDED to judge a target here, so unlike the room
 vocabulary repair this cannot be blocked by a provider that has not finished
@@ -97,8 +97,7 @@ def migrate_pause_timeout_defaults(
         _LOGGER.info(
             "pause_timeout_migration: raised the paused-job timeout from OFF to %d "
             "minutes on %d vacuum(s): %s. A paused run was previously never "
-            "cancelled on these. Set it back from the Base Station tab if you "
-            "want it off.",
+            "cancelled on these. Set it back from the Rooms tab if you want it off.",
             REPAIRED_MINUTES,
             len(changes),
             ", ".join(c["vacuum_entity_id"] for c in changes),

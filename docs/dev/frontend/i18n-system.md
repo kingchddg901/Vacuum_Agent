@@ -132,8 +132,16 @@ silently fall back to English. So the **backend normalizes** them first: each
 brand's adapter declares display→canonical alias maps
 (`adapter_config.vocabulary.{clean_mode,clean_intensity,fan_speed,water_level}_aliases`),
 and `learning/manager.py::_normalize_profile_setting` canonicalizes every observed
-room-profile setting before emitting — the card always gets a code its vocab is
-keyed on. (Reason-code surfaces follow the same contract: the Learning Review
+room-profile setting before emitting — so on that surface the card gets a code its
+vocab is keyed on. **Two mechanisms hold this property, not one:** the normalizer
+covers the Learning Review's observed settings, while the surfaces that render a
+room's *stored* value untouched (the rooms-view per-room chips, the standalone room
+card, the external-run summary) are covered by **display-slug alias keys** — every
+locale ships `vocab.clean_mode.vacuum_and_mop` alongside `vocab.clean_mode.vacuum_mop`,
+so the label the card actually stored localizes rather than falling back to English.
+Add a display spelling to an adapter's alias map and you must add the matching alias
+key, or that surface silently reverts to English for every language. (Reason-code
+surfaces follow the same contract: the Learning Review
 badges + per-job notes `tVocabRaw` the stable backend code — `vocab.reason_code.*`,
 `vocab.exclude_suggested_reason.*` — with the English text as the per-code fallback.)
 

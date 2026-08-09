@@ -199,7 +199,7 @@ to id-led carry, never a guess.
   (`setup/drift.py::rejected_room_ids_for(..., include_unscoped=False)`).
 - If `enabled_room_ids` is supplied (not `None`) and the `room_id` is **not** in it, the room is **skipped** (`continue`) — it is not included in the result at all.
 - A matched existing room preserves all existing user settings (fan speed, clean mode, etc.); `name` and `slug` come from discovery data.
-- A **new** room takes the brand's default-profile settings via `new_room_defaults` (Eufy: `profile_name="vacuum_quick"`, `clean_mode="vacuum"`, `fan_speed="Standard"`, `water_level="Off"`, `clean_intensity="Quick"`, `path_type="wide"`, `clean_passes=1`, `edge_mopping=False`).
+- A **new** room takes the brand's default-profile settings via `new_room_defaults` (Eufy: `profile_name="vacuum_quick"`, `clean_mode="vacuum"`, `fan_speed="Standard"`, `water_level="Off"`, `clean_intensity="Quick"`, `clean_passes=1`, `edge_mopping=False`). **No `path_type`** — the Eufy catalog does not declare that axis (it is a second name for `clean_intensity`), and a field the profile omits is simply absent from the result rather than invented here.
 - `is_configured` (CRUD-3): when `enabled_room_ids` is supplied, `is_configured = existing.is_configured OR a floor_types entry was supplied for this room THIS call` — approval without a floor type is a real gap in the wizard flow. When `enabled_room_ids` is `None` (a re-sync, not an approval question), `is_configured` is unconditionally `True`. `configured_at` = existing value or `_iso_now()`.
 - `enabled` (DQ-Q-5/CRUD-6): an existing room keeps its stored value. A **new** room is enabled only on a **first import** (`existing_rooms` was empty before this call); on an incremental discovery a new room arrives **disabled** — it never silently joins an already-active queue. Membership in `enabled_room_ids` gates *inclusion*, not the `enabled` flag.
 - Sets `floor_type` with a **3-tier precedence**: the wizard `floor_types` value (looked up by
@@ -489,7 +489,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `clean_intensity` | str | `"Quick"` / `"Narrow"` / `"Deep"`; default `"Quick"`. The retired `"Standard"`/`"Normal"` are repaired once in the store, not folded on read, and Eufy's declared `clean_intensity_aliases` map them to `"Narrow"` — the MIDDLE density they always meant, not `"Quick"` (see `rooms/vocabulary_migration.py`) |
 | `clean_passes` | int | Number of cleaning passes; minimum 1. (The "1 or 2" cap is a frontend modifier constraint, not a room-model rule.) |
 | `edge_mopping` | bool | Whether edge mopping is enabled |
-| `path_type` | str | From matched profile |
+| `path_type` | str | From the matched profile — **brand-conditional, and absent on Eufy.** It and `clean_intensity` are the same physical property (pass density) under each brand's own name, so a room carries exactly one: Roborock rooms carry `path_type`, Eufy rooms carry `clean_intensity`. Never `None` (a stored `None` stringifies to the literal `"None"`, truthy and in no vocabulary); not backfilled, so readers must tolerate absence. See [03 §RoomConfig](03-data-model.md) |
 | `order` | int | Dispatch order (defaults to the room's 1-based position in discovery order) |
 | `is_dock_room` | bool | Whether this room contains the dock (defaults `False`) |
 | `is_transition` | bool | Whether this room is a transition/passage room (defaults `False`) |
@@ -503,10 +503,12 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 discovery>`, `order=<1-based discovery index>`, `profile_name=<brand default_profile;
 framework "vacuum_quick">`, `floor_type="hardwood"`, and the setting fields from that profile —
 for Eufy/framework `vacuum_quick`: `clean_mode="vacuum"`, `fan_speed="Standard"`,
-`water_level="Off"`, `clean_intensity="Quick"`, `path_type="wide"`, `clean_passes=1`,
-`edge_mopping=False`. A brand whose profile omits an axis leaves the `RoomConfig` field default
-(`""` for `fan_speed`/`water_level`/`clean_intensity` — visibly unset; Roborock declares no
-`clean_intensity`). Plus `is_dock_room=False`, `is_transition=False`, `grants_access_to=[]`,
+`water_level="Off"`, `clean_intensity="Quick"`, `clean_passes=1`, `edge_mopping=False`.
+A brand whose profile omits an axis leaves the `RoomConfig` field default
+(`""` for `fan_speed`/`water_level`/`clean_intensity`/`path_type` — visibly unset). Both
+shipped brands omit one: Roborock declares no `clean_intensity`, and **Eufy declares no
+`path_type`** — they are the same physical pass-density axis under two brands' names, so
+declaring both would put one property on the wire twice. Plus `is_dock_room=False`, `is_transition=False`, `grants_access_to=[]`,
 `rules=[]`, `color=None`, `is_configured=<see §3.1 CRUD-3 gate>`,
 `configured_at=<existing or now on the save path; carried-forward or None on rebuild>`.
 
@@ -529,13 +531,23 @@ keeping even though the symptom is gone — a room-record field outside `RoomCon
 both writers, silently, and nothing flags it.
 
 - A **load-time backfill** in `EufyVacuumManager.__init__` (`core/manager.py`) still runs on
-  every construction: `setdefault` for `path_type=None`, `is_dock_room=False`,
-  `is_transition=False`, `grants_access_to=[]`, `rules=[]`, `floor_type="hardwood"`,
-  `profile_name="vacuum_quick"`; and it **migrates** `floor_type=="carpet"` + `carpet_type` →
-  `carpet_<pile>` and pops the legacy `carpet` / `carpet_type` keys. This is what makes old
-  on-disk records uniform after a reload — a reconstruction must reproduce it or the record
-  won't match. (The backfill does **not** `setdefault("is_configured", …)`; that flag is now
-  owned by the two writers above, both of which always set it.)
+  every construction: `setdefault` for `is_dock_room=False`, `is_transition=False`,
+  `grants_access_to=[]`, `rules=[]`, `floor_type="hardwood"`, `profile_name="vacuum_quick"`;
+  and it **migrates** `floor_type=="carpet"` + `carpet_type` → `carpet_<pile>` and pops the
+  legacy `carpet` / `carpet_type` keys. This is what makes old on-disk records uniform after
+  a reload — a reconstruction must reproduce it or the record won't match. (The backfill does
+  **not** `setdefault("is_configured", …)`; that flag is now owned by the two writers above,
+  both of which always set it.)
+
+  **The line this loop must not cross.** Every key it defaults is framework-owned room
+  METADATA, which is why it is safe to default without asking the adapter. It must never
+  default a per-brand PROFILE axis. `setdefault("path_type", None)` headed this list from
+  the initial release until it was removed: the loop consults no adapter, so it stamped
+  `None` — which stringifies downstream to the literal `"None"`, truthy and in no
+  vocabulary — onto every room of every brand, including brands that never declared the
+  axis. That is why the fossil turned up on units whose adapter has no dispatch path for
+  it at all. Profile axes arrive through the declared catalog and are stripped by
+  `_finalize_room_update` when undeclared.
 
 ---
 

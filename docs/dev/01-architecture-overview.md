@@ -261,9 +261,10 @@ module (flat file) or a subsystem package. Here is the full map:
    service — `battery_rebaseline` — is registered inline in `__init__.py`
    rather than through a group function (it drives `BatteryHealthManager`).
 
-7. **Listener registration** — eight listener modules registered:
+7. **Listener registration** — nine listener modules registered:
    `lifecycle`, `job_metrics`, `dock_events`, `path_blockers`,
-   `pause_timeout`, `job_progress`, `pose_sampler`, `discovery`.
+   `pause_timeout`, `stall_capture`, `job_progress`, `pose_sampler`,
+   `discovery`.
 
 8. **Platform forward** — `async_forward_entry_setups` triggers
    `async_setup_entry` in all **six** platform modules (`binary_sensor`, `button`,
@@ -380,7 +381,7 @@ Top-level keys in `manager.data`:
 
 | Key | Content |
 |---|---|
-| `"vacuums"` | Per-vacuum record — `vacuum_entity_id`, `detected_model`, `is_managed` (set by `ensure_vacuum_record`); `pause_timeout_minutes_default` (get/set_pause_timeout_settings); optional `panel_title` / `live_map_image_entity` when the user has overridden them via the setup services |
+| `"vacuums"` | Per-vacuum record — `vacuum_entity_id`, `detected_model`, `is_managed` (set by `ensure_vacuum_record`); `pause_timeout_minutes_default` (get/set_pause_timeout_settings — **absent until set**, the getter computes 15 without writing); `stall_capture_enabled` (set_stall_capture — absent means off); optional `panel_title` / `live_map_image_entity` when the user has overridden them via the setup services |
 | `"capabilities"` | Discovered entity IDs and feature flags per vacuum |
 | `"maps"` | Per-vacuum, per-map bucket: rooms, summary, metadata, segment links |
 | `"queue"` / `"payloads"` | Per-vacuum, per-map derived queue / payload snapshots |
@@ -400,6 +401,7 @@ Top-level keys in `manager.data`:
 | `"dock_events"` | Recent dock event log per vacuum |
 | `"error_tracker"` | Per-vacuum error state (`active_run_error`, `last_device_error`, `recent_errors`); in the storage default, backfilled unconditionally on load (`core/storage.py`) |
 | `"learning_processing_enabled"` / `"learning_pending_runs"` | Box-level learning toggle + per-vacuum pending-run counters |
+| `"migrations"` | One-shot store-repair latches (`{key: True}`) — `room_vocabulary_v1`, `pause_timeout_default_v1`, `orphaned_vacuum_keys_v1`. See [03 §1](03-data-model.md) |
 
 (This is the working inventory; [03-data-model](03-data-model.md) is the
 authoritative schema for whatever it documents, but as of this audit that doc
@@ -506,7 +508,7 @@ See the [porting guide](../contributing/porting-guide.md) for the complete porti
 
 ## 8. Listener Architecture
 
-All upstream HA state changes are handled by the eight listener modules in
+All upstream HA state changes are handled by the nine listener modules in
 `listeners/`. Each module owns its listener registration, unsubscription, and
 any private constants. None of them hold persistent state — they read from
 `manager.data` and call manager methods to mutate it.
@@ -517,12 +519,13 @@ any private constants. None of them hold persistent state — they read from
 | `job_metrics.py` | Battery + vacuum state | Battery readings during jobs |
 | `dock_events.py` | Dock sensor entities | Dock event recording (empty, wash, etc.) |
 | `path_blockers.py` | Rule trigger entities | Mid-job blocker rule evaluation |
-| `pause_timeout.py` | HA time + vacuum state | Auto-cancel on overlong pause |
+| `pause_timeout.py` | HA time + vacuum state | **Two reaps** on one 1-minute tick: auto-cancel on overlong pause, and finalize a stranded `started` run (including a robot trapped in `error`) |
+| `stall_capture.py` | `EVENT_STALL_DETECTED` | Opt-in per vacuum: render the stalled room to disk, notify, fire `eufy_vacuum_stall_captured` |
 | `job_progress.py` | `EVENT_JOB_PROGRESS_TICK` | Job progress snapshot trigger |
 | `pose_sampler.py` | HA time + vacuum state | Buffers the per-tick pose time-series (`pose_samples`) during an external (app-started) or dispatched run for room auto-attribution, via the adapter-declared `room_attribution.source`; attribution-capable vacuums only |
 | `discovery.py` | Vacuum entity state | Auto-discovery once **docked** (map-safe: run over, pose settled) + map-change/reload/6h timer — see [04 §discovery](04-listeners.md) |
 
-Registration pattern (all eight are identical):
+Registration pattern (all nine are identical):
 
 ```python
 # In __init__.py
