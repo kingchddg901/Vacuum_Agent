@@ -29,7 +29,11 @@ Coverage targets
 [RP-10] mop mode with no water on a hard floor takes the brand's floor default.
 [RP-11] edge_mopping is forced False in vacuum mode and otherwise follows the profile.
 [RP-12] apply_capability_gate downgrades mop → vacuum when unsupported.
+[RP-12b] …for EVERY clean_mode spelling the card can store, not just the token.
+[RP-12c] …and leaves a mop room alone on mop hardware (so 12b can't pass by
+        flattening every mode).
 [RP-13] apply_capability_gate suppresses water in vacuum mode, using the brand's word.
+[RP-13b] …including when the mode is the display label "Vacuum".
 [RP-14] apply_capability_gate adds capability_gated=True and does not mutate its input.
 [RP-15] carpet maps mop profiles to their vacuum equivalents.
 [RP-16] a brand's DECLARED legacy aliases resolve; a brand declaring none is unaffected.
@@ -344,6 +348,75 @@ def test_capability_gate_suppresses_water_using_the_brands_word(brand):
     settings = {**_mop_settings(brand), "clean_mode": "vacuum"}
     result = apply_capability_gate(settings, _NO_MOP_CAPS, catalog=brand)
     assert result["water_level"] == _no_water(brand)
+
+
+# The spellings the CARD can actually put in the store. _canonicalCleanModeDisplay
+# writes a human label ("Vacuum and mop"), not the token, and older records carry
+# the other phrasings. Every gate test above this point uses "vacuum_mop" — the one
+# spelling that never broke — which is why the suite stayed green through the whole
+# of issue #48 and through its dispatch-side sibling.
+_MOP_SPELLINGS = ["vacuum_mop", "Vacuum and mop", "vacuum & mop", "VACUUM_MOP", "mop", "Mop"]
+
+
+@pytest.mark.parametrize("spelling", _MOP_SPELLINGS)
+def test_capability_gate_downgrades_every_mop_spelling(brand, spelling):
+    """[RP-12b] The downgrade fires for every spelling the card can store.
+
+    ISSUE #48, dispatch side. The predicate was an exact, case-sensitive membership
+    test run against a value the gate's own docstring calls a display/storage value
+    and does not lowercase. "Vacuum and mop" and "Mop" walked straight past it, so a
+    device with no mop hardware was handed a mop payload.
+
+    Parameterised rather than one case per spelling so a future narrowing of the
+    predicate cannot pass by satisfying the canonical token alone.
+    """
+    settings = {**_mop_settings(brand), "clean_mode": spelling}
+    result = apply_capability_gate(settings, _NO_MOP_CAPS, catalog=brand)
+    assert result["clean_mode"] == "vacuum"
+    # The downgrade is not just the label: mop-only settings must go with it.
+    assert result["edge_mopping"] is False
+    assert result["water_level"] == _no_water(brand)
+
+
+# _FULL_CAPS does NOT declare supports_edge_mopping, and the gate defaults that to
+# False. Asserting "edge is off" under those caps therefore proves nothing — the
+# capability clause cleared it before the mode clause was ever consulted. Both tests
+# below need edge support DECLARED so the clearing is attributable to the thing they
+# name.
+_FULL_CAPS_EDGE = {**_FULL_CAPS, "supports_edge_mopping": True}
+
+
+@pytest.mark.parametrize("spelling", ["vacuum", "Vacuum", "VACUUM"])
+def test_capability_gate_clears_water_and_edge_for_display_vacuum(brand, spelling):
+    """[RP-13b] A vacuum-only room clears water and edge however it is spelled.
+
+    The mirror of [RP-12b] and the same root: `clean_mode == "vacuum"` never matched
+    the display label "Vacuum", so a vacuum-only room dispatched still carrying a
+    water level and an edge-mopping flag on a fully mop-capable device — where
+    nothing downstream would refuse it.
+
+    Runs on edge-CAPABLE caps on purpose: under _FULL_CAPS the assertion would hold
+    for a device that simply has no edge hardware, and would pass with the mode
+    clause deleted entirely.
+    """
+    settings = {**_mop_settings(brand), "clean_mode": spelling}
+    result = apply_capability_gate(settings, _FULL_CAPS_EDGE, catalog=brand)
+    assert result["edge_mopping"] is False
+    assert result["water_level"] == _no_water(brand)
+
+
+def test_capability_gate_leaves_mop_alone_on_a_mop_device(brand):
+    """[RP-12c] The guard against fixing [RP-12b] by downgrading everything.
+
+    A test that only asserts "mop became vacuum" is satisfied by a gate that
+    flattens every mode, so pin the opposite direction too: given mop hardware, a
+    display-label mop room keeps its mop settings.
+    """
+    settings = {**_mop_settings(brand), "clean_mode": "Vacuum and mop"}
+    result = apply_capability_gate(settings, _FULL_CAPS_EDGE, catalog=brand)
+    assert result["clean_mode"] == "Vacuum and mop"
+    assert result["edge_mopping"] is True
+    assert result["water_level"] == _mop_settings(brand)["water_level"]
 
 
 def test_capability_gate_adds_capability_gated_flag(brand):

@@ -685,7 +685,15 @@ def apply_capability_gate(
     # hardcoding values, so the downgrade follows whatever vocabulary the profile
     # catalog declares. A brand that declares only one of the two axes carries only
     # that one through the downgrade; the other stays "" and is dropped below.
-    if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
+    # ISSUE #48, dispatch side. This was `clean_mode in {"mop", "vacuum_mop"}` —
+    # exact and case-SENSITIVE, against a value this function's own docstring says
+    # arrives as a DISPLAY/STORAGE value and which is not lowercased on the way in
+    # (see `clean_mode = str(settings.get(...))` above). So "Vacuum and mop", the
+    # spelling the card actually writes, and "Mop" both slipped past the downgrade
+    # and a mop payload went to a device with no mop hardware. Worse than the read
+    # path this predicate was first fixed on: that returned a wrong checkbox, this
+    # sends a wrong command to the robot.
+    if not supports_mop and is_mop_clean_mode(clean_mode):
         fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
         _, fallback = get_room_profile(profile_name=fallback_name, catalog=catalog)
         clean_mode = "vacuum"
@@ -696,8 +704,13 @@ def apply_capability_gate(
             fallback.get("clean_intensity", clean_intensity)
         )
 
-    # Vacuum-only mode — water and edge mopping are irrelevant.
-    if clean_mode == "vacuum":
+    # Vacuum-only mode — water and edge mopping are irrelevant. Same correction as
+    # above and the same reason: `clean_mode == "vacuum"` never matched the display
+    # label "Vacuum", so a vacuum-only room dispatched carrying a water level and an
+    # edge-mopping flag. The two halves failed in opposite directions from one root
+    # — the mop test UNDER-fired, this one under-fired too, and only the canonical
+    # spelling ever exercised either.
+    if canonical_clean_mode(clean_mode) == "vacuum":
         water_level = no_water
         edge_mopping = False
 

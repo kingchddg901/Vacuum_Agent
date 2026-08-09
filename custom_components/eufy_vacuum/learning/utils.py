@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..profiles.room_profiles import canonical_clean_mode
 from ..timestamp_utils import utc_now_iso
 
 
@@ -99,34 +100,31 @@ def _iso_now() -> str:
     return utc_now_iso()
 
 
-_CLEAN_MODE_CANONICAL: dict[str, str] = {
-    "vacuum and mop": "vacuum_mop",
-    "vacuum & mop": "vacuum_mop",
-    "vacuum+mop": "vacuum_mop",
-    "vac & mop": "vacuum_mop",
-    "vacmop": "vacuum_mop",
-}
-
-
 def _canonical_clean_mode(value: Any) -> str:
     """Normalize a clean_mode/effective_mode string to the canonical token
     ('vacuum', 'mop', 'vacuum_mop').
 
     Internal job records historically stored the display string ("Vacuum and
     mop") while the framework + adapter value_maps use the token "vacuum_mop";
-    folding them together here keeps internal and app-started (external) runs in
-    ONE learning bucket instead of splitting on the vocabulary artifact. Unknown
-    values pass through lowercased so brand-specific modes are preserved.
+    folding them together keeps internal and app-started (external) runs in ONE
+    learning bucket instead of splitting on the vocabulary artifact. Unknown
+    values pass through lowercased so brand-specific modes are preserved — that
+    passthrough is deliberate HERE and load-bearing: two brand modes that both
+    mention mopping are different RUNS with different durations, and folding
+    them into one bucket would average unlike things.
+
+    ISSUE #48 follow-up. This is now a thin alias over the one owner in
+    profiles/room_profiles.py rather than a second copy of the table. The table
+    lived here first and the fix that created the shared owner said learning
+    "delegates here rather than keeping a second table" — which was not true
+    until this. Two tables that agree today is exactly how #48 started: the
+    round-trip bug was not one wrong table, it was two right ones drifting.
+
+    The NAME stays private and stays put: four learning modules import it and
+    four unit tests pin it, and moving callers to the shared name would be churn
+    for no behaviour. Only the body is delegated.
     """
-    s = str(value or "").strip().lower()
-    if not s:
-        return s
-    if s in _CLEAN_MODE_CANONICAL:
-        return _CLEAN_MODE_CANONICAL[s]
-    # Any phrasing carrying both verbs is a combined vacuum+mop run.
-    if "vacuum" in s and "mop" in s:
-        return "vacuum_mop"
-    return s
+    return canonical_clean_mode(value)
 
 
 def _canonical_clean_intensity(value: Any) -> str:
