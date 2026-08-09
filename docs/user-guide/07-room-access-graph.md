@@ -47,4 +47,6 @@ Before you can save, the card validates this room's proposed outbound links agai
 
 Completeness — whether every room has a path back to the dock — is deliberately **not** checked at save time: the graph has to be buildable one room at a time. Unreachable rooms are caught later, when a cleaning queue is built.
 
+An edit is also judged by **what it changes**, not by the state of the whole graph. A map that has been re-mapped can end up carrying a problem somewhere you are not looking; that pre-existing problem does not block an unrelated edit. Only a violation this edit would introduce — or make worse — is refused. The same rule covers ordinary room saves, so a stale issue elsewhere in the graph can never stop you changing a room's suction or toggling it into the queue.
+
 If the backend rejects the save after the local check passes, the error appears in red below the graph issues area, in the same plain-language style. This is a backstop for races the card's local check cannot see on its own — for example, two access modals open on different rooms fighting over the same target, or two dock-room changes landing one after the other. Correct the relationship described in the error and try saving again.

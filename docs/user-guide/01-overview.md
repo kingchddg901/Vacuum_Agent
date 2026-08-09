@@ -30,6 +30,7 @@ A stock vacuum integration in Home Assistant lets you start and stop your vacuum
 - **Learning system.** After each run the integration records which rooms were cleaned and how long the vacuum spent in each — recovered from the vacuum's own live room signal, so it works for runs you start from the dashboard *and* runs you start from the vacuum's app. Over time it builds per-room timing estimates that get more accurate the more you use it. The card displays a confidence indicator (Reliable / Learning / Uncertain) for each room's estimate.
 - **Incomplete run recovery.** If a run ends before all rooms are finished, the card shows a banner letting you queue only the missed rooms for a follow-up run.
 - **Trouble room indicators.** The card tracks rooms the vacuum has repeatedly failed to clean and flags them so you can investigate.
+- **Stall capture.** Optional, off until you arm it: when a run stalls, the integration draws the room the vacuum stopped in — outline, last stretch of travel, and a dot where it came to rest — notifies you, and fires an event carrying the image so an automation can send it to your phone. See [Stall capture](05-live-monitoring.md#stall-capture).
 - **Metrics and learning review.** Dedicated panels let you browse historical run data and review what the system has learned.
 - **Theming.** The card's colors, typography, and layout tokens are fully customizable from within the card itself — including a built-in **Colorblind Safe** theme that keeps status colors distinguishable for color-vision deficiency (see [Accessibility](14-accessibility.md)).
 
@@ -73,9 +74,24 @@ Below the header is a navigation bar with tabs that switch between panels:
 
 Uploading a map image and linking the vacuum's map segments to your rooms happen on a separate **Map Config** screen rather than a top-nav tab. You reach it from the **Configure** button in the Rooms map view. See [Making your own maps](16-making-your-own-maps.md) for the step-by-step walkthrough, or [Map configuration](../advanced/08-map-configuration.md) for the technical reference.
 
-On a narrow screen (under 600px) the navigation collapses into a bottom tab bar with shortened labels — **Rooms**, **Upkeep** (Maintenance), **Dock** (Base Station), and **Stats** (Metrics) — plus a **More** overflow sheet holding Learning Review, Room Rules, Theme, Map Config, and Setup.
-
 The card opens on the **Rooms** tab the first time you load it. After that it remembers whichever tab you were on last per vacuum, so refreshing the browser doesn't lose your place.
+
+## On a narrow screen
+
+Below 600px the card switches to a mobile layout. The threshold is the **card's own measured width**, not the browser window's — so a card sitting in a narrow dashboard column gets the mobile layout on a desktop too. You can force it either way from the card config:
+
+```yaml
+mobile_shell: auto   # auto (default) | true (always mobile) | false (always desktop)
+```
+
+What changes:
+
+- **The navigation moves to a bottom tab bar** with shortened labels — **Rooms**, **Upkeep** (Maintenance), **Dock** (Base Station), and **Stats** (Metrics) — plus a **More** overflow sheet holding Learning Review, Room Rules, Theme, Map Config, and Setup. **Dock** only appears on vacuums that have a base station, so a dockless model shows three tabs and More.
+- **The header compacts to a name line and a status line.** The status line carries the vacuum's status with its coloured dot, and the battery — written out as "Battery 100%" rather than a bare percentage, and reading amber at 20% or below and red at 10% or below, the same bands as the desktop header. The dock's status gets a line of its own underneath when your model reports one.
+- **The Rooms toolbar wraps** instead of running off the edge, and its buttons grow to a full-size tap target; see [Rooms Panel → The Rooms toolbar](02-rooms-panel.md#the-rooms-toolbar).
+- **Theme editing is the one thing that narrows.** You can pick, activate, and share whole themes from a phone, but the Palette and Tokens editors need a desktop-width screen — see [Sharing themes → On a phone](15-sharing-themes.md#on-a-phone).
+
+In the sidebar panel the card takes the full height of the panel at any width, so the header stays pinned and the bottom tab bar stays where your thumb expects it.
 
 ## Small conveniences
 

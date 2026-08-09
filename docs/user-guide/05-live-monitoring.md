@@ -131,6 +131,57 @@ The elapsed time and expected time are shown in parentheses when available. "Stu
 
 ---
 
+## Stall capture
+
+The stall notice tells you *which* room. **Stall capture** shows you *where in the room*. When it is armed and a stall is detected, the integration draws the room the vacuum stopped in — the room's outline, the last stretch of travel as a thin line, and a dot for where it came to rest — and raises a Home Assistant notification naming the room and the map.
+
+Capture is **off by default and armed per vacuum**. A feature that writes a picture of your floor plan is one you switch on deliberately; an update never switches it on for you.
+
+### Arming it
+
+The Rooms toolbar — the button row above the room grid, alongside the list/map view toggles — has a **camera** button. Tap it to arm capture for the vacuum you are looking at, tap it again to disarm. The button is highlighted while capture is armed, and its tooltip reads **Turn on stall capture** or **Turn off stall capture**. It sits outside the map-only controls, so it is there in both the list view and the map view.
+
+You can also arm it from an automation or from **Developer Tools → Actions** with the `eufy_vacuum.set_stall_capture` action, which takes the vacuum entity and `enabled: true` or `false`.
+
+### What a capture produces
+
+**A notification.** A persistent Home Assistant notification titled **Vacuum Agent**, reading for example:
+
+> Alfred likely stalled in Kitchen on map 2
+
+"Likely" is doing real work there: a stall is measured as elapsed time against the room's learned estimate, not as proof the robot is physically wedged. The map is shown by name on brands that report one and by its id otherwise. There is one notification per vacuum — a later stall replaces the earlier one rather than stacking up.
+
+**An image**, written to:
+
+```
+config/eufy_vacuum/learning/<vacuum>/stall/<map id>.png
+```
+
+`<vacuum>` is the entity id without its `vacuum.` prefix. There is one file per vacuum per map, replaced on every capture, so an automation can point at a fixed path and never have to clean up after itself. The drawing is deliberately plain — one flat room silhouette, the trail, the dot, and the room's name — because it is meant to be read one-handed, at a glance, from another room.
+
+**An event**, `eufy_vacuum_stall_captured`, fired once the image is on disk. This is the half that reaches your phone: trigger an automation on it and attach the file it names.
+
+| Event field | What it holds |
+|---|---|
+| `vacuum_entity_id` | The vacuum that stalled. |
+| `map_id` | The map it was cleaning. |
+| `room_id` / `room_name` | The room it stopped in. |
+| `image_path` | Full path to the PNG just written. |
+| `message` | The same sentence the notification shows. |
+
+!!! note "Why the notification has no picture in it"
+
+    The image is written beside the vacuum's own data rather than into `config/www/`, because anything under `www/` is served **without authentication** — a cropped floor plan of your home should not be fetchable by URL. A persistent notification can only embed an image it can reach by URL, so the notification carries the text and the event carries the path. Someone already looking at Home Assistant has the map in front of them anyway; the picture is for the phone.
+
+### When no capture appears
+
+- Capture rides on the same stall detection as the notice above, so it only happens on order-honoring brands (Eufy), and only once per room per job. Turning capture off does **not** disable stall detection — the notice, the queue-chip warning, and the run's anomaly record all carry on regardless.
+- Drawing the image needs an optional Python imaging package that isn't present on every Home Assistant install — one of the same set [Auto (CV) segmentation](16-making-your-own-maps.md#option-a-auto-cv--detect-rooms-from-a-screenshot) relies on. Without it there is no picture; nothing else is affected.
+- If the map has no room outline to draw, no image is written.
+- The trail is only drawn when the vacuum reported enough distinct positions around the stall to describe a real route. With fewer, the dot is shown on its own rather than a straight line the robot never drove.
+
+---
+
 ## Skipped-room marker
 
 If the live tracking sees the job advance past a queued room without ever cleaning it, that room is marked as **skipped** in the queue: its chip is drawn with a dashed outline and its name is struck through, and its row in the Live Progress list switches to the ⤫ "Skipped" style (no ETA — an ETA for a room that won't be cleaned would be a false promise).

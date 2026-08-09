@@ -10,7 +10,13 @@ The panel is divided into two main areas, with a side column alongside them:
 - **Room grid** — below the action bar, showing a card for every room on your active map.
 - **Side column** — to the right of the room grid (or below it on narrow screens), holding the [Run Profiles panel](#run-profiles-panel) and, below it, the [Saved Zones panel](#saved-zones-panel).
 
-A toggle in the top-left of the room grid lets you switch between a list view (cards) and a map view (room positions overlaid on the floor plan). To set up that floor plan — upload a map image or draw your own rooms — see [Making your own maps](16-making-your-own-maps.md).
+### The Rooms toolbar
+
+A row of small icon buttons sits directly above the room grid. The first two switch between a **list view** (cards) and a **map view** (room positions overlaid on the floor plan). To set up that floor plan — upload a map image or draw your own rooms — see [Making your own maps](16-making-your-own-maps.md).
+
+Alongside them sits a **camera** button, which arms or disarms [stall capture](05-live-monitoring.md#stall-capture) for this vacuum; it is highlighted while capture is armed. The rest of the row is cosmetic and map-related — the texture, mascot, and room-label toggles, plus **Configure**, which opens the Map Config screen. Those are covered under [The mascot and floor textures](16-making-your-own-maps.md#the-mascot-and-floor-textures).
+
+The row **wraps** rather than running off the edge of the card, so every control stays reachable however narrow the card is. The mascot controls sit last and move down together as a single group rather than splitting across the fold. When the card is narrower than 600px the buttons also grow to a full-size tap target and **Configure** drops its text label to show just its icon — its name stays available through the tooltip and to screen readers.
 
 ## Including and excluding rooms
 
@@ -53,6 +59,18 @@ When the queue carries steps — from an applied stepped run profile, or from br
 - **Double-click** — opens the time estimate detail for that room.
 - **Hold (long press)** — toggles the room in or out of the queue. The default hold duration is 450 ms; it can be changed in card config under `queue_chip_long_press_ms` (minimum 250 ms, maximum 1000 ms).
 
+## The estimate panel
+
+Below the action bar — and below the live queue once a run is going — sits the **Estimated Job Time** panel. It shows the projected total for the queue as you currently have it, a "done by *time*" finish clock, and a confidence chip for the estimate as a whole. Notices appear in it when they apply: "May need to recharge mid-job", "Estimates may be outdated", and a clean-water warning when the run looks likely to drain the tank.
+
+An **Overhead breakdown** expander splits out the time that isn't floor cleaning — **Startup**, **Transitions** (travel between rooms), **Recharge**, **Mop wash**, **Dust empty**, and **Return to dock**. When the queue includes mopping, a **Water estimate** block adds **Tank now**, **Job will use**, and **Tank after run**.
+
+### The plan freezes at dispatch
+
+While a run is live the panel stops re-planning and holds the figures the job was **actually dispatched with**. That is deliberate: the number you are watching progress against should be the one the vacuum was given, not one recalculated from a queue you have since been editing. The panel goes back to planning your next clean once the job reaches a terminal state.
+
+On a [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) the panel is retitled **"Currently on step N of M"** and reports where the run has got to — the current step, its progress, and a **Next:** line — instead of a finish time. The active job in a stepped run is one *phase*, so a frozen total there would be that phase's plan rather than the whole sequence's; and a whole-run finish time across a charge hold depends on how far the previous phase drained the battery, which is not something the card can state firmly. It says where you are instead.
+
 ## Starting, pausing, and cancelling a run
 
 The primary button in the action bar changes label depending on what state the vacuum is in:
@@ -88,7 +106,7 @@ Each room card shows:
 - Its **queue position number** and a **Move** button for reordering.
 - A drag handle (the `⋮⋮` icon) for drag-to-reorder.
 - A **settings button** (⚙) to open the room editor.
-- **Setting chips** showing the room's settings at a glance — for example "Vacuum", "Vacuum and mop", "Turbo", "Deep", "Edge Mop On", or "2× passes". The cleaning-mode chip is always shown, including plain "Vacuum"; the other chips appear only for non-default values — default suction, standard path, 1 pass, water off, and edge mop off show no chip, to keep the card clean.
+- **Setting chips** showing the room's settings at a glance — for example "Vacuum", "Vacuum + Mop", "Turbo", "Deep", "Edge Mop On", or "2× passes". The cleaning-mode chip is always shown, including plain "Vacuum"; the other chips appear only for non-default values — default suction, standard path, 1 pass, water off, and edge mop off show no chip, to keep the card clean.
 - A **time estimate chip** if the learning system has data for the room. Learned estimates show the time directly; fallback (default) estimates are prefixed with "~" to indicate they are approximate.
 - A **confidence chip** indicating how reliable the estimate is: "Reliable", "Learning", or "Uncertain" (or "Unlearned" if no data has been collected yet).
 - A **projected water use chip** when the room is set to a mop mode and the integration can calculate expected water consumption.
@@ -127,13 +145,13 @@ Selects what the vacuum does in this room. The options available are the modes y
 
 - **Vacuum** — suction only; no mopping.
 - **Mop** — mopping only; no suction.
-- **Vacuum + Mop** (shown in the UI as `vacuum_mop`) — suction and mop simultaneously.
+- **Vacuum and mop** — suction and mop simultaneously. (The room card abbreviates this chip to "Vacuum + Mop".)
 
 Carpet rooms are locked to vacuum-only modes and show a notice in the editor. Mop-related fields (Water Level and Edge Mopping) are hidden for carpet rooms.
 
 ### Suction Level
 
-Selects how hard the vacuum's motor works in this room. The exact options (such as Quiet, Standard, Turbo, Max, or similar) reflect what your vacuum supports. A higher suction level uses more battery and takes longer but picks up more debris.
+Selects how hard the vacuum's motor works in this room. The exact options reflect what your vacuum supports — Eufy offers **Quiet**, **Standard**, **Turbo**, and **Max**. A higher suction level uses more battery and takes longer but picks up more debris.
 
 ### Water Level
 
@@ -143,7 +161,15 @@ Sets how much water the mop pad receives. The exact options (typically something
 
 ### Cleaning Path
 
-Controls how thoroughly the vacuum covers the room. The exact options reflect what your vacuum supports. Common values include Standard (single efficient pass) and deeper options that make the vacuum cover the room more completely — at the cost of time. Vacuums that don't expose this concept simply omit the row.
+Controls how densely the vacuum covers the room — how close together its passes are laid. The exact options reflect what your vacuum supports, and they are always listed least-effort first. On Eufy there are three, matching the three cleaning intensities in the Eufy app:
+
+| Option | Density | Eufy app equivalent |
+|---|---|---|
+| **Quick** | Widest spacing, fastest | Low |
+| **Narrow** | Middle density | Medium |
+| **Deep** | Tightest spacing, slowest and most thorough | High |
+
+Vacuums that don't expose this concept simply omit the row.
 
 If you later change the Cleaning Path and the room already has a learned time estimate from a different path setting, a warning note on the room card will say "intensity mismatch" to let you know the estimate may be inaccurate until new data is collected.
 

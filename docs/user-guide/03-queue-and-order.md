@@ -93,4 +93,4 @@ The lock lifts once the job is finalized **and** the vacuum entity is no longer 
 At the top of the action bar, above the queue chips, there is a brief summary line that shows:
 
 - **How many rooms are included** — for example, "3 rooms included" or "1 room included" (or "2 rooms · 1 zone included" once a zone step is queued — see [Rooms Panel → Including and excluding rooms](02-rooms-panel.md#including-and-excluding-rooms)).
-- **An estimated total time** for the full queue, shown as "~12 min" when a time estimate is available. This figure is drawn from learned or default per-room estimates and updates as you add or remove rooms from the queue.
+- **An estimated total time** for the full queue, shown as "~12 min" when a time estimate is available. This figure is drawn from learned or default per-room estimates and updates as you add or remove rooms from the queue. While a job is running it instead reports the plan the run was dispatched with — see [The estimate panel](02-rooms-panel.md#the-plan-freezes-at-dispatch).

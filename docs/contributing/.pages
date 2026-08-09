@@ -1,1 +1,4 @@
 title: Contributing
+nav:
+  - building-and-testing.md
+  - ...

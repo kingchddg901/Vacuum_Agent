@@ -283,6 +283,25 @@ button appears so you can retry manually.
 
 ---
 
+## Room settings are repaired automatically
+
+A per-room setting is only useful if the word it is stored under is one your vacuum actually accepts. A value the robot doesn't recognise isn't rejected loudly — it is discarded, and the setting quietly does nothing.
+
+So the integration checks its own work. Shortly after Home Assistant starts, it compares every stored room against the vocabulary your vacuum's adapter declares, and repairs anything that doesn't line up. There is nothing to click and no prompt: it runs on its own, once, and records that it is done.
+
+Two things can happen to a room:
+
+- **A setting your brand doesn't have is dropped.** Nothing is lost — the field was never going to reach the robot. (For example, Roborock rooms that had picked up a Eufy-shaped Cleaning Path value.)
+- **A value outside your brand's option list is replaced.** Where the brand declares what a retired name used to mean, the room keeps that meaning: a Eufy room stored with the old **Standard** cleaning path becomes **Narrow**, the middle density — not the fastest setting. Where there is no such declaration, the room falls back to your brand's default for that field. If neither is available, the room is left exactly as it was and a warning goes to the Home Assistant log rather than a guess going to the robot.
+
+Everything else about the room — its name, floor type, queue position, history, and learning data — is untouched.
+
+!!! note "If your vacuum wasn't ready yet"
+
+    The repair can only judge a room against a vacuum whose own integration has finished loading. On a cold start that isn't always true yet. When it can't evaluate every managed vacuum, it deliberately does **not** mark itself finished — it leaves the rooms alone and tries again on the next start, so nothing is silently skipped forever.
+
+---
+
 ## Adding another vacuum
 
 Below the setup steps, an **Add another vacuum** section lists any

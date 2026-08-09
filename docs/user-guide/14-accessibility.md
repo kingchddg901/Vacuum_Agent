@@ -75,69 +75,25 @@ themes that have earned the Colorblind Safe badge carry a "Best for" tag.
 ## Dyslexia-friendly typeface
 
 The card can render in **OpenDyslexic**, a typeface designed with weighted
-bottoms on each letter to make characters harder to flip or confuse.
+bottoms on each letter to make characters harder to flip or confuse. It ships
+with the card, so there's nothing to install.
 
 Open the **globe** in the card header — the same menu you pick a language in —
 and choose it under **Typeface**. The option is shown in OpenDyslexic itself, so
 you can see the typeface before you commit to it, and the menu stays open so you
-can switch straight back if it isn't for you.
+can switch straight back if it isn't for you. Selecting **Default** returns the
+card to whatever your theme uses.
 
 The choice is stored **per Home Assistant user**, the same way the language is,
 so it follows your login to every device you open the card on. It does not
 change what anyone else sees.
 
-**Two things worth knowing:**
+You can also add any other typeface you have the right to use, by dropping the
+files into your Home Assistant configuration — no update or rebuild needed.
 
-- It is offered in **twelve languages** (English, German, French, Spanish,
-  Italian, Dutch, Portuguese, Polish, Czech, Turkish, Indonesian, Russian). A
-  typeface is only offered for a language once the font file has been checked
-  to actually contain every letter that language's translations need — the
-  check reads the font itself, so it can't be fooled. OpenDyslexic doesn't
-  carry Hebrew, Arabic or CJK letters, so it isn't offered there; offering it
-  would give you a patchy half-rendered screen rather than a readable one.
-- Text the **font doesn't cover falls back** to your normal font — a room you
-  named in Cyrillic, for example. That's deliberate. The alternative is empty
-  boxes where the letters should be.
-
-Selecting **Default** returns the card to whatever your Home Assistant theme
-uses.
-
-## Add your own typeface
-
-You can add any font you have the right to use — no update or rebuild needed.
-Create a folder under `config/eufy_vacuum/fonts/`, one per font, holding the
-font's `.woff2` files, its licence file, and a small `font.json` describing it:
-
-```
-config/eufy_vacuum/fonts/
-    atkinson/
-        font.json
-        AtkinsonHyperlegible-Regular.woff2
-        AtkinsonHyperlegible-Bold.woff2
-        OFL.txt
-```
-
-```json
-{
-  "id": "atkinson",
-  "family": "Atkinson Hyperlegible",
-  "faces": [
-    { "file": "AtkinsonHyperlegible-Regular.woff2", "weight": 400 },
-    { "file": "AtkinsonHyperlegible-Bold.woff2", "weight": 700 }
-  ]
-}
-```
-
-Restart Home Assistant and refresh the dashboard: the font appears in the
-globe menu's **Typeface** section and as a chip on the Theme tab's **Font
-Family** token. You don't tell the card which languages the font supports —
-it reads the font file itself and only offers it where the letters are
-actually there. A font that can't be verified is simply not offered, and a
-broken descriptor can never break the card.
-
-Notes: the font's licence must permit this use (keep the licence file in the
-folder); `id` is lowercase letters/digits/hyphens; the woff2 format is the
-only one accepted.
+**[Fonts](14a-fonts.md)** is the full guide: which languages OpenDyslexic is
+offered in and why, how to add your own typeface, and how the choice interacts
+with themes.
 
 ## Other niceties
 

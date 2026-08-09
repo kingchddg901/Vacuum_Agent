@@ -180,6 +180,75 @@ Builds the resolved per-room cleaning payload — the exact per-room settings as
 | `vacuum_entity_id` | Yes |
 | `map_id` | No |
 
+### `get_queue_steps`
+
+Returns the live queue as an ordered **steps** list — room groups interleaved with the charge, wait, and zone steps inserted into it — in exactly the shape a saved run profile uses. This is the read side of the four break services below, and the read half of a read-modify-write round trip with `set_queue_breaks`.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+| `map_id` | No |
+
+Supports response. Returns:
+
+| Field | Description |
+|---|---|
+| `steps` | Ordered list. A room group is `{"type": "room_group", "rooms": [{room_id, name, slug, order, profile_name}, ...]}`; an inserted step is `{"type": "charge_wait", "target_battery_percent": ...}`, `{"type": "wait", "wait_minutes": ...}`, or `{"type": "zone", "zone_ids": [...]}`. |
+| `breaks` | The raw ordered inserted steps as `{after_index, step}` — the write shape `set_queue_breaks` accepts back unchanged. |
+| `has_breaks` | `true` when the queue is stepped rather than flat. A zone step counts. |
+
+### `add_queue_break`
+
+Inserts a **charge** or **wait** break into the live queue, turning a flat clean into a stepped one. The next `start_selected_rooms` runs the whole stepped sequence as one job.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | |
+| `break_type` | Yes | `charge_wait` (dock and charge to a battery percentage) or `wait` (hold for a number of minutes). Zone steps have their own service, [`add_queue_zone`](#add_queue_zone). |
+| `after_index` | Yes | The break sits after this many enabled rooms — `1` means after the first room. Clamped to `1`–(room count − 1): a charge or wait break must sit **between** two rooms, so it can neither lead nor trail. |
+| `target_battery_percent` | For `charge_wait` | `1`–`100`. Required when `break_type` is `charge_wait`; passing a `charge_wait` without it is rejected by the schema rather than silently dropped. |
+| `wait_minutes` | For `wait` | `1`–`1440`. Required when `break_type` is `wait`, on the same rule. |
+
+Supports response. Requires at least two enabled rooms. Returns `{"added": true}` merged with the same payload `get_queue_steps` returns, or `{"added": false, "reason": ...}` on `needs_two_rooms` or `invalid_break`.
+
+### `remove_queue_break`
+
+Removes one inserted step from the live queue by its position in the `breaks` list.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | |
+| `index` | Yes | Zero-based position in the `breaks` list returned by `get_queue_steps`. |
+
+Supports response. Returns `{"removed": true}` merged with the live stepped-queue state, or `{"removed": false, "reason": "index_out_of_range"}`.
+
+### `set_queue_breaks`
+
+Replaces **all** inserted steps on the live queue in one call — the single primitive behind reordering steps and editing their charge percentage or wait minutes. Send the full desired list; the stored list is replaced wholesale, so there is no per-entry index shift to reason about.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | |
+| `breaks` | Yes | Ordered list. Each entry is `{after_index, break_type, ...}` where `break_type` is `charge_wait`, `wait`, or `zone`, plus `target_battery_percent`, `wait_minutes`, or `zone_ids` to match. The read shape `get_queue_steps` returns (`{after_index, step: {type, ...}}`) is also accepted, so a get → edit → set round trip can send entries back unchanged. |
+
+`after_index` is clamped per kind: a charge or wait step to `1`–(room count − 1), a zone step to `1`–room count (a zone may trail after the last room, since it is a real clean rather than a pause). Neither kind may lead — a run always opens with a room. Entries that fail validation are dropped; ties on `after_index` keep the order you sent.
+
+Supports response. Returns `{"set": true}` merged with the live stepped-queue state, or `{"set": false, "reason": "needs_two_rooms"}` — in which case the stored steps are cleared, since breaks are meaningless on a queue of fewer than two rooms.
+
+### `clear_queue_breaks`
+
+Removes every inserted step — the queue drops back to a flat clean.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+| `map_id` | No |
+
+Supports response. Returns the live stepped-queue state (the same shape as `get_queue_steps`).
+
 ### `add_queue_zone`
 
 Inserts a **zone step** into the live queue — the named [saved zones](#saved-zones) are cleaned together as one phase, positioned between rooms. Unlike `clean_saved_zones` (an immediate dispatch, not part of the queue), a queued zone step runs as part of the job the next `start_selected_rooms` launches.
@@ -304,7 +373,13 @@ Supports response. A `migrate` whose token is missing or no longer matches the c
 
 These services manage map image uploads, segmentation (CV or manually authored), named custom layouts, custom segment authoring, and the map UI overlay state — segment-to-room links and the animated companion's anchor positions. The card calls them from the Map Configuration panel and the custom-segment composer; you can also call them from developer tools or scripts.
 
-Unlike most map-scoped services in this document, every service in this section requires `map_id` explicitly — it is **not** auto-resolved from the active map. Pass the target map's ID on every call. All of these services support response.
+`map_id` is not uniform across this section, so read each service's table rather than assuming. The split is deliberate:
+
+- **Services that address a map you name** — the image, segmentation, and custom-layout services (`upload_map_image`, `delete_map_image`, `analyze_map_image`, `get_map_segments`, `adjust_map_segment`, `set_segmentation_mode`, `set_custom_segments`, and the four `*_custom_layout` services) — **require `map_id`**. There is no auto-resolution: they replace or delete stored content, so an omitted map would have to be guessed.
+- **Services that write display or overlay state** — `set_segment_room_link`, `set_companion_anchor`, `set_hidden_regions`, `set_live_map_rotation`, `set_furnished_art_placement`, `set_furnished_render_mode`, `set_room_viewport` — accept an **optional `map_id`**. Omitted, it resolves to the vacuum's active map, then to the first stored map; if neither exists the call refuses with `{"saved": false, "reason": "no_map"}` rather than inventing one. A `map_id` you *do* pass must name a map that exists — an unknown ID refuses with `{"saved": false, "reason": "map_not_found", "known_maps": [...]}` instead of silently creating an empty bucket for it. `set_map_overlay_visibility` resolves an omitted `map_id` the same way but reports its refusal as `{"saved": false, "error": "no_map"}`, and does not refuse an unknown ID.
+- **Vacuum-scoped services** — `acknowledge_map_frame`, `get_map_render_data`, `get_map_live_pose`, `compare_map_sources` — take no `map_id` at all.
+
+All of these services support response.
 
 > **Calling these by hand:** `upload_map_image`, `delete_map_image`, `analyze_map_image`, and `get_map_segments` are registered in Python only (no `services.yaml` entry), so Developer Tools → Actions lists them but shows no field descriptions or autocomplete — call them in YAML mode. The parameter tables below come from the integration's schemas and are authoritative regardless.
 
@@ -479,7 +554,7 @@ Persists or clears the link between a map segment and a managed room. Replaces t
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `segment_id` | Yes | e.g. `segment_4`. |
 | `room_id` | No | Room to link. Pass `null` or omit to clear the link. |
 
@@ -492,7 +567,7 @@ Persists or clears the map position of the animated companion sprite for one roo
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `room_id` | Yes | Target room ID, or the reserved string `dock` for the docked/idle home spot. |
 | `pct_x` | No | X position (0–100%). Pass `null`/omit **both** `pct_x` and `pct_y` to clear the anchor. |
 | `pct_y` | No | Y position (0–100%). |
@@ -506,7 +581,7 @@ Replace-all the per-map hidden regions — normalized `[x0, y0, x1, y1]` rects (
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `regions` | No | List of `[x0, y0, x1, y1]` rects (0–1). Omit or send an empty list to clear all hidden regions. |
 
 Supports response. Returns `{"saved": true, "hidden_regions": [...]}` with the cleaned, stored list.
@@ -537,7 +612,7 @@ Persists a display-only rotation for the live map — surfaced as `live_map_rota
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `rotation` | Yes | One of `0`, `90`, `180`, or `270` (degrees clockwise). |
 
 Supports response.
@@ -546,7 +621,7 @@ Supports response.
 
 Force-clears the post-map-switch coordinate-frame gate for one vacuum — the backend behind the card's "Enable drawing anyway" control. After the active map switches, the map raster and room list update immediately but the robot's coordinate frame stays on the **old** map until the robot moves and re-localizes; while that gate is armed the card pauses zone drawing and map-tap room select, because any screen-to-device coordinate op would land in the wrong place. The gate clears itself once the robot's raw position moves past a movement threshold or the vacuum enters a `cleaning`/`returning` state; this service clears it immediately for a user who knows the robot is grounded (or accepts the risk). The override lasts until the **next** map switch re-arms the gate. Saved zones and the room list are never affected.
 
-> **Exception to this section's `map_id`-required rule:** vacuum-scoped — takes only `vacuum_entity_id`, no `map_id`.
+> Vacuum-scoped — takes only `vacuum_entity_id`, no `map_id`.
 
 | Parameter | Required |
 |---|---|
@@ -557,8 +632,6 @@ Supports response. Returns `{"acknowledged": true, "vacuum_entity_id": ...}`.
 #### `set_map_overlay_visibility`
 
 Persists which overlay layers are shown on the map backdrop (display only — never affects segmentation or dispatch). Only the user's **deltas** are stored as `overlay_visibility` on the map bucket — a partial dict merged over the defaults at read time, so the shipped defaults can evolve without rewriting stored prefs. Visibility keys are validated against the known overlay layers, so a typo is rejected rather than silently stored. Pass `reset: true` to clear all deltas and fall back to the defaults.
-
-> **Exception to this section's `map_id`-required rule:** `set_map_overlay_visibility` accepts an **optional** `map_id`. When omitted it auto-resolves to the active map, then to the first stored map (returning `{"saved": false, "error": "no_map"}` when there is none) — like the dashboard-snapshot service.
 
 | Parameter | Required | Notes |
 |---|---|---|
@@ -573,7 +646,7 @@ Supports response. Returns `{"saved": true, "map_id", "overlay_visibility": {...
 
 These three read services back the card's own map render and its live moving overlays. They are served by the `MapSourceCoordinator` (`mapping/map_source_coordinator.py`, reached via the manager's `async_get_map_render_data` / `async_get_map_live_pose` / `async_compare_map_sources` delegators).
 
-Unlike the rest of this section, these three are **vacuum-scoped — they take only `vacuum_entity_id`, no `map_id`** (the coordinator resolves the live source itself). The "every service in this section requires `map_id`" rule above does not apply to them. All support response.
+These three are **vacuum-scoped — they take only `vacuum_entity_id`, no `map_id`** (the coordinator resolves the live source itself). All support response.
 
 #### `get_map_render_data`
 
@@ -601,7 +674,7 @@ Diagnostic verify probe: compares eufy-clean's in-memory `_map_data` against the
 
 ### Furnished Render
 
-These three write services back the **Furnished render** panel — a user-uploaded, to-scale home render aligned over the live map so the live robot/dock/path/room overlays ride on top (see the [Furnished render user guide](../user-guide/18-furnished-render.md)). They all operate on the map's **active custom layout** (returning `{"saved": false, "reason": "no_active_layout"}` when none is active) and, like the rest of this section, **require `map_id` explicitly**. The placement transform and viewport are resolution-independent percentage floats stored per-layout; each returns the resolved `furnished_render` so the card refreshes. All support response.
+These three write services back the **Furnished render** panel — a user-uploaded, to-scale home render aligned over the live map so the live robot/dock/path/room overlays ride on top (see the [Furnished render user guide](../user-guide/18-furnished-render.md)). They all operate on the map's **active custom layout** (returning `{"saved": false, "reason": "no_active_layout"}` when none is active) and all take an **optional `map_id`**, auto-resolved to the active map when omitted. The placement transform and viewport are resolution-independent percentage floats stored per-layout; each returns the resolved `furnished_render` so the card refreshes. All support response.
 
 #### `set_furnished_art_placement`
 
@@ -610,7 +683,7 @@ Persists (or clears) the furnished-art placement transform `{tx, ty, scale, rota
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `scope` | Yes | `home` or `room`. |
 | `room_id` | When `scope=room` | Returns `{"saved": false, "reason": "missing_room_id"}` if blank for a room scope. |
 | `tx`, `ty` | No | Percentage offset of the art over the live frame. |
@@ -626,7 +699,7 @@ Sets the render mode: `live` (art hidden, live map full), `art` (art full, live 
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `mode` | Yes | `live`, `art`, or `blend`. |
 | `room_id` | No | Omit/blank = layout-level default; set = per-room override. |
 
@@ -637,7 +710,7 @@ Persists (or clears) a saved per-room viewport `{cx, cy, zoom}` (percentage floa
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | Required — not auto-resolved. |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
 | `room_id` | Yes | Returns `{"saved": false, "reason": "missing_room_id"}` if blank. |
 | `cx`, `cy`, `zoom` | No | Pass all three null (or omit) to clear the saved viewport. |
 
@@ -958,7 +1031,17 @@ Applies a named profile to one or more rooms on a map.
 
 #### `get_room_profiles`
 
-Returns all available built-in and user-defined room profiles. Takes no parameters. Supports response.
+Returns the user-saved room-profile library, plus one vacuum's built-in profiles when you name it.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | No | Whose built-in profiles to include. Omit to return the saved library alone. |
+
+Built-in profiles belong to a **brand**, not to the integration: each adapter declares its own catalog, and there is no shared default vocabulary to fall back on. So a call with no `vacuum_entity_id` cannot answer the built-in half of the question, and does not guess — it returns only the saved library and says so.
+
+Supports response. Returns `{profile_count, profiles, protected_profile_names, built_ins_included}`. `built_ins_included` is `false` exactly when `vacuum_entity_id` was omitted; treat a `false` there as "this list is incomplete", not as "this install has no built-ins".
+
+> The profile **keys** (`vacuum_quick`, `vacuum_deep`, `vacuum_mop_quick`, `vacuum_mop_deep`, plus your saved ones) are shared across brands, so a stored room and the profile picker survive a brand switch. The **settings behind each key** are the adapter's own words — a fan speed named `Max` on one brand may be `max` or absent on another. Do not hard-code another brand's values into an automation.
 
 #### `save_user_room_profile`
 
@@ -1064,6 +1147,47 @@ Returns the last N entries from the per-device recent-error ring buffer (max 50)
 | `limit` | No | Number of entries to return. Default `20`, max `50`. |
 
 Supports response. Returns `{"vacuum_entity_id", "errors": [...], "count": int}`.
+
+---
+
+## Stall Capture
+
+When a run stalls, the integration can render a picture of the room the robot stopped in — the room's own shape, the robot's position, and the pose trail either side of the stall — write it beside that vacuum's learning data, raise a persistent notification, and fire [`eufy_vacuum_stall_captured`](02-events.md#eufy_vacuum_stall_captured) carrying the file path so an automation can forward it.
+
+The feature is **off by default and armed per vacuum**. Arming changes nothing about detection: `eufy_vacuum_stall_detected` and the card's run-anomaly reporting fire either way, so turning capture off never quiets a subsystem you did not mean to touch.
+
+### `set_stall_capture`
+
+Arms or disarms stall capture for one vacuum.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | Must be a vacuum this install manages. An unmanaged entity ID raises an error rather than creating a record for it. |
+| `enabled` | Yes | `true` to arm, `false` to disarm. |
+
+Supports response (`supports_response: only` — it always returns a payload). Returns `{"vacuum_entity_id", "enabled"}`.
+
+Absent means off, so an upgrade never silently starts writing pictures of your home. Where the image lands, and why it is deliberately not web-served, is covered under [`eufy_vacuum_stall_captured`](02-events.md#eufy_vacuum_stall_captured).
+
+### `dev_inject_stall`
+
+> **MAINTAINER TOOL — UNSUPPORTED. NOT PART OF THE SERVICE SURFACE YOU SHOULD BUILD ON.**
+>
+> This service **fabricates a stall that did not happen.** It exists so a maintainer can exercise the stall-capture chain without physically wedging a robot, and it is registered unconditionally only because a service nobody can find when they need it is worse than one that carries a warning.
+>
+> **It makes the run it is called on look anomalous when it was not.** The event it fires is the canonical `eufy_vacuum_stall_detected`, which is not private to stall capture — it also reaches run-anomaly detection, so the job will be reported as having stalled and the card's snapshot will say so. Do not call it on a run whose records you care about.
+>
+> It carries **no compatibility promise**: its name, arguments, response, and existence may change or disappear without notice. Nothing in an automation you intend to keep should call it.
+>
+> What it does **not** do: it never commands hardware. It fires an event. Nothing here pauses, cancels, or dispatches anything to a robot.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | Must be **currently cleaning a room**. |
+
+Refuses with an error when the vacuum has no active map, or when it is not currently in a room — a stall with no current room has no room to render and no pose history to draw, so an injected one would exercise the empty path and look like a broken renderer. Start a run and let the robot move for roughly 30 seconds first.
+
+Supports response (`supports_response: only`). Returns the payload it fired: `{"vacuum_entity_id", "map_id", "room_id", "room_name", "elapsed_minutes": null, "expected_minutes": null, "stall_ratio": null, "injected": true}`. The three timing fields are `null` because there is no real timing behind a fabricated stall, and `injected: true` is how a downstream consumer can tell one apart from a real detection.
 
 ---
 
@@ -1822,6 +1946,7 @@ Imports a theme from an exported payload. Handles name collisions by appending `
 | Parameter | Required | Notes |
 |---|---|---|
 | `payload` | Yes | The full dict returned by `export_theme`. |
+| `vacuum_entity_id` | No | Target vacuum for a **scoped** import: instead of adding a library theme, replace only the floor-type namespaces named in the payload's `scope` on that vacuum's active theme. Omit for a full import. |
 
 ---
 
@@ -1838,6 +1963,7 @@ These events are fired by the integration. Use them as automation triggers.
 | `eufy_vacuum_room_completed` | The tracker confirmed a room exit, resolved from the device's native current-room signal and debounced by a confidence/dwell threshold. Informational per-room dwell only — distinct from the timing-rollover `eufy_vacuum_room_finished`. |
 | `eufy_vacuum_room_skipped` | The live job queue advanced past a queued room that was never cleaned (a non-sequential advance). Conservative and live/mid-run — fires at most once per room per job; almost never seen on Eufy. See [Events Reference](02-events.md) §eufy_vacuum_room_skipped. |
 | `eufy_vacuum_path_blocked` | Blocker rules changed mid-run and remaining rooms became inaccessible. |
-| `eufy_vacuum_stall_detected` | The robot has been in a room for the stall ratio (default 2×) of its learned timing threshold. Payload includes `elapsed_minutes`, `expected_minutes`, and `stall_ratio`. Fires at most once per room per job. |
+| `eufy_vacuum_stall_detected` | The robot has been in a room for the stall ratio (default 2×) of its learned timing threshold. Payload includes `elapsed_minutes`, `expected_minutes`, and `stall_ratio`. Fires at most once per room per job. A synthetic one from `dev_inject_stall` carries `injected: true` and null timings. |
+| `eufy_vacuum_stall_captured` | A stall picture was rendered and written — fires only when capture is armed for that vacuum via [`set_stall_capture`](#set_stall_capture). Payload includes `image_path` and the notification `message`. See [Events Reference](02-events.md) §eufy_vacuum_stall_captured. |
 | `eufy_vacuum_job_progress_tick` | Fixed 5-second heartbeat while a run is in flight (active-job status `started`, `paused`, or `external`). Carries no job state — use it as a trigger to pull `get_job_progress_snapshot` or `get_dashboard_snapshot`. See [Events Reference](02-events.md) §eufy_vacuum_job_progress_tick. |
 | `eufy_vacuum_external_run_pending` | An app-started (external) clean finished and was captured as a pending review record. Payload includes `record_path`, `segment_count`, and `detection_ts`. Use with `get_external_pending_runs`. See [Events Reference](02-events.md) §eufy_vacuum_external_run_pending. |

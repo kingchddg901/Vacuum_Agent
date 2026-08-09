@@ -8,7 +8,7 @@ names, and payload fields used in the integration — nothing here is invented.
 
 ## The automation surface (what you can call)
 
-The integration exposes ~125 services, but most are dashboard-card getters and one-time
+The integration registers ~145 services, but most are dashboard-card getters and one-time
 setup CRUD. For **automations** you touch a small, high-level surface — you say *what* and
 *when*, and the integration owns *how* (payload assembly, room ordering, availability
 gating, mixed-mode water safety). There are deliberately **no per-setting entities to poke**;
@@ -35,6 +35,7 @@ a profile.
 | **Control in-flight** | `pause_active_job`, `resume_active_job`, `cancel_active_job` |
 | **Dock / upkeep** | `wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`, `reset_maintenance`, `battery_rebaseline` |
 | **Learning** | `set_learning_processing`, `process_pending_runs` |
+| **Monitoring** | `set_stall_capture` (arm the stall photo for a vacuum) |
 | **Read state** (each returns a `response_variable`) | `get_start_status`, `get_active_job`, `get_job_progress_snapshot`, `get_lifecycle_state`, `get_vacuum_capabilities`, `get_saved_run_profiles` |
 
 **The normal sequence** is always the same shape:
@@ -734,3 +735,130 @@ native between-phase waits (Recipe 7).
   reports `battery_level` (most do) in Developer Tools, or the wait will sit until timeout.
 - Keep the `timeout` sane so a stuck automation eventually releases instead of hanging for
   a day.
+
+---
+
+## 10. Send the Stall Photo to Your Phone
+
+**What it does:** Recipe 2 tells you *that* the vacuum stalled and in which room. This one
+sends you the **picture** — the room's shape with the robot's position and the path it took
+either side of the stall — so you can see whether it is wedged under the couch or just
+slow, without opening Home Assistant.
+
+**Turn it on first.** Stall capture is off by default and armed per vacuum. Call
+[`eufy_vacuum.set_stall_capture`](03-services.md#set_stall_capture) once (Developer Tools →
+Actions, or the switch in the card's Rooms panel):
+
+```yaml
+action: eufy_vacuum.set_stall_capture
+data:
+  vacuum_entity_id: vacuum.alfred
+  enabled: true
+```
+
+Once armed, each detected stall renders a PNG, raises a persistent notification, and fires
+`eufy_vacuum_stall_captured` carrying the file path.
+
+**The image is a file, not a URL.** It is written to
+`config/eufy_vacuum/learning/<vacuum>/stall/<map_id>.png` and deliberately **not** under
+`www/`, because that directory is served at `/local/` with no authentication — putting it
+there would publish a cropped floor plan of your home at a fetchable URL on every stall. So
+use a notifier that takes a filesystem path. Telegram does:
+
+```yaml
+automation:
+  alias: "Vacuum — send the stall photo"
+  description: >
+    When a stall capture lands, send the rendered room picture to Telegram
+    using the path from the event payload.
+  trigger:
+    - platform: event
+      event_type: eufy_vacuum_stall_captured
+      event_data:
+        vacuum_entity_id: vacuum.alfred
+  condition: []
+  action:
+    - service: notify.telegram
+      data:
+        message: "{{ trigger.event.data.message }}"
+        data:
+          photo:
+            - file: "{{ trigger.event.data.image_path }}"
+              caption: >
+                {{ trigger.event.data.room_name }} —
+                map {{ trigger.event.data.map_id }}
+```
+
+Telegram will only read files from directories you have allowed, so add the capture
+directory to `configuration.yaml` once:
+
+```yaml
+homeassistant:
+  allowlist_external_dirs:
+    - /config/eufy_vacuum/learning
+```
+
+**If you use the Home Assistant companion app instead,** its `image` attachment takes a
+URL, not a path — so the file has to be reachable over HTTP, which means copying it into
+`www/`. That re-introduces exactly the exposure the feature avoids: anything under `www/`
+is served at `/local/` **without authentication**, so a copy of your floor plan becomes
+fetchable by anyone who can reach your Home Assistant URL and guess the filename. If you
+accept that trade for one vacuum, do it explicitly with a `shell_command`:
+
+```yaml
+# configuration.yaml
+shell_command:
+  copy_stall_capture: "cp '{{ source }}' /config/www/stall-latest.png"
+```
+
+```yaml
+  action:
+    - service: shell_command.copy_stall_capture
+      data:
+        source: "{{ trigger.event.data.image_path }}"
+    - service: notify.mobile_app_your_phone
+      data:
+        title: "Alfred may be stuck"
+        message: "{{ trigger.event.data.message }}"
+        data:
+          image: "/local/stall-latest.png?v={{ now().timestamp() | int }}"
+```
+
+The `?v=` query string is not decoration — the file is overwritten in place, so without a
+changing URL the phone shows the previous capture from its cache.
+
+**Event payload fields used:**
+
+| Field | Type | Description |
+|---|---|---|
+| `vacuum_entity_id` | string | Entity ID of the vacuum |
+| `map_id` | string | Map the job was running on |
+| `room_id` | int | Room the robot stalled in |
+| `room_name` | string | Display name of that room |
+| `image_path` | string | Absolute path to the PNG just written |
+| `message` | string | The same one-line text as the persistent notification |
+
+**Customization points:**
+
+- Drop the `event_data` filter to cover every vacuum, and put
+  `{{ trigger.event.data.vacuum_entity_id }}` in the message.
+- Pair this with Recipe 2: trigger the *text* alert on `eufy_vacuum_stall_detected` for
+  speed, and the *picture* on `eufy_vacuum_stall_captured` when it lands.
+- Add a `eufy_vacuum.pause_active_job` action if you would rather the robot stop and wait
+  while you look at the photo.
+
+**Caveats:**
+
+- **Nothing fires if capture is not armed.** With the switch off you still get
+  `eufy_vacuum_stall_detected` and the card's anomaly reporting, but no picture and no
+  `eufy_vacuum_stall_captured`. "Notification but no photo" means the capture, not the
+  detection.
+- **No picture is a valid outcome.** If the optional imaging library is missing, or the map
+  render data is unusable, the capture is skipped silently rather than raising an error —
+  so treat this automation as best-effort, not as a guaranteed companion to every stall.
+- **One file per vacuum per map, overwritten each time.** The path is stable enough to
+  hard-code, but there is no history — send or copy the image when the event arrives rather
+  than reading it later.
+- A stall fabricated by the maintainer-only `dev_inject_stall` service produces a capture
+  that looks exactly like a real one. That service is unsupported and should not be running
+  on a real install.

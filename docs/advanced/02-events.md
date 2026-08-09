@@ -332,6 +332,10 @@ The tracker records which rooms have already triggered this event per job via `_
 
 This event does **not** require learned timing data — an unlearned room still gets a timeline entry via the ~6-minute default estimate (`source: "default"`), and the threshold calculation runs the same either way. The stall check is skipped only when the current room (or, for a grouped phase, every member of the group) has no timeline entry at all — i.e. it isn't part of the active job's resolved rooms.
 
+The maintainer-only [`eufy_vacuum.dev_inject_stall`](03-services.md#dev_inject_stall) service fires this same event synthetically, marked with `injected: true`. It is not part of the supported surface and should never be called on a run whose records matter — see the service's own warning.
+
+[Stall capture](#eufy_vacuum_stall_captured) subscribes to this event and, when armed, renders a picture of the stalled room and fires `eufy_vacuum_stall_captured` with the file path.
+
 ### Payload fields
 
 | Field | Type | Description |
@@ -343,6 +347,7 @@ This event does **not** require learned timing data — an unlearned room still 
 | `elapsed_minutes` | `float` | How long the robot has been in the room, rounded to 1 decimal place |
 | `expected_minutes` | `float` | The learned timing threshold for the room, rounded to 1 decimal place. On a grouped phase this is the **sum** of the group members' thresholds, not one room's — see above. |
 | `stall_ratio` | `float` | `elapsed_minutes / expected_minutes`, rounded to 2 decimal places — always >= the configured stall ratio (default 2.0) when this event fires |
+| `injected` | `bool` | Present **only** on a synthetic stall fired by the maintainer-only `eufy_vacuum.dev_inject_stall` service, where it is `true`. A real detection omits the key entirely, and an injected one carries `null` for `elapsed_minutes`, `expected_minutes`, and `stall_ratio` — there is no real timing behind it. Guard on `trigger.event.data.injected is not defined` if an automation must ignore synthetic stalls. |
 
 ### Example trigger
 
@@ -374,6 +379,53 @@ action:
 ```
 
 > **Soft tier — `running_long`.** Below the 2× stall there is a softer "this room is taking a while" band that does **not** fire its own event. The `get_job_progress_snapshot` response (and each `eufy_vacuum_job_progress_tick`) carries `running_long` (bool), `running_long_room_id` (int \| null), and `running_long_ratio` (float \| null). It is set when the current room has run between `running_long_ratio` (default **1.5×**, from the adapter's `anomaly` block) and `stall_ratio` (default **2.0×**) of its learned threshold **with no pending counter transition** — i.e. genuinely lingering rather than mid-roll. It is disjoint from the stall event by band, so a room is at most one of `running_long` or stalled at a time. Poll the snapshot to surface it; there is no event-bus trigger for the soft tier.
+
+---
+
+## eufy_vacuum_stall_captured
+
+### When it fires
+
+Fires after a **stall capture** has been rendered and written to disk. Stall capture is an opt-in consumer of [`eufy_vacuum_stall_detected`](#eufy_vacuum_stall_detected): when a stall is detected the integration renders the room the robot stopped in — the room's own shape, the robot's position, and the ±30 s pose trail around the stall instant — writes it as a PNG, raises a persistent notification, and then fires this event carrying the file path.
+
+It fires only when **all** of the following hold:
+
+1. Capture is **armed** for that vacuum via [`eufy_vacuum.set_stall_capture`](03-services.md#set_stall_capture). Absent means off — a feature that writes pictures of your home is never inherited by an upgrade.
+2. The vacuum has usable map render data (the room-id raster and its decode parameters).
+3. The stalled room has cells to draw and Pillow is installed. When either is missing there is no picture and no event — the absence is silent by design, not an error.
+
+The detector itself is unaffected by the switch: `eufy_vacuum_stall_detected` and the card's run-anomaly reporting fire either way. Arming only adds this consumer. That also means "notification but no photo" points at the capture, not the detection.
+
+### Where the image lands
+
+`<config>/eufy_vacuum/learning/<vacuum>/stall/<map_id>.png` — beside the rest of that vacuum's learning data, using the vacuum's object ID (`vacuum.alfred` → `alfred`) and a sanitised map ID.
+
+It is deliberately **not** written under `www/`. That directory is served at `/local/` without authentication, so putting it there would publish a cropped floor plan of your home at a fetchable URL on every stall. The consequence for automations: there is no `/local/` URL for the image — use a notifier that accepts a filesystem path (see the [stall-photo recipe](04-automation-examples.md#10-send-the-stall-photo-to-your-phone)).
+
+There is **one file per (vacuum, map)**, overwritten on each capture — no accumulation and nothing to prune, and the path is stable enough to hard-code. The write is atomic (temp file plus rename), so an automation that reads the moment the event arrives never sees half a PNG.
+
+### Payload fields
+
+| Field | Type | Description |
+|---|---|---|
+| `vacuum_entity_id` | `str` | Entity ID of the vacuum |
+| `map_id` | `str` | Map ID the job is running on, as a string |
+| `room_id` | `int` | ID of the stalled room, forwarded unchanged from `eufy_vacuum_stall_detected` |
+| `room_name` | `str` | Human-readable name of the stalled room |
+| `image_path` | `str` | Absolute path to the PNG just written. Provided so an automation never has to reconstruct the storage layout by hand. |
+| `message` | `str` | The same one-line text as the persistent notification, e.g. `Alfred likely stalled in Kitchen on map 6`. "Likely" is deliberate — the detector is an elapsed-versus-estimate ratio, not proof the robot is stuck. |
+
+### Example trigger
+
+```yaml
+trigger:
+  - platform: event
+    event_type: eufy_vacuum_stall_captured
+    event_data:
+      vacuum_entity_id: "vacuum.alfred"
+```
+
+**Practical use:** forward the picture to your phone so you can see *where* the robot stopped without opening Home Assistant. See [Automation Examples §10](04-automation-examples.md#10-send-the-stall-photo-to-your-phone) for a working automation.
 
 ---
 

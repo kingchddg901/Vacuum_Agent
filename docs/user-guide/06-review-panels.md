@@ -155,6 +155,8 @@ The top section lists whatever the record carries of:
 
 If the robot recharged mid-run, a **recharge line** appears below the grid — "Recharged once mid-run · 25 min" (or just "Recharged N× mid-run" when the charge duration is unknown). This matters because the battery figure is start-minus-end and cannot see the pack going back up: a run that drew 55% across a recharge would otherwise read as a small number.
 
+The recharge is worked out from the run's record when you open the summary, rather than read back from a verdict frozen at the time. Runs already in your history therefore report it too.
+
 ### Per room
 
 Each room the run touched (or was queued to touch) gets a row showing:
@@ -172,6 +174,8 @@ When the run hit no faults, this section is absent entirely. Otherwise an **"Err
 - **The fault's name**, translated into your card language when the integration knows the code (e.g. "Bumper stuck"). A code the card has no label for is shown as `Error <code>` — honest and searchable, rather than a guess.
 - **Which hardware raised it** — Dock, Robot, or "Source unknown" when the brand's tables don't classify it.
 - **Recovered** or **Not recovered** — whether the fault cleared during the run. The card deliberately never says a fault *stopped* the run; the record cannot establish that.
+
+The integration stores the fault's code and the card supplies the name, in whichever [language](19-language.md) you have the card set to. Because the name is resolved when you open the run rather than written into the record, runs already in your history are named too — for both brands.
 
 ---
 

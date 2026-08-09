@@ -160,6 +160,12 @@ Two things worth knowing:
 
     The card does **not** show a predicted duration for a charge step before the run. How long a charge takes depends entirely on how low the battery is when the vacuum docks, which varies every run — so rather than show a number it hasn't earned, the card just notes that "Charge time varies with the battery level when it docks," and shows a live countdown once the charge is actually under way.
 
+### How a stepped run is measured
+
+Each step is timed on its own — from where the previous step ended to where this one finished — rather than the whole run's time being divided up between the rooms it touched. That matters precisely because a stepped run is *meant* to visit the same room twice: a kitchen vacuumed in the first group and mopped in the third is two measurements of two different jobs, and a single run total shared between them would blur both. Cleaned area and battery use are scoped to the step the same way.
+
+Within a group that cleans several rooms in one dispatch, each room is measured separately whenever the integration can tell the rooms apart in the robot's own progress counters — which needs a brand that cleans your rooms in the order you set, and counters that reconcile against the group's measured total. When it can't, the group's time is split evenly between its rooms; that split is arithmetic rather than an observation, so it is **not** fed to the learning system. Your estimates only ever grow from real measurements, which is why a room cleaned exclusively in groups can stay on a default estimate for a while.
+
 ### Adding a break straight to the queue
 
 The quickest way to make a run stepped needs no editor at all. With at least two rooms in the queue (and no run active), the Rooms view shows **+ Charge break** and **+ Wait break** chips — click one to drop a stop into the queue between rooms. The break appears in the queue as a chip of its own (type the target percent or minutes directly into it), each break chip has a remove control and a move handle, and a **Clear breaks** chip removes them all and returns you to a flat clean. Breaks added this way are captured into a profile when you **Save This Setup**.

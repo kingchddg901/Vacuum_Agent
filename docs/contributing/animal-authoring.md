@@ -90,7 +90,8 @@ so follow it):
   (the tool won't add it — see [Make the legs animate](#make-the-legs-animate)).
 - **Use `hsl(var(--animal-X))`** for any colour you want themeable.
 
-Then split + sanitise it into a descriptor (real-browser parse; needs `npm ci`):
+Then split + sanitise it into a descriptor (real-browser parse; needs `npm ci`
+**and** `npx playwright install chromium` — the parse runs in real Chromium):
 
 ```sh
 node scripts/svg-to-descriptor.mjs your-animal.svg --id fox2 --name "Fox 2" --license CC0-1.0 -o fox2.json
@@ -159,8 +160,8 @@ So one slot ends up looking like:
 #### Check it before you submit
 
 Compile your descriptor locally — it validates, sanitises, and generates the
-module — then render every pose to eyeball it (both use a headless browser, so
-run `npm ci` first):
+module — then render every pose to eyeball it (both drive real Chromium, so run
+`npm ci` and `npx playwright install chromium` first):
 
 ```sh
 node scripts/build-animal.mjs path/to/your-animal.json   # validate + sanitise + codegen

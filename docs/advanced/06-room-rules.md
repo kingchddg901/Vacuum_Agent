@@ -40,16 +40,25 @@ You must configure at least one setting override for a modifier to be valid. The
 
 | Setting | Options |
 |---|---|
-| Clean Mode | Vacuum, Mop, Vacuum & Mop |
-| Fan Speed | Quiet, Standard, Turbo, Max |
-| Water Level | Off, Low, Medium, High |
-| Clean Intensity | Quick, Narrow, Deep |
+| Clean Mode | declared by the adapter — on Eufy: Vacuum, Mop, Vacuum & Mop |
+| Fan Speed | declared by the adapter — on Eufy: Quiet, Standard, Turbo, Max |
+| Water Level | declared by the adapter — on Eufy: Off, Low, Medium, High |
+| Clean Intensity | declared by the adapter — on Eufy: Quick, Narrow, Deep |
 | Clean Passes | 1 or 2 |
 | Edge Mopping | On or Off |
 
+The first four lists come from your vacuum's adapter, not from the integration — there is no shared default vocabulary, so another brand's chips read differently (Roborock's suction levels are lower-case names off its own entities, for instance). The Eufy values are shown above as an illustration; the editor always offers whatever your own adapter declares.
+
 For each setting, the `-` option means "keep the room's saved setting." You only need to set the ones you want to override.
 
-Which override fields appear depends on the vacuum's adapter capabilities. On brands without per-room water, passes, or edge control — for example the Roborock S6, where water level is app-controlled, clean passes are global (one batch value for the whole run), and edge mopping is not exposed — those controls are hidden, and you can only override the settings the device exposes per-room (on the S6, fan speed).
+Not every control appears on every vacuum, and the two halves of the table behave differently:
+
+- **Clean Mode, Fan Speed, Water Level, and Clean Intensity are shown only when your adapter declares options for them.** A brand that does not have the concept renders no row at all, rather than an empty picker. Roborock has no clean-intensity axis, so that row never appears there; on an S6, where the mop is observe-only (whether it mops is whether the water tank is attached, not something the integration can set), Clean Mode and Water Level are absent too — Fan Speed is the only one of the four you can override.
+- **Clean Passes and Edge Mopping are always offered in the rule editor**, on every brand.
+
+That second point has a consequence worth knowing: an override the device cannot honour is accepted by the editor and then **dropped when the payload is built**, not when you save the rule. On a device that declares no edge-mopping support, an Edge Mopping override resolves to off; on a device without per-room passes, Clean Passes resolves to 1. The same gate applies to combinations that make no sense regardless of hardware — a room whose effective clean mode is vacuum-only always dispatches with water off and edge mopping off, whatever a modifier asked for.
+
+So a rule that sets Edge Mopping on a vacuum that cannot edge-mop is not an error, it is simply inert. If you want to confirm what a room will actually be sent, read the resolved payload with `build_room_payload` and `get_payload_state` rather than reading the rule back.
 
 Use a modifier when the room should still be cleaned but with different behavior. Examples:
 

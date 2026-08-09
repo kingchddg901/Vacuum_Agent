@@ -591,6 +591,12 @@ contract suite runs against it automatically — schema conformance, dispatch
 shape, entity-ID format, registry validation. Brand-specific deep tests (your
 CV segmentor, your model catalog) live under `tests/adapters/<brand>/`.
 
+Run it with `scripts\test.bat tests/adapters` on Windows — the suite needs Linux,
+because `pytest-homeassistant-custom-component` imports `fcntl` — or
+`python -m pytest tests/adapters` on Linux/macOS. Name the directory explicitly
+either way: it sits outside the default `testpaths` in `pytest.ini`. See
+[Building and testing a change](building-and-testing.md#the-python-suite-needs-linux).
+
 ---
 
 ## 13. Port checklist
@@ -622,8 +628,8 @@ Each step is independently testable.
    default profile vocabulary.
 6. **Build the config dict** in `adapters/<brand>/adapter.py` and register it
    from `async_setup_entry`.
-7. **Add the brand to `ADAPTER_BUILDERS`** and run `pytest tests/adapters` — the
-   conformance suite must pass.
+7. **Add the brand to `ADAPTER_BUILDERS`** and run the conformance suite (§12) —
+   it must pass.
 8. **Run a real job with learning disabled**: confirm the dispatch reaches the
    vacuum, the job is observed active, it auto-finalizes, and the active-job
    record clears. Then enable learning and confirm per-room timing accumulates

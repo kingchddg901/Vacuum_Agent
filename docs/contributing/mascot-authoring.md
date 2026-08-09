@@ -200,6 +200,9 @@ node scripts/build-animal.mjs \
   custom_components/eufy_vacuum/frontend/animal-svg/src/<id>.json --first-party
 ```
 
+(The sanitiser runs in real Chromium, so this needs `npm ci` and
+`npx playwright install chromium` first.)
+
 That rebuilds only the `animals/<id>.js` module — a first-party rebuild leaves
 `gallery/animals/` alone (that's the home of community submissions like the Fox).
 
