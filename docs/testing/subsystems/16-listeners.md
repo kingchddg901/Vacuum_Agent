@@ -24,6 +24,7 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 | `lifecycle.py` | 144 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration | **bare x28** |
 | `path_blockers.py` | 142 | 95% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration | spec'd |
 | `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration | **bare x28** |
+| `stall_capture.py` | new | — | `tests/unit/test_stall_capture_listener.py` | unit (pure helpers) | clean |
 | `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
 | `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration | clean |
 | `pause_timeout.py` | 74 | 92% | `test_listeners_timers.py` | integration | clean |
@@ -56,6 +57,39 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
   adapter's `room_attribution` block, and the external-only + live-pose-only gating.
 
 ---
+
+### Stall capture (`SL`) — the opt-in consumer
+
+`stall_capture.py` subscribes to `EVENT_STALL_DETECTED` and, **when armed for that
+vacuum**, renders the room the robot stopped in, writes it beside that vacuum's learning
+data, raises a persistent notification and fires `EVENT_STALL_CAPTURED` with the path
+(issue #47).
+
+It is a CONSUMER, not part of the detector, and that is load-bearing rather than stylistic.
+`EVENT_STALL_DETECTED` already feeds `detect_run_anomalies`, which sets the `stall` /
+`running_long` / `skipped` fields the card's snapshot reads — so gating the detector on
+this feature's switch would silently disable anomaly reporting for anyone who turned off
+stall photos. It also keeps two failure modes apart for the maintainer dev card: with the
+switch off an injected stall still fires and still reports anomalies, so "no picture"
+means the consumer rather than the injector.
+
+The targets cover the decisions AROUND the render (the renderer itself is `SC` in
+[07-mapping](07-mapping.md)):
+
+| id | what it holds |
+|---|---|
+| `SL-1` | **absent arming is OFF** — an upgrade never starts writing images of someone's home; a broken store disarms rather than raising |
+| `SL-2` | the path is per (vacuum, map) and STABLE — no timestamp, so nothing accumulates and an automation can hardcode it |
+| `SL-3` | a Roborock map id is a NAME ("Main floor"), so it is sanitised — and a hostile id cannot traverse |
+| `SL-4` | the map label prefers the brand's DECLARED entity and falls back to the id |
+| `SL-5` | `unknown` / `unavailable` is not a label — the id beats "stalled … on unknown" |
+| `SL-6`/`SL-7` | render geometry is passed through verbatim, never re-derived; unusable data yields `None` rather than a partial payload |
+
+`SL-4` records a real brand asymmetry rather than papering over it. Roborock declares
+`select.<id>_selected_map`, whose state IS the map name. Eufy declares only
+`sensor.<id>_active_map`, whose state is the numeric id; its friendly name lives on the
+fork's `switch_map` select, which the Eufy adapter does not declare. Guessing that entity
+id to get a nicer string would be exactly the brand-ism this project keeps removing.
 
 ## How it's tested
 

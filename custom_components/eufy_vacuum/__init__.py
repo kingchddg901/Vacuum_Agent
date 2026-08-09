@@ -81,6 +81,7 @@ from .listeners import (
     path_blockers,
     pause_timeout,
     pose_sampler,
+    stall_capture,
 )
 from .mapping.mapping_services import (
     async_register_mapping_services,
@@ -574,6 +575,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _unwind_stack.append(lambda: path_blockers.remove(hass))
         pause_timeout.register(hass)
         _unwind_stack.append(lambda: pause_timeout.remove(hass))
+
+        # Stall capture (issue #47) — an OPT-IN consumer of EVENT_STALL_DETECTED, armed
+        # per vacuum. Registered unconditionally: the switch is checked per event, so a
+        # user toggling it never needs a reload, and the detector itself is untouched.
+        stall_capture.register(hass)
+        _unwind_stack.append(lambda: stall_capture.remove(hass))
         job_progress.register(hass)
         _unwind_stack.append(lambda: job_progress.remove(hass))
         pose_sampler.register(hass)
@@ -706,6 +713,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         dock_events.remove(hass)
         path_blockers.remove(hass)
         pause_timeout.remove(hass)
+        stall_capture.remove(hass)
         job_progress.remove(hass)
         pose_sampler.remove(hass)
         discovery.remove(hass)
