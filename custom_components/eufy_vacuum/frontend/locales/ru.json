@@ -56,10 +56,7 @@
     "activity_title": "Недавняя активность дока",
     "dock_actions_subtitle": "Действия дока, зависящие от бэкенда",
     "dock_actions_title": "Действия дока",
-    "minutes_short": "{minutes} мин",
     "no_activity_yet": "Активности пока нет",
-    "pause_timeout_subtitle": "Таймаут паузы по умолчанию при приостановке очистки",
-    "pause_timeout_title": "Таймаут паузы",
     "recorded_count": {
       "one": "{count} записано",
       "few": "{count} записано",
@@ -85,14 +82,11 @@
     "water_title": "Вода"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Автоотмена отключена",
-    "could_not_save_pause_timeout": "Не удалось сохранить таймаут паузы",
     "dock_action_failed": "Действие дока не выполнено ({action})",
     "dock_action_sent": "Действие дока отправлено",
     "dust_empty_sent": "Команда опустошения пыли отправлена",
     "mop_dry_sent": "Команда сушки швабры отправлена",
     "mop_wash_sent": "Команда промывки швабры отправлена",
-    "pause_timeout_set": "Таймаут паузы установлен на {minutes} мин",
     "stop_drying_sent": "Команда остановки сушки отправлена"
   },
   "bind_external_jobs": {
@@ -3087,5 +3081,15 @@
       "many": "Ошибки — {count}",
       "other": "Ошибки — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Таймаут паузы",
+    "subtitle": "Таймаут паузы по умолчанию при приостановке очистки",
+    "minutes_short": "{minutes} мин"
+  },
+  "bind_pause_timeout": {
+    "set": "Таймаут паузы установлен на {minutes} мин",
+    "could_not_save": "Не удалось сохранить таймаут паузы",
+    "auto_cancel_disabled": "Автоотмена отключена"
   }
 }

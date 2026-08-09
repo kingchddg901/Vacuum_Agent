@@ -153,10 +153,10 @@ export const en = {
   "base_station.activity_title": "Recent Dock Activity",
   "base_station.dock_actions_subtitle": "Backend-gated dock controls",  // subtitle: dock controls shown/hidden per backend capability ('Backend-gated' = gated by support)
   "base_station.dock_actions_title": "Dock Actions",
-  "base_station.minutes_short": "{minutes} min",
+  "pause_timeout.minutes_short": "{minutes} min",
   "base_station.no_activity_yet": "No activity yet",
-  "base_station.pause_timeout_subtitle": "Default pause timeout used when a run is paused",
-  "base_station.pause_timeout_title": "Pause Timeout",
+  "pause_timeout.subtitle": "Default pause timeout used when a run is paused",
+  "pause_timeout.title": "Pause Timeout",
   "base_station.recorded_count": { other: "{count} recorded" },  // plural; activity-card detail: count of recorded events of this kind, e.g. '5 recorded'
   "base_station.stat_after_job": "After Job",  // stat label: projected tank level remaining after the queued job
   "base_station.stat_dock_status": "Dock Status",
@@ -175,14 +175,14 @@ export const en = {
   "base_station.updated_prefix": "Updated {timestamp}",
   "base_station.water_subtitle": "Current dock water plus projected post-job tank level",
   "base_station.water_title": "Water",  // Water panel section heading (dock water tank levels), not a per-room water setting
-  "bind_base_station.auto_cancel_disabled": "Auto-cancel disabled",
-  "bind_base_station.could_not_save_pause_timeout": "Could not save pause timeout",
+  "bind_pause_timeout.auto_cancel_disabled": "Auto-cancel disabled",
+  "bind_pause_timeout.could_not_save": "Could not save pause timeout",
   "bind_base_station.dock_action_failed": "Dock action failed ({action})",
   "bind_base_station.dock_action_sent": "Dock action sent",
   "bind_base_station.dust_empty_sent": "Dust empty sent",
   "bind_base_station.mop_dry_sent": "Mop dry sent",
   "bind_base_station.mop_wash_sent": "Mop wash sent",
-  "bind_base_station.pause_timeout_set": "Pause timeout set to {minutes} min",
+  "bind_pause_timeout.set": "Pause timeout set to {minutes} min",
   "bind_base_station.stop_drying_sent": "Stop drying sent",
   "bind_external_jobs.confirm_failed_detail": "Confirm failed: {detail}",
   "bind_external_jobs.confirm_failed_retry": "Confirm failed — please try again.",

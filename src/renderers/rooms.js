@@ -213,6 +213,13 @@ export function applyRoomsRenderers(proto) {
             ${typeof this.renderSavedZonesPanel === "function"
               ? this.renderSavedZonesPanel(state)
               : ""}
+            ${/* Ungated on purpose. This used to live in the Base Station tab, which is
+                  hidden when supports_base_station is false — so a vacuum without a
+                  settable dock had no reachable UI for a job-lifecycle setting, and
+                  silently kept whatever default it was handed. */""}
+            ${typeof this.renderPauseTimeoutPanel === "function"
+              ? this.renderPauseTimeoutPanel(state)
+              : ""}
             ${(state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false)
                && (state.zoneDrawPurpose?.() !== "save"))
               ? this._renderZonePanel(

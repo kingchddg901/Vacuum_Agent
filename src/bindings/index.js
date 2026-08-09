@@ -53,6 +53,7 @@
 import { applyNavBindings        } from "./nav.js";
 import { applyLanguageBindings   } from "./language.js";
 import { applyBaseStationBindings } from "./base-station.js";
+import { applyPauseTimeoutBindings } from "./pause-timeout.js";
 import { applyMaintenanceBindings } from "./maintenance.js";
 import { applyMetricsBindings    } from "./metrics.js";
 import { applyOrderBindings      } from "./order.js";
@@ -136,6 +137,7 @@ export class VacuumCardBindings {
     this._bindNav();
     this._bindLanguage();
     this._bindBaseStation();
+    this._bindPauseTimeout();
     this._bindMaintenance();
     this._bindMetrics();
     this._bindOrder();
@@ -422,6 +424,7 @@ export class VacuumCardBindings {
 applyNavBindings(VacuumCardBindings.prototype);
 applyLanguageBindings(VacuumCardBindings.prototype);
 applyBaseStationBindings(VacuumCardBindings.prototype);
+applyPauseTimeoutBindings(VacuumCardBindings.prototype);
 applyMaintenanceBindings(VacuumCardBindings.prototype);
 applyMetricsBindings(VacuumCardBindings.prototype);
 applyOrderBindings(VacuumCardBindings.prototype);

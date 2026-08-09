@@ -17,36 +17,13 @@
 export function applyBaseStationBindings(proto) {
 
   /**
-   * Attach all Base Station view event handlers — pause timeout selector and dock action buttons.
+   * Attach all Base Station view event handlers — the dock action buttons.
+   *
+   * The pause-timeout selector used to live here and now has its own module
+   * (bindings/pause-timeout.js), because its control moved out of this
+   * capability-gated tab and into the rooms sidebar.
    */
   proto._bindBaseStation = function () {
-    this.card._onAll("[data-pause-timeout-minutes]", "click", async (e) => {
-      const rawMinutes = e.currentTarget?.dataset?.pauseTimeoutMinutes;
-      const minutes = Number(rawMinutes);
-      if (!Number.isFinite(minutes) || !this.card._actions) return;
-
-      try {
-        const payload = await this.card._actions.setPauseTimeoutSettings?.({
-          vacuum_entity_id: this.card._state.vacuumEntityId?.(),
-          pause_timeout_minutes_default: minutes,
-        });
-
-        if (payload) {
-          this.card._state.setPauseTimeoutSettings?.(payload);
-          const label = minutes === 0
-            ? this.t("bind_base_station.auto_cancel_disabled")
-            : this.t("bind_base_station.pause_timeout_set", { minutes });
-          this.card.showToast?.(label, { kind: "success" });
-        } else {
-          this.card.showToast?.(this.t("bind_base_station.could_not_save_pause_timeout"), { kind: "error" });
-        }
-
-        this.card._scheduleRender();
-      } catch (err) {
-        console.error("[eufy-vacuum-command-center] Failed to set pause timeout:", err);
-        this.card.showToast?.(this.t("bind_base_station.could_not_save_pause_timeout"), { kind: "error" });
-      }
-    });
 
     this.card._onAll("[data-dock-action]", "click", async (e) => {
       const action = e.currentTarget?.dataset?.dockAction;

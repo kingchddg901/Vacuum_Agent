@@ -572,7 +572,13 @@ export const README_SHOTS = [
     state: BASE_STATION_STATE,
     gate: {
       selectors: {
-        ".evcc-base-station-panel": 5,
+        // 4, not 5: the pause-timeout panel left this tab. It is a job-lifecycle
+        // setting and this tab is capability-gated on supports_base_station, so a
+        // vacuum without a settable dock could not reach it — it renders in the
+        // rooms sidebar now. This count dropping is the gate noticing that move,
+        // which is what it is for; do not raise it back without checking the panel
+        // really returned.
+        ".evcc-base-station-panel": 4,
         ".evcc-base-station-stat": 8,
         ".evcc-base-station-activity-card": 3,
         ".evcc-base-station-action-card": 4,

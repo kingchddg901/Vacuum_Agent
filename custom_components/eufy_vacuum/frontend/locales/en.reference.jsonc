@@ -833,10 +833,7 @@
     "activity_title": "Recent Dock Activity",
     "dock_actions_subtitle": "Backend-gated dock controls",  // subtitle: dock controls shown/hidden per backend capability ('Backend-gated' = gated by support)
     "dock_actions_title": "Dock Actions",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "No activity yet",
-    "pause_timeout_subtitle": "Default pause timeout used when a run is paused",
-    "pause_timeout_title": "Pause Timeout",
     "recorded_count": {"other":"{count} recorded"},  // plural; activity-card detail: count of recorded events of this kind, e.g. '5 recorded'
     "stat_after_job": "After Job",  // stat label: projected tank level remaining after the queued job
     "stat_dock_status": "Dock Status",
@@ -856,15 +853,22 @@
     "water_subtitle": "Current dock water plus projected post-job tank level",
     "water_title": "Water"  // Water panel section heading (dock water tank levels), not a per-room water setting
   },
-  "bind_base_station": {
+  "pause_timeout": {
+    "minutes_short": "{minutes} min",
+    "subtitle": "Default pause timeout used when a run is paused",
+    "title": "Pause Timeout"
+  },
+  "bind_pause_timeout": {
     "auto_cancel_disabled": "Auto-cancel disabled",
-    "could_not_save_pause_timeout": "Could not save pause timeout",
+    "could_not_save": "Could not save pause timeout",
+    "set": "Pause timeout set to {minutes} min"
+  },
+  "bind_base_station": {
     "dock_action_failed": "Dock action failed ({action})",
     "dock_action_sent": "Dock action sent",
     "dust_empty_sent": "Dust empty sent",
     "mop_dry_sent": "Mop dry sent",
     "mop_wash_sent": "Mop wash sent",
-    "pause_timeout_set": "Pause timeout set to {minutes} min",
     "stop_drying_sent": "Stop drying sent"
   },
   "bind_external_jobs": {

@@ -2139,10 +2139,7 @@
     "activity_title": "Son İstasyon Etkinliği",
     "dock_actions_subtitle": "Arka uç desteğine bağlı istasyon kontrolleri",
     "dock_actions_title": "İstasyon İşlemleri",
-    "minutes_short": "{minutes} dk",
     "no_activity_yet": "Henüz etkinlik yok",
-    "pause_timeout_subtitle": "Bir çalıştırma duraklatıldığında kullanılan varsayılan duraklatma zaman aşımı",
-    "pause_timeout_title": "Duraklatma Zaman Aşımı",
     "recorded_count": {
       "other": "{count} kayıtlı"
     },
@@ -2594,14 +2591,11 @@
     "unable_save": "Çalıştırma profili kaydedilemedi."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Otomatik iptal kapalı",
-    "could_not_save_pause_timeout": "Duraklatma zaman aşımı kaydedilemedi",
     "dock_action_failed": "Şarj istasyonu işlemi başarısız ({action})",
     "dock_action_sent": "Şarj istasyonu işlemi gönderildi",
     "dust_empty_sent": "Toz boşaltma gönderildi",
     "mop_dry_sent": "Paspas kurutma gönderildi",
     "mop_wash_sent": "Paspas yıkama gönderildi",
-    "pause_timeout_set": "Duraklatma zaman aşımı {minutes} dk olarak ayarlandı",
     "stop_drying_sent": "Kurutmayı durdurma gönderildi"
   },
   "relative": {
@@ -2972,5 +2966,15 @@
       "one": "Hatalar — 1",
       "other": "Hatalar — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Duraklatma Zaman Aşımı",
+    "subtitle": "Bir çalıştırma duraklatıldığında kullanılan varsayılan duraklatma zaman aşımı",
+    "minutes_short": "{minutes} dk"
+  },
+  "bind_pause_timeout": {
+    "set": "Duraklatma zaman aşımı {minutes} dk olarak ayarlandı",
+    "could_not_save": "Duraklatma zaman aşımı kaydedilemedi",
+    "auto_cancel_disabled": "Otomatik iptal kapalı"
   }
 }

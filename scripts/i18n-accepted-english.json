@@ -1,939 +1,939 @@
 {
- "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.)",
- "accepted": {
-  "base_station.minutes_short": [
-   "cs",
-   "es",
-   "fr",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "base_station.water_title": [
-   "nl"
-  ],
-  "common.edit": [
-   "id"
-  ],
-  "common.list_separator": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "he",
-   "id",
-   "it",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr"
-  ],
-  "common.no": [
-   "es",
-   "it"
-  ],
-  "common.off": [
-   "it"
-  ],
-  "common.ok": [
-   "cs",
-   "de",
-   "fr",
-   "id",
-   "it",
-   "ja",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "common.on": [
-   "it"
-  ],
-  "common.percent_value": [
-   "ar",
-   "de",
-   "he",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "common.seconds_short": [
-   "de",
-   "es",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "external_jobs.card_segments": [
-   "fr"
-  ],
-  "external_jobs.clean_mode_unknown": [
-   "ar",
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "he",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "external_jobs.mode": [
-   "fr",
-   "id"
-  ],
-  "external_jobs.mode_mop": [
-   "it"
-  ],
-  "external_jobs.seg_n": [
-   "cs",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt",
-   "tr"
-  ],
-  "external_jobs.setting_water": [
-   "nl"
-  ],
-  "faults.unknown_code": [
-   "es"
-  ],
-  "font.opendyslexic": [
-   "ar",
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "he",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "job_summary.source_dock": [
-   "nl"
-  ],
-  "job_summary.source_robot": [
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "tr"
-  ],
-  "learning.chip_water": [
-   "nl"
-  ],
-  "learning.hours_minutes": [
-   "de",
-   "it",
-   "pt"
-  ],
-  "learning.hours_only": [
-   "de",
-   "it",
-   "pt"
-  ],
-  "learning.milliliters": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "tr"
-  ],
-  "learning.minutes_only": [
-   "cs",
-   "es",
-   "fr",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "learning.minutes_short": [
-   "cs",
-   "es",
-   "fr",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "learning.overhead_recharge": [
-   "fr"
-  ],
-  "learning.overhead_transitions": [
-   "fr"
-  ],
-  "learning.stat_delta": [
-   "it"
-  ],
-  "maintenance.category_maintenance": [
-   "fr"
-  ],
-  "maintenance.interval_label": [
-   "cs",
-   "id",
-   "nl"
-  ],
-  "maintenance.interval_max_hint": [
-   "de",
-   "it"
-  ],
-  "maintenance.priority_normal": [
-   "de",
-   "es",
-   "id",
-   "pt",
-   "tr"
-  ],
-  "maintenance.stat_attention": [
-   "fr"
-  ],
-  "maintenance.stat_status": [
-   "de",
-   "id",
-   "nl",
-   "pl"
-  ],
-  "maintenance.stat_water": [
-   "nl"
-  ],
-  "map.compose_add_rect": [
-   "fr"
-  ],
-  "map.compose_step_med": [
-   "nl"
-  ],
-  "map.dock": [
-   "nl"
-  ],
-  "map.furnished_mode_live": [
-   "de",
-   "it",
-   "nl"
-  ],
-  "map.layer_dock": [
-   "nl"
-  ],
-  "map.layer_obstacles": [
-   "fr"
-  ],
-  "map.obstacle": [
-   "fr"
-  ],
-  "map.resize_h_minus": [
-   "de",
-   "fr",
-   "ja",
-   "nl"
-  ],
-  "map.resize_h_plus": [
-   "de",
-   "fr",
-   "ja",
-   "nl"
-  ],
-  "map.resize_w_minus": [
-   "ja"
-  ],
-  "map.resize_w_plus": [
-   "ja"
-  ],
-  "map.seg_count": [
-   "fr"
-  ],
-  "map.seg_cv": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "map.seg_title": [
-   "fr"
-  ],
-  "map.segment_fallback": [
-   "cs",
-   "de",
-   "fr",
-   "nl",
-   "pl"
-  ],
-  "map.variant_default_hint": [
-   "nl"
-  ],
-  "map.zone_setting_mode": [
-   "fr",
-   "id"
-  ],
-  "map.zone_setting_water": [
-   "nl"
-  ],
-  "map.zone_zones": [
-   "fr",
-   "nl"
-  ],
-  "metrics.battery_col_zone": [
-   "de",
-   "nl"
-  ],
-  "metrics.battery_row_area": [
-   "id",
-   "it"
-  ],
-  "metrics.detail_robot_overhead": [
-   "id",
-   "nl"
-  ],
-  "metrics.filter_status": [
-   "de",
-   "id",
-   "nl",
-   "pl"
-  ],
-  "metrics.filters_title": [
-   "nl"
-  ],
-  "metrics.mini_baselines": [
-   "nl"
-  ],
-  "mobile.tab_dock": [
-   "nl"
-  ],
-  "mobile.tab_stats": [
-   "fr"
-  ],
-  "mobile.tab_theme": [
-   "de"
-  ],
-  "nav.tab_maintenance": [
-   "fr"
-  ],
-  "nav.tab_theme": [
-   "de"
-  ],
-  "review.badge_recharge": [
-   "fr"
-  ],
-  "review.detail_area_m2": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "tr",
-   "zh-Hans"
-  ],
-  "review.detail_minutes": [
-   "cs",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "review.detail_water": [
-   "nl"
-  ],
-  "review.filter_status": [
-   "de",
-   "id",
-   "nl",
-   "pl"
-  ],
-  "review.filters_title": [
-   "nl"
-  ],
-  "review.kv_zones": [
-   "fr",
-   "nl"
-  ],
-  "review.runs_title": [
-   "nl"
-  ],
-  "room_access.issue.list_separator": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "he",
-   "id",
-   "it",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr"
-  ],
-  "room_card.editor_optional": [
-   "de"
-  ],
-  "room_card.start": [
-   "de"
-  ],
-  "room_estimate.label_mode": [
-   "fr",
-   "id"
-  ],
-  "room_estimate.label_source": [
-   "fr"
-  ],
-  "room_estimate.water_ml": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "tr"
-  ],
-  "room_rules.condition": [
-   "fr"
-  ],
-  "room_rules.entity_help_options": [
-   "fr"
-  ],
-  "room_rules.entity_help_type": [
-   "nl"
-  ],
-  "room_rules.help_max": [
-   "cs",
-   "de",
-   "it",
-   "nl"
-  ],
-  "room_rules.help_min": [
-   "cs",
-   "de",
-   "id",
-   "it",
-   "nl"
-  ],
-  "room_rules.kind_blocker": [
-   "de"
-  ],
-  "room_rules.label_field": [
-   "id",
-   "nl"
-  ],
-  "room_rules.optional": [
-   "de"
-  ],
-  "rooms.add_zone": [
-   "de",
-   "fr",
-   "nl"
-  ],
-  "rooms.count_zones": [
-   "nl"
-  ],
-  "rooms.mode_label": [
-   "id"
-  ],
-  "rooms.mode_mop": [
-   "it"
-  ],
-  "rooms.pause": [
-   "de",
-   "fr"
-  ],
-  "rooms.profile_standard": [
-   "de",
-   "fr",
-   "it"
-  ],
-  "rooms.water_label": [
-   "nl"
-  ],
-  "rooms.water_ml": [
-   "nl"
-  ],
-  "rooms.zone_fallback": [
-   "de",
-   "fr",
-   "nl"
-  ],
-  "run_profiles.minutes_unit": [
-   "cs",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "run_profiles.name_label": [
-   "de"
-  ],
-  "run_profiles.step_zone": [
-   "de",
-   "fr",
-   "nl"
-  ],
-  "saved_zones.area_m2": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "theme.filters": [
-   "nl"
-  ],
-  "theme.filters_count": [
-   "nl"
-  ],
-  "theme.mode_mode": [
-   "fr",
-   "id"
-  ],
-  "theme.tab_palette": [
-   "de",
-   "fr",
-   "it"
-  ],
-  "theme.tab_themes": [
-   "de"
-  ],
-  "theme.tab_tokens": [
-   "de",
-   "es",
-   "nl",
-   "pt"
-  ],
-  "theme_preview.animal.battery_low_hint": [
-   "ar",
-   "cs",
-   "de",
-   "es",
-   "he",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "theme_preview.animal.battery_mid_hint": [
-   "ar",
-   "cs",
-   "de",
-   "es",
-   "he",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "theme_preview.animal.battery_warn_hint": [
-   "ar",
-   "cs",
-   "de",
-   "es",
-   "he",
-   "id",
-   "it",
-   "ja",
-   "ko",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr",
-   "zh-Hans",
-   "zh-Hant"
-  ],
-  "theme_preview.chips.default": [
-   "id"
-  ],
-  "theme_preview.chips.hover": [
-   "de",
-   "id",
-   "nl"
-  ],
-  "theme_preview.foundations.chip": [
-   "de",
-   "es",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt",
-   "zh-Hant"
-  ],
-  "theme_preview.shell.accent": [
-   "fr",
-   "nl"
-  ],
-  "theme_preview.shell.kicker": [
-   "ar",
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt",
-   "ru",
-   "tr"
-  ],
-  "theme_preview.status.error": [
-   "es"
-  ],
-  "theme_preview.surfaces.panel_input": [
-   "id"
-  ],
-  "vacuum_card.dock": [
-   "nl"
-  ],
-  "vacuum_card.editor_sections_label": [
-   "fr"
-  ],
-  "vacuum_card.start": [
-   "de"
-  ],
-  "vacuum_card.status.error": [
-   "es"
-  ],
-  "vocab.battery_bucket_key.boost": [
-   "de",
-   "id",
-   "nl"
-  ],
-  "vocab.battery_bucket_key.max": [
-   "cs",
-   "de",
-   "fr",
-   "it",
-   "ja",
-   "nl"
-  ],
-  "vocab.battery_bucket_key.standard": [
-   "de",
-   "fr",
-   "it"
-  ],
-  "vocab.battery_bucket_key.turbo": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt",
-   "tr"
-  ],
-  "vocab.clean_intensity.normal": [
-   "de",
-   "es",
-   "fr",
-   "id",
-   "pt",
-   "tr"
-  ],
-  "vocab.clean_intensity.standard": [
-   "de",
-   "fr",
-   "it"
-  ],
-  "vocab.compose_shape.rect": [
-   "fr"
-  ],
-  "vocab.device_status.error": [
-   "es"
-  ],
-  "vocab.device_status.offline": [
-   "cs",
-   "de",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "vocab.device_status.standby": [
-   "de",
-   "it"
-  ],
-  "vocab.fan_speed.boost": [
-   "de",
-   "id",
-   "nl"
-  ],
-  "vocab.fan_speed.max": [
-   "cs",
-   "de",
-   "fr",
-   "it",
-   "ja",
-   "nl"
-  ],
-  "vocab.fan_speed.standard": [
-   "de",
-   "fr",
-   "it"
-  ],
-  "vocab.fan_speed.turbo": [
-   "cs",
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt",
-   "tr"
-  ],
-  "vocab.maintenance_component.filter": [
-   "de",
-   "id",
-   "nl"
-  ],
-  "vocab.maintenance_component.sensor": [
-   "de",
-   "es",
-   "id",
-   "nl",
-   "pt"
-  ],
-  "vocab.metrics_tab.dock": [
-   "nl"
-  ],
-  "vocab.metrics_tab.water": [
-   "nl"
-  ],
-  "vocab.theme_facet.accent": [
-   "fr",
-   "nl"
-  ],
-  "vocab.theme_facet.contrast": [
-   "nl"
-  ],
-  "vocab.theme_facet.mode": [
-   "fr",
-   "id"
-  ],
-  "vocab.theme_facet.source": [
-   "fr"
-  ],
-  "vocab.theme_facet.surface": [
-   "fr"
-  ],
-  "vocab.theme_facet.temperature": [
-   "nl"
-  ],
-  "vocab.theme_group.chips": [
-   "de",
-   "es",
-   "nl",
-   "pt"
-  ],
-  "vocab.theme_tag.community": [
-   "it",
-   "nl"
-  ],
-  "vocab.theme_tag.core": [
-   "it"
-  ],
-  "vocab.theme_tag.cyan": [
-   "de",
-   "fr"
-  ],
-  "vocab.theme_tag.gold": [
-   "de"
-  ],
-  "vocab.theme_tag.manual": [
-   "es",
-   "id",
-   "pt"
-  ],
-  "vocab.theme_tag.mono": [
-   "de",
-   "es",
-   "fr",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "pt"
-  ],
-  "vocab.theme_tag.neutral": [
-   "de"
-  ],
-  "vocab.theme_tag.orange": [
-   "de",
-   "fr"
-  ],
-  "vocab.theme_tag.teal": [
-   "id"
-  ],
-  "vocab.theme_tag.warm": [
-   "de",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_accent": [
-   "nl"
-  ],
-  "vocab.theme_token.evcc_animal_cat_pupil": [
-   "id",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_animal_dog_pupil": [
-   "id",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_animal_fox_pupil": [
-   "id",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_animal_parrot_pupil": [
-   "id",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_animal_raccoon_pupil": [
-   "id",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_animal_snake_pupil": [
-   "id",
-   "nl"
-  ],
-  "vocab.theme_token.evcc_bg_input": [
-   "id"
-  ],
-  "vocab.theme_token.evcc_chip_hover_text": [
-   "de"
-  ],
-  "vocab.theme_token.evcc_modal_chip_hover_text": [
-   "de"
-  ],
-  "vocab.theme_token.evcc_modal_chip_text": [
-   "de"
-  ],
-  "vocab.theme_token.evcc_modal_radius": [
-   "de"
-  ],
-  "vocab.theme_token.evcc_pad": [
-   "de",
-   "id"
-  ],
-  "vocab.theme_token.evcc_radius_chip": [
-   "de",
-   "id"
-  ],
-  "vocab.theme_token.evcc_radius_panel": [
-   "de",
-   "id"
-  ],
-  "vocab.theme_token.evcc_sem_info": [
-   "de",
-   "id"
-  ],
-  "vocab.token_type.color": [
-   "es"
-  ],
-  "vocab.token_type.easing": [
-   "cs",
-   "fr",
-   "he",
-   "id",
-   "it",
-   "nl",
-   "pl",
-   "tr"
-  ],
-  "vocab.token_type.text": [
-   "cs"
-  ]
- },
- "pending": {
-  "vocab.obstacle_type.cable": [
-   "es"
-  ],
-  "vocab.obstacle_type.pedestal": [
-   "es",
-   "pt"
-  ]
- }
+  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.)",
+  "accepted": {
+    "base_station.water_title": [
+      "nl"
+    ],
+    "common.edit": [
+      "id"
+    ],
+    "common.list_separator": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "he",
+      "id",
+      "it",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr"
+    ],
+    "common.no": [
+      "es",
+      "it"
+    ],
+    "common.off": [
+      "it"
+    ],
+    "common.ok": [
+      "cs",
+      "de",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "common.on": [
+      "it"
+    ],
+    "common.percent_value": [
+      "ar",
+      "de",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "common.seconds_short": [
+      "de",
+      "es",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "external_jobs.card_segments": [
+      "fr"
+    ],
+    "external_jobs.clean_mode_unknown": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "external_jobs.mode": [
+      "fr",
+      "id"
+    ],
+    "external_jobs.mode_mop": [
+      "it"
+    ],
+    "external_jobs.seg_n": [
+      "cs",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "external_jobs.setting_water": [
+      "nl"
+    ],
+    "faults.unknown_code": [
+      "es"
+    ],
+    "font.opendyslexic": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "job_summary.source_dock": [
+      "nl"
+    ],
+    "job_summary.source_robot": [
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "tr"
+    ],
+    "learning.chip_water": [
+      "nl"
+    ],
+    "learning.hours_minutes": [
+      "de",
+      "it",
+      "pt"
+    ],
+    "learning.hours_only": [
+      "de",
+      "it",
+      "pt"
+    ],
+    "learning.milliliters": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "learning.minutes_only": [
+      "cs",
+      "es",
+      "fr",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "learning.minutes_short": [
+      "cs",
+      "es",
+      "fr",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "learning.overhead_recharge": [
+      "fr"
+    ],
+    "learning.overhead_transitions": [
+      "fr"
+    ],
+    "learning.stat_delta": [
+      "it"
+    ],
+    "maintenance.category_maintenance": [
+      "fr"
+    ],
+    "maintenance.interval_label": [
+      "cs",
+      "id",
+      "nl"
+    ],
+    "maintenance.interval_max_hint": [
+      "de",
+      "it"
+    ],
+    "maintenance.priority_normal": [
+      "de",
+      "es",
+      "id",
+      "pt",
+      "tr"
+    ],
+    "maintenance.stat_attention": [
+      "fr"
+    ],
+    "maintenance.stat_status": [
+      "de",
+      "id",
+      "nl",
+      "pl"
+    ],
+    "maintenance.stat_water": [
+      "nl"
+    ],
+    "map.compose_add_rect": [
+      "fr"
+    ],
+    "map.compose_step_med": [
+      "nl"
+    ],
+    "map.dock": [
+      "nl"
+    ],
+    "map.furnished_mode_live": [
+      "de",
+      "it",
+      "nl"
+    ],
+    "map.layer_dock": [
+      "nl"
+    ],
+    "map.layer_obstacles": [
+      "fr"
+    ],
+    "map.obstacle": [
+      "fr"
+    ],
+    "map.resize_h_minus": [
+      "de",
+      "fr",
+      "ja",
+      "nl"
+    ],
+    "map.resize_h_plus": [
+      "de",
+      "fr",
+      "ja",
+      "nl"
+    ],
+    "map.resize_w_minus": [
+      "ja"
+    ],
+    "map.resize_w_plus": [
+      "ja"
+    ],
+    "map.seg_count": [
+      "fr"
+    ],
+    "map.seg_cv": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "map.seg_title": [
+      "fr"
+    ],
+    "map.segment_fallback": [
+      "cs",
+      "de",
+      "fr",
+      "nl",
+      "pl"
+    ],
+    "map.variant_default_hint": [
+      "nl"
+    ],
+    "map.zone_setting_mode": [
+      "fr",
+      "id"
+    ],
+    "map.zone_setting_water": [
+      "nl"
+    ],
+    "map.zone_zones": [
+      "fr",
+      "nl"
+    ],
+    "metrics.battery_col_zone": [
+      "de",
+      "nl"
+    ],
+    "metrics.battery_row_area": [
+      "id",
+      "it"
+    ],
+    "metrics.detail_robot_overhead": [
+      "id",
+      "nl"
+    ],
+    "metrics.filter_status": [
+      "de",
+      "id",
+      "nl",
+      "pl"
+    ],
+    "metrics.filters_title": [
+      "nl"
+    ],
+    "metrics.mini_baselines": [
+      "nl"
+    ],
+    "mobile.tab_dock": [
+      "nl"
+    ],
+    "mobile.tab_stats": [
+      "fr"
+    ],
+    "mobile.tab_theme": [
+      "de"
+    ],
+    "nav.tab_maintenance": [
+      "fr"
+    ],
+    "nav.tab_theme": [
+      "de"
+    ],
+    "review.badge_recharge": [
+      "fr"
+    ],
+    "review.detail_area_m2": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "tr",
+      "zh-Hans"
+    ],
+    "review.detail_minutes": [
+      "cs",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "review.detail_water": [
+      "nl"
+    ],
+    "review.filter_status": [
+      "de",
+      "id",
+      "nl",
+      "pl"
+    ],
+    "review.filters_title": [
+      "nl"
+    ],
+    "review.kv_zones": [
+      "fr",
+      "nl"
+    ],
+    "review.runs_title": [
+      "nl"
+    ],
+    "room_access.issue.list_separator": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "he",
+      "id",
+      "it",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr"
+    ],
+    "room_card.editor_optional": [
+      "de"
+    ],
+    "room_card.start": [
+      "de"
+    ],
+    "room_estimate.label_mode": [
+      "fr",
+      "id"
+    ],
+    "room_estimate.label_source": [
+      "fr"
+    ],
+    "room_estimate.water_ml": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "room_rules.condition": [
+      "fr"
+    ],
+    "room_rules.entity_help_options": [
+      "fr"
+    ],
+    "room_rules.entity_help_type": [
+      "nl"
+    ],
+    "room_rules.help_max": [
+      "cs",
+      "de",
+      "it",
+      "nl"
+    ],
+    "room_rules.help_min": [
+      "cs",
+      "de",
+      "id",
+      "it",
+      "nl"
+    ],
+    "room_rules.kind_blocker": [
+      "de"
+    ],
+    "room_rules.label_field": [
+      "id",
+      "nl"
+    ],
+    "room_rules.optional": [
+      "de"
+    ],
+    "rooms.add_zone": [
+      "de",
+      "fr",
+      "nl"
+    ],
+    "rooms.count_zones": [
+      "nl"
+    ],
+    "rooms.mode_label": [
+      "id"
+    ],
+    "rooms.mode_mop": [
+      "it"
+    ],
+    "rooms.pause": [
+      "de",
+      "fr"
+    ],
+    "rooms.profile_standard": [
+      "de",
+      "fr",
+      "it"
+    ],
+    "rooms.water_label": [
+      "nl"
+    ],
+    "rooms.water_ml": [
+      "nl"
+    ],
+    "rooms.zone_fallback": [
+      "de",
+      "fr",
+      "nl"
+    ],
+    "run_profiles.minutes_unit": [
+      "cs",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "run_profiles.name_label": [
+      "de"
+    ],
+    "run_profiles.step_zone": [
+      "de",
+      "fr",
+      "nl"
+    ],
+    "saved_zones.area_m2": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "theme.filters": [
+      "nl"
+    ],
+    "theme.filters_count": [
+      "nl"
+    ],
+    "theme.mode_mode": [
+      "fr",
+      "id"
+    ],
+    "theme.tab_palette": [
+      "de",
+      "fr",
+      "it"
+    ],
+    "theme.tab_themes": [
+      "de"
+    ],
+    "theme.tab_tokens": [
+      "de",
+      "es",
+      "nl",
+      "pt"
+    ],
+    "theme_preview.animal.battery_low_hint": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "theme_preview.animal.battery_mid_hint": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "theme_preview.animal.battery_warn_hint": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "he",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "theme_preview.chips.default": [
+      "id"
+    ],
+    "theme_preview.chips.hover": [
+      "de",
+      "id",
+      "nl"
+    ],
+    "theme_preview.foundations.chip": [
+      "de",
+      "es",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "zh-Hant"
+    ],
+    "theme_preview.shell.accent": [
+      "fr",
+      "nl"
+    ],
+    "theme_preview.shell.kicker": [
+      "ar",
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "ru",
+      "tr"
+    ],
+    "theme_preview.status.error": [
+      "es"
+    ],
+    "theme_preview.surfaces.panel_input": [
+      "id"
+    ],
+    "vacuum_card.dock": [
+      "nl"
+    ],
+    "vacuum_card.editor_sections_label": [
+      "fr"
+    ],
+    "vacuum_card.start": [
+      "de"
+    ],
+    "vacuum_card.status.error": [
+      "es"
+    ],
+    "vocab.battery_bucket_key.boost": [
+      "de",
+      "id",
+      "nl"
+    ],
+    "vocab.battery_bucket_key.max": [
+      "cs",
+      "de",
+      "fr",
+      "it",
+      "ja",
+      "nl"
+    ],
+    "vocab.battery_bucket_key.standard": [
+      "de",
+      "fr",
+      "it"
+    ],
+    "vocab.battery_bucket_key.turbo": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "vocab.clean_intensity.normal": [
+      "de",
+      "es",
+      "fr",
+      "id",
+      "pt",
+      "tr"
+    ],
+    "vocab.clean_intensity.standard": [
+      "de",
+      "fr",
+      "it"
+    ],
+    "vocab.compose_shape.rect": [
+      "fr"
+    ],
+    "vocab.device_status.error": [
+      "es"
+    ],
+    "vocab.device_status.offline": [
+      "cs",
+      "de",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "vocab.device_status.standby": [
+      "de",
+      "it"
+    ],
+    "vocab.fan_speed.boost": [
+      "de",
+      "id",
+      "nl"
+    ],
+    "vocab.fan_speed.max": [
+      "cs",
+      "de",
+      "fr",
+      "it",
+      "ja",
+      "nl"
+    ],
+    "vocab.fan_speed.standard": [
+      "de",
+      "fr",
+      "it"
+    ],
+    "vocab.fan_speed.turbo": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt",
+      "tr"
+    ],
+    "vocab.maintenance_component.filter": [
+      "de",
+      "id",
+      "nl"
+    ],
+    "vocab.maintenance_component.sensor": [
+      "de",
+      "es",
+      "id",
+      "nl",
+      "pt"
+    ],
+    "vocab.metrics_tab.dock": [
+      "nl"
+    ],
+    "vocab.metrics_tab.water": [
+      "nl"
+    ],
+    "vocab.theme_facet.accent": [
+      "fr",
+      "nl"
+    ],
+    "vocab.theme_facet.contrast": [
+      "nl"
+    ],
+    "vocab.theme_facet.mode": [
+      "fr",
+      "id"
+    ],
+    "vocab.theme_facet.source": [
+      "fr"
+    ],
+    "vocab.theme_facet.surface": [
+      "fr"
+    ],
+    "vocab.theme_facet.temperature": [
+      "nl"
+    ],
+    "vocab.theme_group.chips": [
+      "de",
+      "es",
+      "nl",
+      "pt"
+    ],
+    "vocab.theme_tag.community": [
+      "it",
+      "nl"
+    ],
+    "vocab.theme_tag.core": [
+      "it"
+    ],
+    "vocab.theme_tag.cyan": [
+      "de",
+      "fr"
+    ],
+    "vocab.theme_tag.gold": [
+      "de"
+    ],
+    "vocab.theme_tag.manual": [
+      "es",
+      "id",
+      "pt"
+    ],
+    "vocab.theme_tag.mono": [
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "vocab.theme_tag.neutral": [
+      "de"
+    ],
+    "vocab.theme_tag.orange": [
+      "de",
+      "fr"
+    ],
+    "vocab.theme_tag.teal": [
+      "id"
+    ],
+    "vocab.theme_tag.warm": [
+      "de",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_accent": [
+      "nl"
+    ],
+    "vocab.theme_token.evcc_animal_cat_pupil": [
+      "id",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_animal_dog_pupil": [
+      "id",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_animal_fox_pupil": [
+      "id",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_animal_parrot_pupil": [
+      "id",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_animal_raccoon_pupil": [
+      "id",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_animal_snake_pupil": [
+      "id",
+      "nl"
+    ],
+    "vocab.theme_token.evcc_bg_input": [
+      "id"
+    ],
+    "vocab.theme_token.evcc_chip_hover_text": [
+      "de"
+    ],
+    "vocab.theme_token.evcc_modal_chip_hover_text": [
+      "de"
+    ],
+    "vocab.theme_token.evcc_modal_chip_text": [
+      "de"
+    ],
+    "vocab.theme_token.evcc_modal_radius": [
+      "de"
+    ],
+    "vocab.theme_token.evcc_pad": [
+      "de",
+      "id"
+    ],
+    "vocab.theme_token.evcc_radius_chip": [
+      "de",
+      "id"
+    ],
+    "vocab.theme_token.evcc_radius_panel": [
+      "de",
+      "id"
+    ],
+    "vocab.theme_token.evcc_sem_info": [
+      "de",
+      "id"
+    ],
+    "vocab.token_type.color": [
+      "es"
+    ],
+    "vocab.token_type.easing": [
+      "cs",
+      "fr",
+      "he",
+      "id",
+      "it",
+      "nl",
+      "pl",
+      "tr"
+    ],
+    "vocab.token_type.text": [
+      "cs"
+    ],
+    "pause_timeout.minutes_short": [
+      "cs",
+      "es",
+      "fr",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ]
+  },
+  "pending": {
+    "vocab.obstacle_type.cable": [
+      "es"
+    ],
+    "vocab.obstacle_type.pedestal": [
+      "es",
+      "pt"
+    ]
+  }
 }

@@ -2141,10 +2141,7 @@
     "activity_title": "Nedávná aktivita doku",
     "dock_actions_subtitle": "Ovládací prvky doku závislé na podpoře",
     "dock_actions_title": "Akce doku",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Zatím žádná aktivita",
-    "pause_timeout_subtitle": "Výchozí časový limit pozastavení použitý při pozastavení úklidu",
-    "pause_timeout_title": "Časový limit pozastavení",
     "recorded_count": {
       "other": "{count} zaznamenáno"
     },
@@ -2596,14 +2593,11 @@
     "unable_save": "Nelze uložit spouštěcí profil."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Automatické zrušení vypnuto",
-    "could_not_save_pause_timeout": "Nepodařilo se uložit časový limit pozastavení",
     "dock_action_failed": "Akce doku selhala ({action})",
     "dock_action_sent": "Akce doku odeslána",
     "dust_empty_sent": "Vysypání prachu odesláno",
     "mop_dry_sent": "Sušení mopu odesláno",
     "mop_wash_sent": "Mytí mopu odesláno",
-    "pause_timeout_set": "Časový limit pozastavení nastaven na {minutes} min",
     "stop_drying_sent": "Zastavení sušení odesláno"
   },
   "relative": {
@@ -2980,5 +2974,15 @@
       "many": "{count} chyby",
       "other": "{count} chyb"
     }
+  },
+  "pause_timeout": {
+    "title": "Časový limit pozastavení",
+    "subtitle": "Výchozí časový limit pozastavení použitý při pozastavení úklidu",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Časový limit pozastavení nastaven na {minutes} min",
+    "could_not_save": "Nepodařilo se uložit časový limit pozastavení",
+    "auto_cancel_disabled": "Automatické zrušení vypnuto"
   }
 }

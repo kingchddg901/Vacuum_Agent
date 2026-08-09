@@ -56,10 +56,7 @@
     "activity_title": "Recente dockactiviteit",
     "dock_actions_subtitle": "Dockbediening afhankelijk van backend",
     "dock_actions_title": "Dockacties",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Nog geen activiteit",
-    "pause_timeout_subtitle": "Standaard pauzetimeout bij een gepauzeerde run",
-    "pause_timeout_title": "Pauzetimeout",
     "recorded_count": {
       "other": "{count} geregistreerd"
     },
@@ -82,14 +79,11 @@
     "water_title": "Water"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Automatisch annuleren uitgeschakeld",
-    "could_not_save_pause_timeout": "Kan pauzetimeout niet opslaan",
     "dock_action_failed": "Dockactie mislukt ({action})",
     "dock_action_sent": "Dockactie verzonden",
     "dust_empty_sent": "Stof legen verzonden",
     "mop_dry_sent": "Dweil drogen verzonden",
     "mop_wash_sent": "Dweil wassen verzonden",
-    "pause_timeout_set": "Pauzetimeout ingesteld op {minutes} min",
     "stop_drying_sent": "Drogen stoppen verzonden"
   },
   "bind_external_jobs": {
@@ -2973,5 +2967,15 @@
       "one": "Fouten — 1",
       "other": "Fouten — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Pauzetimeout",
+    "subtitle": "Standaard pauzetimeout bij een gepauzeerde run",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Pauzetimeout ingesteld op {minutes} min",
+    "could_not_save": "Kan pauzetimeout niet opslaan",
+    "auto_cancel_disabled": "Automatisch annuleren uitgeschakeld"
   }
 }

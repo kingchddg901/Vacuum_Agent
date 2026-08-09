@@ -56,10 +56,7 @@
     "activity_title": "Actividad reciente de la base",
     "dock_actions_subtitle": "Controles de la base según capacidad del backend",
     "dock_actions_title": "Acciones de la base",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Aún no hay actividad",
-    "pause_timeout_subtitle": "Tiempo de espera de pausa predeterminado al pausar una limpieza",
-    "pause_timeout_title": "Tiempo de espera de pausa",
     "recorded_count": {
       "one": "{count} registrado",
       "other": "{count} registrados"
@@ -83,14 +80,11 @@
     "water_title": "Agua"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Cancelación automática desactivada",
-    "could_not_save_pause_timeout": "No se pudo guardar el tiempo de espera de pausa",
     "dock_action_failed": "Falló la acción de la base ({action})",
     "dock_action_sent": "Acción de la base enviada",
     "dust_empty_sent": "Vaciado de polvo enviado",
     "mop_dry_sent": "Secado de mopa enviado",
     "mop_wash_sent": "Lavado de mopa enviado",
-    "pause_timeout_set": "Tiempo de espera de pausa fijado en {minutes} min",
     "stop_drying_sent": "Orden de detener secado enviada"
   },
   "bind_external_jobs": {
@@ -2992,5 +2986,15 @@
       "many": "Errores — {count}",
       "other": "Errores — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Tiempo de espera de pausa",
+    "subtitle": "Tiempo de espera de pausa predeterminado al pausar una limpieza",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Tiempo de espera de pausa fijado en {minutes} min",
+    "could_not_save": "No se pudo guardar el tiempo de espera de pausa",
+    "auto_cancel_disabled": "Cancelación automática desactivada"
   }
 }

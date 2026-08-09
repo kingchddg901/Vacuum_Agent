@@ -2460,10 +2460,7 @@
     "activity_title": "פעילות תחנה אחרונה",
     "dock_actions_subtitle": "פקדי תחנה מותנים ביכולות ה-Backend",
     "dock_actions_title": "פעולות תחנה",
-    "minutes_short": "{minutes} דק׳",
     "no_activity_yet": "עדיין אין פעילות",
-    "pause_timeout_subtitle": "פסק-זמן השהיה המשמש כברירת מחדל כשריצה מושהית",
-    "pause_timeout_title": "פסק-זמן השהיה",
     "recorded_count": {
       "one": "{count} נרשם",
       "two": "{count} נרשמו",
@@ -2551,14 +2548,11 @@
     "zone_not_found": "האזור השמור הזה כבר אינו קיים."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "ביטול אוטומטי מושבת",
-    "could_not_save_pause_timeout": "לא ניתן היה לשמור את פסק-זמן ההשהיה",
     "dock_action_failed": "פעולת התחנה נכשלה ({action})",
     "dock_action_sent": "פעולת התחנה נשלחה",
     "dust_empty_sent": "פקודת ריקון אבק נשלחה",
     "mop_dry_sent": "פקודת ייבוש המגב נשלחה",
     "mop_wash_sent": "פקודת שטיפת המגב נשלחה",
-    "pause_timeout_set": "פסק-זמן ההשהיה הוגדר ל-{minutes} דק׳",
     "stop_drying_sent": "פקודת עצירת הייבוש נשלחה"
   },
   "bind_map": {
@@ -3096,5 +3090,15 @@
       "many": "{count} שגיאות",
       "other": "{count} שגיאות"
     }
+  },
+  "pause_timeout": {
+    "title": "פסק-זמן השהיה",
+    "subtitle": "פסק-זמן השהיה המשמש כברירת מחדל כשריצה מושהית",
+    "minutes_short": "{minutes} דק׳"
+  },
+  "bind_pause_timeout": {
+    "set": "פסק-זמן ההשהיה הוגדר ל-{minutes} דק׳",
+    "could_not_save": "לא ניתן היה לשמור את פסק-זמן ההשהיה",
+    "auto_cancel_disabled": "ביטול אוטומטי מושבת"
   }
 }

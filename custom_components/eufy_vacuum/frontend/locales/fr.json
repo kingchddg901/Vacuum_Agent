@@ -56,10 +56,7 @@
     "activity_title": "Activité récente de la station",
     "dock_actions_subtitle": "Commandes de station selon les capacités",
     "dock_actions_title": "Actions de la station",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Aucune activité pour l'instant",
-    "pause_timeout_subtitle": "Délai de pause par défaut utilisé lorsqu'une tâche est en pause",
-    "pause_timeout_title": "Délai de pause",
     "recorded_count": {
       "one": "{count} enregistré",
       "other": "{count} enregistrés"
@@ -83,14 +80,11 @@
     "water_title": "Eau"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Annulation automatique désactivée",
-    "could_not_save_pause_timeout": "Impossible d'enregistrer le délai de pause",
     "dock_action_failed": "Échec de l'action de station ({action})",
     "dock_action_sent": "Action de station envoyée",
     "dust_empty_sent": "Vidage de poussière envoyé",
     "mop_dry_sent": "Séchage de serpillière envoyé",
     "mop_wash_sent": "Lavage de serpillière envoyé",
-    "pause_timeout_set": "Délai de pause réglé sur {minutes} min",
     "stop_drying_sent": "Arrêt du séchage envoyé"
   },
   "bind_external_jobs": {
@@ -2993,5 +2987,15 @@
       "many": "Erreurs — {count}",
       "other": "Erreurs — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Délai de pause",
+    "subtitle": "Délai de pause par défaut utilisé lorsqu'une tâche est en pause",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Délai de pause réglé sur {minutes} min",
+    "could_not_save": "Impossible d'enregistrer le délai de pause",
+    "auto_cancel_disabled": "Annulation automatique désactivée"
   }
 }

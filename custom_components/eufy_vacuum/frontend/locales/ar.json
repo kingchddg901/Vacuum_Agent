@@ -2538,10 +2538,7 @@
     "activity_title": "نشاط المحطة الأخير",
     "dock_actions_subtitle": "عناصر تحكم المحطة المتاحة حسب دعم الخلفية",
     "dock_actions_title": "إجراءات المحطة",
-    "minutes_short": "{minutes} دقيقة",
     "no_activity_yet": "لا يوجد نشاط بعد",
-    "pause_timeout_subtitle": "مهلة الإيقاف المؤقت الافتراضية المستخدمة عند إيقاف الجولة مؤقتًا",
-    "pause_timeout_title": "مهلة الإيقاف المؤقت",
     "recorded_count": {
       "zero": "{count} مُسجَّل",
       "one": "مُسجَّل واحد",
@@ -2633,14 +2630,11 @@
     "zone_not_found": "لم تعد هذه المنطقة المحفوظة موجودة."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "تم تعطيل الإلغاء التلقائي",
-    "could_not_save_pause_timeout": "تعذّر حفظ مهلة الإيقاف المؤقت",
     "dock_action_failed": "فشل إجراء المحطة ({action})",
     "dock_action_sent": "تم إرسال إجراء المحطة",
     "dust_empty_sent": "تم إرسال تفريغ الغبار",
     "mop_dry_sent": "تم إرسال تجفيف الممسحة",
     "mop_wash_sent": "تم إرسال غسل الممسحة",
-    "pause_timeout_set": "تم ضبط مهلة الإيقاف المؤقت على {minutes} دقيقة",
     "stop_drying_sent": "تم إرسال إيقاف التجفيف"
   },
   "bind_map": {
@@ -3204,5 +3198,15 @@
       "many": "{count} خطأً",
       "other": "{count} خطأ"
     }
+  },
+  "pause_timeout": {
+    "title": "مهلة الإيقاف المؤقت",
+    "subtitle": "مهلة الإيقاف المؤقت الافتراضية المستخدمة عند إيقاف الجولة مؤقتًا",
+    "minutes_short": "{minutes} دقيقة"
+  },
+  "bind_pause_timeout": {
+    "set": "تم ضبط مهلة الإيقاف المؤقت على {minutes} دقيقة",
+    "could_not_save": "تعذّر حفظ مهلة الإيقاف المؤقت",
+    "auto_cancel_disabled": "تم تعطيل الإلغاء التلقائي"
   }
 }

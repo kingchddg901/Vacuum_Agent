@@ -2142,10 +2142,7 @@
     "activity_title": "Ostatnia aktywność stacji",
     "dock_actions_subtitle": "Sterowanie stacją zależne od backendu",
     "dock_actions_title": "Akcje stacji",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Brak aktywności",
-    "pause_timeout_subtitle": "Domyślny limit czasu wstrzymania używany, gdy uruchomienie jest wstrzymane",
-    "pause_timeout_title": "Limit czasu wstrzymania",
     "recorded_count": {
       "other": "zarejestrowano {count}"
     },
@@ -2597,14 +2594,11 @@
     "unable_save": "Nie można zapisać profilu uruchomienia."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Automatyczne anulowanie wyłączone",
-    "could_not_save_pause_timeout": "Nie udało się zapisać limitu czasu wstrzymania",
     "dock_action_failed": "Akcja stacji dokującej nie powiodła się ({action})",
     "dock_action_sent": "Wysłano akcję stacji dokującej",
     "dust_empty_sent": "Wysłano opróżnianie pojemnika na kurz",
     "mop_dry_sent": "Wysłano suszenie mopa",
     "mop_wash_sent": "Wysłano mycie mopa",
-    "pause_timeout_set": "Ustawiono limit czasu wstrzymania na {minutes} min",
     "stop_drying_sent": "Wysłano zatrzymanie suszenia"
   },
   "relative": {
@@ -2981,5 +2975,15 @@
       "many": "{count} błędów",
       "other": "{count} błędu"
     }
+  },
+  "pause_timeout": {
+    "title": "Limit czasu wstrzymania",
+    "subtitle": "Domyślny limit czasu wstrzymania używany, gdy uruchomienie jest wstrzymane",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Ustawiono limit czasu wstrzymania na {minutes} min",
+    "could_not_save": "Nie udało się zapisać limitu czasu wstrzymania",
+    "auto_cancel_disabled": "Automatyczne anulowanie wyłączone"
   }
 }

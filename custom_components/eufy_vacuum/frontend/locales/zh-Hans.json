@@ -2339,10 +2339,7 @@
     "activity_title": "最近基站活动",
     "dock_actions_subtitle": "由后端支持情况决定的基站控制",
     "dock_actions_title": "基站操作",
-    "minutes_short": "{minutes} 分钟",
     "no_activity_yet": "暂无活动",
-    "pause_timeout_subtitle": "运行暂停时使用的默认暂停超时",
-    "pause_timeout_title": "暂停超时",
     "recorded_count": {
       "other": "已记录 {count} 次"
     },
@@ -2424,14 +2421,11 @@
     "zone_not_found": "该已保存区域已不存在。"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "已禁用自动取消",
-    "could_not_save_pause_timeout": "无法保存暂停超时",
     "dock_action_failed": "基站操作失败（{action}）",
     "dock_action_sent": "基站操作已发送",
     "dust_empty_sent": "清空尘盒指令已发送",
     "mop_dry_sent": "烘干拖布指令已发送",
     "mop_wash_sent": "清洗拖布指令已发送",
-    "pause_timeout_set": "暂停超时已设置为 {minutes} 分钟",
     "stop_drying_sent": "停止烘干指令已发送"
   },
   "bind_map": {
@@ -2930,5 +2924,15 @@
     "errors_count": {
       "other": "错误 — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "暂停超时",
+    "subtitle": "运行暂停时使用的默认暂停超时",
+    "minutes_short": "{minutes} 分钟"
+  },
+  "bind_pause_timeout": {
+    "set": "暂停超时已设置为 {minutes} 分钟",
+    "could_not_save": "无法保存暂停超时",
+    "auto_cancel_disabled": "已禁用自动取消"
   }
 }

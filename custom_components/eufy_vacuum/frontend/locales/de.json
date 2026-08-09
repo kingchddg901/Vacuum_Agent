@@ -56,10 +56,7 @@
     "activity_title": "Letzte Stationsaktivität",
     "dock_actions_subtitle": "Backend-abhängige Stationssteuerung",
     "dock_actions_title": "Stationsaktionen",
-    "minutes_short": "{minutes} Min",
     "no_activity_yet": "Noch keine Aktivität",
-    "pause_timeout_subtitle": "Standard-Pausenzeitlimit, das bei pausiertem Lauf verwendet wird",
-    "pause_timeout_title": "Pausenzeitlimit",
     "recorded_count": {
       "other": "{count} erfasst"
     },
@@ -82,14 +79,11 @@
     "water_title": "Wasser"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Automatischer Abbruch deaktiviert",
-    "could_not_save_pause_timeout": "Pausenzeitlimit konnte nicht gespeichert werden",
     "dock_action_failed": "Stationsaktion fehlgeschlagen ({action})",
     "dock_action_sent": "Stationsaktion gesendet",
     "dust_empty_sent": "Staubentleerung gesendet",
     "mop_dry_sent": "Mopptrocknung gesendet",
     "mop_wash_sent": "Moppwäsche gesendet",
-    "pause_timeout_set": "Pausenzeitlimit auf {minutes} Min gesetzt",
     "stop_drying_sent": "Trocknungsstopp gesendet"
   },
   "bind_external_jobs": {
@@ -2973,5 +2967,15 @@
       "one": "Fehler — 1",
       "other": "Fehler — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Pausenzeitlimit",
+    "subtitle": "Standard-Pausenzeitlimit, das bei pausiertem Lauf verwendet wird",
+    "minutes_short": "{minutes} Min"
+  },
+  "bind_pause_timeout": {
+    "set": "Pausenzeitlimit auf {minutes} Min gesetzt",
+    "could_not_save": "Pausenzeitlimit konnte nicht gespeichert werden",
+    "auto_cancel_disabled": "Automatischer Abbruch deaktiviert"
   }
 }

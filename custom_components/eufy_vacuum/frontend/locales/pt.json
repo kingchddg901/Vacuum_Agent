@@ -56,10 +56,7 @@
     "activity_title": "Atividade recente da base",
     "dock_actions_subtitle": "Controlos da base condicionados pelo backend",
     "dock_actions_title": "Ações da base",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Ainda sem atividade",
-    "pause_timeout_subtitle": "Tempo limite de pausa predefinido usado quando uma execução é pausada",
-    "pause_timeout_title": "Tempo limite de pausa",
     "recorded_count": {
       "one": "{count} registado",
       "other": "{count} registados"
@@ -83,14 +80,11 @@
     "water_title": "Água"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Cancelamento automático desativado",
-    "could_not_save_pause_timeout": "Não foi possível guardar o tempo limite de pausa",
     "dock_action_failed": "Falha na ação da base ({action})",
     "dock_action_sent": "Ação da base enviada",
     "dust_empty_sent": "Esvaziamento de pó enviado",
     "mop_dry_sent": "Secagem da mopa enviada",
     "mop_wash_sent": "Lavagem da mopa enviada",
-    "pause_timeout_set": "Tempo limite de pausa definido para {minutes} min",
     "stop_drying_sent": "Paragem de secagem enviada"
   },
   "bind_external_jobs": {
@@ -2991,5 +2985,15 @@
       "many": "Erros — {count}",
       "other": "Erros — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Tempo limite de pausa",
+    "subtitle": "Tempo limite de pausa predefinido usado quando uma execução é pausada",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Tempo limite de pausa definido para {minutes} min",
+    "could_not_save": "Não foi possível guardar o tempo limite de pausa",
+    "auto_cancel_disabled": "Cancelamento automático desativado"
   }
 }

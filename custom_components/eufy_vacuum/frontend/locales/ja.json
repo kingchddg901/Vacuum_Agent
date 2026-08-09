@@ -2339,10 +2339,7 @@
     "activity_title": "最近のドックの動作",
     "dock_actions_subtitle": "バックエンドで制限されるドック操作",
     "dock_actions_title": "ドック操作",
-    "minutes_short": "{minutes} 分",
     "no_activity_yet": "動作はまだありません",
-    "pause_timeout_subtitle": "実行が一時停止されたときに使用されるデフォルトの一時停止タイムアウト",
-    "pause_timeout_title": "一時停止タイムアウト",
     "recorded_count": {
       "other": "{count} 件記録済み"
     },
@@ -2424,14 +2421,11 @@
     "zone_not_found": "その保存済みゾーンはもう存在しません。"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "自動キャンセルを無効化しました",
-    "could_not_save_pause_timeout": "一時停止タイムアウトを保存できませんでした",
     "dock_action_failed": "ドック操作に失敗しました（{action}）",
     "dock_action_sent": "ドック操作を送信しました",
     "dust_empty_sent": "ゴミ収集を送信しました",
     "mop_dry_sent": "モップ乾燥を送信しました",
     "mop_wash_sent": "モップ洗浄を送信しました",
-    "pause_timeout_set": "一時停止タイムアウトを {minutes} 分に設定しました",
     "stop_drying_sent": "乾燥停止を送信しました"
   },
   "bind_map": {
@@ -2930,5 +2924,15 @@
     "errors_count": {
       "other": "エラー {count} 件"
     }
+  },
+  "pause_timeout": {
+    "title": "一時停止タイムアウト",
+    "subtitle": "実行が一時停止されたときに使用されるデフォルトの一時停止タイムアウト",
+    "minutes_short": "{minutes} 分"
+  },
+  "bind_pause_timeout": {
+    "set": "一時停止タイムアウトを {minutes} 分に設定しました",
+    "could_not_save": "一時停止タイムアウトを保存できませんでした",
+    "auto_cancel_disabled": "自動キャンセルを無効化しました"
   }
 }

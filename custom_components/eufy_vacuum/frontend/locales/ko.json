@@ -2339,10 +2339,7 @@
     "activity_title": "최근 도크 활동",
     "dock_actions_subtitle": "백엔드 지원에 따른 도크 컨트롤",
     "dock_actions_title": "도크 동작",
-    "minutes_short": "{minutes}분",
     "no_activity_yet": "아직 활동 없음",
-    "pause_timeout_subtitle": "실행이 일시정지될 때 사용되는 기본 일시정지 시간 제한",
-    "pause_timeout_title": "일시정지 시간 제한",
     "recorded_count": {
       "other": "{count}회 기록됨"
     },
@@ -2424,14 +2421,11 @@
     "zone_not_found": "그 저장된 구역이 더 이상 존재하지 않습니다."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "자동 취소 비활성화됨",
-    "could_not_save_pause_timeout": "일시정지 시간 제한을 저장할 수 없습니다",
     "dock_action_failed": "도크 동작 실패 ({action})",
     "dock_action_sent": "도크 동작을 보냈습니다",
     "dust_empty_sent": "먼지 비우기를 보냈습니다",
     "mop_dry_sent": "걸레 건조를 보냈습니다",
     "mop_wash_sent": "걸레 세척을 보냈습니다",
-    "pause_timeout_set": "일시정지 시간 제한이 {minutes}분으로 설정되었습니다",
     "stop_drying_sent": "건조 중지를 보냈습니다"
   },
   "bind_map": {
@@ -2930,5 +2924,15 @@
     "errors_count": {
       "other": "오류 {count}건"
     }
+  },
+  "pause_timeout": {
+    "title": "일시정지 시간 제한",
+    "subtitle": "실행이 일시정지될 때 사용되는 기본 일시정지 시간 제한",
+    "minutes_short": "{minutes}분"
+  },
+  "bind_pause_timeout": {
+    "set": "일시정지 시간 제한이 {minutes}분으로 설정되었습니다",
+    "could_not_save": "일시정지 시간 제한을 저장할 수 없습니다",
+    "auto_cancel_disabled": "자동 취소 비활성화됨"
   }
 }

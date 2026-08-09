@@ -2139,10 +2139,7 @@
     "activity_title": "Aktivitas Dok Terkini",
     "dock_actions_subtitle": "Kontrol dok yang dibatasi backend",
     "dock_actions_title": "Tindakan Dok",
-    "minutes_short": "{minutes} mnt",
     "no_activity_yet": "Belum ada aktivitas",
-    "pause_timeout_subtitle": "Batas waktu jeda default yang digunakan saat proses dijeda",
-    "pause_timeout_title": "Batas Waktu Jeda",
     "recorded_count": {
       "other": "{count} tercatat"
     },
@@ -2594,14 +2591,11 @@
     "unable_save": "Tidak dapat menyimpan profil jalankan."
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Pembatalan otomatis nonaktif",
-    "could_not_save_pause_timeout": "Tidak dapat menyimpan batas waktu jeda",
     "dock_action_failed": "Tindakan dok gagal ({action})",
     "dock_action_sent": "Tindakan dok dikirim",
     "dust_empty_sent": "Pengosongan debu dikirim",
     "mop_dry_sent": "Pengeringan pel dikirim",
     "mop_wash_sent": "Pencucian pel dikirim",
-    "pause_timeout_set": "Batas waktu jeda diatur ke {minutes} min",
     "stop_drying_sent": "Penghentian pengeringan dikirim"
   },
   "relative": {
@@ -2969,5 +2963,15 @@
     "errors_count": {
       "other": "Kesalahan — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Batas Waktu Jeda",
+    "subtitle": "Batas waktu jeda default yang digunakan saat proses dijeda",
+    "minutes_short": "{minutes} mnt"
+  },
+  "bind_pause_timeout": {
+    "set": "Batas waktu jeda diatur ke {minutes} min",
+    "could_not_save": "Tidak dapat menyimpan batas waktu jeda",
+    "auto_cancel_disabled": "Pembatalan otomatis nonaktif"
   }
 }

@@ -155,27 +155,6 @@ export function applyBaseStationRenderers(proto) {
             </section>
           ` : ""}
 
-          <section class="evcc-base-station-panel evcc-base-station-panel--wide">
-            <div class="evcc-base-station-panel-header">
-              <div>
-                <div class="evcc-base-station-panel-title">${this.t("base_station.pause_timeout_title")}</div>
-                <div class="evcc-base-station-panel-subtitle">
-                  ${this.t("base_station.pause_timeout_subtitle")}
-                </div>
-              </div>
-            </div>
-
-            <div class="evcc-chips">
-              ${[15, 30, 45, 60].map((minutes) => `
-                <button
-                  type="button"
-                  class="evcc-chip ${pauseTimeoutMinutes === minutes ? "active" : ""}"
-                  data-pause-timeout-minutes="${minutes}"
-                >${this.t("base_station.minutes_short", { minutes })}</button>
-              `).join("")}
-            </div>
-          </section>
-
           ${supportedActions.length > 0 ? `
             <section class="evcc-base-station-panel evcc-base-station-panel--wide">
               <div class="evcc-base-station-panel-header">

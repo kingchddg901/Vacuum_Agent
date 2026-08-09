@@ -2339,10 +2339,7 @@
     "activity_title": "近期基站活動",
     "dock_actions_subtitle": "依後端支援顯示的基站控制",
     "dock_actions_title": "基站動作",
-    "minutes_short": "{minutes} 分鐘",
     "no_activity_yet": "尚無活動",
-    "pause_timeout_subtitle": "清潔暫停時採用的預設暫停逾時",
-    "pause_timeout_title": "暫停逾時",
     "recorded_count": {
       "other": "已記錄 {count} 次"
     },
@@ -2424,14 +2421,11 @@
     "zone_not_found": "該已儲存的區域已不存在。"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "自動取消已停用",
-    "could_not_save_pause_timeout": "無法儲存暫停逾時",
     "dock_action_failed": "基站動作失敗（{action}）",
     "dock_action_sent": "已傳送基站動作",
     "dust_empty_sent": "已傳送集塵指令",
     "mop_dry_sent": "已傳送拖布烘乾指令",
     "mop_wash_sent": "已傳送拖布清洗指令",
-    "pause_timeout_set": "暫停逾時已設為 {minutes} 分鐘",
     "stop_drying_sent": "已傳送停止烘乾指令"
   },
   "bind_map": {
@@ -2930,5 +2924,15 @@
     "errors_count": {
       "other": "錯誤 — {count} 個"
     }
+  },
+  "pause_timeout": {
+    "title": "暫停逾時",
+    "subtitle": "清潔暫停時採用的預設暫停逾時",
+    "minutes_short": "{minutes} 分鐘"
+  },
+  "bind_pause_timeout": {
+    "set": "暫停逾時已設為 {minutes} 分鐘",
+    "could_not_save": "無法儲存暫停逾時",
+    "auto_cancel_disabled": "自動取消已停用"
   }
 }

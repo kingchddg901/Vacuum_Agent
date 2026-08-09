@@ -56,10 +56,7 @@
     "activity_title": "Attività recente della base",
     "dock_actions_subtitle": "Controlli base in base al supporto del backend",
     "dock_actions_title": "Azioni base",
-    "minutes_short": "{minutes} min",
     "no_activity_yet": "Nessuna attività ancora",
-    "pause_timeout_subtitle": "Timeout di pausa predefinito usato quando una sessione è in pausa",
-    "pause_timeout_title": "Timeout di pausa",
     "recorded_count": {
       "other": "{count} registrati"
     },
@@ -82,14 +79,11 @@
     "water_title": "Acqua"
   },
   "bind_base_station": {
-    "auto_cancel_disabled": "Annullamento automatico disattivato",
-    "could_not_save_pause_timeout": "Impossibile salvare il timeout di pausa",
     "dock_action_failed": "Azione base non riuscita ({action})",
     "dock_action_sent": "Azione base inviata",
     "dust_empty_sent": "Svuotamento polvere inviato",
     "mop_dry_sent": "Asciugatura mop inviata",
     "mop_wash_sent": "Lavaggio mop inviato",
-    "pause_timeout_set": "Timeout di pausa impostato a {minutes} min",
     "stop_drying_sent": "Stop asciugatura inviato"
   },
   "bind_external_jobs": {
@@ -2979,5 +2973,15 @@
       "many": "Errori — {count}",
       "other": "Errori — {count}"
     }
+  },
+  "pause_timeout": {
+    "title": "Timeout di pausa",
+    "subtitle": "Timeout di pausa predefinito usato quando una sessione è in pausa",
+    "minutes_short": "{minutes} min"
+  },
+  "bind_pause_timeout": {
+    "set": "Timeout di pausa impostato a {minutes} min",
+    "could_not_save": "Impossibile salvare il timeout di pausa",
+    "auto_cancel_disabled": "Annullamento automatico disattivato"
   }
 }
