@@ -24,6 +24,42 @@ enough for the next epoch-closing audit to adjudicate it.
 
 ### Epoch 2 delta candidates — detail
 
+**`live:STALL-PROV-1` — stall captures record no provenance, and the write overwrites.**
+Opened 2026-08-09.
+
+Note what kind of item this is, because it is the same shape as `RB-ERR-2` below: it is
+**not a current divergence**. [04 §6a](../04-listeners.md) describes the write accurately and
+deliberately — "one file per (vacuum, map), overwritten each time, so there is no
+accumulation, no pruning, and a **stable path** an automation can hardcode" — and that
+rationale is sound for the automation case it was written for. DR is authoritative and
+correct today.
+
+The gap is a consequence the baseline does not draw out. `dev_inject_stall` sets
+`"injected": True` in the event payload (`services/stall_capture.py:136`) and **nothing
+reads it** — one writer, zero readers, verified by grep. Combined with the overwrite, a
+synthetic stall silently replaces a real capture and the resulting PNG is
+byte-indistinguishable from one produced by a genuine fault. 04 §6a already explains why the
+injector must run the real consumer path — "with the switch off, an injected stall still
+fires the event and still reports anomalies, so 'no picture' localizes to the consumer" —
+and `services.yaml` warns that an injected stall makes a clean run report as anomalous. What
+neither states is that the *artifact* loses its provenance, and the artifact is the thing a
+user forwards to their phone and reads as evidence.
+
+Why this is delta-shaped rather than a hotfix. There are two fixes and they differ in what
+they cost the baseline. Recording provenance is additive and changes no behaviour, so it
+touches nothing DR promises. Changing *retention* — writing a synthetic capture beside the
+real one rather than over it — breaks the "stable path an automation can hardcode" contract
+that 04 §6a states explicitly, so it is a DR change and needs adjudicating rather than
+patching.
+
+Constraint carried from the design work (`PROTOCOL-semantic-flight-recorder.md` item 8):
+**provenance may be recorded but must never be branched on.** `dev_inject_stall` exists so
+every downstream consumer runs for real; gating the consumer on the caller would produce an
+injector that exercises a path the real event never takes, which is an instrument that
+certifies itself. If the fix lands as part of the semantic recorder, provenance rides the
+correlation context and is inherited — the capture would carry `[synth]` without knowing the
+concept exists. That is the preferred shape, but it does not need to wait for it.
+
 **`live:RB-ERR-2` — CLOSED 2026-08-07, folded into Epoch 1 instead.** Chris pulled it into
 the epoch-closing release: shipping "clean" meant shipping the capture, not documenting it
 as a known gap while 48 keys and 816 translated strings sat unreachable for every Roborock
