@@ -133,6 +133,18 @@ Standalone unshipped card · vacuum selector · pause/resume/cancel · `STALL NO
 fault inject/clear · scoped dev-clock advance/reset · raw result display · backend services
 that enter existing production seams. Everything else waits for a demonstrated need.
 
+**Build list, after the weighing below.** The clock reduced to two actions and one fix:
+
+| # | item | notes |
+|---|---|---|
+| 1 | `advance_clock` offset reaching `_iso_now()` | not the `now=` param — see the reachability gap |
+| 2 | `force_tick` for the six safe pollers | unarmed; broad value for almost no code |
+| 3 | press-time reach warning | not a static arming tag — see the §8 correction |
+
+Pause auto-return is exercised by COMPOSING 1 with the existing pause control, not by a
+bespoke button. `fire_timer` for the `async_call_later` cases is explicitly out: an offset
+cannot serve them and the durations (5 s / 180 s) do not justify a third mechanism.
+
 ---
 
 # Verification against the tree — 2026-08-08
@@ -182,21 +194,73 @@ Chris's read, 2026-08-08: **pause auto-return is the only FULL clock item we hav
 matches the code — it is the behaviour whose entire decision is "how long since the stored
 timestamp", where the others either recompute from counters or are timer-scheduled.
 
-### Revised verdict
+### Every clock-based behaviour, weighed
 
-`advance_clock` is **not** a prerequisite refactor. It is:
+The lever that shrinks this: **injection beats time travel wherever the CONSEQUENCE is
+what's under test.** `STALL NOW` emits the canonical event, so no amount of clock work is
+needed to make the detector fire. A dev clock only earns its keep where the DECISION is
+under test and is gated on elapsed time.
 
-1. pass `now` where the decision already accepts one (pause auto-return: available today);
-2. a separate `fire_timer`-shaped action for the `async_call_later` cases, which an offset
-   can never serve;
-3. optionally, unify the five `_iso_now()` copies (`core/manager:121`,
-   `jobs/active_job:94`, `jobs/phase_runner:51`, `core/error_tracker:110`,
-   `learning/utils:97`) — worth doing as hygiene, and the same "centralize the QUESTION"
-   shape as the two byte-identical palette copies `map-room-color.js` exists to have
-   unified. But it is **not** a blocker for the card.
+| behaviour | mechanism | real wait | offset helps? | verdict |
+|---|---|---|---|---|
+| **Pause auto-return** | elapsed from `paused_at`, polled 1/min | user-set minutes | **yes** | **BUILD** — the only genuine win |
+| Stall / running_long | elapsed vs expected | ~2× a room estimate | moot | already served by injection |
+| Battery current window | `now − 14 days` (`CURRENT_WINDOW_DAYS`) | **14 days** | technically | **skip** — a cutoff over stored samples; inject samples with old timestamps, or you only prove the comparison operator works |
+| Error grace window | `async_call_later` **5 s** | 5 s | **no** — timer | skip; just wait 5 s |
+| Water amendment timeout | `async_call_later` **180 s** default | 3 min | **no** — timer | skip; make the constant declared if it bites |
+| External finalize grace | `async_call_later` const | declared | **no** — timer | skip |
+| Debug capture autostop | `async_call_later` minutes | user-set | **no** — timer | skip; it is a dev tool already |
+| 7 interval pollers | `async_track_time_interval` | ≤ the interval | n/a | `force_tick` — cheap, broad |
 
-So v1 including a useful dev clock is cheap. What it must not do is claim to advance time
-generally when it can only advance the elapsed-since-timestamp class.
+Chris's read, 2026-08-08: **pause auto-return is the only full clock item we have.** The
+table agrees — everything else is covered by injection, better served by forcing a tick,
+or better served by synthetic data.
+
+### Pause is COMPOSED, not a bespoke action
+
+The first draft of this proposed a `force_pause_timeout` button. Rejected, by Chris, in
+favour of composing the primitives that already exist:
+
+```
+PAUSE (real lifecycle control)  →  advance the dev clock  →  the normal 1-min poller ticks
+                                →  production decides, on real elapsed arithmetic
+```
+
+This is §2 applied properly. The bespoke button would have manufactured the *decision*; the
+composition manufactures only the *stimulus*. It also deletes work — no `force_tick` is
+needed for pause, since the natural tick lands within 60 s and the expensive part (the
+user-set timeout minutes) is what the offset already removed.
+
+**Reachability gap to fix first.** `get_paused_job_timeout_report` accepts
+`now: str | None = None`, but `listeners/pause_timeout.py:61` calls it **without `now`**,
+so the check falls back to `_iso_now()`. That parameter is a TEST seam, reachable from a
+unit test and not from a button. The offset must therefore land where `_iso_now()` is read
+— the difference between "the seam exists" and "the seam exists where the card can reach
+it".
+
+### §8 correction — hazard is REACHABILITY, and it is STATE-DEPENDENT
+
+Six of the seven pollers are pure control-plane and need no arming (job progress,
+discovery, pose sampler, safety net, hourly, map overlays — Chris's assessment, and they
+read state rather than command).
+
+**Pause timeout is not.** Its tick calls `async_cancel_active_job`, and that path
+dispatches **`return_to_base`** to the robot (`jobs/active_job.py:2888`, then polls for a
+terminal device state). So the consequence of the pause path is a physical dispatch.
+
+Two rules follow, and the second only became visible once actions compose:
+
+1. **Arming attaches to what a control can REACH, not to what it does directly.** The
+   pause tick looks exactly like the other six. Classifying controls by their own body
+   gets this wrong, and the next control added will get it wrong the same way.
+2. **Reach is state-dependent, so it must be evaluated at PRESS TIME.** The same
+   `advance clock +10m` is inert with nothing paused and dispatches `return_to_base` with
+   a paused job live. There is no static tag that is correct for both. The card should
+   say *"you have a paused job — advancing will cancel it and send Alfred home"* rather
+   than labelling the button safe or armed up front.
+
+Once actions compose, hazard is a property of the resulting SEQUENCE, not of any button in
+it. §5's arming model must be read that way.
 
 ## Coupling to the stall-capture design
 
