@@ -61,6 +61,7 @@ npm run test:harness
 npm run harness:shoot       # every tab, default bundle  -> harness/out/<bundle>/
 npm run harness:gallery     # all-states galleries        -> harness/out/gallery/
 npm run harness:preview     # theme exports in gallery/themes/ -> harness/out/preview/
+npm run harness:cards       # the three standalone cards  -> docs/screenshots/card-*.png
 
 # the CVD separation matrix for any bundle
 node harness/cvd/report.mjs            # default palette (fails — shows the problem)
@@ -69,6 +70,67 @@ node harness/cvd/report.mjs cvd-safe   # the shipped colorblind palette (passes)
 
 `harness/out/` and `harness/dist/` are build artifacts (gitignored). Baselines
 under `harness/tests/__screenshots__/` are committed.
+
+---
+
+## Hero shots — the standalone cards
+
+```bash
+npm run harness:cards
+```
+
+Renders the three standalone Lovelace cards and writes the committed hero shots.
+Deterministic: the clock is frozen and animations zeroed by default (unlike the tab
+shooters, where `--freeze` is opt-in), so re-running with nothing changed reproduces
+the same bytes.
+
+| Output | Shows |
+|---|---|
+| `docs/screenshots/card-room.png` | `eufy-room-card` — one room's cleaning-mode / suction / water / path / passes / edge-mopping chips with the saved values selected, plus Start |
+| `docs/screenshots/card-dashboard.png` | `vacuum-agent-dashboard` — the vacuum header, all six rooms with two selected and one expanded to its settings, the saved-profile + app-scene launchers, Dock / Start |
+| `docs/screenshots/card-profile.png` | `vacuum-agent-profile-card` — one saved routine's "Runs in this order" step manifest across two room groups, a charge-to-80% stop and a wait, plus Run |
+| `harness/out/cards/` | the same three frames plus `_contact-sheet.png`, for reviewing them together |
+
+Flags: `--bundle <name>` themes the cards from `harness/bundles/` exactly as it themes
+the panel (they read the same `--evcc-*` tokens); `--scale` sets the device pixel ratio
+(default 2); `--out <dir>` redirects the hero shots.
+
+**This is a different mount path from everything above.** The tab shooters drive the
+panel's *pure renderers* with a stub `state` accessor. The standalone cards can't be
+driven that way — they are plain custom elements with `setConfig` + a `hass` setter,
+and every value they show is read back out of `hass`. So `window.__evcc.mountCard()`
+mounts the real element in the real document, against the stub hass in
+`harness/fixtures/cards.js`, exactly as Lovelace does. What that fixture must supply
+is the whole contract in `src/cards/_shared.js`:
+
+- **room switches** — a `switch.*` entity is only a room if its attributes carry a
+  matching `vacuum_entity_id` *and* a non-null `room_id`. Miss either and the card
+  renders zero rooms.
+- **the adapter option lists** — `clean_mode_options` / `fan_speed_options` /
+  `water_level_options` / `clean_intensity_options`, carried on each switch. These
+  are the chips. Omit them and the card still mounts, still looks structurally
+  plausible, and every chip row is empty.
+- **the two response-capable reads** — `get_dashboard_snapshot` and
+  `get_saved_run_profiles`, answered by the fixture's canned payloads through a
+  `callService(..., returnResponse=true)` stub.
+
+Because a card that fails to mount looks like a small empty box — and passes any check
+that only asserts a file exists — every shot is gated on what the live shadow tree
+actually contains (chip count, active-chip count, room rows, manifest steps, rendered
+height) **before** anything is written. A card that misses its floor is reported and
+skipped, its previous PNG left untouched, and the run exits non-zero.
+
+Two things the fixture does deliberately, worth knowing before editing it:
+
+- **`clean_mode` appears in both spellings.** The room editor persists the display
+  label `Vacuum and mop`; the adapter option value, the profile catalog and the
+  framework use the token `vacuum_mop`. Kitchen holds the label and Office holds the
+  token, so the shot exercises `canonicalCleanMode()` instead of the trivially-equal
+  path — a token-only fixture would light the chip either way and prove nothing.
+- **The dashboard card's map section is off**, via the card's own `show_map: false`
+  config toggle (a real setting in its visual editor), not by understating the
+  device's capability. The map body is a separately-served bundle
+  (`/eufy_vacuum/frontend/eufy-vacuum-map.js`) that the harness has no route for.
 
 ---
 
@@ -129,6 +191,7 @@ Three values are spec, not defaults — tune them deliberately:
 | diff threshold + budget | `harness/playwright.config.mjs` | `threshold 0.1`, `maxDiffPixels 60` | **absolute** pixel budget, not a ratio — a ratio hides small colored-region changes in a tall image |
 | CVD pass criterion | `harness/cvd/report.mjs` (`FLOOR`) | ΔE2000 ≥ 15, 10 pairs × 3 sims | fix the palette, not the floor |
 | fixture content | `harness/fixtures/gallery.js` | all colored branches per tab | a new state-token must get a gallery row or the completeness gate fails |
+| card content floors | `harness/shoot-cards.mjs` (`GATES`) | per-card chip / room / step / height minima | raise them when a card gains a section; a floor low enough to cover all three cards catches none of them |
 
 ---
 
@@ -145,6 +208,11 @@ Three values are spec, not defaults — tune them deliberately:
 - **The visual gate is structural.** It catches layout / z-index / missing-element
   regressions. Subtle small-region color changes are the **CVD gate's** job — a
   whole-image pixel budget intentionally won't flag them.
+- **Everything renders from `src/`, never from the shipped bundle.**
+  `harness/build.mjs` bundles the mount entry — panel *and* standalone cards — out of
+  `src/`. Pointing any of it at `custom_components/eufy_vacuum/frontend/*.js` would
+  render whatever was last deployed (that bundle only changes on
+  `npm run build:deploy`) while every check stayed green.
 - **Don't sweep the harness into an `eufy_vacuum` release.** `harness/`,
   `.github/workflows/*`, `gallery/`, and the `package.json` devDeps are tooling;
   only `src/`, `custom_components/`, and `tests/` ship.

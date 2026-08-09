@@ -43,6 +43,7 @@ import { flattenLocale } from "../src/i18n/flatten.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
 import { makePseudoLong } from "./lib/pseudo-locale.mjs";
 import { GALLERY } from "./fixtures/gallery.js";
+import { CARD_FIXTURES, CARD_STATES, CARD_SERVICE_RESPONSES } from "./fixtures/cards.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
 import { detectFloorScope, clampThemeScalars } from "../src/theme-tokens/floor-scope.js";
@@ -51,6 +52,15 @@ import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
 // <eufy-vacuum-command-center> with customElements. Everything above renders a
 // SYNTHETIC frame; this is the only path that builds the card's own.
 import "../src/main.js";
+// STANDALONE CARD MOUNT (opt-in): same deal for the three sibling Lovelace cards.
+// This mirrors src/cards-standalone.js — the bundle a real install loads on every
+// HA page — so the harness defines the cards from SOURCE, never from the built
+// artifact under custom_components/.../frontend/ (which only changes on a deploy
+// build, so rendering from it would shoot whatever was last deployed while every
+// test stayed green).
+import "../src/room-card.js";
+import "../src/cards/dashboard-card.js";
+import "../src/cards/profile-card.js";
 
 /* =========================================================
    GLOBAL STUB: window.AnimalSVG
@@ -513,18 +523,39 @@ function renderThemePresets(themes, opts = {}) {
    =========================================================== */
 
 if (!customElements.get("ha-card")) {
-  // Passthrough. Real ha-card adds chrome the card does not measure against.
+  // Real ha-card's chrome is DECLARED BY ITS CONSUMER, through --ha-card-*: the
+  // element paints whatever those resolve to and nothing otherwise. Reproduce
+  // exactly that contract rather than a fixed look, because both callers depend
+  // on a different half of it:
+  //
+  //   - the panel (mountRealCard) sets NONE of them, so every fallback below is
+  //     the inert one — transparent, zero border, no shadow, no radius. Its
+  //     measurements are byte-identical to a bare passthrough, which is what the
+  //     real-frame specs assert against.
+  //   - the standalone room card is the opposite: it draws NO frame of its own
+  //     and instead drives --ha-card-background / -border-* / -box-shadow off the
+  //     evcc tokens, precisely so a theme can override the frame. Emulated with a
+  //     bare passthrough it renders as unstyled text on the page background.
+  //
+  // Harness-only chrome. It stands in for Home Assistant; it is NOT shipped.
   customElements.define("ha-card", class extends HTMLElement {
     connectedCallback() {
       if (!this.shadowRoot) {
         this.attachShadow({ mode: "open" }).innerHTML =
-          `<style>:host{display:block;height:100%}</style><slot></slot>`;
+          `<style>:host{
+             display: block;
+             height: 100%;
+             background: var(--ha-card-background, var(--card-background-color, transparent));
+             border-radius: var(--ha-card-border-radius, 0);
+             border: var(--ha-card-border-width, 0) solid var(--ha-card-border-color, transparent);
+             box-shadow: var(--ha-card-box-shadow, none);
+           }</style><slot></slot>`;
       }
     }
   });
 }
 
-function makeStubHass({ states = {}, language = "en", locale } = {}) {
+function makeStubHass({ states = {}, language = "en", locale, callService, callWS } = {}) {
   // Normalise to the SHAPE HA actually hands the card. A bare
   // {state, attributes} is missing entity_id/last_changed, and code that reads
   // them fails with a TypeError far from the cause -- so a test would look like a
@@ -545,11 +576,141 @@ function makeStubHass({ states = {}, language = "en", locale } = {}) {
     states: norm,
     language,
     locale: locale ?? { language, number_format: "language", time_format: "language" },
-    callService: async () => ({}),
-    callWS: async () => ({}),
+    // Overridable so a fixture can answer the RESPONSE-capable reads (the cards
+    // fetch their snapshot / profile library through callService with
+    // returnResponse=true). Default stays the inert no-op.
+    callService: callService ?? (async () => ({})),
+    callWS: callWS ?? (async () => ({})),
     connection: { subscribeEvents: async () => (() => {}) },
     localize: (k) => k,
   };
+}
+
+/* ===========================================================
+   STANDALONE CARD MOUNT — the three sibling Lovelace cards.
+   ===========================================================
+   These are NOT the panel and cannot use render()/renderGallery(): they are
+   plain custom elements with `setConfig` + a `hass` setter, and every value they
+   show is read back out of hass — `hass.states` for the room switches, and two
+   response-capable service calls for the dashboard snapshot / saved profiles.
+   So the fixture is a stub HASS (fixtures/cards.js), and the mount is the real
+   element in the real document, exactly as Lovelace does it.
+
+   Everything the shot needs to be TRUE of the card is therefore true of it: the
+   chips come from the adapter option lists on the switches, the active chip comes
+   from the card's own comparison, the manifest comes from the shared step
+   renderer. Nothing here draws.
+   =========================================================== */
+
+/**
+ * A Home Assistant document shim for a card mounted OUTSIDE the panel.
+ *
+ * The panel's own `:host` declares `font-family: var(--evcc-a11y-font-family,
+ * var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif)))`.
+ * The standalone cards deliberately declare no face at all — on a dashboard they
+ * inherit HA's. A bare harness page supplies none, so without this every card
+ * would shoot in Chromium's default SERIF and look nothing like an install.
+ * Harness-only; not shipped.
+ */
+const HA_DOCUMENT_SHIM = "font-family: var(--paper-font-body1_-_font-family, sans-serif);";
+
+/** Resolve a returnResponse service call against the fixture's canned payloads. */
+function cardServiceCall(domain, service, _data, _target, _notify, returnResponse) {
+  if (!returnResponse) return Promise.resolve({});
+  const payload = CARD_SERVICE_RESPONSES[`${domain}.${service}`];
+  return Promise.resolve(payload === undefined ? {} : { response: payload });
+}
+
+/** Let the card's one-shot `_ensureData()` fetch settle, then let it paint. */
+function settle() {
+  return new Promise((resolve) => {
+    setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 0);
+  });
+}
+
+/**
+ * Mount one CARD_FIXTURES entry into #root and report what it actually rendered.
+ *
+ * The report is the point: a card that fails to mount produces a small empty box
+ * that passes any check asserting only that a file exists. `chips` / `rooms` /
+ * `steps` / `text` are counted off the LIVE shadow tree so the Node side can
+ * refuse to write a shot of nothing.
+ *
+ * @param {string} id      - a CARD_FIXTURES id ("room" | "dashboard" | "profile").
+ * @param {object} [opts]
+ * @param {object} [opts.bundle] - flat `--evcc-*` map applied to the host, exactly
+ *   as src/styles/apply-theme.js does (the cards read the same tokens the panel does).
+ * @param {boolean}[opts.freeze] - freeze the clock + animations for determinism.
+ * @returns {Promise<object>} serialisable render report (never throws to the page).
+ */
+async function mountCard(id, opts = {}) {
+  const { bundle = {}, freeze = false } = opts;
+  const entry = CARD_FIXTURES.find((c) => c.id === id);
+  if (!entry) return { id, ok: false, error: `unknown card fixture: ${id}` };
+
+  const restoreClock = freeze ? freezeClock() : null;
+  const result = { id, ok: false, element: entry.element, label: entry.label, width: entry.width };
+
+  try {
+    const root = document.getElementById("root") || document.body;
+    root.innerHTML = "";
+    // Every card paints its own OPAQUE surface behind a rounded corner, so a
+    // page colour would survive in the four corners of an element screenshot and
+    // read as notches against any host page. Clear it and let the caller capture
+    // with omitBackground, so the corners come out transparent instead.
+    document.documentElement.style.background = "transparent";
+    document.body.style.background = "transparent";
+
+    const holder = document.createElement("div");
+    holder.id = "evcc-card-holder";
+    holder.style.cssText = `width:${entry.width}px;${HA_DOCUMENT_SHIM}`;
+    // The cards read --evcc-* with literal fallbacks, so an empty bundle is the
+    // real cold-dashboard look. A bundle themes them the same way it themes the panel.
+    for (const [key, value] of Object.entries(bundle)) {
+      if (value !== null && value !== undefined && value !== "") holder.style.setProperty(key, value);
+    }
+    if (freeze) {
+      const style = document.createElement("style");
+      style.setAttribute("data-evcc-harness-freeze", "");
+      style.textContent = FREEZE_STYLE;
+      document.head.appendChild(style);
+    }
+    root.appendChild(holder);
+
+    const el = document.createElement(entry.element);
+    el.setConfig({ ...entry.config });
+    holder.appendChild(el);
+    el.hass = makeStubHass({ states: CARD_STATES, callService: cardServiceCall });
+
+    await settle();
+
+    // Open the requested room rows the way a user does — the card owns which rows
+    // are expanded, so there is no state to inject. A collapsed dashboard shows no
+    // settings chips at all, which is the difference between a hero shot and a list.
+    for (const roomId of entry.expand ?? []) {
+      el.shadowRoot?.querySelector(`[data-expand="${roomId}"]`)?.click();
+    }
+    await settle();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+
+    const shadow = el.shadowRoot;
+    const text = (shadow?.textContent || "").trim().replace(/\s+/g, " ");
+    result.ok = Boolean(shadow && shadow.innerHTML.length);
+    result.htmlLen = shadow ? shadow.innerHTML.length : 0;
+    result.chips = shadow ? shadow.querySelectorAll(".chip").length : 0;
+    result.rooms = shadow ? shadow.querySelectorAll(".room-row").length : 0;
+    result.steps = shadow ? shadow.querySelectorAll(".evcc-run-profiles-seq-step").length : 0;
+    result.activeChips = shadow ? shadow.querySelectorAll(".chip.active").length : 0;
+    result.text = text.slice(0, 400);
+    result.height = Math.round(el.getBoundingClientRect().height);
+  } catch (err) {
+    result.ok = false;
+    result.error = String((err && err.message) || err);
+    result.stack = err && err.stack ? String(err.stack).split("\n").slice(0, 8).join("\n") : null;
+  }
+
+  if (restoreClock) restoreClock();
+  return result;
 }
 
 /**
@@ -595,6 +756,14 @@ async function mountRealCard({ config = {}, hass = {}, width = null, hostHeight 
 
 window.__evcc = {
   mountRealCard,      // OPT-IN: builds the card's own frame; see the block above
+  mountCard,          // OPT-IN: mounts one STANDALONE Lovelace card; see the block above
+  cards: CARD_FIXTURES.map((c) => ({
+    id: c.id,
+    element: c.element,
+    file: c.file,
+    label: c.label,
+    width: c.width,
+  })),
   version: 1,
   VIEWS,
   VIEW_ORDER,

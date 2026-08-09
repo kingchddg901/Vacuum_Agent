@@ -77,6 +77,25 @@ export function renderTab(page, view, opts = {}) {
 }
 
 /**
+ * Mount one STANDALONE Lovelace card (room / dashboard / profile) and return
+ * what it rendered. Requires mountHarness first, like renderTab.
+ *
+ * Not the same path as renderTab: those are the panel's pure renderers driven by
+ * a stub state accessor, these are real custom elements driven by a stub hass —
+ * see the CARD MOUNT block in mount-entry.js. The returned report carries live
+ * counts off the shadow tree (chips / rooms / steps) so a caller can refuse to
+ * screenshot a card that mounted empty.
+ */
+export function mountCard(page, id, opts = {}) {
+  return page.evaluate(([i, o]) => window.__evcc.mountCard(i, o), [id, opts]);
+}
+
+/** The standalone-card fixture list (id / element / file / label / width). */
+export function cardFixtures(page) {
+  return page.evaluate(() => window.__evcc.cards);
+}
+
+/**
  * Probe #evcc-host's shadow tree for REAL horizontal overflow under the current
  * render — the property gate's measurement.
  *
