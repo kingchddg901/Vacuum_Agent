@@ -380,7 +380,20 @@ class ProfileManager:
             "path_type": resolved.get("path_type") or None,
             "default_clean_passes": protected.get("clean_passes", 1),
             "default_edge_mopping": protected.get("edge_mopping", False),
-            "mop_required": "mop" in clean_mode or "wash" in clean_mode,
+            # ISSUE #48: the LAST private copy of the predicate. Expressed exactly as
+            # _protected_room_config expresses it — same file, same question, and the
+            # two are read off the same `protected` dict a few lines apart, so a
+            # disagreement between them is the original #48 shape in miniature.
+            #
+            # Identical on every value that exists: the live store holds only
+            # "Vacuum", "vacuum" and "Vacuum and mop", and the old substring test and
+            # this agree on all three. They part only on a hypothetical brand mode
+            # that merely MENTIONS mopping ("Mopping after sweeping"), and that
+            # narrowing was already the sibling's choice — inherited here rather than
+            # introduced, because the two answering differently is worse than either
+            # answer. If that tolerance is ever wanted back it belongs in
+            # is_mop_clean_mode, once, not in a fourth private copy.
+            "mop_required": is_mop_clean_mode(clean_mode) or "wash" in clean_mode,
             "selected_profile_name": resolved.get("selected_profile_name"),
             "resolved_profile_name": resolved.get("resolved_profile_name"),
             "floor_type": room.get("floor_type"),
