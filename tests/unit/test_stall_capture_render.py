@@ -338,15 +338,19 @@ _FOUR_POINTS = [(0.2, 0.2), (0.4, 0.3), (0.6, 0.5), (0.8, 0.8)]
 
 
 def test_sparse_samples_draw_breadcrumbs_not_a_line():
-    """[SC-13] THE REASON WIDENING THE WINDOW IS NOT JUST A BIGGER LIE.
+    """[SC-13] The same points must still render DIFFERENTLY by cadence.
 
-    Four points 30s apart clear the count threshold and are still four segments of
-    invented route — at that cadence the robot covers several metres between samples and
-    certainly turned. So the same points render DIFFERENTLY depending on how far apart in
-    time they are: dense ones connect, sparse ones stay separate observations.
+    REVISED 2026-08-09. This originally read "dense ones connect, sparse ones stay separate
+    observations" — sparse points are now connected too, so that rationale is retired. The
+    reason it changed: refusing to connect them also threw away the ORDER, and inside a
+    single-room crop a segment cannot cross a wall, so the most it can overstate is a corner
+    the robot drove around rather than through. Losing which way it was travelling costs
+    more than that.
 
-    Remove the gap check and the two renders become identical — which is exactly the
-    regression: a coarse brand silently gets a fabricated path.
+    What the cadence still decides is whether the individual OBSERVATIONS are drawn: a
+    coarse brand gets its samples marked as dots on the line, because at 30s apart each one
+    is a fact worth showing; a 2s brand does not, because thirty of them would be noise.
+    Remove the gap check and the two renders become identical.
     """
     pytest.importorskip("PIL")
     kw = _trail_kw()
@@ -357,6 +361,63 @@ def test_sparse_samples_draw_breadcrumbs_not_a_line():
 
     assert dense != sparse, "a coarse cadence must not render as a connected line"
     assert sparse != nothing, "breadcrumbs must actually be drawn"
+
+
+def test_the_oldest_breadcrumb_is_paler_than_the_newest():
+    """[SC-17] Direction of travel must be IN THE PIXELS, encoded as lightness.
+
+    The ring hands anchors over oldest-first, so which way the robot was going is a fact we
+    hold — and "was it heading INTO that corner or backing out of it" is the first thing
+    anyone asks of a stall picture. Lightness rather than hue because a colour ramp is
+    invisible to ~8% of men and this image carries no legend to fall back on; it cannot,
+    since a worded key would be the first English baked into a PNG shipped to an
+    18-language audience.
+
+    ASSERTS THE PIXELS, not "the bytes changed". The first draft of this test rendered the
+    trail forwards and reversed and asserted the PNGs differed — it passed with the fade AND
+    the chevrons both ablated, because reversing a polyline perturbs the encoded bytes for
+    reasons that have nothing to do with direction. A gate that is green for an unrelated
+    reason is worse than no gate. An intermediate crumb colour cannot exist unless the
+    gradient actually ran.
+    """
+    pytest.importorskip("PIL")
+    import io
+
+    from PIL import Image
+
+    kw = _trail_kw()
+    png = scr.render_room_capture(trail=_FOUR_POINTS, trail_gap_s=30.0, **kw)
+
+    # getcolors, not getdata: getdata is deprecated and disappears in Pillow 14.
+    img = Image.open(io.BytesIO(png)).convert("RGBA")
+    colours = {colour for _count, colour in (img.getcolors(1 << 24) or [])}
+    between = [
+        c for c in colours
+        if all(min(f, t) < c[i] < max(f, t)
+               for i, (f, t) in enumerate(zip(scr.FILL_RGB, scr.TRAIL_RGB)))
+    ]
+
+    assert between, "no crumb colour between the room fill and the trail colour — no fade ran"
+
+
+@pytest.mark.parametrize("gap_s", [2.0, 30.0])
+def test_chevrons_are_drawn_on_both_cadences(monkeypatch, gap_s):
+    """[SC-18] The arc-length spacing exists so ONE implementation serves both brands.
+
+    Eufy's ~2s pose puts ~30 points in the window and Roborock's ~30s puts a handful, so a
+    chevron per SEGMENT would be a sawtooth on one brand and adequate on the other. Walking
+    the distance instead of the point list is what makes both readable — and a chevron pass
+    that silently no-ops on one cadence would leave that brand direction-blind while the
+    other looked fine, which is the shape of every brand bug in this codebase.
+    """
+    pytest.importorskip("PIL")
+    kw = _trail_kw()
+
+    drawn = scr.render_room_capture(trail=_FOUR_POINTS, trail_gap_s=gap_s, **kw)
+    monkeypatch.setattr(scr, "_draw_direction_chevrons", lambda *a, **k: None)
+    without = scr.render_room_capture(trail=_FOUR_POINTS, trail_gap_s=gap_s, **kw)
+
+    assert drawn != without, f"no chevrons were drawn at trail_gap_s={gap_s}"
 
 
 def test_breadcrumbs_need_only_two_observations():

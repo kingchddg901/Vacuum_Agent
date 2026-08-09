@@ -106,6 +106,28 @@ _MIN_BREADCRUMB_POINTS = 2
 #: The floor for the ±window, and today's Eufy behaviour exactly.
 _MIN_TRAIL_SECONDS = 30
 
+#: Dot radii, as a multiple of the upscale ``factor``. Named rather than left inline because
+#: they are the only numbers in this module anyone re-tunes by looking at a real capture.
+#:
+#: Raised 15% on 2026-08-09, eyeballed against one of the maintainer's SMALLEST rooms — which
+#: is the EASY case, and knowing why matters before anyone tunes these again. ``factor`` is
+#: capped by ``max_edge_px``, so a large room renders at a lower factor and its dots come out
+#: relatively SMALLER. Dot visibility is therefore inversely related to room size, and a
+#: radius validated on a small room is safe everywhere while helping most where it is
+#: currently worst. Tying these to the output dimension instead would remove that inversion.
+_TRAIL_DOT_R_FACTOR = 0.63
+_ROBOT_DOT_R_FACTOR = 1.38
+
+#: How far the OLDEST breadcrumb fades toward the room fill, encoding time as LIGHTNESS.
+#:
+#: Not hue: a green-to-red ramp is invisible to ~8% of men, and this image ships to people
+#: whose floors we have never seen. Fading toward the fill makes the trail recede into the
+#: past and terminate at the robot dot, so direction of travel needs no legend — which is
+#: the point, because a worded key would be the first English BAKED INTO this PNG, and
+#: pixels cannot be translated in an 18-language product. The room-name pill is safe only
+#: because it carries the user's own word, not ours.
+_BREADCRUMB_OLDEST_FADE = 0.55
+
 _TRANSPARENT = (0, 0, 0, 0)
 
 
@@ -134,6 +156,44 @@ def trail_window_seconds(pose_refresh_s: Any) -> int:
         return _MIN_TRAIL_SECONDS
     needed = (_MIN_TRAIL_POINTS + 1) * refresh / 2.0
     return max(_MIN_TRAIL_SECONDS, int(-(-needed // 1)))  # ceil
+
+
+def _draw_direction_chevrons(draw, pts, rgb, width: int, spacing: float, size: float) -> None:
+    """Chevrons along ``pts``, pointing the way the robot travelled. Never raises.
+
+    Direction is a fact the ring hands over (oldest first) that the drawing would otherwise
+    throw away — without it you cannot tell whether the robot was heading INTO the corner it
+    stopped in or backing out of it, which is the first thing anyone asks of a stall picture.
+
+    PLACED BY ARC LENGTH, not per segment, and that is what makes one implementation serve
+    both brands. Eufy's ~2 s pose puts ~30 points in the window and a chevron per segment
+    would be a solid sawtooth; Roborock's ~30 s pose puts 7 points across a room and a
+    chevron per segment is about right. Walking the distance instead of the point list gives
+    the same visual density either way.
+
+    Language-neutral by construction: a chevron needs no legend, and a legend would be the
+    first English baked into this PNG (see ``_BREADCRUMB_OLDEST_FADE``).
+    """
+    if len(pts) < 2 or spacing <= 0:
+        return
+    col = (*rgb, 255)
+    carry = spacing / 2.0  # first mark lands mid-way into the first segment, not on a dot
+    for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+        dx, dy = x1 - x0, y1 - y0
+        seg = (dx * dx + dy * dy) ** 0.5
+        if seg <= 0:
+            continue  # a stationary robot is one place, and has no direction to draw
+        ux, uy = dx / seg, dy / seg
+        px, py = -uy, ux  # unit normal, for the barbs
+        d = carry
+        while d < seg:
+            tx, ty = x0 + ux * d, y0 + uy * d
+            draw.line([(tx - ux * size + px * size * 0.7, ty - uy * size + py * size * 0.7),
+                       (tx, ty)], fill=col, width=width)
+            draw.line([(tx - ux * size - px * size * 0.7, ty - uy * size - py * size * 0.7),
+                       (tx, ty)], fill=col, width=width)
+            d += spacing
+        carry = d - seg  # continue the rhythm across the joint rather than restarting
 
 
 def _load_font(size: int):
@@ -384,16 +444,46 @@ def render_room_capture(
         # apart. Smaller than the anchor dot and in the trail colour, so the eye still
         # reads one subject (where it stopped) with context behind it.
         if len(distinct) >= _MIN_BREADCRUMB_POINTS:
-            r = max(1.5, factor * 0.55)
-            for bx, by in distinct:
-                draw.ellipse([bx - r, by - r, bx + r, by + r], fill=(*TRAIL_RGB, 255))
+            r = max(1.5, factor * _TRAIL_DOT_R_FACTOR)
+            # Connect in order, chevron the direction, then the dots on top. The dots are the
+            # observations; the line is the sequence and the chevrons say which way she was
+            # going. The earlier draft left them unconnected on the grounds that a segment
+            # spanning 30 s of unobserved travel invents a route — true of a whole-map trail,
+            # overcautious inside a SINGLE-ROOM crop, where the segment cannot cross a wall
+            # and the most it can overstate is a corner she drove around rather than through.
+            # Losing the direction of travel costs more than that: it is the first thing
+            # anyone asks of a stall picture.
+            lw = max(1, factor // 3)
+            draw.line(distinct, fill=(*TRAIL_RGB, 255), width=lw, joint="curve")
+            _draw_direction_chevrons(
+                draw, distinct, TRAIL_RGB, lw,
+                spacing=max(12.0, factor * 4.0), size=max(3.0, factor * 1.1),
+            )
+            last = len(distinct) - 1
+            for i, (bx, by) in enumerate(distinct):
+                # Oldest fades toward the room fill; newest is full strength and sits beside
+                # the robot dot, so travel direction reads without a legend.
+                t = (i / last) if last else 1.0
+                mix = _BREADCRUMB_OLDEST_FADE * (1.0 - t)
+                col = tuple(
+                    int(round(c * (1.0 - mix) + f * mix))
+                    for c, f in zip(TRAIL_RGB, FILL_RGB)
+                )
+                draw.ellipse([bx - r, by - r, bx + r, by + r], fill=(*col, 255))
     elif len(distinct) >= _MIN_TRAIL_POINTS:
-        draw.line(distinct, fill=(*TRAIL_RGB, 255), width=max(1, factor // 2), joint="curve")
+        lw = max(1, factor // 2)
+        draw.line(distinct, fill=(*TRAIL_RGB, 255), width=lw, joint="curve")
+        # Same chevrons as the sparse branch. Spacing is by arc length, so a dense Eufy trail
+        # gets the same visual rhythm rather than one mark per 2-second sample.
+        _draw_direction_chevrons(
+            draw, distinct, TRAIL_RGB, lw,
+            spacing=max(12.0, factor * 4.0), size=max(3.0, factor * 1.1),
+        )
 
     a = _norm_to_px(anchor, cvw, cvh)
     if a is not None:
         ax, ay = _to_final(a)
-        r = max(2.5, factor * 1.2)
+        r = max(2.5, factor * _ROBOT_DOT_R_FACTOR)
         ring = max(1.0, r * 0.35)
         draw.ellipse([ax - r - ring, ay - r - ring, ax + r + ring, ay + r + ring],
                      fill=(*DOT_RING_RGB, 255))
