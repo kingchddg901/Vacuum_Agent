@@ -33,6 +33,7 @@ from . import (
     run_profiles,
     setup,
     snapshots,
+    stall_capture,
 )
 
 
@@ -54,6 +55,7 @@ _DOMAINS = (
     adapter_config,
     setup,
     debug,
+    stall_capture,
 )
 
 

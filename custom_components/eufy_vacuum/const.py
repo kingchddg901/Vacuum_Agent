@@ -67,6 +67,11 @@ SERVICE_EMPTY_DUST = "empty_dust"
 SERVICE_RESET_MAINTENANCE = "reset_maintenance"
 SERVICE_SET_MAINTENANCE_INTERVAL = "set_maintenance_interval"
 SERVICE_SET_DOCK_EVENT_COUNT = "set_dock_event_count"
+SERVICE_SET_STALL_CAPTURE = "set_stall_capture"
+# DEV-ONLY: registered only when <config>/eufy_vacuum/dev_mode exists. Fires a
+# SYNTHETIC EVENT_STALL_DETECTED so the capture chain can be exercised without
+# physically wedging a vacuum. Never registered on a normal install.
+SERVICE_DEV_INJECT_STALL = "dev_inject_stall"
 
 SERVICE_GET_ROOM_PROFILES = "get_room_profiles"
 SERVICE_SAVE_USER_ROOM_PROFILE = "save_user_room_profile"

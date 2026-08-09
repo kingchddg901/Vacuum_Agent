@@ -3750,3 +3750,48 @@ debug_capture_status:
   name: Debug capture â€” status
   description: Report whether capture is active and how much has been captured.
 
+
+set_stall_capture:
+  name: Stall capture — arm or disarm
+  description: >-
+    Turn stall capture on or off for one vacuum. When armed, a detected stall renders
+    the room the robot stopped in and writes it to
+    config/eufy_vacuum/learning/<vacuum>/stall/<map_id>.png, raises a persistent
+    notification, and fires the eufy_vacuum_stall_captured event carrying the file path
+    so an automation can send it to a phone. Off by default; the detector itself is
+    unaffected either way.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      description: The vacuum to arm or disarm.
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    enabled:
+      name: Enabled
+      description: True to arm capture for this vacuum, False to disarm it.
+      required: true
+      selector:
+        boolean:
+
+dev_inject_stall:
+  name: "DEVELOPER — inject a synthetic stall"
+  description: >-
+    MAINTAINER TOOL. NOT FOR NORMAL USE. Fires a SYNTHETIC stall event for a vacuum that
+    is currently cleaning a room, using its real map and room, so the stall-capture chain
+    can be exercised without physically wedging a vacuum. It does NOT move the robot and
+    does NOT command any hardware — it only fires an event. BUT the event is not private
+    to stall capture: it also reaches run-anomaly reporting, so the run will be recorded
+    as having stalled when it did not, and the card's snapshot will say so. Do not call
+    this on a run whose learning data you care about. Refuses unless the vacuum is
+    actually cleaning a room, because a stall with no current room has no pose history
+    and renders nothing.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      description: A vacuum that is currently cleaning a room.
+      required: true
+      selector:
+        entity:
+          domain: vacuum
