@@ -369,7 +369,7 @@ not on however often a card happens to be polling. Each call:
    were firing inside the group) and the change was reverted; the card still
    reads the single `current_room_id`/`current` flag per room, `current_room_ids`
    is consumed only for the threshold sums below.
-9. **Bounds-exit detection** (`awaiting_bounds_exit`) — the threshold is the
+9. **Bounds-exit detection** (`current_room_overdue`) — the threshold is the
    **sum over `current_room_ids`** of each member's timing-completion threshold
    (a single-room threshold would engage almost immediately on a multi-room group
    and hold for the whole phase), and the flag is **forced `False` for
@@ -378,13 +378,13 @@ not on however often a card happens to be polling. Each call:
 10. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
     `skipped` (conservative). See below.
 
-### `awaiting_bounds_exit` logic
+### `current_room_overdue` logic
 
 After the timing rollover attempt, if the room did *not* roll (i.e.
 `current_room_id` is unchanged), the snapshot checks whether elapsed time has
 passed the timing completion threshold summed over `current_room_ids` (step 9
 above — a single-room member sum reduces to the plain per-room threshold, so an
-atomic run is unaffected). If so, `awaiting_bounds_exit = True`. This signals the
+atomic run is unaffected). If so, `current_room_overdue = True`. This signals the
 card to switch to a short poll interval (~5 s) because the robot is still
 physically inside the room/group and the rollover gate is blocked by bounds.
 Forced `False` outright for a path-optimizing brand (`adapter_honors_clean_order`
@@ -417,7 +417,7 @@ _RUNNING_LONG_RATIO = anomaly.running_long_ratio  or 1.5
 
 **Stall (hard).** Gated on `_honors_clean_order` (no-op for a path-optimizing
 brand). A stall is detected when:
-- `awaiting_bounds_exit` is already `True` (timing threshold exceeded), **and**
+- `current_room_overdue` is already `True` (timing threshold exceeded), **and**
 - `current_room_elapsed_minutes >= threshold * _STALL_RATIO` (≥2× by default),
   where `threshold` is the **sum of `_timing_completion_threshold_minutes` over
   `current_room_ids`** (step 8 above) — on a single-room dispatch this is just

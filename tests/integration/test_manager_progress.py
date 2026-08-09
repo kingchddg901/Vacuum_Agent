@@ -10,7 +10,7 @@ Coverage targets
 [PR-2]  started job + learning + resolved rooms → snapshot with derived current
         room and a timeline.
 [PR-3]  completed rooms → the reanchor timeline branch.
-[PR-4]  a long-overrun current room → awaiting_bounds_exit / stall signalling.
+[PR-4]  a long-overrun current room → current_room_overdue / stall signalling.
 [PR-5]  finalize_learning_for_active_job: no learning manager → None.
 [PR-6]  finalize_learning_for_active_job: missing started_at → not finalized.
 [PR-7]  finalize_learning_for_active_job: full job → completed_job result.
@@ -169,7 +169,7 @@ def test_progress_reanchor(manager, hass):
 
 
 def test_progress_stall(manager, hass):
-    """[PR-4] a wildly-overrun current room raises awaiting_bounds_exit/stall.
+    """[PR-4] a wildly-overrun current room raises current_room_overdue/stall.
 
     With no robot-position entities the timing rollover can't confirm the robot
     left the room, so an elapsed >> threshold should flag bounds-exit (and, at
@@ -183,8 +183,8 @@ def test_progress_stall(manager, hass):
     hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: events.append(e))
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     # whichever path the timing engine takes, the snapshot stays well-formed
-    assert "awaiting_bounds_exit" in snap
-    assert isinstance(snap["awaiting_bounds_exit"], bool)
+    assert "current_room_overdue" in snap
+    assert isinstance(snap["current_room_overdue"], bool)
 
 
 def test_progress_stall_fires_once(manager, hass):

@@ -1055,7 +1055,7 @@ class ActiveJobTracker:
         current_room_id: int | None,
         current_room_elapsed_minutes: float,
         completed_room_ids: list[int],
-        awaiting_bounds_exit: bool,
+        current_room_overdue: bool,
         current_room_ids: list[int] | None = None,
         emit: bool = False,
     ) -> dict[str, Any]:
@@ -1086,7 +1086,7 @@ class ActiveJobTracker:
         Lives here (not in the snapshot composer) because this tracker owns the active-job
         dict + the per-job dedup state the one-shot emission is keyed on. Pure read of the
         passed-in computed locals — it does NOT recompute the timeline or rollover; the
-        composer hands in awaiting_bounds_exit / current_room_id / elapsed already resolved.
+        composer hands in current_room_overdue / current_room_id / elapsed already resolved.
         Returns the anomaly fields for the snapshot dict."""
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         _anomaly_cfg = _adapter_cfg.get("anomaly", {})
@@ -1098,7 +1098,7 @@ class ActiveJobTracker:
         stall_expected_minutes: float | None = None
         stall_ratio: float | None = None
 
-        if _honors_clean_order and awaiting_bounds_exit and current_room_id is not None:
+        if _honors_clean_order and current_room_overdue and current_room_id is not None:
             _stall_entry = next(
                 (
                     r for r in raw_timeline

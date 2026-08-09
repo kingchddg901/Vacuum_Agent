@@ -375,7 +375,7 @@ export class LearningController {
   /* =========================================================
      BOUNDS-EXIT POLL
      =========================================================
-     When the backend reports awaiting_bounds_exit: true the room
+     When the backend reports current_room_overdue: true the room
      timing threshold has elapsed but the robot is still inside
      the room's bounds (cleaning slower than expected).  No room
      event will fire until the robot actually leaves, so we poll
@@ -385,7 +385,7 @@ export class LearningController {
      ========================================================= */
 
   _checkBoundsExitPolling() {
-    const awaiting = this.card?._state?.dashboardJobProgress?.()?.awaiting_bounds_exit;
+    const awaiting = this.card?._state?.dashboardJobProgress?.()?.current_room_overdue;
     if (awaiting) {
       this._startBoundsExitPoll();
     } else {
@@ -399,7 +399,7 @@ export class LearningController {
       await this.card?.refreshDashboardSnapshot?.();
       this.card?._scheduleRender?.();
       // Re-check after each refresh — stop if the room has rolled
-      if (!this.card?._state?.dashboardJobProgress?.()?.awaiting_bounds_exit) {
+      if (!this.card?._state?.dashboardJobProgress?.()?.current_room_overdue) {
         this._stopBoundsExitPoll();
       }
     }, 5000);

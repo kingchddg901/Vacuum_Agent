@@ -277,7 +277,7 @@ EVENT_EXTERNAL_RUN_PENDING = f"{DOMAIN}_external_run_pending"
 EVENT_JOB_PROGRESS_TICK  = f"{DOMAIN}_job_progress_tick"
 
 # Fired from get_job_progress_snapshot() when the robot has been in a room for
-# >= 2× its learned timing threshold and awaiting_bounds_exit is already true.
+# >= 2× its learned timing threshold and current_room_overdue is already true.
 # Fires at most once per room per job (tracked via _stall_notified_room_ids in
 # the active job dict).  Payload: vacuum_entity_id, map_id, room_id, room_name,
 # elapsed_minutes, expected_minutes, stall_ratio.

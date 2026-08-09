@@ -1157,7 +1157,7 @@ stall / lifecycle fields omitted for brevity):
   "status":                str           # active-job status
   "terminal":              bool          # status NOT in {started, paused}
   "current_room_id":       int | None    # next unfinished QUEUED room
-  "awaiting_bounds_exit":  bool
+  "current_room_overdue":  bool
   "completed_room_ids":    list[int]
   "remaining_room_ids":    list[int]     # excludes current + skipped
   "skipped_room_ids":      list[int]     # conservative; ~empty live for Eufy (see below)

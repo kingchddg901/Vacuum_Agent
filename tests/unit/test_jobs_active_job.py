@@ -488,7 +488,7 @@ def test_detect_run_anomalies_disabled_for_path_optimized_order():
         current_room_id=2,
         current_room_elapsed_minutes=10.0,
         completed_room_ids=[],
-        awaiting_bounds_exit=True,
+        current_room_overdue=True,
     )
 
     assert result["stall_detected"] is False
@@ -524,7 +524,7 @@ def test_running_long_suppressed_for_unlearned_room():
         current_room_id=1,
         current_room_elapsed_minutes=13.0,
         completed_room_ids=[],
-        awaiting_bounds_exit=False,  # isolate running_long from the bounds-gated stall
+        current_room_overdue=False,  # isolate running_long from the bounds-gated stall
     )
     assert result["running_long"] is False
     assert result["stall_detected"] is False
@@ -544,7 +544,7 @@ def test_running_long_fires_for_learned_room():
         current_room_id=1,
         current_room_elapsed_minutes=17.0,
         completed_room_ids=[],
-        awaiting_bounds_exit=False,
+        current_room_overdue=False,
     )
     assert result["running_long"] is True
 

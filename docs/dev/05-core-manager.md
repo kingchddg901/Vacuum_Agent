@@ -430,7 +430,7 @@ suction stays max-wins. Detail:
 ### `get_job_progress_snapshot`
 
 Reads active job state, computes elapsed/expected times per room (active_job),
-and emits a timing-only bounds-exit signal (`awaiting_bounds_exit`) — computed
+and emits a timing-only bounds-exit signal (`current_room_overdue`) — computed
 by the composer itself — when `current_room_elapsed_minutes` exceeds the
 timing-completion threshold, but **force-cleared to `False` for a
 path-optimizing brand** (`capabilities.honors_clean_order is False`, e.g.

@@ -4145,7 +4145,16 @@ class EufyVacuumManager:
             if _cur_phase is not None else None
         )
 
-        awaiting_bounds_exit = False
+        # NAMED FOR WHAT IT IS. This was `awaiting_bounds_exit`, a fossil of the
+        # retired bounds system — back when it meant "the robot has not yet left this
+        # room's bounding box". That subsystem is gone (VIEWS.MAPPING_ARCHIVE is not
+        # in VIEW_ORDER, the renderer stack was deleted, the services retired) and NO
+        # GEOMETRY IS READ ANYWHERE in the derivation below. What survived is a pure
+        # timing signal: the room did not roll this tick AND elapsed has passed the
+        # summed threshold. Renamed before the stuck-detection work builds on it, so
+        # the new code does not inherit a name that describes a subsystem that no
+        # longer exists.
+        current_room_overdue = False
         if (
             active_job.get("status") == "started"
             and pre_roll_room_id is not None
@@ -4178,9 +4187,9 @@ class EufyVacuumManager:
                     if _b_entry is not None:
                         threshold += self._timing_completion_threshold_minutes(_b_entry)
                 if threshold > 0 and current_room_elapsed_minutes >= threshold:
-                    awaiting_bounds_exit = True
+                    current_room_overdue = True
         if not adapter_honors_clean_order(vacuum_entity_id):
-            awaiting_bounds_exit = False
+            current_room_overdue = False
 
         # ------------------------------------------------------------------
         # Run anomalies: stall (hard) + running_long (soft) + skipped
@@ -4197,7 +4206,7 @@ class EufyVacuumManager:
             current_room_id=current_room_id,
             current_room_elapsed_minutes=current_room_elapsed_minutes,
             completed_room_ids=completed_room_ids,
-            awaiting_bounds_exit=awaiting_bounds_exit,
+            current_room_overdue=current_room_overdue,
             current_room_ids=current_room_ids,
             emit=apply_side_effects,
         )
@@ -4396,7 +4405,7 @@ class EufyVacuumManager:
             # whole answer, not that it starts lying differently.
             "current_room_ids": current_room_ids,
             "current_phase": current_phase_block,
-            "awaiting_bounds_exit": awaiting_bounds_exit,
+            "current_room_overdue": current_room_overdue,
             "current_room_started_at": active_job.get("current_room_started_at"),
             "completed_room_ids": completed_room_ids,
             "remaining_room_ids": [

@@ -323,7 +323,7 @@ Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`). Th
 The event fires when all of the following are true:
 
 1. The vacuum's adapter honors dispatched clean order (`adapter_honors_clean_order`) — true for Eufy; false for a path-optimizing brand (Roborock). This is a static per-adapter capability declaration (`capabilities.honors_clean_order` in the adapter config) — a job's `strict_order` flag does not change it. The whole stall/`running_long` branch below is skipped for an adapter that doesn't honor order — such a run never fires this event.
-2. The integration is already in `awaiting_bounds_exit` state for the current room — meaning the room's timing threshold was met but it has not yet rolled over (no counter plateau or native-signal completion has advanced past it)
+2. The integration is already in `current_room_overdue` state for the current room — meaning the room's timing threshold was met but it has not yet rolled over (no counter plateau or native-signal completion has advanced past it)
 3. The robot has been in the room for **at least the stall ratio × the learned timing threshold** for that room — the ratio comes from the adapter's `anomaly.stall_ratio`, default **2.0×**
 
 On a **grouped** phase (multiple rooms dispatched together as one phase, with no per-room rollover), the threshold in condition 3 is the **sum** of the group members' individual learned thresholds rather than just the current room's — a group's first room stays "current" for the whole phase, so comparing it against a single-room threshold would false-positive by an order of magnitude. Members with no timing entry contribute nothing to the sum.
