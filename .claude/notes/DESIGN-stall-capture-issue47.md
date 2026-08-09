@@ -178,12 +178,44 @@ one of these is that shape:
 
 ---
 
+## 6b. The toggle gates the CONSEQUENCE, never the trigger
+
+Chris's correction, 2026-08-08, caught while scoping the switch:
+
+> the stall capture is not the fire feature — it's whether or not it's used as an image
+> capture and notification
+
+`EVENT_STALL_DETECTED` must fire **unconditionally**, exactly as it does today. It is not
+this feature's event; it already feeds `detect_run_anomalies`, which sets the `stall` /
+`running_long` / `skipped` fields the card's snapshot reads. Gating at the detector would
+silently disable anomaly reporting as a side effect of someone turning off stall photos —
+a user-visible regression in a subsystem they never touched.
+
+So: **the detector always fires; the capture is an opt-in CONSUMER of the event.** The
+switch (rooms card, per vacuum) arms that consumer and nothing else.
+
+Three things follow:
+
+1. **Off must be off at the consumer, not upstream.** With the switch off, the event still
+   fires, anomalies still report, and only the render + notify are skipped.
+2. **This is what makes the dev card usable.** If capture were gated at the detector, a
+   `STALL NOW` with the switch off would produce nothing and you could not tell whether the
+   injector or the consumer failed. As an opt-in consumer, the two failures are
+   distinguishable.
+3. **The consumer must be a REAL consumer** — subscribed to the canonical event like any
+   other. Never a private call from the detector, or the dev card proves nothing about
+   production (see [DESIGN-maintainer-dev-card](DESIGN-maintainer-dev-card.md)).
+
 ## 7. Open decisions
 
-- **Delivery shape.** File under `www/`, a service response carrying a path, or a field
-  added to the stall event. The automation needs something it can hand to `notify`.
-  Chris's "automatic toggle" implies the integration writes it unprompted, which argues
-  for a file plus the path on the event.
+- **Delivery shape, and who notifies.** File under `www/`, a service response carrying a
+  path, or a field on a follow-up event. The strongest argument for *file + path on an
+  event* is that the reporter has ALREADY built the notification half in an automation —
+  notify targets are personal (which phone, which service, what wording), and the
+  integration guessing them is how a good feature becomes an unwanted one. Proposed split:
+  **the integration owns the artifact, the user's automation owns the notification.** The
+  switch then means "produce the capture", and an automation decides what to do with it.
+  Revisit if Chris wants notification built in — it changes what the toggle promises.
 - **Retention.** Written PNGs need a cap or they accumulate silently, which is the exact
   shape of the orphaned-vacuum-keys defect (a set that only ever grew).
 - **Whether the ±30 s ring window ships as a separate artifact** (JSON alongside the PNG)
