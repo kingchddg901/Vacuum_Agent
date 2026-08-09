@@ -45,6 +45,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `map_source_runtime.py` | 570 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
 | `map_source_coordinator.py` | 287 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration | clean |
 | `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
+| `stall_capture_render.py` | new | — | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
 
 ---
 
@@ -60,6 +61,29 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 - **`segmenter_engines`** (`SE`) — the engine registry, tuning validation, and
   the no-image/noop unavailable paths. The CV pipeline body (`detect_room_segments`)
   is exercised only through its failure paths.
+
+### The stall capture renderer
+- **`stall_capture_render`** (`SC`) — the one-room capture drawn for a stall
+  notification: a flat silhouette from the room-id raster, the pose trail, a
+  position dot, and a black-on-white name pill. Pure — bytes in, PNG bytes out,
+  no hass and no adapter — which is what lets the maintainer dev card fire it
+  repeatedly and what keeps it testable without a fixture.
+
+  **Every interesting target here is an ABSENCE case**, because this sits on a
+  job-lifecycle path and consumes values that are legitimately missing. A docked
+  robot has no anchor (the pose sampler nulls it by design), a held map source
+  nulls it too, an unsegmented room has no pixels, and Pillow is an optional
+  dependency the install matrix expects absent. `SC-3`/`SC-4`/`SC-5`/`SC-6` pin
+  that each degrades to a smaller picture or to `None` — never an exception, and
+  never a fabricated coordinate. `SC-4` compares renders **byte-for-byte** with
+  and without an anchor, so a `None` silently coerced to `(0, 0)` fails rather
+  than drawing a dot in the corner.
+
+  `SC-2` is the one to read: `flip_y` describes the RASTER only (raw row 0 is the
+  image bottom). The anchor and trail arrive already normalized in the rendered
+  frame, so they must NOT be flipped. Getting that wrong renders a plausible
+  image of the wrong part of the map, which is the failure most likely to pass a
+  glance.
 
 ### The tracker
 - **`tracker`** (`MT`, unit) — the pure `_RoomConfidenceState` machine
