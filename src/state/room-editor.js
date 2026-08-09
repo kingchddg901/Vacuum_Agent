@@ -224,52 +224,29 @@ export function applyRoomEditorState(proto) {
   };
 
   /**
-   * The profile <-> editor-entity intensity bridge for Eufy.
+   * NO PROFILE <-> EDITOR INTENSITY BRIDGE. There used to be one, mapping a
+   * profile's Quick/Narrow/Deep onto Quick/Normal/Narrow, and removing it is the
+   * fix for a real defect — leaving this note so it is not reintroduced.
    *
-   * VERIFIED AGAINST HARDWARE 2026-08-08 — Eufy app vs
-   * `select.<vac>_cleaning_intensity`, cross-checked against the protobuf enum in
-   * robovac_mqtt (clean_param_pb2: NORMAL=0, NARROW=1, QUICK=2):
+   * It was written when the editor drove upstream's `select.<vac>_cleaning_intensity`
+   * entity, whose vocabulary really is Quick/Normal/Narrow. That probing was removed
+   * (it was Eufy-only) and the editor now renders the ADAPTER's declared
+   * `clean_intensity_options` — Quick / Narrow / Deep, matched by exact identity in
+   * `_renderIntensityField`. That is the same vocabulary the profiles are written in,
+   * so the bridge had stopped translating between two vocabularies and started
+   * rewriting a value into a DIFFERENT valid value of one vocabulary.
    *
-   *   VA profile | editor select | CleanExtent | Eufy app
-   *   -----------|---------------|-------------|---------
-   *   Quick      |  Quick        |  QUICK  (2) |  Low      (widest spacing)
-   *   Narrow     |  Normal       |  NORMAL (0) |  Medium
-   *   Deep       |  Narrow       |  NARROW (1) |  High     (densest)
+   * Applying the built-in "Vacuum Only Deep" wrote "Narrow" into the field: the
+   * editor lit the Narrow chip while the profile chip still read Deep, and the wire
+   * value went out as "normal" -> CleanExtent.NORMAL(0) -> the Eufy app's Medium.
+   * The densest setting was unreachable from a profile, which is the same symptom
+   * the wire-side map was fixed for.
    *
-   * Note DPS 154 is an ARBITRARY ENUM, not an ordinal — 0 is the MIDDLE setting.
-   * Nothing here may interpolate or pick a "nearest" value on it.
-   *
-   * The trap: VA's "Narrow" is the MIDDLE density; the select's "Narrow" is the
-   * DENSEST. Same word, opposite ends. This mapped only quick->Quick and
-   * deep->Narrow and let the rest fall through, so VA's "Narrow" passed through
-   * unchanged onto the select's "Narrow" — colliding with Deep and leaving the
-   * middle density unreachable from VA.
-   *
-   * The dispatch side carries the matching half: the Eufy adapter's
-   * dispatch.room_fields declares value_map {"Narrow": "normal", "Deep": "narrow"},
-   * because upstream's CLEAN_EXTENT_MAP reads a bare "narrow" as NARROW. Both
-   * halves must agree — if you change one, change the other, or the editor will
-   * display a density the wire does not send.
+   * The wire half stays where it belongs, in the adapter's `dispatch.room_fields`
+   * value_map {"Narrow": "normal", "Deep": "narrow"}, pinned by
+   * tests/adapters/eufy/test_intensity_wire_mapping.py. Profile values are written
+   * through unchanged; the adapter is the only thing that renames them.
    */
-  proto._profileIntensityToEditorIntensity = function (value) {
-    const raw = String(value ?? "").trim().toLowerCase();
-
-    if (raw === "quick") return "Quick";
-    if (raw === "narrow") return "Normal";
-    if (raw === "deep") return "Narrow";
-
-    return value ?? null;
-  };
-
-  proto._editorIntensityToComparableProfileIntensity = function (value) {
-    const raw = String(value ?? "").trim().toLowerCase();
-
-    if (raw === "quick") return "quick";
-    if (raw === "normal") return "narrow";
-    if (raw === "narrow") return "deep";
-
-    return raw;
-  };
 
   /* =========================================================
      PROFILE MATCHING
@@ -278,10 +255,6 @@ export function applyRoomEditorState(proto) {
   proto._normalizeEditorComparisonValue = function (value, fieldName = "") {
     if (fieldName === "clean_mode") {
       return this._canonicalCleanModeCompare(value);
-    }
-
-    if (fieldName === "clean_intensity") {
-      return this._editorIntensityToComparableProfileIntensity(value);
     }
 
     if (value == null) return null;
@@ -309,7 +282,7 @@ export function applyRoomEditorState(proto) {
       clean_mode: cleanMode,
       fan_speed: profile?.fan_speed ?? null,
       water_level: mopActive ? (profile?.water_level ?? null) : null,
-      clean_intensity: this._profileIntensityToEditorIntensity(profile?.clean_intensity ?? null),
+      clean_intensity: profile?.clean_intensity ?? null,
       clean_passes: Number(profile?.clean_passes ?? 1),
       edge_mopping: mopActive ? Boolean(profile?.edge_mopping) : false,
     };
@@ -378,7 +351,7 @@ export function applyRoomEditorState(proto) {
       clean_mode: resolvedCleanMode,
       fan_speed: profile.fan_speed ?? null,
       water_level: mopActive ? (profile.water_level ?? null) : null,
-      clean_intensity: this._profileIntensityToEditorIntensity(profile.clean_intensity ?? null),
+      clean_intensity: profile.clean_intensity ?? null,
       clean_passes: Number(profile.clean_passes ?? 1),
       edge_mopping: mopActive ? Boolean(profile.edge_mopping) : false,
     };

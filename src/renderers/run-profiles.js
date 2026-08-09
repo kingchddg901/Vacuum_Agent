@@ -9,6 +9,7 @@
  * ============================================================
  */
 
+import { canonicalCleanMode } from "../clean-mode.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 import { isUnsupportedBreakPosition } from "../state/steps-order.js";
 
@@ -282,8 +283,13 @@ export function applyRunProfilesRenderers(proto) {
           nameById[String(r.room_id)] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(r.room_id)) })
         ))
         .join(", ");
-      const modes = new Set(groupRooms.map((r) => r.clean_mode).filter(Boolean));
-      const modeHint = modes.size === 1 ? [...modes][0] : null;
+      // ISSUE #48, twin of the same line in state/steps-manifest.js: fold the
+      // spellings before the Set, or two rooms in one mode stored differently read
+      // as a mixed group and the chip vanishes.
+      const modes = new Set(groupRooms.map((r) => canonicalCleanMode(r.clean_mode)).filter(Boolean));
+      const modeHint = modes.size === 1
+        ? (groupRooms.find((r) => r.clean_mode)?.clean_mode ?? null)
+        : null;
       return `
         <li class="evcc-run-profiles-step evcc-run-profiles-step--group">
           <span class="evcc-run-profiles-step-num">${i + 1}</span>

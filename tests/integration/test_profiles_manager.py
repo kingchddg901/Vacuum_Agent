@@ -1101,3 +1101,87 @@ def test_carpet_downgrade_uses_the_same_predicate(mnt_profiles_manager=None):
     assert is_mop_clean_mode("vacuum") is False
     assert is_mop_clean_mode("") is False
     assert is_mop_clean_mode(None) is False
+
+
+# ---------------------------------------------------------------------------
+# ISSUE #48 — a preset must still match when the room holds a DISPLAY label
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    "spelling", ["vacuum_mop", "Vacuum and mop", "vacuum & mop", "VACUUM_MOP"]
+)
+def test_match_profile_from_fields_accepts_every_mop_spelling(pm, spelling):
+    """[PM-10c] The preset matches however clean_mode is spelled.
+
+    The card writes a DISPLAY LABEL ("Vacuum and mop") through update_room_fields
+    while the catalog declares the TOKEN ("vacuum_mop"), and the matcher folded
+    only case and the off/true/false/numeric literals — so it compared
+    "vacuum and mop" against "vacuum_mop", found them unequal, and matched NO
+    preset. Every card-saved non-carpet mop room was therefore stamped
+    profile_name "custom": it still cleaned correctly, but lost its binding to the
+    preset, reported a vacuum-only preset it was never set to, and stopped
+    tracking edits to the preset definition.
+
+    Carpet rooms escaped only because the carpet guard rewrites the mode to
+    "vacuum" before the match runs, which is why this never showed on a carpet.
+    """
+    name = "vacuum_mop_quick"
+    eff = resolve_room_profile_for_room(
+        room_config={"profile_name": name}, stored_profiles={}, catalog=_CATALOG)
+    room = {
+        "clean_mode": spelling,
+        "fan_speed": eff.get("fan_speed"),
+        "water_level": eff.get("water_level"),
+        "clean_intensity": eff.get("clean_intensity"),
+        "clean_passes": eff.get("clean_passes", 1),
+        "edge_mopping": eff.get("edge_mopping", False),
+        "floor_type": "hardwood",
+    }
+    assert pm._match_profile_from_fields(room, vacuum_entity_id=_VAC) == name
+
+
+def test_match_profile_from_fields_still_rejects_a_different_mode(pm):
+    """[PM-10d] Only clean_mode folds, and it folds to the RIGHT thing.
+
+    The guard against satisfying [PM-10c] with something that makes clean_mode
+    match everything: a plain vacuum room must not match a mop preset. That would
+    bind rooms to presets they were never set to — a worse failure than the
+    "custom" stamp being fixed here, because it would silently change what the
+    room reports it is.
+    """
+    name = "vacuum_mop_quick"
+    eff = resolve_room_profile_for_room(
+        room_config={"profile_name": name}, stored_profiles={}, catalog=_CATALOG)
+    room = {
+        "clean_mode": "vacuum",
+        "fan_speed": eff.get("fan_speed"),
+        "water_level": eff.get("water_level"),
+        "clean_intensity": eff.get("clean_intensity"),
+        "clean_passes": eff.get("clean_passes", 1),
+        "edge_mopping": eff.get("edge_mopping", False),
+        "floor_type": "hardwood",
+    }
+    assert pm._match_profile_from_fields(room, vacuum_entity_id=_VAC) != name
+
+
+def test_brand_vocabulary_legs_are_NOT_canonicalized(pm):
+    """[PM-10e] clean_mode folds; the other five legs do not.
+
+    fan_speed / water_level / clean_intensity are a BRAND's words. Widening the
+    shared normalizer instead of canonicalizing the clean_mode leg alone would
+    have asserted a framework opinion about vocabulary the adapter owns — so a
+    room whose fan_speed differs from the preset must still fail to match.
+    """
+    name = "vacuum_mop_quick"
+    eff = resolve_room_profile_for_room(
+        room_config={"profile_name": name}, stored_profiles={}, catalog=_CATALOG)
+    room = {
+        "clean_mode": "Vacuum and mop",
+        "fan_speed": "SomeOtherWord",
+        "water_level": eff.get("water_level"),
+        "clean_intensity": eff.get("clean_intensity"),
+        "clean_passes": eff.get("clean_passes", 1),
+        "edge_mopping": eff.get("edge_mopping", False),
+        "floor_type": "hardwood",
+    }
+    assert pm._match_profile_from_fields(room, vacuum_entity_id=_VAC) is None

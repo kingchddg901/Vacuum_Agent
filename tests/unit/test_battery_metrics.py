@@ -349,3 +349,68 @@ def test_compute_metrics_passes_share_present():
     )
     assert "passes_share" in result
     assert "1" in result["passes_share"] or 1 in result["passes_share"]
+
+
+# ---------------------------------------------------------------------------
+# ISSUE #48 — two spellings of ONE mode must not read as two modes
+# ---------------------------------------------------------------------------
+
+def test_two_spellings_of_one_mode_stay_a_single_mode_run():
+    """[BM-48] A mop run stored under two spellings is still ONE clean mode.
+
+    Not hypothetical: a survey of a live learning store found by_clean_mode keys
+    {'vacuum': 97, 'vacuum and mop': 5} across 103 job records. _bucket_key folds
+    case and nothing else, so a room the card edited ("Vacuum and mop") and a room
+    a profile resolved ("vacuum_mop") bucketed apart, len(buckets) became 2, and
+    is_single_clean_mode went False — which excludes a genuinely single-mode run
+    from per-mode battery-drain learning entirely. Silent: the run is simply
+    absent from the aggregate, not visibly wrong in it.
+    """
+    rooms = [
+        {"clean_mode": "Vacuum and mop", "estimated_minutes": 15.0},
+        {"clean_mode": "vacuum_mop", "estimated_minutes": 15.0},
+    ]
+    result = compute_job_battery_metrics(
+        battery_start=80, battery_end=68, duration_minutes=30.0,
+        cleaning_area_m2=60.0, resolved_rooms=rooms,
+    )
+    assert list(result["by_clean_mode"]) == ["vacuum_mop"]
+    assert result["is_single_clean_mode"] is True
+    assert result["single_clean_mode"] == "vacuum_mop"
+
+
+def test_genuinely_mixed_modes_still_read_as_mixed():
+    """[BM-48b] The opposite direction, so [BM-48] cannot pass by always folding.
+
+    A canonicalizer that collapsed everything would satisfy [BM-48] and quietly
+    report every mixed run as single-mode, which is a worse error than the one
+    being fixed — it would attribute a mop run's drain to vacuuming.
+    """
+    rooms = [
+        {"clean_mode": "Vacuum and mop", "estimated_minutes": 15.0},
+        {"clean_mode": "vacuum", "estimated_minutes": 15.0},
+    ]
+    result = compute_job_battery_metrics(
+        battery_start=80, battery_end=68, duration_minutes=30.0,
+        cleaning_area_m2=60.0, resolved_rooms=rooms,
+    )
+    assert set(result["by_clean_mode"]) == {"vacuum_mop", "vacuum"}
+    assert result["is_single_clean_mode"] is False
+
+
+def test_brand_vocabulary_buckets_are_NOT_canonicalized():
+    """[BM-48c] Only clean_mode folds. fan_speed and water_level are a BRAND's
+    words, which core has no canonical form for — canonicalizing the shared
+    _bucket_key helper instead of the clean_mode call site would have imposed a
+    framework opinion on vocabulary the adapter owns.
+    """
+    rooms = [
+        {"clean_mode": "vacuum", "fan_speed": "Max", "estimated_minutes": 15.0},
+        {"clean_mode": "vacuum", "fan_speed": "max", "estimated_minutes": 15.0},
+    ]
+    result = compute_job_battery_metrics(
+        battery_start=80, battery_end=68, duration_minutes=30.0,
+        cleaning_area_m2=60.0, resolved_rooms=rooms,
+    )
+    # Case still folds (that is _bucket_key's own job); no ALIAS folding happens.
+    assert list(result["by_fan_speed"]) == ["max"]

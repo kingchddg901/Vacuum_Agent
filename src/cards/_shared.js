@@ -5,11 +5,16 @@
 
 import { translate, resolveLang, ensureLocalesLoaded, listLocales, applyDir } from "../i18n/index.js";
 import { getStoredLang, setStoredLang } from "../i18n/lang-store.js";
+// ISSUE #48: the ONE card-side clean_mode fold. Re-exported so the standalone
+// cards keep importing it from here, but owned by a dependency-free module the
+// pure steps-manifest builder can also reach.
+import { canonicalCleanMode } from "../clean-mode.js";
 
 export { translate, resolveLang, ensureLocalesLoaded, listLocales, applyDir };
 // The per-user language store (HA frontend user-data, cross-device) — the SAME key
 // the sidebar panel uses, so a language picked in a card and the panel stay in sync.
 export { getStoredLang, setStoredLang };
+export { canonicalCleanMode };
 
 /** HTML-escape a value for safe interpolation into innerHTML. */
 export function esc(str) {
@@ -74,6 +79,18 @@ export function isMopMode(mode) {
 }
 
 /**
+ * Is this chip the selected one? Every field compares case-insensitively, and
+ * clean_mode ALSO folds display spellings — the stored value is a label, the
+ * option value is a token, and lowercasing alone never made them equal.
+ */
+function _chipIsActive(fieldKey, currentVal, optValue) {
+  if (fieldKey === "clean_mode") {
+    return canonicalCleanMode(currentVal) === canonicalCleanMode(optValue);
+  }
+  return String(currentVal ?? "").toLowerCase() === String(optValue ?? "").toLowerCase();
+}
+
+/**
  * Build a chip-row of mutually-exclusive options. `tVocabFn(field, value, label)`
  * returns the localized chip label. `idPrefix` namespaces the data-attrs so a
  * card with many rows can route clicks back to the right room.
@@ -87,7 +104,7 @@ export function chipRow(label, fieldKey, options, currentVal, tVocabFn, idPrefix
       <div class="chips">
         ${options.map((opt) => `
           <button
-            class="chip ${String(currentVal ?? "").toLowerCase() === String(opt.value ?? "").toLowerCase() ? "active" : ""}"
+            class="chip ${_chipIsActive(fieldKey, currentVal, opt.value) ? "active" : ""}"
             ${pre}data-field="${esc(fieldKey)}"
             data-value="${esc(opt.value)}"
           >${tVocabFn(fieldKey, opt.value, opt.label)}</button>

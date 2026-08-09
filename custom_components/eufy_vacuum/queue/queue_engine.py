@@ -11,6 +11,7 @@ except ImportError:
 
 from ..profiles.room_profiles import (
     apply_capability_gate,
+    is_mop_clean_mode,
     resolve_profile_catalog,
     resolve_room_profile_for_room,
 )
@@ -275,9 +276,15 @@ def build_room_clean_payload(
             catalog=_catalog,
         )
 
-        # Canonical (framework-internal) values, before any wire rename.
-        # Mop-mode and capability gates below check the canonical value,
-        # not the wire value, so they remain valid across brands.
+        # Framework-internal values, before any wire rename.
+        #
+        # These are PRE-RENAME, which is all "canonical" ever meant here — it does NOT
+        # mean canonically SPELLED. The previous comment claimed the gates below "check
+        # the canonical value", and that reading is what let issue #48 survive on this
+        # side: apply_capability_gate only ASKS the canonical question, it re-emits
+        # clean_mode untouched for a mop-capable device (pinned by [RP-12c]), so what
+        # lands here is whatever the store holds — including the display label
+        # "Vacuum and mop" that the room editor writes.
         clean_mode = str(gated["clean_mode"])
         fan_speed = str(gated["fan_speed"])
         water_level = str(gated["water_level"])
@@ -306,10 +313,27 @@ def build_room_clean_payload(
         _write_room_field(payload_room, room_fields, "clean_mode", clean_mode)
         _write_room_field(payload_room, room_fields, "clean_intensity", clean_intensity)
 
-        if supports_water and clean_mode in {"mop", "vacuum_mop"}:
+        # ISSUE #48 on the WIRE. Both gates were `clean_mode in {"mop", "vacuum_mop"}`
+        # — the same exact, case-sensitive set as the read path — against the value
+        # described above. A mop-capable vacuum cleaning a room stored as "Vacuum and
+        # mop" therefore had BOTH fields omitted from the dispatched payload while
+        # resolved_rooms below recorded them as applied, so the card, the history
+        # record and learning all reported a water level and an edge-mopping flag that
+        # never went out. Silent in the worst way: the wrong value is not on the wire
+        # to be seen, and every surface that could report it agrees it was sent.
+        #
+        # The QUESTION is normalized, not the value. Canonicalizing clean_mode here
+        # would lowercase brand vocabulary on its way to _write_room_field, and the
+        # sibling axis on this exact path is case-SENSITIVE by design — Eufy declares
+        # {"Narrow": "normal", "Deep": "narrow"}, where the two vocabularies share the
+        # word "narrow" at opposite ends of the scale and case is the only thing left
+        # telling them apart.
+        is_mop = is_mop_clean_mode(clean_mode)
+
+        if supports_water and is_mop:
             _write_room_field(payload_room, room_fields, "water_level", water_level)
 
-        if supports_edge and clean_mode in {"mop", "vacuum_mop"}:
+        if supports_edge and is_mop:
             _write_room_field(payload_room, room_fields, "edge_mopping", edge_mopping)
 
         # The VALUE gates this, not just the capability. An absent room_fields entry

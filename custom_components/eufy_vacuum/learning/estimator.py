@@ -1132,7 +1132,17 @@ class LearningEstimator:
             room_name = str(room.get("name", slug))
             room_id = _safe_int(room.get("room_id", 0))
 
-            is_mop = clean_mode in {"vacuum_mop", "mop"}
+            # ISSUE #48. Was `clean_mode in {"vacuum_mop", "mop"}` against a value
+            # lowercased at the top of this loop but never canonicalized, so an
+            # all-mop job whose rooms are stored as "Vacuum and mop" accumulated no
+            # projected_mop_minutes and reported a mop-wash overhead of 0.0 — the ETA
+            # short by the entire wash allowance.
+            #
+            # The contradiction was six lines wide: the same variable goes straight
+            # into _find_room_match below, whose predicate canonicalizes both sides,
+            # so the room matched its learned stats and got correct minutes while
+            # this said it was not a mop room at all.
+            is_mop = _canonical_clean_mode(clean_mode) in {"vacuum_mop", "mop"}
 
             match, intensity_mismatch = _find_room_match(
                 room_stats=room_stats,

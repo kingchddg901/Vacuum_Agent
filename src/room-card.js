@@ -2,7 +2,7 @@
 
 import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "./i18n/index.js";
 import {
-  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull, defineCard,
+  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, canonicalCleanMode, stripNull, defineCard,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
 } from "./cards/_shared.js";
 import { roomSuggestion } from "./cards/card-suggestions.js";
@@ -334,7 +334,9 @@ class EufyRoomCard extends HTMLElement {
           <div class="chips">
             ${options.map((opt) => `
               <button
-                class="chip ${String(currentVal ?? "").toLowerCase() === String(opt.value ?? "").toLowerCase() ? "active" : ""}"
+                class="chip ${(fieldKey === "clean_mode"
+                  ? canonicalCleanMode(currentVal) === canonicalCleanMode(opt.value)
+                  : String(currentVal ?? "").toLowerCase() === String(opt.value ?? "").toLowerCase()) ? "active" : ""}"
                 data-field="${esc(fieldKey)}"
                 data-value="${esc(opt.value)}"
               >${this.tVocab(fieldKey, opt.value, opt.label)}</button>

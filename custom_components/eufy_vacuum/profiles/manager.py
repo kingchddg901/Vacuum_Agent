@@ -29,6 +29,7 @@ from ..maps.map_manager import ensure_map_bucket, get_map_bucket
 from ..profiles.room_profiles import (
     PROTECTED_ROOM_PROFILE_NAMES,
     apply_room_profile_to_config,
+    canonical_clean_mode,
     get_default_room_profiles,
     is_mop_clean_mode,
     merge_profile_dicts,
@@ -215,8 +216,21 @@ class ProfileManager:
                 vacuum_entity_id=vacuum_entity_id,
             )
             if (
-                self._normalize_profile_match_value(protected_room.get("clean_mode"))
-                == self._normalize_profile_match_value(effective_profile.get("clean_mode"))
+                # clean_mode is compared through the canonical owner, the other five
+                # legs are not. ISSUE #48: _normalize_profile_match_value only folds
+                # case and the off/true/false/numeric literals, so it compared the
+                # stored display label "Vacuum and mop" against the catalog's token
+                # "vacuum_mop" and returned unequal — every card-saved non-carpet mop
+                # room failed to match ANY preset and was stamped profile_name
+                # "custom". Carpet rooms escaped only because the carpet guard
+                # downgrades them to vacuum first.
+                #
+                # Only this leg. The other five compare a BRAND's vocabulary, which
+                # core does not own and has no canonical form for; widening the shared
+                # normalizer would assert a framework opinion about words like "Max"
+                # and "Quick" that belong to the adapter.
+                canonical_clean_mode(protected_room.get("clean_mode"))
+                == canonical_clean_mode(effective_profile.get("clean_mode"))
                 and self._normalize_profile_match_value(protected_room.get("fan_speed"))
                 == self._normalize_profile_match_value(effective_profile.get("fan_speed"))
                 and self._normalize_profile_match_value(protected_room.get("water_level"))

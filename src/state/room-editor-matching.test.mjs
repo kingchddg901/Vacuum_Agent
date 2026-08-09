@@ -1,8 +1,7 @@
 // Unit tests for the room-editor mixin's pure snap-back-to-preset logic + the
 // adapter-driven option-list builder. The editor should NOT stay "custom" when
-// the 6 comparable fields land exactly on a known preset (via the vocab bridges
-// that collapse vacuum_mop spellings and map profile Quick/Deep <-> editor
-// Quick/Narrow); an adapter that declares no options for a role hides the picker.
+// the 6 comparable fields land exactly on a known preset (via the clean-mode
+// canonicalizer that collapses vacuum_mop spellings); an adapter that declares no options for a role hides the picker.
 //
 // Coverage targets (src/state/room-editor.js):
 //   RE  matchingEditorProfileName / _editorFieldsMatchProfile / _buildComparableProfileFields
@@ -11,8 +10,8 @@
 //   THM _canonicalCleanModeCompare / _canonicalCleanModeDisplay / isMopMode
 //       -> collapse vacuum_mop / "Vacuum and mop" / vacuum / mop
 //   RAC isEditorRoomCarpet -> carpet===true, else floorType carpet / carpet_* / carpet-*
-//   INT _profileIntensityToEditorIntensity / _editorIntensityToComparableProfileIntensity
-//       -> Quick/Deep <-> Quick/Narrow, Normal is custom-only
+//   INT applyEditorProfile -> a profile's clean_intensity is stored VERBATIM
+//       (the profile<->select bridge is gone; only the adapter renames, for the wire)
 // Run: node --test src/state/room-editor-matching.test.mjs
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -77,43 +76,71 @@ test("[THM-3] isMopMode true for mop + vacuum_mop + wash, false for vacuum-only"
 });
 
 /* =========================================================
-   INT — profile <-> editor intensity vocabulary bridge
+   INT — a profile's intensity reaches the field UNTRANSLATED
    ========================================================= */
 
-test("[INT-1] _profileIntensityToEditorIntensity: Quick->Quick, Deep->Narrow, Normal stays custom-only", () => {
-  const c = makeCard();
-  assert.equal(c._profileIntensityToEditorIntensity("Quick"), "Quick");
-  assert.equal(c._profileIntensityToEditorIntensity("quick"), "Quick");
-  assert.equal(c._profileIntensityToEditorIntensity("DEEP"), "Narrow");
-  // The line that was missing. VA's "Narrow" is the MIDDLE density and belongs on
-  // the select's "Normal"; without it, Narrow fell through onto the select's
-  // "Narrow" (the DENSEST), colliding with Deep and leaving Medium unreachable.
-  assert.equal(c._profileIntensityToEditorIntensity("Narrow"), "Normal");
-  // All three profile values must reach DISTINCT editor values.
-  const mapped = ["Quick", "Narrow", "Deep"].map((v) => c._profileIntensityToEditorIntensity(v));
-  assert.equal(new Set(mapped).size, 3, `collision: ${JSON.stringify(mapped)}`);
-  // Nullish -> null (value ?? null).
-  assert.equal(c._profileIntensityToEditorIntensity(null), null);
-  assert.equal(c._profileIntensityToEditorIntensity(undefined), null);
-});
+const INTENSITY_PROFILES = {
+  p_quick:  { clean_mode: "vacuum", clean_intensity: "Quick",  clean_passes: 1 },
+  p_narrow: { clean_mode: "vacuum", clean_intensity: "Narrow", clean_passes: 1 },
+  p_deep:   { clean_mode: "vacuum", clean_intensity: "Deep",   clean_passes: 1 },
+  p_none:   { clean_mode: "vacuum", clean_passes: 1 },
+};
 
-test("[INT-2] _editorIntensityToComparableProfileIntensity inverts the bridge (Narrow->deep)", () => {
-  const c = makeCard();
-  assert.equal(c._editorIntensityToComparableProfileIntensity("Quick"), "quick");
-  assert.equal(c._editorIntensityToComparableProfileIntensity("Narrow"), "deep");
-  // Round-trip: profile Deep -> editor Narrow -> comparable deep.
-  const editor = c._profileIntensityToEditorIntensity("Deep");
-  assert.equal(c._editorIntensityToComparableProfileIntensity(editor), "deep");
-  // The select's "Normal" DOES have a preset counterpart — VA's middle, "narrow".
-  assert.equal(c._editorIntensityToComparableProfileIntensity("Normal"), "narrow");
-  // Round-trips both ways for all three, which is what "bridge" has to mean.
-  for (const [profileValue, expected] of [["Quick", "quick"], ["Narrow", "narrow"], ["Deep", "deep"]]) {
+function intensityCard() {
+  // applyEditorProfile resolves through getEditorProfileDefinition -> roomProfileDefinition,
+  // not availableEditorProfiles, so stub that seam.
+  const c = makeCard({
+    _profiles: INTENSITY_PROFILES,
+    roomProfileDefinition: (name) => INTENSITY_PROFILES[name] ?? null,
+  });
+  c._roomEditorFields = {};
+  c._activeRoom = { carpet: false, floorType: "tile" };
+  return c;
+}
+
+test("[INT-1] applying a profile stores its clean_intensity verbatim", () => {
+  // There used to be a bridge mapping profile Quick/Narrow/Deep onto the editor
+  // values Quick/Normal/Narrow, from when the editor drove upstream's cleaning-
+  // intensity SELECT entity. The editor now renders the ADAPTER's declared
+  // clean_intensity_options — the same vocabulary the profiles are written in — so
+  // the bridge had stopped translating between vocabularies and started rewriting
+  // Deep into Narrow: a different, equally valid option in one vocabulary. The
+  // editor lit the wrong chip and the densest preset dispatched as the Eufy app's
+  // Medium.
+  //
+  // Renaming for the wire belongs to the adapter's value_map alone, pinned by
+  // tests/adapters/eufy/test_intensity_wire_mapping.py. Nothing card-side renames.
+  const c = intensityCard();
+  for (const [name, profile] of Object.entries(INTENSITY_PROFILES)) {
+    if (profile.clean_intensity === undefined) continue;
+    c.applyEditorProfile(name);
     assert.equal(
-      c._editorIntensityToComparableProfileIntensity(c._profileIntensityToEditorIntensity(profileValue)),
-      expected,
+      c._roomEditorFields.clean_intensity,
+      profile.clean_intensity,
+      `${name} declares ${profile.clean_intensity} and must store it unchanged`,
     );
   }
-  assert.equal(c._editorIntensityToComparableProfileIntensity(null), "");
+});
+
+test("[INT-2] the three declared intensities stay DISTINCT through a profile apply", () => {
+  // The guard against satisfying INT-1 with something that flattens the axis: a
+  // transform returning a constant, or dropping the field, passes a single-value
+  // assertion. Collapsing any two of these IS the original defect — it is what made
+  // one density unreachable.
+  const c = intensityCard();
+  const stored = ["p_quick", "p_narrow", "p_deep"].map((name) => {
+    c.applyEditorProfile(name);
+    return c._roomEditorFields.clean_intensity;
+  });
+  assert.equal(new Set(stored).size, 3, `collision: ${JSON.stringify(stored)}`);
+});
+
+test("[INT-3] a profile declaring no intensity stores null, not a coerced value", () => {
+  // Roborock declares no clean_intensity axis at all. Absent must stay absent —
+  // writing "" or a default is how an axis a brand does not have acquires a value.
+  const c = intensityCard();
+  c.applyEditorProfile("p_none");
+  assert.equal(c._roomEditorFields.clean_intensity, null);
 });
 
 /* =========================================================
@@ -159,7 +186,7 @@ const MOP_DEEP = {
   clean_intensity: "Deep", clean_passes: 2, edge_mopping: true,
 };
 
-test("[RE-1] _buildComparableProfileFields translates a mop preset through the vocab bridges", () => {
+test("[RE-1] _buildComparableProfileFields canonicalizes the MODE and carries the rest verbatim", () => {
   const c = makeCard();
   c._activeRoom = { carpet: false, floorType: "tile" };   // not carpet -> mop fields live
   const cmp = c._buildComparableProfileFields(MOP_DEEP);
@@ -167,7 +194,7 @@ test("[RE-1] _buildComparableProfileFields translates a mop preset through the v
     clean_mode: "Vacuum and mop",   // display-canonicalized
     fan_speed: "Max",
     water_level: "High",            // kept because mopActive
-    clean_intensity: "Narrow",      // Deep -> Narrow
+    clean_intensity: "Deep",        // carried verbatim — nothing card-side renames it
     clean_passes: 2,                // Number()-coerced
     edge_mopping: true,
   });
@@ -202,7 +229,7 @@ test("[RE-4] _editorFieldsMatchProfile: exact 6-field match returns true, one di
   // Editor fields exactly equal to the comparable form of MOP_DEEP.
   const matching = {
     clean_mode: "Vacuum and mop", fan_speed: "Max", water_level: "High",
-    clean_intensity: "Narrow", clean_passes: 2, edge_mopping: true,
+    clean_intensity: "Deep", clean_passes: 2, edge_mopping: true,
   };
   assert.equal(c._editorFieldsMatchProfile(matching, MOP_DEEP), true);
   // Flip a single field -> no longer a match.
@@ -220,7 +247,7 @@ test("[RE-5] _editorFieldsMatchProfile normalizes spelling + numeric-string acro
   const fields = {
     clean_mode: "vacuum_mop",        // compare-normalizes to same bucket as "Vacuum and mop"
     fan_speed: "Max", water_level: "High",
-    clean_intensity: "narrow",       // case-insensitive -> deep
+    clean_intensity: "deep",         // case-insensitive against the profile value
     clean_passes: "2",               // numeric string -> 2
     edge_mopping: "true",            // string "true" -> boolean true
   };
@@ -240,11 +267,11 @@ test("[RE-6] matchingEditorProfileName: snaps back to the matching preset, else 
   // Fields on mop_deep -> that name.
   const deepFields = {
     clean_mode: "Vacuum and mop", fan_speed: "Max", water_level: "High",
-    clean_intensity: "Narrow", clean_passes: 2, edge_mopping: true,
+    clean_intensity: "Deep", clean_passes: 2, edge_mopping: true,
   };
   assert.equal(c.matchingEditorProfileName(deepFields), "mop_deep");
   // A divergent value (Normal intensity is preset-less) -> stay custom (null).
-  assert.equal(c.matchingEditorProfileName({ ...quickFields, clean_intensity: "Normal" }), null);
+  assert.equal(c.matchingEditorProfileName({ ...quickFields, clean_intensity: "Deep" }), null);
 });
 
 test("[RE-7] matchingEditorProfileName falls back to editorFields() when no arg + null when none set", () => {
@@ -269,7 +296,7 @@ test("[RE-8] carpet room snaps a mop preset back via the carpet-masked comparabl
   // ALSO have them masked (as the carpet UX forces) still match the preset.
   const carpetMaskedFields = {
     clean_mode: "Vacuum and mop", fan_speed: "Max",
-    water_level: null, clean_intensity: "Narrow",
+    water_level: null, clean_intensity: "Deep",
     clean_passes: 2, edge_mopping: false,
   };
   assert.equal(c.matchingEditorProfileName(carpetMaskedFields), "mop_deep");

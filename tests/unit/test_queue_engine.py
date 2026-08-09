@@ -340,3 +340,68 @@ def test_atomic_job_state_carries_no_phase_keys():
 
     assert "phases" not in state
     assert "phased_job_id" not in state
+
+
+# ---------------------------------------------------------------------------
+# [QE-6c] / [QE-6d] ISSUE #48 on the wire — the mop-field gates
+# ---------------------------------------------------------------------------
+#
+# The two gates that decide whether water_level and edge_mopping reach the
+# payload were `clean_mode in {"mop", "vacuum_mop"}` — exact and case-sensitive —
+# against a value that arrives as stored, not canonicalized. apply_capability_gate
+# re-emits clean_mode untouched for a mop-capable device (pinned by [RP-12c]), and
+# the room editor stores the DISPLAY LABEL "Vacuum and mop". So a mop-capable
+# vacuum dispatched a mop room with NEITHER field on the wire, while resolved_rooms
+# recorded both as applied — the card, the history record and learning all agreed a
+# setting had been sent that never left.
+#
+# Every prior test here uses the token "vacuum_mop", the one spelling that never
+# broke, which is exactly why this shipped.
+
+_MOP_CAPS = {
+    "supports_mop_features": True,
+    "supports_water_control": True,
+    "supports_edge_mopping": True,
+}
+
+
+def _mop_room(spelling: str) -> dict:
+    return {"1": {
+        "room_id": 1, "name": "Kitchen", "enabled": True,
+        "clean_mode": spelling, "fan_speed": "SynthMax",
+        "water_level": "SynthWet", "edge_mopping": True,
+    }}
+
+
+@pytest.mark.parametrize(
+    "spelling",
+    ["vacuum_mop", "Vacuum and mop", "vacuum & mop", "VACUUM_MOP", "mop", "Mop"],
+)
+def test_payload_carries_mop_fields_for_every_spelling(spelling):
+    """[QE-6c] water_level + edge_mopping reach the wire for any mop spelling."""
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        managed_rooms=_mop_room(spelling), queue_room_ids=[1],
+        capabilities=_MOP_CAPS,
+    )
+    room = result["payload"]["rooms"][0]
+    assert "water_level" in room, f"{spelling!r}: water_level never reached the payload"
+    assert "edge_mopping" in room, f"{spelling!r}: edge_mopping never reached the payload"
+
+
+@pytest.mark.parametrize("spelling", ["vacuum", "Vacuum"])
+def test_payload_omits_mop_fields_for_a_vacuum_only_room(spelling):
+    """[QE-6d] The other direction, so [QE-6c] cannot pass by writing them always.
+
+    A gate 'fixed' by dropping the mode test entirely would satisfy [QE-6c] for all
+    six spellings and put a water level on every vacuum-only run.
+    """
+    rooms = _mop_room(spelling)
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        managed_rooms=rooms, queue_room_ids=[1],
+        capabilities=_MOP_CAPS,
+    )
+    room = result["payload"]["rooms"][0]
+    assert "water_level" not in room
+    assert "edge_mopping" not in room

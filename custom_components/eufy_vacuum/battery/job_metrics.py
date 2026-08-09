@@ -51,6 +51,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..profiles.room_profiles import canonical_clean_mode
+
 
 def compute_job_battery_metrics(
     *,
@@ -181,7 +183,24 @@ def _bucketed_share(
         return buckets
 
     for room, weight in zip(rooms, weights):
-        bucket_key = _bucket_key(room.get(key))
+        raw_value = room.get(key)
+        if key == "clean_mode":
+            # ISSUE #48, and this one is already on disk. _bucket_key folds case and
+            # nothing else, so "Vacuum and mop" and "vacuum_mop" bucket separately —
+            # a survey of the live learning store found by_clean_mode keys
+            # {'vacuum': 97, 'vacuum and mop': 5} across 103 job records. Two
+            # spellings of ONE mode make len(buckets) == 2, which flips
+            # is_single_clean_mode False and drops a genuinely single-mode run out of
+            # per-mode battery-drain learning entirely.
+            #
+            # Canonicalized at the CALL SITE, not inside _bucket_key: that helper also
+            # buckets fan_speed and water_level, which are brand vocabulary with no
+            # canonical form core is entitled to impose.
+            #
+            # Records already written keep their old keys, so the card's fold in
+            # renderers/metrics.js stays — it is reading history this cannot reach.
+            raw_value = canonical_clean_mode(raw_value)
+        bucket_key = _bucket_key(raw_value)
         bucket = buckets.setdefault(bucket_key, {"share": 0.0, "rooms": 0})
         bucket["share"] = round(bucket["share"] + weight, 6)
         bucket["rooms"] = int(bucket["rooms"]) + 1

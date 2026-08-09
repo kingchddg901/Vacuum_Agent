@@ -1106,3 +1106,56 @@ def test_pass_and_edge_scales_compose():
     assert _relaxed_setting_scale(
         baselines=baselines, map_id=1, slug="kitchen",
         want_passes=2, got_passes=1, want_edge=True, got_edge=False) == pytest.approx(3.0)
+
+
+# ---------------------------------------------------------------------------
+# ISSUE #48 — the mop-wash projection must not depend on how mop is spelled
+# ---------------------------------------------------------------------------
+
+def _mop_rooms(spelling: str) -> list[dict]:
+    return [
+        {"slug": "kitchen", "clean_mode": spelling, "clean_passes": 1,
+         "carpet": False, "name": "Kitchen", "room_id": 1},
+        {"slug": "bath", "clean_mode": spelling, "clean_passes": 1,
+         "carpet": False, "name": "Bath", "room_id": 2},
+    ]
+
+
+def test_mop_projection_identical_for_display_label_and_token(tmp_path):
+    """[LE-48] The same all-mop job projects the same mop minutes either spelling.
+
+    The accumulator asked `clean_mode in {"vacuum_mop", "mop"}` against a value
+    lowercased but never canonicalized, so an all-mop job whose rooms are stored as
+    "Vacuum and mop" accumulated NO projected mop minutes and reported a mop-wash
+    overhead of 0.0 — the ETA short by the whole wash allowance.
+
+    The file contradicted itself within six lines: the same variable goes straight
+    into _find_room_match, whose predicate canonicalizes both sides, so the room
+    matched its learned stats and got correct minutes while this said it was not a
+    mop room at all.
+
+    Differential rather than absolute: the projection depends on wash config and
+    learned stats, and asserting a NUMBER here would pin those instead of the
+    property under test. The non-vacuity guard below is what stops this passing
+    because both sides are trivially zero.
+    """
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    common = {"vacuum_entity_id": "vacuum.alfred", "map_id": "1"}
+
+    token = estimator.estimate(ordered_rooms=_mop_rooms("vacuum_mop"), **common)
+    label = estimator.estimate(ordered_rooms=_mop_rooms("Vacuum and mop"), **common)
+    vacuum = estimator.estimate(ordered_rooms=_mop_rooms("vacuum"), **common)
+
+    token_mop = token["overhead"]["mop_wash"]["projected_mop_minutes"]
+    label_mop = label["overhead"]["mop_wash"]["projected_mop_minutes"]
+    vacuum_mop = vacuum["overhead"]["mop_wash"]["projected_mop_minutes"]
+
+    # NON-VACUITY: a mop job must project SOME mop minutes, or the equality below
+    # would hold at 0.0 == 0.0 and prove nothing.
+    assert token_mop > 0, "the canonical spelling projected no mop minutes — test is vacuous"
+    assert label_mop == token_mop, (
+        f"display label projected {label_mop} vs {token_mop} for the token"
+    )
+    # And the opposite direction: a vacuum-only job must project none, so a fix that
+    # simply treats everything as mop cannot pass.
+    assert vacuum_mop == 0

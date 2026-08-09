@@ -4,12 +4,15 @@
 //
 // It takes the profile's steps, a room-id→name lookup, the CALLER's i18n (t), a
 // vocab resolver (tVocab — localizes a setting VALUE like clean_mode and returns
-// escape-safe HTML), and HTML escaper (escapeHtml) — no DOM, no `this`, no imports
+// escape-safe HTML), and HTML escaper (escapeHtml) — no DOM, no `this`, and no
+// imports beyond the dependency-free clean-mode fold below
 // — and returns the manifest HTML string ("" when there are no steps).
 //
 // Class names match src/styles/run-profiles.js (.evcc-run-profiles-seq-*). The main
 // bundle styles them for the panel; the standalone card carries the same rules in
 // its own shadow root (aliased to HA tokens so it styles on a cold dashboard).
+
+import { canonicalCleanMode } from "../clean-mode.js";
 
 export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t, escapeHtml, tVocab }) {
   const list = Array.isArray(steps) ? steps : [];
@@ -52,8 +55,16 @@ export function renderStepsManifest({ steps, nameById = {}, zoneNameById = {}, t
           )
         )
         .join(", ");
-      const modes = new Set(groupRooms.map((r) => r.clean_mode).filter(Boolean));
-      const modeHint = modes.size === 1 ? [...modes][0] : null;
+      // ISSUE #48: fold before the Set. Two rooms genuinely in the same mode but
+      // stored with different spellings — one card-edited ("Vacuum and mop"), one
+      // profile-resolved ("vacuum_mop") — gave size 2, so the chip was dropped and
+      // an all-same-mode group rendered identically to a genuinely mixed one.
+      const modes = new Set(groupRooms.map((r) => canonicalCleanMode(r.clean_mode)).filter(Boolean));
+      // Show the room's own spelling, not the token — the chip is localized through
+      // the caller's vocab resolver, which is keyed on what the room actually holds.
+      const modeHint = modes.size === 1
+        ? (groupRooms.find((r) => r.clean_mode)?.clean_mode ?? null)
+        : null;
       // Localize the clean-mode chip (vacuum/mop/…) through the caller's vocab
       // resolver — without this it rendered the raw English enum (e.g. "VACUUM",
       // CSS-uppercased) on an otherwise fully-translated card. tVocab returns
