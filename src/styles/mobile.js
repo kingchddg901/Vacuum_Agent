@@ -497,6 +497,25 @@ export const MOBILE_STYLES = `
     row-gap: 6px;
   }
 
+  /* Configure goes icon-only here. It is the one text-width control in the row,
+     and at phone width that width is enough to push it onto a wrap row by
+     itself — a whole row spent on one word, with the mascot group pushed down
+     to a third. Dropped to a square icon it rejoins the first row and the bar
+     settles at two. The button keeps its title and aria-label, so the name is
+     still there for anyone who needs it; only the painted text goes. */
+  .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn-label {
+    display: none;
+  }
+
+  /* ...and without the label it must stop reserving label-sized box. The base
+     rule gives this button width:auto and side padding for its text; square it
+     back up so it matches the icons it now sits beside. */
+  .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn--configure {
+    width:   44px;
+    padding: 8px;
+    gap:     0;
+  }
+
   .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn {
     min-width:  44px;
     min-height: 44px;

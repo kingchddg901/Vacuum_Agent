@@ -331,7 +331,12 @@ export function applyRoomsRenderers(proto) {
             <circle cx="8" cy="8" r="2.5"/>
             <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
           </svg>
-          ${this.t("rooms.configure")}
+          ${/* Wrapped so the mobile shell can drop the LABEL without losing the
+                button: at phone width a text-width control is wide enough to be
+                pushed onto a wrap row of its own, spending a whole row on one
+                word. title/aria-label carry the name either way, so hiding the
+                visible text costs nothing an assistive user relies on. */""}
+          <span class="evcc-rooms-view-toggle-btn-label">${this.t("rooms.configure")}</span>
         </button>
         ${/* Last on purpose: this bar wraps on mobile, and the mascot group is
               the widest single unit in it. Trailing position puts the wrap

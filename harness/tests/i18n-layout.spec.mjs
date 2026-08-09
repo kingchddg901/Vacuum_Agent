@@ -147,6 +147,42 @@ test.describe("mobile layout gate: rooms toolbar, map view active @390px", () =>
     assertNoOverflow("rooms (map view, pseudo-long)", await probeLayout(page));
   });
 
+  // Configure is the only text-width control in the row. Left labelled at phone
+  // width it is wide enough to take a wrap row to itself, which pushes the
+  // mascot group onto a third — so the label going away is what keeps the bar
+  // at two rows, not a cosmetic preference. Assert the button survives the
+  // label's removal with its accessible name intact and a square box.
+  test("Configure drops its label but keeps its name and a square box", async ({ page }) => {
+    await mountHarness(page);
+    const res = await mapRooms(page);
+    expect(res.ok, res.error).toBe(true);
+    await expectBarRendered(page);
+
+    const cfg = await page.evaluate(() => {
+      const root = document.getElementById("evcc-host")?.shadowRoot;
+      const btn = root?.querySelector("[data-action='open-map-config']");
+      if (!btn) return null;
+      const label = btn.querySelector(".evcc-rooms-view-toggle-btn-label");
+      const r = btn.getBoundingClientRect();
+      return {
+        labelShown: label ? getComputedStyle(label).display !== "none" : null,
+        accessibleName: btn.getAttribute("aria-label") || "",
+        width: Math.round(r.width),
+        height: Math.round(r.height),
+      };
+    });
+
+    expect(cfg, "the Configure button is not in the DOM").not.toBeNull();
+    expect(cfg.labelShown, "expected a .evcc-rooms-view-toggle-btn-label span to exist").not.toBeNull();
+    expect(cfg.labelShown, "the Configure label is still painted at phone width").toBe(false);
+    // Hiding text must not strip the name — that would trade a layout fix for
+    // an unlabelled button, which is a worse bug than the one being fixed.
+    expect(cfg.accessibleName.length, "Configure lost its accessible name").toBeGreaterThan(0);
+    // Square, i.e. no leftover label-sized box, and still a full thumb target.
+    expect(cfg.width).toBeGreaterThanOrEqual(44);
+    expect(Math.abs(cfg.width - cfg.height), `not square: ${cfg.width}x${cfg.height}`).toBeLessThanOrEqual(2);
+  });
+
   // Wrapping is what keeps the bar on-screen, but a wrap boundary can fall
   // anywhere — including between the mascot select and its size slider, which
   // strands the slider next to whatever unrelated icon it lands beside. The bar

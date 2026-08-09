@@ -1029,7 +1029,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(k)}/samples.jsonl</pre>
             <circle cx="8" cy="8" r="2.5"/>
             <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
           </svg>
-          ${this.t("rooms.configure")}
+          
+          <span class="evcc-rooms-view-toggle-btn-label">${this.t("rooms.configure")}</span>
         </button>
         
         ${this._renderMapAnimalControls(e)}`:""}
@@ -16712,6 +16713,25 @@ ${r}
   .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle {
     gap:     6px;
     row-gap: 6px;
+  }
+
+  /* Configure goes icon-only here. It is the one text-width control in the row,
+     and at phone width that width is enough to push it onto a wrap row by
+     itself \u2014 a whole row spent on one word, with the mascot group pushed down
+     to a third. Dropped to a square icon it rejoins the first row and the bar
+     settles at two. The button keeps its title and aria-label, so the name is
+     still there for anyone who needs it; only the painted text goes. */
+  .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn-label {
+    display: none;
+  }
+
+  /* ...and without the label it must stop reserving label-sized box. The base
+     rule gives this button width:auto and side padding for its text; square it
+     back up so it matches the icons it now sits beside. */
+  .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn--configure {
+    width:   44px;
+    padding: 8px;
+    gap:     0;
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn {
