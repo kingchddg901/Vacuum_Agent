@@ -25,7 +25,10 @@ Gating:
     brand publishes the live room directly as a NAME entity, ``entities.active_cleaning_target``,
     which the sampler slugifies + matches to a managed room id). A vacuum missing its source's
     signal is skipped (its ``current_room`` would be all-``None``). ``source`` defaults to
-    ``live_pose`` when the block predates the key.
+    ``live_pose`` when the block predates the key. Note this selects how the ROOM is read,
+    not whether a pose is recorded: ``native_current_room`` also banks an ``anchor`` when the
+    adapter declares ``map_state_source.live_pose``, since where the robot is and which room
+    it is in are separate facts with separate best sources.
   - The sampling cadence ``interval_s`` comes from the adapter's ``room_attribution`` block —
     NEVER hardcoded here. It is the single source: the sampler ticks at it, and the engine
     converts ticks→seconds with it. The engine's ``dwell`` gate is measured in TICKS
@@ -211,26 +214,56 @@ async def _read_live_pose_sample(hass, manager, vacuum_entity_id: str, cfg: dict
     }
 
 
-def _read_native_current_room_sample(
+async def _read_native_current_room_sample(
     hass, manager, vacuum_entity_id: str, cfg: dict, map_id_str: str
 ) -> dict:
-    """``source: native_current_room`` — the brand publishes the live room as a NAME entity (no
-    pixel pose). Resolve name→managed-room-id; anchor/heading stay None (the engine's swept-area
-    path attributes it POSE-FREE; the pose-only spread/winding simply don't fire).
+    """``source: native_current_room`` — the brand publishes the live room as a NAME entity.
+
+    TWO INDEPENDENT AXES, DELIBERATELY. ``current_room`` comes from the NAME entity and only
+    from there: that path is recorder-verified on Ivy (it tracks the live room even on
+    app-started runs) and a raster/pose lookup would be a worse answer to a question the
+    brand already answers directly. ``anchor`` is a separate fact — WHERE, not WHICH — and
+    is read from the pose when the adapter declares one.
+
+    ``anchor`` used to be the literal ``None`` here, with the standing rationale that this
+    source has "no pixel pose". True of the NAME entity; false of the brand. Roborock's
+    position rides its parsed map, and once ``async_get_map_live_pose`` stopped being the
+    Eufy fork reader (``live_pose.backend``) there was nothing left to be missing — the
+    literal was the only thing keeping the pose ring anchor-less, which in turn is why a
+    stall capture had no trail to draw. Absent a declared pose it stays None, and the
+    engine's swept-area path attributes POSE-FREE as before.
 
     Always returns a sample — a momentarily unknown/unavailable entity is a genuine None
     current_room (transit / off-target), NOT a capture failure to skip. The parked signal is
     the MQTT task_status (``_is_parked`` with no pose flag), so a docked tick (Roborock reverts
-    active_cleaning_target to the dock room, task_status → charging) is nulled to None."""
+    active_cleaning_target to the dock room, task_status → charging) is nulled to None — and
+    nulls the anchor with it, so dock-sitting ticks never enter the ring as positions."""
     docked = _is_parked(hass, cfg, {})  # no pose flag — task_status is the parked signal
     room_id = None if docked else _resolve_managed_room_id(
         hass, manager, vacuum_entity_id, cfg, map_id_str
     )
+
+    anchor = heading = None
+    if not docked and isinstance(
+        (cfg.get("map_state_source") or {}).get("live_pose"), dict
+    ):
+        try:
+            pose = await manager.async_get_map_live_pose(vacuum_entity_id=vacuum_entity_id)
+        except Exception:  # noqa: BLE001 - a pose miss must not cost the room sample
+            _LOGGER.debug(
+                "eufy_vacuum: pose read failed for %s; sampling room only",
+                vacuum_entity_id, exc_info=True,
+            )
+            pose = {}
+        if isinstance(pose, dict) and pose.get("present"):
+            anchor = pose.get("robot_anchor")
+            heading = pose.get("robot_heading")
+
     return {
         "current_room": room_id,
-        "anchor": None,
+        "anchor": anchor,
         "cleaning_area": _read_cleaning_area(hass, cfg),
-        "heading": None,
+        "heading": heading,
     }
 
 
@@ -255,7 +288,7 @@ async def _sample_vacuum_once(hass, manager, vacuum_entity_id: str) -> int:
             continue
 
         if source == "native_current_room":
-            sample = _read_native_current_room_sample(
+            sample = await _read_native_current_room_sample(
                 hass, manager, vacuum_entity_id, cfg, map_id_str
             )
         else:

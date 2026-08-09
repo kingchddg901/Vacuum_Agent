@@ -247,10 +247,13 @@ async def test_sample_keeps_active_cleaning_task_status(monkeypatch):
 
 # --- W1: native_current_room source (Roborock — the brand publishes the room NAME) ----------
 #
-# No decoded-map pose: the sampler reads entities.active_cleaning_target (a room NAME),
-# slugifies it, and matches it to a MANAGED room id via manager.get_managed_rooms. anchor/heading
-# stay None; docked-gate is the MQTT task_status (Roborock reverts the target to the dock room +
-# task_status -> charging when parked). Fixtures mirror reference_roborock_ivy_signals.
+# The ROOM comes from entities.active_cleaning_target (a room NAME), slugified and matched to a
+# MANAGED room id via manager.get_managed_rooms. The ANCHOR is a separate axis: read from the
+# declared live pose when the adapter has one, None when it does not — "this source has no pixel
+# pose" was true of the NAME entity and false of the brand, and the literal None it justified is
+# what kept the pose ring empty. Docked-gate is the MQTT task_status (Roborock reverts the target
+# to the dock room + task_status -> charging when parked), and it nulls BOTH axes. Fixtures mirror
+# reference_roborock_ivy_signals.
 
 # Roborock's active-run task states (subset — `charging` is deliberately NOT active -> parked).
 _ROBO_ACTIVE = ["segment_cleaning", "segment_mopping", "returning_home", "cleaning", "docking"]
@@ -276,8 +279,84 @@ def _mock_manager_native(managed_rooms: dict, *, status="external"):
     return mgr
 
 
+def _cfg_native_with_pose(_vid):
+    """The Roborock shape as shipped: native room NAME *and* a declared parsed-map pose."""
+    cfg = _cfg_native(_vid)
+    cfg["map_state_source"] = {
+        "backend": "memory",
+        "live_pose": {"backend": "parsed_mapdata", "pose_refresh_s": 30.0},
+    }
+    return cfg
+
+
+async def test_a_declared_pose_is_banked_alongside_the_native_room(monkeypatch):
+    """THE LITERAL None THAT KEPT THE RING EMPTY.
+
+    The room still comes from the NAME entity — that path is recorder-verified and a pose
+    lookup would be a worse answer to a question the brand answers directly. The anchor is
+    the OTHER fact, and it is now read from the declared pose. Without this the ring holds
+    rows with no positions in them, so a stall capture has nothing to draw a trail from and
+    the absence looks like a broken renderer rather than a missing declaration.
+    """
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native_with_pose)
+    mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"}})
+    # The autospec'd method off spec_manager, not a bare AsyncMock — it keeps the real
+    # signature, so a sampler calling it wrongly fails here instead of passing green.
+    mgr.async_get_map_live_pose.return_value = {
+        "present": True, "robot_anchor": [0.694, 0.509], "robot_heading": 67,
+    }
+    hass = _hass_states({"sensor.ivy_current_room": "Kitchen",
+                         "sensor.ivy_cleaning_area": "3.1",
+                         "sensor.ivy_status": "segment_cleaning"})
+
+    assert await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy") == 1
+
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["anchor"] == [0.694, 0.509]
+    assert kw["heading"] == 67
+    assert kw["current_room"] == 3, "the room must still come from the NAME entity"
+
+
+async def test_a_docked_tick_banks_no_position(monkeypatch):
+    """Parked ticks null BOTH axes, so the dock never enters the ring as a position.
+
+    A trail is evidence of movement; dock-sitting samples would pad it with a place the
+    robot was parked, and on a coarse brand a couple of those is the whole window.
+    """
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native_with_pose)
+    mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"}})
+    mgr.async_get_map_live_pose.return_value = {
+        "present": True, "robot_anchor": [0.5, 0.5],
+    }
+    hass = _hass_states({"sensor.ivy_current_room": "Kitchen",
+                         "sensor.ivy_cleaning_area": "3.1",
+                         "sensor.ivy_status": "charging"})   # parked
+
+    assert await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy") == 1
+
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["anchor"] is None and kw["current_room"] is None
+    mgr.async_get_map_live_pose.assert_not_awaited()
+
+
+async def test_a_pose_read_failure_still_records_the_room(monkeypatch):
+    """The room is the attribution signal; losing the pose must not lose the sample too."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native_with_pose)
+    mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"}})
+    mgr.async_get_map_live_pose.side_effect = RuntimeError("provider blew up")
+    hass = _hass_states({"sensor.ivy_current_room": "Kitchen",
+                         "sensor.ivy_cleaning_area": "3.1",
+                         "sensor.ivy_status": "segment_cleaning"})
+
+    assert await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.ivy") == 1
+
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["current_room"] == 3 and kw["anchor"] is None
+
+
 async def test_sample_native_records_room_by_name(monkeypatch):
-    """Kitchen (native NAME) -> managed room id 3; anchor/heading None; cleaning_area recorded."""
+    """Kitchen (native NAME) -> managed room id 3; no declared pose so anchor/heading stay
+    None; cleaning_area recorded."""
     monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_native)
     mgr = _mock_manager_native({"3": {"room_id": 3, "name": "Kitchen", "slug": "kitchen"},
                                 "5": {"room_id": 5, "name": "Living Room", "slug": "living_room"}})

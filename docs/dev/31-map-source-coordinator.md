@@ -110,7 +110,20 @@ Pre-warm: dispatches to the backend, applies the presence gate, and writes the n
 async_get_map_live_pose(*, vacuum_entity_id: str) -> dict[str, Any]
 ```
 
-Returns **only the moving overlays** (robot/dock anchors + `current_room` + heading + live `path`) from eufy-clean's fresh in-memory pose — the lightweight payload the card polls at the ~2s live cadence, vs the full snapshot. It reads the in-memory pose (`_read_inmem_pose`), loads the mtime-cached static geometry (`_load_live_pose_geom`) the normalization needs, and runs `map_source.live_pose_overlay`. Degrades to `{present: False, reason, diagnostics}`. (Used by the card *and* by the `_handle_get_map_live_pose` service and the server-side pose-sampler probe in `mapping/mapping_services.py`.)
+Returns **only the moving overlays** (robot/dock anchors + `current_room` + heading + live `path`) from the provider's freshest pose — the lightweight payload the card polls at the live cadence, vs the full snapshot. Degrades to `{present: False, reason, diagnostics}`. (Used by the card, the `_handle_get_map_live_pose` service and the server-side pose-sampler probe in `mapping/mapping_services.py`, the **pose sampler**'s per-tick anchor, and the **stall capture**'s dot.)
+
+**Brand-generic by dispatch.** The adapter's `map_state_source.live_pose.backend` selects the reader, and no backend is a default:
+
+| `backend` | Reader | Shape |
+|---|---|---|
+| `inmem_pixel_pose` | `_read_inmem_pose` + `_load_live_pose_geom` → `map_source.live_pose_overlay` | a pixel pose on the provider's live coordinator, normalized against separately-loaded map geometry (eufy-clean) |
+| `parsed_mapdata` | `_read_mapdata_pose` → `map_source_runtime.mapdata_live_pose_from_candidates` | a position already in the rendered frame on an in-memory parsed map (HA-core Roborock) — no file read, nothing to normalize |
+
+An undeclared or unknown backend returns `unknown_pose_backend:<name>`; no `live_pose` block at all stays `not_configured`.
+
+> **Why the dispatch exists.** This method *was* the eufy-clean reader wearing a generic name — it required a `live_pose` block whose every key described the fork's pixel coordinator, so a brand that could not describe itself that way got `not_configured`, an answer indistinguishable from "this brand has no position". Roborock sat in exactly that state: `overlays_from_mapdata` produced a live `robot_anchor` for the **card** every refresh while this returned absent, so the stall capture drew rooms with no robot in them and the pose sampler banked `anchor: None` (verified end-to-end 2026-08-09; `sensor.ivy_map_overlays` carried `[0.694, 0.509]` moving across a run, and a debug capture over the same run held 386 ivy log lines, none of them about pose). Both readers now share `map_source_runtime.robot_pose_from_mapdata`, and a test asserts they cannot diverge.
+
+`_apply_inmem_pose_to_result` (§3.1) is gated on `inmem_pixel_pose` for the same reason — a `parsed_mapdata` brand reaching the fork's attr walk would find nothing and then pay for a full structure dump on every snapshot.
 
 ### 3.3 `async_compare_map_sources`
 

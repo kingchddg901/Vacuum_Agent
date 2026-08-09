@@ -9,9 +9,17 @@ rooms-card switch calls.
 
 ``dev_inject_stall`` is the maintainer instrument. It fires the CANONICAL
 ``EVENT_STALL_DETECTED`` using the vacuum's real current job/map/room state, so every
-downstream consumer runs for real — the room raster is read, the pose ring supplies the
-trail, the actual notification path runs. Manufacture the stimulus; let production own
-every consequence.
+downstream consumer runs for real — the room raster is read, the live pose supplies the
+dot, the pose ring supplies whatever trail its banked anchors support, the actual
+notification path runs. Manufacture the stimulus; let production own every consequence.
+
+What "whatever the anchors support" means, because it is the difference between a thin
+capture and a broken one: the trail is drawn only when the ring actually holds distinct
+positions across the window, and how many that is depends on the brand's declared pose
+cadence (``map_state_source.live_pose.pose_refresh_s``). A coarse brand yields breadcrumbs
+rather than a line by design — see ``mapping/stall_capture_render``. An injected stall on a
+vacuum whose ring is still filling shows the dot and no trail; that is the feature reporting
+what it has, not the instrument misfiring.
 
 IT IS REGISTERED UNCONDITIONALLY, AND FLAGGED HARD INSTEAD (Chris, 2026-08-08). An earlier
 draft gated it behind a marker file. Registration is simpler, keeps the declaration-parity

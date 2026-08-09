@@ -23,8 +23,10 @@ from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     eufy_result_from_store,
     find_mapdata,
     find_roomlike_collection,
+    mapdata_live_pose_from_candidates,
     overlays_from_mapdata,
     _mapdata_projector,
+    robot_pose_from_mapdata,
     roborock_result_from_candidates,
     rooms_from_mapdata,
     _walk,
@@ -277,6 +279,118 @@ def test_overlays_from_mapdata_empty_layers_omitted():
     ov = overlays_from_mapdata(_mapdata({16: _Room(0, 0, 100, 100, 16)}))
     assert "no_go" not in ov and "path" not in ov and "obstacles" not in ov
     assert "robot_anchor" not in ov   # no vacuum_position on this fake
+
+
+# --- [MSR-2k] the pose extractor: ONE implementation, two readers -----------------
+
+def _posed_mapdata():
+    """A MapData carrying a robot position, dock, and current room."""
+    return _mapdata(
+        {16: _Room(500, 500, 2500, 4500, 16)},
+        vacuum_position=_VPoint(1000, 2000, 90),
+        charger=_VPoint(500, 500),
+        vacuum_room=22,
+    )
+
+
+def test_the_card_and_the_pose_accessor_read_the_SAME_extractor():
+    """[MSR-2k] THE DEFECT THIS CLOSES, stated as an equality.
+
+    Two readers of one map disagreed about whether it had a robot on it: the card's
+    overlay payload carried robot_anchor while async_get_map_live_pose reported the brand
+    had no pose at all, so a stall capture drew the room and no dot. This asserts the two
+    cannot drift again — not that both are 'correct', but that they are the same values
+    out of the same function. Re-inline a second copy into overlays_from_mapdata and this
+    goes red on the first divergence.
+    """
+    md = _posed_mapdata()
+
+    ov = overlays_from_mapdata(md)
+    pose = robot_pose_from_mapdata(md)
+
+    for key in ("robot_anchor", "robot_heading", "dock_anchor", "current_room"):
+        assert ov[key] == pose[key], f"{key} diverged between the two readers"
+    # ...and pinned to the known-good projection, so 'identical' can't mean 'both broken'.
+    assert pose["robot_anchor"] == [0.2, 0.59]
+
+
+def test_the_anchor_is_normalized_never_raw_device_coords():
+    """[MSR-2k] vacuum_position is in DEVICE mm; the renderer consumes 0..1.
+
+    Passing the raw value through is the failure that puts the dot off-map entirely
+    rather than in the wrong place — so it reads as a broken renderer, not a bad anchor.
+    """
+    pose = robot_pose_from_mapdata(_posed_mapdata())
+
+    nx, ny = pose["robot_anchor"]
+    assert 0.0 <= nx <= 1.0 and 0.0 <= ny <= 1.0
+    assert [nx, ny] != [1000, 2000], "raw device coordinates reached the consumer"
+
+
+def test_pose_extractor_degrades_to_empty_without_geometry():
+    """[MSR-2k] No image dims → {}, not a partial pose and not a raise."""
+    class _NoImage:
+        rooms = {}
+        image = None
+        vacuum_position = _VPoint(1000, 2000, 90)
+
+    assert robot_pose_from_mapdata(_NoImage()) == {}
+
+
+def test_a_mapdata_with_no_position_is_absent_not_an_error():
+    """[MSR-2k] A parked/unposed map is a real absence — present False, no anchor key."""
+    md = _mapdata({16: _Room(0, 0, 100, 100, 16)})
+
+    pose = mapdata_live_pose_from_candidates([("runtime_data", "entry1", _Coordinator(md=md))])
+
+    assert pose["present"] is False
+    assert "robot_anchor" not in pose
+
+
+def test_mapdata_live_pose_walks_the_candidate_roots():
+    """[MSR-2k] The generic pose reader finds the parsed map the same way the room and
+    render readers do, and returns the shared live_pose_overlay shape — so a consumer
+    cannot tell which brand produced it."""
+    root = _Coordinator(some_holder=_Coordinator(map=_posed_mapdata()))
+
+    pose = mapdata_live_pose_from_candidates([("runtime_data", "entry1", root)])
+
+    assert pose["present"] is True
+    assert pose["robot_anchor"] == [0.2, 0.59]
+    assert pose["robot_heading"] == 90
+    assert pose["dock_anchor"] == [0.1, 0.89]
+    assert pose["current_room"] == 22
+    assert pose["diagnostics"]["pose_at"]        # the deploy-and-discover breadcrumb
+
+
+def test_mapdata_live_pose_reports_absence_with_a_breadcrumb():
+    """[MSR-2k] No parsed map anywhere → the absent marker + diagnostics, never a raise."""
+    pose = mapdata_live_pose_from_candidates([("hass_data", "roborock", _Coordinator(x=1))])
+
+    assert pose["present"] is False and pose["reason"] == "no_parsed_map"
+    assert pose["diagnostics"]["candidates"] == ["hass_data:roborock"]
+
+
+def test_mapdata_live_pose_survives_a_hostile_provider_internal():
+    """[MSR-2k] This runs on the event loop inside the snapshot; a raising property on a
+    provider object must degrade that candidate to a miss, not abort the read."""
+    class _Raising:
+        @property
+        def image(self):
+            raise TypeError("provider internal raised")
+
+        @property
+        def rooms(self):
+            raise TypeError("provider internal raised")
+
+    good = _Coordinator(map=_posed_mapdata())
+
+    pose = mapdata_live_pose_from_candidates([
+        ("runtime_data", "bad", _Raising()),
+        ("runtime_data", "good", good),
+    ])
+
+    assert pose["present"] is True and pose["robot_anchor"] == [0.2, 0.59]
 
 
 def test_obstacle_types_normalized_from_details():

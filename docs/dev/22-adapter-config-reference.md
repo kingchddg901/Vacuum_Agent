@@ -1280,7 +1280,7 @@ image segmenter and native current-room tracking keep working unchanged.
 | `store_key` | `str` | `Store` file key, with `{device_id}` filled from the `(identifier_domain, <serial>)` device-registry identifier (Eufy: `"robovac_mqtt.{device_id}"`). |
 | `store_version` | `int` | Expected store wrapper version. A mismatch is treated as unavailable (re-point this number, don't rewrite, if the provider bumps it). |
 | `present_requires_live_map_image` | `bool` | When `True`, presence is gated on the live-map camera artifact (the same gate as the live backdrop), so an older or plain install (no live-map camera) resolves to "not present" and the feature hides. |
-| `live_pose` | `dict` | In-memory live-pose source — the fresh moving overlays (robot / dock / trail) read from the provider's live coordinator rather than the save-throttled `.storage` snapshot. Keys: `hass_data_domain`, `robot_pixel_attrs`, `dock_pixel_attrs`, `trail_pixel_attrs`, `heading_attrs` (each an ordered attr-name list tried in turn; absence → no override, stays on `.storage`). |
+| `live_pose` | `dict` | Live-pose source — the fresh moving overlays (robot / dock / heading / trail), read from wherever the provider keeps the robot's current position. **`backend` (required)** names which shape core should read and there is no default: `inmem_pixel_pose` (a pixel pose on the provider's live coordinator, normalized against separately-loaded geometry — eufy-clean) or `parsed_mapdata` (a position already in the rendered frame on an in-memory parsed map — HA-core Roborock). An undeclared or unknown backend returns `unknown_pose_backend:<name>` rather than falling through to a brand's reader; **omitting the whole block means the brand has no pose**, and every consumer of `async_get_map_live_pose` sees an absent marker. **`pose_refresh_s` (required)** is how often the position actually CHANGES at the source — not how often we poll — and it sizes the stall capture's trail window plus its line-vs-breadcrumb draw style. `inmem_pixel_pose` also takes `hass_data_domain`, `robot_pixel_attrs`, `dock_pixel_attrs`, `trail_pixel_attrs`, `heading_attrs` (each an ordered attr-name list tried in turn; absence → no override, stays on `.storage`); `parsed_mapdata` takes none of them. |
 | `memory` | `dict` | In-memory `MapData` source — the same live coordinator also holds the full decoded map (fresher than `.storage`, loop-safe). Keys: `hass_data_domain`, `mapdata_attrs` (and optional per-field remap `field_attrs`). |
 
 ### Example (from the Eufy adapter)
@@ -1293,6 +1293,8 @@ image segmenter and native current-room tracking keep working unchanged.
     "store_version": 1,
     "present_requires_live_map_image": True,
     "live_pose": {
+        "backend": "inmem_pixel_pose",
+        "pose_refresh_s": 2.0,
         "hass_data_domain": "robovac_mqtt",
         "robot_pixel_attrs": ["_robot_pixel", "robot_pixel"],
         "dock_pixel_attrs":  ["_dock_pixel", "dock_pixel"],
@@ -1303,6 +1305,16 @@ image segmenter and native current-room tracking keep working unchanged.
         "hass_data_domain": "robovac_mqtt",
         "mapdata_attrs": ["_map_data", "map_data"],
     },
+},
+```
+
+A brand whose position rides an in-memory **parsed map** needs neither the attr lists nor
+a geometry load — the parser has already placed it in the rendered frame:
+
+```python
+"live_pose": {
+    "backend": "parsed_mapdata",
+    "pose_refresh_s": 30.0,       # Roborock's MAP refresh, measured on Ivy
 },
 ```
 
@@ -1520,7 +1532,9 @@ tests already exist.
 }
 ```
 
-`source` is the sampler's source-dispatch selector (distinct from `engine`): Eufy declares `"live_pose"` (per-tick pose + anchor); a brand with only a native current-room NAME entity declares `"native_current_room"` (Roborock).
+`source` is the sampler's source-dispatch selector (distinct from `engine`): Eufy declares `"live_pose"` (the room is a raster lookup of the robot pixel); a brand that publishes the live room as a NAME entity declares `"native_current_room"` (Roborock).
+
+It selects how the **room** is read, not whether a **pose** is recorded — those are separate facts with separate best sources. A `native_current_room` brand still banks an `anchor` per tick when it declares a [`map_state_source.live_pose`](#13a2-map_state_source--read-the-providers-own-map-segmentation), because "which room" and "where exactly" are answered best by different signals: the NAME entity is recorder-verified for the room, and the parsed map carries the position. Conflating them is why `anchor` was a hardcoded `None` on this path, which left the pose ring positionless and the stall capture with no trail to draw.
 
 ### `engine` *(required when `room_attribution` is present, str)*
 

@@ -64,6 +64,12 @@ _EXPECT_ROBOT = [0.4, 0.39]
 _EXPECT_DOCK = [0.1, 0.79]
 _EXPECT_PATH = [[0.4, 0.39], [0.5, 0.49]]
 
+# A live_pose block as an adapter actually declares one. `backend` is REQUIRED: core
+# dispatches on it and no backend is a default, so a block without one now reads as an
+# UNDECLARED pose rather than silently as the fork's. Shared by every case here so a
+# gate cannot pass because the config was malformed in a second way.
+_PIXEL_CFG = {"backend": "inmem_pixel_pose", "robot_pixel_attrs": ["robot_pixel"]}
+
 
 def _register(live_pose=None, *, with_source=True):
     """Register an adapter config; include map_state_source.live_pose when given."""
@@ -98,7 +104,7 @@ def test_apply_result_not_present_leaves_untouched(manager):
         raise AssertionError("_read_inmem_pose called despite result not present")
 
     manager.map_source._read_inmem_pose = _boom
-    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, _PIXEL_CFG)
     assert result == before
 
 
@@ -108,7 +114,7 @@ def test_apply_pose_absent_keeps_base_overlays(manager):
               "path": [[0.1, 0.1]]}
     before = dict(result)
     manager.map_source._read_inmem_pose = lambda vid, cfg: {"present": False, "reason": "no_pose"}
-    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, _PIXEL_CFG)
     assert result == before
 
 
@@ -124,7 +130,7 @@ def test_apply_pose_present_overlays_moving_fields(manager):
     }
     manager.map_source._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
     manager.map_source._apply_inmem_pose_to_result(
-        result, _GEOM, _VAC, {"robot_pixel_attrs": ["robot_pixel"]},
+        result, _GEOM, _VAC, _PIXEL_CFG,
     )
 
     assert result["present"] is True
@@ -150,7 +156,7 @@ def test_apply_pose_read_raises_keeps_base_overlays(manager):
 
     manager.map_source._read_inmem_pose = _raise
     # Must NOT raise (on-loop snapshot contract).
-    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, _PIXEL_CFG)
     assert result == before
 
 
@@ -166,7 +172,7 @@ def test_apply_docked_robot_flags_and_anchors_to_dock(manager):
     }
     manager.map_source._read_inmem_pose = lambda vid, cfg: dict(docked)
     manager.map_source._apply_inmem_pose_to_result(
-        result, _GEOM, _VAC, {"robot_pixel_attrs": ["robot_pixel"]},
+        result, _GEOM, _VAC, _PIXEL_CFG,
     )
     assert result["robot_anchor"] == _EXPECT_DOCK    # robot resolved to the dock
     assert result["dock_anchor"] == _EXPECT_DOCK
@@ -194,7 +200,7 @@ async def test_get_live_pose_no_source_at_all(manager):
 
 async def test_get_live_pose_pose_absent_carries_reason_and_diag(manager):
     """[LP-7] pose locator returns absent -> reason + diagnostics passthrough; no geom read."""
-    _register(live_pose={"robot_pixel_attrs": ["robot_pixel"]})
+    _register(live_pose=_PIXEL_CFG)
     diag = {"candidates": ["hass_data:robovac_mqtt"], "structure": {"x": 1}}
     manager.map_source._read_inmem_pose = lambda vid, cfg: {
         "present": False, "reason": "no_pose", "diagnostics": diag,
@@ -212,7 +218,7 @@ async def test_get_live_pose_pose_absent_carries_reason_and_diag(manager):
 
 async def test_get_live_pose_no_geom(manager):
     """[LP-8] pose present but geometry missing -> {present:False, reason:no_geom} + diag."""
-    _register(live_pose={"robot_pixel_attrs": ["robot_pixel"]})
+    _register(live_pose=_PIXEL_CFG)
     manager.map_source._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
 
     async def _no_geom(vid, cfg):
@@ -230,7 +236,7 @@ async def test_get_live_pose_no_geom(manager):
 
 async def test_get_live_pose_present_overlay_plus_diag(manager):
     """[LP-9] pose + geometry present -> present overlay + diagnostics breadcrumb."""
-    _register(live_pose={"robot_pixel_attrs": ["robot_pixel"]})
+    _register(live_pose=_PIXEL_CFG)
     manager.map_source._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
 
     async def _geom(vid, cfg):

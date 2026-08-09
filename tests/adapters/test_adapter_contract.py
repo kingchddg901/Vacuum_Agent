@@ -479,3 +479,62 @@ def test_floor_type_defaults_use_only_this_brands_declared_vocabulary(adapter):
                 f"{brand}: {catalog_key}[{floor_type}] = {value!r} is not in its declared "
                 f"{options_key} {sorted(declared)}"
             )
+
+
+def test_a_declared_live_pose_names_a_backend_core_can_read(adapter):
+    """A pose block core cannot dispatch on is a pose nobody receives.
+
+    THE DEFECT, GENERALISED. ``async_get_map_live_pose`` used to BE the eufy-clean reader,
+    so it keyed off this block merely EXISTING. Roborock's position was live on its parsed
+    map the whole time and that accessor answered ``not_configured`` — the stall capture
+    drew rooms with no robot in them, and the pose ring recorded no anchors, because a
+    declaration was missing rather than a capability.
+
+    Naming the backend is what makes that failure loud: an unreadable declaration is now a
+    red test here instead of a brand silently reported as having no position. Runs against
+    every brand in ADAPTER_BUILDERS, so the next adapter cannot repeat it.
+    """
+    from custom_components.eufy_vacuum.mapping.map_source_coordinator import (
+        POSE_BACKEND_INMEM_PIXELS,
+        POSE_BACKEND_PARSED_MAPDATA,
+    )
+
+    brand, config = adapter
+    source = config.get("map_state_source")
+    if not isinstance(source, dict):
+        pytest.skip(f"{brand} declares no map_state_source")
+    live_pose = source.get("live_pose")
+    if not isinstance(live_pose, dict):
+        pytest.skip(f"{brand} declares no live_pose")
+
+    known = {POSE_BACKEND_INMEM_PIXELS, POSE_BACKEND_PARSED_MAPDATA}
+    backend = live_pose.get("backend")
+
+    assert backend in known, (
+        f"{brand}: live_pose.backend = {backend!r} is not one core can read {sorted(known)} "
+        "— every consumer of async_get_map_live_pose would get an absent marker"
+    )
+
+
+def test_a_declared_live_pose_declares_its_cadence(adapter):
+    """The pose cadence sizes the stall capture's trail window and picks its draw style.
+
+    Undeclared, the capture falls back to the historical ±30 s and a connected line — which
+    is right for a fast brand and wrong for a slow one, where it collects two samples and
+    would join half a minute of unobserved travel into a straight segment. A brand that can
+    say how often its position changes must say it.
+    """
+    brand, config = adapter
+    source = config.get("map_state_source")
+    if not isinstance(source, dict):
+        pytest.skip(f"{brand} declares no map_state_source")
+    live_pose = source.get("live_pose")
+    if not isinstance(live_pose, dict):
+        pytest.skip(f"{brand} declares no live_pose")
+
+    refresh = live_pose.get("pose_refresh_s")
+
+    assert isinstance(refresh, (int, float)) and not isinstance(refresh, bool), (
+        f"{brand}: live_pose.pose_refresh_s = {refresh!r} is not a number"
+    )
+    assert refresh > 0, f"{brand}: a pose cadence of {refresh} is not a cadence"

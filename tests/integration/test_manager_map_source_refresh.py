@@ -188,7 +188,7 @@ async def test_refresh_storage_cache_hit_reapplies_live_pose(manager, monkeypatc
     pose on every read rather than re-serving whatever pose was frozen into the
     cache — the .storage file's write cadence is coarser than the in-memory pose,
     so an unchanged file is the common case while the robot is actually moving."""
-    _register(source={"backend": "storage", "live_pose": {"robot_pixel_attrs": ["x"]}})
+    _register(source={"backend": "storage", "live_pose": {"backend": "inmem_pixel_pose", "robot_pixel_attrs": ["x"]}})
     _present(manager, monkeypatch)
     monkeypatch.setattr(msr, "eufy_store_path", lambda *a, **k: "/x/store.json")
     monkeypatch.setattr(msc, "_stat_mtime", lambda p: 999.0)

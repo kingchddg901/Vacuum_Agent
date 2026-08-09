@@ -157,8 +157,22 @@ def roborock_render_data(
 
     NOTE: ``res`` (device-mm per pixel, from roborock's ``map/50`` image scale) is emitted
     for completeness but only matters for the POSE overlay's coord mapping — the room-raster
-    render itself needs none of it. Pose registration (res/origin/flip against the live
-    robot position) is the device-calibration step; verify on a real vacuum.
+    render itself needs none of it.
+
+    POSE REGISTRATION IS MEASURED, NOT PENDING. This used to call res/origin/flip "the
+    device-calibration step; verify on a real vacuum", which read as an open task and made
+    every later reader re-ask whether a pose could be trusted on this raster. It was verified
+    — on Ivy (S6), 2026-08-09, via ``diagnostics`` →
+    ``map_source_runtime.roborock_geometry_drift_from_candidates``: ``aligned: true``,
+    ``max_center_delta: 0.0018``, ``min_iou: 0.949``, 10/10 room ids matched with nothing on
+    either side alone. 0.0018 is constant across every room, i.e. a systematic half-pixel
+    bbox-derivation difference, not drift.
+
+    What that buys: the parser's normalized coordinates and THIS raster are the same frame,
+    so a pose projected by ``_mapdata_projector`` lands on the room it is actually in. The
+    risk it retires is specific — two decoders of one map disagreeing would have put the
+    robot in the WRONG ROOM, which looks like a plausible picture rather than a bug. Re-run
+    that diagnostic if you change the decode; do not re-derive the calibration by hand.
     """
     if not decoded:
         return None

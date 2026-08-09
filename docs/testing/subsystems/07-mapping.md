@@ -43,7 +43,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `mapping_services.py` | 1375 | 88% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` | unit + integration | clean |
 | `map_source.py` | 434 | 93% | `tests/unit/test_map_source.py` | unit (pure) | clean |
 | `map_source_runtime.py` | 570 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) | clean |
-| `map_source_coordinator.py` | 287 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration | clean |
+| `map_source_coordinator.py` | 287 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` + `tests/unit/test_live_pose_backends.py` | integration + unit | clean |
 | `roborock_raw_map.py` | 145 | 89% | `tests/unit/test_roborock_raw_map.py` | unit (pure) | clean |
 | `stall_capture_render.py` | new | — | `tests/unit/test_stall_capture_render.py` | unit (pure) | clean |
 
@@ -167,6 +167,24 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `roborock_candidates`, `image_entity_object`) that gather roots from
   `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
   cleanly when a source is absent.
+- **the live-pose backend seam** (`LP-*`, unit, `test_live_pose_backends.py`) —
+  `async_get_map_live_pose`'s brand dispatch, plus `robot_pose_from_mapdata` /
+  `mapdata_live_pose_from_candidates` in `MSR-2k`. The bug they pin is a DECLARATION
+  gap, not a geometry one: the accessor was the eufy-clean reader wearing a generic
+  name, so it keyed off a `live_pose` block merely existing and answered
+  `not_configured` for a brand that could not describe itself in fork terms. Roborock's
+  position was live on its parsed MapData the whole time — the card drew it while the
+  stall capture drew rooms with no dot and the pose ring banked rows with no anchors.
+  Covered: the declared backend selects the reader; no backend is a default (an
+  undeclared one says so rather than falling through to a brand); the pixel-override
+  path is gated on the pixel backend so a parsed-map brand can never drive the fork's
+  attr walk; and the card's overlay payload and the pose accessor are asserted to read
+  the SAME extractor, so the two cannot silently disagree about whether a map has a
+  robot on it again.
+
+  > Note the LP-3 test records the call rather than raising from the stub.
+  > `_apply_inmem_pose_to_result` swallows `Exception` by design, so a raising probe is
+  > eaten and the test passes with the gate removed — it did, until ablation caught it.
 - **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
   v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
   IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage

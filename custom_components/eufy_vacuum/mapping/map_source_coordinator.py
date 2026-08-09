@@ -54,6 +54,23 @@ _MAP_SOURCE_HARD_CLEAR_REASONS = frozenset({
     "no_device",               # the device / store path resolved to nothing
 })
 
+# The live-pose backends core can read. An adapter's `map_state_source.live_pose.backend`
+# names one; these are CORE's keys, and a brand picks from them rather than core inferring a
+# brand from the other keys present.
+#
+# NEITHER IS A DEFAULT, and the absent-default is the bug being closed. This accessor was
+# once the fork reader outright, so "declares no pose shape" and "has no pose" collapsed into
+# one answer — Roborock's position sat live on its parsed map while `async_get_map_live_pose`
+# reported `not_configured` and the stall capture drew an empty room. An unknown backend is
+# now reported as itself.
+#
+#: A provider-held pixel pose read out of its live coordinator, normalized against a
+#: separately-loaded map geometry (the eufy-clean fork: `_robot_pixel` + the .storage map).
+POSE_BACKEND_INMEM_PIXELS = "inmem_pixel_pose"
+#: A pose carried on an in-memory PARSED map, already in the rendered frame (a
+#: vacuum-map-parser MapData's `vacuum_position` — what HA-core Roborock keeps).
+POSE_BACKEND_PARSED_MAPDATA = "parsed_mapdata"
+
 
 def _stat_mtime(path: str) -> float | None:
     """Return a file's mtime, or None if it doesn't exist. Blocking — call via executor."""
@@ -342,8 +359,16 @@ class MapSourceCoordinator:
         THE EVENT LOOP inside the dashboard-snapshot service, and a provider-internal property
         could raise (esp. across the pending fork #136 merge) — so a failure degrades to the
         base overlays rather than aborting the snapshot. (The introspector is also guarded.)
+
+        BACKEND-GATED. This is the PIXEL-pose path specifically, so it runs only for the
+        backend that has pixels. A brand declaring `parsed_mapdata` already carries its pose
+        on the parsed map its own reader projects, and letting it reach here would run the
+        fork's attr walk over an unrelated provider's internals — finding nothing, then
+        paying for a full structure dump on every refresh to say so.
         """
         if not (isinstance(live_cfg, dict) and result.get("present")):
+            return
+        if str(live_cfg.get("backend") or "").strip().lower() != POSE_BACKEND_INMEM_PIXELS:
             return
         try:
             pose = self._read_inmem_pose(vacuum_entity_id, live_cfg)
@@ -534,13 +559,47 @@ class MapSourceCoordinator:
             return map_data
         return None
 
+    def _read_mapdata_pose(
+        self, vacuum_entity_id: str, source_cfg: dict[str, Any]
+    ) -> dict[str, Any]:
+        """``backend: parsed_mapdata`` — the pose off the provider's in-memory parsed map.
+
+        No file read and no normalization step of our own: the parser has already placed the
+        position in the rendered frame, so this is just "find the map, read the pose". Walks
+        the same candidate roots as the static room read. In-memory only — loop-safe.
+        Never raises."""
+        from ..mapping import map_source_runtime as _msr
+
+        candidates = _msr.roborock_candidates(self._manager.hass, source_cfg)
+        pose = _msr.mapdata_live_pose_from_candidates(candidates)
+        _LOGGER.debug(
+            "live_pose[%s] parsed_mapdata: present=%s reason=%s pose_at=%s",
+            vacuum_entity_id, pose.get("present"), pose.get("reason"),
+            (pose.get("diagnostics") or {}).get("pose_at"),
+        )
+        return pose
+
     async def async_get_map_live_pose(
         self, *, vacuum_entity_id: str,
     ) -> dict[str, Any]:
-        """Return ONLY the moving overlays (robot/dock anchors + current-room + heading)
-        from the fork's fresh in-memory pose — the lightweight payload the card polls at
-        the ~2s live cadence (vs the full snapshot). Adapter-driven; degrades to an absent
-        marker (+ diagnostics for discovery)."""
+        """Return ONLY the moving overlays (robot/dock anchors + current-room + heading) from
+        the provider's freshest pose — the lightweight payload the card polls at the live
+        cadence (vs the full snapshot), and the one the stall capture asks for its dot.
+
+        BRAND-GENERIC BY DISPATCH, AND THAT IS THE POINT. This accessor used to BE the Eufy
+        fork path: it required a ``live_pose`` block whose every key described the fork's
+        in-memory pixel coordinator, so a brand that could not describe itself in those terms
+        got ``not_configured`` — an answer indistinguishable from "this brand has no
+        position". Roborock hit exactly that: its position was live on the parsed MapData the
+        card rendered every refresh, while this returned absent and the stall capture drew a
+        room with no robot in it. The pose SOURCE is now a declaration
+        (``live_pose.backend``), so a brand says which shape its position takes and core
+        reads it; adding a third brand is a declaration, not a branch here.
+
+        No backend is a default. An undeclared or unknown one is reported as itself rather
+        than falling through to a brand's reader — a fallback that quietly ran the fork walk
+        against another provider's internals would rediscover the same silence from the other
+        direction. Degrades to an absent marker (+ diagnostics for discovery)."""
         from ..mapping.map_source import live_pose_overlay
 
         adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
@@ -548,6 +607,16 @@ class MapSourceCoordinator:
         live_cfg = source_cfg.get("live_pose") if isinstance(source_cfg, dict) else None
         if not isinstance(live_cfg, dict):
             return {"present": False, "reason": "not_configured"}
+
+        backend = str(live_cfg.get("backend") or "").strip().lower()
+        if backend == POSE_BACKEND_PARSED_MAPDATA:
+            return self._read_mapdata_pose(vacuum_entity_id, source_cfg)
+        if backend != POSE_BACKEND_INMEM_PIXELS:
+            return {
+                "present": False,
+                "reason": f"unknown_pose_backend:{backend or 'undeclared'}",
+            }
+
         pose = self._read_inmem_pose(vacuum_entity_id, live_cfg)
         if not pose.get("present"):
             return {

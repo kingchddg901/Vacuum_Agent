@@ -723,8 +723,28 @@ def register_eufy_adapter_for_vacuum(
             # There is NO in-memory heading attr (the fork bakes orientation into the
             # rendered image bytes); heading_attrs is kept future-proof but matches nothing
             # today. attr lists are tried in order; absence => no override (stays on
-            # .storage). Roborock doesn't need this (its in-memory MapData is frame-fresh).
+            # .storage).
+            #
+            # `backend` names WHICH pose shape core should read (map_source_coordinator's
+            # POSE_BACKEND_*), and it is required — core defaults to no brand. The line that
+            # used to sit here said "Roborock doesn't need this (its in-memory MapData is
+            # frame-fresh)". The premise was right and the conclusion was wrong, which is why
+            # it survived review: frame-fresh is exactly why Roborock's pose needs no
+            # normalization, but `async_get_map_live_pose` keyed off this BLOCK existing, so
+            # not declaring one meant every consumer of that accessor got "not_configured"
+            # instead of a position. The stall capture drew Roborock rooms with no robot in
+            # them until 2026-08-09. A brand that HAS a pose declares one here, whatever
+            # shape it takes.
             "live_pose": {
+                "backend": "inmem_pixel_pose",
+                # How often the pose VALUE actually changes at the source — NOT how often we
+                # ask. The fork's coordinator republishes the robot pixel about every 2s, so
+                # a ±30s bank of history is ~30 genuinely distinct positions and consecutive
+                # ones are ~2s apart: close enough that a straight line between them is a
+                # claim about travel we can honestly make. Core derives the stall capture's
+                # trail window from this (stall_capture_render.trail_window_seconds) rather
+                # than assuming one cadence fits every brand.
+                "pose_refresh_s": 2.0,
                 "hass_data_domain": "robovac_mqtt",
                 "robot_pixel_attrs": ["_robot_pixel", "robot_pixel"],
                 "dock_pixel_attrs": ["_dock_pixel", "dock_pixel"],

@@ -13,11 +13,15 @@ Coverage targets
 [SL-5] an unusable state (unknown/unavailable) is not a label.
 [SL-6] render-data geometry is passed through, never re-derived.
 [SL-7] absent room_pixels yields None rather than a partial payload.
+[SL-8] the trail is read from the pose ring: null anchors dropped, order preserved, and
+       the ±window is the one the caller asked for.
+[SL-9] the window comes from the brand's DECLARED pose cadence, not a constant.
 """
 
 from __future__ import annotations
 
 import base64
+from datetime import datetime, timezone
 
 import pytest
 
@@ -212,3 +216,120 @@ def test_roborock_shaped_data_defaults_the_offset_and_shift():
 def test_unusable_render_data_yields_none(render):
     """[SL-7] None, never a partial payload the renderer would misread as geometry."""
     assert sc._render_payload(render) is None
+
+
+# ---------------------------------------------------------------------------
+# the trail, read out of the pose ring
+#
+# _trail_from_ring had NO test anywhere — neither this file nor any other mentioned
+# "anchor" or "trail" — which is how a brand that recorded no anchors at all read as a
+# working feature: the function did exactly what it was written to do with an empty ring.
+# ---------------------------------------------------------------------------
+
+_WHEN = datetime(2026, 8, 9, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def _ring(monkeypatch, samples):
+    """Stub the pose ring and capture the window the caller asked it for."""
+    seen: dict = {}
+
+    def _read_range(*, config_dir, vacuum_entity_id, start_iso, end_iso):
+        seen["start"], seen["end"] = start_iso, end_iso
+        seen["vacuum"] = vacuum_entity_id
+        return samples
+
+    monkeypatch.setattr(sc.pose_store, "read_range", _read_range)
+    return seen
+
+
+def test_trail_keeps_real_anchors_in_order(monkeypatch):
+    """[SL-8] Oldest-first, and the anchor values pass through untouched."""
+    _ring(monkeypatch, [
+        {"anchor": [0.1, 0.1]},
+        {"anchor": [0.2, 0.3]},
+        {"anchor": [0.4, 0.5]},
+    ])
+
+    trail = sc._trail_from_ring("/config", "vacuum.ivy", _WHEN)
+
+    assert trail == [[0.1, 0.1], [0.2, 0.3], [0.4, 0.5]]
+
+
+def test_null_anchors_are_dropped_not_zeroed(monkeypatch):
+    """[SL-8] A docked or held tick is a genuine None-run.
+
+    Coercing it to a point would draw the trail to the map's origin corner — a route
+    across the whole floor plan, in the artifact whose job is showing what happened.
+    """
+    _ring(monkeypatch, [
+        {"anchor": [0.1, 0.1]},
+        {"anchor": None},          # docked / held
+        {},                        # a tick with no anchor key at all
+        {"anchor": [0.4, 0.5]},
+        "not even a dict",         # a corrupt ring line must not crash the capture
+    ])
+
+    trail = sc._trail_from_ring("/config", "vacuum.ivy", _WHEN)
+
+    assert trail == [[0.1, 0.1], [0.4, 0.5]]
+    assert None not in trail and [0, 0] not in trail
+
+
+def test_the_window_asked_of_the_ring_is_the_one_passed_in(monkeypatch):
+    """[SL-8] The ± window is a parameter, so a coarse brand can bank more history.
+
+    Pinned on the ISO strings the ring actually receives: a window that is computed and
+    then not used is the failure that looks exactly like a correctly empty ring.
+    """
+    seen = _ring(monkeypatch, [])
+
+    sc._trail_from_ring("/config", "vacuum.ivy", _WHEN, 75)
+
+    assert seen["start"] == "2026-08-09T11:58:45Z"   # -75s
+    assert seen["end"] == "2026-08-09T12:01:15Z"     # +75s
+
+
+def test_the_default_window_is_the_historical_thirty_seconds(monkeypatch):
+    """[SL-8] A caller that passes nothing gets exactly the old behaviour."""
+    seen = _ring(monkeypatch, [])
+
+    sc._trail_from_ring("/config", "vacuum.ivy", _WHEN)
+
+    assert seen["start"] == "2026-08-09T11:59:30Z"
+    assert seen["end"] == "2026-08-09T12:00:30Z"
+
+
+def test_an_unreadable_ring_costs_the_trail_not_the_capture(monkeypatch):
+    """[SL-8] The ring is best-effort context; the dot and the room still render."""
+    def _boom(**_kw):
+        raise OSError("ring unreadable")
+
+    monkeypatch.setattr(sc.pose_store, "read_range", _boom)
+
+    assert sc._trail_from_ring("/config", "vacuum.ivy", _WHEN) == []
+
+
+# ---------------------------------------------------------------------------
+# the window comes from the adapter
+# ---------------------------------------------------------------------------
+
+def test_pose_cadence_is_read_from_the_adapter_declaration(monkeypatch):
+    """[SL-9] The number is declared per brand, never assumed here."""
+    monkeypatch.setattr(
+        sc, "get_adapter_value",
+        lambda vid, *path, **kw: 30.0 if path[-1] == "pose_refresh_s" else None,
+    )
+
+    assert sc.pose_refresh_seconds("vacuum.ivy") == 30.0
+
+
+@pytest.mark.parametrize("declared", [None, "soon", 0, -1])
+def test_a_brand_declaring_no_cadence_reports_none(monkeypatch, declared):
+    """[SL-9] None is the honest answer, and the caller falls back to the floor.
+
+    It must NOT resolve to some brand's number: a wrong cadence would size the window and
+    pick the draw style for a brand it was never measured on.
+    """
+    monkeypatch.setattr(sc, "get_adapter_value", lambda vid, *path, **kw: declared)
+
+    assert sc.pose_refresh_seconds("vacuum.mystery") is None

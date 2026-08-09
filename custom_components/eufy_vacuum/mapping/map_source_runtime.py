@@ -788,21 +788,35 @@ def _proj_obstacles(obstacles: Any, proj) -> list[dict[str, Any]]:
     return out
 
 
-def overlays_from_mapdata(map_data: Any) -> dict[str, Any]:
-    """Roborock: the non-room overlay layers from a parser MapData, normalized.
+def robot_pose_from_mapdata(map_data: Any, proj: Any = None) -> dict[str, Any]:
+    """The MOVING pose from a parser MapData: robot anchor + heading, dock anchor, room.
 
-    robot anchor + heading, dock anchor, current room, no-go / no-mop polygons, virtual
-    walls, saved zones, the cleaning path, and obstacles — all via the shared projector.
-    Only non-empty layers are included; [] / missing degrade silently (never raises).
+    THE ONE implementation, shared by the card's overlay payload (``overlays_from_mapdata``)
+    and the brand-generic live-pose accessor (``mapdata_live_pose_from_candidates``). It is a
+    function BECAUSE this data had two readers and one of them silently got nothing: the
+    stall capture asked ``async_get_map_live_pose``, which required a pose declaration only
+    the Eufy fork had, while the position it wanted was already on the MapData the card read
+    every refresh. Hand-authoring a second extraction for the second reader would have
+    re-opened that gap from the other side — so callers share this or they share nothing.
+
+    EVERY VALUE IS NORMALIZED 0..1 against the rendered image, via ``_mapdata_projector`` —
+    the parser's own ``to_img(point).rotated(dims)``. ``vacuum_position`` itself is in DEVICE
+    coordinates, and handing those raw to a consumer expecting normalized ones puts the robot
+    off-map rather than in the wrong place, which is the failure that looks like a bug in the
+    consumer. The keys mirror ``live_pose_overlay``'s exactly, so a downstream reader cannot
+    tell which brand produced them.
+
+    ``proj`` lets a caller that already built a projector pass it in, so the projector-health
+    counters (live:RB-PROJ-1) accumulate over ONE projector per read rather than splitting
+    across two and diluting the all-failed signal. Omitted, one is built here. ``{}`` when the
+    image geometry is unavailable; never raises.
     """
     out: dict[str, Any] = {}
-    proj_geom = _mapdata_projector(map_data)
-    if proj_geom is None:
-        return out
-    proj = proj_geom[0]
-    # Rendered-image dims so the card can letterbox-correct (object-fit:contain) when
-    # placing the normalized overlays over the live backdrop. Only the ASPECT matters.
-    out["image_size"] = [proj_geom[1], proj_geom[2]]
+    if proj is None:
+        proj_geom = _mapdata_projector(map_data)
+        if proj_geom is None:
+            return out
+        proj = proj_geom[0]
 
     vp = getattr(map_data, "vacuum_position", None)
     if vp is not None:
@@ -822,6 +836,70 @@ def overlays_from_mapdata(map_data: Any) -> dict[str, Any]:
     vr = getattr(map_data, "vacuum_room", None)
     if isinstance(vr, int) and not isinstance(vr, bool):
         out["current_room"] = vr
+    return out
+
+
+def mapdata_live_pose_from_candidates(candidates: Any) -> dict[str, Any]:
+    """Live pose for ANY brand whose provider keeps a parsed MapData in memory.
+
+    The counterpart to ``eufy_live_pose_from_candidates`` — same contract, different provider
+    shape. That one BFS-hunts a fork coordinator's ``_robot_pixel`` and needs a ``.storage``
+    read to normalize it; this one finds the parsed map and reads the position the parser has
+    already placed in the rendered frame, so there is no file read and nothing to calibrate.
+
+    Walks the SAME candidate roots as ``roborock_result_from_candidates`` /
+    ``roborock_render_data_from_candidates`` and returns the shared ``live_pose_overlay``
+    shape (``robot_anchor``/``robot_heading``/``dock_anchor``/``current_room``) plus a
+    diagnostics breadcrumb. ``present`` is True when a robot or dock anchor resolved — a
+    MapData with neither is a real absence, not an error. In-memory only, so it is loop-safe;
+    never raises.
+    """
+    diag: dict[str, Any] = {
+        "candidates": [
+            (c[0] + ":" + c[1]) if isinstance(c, (list, tuple)) and len(c) >= 2 else str(c)
+            for c in (candidates or [])
+        ]
+    }
+    for cand in candidates or []:
+        root = cand[2] if isinstance(cand, (list, tuple)) and len(cand) >= 3 else cand
+        try:
+            map_data, mpath = find_mapdata(root)
+            if map_data is None:
+                continue
+            pose = robot_pose_from_mapdata(map_data)
+        except Exception:  # noqa: BLE001 - a raising provider internal degrades to a miss
+            continue
+        diag["pose_at"] = mpath
+        if not pose:
+            continue
+        return {
+            "present": "robot_anchor" in pose or "dock_anchor" in pose,
+            **pose,
+            "diagnostics": diag,
+        }
+    return {"present": False, "reason": "no_parsed_map", "diagnostics": diag}
+
+
+def overlays_from_mapdata(map_data: Any) -> dict[str, Any]:
+    """Roborock: the non-room overlay layers from a parser MapData, normalized.
+
+    robot anchor + heading, dock anchor, current room, no-go / no-mop polygons, virtual
+    walls, saved zones, the cleaning path, and obstacles — all via the shared projector.
+    Only non-empty layers are included; [] / missing degrade silently (never raises).
+    """
+    out: dict[str, Any] = {}
+    proj_geom = _mapdata_projector(map_data)
+    if proj_geom is None:
+        return out
+    proj = proj_geom[0]
+    # Rendered-image dims so the card can letterbox-correct (object-fit:contain) when
+    # placing the normalized overlays over the live backdrop. Only the ASPECT matters.
+    out["image_size"] = [proj_geom[1], proj_geom[2]]
+
+    # The moving pose, via the shared extractor — passing THIS projector so its health
+    # counters cover the whole read. Not inlined: the live-pose accessor reads the same
+    # fields, and two copies is how the card had a robot position the stall capture did not.
+    out.update(robot_pose_from_mapdata(map_data, proj))
 
     for key, src in (
         ("no_go", "no_go_areas"),

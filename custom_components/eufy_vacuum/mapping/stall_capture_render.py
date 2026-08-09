@@ -73,22 +73,67 @@ DOT_RING_RGB: tuple[int, int, int] = (255, 255, 255)
 PILL_BG_RGB: tuple[int, int, int] = (0, 0, 0)
 PILL_TEXT_RGB: tuple[int, int, int] = (255, 255, 255)
 
-#: Below this many distinct points, NO trail is drawn — the dot stands alone.
+#: Below this many distinct points, NO connected trail is drawn.
 #:
-#: This is an evidence rule, not a cosmetic threshold. A line between two samples asserts
-#: the robot travelled straight between them, and at a slow sampling cadence that is a
-#: path it never took. Eufy declares interval_s 2.0, so ±30 s yields ~30 points and a real
-#: trace; Roborock's pose comes from the map backdrop, which updates every ~30 s, so the
-#: same window yields two or three — and the sampler dedups identical consecutive poses,
-#: so the duplicates do not pad it. Drawing that would be fabricating evidence in the one
-#: artifact whose whole job is to show what actually happened.
+#: An evidence rule, not a cosmetic threshold: a polyline asserts the robot travelled
+#: STRAIGHT between consecutive samples, so a handful of far-apart points joined up is a
+#: route it never took, drawn in the one artifact whose whole job is to show what actually
+#: happened.
 #:
-#: A brand that samples too slowly gets an honest dot: "here it is; we cannot show how it
-#: got there." Widening the window per brand is a declaration, not a constant, and is not
-#: done here — a two-minute trail answers a different question than a thirty-second one.
+#: WHAT THE COUNT DOES NOT CATCH, and why it is no longer the only rule. The count is a
+#: proxy for "the samples are dense enough to be a trace", and the proxy breaks on a brand
+#: whose pose is coarse: five samples 30 s apart clear this threshold and are still five
+#: fabricated segments. Density is the real criterion, so ``_DENSE_TRAIL_MAX_GAP_S`` decides
+#: LINE vs BREADCRUMBS and this decides whether there is enough to connect at all.
 _MIN_TRAIL_POINTS = 4
 
+#: Above this gap between consecutive pose samples, the trail is drawn as discrete
+#: breadcrumbs instead of a line.
+#:
+#: At the Eufy fork's ~2 s pose the robot covers well under a metre between samples and a
+#: straight segment is a fair claim. At Roborock's ~30 s map refresh it covers several
+#: metres and certainly turned, so the honest render is "it was at these places" — which
+#: breadcrumbs say and a line does not. This is what lets the window widen for a coarse
+#: brand (see ``trail_window_seconds``) without the widening becoming a bigger lie: more
+#: observations stay more observations rather than becoming more invented route.
+_DENSE_TRAIL_MAX_GAP_S = 10.0
+
+#: Breadcrumbs need only two observations to be worth drawing. They connect nothing, so the
+#: count rule that protects a polyline does not apply to them — each dot is a place the
+#: robot was, and two such places are two facts.
+_MIN_BREADCRUMB_POINTS = 2
+
+#: The floor for the ±window, and today's Eufy behaviour exactly.
+_MIN_TRAIL_SECONDS = 30
+
 _TRANSPARENT = (0, 0, 0, 0)
+
+
+def trail_window_seconds(pose_refresh_s: Any) -> int:
+    """The ±seconds of pose history worth banking for a brand whose pose refreshes that often.
+
+    THE WINDOW IS DERIVED, NOT DECLARED, and that distinction is the point. A brand declares
+    the one thing it can actually measure — how often its position changes at the source
+    (``map_state_source.live_pose.pose_refresh_s``) — and this turns that into a window. The
+    alternative, a per-brand window constant, asks each adapter to re-derive the same policy
+    and lets them disagree about it silently.
+
+    Sized so a stalled robot's window holds ``_MIN_TRAIL_POINTS`` distinct positions with one
+    to spare for phase (where the window boundary falls between refreshes decides whether the
+    last one lands inside). A ±window spans twice its value, hence the halving.
+
+    Floored at ``_MIN_TRAIL_SECONDS``: a fast pose does not need a shorter window, and the
+    floor keeps a 2 s brand on the ±30 s it already had. Bad or missing input returns the
+    floor rather than raising — a capture with a plain-but-correct window beats no capture.
+    """
+    try:
+        refresh = float(pose_refresh_s)
+    except (TypeError, ValueError):
+        return _MIN_TRAIL_SECONDS
+    if refresh != refresh or refresh <= 0:  # NaN or nonsense
+        return _MIN_TRAIL_SECONDS
+    needed = (_MIN_TRAIL_POINTS + 1) * refresh / 2.0
+    return max(_MIN_TRAIL_SECONDS, int(-(-needed // 1)))  # ceil
 
 
 def _load_font(size: int):
@@ -191,6 +236,22 @@ def _to_rendered(
     return (px, (canvas_height - 1 - py) if flip_y else py)
 
 
+def _is_sparse(trail_gap_s: Any) -> bool:
+    """Whether consecutive samples are too far apart in time to connect with a line.
+
+    Unparseable or absent → False, i.e. the historical line. This module's contract is that
+    it degrades rather than raises on a lifecycle path, and an unreadable cadence is the
+    caller failing to say — not a statement that the samples are coarse.
+    """
+    if trail_gap_s is None:
+        return False
+    try:
+        gap = float(trail_gap_s)
+    except (TypeError, ValueError):
+        return False
+    return gap == gap and gap > _DENSE_TRAIL_MAX_GAP_S  # NaN is not sparse
+
+
 def _norm_to_px(pt: Any, width: int, height: int) -> tuple[float, float] | None:
     """A normalized 0–1 point to full-image pixels, or None when it is not a real point."""
     if not isinstance(pt, (list, tuple)) or len(pt) < 2:
@@ -217,6 +278,7 @@ def render_room_capture(
     rid_shift: int = 0,
     anchor: Any = None,
     trail: Iterable[Any] = (),
+    trail_gap_s: float | None = None,
     label: str | None = None,
     rotation_deg: int = 0,
     flip_y: bool = False,
@@ -237,6 +299,12 @@ def render_room_capture(
     ``anchor`` may be None (the robot is docked, or the map source is held/stale): the dot
     is then simply not drawn. It is NOT treated as the origin. Same for any unparseable
     trail point, which is skipped rather than collapsing the line to a corner.
+
+    ``trail_gap_s`` is the seconds between consecutive ``trail`` samples — the caller knows
+    it from the brand's declared pose cadence, and it decides how the trail is DRAWN. Dense
+    samples become a line; sparse ones become breadcrumbs, because a segment spanning half a
+    minute of unobserved travel is a route this image would be inventing. None keeps the
+    line (the caller could not say), which is the historical behaviour.
 
     ``scale`` upsamples with NEAREST, keeping the blocky silhouette crisp rather than
     smearing a 40-pixel room into mush.
@@ -308,7 +376,18 @@ def render_room_capture(
     for p in pts:
         if not distinct or p != distinct[-1]:
             distinct.append(p)
-    if len(distinct) >= _MIN_TRAIL_POINTS:
+
+    sparse = _is_sparse(trail_gap_s)
+    if sparse:
+        # Breadcrumbs. Each dot is one observed position and claims nothing about the
+        # travel between them — the honest render when the samples are minutes of driving
+        # apart. Smaller than the anchor dot and in the trail colour, so the eye still
+        # reads one subject (where it stopped) with context behind it.
+        if len(distinct) >= _MIN_BREADCRUMB_POINTS:
+            r = max(1.5, factor * 0.55)
+            for bx, by in distinct:
+                draw.ellipse([bx - r, by - r, bx + r, by + r], fill=(*TRAIL_RGB, 255))
+    elif len(distinct) >= _MIN_TRAIL_POINTS:
         draw.line(distinct, fill=(*TRAIL_RGB, 255), width=max(1, factor // 2), joint="curve")
 
     a = _norm_to_px(anchor, cvw, cvh)

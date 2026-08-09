@@ -580,6 +580,30 @@ def register_roborock_adapter_for_vacuum(
             "identifier_domain": "roborock",
             "hass_data_domain": "roborock",
             "present_requires_live_map_image": True,
+            # LIVE POSE. The parsed MapData carries `vacuum_position` already in the RENDERED
+            # frame (vacuum-map-parser projects it through the same ImageDimensions.to_img the
+            # room bboxes use), so there is nothing to load and nothing to calibrate — the
+            # reader just finds the map and reads the pose. No attr lists: those describe the
+            # Eufy fork's pixel coordinator, and needing none of them is the whole reason
+            # `backend` is a declaration instead of core sniffing which keys are present.
+            #
+            # WHY THIS BLOCK DID NOT EXIST, since the absence looked deliberate. Two readers
+            # of one map diverged: map_source_runtime.overlays_from_mapdata produced
+            # robot_anchor for the CARD (live 2026-08-09: sensor.ivy_map_overlays carried
+            # [0.694, 0.509] moving across a run), while async_get_map_live_pose — what the
+            # stall capture and the pose sampler ask — required a declaration here and got
+            # none, so it answered "not_configured". Same map, same refresh, one consumer
+            # served and one told the brand had no position. A debug capture over that run
+            # held 386 ivy log lines, none of them about pose.
+            #
+            # ~30s because that is the map REFRESH, not our sampling rate: 17 distinct
+            # anchors over ~8 minutes on Ivy (2026-08-09) is one new position per ~28s.
+            # Polling faster re-reads the same object, so the trail window derives from THIS
+            # number, not from how often the sampler ticks.
+            "live_pose": {
+                "backend": "parsed_mapdata",
+                "pose_refresh_s": 30.0,
+            },
         },
 
         "map_render": {
@@ -589,9 +613,10 @@ def register_roborock_adapter_for_vacuum(
             # to colour rooms then DISCARDS it, but the raw bytes survive on the v1 MapContent
             # (`raw_api_response`, cached in HA memory). The render reader walks the same
             # `hass_data_domain` runtime_data roots as map_state_source, finds the MapContent,
-            # and decodes it (mapping/roborock_raw_map.py). v1 (S6 / Q-class) only. NOTE: the
-            # room raster is self-contained; the pose overlay's coord registration
-            # (res/origin/flip vs the live robot) still needs calibrating on a real device.
+            # and decodes it (mapping/roborock_raw_map.py). v1 (S6 / Q-class) only. The room
+            # raster is self-contained, and the pose overlay's coord registration is no
+            # longer outstanding: measured aligned on Ivy 2026-08-09 (max_center_delta
+            # 0.0018, min_iou 0.949, 10/10 rooms) — see roborock_raw_map.roborock_render_data.
             "format": "roborock_raw_map_v1",
         },
 

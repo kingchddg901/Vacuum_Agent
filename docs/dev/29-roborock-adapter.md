@@ -252,13 +252,28 @@ reconciliation review surfaces ambiguous shifts. See
   derivation would wrongly widen invalidating to every un-vetted robot code.
 - **`room_attribution`** — `engine: "eufy_anchor_winding_v1"`, **`source: "native_current_room"`**
   (reads the `_current_room` NAME sensor + slugifies, vs Eufy's `live_pose`), tuning
-  `interval_s: 5.0` / `dwell_min_ticks: 3` / `swept_area_min_m2: 0.5`. **Dormant** until the
-  W3 consumption wire.
+  `interval_s: 5.0` / `dwell_min_ticks: 3` / `swept_area_min_m2: 0.5`. **Live** —
+  `room_attribution_engines._segment_by_room` consumes the buffer (this bullet read
+  "Dormant until the W3 consumption wire" long after that wire landed; R2-STALE-4).
+  `source` picks how the **room** is read, not whether a pose is banked: the sampler also
+  records an `anchor` per tick from the `live_pose` block below.
 - **`charging`** — `low_battery_threshold_percent: 20`; **deliberately omits**
   `low_battery_return_task_status` (Roborock emits `returning_home` for *both* low-battery and
   finish returns, so keying off the string would misclassify).
 - **`map_state_source`** — `backend: "memory"`, `identifier_domain`/`hass_data_domain: "roborock"`,
-  `present_requires_live_map_image: True` (the Roborock presence gate).
+  `present_requires_live_map_image: True` (the Roborock presence gate), and
+  **`live_pose: {backend: "parsed_mapdata", pose_refresh_s: 30.0}`**. The parsed `MapData`
+  carries `vacuum_position` already in the rendered frame, so the reader just finds the map
+  and reads the pose — no attr lists, no geometry load, nothing to calibrate.
+
+  > This block was **missing** until 2026-08-09, and its absence read as deliberate. The
+  > position was live the whole time — `overlays_from_mapdata` fed it to the card every
+  > refresh — but `async_get_map_live_pose` keyed off this declaration and answered
+  > `not_configured`, so the stall capture rendered rooms with no robot in them and the pose
+  > sampler banked `anchor: None`. Two readers of one map, one served and one told the brand
+  > had no position. `pose_refresh_s` is the **map** refresh, measured (17 distinct anchors
+  > over ~8 min on Ivy = one per ~28 s), not our 5 s sampling rate — polling faster re-reads
+  > the same object.
 
 ### `mapping` — no CV, a live image instead
 There is **no CV segmenter** (`segmenter_engine` is the noop fallback — the S6

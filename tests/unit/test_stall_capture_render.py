@@ -19,6 +19,10 @@ Coverage targets
 [SC-9] rid_shift is honoured — a raw-byte compare matches nothing on Eufy.
 [SC-10] too few DISTINCT points draw no trail — a slow brand must not get a fabricated path.
 [SC-11] the capture is rotated to the user's map orientation; the label stays level.
+[SC-12] the ±window is DERIVED from a brand's declared pose cadence, floored at the
+        historical 30 s so a fast brand's picture does not change.
+[SC-13] sparse samples render as breadcrumbs, never a line — what lets the window widen
+        for a coarse brand without the extra samples becoming extra invented route.
 """
 
 from __future__ import annotations
@@ -257,10 +261,16 @@ def test_a_pill_failure_never_costs_the_render(monkeypatch):
 def test_too_few_points_draw_no_trail_at_all():
     """[SC-10] A line between two samples asserts a straight path that never happened.
 
-    Eufy samples at 2s so a ±30s window is a real trace. Roborock's pose comes from the
-    map backdrop, which updates every ~30s, so the same window yields two or three points
-    — and joining them would fabricate a route across the room in the one artifact whose
-    job is to show what actually happened. A slow brand gets an honest dot instead.
+    Eufy's fork pose refreshes ~2s and its sampler ticks at 2.0s, so a ±30s window is ~30
+    genuinely distinct positions and a real trace. Joining two far-apart samples would
+    fabricate a route across the room in the one artifact whose job is to show what
+    actually happened.
+
+    (The claim that used to sit here — that Roborock's window "yields two or three points"
+    — was wrong in a way that mattered: it yielded ZERO, because no anchor was ever
+    recorded for it. Density, not the shortfall, is what this threshold guards; the
+    line-vs-breadcrumb tests below cover the coarse-brand case that the count alone
+    cannot. The dedup is this module's own, at render time — not the sampler's.)
     """
     pytest.importorskip("PIL")
     rast = _raster(40, 40, {5: (2, 2, 37, 37)})
@@ -275,6 +285,123 @@ def test_too_few_points_draw_no_trail_at_all():
         trail=[(0.2, 0.2), (0.4, 0.3), (0.6, 0.5), (0.8, 0.8)], **kw
     )
     assert enough != none_at_all, "a real trace must still draw"
+
+
+# ---------------------------------------------------------------------------
+# [SC-12] the window is derived from a declared cadence, not assumed
+# ---------------------------------------------------------------------------
+
+def test_a_fast_pose_keeps_the_historical_thirty_second_window():
+    """[SC-12] Eufy's ~2s pose needs only ~5s to bank 4 points, so the FLOOR decides.
+
+    Pinned because the floor is what makes this change a no-op for Eufy: the window it
+    already had is the window it keeps, and any regression shows up here rather than as a
+    quietly different picture on the brand that was working.
+    """
+    assert scr.trail_window_seconds(2.0) == 30
+
+
+def test_a_coarse_pose_widens_the_window_to_hold_the_same_evidence():
+    """[SC-12] Roborock's ~30s map refresh needs ±75s to bank 5 positions.
+
+    Measured, not chosen: 17 distinct anchors over ~8 minutes on Ivy (2026-08-09) is one
+    new position per ~28s, so a ±30s window holds about two — below the line threshold and
+    the reason the capture had no trail even once anchors were recorded.
+    """
+    assert scr.trail_window_seconds(30.0) == 75
+
+
+@pytest.mark.parametrize("bad", [None, 0, -5, "fast", float("nan")])
+def test_an_undeclared_or_nonsense_cadence_falls_back_to_the_floor(bad):
+    """[SC-12] A capture with a plain-but-correct window beats no capture at all."""
+    assert scr.trail_window_seconds(bad) == 30
+
+
+def test_the_window_scales_with_the_declared_cadence():
+    """[SC-12] The relationship is the contract — a slower brand banks strictly more."""
+    assert scr.trail_window_seconds(60.0) > scr.trail_window_seconds(30.0)
+    assert scr.trail_window_seconds(30.0) > scr.trail_window_seconds(2.0)
+
+
+# ---------------------------------------------------------------------------
+# [SC-13] sparse samples are breadcrumbs, never a line
+# ---------------------------------------------------------------------------
+
+def _trail_kw():
+    return dict(
+        room_pixels=_raster(40, 40, {5: (2, 2, 37, 37)}),
+        ro_width=40, ro_height=40, room_id=5, scale=1,
+    )
+
+
+_FOUR_POINTS = [(0.2, 0.2), (0.4, 0.3), (0.6, 0.5), (0.8, 0.8)]
+
+
+def test_sparse_samples_draw_breadcrumbs_not_a_line():
+    """[SC-13] THE REASON WIDENING THE WINDOW IS NOT JUST A BIGGER LIE.
+
+    Four points 30s apart clear the count threshold and are still four segments of
+    invented route — at that cadence the robot covers several metres between samples and
+    certainly turned. So the same points render DIFFERENTLY depending on how far apart in
+    time they are: dense ones connect, sparse ones stay separate observations.
+
+    Remove the gap check and the two renders become identical — which is exactly the
+    regression: a coarse brand silently gets a fabricated path.
+    """
+    pytest.importorskip("PIL")
+    kw = _trail_kw()
+
+    dense = scr.render_room_capture(trail=_FOUR_POINTS, trail_gap_s=2.0, **kw)
+    sparse = scr.render_room_capture(trail=_FOUR_POINTS, trail_gap_s=30.0, **kw)
+    nothing = scr.render_room_capture(trail=[], **kw)
+
+    assert dense != sparse, "a coarse cadence must not render as a connected line"
+    assert sparse != nothing, "breadcrumbs must actually be drawn"
+
+
+def test_breadcrumbs_need_only_two_observations():
+    """[SC-13] The count rule protects a POLYLINE; breadcrumbs connect nothing.
+
+    Two dots are two places the robot was — two facts, not an assertion about travel. The
+    line threshold refuses this same input, and that difference is deliberate.
+    """
+    pytest.importorskip("PIL")
+    kw = _trail_kw()
+    two = [(0.2, 0.2), (0.8, 0.8)]
+
+    nothing = scr.render_room_capture(trail=[], **kw)
+    as_line = scr.render_room_capture(trail=two, trail_gap_s=2.0, **kw)
+    as_crumbs = scr.render_room_capture(trail=two, trail_gap_s=30.0, **kw)
+
+    assert as_line == nothing, "two dense samples are still not a line"
+    assert as_crumbs != nothing, "two sparse samples are two honest observations"
+
+
+@pytest.mark.parametrize("unreadable", [None, "soon", float("nan"), object()])
+def test_an_unknown_cadence_keeps_the_historical_line(unreadable):
+    """[SC-13] An unreadable cadence is the caller failing to say, not a claim of coarseness.
+
+    So it degrades to what was drawn before rather than raising — this runs on a job
+    lifecycle path, and the maintainer dev card drives the same function directly.
+    """
+    pytest.importorskip("PIL")
+    kw = _trail_kw()
+
+    assert scr.render_room_capture(trail=_FOUR_POINTS, trail_gap_s=unreadable, **kw) == (
+        scr.render_room_capture(trail=_FOUR_POINTS, **kw)
+    )
+
+
+def test_a_stationary_robot_is_not_breadcrumbs_either():
+    """[SC-13] Dedup runs before the draw-style choice, so a wedged robot on a coarse
+    brand collapses to ONE point and draws nothing — the case this feature photographs
+    must not become a scatter of dots implying movement."""
+    pytest.importorskip("PIL")
+    kw = _trail_kw()
+
+    assert scr.render_room_capture(
+        trail=[(0.5, 0.5)] * 12, trail_gap_s=30.0, **kw
+    ) == scr.render_room_capture(trail=[], **kw)
 
 
 def test_a_stationary_robot_is_not_a_trail():

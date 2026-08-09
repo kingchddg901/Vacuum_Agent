@@ -49,7 +49,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from .. import pose_store
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_STALL_DETECTED
 from ..core.manager import EufyVacuumManager
-from ..mapping.stall_capture_render import render_room_capture
+from ..mapping.stall_capture_render import render_room_capture, trail_window_seconds
 from ._common import get_adapter_value
 
 _LOGGER = logging.getLogger(__name__)
@@ -64,10 +64,28 @@ EVENT_STALL_CAPTURED = f"{DOMAIN}_stall_captured"
 #: images of someone's home must be opted into, never inherited by an upgrade.
 STALL_CAPTURE_KEY = "stall_capture_enabled"
 
-#: The ±window banked around the stall instant. The backward half is free — the pose ring
-#: already holds it — and it is what separates "wedged" from "slow": unchanged anchors
-#: across the window are real no-movement evidence the counters cannot provide.
-_TRAIL_SECONDS = 30
+#: Fallback ±window for a vacuum whose adapter declares no pose cadence — the same 30 s
+#: this was before the window became brand-derived. See ``pose_refresh_seconds``.
+_DEFAULT_TRAIL_SECONDS = 30
+
+
+def pose_refresh_seconds(vacuum_entity_id: str) -> float | None:
+    """The brand's declared pose cadence, or None when it declares none.
+
+    One number, two jobs, and they must agree: it SIZES the ±window banked around the stall
+    (via ``trail_window_seconds``) and it tells the renderer how far apart the samples are,
+    which decides line-vs-breadcrumbs. Deriving both from one declaration is what stops a
+    window from being widened to collect samples the renderer then joins into a route
+    nobody observed.
+    """
+    value = get_adapter_value(
+        vacuum_entity_id, "map_state_source", "live_pose", "pose_refresh_s", fallback=None
+    )
+    try:
+        refresh = float(value)
+    except (TypeError, ValueError):
+        return None
+    return refresh if refresh > 0 else None
 
 
 def remove(hass: HomeAssistant) -> None:
@@ -106,14 +124,25 @@ def capture_path(config_dir: str, vacuum_entity_id: str, map_id: Any) -> str:
     )
 
 
-def _trail_from_ring(config_dir: str, vacuum_entity_id: str, when: datetime) -> list[Any]:
-    """Anchors from the pose ring within ±_TRAIL_SECONDS of ``when``, oldest first.
+def _trail_from_ring(
+    config_dir: str,
+    vacuum_entity_id: str,
+    when: datetime,
+    window_s: int = _DEFAULT_TRAIL_SECONDS,
+) -> list[Any]:
+    """Anchors from the pose ring within ±``window_s`` of ``when``, oldest first.
 
     Samples whose anchor is null are DROPPED, not zeroed — a docked or held tick is
     recorded as a genuine None-run, and coercing it would draw a line to the origin.
+
+    The window is a PARAMETER because a brand's pose cadence sets how much history it takes
+    to hold a given number of distinct positions; ``trail_window_seconds`` derives it. The
+    backward half is free — the ring already holds it — and it is what separates "wedged"
+    from "slow": unchanged anchors across the window are real no-movement evidence the
+    counters cannot provide.
     """
-    start = (when - timedelta(seconds=_TRAIL_SECONDS)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    end = (when + timedelta(seconds=_TRAIL_SECONDS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    start = (when - timedelta(seconds=window_s)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    end = (when + timedelta(seconds=window_s)).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         samples = pose_store.read_range(
             config_dir=config_dir, vacuum_entity_id=vacuum_entity_id,
@@ -222,8 +251,17 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
     now = datetime.now(timezone.utc)
     live_pose = await manager.async_get_map_live_pose(vacuum_entity_id=vacuum_entity_id)
     anchor = live_pose.get("robot_anchor") if isinstance(live_pose, dict) else None
+
+    # The window is sized to the brand's pose cadence, and the SAME number goes to the
+    # renderer so the draw style matches the density it is actually getting. A brand
+    # declaring nothing keeps the historical ±30 s and the historical line.
+    pose_refresh_s = pose_refresh_seconds(vacuum_entity_id)
+    window_s = (
+        trail_window_seconds(pose_refresh_s) if pose_refresh_s is not None
+        else _DEFAULT_TRAIL_SECONDS
+    )
     trail = await hass.async_add_executor_job(
-        _trail_from_ring, config_dir, vacuum_entity_id, now
+        _trail_from_ring, config_dir, vacuum_entity_id, now, window_s
     )
 
     # The user's own map orientation — display-only state the card applies with CSS.
@@ -240,6 +278,7 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
     png = await hass.async_add_executor_job(
         lambda: render_room_capture(
             room_id=int(room_id), anchor=anchor, trail=trail,
+            trail_gap_s=pose_refresh_s,
             label=str(room_name), rotation_deg=rotation_deg, **geometry,
         )
     )

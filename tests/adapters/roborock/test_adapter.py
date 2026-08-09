@@ -127,6 +127,32 @@ def test_entities(s6_config):
     assert e["active_map"] == "select.ivy_selected_map"
 
 
+def test_the_live_pose_is_declared(s6_config):
+    """THE REGRESSION PIN. Deleting this block is what broke the stall capture.
+
+    The brand-agnostic contract suite checks that a DECLARED live_pose names a readable
+    backend — but it skips a brand that declares none, which is exactly the state this bug
+    was in. So the capability is pinned here, for the brand that has it: Roborock's position
+    rides its in-memory parsed MapData, `async_get_map_live_pose` can read that, and every
+    consumer of it (the stall capture's dot, the pose sampler's anchor) depends on this
+    block existing.
+
+    The cadence is measured, not chosen: 17 distinct anchors over ~8 minutes on Ivy
+    (2026-08-09) is one new position per ~28s, and it sizes the capture's trail window.
+    """
+    from custom_components.eufy_vacuum.mapping.map_source_coordinator import (
+        POSE_BACKEND_PARSED_MAPDATA,
+    )
+
+    live_pose = s6_config["map_state_source"]["live_pose"]
+
+    assert live_pose["backend"] == POSE_BACKEND_PARSED_MAPDATA
+    assert live_pose["pose_refresh_s"] == 30.0
+    # No fork attr lists: needing none of them is why `backend` is a declaration rather
+    # than core sniffing which keys happen to be present.
+    assert "robot_pixel_attrs" not in live_pose
+
+
 def test_discovery_service_response(s6_config):
     # Wave 2a: rooms come from the roborock.get_maps service RESPONSE (not an
     # attribute), flattened + cached by the framework. map identity = name.
