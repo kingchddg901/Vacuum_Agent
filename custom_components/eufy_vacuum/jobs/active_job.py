@@ -1098,7 +1098,7 @@ class ActiveJobTracker:
         stall_expected_minutes: float | None = None
         stall_ratio: float | None = None
 
-        if _honors_clean_order and current_room_overdue and current_room_id is not None:
+        if current_room_overdue and current_room_id is not None:
             _stall_entry = next(
                 (
                     r for r in raw_timeline
@@ -1164,6 +1164,11 @@ class ActiveJobTracker:
                                     "map_id": str(map_id),
                                     "room_id": current_room_id,
                                     "room_name": _stall_room_name,
+                                    # Which trigger noticed. The area gate and the
+                                    # error edge fire the same event with their own
+                                    # value, so a consumer can word the notification
+                                    # for what actually happened.
+                                    "trigger": "timing",
                                     "elapsed_minutes": stall_elapsed_minutes,
                                     "expected_minutes": stall_expected_minutes,
                                     "stall_ratio": stall_ratio,

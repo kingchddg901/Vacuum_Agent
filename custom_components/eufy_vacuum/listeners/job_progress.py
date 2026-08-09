@@ -128,6 +128,26 @@ def register(hass: HomeAssistant) -> None:
                     )
                     continue
 
+                # Stuck detection rides THIS ticker rather than a fourth timer.
+                #
+                # It has to be here specifically: this loop is already gated on
+                # run_is_in_flight, which admits dispatched, paused AND external runs,
+                # and it is the only production emit=True path — so both stuck triggers
+                # inherit the same cadence contract the existing stall dedup was written
+                # against. Its own try/except so a stuck-watch failure can never cost the
+                # progress tick that the card's live view depends on.
+                try:
+                    manager.apply_stuck_watch_tick(
+                        vacuum_entity_id=vacuum_entity_id,
+                        map_id=map_id_str,
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "eufy_vacuum: stuck-watch tick failed for %s/%s",
+                        vacuum_entity_id,
+                        map_id_str,
+                    )
+
                 hass.bus.async_fire(
                     EVENT_JOB_PROGRESS_TICK,
                     {

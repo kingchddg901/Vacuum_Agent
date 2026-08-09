@@ -12,6 +12,37 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 
 ---
 
+### `stuck_watch.py` — two triggers, because a robot gets stuck two ways (added 2026-08-09)
+
+`test_stuck_watch.py` (12 tests) covers the area gate and the error edge as pure
+logic. Both were designed against hardware, by deliberately trapping a Roborock S6
+twice on 2026-08-09:
+
+- **Corner trap** — the robot was MOVING, retrying, and freed itself after ~3 minutes.
+  No error code ever fired; `vacuum.<id>` stayed `cleaning`. `cleaning_area` moved
+  0.0 → 0.6 in the first seconds and then flat. Only the swept-area delta caught it,
+  and a pose-based detector would have called it healthy because it *was* moving.
+- **Box wedge** — `bumper_stuck` on every error surface within seconds.
+
+So the tests are written against those two shapes rather than against the
+implementation. The ones that carry the most weight are the refusals:
+
+- [SW-2]/[SW-3] a working robot must not trip it. A detector that cries wolf is
+  switched off, after which it catches nothing at all — the worst outcome available.
+- [SW-4] leaving an exclusion must REBASE, not resume. Suppress-only fires on the
+  first unmuted tick after every mid-run recharge.
+- [SW-6] dither must not manufacture progress. Summing positive deltas over a
+  15-minute window at a ~15s cadence turns ±0.1 m² of noise into ~3 m² of phantom
+  movement, which would silently disable the gate on exactly the case it exists for.
+- [SW-10] a `code=None` episode must FIRE — that is the Eufy stuck path, and a
+  predicate written as `code in IMMOBILIZING` is blind to it.
+
+**The interaction nothing tests, and the reason the numbers are what they are:** the
+area window (15 min) must stay LONGER than `STRANDED_REAP_GRACE_MINUTES` (5). An
+errored or docked run belongs to the reaper; the area gate's domain is a run that
+still *looks* alive. Shorten one or lengthen the other and they fight over the same
+run.
+
 ## Coverage map
 
 | Source module | Stmts | Cov | Test file(s) | Layer | Mocking |

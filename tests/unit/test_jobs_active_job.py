@@ -459,9 +459,22 @@ def test_timing_threshold_low_confidence_few_samples(tracker):
 # detect_run_anomalies
 # ---------------------------------------------------------------------------
 
-def test_detect_run_anomalies_disabled_for_path_optimized_order():
-    """A path-optimizing adapter can jump ahead of queue order without implying
-    skipped rooms or a stall in the current room."""
+def test_path_optimized_order_suppresses_skipped_but_NOT_stall():
+    """A path-optimising adapter reports no SKIPPED rooms — but it can still be STUCK.
+
+    This test asserted the opposite until 2026-08-09: that `honors_clean_order: False`
+    disabled stall detection too. It was pinning a real defect. Whether a robot obeys
+    the dispatched room ORDER says nothing about whether it is wedged against a chair
+    leg, and the coupling meant stall detection could never fire on Roborock at all —
+    the brand whose robot most readily reports being stuck.
+
+    The skipped half stays gated, and that half is correct: `skipped_room_ids` is pure
+    queue-order arithmetic, so a robot that path-optimises and starts at queue position
+    3 would instantly report positions 0 and 1 as skipped, strike those rooms out in
+    the card, and feed false skips into the timeline re-anchor.
+
+    So the assertion is now asymmetric on purpose, and that asymmetry IS the fix.
+    """
     clear_registry()
     register_adapter_config("vacuum.alfred", {
         "adapter_id": "roborock",
@@ -491,10 +504,13 @@ def test_detect_run_anomalies_disabled_for_path_optimized_order():
         current_room_overdue=True,
     )
 
-    assert result["stall_detected"] is False
-    assert result["running_long"] is False
+    # The room is overdue and this brand path-optimises. It is STILL a stall.
+    assert result["stall_detected"] is True
+    # …and still no skipped rooms, because order means nothing on this brand.
     assert result["skipped_room_ids"] == []
-    manager.hass.bus.async_fire.assert_not_called()
+    # running_long is the SOFT card chip below the stall band and keeps its gate —
+    # widening a visible UI tier was out of scope for a stuck-detection change.
+    assert result["running_long"] is False
 
 
 def _order_honoring_tracker() -> ActiveJobTracker:

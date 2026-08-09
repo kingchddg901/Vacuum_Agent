@@ -24,7 +24,17 @@ from .charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
-from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
+from ..const import (
+    DATA_ERROR_TRACKER,
+    DATA_LEARNING,
+    DOMAIN,
+    EVENT_ROOM_FINISHED,
+    EVENT_ROOM_STARTED,
+    EVENT_STALL_DETECTED,
+)
+from ..jobs import stuck_watch
+from ..learning.utils import read_cleaning_area_m2
+from .run_state import is_non_cleaning_vacuum_state
 from ..entity_helpers import get_floor_type_label
 from ..jobs.job_monitor import (
     build_job_metadata_from_payload,
@@ -51,7 +61,7 @@ from ..rooms.room_manager import build_managed_rooms, build_room_selection_summa
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 from .capabilities import detect_capabilities
 from .storage import EufyVacuumStorage
-from ..step_types import step_requires_stepped_execution
+from ..step_types import NON_CLEANING_PHASE_TYPES, step_requires_stepped_execution
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -4188,8 +4198,17 @@ class EufyVacuumManager:
                         threshold += self._timing_completion_threshold_minutes(_b_entry)
                 if threshold > 0 and current_room_elapsed_minutes >= threshold:
                     current_room_overdue = True
-        if not adapter_honors_clean_order(vacuum_entity_id):
-            current_room_overdue = False
+        # The `honors_clean_order` hard-zero that used to sit here is GONE. It set
+        # current_room_overdue = False for any brand whose robot path-optimises, which
+        # zeroed the input the stall detector requires — so on Roborock the detector
+        # could never fire no matter what the detector itself said. Two gates, one
+        # visible and one not; fixing only the visible one ships a change that reads
+        # correctly and does nothing on the brand it was written for.
+        #
+        # Whether a robot honours the dispatched ROOM ORDER has nothing to do with
+        # whether it is stuck. The skipped-room branch still gates on it, correctly:
+        # that one is queue-order arithmetic and would strike rooms out of the card on
+        # a path-optimising brand.
 
         # ------------------------------------------------------------------
         # Run anomalies: stall (hard) + running_long (soft) + skipped
@@ -4487,6 +4506,205 @@ class EufyVacuumManager:
             map_id=map_id,
             apply_side_effects=True,
         )
+
+    def apply_stuck_watch_tick(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Both stuck triggers, once per 5-second tick. Synchronous throughout.
+
+        Being synchronous is load-bearing, not stylistic. The active-job dict is a
+        shallow copy handed out and written back by whole-slot replacement, and the
+        stranded reaper can finalize a job at any await point — so a trigger that
+        awaited between reading the signals and writing its dedup state could
+        resurrect a finalized job and silently drop its finalize summary. No awaits
+        here means the event loop cannot interleave, so that class is unreachable
+        rather than merely avoided.
+        """
+        active_job = self.active_job.get_active_job(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id
+        )
+        if not active_job:
+            return {"fired": None, "reason": "no_job"}
+
+        adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        limits = stuck_watch.tunables(adapter_cfg)
+        now_iso = utc_now_iso()
+
+        # ---- the ERROR EDGE ------------------------------------------------
+        # Polled, not subscribed, for the no-await reason above.
+        latch = None
+        tracker = self.hass.data.get(DOMAIN, {}).get(DATA_ERROR_TRACKER)
+        if tracker is not None:
+            try:
+                latch = tracker.get_active_run_latch(vacuum_entity_id)
+            except Exception:  # pragma: no cover - a diagnostic must not break the tick
+                latch = None
+        _silence = frozenset(
+            str(c).strip().lower()
+            for c in ((adapter_cfg.get("error_tracking") or {}).get("stuck_silence_codes") or ())
+        )
+        err_open = stuck_watch.error_episode_is_open(latch, _silence)
+        fired = None
+
+        if err_open and not active_job.get("_stuck_err_open"):
+            active_job["_stuck_err_open"] = True
+            fired = "error"
+            self._fire_stuck_event(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                active_job=active_job,
+                trigger="error",
+                detail={
+                    "error_code": (latch or {}).get("current_code"),
+                    "error_message": (latch or {}).get("current_message"),
+                },
+            )
+        elif not err_open:
+            active_job["_stuck_err_open"] = False
+
+        # ---- the AREA GATE -------------------------------------------------
+        excluded = self._stuck_watch_excluded(
+            vacuum_entity_id=vacuum_entity_id, active_job=active_job, err_open=err_open
+        )
+        area_m2 = read_cleaning_area_m2(self.hass, adapter_cfg)
+        phase_index = active_job.get("current_phase_index")
+        window = active_job.get("_stuck_area_window")
+
+        elapsed = 0.0
+        if isinstance(window, dict):
+            started = self.active_job._parse_job_timestamp(window.get("started_at", ""))
+            now_dt = self.active_job._parse_job_timestamp(now_iso)
+            if started is not None and now_dt is not None:
+                elapsed = max((now_dt - started).total_seconds() / 60.0, 0.0)
+
+        result = stuck_watch.evaluate_area_window(
+            window=window,
+            area_m2=area_m2,
+            elapsed_minutes=elapsed,
+            phase_index=phase_index,
+            excluded=excluded,
+            now_iso=now_iso,
+            limits=limits,
+        )
+        active_job["_stuck_area_window"] = result["window"]
+
+        if result["action"] == "fire":
+            fired = fired or "area"
+            self._fire_stuck_event(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                active_job=active_job,
+                trigger="area",
+                detail={
+                    "window_minutes": limits["window_minutes"],
+                    "progress_m2": round(float(result["progress_m2"]), 2),
+                    "min_progress_m2": limits["min_progress_m2"],
+                },
+            )
+            active_job["_stuck_area_window"] = stuck_watch.new_window(
+                now_iso=now_iso, area_m2=area_m2, phase_index=phase_index
+            )
+
+        self.data.setdefault("active_jobs", {}).setdefault(
+            vacuum_entity_id, {}
+        )[str(map_id)] = active_job
+
+        # Persist only on a window boundary, never per tick. The save that normally
+        # carries this is driven by counter samples — which by construction stop
+        # arriving during exactly the minutes being measured, so without this an HA
+        # restart mid-stall would silently restart the clock.
+        if result["action"] in ("reset", "fire"):
+            self.hass.async_create_task(self.async_save())
+
+        return {"fired": fired, "area": result["reason"], "excluded": excluded}
+
+    def _stuck_watch_excluded(
+        self, *, vacuum_entity_id: str, active_job: dict[str, Any], err_open: bool
+    ) -> bool:
+        """Is the robot legitimately not covering floor right now?
+
+        Every branch RESETS the window rather than suppressing it — see
+        stuck_watch.evaluate_area_window for why a suppress-only mute fires on the
+        first unmuted tick after every mid-run recharge.
+
+        SANITY CHECK, and it is the whole point: hardware Case 1 — the robot wedged in
+        a corner, still moving — passes every one of these. She was `cleaning`, in an
+        active task state, not charging, not docked or returning, no phases, not
+        paused, no error. A critique that only adds mutes is how you ship a detector
+        that never fires.
+
+        The exclusion refused by name: anything requiring the pose to be still. She
+        was moving the whole time.
+        """
+        if str(active_job.get("status") or "").strip().lower() not in stuck_watch.WATCHED_STATUSES:
+            return True
+        if not active_job.get("has_observed_active_lifecycle"):
+            # The never-started reaper owns a run that never moved; racing it would
+            # produce two answers for one situation.
+            return True
+        if err_open:
+            # The error trigger owns this run. Also what stops one physical stall
+            # producing two notifications — a rule, not an accident of two timeouts.
+            return True
+
+        vac = self.hass.states.get(vacuum_entity_id)
+        vac_state = str(getattr(vac, "state", "") or "").strip().lower()
+        if vac_state == "paused":
+            # Covers the up-to-60s lag before the pause reaper reconciles an app-side
+            # or physical-button pause onto the job record.
+            return True
+        if is_non_cleaning_vacuum_state(vac_state):
+            return True
+        if _is_charging_impl(self.hass, vacuum_entity_id):
+            # A measured deep recharge ran 88 minutes. Nothing about it is a stall.
+            return True
+
+        phases = active_job.get("phases") or []
+        idx = active_job.get("current_phase_index")
+        if isinstance(idx, int) and 0 <= idx < len(phases):
+            ptype = str((phases[idx] or {}).get("type") or "").strip().lower()
+            # NON_CLEANING_PHASE_TYPES is exactly the set wanted, for DIFFERENT reasons
+            # than it exists for: charge_wait allows up to 180 minutes with a flat
+            # counter BY DESIGN, and a zone is often smaller than the counter's ~1 m²
+            # floor. If someone later adds a type to that set for the dock-polling
+            # reason, this inherits it silently — check before assuming.
+            if ptype in NON_CLEANING_PHASE_TYPES:
+                return True
+
+        return False
+
+    def _fire_stuck_event(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        trigger: str,
+        detail: dict[str, Any],
+    ) -> None:
+        """Fire EVENT_STALL_DETECTED, carrying which trigger noticed.
+
+        One event for all triggers so stall capture stays a single consumer, with
+        `trigger` telling apart "the robot reported it" from "it stopped covering
+        floor" — those deserve different words in the notification.
+        """
+        room_id = active_job.get("current_room_id")
+        room_name = (
+            self.active_job._room_name_from_active_job(active_job, room_id)
+            or (f"Room {room_id}" if room_id is not None else None)
+        )
+        payload = {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "room_id": room_id,
+            "room_name": room_name,
+            "trigger": trigger,
+        }
+        payload.update(detail)
+        self.hass.bus.async_fire(EVENT_STALL_DETECTED, payload)
 
     def _zone_is_actively_cleaning(self, vacuum_entity_id: str) -> bool:
         """True while a zone phase is REALLY being cleaned — gates the live "Cleaning zone" banner.

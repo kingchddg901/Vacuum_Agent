@@ -108,6 +108,39 @@ with the specific thing that would close it.
   commands no hardware and refuses unless the vacuum is actually cleaning a room.
 
 ### Added
+- **Stuck detection — two triggers, because a robot gets stuck two ways.** Both
+  designed against hardware, by deliberately trapping a Roborock S6 twice.
+  - The **error edge** fires as soon as the robot reports an un-recovered fault. Fast
+    and precise, but it only fires when the robot knows it is beaten.
+  - The **area gate** fires when the swept area has not moved for 15 minutes while
+    the run still looks alive. It catches what the robot never reports: a vacuum
+    grinding against a corner, *moving the whole time*, covering no floor. No error
+    code fires in that case and the vacuum entity reads `cleaning` throughout — a
+    detector built on the robot's own state, or on pose movement, calls it healthy.
+  - Neither trigger commands the robot. Not `return_to_base`, not anything. A stuck
+    robot cannot drive out — for `bumper_stuck` the firmware will not release until
+    the bumper is physically actuated — and a run the integration did not dispatch is
+    not its to redirect. Every stuck state gets the same answer: you are told, you go
+    get it. (The pause-timeout path still sends a *paused* robot home; a paused robot
+    can move, and that timeout is one the user set.)
+  - Both feed the existing stall-capture consumer, so an armed vacuum gets the room
+    picture, the notification and the event. `eufy_vacuum_stall_detected` now carries
+    `trigger` (`timing` / `error` / `area`) so an automation can tell them apart.
+  - The window is 15 minutes deliberately: the trapped robot freed itself after ~3,
+    and a shorter window would report a stall on a robot that was going to be fine.
+    It must also stay longer than the 5-minute stranded-reap grace, or the two fight
+    over the same run.
+
+- **Roborock gets stall detection at all.** It was gated behind
+  `honors_clean_order`, which asks whether the robot obeys the dispatched room
+  *order* — Roborock's path optimiser does not, so the entire stall path was dead on
+  that brand. The two facts are unrelated: whether a robot cleans rooms in the order
+  you asked says nothing about whether it is wedged against a chair leg. There were
+  **two** such gates, one of which silently zeroed the detector's input, so removing
+  only the visible one would have shipped a fix that read correctly and did nothing.
+  The skipped-room branch keeps its gate, correctly — that one really is queue-order
+  arithmetic.
+
 - **Accessible typefaces, including OpenDyslexic.** Pick a typeface for the whole
   card from the theme panel, with preset chips. Custom faces are drop-in:
   `config/eufy_vacuum/fonts/<id>/` holds `font.json`, the woff2 files and a
@@ -200,6 +233,36 @@ with the specific thing that would close it.
   on a normal mount.
 
 ### Fixed
+
+#### `clean_mode` — the second question nobody owned
+
+A direct search for anything still testing `clean_mode` outside the owner found
+twelve sites. All twelve were correct, and reading them is what mattered: four were
+asking a **different question**, and converting them would have been a regression
+dressed as consolidation.
+
+- `is_mop_clean_mode` — *is this canonically a mop mode.* Strict. Decides what the
+  framework **does**: gate a payload, downgrade for a device without mop hardware,
+  match a preset. An unrecognised mode answers False, which is right — do not send
+  mop settings on a guess.
+- `may_wet_floor` — *might this put water on the floor.* Tolerant, and new. Every
+  water-related site was spelled `"mop" in clean_mode`, and in each one **inclusion
+  is the safe direction**: counting a doubtful mode as wet over-protects, while
+  narrowing it dispatches a wet mop at a vacuum room's water level.
+
+Five sites now share the tolerant owner (safest-water choice for a mixed batch,
+water accounting, the post-job water amendment, water allocation, job metadata).
+They all agreed on every value that exists, which is exactly why five copies of one
+question survived unnoticed.
+
+Also fixed in the same sweep: a dead `{"mop", "vacuum_mop"}` arm that was, character
+for character, the expression that lost Edge Mopping — kept alive only by the
+substring test beside it, so deleting the "redundant" half would have reintroduced
+the bug; a set membership that was correct only because the line above it
+canonicalized first, so reordering two lines would have broken it silently; and a
+card predicate where the vacuum-only test was exact while the mop test beside it
+carried two substring fallbacks, leaving a differently-spelled mode neither
+vacuum-only nor mop-capable.
 
 #### `clean_mode` — one predicate, ten sites ([#48])
 
@@ -502,6 +565,13 @@ wrong answers are mutation-verified.
   purges.
 
 ### Changed
+- **`awaiting_bounds_exit` is now `current_room_overdue`** (dashboard snapshot key
+  included). The old name was a fossil of the retired bounds system, from when it
+  meant "the robot has not yet left this room's bounding box". That subsystem is
+  gone and no geometry is read anywhere in the derivation — what survived is a pure
+  timing signal. Renamed before the stuck-detection work built on it, so new code
+  did not inherit a name describing a subsystem that no longer exists.
+
 - **A new brand mark, and a wordmark that reads the right way round.** The logo
   had said AGENT VACUUM — the words reversed — in every release to date. The
   product is Vacuum Agent. The mark gains phoenix wings. Assets are served by

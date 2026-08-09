@@ -56,6 +56,29 @@ def cleaning_area_to_m2(value: Any, unit: Any = None) -> float | None:
     return v * factor if factor is not None else v
 
 
+def read_cleaning_area_m2(hass, cfg: dict) -> float | None:
+    """The declared ``cleaning_area`` entity's value normalized to canonical m², or None.
+
+    Read from the adapter's DECLARED entity — never a guessed sensor name. Both shipped
+    brands happen to use the same ``_cleaning_area`` suffix, and that is a coincidence,
+    not a contract: a brand naming it differently would silently read None forever.
+
+    Honours the entity's ``unit_of_measurement``, so an imperial Home Assistant serving
+    Eufy's ft² and Roborock's native m² land on one scale. Callers compare readings to
+    each other, so a per-brand scale would make any threshold mean two different things.
+
+    Lives here rather than in a listener because two consumers now need it: the pose
+    sampler's clean-vs-park separator, and the stuck watch's progress signal.
+    """
+    ca_id = (cfg.get("entities", {}) or {}).get("cleaning_area")
+    ca_state = hass.states.get(ca_id) if ca_id else None
+    if ca_state is None:
+        return None
+    return cleaning_area_to_m2(
+        ca_state.state, getattr(ca_state, "attributes", {}).get("unit_of_measurement")
+    )
+
+
 # Attributed per-room area can legitimately fall SHORT of the device's cleaning_area sensor total
 # (the gap = transit/approach that accrued but belongs to no cleaned room — validated live: Ivy
 # 7.0 attributed vs 8.5 sensor). But it must never MEANINGFULLY EXCEED it — attributed > sensor is
