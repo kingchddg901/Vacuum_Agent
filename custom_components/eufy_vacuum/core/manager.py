@@ -151,9 +151,23 @@ def _normalize_path_block_action(value: Any) -> str:
     return "event_only"
 
 
-def _normalize_pause_timeout_minutes(value: Any) -> int:
-    """Return a safe non-negative paused-job timeout in minutes."""
-    return max(_safe_int(value, 0), 0)
+#: Minutes a run may sit paused before the reaper cancels it and sends the robot
+#: home. 0 disables the timeout entirely.
+#:
+#: The default was 0 — i.e. OFF — and nothing declared otherwise, so every vacuum on
+#: every install shipped with no pause safety net. That is how a paused run can sit
+#: open indefinitely: the pause reaper owns it, and the pause reaper was disabled.
+#: 15 matches the lowest value the UI offers.
+DEFAULT_PAUSE_TIMEOUT_MINUTES = 15
+
+
+def _normalize_pause_timeout_minutes(value: Any, *, fallback: int = 0) -> int:
+    """Return a safe non-negative paused-job timeout in minutes.
+
+    ``fallback`` applies only when the value is ABSENT or unparseable. An explicit
+    0 is a real setting — the timeout turned off — and survives unchanged.
+    """
+    return max(_safe_int(value, fallback), 0)
 
 
 def _display_label(value: Any) -> str | None:
@@ -957,10 +971,15 @@ class EufyVacuumManager:
         vacuum_bucket = self.data.setdefault("vacuums", {}).setdefault(
             vacuum_entity_id, {}
         )
+        # A READ MUST NOT WRITE. This used to persist its own fallback, which meant
+        # the first read of an unset vacuum stamped a hard value into the store —
+        # after which "never configured" and "deliberately set to this" were
+        # byte-identical, and no later change of default could ever reach it.
+        # Absence stays absence; the fallback is computed, not recorded.
         default_minutes = _normalize_pause_timeout_minutes(
-            vacuum_bucket.get("pause_timeout_minutes_default")
+            vacuum_bucket.get("pause_timeout_minutes_default"),
+            fallback=DEFAULT_PAUSE_TIMEOUT_MINUTES,
         )
-        vacuum_bucket["pause_timeout_minutes_default"] = default_minutes
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "pause_timeout_minutes_default": default_minutes,

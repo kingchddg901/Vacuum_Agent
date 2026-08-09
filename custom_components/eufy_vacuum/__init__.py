@@ -62,6 +62,7 @@ from .adapters.brands import register_brand_adapter
 from .adapters.config_loader import load_stored_adapter_configs
 from .adapters.registry import get_adapter_config
 from .core.vacuum_identity import sweep_orphaned_vacuums
+from .core.pause_timeout_migration import migrate_pause_timeout_defaults
 from .rooms.vocabulary_migration import migrate_room_vocabulary
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
@@ -416,7 +417,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _migration = migrate_room_vocabulary(
                         data=manager.data, get_config=get_adapter_config,
                     )
-                    if _migration["changes"]:
+                    # Rides the same start hook, but is INDEPENDENT of it: this one
+                    # needs no adapter declaration to judge a target, so it cannot be
+                    # deferred by a provider that has not finished setting up, and a
+                    # failure above must not skip it.
+                    _pause_migration = migrate_pause_timeout_defaults(data=manager.data)
+                    if _migration["changes"] or _pause_migration["changes"]:
                         await manager.async_save()
                 except Exception:  # pragma: no cover
                     _LOGGER.exception(

@@ -47,6 +47,34 @@ counting as proof, this sweep would delete every vacuum on the install.
 
 ---
 
+### `pause_timeout_migration.py` — lifting a timeout nobody chose (added 2026-08-09)
+
+`test_pause_timeout_migration.py` (7 tests) covers the one-shot repair that raises a
+stored `pause_timeout_minutes_default` of 0 to 15.
+
+The bug it repairs is two-part. The default was 0 — the timeout OFF — and no adapter
+declared otherwise; and `get_pause_timeout_settings` PERSISTED that fallback on read,
+so the first time anything asked, a hard 0 was stamped into the store and "never
+configured" became indistinguishable from "deliberately disabled". The consequence is
+a paused run that nothing ever closes: the pause reaper owns it, and the pause reaper
+was off. Found on a live install on 2026-08-09.
+
+The tests weight the REFUSALS as heavily as the repair, because this migration
+knowingly overwrites a value a user could have set through Developer Tools:
+
+- [PTM-2] a configured non-zero value survives — a repair that rewrote every vacuum to
+  15 would satisfy the happy path and silently discard every real preference;
+- [PTM-3] an ABSENT value stays absent, so the vacuum keeps inheriting the computed
+  default. Stamping 15 here would recreate exactly the read-side write-back the repair
+  exists to undo — the bug reintroduced by its own fix;
+- [PTM-4] the latch holds, so a user who sets it back to 0 afterwards keeps 0;
+- [PTM-7] malformed store buckets do not raise, since this runs at startup and a
+  throw takes the integration down with it.
+
+Unlike the room-vocabulary repair it needs no adapter declaration to judge a target,
+so it cannot be deferred by a provider that has not finished setting up and latches
+unconditionally.
+
 ## Coverage map
 
 | Source module | Stmts | Cov | Test files | Layer | Mocking |
