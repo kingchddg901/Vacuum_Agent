@@ -17,6 +17,8 @@ Coverage targets
 [SC-7] the output is a real PNG and honours the max-edge cap.
 [SC-8] the room-name pill draws, is optional, and never costs the render.
 [SC-9] rid_shift is honoured — a raw-byte compare matches nothing on Eufy.
+[SC-10] too few DISTINCT points draw no trail — a slow brand must not get a fabricated path.
+[SC-11] the capture is rotated to the user's map orientation; the label stays level.
 """
 
 from __future__ import annotations
@@ -250,3 +252,78 @@ def test_a_pill_failure_never_costs_the_render(monkeypatch):
     )
 
     assert data is not None and data.startswith(_PNG_MAGIC)
+
+
+def test_too_few_points_draw_no_trail_at_all():
+    """[SC-10] A line between two samples asserts a straight path that never happened.
+
+    Eufy samples at 2s so a ±30s window is a real trace. Roborock's pose comes from the
+    map backdrop, which updates every ~30s, so the same window yields two or three points
+    — and joining them would fabricate a route across the room in the one artifact whose
+    job is to show what actually happened. A slow brand gets an honest dot instead.
+    """
+    pytest.importorskip("PIL")
+    rast = _raster(40, 40, {5: (2, 2, 37, 37)})
+    kw = dict(room_pixels=rast, ro_width=40, ro_height=40, room_id=5, scale=1)
+
+    none_at_all = scr.render_room_capture(trail=[], **kw)
+    two_points = scr.render_room_capture(trail=[(0.2, 0.2), (0.8, 0.8)], **kw)
+
+    assert two_points == none_at_all, "two samples must not become a line"
+
+    enough = scr.render_room_capture(
+        trail=[(0.2, 0.2), (0.4, 0.3), (0.6, 0.5), (0.8, 0.8)], **kw
+    )
+    assert enough != none_at_all, "a real trace must still draw"
+
+
+def test_a_stationary_robot_is_not_a_trail():
+    """[SC-10] Identical consecutive anchors are ONE point, not evidence of movement.
+
+    The pose sampler repeats an identical pose while parked, and a wedged robot repeats
+    one too. Counting repeats toward the trail would draw a path for the exact case this
+    feature exists to photograph — a vacuum that has stopped moving.
+    """
+    pytest.importorskip("PIL")
+    rast = _raster(40, 40, {5: (2, 2, 37, 37)})
+    kw = dict(room_pixels=rast, ro_width=40, ro_height=40, room_id=5, scale=1)
+
+    stationary = [(0.5, 0.5)] * 12
+
+    assert scr.render_room_capture(trail=stationary, **kw) == scr.render_room_capture(
+        trail=[], **kw
+    )
+
+
+def test_rotation_matches_the_users_map_orientation():
+    """[SC-11] The capture is rotated to the orientation the user actually sees.
+
+    The card rotates its content block with CSS transform:rotate(Ndeg) — CLOCKWISE — while
+    PIL rotates counter-clockwise, so the angle is negated. Without it the image is correct
+    and unrecognisable: a shape the user has never seen at that angle, which for a glanced
+    notification is worse than no picture.
+    """
+    pytest.importorskip("PIL")
+    # A deliberately non-square room, so a wrong angle cannot pass by symmetry.
+    rast = _raster(60, 60, {5: (10, 20, 49, 29)})   # 40 wide x 10 tall
+    kw = dict(room_pixels=rast, ro_width=60, ro_height=60, room_id=5, padding_px=0, scale=1)
+
+    flat = scr.render_room_capture(rotation_deg=0, **kw)
+    turned = scr.render_room_capture(rotation_deg=90, **kw)
+
+    assert flat is not None and turned is not None
+    fw, fh = _png_size(flat)
+    tw, th = _png_size(turned)
+    assert (fw, fh) == (40, 10)
+    assert (tw, th) == (10, 40), "a quarter turn must swap the axes"
+
+
+def test_a_full_turn_is_a_no_op_and_the_angle_is_normalised():
+    """[SC-11] 360 and 0 are the same picture; the angle is taken modulo 360."""
+    pytest.importorskip("PIL")
+    rast = _raster(40, 40, {5: (5, 5, 30, 20)})
+    kw = dict(room_pixels=rast, ro_width=40, ro_height=40, room_id=5, scale=1)
+
+    assert scr.render_room_capture(rotation_deg=360, **kw) == scr.render_room_capture(
+        rotation_deg=0, **kw
+    )

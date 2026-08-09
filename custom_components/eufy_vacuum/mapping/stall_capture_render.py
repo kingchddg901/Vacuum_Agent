@@ -73,6 +73,21 @@ DOT_RING_RGB: tuple[int, int, int] = (255, 255, 255)
 PILL_BG_RGB: tuple[int, int, int] = (0, 0, 0)
 PILL_TEXT_RGB: tuple[int, int, int] = (255, 255, 255)
 
+#: Below this many distinct points, NO trail is drawn — the dot stands alone.
+#:
+#: This is an evidence rule, not a cosmetic threshold. A line between two samples asserts
+#: the robot travelled straight between them, and at a slow sampling cadence that is a
+#: path it never took. Eufy declares interval_s 2.0, so ±30 s yields ~30 points and a real
+#: trace; Roborock's pose comes from the map backdrop, which updates every ~30 s, so the
+#: same window yields two or three — and the sampler dedups identical consecutive poses,
+#: so the duplicates do not pad it. Drawing that would be fabricating evidence in the one
+#: artifact whose whole job is to show what actually happened.
+#:
+#: A brand that samples too slowly gets an honest dot: "here it is; we cannot show how it
+#: got there." Widening the window per brand is a declaration, not a constant, and is not
+#: done here — a two-minute trail answers a different question than a thirty-second one.
+_MIN_TRAIL_POINTS = 4
+
 _TRANSPARENT = (0, 0, 0, 0)
 
 
@@ -203,6 +218,7 @@ def render_room_capture(
     anchor: Any = None,
     trail: Iterable[Any] = (),
     label: str | None = None,
+    rotation_deg: int = 0,
     flip_y: bool = False,
     padding_px: int = 10,
     scale: int = 4,
@@ -286,8 +302,14 @@ def render_room_capture(
         p = _norm_to_px(raw, cvw, cvh)
         if p is not None:
             pts.append(_to_final(p))
-    if len(pts) >= 2:
-        draw.line(pts, fill=(*TRAIL_RGB, 255), width=max(1, factor // 2), joint="curve")
+    # Deduped: identical consecutive anchors are one point, not evidence of dwelling.
+    # A robot that has not moved must not read as a trail with many samples.
+    distinct: list[tuple[float, float]] = []
+    for p in pts:
+        if not distinct or p != distinct[-1]:
+            distinct.append(p)
+    if len(distinct) >= _MIN_TRAIL_POINTS:
+        draw.line(distinct, fill=(*TRAIL_RGB, 255), width=max(1, factor // 2), joint="curve")
 
     a = _norm_to_px(anchor, cvw, cvh)
     if a is not None:
@@ -297,6 +319,21 @@ def render_room_capture(
         draw.ellipse([ax - r - ring, ay - r - ring, ax + r + ring, ay + r + ring],
                      fill=(*DOT_RING_RGB, 255))
         draw.ellipse([ax - r, ay - r, ax + r, ay + r], fill=(*DOT_RGB, 255))
+
+    # 4) Match the user's map orientation, BEFORE the label.
+    #
+    # The card rotates its whole content block with CSS `transform: rotate(Ndeg)`, which is
+    # CLOCKWISE; PIL rotates COUNTER-clockwise, so the angle is negated. Without this the
+    # capture is correct and unrecognisable — the room is a shape the user has never seen
+    # at that angle, which is worse than no picture for the one job this image has.
+    #
+    # expand=True keeps the whole room after rotation, and the transparent background
+    # absorbs the corners at no cost. Rotating BEFORE the pill is the point: a rotated
+    # label is unreadable, and the label is the only element that must stay level.
+    rot = int(rotation_deg or 0) % 360
+    if rot:
+        img = img.rotate(-rot, resample=Image.NEAREST, expand=True)
+        draw = ImageDraw.Draw(img)
 
     if label:
         _draw_label_pill(img, draw, str(label))

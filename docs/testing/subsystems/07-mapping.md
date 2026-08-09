@@ -85,6 +85,21 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
   image of the wrong part of the map, which is the failure most likely to pass a
   glance.
 
+  **`SC-10` is an evidence rule, not a threshold.** Below four DISTINCT points no
+  trail is drawn at all. A line between two samples asserts the robot travelled
+  straight between them; Eufy declares `interval_s` 2.0 so a ±30 s window is a
+  real trace, but Roborock's pose comes from the map backdrop at ~30 s, so the
+  same window yields two or three. Joining those would fabricate a route in the
+  one artifact whose job is to show what actually happened. Identical consecutive
+  anchors also collapse to one point — a wedged robot repeats its pose, and it
+  must not read as movement.
+
+  **`SC-11` rotates to the user's map orientation**, negating the angle because
+  the card rotates with CSS `transform: rotate(Ndeg)` (clockwise) and PIL rotates
+  counter-clockwise. Applied after the vector layer and before the label, so the
+  room turns and the text stays level. Pinned with a 40×10 room becoming 10×40,
+  so a wrong angle cannot pass on symmetry.
+
 ### The tracker
 - **`tracker`** (`MT`, unit) — the pure `_RoomConfidenceState` machine
   (`reset_room`, movement increment / saturate, `reset_job`).

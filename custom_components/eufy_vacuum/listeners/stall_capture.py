@@ -226,11 +226,21 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
         _trail_from_ring, config_dir, vacuum_entity_id, now
     )
 
+    # The user's own map orientation — display-only state the card applies with CSS.
+    # A capture at the raw raster angle is correct and UNRECOGNISABLE, which for a
+    # glanced notification is worse than no picture.
+    rotation_deg = 0
+    try:
+        bucket = ((manager.data.get("maps") or {}).get(vacuum_entity_id) or {}).get(str(map_id)) or {}
+        rotation_deg = int(bucket.get("live_map_rotation") or 0) % 360
+    except (TypeError, ValueError):
+        rotation_deg = 0
+
     # The raster scan is a width*height Python loop — never on the event loop.
     png = await hass.async_add_executor_job(
         lambda: render_room_capture(
             room_id=int(room_id), anchor=anchor, trail=trail,
-            label=str(room_name), **geometry,
+            label=str(room_name), rotation_deg=rotation_deg, **geometry,
         )
     )
     if png is None:
