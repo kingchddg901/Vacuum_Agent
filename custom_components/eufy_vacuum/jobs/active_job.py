@@ -3110,6 +3110,11 @@ class ActiveJobTracker:
             ),
             job_active_on=is_job_active(hass, vacuum_entity_id, unavailable_is_active=True),
             is_mid_run_status=task_status_n in mid_run_set or is_dock_mid_run,
+            # HARDWARE 2026-08-09: a trapped robot reports `error` while upstream keeps
+            # its job-active binary ON, so neither the job_active gate nor the
+            # docked/idle gate could see the run was over. "error" is the HA vacuum
+            # platform's standard state, not a brand string.
+            vacuum_errored=str(signals.get("vacuum_state", "")).strip().lower() == "error",
             phase_dispatch_pending=bool(active_job.get("_phase_dispatch_pending")),
             phase_watchdog_dead=bool(active_job.get("_phase_watchdog_dead")),
             phase_dispatch_pending_since=active_job.get("_phase_dispatch_pending_since"),

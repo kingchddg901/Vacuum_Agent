@@ -401,6 +401,7 @@ def is_stranded_started(
     phase_dispatch_pending_since: str | None = None,
     phase_watchdog_liveness_margin_seconds: float = _DEFAULT_PHASE_WATCHDOG_LIVENESS_MARGIN_SECONDS,
     dispatched_seconds_ago: float | None = None,
+    vacuum_errored: bool = False,
 ) -> bool:
     """True when a dispatched ``started`` run looks ENDED but never hit its brand's
     completion terminal — the FN-1 strand (the run leaves no record and can mask a
@@ -429,9 +430,15 @@ def is_stranded_started(
     happened) — it is reapable once ``dispatched_seconds_ago`` clears
     ``NEVER_STARTED_SECONDS``, independent of vacuum_state/docked signals.
 
-    Requires vacuum docked/idle — a still-``returning`` run is not yet over, and an
-    error state is left alone (it may recover; reaping a maybe-recovering run is
-    worse than a rare lingering record).
+    Requires vacuum docked/idle — a still-``returning`` run is not yet over.
+
+    An ERRORED robot is reapable (``vacuum_errored``), which reverses this function's
+    original rule. That rule read "an error state is left alone (it may recover;
+    reaping a maybe-recovering run is worse than a rare lingering record)" and was
+    disproved on hardware: neither shipped brand resumes itself after a trap, so the
+    lingering record is every trap rather than a rare one. The recovery allowance now
+    lives in the caller's grace window instead, which is where it can actually
+    observe a recovery. See the clause below.
     """
     if str(status or "").strip().lower() != "started":
         return False
@@ -446,6 +453,29 @@ def is_stranded_started(
         liveness_margin_seconds=phase_watchdog_liveness_margin_seconds,
     ):
         return False
+    # A run whose robot is ERRORED is over, and neither check below can see that.
+    #
+    # HARDWARE, 2026-08-09. A Roborock wedged on a box threw `bumper_stuck` and sat
+    # there. Both gates below refused to reap it: upstream keeps
+    # `binary_sensor.<vac>_cleaning` ON for an errored robot, so `job_active_on`
+    # stayed True; and `error` is neither "docked" nor "idle". The run was still
+    # `started` eight minutes past a five-minute grace with `stranded_since` never
+    # even stamped, and would have stayed that way indefinitely.
+    #
+    # This clause replaces the old "an error state is left alone (it MAY RECOVER)"
+    # reasoning, which the same test disproved: neither shipped brand resumes itself
+    # after a trap — a human has to intervene, and for `bumper_stuck` the firmware
+    # will not release until the bumper is physically actuated. So the lingering
+    # record is not the rare case that reasoning traded for, it is EVERY trap.
+    #
+    # The transient error it was protecting against is still protected, by the
+    # caller rather than here: poll_stranded_started_job stamps `stranded_since` on
+    # the first tick and only reports a reap once the grace has elapsed, clearing the
+    # stamp if the condition stops holding. An error that clears inside the window
+    # costs nothing. THAT grace is the "may recover" allowance — this predicate just
+    # stops pretending an errored robot is still cleaning.
+    if vacuum_errored:
+        return True
     if job_active_on or is_mid_run_status:
         return False
     if str(vacuum_state or "").strip().lower() not in ("docked", "idle"):

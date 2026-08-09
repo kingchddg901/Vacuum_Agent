@@ -52,6 +52,10 @@ Coverage targets
 [JM-46] is_stranded_started: never observed, dispatched recently → NOT stranded.
 [JM-47] is_stranded_started: never observed with no dispatch-age info at all → NOT stranded
         (a caller that hasn't been updated to supply it keeps the old behaviour).
+[JM-48] is_stranded_started: an ERRORED robot is stranded even though its job-active
+        binary is still ON and it is neither docked nor idle (the trapped-robot case).
+[JM-49] is_stranded_started: the error bypass still respects the not-armed guard, so a
+        run that never ran is not reaped just because the robot errored.
 """
 
 from __future__ import annotations
@@ -461,6 +465,43 @@ def test_not_stranded_on_mid_run_dock():
 def test_not_stranded_when_job_active_on():
     """[JM-40] Roborock mid-job recharge keeps job_active ON → not stranded."""
     assert is_stranded_started(**_stranded_kwargs(job_active_on=True)) is False
+
+
+def test_stranded_when_the_robot_is_errored():
+    """[JM-48] A trapped robot is stranded, despite job_active ON and not docked.
+
+    HARDWARE, 2026-08-09. A Roborock wedged on a cardboard box threw `bumper_stuck`
+    and stopped. Both exclusions below it refused the reap: upstream keeps
+    `binary_sensor.<vac>_cleaning` ON for an errored robot, so `job_active_on` was
+    True, and `error` is neither "docked" nor "idle". The run sat `started` eight
+    minutes past a five-minute grace with `stranded_since` never stamped, and nothing
+    would ever have finalized it — because neither shipped brand resumes itself after
+    a trap. For `bumper_stuck` specifically the firmware will not even release until
+    the bumper is physically actuated.
+
+    Both blockers are asserted together on purpose: fixing only one leaves the case
+    broken, and the fix would still look correct in a test that set the other benignly.
+    """
+    assert is_stranded_started(**_stranded_kwargs(
+        vacuum_errored=True,
+        job_active_on=True,        # upstream still claims she is cleaning
+        vacuum_state="error",      # and she is not docked or idle
+    )) is True
+
+
+def test_errored_does_not_bypass_the_not_armed_guard():
+    """[JM-49] The error bypass is not a skeleton key.
+
+    A run that never observed an active lifecycle has nothing to strand — it never
+    ran. If the error clause were placed above that guard, a never-started run on a
+    robot that happens to be errored would be reaped and written as an interrupted
+    record for a clean that never began.
+    """
+    assert is_stranded_started(**_stranded_kwargs(
+        vacuum_errored=True,
+        has_observed_active_lifecycle=False,
+        dispatched_seconds_ago=1.0,     # nowhere near NEVER_STARTED_SECONDS
+    )) is False
 
 
 def test_not_stranded_when_phase_pending():
