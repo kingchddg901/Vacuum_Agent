@@ -208,19 +208,50 @@ Three things follow:
 
 ## 7. Open decisions
 
-- **Delivery shape, and who notifies.** File under `www/`, a service response carrying a
-  path, or a field on a follow-up event. The strongest argument for *file + path on an
-  event* is that the reporter has ALREADY built the notification half in an automation —
-  notify targets are personal (which phone, which service, what wording), and the
-  integration guessing them is how a good feature becomes an unwanted one. Proposed split:
-  **the integration owns the artifact, the user's automation owns the notification.** The
-  switch then means "produce the capture", and an automation decides what to do with it.
-  Revisit if Chris wants notification built in — it changes what the toggle promises.
+- ~~Delivery shape, and who notifies.~~ **DECIDED** — see §7b.
 - **Retention.** Written PNGs need a cap or they accumulate silently, which is the exact
   shape of the orphaned-vacuum-keys defect (a set that only ever grew).
 - **Whether the ±30 s ring window ships as a separate artifact** (JSON alongside the PNG)
   or only as the drawn trail. The JSON is the more useful debugging artifact and costs
   almost nothing given the ring already exists.
+
+## 7b. Delivery — DECIDED 2026-08-08
+
+Chris: a **persistent HA notification**, with a **hook** so a user can route it onward to a
+phone or wherever they want.
+
+That works out of the box for everyone and stays extensible for the reporter, who has
+already built their own routing. It also forces the artifact's shape, because a persistent
+notification cannot carry bytes:
+
+- `persistent_notification` renders **markdown**, so the image must be reachable by URL.
+- Therefore the PNG is written under **`config/www/`** and embedded as **`/local/<file>`**.
+- The **hook** is a follow-up event carrying the same path plus the stall context, so an
+  automation can `notify` it onward without re-deriving anything.
+
+So the toggle means: *produce the capture, raise a persistent notification, and fire the
+hook.* Routing beyond that stays the user's.
+
+### The consequence to decide deliberately: `/local/` is UNAUTHENTICATED
+
+Anything under `config/www/` is served at `/local/` **without authentication** — HA
+design, not a bug. A cropped floor-plan of someone's home, at a guessable path, is a mild
+but real exposure, and this feature would create one automatically on every stall.
+
+Cheap mitigations, none of which are free if retrofitted:
+
+1. **Unguessable filename** — include a random component, not just
+   `<vacuum>_<room>_<timestamp>`, which is trivially enumerable.
+2. **Prune on write** — cap the count and delete oldest. Without this the directory only
+   ever grows, which is the same shape as the orphaned-vacuum-keys defect (a set that only
+   grew until a sweep was written for it).
+3. **Consider `/api/` instead** if exposure matters more than convenience — authenticated,
+   but then the markdown image will not render in the notification for a
+   not-logged-in client, which defeats the point.
+
+Recommendation: take (1) and (2), accept `/local/`, and say so in the user docs rather
+than leaving someone to discover their floor plan is publicly fetchable. The alternative
+trades away the feature's whole ergonomics.
 
 ## 8. Testing
 
