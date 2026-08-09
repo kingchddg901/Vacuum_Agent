@@ -217,7 +217,7 @@ Nothing below is forgotten; each item is open because closing it requires a spec
 | **RP-047 remainder** | 1 of 2 complete | same hardware run as above |
 | **A4-SETUP-6** (map-scoped rejection) | deferred by decision | scheduled with the multi-map work; fix shape already in the adjudication |
 | **ENT-1** (HIGH) / **DIAG-1** (MEDIUM) | ~~banked, release-gating~~ **BOTH LANDED** — see the v2.0.0 addendum below | — |
-| **A7-ROBORO-4** | landed narrower than filed | offset is preserved but not applied; applying it is pose registration and needs the S6 on a bench |
+| **A7-ROBORO-4** | ~~landed narrower than filed~~ **CLOSED by verification on Ivy 2026-08-05** — see the addendum; no bench was needed | — |
 | **DR-ONB-2** | fixed, but the method has zero production callers | should be deleted, not maintained as a correct answer nobody asks for |
 | **CV segmentor** | excluded by design | correctness is empirical, not textual; this method cannot falsify it |
 | **RF-09 multi-device proof** | gate recorded unsatisfied | needs a second Eufy on the fleet or an external tester |
@@ -233,13 +233,33 @@ written: §1–§7's numbers are a frozen-corpus record, re-verified for this ad
 `corpus/audit-findings-canonical.jsonl` (516 records / 484 verified / 22 killed — unchanged,
 as a frozen corpus should be). What moved is the open list.
 
-| Item | Then | Now (verified for this addendum) |
+**Six of the eight rows above had moved.** Checked one at a time against the code and the
+ledgers, not against the markers — which is §7's own rule, applied to §8.
+
+| Item | §8 says | Verified state |
 |---|---|---|
 | **ENT-1** (HIGH) | banked, release-gating | **LANDED** `9a37ad6` — companions resolve by DEVICE as well as by derived name |
 | **DIAG-1** (MEDIUM) | banked, release-gating | **LANDED** `20c0ab1` — a failed resolution is now distinguishable from an absent capability |
-| **RF-36** (battery/charge) | worked during the campaign | **CLOSED**, hardware-verified on two real recharges 2026-08-05; one LOW follow-up (`BATT-CV-1`) open |
+| **#9:A3-REC-3** | REOPENED, needs a group-phase hardware run | **CLOSED — DOES NOT REPRODUCE** (`afaedf5`). The run happened: `job_2026-08-04T19-37-52`. Parent `[5,8,9]`, phase0 `[5]`, phase2 `[8,9]` — `completed_room_ids` fully populated, and the card advanced room-by-room INSIDE the group phase. Closed as *real and since fixed* (probably `RP-047(a)`, `6831ccd`), NOT as "the audit was wrong" — the distinction is the point. |
+| **RP-047 remainder** | 1 of 2, same hardware run | **RESOLVED BY REVERT** (`45c18e7`). The same run disproved `RP-047(b)`'s premise, so shipping it would have turned "Entryway done, Home Office 72%" into "both current" — strictly less accurate. The remaining half was a would-be regression, not outstanding work. |
+| **A7-ROBORO-4** | narrower than filed; needs the S6 on a bench | **CLOSED BY VERIFICATION** (`3441978`, pinned `RRD-13`), on Ivy 2026-08-05. `ro_dx/dy = 0` is the MEASUREMENT, not a placeholder: overlays project through the parser's own `ImageDimensions.to_img().rotated()`, which already carries the trim `top`/`left` describes, so applying it would double-apply. `raw_top/raw_left = 281/245` made that a falsifying test — where they are 0, applying and not applying look identical. **No bench was needed.** |
+| **A4-SETUP-6** | deferred by decision | **still open, but re-graded**: severity corrected HIGH → LOW (latent) in `_adjudicated_findings.json`. |
 | **DR-ONB-2** | fixed, callerless, "should be deleted" | **still callerless** — `check_for_new_rooms` and its manager delegator have zero production callers. Unchanged, and still the right call to delete. |
-| #9:A3-REC-3 / RP-047 remainder · A4-SETUP-6 · A7-ROBORO-4 · CV segmentor · RF-09 | — | **unchanged**, each still open for the reason stated above |
+| **RF-36** (battery/charge) | worked during the campaign | **CLOSED**, hardware-verified on two real recharges 2026-08-05; one LOW follow-up (`BATT-CV-1`) open |
+| **CV segmentor · RF-09 proof** | excluded / gate unsatisfied | **unchanged** — still open for the reasons stated above |
+
+`_reopened_findings.json` is now **empty**, while §8 still described a REOPENED item. That
+is the ledger rotting in the direction §7 named — *of 27 "open" entries, 19 were already
+fixed and never ticked* — inside the very document that recorded the lesson. `afaedf5`
+separately found **32 unbacked hand-ticks** in the same ledger, which is the same class
+again and the reason `_verify_ledger.py` exists.
+
+**One corollary is genuinely still open, and it is not a tick.** A3-REC-3 was recorded as
+what made A2-CAN-2's under-reporting UNCONDITIONAL rather than occasional. With that
+premise gone, CAN-2's failure mode has CHANGED and must be re-read against current code
+rather than against its ticket — a finding whose premise was retired, which is exactly the
+shared-premises problem §9 describes. Carried in the adjudication so it cannot be scoped
+from the ticket alone.
 
 Two defects found *after* close deserve recording here, because both are the campaign's own
 lesson pointed back at itself:
