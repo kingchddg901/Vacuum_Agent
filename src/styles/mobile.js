@@ -481,8 +481,20 @@ export const MOBILE_STYLES = `
      size on mobile.
      =========================================================== */
 
+  /* The row already wraps — that lives on the base rule in styles/map.js,
+     deliberately NOT here, because a narrow host the shell still calls desktop
+     needs it just as much as a phone does. This only widens the row gap to
+     match the thumb-sized buttons set just below, and gives the wrapped rows
+     the same breathing room horizontally and vertically.
+
+     Why it has to wrap at all: at the 44px thumb minimum below, the map view's
+     eight controls — six icons plus the Configure button's text label and the
+     mascot group — come to roughly 500px against a ~390px viewport. The buttons
+     cannot shrink, since that minimum is the whole point, so before wrapping the
+     surplus simply left the screen and took the last controls with it. */
   .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle {
-    gap: 6px;
+    gap:     6px;
+    row-gap: 6px;
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-rooms-view-toggle-btn {

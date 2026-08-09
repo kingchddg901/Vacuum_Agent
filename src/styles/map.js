@@ -10,7 +10,19 @@ export const mapStyles = `
     display:     flex;
     gap:         4px;
     margin-left: auto;
-    flex-shrink: 0;
+
+    /* Wrapping is a property of THIS ROW, not of the mobile shell. The bar can
+       carry up to eight controls (the map-only half appears with the map view),
+       including two that are text-width, and it must survive any container
+       narrower than their sum — a phone, a narrow Lovelace column, a split pane.
+       Gating this on the mobile-shell attribute selector would leave every
+       narrow host the shell still calls desktop overflowing off-screen.
+
+       No flex-shrink:0 here: it pins the row at max-content, which is exactly
+       what stops it wrapping. At widths where the row fits, wrap changes nothing,
+       so desktop rendering is unaffected. */
+    flex-wrap:   wrap;
+    max-width:   100%;
   }
 
   .evcc-rooms-view-toggle-btn {
@@ -1756,6 +1768,19 @@ export const mapStyles = `
   /* =========================================================
      ANIMAL SELECTOR IN MAP TOOLBAR
      ========================================================= */
+
+  /* The mascot controls move as one unit through a wrapping row — see
+     _renderMapAnimalControls for why. The gap is INHERITED rather than
+     restated so the wrapper is spacing-invisible: each host keeps exactly
+     the spacing it had before the group existed (the panel toggle bar at
+     4px, 6px under the mobile shell; .map-mascot-bar at 6px). Restating a
+     literal here would silently re-space one of them. */
+  .evcc-mascot-group {
+    display:     flex;
+    align-items: center;
+    gap:         inherit;
+    flex-wrap:   nowrap;
+  }
 
   .evcc-rooms-animal-select {
     height:        32px;

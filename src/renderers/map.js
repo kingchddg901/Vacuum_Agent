@@ -684,8 +684,17 @@ export function applyMapRenderers(proto) {
   // dashboard map host render the identical, _bindMap-wired controls. The render-source
   // (live↔VA) toggle stays in the map toolbar; the texture/labels toggles stay in the
   // panel toggle bar. `this` is the renderers instance (has t/escapeHtml).
+  //
+  // The controls ship inside ONE wrapper rather than as loose siblings because both
+  // hosts that render them are wrapping flex rows (the panel toggle bar wraps on
+  // mobile; .map-mascot-bar always has). Loose siblings let a wrap boundary fall
+  // between the animal select and its size slider — a slider stranded on the next
+  // line beside unrelated icons reads as belonging to whatever it landed next to.
+  // Grouping moves them as a unit; the wrapper is a plain flex row, so it does not
+  // change the spacing either host already had.
   proto._renderMapAnimalControls = function (state) {
     return `
+      <div class="evcc-mascot-group">
         <select
           class="evcc-rooms-animal-select"
           data-action="map-animal-select"
@@ -755,7 +764,8 @@ export function applyMapRenderers(proto) {
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
             <path d="M2.5 11 H11"/><path d="M6 8 L3 11 L6 14"/><circle cx="12.4" cy="4.2" r="1.5" fill="currentColor" stroke="none"/>
           </svg>
-        </button>`;
+        </button>
+      </div>`;
   };
 
   proto._renderMapLayersPanel = function (state) {

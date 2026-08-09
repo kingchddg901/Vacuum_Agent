@@ -273,18 +273,6 @@ export function applyRoomsRenderers(proto) {
           </svg>
         </button>
         <button
-          class="evcc-rooms-view-toggle-btn${(state.roomFloorTextureEnabled?.() ?? true) ? " active" : ""}"
-          data-action="room-texture-toggle"
-          title="${(state.roomFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_room_card_textures") : this.t("rooms.show_room_card_textures")}"
-          aria-label="${(state.roomFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_room_card_textures") : this.t("rooms.show_room_card_textures")}"
-          aria-pressed="${(state.roomFloorTextureEnabled?.() ?? true) ? "true" : "false"}"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
-            <rect x="2.5" y="3.5" width="11" height="9" rx="2"/>
-            <path d="M4.5 9.5 L7.5 6.5 M7 11 L11 7 M9.5 11 L12 8.5"/>
-          </svg>
-        </button>
-        <button
           class="evcc-rooms-view-toggle-btn${state.stallCaptureEnabled?.() ? " active" : ""}"
           data-action="stall-capture-toggle"
           title="${state.stallCaptureEnabled?.() ? this.t("rooms.stall_capture_disable") : this.t("rooms.stall_capture_enable")}"
@@ -296,20 +284,19 @@ export function applyRoomsRenderers(proto) {
             <circle cx="8" cy="9" r="2.25"/>
           </svg>
         </button>
-        ${mapActive ? `
         <button
-          class="evcc-rooms-view-toggle-btn evcc-rooms-view-toggle-btn--configure"
-          data-action="open-map-config"
-          title="${this.t("rooms.configure_map")}"
-          aria-label="${this.t("rooms.configure_map")}"
+          class="evcc-rooms-view-toggle-btn${(state.roomFloorTextureEnabled?.() ?? true) ? " active" : ""}"
+          data-action="room-texture-toggle"
+          title="${(state.roomFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_room_card_textures") : this.t("rooms.show_room_card_textures")}"
+          aria-label="${(state.roomFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_room_card_textures") : this.t("rooms.show_room_card_textures")}"
+          aria-pressed="${(state.roomFloorTextureEnabled?.() ?? true) ? "true" : "false"}"
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="8" cy="8" r="2.5"/>
-            <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+            <rect x="2.5" y="3.5" width="11" height="9" rx="2"/>
+            <path d="M4.5 9.5 L7.5 6.5 M7 11 L11 7 M9.5 11 L12 8.5"/>
           </svg>
-          ${this.t("rooms.configure")}
         </button>
-        ${this._renderMapAnimalControls(state)}
+        ${mapActive ? `
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapFloorTextureEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-texture-toggle"
@@ -333,7 +320,24 @@ export function applyRoomsRenderers(proto) {
             <path d="M2.5 4 L8.5 4 L13 8 L8.5 12 L2.5 12 Z"/>
             <circle cx="5" cy="8" r="0.9" fill="currentColor" stroke="none"/>
           </svg>
-        </button>` : ""}
+        </button>
+        <button
+          class="evcc-rooms-view-toggle-btn evcc-rooms-view-toggle-btn--configure"
+          data-action="open-map-config"
+          title="${this.t("rooms.configure_map")}"
+          aria-label="${this.t("rooms.configure_map")}"
+        >
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="2.5"/>
+            <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
+          </svg>
+          ${this.t("rooms.configure")}
+        </button>
+        ${/* Last on purpose: this bar wraps on mobile, and the mascot group is
+              the widest single unit in it. Trailing position puts the wrap
+              boundary IN FRONT of the group rather than inside the row it
+              occupies, so the whole set lands together on the new line. */""}
+        ${this._renderMapAnimalControls(state)}` : ""}
       </div>
     `;
   };

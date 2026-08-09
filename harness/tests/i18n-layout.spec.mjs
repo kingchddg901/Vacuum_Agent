@@ -78,6 +78,109 @@ test.describe("i18n layout gate: pseudo-long @390px (mobile)", () => {
   }
 });
 
+/* ---------------------------------------------------------------------------
+ * ROOMS TOOLBAR WITH MAP VIEW ACTIVE @390px — the gap the loop above cannot see.
+ *
+ * VIEW_ORDER renders `rooms` in its DEFAULT state, and that default is LIST
+ * view. The map-only half of the view-toggle bar — the Configure button's text
+ * label, the mascot group, the map texture/label toggles — is therefore never
+ * inside the mobile gate's window, and the bar ran off BOTH edges at phone
+ * width while every test above stayed green. A guard whose window closes just
+ * short of the failure reads exactly like a guard that passed.
+ *
+ * Map view is one state override, so closing the gap costs one describe block.
+ * ------------------------------------------------------------------------ */
+test.describe("mobile layout gate: rooms toolbar, map view active @390px", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  // Override fns must be defined IN-PAGE (page.evaluate cannot serialize them),
+  // so this does not go through renderTab. `extra` carries the serializable rest.
+  //
+  // getRoomsForActiveMap is supplied because renderRoomsView returns the EMPTY
+  // state when it is falsy, and the default stub has no rooms — so a `rooms`
+  // render with no room data draws `.evcc-empty` and nothing else. Every layout
+  // assertion made against that shell is vacuously true; this was how the bar
+  // stayed unexamined. Assert the bar exists before measuring it, below.
+  const mapRooms = (page, extra = {}) =>
+    page.evaluate((o) => window.__evcc.render("rooms", {
+      width: 390,
+      freeze: true,
+      mobile: true,
+      overrides: {
+        isMapViewActive: () => true,
+        getRoomsForActiveMap: () => [
+          { id: "1", mapId: "main", name: "Kitchen", order: 1, enabled: true, clean_mode: "vacuum" },
+          { id: "2", mapId: "main", name: "Living Room", order: 2, enabled: true, clean_mode: "vacuum" },
+          { id: "3", mapId: "main", name: "Bedroom", order: 3, enabled: true, clean_mode: "vacuum" },
+        ],
+      },
+      ...o,
+    }), extra);
+
+  /** The bar must actually be on screen — see the note on mapRooms. */
+  const expectBarRendered = async (page) => {
+    const actions = await page.evaluate(() => {
+      const bar = document.getElementById("evcc-host")?.shadowRoot?.querySelector(".evcc-rooms-view-toggle");
+      return bar ? [...bar.querySelectorAll("[data-action]")].map((e) => e.dataset.action) : null;
+    });
+    expect(actions, ".evcc-rooms-view-toggle is not in the rendered DOM").not.toBeNull();
+    // The map-only controls are the half that overflowed; if they are absent the
+    // render fell back to list view and the measurement below proves nothing.
+    expect(actions).toContain("open-map-config");
+    expect(actions).toContain("map-animal-select");
+  };
+
+  test("english", async ({ page }) => {
+    await mountHarness(page);
+    const res = await mapRooms(page);
+    expect(res.ok, res.error).toBe(true);
+    await expectBarRendered(page);
+    assertNoOverflow("rooms (map view)", await probeLayout(page));
+  });
+
+  test("pseudo-long", async ({ page }) => {
+    await mountHarness(page);
+    await registerPseudo(page);
+    const res = await mapRooms(page, { lang: "xx" });
+    expect(res.ok, res.error).toBe(true);
+    await expectBarRendered(page);
+    assertNoOverflow("rooms (map view, pseudo-long)", await probeLayout(page));
+  });
+
+  // Wrapping is what keeps the bar on-screen, but a wrap boundary can fall
+  // anywhere — including between the mascot select and its size slider, which
+  // strands the slider next to whatever unrelated icon it lands beside. The bar
+  // not overflowing does not prove the group stayed whole, so assert it
+  // directly: every mascot control shares one line box.
+  test("the mascot controls do not split across a wrap", async ({ page }) => {
+    await mountHarness(page);
+    const res = await mapRooms(page);
+    expect(res.ok, res.error).toBe(true);
+    await expectBarRendered(page);
+
+    // Measure the GROUP's height against its tallest child, not the children's
+    // `top` values: the controls are different heights and align-items:center
+    // gives the short slider a `top` ~6px below the buttons' while sitting on the
+    // very same line. Comparing tops reports that alignment as a wrap. A real
+    // wrap is the group growing to stack two rows, so measure exactly that.
+    const box = await page.evaluate(() => {
+      const group = document.getElementById("evcc-host")?.shadowRoot?.querySelector(".evcc-mascot-group");
+      if (!group) return null;
+      const kids = [...group.children].map((el) => el.getBoundingClientRect().height);
+      return { count: kids.length, height: group.getBoundingClientRect().height, tallest: Math.max(...kids) };
+    });
+
+    expect(box, ".evcc-mascot-group is not in the rendered DOM").not.toBeNull();
+    // Guard the guard: with one child, "did not wrap" would be trivially true
+    // and this test would stop meaning anything.
+    expect(box.count, "expected the select, the size slider and the mascot buttons").toBeGreaterThan(2);
+    expect(
+      box.height,
+      `mascot group is ${box.height}px tall against a ${box.tallest}px control — it wrapped`,
+    ).toBeLessThanOrEqual(box.tallest + 2);
+  });
+});
+
 // REAL DATA: Cyrillic room NAMES with an English UI — the Russian pilot's actual
 // situation (no ru catalog ships yet; names flow through as {name} vars). The
 // rooms-cyrillic fixture carries realistic names + one long one ("Детская

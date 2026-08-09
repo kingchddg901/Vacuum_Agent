@@ -341,10 +341,12 @@ export function applyMapActions(proto) {
   /**
    * Arm or disarm stall capture for this vacuum (backend-stored per vacuum).
    *
-   * Optimistic like the rotation above, and for the same reason: the switch must not sit
-   * on its old value until the next snapshot push. The overlay is cleared on the service
-   * result — including a FAILURE, so a refused write snaps back to the truth rather than
-   * leaving the UI asserting something the backend rejected.
+   * Optimistic like the rotation above, and retired the same way: the overlay is held
+   * until the dashboard SNAPSHOT agrees with it (state.stallCaptureEnabled), not cleared
+   * when this call returns — the snapshot has not been pushed by then, so clearing here
+   * reverts the control to its stale value and reads as a switch that refuses to flip.
+   * A FAILED write does clear it immediately, so the UI snaps back to the truth rather
+   * than asserting something the backend rejected.
    */
   proto.setStallCapture = async function (enabled) {
     const vacuum = this.state.vacuumEntityId();
@@ -358,9 +360,15 @@ export function applyMapActions(proto) {
         { vacuum_entity_id: vacuum, enabled: next },
         true,
       );
+      // Do NOT clear the overlay here. The snapshot has not been pushed yet, so dropping
+      // it now reverts the control to the stale value. state.stallCaptureEnabled retires
+      // it when the snapshot agrees.
       return result?.response ?? result ?? null;
-    } finally {
+    } catch (err) {
+      // A refused or failed write DOES clear it, so the UI snaps back to the truth rather
+      // than asserting something the backend rejected.
       this.state.clearStallCaptureOptimistic?.();
+      throw err;
     }
   };
 

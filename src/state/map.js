@@ -115,8 +115,16 @@ export function applyMapState(proto) {
   // window so the switch does not visibly bounce back before settling.
   proto._stallCaptureOverlay = null; // pending optimistic value (bool) or null
   proto.stallCaptureEnabled = function () {
-    if (this._stallCaptureOverlay !== null) return this._stallCaptureOverlay;
-    return !!this.dashboardSnapshot()?.stall_capture_enabled;
+    const snap = !!this.dashboardSnapshot()?.stall_capture_enabled;
+    if (this._stallCaptureOverlay !== null) {
+      // Hold the optimistic value until the BACKEND SNAPSHOT catches up to it, exactly as
+      // mapRotation does. Clearing it when the service call returns is too early: the
+      // snapshot has not been pushed yet, so the control reverts to the stale value and
+      // reads as a toggle that refuses to flip.
+      if (this._stallCaptureOverlay === snap) { this._stallCaptureOverlay = null; return snap; }
+      return this._stallCaptureOverlay;
+    }
+    return snap;
   };
   proto.setStallCaptureOptimistic = function (value) {
     this._stallCaptureOverlay = !!value;

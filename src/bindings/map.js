@@ -1876,7 +1876,7 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='stall-capture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", async () => {
         const next = !this.card._state.stallCaptureEnabled?.();
-        await this.card.actions?.setStallCapture?.(next);
+        await this.card._actions?.setStallCapture?.(next);
         this.card._scheduleRender();
       });
     });
