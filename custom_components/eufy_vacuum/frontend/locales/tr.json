@@ -1558,7 +1558,9 @@
     "trouble_missed": {
       "one": "{count} çalışmanın {miss}×'inde atlandı",
       "other": "{count} çalışmanın {miss}×'inde atlandı"
-    }
+    },
+    "stall_capture_enable": "Sıkışma görüntüsünü aç",
+    "stall_capture_disable": "Sıkışma görüntüsünü kapat"
   },
   "learning": {
     "all_rooms_complete": "Tüm odalar tamamlandı",

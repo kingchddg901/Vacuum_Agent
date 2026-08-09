@@ -284,6 +284,18 @@ export function applyRoomsRenderers(proto) {
             <path d="M4.5 9.5 L7.5 6.5 M7 11 L11 7 M9.5 11 L12 8.5"/>
           </svg>
         </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${state.stallCaptureEnabled?.() ? " active" : ""}"
+          data-action="stall-capture-toggle"
+          title="${state.stallCaptureEnabled?.() ? this.t("rooms.stall_capture_disable") : this.t("rooms.stall_capture_enable")}"
+          aria-label="${state.stallCaptureEnabled?.() ? this.t("rooms.stall_capture_disable") : this.t("rooms.stall_capture_enable")}"
+          aria-pressed="${state.stallCaptureEnabled?.() ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 5.5h2l1-1.5h5l1 1.5h2v7h-11z"/>
+            <circle cx="8" cy="9" r="2.25"/>
+          </svg>
+        </button>
         ${mapActive ? `
         <button
           class="evcc-rooms-view-toggle-btn evcc-rooms-view-toggle-btn--configure"

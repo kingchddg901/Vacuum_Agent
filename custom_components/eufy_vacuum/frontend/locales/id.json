@@ -1558,7 +1558,9 @@
     "trouble_missed": {
       "one": "Terlewat {miss}× dari {count} proses",
       "other": "Terlewat {miss}× dari {count} proses"
-    }
+    },
+    "stall_capture_enable": "Aktifkan tangkapan saat macet",
+    "stall_capture_disable": "Nonaktifkan tangkapan saat macet"
   },
   "learning": {
     "all_rooms_complete": "Semua ruangan selesai",

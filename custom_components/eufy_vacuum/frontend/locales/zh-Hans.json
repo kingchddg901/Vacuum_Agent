@@ -1566,7 +1566,9 @@
     "water_ml": "约 {ml} 毫升水",
     "trouble_missed": {
       "other": "{count} 次运行中遗漏 {miss} 次"
-    }
+    },
+    "stall_capture_enable": "开启卡住抓拍",
+    "stall_capture_disable": "关闭卡住抓拍"
   },
   "room_card": {
     "carpet_notice": "地毯房间 — 已隐藏拖地设置",

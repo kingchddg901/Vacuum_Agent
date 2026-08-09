@@ -1477,7 +1477,9 @@
       "many": "{count} зон",
       "other": "{count} зон"
     },
-    "live_queue_label": "Текущая очередь"
+    "live_queue_label": "Текущая очередь",
+    "stall_capture_enable": "Включить снимок при застревании",
+    "stall_capture_disable": "Выключить снимок при застревании"
   },
   "profile_card": {
     "configure": "Выберите пылесос, карту и профиль в редакторе карточки.",

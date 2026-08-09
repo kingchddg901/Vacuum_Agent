@@ -5242,6 +5242,17 @@ class EufyVacuumManager:
                 live_map_image_entity=live_map_image_entity,
             ),
             "live_map_rotation": live_map_rotation,
+            # Whether stall capture is armed for THIS vacuum. Surfaced even when absent
+            # (as False) so the card can render the control's real state instead of
+            # guessing — a toggle that cannot read its own value is the one that ends up
+            # showing the opposite of the truth. Per-vacuum, not per-map: the setting
+            # lives on the vacuum record, and the map here only scopes the rest of the
+            # snapshot.
+            "stall_capture_enabled": bool(
+                (self.data.get("vacuums", {}).get(vacuum_entity_id) or {}).get(
+                    "stall_capture_enabled"
+                )
+            ),
             "map_overlay_visibility": map_overlay_visibility,
             # Map-level display data the DASHBOARD map needs (the live map renders the m²
             # chips + noise masks outside the editor, where get_map_segments isn't fetched).

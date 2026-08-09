@@ -1558,7 +1558,9 @@
     "trouble_missed": {
       "one": "Vynecháno {miss}× z {count} běhu",
       "other": "Vynecháno {miss}× z {count} běhů"
-    }
+    },
+    "stall_capture_enable": "Zapnout snímek při uvíznutí",
+    "stall_capture_disable": "Vypnout snímek při uvíznutí"
   },
   "learning": {
     "all_rooms_complete": "Všechny místnosti dokončeny",

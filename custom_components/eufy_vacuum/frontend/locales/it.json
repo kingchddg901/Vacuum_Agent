@@ -1388,7 +1388,9 @@
       "many": "{count} zone",
       "other": "{count} zone"
     },
-    "live_queue_label": "Coda live"
+    "live_queue_label": "Coda live",
+    "stall_capture_enable": "Attiva la cattura in caso di blocco",
+    "stall_capture_disable": "Disattiva la cattura in caso di blocco"
   },
   "profile_card": {
     "configure": "Seleziona un aspirapolvere, una mappa e un profilo nell'editor della scheda.",

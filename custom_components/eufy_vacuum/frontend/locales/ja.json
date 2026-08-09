@@ -1566,7 +1566,9 @@
     "water_ml": "約{ml} ml の水",
     "trouble_missed": {
       "other": "{count}回中{miss}回未清掃"
-    }
+    },
+    "stall_capture_enable": "スタック時のキャプチャをオン",
+    "stall_capture_disable": "スタック時のキャプチャをオフ"
   },
   "room_card": {
     "carpet_notice": "カーペットの部屋 — 水拭き項目は非表示",

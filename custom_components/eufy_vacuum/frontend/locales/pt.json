@@ -1400,7 +1400,9 @@
       "many": "{count} zonas",
       "other": "{count} zonas"
     },
-    "live_queue_label": "Fila em direto"
+    "live_queue_label": "Fila em direto",
+    "stall_capture_enable": "Ativar captura ao encravar",
+    "stall_capture_disable": "Desativar captura ao encravar"
   },
   "profile_card": {
     "configure": "Selecione um aspirador, um mapa e um perfil no editor do cartão.",

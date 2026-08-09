@@ -1566,7 +1566,9 @@
     "water_ml": "約 {ml} ml 用水",
     "trouble_missed": {
       "other": "{count} 次清潔中遺漏 {miss} 次"
-    }
+    },
+    "stall_capture_enable": "開啟卡住擷取",
+    "stall_capture_disable": "關閉卡住擷取"
   },
   "room_card": {
     "carpet_notice": "地毯房間 — 已隱藏拖地欄位",

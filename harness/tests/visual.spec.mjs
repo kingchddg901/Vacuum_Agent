@@ -11,6 +11,22 @@
  * these tests are gated to CI or an explicit VISUAL=1 opt-in (run
  * inside that image). Smoke + completeness still run everywhere.
  *
+ * TWO WAYS TO GET A GREEN REPIN THAT IS WRONG:
+ *
+ * 1. DROPPING THE BUILD STEP. Running only the playwright half repins against whatever
+ *    harness/dist/mount.js was built LAST, so a card change you just made is absent:
+ *    every test passes, ZERO baselines change, and the baseline now disagrees with the
+ *    code while looking freshly pinned. If a card change produced no diffs, suspect this
+ *    before believing it.
+ *
+ * 2. ON A WINDOWS HOST, the `npm install` below rewrites the MOUNTED node_modules with
+ *    Linux binaries, and the host's own build then fails esbuild's platform check.
+ *    Safer split there — build with the host toolchain, render in the image (only the
+ *    RENDER has to be Linux, not the bundling):
+ *
+ *      node harness/build.mjs                        # on the host
+ *      docker run --rm -v <repo>:/work -w /work -e VISUAL=1  *        mcr.microsoft.com/playwright:v1.60.0-noble  *        sh -c "npx playwright test -c harness/playwright.config.mjs visual --update-snapshots"
+ *
  * To (re)generate baselines, see harness/README.md:
  *   docker run ... mcr.microsoft.com/playwright:v1.60.0-noble \
  *     bash -lc "npm install && node harness/build.mjs && \

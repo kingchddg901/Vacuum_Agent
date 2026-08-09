@@ -1870,6 +1870,16 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+    // Stall capture arm/disarm — the only control in this row that WRITES to the
+    // backend, so it goes through the action (optimistic + service) rather than a
+    // client-side state flip like its neighbours.
+    root.querySelectorAll("[data-action='stall-capture-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const next = !this.card._state.stallCaptureEnabled?.();
+        await this.card.actions?.setStallCapture?.(next);
+        this.card._scheduleRender();
+      });
+    });
     root.querySelectorAll("[data-action='room-texture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {
         this.card._state.toggleRoomFloorTextureEnabled?.();

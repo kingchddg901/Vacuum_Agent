@@ -107,6 +107,24 @@ export function applyMapState(proto) {
   // snapshot-refresh window so the turn is instant. Applied only to the live-image
   // element (which fills a SQUARE container, so a 90° turn about its centre stays
   // perfectly in frame) — NOT to CV/custom maps, whose polygons would drift.
+  // ---- Stall capture armed (BACKEND-stored per VACUUM) ----
+  // Whether a detected stall renders the room and notifies. Absent means OFF: a feature
+  // that writes an image of someone's home must be opted into, never inherited by an
+  // upgrade. Read from the dashboard snapshot; written via the set_stall_capture
+  // action/service. An optimistic overlay covers the click -> ack -> snapshot-refresh
+  // window so the switch does not visibly bounce back before settling.
+  proto._stallCaptureOverlay = null; // pending optimistic value (bool) or null
+  proto.stallCaptureEnabled = function () {
+    if (this._stallCaptureOverlay !== null) return this._stallCaptureOverlay;
+    return !!this.dashboardSnapshot()?.stall_capture_enabled;
+  };
+  proto.setStallCaptureOptimistic = function (value) {
+    this._stallCaptureOverlay = !!value;
+  };
+  proto.clearStallCaptureOptimistic = function () {
+    this._stallCaptureOverlay = null;
+  };
+
   proto._mapRotationOverlay = null; // pending optimistic value (deg) or null
   proto._normRotation = function (deg) {
     return (((Math.round(Number(deg) / 90) * 90) % 360) + 360) % 360;

@@ -1401,7 +1401,9 @@
       "many": "{count} zonas",
       "other": "{count} zonas"
     },
-    "live_queue_label": "Cola en vivo"
+    "live_queue_label": "Cola en vivo",
+    "stall_capture_enable": "Activar la captura al atascarse",
+    "stall_capture_disable": "Desactivar la captura al atascarse"
   },
   "profile_card": {
     "configure": "Selecciona un aspirador, un mapa y un perfil en el editor de la tarjeta.",

@@ -1401,7 +1401,9 @@
       "many": "{count} zones",
       "other": "{count} zones"
     },
-    "live_queue_label": "File en direct"
+    "live_queue_label": "File en direct",
+    "stall_capture_enable": "Activer la capture en cas de blocage",
+    "stall_capture_disable": "Désactiver la capture en cas de blocage"
   },
   "profile_card": {
     "configure": "Sélectionnez un aspirateur, une carte et un profil dans l'éditeur de la carte.",

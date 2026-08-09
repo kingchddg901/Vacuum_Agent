@@ -1385,7 +1385,9 @@
       "one": "1 Zone",
       "other": "{count} Zonen"
     },
-    "live_queue_label": "Live-Warteschlange"
+    "live_queue_label": "Live-Warteschlange",
+    "stall_capture_enable": "Aufnahme bei Blockierung einschalten",
+    "stall_capture_disable": "Aufnahme bei Blockierung ausschalten"
   },
   "profile_card": {
     "configure": "Wähle Saugroboter, Karte und Profil im Karteneditor aus.",

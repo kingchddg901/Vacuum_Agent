@@ -1436,6 +1436,8 @@ export const en = {
   "rooms.show_companion": "Show companion",
   "rooms.show_map_textures": "Show map textures",
   "rooms.show_room_card_textures": "Show room-card textures",
+  "rooms.stall_capture_enable": "Turn on stall capture",
+  "rooms.stall_capture_disable": "Turn off stall capture",
   "rooms.show_room_labels": "Show room labels",
   "rooms.source_label": "Source: {value}",  // Estimate tooltip: data origin of the time estimate; {value} is 'learned' or 'default', not a URL
   "rooms.start_cleaning": "Start Cleaning",

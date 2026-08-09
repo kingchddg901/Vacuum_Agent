@@ -1601,7 +1601,9 @@
       "few": "تم التفويت {miss}× من {count} جولات",
       "many": "تم التفويت {miss}× من {count} جولة",
       "other": "تم التفويت {miss}× من {count} جولة"
-    }
+    },
+    "stall_capture_enable": "تشغيل التقاط صورة عند التوقف",
+    "stall_capture_disable": "إيقاف التقاط صورة عند التوقف"
   },
   "room_card": {
     "carpet_notice": "غرفة سجاد — تم إخفاء حقول المسح",

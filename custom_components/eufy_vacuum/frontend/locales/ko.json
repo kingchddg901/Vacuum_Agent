@@ -1566,7 +1566,9 @@
     "water_ml": "물 ~{ml} ml",
     "trouble_missed": {
       "other": "{count}회 실행 중 {miss}회 놓침"
-    }
+    },
+    "stall_capture_enable": "끼임 시 캡처 켜기",
+    "stall_capture_disable": "끼임 시 캡처 끄기"
   },
   "room_card": {
     "carpet_notice": "카펫 방 — 물걸레 항목 숨김",

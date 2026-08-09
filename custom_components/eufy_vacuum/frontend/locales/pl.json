@@ -1558,7 +1558,9 @@
     "trouble_missed": {
       "one": "Pominięto {miss}× z {count} przebiegu",
       "other": "Pominięto {miss}× z {count} przebiegów"
-    }
+    },
+    "stall_capture_enable": "Włącz zdjęcie przy zablokowaniu",
+    "stall_capture_disable": "Wyłącz zdjęcie przy zablokowaniu"
   },
   "learning": {
     "all_rooms_complete": "Wszystkie pokoje ukończone",

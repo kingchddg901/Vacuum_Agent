@@ -1587,7 +1587,9 @@
       "two": "פוספס {miss}× מתוך {count} ריצות",
       "many": "פוספס {miss}× מתוך {count} ריצות",
       "other": "פוספס {miss}× מתוך {count} ריצות"
-    }
+    },
+    "stall_capture_enable": "הפעלת צילום בעת היתקעות",
+    "stall_capture_disable": "כיבוי צילום בעת היתקעות"
   },
   "room_card": {
     "carpet_notice": "חדר עם שטיח — שדות שטיפה מוסתרים",

@@ -1385,7 +1385,9 @@
       "one": "1 zone",
       "other": "{count} zones"
     },
-    "live_queue_label": "Live wachtrij"
+    "live_queue_label": "Live wachtrij",
+    "stall_capture_enable": "Opname bij vastlopen inschakelen",
+    "stall_capture_disable": "Opname bij vastlopen uitschakelen"
   },
   "profile_card": {
     "configure": "Selecteer een stofzuiger, kaart en profiel in de editor.",

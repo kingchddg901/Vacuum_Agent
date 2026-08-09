@@ -2080,6 +2080,8 @@
     "show_companion": "Show companion",
     "show_map_textures": "Show map textures",
     "show_room_card_textures": "Show room-card textures",
+    "stall_capture_enable": "Turn on stall capture",
+    "stall_capture_disable": "Turn off stall capture",
     "show_room_labels": "Show room labels",
     "source_label": "Source: {value}",  // Estimate tooltip: data origin of the time estimate; {value} is 'learned' or 'default', not a URL
     "start_cleaning": "Start Cleaning",

@@ -13,6 +13,7 @@ import {
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_LIVE_MAP_ROTATION,
+  SERVICE_SET_STALL_CAPTURE,
   SERVICE_ACKNOWLEDGE_MAP_FRAME,
   SERVICE_SET_MAP_OVERLAY_VISIBILITY,
   SERVICE_GET_MAP_RENDER_DATA,
@@ -337,6 +338,32 @@ export function applyMapActions(proto) {
    * optimistic overlay synchronously so the turn is instant, then persists via the
    * service; the dashboard snapshot reconciles the overlay on its next push.
    */
+  /**
+   * Arm or disarm stall capture for this vacuum (backend-stored per vacuum).
+   *
+   * Optimistic like the rotation above, and for the same reason: the switch must not sit
+   * on its old value until the next snapshot push. The overlay is cleared on the service
+   * result — including a FAILURE, so a refused write snaps back to the truth rather than
+   * leaving the UI asserting something the backend rejected.
+   */
+  proto.setStallCapture = async function (enabled) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const next = !!enabled;
+    this.state.setStallCaptureOptimistic?.(next);
+    try {
+      const result = await this.callService(
+        DOMAIN,
+        SERVICE_SET_STALL_CAPTURE,
+        { vacuum_entity_id: vacuum, enabled: next },
+        true,
+      );
+      return result?.response ?? result ?? null;
+    } finally {
+      this.state.clearStallCaptureOptimistic?.();
+    }
+  };
+
   proto.rotateLiveMap = async function (mapId) {
     const vacuum = this.state.vacuumEntityId();
     if (!vacuum || !mapId) return null;
