@@ -262,6 +262,30 @@ Two rules follow, and the second only became visible once actions compose:
 Once actions compose, hazard is a property of the resulting SEQUENCE, not of any button in
 it. §5's arming model must be read that way.
 
+## `STALL NOW` is only meaningful MID-RUN
+
+Worth stating on the card itself, not just in a doc, because the failure is silent and
+looks like a broken feature.
+
+**Pose sampling is off at the dock by design.** `listeners/pose_sampler.py` nulls both
+`current_room` and `anchor` while parked (gated on MQTT `task_status` via `_is_parked`,
+deliberately not the pose's own `robot_docked` flag, which can stay False through a real
+dock). A parked dock is recorded as a genuine None-run.
+
+So `STALL NOW` on a docked vacuum injects a real event with **no pose context behind it**.
+Anything consuming that event sees absence, correctly degrades, and renders nothing
+useful — which reads as a bug in the consumer rather than as an invalid test position.
+
+**Implication for the card:** `STALL NOW` should be disabled, or should warn, when the
+target vacuum is parked. This is the same press-time reachability evaluation the §8
+correction argues for, pointed the other way — not "this press is dangerous" but "this
+press is meaningless".
+
+**Implication for the test loop:** the win is not "test without a robot". It is **one run,
+many stalls** — start a job, let the ring fill for ≳30 s (Eufy samples at 2 s), then
+STALL → observe → RESUME → STALL again. Twenty iterations cost one cleaning cycle instead
+of twenty box-traps.
+
 ## Coupling to the stall-capture design
 
 This card is the development loop for

@@ -192,6 +192,40 @@ one of these is that shape:
 
 ## 8. Testing
 
+### The dock is not a test position — the loop must run MID-RUN
+
+**Pose sampling is effectively off at the dock, by design.** `listeners/pose_sampler.py`
+nulls BOTH fields while parked:
+
+```python
+docked = _is_parked(hass, cfg, pose)   # MQTT task_status — NOT the pose's own robot_docked
+return {
+    "current_room": None if docked else pose.get("current_room"),
+    "anchor":       None if docked else pose.get("robot_anchor"),
+```
+
+(Deliberate: "a parked dock is a genuine None-run.") So a stall injected while docked has
+no anchor, no room and no trail. It exercises §6's degradation path — *draw no marker* —
+and proves **nothing** about the feature. Anyone testing this from the dock will conclude
+the renderer is broken.
+
+**The loop is therefore one RUN, many stalls:**
+
+```
+start a real job                       (robot actually cleaning — the ring fills)
+  wait ≳30 s                           (the ±30 s backward half needs banked motion;
+                                        Eufy samples at 2 s, so ~15 samples)
+  STALL NOW  →  pause + canonical event with real pose already banked
+  observe the capture
+  RESUME  →  STALL NOW again  →  ...
+```
+
+That is the value the dev card actually buys here: not "no robot needed", but **one run
+instead of one box-trap per iteration**. Twenty rendering changes cost one cleaning cycle.
+
+**Corollary:** do not stall in the first ~30 s of a run. The backward window will be
+short or empty, and a thin trail reads as a rendering bug rather than as a young run.
+
 Chris can force a stall on real hardware, which makes this cheap to validate end to end —
 no need to simulate the trigger. Worth capturing on the FIRST forced stall, because it is
 the moment the artifact is most informative:
