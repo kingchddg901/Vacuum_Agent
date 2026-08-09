@@ -13,6 +13,7 @@
     "harness:shoot": "node harness/build.mjs && node harness/shoot.mjs",
     "harness:gallery": "node harness/build.mjs && node harness/shoot-gallery.mjs",
     "harness:cards": "node harness/build.mjs && node harness/shoot-cards.mjs",
+    "harness:readme": "node harness/build.mjs && node harness/shoot-readme.mjs",
     "harness:preview": "node harness/build.mjs && node harness/preview.mjs",
     "harness:locales": "node harness/build.mjs && node harness/shoot-locales.mjs",
     "test:harness": "node harness/build.mjs && playwright test -c harness/playwright.config.mjs",

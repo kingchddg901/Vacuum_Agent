@@ -62,6 +62,7 @@ npm run harness:shoot       # every tab, default bundle  -> harness/out/<bundle>
 npm run harness:gallery     # all-states galleries        -> harness/out/gallery/
 npm run harness:preview     # theme exports in gallery/themes/ -> harness/out/preview/
 npm run harness:cards       # the three standalone cards  -> docs/screenshots/card-*.png
+npm run harness:readme      # the README panel shots      -> docs/screenshots/*.png
 
 # the CVD separation matrix for any bundle
 node harness/cvd/report.mjs            # default palette (fails — shows the problem)
@@ -134,6 +135,85 @@ Two things the fixture does deliberately, worth knowing before editing it:
 
 ---
 
+## Panel shots — the README screenshots
+
+```bash
+npm run harness:readme
+```
+
+Renders the fifteen committed panel screenshots the README embeds — one full-tab
+capture per view, at 920 CSS px and `deviceScaleFactor` 2, so each PNG lands ~1840px
+wide. Deterministic on the same terms as the card shooter: the clock is frozen,
+animations are zeroed, and no fixture derives from wall-clock or randomness, so
+re-running with nothing changed reproduces the same bytes.
+
+| Output | Shows |
+|---|---|
+| `rooms-cards.png` / `rooms-map.png` | the Rooms tab in both view modes — six room cards with learned ETAs and confidence, and the same six as selectable polygons on a floor plan |
+| `maintenance.png` · `base-station.png` · `metrics.png` · `metrics-battery.png` · `learning-review.png` · `external-jobs.png` · `external-wizard-step[12].png` · `room-rules.png` · `setup.png` | one tab (or sub-tab, or modal step) each |
+| `themes-presets.png` / `themes-palette.png` / `themes-tokens.png` | one view in three sub-states — the preset grid, the palette editor, the token editor |
+| `harness/out/readme/` | the same frames plus `_contact-sheet.png`, for reviewing them together |
+
+Flags: `--bundle <name>` themes the shots from `harness/bundles/`; `--width` / `--scale`
+set the CSS width and device pixel ratio; `--only <id,id>` shoots a subset; `--dry-run`
+writes only the review copies, leaving `docs/screenshots/` alone.
+
+**Every shot is gated on its content, because the failure mode here is a screenshot
+that looks fine.** `renderTab` with the default stub state renders the *empty* state:
+`renderRoomsView` returns `.evcc-empty` the moment `getRoomsForActiveMap()` is falsy,
+and the metrics, maintenance and review tabs each have their own "no data yet" branch.
+Every one of those produces a PNG with the right chrome, the right active tab, the
+right theme and nothing in it — and passes any check that asserts the file exists. So
+each entry in `harness/fixtures/readme-shots.js` declares a floor, measured against the
+live shadow tree **before** anything is written:
+
+- **`selectors`** — minimum element counts for the things that *are* the view (six
+  `.evcc-room-card`, four `.evcc-base-station-action-card`, three `.evcc-metrics-table`).
+- **`text`** / **`notText`** — substrings that must, and must not, appear. `notText`
+  exists because not every empty branch renders `.evcc-empty`: the battery tab prints
+  "… — no single-bucket jobs yet" as ordinary table rows, so a fixture that named an
+  attribute wrong produced a table that looked populated and said nothing.
+- **`minHeight`**, zero `.evcc-empty` nodes, the claimed tab actually marked active,
+  and no `undefined` / `NaN` / `[object Object]` in the rendered text.
+- **overflow**, both axes. `<ha-card>` is `overflow: hidden`, so content the shell
+  cannot fit is cropped out of the capture with no other symptom. Shots that declare a
+  `height` are bounded panels whose view owns a scroll container, so for those only the
+  horizontal axis is checked.
+
+A shot that misses its floor is reported and skipped, its previous PNG left untouched,
+and the run exits non-zero.
+
+Three things about the fixtures, worth knowing before editing them:
+
+- **Room names are synthetic, and that is the point.** These are published on a public
+  repo, so every shot draws from one neutral list — Kitchen / Living Room / Bedroom /
+  Office / Bathroom / Hallway — and the gate asserts those names are present, so a
+  fixture that drifted to some other source of room names fails rather than ships. Same
+  for entity ids, map names and file paths. The single real-home shot in
+  `docs/screenshots` is `floor-texture-map.png`, kept deliberately because it shows no
+  names.
+- **The map backdrop is drawn, not photographed.** A real install serves the plan from
+  Home Assistant; headless there is no such route. `readme-shots.js` emits an inline SVG
+  data URI whose rooms are the same percent-coordinate polygons the segment overlay
+  uses, square because `.evcc-map-container` is `aspect-ratio: 1` and
+  `.evcc-map-image` is `object-fit: contain` — any other ratio letterboxes and the
+  polygons drift off the walls.
+- **Seven shots reuse the all-states gallery fixtures** rather than carrying a second
+  copy that could drift from them. Where such a shot needs one accessor changed, it
+  declares an `overlay` instead of editing the gallery entry, whose render is a
+  committed visual baseline.
+
+Two of the fifteen are driven by a **real `VacuumCardState`**, via the `real` layer in
+`makeStubState` (resolution order: overrides → header essentials → real state →
+recording null-object). The Themes tab reads `_ensureThemeState()` and
+`resolvedTheme()`, which are an implementation — a mutable sub-tab/draft/facet object,
+and several hundred resolved token values seeded from the room-fill palette and the
+floor-texture registry. A hand-written stand-in for either would be a transcript that
+drifts from the thing it transcribes, so the fixture builds the real object and seeds it
+with the shipped library from `gallery/themes/`.
+
+---
+
 ## Visual baselines — the Docker workflow
 
 Visual regression only works if baselines are generated in the **same**
@@ -192,6 +272,7 @@ Three values are spec, not defaults — tune them deliberately:
 | CVD pass criterion | `harness/cvd/report.mjs` (`FLOOR`) | ΔE2000 ≥ 15, 10 pairs × 3 sims | fix the palette, not the floor |
 | fixture content | `harness/fixtures/gallery.js` | all colored branches per tab | a new state-token must get a gallery row or the completeness gate fails |
 | card content floors | `harness/shoot-cards.mjs` (`GATES`) | per-card chip / room / step / height minima | raise them when a card gains a section; a floor low enough to cover all three cards catches none of them |
+| panel-shot content floors | `harness/fixtures/readme-shots.js` (`gate`) | per-shot selector counts / required + forbidden text / height | each shot's floor lives next to its fixture; raise it when the tab gains a section, and check it still *fails* on an emptied fixture |
 
 ---
 

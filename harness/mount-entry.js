@@ -43,6 +43,7 @@ import { flattenLocale } from "../src/i18n/flatten.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
 import { makePseudoLong } from "./lib/pseudo-locale.mjs";
 import { GALLERY } from "./fixtures/gallery.js";
+import { README_SHOTS } from "./fixtures/readme-shots.js";
 import { CARD_FIXTURES, CARD_STATES, CARD_SERVICE_RESPONSES } from "./fixtures/cards.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
@@ -209,7 +210,7 @@ function freezeClock() {
 
 function render(view, opts = {}) {
   const font = opts.font ?? null;
-  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null, lang = null, mobile = false } = opts;
+  const { bundle = {}, overrides = {}, controller = null, width = 500, height = null, freeze = false, modal = null, lang = null, mobile = false, real = null } = opts;
   const restoreClock = freeze ? freezeClock() : null;
 
   const stateMisses = new Set();
@@ -219,7 +220,7 @@ function render(view, opts = {}) {
   try {
     // Mobile mode forces isMobileViewport()->true (a caller override still wins).
     const effectiveOverrides = mobile ? { isMobileViewport: () => true, ...overrides } : overrides;
-    const state = makeStubState({ overrides: effectiveOverrides, record: stateMisses });
+    const state = makeStubState({ overrides: effectiveOverrides, record: stateMisses, real });
 
     // Minimal card stub: renderers read exactly _config/_state/_renderers/
     // _view/_mobileMoreOpen. _hass is a recording null-object so any direct
@@ -230,7 +231,10 @@ function render(view, opts = {}) {
       // language, and crucially it BYPASSES the draft-gate (resolveLang sends a
       // draft reached via the system language back to English; a pin does not).
       // No lang -> {} -> English canonical renders are unchanged.
-      _config: lang ? { i18n: { locale: String(lang) } } : {},
+      // opts.config carries anything a renderer reads straight off the card's own
+      // config rather than through state — the Setup tab's vacuum_entity_id is the
+      // only one today, and without it that tab renders its unregistered branch.
+      _config: { ...(opts.config ?? {}), ...(lang ? { i18n: { locale: String(lang) } } : {}) },
       _state: state,
       _renderers: null,
       _view: view,
@@ -266,6 +270,12 @@ function render(view, opts = {}) {
     const host = document.createElement("div");
     host.id = "evcc-host";
     host.style.width = `${width}px`;
+    // A DEFINITE height where the view owns a scroll container. `:host` is
+    // height:100%, so an auto-height host lets a scroller grow to its content
+    // instead of scrolling — the Themes token editor then renders all ~400 token
+    // rows at once, which is a harness artefact, not a view anyone ever sees.
+    // Omit for the tabs that genuinely flow (their full length IS the shot).
+    if (height) host.style.height = `${height}px`;
     // Faithful to src/main.js _render(): stamp dir on the host from the resolved
     // language so `direction` inherits into the shadow tree and the logical CSS
     // (inset/margin/padding-inline-*) flips for RTL. Without this the harness
@@ -369,6 +379,110 @@ function renderGallery(id, opts = {}) {
     font: opts.font ?? entry.font ?? null,
   });
   return { ...res, id, clip: entry.clip ?? null, label: entry.label };
+}
+
+/**
+ * Render one README panel shot and MEASURE what landed on screen.
+ *
+ * The measurement is the whole point. `render()` succeeds — ok:true, a headerLen,
+ * a viewLen — for a tab that rendered its empty state, because an empty state is a
+ * successful render of nothing. `renderRoomsView` returns `.evcc-empty` the moment
+ * `getRoomsForActiveMap()` is falsy, and the resulting PNG has the right chrome,
+ * the right tab active, and no content. So this returns live counts off the shadow
+ * tree plus the rendered text, and the Node side refuses to write a file whose
+ * fixture's declared `gate` is not met (harness/shoot-readme.mjs).
+ *
+ * A shot may name a `gallery` entry instead of carrying its own `state`, so the
+ * seven tabs the all-states gallery already fixtures are shot from THAT fixture
+ * rather than a second copy that could drift from it.
+ *
+ * @param {string} id - a README_SHOTS id.
+ * @param {object} [opts]
+ * @param {object} [opts.bundle] - flat `--evcc-*` map applied to the host.
+ * @param {number} [opts.width]  - host width in CSS px.
+ * @param {object} [opts.data]   - payload for fixtures whose `state` is a factory
+ *   (the theme shots, which are seeded with the shipped theme library).
+ * @returns {object} serialisable render report (never throws to the page).
+ */
+function renderReadmeShot(id, opts = {}) {
+  const entry = README_SHOTS.find((s) => s.id === id);
+  if (!entry) return { id, ok: false, error: `unknown README shot: ${id}`, misses: { state: [], hass: [] } };
+
+  const gallery = entry.gallery ? GALLERY.find((g) => g.id === entry.gallery) : null;
+  if (entry.gallery && !gallery) {
+    return { id, ok: false, error: `shot "${id}" names a gallery entry that does not exist: ${entry.gallery}`, misses: { state: [], hass: [] } };
+  }
+
+  // A fixture's `state` may be a FACTORY (data) -> overrides, so a shot that needs a
+  // live VacuumCardState can build one per render instead of sharing mutable state
+  // across shots. `__real` is that instance, lifted out into the stub's real layer.
+  const authored = typeof entry.state === "function" ? entry.state(opts.data ?? {}) : (entry.state ?? {});
+  const { __real: real = null, ...overrides } = authored;
+
+  // A gallery-backed shot may overlay a few accessors WITHOUT editing the gallery
+  // fixture, whose render is a committed visual baseline. Used to suppress
+  // null-object artefacts that are harmless in an all-states colour sheet but read
+  // as a live state in a published screenshot (an action button stuck on
+  // "Working...", for instance).
+  const res = render(entry.view, {
+    overrides: gallery ? { ...gallery.state, ...(entry.overlay ?? {}) } : overrides,
+    controller: (gallery ? gallery.controller : entry.controller) ?? null,
+    real: gallery ? null : real,
+    config: entry.config ?? { vacuum_entity_id: "vacuum.alfred" },
+    bundle: { ...(gallery?.bundle || {}), ...(entry.bundle || {}), ...(opts.bundle || {}) },
+    width: opts.width ?? entry.width,
+    height: entry.height ?? null,
+    freeze: true,
+    modal: (gallery ? gallery.modal : entry.modal) ?? null,
+  });
+
+  const clip = (gallery ? gallery.clip : entry.clip) ?? null;
+  const out = { ...res, id, file: entry.file, label: entry.label, clip };
+  if (!res.ok) return out;
+
+  /* ---- measure ---- */
+  const host = document.getElementById("evcc-host");
+  const root = host && host.shadowRoot;
+  // Measure the SHELL, not the shadow root: the root's textContent also carries the
+  // injected <style> blocks, which are tens of kilobytes of CSS and documentation
+  // prose. Every text assertion would then be matching against the stylesheet — and
+  // the `[object Object]` / `NaN` artefact check would be reading comments.
+  const scope = clip ? root?.querySelector(clip) : root?.querySelector(".evcc-shell");
+  if (!scope) {
+    out.ok = false;
+    out.error = clip ? `clip selector matched nothing: ${clip}` : "no shadow root after render";
+    return out;
+  }
+
+  const counts = {};
+  for (const selector of Object.keys(entry.gate?.selectors ?? {})) {
+    try {
+      counts[selector] = scope.querySelectorAll(selector).length;
+    } catch {
+      counts[selector] = -1;   // an unparseable selector is a fixture bug, not a pass
+    }
+  }
+
+  const box = scope.getBoundingClientRect();
+  // Overflow, so "nothing is clipped" is measured rather than eyeballed. ha-card's
+  // chrome is overflow:hidden, so anything the shell cannot fit is cropped out of
+  // the capture silently. A shot given an explicit `height` is a BOUNDED panel —
+  // its view owns a scroll container and scrolling is the design, not a clip — so
+  // the vertical check is skipped for those (`bounded` below carries that out).
+  const shell = root.querySelector(".evcc-shell");
+  out.metrics = {
+    counts,
+    text: (scope.textContent || "").replace(/\s+/g, " ").trim(),
+    height: Math.round(box.height),
+    width: Math.round(box.width),
+    activeTab: root.querySelector(".evcc-nav-tab.active")?.getAttribute("data-view") ?? null,
+    emptyStates: scope.querySelectorAll(".evcc-empty").length,
+    overflowY: shell ? shell.scrollHeight - shell.clientHeight : 0,
+    overflowX: shell ? shell.scrollWidth - shell.clientWidth : 0,
+  };
+  out.bounded = Boolean(entry.height);
+  out.gate = entry.gate ?? {};
+  return out;
 }
 
 /**
@@ -769,6 +883,11 @@ window.__evcc = {
   VIEW_ORDER,
   render,
   renderGallery,
+  renderReadmeShot,   // the committed README panel shots; gate-measured, see the fn doc
+  readmeShots: README_SHOTS.map((s) => ({
+    id: s.id, file: s.file, view: s.view, label: s.label,
+    clip: s.clip ?? null, needsThemes: typeof s.state === "function",
+  })),
   renderThemePresets,
   registerLocale, // inject a foreign/pseudo locale catalog before rendering with opts.lang
   makePseudoLong, // build the layout-stress catalog IN-PAGE (avoids a Node-side en.js import)

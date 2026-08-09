@@ -104,12 +104,28 @@ export function makeNullObject(record, path = "", seed = null) {
  * chrome renders honestly (name, status dots, battery). Everything
  * else falls through to a recording null-object.
  *
+ * RESOLUTION ORDER — overrides > essentials > real > null-object.
+ *
+ * `real` is an OPTIONAL live `VacuumCardState` instance to delegate to. Some
+ * views cannot be fixtured as flat data at all: the Themes tab reads
+ * `_ensureThemeState()` (a mutable object the sub-tab, the working draft and the
+ * facet filter all live on) and `resolvedTheme()` (several hundred resolved
+ * token values, seeded from the room-fill palette and the floor-texture
+ * registry). Hand-writing those returns would be transcribing an implementation,
+ * and the transcript would drift from it silently. Handing the fixture the real
+ * state object instead means the tab is driven by the code that ships.
+ *
+ * Kept BELOW `essentials` on purpose: a real state built against an empty hass
+ * answers the header accessors with nulls, which would render the card chrome as
+ * "Unknown" in every shot that used one.
+ *
  * @param {object}  [opts]
  * @param {object}  [opts.overrides] - per-accessor real returns (Wave 2 fixtures).
  * @param {Set<string>} [opts.record] - census sink for unstubbed accessors.
+ * @param {object|null} [opts.real] - live state instance to delegate to (opt-in).
  * @returns {Proxy} stub state.
  */
-export function makeStubState({ overrides = {}, record = null } = {}) {
+export function makeStubState({ overrides = {}, record = null, real = null } = {}) {
   // Called WITHOUT optional chaining by buildRenderContext / renderHeader,
   // so these must exist and return sensible, typed values.
   const essentials = {
@@ -130,6 +146,14 @@ export function makeStubState({ overrides = {}, record = null } = {}) {
     get(t, prop) {
       if (prop in t) return Reflect.get(t, prop);
       if (typeof prop === "symbol") return undefined;
+      if (real) {
+        // Bind so `this` inside the real accessor is the real instance, not the
+        // proxy — otherwise every internal `this._themeState` read would route
+        // back through here and be absorbed by the null-object.
+        const value = real[prop];
+        if (typeof value === "function") return value.bind(real);
+        if (value !== undefined) return value;
+      }
       if (record) record.add(String(prop));
       // Unstubbed accessor: a callable null-object (so `state.x()` and
       // `state.x?.()` both yield an absorbing value).
