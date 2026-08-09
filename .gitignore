@@ -65,7 +65,21 @@ COMMIT_MSG*
 # Local backup archives
 *.zip
 
-# Claude Code settings
+# Agent working rules — LOCAL ONLY. Swept into the repo by an unrelated commit
+# (c4207b9e, a map-colour feature) on 2026-07-03 and public for five weeks before
+# anyone chose to publish it. Still read by Claude Code from disk; just not shipped.
+/CLAUDE.md
+
+# Claude Code settings, and the campaign working notes — LOCAL ONLY.
+#
+# 214 files (10.2 MB) were force-added here during the audit campaign and untracked on
+# 2026-08-09: probe/proof scripts, frozen audit JSON, before/after run logs, intermediate
+# ledger state. They are working artifacts of a closed campaign, they are still on disk,
+# and this repo is PUBLIC — the baseline run logs in particular carried household room
+# names. Nothing referenced them: the closeout has zero markdown hyperlinks to its siblings.
+#
+# No exceptions: the one publicly-linked artifact, the AUDIT-1 closeout, moved to
+# docs/audit-1-closeout.md where published things live. Nothing under here is tracked.
 .claude/
 
 # Docker cold-install harness — persistent HA config from docker-compose.yml.

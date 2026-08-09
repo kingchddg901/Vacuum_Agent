@@ -25,7 +25,7 @@ executed evidence; the rest were verified by two independent source-reading
 passes. The CV segmentor is excluded by design, because its correctness is
 empirical rather than textual and this method cannot falsify it. Method,
 findings and the open remainder are written up in `docs/how-this-was-audited.md`
-and `.claude/notes/synthesis/AUDIT-1-CLOSEOUT.md`, whose §8 lists every open item
+and `docs/audit-1-closeout.md`, whose §8 lists every open item
 with the specific thing that would close it.
 
 ### Breaking changes
