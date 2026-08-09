@@ -77,6 +77,15 @@ with the specific thing that would close it.
   `adapters/eufy/room_profiles.py`. Absent and declared-empty stay
   distinguishable so "this brand has none" and "the porter forgot" cannot
   collapse into one state.
+- **`map_state_source.live_pose` must declare a `backend`.** Core owns the pose
+  shapes — `inmem_pixel_pose` and `parsed_mapdata` — and a `live_pose` block
+  without one now yields no pose rather than falling through to the Eufy fork's
+  reader, which would walk an unrelated provider's internals and find nothing.
+  Neither shape is a default; the absent-default is what made "declares no pose
+  shape" and "has no position" the same answer, and cost Roborock its dot while
+  the position sat live on the map the card was already rendering. Both shipped
+  adapters declare theirs. A brand port must, and the adapter-contract suite
+  fails it per brand rather than skipping a brand that declares nothing.
 - **Eufy suction: `Boost` is replaced by `Turbo`.** `fan_speed` resolves by index
   into the upstream speed list, `boost` is absent from it, and selecting Boost
   therefore applied no suction at all. BoostIQ is the auto carpet-boost switch on
@@ -178,9 +187,35 @@ with the specific thing that would close it.
   file is the evidence — and `catalog.json` is the canonical response the card
   consumes generically. There is no browser render-verification anywhere:
   rendered-text checks lie through per-glyph fallback.
+- **A live-pose backend is declared, so any brand can have a dot.** The pose
+  accessor used to BE the Eufy fork's reader wearing a generic name: it required
+  a `live_pose` block whose every key described the fork's in-memory pixel
+  coordinator, so a brand that could not describe itself in those terms got
+  `not_configured` — an answer indistinguishable from "this brand has no
+  position". Roborock hit exactly that, with its position sitting live on the
+  parsed map the card rendered every refresh while the stall capture drew an
+  empty room. `map_state_source.live_pose.backend` now names one of core's
+  shapes — `inmem_pixel_pose` (a provider-held pixel pose normalised against a
+  separately-loaded geometry) or `parsed_mapdata` (a pose already in the
+  rendered frame). Neither is a default, and the absent-default was the bug.
+  The trail followed for one conditional: `pose_sampler` wrote `"anchor": None`
+  as a literal for the `native_current_room` source mode, on the rationale that
+  it has no pixel pose — true of the NAME entity, false of the brand. WHICH room
+  and WHERE are independent axes now.
+- **A stall capture shows which way the robot was travelling.** The observed
+  positions are connected in order with chevrons along the path, and the
+  observations fade from the room fill to full strength so the newest sits
+  beside the robot dot. Chevrons are spaced by arc length rather than per
+  sample, which is what lets one implementation serve a 2-second pose and a
+  30-second one; and both cues are wordless by necessity, because a legend
+  would be the first English baked into a PNG in an 18-language product. Time
+  is lightness, not hue, so the order survives colour-blindness. A coarse brand
+  additionally marks each observation on the line — at thirty seconds apart the
+  robot covers several metres and certainly turned, so each sample is a fact
+  worth showing rather than a route worth inventing.
 - **Stall capture** ([#47]). Opt-in per vacuum. On a stall, the room the robot
-  stopped in is rendered — silhouette, the last stretch of travel, a dot for
-  where it came to rest, and a name pill — written to
+  stopped in is rendered — silhouette, the path it took with direction marked, a
+  dot for where it came to rest, and a name pill — written to
   `config/eufy_vacuum/learning/<vacuum>/stall/<map_id>.png`, with a persistent
   notification naming the room and map and an `eufy_vacuum_stall_captured` event
   carrying the path so an automation can forward it. Armed with
