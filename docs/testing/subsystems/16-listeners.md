@@ -91,6 +91,13 @@ The targets cover the decisions AROUND the render (the renderer itself is `SC` i
 fork's `switch_map` select, which the Eufy adapter does not declare. Guessing that entity
 id to get a nicer string would be exactly the brand-ism this project keeps removing.
 
+The message therefore reads **"on map X"** rather than "on X" — which carries a bare id
+("on map 12") without needing per-brand phrasing, and still reads correctly for a brand
+that supplies a name ("on map Main floor"). Declaring the name properly needs a NEW entity
+ROLE: the role list in `core/capabilities.py` is fixed, and `active_map` must keep
+resolving to the ID because map-id resolution depends on it. That is a contract change,
+not the one-line adapter tweak it first looked like.
+
 ## How it's tested
 
 The `manager` / `manager_with_services` fixtures plus `hass.states.async_set`

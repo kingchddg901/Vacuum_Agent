@@ -208,3 +208,21 @@ docs/testing/04 "Pin discipline". W0's generated Mocking column gains a sibling
 metric from the same derivation: per-file count of tests touching a `._private`
 name on a production object. Same shrink-only ratchet, same generated freshness.
 The 35 stay frozen until their own hardening wave — count first, rewrite later.
+
+---
+
+## Evidence log — instances found in the wild
+
+**2026-08-08 — pause-timeout arming (the plan's own case, found before the plan ran).**
+`get_paused_job_timeout_report` is mocked at all eight listener call sites
+(`test_listeners_active.py` PT-1..5 and the stranded-run tests), so the suite proves
+"given a report → cancel" five ways. `test_jobs_active_job.py` AJI-29..33 proves the
+inverse, "given a paused job record → produce a report", by constructing the record.
+Neither proves a paused ROBOT yields a paused job record — and it did not, for any pause
+that skipped our own service.
+
+The mock supplied precisely the value production could not produce. Both modules are
+correct in isolation, so no amount of reading either one surfaces it; it took a hardware
+pause. Recorded here because it is the shape this plan targets, discovered while the plan
+was still held: two well-covered halves and an untested join, where the join is the thing
+that can rot.

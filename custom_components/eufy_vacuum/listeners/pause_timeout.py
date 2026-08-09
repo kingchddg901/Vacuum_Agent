@@ -57,6 +57,57 @@ async def _reap_one_slot(
     changed. Isolated in its own try/except by the caller (RP-011/RF-07,
     STR-2/GUARD-4) so one slot's exception cannot kill the whole tick."""
     any_changes = False
+
+    # 0) Reconcile the job's paused flag with the ROBOT's actual state, BEFORE the reap
+    #    below reads it.
+    #
+    # WHY THIS EXISTS. async_pause_active_job pauses the vacuum AND marks the job — but
+    # nothing marked the job when the robot was paused by any OTHER route: the HA vacuum
+    # card, the Eufy app, or the button on the robot itself. The timeout check requires
+    # status == "paused", so a pause that did not come through our own service armed
+    # nothing and the job sat paused forever. The guard existed, which is exactly why it
+    # read as complete. Found on hardware 2026-08-08.
+    #
+    # paused_at comes from the state's last_changed, NOT from now(): the poll interval
+    # then costs DETECTION latency only, never accuracy. A pause noticed 50s late is
+    # still measured from the moment it actually happened. (An HA restart resets
+    # last_changed, so a long-paused robot restarts its clock — the conservative
+    # direction, and deliberate.)
+    #
+    # Both edges, because arming alone is the same bug mirrored and worse: a job left
+    # marked paused after an app-side resume would be cancelled mid-clean by the reap.
+    _state = hass.states.get(vacuum_entity_id)
+    if _state is not None:
+        _job = manager_local.active_job.get_active_job(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id
+        )
+        _status = _job.get("status")
+        _robot_paused = str(_state.state).strip().lower() == "paused"
+        _changed_at = getattr(_state, "last_changed", None)
+        _changed_iso = (
+            _changed_at.strftime("%Y-%m-%dT%H:%M:%SZ") if _changed_at is not None else None
+        )
+        if _robot_paused and _status == "started":
+            manager_local.active_job.pause_active_job(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, paused_at=_changed_iso,
+            )
+            any_changes = True
+            _LOGGER.debug(
+                "pause_timeout: armed %s from the robot's own paused state (since %s)",
+                vacuum_entity_id, _changed_iso,
+            )
+        elif not _robot_paused and _status == "paused":
+            # Reuse resume_active_job so paused wall-clock accumulates exactly as it does
+            # for a service resume — the two must not diverge.
+            manager_local.active_job.resume_active_job(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, resumed_at=_changed_iso,
+            )
+            any_changes = True
+            _LOGGER.debug(
+                "pause_timeout: cleared the paused flag on %s — the robot is %s",
+                vacuum_entity_id, _state.state,
+            )
+
     # 1) Paused-timeout reap — cancel a job paused past its limit.
     timeout_report = manager_local.get_paused_job_timeout_report(
         vacuum_entity_id=vacuum_entity_id,

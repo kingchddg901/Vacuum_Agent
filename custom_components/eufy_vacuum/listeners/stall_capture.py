@@ -255,7 +255,12 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
 
     vacuum_name = vacuum_entity_id.split(".", 1)[-1].replace("_", " ").title()
     label = map_label(hass, vacuum_entity_id, map_id)
-    message = f"{vacuum_name} likely stalled in {room_name} on {label}"
+    # "on map X" rather than "on X". The label is a NAME on brands that declare one
+    # (Roborock: "Main floor") and the bare id on brands that do not (Eufy: "12"), and
+    # "stalled in Kitchen on 12" reads like a truncated sentence. The word carries the
+    # bare id without needing per-brand phrasing — which would be a brand-ism in the
+    # message layer, the exact place they like to hide.
+    message = f"{vacuum_name} likely stalled in {room_name} on map {label}"
 
     # "likely" is load-bearing. The detector is an elapsed-vs-estimate ratio, not proof of
     # stillness, and estimates are cold while the learning store rebuilds. A notification

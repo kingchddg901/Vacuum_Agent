@@ -256,7 +256,53 @@ lesson pointed back at itself:
   the family that was written to close it (RF-18) because the duplicate predated the
   framework it leaked through.
 
-Neither was reachable from the campaign's scopes as written. Both are AUDIT-2 input.
+- **The paused-job timeout only armed for pauses that came through our own service.**
+  `async_pause_active_job` pauses the vacuum AND marks the job; nothing marked the job when
+  the robot was paused by any other route — the HA vacuum card, the Eufy app, the button on
+  the robot. The timeout check requires `status == "paused"`, so those pauses armed nothing
+  and the job sat paused indefinitely. The guard existed, which is exactly why it read as
+  complete. Fixed by reconciling the flag against the robot's own state in the existing
+  1-minute poller, using the state's `last_changed` so the poll costs detection latency and
+  never accuracy.
+
+  **This one is a TEST-SUITE gap, and worth naming precisely because the suite looks
+  thorough.** Both halves were covered and the JOIN between them was not:
+
+  | | |
+  |---|---|
+  | `test_jobs_active_job.py` AJI-29..33 | given a paused JOB RECORD → produce a report ✅ |
+  | `test_listeners_active.py` PT-1..5 | given a report → cancel correctly ✅ |
+  | — | a paused ROBOT produces a paused job record ❌ **never tested** |
+
+  Every one of those tests starts from *"the job is already paused."* All eight listener
+  call sites set `get_paused_job_timeout_report.return_value`, so the mock supplied exactly
+  the value production could not produce. That is the mock-agrees-with-the-caller failure
+  in its purest form, and a live instance of what `PLAN-mock-integrity.md` was written to
+  catch — filed here as evidence for that plan rather than as a one-off.
+
+  Not reachable by reading either module, either: each is correct in isolation. Only
+  running the real transition finds it, which is why it took a hardware pause.
+
+  **And the plainer failure, in Chris's words: the hardware test was never run.** The
+  feature shipped with its settings exposed and a 15-minute default sitting on the author's
+  own vacuum, and in all that time nobody once paused a real robot and watched. Waiting
+  fifteen minutes is expensive, and the suite was green.
+
+  That is the compounding mechanism worth keeping, because it is not about this feature: **a
+  thorough-looking suite lowers the felt need for the expensive proof, and the expensive
+  proof is the only one that covers the join the suite mocked.** The greener the unit tests,
+  the less anyone reaches for the slow test — which is exactly backwards when the units are
+  individually correct and the seam between them is the defect. §9's "a green outcome is not
+  route evidence" said this about which code ran; this is the same rule about whether
+  anything ran at all.
+
+  Cheap mitigation, recorded so it is not re-derived: the timeout is user-configurable, so
+  the expensive proof is only expensive at the default. Setting it to 1 minute turns a
+  15-minute wait into a 2-minute one, which is how it was finally tested.
+
+Neither of the first two was reachable from the campaign's scopes as written. The third was
+reachable in principle and was missed by tests that mocked the seam. All three are AUDIT-2
+input.
 
 ## 9. What the campaign taught about auditing itself
 

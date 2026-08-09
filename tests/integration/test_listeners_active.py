@@ -13,6 +13,7 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [PT-3]  pause_timeout: cancel returns not-cancelled → no event, no save.
 [PT-4]  pause_timeout: auto-cancel that stranded rooms → also EVENT_RUN_INCOMPLETE.
 [PT-5]  pause_timeout: auto-cancel with no missed rooms → JOB_FINISHED only.
+[PT-6]  pause_timeout: the job's paused flag tracks the ROBOT, not just our service.
 [ST-1]  pause_timeout: stranded-run reaper that stranded rooms → JOB_FINISHED + RUN_INCOMPLETE.
 [JP-1]  job_progress: active job → snapshot + EVENT_JOB_PROGRESS_TICK.
 [JP-2]  job_progress: inactive status → skipped.
@@ -133,6 +134,77 @@ async def test_pause_timeout_cancels(hass):
     assert len(finished) == 1
     m.async_cancel_active_job.assert_awaited_once()
     m.async_save.assert_awaited()
+
+
+async def test_pause_timeout_arms_from_the_robots_own_paused_state(hass):
+    """[PT-6] A pause that did NOT come through our service still arms the timeout.
+
+    async_pause_active_job pauses the vacuum AND marks the job, but nothing marked the job
+    when the robot was paused by any other route — the HA vacuum card, the Eufy app, the
+    button on the robot. The timeout check requires status == "paused", so those pauses
+    armed nothing and sat forever. Found on hardware 2026-08-08: the guard existed, which
+    is precisely why it read as complete.
+
+    paused_at comes from the state's last_changed, not from now(), so the poll interval
+    costs detection latency and never accuracy.
+    """
+    m = _mgr(hass)
+    m.get_paused_job_timeout_report.return_value = None
+    m.active_job.get_active_job.return_value = {"status": "started"}
+    hass.states.async_set(_VAC, "paused")
+    await hass.async_block_till_done()
+    changed_at = hass.states.get(_VAC).last_changed
+
+    pause_timeout.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1, seconds=5))
+    await hass.async_block_till_done()
+    pause_timeout.remove(hass)
+
+    m.active_job.pause_active_job.assert_called_once()
+    kwargs = m.active_job.pause_active_job.call_args.kwargs
+    assert kwargs["vacuum_entity_id"] == _VAC
+    assert kwargs["paused_at"] == changed_at.strftime("%Y-%m-%dT%H:%M:%SZ"), (
+        "paused_at must be the state's last_changed, not the moment we noticed"
+    )
+
+
+async def test_pause_timeout_clears_the_flag_when_the_robot_resumes(hass):
+    """[PT-6] Both edges — arming alone is the same bug mirrored, and worse.
+
+    A job left marked paused after an app-side resume would be cancelled MID-CLEAN by the
+    reap below it. Cleared through resume_active_job rather than by writing status
+    directly, so paused wall-clock accumulates exactly as a service resume does.
+    """
+    m = _mgr(hass)
+    m.get_paused_job_timeout_report.return_value = None
+    m.active_job.get_active_job.return_value = {"status": "paused"}
+    hass.states.async_set(_VAC, "cleaning")
+    await hass.async_block_till_done()
+
+    pause_timeout.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1, seconds=5))
+    await hass.async_block_till_done()
+    pause_timeout.remove(hass)
+
+    m.active_job.resume_active_job.assert_called_once()
+    m.active_job.pause_active_job.assert_not_called()
+
+
+async def test_pause_timeout_leaves_an_agreeing_job_alone(hass):
+    """[PT-6] No write when the record already matches the robot — no save churn."""
+    m = _mgr(hass)
+    m.get_paused_job_timeout_report.return_value = None
+    m.active_job.get_active_job.return_value = {"status": "started"}
+    hass.states.async_set(_VAC, "cleaning")
+    await hass.async_block_till_done()
+
+    pause_timeout.register(hass)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=1, seconds=5))
+    await hass.async_block_till_done()
+    pause_timeout.remove(hass)
+
+    m.active_job.pause_active_job.assert_not_called()
+    m.active_job.resume_active_job.assert_not_called()
 
 
 async def test_pause_timeout_no_report(hass):
