@@ -1,5 +1,9 @@
 # Vacuum Agent
 
+<p align="center">
+  <img src="docs/screenshots/va-2-hero.png" alt="A phoenix rising from the wreck of a robot vacuum" width="300">
+</p>
+
 [![HACS Default][hacs-badge]][hacs-url]
 [![Release][release-badge]][release-url]
 [![Home Assistant][ha-badge]][ha-url]
@@ -52,13 +56,15 @@ Cumulative cycle counter, zone-aware charge-rate tracking (low / high / mid-job)
 
 ## Make it yours — themes & languages
 
-A built-in **theme editor** for the panel card, with three layers: ready-made presets, a high-level palette editor, and full token-level control with live previews (including every floor material). Export/import via clipboard or file to share themes or migrate between installs. There's a validated **colorblind-safe** theme plus always-on shape-coded status badges.
+A built-in **theme editor** for the panel card, with three layers: ready-made presets, a high-level palette editor, and full token-level control with live previews (including every floor material). Export/import via clipboard or file to share themes or migrate between installs. There's a validated **colorblind-safe** theme, and a faulted run carries a warning triangle on its errors badge so it can be spotted without relying on colour. The language menu also holds a per-user **typeface picker** — **OpenDyslexic ships built in**, and you can drop your own `.woff2` fonts into `config/eufy_vacuum/fonts/` and they appear in the picker after a restart.
 
 ![Themes — presets](docs/screenshots/themes-presets.png)
 
 The card **speaks eighteen languages** out of the box — English plus seventeen translations: German, French, Spanish, Dutch, Italian, Portuguese, Russian, Polish, Czech, Turkish, Indonesian, Arabic, Hebrew, Japanese, Korean, and Chinese (Simplified & Traditional), including right-to-left Arabic & Hebrew — via a per-user language globe in the header, plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English. (Native reviewers very welcome — see the [translations discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).)
 
 The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered across the shipped languages:
+
+Fault names are translated too — 237 of them across both brands, so a base-station error reads as "Base station dust duct blocked" in your language rather than as code 6112.
 
 ![The Room card's cleaning controls — mode, suction, path, passes, Start — shown across the shipped languages](docs/screenshots/translations-hero-room-card.png)
 
@@ -72,12 +78,12 @@ The Roborock adapter (tested on the **S6**) brings the stock integration up to p
 
 ## Automation events
 
-Wire the vacuum into the rest of your home. Vacuum Agent fires `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` for use in automations. Run/room profiles and zone cleans are triggerable straight from automations and scripts too.
+Wire the vacuum into the rest of your home. Vacuum Agent fires `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_run_incomplete`, `eufy_vacuum_path_blocked` and `eufy_vacuum_stall_captured` for use in automations. Two more — `eufy_vacuum_room_skipped` and `eufy_vacuum_stall_detected` — depend on the robot reporting which room it is in mid-run, so they fire on brands that track position reliably and stay quiet on those that do not (Roborock's own path optimisation ignores the dispatched room order, so neither fires there). Run/room profiles and zone cleans are triggerable straight from automations and scripts too.
 
 ## Where it lives
 
 - **Built-in Lovelace panel card** — the integration registers its own sidebar dashboard panel. No separate card repository or manual resource registration needed.
-- **Drop-in dashboard cards** — two compact cards you add to your *own* dashboards from the card picker (no resources to register): **Vacuum Agent — Dashboard Mode** (`vacuum-agent-dashboard`), a multi-room control card (pick rooms + settings, run a saved profile or app scene, embedded map, Start / Dock); and the **Eufy Room Card** (`eufy-room-card`), one card per room. Both carry the language globe, and the embedded map pins its pan/zoom across reloads and lets you drag room-name labels. See [Dashboard & Room cards](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/20-dashboard-and-room-cards/).
+- **Drop-in dashboard cards** — three compact cards you add to your *own* dashboards from the card picker (no resources to register): **Vacuum Agent — Dashboard Mode** (`vacuum-agent-dashboard`), a multi-room control card (pick rooms + settings, run a saved profile or app scene, embedded map, Start / Dock); the **Eufy Room Card** (`eufy-room-card`), one card per room; and the **Vacuum Agent Profile Card** (`vacuum-agent-profile-card`), one card per saved run profile, showing the routine's step sequence and a Run button. All three carry the language globe, and the Dashboard card's embedded map pins its pan/zoom across reloads and lets you drag room-name labels. See [Dashboard & Room cards](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/20-dashboard-and-room-cards/).
 
 ---
 
@@ -122,14 +128,12 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 
 ## Installation via HACS
 
-1. In Home Assistant, open **HACS** and go to **Integrations**.
-2. Click the three-dot menu (top right) and choose **Custom repositories**.
-3. Add `https://github.com/kingchddg901/Vacuum_Agent` as an **Integration** type repository.
-4. Search for **Vacuum Agent** in HACS and install it.
-5. Restart Home Assistant.
-6. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.
-7. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy, the built-in Roborock integration for Roborock) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
-8. A **Vacuum Agent** item appears in your sidebar (the default panel title; rename it per-vacuum later). The panel card is registered automatically — no manual dashboard editing required.
+1. In Home Assistant, open **HACS** and search for **Vacuum Agent**.
+2. Install it.
+3. Restart Home Assistant.
+4. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.
+5. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy, the built-in Roborock integration for Roborock) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
+6. A **Vacuum Agent** item appears in your sidebar (the default panel title; rename it per-vacuum later). The panel card is registered automatically — no manual dashboard editing required.
 
 If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Vacuum Agent → Configure** to add it.
 
@@ -140,8 +144,8 @@ If you submitted setup without picking a vacuum, the sidebar entry still appears
 | Field | Required | Description |
 |---|---|---|
 | **Vacuum** | Optional | The `vacuum.*` entity from your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy; the built-in Roborock integration for Roborock). Leave blank to skip for now and set it later via **Configure**. |
-| **Tested model** | Required | The model you are setting up. Used to select the correct adapter config and capability declarations. Defaults to the **Eufy X10 Pro Omni**. |
-| **Notes** | Optional | Free-form text for your own reference. Shown in the integration entry in **Settings → Devices & Services**. |
+| **Tested model** | Required | A label for your own reference — it does not affect behaviour. The adapter and its capability flags are detected automatically. Defaults to the **Eufy X10 Pro Omni**. |
+| **Notes** | Optional | Free-form text for your own reference. Stored on the config entry and shown again when you reopen **Configure**; it is not displayed on the integrations page, and it is redacted from diagnostics downloads. |
 
 ### Options flow (Configure button)
 
@@ -154,7 +158,7 @@ After the initial install, open **Settings → Devices & Services → Vacuum Age
 
 ## Removing the integration
 
-Go to **Settings → Devices & Services**, find **Vacuum Agent**, and delete it. No extra steps are required — all integration data is stored inside Home Assistant and is removed with the entry.
+Go to **Settings → Devices & Services**, find **Vacuum Agent**, and delete it. The integration's stored settings go with the entry. Map images, learning history, battery logs and any stall captures are files under `<config>/eufy_vacuum/` and are deliberately left in place, so re-adding the same vacuum recovers them — delete that folder by hand if you want a clean wipe.
 
 **Remove a single vacuum** (keeping the others): open **Settings → Devices & Services → Vacuum Agent**, click that vacuum's device, and choose **Delete**. Its sidebar panel, entities, and stored data are removed and the other managed vacuums are left untouched. Its learning history and saved map images stay on disk, so re-adding the same vacuum restores them.
 
@@ -167,7 +171,7 @@ Note: this integration sits on top of your provider integration (e.g. [eufy-clea
 
 ## Screenshots
 
-> **Live site — [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/):** the project's hub. A [**theme gallery**](https://kingchddg901.github.io/Vacuum_Agent/themes/) renders the *real* card under every community-submitted theme (each tab, the External Jobs subtab, the review wizard); an [**animal gallery**](https://kingchddg901.github.io/Vacuum_Agent/animals/) shows the map companions you can submit — or dedicate to a pet at Rainbow Bridge; and the full [**docs**](https://kingchddg901.github.io/Vacuum_Agent/docs/) live there too. The galleries are rebuilt by the [render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) on every push to `master`, so they never go stale — the static tour below is just a quick offline glance.
+> **Live site — [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/):** the project's hub. A [**theme gallery**](https://kingchddg901.github.io/Vacuum_Agent/themes/) renders the *real* card under every community-submitted theme (each tab, the External Jobs subtab, the review wizard); an [**animal gallery**](https://kingchddg901.github.io/Vacuum_Agent/animals/) shows the map companions you can submit — or dedicate to a pet at Rainbow Bridge; and the full [**docs**](https://kingchddg901.github.io/Vacuum_Agent/docs/) live there too. The galleries are rebuilt by the [render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/frontend/render-harness/) on every push to `master`, so they never go stale — the static tour below is just a quick offline glance.
 
 <details>
 <summary><strong>Click to expand the full panel tour</strong></summary>
@@ -186,7 +190,7 @@ Live dock state, water reservoir projection, and gated dock actions (wash mop, d
 
 ### Metrics
 
-Job and learning history, filtered by room, profile, status, or learning use.
+Aggregates across the learning dataset in six sub-tabs — Learning, Rooms, Profiles, Water, Dock and Battery — filtered by room, profile, status, or learning use.
 
 ![Metrics tab](docs/screenshots/metrics.png)
 
@@ -198,7 +202,7 @@ Cycle count, zone-aware charge rates (low / high / mid-job), per-job drain rates
 
 ### Learning Review
 
-Inspect every recorded run, exclude outliers (test runs, false completions, bad room attribution), and see which profiles match the current settings.
+Inspect every recorded run, exclude outliers (test runs, false completions, bad room attribution), and see which profiles match the current settings. Open any run for a **Run summary** — per-room results, elapsed vs cleaning time, area covered, battery used, mid-run recharges, and every fault with its hardware attribution and whether it cleared.
 
 ![Learning Review tab](docs/screenshots/learning-review.png)
 
@@ -224,12 +228,6 @@ Built-in theme editor with three layers: ready-made presets, a palette editor fo
 ![Themes — palette](docs/screenshots/themes-palette.png)
 ![Themes — tokens](docs/screenshots/themes-tokens.png)
 
-### Map Bounds
-
-Per-room bounding-box review across runs, with outlier detection so a single bad run doesn't poison your learned bounds.
-
-![Map Bounds tab](docs/screenshots/map-bounds.png)
-
 ### Setup
 
 Register the vacuum, import maps, and configure each room — exclude ghost rooms, set floor type per room (drives the cleaning profile system *and* the floor-texture map). The Setup tab stays useful after the initial wizard: it watches for new rooms the vacuum reports later and for configured rooms that disappear, surfacing both for one-click review.
@@ -238,7 +236,7 @@ Register the vacuum, import maps, and configure each room — exclude ghost room
 
 ### Interactive room map (optional)
 
-Tap a room on a live floor-plan view to queue it; double-tap to configure. **This view is not enabled by default** and requires a one-time configuration step — see [Map Configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/) for setup.
+Tap a room on a live floor-plan view to queue it; double-tap to configure. **The map view is off by default** — flip the list/map toggle in the Rooms tab. With a provider map entity it works straight away; without one, or to draw your own room shapes (which is what double-tap-to-configure needs), you upload and segment a map once — see [Map Configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/).
 
 ![Interactive room map](docs/screenshots/rooms-map.png)
 
@@ -266,7 +264,11 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Room drift detection — auto-surfaces new rooms for review, suppresses phantoms
 - Theme system — full theme editor with clipboard and file-based import/export
 - Multi-language card — per-user language picker, 17 built-in translations + drop-in locales (English fallback)
-- Accessibility — a validated colorblind-safe theme plus always-on shape-coded status badges
+- Accessibility — a validated colorblind-safe theme, a shape-coded warning badge on faulted runs, and a per-user typeface picker with **OpenDyslexic** built in
+- Accessible typefaces — drop your own `.woff2` fonts into `config/eufy_vacuum/fonts/` and they appear in the picker; coverage is verified against each language's actual characters
+- Stall capture — when a run stalls, save a rendered picture of the room it stopped in, raise a notification, and fire an event carrying the file path (opt-in, per vacuum)
+- Named faults — 237 fault names across both brands, translated in every shipped language, with hardware attribution (dock or robot) and whether the fault cleared
+- Mobile layout — the panel reflows to a bottom tab bar and an overflow sheet on phones (theme *picking* on mobile; the palette and token editors stay desktop)
 
 ## Documentation
 
@@ -277,7 +279,8 @@ Full docs live at **[kingchddg901.github.io/Vacuum_Agent/docs](https://kingchddg
 - [User guide](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/01-overview/) — a walk-through of every panel tab
 - [Setup](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/11-setup/) — the initial wizard and ongoing room-drift review
 - [Battery health](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/13-battery-health/) — what's tracked, the twelve sensors, charting, raw CSV/JSONL access
-- [Accessibility](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/14-accessibility/) — the colorblind-safe theme and shape-coded badges
+- [Accessibility](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/14-accessibility/) — the colorblind-safe theme and the shape-coded warning badge
+- [Fonts](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/14a-fonts/) — OpenDyslexic, and adding your own typefaces
 
 **Automations**
 
@@ -298,7 +301,7 @@ Full docs live at **[kingchddg901.github.io/Vacuum_Agent/docs](https://kingchddg
 
 ## For developers and porters
 
-Under the hood the integration is **adapter-driven**: every brand-specific fact (entity IDs, vocabulary, dispatch payload shape, dropdown option lists, maintenance components, water-tank measurements, upkeep guides) lives in one per-vacuum adapter config dict. The framework reads from this registry at runtime; no brand assumptions exist in core code.
+Under the hood the integration is **adapter-driven**: every brand-specific fact (entity IDs, vocabulary, dispatch payload shape, dropdown option lists, maintenance components, water-tank measurements, upkeep guides) lives in one per-vacuum adapter config dict. The framework reads from this registry at runtime; core never branches on brand — brand-specific dispatch and decode engines live in core registries but are selected only by the name the adapter declares. (One legacy exception: a vacuum with no adapter config registered falls back to the Eufy dispatch payload shape.)
 
 The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for a different vacuum brand is a config-only change: write a parallel `adapters/<brand>/` folder, declare what your brand exposes, register the adapter at integration setup. The framework, the card, the learning system, and the dispatch path all consume whatever the adapter declares.
 

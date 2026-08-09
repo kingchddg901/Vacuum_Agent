@@ -308,6 +308,27 @@ python scripts/mock_census.py                     # the current profile, worst f
 python scripts/mock_census.py --write-allowlist   # bank progress AFTER converting
 ```
 
+### Front-page link gate — `tests/unit/test_readme_links.py`
+
+`mkdocs.yml` sets `docs_dir: docs` and builds `--strict`, so every link inside
+`docs/` is validated on each Pages build. `README.md` sits at the repository ROOT,
+which puts it outside that gate entirely — no CI job reads it at all.
+
+The gap was not theoretical. The README pointed at `…/docs/dev/27-render-harness/`
+after that file was renamed to `docs/dev/frontend/render-harness.md`. There is no
+redirects plugin and the Pages deploy replaces the whole artifact, so it had been a
+hard 404 since the rename, found eventually by a hand audit.
+
+Four checks, all offline: every repo-relative path exists on disk; every published
+docs-site URL maps to a real source file under `docs/` (including the section
+landings, which are `README.md`, not `index.md`); every in-page anchor matches a
+heading that still exists; and reference-style definitions and uses match in both
+directions. External URLs are deliberately NOT checked — they need the network and
+other people's repos are allowed to move.
+
+Retiring a screenshot or renaming a docs page now fails here instead of on the
+front page.
+
 ### Documentation ratchet — `tests/test_docs_ratchet.py`
 
 A test file that appears nowhere in `docs/testing/` produces no findings and reads
