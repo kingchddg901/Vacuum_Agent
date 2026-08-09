@@ -10,6 +10,543 @@ only.
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-08
+
+**The Phoenix Release.** A hostile audit campaign ran against the whole tree and
+produced **484 verified findings** — 18 critical, 88 high, 173 medium, 205 low.
+Those collapsed into 33 accepted repair families (6 candidate families rejected)
+resting on eight structural invariants, executed as 60 landed packets. Almost
+none of it had been reported by anyone: the dominant failure shape was a setting
+that silently did nothing, which is indistinguishable from a setting that works.
+New features shipped alongside the repairs.
+
+The bound is stated rather than rounded off. 36 of the 484 findings carry
+executed evidence; the rest were verified by two independent source-reading
+passes. The CV segmentor is excluded by design, because its correctness is
+empirical rather than textual and this method cannot falsify it. Method,
+findings and the open remainder are written up in `docs/how-this-was-audited.md`
+and `.claude/notes/synthesis/AUDIT-1-CLOSEOUT.md`, whose §8 lists every open item
+with the specific thing that would close it.
+
+### Breaking changes
+
+- **Per-room settings on disk are repaired, once, on update.**
+  `rooms/vocabulary_migration.py` runs one-shot on the `room_vocabulary_v1` key,
+  after adapter registration, and judges every stored room against what its
+  brand's adapter *declares*: a field no declared profile carries is **dropped**,
+  and a value absent from the brand's declared options is **reset** to that
+  brand's `default_profile` value — consulting the brand's declared aliases
+  first, so a retired name keeps its meaning instead of falling back. There is no
+  nearest-match: declared option lists are unordered sets. The call site moved
+  from `async_setup_entry` to `async_at_started`, and a vacuum whose own
+  integration has not finished loading is now **deferred**, not counted as
+  repaired — see *Fixed* below.
+- **`set_area_label_anchor` is removed**, along with its schema, handler,
+  registration, `services.yaml` block, card action, and the only writer of the
+  `label_anchor` room field. Area-chip positions are now device-local
+  (`localStorage`), matching the room-name labels beside them; positions dragged
+  before this release are seeded once per device from the backend payload and
+  owned locally thereafter. The seed marker is persisted, so clearing an anchor
+  is not undone by the next page load. `resolve_area_label_anchors` survives on
+  both read paths for that seed.
+- **An adapter that declares no `room_profiles` block now fails registration.**
+  Core owns the key space — the four protected profile names and
+  `default_profile` — and none of a brand's words. There is no framework catalog
+  to inherit and no per-key merge: an undeclared key resolves EMPTY, and
+  resolution raises `UndeclaredProfileCatalogError` naming the missing
+  declaration rather than a bare `KeyError`. Eufy's catalog moved to
+  `adapters/eufy/room_profiles.py`. Absent and declared-empty stay
+  distinguishable so "this brand has none" and "the porter forgot" cannot
+  collapse into one state.
+- **Eufy suction: `Boost` is replaced by `Turbo`.** `fan_speed` resolves by index
+  into the upstream speed list, `boost` is absent from it, and selecting Boost
+  therefore applied no suction at all. BoostIQ is the auto carpet-boost switch on
+  DPS 118, not a fifth speed. `Turbo` is the device's real second-highest suction
+  and was unreachable. Verified absent from the live store before the change — no
+  room, saved room profile or run profile carried it — so no migration is needed.
+  `fan_speed_aliases` still folds `boost iq` onto `boost`; that feeds learning
+  bucket labels rather than dispatch and is deliberately left for its own look.
+- **Eufy `clean_intensity` reaches the wire through a declared `value_map`** —
+  `{"Narrow": "normal", "Deep": "narrow"}`. Sent unmapped, Narrow and Deep
+  collapsed onto the same device density and the middle one (the Eufy app's
+  "Medium") was impossible to select. Stored values do not move; only the
+  dispatched word changes. Hardware-verified against `clean_param_pb2`
+  (`NORMAL=0`, `NARROW=1`, `QUICK=2`) — an arbitrary enum, not an ordinal, so
+  nothing may interpolate on it. The map is exact-match-then-passthrough and
+  therefore **case-sensitive**: the two vocabularies share the word "narrow" at
+  opposite ends of the scale, and case is the only discriminator.
+- **`path_type` is no longer a canonical axis, and Eufy no longer declares it.**
+  Pass density was declared under two names and rode the same room object on the
+  wire, with every stored room holding the literal string `"None"` — in no
+  brand's vocabulary, so the device discarded it and `clean_intensity` won by
+  accident. Core stops backfilling the key and stops supplying a `"wide"`
+  default at all four sites; an unsupported device now has the field **omitted**
+  rather than clamped, and `RoomConfig.path_type` defaults to `""` so a round
+  trip cannot mint a value. Eufy drops it from all five profiles and from
+  `room_fields`. Roborock keeps it, and gains `path_type_options` plus per-model
+  `has_path_control` (False everywhere until verified on hardware).
+- **Room rejection is per-map, and an unqualified rejection is refused.**
+  Rejections were stored as one flat per-vacuum list, so rejecting a ghost id 3
+  downstairs made the real id 3 upstairs permanently unconfigurable and
+  invisible. New rejections land in `rejected_rooms_by_map` and apply to their
+  own map only. Omitting `map_id` now means "the only map" and **refuses** on a
+  multi-map vacuum rather than applying vacuum-globally. The legacy flat list is
+  still read and applied to every map, and never appended to again.
+- **`manifest.json` declares requirements for the first time**: `fonttools>=4.47.0`
+  and `brotli>=1.1.0`, which back the drop-in typeface trust chain. The CV stack
+  (numpy / Pillow / scipy) remains optional; stall capture degrades to no image
+  when Pillow is absent.
+- **`dev_inject_stall` is registered, and is a maintainer tool, not a feature.**
+  It fires a synthetic `EVENT_STALL_DETECTED` for a vacuum that is currently
+  cleaning a room, using its real map and room, so every consumer downstream runs
+  for real. It is deliberately *not* hidden behind a dev-mode marker file — a
+  conditionally registered service is one nobody can find when they need it and
+  nobody is warned about when they don't — so the hazard is stated where a caller
+  reads it, in the `services.yaml` description: the event is not private to stall
+  capture, it also reaches `detect_run_anomalies` and therefore the card's
+  snapshot, so an injected stall makes a clean run report as anomalous. It
+  commands no hardware and refuses unless the vacuum is actually cleaning a room.
+
+### Added
+- **Accessible typefaces, including OpenDyslexic.** Pick a typeface for the whole
+  card from the theme panel, with preset chips. Custom faces are drop-in:
+  `config/eufy_vacuum/fonts/<id>/` holds `font.json`, the woff2 files and a
+  licence, and they appear in the picker after a restart — no release required,
+  and they survive HACS updates. The **backend** owns the trust chain
+  (`user_fonts.py`): descriptor validation, cmap parsing via fontTools, and
+  per-locale verification against the shipped locale catalogues, with GSUB
+  required for shaping locales. The descriptor cannot claim locales — the font
+  file is the evidence — and `catalog.json` is the canonical response the card
+  consumes generically. There is no browser render-verification anywhere:
+  rendered-text checks lie through per-glyph fallback.
+- **Stall capture** ([#47]). Opt-in per vacuum. On a stall, the room the robot
+  stopped in is rendered — silhouette, the last stretch of travel, a dot for
+  where it came to rest, and a name pill — written to
+  `config/eufy_vacuum/learning/<vacuum>/stall/<map_id>.png`, with a persistent
+  notification naming the room and map and an `eufy_vacuum_stall_captured` event
+  carrying the path so an automation can forward it. Armed with
+  `set_stall_capture` or from the rooms toolbar; absent arming is OFF, never
+  inherited by an upgrade. Deliberately **not** under `www/`, which is served at
+  `/local/` without authentication and would publish a floor plan of the user's
+  home at a fetchable URL on every stall. One file per (vacuum, map),
+  overwritten, written tmp-then-`os.replace`. It is a *consumer* of
+  `EVENT_STALL_DETECTED` rather than its owner, so turning it off cannot disable
+  run-anomaly reporting.
+- **Faults have names, on both brands, in all 18 languages, on history already on
+  disk.** 189 Eufy fault labels and 48 Roborock ones, resolved at **read time**
+  from the raw vendor code every record has always carried — so every historical
+  job is named the moment this ships, with no migration. `error_label_key` and
+  `error_source_for_code` read the adapter's declaration; core never learns a
+  brand's codes, and `None` is a real answer that renders the raw number rather
+  than an invented label. Each row carries code, label key, source (dock / robot
+  / unknown), recovered, capture time and room id. A warning triangle marks a
+  faulted run in the list.
+- **Job Summary.** Tapping a completed run — the row body or its warning badge,
+  deliberately the same modal — shows what the run was asked to do, what happened
+  in each room, and any faults, named and attributed. All three sections read
+  fields the backend derives on read, so older records gain them too, including a
+  recharge line without which a run that drew 55% reports "11% used". Omit,
+  never zero: a null battery reading is dropped rather than rendered as 0, a room
+  with settings and no result reads "Not reached", and a fault that did not clear
+  reads "Not recovered" — nothing establishes that a fault *ended* a run.
+- **A group phase's rooms get measured timings, not an even split.** A multi-room
+  `room_group` phase used to record one row per member with the group's totals
+  divided by N, `allocated=true` — and `cleaning_wall_seconds`, which learning
+  actually consumes, was not even the room's share but the whole phase's wall
+  repeated for every member. Members are now segmented out of the counter stream
+  behind three gates, each falling back to the even split: the brand must declare
+  `honors_clean_order`, the segmenter must return exactly n bouts, and the
+  rebased parts must reconcile to the group's measured totals within a second /
+  5 cm² per member.
+- **Room access graph.** Describe which rooms a vacuum must pass through to reach
+  others. `set_room_access_graph` does build, rebuild and clear in one atomic
+  replace-all write — clearing is the same call with no dock room and no edges,
+  so there is no separate clear service to drift against it. Edges are
+  order-independent `{from, to}` pairs. It refuses structural illegality (loop,
+  multiple-inbound, unknown room) and writes nothing; incompleteness is
+  *reported* with the rooms named, not refused, so a graph can be built in
+  stages. The response carries `block_code_before`/`after`, because clearing does
+  not always unlock. A missing dock room is now refused too: `multiple_dock_rooms`
+  had always been in the structural set while `missing_dock_room` never was, so
+  too many docks refused and zero docks was allowed.
+- **The estimate panel freezes the plan at dispatch.** `get_planned_job_estimate`
+  computes from the payload state and job start clears the payload, so the panel
+  went blank exactly when the user most wanted to see what they had asked for.
+  It now serves the dispatch-time estimate already written into the live job
+  snapshot — the same object the user approved, so the two cannot disagree —
+  matched on `job_id`, tagged `frozen_at_dispatch` / `source: "dispatch_snapshot"`,
+  falling through to the live recompute when there is no snapshot and thawing on
+  any terminal status.
+- **`setup_unreject_rooms`** — an un-reject path, which did not exist from
+  anywhere. It refuses an unqualified call on a multi-map vacuum for the same
+  reason rejection does: the entry it would clear is the vacuum-global one.
+- **A `services.yaml` ↔ registration parity gate**
+  (`tests/unit/test_service_declaration_parity.py`). It discovers the registered
+  surface by AST-walking every `hass.services.async_register(...)` call rather
+  than from a hand-maintained checklist, then asserts every registration has a
+  schema, every service is documented or on a reviewed `INTERNAL_SERVICES`
+  allowlist, every `services.yaml` field exists in its schema with matching
+  required-ness in both directions, and no dead schema constants survive. A fifth
+  test guards the allowlist against rot.
+- **Learning stores are repairable.** `accuracy_stats`, the incremental
+  accumulators, the battery drain aggregates and `learned_zones` can all now be
+  rebuilt from the completed-job archive; every durable learning store is either
+  rebuildable or explicitly registered as raw evidence with no rebuilder.
+- **Real-frame render harness** (`mountRealCard()`, opt-in). Every prior spec
+  rendered stub state into the renderers and wrapped it in a synthetic frame, so
+  nothing `main.js` owns — shell construction, viewport detection, the
+  `ResizeObserver`, sticky mobile chrome, the typeface chain on the real shell —
+  could be asserted. It found within minutes that `mobile_shell` had never worked
+  on a normal mount.
+
+### Fixed
+
+#### `clean_mode` — one predicate, ten sites ([#48])
+
+The card writes `clean_mode` as a **display label** (`Vacuum and mop`); the
+framework's canonical token is `vacuum_mop`. Every site that asked "is this a mop
+mode?" carried its own spelling of the answer, and they disagreed.
+`canonical_clean_mode` and `is_mop_clean_mode` in `profiles/room_profiles.py` are
+now the single backend owner, and `canonicalCleanMode` in `src/clean-mode.js` —
+dependency-free, so even the import-free steps-manifest builder can reach it — is
+its card-side mirror; the two are separate languages, cannot share code, and are
+pinned to each other alias for alias by test. The question is normalized at each
+site rather than the value, because canonicalizing the value would lowercase
+brand vocabulary on its way to a case-sensitive wire map. The class survived
+4,000-plus passing tests because
+every existing pin fed `"vacuum_mop"`, the one spelling that never broke; the
+pins now parameterise over the spellings the card can actually store, and both
+wrong answers are mutation-verified.
+
+- **The read path** — the original report. Edge mopping was zeroed on every read,
+  because two predicates disagreed about what counts as a mop mode and one of
+  them was case-sensitive, so the display spelling the card actually stores read
+  as *not a mop mode* and wiped a correctly-saved value.
+- **The capability gate** (`apply_capability_gate`) under-fired in both
+  directions from one root. A device with no mop hardware, handed the label
+  `Vacuum and mop` or `Mop`, was **not downgraded** and was sent a mop payload; a
+  vacuum-only room stored as `Vacuum` did not have water level and edge mopping
+  cleared and dispatched carrying both, where nothing downstream would refuse
+  them. The live store held 31 rooms in that state.
+- **The wire payload** (`build_room_clean_payload` in `queue/queue_engine.py`) —
+  the worst copy. Both gates were the same exact, case-sensitive set, fed a value
+  the capability gate re-emits untouched. A mop-capable vacuum cleaning a room
+  stored as `Vacuum and mop` had `water_level` and `edge_mopping` **omitted from
+  the dispatched payload** while `resolved_rooms` recorded them as applied, so
+  the card, the history record and learning all agreed a setting had been sent
+  that never went out. The comment above it claimed the gates checked "the
+  canonical value" — it meant only *pre-wire-rename*, and that reading is what
+  let the site survive the first sweep. Corrected in place.
+- **Profile matching** (`profiles/manager.py`). `_normalize_profile_match_value`
+  folds case and the off/true/false/numeric literals and nothing else, so it
+  compared `vacuum and mop` against `vacuum_mop` and returned unequal: every
+  card-saved **non-carpet mop room** failed to match any preset and was stamped
+  `profile_name: custom`, losing its preset binding and resolving back through
+  the `default_profile` fallback as a vacuum-only preset it was never set to.
+  Carpet rooms escaped only because the carpet guard downgrades them first. Only
+  the `clean_mode` leg is canonicalized — the other five compare a brand's
+  vocabulary, which core does not own.
+- **The standalone room card** (`src/cards/_shared.js`, `src/room-card.js`). The
+  chip-active test lowercased both sides and compared identity, so
+  `vacuum and mop` matched none of `vacuum` / `mop` / `vacuum_mop` and **all
+  three mode chips rendered inactive** — a correctly configured room reading as
+  "no cleaning mode selected". The card contradicted itself, because the mop test
+  two lines up uses a substring fold and correctly showed the water level and
+  edge mopping rows.
+- **The estimator** (`learning/estimator.py`). Fed a lowercased but
+  un-canonicalized mode, so a 100%-mop job accumulated no `projected_mop_minutes`
+  and reported `overhead.mop_wash` as `0.0`, with the ETA short by the whole wash
+  allowance. The file contradicted itself within six lines: the same variable
+  goes into `_find_room_match`, whose predicate canonicalizes both sides, so the
+  room matched its learned stats and got correct minutes while `is_mop` said it
+  was not a mop room.
+- **Battery metrics** (`battery/job_metrics.py`). `_bucket_key` folds case only,
+  so two spellings of one mode made `len(by_clean_mode) == 2`, flipped
+  `is_single_clean_mode` to False, and **dropped a genuinely single-mode run out
+  of per-mode battery-drain learning entirely**. Not hypothetical: a read-only
+  survey of 103 job records on a live install found keys
+  `{'vacuum': 97, 'vacuum and mop': 5}`. Canonicalized at the clean-mode call
+  site, not inside the helper, which also buckets `fan_speed` and `water_level`.
+  Records already written keep their old keys, so the card's existing fold stays.
+- **The run-steps manifest** (`src/state/steps-manifest.js`,
+  `src/renderers/run-profiles.js`). Raw string identity over a `Set`, so two
+  rooms genuinely in the same mode but stored with different spellings gave
+  `size === 2` and the mode chip was **omitted**, making an all-same-mode group
+  render identically to a genuinely mixed one. Directional and therefore never
+  wrong in the other direction — it could only ever drop a chip.
+- **`learning/utils.py` now genuinely delegates.** The read-path fix documented it
+  as delegating to the shared owner; it did not, and the second table was still
+  there. Behaviour is identical — both tables and both fallbacks matched — which
+  is exactly how this class starts. The private name stays: four learning modules
+  import it, and its passthrough of unknown brand modes is load-bearing for
+  bucketing, since two brand modes that both mention mopping are different runs
+  with different durations.
+- **`get_effective_room_details`** derived `mop_required` from its own substring
+  test while `_protected_room_config`, in the same file and reading the same dict
+  a few lines earlier, asked through the shared owner. Two answers to one
+  question at arm's length — the same shape, not yet diverged enough to break
+  anything. The live store was enumerated before changing a predicate that newly
+  activates over stored data: it holds exactly `Vacuum` (31), `vacuum` (22) and
+  `Vacuum and mop` (3), and old and new agree on all three.
+
+#### Reported issues
+
+- **Map import no longer requires a map-selector entity** ([#46]). Home Assistant
+  2026.7 changed which entities the core Roborock integration creates, and on a
+  single-map vacuum `select.<vac>_selected_map` is not created at all — so every
+  branch of `get_active_map_id` returned `None` and setup refused, while the
+  vacuum's rooms had been decoding perfectly the whole time. Two things had to
+  change together: `import_active_map` now refreshes the room source **before**
+  the map-id gate rather than below it (the existing single-map fallback was
+  unreachable), and `get_active_map_id` gained `_single_cached_map_id`, the
+  service-response sibling of the attribute-mode implicit path. The inference is
+  deliberately narrow — service-response source only, exactly one cached map,
+  and that map must carry at least one room-shaped row; two or more maps refuse
+  rather than guess. The refusal message is now brand-aware and keyed off the
+  five named exits of the room-source refresh, so a Roborock owner is no longer
+  told to go and check the Eufy app.
+
+#### Per-room settings that never reached the device
+
+- **A one-shot store repair could mark itself finished having repaired nothing.**
+  The migration judges rooms against what each brand's adapter declares, and
+  adapters are registered from vacuum entities owned by *other* integrations; on
+  an ordinary cold boot those may not have finished setting up, so every vacuum
+  was skipped for want of a declaration and the completion flag was set anyway —
+  permanently, and silently, because the skip logs at DEBUG. Absence of required
+  runtime information is now DEFERRED, never SUCCESS: a migration is complete
+  only when every target it is responsible for has reached a terminal
+  disposition. "Latch if any adapter answered" is the tempting near-miss and is
+  also wrong — with two vacuums on two providers it repairs the ready brand and
+  abandons the slower one for good.
+- **"Standard" intensity meant the *middle* density and was being changed to the
+  fastest.** An earlier repair folded `Standard` / `Normal` onto `Quick` on the
+  premise that they were never real values. The original setup document
+  disproves it: `[Fast, Standard, Deep]` with `initial: Standard`, and upstream
+  still maps `standard` to the middle extent. The fold therefore moved every
+  affected room from the middle density to the fastest — less cleaning, chosen by
+  nobody, and undetectable afterwards because the result was a legal option.
+  Aliases now map what those names *meant* (`fast → quick`, `standard → narrow`,
+  `normal → narrow`), and the migration's RESET consults declared aliases before
+  falling back to the default.
+- **A room save no longer re-adds an axis its brand does not have**, and a new
+  room's settings come from its **own** brand's default profile.
+
+#### The card on a phone
+
+- **The card never sized itself in panel mode.** `ha-panel-custom` gives its child
+  no height — a panel is expected to own its viewport — so `height: 100%` on
+  `:host` resolved against an auto-height parent and the shell collapsed to
+  content: 209px measured in a 780px viewport. The mobile nav then landed
+  wherever content ended and the view stage never became a scroll container,
+  leaving the sticky mobile header with nothing to stick against. Both reported
+  symptoms, one cause. The card already knew: `set panel()` had stored the flag
+  for as long as it has existed and nothing ever read it. It now stamps
+  `data-evcc-panel` and the sizing hangs off that attribute, scoped so a
+  dashboard card still defers to the height its host supplies.
+- **The rooms toolbar stays on screen at any width.** It was a single unwrappable
+  flex line — roughly 500px of content in a 390px viewport once the six icon
+  buttons at the 44px thumb minimum, the Configure label and the mascot controls
+  were counted — and the surplus simply left the screen. The row now wraps, on
+  the **base** rule rather than behind the mobile-shell attribute, because a
+  narrow Lovelace column the shell still calls desktop needs it just as much.
+  `flex-shrink: 0` is gone with it; it pinned the row at max-content, which is
+  what stopped it wrapping. The mascot controls ship inside one wrapper so a wrap
+  boundary cannot fall between the animal select and its size slider.
+- **Configure goes icon-only on mobile**, which settles the bar at two rows
+  instead of three. Only the painted text is dropped — the button already carried
+  `title` and `aria-label`, so its accessible name is untouched.
+- **The mobile header labels the battery** and reads the same low/critical bands
+  the desktop header does. An earlier fix reached one of two header renderers, so
+  the mobile shell rendered a naked percent and a critical battery read exactly
+  like a full one.
+- **The maintenance card header stacks** instead of clipping its own status. The
+  title had no `min-width` and so refused to shrink below its min-content width;
+  German cut "Warnung" to "Warn", and Russian squeezed "Фильтр" to under one
+  glyph and rendered it as a one-character-per-line column. Two width-conditional
+  fixes were tried first and both depended on the strings happening to fit;
+  stacking unconditionally means neither failure can recur in any locale at any
+  width. The maintenance frequency formatter, which had been dead by construction
+  (`guide?.frequency || _format(guide?.frequency)` only reaches the formatter when
+  its own input is falsy, and the formatter returns `""` for falsy input), now
+  always runs — locale-aware, raising only the first character, and preserving
+  hyphens so "every 3-6 months" survives.
+- **`mobile_shell` had never worked on a normal mount.** Four call sites reach
+  `setViewportFromWidth`; three guard the override and `connectedCallback`'s did
+  not, and `setConfig` runs first in Lovelace, so the re-measure landed after the
+  override and silently overwrote it — while the option was documented as the way
+  to force the mobile layout. Viewport detection itself is correct from card
+  width, in both directions.
+
+#### Jobs, dispatch and lifecycle
+
+- **A job's paused flag now tracks the robot, not just our own service.** Nothing
+  marked the job when the vacuum was paused by any other route — the HA vacuum
+  card, the vendor app, the button on the robot — and the pause-timeout report
+  requires `status == "paused"`, so a pause that did not come through the service
+  armed nothing and the job sat paused indefinitely. The flag is reconciled
+  against the robot's own state at the top of the existing one-minute reaper
+  tick, with `paused_at` taken from the state's `last_changed` rather than `now()`
+  so the interval costs detection latency and never accuracy. Both edges: a job
+  left marked paused after an app-side resume would otherwise be cancelled
+  mid-clean, and the clear path goes through the resume service so paused
+  wall-clock accumulates identically.
+- **Cancellation is effective at the last suspension point before the wire send.**
+  It was read once and never re-checked across four awaits, so a cancelled robot
+  returned to base and then drove back out.
+- **A job could be finalized twice, or lose its "finished" mark entirely.**
+  Success permanence is now written inside the protected window, so no observer
+  can see claim-released but finalized-unset. This was the campaign's
+  hardware-proven critical.
+- **A dispatch guard with no `try/finally` left a job permanently un-reapable.**
+  Every watchdog exit now resolves the pending flag or converts it into a
+  reapable state with a timestamp.
+- **"Is a job running?" was answered four different ways in four places.** Every
+  asker now points at one pair of owned helpers; robot questions and queue
+  questions are different questions.
+- **Room attribution kept running after its job ended.** The tracker's lifecycle
+  mirrors the job's, and every terminal path releases it.
+- **Stale room ids could be dispatched after a re-segment.** Dispatch may send
+  only ids resolved against a live source proven fresh; a total resolution miss
+  refuses with a visible reason.
+- **Declared per-brand caps were enforced on some code paths and not others.**
+  Every declared cap is now enforced at dispatch on every branch,
+  advisory-checked at author time, and reported to the card from the same
+  declaration.
+- **Authored run structure — groups, breaks, zones — was flattened by the
+  engines.** The phase list preserves structure end to end, and an empty phase
+  list is a refusal rather than a crash. A group phase marks all of its rooms
+  current, not `rooms[0]`, and the progress snapshot presents the phase.
+
+#### Stores and durable state
+
+- **An empty discovery result could wipe your saved rooms.** A destructive
+  replace of a non-empty room store now requires affirmative evidence — a
+  non-empty, map-matching snapshot. No evidence, no write. Five criticals sat at
+  this one seam.
+- **A file that failed to read was treated as a file that was empty.** Absent,
+  unreadable and failure-shaped are three distinct states; only *absent* may seed
+  an empty store, and a failed read can never be cached as a permanent answer. A
+  failed setup could also wipe the entire store.
+- **Entities were owned by string-prefix matching**, so deleting one vacuum's map
+  could delete another vacuum's entities — proven, not theorised. Ownership is
+  now answered by structured identity, never by prefix over a non-injective join.
+- **Settings were written to disk before the operation was authorised.** A
+  refused operation now leaves the store byte-identical.
+- **Renaming or deleting something left dangling references behind.** Destructive
+  renames migrate or clear every durable referrer, or report the count and
+  refuse. Deleting a map now takes its rejections with it.
+- **Durable state was minted for vacuums and maps that do not exist.** Per-(vacuum,
+  map) state is created only for managed vacuums and imported maps; read paths
+  never create. A stored map bucket is not a map, and that predicate is now
+  centralized.
+- **Room identity did not survive a re-segment**, and two rooms could derive the
+  same slug. Slug derivation happens once, at one admission boundary, with
+  deterministic disambiguation and an empty slug refused there; carry-over is
+  slug-led with id fallback, every id-keyed store is covered by the remap walker,
+  and new rooms enter disabled and unconfirmed.
+- **Map and pose data weren't bound to the device they came from.** Every payload
+  is bound to (device, map, content) at production, and every reader checks the
+  binding. Held stale data is either withheld from anything that acts on it or
+  delivered with a staleness contract the consumer must consume.
+- **A rejection must never delete a room** — a regression from wiring the
+  rejection exclusion, caught before it reached a real install.
+
+#### Learning, estimates and history
+
+- **A multi-room phase credited all of its time, area and battery to the first
+  room.** A phased job's record is assembled from phase-scoped evidence, with a
+  job-cumulative completed set and the job's own frozen queue. A phase's counters
+  are progress since *that* phase, and rounding jitter is no longer read as a
+  counter reset.
+- **`transit_seconds` counted cleaning as travel — 83% over.**
+- **A mid-job recharge no longer corrupts room attribution.**
+- **A stalled or frozen run skewed estimates.** Corrections across the ETA
+  cluster, with dead time carved out of segment timing.
+- **The segmenter now persists the boundaries it selected**, not just the
+  survivors.
+- **Impossible battery values are rejected by value, not by interval** — the
+  charge-rate and regime-speed guards.
+- **The review Profile filter is keyed on the saved profile**, not on a room
+  signature, and no longer eats its own options.
+
+#### Failures you could not see
+
+- **Refusals were computed and then dropped at the service and card boundaries —
+  the caller saw success.** A mutation service now either raises or returns a
+  response whose failure flag is exposed, and handlers gate on flags rather than
+  on prose.
+- **`unavailable` was compared as if it were a value**, fabricating numeric
+  defaults that then fed statistics. An unreadable entity yields *indeterminate*,
+  which never satisfies a negating operator and never invents a number. An absent
+  battery reading stops rendering as "Battery 0".
+- **The diagnostic instruments lied about their own state.** Every sink applies
+  the same redaction, reports its own state truthfully, and classifies permanent
+  misconfiguration as permanent. A failed capability resolution is now
+  distinguishable from an absent capability, and the decision log is selectable
+  in the flight recorder.
+- **Companion entities resolve by device as well as by derived name**, so a
+  naming scheme the author's own install does not produce no longer fails
+  resolution.
+- **The accessibility typeface never applied**, through three stacked causes:
+  `@font-face` was never registered on the *document*, the typeface read was on a
+  phantom selector and then lost to the theme, and a fallback-less paper variable
+  poisoned the token to a guaranteed-invalid value. The harness gate that should
+  have caught it never rendered the typeface at all.
+- **Stray timers survived teardown**, and the guard that "covered" them was
+  vacuous. Every loop-lifetime task, timer, listener and service is now attached
+  to a teardown ledger that unload fully drains.
+- **Blocking file I/O at startup and on hot read paths** is gone; snapshot
+  composition is pure and single, and high-frequency writes are debounced.
+- **Deleted files were still running on the live box** — the deploy path now
+  purges.
+
+### Changed
+- **A new brand mark, and a wordmark that reads the right way round.** The logo
+  had said AGENT VACUUM — the words reversed — in every release to date. The
+  product is Vacuum Agent. The mark gains phoenix wings. Assets are served by
+  Home Assistant's own brands endpoint straight off disk; the public CDN does not
+  accept custom integrations, so surfaces that resolve against it (HACS's
+  repository list) still show a placeholder.
+- **Brand selection is a declared registrar table, not an `if/else` in core.**
+  `adapters/brands.py` holds an ordered `BRAND_REGISTRARS` of
+  `(brand_id, detect, register, is_default)`; `resolve_brand` reports which of
+  the three routes was taken — explicit per-vacuum override, first positive
+  detect, or the declared default arm — and core logs it. Adding a brand is a row
+  plus a package. The default arm stays Eufy deliberately, preserved
+  byte-for-byte because the device registry is sparse on real installs, but it is
+  now declared, greppable, testable, and logged at INFO when reached; previously
+  "this is a Eufy" and "we could not tell, so we assumed Eufy" were
+  indistinguishable and silent.
+- **The backend returns codes and parameters; the card translates.** Backend
+  English was leaking into an 18-language product. Home Assistant's own surfaces
+  gained `strings.json` plus 17 locale files for the config flow, entities and
+  exceptions.
+- **Registered services are documented or explicitly internal.** The parity gate's
+  first run found 72 violations, including 26 registered services with no
+  `services.yaml` entry; each was either documented or adjudicated onto the
+  reviewed `INTERNAL_SERVICES` allowlist. 19 dead schema constants and 4 dead
+  `const.py` entries went with them — three of those were service names for
+  services that were never registered, sitting in the file a brand port is told
+  to consult and reading as capability that does not exist.
+- **Themes** — provenance, draft lifecycle, notification parity and import
+  validation; core entries are immutable in place.
+- **Profile resolution precedence** is uniform, with the floor-safety clamp only
+  ever *reducing* risk and never rewriting the selected profile's identity.
+- **Dock events** — a dock event is a transition *from* a known non-trigger state;
+  debounce, timestamp and counter commit atomically.
+- **Adapter config** — a stored config is validated against the full contract
+  before it may shadow the code adapter.
+- **One label-anchor implementation instead of two.** The room-name label wrote
+  `localStorage` while the m² area chip round-tripped through a backend service
+  and a room field no writer carried through `RoomConfig`, so a dragged position
+  was silently dropped on any room re-save or map rebuild. The fragile one was
+  the one that looked robust.
+
+[#46]: https://github.com/kingchddg901/Vacuum_Agent/issues/46
+[#47]: https://github.com/kingchddg901/Vacuum_Agent/issues/47
+[#48]: https://github.com/kingchddg901/Vacuum_Agent/issues/48
+
 ## [1.11.0] - 2026-07-29
 
 ### Added
