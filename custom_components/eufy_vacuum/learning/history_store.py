@@ -251,9 +251,16 @@ def clean_mode_of(rooms: Any) -> str | None:
 def _phased_clean_mode(children: list[dict[str, Any]]) -> str | None:
     """What a run ACTUALLY cleaned with, across its children.
 
-    Prefers each child's ``battery_metrics.by_clean_mode`` -- already canonical -- and
-    falls back to its per-room settings via ``clean_mode_of`` when a run was too short to
-    compute shares.
+    Prefers each child's ``battery_metrics.by_clean_mode`` and falls back to its
+    per-room settings via ``clean_mode_of`` when a run was too short to compute shares.
+
+    Those keys are canonical for runs recorded from 2.0.0 onward — job_metrics folds
+    clean_mode through ``canonical_clean_mode`` before bucketing. They are NOT canonical
+    in records written before that: a survey of a live store found
+    ``{'vacuum': 97, 'vacuum and mop': 5}``, two spellings of one mode. This function
+    lowercases but does not fold aliases, so an OLD record can still yield "mixed" from
+    rooms that agreed. That is why the card keeps its own fold when rendering history —
+    do not remove it on the strength of the new writer.
     """
     modes: set[str] = set()
     for child in children:

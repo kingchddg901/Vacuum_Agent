@@ -470,9 +470,12 @@ PRELOADED_THEME_SPECS: list[dict[str, Any]] = [
             # dichromat severity). Keep in sync with harness/bundles/cvd-safe.mjs,
             # which the harness CVD gate (harness/tests/cvd.spec.mjs) validates.
             # Everything else (color-*, confidence-*, status-dot-*, learning-*)
-            # cascades from these via var(). Paired with the always-on per-state
-            # shape marks (src/renderers/badge-marks.js) so warn/likely — which
-            # share the warning hue — stay distinguishable without color.
+            # cascades from these via var(). NOTE: this used to say the palette was
+            # paired with always-on per-state shape marks. It is not — badge-marks.js
+            # has no importer under src/ and the class it emits has no stylesheet rule,
+            # so the only shape cue that ships is the warning triangle on the Learning
+            # Review errors badge. These contrast ratios therefore carry the
+            # distinguishability on their own, which is what the CVD gate measures.
             sem_success="#0C8F86",
             sem_warning="#E9A100",
             sem_error="#D6403A",

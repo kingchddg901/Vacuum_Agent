@@ -15,9 +15,10 @@
 
 import { translate, resolveLang, ensureLocalesLoaded, applyDir } from "../i18n/index.js";
 import {
-  esc, callResponse, defineCard, getStoredLang, setStoredLang,
+  esc, callResponse, defineCard, registerCard, getStoredLang, setStoredLang,
   renderLangControl, wireLangControl, LANG_CSS, vocab,
 } from "./_shared.js";
+import { dashboardSuggestion } from "./card-suggestions.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 
 const CARD_NAME = "vacuum-agent-profile-card";
@@ -465,11 +466,23 @@ class VacuumAgentProfileCardEditor extends HTMLElement {
 defineCard(CARD_NAME, VacuumAgentProfileCard);
 defineCard(CARD_EDITOR, VacuumAgentProfileCardEditor);
 
-window.customCards = window.customCards || [];
-window.customCards.push({
+// registerCard, not a raw push: it is idempotent, and this module is imported by BOTH
+// bundles (the panel bundle and the always-loaded global cards bundle), so a bare push
+// appends a second identical picker entry on any page where both have loaded.
+//
+// `preview` and `getEntitySuggestion` were missing here while both siblings had them,
+// which is what a hand-rolled registration costs. Observed in the picker: this card sat
+// as a bare description with no preview tile beside a sibling that rendered one, and it
+// never appeared under "By entity" for a managed vacuum.
+registerCard({
   type: CARD_NAME,
   name: "Vacuum Agent Profile Card",
   description: "Inspect and run one saved run profile (shows its step sequence).",
+  preview: true,
+  // HA 2026.6+ "By entity" picker: offer this card when the user picks one of OUR
+  // managed vacuums. The stub config fills in the first map; the profile stays for
+  // the user to choose.
+  getEntitySuggestion: (hass, entityId) => dashboardSuggestion(hass, entityId, CARD_NAME),
 });
 
 export { VacuumAgentProfileCard, VacuumAgentProfileCardEditor };

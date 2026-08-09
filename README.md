@@ -122,7 +122,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 
 **Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
 
-- A provider **map / camera / image entity** for the live-map backdrop and richer map views (including the rendered floor-texture map). On **Eufy** this comes from **eufy-clean v1.11.1 or later**, which renders the robot's map as a `camera.<device>_map` entity; on **Roborock** it's the built-in integration's map image. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
+- A provider **map / camera / image entity** for the live-map backdrop and richer map views (including the rendered floor-texture map). On **Eufy** this comes from **eufy-clean** — `camera.<device>_map` first appeared in v1.11.1, and running the current release is almost always better; on **Roborock** it's the built-in integration's map image. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
 - The Python science stack (**numpy, Pillow, scipy**) for **Auto (CV) map segmentation** — bundled in Home Assistant OS, but not always present on Container / Core / Supervised installs. Without it, Auto (CV) is hidden and you set rooms up manually (draw bounds with primitive shapes, or compose over a live/custom map — a few minutes in the editor). Manual setup is fully supported and is the source of truth; it is never required to install or load the integration.
 - Brand-specific **companion entities** (dock, station, etc.) for richer controls and status.
 

@@ -11,7 +11,12 @@
  * fixture row.
  */
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { mountHarness } from "../lib/mount-page.mjs";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 // Semantic tokens with no distinct colored-state surface in the
 // current tabs. Each MUST carry a reason. A new token is NOT
@@ -56,4 +61,29 @@ test("every semantic-color token is represented by a gallery entry", async ({ pa
   const enumSet = new Set(semanticTokens);
   const staleAllow = [...allow].filter((t) => !enumSet.has(t));
   expect(staleAllow, `stale ALLOWLIST entries (no longer semantic tokens):\n  ${staleAllow.join("\n  ")}`).toEqual([]);
+});
+
+
+/* =========================================================
+   The harness's AnimalSVG stub must mirror what ships
+   ========================================================= */
+
+test("the AnimalSVG stub lists exactly the animals that ship", async ({ page }) => {
+  // src/renderers/rooms.js reads window.AnimalSVG directly at render time, so the
+  // harness stubs it. The stub is a HAND-KEPT MIRROR of a shipped list, which is the
+  // shape that always drifts: it listed five while seven shipped, so every harness
+  // render of the mascot picker under-represented the product and nothing said so.
+  //
+  // Compared against the shipped index rather than a second hardcoded list here —
+  // a gate that mirrors the mirror would drift in exactly the same way.
+  const shipped = JSON.parse(readFileSync(
+    join(HERE, "../../custom_components/eufy_vacuum/frontend/animal-svg/animals/index.json"),
+    "utf8",
+  )).map((f) => f.replace(/\.js$/, "")).sort();
+
+  await mountHarness(page);
+  const stubbed = (await page.evaluate(() => window.AnimalSVG?.list?.() ?? [])).slice().sort();
+
+  expect(stubbed.length, "the stub returned nothing — AnimalSVG is not installed").toBeGreaterThan(0);
+  expect(stubbed).toEqual(shipped);
 });

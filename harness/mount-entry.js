@@ -74,7 +74,13 @@ import "../src/cards/profile-card.js";
 
 if (typeof window !== "undefined" && !window.AnimalSVG) {
   window.AnimalSVG = {
-    list: () => ["cat", "dog", "raccoon", "parrot", "snake"],
+    // MUST match custom_components/eufy_vacuum/frontend/animal-svg/animals/index.json.
+    // It did not: the stub listed five while seven shipped, so every harness shot of
+    // the mascot picker silently under-represented the product — `fox` and `mittens`
+    // were invisible to any render the harness produced. A hand-kept mirror of a
+    // shipped list drifts the moment the list grows, so gallery-completeness.spec.mjs
+    // now fails when these disagree rather than leaving it to be noticed.
+    list: () => ["cat", "dog", "fox", "mittens", "parrot", "raccoon", "snake"],
     has: () => true,
     get: (name) => ({
       id: name,

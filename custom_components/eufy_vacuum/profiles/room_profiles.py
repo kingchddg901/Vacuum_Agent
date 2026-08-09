@@ -493,8 +493,10 @@ def canonical_clean_mode(value: Any) -> str:
     ISSUE #48. Every "is this a mop mode?" test in the tree had its own spelling
     of the answer, and the two on the room-settings round trip disagreed:
 
-      - SAVE path (_protected_room_config) asks ``"mop" in clean_mode`` — a
-        substring test, which matches "Vacuum and mop" and preserves the value.
+      - SAVE path (_protected_room_config) asked ``"mop" in clean_mode`` — a
+        substring test, which matches "Vacuum and mop" and preserved the value.
+        (It calls ``is_mop_clean_mode`` now; both sides of this comparison are
+        history, which is the point of recording them here.)
       - READ path (below) asked ``clean_mode in {"mop", "vacuum_mop"}`` — an
         exact, case-SENSITIVE set, which does not.
 
