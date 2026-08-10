@@ -12,3 +12,62 @@ asked to keep an acknowledgement of that dependency.
 Note: eufy-clean is a separate project with its own licence. Vacuum Agent does
 not bundle or relicense it — any eufy-clean code you include in a derivative
 work remains governed by eufy-clean's own licence, which you must comply with.
+
+
+Third-party attributions
+------------------------
+Sections of the following projects were used in Vacuum Agent, chiefly device
+vocabularies (error codes, fault names, model identifiers). Where an upstream
+value was corrected or re-worded, the change is marked at the point of use in
+the source rather than inventoried here — an enumerated list of borrowed
+sections goes stale on the first refactor and then makes false specific claims.
+
+
+eufy-clean — Copyright (c) Martijn Poppen
+  Upstream:  https://github.com/martijnpoppen/eufy-clean
+  Consumed via the fork https://github.com/jeppesens/eufy-clean
+  Licensed under the Eufy-Clean License, Version 1.0 (2024-09-01).
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+    - Attribution: The above copyright notice and this permission notice shall
+      be included in all copies or substantial portions of the Software.
+    - Modifications: Any modifications to the original source code must be
+      clearly marked as such.
+
+  The software is provided "as-is", without warranty of any kind, express or
+  implied, including but not limited to the warranties of merchantability,
+  fitness for a particular purpose, and non-infringement. In no event shall the
+  authors be liable for any claim, damages, or other liability, whether in an
+  action of contract, tort, or otherwise, arising from, out of, or in
+  connection with the software or the use or other dealings in the software.
+
+  Modifications by Vacuum Agent are marked inline where they occur (see
+  custom_components/eufy_vacuum/adapters/eufy/vocabulary.py, which cites the
+  upstream constant and flags each label we corrected).
+
+
+python-roborock — Licensed under the Apache License, Version 2.0
+  https://github.com/humbertogontijo/python-roborock
+
+  Licensed under the Apache License, Version 2.0 (the "License"); you may not
+  use these portions except in compliance with the License. You may obtain a
+  copy of the License at:
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+  License for the specific language governing permissions and limitations
+  under the License.
+
+  Vacuum Agent has changed the material it uses from this project: Roborock
+  model identifiers in custom_components/eufy_vacuum/adapters/roborock/
+  model_catalog.py are derived, best-effort, from its device catalogue and
+  re-grouped for this project's capability model.
