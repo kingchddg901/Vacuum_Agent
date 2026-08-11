@@ -935,8 +935,58 @@ async function mountRealCard({ config = {}, hass = {}, width = null, hostHeight 
   };
 }
 
+/**
+ * REAL-FRAME theme editor — mountRealCard + a seeded theme library.
+ *
+ * renderThemeEditor() above uses the SYNTHETIC frame, which is fine for content
+ * but cannot answer questions about the frame itself: main.js's shell, its
+ * ResizeObserver viewport decision and the sticky mobile chrome are all absent
+ * there (see the REAL-CARD MOUNT block — it names "a layout probe that shipped
+ * unproven" as one of three bugs from exactly that gap). A mobile layout gate is
+ * precisely a question about the frame, so it belongs on this path.
+ *
+ * Two harness liberties, both deliberate:
+ *  - `el.id = "evcc-host"` so probeLayout's `#evcc-host` lookup resolves to the
+ *    REAL card's shadow root, and the same probe works on both paths unchanged.
+ *  - `_view` is assigned directly rather than through the card's view setter,
+ *    which bounces unavailable views back to ROOMS under a stub hass. We are
+ *    testing layout, not navigation.
+ */
+async function mountRealThemeEditor(themes, opts = {}) {
+  const { subTab = "tokens", activeThemeId = null, width = null, config = {}, hass = {} } = opts;
+  const mount = await mountRealCard({ config, hass, width });
+  const el = document.querySelector("eufy-vacuum-command-center");
+  if (!el) return { ok: false, error: "real card did not mount", mount };
+
+  el.id = "evcc-host";
+  const list = Array.isArray(themes) && themes.length ? themes : themeLibraryFixture();
+  const library = {};
+  for (const t of list) library[t.id] = t;
+  el._state.setThemeLibrary({
+    library,
+    themes: list.map((t) => ({ id: t.id, name: t.name })),
+    default_theme_id: list[0]?.id || null,
+  });
+  el._state.applyThemeActivation(activeThemeId || list[0].id, { clearDraft: true });
+  el._state.setThemeSubTab(subTab);
+  el._view = VIEWS.THEME;
+  el._scheduleRender();
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  const root = el.shadowRoot;
+  return {
+    ok: true,
+    mount,
+    tokenCount: tokenCount(),
+    viewport: root?.querySelector(".evcc-shell")?.dataset?.viewport ?? null,
+    tokenRows: root?.querySelectorAll(".evcc-token-row").length ?? 0,
+    scrollbox: root?.querySelectorAll(".evcc-theme-editor-scrollbox").length ?? 0,
+  };
+}
+
 window.__evcc = {
   mountRealCard,      // OPT-IN: builds the card's own frame; see the block above
+  mountRealThemeEditor, // REAL-frame theme editor for layout gating; see its doc
   mountCard,          // OPT-IN: mounts one STANDALONE Lovelace card; see the block above
   cards: CARD_FIXTURES.map((c) => ({
     id: c.id,

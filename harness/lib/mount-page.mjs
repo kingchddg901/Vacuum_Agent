@@ -168,6 +168,62 @@ export function probeLayout(page, { tol = 2 } = {}) {
 }
 
 /**
+ * Elements whose RIGHT EDGE lands past the shell's right edge.
+ *
+ * probeLayout above asks "does any box hold more than it can show". This asks
+ * a different question, and the theme view proved they are not the same one:
+ * .evcc-shell is overflow:hidden, so content wider than the card is CLIPPED
+ * rather than overflowing anything. The card was visibly cut off at 390px
+ * while shellOverflow read 0 and every per-element culprit was a deliberate
+ * overhang — a gate can be fully green on a view a user can see is broken.
+ *
+ * Measured across four states of that view (390 broken, 500 working, and both
+ * after the fix) this read 30 / 0 / 0 / 0 while shellOverflow read 0 in all
+ * four and the culprit count read 454 in all four. It is the only one of the
+ * three that separates broken from working, which is why it is the signal the
+ * gate fails on.
+ *
+ * Only bleed ORIGINS are returned: a box that sticks out while its parent does
+ * not. Everything beneath an origin has merely inherited the width and would
+ * bury the one line that names the cause.
+ *
+ * Form controls are excluded — an <input> reports an intrinsic scrollWidth
+ * regardless of its container, which is noise for this question.
+ */
+export function probeBleed(page) {
+  return page.evaluate(() => {
+    const host = document.getElementById("evcc-host");
+    const root = host && host.shadowRoot;
+    const shell = root && root.querySelector(".evcc-shell");
+    if (!shell) return { shellWidth: 0, total: 0, origins: [] };
+    const sr = shell.getBoundingClientRect();
+    const past = [];
+    for (const el of root.querySelectorAll("*")) {
+      if (/^(INPUT|TEXTAREA|SELECT|OPTION)$/.test(el.tagName) || el.closest("svg")) continue;
+      const r = el.getBoundingClientRect();
+      if (!r.width || r.right <= sr.right + 0.5) continue;
+      past.push(el);
+    }
+    const origins = past
+      .filter((el) => !(el.parentElement && past.includes(el.parentElement)))
+      .map((el) => {
+        const raw = el.className && el.className.baseVal !== undefined
+          ? el.className.baseVal : String(el.className || "");
+        const r = el.getBoundingClientRect();
+        return {
+          tag: el.tagName.toLowerCase(),
+          cls: raw.split(/\s+/).filter(Boolean).slice(0, 3).join("."),
+          past: Math.round((r.right - sr.right) * 10) / 10,
+          width: Math.round(r.width),
+          text: (el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 40),
+        };
+      })
+      .sort((a, b) => b.past - a.past);
+    return { shellWidth: Math.round(sr.width), total: past.length, origins };
+  });
+}
+
+/**
  * The card's tab set, mirrored from VIEW_ORDER in src/render-cycle.js.
  * (Hardcoded so Node-side tooling needn't import the browser bundle.)
  */
