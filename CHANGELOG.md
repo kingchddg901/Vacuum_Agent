@@ -10,6 +10,32 @@ only.
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-08-10
+
+### Fixed
+- **Companion entities on a second device or a renamed device now resolve.** Adapters build
+  entity IDs from the vacuum's own name (`sensor.<vacuum>_battery`), which assumes one
+  device per vacuum. Eufy's dock is a *separate* device, so dock-owned entities are named
+  for it instead — on live hardware `sensor.<vacuum>_total_cleaning_area` was absent while
+  `sensor.<area>_<vacuum>_total_cleaning_area` sat right there with a value. Lifetime
+  cleaning area/time/count and dock firmware version had therefore never resolved, and
+  renaming a vacuum or its device broke every derived ID at once. Vacuum Agent now searches
+  the vacuum's own config entry for the real entity when a derived ID doesn't resolve.
+
+  It only touches IDs that already fail, refuses to act when two candidates are
+  indistinguishable, and logs every repair — so a working install cannot be changed by it,
+  and a rescued one says so in the log rather than looking as though it was always right.
+
+  This matters more on Home Assistant 2026.8, which removed `battery_level` from the vacuum
+  entity: the fallback that used to hide a missed battery sensor is gone, leaving the
+  derived ID as the only source ([#49](https://github.com/kingchddg901/Vacuum_Agent/issues/49)).
+
+### Changed
+- `NOTICE` now carries proper third-party attribution: eufy-clean (Copyright (c) Martijn
+  Poppen, Eufy-Clean License v1.0, consumed via the jeppesens fork) and python-roborock
+  (Apache-2.0), each with the notice its licence requires and a pointer to where our
+  modifications are marked in the source.
+
 ## [2.0.0] - 2026-08-09
 
 **The Phoenix Release.** A hostile audit campaign ran against the whole tree and
