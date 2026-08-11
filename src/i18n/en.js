@@ -303,6 +303,7 @@ export const en = {
   "bind_theme.paste_theme_first": "Paste a theme export first.",
   "bind_theme.pick_floor_type_export": "Pick a floor type to export.",  // 'floor type' = floor-material theme scope (marble/wood) to export, not a building storey
   "bind_theme.pick_preset_apply": "Pick a preset to apply.",
+  "bind_theme.pasted_source_label": "the pasted theme",  // sourceLabel for a SCOPED import arriving via the paste-JSON modal (Upload passes the quoted file name instead); lowercase 'the' = embedded mid-sentence in another string
   "bind_theme.preset_source_label": "the {name} preset",  // {name}=marble preset name; lowercase 'the' = embedded mid-sentence in another string
   "bind_theme.replace_floor_types_confirm": "\n\nThis overwrites those types. Continue?",  // appended confirm fragment after the intro/skipped lines; 'those types'=floor materials
   "bind_theme.replace_floor_types_intro": "Replace these floor types on the active theme:\n  {known}",  // {known}=list of floor-MATERIAL theme scopes being overwritten; intro line, more text appended

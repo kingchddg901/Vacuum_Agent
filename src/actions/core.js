@@ -111,14 +111,31 @@ export function applyCoreActions(proto) {
       // so every existing null-check keeps working — this only adds the missing signal.
       try {
         const label = `${domain}.${service}`;
+        // A refusal does not always come back as a VALUE. The theme services raise
+        // ServiceValidationError("<operation> failed: <reason>") rather than returning
+        // {ok:false, reason}, so all nine of them land in this catch — and the reason
+        // the backend went to the trouble of computing was rendered as the generic
+        // "could not complete", one layer from the user. THEME-1: a scoped import
+        // refused with `missing_vacuum` read as "the vacuum may not have received it",
+        // which points at the transport when the payload never left the client.
+        // Prefer the specific toast whenever the message carries a reason code; the
+        // generic one stays the fallback for genuine transport failures, which have no
+        // code. Best-effort by design — a malformed message must not lose the toast.
+        const reason = /\bfailed:\s*([a-z][a-z0-9_]*)\b[\s.]*$/i.exec(
+          String(err?.message ?? "")
+        )?.[1];
         // Direct calls, not `?.` — `t`/`showToast` are real methods on
         // VacuumCardActions now. Optional-chaining them is what let this whole path
         // no-op silently for as long as it did; if the delegation is ever removed
         // again, this should be loud rather than quiet.
-        this.showToast(
-          this.t("common.service_failed", { service: label }),
-          { kind: "error", ttl: 6000 }
-        );
+        if (reason) {
+          this.showServiceRefusalToast(reason);
+        } else {
+          this.showToast(
+            this.t("common.service_failed", { service: label }),
+            { kind: "error", ttl: 6000 }
+          );
+        }
       } catch (toastErr) {
         console.error("[eufy-vacuum-command-center] toast failed", toastErr);
       }

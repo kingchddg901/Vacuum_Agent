@@ -517,6 +517,25 @@ export function applyThemeBindings(proto) {
           return;
         }
 
+        // A SCOPED payload (exported with `scope`) replaces floor namespaces on THIS
+        // card's active theme and must carry vacuum_entity_id; an unscoped one adds a
+        // new library theme. The Upload path has always branched on exactly this (see
+        // the file-input handler below) — paste never did, so a scoped export pasted
+        // here went out with no vacuum and the backend refused it with `missing_vacuum`.
+        // The user saw none of that: the refusal arrives as a THROW, so the onRefusal
+        // handler below (which would have printed the reason) never ran. Same guard,
+        // two entry points, and only one of them had it.
+        if (Array.isArray(payload?.scope) && payload.scope.length) {
+          const applied = await this._applyScopedThemeImport(
+            payload,
+            this.t("bind_theme.pasted_source_label")
+          );
+          if (!applied) return;
+          this.card._state.closeThemeJsonModal();
+          this.card._scheduleRender();
+          return;
+        }
+
         const result = await this.card._actions.importTheme(payload);
         const imported = await this._handleFullImportResult(result, {
           onRefusal: (r) => showError(this.t("bind_theme.import_failed", { reason: r.reason || "unknown error" })),
