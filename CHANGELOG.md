@@ -30,6 +30,16 @@ only.
   entity: the fallback that used to hide a missed battery sensor is gone, leaving the
   derived ID as the only source ([#49](https://github.com/kingchddg901/Vacuum_Agent/issues/49)).
 
+- **Diagnostics downloads now answer these questions themselves.** The dump probed only
+  the roles capability-detection found, so adapter-declared ones — battery, charging, the
+  dock counters — were never checked, and it reported whether an entity had a *state*
+  without saying whether it was *registered*. Two support reports in a row turned on
+  exactly those gaps and had to be reproduced on other hardware instead of read off the
+  attachment. The dump now covers every declared role and reports `registered` beside
+  `exists`, which separates "never created" from "correct ID, entity absent"
+  ([#46](https://github.com/kingchddg901/Vacuum_Agent/issues/46),
+  [#49](https://github.com/kingchddg901/Vacuum_Agent/issues/49)).
+
 ### Changed
 - `NOTICE` now carries proper third-party attribution: eufy-clean (Copyright (c) Martijn
   Poppen, Eufy-Clean License v1.0, consumed via the jeppesens fork) and python-roborock
