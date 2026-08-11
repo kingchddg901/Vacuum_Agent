@@ -861,4 +861,48 @@ export const MOBILE_STYLES = `
      it across the document tree boundary. The viewport media
      query inside MODAL_HOST_STYLES is the right hook.
      =========================================================== */
+
+  /* ===========================================================
+     TEST BUILD (2026-08-10) — COMPACT CHROME FOR THE THEME VIEW
+     -----------------------------------------------------------
+     Paired with MOBILE_TOKEN_EDITOR (renderers/theme.js). The
+     token editor is a long scrolling list inside its own
+     .evcc-theme-editor-scrollbox, so the scarce resource on a
+     phone is VERTICAL BUDGET, not layout. Both chrome bands are
+     trimmed on this view only — every other view is untouched.
+
+     Header: the vacuum/dock/battery status rows say nothing
+     useful while you are editing colours. Dropped entirely; the
+     name and the language control stay. This is the bigger
+     reclaim and it costs no touch target.
+
+     Nav: labels go and the icon shrinks, but min-height only
+     drops 56 -> 48px. Tappability at the SHIPPED size was
+     verified on-device by hand; 44px is the accepted floor and
+     going under it would spend a win already banked. Shrink the
+     ink, keep the hit area.
+     =========================================================== */
+
+  .evcc-mobile-header--compact {
+    padding-block: 6px;
+  }
+
+  .evcc-mobile-header--compact .evcc-mobile-vacuum-status {
+    display: none;
+  }
+
+  .evcc-mobile-nav--compact .evcc-mobile-nav-tab {
+    min-height: 48px;   /* >= the 44px touch floor; see note above */
+    gap:        0;
+    padding:    4px;
+  }
+
+  .evcc-mobile-nav--compact .evcc-mobile-nav-label {
+    display: none;
+  }
+
+  .evcc-mobile-nav--compact .evcc-mobile-nav-icon {
+    width:  20px;
+    height: 20px;
+  }
 `;

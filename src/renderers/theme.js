@@ -22,6 +22,20 @@ import { FACETS, orderTags, facetOf, SUGGESTED_VIBE_TAGS } from "../theme-tags/i
 // The public Pages "store" — the card links out to it (no auto-download).
 const THEME_GALLERY_URL = "https://kingchddg901.github.io/Vacuum_Agent/";
 
+/* TEST BUILD (2026-08-10) — mobile token editor.
+   e6bc123 made the Theme view PICKING-ONLY on a phone (forced presets sub-tab, dropped
+   Palette/Tokens + the draft footer) on the reasoning that the editors "need too many
+   panels for a phone". On-device testing says otherwise: the token list already scrolls in
+   its own container (.evcc-theme-editor-scrollbox, styles/theme.js:537) with the contextual
+   preview and footer OUTSIDE it, the <=1100px query already hoists the preview full-width
+   above the editor, and the group chips are tappable by hand. The real constraint is
+   vertical BUDGET, not layout — which is what the paired compact chrome addresses.
+
+   Flip to false to restore shipped behaviour byte-for-byte: every gate below reads this one
+   flag, and `isMobile` itself is untouched so any future mobile-only adaptation in this file
+   is unaffected. */
+const MOBILE_TOKEN_EDITOR = true;
+
 /* =========================================================
    COLOR-MIX PARSER
    ========================================================= */
@@ -214,13 +228,15 @@ export function applyThemeRenderers(proto) {
     const isMobile = this.card._state.isMobileViewport();
     // Mobile = theme PICKING only: force the Themes (presets) sub-tab and drop the
     // Palette/Tokens editors — they need too many panels for a phone.
-    const activeTab = isMobile ? "presets" : (state.activeSubTab || "presets");
+    // TEST BUILD: MOBILE_TOKEN_EDITOR lifts that restriction (see the flag's note).
+    const pickingOnly = isMobile && !MOBILE_TOKEN_EDITOR;
+    const activeTab = pickingOnly ? "presets" : (state.activeSubTab || "presets");
 
     return `
       <div class="evcc-view evcc-view--theme">
         ${activeTab === "presets" ? "" : this._renderThemeHeader(state)}
 
-        ${isMobile ? "" : `
+        ${pickingOnly ? "" : `
         <div class="evcc-chips evcc-theme-tabs" role="tablist">
           <button
             class="evcc-chip ${activeTab === "presets" ? "active" : ""}"
@@ -246,8 +262,8 @@ export function applyThemeRenderers(proto) {
 
         <div class="evcc-view-content">
           ${activeTab === "presets" ? this._renderThemePresets(state) : ""}
-          ${!isMobile && activeTab === "palette" ? this._renderThemePalette(tokens, sources) : ""}
-          ${!isMobile && activeTab === "tokens" ? this._renderThemeTokenEditor(tokens, sources) : ""}
+          ${!pickingOnly && activeTab === "palette" ? this._renderThemePalette(tokens, sources) : ""}
+          ${!pickingOnly && activeTab === "tokens" ? this._renderThemeTokenEditor(tokens, sources) : ""}
         </div>
 
         ${this._renderThemeFooter(state)}
@@ -1065,7 +1081,10 @@ ${fontPresets}
     // Mobile = picking only: keep theme-level Export/Import/Download/Upload; drop
     // the floor-preset + draft (Save/Discard) controls, which belong to the
     // desktop-only token editor.
+    // TEST BUILD: MOBILE_TOKEN_EDITOR brings the editor to mobile, so those controls
+    // must come with it — a token editor you cannot Save is worse than none.
     const isMobile = this.card._state.isMobileViewport();
+    const pickingOnly = isMobile && !MOBILE_TOKEN_EDITOR;
 
     return `
       <div class="evcc-view-footer">
@@ -1102,7 +1121,7 @@ ${fontPresets}
             ${this.t("theme.upload")}
           </button>
 
-          ${isMobile ? "" : `
+          ${pickingOnly ? "" : `
           <select
             class="evcc-chip evcc-floor-scope-select"
             data-theme-floor-scope
@@ -1136,7 +1155,7 @@ ${fontPresets}
           </button>`}
         </div>
 
-        ${isMobile ? "" : `
+        ${pickingOnly ? "" : `
         <div class="footer-right">
           <button
             class="evcc-chip"

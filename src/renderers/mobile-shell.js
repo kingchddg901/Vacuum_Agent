@@ -146,8 +146,13 @@ export function applyMobileShellRenderer(proto) {
     // string when there's no fork map-switcher so nothing renders.
     const mapSwitchHtml = this._renderMapSwitch?.(ctx.state) ?? "";
 
+    // TEST BUILD (2026-08-10): the Theme view is a long scrolling token list, and the
+    // status block (vacuum / dock / battery) is irrelevant while editing colours. Trade it
+    // for vertical budget on that view only — the name + language control stay.
+    const compactChrome = ctx?.view === "theme";
+
     return `
-      <div class="evcc-mobile-header">
+      <div class="evcc-mobile-header${compactChrome ? " evcc-mobile-header--compact" : ""}">
         <div class="evcc-mobile-header-lang">
           ${renderLanguageControl(this, {
             langOverride, currentLang, open: languageMenuOpen, autoInfo, uiFont,
@@ -194,7 +199,7 @@ export function applyMobileShellRenderer(proto) {
     const overflowActive = OVERFLOW_MOBILE_TABS.some((t) => t.id === activeView);
 
     return `
-      <nav class="evcc-mobile-nav" aria-label="${this.t("mobile.nav_primary_aria")}">
+      <nav class="evcc-mobile-nav${activeView === "theme" ? " evcc-mobile-nav--compact" : ""}" aria-label="${this.t("mobile.nav_primary_aria")}">
         ${primaryTabs.map((tab) => {
           const label = this.t(tab.labelKey);
           return `
