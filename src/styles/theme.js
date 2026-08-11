@@ -35,6 +35,10 @@ export const themeStyles = `
     gap: 12px;
     padding: 0 4px;
     flex-shrink: 0;
+    /* Search box + "Modified Only" contribute 392px of min-content, and the
+       12px gap makes 404 — more than a 390px phone can show. Wrapping engages
+       only under that pressure, so the row is unchanged at >= 500px. */
+    flex-wrap: wrap;
   }
 
   .evcc-search-box {
@@ -901,12 +905,32 @@ export const themeStyles = `
     pointer-events: none;
   }
 
+  /* THE % BUBBLE LIVES INSIDE THE RAIL.
+     It tracks the VALUE horizontally, so at one end of the range it lands on
+     .token-label, which shared the line above the rail at top:-28px. In LTR
+     that collision is at the 0% end; in RTL the label flips and it becomes
+     the 100% end — where most tokens sit, which is why it showed up
+     immediately in Arabic. ONE defect at two ends, so it is fixed for both
+     directions rather than patched for the one that reported it.
+
+     Centring it in the rail removes the shared line entirely and costs no row
+     height. The colours are deliberately theme-INDEPENDENT: the rail is
+     whatever colour the token happens to be, so a themed surface would vanish
+     against some of them. A fixed dark pill with light text reads over every
+     colour the rail can take, which is the exact case check-styles names as a
+     legitimate theme-lint-ignore ("a fixed dark pill").
+
+     JS drives position via an inline style.left in px against the shell width
+     and never sets transform, so the transform below is safe to own here. */
   .token-slider-bubble--alpha {
     position: absolute;
-    top: -28px;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     z-index: 5;
     pointer-events: none;
+    background: rgba(0, 0, 0, 0.72); /* theme-lint-ignore */
+    color: #f5f7fa; /* theme-lint-ignore */
+    border: 1px solid rgba(255, 255, 255, 0.24); /* theme-lint-ignore */
   }
 
   /* =========================================================
@@ -1139,6 +1163,12 @@ export const themeStyles = `
     gap: 12px;
     padding-top: 4px;
     flex-shrink: 0;
+    /* .footer-left / .footer-right already wrap INTERNALLY (below) — but this
+       PARENT was nowrap, so the two halves could never break onto separate
+       lines: 303 + 97 + 12px gap = 412, the widest floor in the view and the
+       one that set the whole subtree's width. Checking the children and
+       concluding "the footer already wraps" is one level too deep. */
+    flex-wrap: wrap;
   }
 
   .footer-left,
@@ -1147,6 +1177,20 @@ export const themeStyles = `
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  /* The four import/export chips ship an icon AND a label at every width, and
+     CSS chooses between them — the same contract .evcc-mobile-nav-label uses.
+     Desktop keeps the words; the icons only earn their place where vertical
+     budget is scarce, so the reveal lives in mobile.js. */
+  .evcc-chip-icon {
+    display: none;
+  }
+
+  .evcc-chip-icon svg {
+    display: block;
+    width: 20px;
+    height: 20px;
   }
 
   /* =========================================================

@@ -209,6 +209,7 @@
     "paste_theme_first": "Collez d'abord un export de thème.",
     "pick_floor_type_export": "Choisissez un type de sol à exporter.",
     "pick_preset_apply": "Choisissez un préréglage à appliquer.",
+    "pasted_source_label": "le thème collé",
     "preset_source_label": "le préréglage {name}",
     "replace_floor_types_confirm": "\n\nCela écrase ces types. Continuer ?",
     "replace_floor_types_intro": "Remplacer ces types de sol sur le thème actif :\n  {known}",

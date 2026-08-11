@@ -2186,6 +2186,7 @@
     "paste_theme_first": "Najpierw wklej wyeksportowany motyw.",
     "pick_floor_type_export": "Wybierz typ podłogi do wyeksportowania.",
     "pick_preset_apply": "Wybierz preset do zastosowania.",
+    "pasted_source_label": "wklejonego motywu",
     "preset_source_label": "presetu {name}",
     "replace_floor_types_confirm": "\n\nSpowoduje to nadpisanie tych typów. Kontynuować?",
     "replace_floor_types_intro": "Zastąp te typy podłóg w aktywnym motywie:\n  {known}",

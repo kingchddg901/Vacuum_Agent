@@ -1407,6 +1407,7 @@
     "paste_theme_first": "请先粘贴主题导出内容。",
     "pick_floor_type_export": "请选择要导出的地板类型。",
     "pick_preset_apply": "请选择要应用的预设。",
+    "pasted_source_label": "粘贴的主题",
     "preset_source_label": "{name} 预设",
     "replace_floor_types_confirm": "\n\n这将覆盖这些类型。是否继续？",
     "replace_floor_types_intro": "在当前主题上替换以下地板类型：\n  {known}",

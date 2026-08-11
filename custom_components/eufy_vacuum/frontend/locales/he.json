@@ -1413,6 +1413,7 @@
     "paste_theme_first": "הדבק תחילה ייצוא של ערכת נושא.",
     "pick_floor_type_export": "בחר סוג רצפה לייצוא.",
     "pick_preset_apply": "בחר קדם-הגדרה להחלה.",
+    "pasted_source_label": "ערכת הנושא שהודבקה",
     "preset_source_label": "קדם-ההגדרה {name}",
     "replace_floor_types_confirm": "\n\nפעולה זו תדרוס סוגים אלו. להמשיך?",
     "replace_floor_types_intro": "החלף את סוגי הרצפה האלה בערכת הנושא הפעילה:\n  {known}",

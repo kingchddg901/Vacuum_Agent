@@ -215,6 +215,7 @@
     "paste_theme_first": "Сначала вставьте экспорт темы.",
     "pick_floor_type_export": "Выберите тип пола для экспорта.",
     "pick_preset_apply": "Выберите пресет для применения.",
+    "pasted_source_label": "вставленная тема",
     "preset_source_label": "пресет {name}",
     "replace_floor_types_confirm": "\n\nЭто перезапишет эти типы. Продолжить?",
     "replace_floor_types_intro": "Заменить эти типы пола в активной теме:\n  {known}",

@@ -1407,6 +1407,7 @@
     "paste_theme_first": "先にテーマのエクスポートを貼り付けてください。",
     "pick_floor_type_export": "エクスポートする床タイプを選択してください。",
     "pick_preset_apply": "適用するプリセットを選択してください。",
+    "pasted_source_label": "貼り付けたテーマ",
     "preset_source_label": "{name} プリセット",
     "replace_floor_types_confirm": "\n\nこれらのタイプは上書きされます。続行しますか？",
     "replace_floor_types_intro": "アクティブなテーマの次の床タイプを置き換えます:\n  {known}",

@@ -658,4 +658,57 @@ export const themePreviewStyles = `
       overflow: visible;
     }
   }
+
+  /* ===========================================================
+     PHONE — SCALE THE PREVIEW
+     -----------------------------------------------------------
+     The <=1100px block above drops the height cap so the preview
+     can stack full-width above the editor. On a tablet that is
+     free; on a PHONE it is the entire budget. Measured on a
+     360x760 shell: the preview took 356px and the footer 130px,
+     leaving 84px for a scrollbox whose content is ~69,000px —
+     ZERO token rows on screen. The editor was unusable in the
+     token editor.
+
+     So put a cap back, but only here, and scale the type with it
+     rather than just clipping: the pane keeps its own scroll, so
+     nothing is lost, and every rem below is proportional to the
+     sizes in the main block above.
+     =========================================================== */
+
+  @media (max-width: 600px) {
+    .evcc-theme-preview-pane {
+      max-height: 22vh;
+      overflow-y: auto;
+      padding: 8px;
+      gap: 6px;
+    }
+
+    .evcc-theme-preview-heading {
+      font-size: 0.92rem;   /* 1.2rem */
+    }
+
+    .evcc-theme-preview-title {
+      font-size: 0.84rem;   /* 1rem */
+    }
+
+    .evcc-theme-preview-description,
+    .evcc-theme-preview-text-secondary,
+    .evcc-theme-preview-text-muted,
+    .evcc-theme-preview-note {
+      font-size: 0.72rem;   /* 0.8 / 0.84rem */
+    }
+
+    .evcc-theme-preview-eyebrow,
+    .evcc-theme-preview-section-title,
+    .evcc-theme-preview-shell-kicker {
+      font-size: 0.6rem;    /* 0.68 / 0.72rem */
+    }
+
+    /* NOT scaled: .evcc-theme-preview-room-card takes its height from the
+       theme's own --evcc-card-min-height. Overriding it here would make the
+       preview misreport the card size the theme actually produces, which is
+       the one thing this pane exists to show. The pane scrolls instead, so a
+       tall floor-texture card is still fully reachable. */
+  }
 `;

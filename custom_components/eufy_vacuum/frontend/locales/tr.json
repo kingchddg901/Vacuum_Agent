@@ -2183,6 +2183,7 @@
     "paste_theme_first": "Önce bir tema dışa aktarımı yapıştırın.",
     "pick_floor_type_export": "Dışa aktarmak için bir zemin türü seçin.",
     "pick_preset_apply": "Uygulamak için bir hazır ayar seçin.",
+    "pasted_source_label": "yapıştırılan tema",
     "preset_source_label": "{name} hazır ayarı",
     "replace_floor_types_confirm": "\n\nBu, ilgili türlerin üzerine yazar. Devam edilsin mi?",
     "replace_floor_types_intro": "Etkin temadaki şu zemin türlerini değiştir:\n  {known}",

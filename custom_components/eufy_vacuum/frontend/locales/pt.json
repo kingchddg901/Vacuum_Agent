@@ -209,6 +209,7 @@
     "paste_theme_first": "Cole primeiro uma exportação de tema.",
     "pick_floor_type_export": "Escolha um tipo de piso para exportar.",
     "pick_preset_apply": "Escolha uma predefinição para aplicar.",
+    "pasted_source_label": "o tema colado",
     "preset_source_label": "a predefinição {name}",
     "replace_floor_types_confirm": "\n\nIsto substitui esses tipos. Continuar?",
     "replace_floor_types_intro": "Substituir estes tipos de piso no tema ativo:\n  {known}",

@@ -208,6 +208,7 @@
     "paste_theme_first": "Plak eerst een thema-export.",
     "pick_floor_type_export": "Kies een vloertype om te exporteren.",
     "pick_preset_apply": "Kies een preset om toe te passen.",
+    "pasted_source_label": "het geplakte thema",
     "preset_source_label": "de preset {name}",
     "replace_floor_types_confirm": "\n\nDit overschrijft die types. Doorgaan?",
     "replace_floor_types_intro": "Vervang deze vloertypes op het actieve thema:\n  {known}",

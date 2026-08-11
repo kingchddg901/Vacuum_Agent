@@ -395,6 +395,20 @@ export const shellStyles = `
     max-height: none;
   }
 
+  /* The rule ABOVE is what makes this one necessary: theme is the only view
+     that turns the stage into a flex CONTAINER, which makes .evcc-view-root a
+     flex ITEM — and a flex item defaults to min-width:auto, so it cannot
+     shrink below its own min-content width. The stage carries min-width:0
+     already; its child never got it, so one nowrap row inside the theme view
+     set a ~412px floor on a 390px shell. That excess never OVERFLOWED — the
+     shell is overflow:hidden, so it was clipped, which is why an
+     overflow-based probe reported 0px while text was visibly cut off. Every
+     other view leaves the stage a block, where view-root shrinks normally;
+     hence theme-only. */
+  .evcc-view-stage[data-view="theme"] > .evcc-view-root {
+    min-width: 0;
+  }
+
   /* =========================================================
      EMPTY / PLACEHOLDER STATE
      ========================================================= */

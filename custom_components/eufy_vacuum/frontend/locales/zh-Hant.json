@@ -1407,6 +1407,7 @@
     "paste_theme_first": "請先貼上佈景主題匯出內容。",
     "pick_floor_type_export": "請選擇要匯出的地板類型。",
     "pick_preset_apply": "請選擇要套用的預設集。",
+    "pasted_source_label": "貼上的佈景主題",
     "preset_source_label": "{name} 預設集",
     "replace_floor_types_confirm": "\n\n這會覆寫那些類型。是否繼續？",
     "replace_floor_types_intro": "在使用中的佈景主題上取代這些地板類型：\n  {known}",

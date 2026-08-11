@@ -905,4 +905,154 @@ export const MOBILE_STYLES = `
     width:  20px;
     height: 20px;
   }
+
+  /* ===========================================================
+     THIRD CHROME BAND — THE THEME FOOTER
+     -----------------------------------------------------------
+     Header and nav were trimmed above. The footer is the band
+     that was left, and once .evcc-view-footer was allowed to
+     wrap (styles/theme.js) it stopped overflowing and started
+     COSTING instead: ten controls at desktop padding settle into
+     five rows, 130px of a 760px shell.
+
+     Trim the ink, not the hit area — the same rule the nav note
+     states. These are .evcc-chip buttons whose target is set by
+     padding, so the reduction is deliberately modest; the win
+     comes from more chips fitting per row, which removes whole
+     ROWS rather than shaving each one.
+
+     Scoped to the theme stage: every other view's footer, and
+     the same chips outside the footer, are untouched.
+     =========================================================== */
+
+  @media (max-width: 600px) {
+    .evcc-view-stage[data-view="theme"] .evcc-view-footer {
+      gap: 6px;
+      padding-top: 2px;
+    }
+
+    .evcc-view-stage[data-view="theme"] .footer-left,
+    .evcc-view-stage[data-view="theme"] .footer-right {
+      gap: 6px;
+    }
+
+    .evcc-view-stage[data-view="theme"] .evcc-view-footer .evcc-chip {
+      padding: 7px 10px;
+      font-size: 0.78rem;
+    }
+
+    /* ICON-ONLY CHIPS — the footer's import/export four AND the per-token
+       reset, which becomes an undo glyph (Chris, 2026-08-11: "reset could
+       swap to a smaller target with an undo button").
+
+       Scoped to the whole theme VIEW rather than the footer, because the
+       reset lives inside a token row. The selector below is compound
+       (--iconable AND .evcc-chip) deliberately: that ties the footer's
+       generic chip rule above on specificity, so source order decides and
+       this wins. Written as the bare modifier alone it would LOSE to that
+       rule and the footer chips would keep their text padding.
+       (No backticks in this comment — JS template literal.)
+
+       Labels go; the hit area does not. 44px is the floor the nav note
+       already banked, and aria-label carries the accessible name once the
+       text is display:none. */
+    .evcc-view-stage[data-view="theme"] .evcc-chip--iconable .evcc-chip-label {
+      display: none;
+    }
+
+    .evcc-view-stage[data-view="theme"] .evcc-chip--iconable .evcc-chip-icon {
+      display: block;
+    }
+
+    .evcc-view-stage[data-view="theme"] .evcc-chip--iconable.evcc-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* FOOTER ICONS ARE PILLS, NOT CIRCLES — and the six controls share ONE
+       row (Chris, 2026-08-11: "make the bottom round chips pills and they
+       look like they could fit in the bottom row").
+
+       Both asks resolve to the same number. At 44x44 the icons were square,
+       so the theme's pill radius rendered them as CIRCLES next to the 28.5px
+       pills of Discard / Save Changes — two shape languages in one band. And
+       six controls measured 368.7px against 340px of usable footer at 360px
+       wide, which is why they wrapped on-device (at 390 they already fit).
+
+       36x28 is oblong, so the same radius now reads as a pill, it matches the
+       neighbours' height exactly, and the row totals ~331px — inside 340 with
+       room to spare. Height matches Discard / Save deliberately: those ship
+       at 28.5px today, so this is the band's existing target size, not a new
+       reduction. Narrower phones still wrap, which is the correct fallback. */
+    .evcc-view-stage[data-view="theme"] .evcc-view-footer .evcc-chip--iconable.evcc-chip {
+      min-width: 36px;
+      min-height: 28px;
+      padding: 4px 8px;
+    }
+
+    /* THE PER-TOKEN RESET IS THE EXCEPTION TO THE 44px FLOOR ABOVE.
+       It sits INSIDE a token row, not in a chrome band, so the floor works
+       against the thing this pass exists for: measured at 44 it took a
+       modified row from 133px to 165px — the icon made the row TALLER than
+       the text chip it replaced (which was 38x18). At 32 the row stays tight
+       and the target is still nearly double the 18px height the text chip
+       actually offered, so tappability goes up and height goes down.
+       Chrome bands keep 44; only the in-row control is reduced. */
+    .evcc-view-stage[data-view="theme"] .token-top-strip .evcc-chip--iconable.evcc-chip,
+    .evcc-view-stage[data-view="theme"] .token-head-actions .evcc-chip--iconable.evcc-chip {
+      min-width: 32px;
+      min-height: 32px;
+      padding: 5px;
+    }
+
+    .evcc-view-stage[data-view="theme"] .token-top-strip .evcc-chip-icon svg,
+    .evcc-view-stage[data-view="theme"] .token-head-actions .evcc-chip-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* FLOOR-TEXTURE CONTROLS — not on a phone (Chris, 2026-08-11: "download
+       floor feels odd, as well as the floor selector; they can go away in
+       mobile, same for marble presets").
+
+       Icons alone were not enough: they took the footer from five rows to
+       four, because shrinking four of TEN controls cannot remove a row while
+       the other six still wrap. These four are the ones that earn least on a
+       phone — picking a floor material and applying a marble preset is
+       desk work — so dropping them is what actually buys the rows back.
+
+       display:none also removes them from the accessibility tree, which is
+       correct here: the control is gone at this width, not merely invisible.
+       Both selects share .evcc-floor-scope-select, so one selector covers the
+       floor scope AND the marble preset. */
+    .evcc-view-stage[data-view="theme"] .evcc-view-footer .evcc-floor-scope-select,
+    .evcc-view-stage[data-view="theme"] .evcc-view-footer [data-action="download-floor-theme"],
+    .evcc-view-stage[data-view="theme"] .evcc-view-footer [data-action="apply-floor-preset"] {
+      display: none;
+    }
+
+    /* TOKEN ROWS — drop the redundant text field, keep the only-input case.
+       (Chris, 2026-08-11: "mobile can drop the text input and display for
+       values unless that is their only input".)
+
+       Row height is the binding constraint once the chrome is dealt with:
+       ~174px per row over 402 rows, so a phone shows one or two at a time.
+       These two fields are the redundant ones —
+
+         --color    the hex field restates what the rail already shows in
+                    colour; the rail edits it, and the strip's hint teaches
+                    the gesture. Only the INPUT is hidden — the strip also
+                    carries the conditional Reset button, which stays.
+         --numeric  the number field duplicates the slider, whose bubble
+                    already reads the value out while dragging.
+
+       Deliberately NOT touched, because there the text IS the only input:
+         --color-mix  .token-colormix-swatch is a plain div, background only
+         --text / font presets  no other control exists at all */
+    .evcc-view-stage[data-view="theme"] .evcc-token-row--color .token-input--hex,
+    .evcc-view-stage[data-view="theme"] .evcc-token-row--numeric .token-control-row--number {
+      display: none;
+    }
+  }
 `;

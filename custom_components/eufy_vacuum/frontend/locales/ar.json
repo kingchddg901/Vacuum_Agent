@@ -1417,6 +1417,7 @@
     "paste_theme_first": "الصق تصدير سمة أولًا.",
     "pick_floor_type_export": "اختر نوع أرضية لتصديره.",
     "pick_preset_apply": "اختر إعدادًا مسبقًا لتطبيقه.",
+    "pasted_source_label": "السمة المُلصَقة",
     "preset_source_label": "إعداد {name} المسبق",
     "replace_floor_types_confirm": "\n\nسيؤدي هذا إلى استبدال تلك الأنواع. هل تريد المتابعة؟",
     "replace_floor_types_intro": "استبدال أنواع الأرضيات هذه على السمة النشطة:\n  {known}",

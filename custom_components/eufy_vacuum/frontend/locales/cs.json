@@ -2185,6 +2185,7 @@
     "paste_theme_first": "Nejprve vložte export motivu.",
     "pick_floor_type_export": "Vyberte typ podlahy k exportu.",
     "pick_preset_apply": "Vyberte přednastavení k použití.",
+    "pasted_source_label": "vložený motiv",
     "preset_source_label": "přednastavení {name}",
     "replace_floor_types_confirm": "\n\nTímto se tyto typy přepíšou. Pokračovat?",
     "replace_floor_types_intro": "Nahradit tyto typy podlah v aktivním motivu:\n  {known}",

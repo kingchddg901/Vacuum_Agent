@@ -1407,6 +1407,7 @@
     "paste_theme_first": "먼저 테마 내보내기 내용을 붙여넣으세요.",
     "pick_floor_type_export": "내보낼 바닥 유형을 선택하세요.",
     "pick_preset_apply": "적용할 프리셋을 선택하세요.",
+    "pasted_source_label": "붙여넣은 테마",
     "preset_source_label": "{name} 프리셋",
     "replace_floor_types_confirm": "\n\n해당 유형을 덮어씁니다. 계속하시겠습니까?",
     "replace_floor_types_intro": "활성 테마의 다음 바닥 유형을 교체합니다:\n  {known}",

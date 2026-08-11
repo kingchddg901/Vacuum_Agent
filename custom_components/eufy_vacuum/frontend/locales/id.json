@@ -2183,6 +2183,7 @@
     "paste_theme_first": "Tempel ekspor tema terlebih dahulu.",
     "pick_floor_type_export": "Pilih jenis lantai untuk diekspor.",
     "pick_preset_apply": "Pilih preset untuk diterapkan.",
+    "pasted_source_label": "tema yang ditempel",
     "preset_source_label": "preset {name}",
     "replace_floor_types_confirm": "\n\nIni menimpa jenis-jenis tersebut. Lanjutkan?",
     "replace_floor_types_intro": "Ganti jenis lantai berikut pada tema aktif:\n  {known}",

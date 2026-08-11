@@ -794,10 +794,13 @@ export function applyThemeRenderers(proto) {
 
           ${isDraft ? `
             <button
-              class="evcc-chip"
+              class="evcc-chip evcc-chip--iconable"
               data-theme-reset="${this.escapeHtml(token.key)}"
+              title="${this.escapeHtml(this.t("common.reset"))}"
+              aria-label="${this.escapeHtml(this.t("common.reset"))}"
             >
-              ${this.t("common.reset")}
+              <span class="evcc-chip-icon">${_iconUndo()}</span>
+              <span class="evcc-chip-label">${this.t("common.reset")}</span>
             </button>
           ` : ""}
 
@@ -879,8 +882,14 @@ export function applyThemeRenderers(proto) {
           <div class="token-label">${this.tVocab("theme_token", token.key, token.label)}</div>
           <div class="token-head-actions">
             ${isDraft ? `
-              <button class="evcc-chip" data-theme-reset="${this.escapeHtml(token.key)}">
-                ${this.t("common.reset")}
+              <button
+                class="evcc-chip evcc-chip--iconable"
+                data-theme-reset="${this.escapeHtml(token.key)}"
+                title="${this.escapeHtml(this.t("common.reset"))}"
+                aria-label="${this.escapeHtml(this.t("common.reset"))}"
+              >
+                <span class="evcc-chip-icon">${_iconUndo()}</span>
+                <span class="evcc-chip-label">${this.t("common.reset")}</span>
               </button>
             ` : ""}
           </div>
@@ -975,10 +984,13 @@ export function applyThemeRenderers(proto) {
           <div class="token-head-actions">
             ${isDraft ? `
               <button
-                class="evcc-chip"
+                class="evcc-chip evcc-chip--iconable"
                 data-theme-reset="${this.escapeHtml(token.key)}"
+                title="${this.escapeHtml(this.t("common.reset"))}"
+                aria-label="${this.escapeHtml(this.t("common.reset"))}"
               >
-                ${this.t("common.reset")}
+                <span class="evcc-chip-icon">${_iconUndo()}</span>
+                <span class="evcc-chip-label">${this.t("common.reset")}</span>
               </button>
             ` : ""}
           </div>
@@ -1053,10 +1065,13 @@ export function applyThemeRenderers(proto) {
           <div class="token-head-actions">
             ${isDraft ? `
               <button
-                class="evcc-chip"
+                class="evcc-chip evcc-chip--iconable"
                 data-theme-reset="${this.escapeHtml(token.key)}"
+                title="${this.escapeHtml(this.t("common.reset"))}"
+                aria-label="${this.escapeHtml(this.t("common.reset"))}"
               >
-                ${this.t("common.reset")}
+                <span class="evcc-chip-icon">${_iconUndo()}</span>
+                <span class="evcc-chip-label">${this.t("common.reset")}</span>
               </button>
             ` : ""}
           </div>
@@ -1090,35 +1105,43 @@ ${fontPresets}
       <div class="evcc-view-footer">
         <div class="footer-left">
           <button
-            class="evcc-chip"
+            class="evcc-chip evcc-chip--iconable"
             data-action="export-theme"
             title="${this.t("theme.export_title")}"
+            aria-label="${this.escapeHtml(this.t("theme.export"))}"
           >
-            ${this.t("theme.export")}
+            <span class="evcc-chip-icon">${_iconTextUp()}</span>
+            <span class="evcc-chip-label">${this.t("theme.export")}</span>
           </button>
 
           <button
-            class="evcc-chip"
+            class="evcc-chip evcc-chip--iconable"
             data-action="import-theme"
             title="${this.t("theme.import_title")}"
+            aria-label="${this.escapeHtml(this.t("theme.import"))}"
           >
-            ${this.t("theme.import")}
+            <span class="evcc-chip-icon">${_iconTextDown()}</span>
+            <span class="evcc-chip-label">${this.t("theme.import")}</span>
           </button>
 
           <button
-            class="evcc-chip"
+            class="evcc-chip evcc-chip--iconable"
             data-action="download-theme"
             title="${this.t("theme.download_title")}"
+            aria-label="${this.escapeHtml(this.t("theme.download"))}"
           >
-            ${this.t("theme.download")}
+            <span class="evcc-chip-icon">${_iconFolderDown()}</span>
+            <span class="evcc-chip-label">${this.t("theme.download")}</span>
           </button>
 
           <button
-            class="evcc-chip"
+            class="evcc-chip evcc-chip--iconable"
             data-action="upload-theme"
             title="${this.t("theme.upload_title")}"
+            aria-label="${this.escapeHtml(this.t("theme.upload"))}"
           >
-            ${this.t("theme.upload")}
+            <span class="evcc-chip-icon">${_iconFolderUp()}</span>
+            <span class="evcc-chip-label">${this.t("theme.upload")}</span>
           </button>
 
           ${pickingOnly ? "" : `
@@ -1170,7 +1193,7 @@ ${fontPresets}
             data-action="save-theme"
             ${!hasDraft ? "disabled" : ""}
           >
-            ${hasActiveTheme ? this.t("theme.save_changes") : this.t("theme.save_as_new")}
+            ${hasActiveTheme ? this.t("common.save") : this.t("theme.save_as_new")}
           </button>
         </div>`}
       </div>
@@ -1190,4 +1213,69 @@ ${fontPresets}
 
     return "#000000";
   };
+}
+
+/* =========================================================
+   INLINE ICONS — single-color SVGs, inherit currentColor
+   =========================================================
+   For the four import/export controls in the theme footer.
+   The markup carries BOTH an icon and a label at every width
+   and CSS chooses between them (mobile.js), which is the same
+   contract .evcc-mobile-nav-label uses — no isMobile branch in
+   the renderer, and the accessible name comes from aria-label
+   so it survives the label being display:none.
+
+   Pairing: T = the TEXT paths (export/import go through the
+   paste-JSON modal), folder = the FILE paths (download/upload).
+   Arrow direction follows the verb the user reads, not the
+   direction the data travels.
+   ========================================================= */
+
+function _iconTextUp() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 6h9"/>
+    <path d="M8.5 6v12"/>
+    <path d="M18 19v-9"/>
+    <path d="M15.5 12.5 18 10l2.5 2.5"/>
+  </svg>`;
+}
+
+function _iconTextDown() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 6h9"/>
+    <path d="M8.5 6v12"/>
+    <path d="M18 10v9"/>
+    <path d="M15.5 16.5 18 19l2.5-2.5"/>
+  </svg>`;
+}
+
+function _iconFolderDown() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M3 8V6.5A1.5 1.5 0 0 1 4.5 5h4l2 2h9A1.5 1.5 0 0 1 21 8.5V18a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18V8z"/>
+    <path d="M12 10.5v4.5"/>
+    <path d="M9.75 12.75 12 15l2.25-2.25"/>
+  </svg>`;
+}
+
+/* Per-token reset. Counter-clockwise arrow = undo, the shape users already
+   read as "put it back" — and it only ever renders on a MODIFIED token, so it
+   is a revert of your own edit rather than a destructive action. */
+function _iconUndo() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M4 8h9a5.5 5.5 0 0 1 0 11h-6"/>
+    <path d="M7.5 4.5 4 8l3.5 3.5"/>
+  </svg>`;
+}
+
+function _iconFolderUp() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M3 8V6.5A1.5 1.5 0 0 1 4.5 5h4l2 2h9A1.5 1.5 0 0 1 21 8.5V18a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18V8z"/>
+    <path d="M12 15v-4.5"/>
+    <path d="M9.75 12.75 12 10.5l2.25 2.25"/>
+  </svg>`;
 }

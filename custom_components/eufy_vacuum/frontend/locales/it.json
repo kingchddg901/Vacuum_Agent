@@ -208,6 +208,7 @@
     "paste_theme_first": "Incolla prima un'esportazione di tema.",
     "pick_floor_type_export": "Scegli un tipo di pavimento da esportare.",
     "pick_preset_apply": "Scegli un preset da applicare.",
+    "pasted_source_label": "il tema incollato",
     "preset_source_label": "il preset {name}",
     "replace_floor_types_confirm": "\n\nQuesto sovrascrive quei tipi. Continuare?",
     "replace_floor_types_intro": "Sostituisci questi tipi di pavimento nel tema attivo:\n  {known}",

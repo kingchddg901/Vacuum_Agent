@@ -208,6 +208,7 @@
     "paste_theme_first": "Füge zuerst einen Theme-Export ein.",
     "pick_floor_type_export": "Wähle einen Bodentyp zum Exportieren aus.",
     "pick_preset_apply": "Wähle eine Voreinstellung zum Anwenden aus.",
+    "pasted_source_label": "das eingefügte Theme",
     "preset_source_label": "die Voreinstellung {name}",
     "replace_floor_types_confirm": "\n\nDies überschreibt diese Typen. Fortfahren?",
     "replace_floor_types_intro": "Diese Bodentypen im aktiven Theme ersetzen:\n  {known}",
