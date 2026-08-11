@@ -202,6 +202,9 @@ async def test_diagnostics_full(hass):
     assert res["active_map"] == {
         "entity_id": "sensor.alfred_active_map",
         "exists": True,
+        # REGISTERED is reported beside EXISTS so a dump can tell "never created"
+        # from "correct ID, entity absent" — the distinction issue #46 turned on.
+        "registered": False,
         "state": "6",
     }
     assert res["live_map"]["exists"] is True
@@ -293,7 +296,12 @@ async def test_diagnostics_malformed_entities(hass):
     # Must not raise — the dump degrades the bad role to exists=False.
     diag = await async_get_config_entry_diagnostics(hass, entry)
     res = diag["vacuums"][0]["entity_resolution"]["active_map"]
-    assert res == {"entity_id": None, "exists": False, "state": None}
+    assert res == {
+        "entity_id": None,
+        "exists": False,
+        "registered": False,
+        "state": None,
+    }
     assert diag["vacuums"][0]["active_map_id"] is None
 
 

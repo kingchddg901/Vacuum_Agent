@@ -68,12 +68,35 @@ def _entity_snapshot(hass: HomeAssistant, entity_id: Any) -> dict[str, Any]:
         return {
             "entity_id": entity_id if isinstance(entity_id, str) else None,
             "exists": False,
+            "registered": False,
             "state": None,
         }
+    # REGISTERED is reported separately from EXISTS because they answer different
+    # questions and two support reports in two days both turned on the difference.
+    # exists=False + registered=False -> the entity is not created at all (a naming
+    # mismatch, or the brand does not ship it). exists=False + registered=True -> the
+    # ID is CORRECT and the entity is merely absent, which is what a stale registry row
+    # looks like after an upgrade stops an integration creating something. Collapsing
+    # the two into one flag makes those indistinguishable in a dump (issue #46).
+    registered = False
+    try:
+        registered = er.async_get(hass).async_get(entity_id) is not None
+    except Exception:  # pragma: no cover - defensive; a dump must never raise
+        registered = False
     state_obj = hass.states.get(entity_id)
     if state_obj is None:
-        return {"entity_id": entity_id, "exists": False, "state": None}
-    return {"entity_id": entity_id, "exists": True, "state": state_obj.state}
+        return {
+            "entity_id": entity_id,
+            "exists": False,
+            "registered": registered,
+            "state": None,
+        }
+    return {
+        "entity_id": entity_id,
+        "exists": True,
+        "registered": registered,
+        "state": state_obj.state,
+    }
 
 
 def resolve_active_map_id(entity_resolution: dict[str, Any]) -> str | None:
@@ -460,9 +483,21 @@ def _vacuum_diagnostics(
         out["capabilities_error"] = _redact(repr(err))
 
     entities_map = (caps.get("entities") or {}) if isinstance(caps, dict) else {}
+    # The capabilities snapshot carries only the DETECTED roles. Roles the adapter
+    # declares outright — battery, charging, the dock counters — were never probed, so a
+    # dump could not answer "did the battery sensor resolve?" (issue #49) and the fault
+    # had to be reproduced on other hardware instead. Union both: the adapter's declared
+    # map is what the framework actually reads at runtime.
+    try:
+        from .adapters.registry import get_adapter_config as _get_cfg_for_entities
+
+        declared_map = (_get_cfg_for_entities(vacuum_entity_id) or {}).get("entities") or {}
+    except Exception:  # pragma: no cover - defensive
+        declared_map = {}
+    merged_map = {**declared_map, **entities_map} if isinstance(declared_map, dict) else entities_map
     entity_resolution = {
         role: _entity_snapshot(hass, entity_id)
-        for role, entity_id in sorted(entities_map.items())
+        for role, entity_id in sorted(merged_map.items())
     }
     out["entity_resolution"] = entity_resolution
 
