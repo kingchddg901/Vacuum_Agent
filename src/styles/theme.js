@@ -705,6 +705,20 @@ export const themeStyles = `
     max-width: 110px;
   }
 
+  /* ACCEPTED TRADE — THIS LINE CLIPS IN LONGER LOCALES AT PHONE WIDTH.
+     nowrap plus the shell's overflow:hidden means the tail is cut rather than
+     wrapped: English fits, French and Spanish do not ("Double-appui pour la
+     co...", "Doble toque para colo..."). It is the one band in this view that
+     TRULY overflows; the footer merely wraps to a second row.
+
+     Letting it wrap is a one-line change and the wrong one. The hint renders
+     once per COLOUR token -- 303 rows -- so a second line costs ~14px on every
+     one of them, which is precisely the vertical budget that took the mobile
+     editor from ZERO visible token rows to two. A clipped tail on a
+     discoverability hint is cheaper than an editor with nothing in it.
+
+     If it must read in full, shorten the STRING for that locale. Do not
+     remove the nowrap. */
   .token-hint {
     margin-inline-start: auto;
     font-size: 0.7rem;

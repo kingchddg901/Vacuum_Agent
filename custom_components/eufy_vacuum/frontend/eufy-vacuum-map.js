@@ -12381,6 +12381,20 @@ ${r}
     max-width: 110px;
   }
 
+  /* ACCEPTED TRADE \u2014 THIS LINE CLIPS IN LONGER LOCALES AT PHONE WIDTH.
+     nowrap plus the shell's overflow:hidden means the tail is cut rather than
+     wrapped: English fits, French and Spanish do not ("Double-appui pour la
+     co...", "Doble toque para colo..."). It is the one band in this view that
+     TRULY overflows; the footer merely wraps to a second row.
+
+     Letting it wrap is a one-line change and the wrong one. The hint renders
+     once per COLOUR token -- 303 rows -- so a second line costs ~14px on every
+     one of them, which is precisely the vertical budget that took the mobile
+     editor from ZERO visible token rows to two. A clipped tail on a
+     discoverability hint is cheaper than an editor with nothing in it.
+
+     If it must read in full, shorten the STRING for that locale. Do not
+     remove the nowrap. */
   .token-hint {
     margin-inline-start: auto;
     font-size: 0.7rem;
@@ -17278,23 +17292,20 @@ ${r}
       padding: 4px 8px;
     }
 
-    /* ACCEPTED TRADE \u2014 A FEW LOCALES TRULY OVERFLOW HERE. NOT A DEFECT.
-       The band is sized so the six controls fit one row in English down to
-       320px. Languages whose verbs are longer (German "Speichern" /
-       "Verwerfen", Dutch "Opslaan" / "Verwerpen") exceed that, and at the
-       narrowest widths the content CLIPS rather than merely wrapping to a
-       second row.
+    /* LONGER LOCALES TAKE A SECOND ROW HERE. ACCEPTED, AND IT IS A WRAP.
+       The band is sized so all six controls fit ONE row in English down to
+       320px. German ("Speichern" / "Verwerfen"), Dutch and French exceed that
+       and wrap \u2014 verified on-device: Spanish holds one row, French takes two.
+       A two-row footer is a fine outcome; nothing is lost.
 
-       That is deliberate. Sizing the band to hold the longest locale would
-       spend the vertical budget this whole pass exists to reclaim \u2014 the
-       editor showed ZERO token rows before it. Editing tokens on a phone was
-       impossible; a clipped verb in a couple of languages is the price of it
-       being possible at all.
+       Do not buy that row back with height. The vertical budget is what took
+       this view from ZERO visible token rows to two, and the footer is only
+       30px of it. Fixes that stay inside the trade cost no height: a shorter
+       label (theme.save_changes -> common.save did exactly this, 96px -> 47px)
+       or moving a control out of the band.
 
-       So do NOT "fix" this by giving the footer height back. The only
-       acceptable fixes are ones that cost no height: a shorter label (as
-       theme.save_changes -> common.save already did, 96px -> 47px), or moving
-       a control out of the band entirely. */
+       The band that genuinely CLIPS is .token-hint, not this one \u2014 its own
+       rule in styles/theme.js carries that note. */
 
     /* THE PER-TOKEN RESET IS THE EXCEPTION TO THE 44px FLOOR ABOVE.
        It sits INSIDE a token row, not in a chrome band, so the floor works

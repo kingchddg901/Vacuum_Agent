@@ -991,23 +991,20 @@ export const MOBILE_STYLES = `
       padding: 4px 8px;
     }
 
-    /* ACCEPTED TRADE — A FEW LOCALES TRULY OVERFLOW HERE. NOT A DEFECT.
-       The band is sized so the six controls fit one row in English down to
-       320px. Languages whose verbs are longer (German "Speichern" /
-       "Verwerfen", Dutch "Opslaan" / "Verwerpen") exceed that, and at the
-       narrowest widths the content CLIPS rather than merely wrapping to a
-       second row.
+    /* LONGER LOCALES TAKE A SECOND ROW HERE. ACCEPTED, AND IT IS A WRAP.
+       The band is sized so all six controls fit ONE row in English down to
+       320px. German ("Speichern" / "Verwerfen"), Dutch and French exceed that
+       and wrap — verified on-device: Spanish holds one row, French takes two.
+       A two-row footer is a fine outcome; nothing is lost.
 
-       That is deliberate. Sizing the band to hold the longest locale would
-       spend the vertical budget this whole pass exists to reclaim — the
-       editor showed ZERO token rows before it. Editing tokens on a phone was
-       impossible; a clipped verb in a couple of languages is the price of it
-       being possible at all.
+       Do not buy that row back with height. The vertical budget is what took
+       this view from ZERO visible token rows to two, and the footer is only
+       30px of it. Fixes that stay inside the trade cost no height: a shorter
+       label (theme.save_changes -> common.save did exactly this, 96px -> 47px)
+       or moving a control out of the band.
 
-       So do NOT "fix" this by giving the footer height back. The only
-       acceptable fixes are ones that cost no height: a shorter label (as
-       theme.save_changes -> common.save already did, 96px -> 47px), or moving
-       a control out of the band entirely. */
+       The band that genuinely CLIPS is .token-hint, not this one — its own
+       rule in styles/theme.js carries that note. */
 
     /* THE PER-TOKEN RESET IS THE EXCEPTION TO THE 44px FLOOR ABOVE.
        It sits INSIDE a token row, not in a chrome band, so the floor works
