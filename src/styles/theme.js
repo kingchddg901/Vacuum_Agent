@@ -1199,6 +1199,18 @@ export const themeStyles = `
      budget is scarce, so the reveal lives in mobile.js. */
   .evcc-chip-icon {
     display: none;
+    /* SIZE THE BOX EXPLICITLY — do not let it derive one. This span is a flex
+       ITEM of .evcc-chip wrapping an <svg> that has a viewBox but no
+       width/height ATTRIBUTES, so it contributes no intrinsic size to its
+       parent's content-based sizing: the span resolved to 12.5px around a
+       20px glyph and the icon overflowed its own box. flex:0 0 auto alone did
+       NOT fix it — shrink:0 cannot help when the flex BASE resolves small.
+       Invisible on screen, since overflow is visible; caught only by the
+       layout gate. Keep width/height here in step with the svg rule below. */
+    flex: 0 0 auto;
+    line-height: 0;
+    width: 20px;
+    height: 20px;
   }
 
   .evcc-chip-icon svg {

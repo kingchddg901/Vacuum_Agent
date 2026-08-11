@@ -12968,6 +12968,18 @@ ${r}
      budget is scarce, so the reveal lives in mobile.js. */
   .evcc-chip-icon {
     display: none;
+    /* SIZE THE BOX EXPLICITLY \u2014 do not let it derive one. This span is a flex
+       ITEM of .evcc-chip wrapping an <svg> that has a viewBox but no
+       width/height ATTRIBUTES, so it contributes no intrinsic size to its
+       parent's content-based sizing: the span resolved to 12.5px around a
+       20px glyph and the icon overflowed its own box. flex:0 0 auto alone did
+       NOT fix it \u2014 shrink:0 cannot help when the flex BASE resolves small.
+       Invisible on screen, since overflow is visible; caught only by the
+       layout gate. Keep width/height here in step with the svg rule below. */
+    flex: 0 0 auto;
+    line-height: 0;
+    width: 20px;
+    height: 20px;
   }
 
   .evcc-chip-icon svg {
@@ -17379,10 +17391,19 @@ ${r}
        room to spare. Height matches Discard / Save deliberately: those ship
        at 28.5px today, so this is the band's existing target size, not a new
        reduction. Narrower phones still wrap, which is the correct fallback. */
+    /* EXPLICIT width/height, not a content-derived one. box-sizing is
+       border-box here, so 36 - 12 padding - 2 border leaves a 22px content
+       box around a 20px glyph. Sized rather than derived because the
+       content-based flex basis resolved ~5px wider than the icon plus padding
+       accounts for, and that surplus multiplied by four chips was enough to
+       push this band back onto a second row. A fixed box makes the one-row
+       budget arithmetic that the note below depends on actually hold. */
     .evcc-view-stage[data-view="theme"] .evcc-view-footer .evcc-chip--iconable.evcc-chip {
+      width: 36px;
       min-width: 36px;
+      height: 28px;
       min-height: 28px;
-      padding: 4px 8px;
+      padding: 4px 6px;
     }
 
     /* LONGER LOCALES TAKE A SECOND ROW HERE. ACCEPTED, AND IT IS A WRAP.
@@ -17415,6 +17436,12 @@ ${r}
       padding: 5px;
     }
 
+    /* The in-row glyph is 18px, so the SPAN must match it \u2014 see the note on
+       .evcc-chip-icon in styles/theme.js: the box is sized explicitly because
+       the svg contributes no intrinsic size, and the two must move together
+       or the icon overflows its own box again. */
+    .evcc-view-stage[data-view="theme"] .token-top-strip .evcc-chip-icon,
+    .evcc-view-stage[data-view="theme"] .token-head-actions .evcc-chip-icon,
     .evcc-view-stage[data-view="theme"] .token-top-strip .evcc-chip-icon svg,
     .evcc-view-stage[data-view="theme"] .token-head-actions .evcc-chip-icon svg {
       width: 18px;

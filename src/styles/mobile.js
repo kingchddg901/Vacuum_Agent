@@ -985,10 +985,19 @@ export const MOBILE_STYLES = `
        room to spare. Height matches Discard / Save deliberately: those ship
        at 28.5px today, so this is the band's existing target size, not a new
        reduction. Narrower phones still wrap, which is the correct fallback. */
+    /* EXPLICIT width/height, not a content-derived one. box-sizing is
+       border-box here, so 36 - 12 padding - 2 border leaves a 22px content
+       box around a 20px glyph. Sized rather than derived because the
+       content-based flex basis resolved ~5px wider than the icon plus padding
+       accounts for, and that surplus multiplied by four chips was enough to
+       push this band back onto a second row. A fixed box makes the one-row
+       budget arithmetic that the note below depends on actually hold. */
     .evcc-view-stage[data-view="theme"] .evcc-view-footer .evcc-chip--iconable.evcc-chip {
+      width: 36px;
       min-width: 36px;
+      height: 28px;
       min-height: 28px;
-      padding: 4px 8px;
+      padding: 4px 6px;
     }
 
     /* LONGER LOCALES TAKE A SECOND ROW HERE. ACCEPTED, AND IT IS A WRAP.
@@ -1021,6 +1030,12 @@ export const MOBILE_STYLES = `
       padding: 5px;
     }
 
+    /* The in-row glyph is 18px, so the SPAN must match it — see the note on
+       .evcc-chip-icon in styles/theme.js: the box is sized explicitly because
+       the svg contributes no intrinsic size, and the two must move together
+       or the icon overflows its own box again. */
+    .evcc-view-stage[data-view="theme"] .token-top-strip .evcc-chip-icon,
+    .evcc-view-stage[data-view="theme"] .token-head-actions .evcc-chip-icon,
     .evcc-view-stage[data-view="theme"] .token-top-strip .evcc-chip-icon svg,
     .evcc-view-stage[data-view="theme"] .token-head-actions .evcc-chip-icon svg {
       width: 18px;
