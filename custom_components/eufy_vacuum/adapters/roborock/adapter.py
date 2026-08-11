@@ -23,6 +23,8 @@ import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
+from ..entity_resolve import resolve_declared_entities
+
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, LOW_BATTERY_THRESHOLD_PERCENT
 from .entities import (
@@ -226,6 +228,12 @@ def register_roborock_adapter_for_vacuum(
         # surface mop state + the water-level field only when the tank is attached.
         "mop_active": build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR),
     }
+
+    # Rescue derived IDs that do not match this install (renamed device/entity, or a
+    # brand splitting entities across devices). Only touches IDs that FAIL to resolve
+    # and refuses to guess when ambiguous, so a working install cannot be altered.
+    # See adapters/entity_resolve.
+    entities, _entity_remaps = resolve_declared_entities(hass, vid, entities)
 
     config = {
         "adapter_id": ADAPTER_ID,

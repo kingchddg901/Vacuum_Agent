@@ -20,6 +20,8 @@ import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
+from ..entity_resolve import resolve_declared_entities
+
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, STORAGE_KEY
 from .constants import (
@@ -303,6 +305,13 @@ def register_eufy_adapter_for_vacuum(
 
     # Remove None values — absent entities degrade gracefully per the schema.
     entities = {k: v for k, v in entities.items() if v is not None}
+
+    # Rescue derived IDs that do not match this install. Eufy's DOCK is a separate
+    # device, so its entities are named for that device, not the vacuum — the four
+    # dock-owned roles resolve to nothing on a live X10 while the entities plainly
+    # exist. Only touches IDs that FAIL to resolve, and refuses to guess when
+    # ambiguous, so a working install cannot be altered. See adapters/entity_resolve.
+    entities, _entity_remaps = resolve_declared_entities(hass, vacuum_entity_id, entities)
 
     config = {
         "adapter_id": ADAPTER_ID,

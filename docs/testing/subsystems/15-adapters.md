@@ -23,6 +23,36 @@ hand on adapter test changes — collect-only case counts:
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-system.md), [docs/dev/22-adapter-config-reference.md](../../dev/22-adapter-config-reference.md)
 
+### `test_entity_resolve.py` — when a DERIVED entity id does not match the install
+
+Adapters build companion entity ids from the vacuum's object_id
+(`build_entity_id` → `sensor.{object_id}{suffix}`). That assumes one device per vacuum,
+and two shipping cases break it: **Eufy's dock is a separate device**, so its entities are
+named for that device (declared `sensor.alfred_total_cleaning_area`, actual
+`sensor.dining_room_alfred_total_cleaning_area` — four dock-owned roles unresolved on live
+hardware), and **a renamed device or entity** breaks every derived id at once.
+
+Both failed SILENTLY, and a declared-but-absent entity reads as "this brand does not report
+that" — the capability leak this project keeps removing. HA 2026.8 removed `battery_level`
+from the vacuum entity, deleting the fallback that used to hide a missed battery sensor, so
+the derived id is now load-bearing alone (issue #49).
+
+`adapters/entity_resolve.py` rescues an id that FAILS to resolve by searching the vacuum's
+own config entry for a domain + suffix match. Nine tests, and most pin what it REFUSES to
+do, because the refusals are what make it safe to run on every install:
+
+| id | what it holds |
+|---|---|
+| `ER-1` | **a working id is never touched** — the property that makes this unable to break a healthy install, asserted even when a same-suffix sibling exists |
+| `ER-2` | the live Eufy dock case is rescued, and the remap is REPORTED rather than silently applied |
+| `ER-3` | two candidates it cannot disambiguate → leave the declared id; a wrong remap aims the framework at another device and is worse than the absence |
+| `ER-4` | ambiguity broken only by the vacuum's own object_id — what makes `<area>_<vacuum>_<suffix>` resolvable |
+| `ER-5` | domain must match; a `select.*_active_map` is never served for a declared `sensor.*_active_map` |
+| `ER-6` | no config entry → no-op. Config-entry scoping IS the safety boundary, so without it we search nothing |
+| `ER-7` | **the documented LIMIT** (issue #46 shape): registered-but-stateless is not a naming problem, so it resolves to nothing and reports no repair |
+| `ER-8` | a raising registry degrades to the declared ids — adapter config assembly is never breakable by this |
+| `ER-9` | an id not derived from this vacuum has no suffix to match on, so nothing is guessed |
+
 ### `test_adapter_isolation.py` — the boundary, not the declarations
 
 `test_adapter_contract.py` asserts what a brand must DECLARE. Nothing asserted
