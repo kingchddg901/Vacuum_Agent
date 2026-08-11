@@ -991,6 +991,24 @@ export const MOBILE_STYLES = `
       padding: 4px 8px;
     }
 
+    /* ACCEPTED TRADE — A FEW LOCALES TRULY OVERFLOW HERE. NOT A DEFECT.
+       The band is sized so the six controls fit one row in English down to
+       320px. Languages whose verbs are longer (German "Speichern" /
+       "Verwerfen", Dutch "Opslaan" / "Verwerpen") exceed that, and at the
+       narrowest widths the content CLIPS rather than merely wrapping to a
+       second row.
+
+       That is deliberate. Sizing the band to hold the longest locale would
+       spend the vertical budget this whole pass exists to reclaim — the
+       editor showed ZERO token rows before it. Editing tokens on a phone was
+       impossible; a clipped verb in a couple of languages is the price of it
+       being possible at all.
+
+       So do NOT "fix" this by giving the footer height back. The only
+       acceptable fixes are ones that cost no height: a shorter label (as
+       theme.save_changes -> common.save already did, 96px -> 47px), or moving
+       a control out of the band entirely. */
+
     /* THE PER-TOKEN RESET IS THE EXCEPTION TO THE 44px FLOOR ABOVE.
        It sits INSIDE a token row, not in a chrome band, so the floor works
        against the thing this pass exists for: measured at 44 it took a
