@@ -49,6 +49,7 @@ import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
 import { detectFloorScope, clampThemeScalars } from "../src/theme-tokens/floor-scope.js";
 import { THEME_TOKEN_MAP } from "../src/theme-tokens/index.js";
+import { themeLibraryFixture, tokenCount } from "./fixtures/theme-library.mjs";
 // REAL-CARD MOUNT (opt-in): importing main.js for its side effect registers
 // <eufy-vacuum-command-center> with customElements. Everything above renders a
 // SYNTHETIC frame; this is the only path that builds the card's own.
@@ -619,6 +620,66 @@ function renderThemePresets(themes, opts = {}) {
   return result;
 }
 
+/**
+ * Render the FULL theme view (presets / palette / TOKEN EDITOR) with a REAL
+ * state seeded from a theme library — the editor's counterpart to
+ * renderThemePresets above.
+ *
+ * WHY THIS EXISTS: render()'s stub state supplies no theme data, so the editor
+ * body renders EMPTY. A layout probe against it reports a clean shell having
+ * measured nothing — it did exactly that, greenly, and claimed the theme editor
+ * fits on a phone while the real device clipped the search box, the preview copy
+ * and the footer. The token editor was unreachable below 600px until the
+ * MOBILE_TOKEN_EDITOR test build, which is why no fixture ever existed.
+ *
+ * `themes` is plain serialisable data (harness/fixtures/theme-library.mjs), so a
+ * spec can pass it through page.evaluate; the live VacuumCardState is built HERE,
+ * in-page, because functions cannot cross that boundary. Everything else — chrome,
+ * the mobile fork, bundle application — is render()'s rather than a copy of it:
+ * `real` delegates each accessor to the genuine state, while render()'s own
+ * `mobile` override still wins for isMobileViewport().
+ *
+ * @param {Array<{id:string,name:string,tokens:object,colors?:object,alpha?:object}>} themes
+ * @param {{subTab?:"presets"|"palette"|"tokens", activeThemeId?:string|null}} [opts]
+ *        plus every render() option (width/height/mobile/freeze/bundle/lang...).
+ */
+function renderThemeEditor(themes, opts = {}) {
+  const { subTab = "tokens", activeThemeId = null, ...rest } = opts;
+  try {
+    // Pass null to use the derived default fixture. It is generated HERE, in-page,
+    // from the same THEME_TOKEN_REGISTRY the card itself loaded — a spec-side
+    // import cannot be trusted to match (Playwright's Node loader does not even
+    // resolve that module's `export let`), and a fixture that drifts from the
+    // registry silently stops covering whichever group was added last.
+    const list = Array.isArray(themes) && themes.length ? themes : themeLibraryFixture();
+    if (!list.length) {
+      return { view: "theme", ok: false, misses: { state: [], hass: [] },
+               error: "renderThemeEditor: no themes supplied — the gate would measure nothing" };
+    }
+    const real = new VacuumCardState({}, {});
+    const library = {};
+    for (const t of list) library[t.id] = t;
+    real.setThemeLibrary({
+      library,
+      themes: list.map((t) => ({ id: t.id, name: t.name })),
+      default_theme_id: list[0]?.id || null,
+    });
+    real.applyThemeActivation(activeThemeId || list[0].id, { clearDraft: true });
+    real.setThemeSubTab(subTab);
+    const out = render("theme", { ...rest, real });
+    // Surface the registry size so a gate can report "0 of N rendered" rather
+    // than a bare zero — the difference between a useful failure and a puzzle.
+    out.tokenCount = tokenCount();
+    return out;
+  } catch (err) {
+    return {
+      view: "theme", ok: false, misses: { state: [], hass: [] },
+      error: String((err && err.message) || err),
+      stack: err && err.stack ? String(err.stack).split("\n").slice(0, 8).join("\n") : null,
+    };
+  }
+}
+
 /* ===========================================================
    REAL-CARD MOUNT — explicitly called, never the default.
    ===========================================================
@@ -895,6 +956,7 @@ window.__evcc = {
     clip: s.clip ?? null, needsThemes: typeof s.state === "function",
   })),
   renderThemePresets,
+  renderThemeEditor,  // full theme view incl. the token editor; see its doc
   registerLocale, // inject a foreign/pseudo locale catalog before rendering with opts.lang
   makePseudoLong, // build the layout-stress catalog IN-PAGE (avoids a Node-side en.js import)
   en,             // English manifest — flatten a shipped locale JSON against it IN-PAGE
