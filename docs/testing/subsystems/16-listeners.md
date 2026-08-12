@@ -24,13 +24,34 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 | `lifecycle.py` | 144 | 94% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration | **bare x28** |
 | `path_blockers.py` | 142 | 95% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration | spec'd |
 | `job_metrics.py` | 98 | 94% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration | **bare x28** |
-| `stall_capture.py` | new | — | `tests/unit/test_stall_capture_listener.py` | unit (pure helpers) | clean |
+| `stall_capture.py` | new | — | `tests/unit/test_stall_capture_listener.py`, `tests/unit/test_receipts_criterion.py`, `tests/unit/test_receipts_happy_path.py`, `tests/unit/test_receipts_concurrency.py` | unit (pure helpers, the decline paths, the whole chain, and two chains at once) | clean |
+| `receipts/` | new | — | `tests/unit/test_receipts.py` | unit | clean |
 | `dock_events.py` | 65 | 92% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration | **bare x28** |
 | `discovery.py` | 81 | 99% | `test_listeners_timers.py` | integration | clean |
 | `pause_timeout.py` | 74 | 92% | `test_listeners_timers.py` | integration | clean |
 | `_common.py` | 80 | 93% | `test_listeners_common.py` | integration | clean |
 | `job_progress.py` | 44 | 95% | `test_listeners_active.py` | integration | **bare x28** |
 | `pose_sampler.py` | 159 | 89% | `test_pose_sampler.py` (unit) | unit | **bare x5** |
+
+**Two gates, and neither alone is sufficient — demonstrated, not assumed.**
+`scripts/check_receipts.py` is a static AST scan: it proves a receipt's call site EXISTS and
+that the catalog agrees with it in both directions. `test_receipts_happy_path.py` proves the
+call site RUNS. Making one receipt unreachable without deleting it (`if False:` around the
+emit) leaves the static gate GREEN and turns the runtime test RED — which is
+`feedback_audit_callsite_reachability` in miniature: static and runtime reachability are
+different questions, and a correct call site with no execution passes every scan.
+
+The happy-path file exists because the first two receipt tests both ended in a *decline*, so
+six of nine catalog keys — every success receipt — were reached by nothing. A system whose
+founding rule is "success is not allowed to be silent" had no test that success speaks.
+
+`test_receipts_concurrency.py` asserts a **dependency, not a capability**. Two vacuums
+stalling at once produce interleaved receipts that a reader *can* separate — but only
+because every receipt in this catalog carries the vacuum as its first fact. That is a
+property of the catalog, not of the protocol: the moment a chain reaches a station whose
+facts omit the vacuum (a shared renderer, a store keyed by path, a queue), the grouping key
+vanishes and only chronology is left, which §10 says is not enough. The test fails at that
+moment rather than after it, which is when a correlation id should be added.
 
 ---
 

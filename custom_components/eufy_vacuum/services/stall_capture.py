@@ -54,6 +54,7 @@ from ..const import (
     SERVICE_DEV_INJECT_STALL,
     SERVICE_SET_STALL_CAPTURE,
 )
+from .. import receipts
 from ._common import get_manager
 
 _LOGGER = logging.getLogger(__name__)
@@ -135,6 +136,18 @@ def register(hass: HomeAssistant) -> None:
             "stall_ratio": None,
             "injected": True,
         }
+        # PROVENANCE IS A SECTION, NEVER A BRANCH: nothing downstream reads it or behaves
+        # differently. This injector exists precisely so every consumer runs FOR REAL, and
+        # gating on the caller would build an instrument that certifies itself.
+        # (The ARTIFACT still carries no provenance — one file per (vacuum, map),
+        # overwritten, so a synthetic capture replaces a real one indistinguishably. That is
+        # a retention question, tracked as docs/dev/deltas `live:STALL-PROV-1`.)
+        # THE INJECTION POINT, and the ONLY receipt that carries `synth`. Everything
+        # downstream truthfully reports `live`, because it truthfully IS live — the capture
+        # really reads the map, really renders, really writes. What is synthetic is the
+        # STIMULUS, which is a fact about this line and not about its consequences.
+        receipts.emit("stall.inject.fired", "ANY", "services.stall_capture", "B",
+                      vacuum_entity_id, map_id, room_id, prov="synth")
         hass.bus.async_fire(EVENT_STALL_DETECTED, payload)
         _LOGGER.warning(
             "dev_inject_stall: fired a SYNTHETIC stall for %s room %s — development mode",

@@ -49,6 +49,7 @@ from homeassistant.core import Event, HomeAssistant, callback
 from .. import pose_store
 from ..const import DATA_RUNTIME, DOMAIN, EVENT_STALL_DETECTED
 from ..core.manager import EufyVacuumManager
+from .. import receipts
 from ..mapping.stall_capture_render import render_room_capture, trail_window_seconds
 from ._common import get_adapter_value
 
@@ -225,32 +226,59 @@ def _write_atomic(path: str, data: bytes) -> None:
 
 async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
     """Render and deliver one stall capture. Best-effort throughout."""
-    manager: EufyVacuumManager | None = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
-    if manager is None:
-        return
-
+    # Read the call BEFORE the runtime check, so a decline can name its own station. These
+    # are dict reads with no side effects, so the reorder is behaviour-neutral.
     vacuum_entity_id = str(event_data.get("vacuum_entity_id") or "")
     map_id = event_data.get("map_id")
     room_id = event_data.get("room_id")
     room_name = event_data.get("room_name") or f"Room {room_id}"
+
+    manager: EufyVacuumManager | None = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+    if manager is None:
+        receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture",
+                      "D", vacuum_entity_id, "no_runtime")
+        return
     if not vacuum_entity_id or room_id is None:
+        receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture",
+                      "D", vacuum_entity_id, "no_room")
         return
     if not is_enabled(manager, vacuum_entity_id):
+        # THE decline this pilot exists for. On 2026-08-09 this returned silently and
+        # "why is there no image" cost four queries and a .storage read to answer. It is a
+        # deliberate configuration, not a fault, and the difference is now on the wire.
+        receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture",
+                      "D", vacuum_entity_id, "not_armed")
         return
+
+    receipts.emit("stall.capture.heard", "ANY", "listeners.stall_capture",
+                  "R", vacuum_entity_id, map_id, room_id)
 
     render = await manager.async_get_map_render_data(vacuum_entity_id=vacuum_entity_id)
     if not isinstance(render, dict) or not render.get("present"):
+        receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture",
+                      "D", vacuum_entity_id, "no_render_data")
         _LOGGER.debug("stall_capture: no map render data for %s", vacuum_entity_id)
         return
     geometry = _render_payload(render)
     if geometry is None:
+        receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture",
+                      "D", vacuum_entity_id, "unusable")
         _LOGGER.debug("stall_capture: unusable render data for %s", vacuum_entity_id)
         return
 
     config_dir = hass.config.config_dir
     now = datetime.now(timezone.utc)
+    receipts.emit("stall.capture.pose.called", "mapping.map_source", "listeners.stall_capture",
+                  "C", vacuum_entity_id)
     live_pose = await manager.async_get_map_live_pose(vacuum_entity_id=vacuum_entity_id)
     anchor = live_pose.get("robot_anchor") if isinstance(live_pose, dict) else None
+    # The readability report — a QUALITY claim by the receiver, not an acknowledgement.
+    # `broken` = the source did not answer usably at all; `weak` = it answered and carried
+    # no position, which is exactly the state that hid a brand having no dot for months.
+    _read = ("broken" if not (isinstance(live_pose, dict) and live_pose.get("present"))
+             else "lc" if anchor else "weak")
+    receipts.emit("stall.capture.pose.observed", "ANY", "listeners.stall_capture",
+                  "P", vacuum_entity_id, _read)
 
     # The window is sized to the brand's pose cadence, and the SAME number goes to the
     # renderer so the draw style matches the density it is actually getting. A brand
@@ -263,6 +291,12 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
     trail = await hass.async_add_executor_job(
         _trail_from_ring, config_dir, vacuum_entity_id, now, window_s
     )
+    # A separate call gets a separate reply — folding this into the pose receipt would make
+    # that one claim a boundary it does not sit at. `window_s` is on the wire because it is
+    # DERIVED from the brand's declared cadence, so a dump shows why one brand got 7 points
+    # and another got 30 without anyone looking up a constant.
+    receipts.emit("stall.capture.trail.read", "ANY", "listeners.stall_capture",
+                  "P", vacuum_entity_id, len(trail), window_s)
 
     # The user's own map orientation — display-only state the card applies with CSS.
     # A capture at the raw raster angle is correct and UNRECOGNISABLE, which for a
@@ -283,14 +317,35 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
         )
     )
     if png is None:
-        # Pillow absent, or the room has no cells. Both are ABSENCE: no picture, no noise.
+        # Pillow absent, or the room has no cells. Both produce no picture, and the old
+        # comment called them "both ABSENCE" — but they are DIFFERENT absences with
+        # different fixes, and collapsing them is why "no image" was a four-way guess.
+        # The import is on the failure path only, so its cost never touches a good run.
+        from ..mapping import stall_capture_render as _scr
+        receipts.emit("stall.capture.declined", "ANY", "listeners.stall_capture", "D",
+                      vacuum_entity_id, "no_pillow" if _scr.Image is None else "unusable")
         _LOGGER.debug(
             "stall_capture: nothing to render for %s room %s", vacuum_entity_id, room_id
         )
         return
+    receipts.emit("stall.capture.rendered", "ANY", "listeners.stall_capture",
+                  "P", vacuum_entity_id, room_id, len(png))
 
     path = capture_path(config_dir, vacuum_entity_id, map_id)
-    await hass.async_add_executor_job(_write_atomic, path, png)
+    try:
+        await hass.async_add_executor_job(_write_atomic, path, png)
+    except Exception:  # noqa: BLE001 - disk full, permissions, a vanished directory
+        # A FAILURE MAY NOT BE SILENT EITHER — the sibling of §4's rule. Before this, a
+        # write that raised aborted the capture and emitted NOTHING: the chain simply
+        # stopped after `rendered`, and an absence with no explanation is the four-way
+        # guess this pilot exists to end. Report it, then stop — with no artifact on disk
+        # there is nothing to notify about and nothing to announce.
+        receipts.emit("stall.capture.written", "ANY", "listeners.stall_capture",
+                      "F", vacuum_entity_id, path)
+        _LOGGER.exception("stall_capture: could not write %s", path)
+        return
+    receipts.emit("stall.capture.written", "ANY", "listeners.stall_capture",
+                  "P", vacuum_entity_id, path)
 
     vacuum_name = vacuum_entity_id.split(".", 1)[-1].replace("_", " ").title()
     label = map_label(hass, vacuum_entity_id, map_id)
@@ -325,6 +380,16 @@ async def _capture(hass: HomeAssistant, event_data: dict[str, Any]) -> None:
             "message": message,
         },
     )
+    # ALL STATIONS THIS NET. A broadcast obliges nobody, so its silence means nothing on its
+    # own — the listener COUNT is what makes it readable. Zero means nobody was on the net,
+    # so no answer is correct and no fault exists; N with no answers is a real fault. It
+    # costs no coupling, because the count never names who is listening. This is the runtime
+    # form of the zero-caller class that took a robot-watching session to find in
+    # `cancel_active_job`, which passed two hostile audits with no callers at all.
+    if receipts.armed():
+        receipts.emit("stall.capture.announced", "ANY", "listeners.stall_capture", "B",
+                      vacuum_entity_id, path,
+                      hass.bus.async_listeners().get(EVENT_STALL_CAPTURED, 0))
 
 
 def register(hass: HomeAssistant) -> None:
