@@ -101,6 +101,10 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   const VARG = /var\(\s*(--evcc-[A-Za-z0-9-]+)\s*[,)]/g;
   const DEFG = /(--evcc-[A-Za-z0-9-]+)\s*:/g;
   const SETG = /setProperty\(\s*["'`](--evcc-[A-Za-z0-9-]+)/g;
+  // getComputedStyle(...).getPropertyValue("--evcc-x") is a REAL consumer — JS reads
+  // the token and acts on it. Missing this reported --evcc-floor-texture-map-rotate
+  // as the one dead token in the catalog when bindings/map.js:837 reads it by name.
+  const GETG = /getPropertyValue\(\s*["'`](--evcc-[A-Za-z0-9-]+)\s*["'`]/g;
   const DYNG = /var\(\s*--evcc-[A-Za-z0-9-]*\$\{/g;
   const PROPRE = /(--[A-Za-z0-9-]+|[A-Za-z][A-Za-z0-9-]*)\s*:\s*$/;
   const push = (m, k, v) => (m.get(k) ?? m.set(k, []).get(k)).push(v);
@@ -113,6 +117,7 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     let m;
     for (DYNG.lastIndex = 0; (m = DYNG.exec(text)); ) dynamic.push(`${r}:${lineAt(text, m.index)}`);
     for (SETG.lastIndex = 0; (m = SETG.exec(text)); ) if (catalog.has(m[1])) push(setp, m[1], `${r}:${lineAt(text, m.index)}`);
+    for (GETG.lastIndex = 0; (m = GETG.exec(text)); ) if (catalog.has(m[1])) push(uses, m[1], { file: r, line: lineAt(text, m.index), prop: "getPropertyValue" });
     if (r.endsWith(".js")) {
       for (DEFG.lastIndex = 0; (m = DEFG.exec(text)); ) if (catalog.has(m[1])) push(defaults, m[1], `${r}:${lineAt(text, m.index)}`);
     }
@@ -130,11 +135,35 @@ const range = (t) => (t.min === undefined && t.max === undefined)
 
   const totalUses = [...uses.values()].reduce((n, a) => n + a.length, 0);
   const unused = [...catalog.keys()].filter((k) => !uses.has(k));
-  const isFloorPreset = (k) => /^--evcc-floor-(tile|wood|marble|concrete|carpet|granite)/.test(k);
-  const isAnimal = (k) => k.includes("-animal-");
-  const bDynamic = unused.filter(isFloorPreset);
-  const bAnimal = unused.filter((k) => !isFloorPreset(k) && isAnimal(k));
-  const bDead = unused.filter((k) => !isFloorPreset(k) && !isAnimal(k));
+  // --- DYNAMICALLY CONSUMED FAMILIES -------------------------------------------
+  // A token with no STATIC var() use is NOT dead if its name is BUILT at runtime —
+  // the regex scan above cannot follow `var(--evcc-floor-${seg}-map-scale)`. These
+  // are the families that do that, each with the site that constructs the name.
+  //
+  // Reporting these as "no consumer" is actively dangerous: it reads as a third of
+  // the catalog being dead, and a cleanup pass acting on it would delete live
+  // theming for every animal, every floor material and the whole room palette.
+  // Keep this list in step with the `dynamic` sites counted above.
+  const DYN_FAMILIES = [
+    {
+      name: "animal",
+      test: (k) => k.includes("-animal-"),
+      site: "`src/theme-tokens/animals.js` builds `--evcc-animal-${animal}-${suffix}`; consumed in `animal-svg/`",
+    },
+    {
+      name: "floor-material",
+      test: (k) => /^--evcc-floor-(tile|wood|marble|concrete|carpet|granite)/.test(k),
+      site: "`src/renderers/floor-texture-surface.js` and `src/bindings/map.js` build `--evcc-floor-${type}-…` from the material key",
+    },
+    {
+      name: "room-fill",
+      test: (k) => /^--evcc-room-fill-\d+$/.test(k),
+      site: "`src/cards/map-room-color.js` — `roomFillTokenName(i)` builds `--evcc-room-fill-N`, 1-based and wrapping at 12 (contract pinned by MRC-1..MRC-7)",
+    },
+  ];
+  const dynFamilyOf = (k) => DYN_FAMILIES.find((f) => f.test(k)) || null;
+  const bDyn = unused.filter((k) => dynFamilyOf(k));
+  const bDead = unused.filter((k) => !dynFamilyOf(k));
 
   // --- Token CSS coverage: what % of color-property declarations resolve through a
   // theme token vs a raw literal. Same scope as the check-styles theme-lint guard:
@@ -175,8 +204,22 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     + "`var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded "
     + "themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.");
   L.push("");
-  L.push(`- Catalog **${catalog.size}** · consumer \`var()\` uses **${totalUses}** · with a consumer **${catalog.size - unused.length}**, with none **${unused.length}**`);
+  L.push(`- Catalog **${catalog.size}** · consumer \`var()\` uses **${totalUses}**`);
+  L.push(`- **${catalog.size - unused.length}** with a STATIC consumer · **${bDyn.length}** consumed DYNAMICALLY (constructed names, below) · **${bDead.length}** with no consumer at all`);
   L.push(`- \`var()\` → non-catalog tokens **${orphan.size}** · dynamic \`var(--evcc-…\${…})\` sites **${dynamic.length}**`);
+  L.push("");
+  L.push(`> **A token with no STATIC consumer is not dead.** This tracer is a regex scan and cannot `
+    + `follow a \`var()\` whose name is built at runtime, so ${bDyn.length} live tokens would otherwise `
+    + `read as rot — and deleting them would break theming for every animal, every floor material and `
+    + `the whole room palette. The families that construct their names:`);
+  for (const f of DYN_FAMILIES) {
+    const n = bDyn.filter((k) => f.test(k)).length;
+    if (n) L.push(`> - **${n}** \`${f.name}\` — ${f.site}`);
+  }
+  if (bDead.length) {
+    L.push(`>`);
+    L.push(`> The **${bDead.length}** below are genuinely unreferenced and worth a look: ${bDead.map((k) => `\`${k}\``).join(", ")}`);
+  }
   L.push(`- **Token CSS coverage ${covPct.toFixed(1)}%** — ${covTok}/${covN} color declarations resolve through a token (${covHatched} deliberate \`theme-lint-ignore\`, **${covStray} stray**); **${covReal.toFixed(1)}%** of colors that should be themed. Scope: \`src/styles/*\` (minus token defs) + the standalone cards; guarded by \`scripts/check-styles.mjs\`.`);
   L.push("");
   L.push("---");
@@ -185,7 +228,14 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     if (collapse.has(g)) continue;
     const tokens = THEME_GROUP_MAP[g] || [];
     const live = tokens.filter((t) => uses.has(t.key)).length;
-    L.push(`## ${g}  ·  ${live}/${tokens.length} consumed`);
+    // "0/7 consumed" reads as rot on a family whose names are built at runtime.
+    // Split the count so a dynamic family can never be mistaken for a dead one.
+    const dyn = tokens.filter((t) => !uses.has(t.key) && dynFamilyOf(t.key)).length;
+    const dead = tokens.length - live - dyn;
+    const parts = [`${live} static`];
+    if (dyn) parts.push(`${dyn} dynamic`);
+    if (dead) parts.push(`**${dead} NO CONSUMER**`);
+    L.push(`## ${g}  ·  ${parts.join(" + ")} / ${tokens.length}`);
     if (g === animalSub[0]) L.push("\n*(template — Dog/Raccoon/Parrot/Snake mirror it; consumed dynamically in animal-svg/)*");
     L.push("");
     for (const t of tokens) {
@@ -193,29 +243,36 @@ const range = (t) => (t.min === undefined && t.max === undefined)
       const d = (defaults.get(t.key) || []).join(", ") || "—";
       const sp = setp.get(t.key) ? ` · apply ${setp.get(t.key).join(", ")}` : "";
       L.push(`**\`${t.key}\`** — ${t.label} · default ${d}${sp}`);
-      if (u.length === 0) L.push("- _no consumer — only seeded_");
+      if (u.length === 0) {
+        const fam = dynFamilyOf(t.key);
+        L.push(fam
+          ? `- _no STATIC consumer — consumed dynamically (${fam.name}): ${fam.site}_`
+          : "- _NO CONSUMER — not referenced anywhere; genuinely worth checking_");
+      }
       else for (const s of u) L.push(`- ${s.file}:${s.line}${s.prop ? ` (${s.prop})` : ""}`);
       L.push("");
     }
   }
   L.push("---\n");
-  L.push(`## Tokens with no consumer  ·  ${unused.length}`);
-  L.push("\nThree kinds — only the last is a concern:\n");
-  L.push(`### Consumed dynamically — floor-texture presets  ·  ${bDynamic.length}`);
-  L.push("\nBuilt at runtime as `var(--evcc-floor-${floorType}-…)` in `src/renderers/floor-texture-surface.js`. Working as intended.\n");
-  L.push(bDynamic.map((k) => "`" + k + "`").join(", ") || "—");
-  L.push("");
-  L.push(`### Per-animal palette (consumed dynamically in animal-svg/)  ·  ${bAnimal.length}`);
-  L.push("\nThe `--evcc-animal-*` tokens are referenced via dynamic `var()` in the shipped animal-svg module; per-animal `--evcc-animal-<name>-*` feed the active companion. Expected.\n");
-  L.push(bAnimal.map((k) => "`" + k + "`").join(", ") || "—");
-  L.push("");
-  L.push(`### Truly dead — no \`var()\` anywhere  ·  ${bDead.length}`);
-  L.push("\nSeeded + exposed in the editor but nothing reads them — no-op editor knobs (wire them up or drop them).\n");
+  L.push(`## Tokens with no STATIC consumer  ·  ${unused.length}`);
+  L.push(`\n**${bDyn.length} of these are consumed DYNAMICALLY and are not dead** — this tracer is a `
+    + `regex scan and cannot follow a \`var()\` whose name is built at runtime. Only the final `
+    + `section is a concern.\n`);
+  for (const f of DYN_FAMILIES) {
+    const ks = bDyn.filter((k) => f.test(k));
+    if (!ks.length) continue;
+    L.push(`### Consumed dynamically — ${f.name}  ·  ${ks.length}`);
+    L.push(`\n${f.site}. Working as intended.\n`);
+    L.push(ks.map((k) => "`" + k + "`").join(", "));
+    L.push("");
+  }
+  L.push(`### No consumer anywhere  ·  ${bDead.length}`);
+  L.push("\nSeeded + exposed in the editor but nothing reads them — no-op editor knobs (wire them up or drop them). THIS is the list a cleanup pass should act on, not the count above.\n");
   if (bDead.length) {
     const byG = {};
     for (const k of bDead) (byG[catalog.get(k).group] ??= []).push(k);
     for (const [g, ks] of Object.entries(byG)) L.push(`- **${g}** (${ks.length}): ${ks.map((k) => "`" + k + "`").join(", ")}`);
-  } else L.push("None — every non-dynamic catalog token has a consumer.");
+  } else L.push("None — every catalog token is consumed, statically or dynamically.");
   L.push("");
   if (orphan.size) {
     L.push("---\n");
