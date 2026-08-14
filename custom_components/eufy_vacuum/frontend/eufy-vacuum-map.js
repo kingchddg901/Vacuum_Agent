@@ -6420,6 +6420,23 @@ ${r}
     width: 100%;
   }
 
+  /* ACCEPTED TRADE \u2014 DO NOT "FIX" THE HORIZONTAL SCROLL AWAY.
+
+     In OpenDyslexic the same string is ~66% wider than in Arial (measured:
+     "Last full session" 166px vs 100px), so these nowrap label columns push
+     the table past a phone. Measured at phone widths in that font:
+
+       390px   t1 needs 469 -> scrolls   t2 needs 525 -> scrolls
+       360px   all three scroll
+       320px   all three scroll          clipped = 0 at every width
+
+     Nothing is lost \u2014 the wrapper scrolls to it. Chris's call, made with those
+     numbers in front of him: a scroll beats wrapped or shrunken labels for the
+     reader who needs this typeface most.
+
+     This is also what the .evcc-table-scroll wrapper is FOR. In the default
+     font the tables fit and it never engages, which makes it look like dead
+     weight; it is the thing that keeps this font legible instead of clipped. */
   .evcc-metrics-table th:not(:last-child),
   .evcc-metrics-table td:not(:last-child) {
     white-space: nowrap;
