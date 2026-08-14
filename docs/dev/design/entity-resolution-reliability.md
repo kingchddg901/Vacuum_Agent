@@ -99,20 +99,36 @@ in diagnostics: `augmentation: {ran, siblings_seen, merged, error}`.
 
 ---
 
-## 3. P1 — companion-stem derivation (PRE-FILL, never auto-applied)
+## 3. P1 — companion-stem derivation
 
-**RULED 2026-08-14: pre-fill.** The derived stem proposes; the user confirms. It does NOT
-silently become the resolution.
+**RULED 2026-08-14, refined same day: pre-fill ONLY for ambiguous roles that do not resolve
+today.** Three cases, and the boundaries are what matter:
 
-**State the consequence plainly:** a #49-class install therefore still needs ONE user action —
-open the options step and accept the pre-filled values. This design does not self-heal such an
-install, by choice. What it buys instead is that the heuristic can never silently resolve a role
-to the wrong entity on an install we have never seen, which matters because the evidence behind
-it is n=1 (below). The user acts once, on a screen where every field is already filled in
-correctly.
+| case | behaviour |
+|---|---|
+| role resolves today | **UNTOUCHED.** No suggestion, no prompt, no change. Non-negotiable — this is the ENT-1 safety property and it is what keeps every working install byte-identical. |
+| does not resolve, exactly one candidate | **AUTO-APPLY.** The install self-heals with no user action. |
+| does not resolve, candidates compete | **PRE-FILL and ask.** Confirmation is spent only where there is a real choice. |
 
 Derive the companion stem by majority vote across the device's entity object_ids, then use
-`f"{domain}.{stem}{suffix}"` as the pre-filled suggestion for each unresolved role.
+`f"{domain}.{stem}{suffix}"` to resolve or propose for each unresolved role.
+
+### 3.1 "Unambiguous" is a predicate, not a judgement
+
+Auto-apply requires ALL of:
+
+1. exactly one surviving candidate after §2.1's exclusive longest-suffix claiming;
+2. that candidate is enabled and has a state (a disabled match is §2.2's case, not this one);
+3. its stem IS the device-majority stem.
+
+Anything else is ambiguous and goes to the user. Worked example from #49: `cleaning_area` has two
+raw `endswith` matches, but exclusive claiming assigns `_total_cleaning_area` to its own role,
+leaving exactly one — so it auto-applies. That is the collision fix and the self-heal being the
+same mechanism.
+
+**Evidence limit stays on the record:** the stem rule is n=1. Auto-apply is bounded by the
+predicate above rather than by confidence in the heuristic — a second install that disagrees
+produces ambiguity and a prompt, not a silent wrong answer.
 
 **Verified against the reporter's real census: 65/65 companions share
 `living_room_eufy_clean_x10_pro_omni`, and stem + declared suffix hits a real entity for every
@@ -256,7 +272,7 @@ stem cases belong in `tests/adapters/eufy/`. `pytest tests --no-cov` is the beha
 | # | Question | Ruling |
 |---|---|---|
 | 1 | §4.4 precedence | **Override wins** — "it's a user choice". Consulted first, ahead of all derived and sibling candidates. Falls through if unresolvable, but reports `override_unresolved` rather than failing silently. |
-| 2 | §3 stem: automatic or suggested | **Pre-fill.** The stem proposes, the user confirms. Never auto-applied. A #49-class install still needs one user action — accepted knowingly (§3). |
+| 2 | §3 stem: automatic or suggested | **Pre-fill ONLY for ambiguous roles that do not resolve today.** A role that works is never touched; an unresolved role with exactly one candidate auto-applies (self-heals); only competing candidates prompt. "Unambiguous" is the three-part predicate in §3.1, not a confidence call. |
 | 3 | Stage gate | **Ship as one set.** P0 + P1 + P2 + §5 census enrichment release together; P0 does NOT go out alone. P3 stays blocked. |
 
 ### 8.1 Consequences of ruling 3
