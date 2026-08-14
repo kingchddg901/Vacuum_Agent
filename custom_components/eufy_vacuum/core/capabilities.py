@@ -67,6 +67,14 @@ BY_OBJECT_ID = "object_id"
 BY_TRANSLATION_KEY = "translation_key"
 BY_STATE_CLASS = "state_class"
 BY_MAGNITUDE = "magnitude"
+#: Where a winning candidate CAME FROM, recorded for every role rather than only
+#: contested ones. Without this the table labels an entity "name match" when the
+#: sibling search rescued it — asserting something visibly false, which is the
+#: manufactured-confidence failure this surface exists to catch.
+FROM_DERIVED = "derived"
+FROM_OVERRIDE = "override"
+FROM_DEVICE_SIBLING = "device_sibling"
+FROM_CONFIG_ENTRY_SIBLING = "config_entry_sibling"
 
 
 # ----------------------------------------------------------------------
@@ -518,9 +526,11 @@ def augment_candidates_from_device(
     # looking for.
     user_overrides = overrides if isinstance(overrides, dict) else {}
     applied_overrides: dict[str, str] = {}
+    origins: dict[str, dict[str, str]] = {}
     base: dict[str, list[str]] = {}
     for _role, _declared in cands.items():
         _list = list(_declared or [])
+        origins[_role] = {item: FROM_DERIVED for item in _list if isinstance(item, str)}
         _override = user_overrides.get(_role)
         if isinstance(_override, str) and "." in _override:
             # First in the list, and _find takes the first that EXISTS — so a
@@ -528,9 +538,11 @@ def augment_candidates_from_device(
             # an unresolvable one falls through instead of pinning a dead id.
             _list = [_override] + [item for item in _list if item != _override]
             applied_overrides[_role] = _override
+            origins[_role][_override] = FROM_OVERRIDE
         base[_role] = _list
     if applied_overrides:
         rpt["overrides_applied"] = applied_overrides
+    rpt["origins"] = origins
 
     try:
         registry = er.async_get(hass)
@@ -556,6 +568,7 @@ def augment_candidates_from_device(
         # left, and a config entry shared by TWO vacuums is exactly why the
         # ambiguity guard below refuses to guess.
         siblings, _device_count = _sweep_siblings(registry, entry)
+        device_scoped = set(siblings[:_device_count])
         sibling_traits = _sibling_traits(registry, siblings)
         rpt["device_siblings"] = _device_count
         rpt["config_entry_siblings"] = len(siblings) - _device_count
@@ -712,6 +725,11 @@ def augment_candidates_from_device(
             for sibling in matches:
                 merged.append(sibling)
                 seen.add(sibling)
+                origins.setdefault(role, {})[sibling] = (
+                    FROM_DEVICE_SIBLING
+                    if sibling in device_scoped
+                    else FROM_CONFIG_ENTRY_SIBLING
+                )
                 rpt["merged"] = int(rpt.get("merged") or 0) + 1
 
         out[role] = merged
@@ -781,6 +799,8 @@ def detect_capabilities(
     )
     _hints = capability_hints or {}
     _reasons: dict[str, str] = {}
+    _sources: dict[str, str] = {}
+    _origins = _aug_report.get("origins") or {}
     _overrides = entity_overrides if isinstance(entity_overrides, dict) else {}
 
     def _find(key: str) -> str | None:
@@ -805,6 +825,13 @@ def detect_capabilities(
         if isinstance(wanted, str) and wanted and entity_id != wanted:
             reason = REASON_OVERRIDE_UNRESOLVED
         _reasons[key] = reason
+        # live:ENT-12 — where the winner CAME FROM, for every role. Reporting
+        # "name match" for an entity the sibling search rescued is a visible
+        # falsehood on the one screen built to be trusted.
+        if entity_id:
+            source = (_origins.get(key) or {}).get(entity_id)
+            if source:
+                _sources[key] = source
         return entity_id if has_state else None
 
     def _find_reg(key: str) -> str | None:
@@ -968,6 +995,7 @@ def detect_capabilities(
         # nothing branches on them. They exist because issue #49 could not be
         # answered from a dump that reported a bare `null` per role.
         "entity_resolution_reasons": dict(_reasons),
+        "entity_sources": dict(_sources),
         "entity_augmentation": dict(_aug_report),
         "detected_model": detected_model,
         "model_family": model_family or "generic",

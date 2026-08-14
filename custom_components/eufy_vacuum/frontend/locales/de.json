@@ -3003,6 +3003,9 @@
     "reason_disabled": "in Home Assistant deaktiviert",
     "reason_absent": "nicht gefunden",
     "reason_registered_no_state": "noch kein Wert",
-    "reason_override_unresolved": "deine gewählte Entität fehlt"
+    "reason_override_unresolved": "deine gewählte Entität fehlt",
+    "source_device_sibling": "Auf dem Gerät des Saugers gefunden",
+    "source_config_entry_sibling": "In der Integration des Saugers gefunden",
+    "source_declared_rescue": "Umbenannt — über die Endung zugeordnet"
   }
 }

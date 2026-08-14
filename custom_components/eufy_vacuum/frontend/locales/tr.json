@@ -3002,6 +3002,9 @@
     "reason_disabled": "Home Assistant'ta devre dışı",
     "reason_absent": "bulunamadı",
     "reason_registered_no_state": "henüz değer yok",
-    "reason_override_unresolved": "seçtiğin varlık eksik"
+    "reason_override_unresolved": "seçtiğin varlık eksik",
+    "source_device_sibling": "Süpürgenin cihazında bulundu",
+    "source_config_entry_sibling": "Süpürgenin entegrasyonunda bulundu",
+    "source_declared_rescue": "Yeniden adlandırıldı — son ekle eşleşti"
   }
 }

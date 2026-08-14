@@ -3023,6 +3023,9 @@
     "reason_disabled": "désactivé dans Home Assistant",
     "reason_absent": "introuvable",
     "reason_registered_no_state": "pas encore de valeur",
-    "reason_override_unresolved": "l'entité que vous avez choisie est absente"
+    "reason_override_unresolved": "l'entité que vous avez choisie est absente",
+    "source_device_sibling": "Trouvé sur l'appareil de l'aspirateur",
+    "source_config_entry_sibling": "Trouvé dans l'intégration de l'aspirateur",
+    "source_declared_rescue": "Renommé — associé par suffixe"
   }
 }

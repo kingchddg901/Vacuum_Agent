@@ -3010,6 +3010,9 @@
     "reason_disabled": "zakázáno v Home Assistantu",
     "reason_absent": "nenalezeno",
     "reason_registered_no_state": "zatím žádná hodnota",
-    "reason_override_unresolved": "zvolená entita chybí"
+    "reason_override_unresolved": "zvolená entita chybí",
+    "source_device_sibling": "Nalezeno na zařízení vysavače",
+    "source_config_entry_sibling": "Nalezeno v integraci vysavače",
+    "source_declared_rescue": "Přejmenováno — spárováno podle přípony"
   }
 }

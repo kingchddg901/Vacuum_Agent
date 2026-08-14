@@ -2960,6 +2960,9 @@
     "reason_disabled": "已在 Home Assistant 中停用",
     "reason_absent": "未找到",
     "reason_registered_no_state": "尚无读数",
-    "reason_override_unresolved": "你选择的实体已不存在"
+    "reason_override_unresolved": "你选择的实体已不存在",
+    "source_device_sibling": "在扫地机的设备上找到",
+    "source_config_entry_sibling": "在扫地机的集成中找到",
+    "source_declared_rescue": "已重命名 — 按后缀匹配"
   }
 }

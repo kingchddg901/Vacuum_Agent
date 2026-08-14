@@ -2999,6 +2999,9 @@
     "reason_disabled": "dinonaktifkan di Home Assistant",
     "reason_absent": "tidak ditemukan",
     "reason_registered_no_state": "belum ada nilai",
-    "reason_override_unresolved": "entitas pilihan Anda hilang"
+    "reason_override_unresolved": "entitas pilihan Anda hilang",
+    "source_device_sibling": "Ditemukan pada perangkat penyedot debu",
+    "source_config_entry_sibling": "Ditemukan pada integrasi penyedot debu",
+    "source_declared_rescue": "Diganti nama — dicocokkan lewat akhiran"
   }
 }

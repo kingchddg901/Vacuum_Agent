@@ -3011,6 +3011,9 @@
     "reason_disabled": "wyłączona w Home Assistant",
     "reason_absent": "nie znaleziono",
     "reason_registered_no_state": "jeszcze brak wartości",
-    "reason_override_unresolved": "brakuje wybranej encji"
+    "reason_override_unresolved": "brakuje wybranej encji",
+    "source_device_sibling": "Znaleziono na urządzeniu odkurzacza",
+    "source_config_entry_sibling": "Znaleziono w integracji odkurzacza",
+    "source_declared_rescue": "Zmieniono nazwę — dopasowano po końcówce"
   }
 }

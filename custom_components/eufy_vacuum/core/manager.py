@@ -5235,12 +5235,15 @@ class EufyVacuumManager:
 
         reasons: dict[str, Any] = {}
         decisions: dict[str, Any] = {}
+        sources: dict[str, Any] = {}
+        remaps = config.get("_entity_remaps") or {}
         try:
             caps = self.get_vacuum_capabilities_snapshot(
                 vacuum_entity_id=vacuum_entity_id
             )
             if isinstance(caps, dict):
                 reasons = caps.get("entity_resolution_reasons") or {}
+                sources = caps.get("entity_sources") or {}
                 augmentation = caps.get("entity_augmentation") or {}
                 decisions = augmentation.get("decisions") or {}
                 # A role the adapter probes rather than declares still belongs in
@@ -5268,7 +5271,16 @@ class EufyVacuumManager:
                 "reason": reasons.get(role),
                 # live:ENT-9 — WHICH rung decided, when the role was contested.
                 # None means it was never contested, NOT that nothing decided it.
-                "chosen_by": decision.get("by"),
+                # live:ENT-12. Precedence: the ladder rung that settled a CONTEST,
+                # else where the winning candidate came from, else the declared-map
+                # rescue, else plain derivation. Reporting "name match" for an entity
+                # the sibling search rescued is a visible falsehood on the one screen
+                # built to be trusted.
+                "chosen_by": (
+                    decision.get("by")
+                    or sources.get(role)
+                    or ("declared_rescue" if role in remaps else None)
+                ),
                 # The alternatives and why each lost. Only the rungs actually
                 # RUN appear: the ladder short-circuits, so anything below the
                 # deciding rung was never evaluated and must never be rendered

@@ -3009,6 +3009,9 @@
     "reason_disabled": "disattivata in Home Assistant",
     "reason_absent": "non trovata",
     "reason_registered_no_state": "ancora nessun valore",
-    "reason_override_unresolved": "l'entità scelta è mancante"
+    "reason_override_unresolved": "l'entità scelta è mancante",
+    "source_device_sibling": "Trovato sul dispositivo dell'aspirapolvere",
+    "source_config_entry_sibling": "Trovato nell'integrazione dell'aspirapolvere",
+    "source_declared_rescue": "Rinominato — abbinato per suffisso"
   }
 }

@@ -324,7 +324,7 @@ def register_eufy_adapter_for_vacuum(
     # dock-owned roles resolve to nothing on a live X10 while the entities plainly
     # exist. Only touches IDs that FAIL to resolve, and refuses to guess when
     # ambiguous, so a working install cannot be altered. See adapters/entity_resolve.
-    entities, _entity_remaps = resolve_declared_entities(hass, vacuum_entity_id, entities)
+    entities, entity_remaps = resolve_declared_entities(hass, vacuum_entity_id, entities)
 
     config = {
         "adapter_id": ADAPTER_ID,
@@ -1001,6 +1001,10 @@ def register_eufy_adapter_for_vacuum(
         # of the user-facing ADAPTER_CONFIG_SCHEMA surface a stored/config adapter
         # would ever declare.
         "_entity_candidates": entity_candidates,
+        # live:ENT-12 — WHICH declared ids resolve_declared_entities had to
+        # rescue. Discarded until now, which is why the System table labelled a
+        # rescued entity "name match" when its name plainly does not match.
+        "_entity_remaps": entity_remaps,
     }
 
     register_adapter_config(vacuum_entity_id, config)

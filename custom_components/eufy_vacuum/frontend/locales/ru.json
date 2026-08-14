@@ -3117,6 +3117,9 @@
     "reason_disabled": "отключено в Home Assistant",
     "reason_absent": "не найдено",
     "reason_registered_no_state": "значения пока нет",
-    "reason_override_unresolved": "выбранная сущность отсутствует"
+    "reason_override_unresolved": "выбранная сущность отсутствует",
+    "source_device_sibling": "Найдено на устройстве пылесоса",
+    "source_config_entry_sibling": "Найдено в интеграции пылесоса",
+    "source_declared_rescue": "Переименовано — сопоставлено по суффиксу"
   }
 }

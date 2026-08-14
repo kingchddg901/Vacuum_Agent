@@ -3022,6 +3022,9 @@
     "reason_disabled": "desactivada en Home Assistant",
     "reason_absent": "no encontrada",
     "reason_registered_no_state": "aún sin valor",
-    "reason_override_unresolved": "falta la entidad que elegiste"
+    "reason_override_unresolved": "falta la entidad que elegiste",
+    "source_device_sibling": "Encontrado en el dispositivo de la aspiradora",
+    "source_config_entry_sibling": "Encontrado en la integración de la aspiradora",
+    "source_declared_rescue": "Renombrado — emparejado por sufijo"
   }
 }

@@ -3003,6 +3003,9 @@
     "reason_disabled": "uitgeschakeld in Home Assistant",
     "reason_absent": "niet gevonden",
     "reason_registered_no_state": "nog geen waarde",
-    "reason_override_unresolved": "je gekozen entiteit ontbreekt"
+    "reason_override_unresolved": "je gekozen entiteit ontbreekt",
+    "source_device_sibling": "Gevonden op het apparaat van de stofzuiger",
+    "source_config_entry_sibling": "Gevonden in de integratie van de stofzuiger",
+    "source_declared_rescue": "Hernoemd — gekoppeld op achtervoegsel"
   }
 }

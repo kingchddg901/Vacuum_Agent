@@ -3126,6 +3126,9 @@
     "reason_disabled": "מושבת ב-Home Assistant",
     "reason_absent": "לא נמצא",
     "reason_registered_no_state": "אין עדיין ערך",
-    "reason_override_unresolved": "הישות שבחרת חסרה"
+    "reason_override_unresolved": "הישות שבחרת חסרה",
+    "source_device_sibling": "נמצא במכשיר של השואב",
+    "source_config_entry_sibling": "נמצא באינטגרציה של השואב",
+    "source_declared_rescue": "שונה שם — הותאם לפי סיומת"
   }
 }

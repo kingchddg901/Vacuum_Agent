@@ -2960,6 +2960,9 @@
     "reason_disabled": "Home Assistant で無効",
     "reason_absent": "見つかりません",
     "reason_registered_no_state": "まだ値がありません",
-    "reason_override_unresolved": "選択したエンティティがありません"
+    "reason_override_unresolved": "選択したエンティティがありません",
+    "source_device_sibling": "掃除機のデバイス上で発見",
+    "source_config_entry_sibling": "掃除機の統合内で発見",
+    "source_declared_rescue": "名称変更 — 接尾辞で照合"
   }
 }
