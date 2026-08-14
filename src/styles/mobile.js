@@ -329,6 +329,39 @@ export const MOBILE_STYLES = `
     width: 100%;
   }
 
+  /* EVERY child, not just main. .evcc-rooms-main was given width:100% and the
+     sidecol was not, so the Run Profiles panel inside it sized to its own
+     content and pushed the whole view 67px past a 320px card. Measured in
+     OpenDyslexic: sidecol 367px in a 300px workspace, view-stage overflowing
+     by 57px.
+
+     It is not obvious from reading the rule above, because the workspace is a
+     WRAPPING COLUMN — so the flex-basis values on its children size HEIGHT,
+     and nothing was constraining width at all. The cross axis simply took
+     content width.
+
+     Written against the children collectively so a third child cannot
+     reintroduce it by being added without its own rule. min-width:0 is the
+     load-bearing half: max-width alone loses to a flex item's default
+     min-content floor. */
+  .evcc-shell[data-viewport="mobile"] .evcc-rooms-workspace > * {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* Saved-profile chips wrap. The list was flex-wrap:nowrap, so two profiles
+     named "POWER DRAIN" and "test 2" needed 302px in a 271px list and pushed
+     7px past the card edge. Profile names are USER-SUPPLIED and unbounded —
+     no width is safe against them, so the row has to wrap rather than be
+     budgeted for. */
+  .evcc-shell[data-viewport="mobile"] .evcc-run-profiles-list {
+    flex-wrap: wrap;
+  }
+
+  .evcc-shell[data-viewport="mobile"] .evcc-run-profiles-list .evcc-chip {
+    max-width: 100%;
+  }
+
   /* Force single-column room grid even at sizes above 720px
      when the card is rendered in mobile shell (e.g. landscape
      phones in a constrained panel). The existing
