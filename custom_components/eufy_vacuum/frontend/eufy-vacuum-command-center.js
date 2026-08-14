@@ -11960,6 +11960,114 @@ ${r}
     scrollbar-gutter: stable;
   }
 
+  /* ===========================================================
+     LANDSCAPE \u2014 THE FILTER MUST NOT OUTGROW WHAT IT FILTERS
+     -----------------------------------------------------------
+     The height: 4.6rem above is FIXED and flex-shrink is 0, so
+     the band costs the same 74px at every geometry while the pane
+     around it does not. Measured on the real frame with a
+     no-override theme:
+
+       390x844   editor 490px   chips 74px (15%)   scrollbox 413px
+       844x390   editor 186px   chips 74px         scrollbox  70px
+       772x360   editor 116px   chips 74px (64%)   scrollbox  39px
+       720x344   editor 103px   chips 74px (72%)   scrollbox  26px
+
+     Two wrapped rows of category chips is a fair trade for 15%
+     of a portrait pane and a bad one for 72% of a landscape pane
+     \u2014 the control that NARROWS the list ends up larger than the
+     list. So in landscape the band becomes ONE row that scrolls
+     sideways: same chips, same order, same tap targets, ~28px
+     instead of 74px, and the reclaimed height goes to the token
+     rows.
+
+     Horizontal scrolling here is deliberate and is the exact
+     thing the base rule forbids. That prohibition is about the
+     WRAPPED band, where a sideways drag carries the group header
+     and search box off screen with nothing asking for it. A
+     single non-wrapping row is a strip of chips whose overflow
+     IS the affordance, it is the same idiom as the sub-tab strip,
+     and the editor pane below keeps its own vertical scroll.
+
+     Same query as the preview column's landscape rule in
+     theme-preview.js (max-height:500px and min-width:640px), so
+     the two halves of the landscape layout are one decision:
+     below 640px wide there is no room to put anything beside
+     anything, and that block correctly does not apply.
+     =========================================================== */
+
+  @media (max-height: 500px) and (min-width: 640px) {
+    .evcc-theme-filters {
+      height: auto;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      overflow-y: hidden;
+      /* The scrollbar is the only thing that would say "there is more this way",
+         and a touch scrollbar is invisible until you already scrolled \u2014 which is
+         too late to be an affordance. Hidden deliberately; the caret below is
+         what says it instead. */
+      scrollbar-width: none;
+    }
+
+    .evcc-theme-filters::-webkit-scrollbar { display: none; }
+
+    /* SCROLL CARET \u2014 the band no longer wraps, so nothing else reveals that the
+       groups continue past the edge. Two rows of chips announced their own
+       length; one row does not.
+
+       Drawn on the PARENT, not on the band: a pseudo-element of a scroller
+       scrolls away with its content, which is precisely when you still need it.
+       The parent does not scroll, so the caret stays pinned to the edge while
+       the chips travel under it.
+
+       Geometry is not guesswork \u2014 the band is the parent's first child and, in
+       this query, exactly one 25px chip row tall, so block-start 0 with a
+       matching height sits the caret over the band and nothing else.
+
+       The fade is the load-bearing half: it makes a chip slide UNDER the caret
+       rather than collide with it, so the caret reads as an edge rather than as
+       a glyph sitting on top of a word. */
+    .evcc-theme-editor-main {
+      position: relative;
+    }
+
+    .evcc-theme-editor-main::after {
+      content: "\u203A";
+      position: absolute;
+      inset-block-start: 0;
+      inset-inline-end: 0;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      height: 25px;
+      padding-inline: 26px 6px;
+      pointer-events: none;
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--evcc-text-secondary);
+      /* Opaque well before the glyph. At 60% the chip underneath stayed crisp
+         and the caret read as a character sitting ON a word rather than as the
+         edge of the band \u2014 checked at 4x, which is the only way to see it. */
+      background: linear-gradient(
+        to right,
+        transparent 0,
+        var(--evcc-surface-panel) 55%,
+        var(--evcc-surface-panel) 100%
+      );
+    }
+
+    /* RTL mirror. inset-inline-end has already moved the caret to the visual
+       left, and scaleX flips the whole pseudo-element \u2014 so the glyph turns
+       (\u203A \u2192 \u2039) and the gradient reverses with it in one declaration. That is why
+       the gradient above can say "to right" and still be correct in Arabic.
+       Same idiom as .evcc-live-queue-caret and .evcc-stepped-run-preview-caret. */
+    :host([dir="rtl"]) .evcc-theme-editor-main::after {
+      transform: scaleX(-1);
+    }
+  }
+
   /* The step-up chip. It sits in the same row as the category chips but does a
      different thing \u2014 it navigates rather than filters \u2014 so it reads quieter and
      is set off from its siblings. The chevron alone was carrying that distinction
