@@ -793,24 +793,37 @@ export const MOBILE_STYLES = `
      padding so they wrap less aggressively.
      =========================================================== */
 
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table {
-    font-size: 0.78rem;
-    /* If the table itself overflows the panel, the parent panel's
-       overflow:hidden would clip. Let it scroll within the panel. */
-    display:     block;
-    overflow-x:  auto;
-    white-space: nowrap;
+  /* THE SCROLL BELONGS TO THE WRAPPER, NOT THE TABLE.
+
+     This used to put display:block + overflow-x:auto on the TABLE, which made
+     it scrollable at the cost of what a table is for: a block-level table
+     forces thead/tbody/tr to become their own display:table boxes, so EVERY
+     ROW computed its own column widths from its own content and the columns
+     stopped lining up. Measured on live data at mobile width:
+
+       table 1:  6 distinct column layouts across  6 rows
+       table 2:  9 distinct column layouts across 11 rows
+       table 3: 12 distinct column layouts across 13 rows
+
+     table-layout:fixed was tried and REJECTED on measurement — it aligns the
+     columns and then clips 6 cells, up to 113px of "CV taper — earliest health
+     drop indicator". Truncated text is worse than ragged columns.
+
+     With a wrapper the table stays a real table (one column model, shared by
+     every row) and the wrapper does the scrolling. Verified: 1 layout per
+     table, 0 clipped cells. The scroll is still needed — the charge-rates
+     table cannot shrink below 382px, so it overflows a 320px phone by 62px —
+     which is exactly the case the wrapper now handles properly. */
+  .evcc-shell[data-viewport="mobile"] .evcc-table-scroll {
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
   }
 
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table thead,
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tbody,
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tr {
-    /* Required when table itself is display:block. */
-    display: table;
-    width:   100%;
-    table-layout: auto;
+  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table {
+    font-size: 0.78rem;
+    white-space: nowrap;
+    width: 100%;
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table th,

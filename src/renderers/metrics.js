@@ -893,7 +893,7 @@ export function applyMetricsRenderers(proto) {
     // Charge rates table — one row per tracked zone.
     const ratesTable = `
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_rates_title")}</div>
-      <table class="evcc-metrics-table">
+      <div class="evcc-table-scroll"><table class="evcc-metrics-table">
         <thead>
           <tr>
             <th>${this.t("metrics.battery_col_zone")}</th>
@@ -932,7 +932,7 @@ export function applyMetricsRenderers(proto) {
             }</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     `;
 
     // Per-mode aggregate table — pulls from any of the last-job sensors;
@@ -965,7 +965,7 @@ export function applyMetricsRenderers(proto) {
       <div class="evcc-metrics-section-subtitle">
         ${this.t("metrics.battery_drain_subtitle")}
       </div>
-      <table class="evcc-metrics-table">
+      <div class="evcc-table-scroll"><table class="evcc-metrics-table">
         <thead>
           <tr>
             <th>${this.t("metrics.battery_col_bucket")}</th>
@@ -986,7 +986,7 @@ export function applyMetricsRenderers(proto) {
           <tr><td colspan="3"><em>${this.t("metrics.battery_by_water_level")}</em></td></tr>
           ${renderBucketRows(waterBuckets, this.t("metrics.battery_bucket_water_level"))}
         </tbody>
-      </table>
+      </table></div>
     `;
 
     // Last job summary — also expose post-job recharge linkage when present.
@@ -994,7 +994,7 @@ export function applyMetricsRenderers(proto) {
     const postJob = lastJob.post_job_charge ?? null;
     const lastJobBlock = lastJob.recorded_at ? `
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_last_job_title")}</div>
-      <table class="evcc-metrics-table">
+      <div class="evcc-table-scroll"><table class="evcc-metrics-table">
         <tbody>
           <tr><td>${this.t("metrics.battery_row_job_id")}</td><td>${this.escapeHtml(String(lastJob.job_id ?? "—"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_recorded")}</td><td>${this.escapeHtml(this._formatMetricsTimestamp(lastJob.recorded_at) || "—")}</td></tr>
@@ -1018,7 +1018,7 @@ export function applyMetricsRenderers(proto) {
             <tr><td>${this.t("metrics.battery_post_job_recharge")}</td><td><em>${this.t("metrics.battery_awaiting_charge_session")}</em></td></tr>
           `}
         </tbody>
-      </table>
+      </table></div>
     ` : `
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_last_job_title")}</div>
       <div class="evcc-empty">${this.t("metrics.battery_no_completed_job")}</div>

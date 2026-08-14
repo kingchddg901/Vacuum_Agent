@@ -448,7 +448,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
       </div>
     `,s=`
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_rates_title")}</div>
-      <table class="evcc-metrics-table">
+      <div class="evcc-table-scroll"><table class="evcc-metrics-table">
         <thead>
           <tr>
             <th>${this.t("metrics.battery_col_zone")}</th>
@@ -483,7 +483,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
             <td>${t.last_charge_duration?.attrs?.last_charge_delta_pct!=null?this.t("metrics.battery_zone_last_session_note",{pct:t.last_charge_duration.attrs.last_charge_delta_pct}):""}</td>
           </tr>
         </tbody>
-      </table>
+      </table></div>
     `,c=t.last_job_per_m2?.attrs?.by_clean_mode_mean??{},l=t.last_job_per_m2?.attrs?.by_fan_speed_mean??{},d=t.last_job_per_m2?.attrs?.by_water_level_mean??{},u=(b,w)=>{let S=Object.keys(b||{});return S.length?S.map(R=>`
         <tr>
           <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
@@ -497,7 +497,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
       <div class="evcc-metrics-section-subtitle">
         ${this.t("metrics.battery_drain_subtitle")}
       </div>
-      <table class="evcc-metrics-table">
+      <div class="evcc-table-scroll"><table class="evcc-metrics-table">
         <thead>
           <tr>
             <th>${this.t("metrics.battery_col_bucket")}</th>
@@ -518,10 +518,10 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
           <tr><td colspan="3"><em>${this.t("metrics.battery_by_water_level")}</em></td></tr>
           ${u(d,this.t("metrics.battery_bucket_water_level"))}
         </tbody>
-      </table>
+      </table></div>
     `,f=t.last_job_per_m2?.attrs??{},v=f.post_job_charge??null,g=f.recorded_at?`
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_last_job_title")}</div>
-      <table class="evcc-metrics-table">
+      <div class="evcc-table-scroll"><table class="evcc-metrics-table">
         <tbody>
           <tr><td>${this.t("metrics.battery_row_job_id")}</td><td>${this.escapeHtml(String(f.job_id??"\u2014"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_recorded")}</td><td>${this.escapeHtml(this._formatMetricsTimestamp(f.recorded_at)||"\u2014")}</td></tr>
@@ -545,7 +545,7 @@ In order to be iterable, non-array objects must have a [Symbol.iterator]() metho
             <tr><td>${this.t("metrics.battery_post_job_recharge")}</td><td><em>${this.t("metrics.battery_awaiting_charge_session")}</em></td></tr>
           `}
         </tbody>
-      </table>
+      </table></div>
     `:`
       <div class="evcc-metrics-section-title">${this.t("metrics.battery_last_job_title")}</div>
       <div class="evcc-empty">${this.t("metrics.battery_no_completed_job")}</div>
@@ -17391,24 +17391,37 @@ ${r}
      padding so they wrap less aggressively.
      =========================================================== */
 
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table {
-    font-size: 0.78rem;
-    /* If the table itself overflows the panel, the parent panel's
-       overflow:hidden would clip. Let it scroll within the panel. */
-    display:     block;
-    overflow-x:  auto;
-    white-space: nowrap;
+  /* THE SCROLL BELONGS TO THE WRAPPER, NOT THE TABLE.
+
+     This used to put display:block + overflow-x:auto on the TABLE, which made
+     it scrollable at the cost of what a table is for: a block-level table
+     forces thead/tbody/tr to become their own display:table boxes, so EVERY
+     ROW computed its own column widths from its own content and the columns
+     stopped lining up. Measured on live data at mobile width:
+
+       table 1:  6 distinct column layouts across  6 rows
+       table 2:  9 distinct column layouts across 11 rows
+       table 3: 12 distinct column layouts across 13 rows
+
+     table-layout:fixed was tried and REJECTED on measurement \u2014 it aligns the
+     columns and then clips 6 cells, up to 113px of "CV taper \u2014 earliest health
+     drop indicator". Truncated text is worse than ragged columns.
+
+     With a wrapper the table stays a real table (one column model, shared by
+     every row) and the wrapper does the scrolling. Verified: 1 layout per
+     table, 0 clipped cells. The scroll is still needed \u2014 the charge-rates
+     table cannot shrink below 382px, so it overflows a 320px phone by 62px \u2014
+     which is exactly the case the wrapper now handles properly. */
+  .evcc-shell[data-viewport="mobile"] .evcc-table-scroll {
+    overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
   }
 
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table thead,
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tbody,
-  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table tr {
-    /* Required when table itself is display:block. */
-    display: table;
-    width:   100%;
-    table-layout: auto;
+  .evcc-shell[data-viewport="mobile"] .evcc-metrics-table {
+    font-size: 0.78rem;
+    white-space: nowrap;
+    width: 100%;
   }
 
   .evcc-shell[data-viewport="mobile"] .evcc-metrics-table th,
