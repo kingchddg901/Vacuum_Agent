@@ -100,6 +100,39 @@ def resolve_declared_entities(
     except Exception:  # pragma: no cover - defensive
         return entities, report
 
+    # live:ENT-4 (the SECOND copy of this guard). `endswith` is unsafe when one
+    # declared suffix is a substring of another: `_cleaning_area` also matches
+    # `..._total_cleaning_area`, and BOTH roles are declared right here in
+    # `entities`. The ambiguity check below cannot save us — it excludes the
+    # declared id from its own candidate list, so exactly ONE sibling matches
+    # and one match looks decisive.
+    #
+    # FOUND LIVE on the maintainer's own install, by the binding table, minutes
+    # after that table first existed: `cleaning_area` was bound to
+    # `sensor.dining_room_alfred_total_cleaning_area` reading 17,975 ft² while
+    # the real per-run sensor read 0.0 — feeding a lifetime counter into the
+    # learning store, counter segmentation and battery metrics. `cleaning_time`
+    # was bound to a total reading 41.775 HOURS where minutes were expected.
+    #
+    # The exclusivity guard was added to augment_candidates_from_device and NOT
+    # here — a fix applied to one copy of a predicate and not its twin, which is
+    # the shape that keeps producing these.
+    declared_suffixes: set[str] = set()
+    for _declared in entities.values():
+        if not isinstance(_declared, str) or "." not in _declared:
+            continue
+        _suffix = _suffix_of(_declared, vacuum_object_id)
+        if _suffix:
+            declared_suffixes.add(_suffix)
+
+    def _claimed_by(object_id: str) -> str | None:
+        """The LONGEST declared suffix this id ends with — its rightful owner."""
+        best: str | None = None
+        for known in declared_suffixes:
+            if object_id.endswith(known) and (best is None or len(known) > len(best)):
+                best = known
+        return best
+
     for role, declared in list(entities.items()):
         if not isinstance(declared, str) or "." not in declared:
             continue
@@ -117,6 +150,10 @@ def resolve_declared_entities(
             if e.entity_id.startswith(f"{domain}.")
             and e.entity_id.split(".", 1)[1].endswith(suffix)
             and e.entity_id != declared
+            # A sibling belongs to the role whose declared suffix explains the
+            # MOST of its name. If a longer declared suffix also fits, that role
+            # owns it and this one must not borrow it.
+            and _claimed_by(e.entity_id.split(".", 1)[1]) == suffix
         ]
         if not candidates:
             continue
