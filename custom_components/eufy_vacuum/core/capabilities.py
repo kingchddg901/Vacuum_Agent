@@ -168,11 +168,75 @@ def _find_registry_entity_by_tokens(
 # ----------------------------------------------------------------------
 
 
+def _sweep_siblings(registry: Any, entry: Any) -> tuple[list[str], int]:
+    """Entities on the vacuum's DEVICE, then on its CONFIG ENTRY. Device first.
+
+    live:ENT-5. Two scopes because only one of them has field evidence: on issue
+    #49 the config-entry search rescued battery on the same install, at the same
+    instant, that the device search rescued nothing. Device first because it is
+    the tighter scope and order is priority; config-entry entries only fill gaps
+    it left.
+
+    Returns ``(siblings, device_count)`` so a caller can report the split — the
+    two numbers side by side are what tell you WHICH scope is failing.
+    """
+    siblings: list[str] = []
+    seen: set[str] = set()
+
+    if getattr(entry, "device_id", None):
+        for item in er.async_entries_for_device(
+            registry, entry.device_id, include_disabled_entities=True
+        ):
+            if item.entity_id not in seen:
+                siblings.append(item.entity_id)
+                seen.add(item.entity_id)
+    device_count = len(siblings)
+
+    config_entry_id = getattr(entry, "config_entry_id", None)
+    if config_entry_id:
+        for item in er.async_entries_for_config_entry(registry, config_entry_id):
+            if item.entity_id not in seen:
+                siblings.append(item.entity_id)
+                seen.add(item.entity_id)
+
+    return siblings, device_count
+
+
+def _rescue_maintenance_source(
+    siblings: Iterable[str],
+    suffix: str,
+) -> str | None:
+    """Find a companion ending in ``_{suffix}`` when the derived name missed.
+
+    live:ENT-8. Maintenance sources are derived as ``sensor.{object_id}_{suffix}``
+    with NO fallback of any kind — a fourth code path carrying the same naming
+    assumption that ENT-1/ENT-5 repaired elsewhere, and the one behind issue #49's
+    missing mop and brush life.
+
+    It matters more than one dead row: per docs/dev/13-maintenance-manager.md the
+    REPLACEMENT rows come from these upstream percentage sensors, and the
+    integration's own maintenance row decrements off ``usage_hours`` on the very
+    same entity. One unresolved source kills both halves.
+
+    Exactly-one or nothing, matching live:ENT-6 — a component resolving to the
+    wrong consumable would report confident, wrong remaining life.
+    """
+    wanted = f"_{suffix}"
+    matches = [
+        sibling
+        for sibling in siblings
+        if sibling.startswith("sensor.") and sibling.partition(".")[2].endswith(wanted)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _detect_maintenance_sources(
     hass: HomeAssistant,
     *,
     object_id: str,
     maintenance_components: dict[str, Any],
+    siblings: Iterable[str] = (),
+    overrides: dict[str, str] | None = None,
 ) -> dict[str, str | None]:
     """Return a component → source entity_id map for maintenance tracking.
 
@@ -191,10 +255,17 @@ def _detect_maintenance_sources(
         candidate = f"sensor.{object_id}_{suffix}"
         if _state_exists(hass, candidate) or _registry_entry_exists(hass, candidate):
             return candidate
-        return None
+        # live:ENT-8 — the derived name missed; look for the real companion.
+        return _rescue_maintenance_source(siblings, str(suffix))
 
+    user_choices = overrides if isinstance(overrides, dict) else {}
     sources: dict[str, str | None] = {}
     for component, meta in maintenance_components.items():
+        # live:ENT-7 — a user's explicit choice outranks derivation here too.
+        chosen = user_choices.get(component)
+        if isinstance(chosen, str) and "." in chosen:
+            sources[component] = chosen
+            continue
         own = _resolve(meta.get("sensor_suffix"))
         proxy_id = meta.get("proxy_for")
         if proxy_id:
@@ -338,25 +409,9 @@ def augment_candidates_from_device(
         # is priority here. Config-entry entries only fill gaps device scope
         # left, and a config entry shared by TWO vacuums is exactly why the
         # ambiguity guard below refuses to guess.
-        siblings: list[str] = []
-        seen_siblings: set[str] = set()
-
-        if entry.device_id:
-            for item in er.async_entries_for_device(
-                registry, entry.device_id, include_disabled_entities=True
-            ):
-                if item.entity_id not in seen_siblings:
-                    siblings.append(item.entity_id)
-                    seen_siblings.add(item.entity_id)
-        rpt["device_siblings"] = len(siblings)
-
-        config_entry_id = getattr(entry, "config_entry_id", None)
-        if config_entry_id:
-            for item in er.async_entries_for_config_entry(registry, config_entry_id):
-                if item.entity_id not in seen_siblings:
-                    siblings.append(item.entity_id)
-                    seen_siblings.add(item.entity_id)
-        rpt["config_entry_siblings"] = len(siblings) - int(rpt["device_siblings"])
+        siblings, _device_count = _sweep_siblings(registry, entry)
+        rpt["device_siblings"] = _device_count
+        rpt["config_entry_siblings"] = len(siblings) - _device_count
 
         rpt["siblings_seen"] = len(siblings)
         if not siblings:
@@ -738,10 +793,27 @@ def detect_capabilities(
 
     maintenance_sources: dict[str, str | None] = {}
     if maintenance_components:
+        # live:ENT-8 — hand the same two-scope sibling list to maintenance.
+        # Derived-first still wins inside, so an install where the names already
+        # match resolves byte-identically and never consults this.
+        _maint_siblings: list[str] = []
+        try:
+            _registry = er.async_get(hass)
+            _entry = _registry.async_get(vacuum_entity_id)
+            if _entry is not None:
+                _maint_siblings, _ = _sweep_siblings(_registry, _entry)
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.debug(
+                "maintenance sibling sweep failed for %s", vacuum_entity_id,
+                exc_info=True,
+            )
+
         maintenance_sources = _detect_maintenance_sources(
             hass,
             object_id=object_id,
             maintenance_components=maintenance_components,
+            siblings=_maint_siblings,
+            overrides=_overrides,
         )
 
     # --- live state values --------------------------------------------------
