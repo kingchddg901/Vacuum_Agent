@@ -324,7 +324,9 @@ def register_eufy_adapter_for_vacuum(
     # dock-owned roles resolve to nothing on a live X10 while the entities plainly
     # exist. Only touches IDs that FAIL to resolve, and refuses to guess when
     # ambiguous, so a working install cannot be altered. See adapters/entity_resolve.
-    entities, entity_remaps = resolve_declared_entities(hass, vacuum_entity_id, entities)
+    entities, entity_remaps = resolve_declared_entities(
+        hass, vacuum_entity_id, entities, overrides=entity_overrides
+    )
 
     config = {
         "adapter_id": ADAPTER_ID,
@@ -1005,6 +1007,19 @@ def register_eufy_adapter_for_vacuum(
         # rescue. Discarded until now, which is why the System table labelled a
         # rescued entity "name match" when its name plainly does not match.
         "_entity_remaps": entity_remaps,
+        # The user's explicit choices, so a capability REFRESH can reproduce the
+        # same detect_capabilities inputs as registration. The merge of storage
+        # and entry options happens once in __init__.py and is resolved by
+        # register_brand_adapter; re-deriving it in the manager would be a second
+        # copy of a precedence rule ("entry options win") that must not drift.
+        # Same leading-underscore convention as _entity_candidates: internal
+        # bookkeeping, not part of ADAPTER_CONFIG_SCHEMA.
+        "_entity_overrides": dict(entity_overrides or {}),
+        # Ditto the suffix vocabulary. Registration passes reserved_suffixes so
+        # the sibling sweep cannot hand one role's entity to another; without it
+        # stored here, a refresh silently rebuilt capabilities with that guard
+        # disarmed.
+        "_reserved_suffixes": list(ALL_SUFFIXES),
     }
 
     register_adapter_config(vacuum_entity_id, config)

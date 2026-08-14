@@ -1503,6 +1503,13 @@ class EufyVacuumManager:
                 if isinstance(v, bool)
             }
         _maintenance_components = _adapter_cfg.get("maintenance_components") or None
+        # Read back from the adapter config rather than re-derived here. The user's
+        # overrides are merged from two surfaces with a precedence rule ("entry
+        # options win", __init__.py) and the suffix vocabulary is the brand's own —
+        # deriving either in core would be a second copy of a brand's or a flow's
+        # decision, which is exactly the shape that keeps producing these bugs.
+        _entity_overrides = _adapter_cfg.get("_entity_overrides") or None
+        _reserved_suffixes = _adapter_cfg.get("_reserved_suffixes") or None
 
         payload = detect_capabilities(
             self.hass,
@@ -1512,6 +1519,8 @@ class EufyVacuumManager:
             model_family=_model_family,
             capability_hints=_capability_hints or None,
             maintenance_components=_maintenance_components,
+            entity_overrides=_entity_overrides,
+            reserved_suffixes=_reserved_suffixes,
         )
 
         if effective_model:

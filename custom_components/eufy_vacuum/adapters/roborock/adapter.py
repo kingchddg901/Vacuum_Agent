@@ -240,7 +240,9 @@ def register_roborock_adapter_for_vacuum(
     # brand splitting entities across devices). Only touches IDs that FAIL to resolve
     # and refuses to guess when ambiguous, so a working install cannot be altered.
     # See adapters/entity_resolve.
-    entities, entity_remaps = resolve_declared_entities(hass, vid, entities)
+    entities, entity_remaps = resolve_declared_entities(
+        hass, vid, entities, overrides=entity_overrides
+    )
 
     config = {
         "adapter_id": ADAPTER_ID,
@@ -816,6 +818,11 @@ def register_roborock_adapter_for_vacuum(
         # rescue. Discarded until now, which is why the System table labelled a
         # rescued entity "name match" when its name plainly does not match.
         "_entity_remaps": entity_remaps,
+        # The user's explicit choices, so a capability REFRESH reproduces the same
+        # detect_capabilities inputs as registration. See the matching comment in
+        # adapters/eufy/adapter.py — the storage/options merge and its precedence
+        # rule live in __init__.py and must not be re-derived downstream.
+        "_entity_overrides": dict(entity_overrides or {}),
     }
 
     register_adapter_config(vacuum_entity_id, config)

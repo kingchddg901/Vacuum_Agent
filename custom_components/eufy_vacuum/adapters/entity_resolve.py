@@ -71,15 +71,42 @@ def resolve_declared_entities(
     hass: HomeAssistant,
     vacuum_entity_id: str,
     entities: dict[str, Any],
+    overrides: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, dict[str, str]]]:
     """Return ``(entities, report)`` with unresolvable IDs repaired where unambiguous.
 
     ``report`` maps role -> ``{"declared": ..., "resolved": ...}`` for each remap, and is
     empty when nothing needed rescuing (the overwhelmingly common case).
+
+    ``overrides`` maps role -> entity_id and is the user's explicit choice, from the
+    System tab or the options flow. It is applied HERE, in the shared resolver, rather
+    than in each brand adapter, for two reasons. It is the single place both brands
+    already funnel their declared map through, so an override cannot work on one brand
+    and not the other — this file is the twin that kept the live:ENT-4 bug precisely
+    because a fix landed in one copy of a predicate and not the other. And it is
+    upstream of everything that reads a binding: ``config["entities"]`` is what the
+    runtime, the card and diagnostics consult, while ``detect_capabilities`` sees only
+    a 14-role candidate subset — so an override applied only there was a no-op for
+    ``battery`` and ten other declared-only roles.
     """
     report: dict[str, dict[str, str]] = {}
     if not isinstance(entities, dict) or not entities:
         return entities, report
+
+    # THE USER'S CHOICE IS A DECLARATION, not a candidate. Pinned before anything else
+    # runs so it is what the rescue and exclusivity passes below reason about: its
+    # suffix joins `declared_suffixes` and therefore participates in the ownership
+    # check, exactly as a brand-declared id would.
+    #
+    # A role is pinned even when the chosen entity has no state. Silently declining
+    # would return the binding to auto-detection while the System tab still showed the
+    # override stored, and the two would disagree with no way to see which won. The
+    # rescue pass below may still repair it, and REASON_OVERRIDE_UNRESOLVED reports the
+    # case that cannot be repaired.
+    if isinstance(overrides, dict):
+        for _role, _chosen in overrides.items():
+            if isinstance(_chosen, str) and "." in _chosen:
+                entities[_role] = _chosen
 
     vacuum_object_id = vacuum_entity_id.split(".", 1)[-1]
 

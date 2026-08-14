@@ -288,6 +288,93 @@ def test_refresh_preserves_model_family_and_attribute_room_hint(hass, manager):
     assert caps["supports_mop_wash"] is True       # stored hint honored on refresh
 
 
+def test_refresh_preserves_entity_overrides_and_reserved_suffixes(hass, manager):
+    """[CAP-10b] The SAME rule as CAP-10, for the two inputs added after it was
+    written. CAP-10 says "a refresh must reproduce the SAME detect_capabilities
+    inputs as startup" and then checks model_family + capability_hints, because
+    those were the only inputs that existed — a guard that EXISTS reads as
+    complete, so the next two inputs were dropped in silence.
+
+    entity_overrides is the user's explicit choice from the System tab. Dropped on
+    refresh, `entity_augmentation.overrides_applied` is structurally always {} —
+    so the picker never pre-selects, `system.source_override` ("Your choice") is
+    unreachable in all 18 locales, and a stale override can never be reported.
+
+    reserved_suffixes is the adapter's full suffix vocabulary. Dropped on refresh,
+    the live:ENT-4 exclusivity guard runs disarmed and `cleaning_area` can rebind
+    to `_total_cleaning_area` — the 17,975 ft² lifetime-counter bug — on any
+    refresh of an install that was correct at startup."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"vacuum": _VAC},
+        "_entity_candidates": {"cleaning_area": ["sensor.alfred_cleaning_area"]},
+        "_entity_overrides": {"cleaning_area": "sensor.picked_by_the_user"},
+        "_reserved_suffixes": ["_cleaning_area", "_total_cleaning_area"],
+    })
+    hass.states.async_set("sensor.picked_by_the_user", "3.5")
+    hass.states.async_set(_VAC, "docked", {})
+
+    caps = manager.refresh_vacuum_capabilities(vacuum_entity_id=_VAC)
+
+    applied = (caps.get("entity_augmentation") or {}).get("overrides_applied") or {}
+    assert applied.get("cleaning_area") == "sensor.picked_by_the_user", (
+        "the refresh dropped entity_overrides, so the user's choice is invisible to "
+        f"every consumer of the snapshot (overrides_applied={applied!r})"
+    )
+    assert caps["entities"].get("cleaning_area") == "sensor.picked_by_the_user"
+    assert (caps.get("entity_sources") or {}).get("cleaning_area") == "override", (
+        "the snapshot must attribute the binding to the user, or the System tab "
+        "reports 'Name match' for an entity the user chose by hand"
+    )
+
+
+def test_entity_override_reaches_the_declared_entities_map(hass, manager):
+    """[CAP-10c] An override must land in `config["entities"]` — the map the
+    RUNTIME reads — not only in the capabilities snapshot the System tab reads.
+
+    detect_capabilities only ever sees a 14-role candidate subset, so an override
+    applied there alone was a no-op for the eleven declared-only roles (battery,
+    error_message, charging, the totals, dock_firmware_version, scene_select…) and
+    on Roborock, whose adapter sources none of its roles from that snapshot. The
+    user picked an entity, the entry reloaded, and the binding did not move.
+
+    Asserted through resolve_declared_entities because that is the ONE shared seam
+    both brands funnel their declared map through — this file's twin is where the
+    live:ENT-4 guard was fixed in one copy and not the other, and applying the
+    override per-brand would rebuild exactly that hazard."""
+    from custom_components.eufy_vacuum.adapters.entity_resolve import (
+        resolve_declared_entities,
+    )
+
+    hass.states.async_set("sensor.alfred_battery", "82")
+    hass.states.async_set("sensor.a_totally_different_battery", "77")
+
+    declared = {"battery": "sensor.alfred_battery"}
+    out, _report = resolve_declared_entities(
+        hass, _VAC, dict(declared),
+        overrides={"battery": "sensor.a_totally_different_battery"},
+    )
+    assert out["battery"] == "sensor.a_totally_different_battery", (
+        "the override never reached the declared map, so the picker is a no-op for "
+        "every role the runtime reads from config['entities']"
+    )
+
+    # ABLATION: the same call with no override must keep the derived binding, or
+    # the assertion above would pass for a reason that has nothing to do with the
+    # user's choice.
+    out_plain, _ = resolve_declared_entities(hass, _VAC, dict(declared))
+    assert out_plain["battery"] == "sensor.alfred_battery"
+
+    # A role the brand never declared is still bindable: the System tab offers a
+    # picker per ROLE, and refusing unknown roles here would silently drop the
+    # choice for anything the adapter happens not to derive.
+    out_new, _ = resolve_declared_entities(
+        hass, _VAC, dict(declared),
+        overrides={"mop_life": "sensor.a_totally_different_battery"},
+    )
+    assert out_new["mop_life"] == "sensor.a_totally_different_battery"
+
+
 def test_get_vacuum_capabilities_self_heals_stale_model_family(hass, manager):
     """[CAP-11] A persisted snapshot with a stale model_family ("generic") is
     re-detected when the freshly-registered adapter now declares a better family
