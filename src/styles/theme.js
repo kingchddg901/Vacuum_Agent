@@ -97,9 +97,26 @@ export const themeStyles = `
     flex-shrink: 0;
   }
 
+  /* THE CHIP ROW MUST NOT DRIVE THE EDITOR'S SIZE.
+     It sits above .evcc-theme-editor-scrollbox, which is flex: 1 1 auto — so
+     whatever height these chips happen to need, the editor gets the remainder.
+     That was tolerable when the row was a constant 162px and intolerable once
+     disclosure made it VARY: 108px at the top level, 36px inside a branch, so
+     the editor jumped 72px every time you navigated. Bounding the band trades
+     that for a fixed frame the editor can rely on.
+
+     Deliberately just PAST two rows, so a third peeks when there is one — a
+     clipped chip is the only scroll affordance a touch device gets, and a band
+     that ends flush reads as complete. Nothing becomes unreachable: everything
+     the level offers is still here, one scroll away. */
   .evcc-theme-filters {
     margin-bottom: 4px;
     flex-shrink: 0;
+    height: 4.6rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
   }
 
   /* The step-up chip. It sits in the same row as the category chips but does a
