@@ -56,6 +56,12 @@ const GALLERY_IDS = [
   "maintenance",
   "room-rules",
   "run-profiles-unsupported-break",
+  // Setup → System (2026-08-14). Added for the i18n/RTL/escaping gates and
+  // caught here by the drift guard on the same push, exactly as the
+  // rooms-opendyslexic note above warns: these tests are CI-only (RUN gates on
+  // process.env.CI), so a local `npm run test:harness` skips them and reports
+  // green on a gallery that no longer matches this list.
+  "setup-system",
   "dot-cleaning",
   "dot-returning",
   "dot-paused",

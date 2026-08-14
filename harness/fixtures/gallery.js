@@ -723,17 +723,38 @@ const ROOMS_OPENDYSLEXIC = {
    and entity-leak gates the other populated views already
    get.
 
-   One row per branch of _renderSystemSubtab, because a
-   single happy-path row would leave the interesting halves
-   of that renderer unrendered and the gates would report
-   coverage they do not have:
+   ⚠ EVERY chosen_by / reason STRING HERE IS A REAL BACKEND
+   VALUE. The first version of this fixture invented two
+   (`entry_sweep`, `ambiguous`) and the rendered screen showed
+   the raw keys `system.source_entry_sweep` and
+   `system.reason_ambiguous` back as user-facing text. All 26
+   localized/RTL/escaping assertions PASSED on it — a missing
+   catalog key is still plain text with no entity and no
+   overflow — so only the baseline screenshot caught it. A
+   fixture invented rather than derived agrees with whoever
+   wrote it, not with the code.
 
-     battery      resolved, uncontested (no chosen_by)
-     cleaning_area  contested + WON on state_class, with a
-                    rejected alternative and a live value
-     mop_life     resolved via a config-entry sweep
-     brush_life   user override in force, picker selected
-     dust_bin     unresolved -> the empty-value + <em> path
+   The vocabulary is closed and lives in core/capabilities.py:
+     chosen_by  BY_OBJECT_ID / BY_TRANSLATION_KEY /
+                BY_STATE_CLASS / BY_MAGNITUDE (a contest rung)
+                · FROM_DERIVED / FROM_OVERRIDE /
+                FROM_DEVICE_SIBLING / FROM_CONFIG_ENTRY_SIBLING
+                (where the winner came from) · declared_rescue
+     reason     REASON_DISABLED / REASON_ABSENT /
+                REASON_REGISTERED_NO_STATE /
+                REASON_OVERRIDE_UNRESOLVED
+                (`resolved` renders nothing by design)
+
+   Note `ambiguous` is NOT a reason: an undecidable contest
+   `continue`s without merging a candidate, so the role reports
+   REASON_ABSENT. It is tracked separately in rpt["ambiguous"]
+   for the options flow to pre-fill.
+
+   The rows below cover all 9 sources and all 4 renderable
+   reasons, so every one of the 13 catalog keys this screen can
+   emit is exercised in all 18 locales. A key deleted or
+   renamed now fails the gate instead of shipping as an
+   identifier.
    ========================================================= */
 const SETUP_SYSTEM = {
   id: "setup-system",
@@ -747,57 +768,107 @@ const SETUP_SYSTEM = {
       "sensor.alfred_cleaning_area": "0.0",
       "sensor.alfred_mop_life": "94",
       "sensor.living_room_x10_brush_life": "61",
+      "sensor.alfred_water_tank": "full",
+      "sensor.alfred_side_brush_life": "77",
+      "sensor.alfred_filter_life": "35",
     })[id] ?? null,
     entityBindings: () => [
-      {
-        role: "battery",
-        entity_id: "sensor.alfred_battery",
-        reason: "resolved",
-        options: [],
-      },
+      // --- the four CONTEST rungs, strongest evidence first ---
       {
         role: "cleaning_area",
         entity_id: "sensor.alfred_cleaning_area",
         chosen_by: "state_class",
         reason: "resolved",
-        rejected: {
-          "sensor.alfred_total_cleaning_area": "cumulative",
-        },
-        options: [
-          "sensor.alfred_cleaning_area",
-          "sensor.alfred_total_cleaning_area",
-        ],
+        rejected: { "sensor.alfred_total_cleaning_area": "total_increasing" },
+        options: ["sensor.alfred_cleaning_area", "sensor.alfred_total_cleaning_area"],
       },
       {
-        role: "mop_life",
-        entity_id: "sensor.alfred_mop_life",
-        chosen_by: "entry_sweep",
+        role: "battery",
+        entity_id: "sensor.alfred_battery",
+        chosen_by: "translation_key",
+        reason: "resolved",
+        rejected: { "sensor.alfred_battery_level": "battery_level" },
+        options: [],
+      },
+      {
+        role: "water_tank",
+        entity_id: "sensor.alfred_water_tank",
+        chosen_by: "object_id",
+        reason: "resolved",
+        rejected: { "sensor.living_room_x10_water_tank": "alfred" },
+        options: [],
+      },
+      {
+        role: "filter_life",
+        entity_id: "sensor.alfred_filter_life",
+        chosen_by: "magnitude",
+        reason: "resolved",
+        rejected: { "sensor.alfred_filter_life_total": "17975.0" },
+        options: [],
+      },
+      // --- the four ORIGINS a winner can come from ---
+      { role: "mop_life", entity_id: "sensor.alfred_mop_life", chosen_by: "derived", reason: "resolved", options: [] },
+      {
+        role: "side_brush_life",
+        entity_id: "sensor.alfred_side_brush_life",
+        chosen_by: "device_sibling",
         reason: "resolved",
         options: [],
       },
       {
         role: "brush_life",
         entity_id: "sensor.living_room_x10_brush_life",
+        chosen_by: "config_entry_sibling",
+        reason: "resolved",
+        options: ["sensor.living_room_x10_brush_life", "sensor.alfred_brush_life"],
+      },
+      {
+        role: "rolling_brush_life",
+        entity_id: "sensor.living_room_x10_rolling_brush_life",
         chosen_by: "override",
         reason: "resolved",
         overridden: true,
-        options: [
-          "sensor.living_room_x10_brush_life",
-          "sensor.alfred_brush_life",
-        ],
+        options: ["sensor.living_room_x10_rolling_brush_life", "sensor.alfred_rolling_brush_life"],
       },
       {
         role: "dust_bin",
+        entity_id: "sensor.living_room_x10_dust_bin",
+        chosen_by: "declared_rescue",
+        reason: "resolved",
+        options: [],
+      },
+      // --- the four RENDERABLE reasons (`resolved` shows nothing) ---
+      {
+        role: "sensor_dirty",
+        entity_id: "sensor.alfred_sensor_dirty",
+        chosen_by: "derived",
+        reason: "disabled",
+        options: [],
+      },
+      {
+        role: "detergent",
         entity_id: null,
-        reason: "ambiguous",
+        chosen_by: "derived",
+        reason: "absent",
         rejected: {
-          "sensor.alfred_dust_bin": "competing",
-          "sensor.living_room_x10_dust_bin": "competing",
+          "sensor.alfred_detergent": "competing",
+          "sensor.living_room_x10_detergent": "competing",
         },
-        options: [
-          "sensor.alfred_dust_bin",
-          "sensor.living_room_x10_dust_bin",
-        ],
+        options: ["sensor.alfred_detergent", "sensor.living_room_x10_detergent"],
+      },
+      {
+        role: "dock_water",
+        entity_id: "sensor.alfred_dock_water",
+        chosen_by: "device_sibling",
+        reason: "registered_no_state",
+        options: [],
+      },
+      {
+        role: "mop_pad",
+        entity_id: "sensor.alfred_mop_pad",
+        chosen_by: "derived",
+        reason: "override_unresolved",
+        options: ["sensor.alfred_mop_pad", "sensor.living_room_x10_mop_pad"],
       },
     ],
   },
