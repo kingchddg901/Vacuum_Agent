@@ -342,28 +342,76 @@ export function applyThemeRenderers(proto) {
     `;
   };
 
+  /**
+   * PROGRESSIVE DISCLOSURE — one level at a time.
+   *
+   * Every group used to render at once: 26 chips, seven rows on a phone, roughly
+   * a third of the visible card spent on navigation before a single token was in
+   * reach. Now only one level shows, and descending swaps the row for that
+   * branch's children.
+   *
+   * NO NEW STATE. The level is DERIVED from the existing group filter, because
+   * the parent/child relationship is already inferred from the group name's
+   * " — " separator (this function has always computed `nested`; it just then
+   * rendered every child anyway). Selecting IS descending and Back IS selecting
+   * the parent, so the row and the filter are the same variable and cannot drift
+   * apart — the failure mode a separate `openBranch` flag would have introduced.
+   *
+   * COST, accepted: hopping between two sibling categories is now two taps where
+   * it used to be one. Browse speed traded for vertical space, deliberately.
+   *
+   * No new i18n: Back reuses the parent's own label (or theme.filter_all at the
+   * top), and the chevron is punctuation.
+   */
   proto._renderThemeGroupFilters = function () {
     const selectedFilter = this.card._state.getThemeGroupFilter();
 
-    const chips = [
-      { value: "all", label: this.t("theme.filter_all") },
-      { value: "modified", label: this.t("theme.filter_modified") },
-      ...THEME_GROUPS.map((group) => {
-        // Match the group-header display: nested groups show only their suffix.
-        // Animal subgroups have no theme_group key, so tVocab falls back to the
-        // suffix — the protected animal name (Cat/Dog/…), never translated.
-        const sep = group.indexOf(" — ");
-        const nested = sep !== -1 && THEME_GROUPS.includes(group.slice(0, sep));
-        const display = nested ? group.slice(group.lastIndexOf(" — ") + 3) : group;
-        return { value: group, label: this.tVocab("theme_group", group, display) };
-      }),
-    ];
+    // Nested groups show only their suffix, matching the group-header display.
+    // Animal subgroups have no theme_group key, so tVocab falls back to the
+    // suffix — the protected animal name (Cat/Dog/…), never translated.
+    const parentOf = (group) => {
+      const sep = group.indexOf(" — ");
+      if (sep === -1) return null;
+      const parent = group.slice(0, sep);
+      return THEME_GROUPS.includes(parent) ? parent : null;
+    };
+    const labelFor = (group) => {
+      const display = parentOf(group) ? group.slice(group.lastIndexOf(" — ") + 3) : group;
+      return this.tVocab("theme_group", group, display);
+    };
+    const childrenOf = (parent) => THEME_GROUPS.filter((g) => parentOf(g) === parent);
+
+    const selectedParent = parentOf(selectedFilter);
+    const selectedChildren = selectedParent ? [] : childrenOf(selectedFilter);
+
+    let chips;
+    if (selectedParent) {
+      // Inside a branch: step up, then this child's siblings with it active.
+      chips = [
+        { value: selectedParent, label: `‹ ${labelFor(selectedParent)}`, back: true },
+        ...childrenOf(selectedParent).map((g) => ({ value: g, label: labelFor(g) })),
+      ];
+    } else if (selectedChildren.length) {
+      // A parent that has children: step up to the top, itself, then its children.
+      chips = [
+        { value: "all", label: `‹ ${this.t("theme.filter_all")}`, back: true },
+        { value: selectedFilter, label: labelFor(selectedFilter) },
+        ...selectedChildren.map((g) => ({ value: g, label: labelFor(g) })),
+      ];
+    } else {
+      // Top level — all / modified / a childless group. Only parents render.
+      chips = [
+        { value: "all", label: this.t("theme.filter_all") },
+        { value: "modified", label: this.t("theme.filter_modified") },
+        ...THEME_GROUPS.filter((g) => parentOf(g) === null).map((g) => ({ value: g, label: labelFor(g) })),
+      ];
+    }
 
     return `
       <div class="evcc-chips evcc-theme-filters">
         ${chips.map((chip) => `
           <button
-            class="evcc-chip ${selectedFilter === chip.value ? "active" : ""}"
+            class="evcc-chip ${chip.back ? "evcc-chip--back " : ""}${selectedFilter === chip.value ? "active" : ""}"
             data-theme-group-filter="${this.escapeHtml(chip.value)}"
           >
             ${chip.label}

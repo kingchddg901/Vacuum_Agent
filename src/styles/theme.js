@@ -102,6 +102,16 @@ export const themeStyles = `
     flex-shrink: 0;
   }
 
+  /* The step-up chip. It sits in the same row as the category chips but does a
+     different thing — it navigates rather than filters — so it reads quieter and
+     is set off from its siblings. The chevron alone was carrying that distinction
+     and a chevron is easy to miss on a phone. */
+  .evcc-chip--back {
+    color: var(--evcc-text-secondary);
+    background: transparent;
+    margin-inline-end: 6px;
+  }
+
   /* =========================================================
      THEME MODE (follow system vs this device only)
      ========================================================= */
