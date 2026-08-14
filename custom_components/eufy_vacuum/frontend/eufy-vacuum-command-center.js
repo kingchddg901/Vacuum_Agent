@@ -3919,16 +3919,8 @@ ${r}
       </aside>
     `},n._renderThemePreviewShellTypography=function(){return`
       <div class="evcc-theme-preview-grid evcc-theme-preview-grid--shell">
-        <section class="evcc-theme-preview-card evcc-theme-preview-card--hero">
-          <div class="evcc-theme-preview-shell-kicker">${this.t("theme_preview.shell.kicker")}</div>
-          <h2 class="evcc-theme-preview-heading">${this.t("theme_preview.shell.heading")}</h2>
-          <p class="evcc-theme-preview-copy">
-            ${this.t("theme_preview.shell.copy")}
-          </p>
-          <div class="evcc-theme-preview-inline-actions">
-            <span class="evcc-theme-preview-linkish">${this.t("theme_preview.shell.open_metrics")}</span>
-            <span class="evcc-theme-preview-accent-pill">${this.t("theme_preview.shell.accent")}</span>
-          </div>
+        <section class="evcc-theme-preview-card evcc-theme-preview-shell-frame">
+          ${this.renderMobileHeader({view:"rooms",vacuumName:this.t("theme_preview.shell.kicker"),vacuumStatus:"docked",vacuumStatusLabel:null,dockStatus:"charging",dockStatusLabel:null,battery:100,langOverride:"auto",currentLang:"en",languageMenuOpen:!1,autoInfo:null,uiFont:null,state:{mapSwitcher:()=>null,mapSwitchPending:()=>null}})}
         </section>
 
         <section class="evcc-theme-preview-card">
@@ -13191,6 +13183,16 @@ ${r}
      preview-ness: the cards are a specimen, not controls. Same reason the
      floor-texture grid above is inert. */
   .evcc-theme-preview-room-grid {
+    pointer-events: none;
+  }
+
+  /* Holds the REAL mobile header as a specimen. No padding of its own: the header
+     brings its own, and adding more would misreport the spacing the shell tokens
+     actually produce \u2014 the one thing this pane exists to show. Inert for the same
+     reason the grids above are: it is a sample, not a control. */
+  .evcc-theme-preview-shell-frame {
+    padding: 0;
+    overflow: hidden;
     pointer-events: none;
   }
 

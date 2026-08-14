@@ -337,6 +337,16 @@ export const themePreviewStyles = `
     pointer-events: none;
   }
 
+  /* Holds the REAL mobile header as a specimen. No padding of its own: the header
+     brings its own, and adding more would misreport the spacing the shell tokens
+     actually produce — the one thing this pane exists to show. Inert for the same
+     reason the grids above are: it is a sample, not a control. */
+  .evcc-theme-preview-shell-frame {
+    padding: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
   .evcc-theme-preview-order-chip,
   .evcc-theme-preview-room-order {
     background: var(--evcc-order-chip-bg, var(--evcc-queue-order-bg, rgba(255, 255, 255, 0.06)));

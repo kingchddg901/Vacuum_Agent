@@ -76,16 +76,43 @@ export function applyThemePreviewRenderers(proto) {
   proto._renderThemePreviewShellTypography = function () {
     return `
       <div class="evcc-theme-preview-grid evcc-theme-preview-grid--shell">
-        <section class="evcc-theme-preview-card evcc-theme-preview-card--hero">
-          <div class="evcc-theme-preview-shell-kicker">${this.t("theme_preview.shell.kicker")}</div>
-          <h2 class="evcc-theme-preview-heading">${this.t("theme_preview.shell.heading")}</h2>
-          <p class="evcc-theme-preview-copy">
-            ${this.t("theme_preview.shell.copy")}
-          </p>
-          <div class="evcc-theme-preview-inline-actions">
-            <span class="evcc-theme-preview-linkish">${this.t("theme_preview.shell.open_metrics")}</span>
-            <span class="evcc-theme-preview-accent-pill">${this.t("theme_preview.shell.accent")}</span>
-          </div>
+        <section class="evcc-theme-preview-card evcc-theme-preview-shell-frame">
+          ${this.renderMobileHeader({
+            // THE REAL HEADER, not a drawing of one. What stood here was a hero
+            // card with a kicker, a marketing heading, body copy, a link and an
+            // accent pill — a surface that exists NOWHERE in this product. It was
+            // the most invented preview in the file, so it previewed nothing.
+            //
+            // The doc's build order said to DELETE this preview, on the grounds
+            // that the shell is on screen directly above the editor. That is true
+            // on desktop and FALSE on a phone, and the renderer says so itself:
+            //   const compactChrome = ctx?.view === "theme";
+            // On the Theme view the status block is dropped for vertical budget,
+            // so the status rows, dots and battery band are exactly what a phone
+            // user CANNOT see while editing the tokens that paint them.
+            //
+            // Passing a non-theme `view` renders the FULL header on purpose: the
+            // preview's job here is to show what the compact chrome takes away.
+            view: "rooms",
+            vacuumName: this.t("theme_preview.shell.kicker"),
+            vacuumStatus: "docked",
+            vacuumStatusLabel: null,
+            dockStatus: "charging",
+            dockStatusLabel: null,
+            battery: 100,
+            langOverride: "auto",
+            currentLang: "en",
+            languageMenuOpen: false,
+            autoInfo: null,
+            uiFont: null,
+            // NOT null. renderMobileHeader calls this._renderMapSwitch?.(ctx.state),
+            // and that `?.` guards the METHOD existing — not the argument. The body
+            // dereferences state.mapSwitcher immediately, so a null state throws and
+            // takes the ENTIRE Theme view down for anyone on this group. Both
+            // accessors return undefined here, which is the no-switcher case the
+            // renderer already handles by returning "".
+            state: { mapSwitcher: () => null, mapSwitchPending: () => null },
+          })}
         </section>
 
         <section class="evcc-theme-preview-card">
