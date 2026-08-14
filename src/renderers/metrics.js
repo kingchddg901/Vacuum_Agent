@@ -877,7 +877,7 @@ export function applyMetricsRenderers(proto) {
         )}
         ${this._renderMetricsMiniCard(
           this.t("metrics.battery_charge_rate"),
-          sensorVal(m.rate_overall, 2, " %/min"),
+          sensorVal(m.rate_overall, 2, ` ${this.t("metrics.unit_per_min")}`),
           m.rate_overall?.attrs?.charging ? this.t("metrics.battery_charging_now") : this.t("metrics.battery_last_sample")
         )}
         ${this._renderMetricsMiniCard(
@@ -904,22 +904,22 @@ export function applyMetricsRenderers(proto) {
         <tbody>
           <tr>
             <td>${this.t("metrics.battery_zone_overall")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_overall, 2, " %/min"))}</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_overall, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
             <td>${this.t("metrics.battery_zone_overall_note")}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_low")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_low, 2, " %/min"))}</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_low, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
             <td>${this.t("metrics.battery_zone_low_note")}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_high")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_high, 2, " %/min"))}</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_high, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
             <td>${this.t("metrics.battery_zone_high_note")}</td>
           </tr>
           <tr>
             <td>${this.t("metrics.battery_zone_mid_job")}</td>
-            <td>${this.escapeHtml(sensorVal(m.rate_mid_job, 2, " %/min"))}</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_mid_job, 2, ` ${this.t("metrics.unit_per_min")}`))}</td>
             <td>${this.t("metrics.battery_zone_mid_job_note", { count: m.rate_mid_job?.attrs?.sample_count ?? 0 })}</td>
           </tr>
           <tr>
@@ -951,7 +951,7 @@ export function applyMetricsRenderers(proto) {
           <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
                mop"); collapse " and " so tVocab's slug matches the vocab code key. -->
           <td>${this.tVocab("battery_bucket_key", String(k).replace(/\s+and\s+/gi, " "), k)}</td>
-          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
+          <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(obj[k]?.mean, 3) + " " + this.t("metrics.unit_per_m2"))}</td>
           <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
         </tr>
       `).join("");
@@ -976,7 +976,7 @@ export function applyMetricsRenderers(proto) {
         <tbody>
           <tr>
             <td><strong>${this.t("metrics.battery_all_jobs")}</strong></td>
-            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(allMean, 3))}</td>
+            <td data-label="${this.escapeHtml(this.t("metrics.battery_col_mean_per_m2"))}">${this.escapeHtml(numFmt(allMean, 3) + " " + this.t("metrics.unit_per_m2"))}</td>
             <td data-label="${this.escapeHtml(this.t("metrics.battery_col_jobs"))}">${this.escapeHtml(String(allCount))}</td>
           </tr>
           <tr><td colspan="3"><em>${this.t("metrics.battery_by_clean_mode")}</em></td></tr>
@@ -1001,7 +1001,7 @@ export function applyMetricsRenderers(proto) {
           <tr><td>${this.t("metrics.battery_row_duration")}</td><td>${this.escapeHtml(numFmt(lastJob.duration_min, 1) + " min")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_area")}</td><td>${this.escapeHtml(numFmt(lastJob.area_m2, 1) + " m²")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_battery_used")}</td><td>${this.escapeHtml(numFmt(lastJob.battery_used_pct, 0) + " %")}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, ` ${this.t("metrics.unit_per_min")}`))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", String(lastJob.single_clean_mode).replace(/\s+and\s+/gi, " "), lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
@@ -1012,7 +1012,7 @@ export function applyMetricsRenderers(proto) {
             <tr><td colspan="2"><em>${this.t("metrics.battery_post_job_recharge")}</em></td></tr>
             <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>
             <tr><td>${this.t("metrics.battery_row_recharge_delta")}</td><td>${this.escapeHtml(`${postJob.start_battery ?? "?"} → ${postJob.end_battery ?? "?"} %`)}</td></tr>
-            <tr><td>${this.t("metrics.battery_row_avg_rate")}</td><td>${this.escapeHtml(numFmt(postJob.avg_rate_per_min, 2) + " %/min")}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_avg_rate")}</td><td>${this.escapeHtml(numFmt(postJob.avg_rate_per_min, 2) + ` ${this.t("metrics.unit_per_min")}`)}</td></tr>
             <tr><td>${this.t("metrics.battery_row_ended")}</td><td>${this.escapeHtml(postJob.ended_reason ?? "—")}</td></tr>
           ` : `
             <tr><td>${this.t("metrics.battery_post_job_recharge")}</td><td><em>${this.t("metrics.battery_awaiting_charge_session")}</em></td></tr>

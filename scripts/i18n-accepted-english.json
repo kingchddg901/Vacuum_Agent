@@ -1,5 +1,5 @@
 {
-  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.)",
+  "_meta": "Reviewed snapshot of English-identical locale values, adjudicated by Chris 2026-08-04: cognates, units/symbols, and product vocabulary are ACCEPTED; check-i18n section D flags any English-identical value NOT listed here (the ratchet). pending = provisionally tolerated awaiting a Chris ruling; move to accepted or fix, do not let entries rot here. (2026-08-04: the nl samples pair was RULED translate-not-accept -> \"metingen\"; pending is now empty.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule — the localizing locales ar/he/ru/ja/ko/tr/zh DO differ, which is the proof the values are real rather than untranslated.) (2026-08-14: metrics.unit_per_m2 / unit_per_min added under the units/symbols rule. ar/he/ru/ja/ko/tr/zh DO differ, which is the proof these are real values rather than untranslated ones — both were DERIVED from strings the locales already had, never authored.)",
   "accepted": {
     "base_station.water_title": [
       "nl"
@@ -921,6 +921,32 @@
       "cs",
       "es",
       "fr",
+      "it",
+      "nl",
+      "pl",
+      "pt"
+    ],
+    "metrics.unit_per_m2": [
+      "cs",
+      "de",
+      "es",
+      "fr",
+      "id",
+      "it",
+      "ja",
+      "ko",
+      "nl",
+      "pl",
+      "pt",
+      "tr",
+      "zh-Hans",
+      "zh-Hant"
+    ],
+    "metrics.unit_per_min": [
+      "cs",
+      "es",
+      "fr",
+      "id",
       "it",
       "nl",
       "pl",

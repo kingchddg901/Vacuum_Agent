@@ -791,7 +791,9 @@ export const en = {
   "metrics.battery_col_bucket": "Bucket",  // Drain-table column header for the stat grouping bucket (e.g. clean-mode/fan/water value)
   "metrics.battery_col_jobs": "Jobs",  // Drain-table column header: count of jobs in this bucket
   "metrics.battery_col_last_rate": "Last rate",  // Charge-rates table column: most recent charge rate (%/min) for the zone
-  "metrics.battery_col_mean_per_m2": "Mean %/m²",  // Drain-table column header 'Mean %/m²': avg battery drain per square metre
+  "metrics.battery_col_mean_per_m2": "Mean",  // Drain-table column header; the unit lives on the VALUE via metrics.unit_per_m2
+  "metrics.unit_per_m2": "%/m²",  // battery drain unit, appended to a value. LOCALIZED — ar/he/ru do not use a Latin m
+  "metrics.unit_per_min": "%/min",  // charge-rate unit, appended to a value. Composed from run_profiles.minutes_unit
   "metrics.battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
   "metrics.battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
   "metrics.battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",  // 'single-bucket job' = a run where every room used the same setting
