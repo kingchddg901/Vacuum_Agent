@@ -25,7 +25,13 @@ function flagValue(name, fallback) {
 
 const bundleName = flagValue("--bundle", "default");
 const freeze = process.argv.includes("--freeze");
-const width = Number(flagValue("--width", "520")) || 520;
+/* --mobile renders the MOBILE SHELL, not merely a narrow desktop one. Without
+   it, --width 390 gives a desktop shell squeezed into 390px: a wrapped top tab
+   strip and no bottom nav — which looks mobile-ish and is not, so the compact
+   chrome, the 44px tap floors and the stacked layouts all go unphotographed.
+   renderGallery has always accepted this; nothing passed it. */
+const mobile = process.argv.includes("--mobile");
+const width = Number(flagValue("--width", mobile ? "390" : "520")) || (mobile ? 390 : 520);
 
 let bundle = {};
 const bundlePath = join(here, "bundles", `${bundleName}.mjs`);
@@ -47,8 +53,8 @@ for (const entry of entries) {
   // modal shots so the modal matches the card; leave the rest at the default.
   await page.emulateMedia({ colorScheme: entry.modal ? "dark" : "light" });
   const res = await page.evaluate(
-    ([id, b, w]) => window.__evcc.renderGallery(id, { bundle: b, width: w }),
-    [entry.id, bundle, width],
+    ([id, b, w, m]) => window.__evcc.renderGallery(id, { bundle: b, width: w, mobile: m }),
+    [entry.id, bundle, width, mobile],
   );
   if (!res.ok) {
     console.error(`✗ ${entry.id}: ${res.error}`);
