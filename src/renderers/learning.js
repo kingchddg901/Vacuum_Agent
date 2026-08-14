@@ -659,7 +659,7 @@ export function applyLearningRenderers(proto) {
 
     return `
       <span class="evcc-learning-chip ${cls}" ${title ? `title="${this.escapeHtml(title)}"` : ""}>
-        ${this.escapeHtml(label)}
+        ${label}
       </span>
     `;
   };

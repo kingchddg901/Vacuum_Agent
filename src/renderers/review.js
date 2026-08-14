@@ -209,7 +209,7 @@ export function applyReviewRenderers(proto) {
     return `
       <div class="evcc-review-stat">
         <div class="evcc-review-stat-value">${this.escapeHtml(value)}</div>
-        <div class="evcc-review-stat-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-review-stat-label">${label}</div>
       </div>
     `;
   };
@@ -237,7 +237,7 @@ export function applyReviewRenderers(proto) {
 
     return `
       <label class="evcc-field evcc-review-filter">
-        <span class="evcc-field-label">${this.escapeHtml(label)}</span>
+        <span class="evcc-field-label">${label}</span>
         <select data-review-filter="${this.escapeHtml(key)}">
           ${finalOptions.map((opt) => `
             <option
@@ -279,10 +279,10 @@ export function applyReviewRenderers(proto) {
     const searchable = key === "profile_key";
     const head = searchable
       ? `<div class="evcc-chip-filter-head">
-           <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+           <div class="evcc-field-label">${label}</div>
            <input type="text" class="evcc-chip-search" data-chip-search placeholder="${this.t("review.search_placeholder")}" aria-label="${this.t("review.search_aria", { label: this.escapeHtml(label) })}">
          </div>`
-      : `<div class="evcc-field-label">${this.escapeHtml(label)}</div>`;
+      : `<div class="evcc-field-label">${label}</div>`;
     return `
       <div class="evcc-review-chip-filter${searchable ? " evcc-chip-filter--searchable" : ""}" data-chip-filter-group>
         ${head}
@@ -295,7 +295,7 @@ export function applyReviewRenderers(proto) {
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 && includeFallback ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(this.tVocabRaw(key, opt.value, opt.title))}"
-            >${this.tVocab(key, opt.value, opt.label)}</button>
+            >${i === 0 && includeFallback ? opt.label : this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -429,7 +429,7 @@ export function applyReviewRenderers(proto) {
 
     return `
       <div class="evcc-editor-field-group evcc-review-matcher-field">
-        <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-field-label">${label}</div>
         <div class="evcc-chips">
           ${normalized.map((option) => `
             <button
@@ -724,8 +724,8 @@ export function applyReviewRenderers(proto) {
   proto._renderReviewKeyValue = function (label, value, subtitle = "") {
     return `
       <div class="evcc-review-kv">
-        <div class="evcc-review-kv-label">${this.escapeHtml(label)}</div>
-        <div class="evcc-review-kv-value">${this.escapeHtml(value)}</div>
+        <div class="evcc-review-kv-label">${label}</div>
+        <div class="evcc-review-kv-value">${value}</div>
         ${subtitle ? `<div class="evcc-review-kv-subtitle">${this.escapeHtml(subtitle)}</div>` : ""}
       </div>
     `;

@@ -34,6 +34,7 @@ builder — are tested separately with `node --test`; see [CI](#ci).)
 | `visual.spec.mjs` | each tab + gallery matches its committed baseline | CI / `VISUAL=1` only |
 | `cvd.spec.mjs` | the `cvd-safe` theme separates all 30 group pairs on the real card (ΔE2000 ≥ 15) + the 5-override cascade resolves | everywhere |
 | `shape-marks.spec.mjs` | the six badge marks are distinguishable in flat grayscale at dot size | everywhere |
+| `i18n-escaping.spec.mjs` | every POPULATED view x all 18 bundled locales: no HTML entity reaches the screen as literal text (a catalog string escaped twice) | everywhere |
 | `intake.spec.mjs` | the ingest gate skips malformed / unknown-namespace exports and clamps every value | everywhere |
 | `device-theme.spec.mjs` | per-device theme resolution: the real `VacuumCardState.effectiveActiveThemeId()` fallback chain keeps a device pin through a pre-load, resolves it once the library loads, and clears it only when genuinely stale | everywhere (also re-run in `card-visual` CI) |
 | `tab-gating.spec.mjs` | capability tab gating: `renderHeader` hides the Base Station nav tab when `supportsBaseStation()` is false (the S6 no-dock case), default-shown otherwise (Eufy-safe) | everywhere |
@@ -297,3 +298,33 @@ Three values are spec, not defaults — tune them deliberately:
 - **Don't sweep the harness into an `eufy_vacuum` release.** `harness/`,
   `.github/workflows/*`, `gallery/`, and the `package.json` devDeps are tooling;
   only `src/`, `custom_components/`, and `tests/` ship.
+
+### Escaping state is invisible in the source, and that is the real hazard
+
+`translate()` returns text that is ALREADY HTML-escaped (Trust Model B). Backend
+strings and user-controlled names are RAW. Both flow through variables with
+names like `attentionSummary`, and nothing at the sink can tell them apart:
+
+```js
+// SAFE — the trust decision is made where the value ORIGINATES
+const summary = haveCount
+  ? this.t("maintenance.attention_summary", { count })   // already escaped
+  : this.escapeHtml(upkeep.attention_summary ?? "");      // untrusted -> escape here
+
+// UNSAFE — one escape at the sink cannot serve both branches
+const summary = haveCount ? this.t(...) : upkeep.attention_summary;
+html += `<div>${this.escapeHtml(summary)}</div>`;         // double-escapes branch 1
+```
+
+Escaping at the sink double-escapes the translated branch (the user reads
+`d&#39;entretien`) and removing it un-escapes the untrusted branch (an XSS
+regression). Both were live in this file simultaneously, and the second was
+introduced WHILE fixing the first — the entity gate went green on a change that
+had quietly removed the protection.
+
+So: **decide trust at the branch, never at the sink.** Where a variable can hold
+either kind, say so in its name.
+
+Neither direction is fully gated. `i18n-escaping.spec.mjs` catches
+double-escaping; nothing yet asserts that a backend-sourced string reaching an
+innerHTML sink was escaped. That gap is known, not covered.

@@ -135,8 +135,15 @@ export function applyMaintenanceRenderers(proto) {
       ? (_attentionCountRaw > 0
           ? this.t("maintenance.attention_summary", { count: _attentionCountRaw })
           : this.t("maintenance.attention_summary_none"))
-      : (upkeep.attention_summary ?? state.dashboardAttentionSummary?.());
-    const statusSummary = state.dashboardStatusSummary?.();
+      // BACKEND-SOURCED FALLBACK — escaped HERE, at the untrusted source, not at
+      // the sink. The sink cannot escape any more: the branch above is
+      // this.t(), which arrives already escaped, and escaping it twice is what
+      // put d&#39;entretien on the live panel. So the two branches are made
+      // safe separately rather than together.
+      : this.escapeHtml(
+          upkeep.attention_summary ?? state.dashboardAttentionSummary?.() ?? "",
+        );
+    const statusSummary = this.escapeHtml(state.dashboardStatusSummary?.() ?? "");
     const modelMeta = upkeep.model_meta ?? {};
 
     const replacementItems = Array.isArray(upkeep.replacement_items)
@@ -201,7 +208,7 @@ export function applyMaintenanceRenderers(proto) {
               <div>
                 <div class="evcc-maintenance-panel-title">${this.t("maintenance.overview_title")}</div>
                 <div class="evcc-maintenance-panel-subtitle">
-                  ${attentionSummary || statusSummary ? this.escapeHtml(attentionSummary || statusSummary) : this.t("maintenance.overview_subtitle")}
+                  ${attentionSummary || statusSummary ? (attentionSummary || statusSummary) : this.t("maintenance.overview_subtitle")}
                 </div>
               </div>
               ${guideFamilyName ? `
@@ -340,7 +347,7 @@ export function applyMaintenanceRenderers(proto) {
     return `
       <div class="evcc-maintenance-stat">
         <div class="evcc-maintenance-stat-value">${this.escapeHtml(value)}</div>
-        <div class="evcc-maintenance-stat-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-maintenance-stat-label">${label}</div>
       </div>
     `;
   };

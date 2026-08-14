@@ -1559,7 +1559,7 @@ proto.renderRoomCard = function (room, state) {
                 })()
               }
             >
-              ${this.escapeHtml(note.text)}
+              ${note.text}
             </div>
           `).join("")}
         </div>

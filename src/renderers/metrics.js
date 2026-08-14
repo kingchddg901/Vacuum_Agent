@@ -353,7 +353,7 @@ export function applyMetricsRenderers(proto) {
 
     return `
       <label class="evcc-field evcc-metrics-filter">
-        <span class="evcc-field-label">${this.escapeHtml(label)}</span>
+        <span class="evcc-field-label">${label}</span>
         <select data-metrics-filter="${this.escapeHtml(key)}">
           ${finalOptions.map((opt) => `
             <option
@@ -391,10 +391,10 @@ export function applyMetricsRenderers(proto) {
     const searchable = key === "profile_key";
     const head = searchable
       ? `<div class="evcc-chip-filter-head">
-           <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+           <div class="evcc-field-label">${label}</div>
            <input type="text" class="evcc-chip-search" data-chip-search placeholder="${this.t("metrics.chip_search_placeholder")}" aria-label="${this.t("metrics.chip_search_aria", { label })}">
          </div>`
-      : `<div class="evcc-field-label">${this.escapeHtml(label)}</div>`;
+      : `<div class="evcc-field-label">${label}</div>`;
     return `
       <div class="evcc-metrics-chip-filter${searchable ? " evcc-chip-filter--searchable" : ""}" data-chip-filter-group>
         ${head}
@@ -407,7 +407,7 @@ export function applyMetricsRenderers(proto) {
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(this.tVocabRaw(key, opt.value, opt.title))}"
-            >${this.tVocab(key, opt.value, opt.label)}</button>
+            >${i === 0 ? opt.label : this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -429,7 +429,7 @@ export function applyMetricsRenderers(proto) {
     return `
       <div class="evcc-metrics-stat">
         <div class="evcc-metrics-stat-value">${this.escapeHtml(value)}</div>
-        <div class="evcc-metrics-stat-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-metrics-stat-label">${label}</div>
       </div>
     `;
   };
@@ -445,7 +445,7 @@ export function applyMetricsRenderers(proto) {
     const item = window ?? {};
     return `
       <div class="evcc-metrics-card">
-        <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
+        <div class="evcc-metrics-card-title">${title}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsDuration(item.total_duration_minutes))}</div>
         <div class="evcc-metrics-card-detail">${this.t("metrics.detail_jobs_used", { jobs: Number(item.job_count ?? 0), used: Number(item.learning_used_count ?? 0) })}</div>
         <div class="evcc-metrics-card-secondary">${this.t("metrics.detail_water_recharge", { water: this._formatMetricsMilliliters(item.total_water_used_ml), recharge: Number(item.mid_job_recharge_count ?? 0) })}</div>
@@ -466,7 +466,7 @@ export function applyMetricsRenderers(proto) {
       <div class="evcc-metrics-card">
         <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(value)}</div>
-        ${detail ? `<div class="evcc-metrics-card-detail">${this.escapeHtml(detail)}</div>` : ""}
+        ${detail ? `<div class="evcc-metrics-card-detail">${detail}</div>` : ""}
       </div>
     `;
   };

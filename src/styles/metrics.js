@@ -7,10 +7,16 @@ export const metricsStyles = `
     gap: var(--evcc-grid-gap, 12px);
   }
 
+  /* minmax(0, 1fr), NOT 1fr. 1fr is shorthand for minmax(auto, 1fr) and
+     auto bottoms out at MIN-CONTENT, so one wide descendant cannot be
+     shrunk and the column grows past its own container — measured at 299px
+     wide, this grid resolved a 392px column, overflowing by 94px. The panels
+     themselves are flex containers, so they need the matching min-width: 0
+     below for the same reason one level down. */
   .evcc-metrics-grid {
     display: grid;
     gap: var(--evcc-grid-gap, 12px);
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .evcc-metrics-panel {
@@ -54,7 +60,29 @@ export const metricsStyles = `
   .evcc-metrics-card-grid {
     display: grid;
     gap: 12px;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    /* min(180px, 100%) so a container NARROWER than the track floor gets a
+       column that fits it, instead of a 180px column overflowing a 150px box. */
+    grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  }
+
+  /* German compounds are single unbreakable words -
+     Genauigkeitsstatistikzeilen is 27 characters with no break opportunity, and
+     it overflowed its card by 13px once the grid stopped over-sizing the column
+     and hiding it. anywhere, not break-all: break only when a word genuinely
+     cannot fit, so ordinary prose still wraps at spaces. */
+  .evcc-metrics-card-title,
+  .evcc-metrics-card-detail,
+  .evcc-metrics-card-secondary,
+  .evcc-metrics-panel-subtitle {
+    overflow-wrap: anywhere;
+  }
+
+  .evcc-metrics-panel,
+  .evcc-metrics-stat,
+  .evcc-metrics-card {
+    /* Flex/grid items default to min-width:auto = min-content, which is the
+       other half of the blowout above. */
+    min-width: 0;
   }
 
   .evcc-metrics-stat,
@@ -312,7 +340,7 @@ export const metricsStyles = `
     .evcc-metrics-filters,
     .evcc-metrics-window-grid,
     .evcc-metrics-card-grid {
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 `;
