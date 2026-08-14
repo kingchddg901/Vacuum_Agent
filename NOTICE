@@ -71,3 +71,47 @@ python-roborock — Licensed under the Apache License, Version 2.0
   model identifiers in custom_components/eufy_vacuum/adapters/roborock/
   model_catalog.py are derived, best-effort, from its device catalogue and
   re-grouped for this project's capability model.
+
+
+Bundled fonts
+-------------
+Listed separately from the attributions above because the relationship is a
+different one: nothing here is a borrowed section that was adapted. The font is
+redistributed WHOLE and UNMODIFIED inside the HACS package, so its own licence
+travels with the files and governs them directly.
+
+
+OpenDyslexic — SIL Open Font License, Version 1.1
+
+  Copyright (c) 2019-07-29, Abbie Gonzalez
+    (https://abbiecod.es | support@abbiecod.es),
+    with Reserved Font Name OpenDyslexic.
+  Copyright (c) 12/2012 - 2019
+
+  Upstream: https://opendyslexic.org
+
+  Shipped files:
+    custom_components/eufy_vacuum/frontend/fonts/OpenDyslexic-Regular.woff2
+    custom_components/eufy_vacuum/frontend/fonts/OpenDyslexic-Bold.woff2
+
+  Licence text:
+    custom_components/eufy_vacuum/frontend/fonts/OFL.txt
+
+  THE LICENCE MUST TRAVEL WITH THE FONT. The OFL requires the copyright notice
+  and licence to accompany the Font Software in every distribution. OFL.txt
+  ships beside the woff2 files for exactly that reason and must not be removed
+  from a fork, a repackage, or a derivative — deleting it does not simplify the
+  package, it makes the redistribution non-compliant.
+
+  RESERVED FONT NAME. "OpenDyslexic" is a Reserved Font Name. A MODIFIED
+  version of these files may not be distributed under that name. The files
+  Vacuum Agent ships are unmodified, which is why the name is used here; anyone
+  who changes them must rename before redistributing.
+
+  The OFL also forbids selling the Font Software on its own. Vacuum Agent does
+  not sell it and does not distribute it separately from this project.
+
+  What Vacuum Agent does with it: serves the two files from /eufy_vacuum/fonts
+  and offers the typeface as an accessibility option in the language menu's
+  typeface picker. See src/styles/fonts.js, which carries the same notice at
+  the point of use.

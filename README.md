@@ -326,6 +326,8 @@ Vacuum Agent's Roborock support builds on Home Assistant's built-in [Roborock in
 
 MIT — fork it, adapt it, ship it commercially. You don't need my permission and you don't owe this repository a credit line in your README. MIT's one requirement is that you keep the copyright notice and licence text with the code you reuse. See [LICENSE](LICENSE) for full terms.
 
+**The MIT licence covers this project's own code, not everything in the package.** The install also bundles the **OpenDyslexic** typeface under the [SIL Open Font License 1.1](custom_components/eufy_vacuum/frontend/fonts/OFL.txt), which carries its own requirements: the licence file must travel with the font, "OpenDyslexic" is a Reserved Font Name (a *modified* font may not use it), and the font may not be sold on its own. If you redistribute this integration you are redistributing that font too — keep `frontend/fonts/OFL.txt` in place. Full attribution in [NOTICE](NOTICE).
+
 Beyond the licence, one ask: this project is a top-level addition built on [eufy-clean](https://github.com/jeppesens/eufy-clean). Please keep acknowledging that dependency in anything you build from this.
 
 ## Issues

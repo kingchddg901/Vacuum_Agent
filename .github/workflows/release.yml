@@ -67,6 +67,32 @@ jobs:
           echo "layout OK -- manifest.json at root, domain=$domain"
           unzip -l eufy_vacuum.zip | tail -1
 
+      - name: Assert bundled fonts ship with their licence
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          # The SIL Open Font License REQUIRES its notice to travel with the
+          # font in every distribution. Today the zip takes everything under
+          # custom_components/eufy_vacuum minus __pycache__, so OFL.txt is
+          # included -- but only incidentally. A future exclusion pattern, a
+          # restructure, or a fork trimming "unused" files would ship the font
+          # without its licence and make the release non-compliant, silently.
+          #
+          # Stated as an INVARIANT rather than a file check: if any font ships,
+          # the licence must ship. A release that drops the fonts entirely is a
+          # feature regression, not a licensing one, and this guard correctly
+          # says nothing about it.
+          fonts=$(unzip -l eufy_vacuum.zip | awk '{print $4}' | grep -c '\.woff2$' || true)
+          if [ "$fonts" -gt 0 ]; then
+            if ! unzip -l eufy_vacuum.zip | awk '{print $4}' | grep -qx 'frontend/fonts/OFL.txt'; then
+              echo "::error::$fonts font file(s) ship but frontend/fonts/OFL.txt does not -- the OFL requires the licence to travel with the font. Refusing to upload."
+              unzip -l eufy_vacuum.zip | grep -i -E 'fonts/|\.woff2$' || true
+              exit 1
+            fi
+            echo "font licensing OK -- $fonts woff2 shipped, OFL.txt present"
+          else
+            echo "no fonts in the archive; licence guard not applicable"
+          fi
+
       - name: Attach the release assets
         env:
           GH_TOKEN: ${{ github.token }}
