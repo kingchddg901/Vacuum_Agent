@@ -76,7 +76,7 @@ export function applyThemePreviewRenderers(proto) {
   proto._renderThemePreviewShellTypography = function () {
     return `
       <div class="evcc-theme-preview-grid evcc-theme-preview-grid--shell">
-        <section class="evcc-theme-preview-card evcc-theme-preview-shell-frame">
+        <section class="evcc-theme-preview-card evcc-theme-preview-shell-frame" inert>
           ${this.renderMobileHeader({
             // THE REAL HEADER, not a drawing of one. What stood here was a hero
             // card with a kicker, a marketing heading, body copy, a link and an
@@ -204,7 +204,12 @@ export function applyThemePreviewRenderers(proto) {
   // token edited here moves the preview exactly as it moves the Rooms view.
   proto._themePreviewRoomGrid = function (rooms, state = null) {
     const cards = rooms.map((r) => this.renderRoomCard(r, state)).join("");
-    return '<div class="evcc-room-grid evcc-theme-preview-room-grid">' + cards + '</div>';
+    /* `inert`, not pointer-events: these are REAL room cards and their order
+       chip is bound host-wide (bindings/index.js:237), so without it a click in
+       the preview opens the order selector for a fixture room. inert blocks
+       activation and keeps the specimens out of the tab order, while leaving
+       :hover live for the tokens that exist only in hover rules. */
+    return '<div class="evcc-room-grid evcc-theme-preview-room-grid" inert>' + cards + '</div>';
   };
 
   proto._renderThemePreviewCardsSurfaces = function () {
@@ -260,7 +265,7 @@ export function applyThemePreviewRenderers(proto) {
 
     const cards = FLOOR_TYPES.map(({ key, name }) => this._renderFloorPreviewCard(key, name)).join("");
 
-    return `<div class="evcc-theme-preview-ftx-card-grid">${cards}</div>`;
+    return `<div class="evcc-theme-preview-ftx-card-grid" inert>${cards}</div>`;
   };
 
   proto._renderFloorPreviewCard = function (floorTypeKey, name) {

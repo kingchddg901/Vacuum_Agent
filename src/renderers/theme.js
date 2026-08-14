@@ -318,9 +318,59 @@ export function applyThemeRenderers(proto) {
     `;
   };
 
+  /* COLLAPSIBLE, because this row is the most expensive thing in the frame.
+     At 390px the search box (38px) and the Modified Only toggle do not fit on
+     one line — see the wrap rule in styles/theme.js — so the row costs ~90px,
+     more than the whole category chip band. Collapsed it is a caret.
+
+     The caret CARRIES THE FILTER STATE, and by name rather than by colour.
+     Colour alone would fail twice over: it cannot say WHICH filter is on, and
+     this is a theme editor, so the one channel the user can accidentally paint
+     into invisibility is colour. Text cannot be themed away. The accent tint is
+     reinforcement on top of the label, never the thing carrying the meaning —
+     and it is the accent token, not an error token, because a filter being on
+     is the user doing a normal thing on purpose, not a fault. */
   proto._renderThemeHeader = function (state) {
+    const query = state.tokenSearchQuery || "";
+    const reason = query
+      ? { kind: "search", value: query }
+      : state.modifiedOnly
+        ? { kind: "modified", value: "" }
+        : null;
+
+    const badge = reason
+      ? `<span class="evcc-theme-filter-badge">${
+          reason.kind === "search"
+            ? this.escapeHtml(reason.value)
+            : this.t("theme.modified_only")
+        }</span>`
+      : "";
+
+    /* One control, one place, both states — the caret does not move when the
+       row opens, so it never has to be re-found. */
+    const toggle = `
+      <button
+        type="button"
+        class="evcc-theme-search-toggle"
+        data-theme-search-toggle
+        aria-expanded="${state.searchCollapsed ? "false" : "true"}"
+        aria-label="${this.t("theme.search_toggle")}"
+      >
+        <ha-icon icon="${
+          state.searchCollapsed ? "mdi:chevron-down" : "mdi:chevron-up"
+        }"></ha-icon>
+        ${state.searchCollapsed ? badge : ""}
+      </button>
+    `;
+
+    if (state.searchCollapsed) {
+      return `<div class="evcc-theme-header evcc-theme-header--collapsed">${toggle}</div>`;
+    }
+
     return `
       <div class="evcc-theme-header">
+        ${toggle}
+
         <div class="evcc-search-box">
           <ha-icon icon="mdi:magnify"></ha-icon>
           <input

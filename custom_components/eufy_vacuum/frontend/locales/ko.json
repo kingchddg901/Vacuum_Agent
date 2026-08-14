@@ -1372,6 +1372,7 @@
     "presets_no_match": "이 필터와 일치하는 테마가 없습니다.",
     "save_as_new": "새로 저장",
     "save_changes": "변경 사항 저장",
+    "search_toggle": "검색 및 필터",
     "search_themes_placeholder": "테마 검색...",
     "search_tokens_placeholder": "토큰 검색...",
     "tab_palette": "팔레트",

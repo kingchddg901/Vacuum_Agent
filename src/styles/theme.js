@@ -41,6 +41,79 @@ export const themeStyles = `
     flex-wrap: wrap;
   }
 
+  /* Collapsed: the caret alone. No gap and no padding to pay for, because
+     there is nothing beside it to be separated from. */
+  .evcc-theme-header--collapsed {
+    gap: 0;
+    padding: 0;
+  }
+
+  /* A hairline of caret, a thumb's worth of target.
+
+     The padding below sizes it to 36px, and on DESKTOP that is what it is. On
+     mobile it lands at 44px, and not from here: styles/mobile.js:831 puts a
+     44px floor under every button in the view stage, with an explicit exception
+     list this is deliberately not joining. A collapse control that saves
+     vertical space by being too small to hit has not saved anything, and the
+     floor is the codebase's existing answer to exactly that. */
+  .evcc-theme-search-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 8px 4px;
+    border: none;
+    border-radius: var(--evcc-radius-inner);
+    background: transparent;
+    color: var(--evcc-text-secondary);
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .evcc-theme-header:not(.evcc-theme-header--collapsed)
+    .evcc-theme-search-toggle {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  /* display:block is load-bearing, not tidiness. width/height do not apply to
+     an INLINE box, and ha-icon is inline wherever the element is undefined —
+     which is every render harness, since ha-icon is a Home Assistant component.
+     Without this the icon ignores its 20px and the caret is sized by the
+     button's line box instead: measured 44px against a designed 36px. */
+  .evcc-theme-search-toggle ha-icon {
+    --mdc-icon-size: 20px;
+    display: block;
+    width: 20px;
+    height: 20px;
+  }
+
+  .evcc-theme-search-toggle:hover {
+    color: var(--evcc-text-primary);
+  }
+
+  /* THE FILTER, BY NAME. Collapsing must never hide the reason the token list
+     is short — a user hunting a token that is being filtered away needs to see
+     what to switch off, and "which filter" is a question colour cannot answer.
+     The accent tint reinforces; the text is what carries it. Accent and not an
+     error token: filtering is a deliberate, normal act, not a fault, and
+     spending the error colour on it devalues the error colour everywhere. */
+  .evcc-theme-filter-badge {
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid
+      color-mix(in srgb, var(--evcc-accent) 45%, transparent);
+    background: color-mix(in srgb, var(--evcc-accent) 14%, transparent);
+    color: var(--evcc-accent);
+    font-size: 0.7rem;
+    font-weight: 600;
+  }
+
   .evcc-search-box {
     position: relative;
     flex: 1;

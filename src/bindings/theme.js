@@ -595,6 +595,14 @@ export function applyThemeBindings(proto) {
       this._autoOpenMatchingThemeGroups();
       this.card._scheduleRender();
     });
+
+    /* Chrome only — collapsing changes what is on screen, never what is in the
+       token list. A filter left running stays running, and the caret says so. */
+    this.card._on(this.card.$("[data-theme-search-toggle]"), "click", () => {
+      const state = this.card._state._ensureThemeState();
+      this.card._state.setThemeSearchCollapsed(!state.searchCollapsed);
+      this.card._scheduleRender();
+    });
   };
 
   /* =========================================================

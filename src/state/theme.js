@@ -190,6 +190,17 @@ export function applyThemeState(proto) {
 
         modifiedOnly: false,
 
+        /* The search + Modified Only row collapses to a caret. On a 390px phone
+           that row wraps to two lines and costs ~90px — more than the entire
+           category chip band — so it starts collapsed there and expanded on
+           desktop, where the space is free. A DEFAULT, not a lock: toggling is
+           one tap and the choice is respected for the rest of the session.
+
+           Ephemeral, like every other field here. Nothing about the editor's
+           chrome belongs in persisted user data. */
+        searchCollapsed:
+          typeof window !== "undefined" && window.innerWidth <= 600,
+
         /* Preset (theme) facet filter + search — mirrors the Pages gallery,
            driven by the shared src/theme-tags core. `_presetTags` is a lazy
            cache (id -> derived tags) invalidated whenever the library changes. */
@@ -494,6 +505,10 @@ export function applyThemeState(proto) {
 
   proto.setThemeModifiedOnly = function (enabled) {
     this._ensureThemeState().modifiedOnly = !!enabled;
+  };
+
+  proto.setThemeSearchCollapsed = function (collapsed) {
+    this._ensureThemeState().searchCollapsed = !!collapsed;
   };
 
   proto.setSelectedTheme = function (themeId) {

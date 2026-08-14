@@ -1372,6 +1372,7 @@
     "presets_no_match": "これらの絞り込み条件に一致するテーマはありません。",
     "save_as_new": "新規として保存",
     "save_changes": "変更を保存",
+    "search_toggle": "検索とフィルター",
     "search_themes_placeholder": "テーマを検索...",
     "search_tokens_placeholder": "トークンを検索...",
     "tab_palette": "パレット",

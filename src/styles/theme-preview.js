@@ -347,6 +347,57 @@ export const themePreviewStyles = `
     pointer-events: none;
   }
 
+  /* HOVER STATES ARE REAL STATES, and some tokens live nowhere else.
+
+     --evcc-border-strong has SIX consumers and every one of them is a :hover
+     rule (rooms.js:352, foundation.js:105, maintenance.js:316, map.js:1802,
+     theme.js:339; the sixth, modals.js:382, reaches it only as a third-level
+     fallback). A preview that renders the product truthfully therefore cannot
+     show it standing still — so on a device with a real pointer, let the
+     specimen be hovered and the product's own :hover rules do the work. No
+     forced-state class, so nothing to duplicate and nothing to drift.
+
+     Gated on (hover: hover) and (pointer: fine) for two reasons. A touch device
+     has no hover, so the token genuinely does not render there either and the
+     omission is honest rather than a gap. And it sidesteps mobile sticky-hover,
+     where tapping a card would pin it in the hovered state until you tapped
+     something else.
+
+     ACTIONS stay blocked by the inert attribute on the containers in the
+     renderer, NOT by this rule: the specimens are real room cards, and
+     data-action="open-order-selector" is bound host-wide at
+     bindings/index.js:237 — so these cards carry a live handler, and
+     pointer-events was the only thing holding it. inert blocks activation and
+     tab-stops while leaving :hover alone, which is exactly the line wanted here:
+     states yes, actions no. */
+  @media (hover: hover) and (pointer: fine) {
+    .evcc-theme-preview-ftx-card-grid,
+    .evcc-theme-preview-room-grid,
+    .evcc-theme-preview-shell-frame {
+      pointer-events: auto;
+    }
+  }
+
+  /* A SPECIMEN MUST NOT STACK AGAINST THE APP IT IS A PICTURE OF.
+
+     The shell preview renders the REAL mobile header, and that header is
+     position:sticky / z-index:9 (styles/mobile.js:75) — deliberately, so its
+     language dropdown stacks above the view-stage. Rendered as a specimen the
+     header brings that z-index with it, but now INSIDE the view-stage: two
+     elements at z-index 9, and the specimen wins on DOM order. The visible
+     result was the preview card painting on top of the real language menu.
+
+     isolation:isolate makes each frame its own stacking context, so a
+     descendant's z-index is spent INSIDE the frame and can never compete with
+     the app around it. Fixing the class rather than this one header: any
+     specimen that renders a real positioned component has the same defect
+     waiting, and the property is a no-op wherever nothing stacks. */
+  .evcc-theme-preview-ftx-card-grid,
+  .evcc-theme-preview-room-grid,
+  .evcc-theme-preview-shell-frame {
+    isolation: isolate;
+  }
+
   .evcc-theme-preview-order-chip,
   .evcc-theme-preview-room-order {
     background: var(--evcc-order-chip-bg, var(--evcc-queue-order-bg, rgba(255, 255, 255, 0.06)));

@@ -2325,6 +2325,7 @@
     "save_as_new": "Save as New",
     "save_changes": "Save Changes",
     "search_themes_placeholder": "Search themes...",
+    "search_toggle": "Search and filter",  // accessible name for the caret that collapses/expands the token search row; state is carried by aria-expanded, so this label stays constant in both directions
     "search_tokens_placeholder": "Search tokens...",
     "tab_palette": "Palette",
     "tab_themes": "Themes",

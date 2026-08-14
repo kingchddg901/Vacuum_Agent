@@ -1675,6 +1675,7 @@ export const en = {
   "theme.save_as_new": "Save as New",
   "theme.save_changes": "Save Changes",
   "theme.search_themes_placeholder": "Search themes...",
+  "theme.search_toggle": "Search and filter",  // accessible name for the caret that collapses/expands the token search row; state is carried by aria-expanded, so this label stays constant in both directions
   "theme.search_tokens_placeholder": "Search tokens...",
   "theme.tab_palette": "Palette",
   "theme.tab_themes": "Themes",
