@@ -11736,6 +11736,11 @@ ${r}
     margin-bottom: 4px;
     flex-shrink: 0;
     height: 4.6rem;
+    /* Same trap as the editor scrollbox: overflow-y alone computes overflow-x
+       to auto. The chips wrap so they should never overflow sideways, but a
+       long unbreakable group name in some locale would otherwise turn this
+       band into a horizontal scroller too. */
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -12192,6 +12197,13 @@ ${r}
     flex: 1 1 auto;
     height: 0;
     min-height: 0;
+    /* EXPLICIT, because the default is not what it looks like: when one axis
+       is non-visible CSS computes the other to auto, so overflow-y alone
+       quietly made this pane HORIZONTALLY SCROLLABLE. A long ru hint then did
+       not clip \u2014 it let the whole editor be dragged sideways, taking the group
+       header and search box off screen with it. This is a vertical scroller;
+       say so. */
+    overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
@@ -12369,12 +12381,25 @@ ${r}
 
      If it must read in full, shorten the STRING for that locale. Do not
      remove the nowrap. */
+  /* The note above says this CLIPS. It did not \u2014 nowrap alone only makes the
+     box wider than its parent, and nothing here cut it off. In ru at a larger
+     type size the tail ran past the card and the editor pane could be DRAGGED
+     SIDEWAYS (see the overflow-x note on the scrollbox). Reported as "it's not
+     clipping".
+
+     min-width: 0 is the load-bearing part: this is a flex item, and a flex
+     item's default min-width:auto refuses to shrink below its content, so
+     text-overflow can never engage without it. Ellipsis rather than a hard cut
+     so a truncated hint reads as truncated. */
   .token-hint {
     margin-inline-start: auto;
+    min-width: 0;
     font-size: 0.7rem;
     color: var(--evcc-text-muted, rgba(255,255,255,0.6));
     opacity: 0.8;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   /* =========================================================
